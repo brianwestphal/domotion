@@ -121,7 +121,7 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Detect color-emoji runs at capture time so they route to the raster fallback, not glyph paths.",
     doc: "docs/reference/raster-image-fallback-cases.md",
     exports: [],
-    tests: ["src/capture/emoji.test.ts", "src/capture/script/emoji-detect.test.ts"],
+    tests: ["src/capture/emoji.test.ts", "packages/text-engine/src/capture/script/emoji-detect.test.ts"],
   },
   {
     id: "capture.inline-svg-projective-owner",
@@ -427,12 +427,12 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Embedded-font mode collects @font-face CSS across a render; cleared between generations.",
     doc: "docs/ai/code-summary.md",
     exports: ["getEmbeddedFontFaceCss", "clearEmbeddedFonts"],
-    tests: ["src/render/embedded-font-builder.test.ts"],
+    tests: ["packages/text-engine/src/render/embedded-font-builder.test.ts"],
     transition:
       "clear → per-run registration accumulates → getEmbeddedFontFaceCss emits once → clearEmbeddedFonts resets.",
     transitionEvidence: [
       {
-        test: "src/render/embedded-font-builder.test.ts",
+        test: "packages/text-engine/src/render/embedded-font-builder.test.ts",
         title: "accumulates one generation, emits it once, and resets before the next generation",
       },
     ],
@@ -447,7 +447,10 @@ export const FEATURES: FeatureEntry[] = [
     behavior:
       "Snapshot/restore rolls the shared font + glyph-def registries back so a discarded speculative compose leaves the real output byte-identical.",
     doc: "docs/99-hinted-embedded-subset.md",
-    tests: ["src/render/embedded-font-snapshot.test.ts"],
+    tests: [
+      "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
+      "src/render/embedded-font-snapshot.test.ts",
+    ],
     transition:
       "populated → snapshot → speculative compose (different PUA/dmfN/gN allocation, possibly a clear) → restore → recompose yields the SAME bytes; nested snapshot/snapshot/restore/restore unwinds to each marker; markers are reusable and never throw on an empty builder.",
     transitionEvidence: [
@@ -456,11 +459,11 @@ export const FEATURES: FeatureEntry[] = [
         title: "composes → speculates → rolls back → recomposes to the same bytes",
       },
       {
-        test: "src/render/embedded-font-snapshot.test.ts",
+        test: "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
         title: "nests: take, take, restore, restore unwinds to each marker in turn",
       },
       {
-        test: "src/render/embedded-font-snapshot.test.ts",
+        test: "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
         title: "never throws on an empty / never-used builder, or on a repeated restore",
       },
     ],
@@ -472,7 +475,11 @@ export const FEATURES: FeatureEntry[] = [
     behavior: "Register + clear discovered webfonts (unicode-range subsetting, cross-origin fetch).",
     doc: "docs/03-font-family-chain.md",
     exports: ["registerWebfont", "clearWebfonts"],
-    tests: ["src/webfont-unicode-range.test.ts", "src/cross-origin-font-face.test.ts"],
+    tests: [
+      "packages/text-engine/src/render/webfont-unicode-range.test.ts",
+      "src/webfont-unicode-range.test.ts",
+      "src/cross-origin-font-face.test.ts",
+    ],
   },
   {
     id: "fonts.glyph-helper",

@@ -9,8 +9,9 @@ tickets: ["DM-2623", "DM-2626", "DM-2627", "DM-2632", "DM-2643", "DM-2652", "DM-
 code:
   [
     ".github/workflows/visual-tests.yml",
-    "src/render/embedded-font-builder.test.ts",
+    "packages/text-engine/src/render/embedded-font-builder.test.ts",
     "packages/text-engine/src/render/embedded-font-builder.ts",
+    "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
     "src/render/embedded-font-snapshot.test.ts",
     "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
@@ -20,10 +21,10 @@ code:
     "packages/text-engine/src/render/glyph-helper-protocol.ts",
     "packages/text-engine/src/render/glyph-helper-transport.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
-    "src/render/hb-subset.test.ts",
+    "packages/text-engine/src/render/hb-subset.test.ts",
     "packages/text-engine/src/render/hb-subset.ts",
     "packages/text-engine/src/render/linux-target-strike.ts",
-    "src/render/synth-test-fonts.ts",
+    "packages/text-engine/src/render/synth-test-fonts.ts",
     "packages/text-engine/src/render/text-to-path.test.ts",
     "packages/text-engine/src/render/text-to-path.ts",
     "tests/linux-target-strike-small-caps.e2e.test.ts",
@@ -306,11 +307,12 @@ heuristic, which needs to compose each candidate for real (see doc 100's
 independent-region design notes). This capability is the render-layer half only;
 it does not itself make that choice.
 
-Coverage: `src/render/embedded-font-snapshot.test.ts`, whose bar is byte
-identity — compose, then snapshot → compose a variant that allocates different
-PUA codepoints and family names → restore → recompose, asserting the two are
-byte-identical, at both the `@font-face` CSS level and through a real
-`elementTreeToSvg` render. Each byte-identity case is paired with an assertion
+Coverage: `packages/text-engine/src/render/embedded-font-snapshot.test.ts`
+(the builder transaction, at the `@font-face` CSS level) and
+`src/render/embedded-font-snapshot.test.ts` (through a real `elementTreeToSvg`
+render), whose bar is byte identity — compose, then snapshot → compose a variant
+that allocates different PUA codepoints and family names → restore → recompose,
+asserting the two are byte-identical. Each byte-identity case is paired with an assertion
 that the same sequence WITHOUT the restore produces different bytes, so the
 test cannot quietly become vacuous.
 
@@ -355,9 +357,9 @@ addressing, TTC faceIndex resolution — see the git history for the details).
 
 ## Test coverage
 
-`src/render/hb-subset.test.ts` + the hinted-branch cases in
-`src/render/embedded-font-builder.test.ts` run against fonts **synthesized from
-scratch** (`src/render/synth-test-fonts.ts`): a static hinted TTF with known
+`packages/text-engine/src/render/hb-subset.test.ts` + the hinted-branch cases in
+`packages/text-engine/src/render/embedded-font-builder.test.ts` run against fonts **synthesized from
+scratch** (`packages/text-engine/src/render/synth-test-fonts.ts`): a static hinted TTF with known
 `cvt `/`fpgm`/`prep` contents and per-glyph instruction bytecode, a variable
 variant (`fvar` wght 100..400..900 + `gvar` deltas with known magnitudes), and
 a `ttcf` wrapper. This keeps the tests platform-independent (no

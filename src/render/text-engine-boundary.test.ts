@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("Domotion text-engine integration boundary", () => {
@@ -73,6 +73,47 @@ describe("Domotion text-engine integration boundary", () => {
       const stem = subpath === "." ? "index" : subpath.slice(2);
       expect(target).toEqual({ types: `./dist/${stem}.d.ts`, default: `./dist/${stem}.js` });
     }
+  });
+
+  // Tests of engine-only logic live in the workspace and import its modules
+  // directly, so `./testing` carries only hooks a root oracle, root tool or
+  // root test still imports. A hook nothing in the root imports means a test
+  // moved into the workspace and the hook should have gone with it; a new root
+  // import of a hook means the test importing it probably belongs there too.
+  it("keeps ./testing to the hooks root tests and tools still import", () => {
+    const named = (block: string): string[] =>
+      block
+        .split(",")
+        .map((part) =>
+          part
+            .trim()
+            .replace(/^type\s+/, "")
+            .split(/\s+as\s+/)[0]
+            .trim(),
+        )
+        .filter((name) => name !== "");
+    const entry = readFileSync(new URL("../../packages/text-engine/src/testing.ts", import.meta.url), "utf8");
+    const exported = new Set([...entry.matchAll(/export\s*\{([^}]*)\}/g)].flatMap((m) => named(m[1])));
+    const imported = new Set<string>();
+    const walk = (dir: URL): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          if (!["node_modules", "scratch", "output", "cache"].includes(entry.name))
+            walk(new URL(`${entry.name}/`, dir));
+          continue;
+        }
+        if (!/\.(ts|tsx|mts|mjs|js|cjs)$/.test(entry.name) || entry.name === "text-engine-boundary.test.ts") continue;
+        const source = readFileSync(new URL(entry.name, dir), "utf8");
+        for (const m of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']@domotion\/text-engine\/testing["']/g)) {
+          for (const name of named(m[1])) imported.add(name);
+        }
+      }
+    };
+    for (const root of ["src", "tests", "tools", "scripts", "examples"]) {
+      const dir = new URL(`../../${root}/`, import.meta.url);
+      if (existsSync(dir)) walk(dir);
+    }
+    expect([...imported].sort()).toEqual([...exported].sort());
   });
 
   it("keeps every root adapter an explicit re-export of a public entry point", () => {

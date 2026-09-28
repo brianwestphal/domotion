@@ -10,6 +10,7 @@ code:
   [
     "src/animation/compressed-run.ts",
     "src/cli/animate.ts",
+    "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
     "src/render/embedded-font-snapshot.test.ts",
     "tests/compress-size-guard.e2e.test.ts",
   ]
@@ -162,8 +163,10 @@ on the two-pane fixture. N-region scenes do N + O(1) composes; the search is not
   state via `expectFlipbookParity`, and is **byte-identical when re-composed**
   (the snapshot/restore leaves no trace).
 - All 26 animate goldens stay byte-identical (no golden trips the guard).
-- `src/render/embedded-font-snapshot.test.ts` — the underlying byte-identity of
-  `snapshotGeneration()` / `restoreGeneration()` (DM-1771).
+- `packages/text-engine/src/render/embedded-font-snapshot.test.ts` and
+  `src/render/embedded-font-snapshot.test.ts` — the underlying byte-identity of
+  `snapshotGeneration()` / `restoreGeneration()` (DM-1771), at the builder level
+  and through a real `elementTreeToSvg` render respectively.
 
 See also `docs/100-rich-text-editing.md` (the compressor + regions),
 `docs/43-declarative-animate-config.md` (`autoCompress` / `compress` config), and

@@ -4,7 +4,4 @@ export {
   type EmbeddedFontBuildDiagnostic,
   getBuiltEmbeddedFontFaceCss,
   getEmbeddedFontBuildDiagnostics,
-  restoreEmbeddedFonts,
-  snapshotEmbeddedFonts,
-  trackGlyphInEmbedFont,
 } from "@domotion/text-engine/font-resolution";

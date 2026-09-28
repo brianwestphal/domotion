@@ -126,7 +126,7 @@ byte-identical to the one-shot response for the same envelope.
 
 ## Tests
 
-`tests/win32-glyph-extractor.test.ts` (vitest) asserts the helper's outlines
+`packages/text-engine/src/render/win32-glyph-extractor.test.ts` (vitest) asserts the helper's outlines
 match fontkit command-for-command on Arial `H` (line mapping + the y-flip) and a
 Cambria Math glyph. It also requires Segoe UI Emoji U+1F600 to report COLR by
 codepoint and by selected gid despite its base outline, with ordinary `#` in the

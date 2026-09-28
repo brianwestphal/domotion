@@ -21,15 +21,7 @@ import * as fontkit from "fontkit";
 // rather than an exact command-for-command match.
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HELPER = path.resolve(
-  HERE,
-  "..",
-  "packages",
-  "text-engine",
-  "tools",
-  "win32-glyph-extractor",
-  "domotion-glyph-paths.exe",
-);
+const HELPER = path.resolve(HERE, "..", "..", "tools", "win32-glyph-extractor", "domotion-glyph-paths.exe");
 
 const helperAvailable = process.platform === "win32" && existsSync(HELPER);
 const describeHelper = helperAvailable ? describe : describe.skip;

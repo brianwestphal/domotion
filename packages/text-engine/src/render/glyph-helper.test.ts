@@ -161,7 +161,7 @@ describe("platform-aware helper resolution", () => {
 // engine-agnostic `createGlyphHelperFont` wrapper consumes its output. Runs only
 // on Linux with the in-tree binary built (skipped elsewhere, so inert on
 // macOS/Windows CI). The binary-level FreeType parity is covered separately by
-// tests/linux-glyph-extractor.test.ts; this asserts the JS dispatch path.
+// packages/text-engine/src/render/linux-glyph-extractor.test.ts; this asserts the JS dispatch path.
 const LINUX_HELPER = __helperBinaryForPlatform("linux");
 const linuxDispatchAvailable = process.platform === "linux" && LINUX_HELPER != null && existsSync(LINUX_HELPER);
 const describeLinux = linuxDispatchAvailable ? describe : describe.skip;

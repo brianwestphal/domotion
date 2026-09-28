@@ -10,25 +10,13 @@ export {
   type SkiaFakeBoldPaintStage,
 } from "./render/embolden-outline.js";
 export { type SourcePriorityItem, sourcePriorityItems } from "./render/emoji-presentation-priority.js";
-export { featureListNeedsHbShaping } from "./render/font-features.js";
 export {
   harfbuzzGlyphQuery,
   harfbuzzShapeRun,
-  makeHarfbuzzShapingInstance,
   registerHbBufferSource,
   type ShapeResult,
 } from "./render/harfbuzz-shaper.js";
-export {
-  appendGlyphCopy,
-  compactGlyphIds,
-  compactRetainedGlyphIds,
-  getHbSubsetAttemptDiagnostics,
-  hbSubsetRetainGids,
-  injectPuaCmap,
-  resetHbSubsetAttemptDiagnostics,
-  resetHbSubsetWasmInstance,
-  sfntHasSubsettableOutlines,
-} from "./render/hb-subset.js";
+export { hbSubsetRetainGids, injectPuaCmap } from "./render/hb-subset.js";
 export { bidiLevelsFor, type BidiParagraphContext, segmentForShaping } from "./render/script-segmentation.js";
 export {
   visualTextOnlyHiddenAttr,

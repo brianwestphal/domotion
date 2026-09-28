@@ -12,7 +12,6 @@ import {
   resolveFontVariantAlternates,
   resolveFontVariantFeatures,
 } from "./text.js";
-import { featureListNeedsHbShaping } from "./font-features.js";
 import { setRenderTextMode } from "./text-to-path.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -544,13 +543,13 @@ describe("resolveFontVariantFeatures (DM-1117)", () => {
     ).toBeUndefined();
   });
 
-  // `-kern` is a HarfBuzz-only disable — the routing predicate must see it.
-  it("font-kerning: none routes the run through HarfBuzz shaping", () => {
-    expect(
-      featureListNeedsHbShaping(
-        resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "none"),
-      ),
-    ).toBe(true);
+  // `-kern` is a HarfBuzz-only disable, so the engine routes the run through
+  // HarfBuzz shaping (`featureListNeedsHbShaping`, pinned for a lone `-kern` in
+  // packages/text-engine/src/render/font-features.test.ts).
+  it("font-kerning: none resolves to the HarfBuzz-only -kern disable", () => {
+    expect(resolveFontVariantFeatures(undefined, undefined, undefined, undefined, undefined, "none")).toContain(
+      "-kern",
+    );
   });
 
   // `FontFeatureRange::FromFontDescription`, `font_features.cc:230-239`, rev

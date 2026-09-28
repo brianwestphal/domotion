@@ -10,11 +10,11 @@ tickets:
 code:
   [
     "src/capture/emoji.ts",
-    "src/capture/script/emoji-detect.test.ts",
+    "packages/text-engine/src/capture/script/emoji-detect.test.ts",
     "packages/text-engine/src/capture/script/emoji-detect.ts",
     "packages/text-engine/src/render/emoji-raster-kind.test.ts",
     "packages/text-engine/src/render/text-to-path.test.ts",
-    "tests/win32-glyph-extractor.test.ts",
+    "packages/text-engine/src/render/win32-glyph-extractor.test.ts",
     "tools/font-palette-ownership-audit.ts",
   ]
 aliases: ["docs/15-color-emoji-rendering.md", "doc-15"]
@@ -207,10 +207,10 @@ vectorize COLR paint.
 
 - `tests/output/html-test/20-font-family.html` `.s12` row exercises the typical case (😀 🚀 ✨ — three single-codepoint emoji from different blocks). Visual regression at 16px shows actual closely matches expected with sharper details than Chrome's 1× paint due to 64-ppem supersampling.
 - `packages/text-engine/src/render/text-to-path.test.ts` `Selected raster glyphs suppress vector emission` locks output ownership for U+2728 / U+1F600 / U+1F680 / mixed Smile 😀 runs.
-- `src/capture/script/emoji-detect.test.ts` mutation-covers the pinned sequence
+- `packages/text-engine/src/capture/script/emoji-detect.test.ts` mutation-covers the pinned sequence
   grammar; `packages/text-engine/src/render/emoji-raster-kind.test.ts` covers mixed faces and every
   complete/incomplete color-table form plus the per-glyph marker movement
-  control; `tests/win32-glyph-extractor.test.ts` proves selected Segoe UI Emoji
+  control; `packages/text-engine/src/render/win32-glyph-extractor.test.ts` proves selected Segoe UI Emoji
   gids carry COLR ownership while an ordinary glyph in the same face does not.
   The Alchemical Symbols and raster content browser tests prove negative and
   positive production activation.

@@ -11,9 +11,6 @@ export {
   type EmbeddedFontBuildDiagnostic,
   getBuiltEmbeddedFontFaceCss,
   getEmbeddedFontBuildDiagnostics,
-  restoreEmbeddedFonts,
-  snapshotEmbeddedFonts,
-  trackGlyphInEmbedFont,
 } from "./render/embedded-font-builder.js";
 export {
   beginCharacterFallbackDocument,

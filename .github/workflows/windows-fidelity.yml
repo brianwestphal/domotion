@@ -234,7 +234,7 @@ jobs:
           '{"fonts":[{"ref":"f","fontPath":"C:\\Windows\\Fonts\\arial.ttf","size":2048}],"queries":[{"type":"meta","fontRef":"f"},{"type":"glyphs","fontRef":"f","glyphs":[{"cp":72}]}]}' `
             | ./packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe
       - name: Run the fontkit-parity test
-        run: npx vitest run tests/win32-glyph-extractor.test.ts
+        run: npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/win32-glyph-extractor.test.ts
 
   # DM-987: re-run the per-Unicode-block DirectWrite font-routing sweep and upload
   # the JSON as an artifact, so a contributor without a Windows box can refresh

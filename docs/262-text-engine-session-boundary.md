@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-4CN6YM", "DM-A1KCSY", "DM-DS8AGC"]
+tickets: ["DM-4CN6YM", "DM-A1KCSY", "DM-DS8AGC", "DM-7GC0MM"]
 code:
   [
     "packages/text-engine/package.json",
@@ -18,6 +18,7 @@ code:
     "packages/text-engine/src/format.ts",
     "packages/text-engine/src/diagnostics.ts",
     "packages/text-engine/src/testing.ts",
+    "packages/text-engine/src/render/synth-test-fonts.ts",
     "packages/text-engine/src/render/text-engine.ts",
     "packages/text-engine/src/render/text-engine.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
@@ -51,6 +52,22 @@ implementation; none may use `export *`, and production root code may not
 import `./testing` (`src/render/text-engine-boundary.test.ts` and
 `tests/conventions.test.ts` enforce both, plus the ban on relative imports into
 `packages/text-engine/{src,dist}`).
+
+The entry points are sized to what root production code and the root oracles
+under `tools/` actually import, not to what tests of engine logic would find
+convenient. A test that exercises only engine modules lives in the workspace
+(`packages/text-engine/src/**/*.test.ts`, run by
+`npm test --workspace @domotion/text-engine` on macOS and Linux CI) and imports
+those modules directly; that includes the native-helper parity tests
+(`packages/text-engine/src/render/{linux,win32}-glyph-extractor.test.ts`) and the
+synthetic-font builder they share (`packages/text-engine/src/render/synth-test-fonts.ts`).
+A root test stays in the root only when it also needs root infrastructure — a
+captured tree rendered through `elementTreeToSvg`, the root capture layer, a
+Playwright browser, or a root oracle under `tools/` — and then splits so its
+engine-only cases move (for example the root and workspace halves of
+`embedded-font-snapshot.test.ts`, `font-family-stack.test.ts`, and
+`webfont-unicode-range.test.ts`). `./testing` therefore carries only hooks a
+root tool or root test still needs.
 
 Resolution and shaping intentionally remain together. The shaped-cluster
 fallback loop alternates between candidate selection, shaping, `.notdef`

@@ -238,11 +238,11 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/emoji.ts",
-        "src/capture/script/emoji-detect.test.ts",
+        "packages/text-engine/src/capture/script/emoji-detect.test.ts",
         "packages/text-engine/src/capture/script/emoji-detect.ts",
         "packages/text-engine/src/render/emoji-raster-kind.test.ts",
         "packages/text-engine/src/render/text-to-path.test.ts",
-        "tests/win32-glyph-extractor.test.ts",
+        "packages/text-engine/src/render/win32-glyph-extractor.test.ts",
         "tools/font-palette-ownership-audit.ts"
       ],
       "file": "15-color-emoji-rendering.md"
@@ -457,7 +457,11 @@
       "status": "current",
       "owners": ["text-fonts"],
       "platforms": [],
-      "code": ["packages/text-engine/src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"],
+      "code": [
+        "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/webfont-unicode-range.test.ts",
+        "src/webfont-unicode-range.test.ts"
+      ],
       "file": "30-webfont-unicode-range.md"
     },
     {
@@ -605,7 +609,7 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "packages/text-engine/src/render/glyph-helper.ts",
-        "tests/win32-glyph-extractor.test.ts",
+        "packages/text-engine/src/render/win32-glyph-extractor.test.ts",
         "packages/text-engine/tools/win32-glyph-extractor/",
         "packages/text-engine/tools/win32-glyph-extractor/build.ps1"
       ],
@@ -684,7 +688,7 @@
         "packages/text-engine/src/render/glyph-helper.ts",
         "packages/text-engine/src/render/helper-acquire.ts",
         "packages/text-engine/src/render/text-to-path.ts",
-        "tests/linux-glyph-extractor.test.ts",
+        "packages/text-engine/src/render/linux-glyph-extractor.test.ts",
         "tests/linux-target-strike-small-caps.e2e.test.ts",
         "packages/text-engine/tools/linux-glyph-extractor/",
         "packages/text-engine/tools/linux-glyph-extractor/CMakeLists.txt",
@@ -1534,8 +1538,9 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         ".github/workflows/visual-tests.yml",
-        "src/render/embedded-font-builder.test.ts",
+        "packages/text-engine/src/render/embedded-font-builder.test.ts",
         "packages/text-engine/src/render/embedded-font-builder.ts",
+        "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
         "src/render/embedded-font-snapshot.test.ts",
         "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
         "packages/text-engine/src/render/font-resolution.ts",
@@ -1545,10 +1550,10 @@
         "packages/text-engine/src/render/glyph-helper-protocol.ts",
         "packages/text-engine/src/render/glyph-helper-transport.ts",
         "packages/text-engine/src/render/glyph-helper.ts",
-        "src/render/hb-subset.test.ts",
+        "packages/text-engine/src/render/hb-subset.test.ts",
         "packages/text-engine/src/render/hb-subset.ts",
         "packages/text-engine/src/render/linux-target-strike.ts",
-        "src/render/synth-test-fonts.ts",
+        "packages/text-engine/src/render/synth-test-fonts.ts",
         "packages/text-engine/src/render/text-to-path.test.ts",
         "packages/text-engine/src/render/text-to-path.ts",
         "tests/linux-target-strike-small-caps.e2e.test.ts",
@@ -1644,6 +1649,7 @@
       "code": [
         "src/animation/compressed-run.ts",
         "src/cli/animate.ts",
+        "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
         "src/render/embedded-font-snapshot.test.ts",
         "tests/compress-size-guard.e2e.test.ts"
       ],
@@ -3253,6 +3259,7 @@
       "platforms": [],
       "code": [
         "src/font-family-stack.test.ts",
+        "packages/text-engine/src/font-family-stack.test.ts",
         "packages/text-engine/src/font-family-stack.ts",
         "tests/font-family-stack-capture.e2e.test.ts"
       ],
@@ -3960,6 +3967,7 @@
         "packages/text-engine/src/format.ts",
         "packages/text-engine/src/diagnostics.ts",
         "packages/text-engine/src/testing.ts",
+        "packages/text-engine/src/render/synth-test-fonts.ts",
         "packages/text-engine/src/render/text-engine.ts",
         "packages/text-engine/src/render/text-engine.test.ts",
         "packages/text-engine/src/render/font-resolution.ts",

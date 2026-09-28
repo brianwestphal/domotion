@@ -5,9 +5,8 @@
  * free of Node built-ins, because the capture script is bundled for the browser
  * and `evaluate()`d in the captured page.
  */
-export { createEmojiDetect, scanEmojiPresentation } from "./capture/script/emoji-detect.js";
+export { createEmojiDetect } from "./capture/script/emoji-detect.js";
 export {
-  blinkGenericFamilyFromEntries,
   capturedFontFamilyCss,
   type CapturedFontFamilyStack,
   captureFontFamilyStack,

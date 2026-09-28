@@ -1,15 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import {
-  __resolveSystemFallbackKeyForCpForTest,
-  __skiaLastResortKeysForTest,
-  __systemFallbackKeyCacheSizeForTest,
-  withHostPlatform,
-} from "@domotion/text-engine/testing";
+import { __skiaLastResortKeysForTest } from "@domotion/text-engine/testing";
 import {
   blinkGenericFamilyFromDeclaredStack,
-  clearFontResolutionCaches,
   createFontFallbackSemanticContext,
   declaredFamilyHeadIdentity,
   skiaLastResortFamilyQuestionOrder,
@@ -174,18 +168,6 @@ describe("exact generic-family semantic ownership gate", () => {
     expect(sourceSemanticCacheIdentity("linux", "Courier, monospace", "monospace")).toBe(
       "name:courier|initial:monospace",
     );
-  });
-
-  it("starts one real process cache, then reads the reverse order without resetting", () => {
-    const ask = (family: string) =>
-      withHostPlatform("linux", () =>
-        __resolveSystemFallbackKeyForCpForTest(0x10d0, 400, 0, 16, "helvetica", false, "ka", 100, undefined, family),
-      );
-    clearFontResolutionCaches();
-    for (const family of ["Courier", "Arial"]) ask(family);
-    expect(__systemFallbackKeyCacheSizeForTest()).toBe(2);
-    for (const family of ["Arial", "Courier"]) ask(family);
-    expect(__systemFallbackKeyCacheSizeForTest()).toBe(2);
   });
 
   it("retains key-derived false-positive and false-negative hostile states", () => {

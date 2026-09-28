@@ -8,6 +8,7 @@ on:
       - "packages/text-engine/src/render/font-resolution.ts"
       - "packages/text-engine/src/render/glyph-helper-transport.ts"
       - "packages/text-engine/src/render/skia-last-resort-routing.test.ts"
+      - "packages/text-engine/src/render/system-fallback-key-cache-order.test.ts"
       - "packages/text-engine/src/render/win-font-fallback.ts"
       - "tools/generic-family-semantics-audit.ts"
       - "tests/generic-family-semantics-audit.test.ts"
@@ -26,6 +27,7 @@ on:
       - "packages/text-engine/src/render/font-resolution.ts"
       - "packages/text-engine/src/render/glyph-helper-transport.ts"
       - "packages/text-engine/src/render/skia-last-resort-routing.test.ts"
+      - "packages/text-engine/src/render/system-fallback-key-cache-order.test.ts"
       - "packages/text-engine/src/render/win-font-fallback.ts"
       - "tools/generic-family-semantics-audit.ts"
       - "tests/generic-family-semantics-audit.test.ts"
@@ -86,7 +88,7 @@ jobs:
         run: packages/text-engine/tools/win32-glyph-extractor/build.ps1
       - name: Validate logical adjudicator and workflow contract
         run: |
-          npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/skia-last-resort-routing.test.ts
+          npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/skia-last-resort-routing.test.ts packages/text-engine/src/render/system-fallback-key-cache-order.test.ts
           npx vitest run tests/generic-family-semantics-audit.test.ts tests/generic-family-semantics-workflow.test.ts
       - name: Gate source enum, platform route, raw terminal questions, terminal owners, and both cache orders
         run: npm run fonts:generic-family-semantics -- --json generic-family-semantics-${{ runner.os }}.json

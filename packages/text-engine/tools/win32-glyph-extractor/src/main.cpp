@@ -14,7 +14,7 @@
 // emits Direct2D screen-space geometry (y-DOWN), so we NEGATE y to reach the
 // y-up convention. (This is the opposite of the FreeType helper, which is
 // natively y-up. The sign is pinned by the `H` parity test — see
-// tests/win32-glyph-extractor.test.ts. docs/41 originally said "negate y"
+// packages/text-engine/src/render/win32-glyph-extractor.test.ts. docs/41 originally said "negate y"
 // without nailing down why; this comment is the authoritative rationale.)
 //
 // The JSON parser/serializer + formatNumber/jsonEscape are copied verbatim from

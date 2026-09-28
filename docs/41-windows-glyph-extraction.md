@@ -9,7 +9,7 @@ tickets: ["DM-1035", "DM-1721", "DM-2056", "DM-2403", "DM-260", "DM-389", "DM-39
 code:
   [
     "packages/text-engine/src/render/glyph-helper.ts",
-    "tests/win32-glyph-extractor.test.ts",
+    "packages/text-engine/src/render/win32-glyph-extractor.test.ts",
     "packages/text-engine/tools/win32-glyph-extractor/",
     "packages/text-engine/tools/win32-glyph-extractor/build.ps1",
   ]
@@ -167,7 +167,7 @@ natively y-up. **DirectWrite is the exception:** `GetGlyphRunOutline` emits
 Direct2D screen-space geometry, which is y-**down**. So this helper **negates y**
 on every emitted coordinate to reach the y-up convention — the _opposite_ of
 "the same flip CoreText applies" (CoreText does no flip). The sign is pinned by
-the `H` parity test (`tests/win32-glyph-extractor.test.ts`), which asserts the
+the `H` parity test (`packages/text-engine/src/render/win32-glyph-extractor.test.ts`), which asserts the
 cap-height bbox lands above the baseline and matches fontkit; treat the negation
 as validated-by-test.
 
@@ -207,7 +207,7 @@ serve modes do (the protocol is platform-neutral):
   synchronous read never blocks on buffered bytes.
 - Each serve response is **byte-identical** to the one-shot response for the same
   envelope (asserted by the Windows serve test in
-  `tests/win32-glyph-extractor.test.ts`).
+  `packages/text-engine/src/render/win32-glyph-extractor.test.ts`).
 
 The serve refactor — `fontCacheKey` + `handleEnvelope` + the stdin loop — is a
 structural mirror of the Linux helper's and **adds no new DirectWrite API calls**
@@ -244,7 +244,7 @@ a cert is provisioned.
 - **Helvetica/Arial `H` outline parity**: extract `H` via fontkit and via the
   helper; assert the path commands match within a numeric tolerance — confirms
   the y-flip and the quad→cubic curve mapping. Add to
-  `tests/win32-glyph-extractor.test.ts` (runs only on `process.platform === 'win32'`).
+  `packages/text-engine/src/render/win32-glyph-extractor.test.ts` (runs only on `process.platform === 'win32'`).
 - **Cambria Math glyph**: extract a Math-Alpha glyph (e.g. U+1D400 𝐀) and
   confirm a non-empty path where fontkit returned empty.
 - **Segoe UI Emoji selected-gid ownership**: query U+1F600 by codepoint and by
@@ -341,7 +341,7 @@ a cert is provisioned.
   Linux) builds + uploads `domotion-glyph-paths-win32-x64.exe`. A
   release-independent validation job (`glyph-extractor-build` in
   `windows-fidelity.yml`, manual dispatch) compiles it and runs the
-  `tests/win32-glyph-extractor.test.ts` fontkit-parity test on the real Windows
+  `packages/text-engine/src/render/win32-glyph-extractor.test.ts` fontkit-parity test on the real Windows
   font stack.
 - ⚠️ **Not yet compiled/run on real Windows.** Unlike the macOS (local Swift) and
   Linux (Docker) helpers, there is no Windows/MSVC environment on the dev box and

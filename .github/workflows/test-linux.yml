@@ -293,4 +293,4 @@ jobs:
           printf '{"fonts":[{"ref":"f","fontPath":"%s","size":2048}],"queries":[{"type":"meta","fontRef":"f"},{"type":"glyphs","fontRef":"f","glyphs":[{"cp":72}]}]}' "$F" \
             | packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths
       - name: Run the fontkit-parity test
-        run: npx vitest run tests/linux-glyph-extractor.test.ts
+        run: npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/linux-glyph-extractor.test.ts

@@ -35,7 +35,7 @@ code:
     "packages/text-engine/src/render/glyph-helper.ts",
     "packages/text-engine/src/render/helper-acquire.ts",
     "packages/text-engine/src/render/text-to-path.ts",
-    "tests/linux-glyph-extractor.test.ts",
+    "packages/text-engine/src/render/linux-glyph-extractor.test.ts",
     "tests/linux-target-strike-small-caps.e2e.test.ts",
     "packages/text-engine/tools/linux-glyph-extractor/",
     "packages/text-engine/tools/linux-glyph-extractor/CMakeLists.txt",
@@ -311,7 +311,7 @@ the helper must emit FreeType's native y-up coordinates verbatim — negating
 would double-flip and fail the `H` parity test. (This supersedes an earlier
 draft of this section that said "negate y"; that section itself flagged that the
 flip direction "must be validated by the `H` parity test, not assumed" — and the
-test, now in `tests/linux-glyph-extractor.test.ts`, confirms y-up by asserting
+test, now in `packages/text-engine/src/render/linux-glyph-extractor.test.ts`, confirms y-up by asserting
 the cap-height bbox is positive and matches fontkit. The macOS CoreText helper
 emits y-up for the same reason.)
 
@@ -359,9 +359,10 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
 - **Liberation Sans `H` outline parity** _(implemented)_: extract `H` via
   fontkit and via the helper; assert the command sequence matches and
   coordinates match within tolerance — confirms y-up and the line mapping. In
-  `tests/linux-glyph-extractor.test.ts` (runs only on `process.platform === 'linux'`
-  with the binary built; skips otherwise). Validated via `npm run
-test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
+  `packages/text-engine/src/render/linux-glyph-extractor.test.ts` (runs only on `process.platform === 'linux'`
+  with the binary built; skips otherwise). It belongs to the text-engine workspace
+  suite, which the `regression` job in `test-linux.yml` runs on every pull request
+  after building the helper. Validated locally via `npm run test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
   Liberation Sans is the canonical line-parity oracle.)
 - **FreeSans Math-Alpha parity** _(implemented)_: extract U+1D44E 𝑎 from upright
   `FreeSans.ttf` via the helper and via fontkit and assert the outlines match —
@@ -414,7 +415,7 @@ test:linux-docker`. (DejaVu Sans is not in the Playwright Linux image, so
 
 - ✅ **Helper implemented + built + tested** (DM-872): `packages/text-engine/tools/linux-glyph-extractor/`
   (`src/main.cpp` + `CMakeLists.txt` + `build.sh` + `Dockerfile` + `README.md`),
-  parity tests in `tests/linux-glyph-extractor.test.ts`, and the
+  parity tests in `packages/text-engine/src/render/linux-glyph-extractor.test.ts`, and the
   `linux-glyph-extractor` release job in `release-helpers.yml`. Built and
   validated in the Playwright Linux container (Liberation `H` + FreeSans 𝑎 parity
   with fontkit, byte-faithful).

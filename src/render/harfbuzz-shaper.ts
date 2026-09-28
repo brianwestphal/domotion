@@ -2,7 +2,6 @@
 export {
   harfbuzzGlyphQuery,
   harfbuzzShapeRun,
-  makeHarfbuzzShapingInstance,
   registerHbBufferSource,
   type ShapeResult,
 } from "@domotion/text-engine/text";

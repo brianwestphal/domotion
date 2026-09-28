@@ -37,11 +37,11 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { hbSubsetRetainGids } from "../dist/render/hb-subset.js";
-import { buildSfnt } from "../dist/render/synth-test-fonts.js";
+import { buildSfnt } from "@domotion/text-engine/testing";
+import { hbSubsetRetainGids } from "@domotion/text-engine/text";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const OUT_DIR = join(ROOT, "assets", "fonts", "fixture");
+const OUT_DIR = join(ROOT, "packages", "text-engine", "assets", "fonts", "fixture");
 
 /** Everything the compressor fixtures paint: printable ASCII plus the few
  *  punctuation codepoints their chrome uses. Keep this list in sync when a

@@ -26,7 +26,8 @@ loading the historical documentation corpus.
   `./font-resolution`, `./text`, `./capture`, `./helpers`, `./format`, `./diagnostics`, and
   `./testing` entry points (no deep-import subpath); root `src/render/*` files
   that re-export named symbols from them are compatibility adapters, not
-  duplicate implementations. Keep resolution and shaping together because shaped-cluster
+  duplicate implementations. Tests of engine-only logic (including the native
+  helper parity tests) live in the workspace, not the root. Keep resolution and shaping together because shaped-cluster
   fallback makes them mutually dependent. See docs 262 and the canonical font
   resolution diagram.
   `render/real-text-layer.ts` owns the single-frame opt-in paintless authored

@@ -14,7 +14,15 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HELPER = path.resolve(HERE, "..", "packages", "text-engine", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
+const HELPER = path.resolve(
+  HERE,
+  "..",
+  "packages",
+  "text-engine",
+  "tools",
+  "macos-glyph-extractor",
+  "domotion-glyph-paths",
+);
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {

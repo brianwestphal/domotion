@@ -9,6 +9,7 @@ tickets: ["DM-2518"]
 code:
   [
     "src/font-family-stack.test.ts",
+    "packages/text-engine/src/font-family-stack.test.ts",
     "packages/text-engine/src/font-family-stack.ts",
     "tests/font-family-stack-capture.e2e.test.ts",
   ]
@@ -97,10 +98,12 @@ previous capture files remain readable.
 
 ## Exact gates
 
-`src/font-family-stack.test.ts` covers quoted commas, escaped names, hexadecimal
-escapes, quoted generic-looking literals, rightmost legacy generic semantics,
-non-occupying `system-ui`/`math`, the standard sentinel, round-trip identity,
-and hostile raw-string/node-type mutations.
+`packages/text-engine/src/font-family-stack.test.ts` covers quoted commas,
+escaped names, hexadecimal escapes, quoted generic-looking literals, rightmost
+legacy generic semantics, non-occupying `system-ui`/`math`, the standard
+sentinel, and round-trip identity; `src/font-family-stack.test.ts` covers the
+root renderers that consume the record under hostile raw-string/node-type
+mutations.
 
 `tests/font-family-stack-capture.e2e.test.ts` captures the same authored stack
 through ordinary, generated, first-letter, line-clamp, placeholder, and

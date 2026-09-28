@@ -6,7 +6,12 @@ status: "current"
 owners: ["text-fonts"]
 platforms: []
 tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557"]
-code: ["packages/text-engine/src/render/text-to-path.ts", "src/webfont-unicode-range.test.ts"]
+code:
+  [
+    "packages/text-engine/src/render/text-to-path.ts",
+    "packages/text-engine/src/render/webfont-unicode-range.test.ts",
+    "src/webfont-unicode-range.test.ts",
+  ]
 aliases: ["docs/30-webfont-unicode-range.md", "doc-30"]
 ---
 
@@ -87,7 +92,8 @@ The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontIn
 
 ## Verification
 
-- `src/webfont-unicode-range.test.ts` — covers `pickWebfontVariantForCodepoint` directly. Tests cover: codepoint covered by exactly one variant, ASCII routing to Latin partition, return-null when no variant covers, single-non-partitioned variant covers everything (CSS default range), italic + weight scoring among multiple covering variants, unregistered family.
+- `packages/text-engine/src/render/webfont-unicode-range.test.ts` — covers `pickWebfontVariantForCodepoint` directly. Tests cover: codepoint covered by exactly one variant, ASCII routing to Latin partition, return-null when no variant covers, single-non-partitioned variant covers everything (CSS default range), italic + weight scoring among multiple covering variants, unregistered family.
+- `src/webfont-unicode-range.test.ts` — covers the capture-side `parseUnicodeRangeDescriptor` that produces the ranges the registry consumes.
 - The run-splitter integration is exercised end-to-end whenever real-world tests run against pages that load partitioned families. Stripe, Framer, NYT, Resend, Apple all use Google Fonts or their own partition pipelines.
 
 ## Cross-platform note

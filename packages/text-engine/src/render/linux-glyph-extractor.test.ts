@@ -19,7 +19,7 @@ import * as fontkit from "fontkit";
 // y-range; the bbox assertions below catch that.)
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const HELPER = path.resolve(HERE, "..", "packages", "text-engine", "tools", "linux-glyph-extractor", "domotion-glyph-paths");
+const HELPER = path.resolve(HERE, "..", "..", "tools", "linux-glyph-extractor", "domotion-glyph-paths");
 
 const helperAvailable = process.platform === "linux" && existsSync(HELPER);
 const describeHelper = helperAvailable ? describe : describe.skip;

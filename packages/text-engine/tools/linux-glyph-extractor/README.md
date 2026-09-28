@@ -101,10 +101,13 @@ printf '%s\n%s\n' \
 
 ## Tests
 
-`tests/linux-glyph-extractor.test.ts` (vitest) asserts the helper's outlines
+`packages/text-engine/src/render/linux-glyph-extractor.test.ts` (vitest) asserts the helper's outlines
 match fontkit command-for-command on Liberation Sans `H` (line mapping + y-up)
 and FreeSans `𝑎` U+1D44E (the Math-Alphanumeric block the upright `FreeSans.ttf`
 carries). The suite skips unless `process.platform === "linux"` and the binary
-is built, so it is inert on macOS/Windows. Run it on a Mac via the Docker
-harness: `npm run test:linux-docker -- tests/linux-glyph-extractor.test.ts`
-(after building the binary inside the container).
+is built, so it is inert on macOS/Windows. It is part of the text-engine
+workspace suite, which CI runs on Linux after building this helper (the
+`regression` job in `.github/workflows/test-linux.yml`), so it executes on every
+pull request. Run it on a Mac via the Docker harness (after building the binary
+inside the container):
+`CMD="npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/linux-glyph-extractor.test.ts" npm run test:linux-docker`.

@@ -18,7 +18,7 @@ subpaths, each an explicit named-export list (`src/<subpath>.ts`):
 | `./helpers`             | native glyph-helper and ICU companion acquisition, availability, and queries                                                                                                     |
 | `./format`              | the SVG number/escape/attribute formatting primitives the engine emits with                                                                                                      |
 | `./diagnostics`         | opt-in text-run provenance and render-phase profiling                                                                                                                            |
-| `./testing`             | cache/registry introspection, deterministic resets, and platform overrides for tests and oracles; not a stable API                                                               |
+| `./testing`             | the few cache/registry and override hooks root oracles and root tests still need, plus the synthetic-font builder (`buildSfnt`); not a stable API                                |
 
 There is no deep-import subpath. Domotion's root `src/render/*` adapters
 re-export named symbols from these entry points, and
@@ -26,6 +26,16 @@ re-export named symbols from these entry points, and
 relative import into `packages/text-engine/{src,dist}`, and any production
 `src/` import of `./testing`. Widen an entry point deliberately, by adding the
 symbol to its list, when a root caller genuinely needs it.
+
+The entry points are sized to what root production code and the root oracles
+under `tools/` import. Tests of engine-only logic live in this workspace
+(`src/**/*.test.ts`) and import modules directly, including the native-helper
+parity tests (`src/render/{linux,win32}-glyph-extractor.test.ts`) and the
+synthetic test fonts (`src/render/synth-test-fonts.ts`). A root test stays in
+the root only when it also needs root infrastructure (a captured tree rendered
+by `elementTreeToSvg`, the root capture layer, Playwright, or a root oracle);
+do not widen an entry point just so such a test can reach an engine internal —
+move or split the test instead.
 
 Run it independently from the repository root with:
 

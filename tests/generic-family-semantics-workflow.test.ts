@@ -18,6 +18,7 @@ describe("generic-family semantic ownership workflow", () => {
     expect(workflow).toContain("tests/generic-family-semantics-audit.test.ts");
     expect(workflow).toContain("packages/text-engine/src/render/cluster-fallback.ts");
     expect(workflow).toContain("packages/text-engine/src/render/skia-last-resort-routing.test.ts");
+    expect(workflow).toContain("packages/text-engine/src/render/system-fallback-key-cache-order.test.ts");
     expect(workflow).toContain("packages/text-engine/src/font-family-stack.ts");
     expect(workflow).toContain("packages/text-engine/tools/macos-glyph-extractor/build.sh");
     expect(workflow).toContain("packages/text-engine/tools/linux-glyph-extractor/build.sh");

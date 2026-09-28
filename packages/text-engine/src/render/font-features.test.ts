@@ -14,6 +14,7 @@ describe("featureListNeedsHbShaping", () => {
 
   it("is true when any entry is a disable or carries a value", () => {
     expect(featureListNeedsHbShaping(["-liga"])).toBe(true);
+    expect(featureListNeedsHbShaping(["-kern"])).toBe(true); // font-kerning: none
     expect(featureListNeedsHbShaping(["cv11", "-kern"])).toBe(true);
     expect(featureListNeedsHbShaping(["salt=2"])).toBe(true);
   });
