@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { describe, it, expect } from "vitest";
 import * as pkg from "./index.js";
 import * as animation from "./animation/index.js";
@@ -14,8 +18,11 @@ import * as treeOps from "./tree-ops/index.js";
  * runtime (value) exports, so adding/removing/renaming one fails here and forces
  * updating BOTH this list and the api.md table in the same change.
  *
- * Types can't be checked at runtime, so this only covers value exports; the
- * api.md type rows are reviewed by hand alongside this list.
+ * Types can't be seen at runtime, so this list only covers value exports. The
+ * "every root export has a docs/api.md row" test below closes that gap: it
+ * enumerates the full root surface (values AND type-only exports) with the
+ * TypeScript checker and requires each name in the first (Export) cell of a
+ * docs/api.md table row.
  */
 
 // Keep sorted. Every entry must have a row in docs/api.md.
@@ -398,4 +405,60 @@ describe("public barrel export surface (DM-1058)", () => {
       expect((pkg as Record<string, unknown>)[name]).toBe(mod[name]);
     }
   });
+
+  it("every root export, value or type, has a row in docs/api.md", () => {
+    const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+    const names = rootExportNames(repoRoot);
+    // The checker really enumerated the surface, including type-only exports
+    // that `Object.keys(pkg)` can never see.
+    expect(names).toEqual(expect.arrayContaining([...EXPECTED_VALUE_EXPORTS, "CapturedElement", "Template"]));
+    expect(names.length).toBeGreaterThan(EXPECTED_VALUE_EXPORTS.length);
+
+    const documented = documentedExportNames(readFileSync(join(repoRoot, "docs/api.md"), "utf-8"));
+    expect(names.filter((name) => !documented.has(name))).toEqual([]);
+  });
 });
+
+/**
+ * Every name `src/index.ts` exports, values and type-only exports alike, as the
+ * TypeScript checker resolves them through the `export *` barrels.
+ */
+function rootExportNames(repoRoot: string): string[] {
+  const configPath = join(repoRoot, "tsconfig.json");
+  const parsed = ts.getParsedCommandLineOfConfigFile(
+    configPath,
+    {},
+    {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+        throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
+      },
+    },
+  );
+  if (parsed == null) throw new Error(`could not parse ${configPath}`);
+  const entry = join(repoRoot, "src/index.ts");
+  const program = ts.createProgram([entry], { ...parsed.options, noEmit: true });
+  const checker = program.getTypeChecker();
+  const source = program.getSourceFile(entry);
+  const moduleSymbol = source == null ? undefined : checker.getSymbolAtLocation(source);
+  if (moduleSymbol == null) throw new Error("could not resolve the src/index.ts module symbol");
+  return checker
+    .getExportsOfModule(moduleSymbol)
+    .map((symbol) => symbol.getName())
+    .sort();
+}
+
+/**
+ * The names docs/api.md documents: every backticked span in the first (Export)
+ * cell of a table row. A mention in prose or in another row's description does
+ * not count as a row.
+ */
+function documentedExportNames(markdown: string): Set<string> {
+  const names = new Set<string>();
+  for (const line of markdown.split("\n")) {
+    const firstCell = /^\|([^|]*)\|/.exec(line);
+    if (firstCell == null) continue;
+    for (const span of firstCell[1].matchAll(/`([^`]+)`/g)) names.add(span[1].trim());
+  }
+  return names;
+}
