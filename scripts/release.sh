@@ -271,10 +271,29 @@ step_release_notes() {
     generated=$(echo "$generated" | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
   fi
 
+  # Hand-written CHANGELOG entries under "## Unreleased" (breaking changes,
+  # removals) belong to this release: step_update_changelog empties that section
+  # when it inserts the version entry, so lead the draft with them. Same '#'
+  # heading → bold-label conversion as above, since ask_multiline strips '#' lines.
+  local unreleased
+  unreleased=$(node scripts/update-changelog.mjs --unreleased CHANGELOG.md 2>/dev/null || true)
+  if [[ -n "$unreleased" ]]; then
+    unreleased=$(echo "$unreleased" | sed -e 's/^##* \(.*\)$/**\1**/')
+    info "Including the hand-written '## Unreleased' CHANGELOG entries in the draft."
+    if [[ -n "$generated" ]]; then
+      generated="${unreleased}
+
+${generated}"
+    else
+      generated="$unreleased"
+    fi
+  fi
+
   local initial
   if [[ -n "$generated" ]]; then
     success "Draft ready — review and edit in the editor."
-    initial="# Release notes — gitgist draft below. Edit freely.
+    initial="# Release notes — draft below (hand-written '## Unreleased' CHANGELOG entries first,
+# then the gitgist draft). Edit freely; merge duplicate section labels.
 # Lines starting with '#' are removed on save.
 
 ${generated}"

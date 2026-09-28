@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
-import { insertChangelogEntry } from "../scripts/update-changelog.mjs";
+import { insertChangelogEntry, unreleasedBody } from "../scripts/update-changelog.mjs";
 
 const temporaryDirectories: string[] = [];
 
@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe("insertChangelogEntry", () => {
-  it("normalizes entry edges and inserts before the first prior release", () => {
+  it("normalizes entry edges, inserts before the first prior release, and consumes Unreleased", () => {
     const changelog = [
       "# Changelog",
       "",
@@ -33,8 +33,6 @@ describe("insertChangelogEntry", () => {
         "# Changelog",
         "",
         "## Unreleased",
-        "",
-        "- Pending change.",
         "",
         "## [0.30.0] - 2026-09-21",
         "",
@@ -112,12 +110,61 @@ describe("insertChangelogEntry", () => {
     );
   });
 
+  it("consumes Unreleased on a first release with no prior version", () => {
+    const changelog = "# Changelog\n\n## Unreleased\n\n**Changed**\n\n- Pending.\n";
+    const entry = "## [1.0.0] - 2026-09-21\n\n**Changed**\n\n- Pending.";
+
+    expect(insertChangelogEntry(changelog, entry)).toBe(`# Changelog\n\n## Unreleased\n\n${entry}\n`);
+  });
+
+  it("leaves Unreleased untouched when a re-run replaces an existing version section", () => {
+    const changelog =
+      "# Changelog\n\n## Unreleased\n\n- Added after the release.\n\n## [1.0.0] - 2026-09-21\n\n- Old.\n";
+
+    expect(insertChangelogEntry(changelog, "## [1.0.0] - 2026-09-21\n\n- New.")).toBe(
+      "# Changelog\n\n## Unreleased\n\n- Added after the release.\n\n## [1.0.0] - 2026-09-21\n\n- New.\n",
+    );
+  });
+
   it("rejects an empty release entry", () => {
     expect(() => insertChangelogEntry("# Changelog\n", " \n ")).toThrow("release entry must not be empty");
   });
 });
 
+describe("unreleasedBody", () => {
+  it("returns the trimmed Unreleased body up to the first release", () => {
+    expect(
+      unreleasedBody(
+        "# Changelog\n\n## Unreleased\n\n**Changed**\n\n- A.\n\n**Removed**\n\n- B.\n\n## [1.0.0] - 2026-09-21\n\n- C.\n",
+      ),
+    ).toBe("**Changed**\n\n- A.\n\n**Removed**\n\n- B.");
+  });
+
+  it("returns an empty string for an empty or missing Unreleased section", () => {
+    expect(unreleasedBody("# Changelog\n\n## Unreleased\n\n## [1.0.0] - 2026-09-21\n")).toBe("");
+    expect(unreleasedBody("# Changelog\n\n## [1.0.0] - 2026-09-21\n")).toBe("");
+  });
+});
+
 describe("update-changelog CLI", () => {
+  it("prints the Unreleased body for release.sh's notes draft", () => {
+    const directory = mkdtempSync(join(tmpdir(), "domotion-changelog-"));
+    temporaryDirectories.push(directory);
+    const changelogPath = join(directory, "CHANGELOG.md");
+    writeFileSync(changelogPath, "# Changelog\n\n## Unreleased\n\n- Pending.\n\n## [0.9.0] - 2026-09-01\n");
+
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/update-changelog.mjs"), "--unreleased", changelogPath],
+      {
+        encoding: "utf8",
+      },
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe("- Pending.\n");
+  });
+
   it("updates the requested file through the release script boundary", () => {
     const directory = mkdtempSync(join(tmpdir(), "domotion-changelog-"));
     temporaryDirectories.push(directory);
