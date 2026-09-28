@@ -408,7 +408,9 @@ describe("resolveFontKey: explicit-name resolution", () => {
     expect(resolveFontKey("monospace")).toBe("courier");
   });
 
-  it("honors author-named sans families separately", () => {
+  // Host-inventory assertion: the keys name faces a Mac ships (Helvetica Neue
+  // is not installed on the Linux/Windows runners, so the stack walks on).
+  it.runIf(process.platform === "darwin")("honors author-named sans families separately", () => {
     expect(resolveFontKey("Helvetica")).toBe("helvetica");
     // DM-1189: `Helvetica Neue` is its own face (HelveticaNeue.ttc), distinct from
     // plain Helvetica — Chrome's getPlatformFontsForNode confirms it paints from
@@ -2397,14 +2399,19 @@ describe("Primary-aware CJK fallback (DM-333)", () => {
   // Mincho face first (it carries the `trad` / `fwid` / `jp78` East-Asian
   // features Songti lacks), falling back to the generic serif CJK then sans CJK.
   // The generic `serif` keyword still resolves to Songti (the case above).
-  it("routes CJK through hiragino-mincho when the family is explicitly named (DM-1117)", () => {
-    expect(resolveFontKey("Hiragino Mincho ProN")).toBe("hiragino-mincho");
-    expect(resolveFontKey("Hiragino Mincho ProN, serif")).toBe("hiragino-mincho");
-    expect(darwinFallbackChain(0x4e00, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
-    expect(darwinFallbackChain(0x3042, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
-    // The bare `serif` generic is unchanged — still Songti, not Mincho.
-    expect(darwinFallbackChain(0x4e00, "times")).toEqual(["cjk-serif", "cjk"]);
-  });
+  // Host-inventory assertion: resolving the named family needs Hiragino
+  // Mincho installed, which only macOS provides.
+  it.runIf(process.platform === "darwin")(
+    "routes CJK through hiragino-mincho when the family is explicitly named (DM-1117)",
+    () => {
+      expect(resolveFontKey("Hiragino Mincho ProN")).toBe("hiragino-mincho");
+      expect(resolveFontKey("Hiragino Mincho ProN, serif")).toBe("hiragino-mincho");
+      expect(darwinFallbackChain(0x4e00, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
+      expect(darwinFallbackChain(0x3042, "hiragino-mincho")).toEqual(["hiragino-mincho", "cjk-serif", "cjk"]);
+      // The bare `serif` generic is unchanged — still Songti, not Mincho.
+      expect(darwinFallbackChain(0x4e00, "times")).toEqual(["cjk-serif", "cjk"]);
+    },
+  );
   it("walks past unavailable Hiragino Mincho on Windows instead of substituting SimSun (DM-2658)", () => {
     const hidden = process.env.DOMOTION_HIDE_FAMILIES;
     process.env.DOMOTION_HIDE_FAMILIES = "Hiragino Mincho ProN";

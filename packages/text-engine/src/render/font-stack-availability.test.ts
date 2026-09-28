@@ -5,8 +5,12 @@ import { resolveFont } from "./font-resolution.js";
 describe("CSS family-stack availability", () => {
   it("continues after a recognized family has no loadable host face (DM-2275)", () => {
     const face = withHostPlatform("linux", () => resolveFont('"Playfair Display", Times, serif', 400, 32));
+    // The stack must fall through to the NEXT family, whatever face this host
+    // maps `Times` to (Times on a Mac, Liberation Serif under Linux fontconfig).
+    const next = withHostPlatform("linux", () => resolveFont("Times, serif", 400, 32));
 
     expect(face).not.toBeNull();
-    expect(face?.postscriptName?.toLowerCase()).toContain("times");
+    expect(face?.postscriptName).toBe(next?.postscriptName);
+    expect(face?.postscriptName?.toLowerCase()).not.toContain("playfair");
   });
 });

@@ -82,11 +82,17 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
     expect(stackPrimaryIsSystemUi('"Does Not Exist", system-ui, sans-serif')).toBe(true);
   });
 
-  it("matches on the first available family, since that is the primary the cascade is walked from", () => {
-    expect(stackPrimaryIsSystemUi("Georgia, system-ui")).toBe(false);
-    expect(stackPrimaryIsSystemUi('"Helvetica Neue", BlinkMacSystemFont')).toBe(false);
-    expect(stackPrimaryIsSystemUi("sans-serif, system-ui")).toBe(false);
-  });
+  // Host-inventory assertion: Georgia and Helvetica Neue must be installed to
+  // be the first AVAILABLE family (on a Linux runner both are absent, so the
+  // walk correctly reaches system-ui).
+  it.runIf(process.platform === "darwin")(
+    "matches on the first available family, since that is the primary the cascade is walked from",
+    () => {
+      expect(stackPrimaryIsSystemUi("Georgia, system-ui")).toBe(false);
+      expect(stackPrimaryIsSystemUi('"Helvetica Neue", BlinkMacSystemFont')).toBe(false);
+      expect(stackPrimaryIsSystemUi("sans-serif, system-ui")).toBe(false);
+    },
+  );
 
   it("normalizes quoting, casing and whitespace the way a computed style may present it", () => {
     expect(stackPrimaryIsSystemUi("'system-ui', sans-serif")).toBe(true);

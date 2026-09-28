@@ -184,17 +184,23 @@ afterEach(() => {
 });
 
 describe("resolveFontKey(family, lang) moves the settings-mapped generics per script", () => {
-  it("darwin: lang=ja + serif resolves Hiragino Mincho ProN — the measured session paint", () => {
-    withHostPlatform("darwin", () => {
-      // With the native helper: the exact installed family (Blink's plain
-      // family lookup — sysfb:HiraMinProN-W3, the face Chrome reports).
-      // Degraded tier (no helper): the curated hiragino-mincho key, which
-      // maps to the same HiraMinProN faces.
-      const key = resolveFontKey("serif", "ja");
-      expect(key === "hiragino-mincho" || /^sysfb:HiraMinProN/.test(key)).toBe(true);
-      expect(key).not.toBe("times");
-    });
-  });
+  // withHostPlatform("darwin") substitutes the routing platform, not the font
+  // inventory: the Hiragino answer needs those faces installed, so this runs
+  // only on a macOS host.
+  it.runIf(process.platform === "darwin")(
+    "darwin: lang=ja + serif resolves Hiragino Mincho ProN — the measured session paint",
+    () => {
+      withHostPlatform("darwin", () => {
+        // With the native helper: the exact installed family (Blink's plain
+        // family lookup — sysfb:HiraMinProN-W3, the face Chrome reports).
+        // Degraded tier (no helper): the curated hiragino-mincho key, which
+        // maps to the same HiraMinProN faces.
+        const key = resolveFontKey("serif", "ja");
+        expect(key === "hiragino-mincho" || /^sysfb:HiraMinProN/.test(key)).toBe(true);
+        expect(key).not.toBe("times");
+      });
+    },
+  );
 
   it("darwin: the Latin/Common locales keep the calibrated routes", () => {
     withHostPlatform("darwin", () => {
