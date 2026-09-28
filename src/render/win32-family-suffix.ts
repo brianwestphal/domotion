@@ -1,1 +1,2 @@
-export * from "@domotion/text-engine/internal/render/win32-family-suffix";
+// Root adapter over the text-engine workspace's public entry points (packages/text-engine/README.md).
+export { win32FamilySuffixAdjustment } from "@domotion/text-engine/font-resolution";

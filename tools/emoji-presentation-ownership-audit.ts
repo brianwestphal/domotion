@@ -14,7 +14,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { _clusterFallbackCounters, splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.js";
+import { _clusterFallbackCounters } from "@domotion/text-engine/testing";
+import { splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.js";
 import {
   fontHasSupportedColorTable,
   getFontSourceInfo,

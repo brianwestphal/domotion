@@ -5,11 +5,8 @@ import {
   __pickWebfontVariantMetaForCodepointForTest,
   __pickWebfontVariantMetaForTest,
   __pickLocalFontAliasVariantForTest,
-  clearWebfonts,
-  registerWebfont,
-  registerLocalFontAlias,
-  unicodeRangeCovers,
-} from "./render/text-to-path.js";
+} from "@domotion/text-engine/testing";
+import { clearWebfonts, registerWebfont, registerLocalFontAlias, unicodeRangeCovers } from "./render/text-to-path.js";
 
 // DM-517: webfont registration honors the `@font-face { unicode-range: ... }`
 // descriptor. Google-Fonts-style partitioning declares the same `(family,

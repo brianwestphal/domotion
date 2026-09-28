@@ -21,9 +21,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { _clearHbFontCache, harfbuzzShapeRun, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
+import { _clearHbFontCache } from "@domotion/text-engine/testing";
+import { harfbuzzShapeRun, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { buildSfnt, buildStaticHintedFont, wrapInTtc } from "./synth-test-fonts.js";
-import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";
+import { __resolveFaceInfoForFileForTest as faceInfo } from "@domotion/text-engine/testing";
+import { clearFontResolutionCaches } from "./font-resolution.js";
 
 /** "A" is a rectangle whose right edge is `aXMax`; the advance is aXMax + 50. */
 const NARROW_ADVANCE = 600; // aXMax 550 (the builder's default)

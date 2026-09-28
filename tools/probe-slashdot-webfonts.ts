@@ -7,7 +7,7 @@ import { chromium } from "@playwright/test";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
-import { __pickWebfontVariantMetaForTest } from "../src/render/text-to-path.js";
+import { __pickWebfontVariantMetaForTest } from "@domotion/text-engine/testing";
 
 const TESTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "tests");
 const CACHE_DIR = resolve(TESTS_DIR, "cache/real-world");

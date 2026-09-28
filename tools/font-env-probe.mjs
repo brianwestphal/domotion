@@ -7,12 +7,8 @@
 // the Actions job log. Run: `npx tsx tools/font-env-probe.mjs`.
 import { existsSync, readdirSync } from "node:fs";
 import os from "node:os";
-import {
-  resolveFontSpec,
-  resolveFontKeyChain,
-  getFontInstance,
-  __resolveSystemFallbackKeyForCpForTest as ctResolve,
-} from "../src/render/font-resolution.js";
+import { resolveFontSpec, resolveFontKeyChain, getFontInstance } from "../src/render/font-resolution.js";
+import { __resolveSystemFallbackKeyForCpForTest as ctResolve } from "@domotion/text-engine/testing";
 import { resolveInstalledFont } from "../src/render/glyph-helper.js";
 
 const P = (s) => console.log(`FONTPROBE: ${s}`);

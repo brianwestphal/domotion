@@ -5,15 +5,25 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-4CN6YM", "DM-A1KCSY"]
+tickets: ["DM-4CN6YM", "DM-A1KCSY", "DM-DS8AGC"]
 code:
   [
     "packages/text-engine/package.json",
+    "packages/text-engine/README.md",
+    "packages/text-engine/src/index.ts",
+    "packages/text-engine/src/font-resolution.ts",
+    "packages/text-engine/src/text.ts",
+    "packages/text-engine/src/capture.ts",
+    "packages/text-engine/src/helpers.ts",
+    "packages/text-engine/src/format.ts",
+    "packages/text-engine/src/diagnostics.ts",
+    "packages/text-engine/src/testing.ts",
     "packages/text-engine/src/render/text-engine.ts",
     "packages/text-engine/src/render/text-engine.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
     "packages/text-engine/src/render/text-to-path.ts",
     "src/render/text-engine-boundary.test.ts",
+    "tests/conventions.test.ts",
     "src/render/element-tree-to-svg.ts",
   ]
 aliases: ["docs/262-text-engine-session-boundary.md", "doc-262"]
@@ -30,12 +40,17 @@ shaper packages.
 The private `@domotion/text-engine` npm workspace is the deliberate package
 seam. Its supported entry point is
 `packages/text-engine/src/render/text-engine.ts`; focused integration entry
-points expose font-resolution and helper lifecycle controls. Lower modules such
-as `text-to-path.ts`, `harfbuzz-shaper.ts`, and the platform helper adapters are
-implementation details. Root `src/render/*` files that re-export
-`@domotion/text-engine/internal/*` are temporary source-compatibility adapters,
-not a second implementation or public package API. In particular,
-`text-to-path.ts` must not blanket re-export `font-resolution.ts`.
+points (`./font-resolution`, `./text`, `./capture`, `./helpers`, `./format`,
+`./diagnostics`, and the unstable `./testing` hooks) each publish an explicit
+named-export list; `packages/text-engine/README.md` tabulates what each owns.
+The exports map has no deep-import wildcard, so lower modules such as
+`text-to-path.ts`, `harfbuzz-shaper.ts`, and the platform helper adapters stay
+implementation details. Root `src/render/*` files are compatibility adapters
+that re-export named symbols from those entry points, not a second
+implementation; none may use `export *`, and production root code may not
+import `./testing` (`src/render/text-engine-boundary.test.ts` and
+`tests/conventions.test.ts` enforce both, plus the ban on relative imports into
+`packages/text-engine/{src,dist}`).
 
 Resolution and shaping intentionally remain together. The shaped-cluster
 fallback loop alternates between candidate selection, shaping, `.notdef`

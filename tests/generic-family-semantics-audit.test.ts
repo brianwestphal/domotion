@@ -1,17 +1,19 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { __skiaLastResortKeysForTest } from "../src/render/cluster-fallback.js";
 import {
   __resolveSystemFallbackKeyForCpForTest,
+  __skiaLastResortKeysForTest,
   __systemFallbackKeyCacheSizeForTest,
+  withHostPlatform,
+} from "@domotion/text-engine/testing";
+import {
   blinkGenericFamilyFromDeclaredStack,
   clearFontResolutionCaches,
   createFontFallbackSemanticContext,
   declaredFamilyHeadIdentity,
   skiaLastResortFamilyQuestionOrder,
 } from "../src/render/font-resolution.js";
-import { withHostPlatform } from "../src/render/host-platform.js";
 import {
   GENERIC_FAMILY_SEMANTICS_CASES,
   adjudicateGenericFamilySemanticsRow,

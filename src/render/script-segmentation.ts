@@ -1,1 +1,2 @@
-export * from "@domotion/text-engine/internal/render/script-segmentation";
+// Root adapter over the text-engine workspace's public entry points (packages/text-engine/README.md).
+export { bidiLevelsFor, type BidiParagraphContext, segmentForShaping } from "@domotion/text-engine/text";

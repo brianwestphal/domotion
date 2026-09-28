@@ -22,9 +22,11 @@ loading the historical documentation corpus.
   is a private workspace at `packages/text-engine/`: it owns resolution,
   fallback, shaping, glyph/outline and embedded-font emission, platform routing,
   native and ICU helpers, HarfBuzz, font fixtures, and package-local tests.
-  Domotion consumes its session/document/run facade; root files that re-export
-  `@domotion/text-engine/internal/*` are compatibility adapters, not duplicate
-  implementations. Keep resolution and shaping together because shaped-cluster
+  Domotion consumes its session/document/run facade and the focused
+  `./font-resolution`, `./text`, `./capture`, `./helpers`, `./format`, `./diagnostics`, and
+  `./testing` entry points (no deep-import subpath); root `src/render/*` files
+  that re-export named symbols from them are compatibility adapters, not
+  duplicate implementations. Keep resolution and shaping together because shaped-cluster
   fallback makes them mutually dependent. See docs 262 and the canonical font
   resolution diagram.
   `render/real-text-layer.ts` owns the single-frame opt-in paintless authored

@@ -80,9 +80,10 @@ describe("project conventions", () => {
   // Measured: the transitive closure from `{text-to-path, font-resolution,
   // text}` is 21 files / ~22.8k lines whose ONLY coupling outward is a single
   // type-only import (`text.ts` -> `capture/types.js`). It is already an island
-  // — but nothing said so, and nothing stopped it eroding. `text-to-path.ts`
-  // re-exports all ~113 of `font-resolution`'s symbols via `export *`, so any
-  // module can reach the whole subsystem through a second door without it being
+  // — but nothing said so, and nothing stopped it eroding. The root adapters
+  // under `src/render/` re-export explicit symbol lists from the workspace's
+  // public entry points (the next test pins that they cannot reach deeper), but
+  // an adapter can still widen what the rest of `src/` sees without that being
   // visible in review.
   //
   // This pins the door itself: what the rest of `src/` may import from inside
@@ -177,6 +178,63 @@ describe("project conventions", () => {
       }
     }
     expect(offenders, "new import out of the font subsystem — add it to ALLOWED deliberately").toEqual([]);
+  });
+
+  // DM-DS8AGC: root code consumes the text-engine workspace only through its
+  // published entry points. The workspace used to export an `internal/*`
+  // wildcard, and 46 of 49 root import sites went through it — so Domotion never
+  // exercised the surface a published package would have to keep stable. That
+  // subpath is gone from the exports map; this guard also catches the two
+  // doors the map cannot close: a relative import into
+  // `packages/text-engine/{src,dist}` (which bypasses package resolution and,
+  // for `src`, loads a second copy of the engine's process-global registries),
+  // and production `src/` code importing the unstable `./testing` hooks.
+  it("imports the text-engine workspace only through its public entry points (DM-DS8AGC)", () => {
+    const ENTRY_POINTS = new Set([
+      "",
+      "/font-resolution",
+      "/text",
+      "/capture",
+      "/helpers",
+      "/format",
+      "/diagnostics",
+      "/testing",
+    ]);
+    const roots = ["src", "tests", "tools", "scripts", "examples"];
+    const files: string[] = [];
+    const walk = (dir: string): void => {
+      if (!existsSync(dir)) return;
+      for (const name of readdirSync(dir)) {
+        const p = resolve(dir, name);
+        if (statSync(p).isDirectory()) {
+          if (name === "node_modules" || name === "scratch" || name === "output" || name === "cache") continue;
+          walk(p);
+          continue;
+        }
+        if (/\.(ts|tsx|mts|mjs|js|cjs)$/.test(name) && !/\.generated\.ts$/.test(name)) files.push(p);
+      }
+    };
+    for (const r of roots) walk(resolve(ROOT, r));
+    // Static `from "…"`, dynamic `import("…")`, and `vi.mock("…")` specifiers.
+    const re = /(?:\bfrom\s*|\bimport\s*\(\s*|\bvi\.(?:mock|doMock|importActual)\s*\(\s*)['"]([^'"]+)['"]/g;
+    const offenders: string[] = [];
+    for (const file of files) {
+      const rel = file.slice(ROOT.length + 1);
+      const isProductionSrc = rel.startsWith("src/") && !/\.test\.tsx?$/.test(rel);
+      for (const m of readFileSync(file, "utf8").matchAll(re)) {
+        const spec = m[1];
+        if (/packages\/text-engine\/(src|dist)\//.test(spec)) {
+          offenders.push(`${rel}: relative import into the workspace (${spec})`);
+          continue;
+        }
+        if (!spec.startsWith("@domotion/text-engine")) continue;
+        const subpath = spec.slice("@domotion/text-engine".length);
+        if (!ENTRY_POINTS.has(subpath)) offenders.push(`${rel}: non-public subpath ${spec}`);
+        else if (subpath === "/testing" && isProductionSrc) offenders.push(`${rel}: production code imports ${spec}`);
+      }
+    }
+    expect(files.length).toBeGreaterThan(500);
+    expect(offenders).toEqual([]);
   });
 
   it("never imports the shell-string `exec` / `execSync` from child_process (DM-1332 — argv forms only)", () => {

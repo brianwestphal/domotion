@@ -15,9 +15,8 @@ import { pathToFileURL } from "node:url";
 
 import { chromium, type CDPSession, type Page } from "@playwright/test";
 
-import { __skiaLastResortKeysForTest } from "../src/render/cluster-fallback.js";
+import { __setWin32FamilyKeyResolverForTest, __skiaLastResortKeysForTest } from "@domotion/text-engine/testing";
 import {
-  __setWin32FamilyKeyResolverForTest,
   blinkGenericFamilyFromDeclaredStack,
   clearFontResolutionCaches,
   createFontFallbackSemanticContext,

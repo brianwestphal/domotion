@@ -21,6 +21,8 @@ import {
   _builderEntryState,
   _builderInstanceKeys,
   _builderRegistrySize,
+} from "@domotion/text-engine/testing";
+import {
   clearEmbeddedFontBuilder,
   getBuiltEmbeddedFontFaceCss,
   restoreEmbeddedFonts,

@@ -17,7 +17,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";
+import { __resolveFaceInfoForFileForTest as faceInfo } from "@domotion/text-engine/testing";
+import { clearFontResolutionCaches } from "./font-resolution.js";
 import { buildStaticHintedFont, buildVariableHintedFont, wrapInTtc } from "./synth-test-fonts.js";
 
 let dir: string;

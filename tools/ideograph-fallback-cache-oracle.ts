@@ -11,8 +11,10 @@ import { spawnSync } from "node:child_process";
 
 import {
   __resolveSystemFallbackKeyForCpForTest,
-  beginCharacterFallbackDocument,
   clearCharacterFallbackRendererScopesForTest,
+} from "@domotion/text-engine/testing";
+import {
+  beginCharacterFallbackDocument,
   createFontRendererSession,
   endCharacterFallbackDocument,
   resolveFontKey,
