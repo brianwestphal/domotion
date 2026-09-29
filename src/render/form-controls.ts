@@ -948,6 +948,10 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
       const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
       const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
       const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
+      // NO UPSTREAM RULE: the 4 / 2 / 2.5 px half-width, half-height and depth of this triangle, and the 4 px
+      // inset of its center, are drawn by hand. Blink paints the menulist arrow from the platform theme
+      // (sampled separately as nativeControlDecorationRaster), so this synthesized chevron is only the
+      // structural fallback for captures without that raster.
       const cx = el.styles.direction === "rtl" ? el.x + bwL + padL + 4 : el.x + el.width - bwR - padR - 4;
       const cy = el.y + el.height / 2;
       parts.push(

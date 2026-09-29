@@ -8,7 +8,7 @@ import { renderWarn } from "./render-warn.js";
 import { fontSizeOrDefault, LEGACY_MARKER_ASCENT_RATIO } from "./text-defaults.js";
 import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-background.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
-import { renderRadicalGlyph } from "./text-to-path.js";
+import { measureTruncationMarker, renderRadicalGlyph } from "./text-to-path.js";
 import {
   getEmbeddedFontFaceCss,
   getGlyphDefs,
@@ -783,6 +783,8 @@ function paintSyntheticListMarker(
   // baseline (DM-237). Falling back to a 0.72*lineHeight approximation
   // when we don't have either textTop or fontAscent — that path is rare
   // (li with empty direct text), and visually close enough.
+  // NO UPSTREAM RULE: 0.72 is a typical ascent share of a line box, not a Blink constant; Blink positions
+  // the marker from the ::marker's own FontMetrics, which the captured ascents above carry.
   // DM-1270: the marker aligns to the FIRST line of text. Prefer the
   // captured first-line box (handles a li whose border box is raised by a
   // tall inline on the first line — e.g. an emoji `::after` — so the text
@@ -959,6 +961,9 @@ function paintListMarker(el: CapturedElement, textColor: ReturnType<typeof parse
     const lsImage = el.styles.listStyleImage;
     const lsType = el.summaryMarkerGeometry?.listStyleType ?? el.styles.listStyleType ?? "disc";
     const fontSizePx = fontSizeOrDefault(el.styles.fontSize);
+    // NO UPSTREAM RULE for the 1.2 fallback: `line-height: normal` in Blink is the primary font's
+    // FontMetrics::LineSpacing() (ascent + descent + line gap), which varies per face; 1.2em only stands in
+    // when the computed value is not a length.
     const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
     const outside = (el.summaryMarkerGeometry?.listStylePosition ?? el.styles.listStylePosition) !== "inside";
     if (lsImage != null && lsImage !== "none") {
@@ -1292,12 +1297,13 @@ function paintTruncationMarker(
     !wrappedToMultipleLines &&
     !textFits;
   if (isTruncated) {
-    // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'.
-    let marker = "…";
+    // text-overflow values: 'ellipsis' or a custom quoted string like '"…»"'. The keyword's glyph and every
+    // marker's width come from the text engine's transcription of LineTruncator (see below).
+    let customMarker: string | null = null;
     if (to !== "ellipsis") {
       // Strip outer quotes if any, take the first string token.
       const m = /^"([^"]*)"|^'([^']*)'/.exec(to);
-      if (m != null) marker = m[1] ?? m[2] ?? "…";
+      if (m != null) customMarker = m[1] ?? m[2] ?? "…";
     }
     const fontSizePx = fontSizeOrDefault(el.styles.fontSize);
     const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
@@ -1306,28 +1312,37 @@ function paintTruncationMarker(
     // Position: right edge of the content box. Baseline at the same y as
     // the element's text baseline (textTop + fontAscent if captured).
     const contentRightX = el.x + el.width - padR - brR;
+    // NO UPSTREAM RULE for the fallback: without a captured text top and ascent, the baseline is guessed at
+    // 1.1em below the element top.
     const ty = el.textTop != null && el.fontAscent != null ? el.textTop + el.fontAscent : el.y + fontSizePx * 1.1;
-    const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     // Paint a background rect under the marker so the overflowing text
     // behind it gets visually erased — mirrors Chrome where the
     // truncated text doesn't bleed past the marker. Extend the rect all
     // the way to the element's right edge so any clipped trailing chars
     // sitting inside the right padding are also covered.
-    // markerW: per-char ~0.95 of fontSize is a conservative width for
-    // "…" in Helvetica/Arial/SF Pro; custom strings may be slightly off
-    // but this is much closer than the previous 0.55 ratio.
     const bgCol = isPaintedColor(el.styles.backgroundColor) ? el.styles.backgroundColor : "rgb(255,255,255)";
-    // "…" in Helvetica/Arial/SF Pro has an advance of ~1000-1100 font
-    // units / em (≈1.0× fontSize). Custom strings use length × 0.55 as
-    // a generic ratio.
-    const markerW = marker === "…" ? fontSizePx * 1.0 : marker.length * fontSizePx * 0.55;
+    // Blink shapes the marker with the line style's primary font and reserves its SnappedWidth
+    // (`LineTruncator::SetupEllipsis`, core/layout/inline/line_truncator.cc, rev 7d859f27); the text engine
+    // transcribes that, including the "…" -> "..." switch when the primary font lacks U+2026.
+    const measured = measureTruncationMarker(customMarker, {
+      fontSize: fontSizePx,
+      fontFamily: el.styles.fontFamily,
+      fontWeight: el.styles.fontWeight,
+      fontStyle: el.styles.fontStyle,
+      fontStretch: el.styles.fontStretch,
+    });
+    // NO UPSTREAM RULE for the fallback: with no resolvable face (Blink always has one) the marker keeps
+    // the author's text and a generic advance of half an em per character.
+    const marker = measured?.text ?? customMarker ?? "…";
+    const markerW = measured?.widthPx ?? marker.length * fontSizePx * 0.5;
+    const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     // Position the marker at Chrome's truncation point: just past the
     // right edge of the last char that fits with the marker after it.
     // xOffsets[i] is the captured viewport-x of char i's left edge, so
     // char k's right edge ≈ xOffsets[k+1]. Find max k such that
     // xOffsets[k+1] ≤ contentRightX - markerW; place the marker so its
     // left edge is at xOffsets[k+1].
-    let markerRightX = contentRightX;
+    let markerLeftX = contentRightX - markerW;
     const seg0 = el.textSegments?.[0];
     const xOffsets = seg0?.xOffsets;
     if (xOffsets != null && xOffsets.length > 1) {
@@ -1337,7 +1352,7 @@ function paintTruncationMarker(
         if (xOffsets[i] <= limitX) markerLeftAtX = xOffsets[i];
         else break;
       }
-      markerRightX = Math.min(markerLeftAtX + markerW, contentRightX);
+      markerLeftX = Math.min(markerLeftAtX, contentRightX - markerW);
     }
     // Clamp the bg-rect to the padding box (inside all four borders) so
     // it doesn't paint over the element's own borders. DM-449 fix: the
@@ -1346,21 +1361,29 @@ function paintTruncationMarker(
     // missing border at the right and bottom corners.
     const btTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
     const bbBot = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-    const bgX = markerRightX - markerW;
+    const bgX = markerLeftX;
     const bgRightX = el.x + el.width - brR;
     const bgYRaw = el.textTop != null ? el.textTop : ty - fontSizePx;
     const bgY = Math.max(bgYRaw, el.y + btTop);
     const bgBottomCap = el.y + el.height - bbBot;
-    const bgH = Math.max(0, Math.min(fontSizePx * 1.4, bgBottomCap - bgY));
+    // The erased band is the marker's line box: Blink gives the ellipsis `FontMetrics::GetFontHeight` of the
+    // primary font (`PlaceEllipsisNextTo`, line_truncator.cc), which is the captured ascent + descent.
+    // NO UPSTREAM RULE for the fallback: 1.4em when the capture carried neither, an over-generous band.
+    const lineBoxH =
+      el.textHeight ?? (el.fontAscent != null && el.fontDescent != null ? el.fontAscent + el.fontDescent : null);
+    const bgH = Math.max(0, Math.min(lineBoxH ?? fontSizePx * 1.4, bgBottomCap - bgY));
     out.push(
       `${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`,
     );
     out.push(
-      `${indent}<text x="${r(markerRightX)}" y="${r(ty)}" text-anchor="end" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`,
+      `${indent}<text x="${r(markerLeftX)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`,
     );
   }
   return out;
 }
+
+/** @internal — exposes the text-overflow marker paint to unit tests, which build a minimal element. */
+export const __paintTruncationMarkerForTest = paintTruncationMarker;
 
 function customResizerRadius(value: string | undefined, size: number, zoom: number): number {
   if (value == null || value === "") return 0;
@@ -4078,6 +4101,8 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
       const radBottom = el.y + el.height;
       const radMid = el.y + el.height * 0.6;
       const radRight = el.x + el.width;
+      // NO UPSTREAM RULE (legacy fallback, reached only when the √ glyph cannot be resolved): the 0.6 mid
+      // height and 0.4 vertex position are a hand-drawn checkmark, not Blink geometry.
       // Radical checkmark: enter at (radX0, radMid), descend to bottom at
       // 40% across the radical-sign zone, climb to top-right at radicand
       // start. Then overbar across the top.

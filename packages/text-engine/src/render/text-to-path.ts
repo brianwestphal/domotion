@@ -100,6 +100,7 @@ import {
   TextPathResult,
   codepointResolvesToNotdef,
   createFontFallbackSemanticContext,
+  fontCoversCp,
   commandsFor,
   currentRenderTextMode,
   ensureGlyphDef,
@@ -4916,6 +4917,47 @@ export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
     return g.advanceWidth * (fontSize / font.unitsPerEm);
   } catch {
     return fontSize * 0.25;
+  }
+}
+
+/**
+ * The truncation marker `LineTruncator` shapes for a `text-overflow` line, and its width.
+ *
+ * Transcribed from `core/layout/inline/line_truncator.cc` (rev 7d859f27): `ComputeEllipsisText` (:44-54)
+ * uses the author's `text-overflow` string when there is one, otherwise "…" if the line style's PRIMARY
+ * font maps U+2026 and "..." if it does not; `SetupEllipsis` (:56-88) shapes it with that style's font and
+ * takes `SnappedWidth()` = `LayoutUnit::FromFloatCeil(width)` (`shape_result.h:167`), i.e. the shaped
+ * advance rounded up to 1/64 px. The marker's left edge is then the end of the text that fits in
+ * `available - marker width` (`EllipsizeChild`, :268-300), which is why the caller needs only this width.
+ *
+ * `customText` is the `text-overflow` string value, or null for the `ellipsis` keyword. Shaping uses the
+ * primary face only, as Blink's `SetupEllipsis` does for a marker its primary font can shape; a custom
+ * string with characters the primary face lacks would fall back per character in Blink and is not
+ * modelled. Returns null when no face resolves (Blink always has one).
+ */
+export function measureTruncationMarker(
+  customText: string | null,
+  fontOptions: TextFontOptions,
+): { text: string; widthPx: number } | null {
+  const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
+  const font = resolveFont(
+    fontFamily,
+    cssWeightOf(fontOptions.fontWeight),
+    fontSize,
+    slantForStyle(fontStyle),
+    variationSettings,
+    stretchPercent(fontStretch),
+    fontOptions.lang,
+  );
+  if (font == null) return null;
+  const text = customText ?? (fontCoversCp(font, 0x2026) ? "\u2026" : "...");
+  try {
+    let advanceUnits = 0;
+    for (const position of font.layout(text).positions) advanceUnits += position.xAdvance;
+    const width = advanceUnits * (fontSize / font.unitsPerEm);
+    return { text, widthPx: Math.ceil(width * 64) / 64 };
+  } catch {
+    return null;
   }
 }
 

@@ -17,6 +17,7 @@ import {
   isTextToPathAvailable,
   measureInkMetrics,
   positionShapedClusters,
+  measureTruncationMarker,
   renderRadicalGlyph,
   renderSourceOwnedTextBoundary,
   renderStretchyFenceGlyph,
@@ -5244,5 +5245,38 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     expect(isRtlScriptCodepoint(0x05d0)).toBe(false); // Hebrew alef — BMP, NOT covered
     expect(isRtlScriptCodepoint(0x0627)).toBe(false); // Arabic alef — BMP, NOT covered
     expect(isRtlScriptCodepoint(0x0041)).toBe(false); // Latin A
+  });
+});
+
+describe("measureTruncationMarker: LineTruncator's marker and its snapped width (line_truncator.cc, rev 7d859f27)", () => {
+  const options = { fontSize: 16, fontFamily: "Courier", fontWeight: "400" };
+
+  it("uses the author's text-overflow string verbatim", () => {
+    expect(measureTruncationMarker("[..]", options)?.text).toBe("[..]");
+    expect(measureTruncationMarker("", options)).toMatchObject({ text: "", widthPx: 0 });
+  });
+
+  it("uses the horizontal ellipsis for the keyword when the primary face maps U+2026", () => {
+    const measured = measureTruncationMarker(null, options);
+    expect(measured).not.toBeNull();
+    expect(["\u2026", "..."]).toContain(measured!.text);
+  });
+
+  it("rounds the shaped advance UP to a whole 1/64 px (LayoutUnit::FromFloatCeil)", () => {
+    for (const size of [11, 13.3, 16, 17.77, 40]) {
+      const measured = measureTruncationMarker("abc", { ...options, fontSize: size })!;
+      expect(measured.widthPx * 64).toBeCloseTo(Math.round(measured.widthPx * 64), 9);
+      // Never narrower than the unrounded advance, never a whole 1/64 px wider.
+      const raw = measureTruncationMarker("abc", { ...options, fontSize: size * 64 })!.widthPx / 64;
+      expect(measured.widthPx).toBeGreaterThanOrEqual(raw - 1e-6);
+      expect(measured.widthPx - raw).toBeLessThan(1 / 64 + 1e-6);
+    }
+  });
+
+  it("scales with the font size and with the marker's length", () => {
+    const short = measureTruncationMarker("ab", options)!.widthPx;
+    const long = measureTruncationMarker("abcd", options)!.widthPx;
+    expect(long).toBeGreaterThan(short);
+    expect(measureTruncationMarker("ab", { ...options, fontSize: 32 })!.widthPx).toBeGreaterThan(short * 1.9);
   });
 });

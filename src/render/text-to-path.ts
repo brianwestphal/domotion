@@ -21,6 +21,7 @@ export {
   isStretchyFenceChar,
   measureEmphasisMarkMetrics,
   measureInkMetrics,
+  measureTruncationMarker,
   renderRadicalGlyph,
   renderSourceOwnedTextBoundary,
   renderStretchyFenceGlyph,

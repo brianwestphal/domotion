@@ -17,6 +17,7 @@ export {
   getDecorationMetrics,
   measureEmphasisMarkMetrics,
   measureInkMetrics,
+  measureTruncationMarker,
   renderRadicalGlyph,
   renderSourceOwnedTextBoundary,
   renderStretchyFenceGlyph,

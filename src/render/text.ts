@@ -907,6 +907,8 @@ export function renderTextDecoration(opts: TextDecorationOptions): string {
       if (cursor >= x1) break;
     }
     if (cursor < x1) out.push({ x0: cursor, x1 });
+    // NO UPSTREAM RULE: a design bound, not a Blink constant — decoration slivers under a quarter pixel
+    // (the residue of skip-ink gaps that nearly abut) paint nothing visible and only bloat the SVG.
     return out.filter((r) => r.x1 - r.x0 > 0.25);
   }
   // Emit one decoration line per applied line kind. `fragTop + m.<line>Top`
@@ -2186,6 +2188,9 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   const fontWeight = el.styles.fontWeight;
   const lhStr = el.styles.lineHeight;
   const lhParsed = parseFloat(lhStr);
+  // NO UPSTREAM RULE for the fallbacks below: 1.2em stands in for `line-height: normal` (Blink uses the
+  // primary font's LineSpacing(), which varies per face), and the +4 inset is a stand-in for the control's
+  // border + padding when the capture recorded no text origin.
   const lineHeight = lhStr !== "normal" && !isNaN(lhParsed) && lhParsed > 0 ? lhParsed : fontSize * 1.2;
   const startX = el.textLeft ?? el.x + 4;
   const startY = el.textTop ?? el.y + 4;
