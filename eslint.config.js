@@ -1,10 +1,15 @@
 import kerfjs from "eslint-plugin-kerfjs";
 import tsParser from "@typescript-eslint/parser";
 import importGroupOrder from "./eslint-rules/import-group-order.js";
+import noImportInPageCallback from "./eslint-rules/no-import-in-page-callback.js";
 import mappedRowDataKey from "./eslint-rules/mapped-row-data-key.js";
 
 const domotion = {
-  rules: { "mapped-row-data-key": mappedRowDataKey, "import-group-order": importGroupOrder },
+  rules: {
+    "mapped-row-data-key": mappedRowDataKey,
+    "import-group-order": importGroupOrder,
+    "no-import-in-page-callback": noImportInPageCallback,
+  },
 };
 
 export default [
@@ -71,6 +76,6 @@ export default [
     // repo has import cycles whose behavior depends on local evaluation order.
     files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs"],
     plugins: { domotion },
-    rules: { "domotion/import-group-order": "error" },
+    rules: { "domotion/import-group-order": "error", "domotion/no-import-in-page-callback": "error" },
   },
 ];
