@@ -15,6 +15,8 @@ import { isWholeHostNativeAppearance } from "../capture/effective-appearance.js"
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { esc, r } from "./format.js";
+import { blinkSymbolMarkerGeometry, disclosureTriangle } from "./list-marker-geometry.js";
+import { fontSizeOrDefault } from "./text-defaults.js";
 import { renderMultiSegmentText } from "./text.js";
 import { renderTextAsPath } from "./text-to-path.js";
 import { hasVerticalSegments, renderVerticalSegments } from "./vertical-text.js";
@@ -948,15 +950,38 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
       const bwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
       const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
       const padR = parseFloat(el.styles.paddingRight ?? "0") || 0;
-      // NO UPSTREAM RULE: the 4 / 2 / 2.5 px half-width, half-height and depth of this triangle, and the 4 px
-      // inset of its center, are drawn by hand. Blink paints the menulist arrow from the platform theme
-      // (sampled separately as nativeControlDecorationRaster), so this synthesized chevron is only the
-      // structural fallback for captures without that raster.
-      const cx = el.styles.direction === "rtl" ? el.x + bwL + padL + 4 : el.x + el.width - bwR - padR - 4;
-      const cy = el.y + el.height / 2;
-      parts.push(
-        `${indent}<path d="M ${r(cx - 4)} ${r(cy - 2)} L ${r(cx + 4)} ${r(cy - 2)} L ${r(cx)} ${r(cy + 2.5)} Z" fill="${color}" />`,
-      );
+      const bwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
+      const bwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
+      const padT = parseFloat(el.styles.paddingTop ?? "0") || 0;
+      const padB = parseFloat(el.styles.paddingBottom ?? "0") || 0;
+      const fontSizePx = fontSizeOrDefault(el.styles.fontSize);
+      // `::picker-icon` is generated content `counter(..., disclosure-open)` pushed to the inline end
+      // (html.css, `select::picker-icon`), and a disclosure counter is painted as a symbol marker, not a
+      // glyph: a triangle in a square of 0.66 x font-size whose bottom sits on the baseline
+      // (`ListMarker::RelativeSymbolMarkerRect`, core/layout/list/list_marker.cc, rev 7d859f27; the geometry
+      // is shared with `<details>` markers in list-marker-geometry.ts). Measured against Chromium at four
+      // font/padding combinations: the icon's right edge is the content-box edge, and its top is the line
+      // top plus the truncated ascent minus the square's size.
+      // The select's own ascent is not captured (its text lives in the UA shadow), so use the UA-shadow
+      // text's; its Range top is the text line's top for the same first-line box the icon shares.
+      const shadow = el.styles.selectDisplayTextGeometry;
+      const ascent =
+        shadow?.fontAscent ?? (el.fontAscent != null && el.fontAscent > 0 ? el.fontAscent : fontSizePx * 0.8);
+      const descent = el.fontDescent != null && el.fontDescent > 0 ? el.fontDescent : fontSizePx * 0.2;
+      const contentTop = el.y + bwT + padT;
+      const contentH = Math.max(0, el.height - bwT - bwB - padT - padB);
+      const lineH = el.normalLineHeight ?? ascent + descent;
+      const lineTop = shadow?.y != null ? shadow.y : contentTop + Math.max(0, (contentH - lineH) / 2);
+      const geometry = blinkSymbolMarkerGeometry(ascent, fontSizePx, "disclosure-open");
+      const rtl = el.styles.direction === "rtl";
+      const rect = {
+        x: rtl ? el.x + bwL + padL : el.x + el.width - bwR - padR - geometry.inlineSize,
+        y: lineTop + geometry.blockOffset,
+        width: geometry.inlineSize,
+        height: geometry.blockSize,
+      };
+      const points = disclosureTriangle(rect, "disclosure-open", el.styles.writingMode ?? "horizontal-tb", "ltr");
+      parts.push(`${indent}<polygon points="${points}" fill="${color}" />`);
     }
   }
   return parts.join("\n");

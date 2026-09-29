@@ -200,7 +200,17 @@ describe("Chromium-owned partial control decorations", () => {
       },
     } as unknown as CapturedElement;
     const svg = renderFormControl(select, "");
-    expect(svg).toContain('<path d="M 141 34 L 149 34 L 145 38.5 Z" fill="rgb(71, 85, 105)" />');
+    const polygon = /<polygon points="([^"]+)" fill="rgb\(71, 85, 105\)" \/>/.exec(svg);
+    expect(polygon).not.toBeNull();
+    const pts = polygon![1].split(/\s+/).map((p) => p.split(",").map(Number));
+    // 14 px font: a 9.24 px square (0.66 em). Its right edge is the content-box edge (10 + 150 - 1 - 10 = 149) and
+    // its top is line top (23 + (26 - 15) / 2 = 28.5) + trunc(ascent 12) - 9.24 = 31.26.
+    const left = 149 - 9.24;
+    expect(pts[0][0]).toBeCloseTo(left, 2);
+    expect(pts[2][0]).toBeCloseTo(149, 2);
+    expect(pts[1][0]).toBeCloseTo(left + 9.24 / 2, 2);
+    expect(pts[0][1]).toBeCloseTo(31.26 + 0.07 * 9.24, 2);
+    expect(pts[1][1]).toBeCloseTo(31.26 + 0.93 * 9.24, 2);
   });
 
   it("uses Blink's closed-UA-shadow select text geometry when available", () => {
