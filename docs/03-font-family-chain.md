@@ -49,7 +49,7 @@ Editorial pages (Times for body, Helvetica for headings), branded UIs that pin a
 
 ## Goals
 
-- Walk the author's `font-family` list in order, pick the first match for which we have a font file on disk, fall through to SF Pro as the universal fallback.
+- Walk the author's `font-family` list in order, pick the first match for which we have a font file on disk, fall through, when nothing in the stack matches, to Blink's standard font (`-webkit-standard`, script-keyed; the calibrated terminal is `times`) — not SF Pro.
 - Italic + bold variants per matched family (we already do this for SF Pro / SF Mono via sibling files; extend the pattern).
 - Generic-family keywords (`serif`, `sans-serif`, `monospace`, `cursive`, `system-ui`) map to a single canonical macOS font each.
 - Glyph cache keys must include the resolved family name so the same logical glyph in different families stays distinct.
@@ -73,7 +73,7 @@ In `packages/text-engine/src/render/font-resolution.ts`:
      - **The `ui-*` keywords (`ui-serif`, `ui-sans-serif`, `ui-monospace`, `ui-rounded`) are NOT recognized by Chrome** — none is in Blink's CSS keyword table (`css_value_keywords.json5:173-181`, rev 7d859f27), so each is an ordinary unmatchable family name. `matchFamilyNameToKey` intentionally does NOT match them: the stack walks past them to the next declared family, then reaches Blink's preferred STANDARD `times` face before system fallback when nothing declared covers the character. (A bare-`ui-serif` probe painting Times metrics cannot distinguish a pin from skip-then-STANDARD; a stack like `ui-serif, Georgia` can, and Chrome paints Georgia.)
      - `cursive` → **Apple Chancery** (Chrome on macOS resolves bare `cursive` to Apple Chancery, NOT Snell Roundhand — verified by empirical advance-width probe; author-named "Snell Roundhand" still gets its own face).
      - `fantasy` → **Papyrus** (Chrome on macOS resolves bare `fantasy` to Papyrus — verified by empirical advance-width probe).
-   - Anything else → next token, then SF Pro.
+   - Anything else → next token. When the whole stack is exhausted, the terminal is Blink's STANDARD font: `resolveFontKey` consults the script-keyed `-webkit-standard` entry (`font_selector.cc:55-61,74-76`, rev 7d859f27) and, absent one (Common script, Linux, no `lang`), returns `times`. SF Pro is reached only through `system-ui` / `-apple-system`-style names, never as a universal fallback.
 
 2. New `FONT_PATHS` entries for the common families. Initial set (all macOS system fonts). Helvetica is a TTC with separate sub-fonts per weight×slant; pick the right sub-font in `getFontInstance` based on weight and slant. The bold split is at weight ≥600, and Helvetica additionally carries a **Light** cut (`OS/2.usWeightClass` 300) that Chrome selects for every weight ≤300 — see the weight → face routing table in [font-resolution-diagram.md](font-resolution-diagram.md#3-key--fontinstance-getfontinstance) for the full measured ladder.
 
@@ -166,4 +166,4 @@ actually declared.
 
 ## Acceptance criteria
 
-`20-font-family.html` test diff drops below 1.5% avg. A page declaring `font-family: "Times New Roman", serif` renders glyphs that match Chrome's Times rendering. SF Pro keeps working as the universal fallback when none of the requested families is installed.
+`20-font-family.html` test diff drops below 1.5% avg. A page declaring `font-family: "Times New Roman", serif` renders glyphs that match Chrome's Times rendering. The Blink standard-font terminal (`-webkit-standard` → `times`) applies when none of the requested families is installed.
