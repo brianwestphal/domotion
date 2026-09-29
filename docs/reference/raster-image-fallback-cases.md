@@ -1,12 +1,13 @@
 # Reference — Raster-image fallback cases
 
-Domotion's contract is a **path-based** SVG: glyphs are `<path>` outlines, gradients are `<linearGradient>` / `<radialGradient>`, borders / shapes are `<rect>` / `<line>` / `<polygon>`. That keeps the output crisp at any zoom and trivially diffable. Where Chromium paints something we **can't express in native SVG** — color emoji, an icon-font pseudo-element glyph, live `<canvas>` pixels, a CSS conic gradient — we fall back to embedding a raster image (PNG, base64 data URI inside an `<image>` element).
+Domotion emits native SVG paint where possible: text uses embedded fonts by default or glyph `<path>` outlines in paths mode; gradients use `<linearGradient>` / `<radialGradient>`, and borders / shapes use vector geometry. That keeps the output crisp at any zoom and diffable. Where Chromium paints something we **can't express in native SVG** — color emoji, an icon-font pseudo-element glyph, live `<canvas>` pixels, a CSS conic gradient — we fall back to embedding a raster image (PNG, base64 data URI inside an `<image>` element).
 
 This document is the canonical list of those fallback cases. If you add a new one, **add it here**; if you remove one, prune the entry. Keeping this in sync with the code is the rule, not a nice-to-have — consumers reading the output need a single place to look up "why is this paint a raster instead of crisp SVG?".
 
-The fallback cases group into three buckets:
+The fallback cases group into four buckets:
 
-- **Glyph-level fallbacks** stamp an `<image>` over an individual character or sub-element. The rest of the surrounding text still emits as `<path>`.
+- **Glyph-level fallbacks** stamp an `<image>` over an individual character or sub-element. The rest of the surrounding text remains in its selected native text or path mode.
+- **Pseudo-element fallbacks** isolate Chromium-owned generated paint while keeping the host and other fragments structural.
 - **Element-level fallbacks** screenshot a whole element's painted rect and emit one `<image>` in its place.
 - **CSS-feature fallbacks** synthesize a raster PNG for a CSS effect SVG has no equivalent for (conic gradient, mask-image element() ref).
 
@@ -32,17 +33,33 @@ Emit: `src/render/text.ts::rasterGlyphOverlays` stamps one `<image>` per selecte
 
 Doc: [15-color-emoji-rendering.md](../15-color-emoji-rendering.md) and [145-renderer-owned-color-glyph-boundary.md](../145-renderer-owned-color-glyph-boundary.md).
 
-### G2. Unshapeable pseudo-element / segment glyphs (icon-font PUA, color glyphs in `::before`/`::after`)
+### G2. Legacy unshapeable pseudo-element / segment glyphs (icon-font PUA, color glyphs in `::before`/`::after`)
 
 Trigger: a whole text segment — typically a `::before` / `::after` pseudo-element's content — that contains a codepoint Chromium shapes from an icon font (often a Private-Use-Area codepoint) or paints as a color glyph, where fontkit can't produce an outline.
 
-Why: unlike G1 (which rasters one char and keeps the surrounding run as paths), the _entire segment_ has no faithful path representation — the glyph the icon font draws isn't in any outline table we can read. Screenshotting Chromium's painted rect for the segment is the only faithful fallback.
+Why: unlike G1 (which rasters one char and keeps the surrounding run in its selected text mode), the _entire segment_ has no faithful path representation — the glyph the icon font draws isn't in any outline table we can read. Screenshotting Chromium's painted rect for the segment is the only faithful fallback.
 
-Capture: CAPTURE_SCRIPT sets `pseudoSeg.rasterRect` on the segment (`src/capture/script/walker/pseudo-content.ts` ~lines 805–812). The post-capture `rasterizeBitmapGlyphs` pass screenshots that rect and writes `seg.rasterDataUri` (`src/capture/emoji.ts` ~lines 255–259).
+Capture: the legacy CAPTURE_SCRIPT path sets `pseudoSeg.rasterRect` on the segment (`src/capture/script/walker/pseudo-content.ts`). The post-capture `rasterizeBitmapGlyphs` pass screenshots that rect and writes `seg.rasterDataUri` (`src/capture/emoji.ts`). Source-owned pseudo-fragment records use P1 instead.
 
-Emit: `src/render/text.ts` emits one `<image>` at the segment's `rasterRect`, clipped to the segment box, in place of the path run — the single-segment overlay (~line 950) and the multi-segment path (~line 1178).
+Emit: `src/render/text.ts` emits one `<image>` at the segment's `rasterRect`, clipped to the segment box, in place of the path run in its single-line or multi-segment renderer.
 
 Doc: [38-pseudo-element-paint.md](../38-pseudo-element-paint.md). Tickets: SK-1058 / DM-626.
+
+---
+
+## Pseudo-element fallbacks
+
+### P1. Source-owned generated pseudo surfaces and bitmap text
+
+Trigger: the Chromium pseudo-fragment prepass cannot correlate a generated pseudo to a backend node, cannot decode exact painted geometry, detects generated URL-image ink beyond the pseudo's layout slot, or fails its protocol prepass. `src/capture/pseudo-fragment-cdp.ts` records a `status: "terminal-raster"` pseudo and isolates its Chromium-painted surface. An exact record whose selected pseudo-text glyph is bitmap-owned instead receives `bitmapTextRaster`; a visible pseudo with `backdrop-filter` may also receive its own `backdropFilterRaster`.
+
+Why: the terminal cases lack enough authoritative geometry to reconstruct the pseudo as vectors. Bitmap text requires Chromium's selected glyph paint, while a pseudo backdrop filter samples earlier page paint. These are per-pseudo ownership boundaries, so the surrounding host and other fragments remain structural.
+
+Capture: `src/capture/pseudo-fragment-cdp.ts` isolates the terminal surface or the selected bitmap-text and backdrop boundaries. A terminal record with no usable raster data remains explicitly empty rather than silently falling back to reconstructed paint.
+
+Emit: `src/render/pseudo-fragments.ts::renderPseudoFragmentRecord` emits the terminal `<g data-domotion-pseudo-owner="chromium-raster"><image …/></g>`, or places a backdrop raster below its retained vector boxes and a bitmap-text raster in place of text fragments. These records do not use the legacy G2 `pseudoSeg.rasterRect` route.
+
+Docs: [176-source-owned-pseudo-fragment-capture.md](../176-source-owned-pseudo-fragment-capture.md) and [178-generated-pseudo-backdrop-boundary.md](../178-generated-pseudo-backdrop-boundary.md).
 
 ---
 
@@ -56,9 +73,9 @@ Why: nothing here is reachable through the DOM walk. `<canvas>` is a pixel surfa
 
 **`<iframe>` now recurses when accessible (DM-1441).** When an iframe's `contentDocument` is readable (same-origin — cross-origin `contentDocument` is `null` under the Same-Origin Policy), the capture walker recurses the inner document with the same capture logic, transforms it into the parent's coordinate space (via a temporary `vp`-origin shift), splices it in as the iframe node's child, and marks the iframe node `overflow: hidden` so the renderer clips the inner content to the iframe content box — crisp, scalable, selectable native SVG instead of a raster. Recursion additionally requires a capture-local Chromium `FrameId` authority bound to that exact owner element. An iframe stays a raster `<image>` when its identity is unavailable, its document is inaccessible, or it is **cross-origin and not allowlisted** (the `--cross-origin-frames` allowlist + `--disable-web-security` lift this for trusted hosts — DM-1442 / Phase 2), as well as for a media/pixel frame with no DOM or a frame that has not loaded. A denied/inaccessible ancestor also suppresses every descendant scroll-owner record. See [81-iframe-recursion.md](../81-iframe-recursion.md) and [217-cross-origin-frame-scroll-ownership.md](../217-cross-origin-frame-scroll-ownership.md).
 
-Capture: `src/capture/script/walker/replaced-elements.ts` tags the live DOM with `data-domotion-rid` and stashes a bootstrap content rect on `captured.replacedSnapshot` — but it **skips an iframe that was recursed** (`captured._iframeRecursed === true`, set by `_captureIframeRecursion` in `src/capture/script/index.ts`). The post-capture `rasterizeReplacedElements()` in `src/capture/index.ts` injects a hide-everything-else stylesheet and asks Chromium's `DOM.getBoxModel` for the authoritative content quad. Rotation/skew owners and ancestor overflow/clip/mask paint nodes are neutralized while Chromium samples the local source; the SVG tree reapplies the affine transform and clip once, in Blink's order, and capture restores stored scroll offsets. Off-page sampling is accepted only through a same-size translation mapping. Pure scale/translation remains live/baked; a projective ancestor's `transformSubtreeRaster` owns the entire surface and suppresses the nested snapshot. `rasterToOutput` keeps PNG device pixels separate from CSS destination units, including DPR-scaled expected-image crops. `src/capture/replaced-media-frame.ts` owns the optional strict preflight/freeze/capture/reverify transaction and serializes its exact PNG/fact digests. A recursed iframe has no `replacedSnapshot`, so it is skipped throughout. See docs 17 and 229.
+Capture: `src/capture/script/walker/replaced-elements.ts` tags the live DOM with `data-domotion-rid` and stashes a bootstrap content rect on `captured.replacedSnapshot` — but it **skips an iframe that was recursed** (`captured._iframeRecursed === true`, set by `_captureIframeRecursion` in `src/capture/script/index.ts`). The post-capture `rasterizeReplacedElements()` in `src/capture/replaced-element-raster.ts` injects a hide-everything-else stylesheet and asks Chromium's `DOM.getBoxModel` for the authoritative content quad. Rotation/skew owners and ancestor overflow/clip/mask paint nodes are neutralized while Chromium samples the local source; the SVG tree reapplies the affine transform and clip once, in Blink's order, and capture restores stored scroll offsets. Off-page sampling is accepted only through a same-size translation mapping. Pure scale/translation remains live/baked; a projective ancestor's `transformSubtreeRaster` owns the entire surface and suppresses the nested snapshot. `rasterToOutput` keeps PNG device pixels separate from CSS destination units, including DPR-scaled expected-image crops. `src/capture/replaced-media-frame.ts` owns the optional strict preflight/freeze/capture/reverify transaction and serializes its exact PNG/fact digests. A recursed iframe has no `replacedSnapshot`, so it is skipped throughout. See docs 17 and 229.
 
-Emit: `src/render/element-tree-to-svg.ts::paintRasterSnapshot` (~line 409–419) emits the `<image>` at the content-box rect. If an `imageReplacement.titleText` was captured (sprite path — see E5), a `<title>` child is included so screen readers and tooltips still get accessible text.
+Emit: `src/render/element-tree-to-svg.ts::paintRasterSnapshot` emits the `<image>` at the content-box rect. If an `imageReplacement.titleText` was captured (sprite path — see E5), a `<title>` child is included so screen readers and tooltips still get accessible text.
 
 Doc: [17-replaced-element-snapshots.md](../17-replaced-element-snapshots.md). Ticket: DM-457.
 
@@ -107,7 +124,8 @@ focused inline-SVG route/pixel oracle.
 
 Trigger: a live failed `<img>` record exposes a visible UA-shadow
 `#alttext-image`. Successful/loading images, empty-alt auto-sized images, and
-fixed fallbacks below Blink's 18 px threshold do not activate this raster.
+fixed fallbacks below Blink's 18 px threshold do not activate this raster; the
+threshold is Blink's, not a Domotion approximation.
 
 Why: Blink selects a bundled 100%/200% GRIT bitmap at DPR 1/2 and paints it as
 an ordinary image inside the fallback. Recreating the shaded page/fold/mountain
@@ -157,8 +175,9 @@ changes, labels, and CSS surfaces are preserved structurally.
 Capture and emit: `src/capture/script/index.ts` records the host plus outline
 and one-pixel paint overflow, along with private live-node correlation.
 `src/capture/native-control-raster.ts` reads one authoritative compositor frame
-(`rasterizeFromImagePath`, or one atomic live screenshot) and one atomic
-transparent isolation frame for all controls. Static source RGB is accepted
+(from the `rasterizeFromImagePath` option in `src/capture/index.ts`, or one
+atomic live screenshot) and one atomic transparent isolation frame for all
+controls. Static source RGB is accepted
 only where isolated alpha proves full opacity; transparent edges and
 overlapping siblings stay isolation-owned. Time-dependent paint uses its
 complete overlap-free source crop or fails closed. Geometry, frame, and
@@ -214,15 +233,18 @@ target while preserving its earlier backdrop and hiding descendant subtrees,
 reversibly neutralizes ancestor effects already emitted by SVG, restores the
 live DOM, and stores the PNG data URI. Opacity/blend/mask roots use one atomic
 root surface. A document-root target below rotate/skew instead stores a sparse
-source-versus-owner-hidden final-space patch at the compositor ancestor; scroll
-and sticky remain direct document-root target surfaces. Snapshot or mapping
+source-versus-owner-hidden final-space patch at the compositor ancestor
+(`src/capture/backdrop-composite-raster.ts`); scroll and sticky remain direct
+document-root target surfaces. Snapshot or mapping
 failures fall back to the ordinary full-page crop with an explicit diagnostic.
 
 Emit: `src/render/element-tree-to-svg.ts` emits an ordinary target raster at its
 box paint position before retained text/descendant vectors. Atomic roots emit
 once at the root paint boundary. A rotate/skew terminal patch emits outside the
 reconstructed transform/mask/scroll wrappers and replaces that captured
-subtree, preventing a second transform or effect application.
+subtree, preventing a second transform or effect application (`terminalBackdropComposite`
+in `src/render/element-tree-to-svg.ts`). Generated pseudos can also own an
+isolated backdrop raster inside their source-owned record; see P1.
 
 Boundary: ordinary source correlation, atomic roots, target-filter grouping,
 transformed effect-space ownership, generated pseudos, and fixed order are
@@ -298,7 +320,7 @@ percentages remain relative to the already-physical box. The custom
 direct-tree/helper-absent callers and never replaces Chromium pixels. A final
 miss warns loudly.
 
-Emit: `src/render/element-tree-to-svg.ts::buildConicGradientDef` (~line 4500) emits `<pattern id="..." patternUnits="userSpaceOnUse" ...><image href="data:image/png;base64,..." width="..." height="..."/></pattern>` and refers to it from the element's `fill="url(#...)"`.
+Emit: `src/render/element-tree-to-svg.ts::buildConicGradientDef` emits `<pattern id="..." patternUnits="userSpaceOnUse" ...><image href="data:image/png;base64,..." width="..." height="..."/></pattern>` and refers to it from the element's `fill="url(#...)"`.
 
 Doc: [28-conic-gradient.md](../28-conic-gradient.md).
 
@@ -312,7 +334,7 @@ Why: the spec defines this as "rasterise the target element's paint and use that
 
 Capture: CAPTURE_SCRIPT finds each `mask-image: element(#id)` reference, marks the target element with `data-domotion-rid="mr<n>"`, and records `(id, rid, rect, width, height)` on the root tree's `maskRasters[]`. Post-capture, `rasterizeMaskSources` (`src/capture/index.ts`) runs the same hide-everything-else stylesheet pass as E4 / E5 and screenshots the target's painted rect at the page's actual DPR.
 
-Emit: `src/render/mask.ts::buildMaskDef` (moved out of element-tree-to-svg.ts in DM-1305; `buildMaskDef` is at ~line 496) resolves the data URI from the per-element `elementRasters` lookup when building `<mask>` defs; emits an `<image>` directly inside the `<mask>` with `mask-position` / `mask-size` honored. `mask-mode: match-source` resolves to `luminance` (per the CSS Masking spec — element() paint refs drive mask alpha from RGB luminance).
+Emit: `src/render/mask.ts::buildMaskDef` resolves the data URI from the per-element `elementRasters` lookup when building `<mask>` defs; emits an `<image>` directly inside the `<mask>` with `mask-position` / `mask-size` honored. `mask-mode: match-source` resolves to `luminance` (per the CSS Masking spec — element() paint refs drive mask alpha from RGB luminance).
 
 Doc: [22-mask-element-paint-references.md](../22-mask-element-paint-references.md).
 
