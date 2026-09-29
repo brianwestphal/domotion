@@ -18,13 +18,14 @@
  * `checkDiskSpace`) that are unit-tested without spawning Chromium/ffmpeg.
  */
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import type { Browser } from "@playwright/test";
 import { isTransparentBackground } from "./common.js";
 import { seekAnimationsToFrame } from "../capture/animation-frame.js";
+import { startFfmpegFrameSink } from "./ffmpeg-frame-sink.js";
 
 export interface SvgToVideoOptions {
   input: string;
@@ -796,36 +797,32 @@ export async function runSvgToVideo(opts: SvgToVideoOptions): Promise<void> {
     });
 
     log(`ffmpeg ${ffArgs.join(" ")}`);
-    const ff = spawn(ffmpeg, ffArgs, { stdio: ["pipe", "inherit", opts.quiet ? "pipe" : "inherit"] });
-    const ffStdin = ff.stdin;
-    if (!ffStdin) throw new Error("ffmpeg stdin pipe unavailable");
-    const ffDone = new Promise<void>((resolve, reject) => {
-      ff.on("error", reject);
-      ff.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}`))));
-    });
+    // In quiet mode ffmpeg's stderr is drained into the error tail rather than left as an
+    // undrained pipe (which would block ffmpeg after ~64 KB of progress output).
+    const sink = startFfmpegFrameSink(ffmpeg, ffArgs, { stderr: opts.quiet ? "capture" : "inherit" });
+    const writeFrame = (buf: Buffer): Promise<void> => sink.writeFrame(buf);
 
-    const writeFrame = (buf: Buffer): Promise<void> =>
-      new Promise((resolve, reject) => {
-        ffStdin.write(buf, (err) => (err ? reject(err) : resolve()));
-      });
+    try {
+      // frame 0 (already rendered)
+      if (framesDir) writeFileSync(path.join(framesDir, frameName(0)), firstFrame);
+      await writeFrame(firstFrame);
 
-    // frame 0 (already rendered)
-    if (framesDir) writeFileSync(path.join(framesDir, frameName(0)), firstFrame);
-    await writeFrame(firstFrame);
-
-    for (let i = 1; i < frameCount; i++) {
-      const t = frameSampleTimeMs(i, opts.fps);
-      await seekTo(page, t);
-      const buf = await screenshot(page, omitBackground);
-      if (framesDir) writeFileSync(path.join(framesDir, frameName(i)), buf);
-      await writeFrame(buf);
-      if (!opts.quiet && (i % opts.fps === 0 || i === frameCount - 1)) {
-        log(`  rendered ${i + 1}/${frameCount} frames`);
+      for (let i = 1; i < frameCount; i++) {
+        const t = frameSampleTimeMs(i, opts.fps);
+        await seekTo(page, t);
+        const buf = await screenshot(page, omitBackground);
+        if (framesDir) writeFileSync(path.join(framesDir, frameName(i)), buf);
+        await writeFrame(buf);
+        if (!opts.quiet && (i % opts.fps === 0 || i === frameCount - 1)) {
+          log(`  rendered ${i + 1}/${frameCount} frames`);
+        }
       }
-    }
 
-    ffStdin.end();
-    await ffDone;
+      await sink.finish();
+    } finally {
+      // A mid-render failure (page crash, disk full) must not leave ffmpeg running.
+      sink.dispose();
+    }
     log(`wrote ${opts.output}`);
   } finally {
     await browser.close();

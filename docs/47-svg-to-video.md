@@ -8,6 +8,8 @@ platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1142", "DM-1144", "DM-1146", "DM-873", "DM-885"]
 code:
   [
+    "src/cli/ffmpeg-frame-sink.ts",
+    "src/cli/ffmpeg-frame-sink.test.ts",
     "src/cli/svg-to-video-core.test.ts",
     "src/cli/svg-to-video-core.ts",
     "src/cli/svg-to-video-e2e.test.ts",
@@ -128,6 +130,17 @@ What is _not_ free:
 | `--keep-frames <dir>`            | —                          | Also write the PNG sequence to disk (debug).                                                                                                                                        |
 | `--ffmpeg <path>`                | `$FFMPEG_PATH` or `ffmpeg` | ffmpeg binary to shell out to.                                                                                                                                                      |
 | `--quiet`                        | off                        | Suppress per-phase progress on stderr.                                                                                                                                              |
+
+## ffmpeg failure handling
+
+Frames are written through `src/cli/ffmpeg-frame-sink.ts`, which `svg-to-video` and the `svg-scrubber` range-video export share:
+
+- ffmpeg's exit is observed from the moment it starts, so an early non-zero exit (unwritable output directory, missing codec, bad `--captions`) is reported as `ffmpeg exited <code>: <stderr tail>` from the next frame write or from the final wait — never as an unhandled rejection that would kill the process before the browser is closed.
+- Each frame write races ffmpeg's exit, and a write error (`EPIPE` once ffmpeg is gone) is replaced by ffmpeg's own exit error, so the message does not depend on event timing.
+- With `--quiet`, ffmpeg's stderr is drained into a bounded tail (appended to that error) instead of an undrained pipe, which would fill at ~64 KB and stall ffmpeg on a long render. Without `--quiet` it is inherited and shown live.
+- A failure mid-render (page crash, disk full) kills a still-running ffmpeg in `finally`, so no orphan is left behind.
+
+Coverage: `src/cli/ffmpeg-frame-sink.test.ts` (real child processes, no ffmpeg needed), stub-ffmpeg cases in `src/cli/svg-to-video-e2e.test.ts`, and the scrubber's mid-export page-death case in `src/scrubber/server.e2e.test.ts`.
 
 ## ffmpeg dependency
 

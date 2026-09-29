@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { launchChromium } from "../index.js";
@@ -288,4 +288,84 @@ describeE2E("svg-to-video end-to-end (ffmpeg present)", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+// A stub "ffmpeg" (a node script) answers `-version` so `findFfmpeg` accepts it, then
+// misbehaves like a real ffmpeg that failed or flooded stderr. POSIX only: it relies on a
+// shebang, and it needs Chromium but not a real ffmpeg.
+const describeStub = process.platform === "win32" ? describe.skip : describe;
+
+describeStub("svg-to-video with a misbehaving ffmpeg (stub)", () => {
+  function stubFfmpeg(dir: string, body: string): string {
+    const file = path.join(dir, "ffmpeg-stub.js");
+    writeFileSync(
+      file,
+      `#!/usr/bin/env node\nif (process.argv.includes("-version")) { console.log("ffmpeg version stub"); process.exit(0); }\n${body}\n`,
+    );
+    chmodSync(file, 0o755);
+    return file;
+  }
+
+  async function run(ffmpegPath: string, dir: string): Promise<{ error: Error | undefined; browserClosed: boolean }> {
+    const input = path.join(dir, "anim.svg");
+    writeFileSync(input, ANIMATED_SVG);
+    let browserClosed = false;
+    try {
+      await runSvgToVideo({
+        input,
+        output: path.join(dir, "out.mp4"),
+        fps: 4,
+        durationSec: 1,
+        format: "h264",
+        scale: 1,
+        background: "#ffffff",
+        burnCaptions: false,
+        ffmpegPath,
+        quiet: true,
+        log: () => {},
+        launchBrowser: async () => {
+          const browser = await launchChromium();
+          const close = browser.close.bind(browser);
+          browser.close = async () => {
+            browserClosed = true;
+            await close();
+          };
+          return browser;
+        },
+      });
+      return { error: undefined, browserClosed };
+    } catch (error) {
+      return { error: error as Error, browserClosed };
+    }
+  }
+
+  it("surfaces ffmpeg's own exit error and still closes the browser when ffmpeg exits non-zero early", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-"));
+    try {
+      const stub = stubFfmpeg(dir, 'process.stderr.write("stub: unwritable output\\n"); process.exit(1);');
+      const { error, browserClosed } = await run(stub, dir);
+      expect(error?.message).toMatch(/ffmpeg exited 1: .*stub: unwritable output/s);
+      expect(browserClosed).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("does not hang when ffmpeg floods stderr in --quiet mode", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "svg2vid-"));
+    try {
+      // fs.writeSync blocks on a full pipe, so an undrained stderr pipe would stall the stub.
+      const stub = stubFfmpeg(
+        dir,
+        'const fs = require("fs"); const chunk = "frame= 1 fps=1 size=0kB\\n".repeat(4000);' +
+          "for (let i = 0; i < 20; i++) fs.writeSync(2, chunk);" +
+          'process.stdin.resume(); process.stdin.on("end", () => process.exit(0));',
+      );
+      const { error, browserClosed } = await run(stub, dir);
+      expect(error).toBeUndefined();
+      expect(browserClosed).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

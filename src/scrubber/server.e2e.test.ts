@@ -426,3 +426,79 @@ describe("svg-scrubber server (DM-1040)", () => {
     }
   }, 60_000);
 });
+
+// A mid-export page failure must not leave ffmpeg running (the server used to leave it
+// orphaned with an open stdin and an unobserved exit rejection). Uses a stub ffmpeg that
+// records its pid once frames arrive, so it needs Chromium but not a real ffmpeg. POSIX
+// only: the stub relies on a shebang.
+describe.skipIf(process.platform === "win32")("svg-scrubber range-video export failure cleanup", () => {
+  it("kills ffmpeg when the page dies mid-export", async () => {
+    const { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "scrubber-ffmpeg-stub-"));
+    const pidFile = join(dir, "pid");
+    const stub = join(dir, "ffmpeg-stub.js");
+    writeFileSync(
+      stub,
+      `#!/usr/bin/env node
+if (process.argv.includes("-version")) { console.log("ffmpeg version stub"); process.exit(0); }
+let wrote = false;
+process.stdin.on("data", () => {
+  if (!wrote) { wrote = true; require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); }
+});
+process.stdin.on("end", () => process.exit(0));
+`,
+    );
+    chmodSync(stub, 0o755);
+
+    const previous = process.env.FFMPEG_PATH;
+    process.env.FFMPEG_PATH = stub;
+    let b: Browser | null = null;
+    let s: ScrubberServerHandle | null = null;
+    let pid: number | undefined;
+    try {
+      try {
+        b = await chromium.launch({ headless: true });
+      } catch {
+        return; // no Chromium here — skip like the rest of this file
+      }
+      s = await startScrubberServer({ launchBrowser: async () => b! });
+      const request = fetch(s.url.replace(/\/$/, "") + "/export-range-video", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        // 20 s at 30 fps is 600 frames: long enough to kill the browser part-way through.
+        body: JSON.stringify({ svg: SVG, startMs: 0, endMs: 20_000, width: 100, height: 60 }),
+      });
+      for (let i = 0; i < 300 && !existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 50));
+      expect(existsSync(pidFile)).toBe(true);
+      pid = Number(readFileSync(pidFile, "utf8"));
+      await b.close(); // the page dies mid-export
+      const response = await request;
+      expect(response.status).toBeGreaterThanOrEqual(500);
+
+      const alive = (): boolean => {
+        try {
+          process.kill(pid!, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      for (let i = 0; i < 60 && alive(); i++) await new Promise((r) => setTimeout(r, 50));
+      expect(alive()).toBe(false);
+    } finally {
+      if (pid != null) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          /* already gone */
+        }
+      }
+      if (previous === undefined) delete process.env.FFMPEG_PATH;
+      else process.env.FFMPEG_PATH = previous;
+      if (s) await closeSafely(() => s!.close(), b, 6_000);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});

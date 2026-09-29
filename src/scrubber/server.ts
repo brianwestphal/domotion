@@ -21,7 +21,6 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { startLocalServer } from "../utils/local-server.js";
-import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -39,6 +38,7 @@ import {
   fitContain,
   type AnimTiming,
 } from "../cli/svg-to-video-core.js";
+import { startFfmpegFrameSink } from "../cli/ffmpeg-frame-sink.js";
 import { trimAnimatedSvg } from "./trim.js";
 import { clampCrop, cropSvgViewBox, type CropRect } from "./crop.js";
 import { SCRUBBER_CLIENT_JS } from "./client.bundle.generated.js";
@@ -201,31 +201,19 @@ async function renderRangeVideo(
     output: outPath,
     burnCaptions: false,
   });
-  const ff = spawn(ffmpeg, args, { stdio: ["pipe", "ignore", "pipe"] });
-  let ffErr = "";
-  ff.stderr?.on("data", (d: Buffer) => {
-    ffErr += d.toString();
-    if (ffErr.length > 8192) ffErr = ffErr.slice(-8192);
-  });
-  const ffDone = new Promise<void>((resolve, reject) => {
-    ff.on("error", reject);
-    ff.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${ffErr.slice(-400)}`)),
-    );
-  });
-  const writeFrame = (buf: Buffer): Promise<void> =>
-    new Promise((res, rej) => ff.stdin!.write(buf, (err) => (err ? rej(err) : res())));
+  const sink = startFfmpegFrameSink(ffmpeg, args, { stderr: "capture", stdout: "ignore" });
   try {
     for (let i = 0; i < frameCount; i++) {
       await seekTo(page, t0 + (i * 1000) / EXPORT_FPS);
       const shot =
         clip != null ? await page.screenshot({ type: "png", scale: "device", clip }) : await screenshot(page);
-      await writeFrame(shot);
+      await sink.writeFrame(shot);
     }
-    ff.stdin!.end();
-    await ffDone;
+    await sink.finish();
     return readFileSync(outPath);
   } finally {
+    // A mid-export failure (page crash) must not orphan ffmpeg.
+    sink.dispose();
     rmSync(dir, { recursive: true, force: true });
   }
 }
