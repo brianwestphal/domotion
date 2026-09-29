@@ -8,6 +8,7 @@ All notable changes to **Domotion** are documented in this file.
 
 - `package.json` now declares an `exports` map. The supported entry points are `domotion-svg`, its documented alias `domotion-svg/dist/index.js`, the new `domotion-svg/post-processing` subpath (the optimize, gzip, WOFF2, image-hoist and clip-safety passes only), `domotion-svg/schemas/*`, and `domotion-svg/package.json`. Deep `domotion-svg/dist/<module>` imports were never part of the public API and now fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`; import the same symbols from the package root instead.
 - Added the `domotion-svg/render`, `domotion-svg/animation` and `domotion-svg/tree-ops` subpaths. Each exposes exactly its documented section of the root API (render also carries the capture-tree envelope helpers the renderer accepts) and resolves to the same module the root re-exports, so root and subpath imports share one set of module state. Capture, scroll, templates, terminal and Studio symbols remain root-only.
+- Added the `domotion-svg/templates` and `domotion-svg/studio` subpaths, now that every template and Studio export is documented in the API reference. Both are exactly the root's template and Studio exports, resolving to the same modules; capture, scroll and terminal symbols remain root-only.
 
 **Removed**
 

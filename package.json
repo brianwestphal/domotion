@@ -39,6 +39,14 @@
       "types": "./dist/tree-ops/index.d.ts",
       "default": "./dist/tree-ops/index.js"
     },
+    "./templates": {
+      "types": "./dist/templates/index.d.ts",
+      "default": "./dist/templates/index.js"
+    },
+    "./studio": {
+      "types": "./dist/studio/index.d.ts",
+      "default": "./dist/studio/index.js"
+    },
     "./post-processing": {
       "types": "./dist/post-processing/index.d.ts",
       "default": "./dist/post-processing/index.js"

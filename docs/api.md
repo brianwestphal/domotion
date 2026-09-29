@@ -21,6 +21,8 @@ The package's main entry is `dist/index.js`. Consumers import from
 | `domotion-svg/render`          | `dist/render/index.js`          | The [Render](#render) exports, plus the capture-owned `createCapturedTreeEnvelope` / `promoteCapturedSubtree` and the `CapturedSessionGenericFamilies` / `CapturedTreeEnvelope` / `CapturedTreeInput` types the renderer accepts — a strict subset of the root surface. |
 | `domotion-svg/animation`       | `dist/animation/index.js`       | The [Animation](#animation) exports only — a strict subset of the root surface.                                                                                                                                                                                         |
 | `domotion-svg/tree-ops`        | `dist/tree-ops/index.js`        | The [Tree ops](#tree-ops) exports only — a strict subset of the root surface.                                                                                                                                                                                           |
+| `domotion-svg/templates`       | `dist/templates/index.js`       | The [Templates](#templates) exports only — a strict subset of the root surface.                                                                                                                                                                                         |
+| `domotion-svg/studio`          | `dist/studio/index.js`          | The [Domotion Studio](#domotion-studio-project-model) exports only — a strict subset of the root surface. Node-only, like the root (project file I/O, Playwright recording).                                                                                            |
 | `domotion-svg/schemas/<file>`  | `schemas/<file>`                | The committed JSON Schemas for the `animate`, `composite`, `storyboard`, and Studio config files.                                                                                                                                                                       |
 | `domotion-svg/package.json`    | `package.json`                  | Manifest, for tooling that reads the installed version.                                                                                                                                                                                                                 |
 
@@ -36,13 +38,11 @@ A subpath resolves to the same compiled module the root re-exports, so importing
 one set of module-level state (render-text mode, webfont and embedded-font
 registries) — there is no dual-package split between entry points.
 
-The capture, scroll, templates, terminal and Studio barrels have no subpath.
-The capture and scroll barrels also export internal helpers that the root
-deliberately omits, so exposing them would widen the public API; the terminal
-barrel is only the two `castTo*` entry points without the parse / emulate /
-theme primitives the root also documents; and the templates and Studio barrels
-still carry exports that this file does not yet describe. Import those symbols
-from the package root.
+The capture, scroll and terminal barrels have no subpath. The capture and
+scroll barrels also export internal helpers that the root deliberately omits,
+so exposing them would widen the public API; and the terminal barrel is only the
+two `castTo*` entry points without the parse / emulate / theme primitives the
+root also documents. Import those symbols from the package root.
 
 Per-feature barrels under `src/{capture,render,animation,scroll,tree-ops,post-processing}/index.ts`
 each define their own curated surface; `src/index.ts` aggregates them into the
