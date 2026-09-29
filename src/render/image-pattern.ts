@@ -285,6 +285,30 @@ function parsePosition(value: string): { x: AxisPosition; y: AxisPosition } | nu
   return null;
 }
 
+/**
+ * Offset of a positioned tile inside its area, in CSS px, for a computed `background-position`
+ * string: the same `<position>` grammar (1-4 tokens, edge keywords with offsets, px/%/calc()) and the
+ * same edge-origin rule (`right 10px` measures from the far edge) the image-pattern geometry uses, but
+ * evaluated in plain floats for callers that place an already-rasterized tile (the conic pattern).
+ *
+ * `availableW` / `availableH` are the free space on each axis — area minus tile — because a percentage
+ * position resolves against that, not against the area. Returns null when the value does not parse, so
+ * a caller can keep its own fallback rather than silently painting at the origin.
+ */
+export function backgroundPositionOffsetPx(
+  position: string,
+  availableW: number,
+  availableH: number,
+): { x: number; y: number } | null {
+  const parsed = parsePosition(position);
+  if (parsed == null) return null;
+  const axis = (p: AxisPosition, available: number): number => {
+    const fromEdge = (available * p.value.percent) / 100 + p.value.px;
+    return p.origin === "end" ? available - fromEdge : fromEdge;
+  };
+  return { x: axis(parsed.x, availableW), y: axis(parsed.y, availableH) };
+}
+
 function resolvePosition(position: AxisPosition, available: RawLayoutUnit, offset: RawLayoutUnit): RawLayoutUnit {
   const edgeRelative = resolveLength(position.value, available);
   const absolute = position.origin === "end" ? available - edgeRelative : edgeRelative;

@@ -115,6 +115,15 @@ if (conic != null) {
 
 The clip-box rect that consumes this pattern is unchanged — the existing `<rect ... fill="url(#bg7)"/>` emit at line 4513 handles it, identical to a `url(...)` image layer. Background-position offset is applied to the `<pattern>`'s `x`/`y` attrs so multi-layer registration is preserved.
 
+The offset is resolved by `backgroundPositionOffsetPx` (`src/render/image-pattern.ts`), the same
+`<position>` parser the URL-image backgrounds use: two-token keyword / percentage / px forms, a one-token
+form (`left` centers the other axis), the three- and four-token edge-offset forms (`right 10px bottom 20px`
+measures from the far edge) and `calc()`. Percentages resolve against the free space (element size minus
+tile). An unparseable value keeps the top-left origin. Today's only direct caller of
+`buildConicGradientDef` is the form-control pseudo path (`DefCtx.buildConicTile`, which passes `auto` /
+`0% 0%`); ordinary conic backgrounds go through the Chromium-painted tile and `buildImagePatternDef`, whose
+Blink geometry already handles every position form.
+
 ### Helper-absent fallback algorithm
 
 Conic-gradient interpolation is angular: at each pixel `(x, y)`, compute `θ = atan2(y - cy, x - cx) - fromAngle` (normalized to `[0, 1)`), look up the color via the stop list (same offset-blend math as linear/radial), and write the resulting RGBA. Implementation lives in a new `src/render/conic-raster.ts`:

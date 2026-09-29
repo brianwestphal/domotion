@@ -21,7 +21,7 @@ import type { DefCtx } from "./form-controls.js";
 import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-controls.js";
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, parseSameDocumentClipPathUrl } from "./clip-path.js";
-import { buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
+import { backgroundPositionOffsetPx, buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
@@ -4697,7 +4697,7 @@ function buildBackgroundLayerDef(
  * Returns empty string when the cache misses; the caller warns loudly and
  * skips emission.
  */
-function buildConicGradientDef(
+export function buildConicGradientDef(
   id: string,
   layer: string,
   elX: number,
@@ -4715,26 +4715,13 @@ function buildConicGradientDef(
   const dataUri = sizeCache?.get(sizeKey);
   if (dataUri == null) return "";
 
-  // Background-position: shift the pattern origin so the first tile lands at
-  // the right offset on the element. Single-axis tokens default the missing
-  // axis to "center"; percent positions resolve against (elementSize - tileSize).
-  const posTokens = posCss.trim().split(/\s+/);
-  const resolvePos = (tok: string, basis: number, tile: number, axis: "h" | "v"): number => {
-    const t = tok.trim();
-    if (t === "" || t === "center") return (basis - tile) / 2;
-    if (axis === "h" && t === "left") return 0;
-    if (axis === "h" && t === "right") return basis - tile;
-    if (axis === "v" && t === "top") return 0;
-    if (axis === "v" && t === "bottom") return basis - tile;
-    const pm = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px)?$/.exec(t);
-    if (pm == null) return 0;
-    const v = parseFloat(pm[1]);
-    const unit = pm[2] ?? "px";
-    if (unit === "%") return ((basis - tile) * v) / 100;
-    return v;
-  };
-  const offX = resolvePos(posTokens[0] ?? "0%", w, tileWInt, "h");
-  const offY = resolvePos(posTokens[1] ?? posTokens[0] ?? "0%", h, tileHInt, "v");
+  // Background-position: shift the pattern origin so the first tile lands at the right offset on the
+  // element. Resolved with the same `<position>` parser the URL-image backgrounds use, so the keyword,
+  // one-token (`left` centers the other axis), edge-offset and calc() forms agree between the two.
+  // Percentages resolve against the free space (element size minus tile). An unparseable value keeps
+  // the historical top-left origin. (Today's only caller, the form-control pseudo path, passes
+  // "auto" / "0% 0%", so this is the general contract rather than a hot path.)
+  const { x: offX, y: offY } = backgroundPositionOffsetPx(posCss, w - tileWInt, h - tileHInt) ?? { x: 0, y: 0 };
 
   const patX = elX + offX;
   const patY = elY + offY;
