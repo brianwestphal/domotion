@@ -59,8 +59,9 @@ embedded mode only changes which controls are visible and how SVG is supplied.
 
 `POST /api/preview` accepts only a validated project path plus a scene/story
 selection. The server chooses the artifact from project provenance rather than
-accepting an arbitrary client file path. It requires `.svg`, applies both
-lexical workspace containment and real-path containment to reject symlink
+accepting an arbitrary client file path. `resolveStudioWorkspaceSvgPath` in
+`src/studio/app-projects.ts` requires `.svg` and lexical workspace containment;
+the server also applies real-path containment to reject symlink
 escapes, bounds reads to 64 MiB, and verifies the declared SHA-256 digest before
 returning bytes.
 

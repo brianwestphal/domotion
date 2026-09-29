@@ -10,6 +10,7 @@ code:
   [
     "src/cli/studio.ts",
     "src/studio/app-projects.ts",
+    "src/studio/project-json-schema.ts",
     "src/studio/server.ts",
     "src/studio/client.tsx",
     "scripts/build-studio-client.mjs",
@@ -59,8 +60,10 @@ project. The temporary file is removed on either success or failure.
 ## Local server contract
 
 The server reuses `startLocalServer`, including its ephemeral-port and prompt
-idle-connection shutdown behavior. It serves one bundled Kerf client and
-workspace-bounded JSON routes:
+idle-connection shutdown behavior. It serves the bundled Kerf client at `GET /`
+(`GET /index.html` is an alias) and `GET /client.js`, plus the embedded Scrubber
+at `GET /scrubber` and `GET /scrubber/client.js`. Its JSON operations are
+workspace-bounded:
 
 The published `domotion-studio` / `domotion studio` binary starts the server
 without AI adapters. Its bootstrap reports `generationAvailable: false` and
@@ -86,9 +89,21 @@ the corresponding `/api/generate` and `/api/recording/import` routes return HTTP
 - `POST /api/timeline` applies exact timing overrides through the shared UI/AI
   command model, appends revision provenance, atomically validates/saves, and
   returns the inverse command for undo/redo.
+- `POST /api/preview` with `{ path, selection }` returns the current generated
+  scene or story SVG and its provenance. Selection is `{ kind: "story" }` or
+  `{ kind: "scene", sceneId }`; see doc 250 for artifact selection and path safety.
+- `POST /api/generate` with `{ path, expectedHeadRevisionId, selection }`
+  invokes the host generation adapter, requires AI healing and review, validates
+  the returned artifact and provenance, and saves the updated project. The
+  selection has the same shape as preview; an AI clarification returns without
+  changing the project.
 
-Every body is size-bounded and strictly validated. Studio model failures return
-HTTP 400 with the exact structured `{ path, message, code }` issues produced by
+Every JSON body is capped at 4 MiB (HTTP 413 above the limit) and strictly
+validated. Create returns HTTP 201; other successful operations return HTTP 200. Missing project files, scenes, or current preview artifacts return HTTP 404. Stale review heads return HTTP 409; preview also returns 409 when the SVG
+digest differs from saved provenance. Generate and recording import return HTTP
+501 when their required adapters are absent. Preview SVG reads have a separate
+64 MiB limit (HTTP 413). Studio model failures return HTTP 400 with the exact
+structured `{ path, message, code }` issues produced by
 `StudioProjectValidationError`; a future format version therefore appears as an
 actionable `$.version` error in the app rather than a generic load failure.
 

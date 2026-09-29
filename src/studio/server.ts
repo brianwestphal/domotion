@@ -376,8 +376,8 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
         const { path, project, expectedHeadRevisionId } = await readJsonBody(req, saveBodySchema);
         const current = openStudioProjectFile(workspaceRoot, path);
         if (current.project.review.headRevisionId !== expectedHeadRevisionId) {
-          throw new StudioAnnotationError(
-            `stale annotation change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
+          throw new StudioAuthoringError(
+            `stale authoring change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
           );
         }
         const proposed = validateStudioProject(project);

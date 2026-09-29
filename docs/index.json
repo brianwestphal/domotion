@@ -5025,6 +5025,7 @@
         "code": [
           "src/cli/studio.ts",
           "src/studio/app-projects.ts",
+          "src/studio/project-json-schema.ts",
           "src/studio/server.ts",
           "src/studio/client.tsx",
           "scripts/build-studio-client.mjs",

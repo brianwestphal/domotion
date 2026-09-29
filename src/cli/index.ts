@@ -43,7 +43,7 @@ Usage:
   domotion template <name> [--param …] -o out.svg
   domotion composite <config.json> [-o out.svg]
   domotion storyboard <config.json> [-o out.svg]
-  domotion studio [project.json] [--workspace <dir>]
+  domotion studio [project.json] [--workspace <dir>] [--port <n>] [--no-open]
   domotion --help | --version
 
 Commands:

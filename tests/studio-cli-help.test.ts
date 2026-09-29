@@ -25,6 +25,12 @@ function expectStudioHelp(result: ReturnType<typeof run>): void {
 }
 
 describe("Studio CLI help routing", () => {
+  it("lists all Studio launch options in the umbrella help", () => {
+    const result = run("src/cli/index.ts", ["--help"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("domotion studio [project.json] [--workspace <dir>] [--port <n>] [--no-open]");
+  });
+
   it("routes umbrella-command help to the Studio command", () => {
     expectStudioHelp(run("src/cli/index.ts", ["studio", "--help"]));
   });

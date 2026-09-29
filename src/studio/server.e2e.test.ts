@@ -298,6 +298,9 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       }),
     });
     expect(staleSave.status).toBe(409);
+    await expect(staleSave.json()).resolves.toMatchObject({
+      error: expect.stringContaining("stale authoring change:"),
+    });
 
     const tampered = structuredClone(created.project);
     tampered.review.annotations[0].body = "Changed outside the annotation API";
