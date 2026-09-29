@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { emojiSquareRect } from "./emoji.js";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import {
+  __extractEmojiBitmapForTest,
+  __setEmojiFontOpenerForTest,
+  clearEmojiCaches,
+  emojiSquareRect,
+} from "./emoji.js";
 
 // Chrome paints an Apple Color Emoji sbix glyph as a SQUARE whose side equals
 // the glyph advance (the captured Range rect width, minus any letter-spacing
@@ -54,5 +59,86 @@ describe("emojiSquareRect", () => {
     const sq = emojiSquareRect({ x: 0, y: 0, width: 5, height: 18 }, 10);
     expect(sq.width).toBeGreaterThanOrEqual(1);
     expect(sq.height).toBe(sq.width);
+  });
+});
+
+describe("Apple Color Emoji font-load and bitmap-cache transitions", () => {
+  const png = (n: number): { data: Buffer } => ({ data: Buffer.from([n, n, n]) });
+  const glyph = (strikes: Record<number, { data: Buffer } | null>): unknown => ({
+    id: 5,
+    getImageForSize(ppem: number) {
+      const hit = strikes[ppem];
+      if (hit === undefined) throw new Error("no strike");
+      return hit;
+    },
+  });
+  const fontOf = (g: unknown): unknown => ({ glyphForCodePoint: () => g });
+
+  afterEach(() => {
+    __setEmojiFontOpenerForTest(null);
+    clearEmojiCaches();
+    vi.restoreAllMocks();
+  });
+
+  it("one failed open is retried and does not poison the bitmap cache", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let opens = 0;
+    __setEmojiFontOpenerForTest(() => {
+      if (++opens === 1) throw new Error("EMFILE");
+      return fontOf(glyph({ 64: png(1) }));
+    });
+    expect(__extractEmojiBitmapForTest(0x1f600, 18)).toBeNull();
+    const second = __extractEmojiBitmapForTest(0x1f600, 18);
+    expect(second?.ppem).toBe(64);
+    expect(opens).toBe(2);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("gives up after three failed opens, warns once, and memoizes the absence", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let opens = 0;
+    __setEmojiFontOpenerForTest(() => {
+      opens++;
+      throw new Error("broken");
+    });
+    for (let i = 0; i < 6; i++) expect(__extractEmojiBitmapForTest(0x1f600, 18)).toBeNull();
+    expect(opens).toBe(3);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("clearEmojiCaches re-arms the open: absent font → clear → font present → bitmap", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    __setEmojiFontOpenerForTest(() => null);
+    expect(__extractEmojiBitmapForTest(0x1f600, 18)).toBeNull();
+    __setEmojiFontOpenerForTest(() => fontOf(glyph({ 64: png(2) })));
+    // Still the memoized absence until cleared.
+    expect(__extractEmojiBitmapForTest(0x1f600, 18)).toBeNull();
+    clearEmojiCaches();
+    expect(__extractEmojiBitmapForTest(0x1f600, 18)?.ppem).toBe(64);
+  });
+
+  it("an empty picked strike falls back to the largest populated one, memoized under the picked key", () => {
+    let calls = 0;
+    __setEmojiFontOpenerForTest(() => fontOf(glyph({ 64: { data: Buffer.alloc(0) }, 160: png(9) })));
+    const first = __extractEmojiBitmapForTest(0x1f600, 18);
+    expect(first?.ppem).toBe(160);
+    __setEmojiFontOpenerForTest(() => {
+      calls++;
+      return null;
+    });
+    expect(__extractEmojiBitmapForTest(0x1f600, 18)).toBe(first);
+    expect(calls).toBe(0);
+  });
+
+  it("a throwing glyph lookup warns once and is memoized, distinct from 'no bitmap'", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    __setEmojiFontOpenerForTest(() => ({
+      glyphForCodePoint: () => {
+        throw new Error("corrupt");
+      },
+    }));
+    expect(__extractEmojiBitmapForTest(0x1f600, 18)).toBeNull();
+    expect(__extractEmojiBitmapForTest(0x1f600, 18)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });

@@ -69,19 +69,18 @@ function embedAsDataUri(url: string): string {
   const cached = _dataUriCache.get(url);
   if (cached != null) return cached;
   if (url.startsWith("data:") || isRemoteUrl(url)) return url;
+  // Failures below are NOT memoized: a local file can appear (or become readable) after the
+  // first miss, and remembering "unresolvable" would pin the raw URL for the whole process.
+  // The retry costs one existsSync.
   let path = url;
   if (path.startsWith("file://")) {
     try {
       path = fileUrlToLocalPath(path);
     } catch {
-      _dataUriCache.set(url, url);
       return url;
     }
   }
-  if (!existsSync(path)) {
-    _dataUriCache.set(url, url);
-    return url;
-  }
+  if (!existsSync(path)) return url;
   try {
     const buf = readFileSync(path);
     const mime = mimeFromExtension(path) ?? "application/octet-stream";
@@ -89,7 +88,6 @@ function embedAsDataUri(url: string): string {
     _dataUriCache.set(url, dataUri);
     return dataUri;
   } catch {
-    _dataUriCache.set(url, url);
     return url;
   }
 }
@@ -274,7 +272,11 @@ export async function embedRemoteImages(
   tree: CapturedElement[],
   options: EmbedRemoteImagesOptions = {},
 ): Promise<void> {
-  const warnings = _captureWarningSink(options.warnings);
+  // Resolved at PUSH time, not here: a capture that overlaps this pass replaces the global
+  // buffer, and a sink grabbed now would keep receiving into the discarded array.
+  const warn = (warning: CaptureWarning): void => {
+    _captureWarningSink(options.warnings).push(warning);
+  };
   const timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_FETCH_RETRIES;
   const retryBackoffMs = options.retryBackoffMs ?? DEFAULT_FETCH_RETRY_BACKOFF_MS;
@@ -356,7 +358,7 @@ export async function embedRemoteImages(
         lastFailure.kind === "status"
           ? `failed to fetch ${url} — HTTP ${lastFailure.status}`
           : `failed to fetch ${url} — ${describeFetchError(lastFailure.err)}`;
-      warnings.push({ selector, feature: "remote-image", detail });
+      warn({ selector, feature: "remote-image", detail });
     }
   });
   await Promise.all(tasks);

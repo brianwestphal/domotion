@@ -39,7 +39,13 @@ import { capturedFontFamilyCss } from "../font-family-stack.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 let _aceFont: any = null;
+/** True once the font's presence is a settled answer: opened, or definitively
+ *  unavailable (wrong platform / file absent). An open that THREW is not settled
+ *  until it has failed `ACE_OPEN_ATTEMPTS` times, so one transient failure (fd
+ *  pressure, a file mid-update) cannot pin "no emoji font" for the whole process. */
 let _aceFontLoaded = false;
+let _aceOpenFailures = 0;
+const ACE_OPEN_ATTEMPTS = 3;
 // Available sbix strikes on macOS Apple Color Emoji.ttc.
 const SBIX_STRIKES = [20, 26, 32, 40, 48, 52, 64, 96, 160] as const;
 const _sbixCache = new Map<string, { buf: Buffer; ppem: number } | null>();
@@ -54,6 +60,8 @@ const _sbixCache = new Map<string, { buf: Buffer; ppem: number } | null>();
 export function clearEmojiCaches(): void {
   _aceFont = null;
   _aceFontLoaded = false;
+  _aceOpenFailures = 0;
+  _warnedEmoji.clear();
   _sbixCache.clear();
 }
 // Only take the sbix path when the glyph rect is roughly emoji-shaped (wide
@@ -61,21 +69,60 @@ export function clearEmojiCaches(): void {
 // dingbats / partial clusters where the page-screenshot fallback is safer.
 const EMOJI_SBIX_MIN_ASPECT = 0.4;
 
+/** Test seam: replaces the platform gate and the fontkit open. Null restores the real one. */
+let _aceOpenerForTest: (() => any) | null = null;
+export function __setEmojiFontOpenerForTest(opener: (() => any) | null): void {
+  _aceOpenerForTest = opener;
+}
+
 function loadAppleColorEmojiFont(): any {
   if (_aceFontLoaded) return _aceFont;
-  _aceFontLoaded = true;
-  if (process.platform !== "darwin" || !existsSync(APPLE_COLOR_EMOJI_PATH)) return null;
+  if (_aceOpenerForTest == null && (process.platform !== "darwin" || !existsSync(APPLE_COLOR_EMOJI_PATH))) {
+    _aceFontLoaded = true;
+    return null;
+  }
   try {
-    const opened = (fontkit as any).openSync(APPLE_COLOR_EMOJI_PATH);
-    if (opened == null) {
+    const opened = _aceOpenerForTest != null ? _aceOpenerForTest() : (fontkit as any).openSync(APPLE_COLOR_EMOJI_PATH);
+    _aceFont = opened == null ? null : opened.fonts != null ? opened.fonts[0] : opened;
+    _aceFontLoaded = true;
+  } catch (error) {
+    _aceOpenFailures++;
+    if (_aceOpenFailures >= ACE_OPEN_ATTEMPTS) {
+      console.warn(`[domotion] Apple Color Emoji could not be opened after ${ACE_OPEN_ATTEMPTS} attempts`, error);
       _aceFont = null;
-    } else {
-      _aceFont = opened.fonts != null ? opened.fonts[0] : opened;
+      _aceFontLoaded = true;
     }
-  } catch {
-    _aceFont = null;
   }
   return _aceFont;
+}
+
+/** One strike's PNG bytes, or null. `getImageForSize` throws for a strike the glyph does
+ *  not carry, which is an ordinary answer here rather than an error. */
+function strikeImage(g: any, ppem: number): { buf: Buffer; ppem: number } | null {
+  try {
+    const img = g.getImageForSize(ppem);
+    if (img != null && img.data != null && img.data.length > 0) {
+      return { buf: Buffer.isBuffer(img.data) ? img.data : Buffer.from(img.data), ppem };
+    }
+  } catch {
+    /* strike absent */
+  }
+  return null;
+}
+
+const _warnedEmoji = new Set<string>();
+function warnEmojiOnce(what: string, error: unknown): void {
+  if (_warnedEmoji.has(what)) return;
+  _warnedEmoji.add(what);
+  console.warn(`[domotion] Apple Color Emoji: ${what}`, error);
+}
+
+/** Test seam: call the bitmap extractor directly. */
+export function __extractEmojiBitmapForTest(
+  codepoint: number,
+  paintedWidthPx: number,
+): { buf: Buffer; ppem: number } | null {
+  return extractEmojiBitmap(codepoint, paintedWidthPx);
 }
 
 function extractEmojiBitmap(codepoint: number, paintedWidthPx: number): { buf: Buffer; ppem: number } | null {
@@ -97,34 +144,28 @@ function extractEmojiBitmap(codepoint: number, paintedWidthPx: number): { buf: B
   if (_sbixCache.has(cacheKey)) return _sbixCache.get(cacheKey)!;
   const font = loadAppleColorEmojiFont();
   if (font == null) {
+    // Memoize "no font" only once that answer is settled; a still-retrying open must not
+    // poison every (codepoint|ppem) key it was asked about.
+    if (_aceFontLoaded) _sbixCache.set(cacheKey, null);
+    return null;
+  }
+  let g: any;
+  try {
+    g = font.glyphForCodePoint(codepoint);
+  } catch (error) {
+    // A lookup that throws is a fault in the font, not "this emoji has no bitmap" —
+    // say so once, then memoize null (the answer is deterministic per glyph).
+    warnEmojiOnce(`glyph lookup for U+${codepoint.toString(16).toUpperCase()} failed`, error);
     _sbixCache.set(cacheKey, null);
     return null;
   }
   let result: { buf: Buffer; ppem: number } | null = null;
-  try {
-    const g = font.glyphForCodePoint(codepoint);
-    if (g != null && g.id !== 0) {
-      try {
-        const img = g.getImageForSize(pickedPpem);
-        if (img != null && img.data != null && img.data.length > 0) {
-          result = { buf: Buffer.isBuffer(img.data) ? img.data : Buffer.from(img.data), ppem: pickedPpem };
-        }
-      } catch {}
-      // Some glyphs only have certain strikes populated — fall through to
-      // the largest available if our picked strike came back empty.
-      if (result == null) {
-        for (let i = SBIX_STRIKES.length - 1; i >= 0; i--) {
-          try {
-            const img = g.getImageForSize(SBIX_STRIKES[i]);
-            if (img != null && img.data != null && img.data.length > 0) {
-              result = { buf: Buffer.isBuffer(img.data) ? img.data : Buffer.from(img.data), ppem: SBIX_STRIKES[i] };
-              break;
-            }
-          } catch {}
-        }
-      }
-    }
-  } catch {}
+  if (g != null && g.id !== 0) {
+    result = strikeImage(g, pickedPpem);
+    // Some glyphs only have certain strikes populated — fall through to
+    // the largest available if our picked strike came back empty.
+    for (let i = SBIX_STRIKES.length - 1; i >= 0 && result == null; i--) result = strikeImage(g, SBIX_STRIKES[i]);
+  }
   _sbixCache.set(cacheKey, result);
   return result;
 }
