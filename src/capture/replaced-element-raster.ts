@@ -32,16 +32,30 @@ export interface ReplacedElementRasterOptions {
 }
 
 /**
+ * Specificity boosts for the snapshot stylesheet. Cascade order, then specificity, decide between two
+ * `!important` declarations, and specificity comes FIRST: a bare `*` rule (0,0,0) loses to an author's
+ * `.overlay { visibility: visible !important }` (0,1,0) or `.ov::after { ... !important }` (0,1,1) no
+ * matter where the stylesheet is injected, so that overlay would be painted into the snapshot. Each
+ * `:not(#id)` on an id nothing uses adds one id-level point (1,0,0) without changing what matches.
+ * The hide rule carries two (2,0,x) and the target re-show rule three (3,1,x), so re-showing the
+ * target always beats hiding, and both beat any class-level author rule. Only an inline
+ * `style="...!important"` on a non-ancestor can still outrank them.
+ */
+const BOOST_ID = ":not(#domotion-snapshot-boost)";
+const HIDE_BOOST = BOOST_ID.repeat(2);
+const SHOW_BOOST = BOOST_ID.repeat(3);
+
+/**
  * Isolation stylesheet shared by replaced-element and mask-source rasterizers.
  * The replaced-element subsystem owns installing/removing its style handle;
  * other callers borrow only the immutable CSS text.
  */
 export const SNAPSHOT_HIDE_CSS = [
-  "*, *::before, *::after { visibility: hidden !important; }",
-  "[data-domotion-snapshot-target], [data-domotion-snapshot-target] *,",
-  "[data-domotion-snapshot-target] *::before, [data-domotion-snapshot-target] *::after,",
-  "[data-domotion-snapshot-target]::before, [data-domotion-snapshot-target]::after { visibility: visible !important; }",
-  "html, body { background: transparent !important; }",
+  `*${HIDE_BOOST}, *${HIDE_BOOST}::before, *${HIDE_BOOST}::after { visibility: hidden !important; }`,
+  `[data-domotion-snapshot-target]${SHOW_BOOST}, [data-domotion-snapshot-target]${SHOW_BOOST} *,`,
+  `[data-domotion-snapshot-target]${SHOW_BOOST} *::before, [data-domotion-snapshot-target]${SHOW_BOOST} *::after,`,
+  `[data-domotion-snapshot-target]${SHOW_BOOST}::before, [data-domotion-snapshot-target]${SHOW_BOOST}::after { visibility: visible !important; }`,
+  `html${HIDE_BOOST}, body${HIDE_BOOST} { background: transparent !important; }`,
 ].join("\n");
 
 /**

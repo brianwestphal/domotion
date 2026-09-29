@@ -1044,6 +1044,17 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-FTB9WG: a NON-ANCESTOR positioned ::after covers part of the canvas and states
+    // `visibility: visible` itself. `visibility` is inherited, so hiding every ELEMENT would leave this
+    // pseudo painted into the canvas snapshot; SNAPSHOT_HIDE_CSS therefore names `*::before, *::after`
+    // explicitly. The 70%-alpha red box makes a leak observable: it would be composited twice (once in
+    // the snapshot, once by the renderer's own pseudo box), reading darker than Chromium's single layer.
+    name: "replaced-canvas-pseudo-overlay",
+    html: `<style>.ov{position:absolute;left:0;top:0;width:200px;height:100px;z-index:10;visibility:visible}.ov::after{content:"";position:absolute;left:60px;top:30px;width:80px;height:40px;background:rgba(220,38,38,.7);visibility:visible}</style><div style="padding:20px;"><div style="position:relative;width:200px;height:100px;"><canvas id="c5" width="200" height="100" style="display:block;position:absolute;left:0;top:0;z-index:1;"></canvas><div class="ov"></div></div></div><script>(function(){var c=document.getElementById('c5').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);c.fillRect(150,50,30,30);})();</script>`,
+    width: 240,
+    height: 140,
+  },
+  {
     // DM-462: background-clip:text + transparent text-fill-color → the
     // bg-image fills the glyph shapes (gradient headline pattern). Renderer
     // suppresses the bg rect for the text-clipped layer and routes the

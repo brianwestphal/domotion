@@ -77,6 +77,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **replaced-canvas-shape**: `<canvas>` with drawn shapes — bitmap survives via `page.screenshot`
 - [x] **replaced-video-poster**: `<video poster=…>` paused — poster image captured
 - [x] **replaced-canvas-overlay**: `<canvas>` under a positioned `<div z-index:10>` overlay — overlay does NOT bleed into the canvas snapshot
+- [x] **replaced-canvas-pseudo-overlay**: `<canvas>` under a non-ancestor positioned `::after` that declares `visibility: visible` — the pseudo does NOT bleed into the canvas snapshot (gated by `tests/replaced-snapshot-pseudo-overlay.e2e.test.ts`, which also covers `!important` overrides)
 - [x] **replaced-canvas-fixed-overlay**: `<canvas>` under a sibling-positioned `<div>` painting on top — sibling does NOT bleed into the canvas snapshot
 - [x] **replaced-iframe-same-origin** (DM-1441): same-origin `<iframe>` (srcdoc) — content **recurses into native SVG** (crisp/scalable/selectable), not rastered; pixel-identical to the prior snapshot. See [docs/81](docs/81-iframe-recursion.md).
 - [x] **iframe-recursion-bordered** (DM-1441): same-origin iframe recursion through a non-zero border + padding on the iframe — inner document's origin lands at the iframe **content box** and the inner subtree clips to it.

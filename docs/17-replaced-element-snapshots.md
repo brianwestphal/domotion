@@ -69,6 +69,7 @@ body {
 
 - `visibility: hidden` preserves layout, so the target's bounding rect doesn't shift while the snapshot is taken.
 - The `*` rule hides `::before` / `::after` pseudos **explicitly** (`*::before, *::after`) — `visibility` is inherited, but a pseudo with its own `visibility: visible` would otherwise re-appear — and the re-show rule explicitly re-enables the target's OWN `::before`/`::after` (and its descendants') so the target's pseudos still paint. This is `SNAPSHOT_HIDE_CSS` in `src/capture/replaced-element-raster.ts`.
+- Both rules carry **specificity boosts** (`:not(#unused-id)`, two on the hide rule and three on the re-show rule). Between two `!important` declarations specificity is compared before source order, so a bare `*` (0,0,0) lost to an author's `.overlay { visibility: visible !important }` or `.ov::after { visibility: visible !important }` and that overlay was painted into the snapshot wherever the stylesheet was injected. The same boost covers the transparent `html, body` background rule. Only an inline `style="...!important"` on a non-ancestor can still outrank the rules.
 - The target gets `data-domotion-snapshot-target` set on it (and removed in `finally`), which the rule's specificity overrides the `*` rule.
 - `html` and `body` background overrides plus `omitBackground: true` on the screenshot keep the page background out of the alpha channel — partially-transparent canvases composite cleanly onto the SVG behind them.
 
@@ -190,8 +191,8 @@ Added under `tests/features.ts`:
 - `tests/replaced-snapshot-transform.e2e.test.ts` — independent Chromium-vs-SVG ink bounds for a partially off-page canvas under nested rotate + scale/skew, CSS zoom, scroll, and DPR 2; a dedicated transform-then-scrolled-overflow-clip discriminator with scroll restoration; DPR-scaled source-crop mapping (including affine `matrix3d`); clipped transformed video and inaccessible iframe pixels; vector-sibling isolation; and the projective single-owner negative. The affine oracle is bounded to three device pixels and would fail on a doubled transform, stretched bitmap mapping, or a clip sampled in pre-transform space.
 - `tests/replaced-media-frame.e2e.test.ts` — explicitly headless mixed canvas/video production capture, repeated same-frame byte control, finite seek/presented-frame readiness, and hostile canvas mutation, video seek, owner detachment, and document-navigation rejection. `src/capture/replaced-media-frame.test.ts` independently mutates every logical fact and dimension with exact comparison.
 
-Non-ancestor `::after` overlay isolation still lacks its dedicated feature fixture
-(DM-FTB9WG); it is not counted among the tests above.
+- `replaced-canvas-pseudo-overlay` — a `<canvas>` covered by a non-ancestor positioned `::after` that declares `visibility: visible` itself, with a 70%-alpha red box so a leak would be composited twice. Note the fixture alone cannot gate a leak: removing the explicit pseudo rule moves its raw `diffPct` from 0 to ~1.4% (3,200 non-AA pixels) yet it still passes the lenient threshold, which is why the E2E below asserts on the snapshot pixels.
+- `tests/replaced-snapshot-pseudo-overlay.e2e.test.ts` — asserts on the canvas snapshot PNG itself: a `::after` that states `visibility: visible`, a `::before` with `visibility: visible !important`, and a non-ancestor element whose class rule forces `visibility: visible !important` next to a `body { background !important }`, none of which may appear in the snapshot while the canvas's own ink survives.
 
 ## Cross-platform notes
 
