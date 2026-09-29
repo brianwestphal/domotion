@@ -18,7 +18,7 @@ code:
     "src/animation/text-address.ts",
     "src/capture/script/walker/text-segments.ts",
     "src/cli/animate.test.ts",
-    "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/render/paint-order.ts",
     "src/render/text.ts",
     "tests/caret-bidi.e2e.test.ts",
@@ -270,8 +270,14 @@ free-running.
 A track's caret and selection **hold their final state through the loop** and
 the track layers above every frame group — so a track that should not outlive
 its frame must end with explicit `clearSelection` + `hide` events at the
-frame's cut (see the docs/102 cookbook; the editor-session flagship's
-selection frame is the reference).
+frame's cut — **on the programmatic path**. Config-declared `textTracks` are
+auto-ended: since DM-1763 `configTextTrackSpec`
+(`src/cli/animate-orchestrator.ts`) synthesizes that terminal
+`clearSelection` + `hide` at the frame's `duration` unless the track sets
+`persist: true` (docs/43 §12). Only a hand-built spec passed straight to
+`resolveTextTrack` (`src/animation/caret-track.ts`) has no auto-end (see the
+docs/102 cookbook; the editor-session flagship's selection frame is the
+reference).
 
 ### Block-caret inversion (`invert`)
 
@@ -355,7 +361,7 @@ Public exports from the package root: `resolveTextTrack`, `textTrackMarkup`,
 ### Config surface (shipped)
 
 The declarative surface is the per-frame `textTracks: [...]` list in the
-animate config (`src/cli/animate.ts`; authoring reference **docs/43 §12**):
+animate config (`src/cli/animate-orchestrator.ts`; authoring reference **docs/43 §12**):
 each track gives a `selector` (stamped `data-domotion-anim` on the first match
 at capture time — the intra-frame-animation mechanism; a no-match is a hard
 error naming the frame + config path) plus events with frame-relative `at`

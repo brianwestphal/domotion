@@ -2379,7 +2379,8 @@
           "src/animation/magic-move.ts",
           "src/animation/text-address.ts",
           "src/cli/animate-compression.ts",
-          "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
+          "src/cli/animate-states-run-stage.ts",
           "src/cli/type-resample.ts",
           "src/terminal/incremental.ts",
           "tests/auto-compress.e2e.test.ts",
@@ -2417,7 +2418,7 @@
           "src/animation/text-address.ts",
           "src/capture/script/walker/text-segments.ts",
           "src/cli/animate.test.ts",
-          "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/render/paint-order.ts",
           "src/render/text.ts",
           "tests/caret-bidi.e2e.test.ts",
@@ -2458,7 +2459,8 @@
         "tickets": ["DM-1764", "DM-1771", "DM-1772"],
         "code": [
           "src/animation/compressed-run.ts",
-          "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
+          "src/cli/animate-states-run-stage.ts",
           "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
           "src/render/embedded-font-snapshot.test.ts",
           "tests/compress-size-guard.e2e.test.ts"
@@ -2486,7 +2488,8 @@
           "src/animation/svg-generator.ts",
           "src/cli/animate-orchestrator.ts",
           "src/cli/animate.test.ts",
-          "src/cli/animate.ts",
+          "src/cli/animate-compression.ts",
+          "src/cli/animate-states-run-stage.ts",
           "tests/overlay-window.e2e.test.ts"
         ],
         "aliases": ["docs/104-overlay-windows.md", "doc-104"]

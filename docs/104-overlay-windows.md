@@ -17,7 +17,8 @@ code:
     "src/animation/svg-generator.ts",
     "src/cli/animate-orchestrator.ts",
     "src/cli/animate.test.ts",
-    "src/cli/animate.ts",
+    "src/cli/animate-compression.ts",
+    "src/cli/animate-states-run-stage.ts",
     "tests/overlay-window.e2e.test.ts",
   ]
 aliases: ["docs/104-overlay-windows.md", "doc-104"]
@@ -167,8 +168,8 @@ This supersedes the "why per-frame `overlays` split rather than ride along" note
 | How a typing overlay leaves its window (DM-1796) | `OverlayExit` + `renderTypingOverlay` in `src/animation/svg-generator.ts`                               |
 | Each kind's default start delay                  | `OVERLAY_DEFAULT_DELAY_MS` in `src/animation/svg-generator.ts` (internal — not on the published barrel) |
 | Per-state `overlays` authoring + validation      | `runStateSchema` in `src/cli/animate-orchestrator.ts`                                                   |
-| Per-state anchor resolution + re-basing          | `buildStatesRunContent` in `src/cli/animate-orchestrator.ts`                                            |
-| Member overlays → state overlays on collapse     | `collapseCompressibleRuns` in `src/cli/animate-orchestrator.ts`                                         |
+| Per-state anchor resolution + re-basing          | `buildStatesRunContent` in `src/cli/animate-states-run-stage.ts`                                        |
+| Member overlays → state overlays on collapse     | `collapseCompressibleRuns` in `src/cli/animate-compression.ts`                                          |
 
 Runnable example: **`examples/animate/overlay-window/`** — two `endAt`-bounded annotations sharing one frame, plus a `states:` run whose per-state overlays anchor to a marker that moves 44 px per state (the golden asserts four _distinct_ ring positions, so a regression to once-per-frame anchoring fails loudly).
 

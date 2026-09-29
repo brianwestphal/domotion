@@ -9,7 +9,8 @@ tickets: ["DM-1764", "DM-1771", "DM-1772"]
 code:
   [
     "src/animation/compressed-run.ts",
-    "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate-states-run-stage.ts",
     "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
     "src/render/embedded-font-snapshot.test.ts",
     "tests/compress-size-guard.e2e.test.ts",
@@ -34,7 +35,8 @@ scene when one pane pairs badly; it demotes only what is worth demoting, decided
 on real bytes.
 
 This doc is the canonical spec for that decision. It is a lockstep reference for
-`src/cli/animate.ts` (`buildStatesRunContent`'s guard) and
+`src/cli/animate-orchestrator.ts` (the states guard) and
+`src/cli/animate-states-run-stage.ts` (`buildStatesRunContent`) and
 `src/animation/compressed-run.ts` (`extractState` / `buildCompressedRunPlan` /
 `composeCompressedRun`); a change to either must update this doc.
 

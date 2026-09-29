@@ -20,7 +20,8 @@ code:
     "src/animation/magic-move.ts",
     "src/animation/text-address.ts",
     "src/cli/animate-compression.ts",
-    "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/animate-states-run-stage.ts",
     "src/cli/type-resample.ts",
     "src/terminal/incremental.ts",
     "tests/auto-compress.e2e.test.ts",
@@ -53,7 +54,7 @@ rebuilt on the new primitives as the committed golden
 (`tests/editor-session.e2e.test.ts`) and measured numbers — see "Flagship
 validation results" below — and the authoring recipe is written up as
 `docs/102-editing-page-rig-cookbook.md`. Automatic run detection is now shipped
-behind the opt-in `autoCompress` flag (below). Behind-glyph selection (the
+behind the `autoCompress` flag (below; default-ON since DM-1768). Behind-glyph selection (the
 `selection` option on `composeCompressedRun`), cross-line identity for
 vertically-moved lines, paint-order-accurate occlusion demotion, and
 chrome-variant reopen are also shipped — see Primitive 1 below. The multi-frame
@@ -77,8 +78,9 @@ cursor reindexing, and automatic-collapse provenance, while the main animate
 orchestrator owns browser capture and composition.
 Since then, **automatic run detection has shipped behind an opt-in flag**
 (`autoCompress`, DM-1757 — see "Placement" below and docs/43 §13): the pre-pass
-collapses maximal `continue` + `cut` runs into `states` runs automatically,
-default OFF, pending a decision to flip the default. This is the requirements +
+collapses maximal `continue` + `cut` runs into `states` runs automatically
+(shipped opt-in; the default was flipped to ON in DM-1768 — see "Default-flip"
+below, and opt out with `autoCompress: false`). This is the requirements +
 design reference for making editor-style typing/editing sequences (an IDE window
 typed into and edited, with syntax coloring, selection, mid-line inserts that
 reflow trailing text) first-class in the animate pipeline. Plain text is the trivial case, so this covers
@@ -112,8 +114,9 @@ with syntax coloring, inside a multi-window desktop scene. Expressing it on
 today's declarative surface required four classes of elaborate workaround:
 
 1. **The cover-rect underlay contract.** A `typing` overlay always fades out
-   starting 150 ms before its frame ends (`disappearGap = 150`, hardcoded in
-   `renderTypingOverlay`, `src/animation/animator.ts` — not configurable). So a
+   starting 150 ms before its frame ends when the frame loops out
+   (`disappearGap = loopOut ? 150 : 0`, hardcoded in `renderTypingOverlay`,
+   `src/animation/svg-generator.ts` — not configurable). So a
    typed line cannot simply hold and hand off at the cut: the page must carry the
    IDENTICAL text as real opaque page text hidden under a background-colored cover
    rect, and a per-line `reveal` animation must fade the cover out the moment the
@@ -338,12 +341,15 @@ A wholesale-change run is not "marginally larger" — it more than doubles,
 because nothing pairs, everything re-emits as births + deaths, and the union
 and track machinery is paid on top. So the guard is now in the pipeline: after
 composing a run **the automatic pass created**, `compressedBytes / rawBytes`
-above 1.02 builds the uncompressed alternative and keeps whichever is actually
-smaller. Both figures come out of the compose that already ran, so the trigger
+above the guard ratio builds the uncompressed alternative and keeps whichever
+is actually smaller. The automatic pass arms at ratio **1**
+(`COMPRESS_SIZE_GUARD_AUTO_RATIO`, `src/cli/animate-orchestrator.ts`): output is
+never allowed to grow. The 1.02 ratio (`COMPRESS_SIZE_GUARD_RATIO`) applies only
+to the warning for an author-written run that the pass did not create. Both figures come out of the compose that already ran, so the trigger
 is free; the alternative costs ~5 ms to build (plus a ~1 ms state snapshot on
 every guarded run) and only when the trigger fires.
 
-The alternative is `composeStatesFlipbook` in `src/cli/animate.ts`: the same N
+The alternative is `composeStatesFlipbook` in `src/cli/animate-orchestrator.ts`: the same N
 captured states, still nested in ONE frame, each gated by a `step-end` `display`
 window over the run's period rather than by identity tracks. Same pixels, same
 frame shape — so the 1 config-frame ↔ 1 animation-frame invariant the whole
@@ -459,7 +465,10 @@ CompressedRunSelection[]`, default off) — docs/101 selection rects
    which only the run's merged emission can give (a standalone `textTracks`
    selection paints ABOVE the text; docs/101 documents both modes). Each spec
    is `{ target, charStart, charEnd, state?, clearState?, sweepMs?, color? }`;
-   the range resolves on Chromium's painted glyph edges. Config-surface
+   the range resolves on Chromium's painted glyph edges. Programmatic-only:
+   the declarative `states:` block exposes just `caret` (`statesCaretSchema`),
+   not this option; a declarative selection is the above-glyph `textTracks`
+   sweep. Config-surface
    exposure of this option is tracked separately.
 
 The glyph layer paints above the merged chrome (with selection rects, when
@@ -649,7 +658,7 @@ and the measurements behind it.
    to several regions at once. States advancing **disjoint** regions are driven
    into the page together and captured once, and each state's tree is assembled
    by taking each region's subtree from the round holding its own state. The
-   schedule (`planRegionCaptureRounds` in `src/cli/animate.ts`) is a
+   schedule (`planRegionCaptureRounds` in `src/cli/animate-orchestrator.ts`) is a
    longest-chain assignment and minimal by construction: a state's `actions` are
    one indivisible script so they run in exactly one round, and every region a
    state advances must move strictly past the round of its own previous advance,
@@ -963,7 +972,7 @@ regardless of (and before) everything above:
    actions + hold durations, `caret` auto-caret, pairing-ratio logging) and the
    `textTracks: [...]` caret/selection tracks (capture-time selector stamping →
    `data-domotion-anim` → node-side address resolution, frame-relative `at`
-   mapped to global time) in `src/cli/animate.ts`; docs/43 §11–12 are the
+   mapped to global time) in `src/cli/animate-orchestrator.ts` (`configTextTrackSpec`); docs/43 §11–12 are the
    authoring reference. JSON Schema regenerated; validated by schema unit tests
    plus the rasterized config e2e (`tests/compressed-run-config.e2e.test.ts`)
    and the committed golden example `examples/animate/compressed-run/` (a
