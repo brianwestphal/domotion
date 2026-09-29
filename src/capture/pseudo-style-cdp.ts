@@ -413,9 +413,9 @@ async function collectResizableRemoteObjects(session: CDPSession, objectGroup: s
     objectId: evaluated.result.objectId,
     ownProperties: true,
   });
-  return properties.result
-    .filter(({ name, value }) => /^\d+$/.test(name) && value?.objectId != null)
-    .map(({ value }) => value!.objectId!);
+  return properties.result.flatMap(({ name, value }) =>
+    /^\d+$/.test(name) && value?.objectId != null ? [value.objectId] : [],
+  );
 }
 
 async function collectScrollbarRemoteObjects(session: CDPSession, objectGroup: string): Promise<string[]> {
@@ -460,9 +460,9 @@ async function collectScrollbarRemoteObjects(session: CDPSession, objectGroup: s
     objectId: evaluated.result.objectId,
     ownProperties: true,
   });
-  return properties.result
-    .filter(({ name, value }) => /^\d+$/.test(name) && value?.objectId != null)
-    .map(({ value }) => value!.objectId!);
+  return properties.result.flatMap(({ name, value }) =>
+    /^\d+$/.test(name) && value?.objectId != null ? [value.objectId] : [],
+  );
 }
 
 async function computedScrollbarProperties(

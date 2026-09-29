@@ -141,7 +141,8 @@ function extractEmojiBitmap(codepoint: number, paintedWidthPx: number): { buf: B
     }
   }
   const cacheKey = `${codepoint}|${pickedPpem}`;
-  if (_sbixCache.has(cacheKey)) return _sbixCache.get(cacheKey)!;
+  const memoized = _sbixCache.get(cacheKey);
+  if (memoized !== undefined) return memoized;
   const font = loadAppleColorEmojiFont();
   if (font == null) {
     // Memoize "no font" only once that answer is settled; a still-retrying open must not
@@ -814,11 +815,11 @@ export async function rasterizeBackdropFilters(
   };
   try {
     cdp = await page.context().newCDPSession(page);
-    const snap = (await cdp.send("DOMSnapshot.captureSnapshot", {
+    const snap = await cdp.send("DOMSnapshot.captureSnapshot", {
       computedStyles: [],
       includePaintOrder: true,
       includeDOMRects: true,
-    })) as any;
+    });
     const doc = snap.documents?.[0];
     const strings: string[] = snap.strings ?? [];
     const paintByNode = new Map<
@@ -833,13 +834,10 @@ export async function rasterizeBackdropFilters(
         paintByNode.set(nodeIndex, { bounds, paintOrder, layoutOrder: i });
     }
     const attributesByNode = new Map<number, number[]>();
+    // The protocol's `NodeTreeSnapshot.attributes` is one string-index list per node.
     const rareAttributes = doc?.nodes?.attributes;
-    if (Array.isArray(rareAttributes)) {
+    if (rareAttributes != null) {
       for (let i = 0; i < rareAttributes.length; i++) attributesByNode.set(i, rareAttributes[i]);
-    } else {
-      for (let i = 0; i < (rareAttributes?.index?.length ?? 0); i++) {
-        attributesByNode.set(rareAttributes.index[i], rareAttributes.value[i]);
-      }
     }
     const nodes: SnapshotNode[] = (doc?.nodes?.backendNodeId ?? []).map((backendNodeId: number, i: number) => {
       const attrIndexes = attributesByNode.get(i) ?? [];
@@ -856,7 +854,10 @@ export async function rasterizeBackdropFilters(
     });
 
     for (const target of remainingTargets) {
-      const plan = planBackdropIsolation(nodes, target.raster.token!, {
+      // Tokenless rasters were already reported and dropped above ("missing-token").
+      const token = target.raster.token;
+      if (token == null) continue;
+      const plan = planBackdropIsolation(nodes, token, {
         includeTargetDescendants: target.atomicTargetFilter,
       });
       if (plan == null) {

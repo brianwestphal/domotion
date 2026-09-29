@@ -18,6 +18,7 @@
  *     } ] }
  */
 
+import { requireField } from "./require-field.js";
 import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -135,7 +136,7 @@ async function renderLayerSource(
     return { svg: out.svg, w: out.width, h: out.height, periodMs: out.durationMs ?? undefined };
   }
   // svg source: read a pre-rendered (static or animated) SVG.
-  const svg = readFileSync(resolve(configDir, layer.svg!), "utf8");
+  const svg = readFileSync(resolve(configDir, requireField(layer.svg, "composite layer.svg")), "utf8");
   const size = parseSvgIntrinsicSize(svg) ?? { w: layer.width ?? 0, h: layer.height ?? 0 };
   return { svg, w: size.w, h: size.h, periodMs: layer.period ?? detectAnimationPeriodMs(svg) };
 }
@@ -174,7 +175,7 @@ export async function composeCompositeConfig(
     for (const i of castIdxs) {
       const layer = cfg.layers[i];
       log(`Layer ${i + 1}/${n}: cast (shared font)…`);
-      const castText = readFileSync(resolve(configDir, layer.cast!), "utf8");
+      const castText = readFileSync(resolve(configDir, requireField(layer.cast, "composite layer.cast")), "utf8");
       const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
         ...(layer.term ?? {}),
         manageFonts: false,
@@ -196,7 +197,7 @@ export async function composeCompositeConfig(
 
   // Assemble in z-order: apply optional device chrome, then place.
   const composeLayers: CompositeLayer[] = cfg.layers.map((layer, i) => {
-    let { svg, w, h, periodMs, deferFonts } = rendered[i]!;
+    let { svg, w, h, periodMs, deferFonts } = requireField(rendered[i], `composite layer ${i} render`);
     if (layer.chrome != null) {
       const framed = wrapInDeviceChrome(svg, layer.chrome.device, w, h, {
         label: layer.chrome.label,

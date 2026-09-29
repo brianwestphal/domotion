@@ -2324,8 +2324,8 @@ async function captureElementTreeWithWarningsInternal(
       await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
       const warnings = typed.warnings ?? [];
       for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
-        const fact = projectiveProbe!.facts[index];
-        if (fact.usedPreserve3d !== null) continue;
+        const fact = projectiveProbe?.facts[index];
+        if (fact == null || fact.usedPreserve3d !== null) continue;
         warnings.push({
           selector: `${selector} projective-node[${index}]`,
           feature: "transform-style: preserve-3d",
@@ -2960,6 +2960,23 @@ export async function rasterizeMaskSources(
   }
 }
 
+/** Font size assumed for an element whose computed `font-size` does not parse. */
+const CALIBRATE_DEFAULT_FONT_SIZE_PX = 14;
+
+/**
+ * Empirical thresholds for `calibrateBaselines`' ink scan. None is a Blink constant (the
+ * function reads Chrome's PAINT, it does not mirror layout): the luminance delta separates ink
+ * from antialiased background, the pad widens the row window so a glyph whose ink starts just
+ * above the layout box is still found, and the em bounds reject a back-solved ascent that no
+ * real font could have (a mis-scanned neighbor's ink).
+ */
+const CALIBRATE_TUNING = {
+  inkLuminanceDelta: 30,
+  scanPadPx: 2,
+  minAscentEm: 0.3,
+  maxAscentEm: 1.5,
+} as const;
+
 /**
  * Calibrate `fontAscent` on text-bearing elements by scanning a reference
  * PNG (Chrome's actual paint) for each element's painted ink top, then
@@ -2982,8 +2999,22 @@ export async function calibrateBaselines(
   elements: CapturedElement[],
   pngBytes: Buffer | Uint8Array,
 ): Promise<void> {
-  // Flatten the tree into a list of text-bearing elements with stable keys
+  // Flatten the tree into a list of text-bearing elements with stable keys. The measured
+  // values are read once here, already narrowed, so nothing below needs a non-null assertion.
   const flat: Array<{ key: string; el: CapturedElement }> = [];
+  const items: Array<{
+    key: string;
+    text: string;
+    textTop: number;
+    textLeft: number;
+    textWidth: number;
+    textHeight: number;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: string;
+    fontStyle: string | undefined;
+    color: string;
+  }> = [];
   let counter = 0;
   forEachElement(elements, (e) => {
     if (
@@ -2995,24 +3026,24 @@ export async function calibrateBaselines(
       e.textHeight != null &&
       e.textHeight > 0
     ) {
-      flat.push({ key: `c${counter++}`, el: e });
+      const key = `c${counter++}`;
+      flat.push({ key, el: e });
+      items.push({
+        key,
+        text: e.text,
+        textTop: e.textTop,
+        textLeft: e.textLeft ?? e.x,
+        textWidth: e.textWidth,
+        textHeight: e.textHeight,
+        fontSize: parseFloat(e.styles.fontSize) || CALIBRATE_DEFAULT_FONT_SIZE_PX,
+        fontFamily: e.styles.fontFamily,
+        fontWeight: e.styles.fontWeight,
+        fontStyle: e.styles.fontStyle,
+        color: e.styles.color,
+      });
     }
   });
   if (flat.length === 0) return;
-
-  const items = flat.map((f) => ({
-    key: f.key,
-    text: f.el.text!,
-    textTop: f.el.textTop!,
-    textLeft: f.el.textLeft ?? f.el.x,
-    textWidth: f.el.textWidth!,
-    textHeight: f.el.textHeight!,
-    fontSize: parseFloat(f.el.styles.fontSize) || 14,
-    fontFamily: f.el.styles.fontFamily,
-    fontWeight: f.el.styles.fontWeight,
-    fontStyle: f.el.styles.fontStyle,
-    color: f.el.styles.color,
-  }));
 
   const b64 = `data:image/png;base64,${Buffer.from(pngBytes).toString("base64")}`;
 
@@ -3022,7 +3053,7 @@ export async function calibrateBaselines(
   // var/let work; arrow functions are also fine, but explicit `function`
   // declarations avoid edge-cases in the transpiler output.
   const adjustments = await page.evaluate(
-    async function (args: { b64: string; items: typeof items }) {
+    async function (args: { b64: string; items: typeof items; tuning: typeof CALIBRATE_TUNING }) {
       var img = new Image();
       img.src = args.b64;
       await img.decode();
@@ -3043,14 +3074,14 @@ export async function calibrateBaselines(
         var it = args.items[ii];
         var x0 = Math.max(0, Math.floor(it.textLeft));
         var x1 = Math.min(W, Math.ceil(it.textLeft + it.textWidth));
-        var y0 = Math.max(0, Math.floor(it.textTop) - 2);
-        var y1 = Math.min(img.height, Math.ceil(it.textTop + it.textHeight) + 2);
+        var y0 = Math.max(0, Math.floor(it.textTop) - args.tuning.scanPadPx);
+        var y1 = Math.min(img.height, Math.ceil(it.textTop + it.textHeight) + args.tuning.scanPadPx);
         var inkTop = -1;
         for (var y = y0; y < y1 && inkTop < 0; y++) {
           for (var x = x0; x < x1; x++) {
             var i = (y * W + x) * 4;
             var lum = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
-            if (Math.abs(lum - bgLum) > 30) {
+            if (Math.abs(lum - bgLum) > args.tuning.inkLuminanceDelta) {
               inkTop = y;
               break;
             }
@@ -3075,7 +3106,10 @@ export async function calibrateBaselines(
         }
 
         var correctedAscent = inkTop - it.textTop + subPixelAscent;
-        if (correctedAscent < it.fontSize * 0.3 || correctedAscent > it.fontSize * 1.5) {
+        if (
+          correctedAscent < it.fontSize * args.tuning.minAscentEm ||
+          correctedAscent > it.fontSize * args.tuning.maxAscentEm
+        ) {
           out.push({ key: it.key, ascent: null });
           continue;
         }
@@ -3083,7 +3117,7 @@ export async function calibrateBaselines(
       }
       return out;
     },
-    { b64, items },
+    { b64, items, tuning: CALIBRATE_TUNING },
   );
 
   for (let i = 0; i < adjustments.length; i++) {

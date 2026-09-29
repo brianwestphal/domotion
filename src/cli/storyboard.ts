@@ -41,6 +41,7 @@
  * `@font-face` collapse across all scenes (`dedupeCompositeFonts`).
  */
 
+import { requireField } from "./require-field.js";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
@@ -260,7 +261,7 @@ async function captureSceneToSvg(
     page.setDefaultTimeout(90_000);
     page.setDefaultNavigationTimeout(90_000);
     const tracker = attachWebfontTracker(page);
-    const input = cap.url ?? resolve(configDir, cap.file!);
+    const input = cap.url ?? resolve(configDir, requireField(cap.file, "storyboard capture.file"));
     await loadInputIntoPage(page, input);
     await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });
     clearWebfonts();
@@ -333,7 +334,7 @@ async function renderScene(
     return captureSceneToSvg(browser, scene.capture, configDir, canvasW, canvasH, log);
   }
   // svg source: a pre-rendered (static or animated) SVG.
-  const svg = readFileSync(resolve(configDir, scene.svg!), "utf8");
+  const svg = readFileSync(resolve(configDir, requireField(scene.svg, "storyboard scene.svg")), "utf8");
   const size = parseSvgIntrinsicSize(svg) ?? { w: canvasW, h: canvasH };
   return { svg, w: size.w, h: size.h, periodMs: scene.period ?? detectAnimationPeriodMs(svg) };
 }
@@ -392,7 +393,7 @@ export async function composeStoryboardConfig(
     for (const i of castIdxs) {
       const scene = cfg.scenes[i];
       log(`Scene ${i + 1}/${n}: ${sceneLabel(scene)} (shared font)…`);
-      const castText = readFileSync(resolve(configDir, scene.cast!), "utf8");
+      const castText = readFileSync(resolve(configDir, requireField(scene.cast, "storyboard scene.cast")), "utf8");
       const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
         ...(scene.term ?? {}),
         manageFonts: false,
@@ -414,7 +415,7 @@ export async function composeStoryboardConfig(
   const frames: AnimationFrame[] = [];
   for (let i = 0; i < n; i++) {
     const scene = cfg.scenes[i];
-    const r = rendered[i]!;
+    const r = requireField(rendered[i], `storyboard scene ${i} render`);
 
     // Resolve the on-screen duration. An animated scene may inherit its own play
     // time; a static scene MUST carry an explicit `duration`.

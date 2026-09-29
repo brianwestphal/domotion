@@ -164,16 +164,26 @@ export interface DecodedPseudoFragmentSet {
   fragments: PseudoFragment[];
 }
 
-interface FragmentEvent {
-  kind: "text" | "image";
+interface FragmentEventBase {
   contentItemIndex: number;
   localRect: Rect;
-  startUtf16?: number;
-  endUtf16?: number;
-  text?: string;
-  shapedAdvance?: number;
 }
 
+/** A text event always carries its UTF-16 slice; an image event never does. */
+type FragmentEvent =
+  | (FragmentEventBase & { kind: "image" })
+  | (FragmentEventBase & {
+      kind: "text";
+      startUtf16: number;
+      endUtf16: number;
+      text: string;
+      shapedAdvance?: number;
+    });
+
+// Geometric tolerance in CSS px for "same box / axis-aligned quad / same block". Not a Blink
+// constant: the protocol quads and the layout rects are computed in float and re-rounded on
+// different sides, and 0.8 px is the slack that absorbs that (it stays under the 1 px that would
+// visibly move a glyph). NO UPSTREAM RULE.
 const EPSILON = 0.8;
 
 function finite(value: number): boolean {
@@ -365,15 +375,15 @@ function buildItemsAndEvents(
   const events: FragmentEvent[] = [];
   for (const row of contentRows) {
     if (!validRect(row.bounds)) return { error: `invalid layout bounds at ${row.layoutIndex}` };
-    const isText = row.text != null;
+    const rowText = row.text;
     const item: PseudoContentItem = {
       index: contentItems.length,
-      kind: isText ? "text" : "image",
+      kind: rowText != null ? "text" : "image",
       layoutIndex: row.layoutIndex,
-      ...(isText ? { text: row.text } : {}),
+      ...(rowText != null ? { text: rowText } : {}),
     };
     contentItems.push(item);
-    if (!isText) {
+    if (rowText == null) {
       events.push({ kind: "image", contentItemIndex: item.index, localRect: row.bounds });
       continue;
     }
@@ -384,7 +394,7 @@ function buildItemsAndEvents(
         !Number.isInteger(box.startUtf16) ||
         !Number.isInteger(box.lengthUtf16) ||
         box.startUtf16 < 0 ||
-        end > row.text!.length
+        end > rowText.length
       ) {
         return { error: `invalid UTF-16 range ${box.startUtf16}:${end} for layout ${row.layoutIndex}` };
       }
@@ -394,7 +404,7 @@ function buildItemsAndEvents(
         localRect: box.bounds,
         startUtf16: box.startUtf16,
         endUtf16: end,
-        text: row.text!.slice(box.startUtf16, end),
+        text: rowText.slice(box.startUtf16, end),
         shapedAdvance: box.shapedAdvance,
       });
     }
@@ -565,9 +575,9 @@ export function decodePseudoFragmentProtocol(input: PseudoProtocolInput): Decode
       fragments.push({
         kind: "text",
         contentItemIndex: event.contentItemIndex,
-        sourceStartUtf16: event.startUtf16!,
-        sourceEndUtf16: event.endUtf16!,
-        text: event.text!,
+        sourceStartUtf16: event.startUtf16,
+        sourceEndUtf16: event.endUtf16,
+        text: event.text,
         visualOrder: visualOrder++,
         boxFragmentIndex: index,
         localRect: event.localRect,

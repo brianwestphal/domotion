@@ -523,17 +523,18 @@ function factsByFrame(
               effectiveZoom: row.effectiveZoom,
             })),
           );
-    if (built.geometry != null) {
+    // `geometry` is only built when `neutral` resolved; naming both lets the narrowing carry.
+    if (built.geometry != null && neutral != null) {
       // DM-2470: retain the complete same-frame transform-neutral text bundle,
       // not only its correlated protocol quads. Pseudos, generated fragments,
       // decorations, raster candidates, and clips all share these coordinates
       // and must receive the one paint matrix together.
       built.geometry.neutral = {
-        x: neutral!.x,
-        y: neutral!.y,
-        width: neutral!.width,
-        height: neutral!.height,
-        text: neutral!.text,
+        x: neutral.x,
+        y: neutral.y,
+        width: neutral.width,
+        height: neutral.height,
+        text: neutral.text,
         textSegments: built.splitSegments?.map((segment) => ({
           ...segment,
           xOffsets: segment.xOffsets == null ? undefined : [...segment.xOffsets],
@@ -559,13 +560,13 @@ function factsByFrame(
           rasterGlyphs: segment.rasterGlyphs?.map((glyph) => ({ ...glyph, rect: { ...glyph.rect } })),
           pseudoBox: segment.pseudoBox == null ? undefined : { ...segment.pseudoBox },
         })),
-        textTop: neutral!.textTop,
-        textLeft: neutral!.textLeft,
-        textHeight: neutral!.textHeight,
-        textWidth: neutral!.textWidth,
-        fontAscent: neutral!.fontAscent,
-        fontDescent: neutral!.fontDescent,
-        inputXOffsets: neutral!.inputXOffsets == null ? undefined : [...neutral!.inputXOffsets],
+        textTop: neutral.textTop,
+        textLeft: neutral.textLeft,
+        textHeight: neutral.textHeight,
+        textWidth: neutral.textWidth,
+        fontAscent: neutral.fontAscent,
+        fontDescent: neutral.fontDescent,
+        inputXOffsets: neutral.inputXOffsets == null ? undefined : [...neutral.inputXOffsets],
       };
       frameFacts[elementIndex] = { geometry: built.geometry };
       continue;

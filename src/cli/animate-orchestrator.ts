@@ -6,6 +6,7 @@
  * captures, and composes one animated SVG with CSS keyframe transitions.
  */
 
+import { requireField } from "./require-field.js";
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
@@ -1529,7 +1530,7 @@ async function buildCastFrame(
   browser: Browser,
   log: (msg: string) => void,
 ): Promise<AnimationFrame> {
-  const castPath = resolveFrameInput(fc.cast!, configDir);
+  const castPath = resolveFrameInput(requireField(fc.cast, "animate frame.cast"), configDir);
   log(`Frame ${i + 1}/${cfg.frames.length}: rendering terminal cast ${castPath}…`);
   const castText = readFileSync(castPath, "utf8");
   const t = fc.term ?? {};
@@ -1608,7 +1609,7 @@ function buildTemplateFrame(
   log: (msg: string) => void,
 ): AnimationFrame {
   log(`Frame ${i + 1}/${cfg.frames.length}: embedding template "${fc.template}"…`);
-  const tr = templateRenders.get(i)!;
+  const tr = requireField(templateRenders.get(i), `animate frame ${i} template render`);
   return {
     svgContent: tr.content,
     duration: fc.duration,
@@ -2183,7 +2184,11 @@ export function assembleRegionStateTrees(
   }
   return plan.sourceRound.map((bySource) => {
     const sources = new Map<string, CapturedElement>();
-    for (const [name, id] of regionIdByName) sources.set(id, rootsByRound[bySource[name]].get(id)!);
+    for (const [name, id] of regionIdByName)
+      sources.set(
+        id,
+        requireField(rootsByRound[bySource[name]].get(id), `region "${name}" root in round ${bySource[name]}`),
+      );
     return spliceRegionSubtrees(roundTrees[0], sources);
   });
 }
@@ -2207,19 +2212,20 @@ async function captureStatesRun(
   cfg: AnimateConfig,
   log: (msg: string) => void,
 ) {
-  const stateCfgs = fc.states!;
+  const stateCfgs = requireField(fc.states, "animate frame.states");
 
   // DM-1770: stamp each declared region's element with `data-domotion-anim`,
   // the same mechanism `textTracks` and intra-frame animations use, so the
   // captured tree carries an `animId` the compressor can recognize as an
   // explicit region root. Re-stamped before every capture, because a state's
   // actions are free to rebuild the DOM under (or including) the region root.
-  const regionNames = Object.keys(fc.regions ?? {});
+  const regions = fc.regions ?? {};
+  const regionNames = Object.keys(regions);
   const regionIdOf = (name: string): string => `f${i}rg${regionNames.indexOf(name)}`;
   const regionIds = regionNames.map(regionIdOf);
   const stampRegions = async (): Promise<void> => {
     for (const name of regionNames) {
-      const selector = fc.regions![name];
+      const selector = regions[name];
       const matched = await page.evaluate(
         (args: { selector: string; animId: string }) => {
           const el = document.querySelector(args.selector);
@@ -2242,14 +2248,14 @@ async function captureStatesRun(
           const el = document.querySelector(s);
           return el instanceof HTMLElement ? (el.dataset.domotionAnim ?? "") : "";
         }),
-      { selectors: regionNames.map((n) => fc.regions![n]) },
+      { selectors: regionNames.map((n) => regions[n]) },
     );
     for (let k = 0; k < regionNames.length; k++) {
       if (stamps[k] === regionIdOf(regionNames[k])) continue;
       const other = regionNames[regionIds.indexOf(stamps[k])] ?? "another region";
       throw new Error(
         `animate: frames[${i}].regions.${regionNames[k]} and .${other} resolve to the SAME element ` +
-          `("${fc.regions![regionNames[k]]}" and "${fc.regions![other] ?? "?"}") — each region must name a distinct element, ` +
+          `("${regions[regionNames[k]]}" and "${regions[other] ?? "?"}") — each region must name a distinct element, ` +
           `since a region is the unit a state advances independently.`,
       );
     }
@@ -3320,7 +3326,9 @@ async function applyDomAction(page: Page, action: AnimateAction): Promise<void> 
   const selector = "selector" in action ? action.selector : undefined;
   const matched = await page.evaluate((a) => {
     const sel = "selector" in a ? a.selector : "";
-    const els = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+    // Not cast to HTMLElement: an <svg> match is legitimate for most actions, and only the
+    // style/blur cases below need an element that has those members.
+    const els = Array.from(document.querySelectorAll(sel));
     for (const h of els) {
       switch (a.type) {
         case "setText":
@@ -3348,25 +3356,27 @@ async function applyDomAction(page: Page, action: AnimateAction): Promise<void> 
           h.classList.toggle(a.class);
           break;
         case "setStyle":
-          for (const [k, v] of Object.entries(a.props)) h.style.setProperty(k, v);
+          if (h instanceof HTMLElement || h instanceof SVGElement) {
+            for (const [k, v] of Object.entries(a.props)) h.style.setProperty(k, v);
+          }
           break;
         case "insert":
           h.insertAdjacentHTML(a.position, a.html);
           break;
         case "setValue":
-          (h as HTMLInputElement).value = a.value;
+          (h as unknown as HTMLInputElement).value = a.value;
           break;
         case "check":
-          (h as HTMLInputElement).checked = a.checked;
+          (h as unknown as HTMLInputElement).checked = a.checked;
           break;
         case "clear":
-          (h as HTMLInputElement).value = "";
+          (h as unknown as HTMLInputElement).value = "";
           break;
         case "scrollIntoView":
           h.scrollIntoView({ block: a.block ?? "center", inline: a.inline ?? "nearest" });
           break;
         case "blur":
-          h.blur();
+          if (h instanceof HTMLElement || h instanceof SVGElement) h.blur();
           break;
         case "dispatch":
           h.dispatchEvent(new Event(a.event, { bubbles: a.bubbles ?? true }));
@@ -3572,7 +3582,7 @@ async function expandHoverDetect(
     let diff: HoverDiff;
     try {
       const page = await ctx.newPage();
-      const input = resolveFrameInput(f.input!, configDir);
+      const input = resolveFrameInput(requireField(f.input, "animate frame.input"), configDir);
       log(`Frame ${oldIdx + 1}/${cfg.frames.length}: hoverDetect probing "${hd.selector}" (${input})…`);
       await loadInputIntoPage(page, input);
       await applyReadyWaits(page, {

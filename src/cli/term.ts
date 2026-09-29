@@ -14,6 +14,7 @@
  *   domotion term --cast demo.cast -o demo.svg
  */
 
+import { requireField } from "./require-field.js";
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -126,7 +127,8 @@ export async function runTerm(argv: string[]): Promise<void> {
     });
     castText = r.cast;
   } else {
-    castText = castPath === "-" ? readFileSync(0, "utf8") : readFileSync(resolve(castPath as string), "utf8");
+    castText =
+      castPath === "-" ? readFileSync(0, "utf8") : readFileSync(resolve(requireField(castPath, "--cast")), "utf8");
   }
 
   // Theme: a bare `--theme <name>` stays a string (built-in). Any of --theme-file
@@ -190,7 +192,7 @@ export async function runTerm(argv: string[]): Promise<void> {
     // (stdout already carried the live session). stdin-cast (`-`) → stdout.
     const outPath =
       values.output ??
-      (live ? "term.svg" : castPath !== "-" ? `${(castPath as string).replace(/\.cast$/i, "")}.svg` : null);
+      (live ? "term.svg" : castPath != null && castPath !== "-" ? `${castPath.replace(/\.cast$/i, "")}.svg` : null);
     if (outPath == null) {
       process.stdout.write(svg);
     } else {

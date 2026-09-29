@@ -208,7 +208,8 @@ export function inferHarPageUrl(harPath: string): string {
   )?.log;
   const pageTitle = log?.pages?.[0]?.title;
   if (typeof pageTitle === "string" && /^https?:\/\//i.test(pageTitle)) return pageTitle;
-  const entries = Array.isArray(log?.entries) ? log!.entries! : [];
+  const rawEntries = log?.entries;
+  const entries = Array.isArray(rawEntries) ? rawEntries : [];
   const htmlEntry = entries.find((e) => {
     const status = e?.response?.status;
     const mime = e?.response?.content?.mimeType ?? "";
