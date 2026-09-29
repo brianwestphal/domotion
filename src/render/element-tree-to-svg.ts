@@ -8,7 +8,6 @@ import type { ElementHandle, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import * as fontkit from "fontkit";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
-import { renderVerticalSegments, renderVerticalSystemFontText, hasVerticalSegments } from "./vertical-text.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { renderRadicalGlyph, renderSourceOwnedTextBoundary } from "./text-to-path.js";
 import {

@@ -69,6 +69,11 @@ scrolling, and drag destinations. The targeted executor delegates each event
 kind to a bounded action helper; source and destination markers retain separate
 `finally` cleanup boundaries, including when Playwright throws.
 
+The public entry points for whole plans are `runStudioSemanticPlan` and
+`runStudioSemanticTracks` (exported from `src/studio/index.ts`, listed in
+[docs/api.md](api.md)); failures surface as `StudioInteractionError` or, when
+observation fails, `StudioInteractionObservationError`.
+
 `runStudioSemanticStep(page, step, options)` executes one compiled step
 immediately without timeline waiting. It is the integration boundary used by
 interactive segment capture to keep observation, state capture, and the exact
@@ -83,7 +88,9 @@ semantic executor around the same live action.
 - `scrollTo` accepts exactly one semantic target or absolute page position.
 - `drag` accepts a semantic destination or absolute pointer position.
 - `waitForState` supports attachment, visibility, enabled/disabled,
-  checked/unchecked, and substring text states with an explicit timeout.
+  checked/unchecked, and substring text states. The timeout is optional
+  (`timeoutMs` in `src/studio/project-schema.ts`); when omitted a 5 s default
+  applies (`src/studio/interactions.ts`).
   Attachment and detachment waits operate on the stable semantic locator rather
   than a temporary marker, so they can span zero-to-one and one-to-zero DOM
   transitions.

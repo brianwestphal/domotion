@@ -25,6 +25,8 @@ revision and annotation queue as human comments.
 
 ## Review contract
 
+The rubric's dimensions are exported as `STUDIO_VIDEO_REVIEW_DIMENSIONS`, failures raise `StudioVideoReviewError`, and both are part of the public `src/studio/index.ts` surface listed in [docs/api.md](api.md).
+
 `renderAndReviewStudioVideo(project, options)` requires a `review` callback. The
 callback receives a structured clone of the authored project, rendered-media
 path and digest, optional prior-revision comparison, and the complete

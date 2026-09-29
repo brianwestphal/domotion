@@ -42,7 +42,9 @@ the period detected from the SVG, and finally the authored scene/story duration.
 `src/scrubber/embed.ts` defines a small, versioned, same-origin `postMessage`
 protocol. Studio sends a `load` command with SVG, duration, source identity, and
 the last remembered view state. Scrubber reports `ready`, `loaded`, `state`, and
-`error` events. View state includes playhead, range, zoom, pan, speed, and loop;
+`error` events. A third command, `request-state`, asks the loaded embed to
+re-post its current `state` event (a no-op until a source is loaded), so Studio
+can resynchronize without reloading the SVG. View state includes playhead, range, zoom, pan, speed, and loop;
 normalization clamps it to the newly generated duration. Playback is
 intentionally not restored after regeneration.
 
@@ -58,7 +60,10 @@ embedded mode only changes which controls are visible and how SVG is supplied.
 ## Artifact safety and timing authority
 
 `POST /api/preview` accepts only a validated project path plus a scene/story
-selection. The server chooses the artifact from project provenance rather than
+selection. Candidates must first satisfy
+`artifact.sourceRevisionId === studioContentRevisionId(project)`: an artifact
+generated from an older revision of the project is never previewed, and when no
+artifact matches the selection the server answers 404 (`src/studio/server.ts`). The server chooses the artifact from project provenance rather than
 accepting an arbitrary client file path. `resolveStudioWorkspaceSvgPath` in
 `src/studio/app-projects.ts` requires `.svg` and lexical workspace containment;
 the server also applies real-path containment to reject symlink

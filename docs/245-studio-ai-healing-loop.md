@@ -99,6 +99,8 @@ state wait, ambiguous alternatives, clarification/resume, unrecoverable intent,
 successful recapture, generated artifact revision provenance, AI review, and
 final human handoff.
 
+The page-inspection helper is `inspectStudioHealingPage` and failures raise `StudioHealingError` (both exported from `src/studio/index.ts`, listed in [docs/api.md](api.md)).
+
 Attachment-lifecycle waits can begin without a live target and retain exact
 semantic ambiguity failures. Healing therefore receives a failure only when the
 authored locator remains unresolved through its timeout or becomes ambiguous,

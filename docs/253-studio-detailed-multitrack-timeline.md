@@ -58,10 +58,10 @@ project schema during atomic save, and returns the inverse command to the UI.
 ## Editor interaction and preview sync
 
 The separate Studio application displays horizontally scrollable labeled
-tracks with zoom and 1–250 ms snapping. Click selects; Command/Ctrl-click toggles
+tracks with zoom and snapping to one of six presets (1, 10, 25, 50, 100, or 250 ms; `src/studio/client.tsx`). Click selects; Command/Ctrl-click toggles
 multiple items. Drag moves the complete selection, the right handle resizes it,
-Arrow keys move by the snap interval, Shift multiplies the step, and Alt+Arrow
-resizes. Named Earlier/Later/Shorter/Longer and Undo/Redo buttons provide the
+Arrow keys move by the snap interval, Shift multiplies the step by 5, and Alt+Arrow
+resizes. Named Earlier/Later/Shorter/Longer buttons and "Undo timeline" / "Redo timeline" provide the
 same operations without pointer precision. Timeline blocks are focusable,
 named with their range, expose pressed selection state, and keep a visible focus
 ring.

@@ -34,7 +34,7 @@ zoom-and-pan, spotlighting, callouts, title cards, logo reveals, and every
 standard storyboard transition. `studioTreatmentSchema` is the shared runtime
 and generated-JSON-schema authority for both project files and the public API.
 
-`resolveStudioTreatmentPlan` expands those presets into inspectable lower-level
+`applyStudioTreatments` (public, `src/studio/index.ts`; see [docs/api.md](api.md)) applies the stack and raises `StudioTreatmentError` on an invalid one. `resolveStudioTreatmentPlan` expands those presets into inspectable lower-level
 layer, mask, transform, overlay, timing, and transition primitives. This gives
 AI and UI authors a high-level vocabulary while leaving a precise programmatic
 plan for later direct manipulation. Ordered application makes treatments
