@@ -20,7 +20,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { startLocalServer } from "../utils/local-server.js";
+import { HttpError, readJsonBody, sendJson, startLocalServer } from "../utils/local-server.js";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -118,31 +118,12 @@ const TICKET_BODY = z.object({
   svg: z.string().optional(),
 });
 
-/** A request-level error carrying the HTTP status to return (e.g. a 400). */
-class HttpError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+/** Scrubber bodies carry whole SVG documents, so the ceiling is far above Studio's. */
+const MAX_BODY_BYTES = 64 * 1024 * 1024;
 
-/** Read + JSON-parse + zod-validate a request body, or throw an `HttpError(400)`. */
-async function parseBody<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise<T> {
-  const raw = await readBody(req);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new HttpError(400, "invalid JSON body");
-  }
-  const result = schema.safeParse(parsed);
-  if (!result.success) {
-    const msg = result.error.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; ");
-    throw new HttpError(400, `invalid request: ${msg}`);
-  }
-  return result.data;
+/** Read + JSON-parse + zod-validate a request body, or throw a typed `HttpError` (400 / 413). */
+function parseBody<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise<T> {
+  return readJsonBody(req, schema, { maxBytes: MAX_BODY_BYTES });
 }
 
 /**
@@ -348,30 +329,6 @@ const SHELL = (bootstrap: string): string => `<!doctype html>
 <script src="/client.js"></script>
 </body></html>`;
 
-async function readBody(req: IncomingMessage, maxBytes = 64 * 1024 * 1024): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks: Buffer[] = [];
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > maxBytes) {
-        reject(new Error("request body too large"));
-        req.destroy();
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-    req.on("error", reject);
-  });
-}
-
-function sendJson(res: ServerResponse, status: number, obj: unknown): void {
-  const buf = Buffer.from(JSON.stringify(obj), "utf-8");
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": buf.length });
-  res.end(buf);
-}
-
 /** Read the SVG's WAAPI timings in a Chromium page, then resolve a single-loop
  *  duration with the same logic the video exporter uses. */
 async function deriveTiming(
@@ -477,7 +434,14 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
         if (crop != null) {
           const size = parseSvgIntrinsicSize(outSvg) ?? parseSvgIntrinsicSize(svg);
           const c = size != null ? clampCrop(crop, size.w, size.h) : null;
-          if (c != null) outSvg = cropSvgViewBox(outSvg, c);
+          if (c != null) {
+            try {
+              outSvg = cropSvgViewBox(outSvg, c);
+            } catch (error) {
+              // The markup came from the client, so a markup the crop cannot handle is a bad request.
+              throw new HttpError(400, error instanceof Error ? error.message : String(error));
+            }
+          }
         }
         sendJson(res, 200, {
           svg: outSvg,

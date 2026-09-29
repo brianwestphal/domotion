@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { applyStudioTreatments, resolveStudioTreatmentPlan, StudioTreatmentError } from "./treatments.js";
 
@@ -109,5 +112,44 @@ describe("Studio cinematic treatment library", () => {
         { kind: "scene-transition", transition: { type: "crossfade", duration: 100 } },
       ]),
     ).toThrow(/only one scene-transition/);
+  });
+});
+
+describe("logo-reveal local assets stay inside the asset directory", () => {
+  const withDirs = (run: (assetDir: string, outsideDir: string) => void): void => {
+    const base = mkdtempSync(join(tmpdir(), "domotion-logo-"));
+    try {
+      const assetDir = join(base, "assets");
+      const outsideDir = join(base, "outside");
+      mkdirSync(assetDir);
+      mkdirSync(outsideDir);
+      writeFileSync(join(assetDir, "logo.svg"), LOGO);
+      writeFileSync(join(outsideDir, "secret.svg"), LOGO);
+      run(assetDir, outsideDir);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  };
+  const render = (source: string, assetDir: string): string =>
+    applyStudioTreatments(BASE, [{ kind: "logo-reveal", logo: source }], { assetDir }).svg;
+
+  it("embeds a logo inside the directory", () => {
+    withDirs((assetDir) => {
+      expect(render("logo.svg", assetDir)).toContain("data:image/svg+xml;base64,");
+    });
+  });
+
+  it("refuses ../ traversal and an absolute path elsewhere", () => {
+    withDirs((assetDir, outsideDir) => {
+      expect(() => render("../outside/secret.svg", assetDir)).toThrow(StudioTreatmentError);
+      expect(() => render(join(outsideDir, "secret.svg"), assetDir)).toThrow(/asset directory/);
+    });
+  });
+
+  it("refuses a symlink inside the directory that points outside it", () => {
+    withDirs((assetDir, outsideDir) => {
+      symlinkSync(join(outsideDir, "secret.svg"), join(assetDir, "sneaky.svg"));
+      expect(() => render("sneaky.svg", assetDir)).toThrow(/asset directory/);
+    });
   });
 });

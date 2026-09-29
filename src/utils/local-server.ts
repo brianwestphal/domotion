@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
+import type { z } from "zod";
 
 export interface LocalServer {
   server: Server;
@@ -47,8 +48,74 @@ export async function startLocalServer(
 }
 
 /** Write a `Buffer` response with the given status, content-type, and a
- *  matching `content-length`. */
-export function sendBuffer(res: ServerResponse, status: number, contentType: string, buf: Buffer): void {
-  res.writeHead(status, { "content-type": contentType, "content-length": buf.length });
+ *  matching `content-length`. `headers` adds or overrides response headers. */
+export function sendBuffer(
+  res: ServerResponse,
+  status: number,
+  contentType: string,
+  buf: Buffer,
+  headers: Record<string, string> = {},
+): void {
+  res.writeHead(status, { "content-type": contentType, "content-length": buf.length, ...headers });
   res.end(buf);
+}
+
+/** Write `value` as a UTF-8 JSON response. */
+export function sendJson(
+  res: ServerResponse,
+  status: number,
+  value: unknown,
+  headers: Record<string, string> = {},
+): void {
+  sendBuffer(res, status, "application/json; charset=utf-8", Buffer.from(JSON.stringify(value), "utf8"), headers);
+}
+
+/** A request-level failure carrying the HTTP status to answer with (400 bad input, 404, 409, 413, 501, ...). */
+export class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+/** Default request-body ceiling (bytes). Studio projects and small control bodies fit in 4 MiB. */
+export const DEFAULT_MAX_BODY_BYTES = 4 * 1024 * 1024;
+
+/** Read a request body as UTF-8, or throw `HttpError(413)` once it exceeds `maxBytes`. */
+export async function readRequestBody(req: IncomingMessage, maxBytes = DEFAULT_MAX_BODY_BYTES): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > maxBytes) throw new HttpError(413, "request body is too large");
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/** Read, JSON-parse and zod-validate a request body, or throw a typed `HttpError` (400 / 413). */
+export async function readJsonBody<T>(
+  req: IncomingMessage,
+  schema: z.ZodType<T>,
+  options: { maxBytes?: number } = {},
+): Promise<T> {
+  const text = await readRequestBody(req, options.maxBytes);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new HttpError(400, "invalid JSON body");
+  }
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const message = parsed.error.issues
+      .map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`)
+      .join("; ");
+    throw new HttpError(400, `invalid request: ${message}`);
+  }
+  return parsed.data;
 }

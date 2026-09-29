@@ -1,6 +1,7 @@
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { relative, resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
 import { compileStudioSemanticTracks } from "./interactions.js";
@@ -761,12 +762,14 @@ export function persistStudioRecordingEvidence(
   result: Extract<StudioRecordingImportResult, { status: "imported" }>,
 ): string {
   const root = resolve(workspaceRoot);
-  const destination = resolve(root, result.evidencePath);
+  const destination = resolveInsideWorkspace(root, result.evidencePath, {
+    extension: ".json",
+    extensionMessage: "recording evidence files must use a .json extension",
+    escapeMessage: (resolvedRoot) => `recording evidence path must stay inside the Studio workspace: ${resolvedRoot}`,
+    followSymlinks: true,
+    makeError: (message) => new StudioRecordingError(message),
+  });
   const local = relative(root, destination);
-  if (local === ".." || local.startsWith(`..${sep}`) || isAbsolute(local))
-    throw new StudioRecordingError(`recording evidence path must stay inside the Studio workspace: ${root}`);
-  if (!destination.toLowerCase().endsWith(".json"))
-    throw new StudioRecordingError("recording evidence files must use a .json extension");
   if (existsSync(destination)) {
     if (readFileSync(destination, "utf8") === result.evidenceText) return destination;
     throw new StudioRecordingError(`recording evidence already exists with different content: ${local}`);

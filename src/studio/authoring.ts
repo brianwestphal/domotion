@@ -1,3 +1,4 @@
+import { assertHeadRevision } from "./stale-head.js";
 import type { StudioLayer, StudioProject, StudioReviewAnnotation, StudioScene } from "./project-schema.js";
 
 export type StudioAuthoringCommand =
@@ -37,7 +38,11 @@ export interface CommitStudioAuthoringOptions {
 }
 
 export class StudioAuthoringError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** `"stale-head"` when raised by the optimistic-concurrency check (HTTP 409). */
+    readonly code?: string,
+  ) {
     super(message);
     this.name = "StudioAuthoringError";
   }
@@ -71,11 +76,12 @@ export function commitStudioAuthoringRevision(
 ): StudioProject {
   const current = structuredClone(rawCurrent);
   const proposed = structuredClone(rawProposed);
-  if (current.review.headRevisionId !== options.expectedHeadRevisionId) {
-    throw new StudioAuthoringError(
-      `stale authoring change: expected review head ${options.expectedHeadRevisionId}, found ${current.review.headRevisionId}`,
-    );
-  }
+  assertHeadRevision(
+    "authoring",
+    options.expectedHeadRevisionId,
+    current.review.headRevisionId,
+    (message, code) => new StudioAuthoringError(message, code),
+  );
   if (JSON.stringify(proposed.review) !== JSON.stringify(current.review)) {
     throw new StudioAuthoringError("review history must be changed through /api/annotation");
   }

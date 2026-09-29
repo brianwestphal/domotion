@@ -1,5 +1,6 @@
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import { readFileSync } from "node:fs";
-import { extname, resolve } from "node:path";
+import { extname } from "node:path";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import type { Transition } from "../animation/transition-schema.js";
 import { parseSvgIntrinsicSize } from "../animation/svg-meta.js";
@@ -179,7 +180,14 @@ function embedLogo(source: string, assetDir: string): string {
     assertSelfContainedSvg(source);
     return `data:image/svg+xml;base64,${Buffer.from(source).toString("base64")}`;
   }
-  const path = resolve(assetDir, source);
+  // A logo is read from the project's asset directory and nowhere else: the `source` string comes
+  // from the project file and can be patched by an agent, so `../../secret` or a symlink out of the
+  // directory must not be base64-embedded into the output.
+  const path = resolveInsideWorkspace(assetDir, source, {
+    escapeMessage: (resolvedRoot) => `logo-reveal source must stay inside the asset directory: ${resolvedRoot}`,
+    followSymlinks: true,
+    makeError: (message) => new StudioTreatmentError(message),
+  });
   let bytes: Buffer;
   try {
     bytes = readFileSync(path);

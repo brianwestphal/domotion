@@ -1,10 +1,17 @@
+import {
+  HttpError,
+  readJsonBody,
+  sendBuffer as sendBufferWith,
+  sendJson as sendJsonWith,
+  startLocalServer,
+} from "../utils/local-server.js";
+import { assertHeadRevision, isStaleHeadError } from "./stale-head.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, statSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
-import { startLocalServer } from "../utils/local-server.js";
 import { StudioProjectValidationError, validateStudioProject } from "./project.js";
 import {
   createStudioProjectFile,
@@ -78,51 +85,14 @@ const generationAiSchema = z.strictObject({
   review: z.strictObject({ status: z.literal("accepted"), summary: z.string().trim().min(1) }),
 });
 
-class StudioHttpError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-async function readJsonBody<T>(req: IncomingMessage, schema: z.ZodType<T>): Promise<T> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += buffer.length;
-    if (size > 4 * 1024 * 1024) throw new StudioHttpError(413, "request body is too large");
-    chunks.push(buffer);
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    throw new StudioHttpError(400, "invalid JSON body");
-  }
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    const message = parsed.error.issues
-      .map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`)
-      .join("; ");
-    throw new StudioHttpError(400, `invalid request: ${message}`);
-  }
-  return parsed.data;
-}
+const NO_STORE = { "cache-control": "no-store" } as const;
 
 function sendBuffer(res: ServerResponse, status: number, contentType: string, buffer: Buffer): void {
-  res.writeHead(status, {
-    "content-type": contentType,
-    "content-length": buffer.length,
-    "cache-control": "no-store",
-  });
-  res.end(buffer);
+  sendBufferWith(res, status, contentType, buffer, NO_STORE);
 }
 
 function sendJson(res: ServerResponse, status: number, value: unknown): void {
-  sendBuffer(res, status, "application/json; charset=utf-8", Buffer.from(JSON.stringify(value), "utf8"));
+  sendJsonWith(res, status, value, NO_STORE);
 }
 
 function projectResponse(file: StudioProjectFile): Record<string, unknown> {
@@ -148,7 +118,7 @@ function previewArtifact(
   selection: z.infer<typeof previewBodySchema>["selection"],
 ): StudioArtifact {
   if (selection.kind === "scene" && !project.scenes.some((scene) => scene.id === selection.sceneId)) {
-    throw new StudioHttpError(404, `scene does not exist: ${selection.sceneId}`);
+    throw new HttpError(404, `scene does not exist: ${selection.sceneId}`);
   }
   const candidates = project.artifacts
     .filter((artifact) => artifact.kind === "svg" && artifact.sourceRevisionId === studioContentRevisionId(project))
@@ -159,7 +129,7 @@ function previewArtifact(
     )
     .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt));
   if (candidates.length === 0) {
-    throw new StudioHttpError(
+    throw new HttpError(
       404,
       selection.kind === "story"
         ? "the project has no generated whole-story SVG artifact"
@@ -181,20 +151,15 @@ function previewResponse(
   selection: z.infer<typeof previewBodySchema>["selection"],
 ): Record<string, unknown> {
   const artifact = previewArtifact(file.project, selection);
-  const artifactPath = resolveStudioWorkspaceSvgPath(workspaceRoot, artifact.path);
-  const realRoot = realpathSync(workspaceRoot);
-  const realArtifactPath = realpathSync(artifactPath);
-  const realRelative = relative(realRoot, realArtifactPath);
-  if (realRelative === ".." || realRelative.startsWith(`..${sep}`) || isAbsolute(realRelative)) {
-    throw new StudioHttpError(400, `preview artifact resolves outside the Studio workspace: ${artifact.id}`);
-  }
-  if (statSync(realArtifactPath).size > 64 * 1024 * 1024)
-    throw new StudioHttpError(413, "preview artifact is too large");
+  // `resolveStudioWorkspaceSvgPath` follows symlinks, so an artifact that escapes the workspace
+  // (lexically or through a link) is rejected there.
+  const realArtifactPath = realpathSync(resolveStudioWorkspaceSvgPath(workspaceRoot, artifact.path));
+  if (statSync(realArtifactPath).size > 64 * 1024 * 1024) throw new HttpError(413, "preview artifact is too large");
   const svg = readFileSync(realArtifactPath, "utf8");
   if (artifact.sha256 != null) {
     const actual = createHash("sha256").update(svg).digest("hex");
     if (actual !== artifact.sha256)
-      throw new StudioHttpError(409, `preview artifact digest does not match project provenance: ${artifact.id}`);
+      throw new HttpError(409, `preview artifact digest does not match project provenance: ${artifact.id}`);
   }
   const metadataDuration = artifact.metadata?.durationMs;
   const durationMs =
@@ -217,19 +182,27 @@ function previewResponse(
 }
 
 function errorResponse(error: unknown): { status: number; body: Record<string, unknown> } {
-  if (error instanceof StudioHttpError) return { status: error.status, body: { error: error.message } };
-  if (error instanceof StudioAnnotationError)
-    return { status: error.message.startsWith("stale annotation change:") ? 409 : 400, body: { error: error.message } };
-  if (error instanceof StudioAuthoringError)
-    return { status: error.message.startsWith("stale authoring change:") ? 409 : 400, body: { error: error.message } };
-  if (error instanceof StudioRecordingError) return { status: 400, body: { error: error.message } };
-  if (error instanceof StudioTimelineError)
-    return { status: error.message.startsWith("stale timeline change:") ? 409 : 400, body: { error: error.message } };
+  if (error instanceof HttpError) return { status: error.status, body: { error: error.message } };
+  if (isStaleHeadError(error)) return { status: 409, body: { error: (error as Error).message } };
+  if (
+    error instanceof StudioAnnotationError ||
+    error instanceof StudioAuthoringError ||
+    error instanceof StudioRecordingError ||
+    error instanceof StudioTimelineError
+  ) {
+    return { status: 400, body: { error: error.message } };
+  }
   if (error instanceof StudioProjectValidationError) {
     return { status: 400, body: { error: error.message, issues: error.issues } };
   }
   if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
     return { status: 404, body: { error: error.message } };
+  }
+  // A filesystem or OS failure (EACCES, ENOSPC, EMFILE, ...) is the server's fault, not a bad
+  // request: 500, so a client does not retry it as if it could fix the input.
+  const code = (error as { code?: unknown } | null)?.code;
+  if (error instanceof Error && typeof code === "string" && /^E[A-Z0-9]+$/.test(code)) {
+    return { status: 500, body: { error: error.message } };
   }
   return { status: 400, body: { error: error instanceof Error ? error.message : String(error) } };
 }
@@ -375,11 +348,12 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
       if (req.method === "POST" && url === "/api/save") {
         const { path, project, expectedHeadRevisionId } = await readJsonBody(req, saveBodySchema);
         const current = openStudioProjectFile(workspaceRoot, path);
-        if (current.project.review.headRevisionId !== expectedHeadRevisionId) {
-          throw new StudioAuthoringError(
-            `stale authoring change: expected review head ${expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
-          );
-        }
+        assertHeadRevision(
+          "authoring",
+          expectedHeadRevisionId,
+          current.project.review.headRevisionId,
+          (message, code) => new StudioAuthoringError(message, code),
+        );
         const proposed = validateStudioProject(project);
         const committed = validateStudioProject(
           commitStudioAuthoringRevision(current.project, proposed, { expectedHeadRevisionId }),
@@ -423,13 +397,14 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
       if (req.method === "POST" && url === "/api/recording/import") {
         const body = await readJsonBody(req, recordingImportBodySchema);
         const current = openStudioProjectFile(workspaceRoot, body.path);
-        if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {
-          throw new StudioAuthoringError(
-            `stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
-          );
-        }
+        assertHeadRevision(
+          "authoring",
+          body.expectedHeadRevisionId,
+          current.project.review.headRevisionId,
+          (message, code) => new StudioAuthoringError(message, code),
+        );
         if (inputs.recordingAi == null)
-          throw new StudioHttpError(501, "Studio recording import requires configured AI healing and review adapters");
+          throw new HttpError(501, "Studio recording import requires configured AI healing and review adapters");
         const imported = await importStudioInteractionRecording(current.project, body.recording, {
           ai: inputs.recordingAi,
           generatorVersion: "1",
@@ -454,13 +429,14 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
       if (req.method === "POST" && url === "/api/generate") {
         const body = await readJsonBody(req, generationBodySchema);
         const current = openStudioProjectFile(workspaceRoot, body.path);
-        if (current.project.review.headRevisionId !== body.expectedHeadRevisionId) {
-          throw new StudioAuthoringError(
-            `stale authoring change: expected review head ${body.expectedHeadRevisionId}, found ${current.project.review.headRevisionId}`,
-          );
-        }
+        assertHeadRevision(
+          "authoring",
+          body.expectedHeadRevisionId,
+          current.project.review.headRevisionId,
+          (message, code) => new StudioAuthoringError(message, code),
+        );
         if (inputs.generate == null)
-          throw new StudioHttpError(501, "Studio generation requires a configured AI healing and review adapter");
+          throw new HttpError(501, "Studio generation requires a configured AI healing and review adapter");
         const generated = await inputs.generate({
           project: structuredClone(current.project),
           selection: body.selection,
@@ -486,7 +462,7 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
           ...value
         }: StudioProject): unknown => value;
         if (!isDeepStrictEqual(authored(next), authored(current.project))) {
-          throw new StudioHttpError(400, "generation adapters must preserve authored narrative, scenes, and settings");
+          throw new HttpError(400, "generation adapters must preserve authored narrative, scenes, and settings");
         }
         if (
           !isDeepStrictEqual(
@@ -498,17 +474,17 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
             current.project.review.annotations,
           )
         ) {
-          throw new StudioHttpError(400, "generation adapters must preserve existing review provenance");
+          throw new HttpError(400, "generation adapters must preserve existing review provenance");
         }
         if (studioContentRevisionId(next) !== studioContentRevisionId(current.project)) {
-          throw new StudioHttpError(400, "generation adapters cannot replace the saved authoring content revision");
+          throw new HttpError(400, "generation adapters cannot replace the saved authoring content revision");
         }
         if (
           current.project.artifacts.some(
             (artifact) => !next.artifacts.some((candidate) => isDeepStrictEqual(candidate, artifact)),
           )
         ) {
-          throw new StudioHttpError(400, "generation adapters must preserve existing artifacts");
+          throw new HttpError(400, "generation adapters must preserve existing artifacts");
         }
         const contentRevisionId = studioContentRevisionId(next);
         const matches = next.artifacts.some(
@@ -520,7 +496,7 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
               : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === body.selection.sceneId),
         );
         if (!matches)
-          throw new StudioHttpError(
+          throw new HttpError(
             400,
             "generation adapter did not return a current SVG artifact for the requested selection",
           );

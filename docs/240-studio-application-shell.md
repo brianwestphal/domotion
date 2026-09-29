@@ -51,6 +51,21 @@ The pure resolver is tested against both `path.posix` and `path.win32` so drive,
 separator, absolute-path, and traversal behavior cannot accidentally become
 macOS-only.
 
+Every workspace-bounded path — project files, generated preview SVGs, recording
+evidence, agent-tool artifacts and `logo-reveal` assets (bounded by the asset
+directory) — goes through one resolver, `resolveInsideWorkspace`
+(`src/studio/workspace-path.ts`). Besides the lexical check it follows symlinks:
+a `.json` inside the workspace that links elsewhere, or a new file under a linked
+directory, is rejected because its real location is outside the real workspace.
+
+HTTP status mapping is typed rather than inferred from message text. A stale
+review head is any Studio error carrying `code: "stale-head"` (raised by
+`assertHeadRevision`, `src/studio/stale-head.ts`) and answers 409; an oversize
+body is `HttpError(413)`; a malformed body or unknown project error is 400; and an
+operating-system failure such as `EACCES` or `ENOSPC` is 500. The request helpers
+(`HttpError`, `readJsonBody`, `sendJson`) are shared with the scrubber server in
+`src/utils/local-server.ts`.
+
 Create refuses to overwrite an existing project. Save validates the complete
 project before writing, emits canonical two-space JSON, writes a unique sibling
 temporary file with exclusive creation, and renames it into place. A validation

@@ -1,3 +1,4 @@
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import * as nativePath from "node:path";
@@ -27,16 +28,13 @@ export function resolveStudioWorkspacePath(
 ): string {
   const requested = requestedPath.trim();
   if (requested === "") throw new Error("project path is required");
-  const root = pathApi.resolve(workspaceRoot);
-  const resolved = pathApi.resolve(root, requested);
-  const relative = pathApi.relative(root, resolved);
-  if (relative === ".." || relative.startsWith(`..${pathApi.sep}`) || pathApi.isAbsolute(relative)) {
-    throw new Error(`project path must stay inside the Studio workspace: ${root}`);
-  }
-  if (pathApi.extname(resolved).toLowerCase() !== ".json") {
-    throw new Error("Studio project files must use a .json extension");
-  }
-  return resolved;
+  return resolveInsideWorkspace(workspaceRoot, requested, {
+    pathApi,
+    extension: ".json",
+    extensionMessage: "Studio project files must use a .json extension",
+    escapeMessage: (root) => `project path must stay inside the Studio workspace: ${root}`,
+    followSymlinks: true,
+  });
 }
 
 /** Resolve a project-owned generated SVG without trusting its persisted path. */
@@ -47,15 +45,13 @@ export function resolveStudioWorkspaceSvgPath(
 ): string {
   const requested = requestedPath.trim();
   if (requested === "") throw new Error("artifact path is required");
-  const root = pathApi.resolve(workspaceRoot);
-  const resolved = pathApi.resolve(root, requested);
-  const relative = pathApi.relative(root, resolved);
-  if (relative === ".." || relative.startsWith(`..${pathApi.sep}`) || pathApi.isAbsolute(relative)) {
-    throw new Error(`artifact path must stay inside the Studio workspace: ${root}`);
-  }
-  if (pathApi.extname(resolved).toLowerCase() !== ".svg")
-    throw new Error("Studio preview artifacts must use a .svg extension");
-  return resolved;
+  return resolveInsideWorkspace(workspaceRoot, requested, {
+    pathApi,
+    extension: ".svg",
+    extensionMessage: "Studio preview artifacts must use a .svg extension",
+    escapeMessage: (root) => `artifact path must stay inside the Studio workspace: ${root}`,
+    followSymlinks: true,
+  });
 }
 
 export function relativeStudioProjectPath(

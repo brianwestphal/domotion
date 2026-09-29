@@ -146,7 +146,7 @@ describe("Studio project file operations", () => {
       });
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toMatchObject({
-        error: expect.stringContaining("outside the Studio workspace"),
+        error: expect.stringContaining("stay inside the Studio workspace"),
       });
     } finally {
       await server?.close();

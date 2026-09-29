@@ -1,3 +1,4 @@
+import { assertHeadRevision } from "./stale-head.js";
 import { z } from "zod";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import type { StudioLayer, StudioProject, StudioReviewAuthor, StudioScene } from "./project-schema.js";
@@ -78,7 +79,11 @@ export interface StudioTimelineResult {
 }
 
 export class StudioTimelineError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** `"stale-head"` when raised by the optimistic-concurrency check (HTTP 409). */
+    readonly code?: string,
+  ) {
     super(message);
     this.name = "StudioTimelineError";
   }
@@ -466,11 +471,12 @@ export function applyStudioTimelineCommand(
 ): StudioTimelineResult {
   const project = structuredClone(rawProject);
   const command = studioTimelineCommandSchema.parse(rawCommand);
-  if (options.expectedHeadRevisionId != null && project.review.headRevisionId !== options.expectedHeadRevisionId) {
-    throw new StudioTimelineError(
-      `stale timeline change: expected review head ${options.expectedHeadRevisionId}, found ${project.review.headRevisionId}`,
-    );
-  }
+  assertHeadRevision(
+    "timeline",
+    options.expectedHeadRevisionId,
+    project.review.headRevisionId,
+    (message, code) => new StudioTimelineError(message, code),
+  );
   const timeline = buildStudioTimeline(project);
   const byId = new Map(timeline.items.map((item) => [item.id, item]));
   const duplicate = new Set<string>();

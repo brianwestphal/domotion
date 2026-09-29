@@ -1,3 +1,4 @@
+import { assertHeadRevision } from "./stale-head.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
@@ -80,7 +81,11 @@ export interface StudioAnnotationCommandResult {
 }
 
 export class StudioAnnotationError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** `"stale-head"` when raised by the optimistic-concurrency check (HTTP 409). */
+    readonly code?: string,
+  ) {
     super(message);
     this.name = "StudioAnnotationError";
   }
@@ -211,11 +216,12 @@ export function applyStudioAnnotationCommand(
 ): StudioAnnotationCommandResult {
   const project = validateStudioProject(structuredClone(rawProject));
   const command = studioAnnotationCommandSchema.parse(rawCommand);
-  if (options.expectedHeadRevisionId != null && project.review.headRevisionId !== options.expectedHeadRevisionId) {
-    throw new StudioAnnotationError(
-      `stale annotation change: expected review head ${options.expectedHeadRevisionId}, found ${project.review.headRevisionId}`,
-    );
-  }
+  assertHeadRevision(
+    "annotation",
+    options.expectedHeadRevisionId,
+    project.review.headRevisionId,
+    (message, code) => new StudioAnnotationError(message, code),
+  );
   const now = options.now ?? new Date().toISOString();
   const revisionId = options.attachToHeadRevision
     ? project.review.headRevisionId

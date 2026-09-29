@@ -1,7 +1,8 @@
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 import { applyStudioAnnotationCommand } from "./annotations.js";
 import { createStudioProjectDocument } from "./app-projects.js";
@@ -297,12 +298,12 @@ function actorFor(options: RunStudioAgentToolOptions, tool: string): StudioRevie
 
 function workspacePath(workspaceRoot: string, requested: string): { absolutePath: string; workspacePath: string } {
   const root = resolve(workspaceRoot);
-  const absolutePath = resolve(root, requested);
-  const local = relative(root, absolutePath);
-  if (local === ".." || local.startsWith(`..${sep}`) || isAbsolute(local)) {
-    throw new StudioAgentToolError(`artifact path must stay inside the Studio workspace: ${root}`);
-  }
-  return { absolutePath, workspacePath: local.replaceAll("\\", "/") };
+  const absolutePath = resolveInsideWorkspace(root, requested, {
+    escapeMessage: (resolvedRoot) => `artifact path must stay inside the Studio workspace: ${resolvedRoot}`,
+    followSymlinks: true,
+    makeError: (message) => new StudioAgentToolError(message),
+  });
+  return { absolutePath, workspacePath: relative(root, absolutePath).replaceAll("\\", "/") };
 }
 
 function resolveSelection(
