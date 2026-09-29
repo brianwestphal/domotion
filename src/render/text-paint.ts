@@ -1,3 +1,4 @@
+import { renderWarn } from "./render-warn.js";
 import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type { CapturedElement, CapturedTextPaintAffine, TextSegment } from "../capture/types.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
@@ -151,9 +152,11 @@ export function renderOneText(
     // failure at a labeled source-owned boundary so every other element still
     // renders without asking the consumer browser to select and shape a face.
     const el = opts.el;
-    console.warn(
-      `[element-tree-to-svg] text render failed for <${el.tag}> "${el.text.slice(0, 24)}" ` +
+    renderWarn(
+      "text-render",
+      `text render failed for <${el.tag}> "${el.text.slice(0, 24)}" ` +
         `(${e instanceof Error ? e.message : String(e)}) — source-owned boundary`,
+      el.tag,
     );
     return wrapAffineTextPaint(
       opts.affineMatrix,
@@ -274,7 +277,7 @@ export function paintText(
   if (affine.failureReason != null) {
     // A present geometry record is authoritative. Re-entering the legacy
     // post-transform DOMRect route would silently double/misapply transforms.
-    console.warn(`[element-tree-to-svg] affine text paint failed closed for <${el.tag}>: ${affine.failureReason}`);
+    renderWarn("text-affine", `affine text paint failed closed for <${el.tag}>: ${affine.failureReason}`, el.tag);
     return;
   }
   el = affine.element;

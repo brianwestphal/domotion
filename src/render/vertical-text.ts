@@ -25,6 +25,7 @@
  * vertical advance).
  */
 
+import { fontSizeOrDefault, FALLBACK_ASCENT_RATIO, LEGACY_VERTICAL_ASCENT_RATIO } from "./text-defaults.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { measureEmphasisMarkMetrics, renderTextAsPath, cssWeightOf } from "./text-to-path.js";
 import {
@@ -54,7 +55,7 @@ import { visualTextOnlyHiddenAttr } from "./real-text-layer.js";
 export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: string): string {
   const mark = parseTextEmphasisMark(el.styles.textEmphasisStyle);
   if (mark == null || el.textSegments == null) return "";
-  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const color =
     el.styles.textEmphasisColor != null &&
     el.styles.textEmphasisColor !== "" &&
@@ -68,7 +69,7 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
     const advances = seg.verticalAdvances;
     if (yOffsets == null || advances == null) continue;
     const segFs = seg.fontSize ?? fontSize;
-    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * 0.8;
+    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * FALLBACK_ASCENT_RATIO;
     const segDescent = el.fontDescent ?? Math.max(0, segFs - segAscent);
     const segFamily = capturedSegmentFontFamily(el, seg);
     const segWeight = seg.fontWeight ?? el.styles.fontWeight;
@@ -310,11 +311,11 @@ function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillCol
   ];
   if (applied.length === 0) return "";
   const wm = seg.verticalWritingMode ?? "vertical-rl";
-  const segFontSize = seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14);
+  const segFontSize = seg.fontSize ?? fontSizeOrDefault(el.styles.fontSize);
   const segFamily = capturedSegmentFontFamily(el, seg);
   const segWeight = seg.fontWeight ?? el.styles.fontWeight;
   const segStyle = seg.fontStyle ?? el.styles.fontStyle;
-  const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * 0.85;
+  const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * LEGACY_VERTICAL_ASCENT_RATIO;
   const segDescent = el.fontDescent ?? Math.max(0, segFontSize - segAscent);
   const resolution = resolveVerticalDecoration(
     wm,
@@ -371,7 +372,7 @@ function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillCol
  */
 export function renderVerticalSegments(el: CapturedElement, fillColor: string): string {
   if (el.textSegments == null) return "";
-  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const out: string[] = [];
 
   for (const seg of el.textSegments) {
@@ -387,7 +388,7 @@ export function renderVerticalSegments(el: CapturedElement, fillColor: string): 
     // DM-2193: the baseline belongs to the captured vertical run. New captures
     // carry it on every column/combine segment; the element metric supports
     // older captures, and 0.85em remains only for legacy trees with neither.
-    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * 0.85;
+    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFontSize * LEGACY_VERTICAL_ASCENT_RATIO;
     // DM-1032: tate-chu-yoko — one combined upright HORIZONTAL run in a single
     // ~1em column cell. Handled BEFORE the per-char column fields are required
     // (a combine segment carries none of `yOffsets`/`verticalOrientations`/
@@ -529,7 +530,7 @@ export function renderVerticalSystemFontText(el: CapturedElement, fillColor: str
   if (el.textSegments == null || el.textSegments.length === 0) return "";
   const fullText = el.textSegments.map((s) => s.text).join("");
   if (fullText === "") return "";
-  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const wm = el.styles.writingMode != null && el.styles.writingMode !== "" ? el.styles.writingMode : "vertical-rl";
   const to = el.styles.textOrientation;
   const first = el.textSegments[0];

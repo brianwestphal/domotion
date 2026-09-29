@@ -4,6 +4,8 @@
  * Uses Playwright to inspect DOM elements and recreate them as native SVG.
  */
 
+import { renderWarn } from "./render-warn.js";
+import { fontSizeOrDefault, LEGACY_MARKER_ASCENT_RATIO } from "./text-defaults.js";
 import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-background.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { renderRadicalGlyph } from "./text-to-path.js";
@@ -81,6 +83,7 @@ import {
   disclosureTriangle,
   pixelSnapRect,
   type SymbolMarkerType,
+  BLINK_MARKER_PADDING_PX,
 } from "./list-marker-geometry.js";
 import type {
   CapturedBackgroundImage,
@@ -794,7 +797,7 @@ function paintSyntheticListMarker(
   // Symbol geometry below consumes the ::marker primary font's captured
   // ascent, matching ListMarker's FontMetrics input. Element ascent and the
   // old ratio remain compatibility fallbacks for pre-DM-2192 trees only.
-  const markerAscent = el.markerFontAscent ?? el.fontAscent ?? markerFontSize * 0.77;
+  const markerAscent = el.markerFontAscent ?? el.fontAscent ?? markerFontSize * LEGACY_MARKER_ASCENT_RATIO;
   const idx = el.listItemIndex ?? 1;
   // Custom `::marker { content: "..." }` (DM-447). When set, Chrome
   // replaces the list-style-type bullet/number with the content
@@ -955,7 +958,7 @@ function paintListMarker(el: CapturedElement, textColor: ReturnType<typeof parse
   if (isListItem) {
     const lsImage = el.styles.listStyleImage;
     const lsType = el.summaryMarkerGeometry?.listStyleType ?? el.styles.listStyleType ?? "disc";
-    const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+    const fontSizePx = fontSizeOrDefault(el.styles.fontSize);
     const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
     const outside = (el.summaryMarkerGeometry?.listStylePosition ?? el.styles.listStylePosition) !== "inside";
     if (lsImage != null && lsImage !== "none") {
@@ -965,16 +968,16 @@ function paintListMarker(el: CapturedElement, textColor: ReturnType<typeof parse
         const markerW = intrinsic != null && intrinsic.w > 0 ? intrinsic.w : 16;
         const markerH = intrinsic != null && intrinsic.h > 0 ? intrinsic.h : 16;
         // Chrome's outside list-style-image marker positioning (DM-298):
-        // - Horizontal: image right edge sits ~7px to the left of the li's
-        //   inline-start edge — pixel probe of `03-lists-style-image-position`
-        //   showed Chrome's painted gap is 7-8px, not the 4px we previously
-        //   used; the previous 4 left the marker 3px too far right.
+        // - Horizontal: image right edge sits `kCMarkerPaddingPx` (7 px,
+        //   `list_marker.cc:25`, chromium rev 7d859f27) to the left of the li's
+        //   inline-start edge. (A pixel probe of `03-lists-style-image-position`
+        //   first suggested 7-8px; the constant is the rule.)
         // - Vertical: image TOP aligns with li.top, not (el.height - markerH)/2.
         //   Chrome stretches the li's height to fit the marker but does NOT
         //   center it vertically — the marker is top-aligned with whatever
         //   line box would have started there. Pixel probe confirmed the
         //   2px Y offset that centering introduced.
-        const mx = outside ? el.x - markerW - 7 : el.x;
+        const mx = outside ? el.x - markerW - BLINK_MARKER_PADDING_PX : el.x;
         const my = outside ? el.y : el.y + (el.height - markerH) / 2;
         out.push(
           `${indent}<image href="${esc(embedResizedDataUri(urlMatch[1], markerW, markerH))}" x="${r(mx)}" y="${r(my)}" width="${r(markerW)}" height="${r(markerH)}" preserveAspectRatio="xMidYMid meet" />`,
@@ -1296,7 +1299,7 @@ function paintTruncationMarker(
       const m = /^"([^"]*)"|^'([^']*)'/.exec(to);
       if (m != null) marker = m[1] ?? m[2] ?? "…";
     }
-    const fontSizePx = parseFloat(el.styles.fontSize) || 14;
+    const fontSizePx = fontSizeOrDefault(el.styles.fontSize);
     const fillCol = textColor != null ? colorStr(textColor) : "rgb(0,0,0)";
     const padR = parseFloat(el.styles.paddingRight ?? "") || 0;
     const brR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
@@ -1659,6 +1662,10 @@ function paintResizeHandle(
     return [...backgroundParts, ...out];
   }
 
+  // Colors and alpha are Blink's: the dark/light strokes are ARGB(153, 0,0,0) / (153, 255,255,255)
+  // (153/255 = 0.6) and the scroll-corner outline is rgb(217,217,217), from
+  // `ScrollableAreaPainter::PaintScrollCorner`/`DrawPlatformResizerImage`
+  // (`core/paint/scrollable_area_painter.cc:82,158,172`, chromium rev 7d859f27).
   const strokes = blinkPlatformResizerStrokes(
     { x: handle.x, y: handle.y, width: handle.width, height: handle.height },
     handle.scaleFromDIP,
@@ -2167,7 +2174,14 @@ function resolveFragmentMaskLayer(
     def.dependencyGraph == null
       ? { rootOuterHTML: rewriteFragmentMaskDef(def.outerHTML, outId, `${outId}-`), dependencyOuterHTML: [] }
       : rewriteFragmentResourceGraph(def.outerHTML, def.dependencyGraph, outId, `${outId}-`, def.scope);
-  if (rewritten == null) return null;
+  if (rewritten == null) {
+    renderWarn(
+      "mask-image",
+      `mask #${fragId} on <${el.tag}> could not be rewritten (its resource graph is unsupported); the element is painted unmasked`,
+      el.tag,
+    );
+    return null;
+  }
   fragmentMaskOutputId.set(cacheKey, outId);
   defsParts.push(...rewritten.dependencyOuterHTML);
   const positioned = positionFragmentMaskDef(rewritten.rootOuterHTML, el.x, el.y, el.width, el.height, positionOptions);
@@ -2935,6 +2949,13 @@ function resolveClipPath(state: RenderState, el: CapturedElement, corners: Corne
       // `clipPathDefs`). See docs/39.
       const fragId = resolveFragmentClipPathRef(state, clipPathCss, el);
       if (fragId != null) clipPathUrlId = fragId;
+      else {
+        renderWarn(
+          "clip-path",
+          `clip-path "${clipPathCss}" on <${el.tag}> is not supported by the renderer; the element is painted unclipped`,
+          el.tag,
+        );
+      }
     }
   }
   // DM-587: overflow != visible clips painted descendants at the element's box;
@@ -4556,7 +4577,7 @@ function buildBackgroundLayerDef(
       selectedImage.selectedUrl == null ||
       selectedImage.loadState !== "loaded"
     ) {
-      console.warn("[domotion] image-set background omitted: authoritative selected candidate was unavailable");
+      renderWarn("image-set", "image-set background omitted: authoritative selected candidate was unavailable");
       return { def: "" };
     }
   }
@@ -4605,8 +4626,9 @@ function buildBackgroundLayerDef(
         ),
       };
     }
-    console.warn(
-      `[domotion] Chromium raster tile unavailable for advanced gradient; using best-effort SVG interpolation: ${layer}`,
+    renderWarn(
+      "advanced-gradient",
+      `Chromium raster tile unavailable for advanced gradient; using best-effort SVG interpolation: ${layer}`,
     );
   }
   const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
@@ -4633,7 +4655,7 @@ function buildBackgroundLayerDef(
     return { def: buildConicGradientDef(id, layer, elX, elY, w, h, sizeCss, posCss) };
   }
   if (selectedImage != null && selectedImage.loadState !== "loaded") {
-    console.warn(`[domotion] URL background omitted: selected image ${selectedImage.loadState} at capture time`);
+    renderWarn("url-background", `URL background omitted: selected image ${selectedImage.loadState} at capture time`);
     return { def: "" };
   }
   const urlContent = selectedImage?.selectedUrl ?? parseCssUrl(layer);
@@ -4655,7 +4677,7 @@ function buildBackgroundLayerDef(
       paintingArea,
     );
     if (def === "") {
-      console.warn("[domotion] URL background omitted: exact Blink tile geometry was unavailable");
+      renderWarn("url-background", "URL background omitted: exact Blink tile geometry was unavailable");
     }
     return { def };
   }

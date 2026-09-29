@@ -45,6 +45,15 @@ aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
    quad and same-frame host-size validation. A `base-select` disclosure icon is
    vector structural paint using the captured resolved `::picker-icon` color;
    it is never substituted for a native menulist arrow.
+6. A render-side degradation is never silent. Wherever the renderer paints
+   something other than Chromium did (an unsupported `clip-path` shape left
+   unclipped, a `mask-image` whose resource graph cannot be rewritten, an
+   approximated gradient, text replaced by a boundary marker) it calls
+   `renderWarn(feature, detail)` (`src/render/render-warn.ts`): one `[domotion]`
+   line on stderr plus a `CaptureWarning` on the capture warnings sink, so
+   `getLastCaptureWarnings()` and the composite result report it. Renderer
+   fallbacks for missing measurements (default font size, fallback ascent) are
+   named in `src/render/text-defaults.ts`.
 
 ## Verified implementation map
 

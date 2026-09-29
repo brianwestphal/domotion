@@ -4,6 +4,7 @@
  * Renders text in SVG using fontkit path outlines for cross-browser identical rendering.
  */
 
+import { fontSizeOrDefault, FALLBACK_ASCENT_RATIO } from "./text-defaults.js";
 import bidiFactory from "bidi-js";
 import {
   computeSkipInkGaps,
@@ -176,8 +177,8 @@ export function renderTextEmphasisMarks(el: CapturedElement, fillColorFallback: 
       : (el.styles.color ?? fillColorFallback);
   for (const seg of el.textSegments) {
     if (seg.xOffsets == null || seg.text == null || seg.xOffsets.length === 0) continue;
-    const segFs = seg.fontSize ?? (parseFloat(el.styles.fontSize) || 14);
-    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * 0.8;
+    const segFs = seg.fontSize ?? fontSizeOrDefault(el.styles.fontSize);
+    const segAscent = seg.fontAscent ?? el.fontAscent ?? segFs * FALLBACK_ASCENT_RATIO;
     const segDescent = el.fontDescent ?? Math.max(0, segFs - segAscent);
     const baselineY = seg.y + segAscent;
     const segFontFamily = capturedSegmentFontFamily(el, seg);
@@ -1016,7 +1017,7 @@ function renderAppliedTextDecorations(
   run: AppliedDecorationRunCtx,
 ): string {
   const parts: string[] = [];
-  const runAscent = run.fontAscent ?? run.fontSize * 0.8;
+  const runAscent = run.fontAscent ?? run.fontSize * FALLBACK_ASCENT_RATIO;
   // TRUE (unrounded) baseline of the run's glyphs — the skip-ink anchor and
   // the propagated-baseline comparison point.
   const runBaselineY = run.fragTop + runAscent;
@@ -1028,7 +1029,7 @@ function renderAppliedTextDecorations(
     // captured FloatAscent (the baselines are captured integer-rounded, so
     // this carries up to 0.5px of capture rounding for shifted sub/sup lines;
     // same-line children use the run's own unrounded baseline).
-    const pdAscent = pd.fontAscent ?? pd.fontSize * 0.8;
+    const pdAscent = pd.fontAscent ?? pd.fontSize * FALLBACK_ASCENT_RATIO;
     const ownedFragment = selectDecorationFragment(
       (pd as typeof pd & DecorationFragmentCarrier).decorationFragments,
       {
@@ -1724,7 +1725,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
     const rasterClip = ssSeg.rasterEmojiSide != null ? "" : ` clip-path="url(#${clipId})"`;
     return `<image href="${ssSeg.rasterDataUri}" x="${r(rr.x)}" y="${r(rr.y)}" width="${r(rr.width)}" height="${r(rr.height)}" preserveAspectRatio="none"${rasterClip}/>`;
   }
-  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const fontFamily = capturedElementFontFamily(el);
   const fontWeight = el.styles.fontWeight;
   const tl = el.textLeft ?? el.x + 4;
@@ -1966,7 +1967,7 @@ function renderSingleSegPseudoBox(
 export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegment[]): string {
   const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
-  const elFontSize = parseFloat(el.styles.fontSize) || 14;
+  const elFontSize = fontSizeOrDefault(el.styles.fontSize);
   const elFontWeight = el.styles.fontWeight;
   const parts: string[] = [];
 
@@ -2180,7 +2181,7 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
 export function renderMultiLineText(opts: RenderTextOpts): string {
   const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
-  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const fontFamily = capturedElementFontFamily(el);
   const fontWeight = el.styles.fontWeight;
   const lhStr = el.styles.lineHeight;
@@ -2286,7 +2287,7 @@ export function renderInputText(opts: RenderTextOpts): string {
     // pixels 1:1 with the rendered canvas, preserving text sharpness.
     return `<image href="${er.dataUri}" x="${Math.round(er.x)}" y="${Math.round(er.y)}" width="${r(er.width)}" height="${r(er.height)}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
   }
-  const fontSize = parseFloat(el.styles.fontSize) || 14;
+  const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const fontFamily =
     el.isPlaceholderText && el.placeholderFontFamily != null
       ? capturedFontFamilyCss(el.placeholderFontFamily, el.placeholderFontFamilyStack)

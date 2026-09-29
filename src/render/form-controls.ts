@@ -7,6 +7,7 @@
  * boundary instead of substituting a platform-calibrated SVG approximation.
  */
 
+import { renderWarn } from "./render-warn.js";
 import { isPaintedColor } from "../utils/transparent-background.js";
 import type { CapturedElement } from "../capture/types.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
@@ -273,8 +274,9 @@ export function renderFormControl(el: CapturedElement, indent: string, defCtx?: 
   if (route === "native-raster") return "";
   if (route === "missing-native-raster") {
     const type = el.styles.inputType == null ? "" : `[type=${el.styles.inputType}]`;
-    console.warn(
-      `[domotion] required Chromium native-control surface unavailable for ${el.tag}${type}; sampled SVG chrome is disabled`,
+    renderWarn(
+      "native-control",
+      `required Chromium native-control surface unavailable for ${el.tag}${type}; sampled SVG chrome is disabled`,
     );
     return "";
   }

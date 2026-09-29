@@ -1,3 +1,10 @@
+/**
+ * `kCMarkerPaddingPx = 7` (`core/layout/list/list_marker.cc:25`, chromium rev 7d859f27): the gap Blink
+ * leaves between an outside marker and its list item. The symbol-marker end margin is this plus one
+ * (`margin_end = offset + kCMarkerPaddingPx + 1 - marker_inline_size`, `:422-423`).
+ */
+export const BLINK_MARKER_PADDING_PX = 7;
+
 /** Blink list_marker.cc symbol geometry, Chromium rev pinned by the repo. */
 export type SymbolMarkerType = "disc" | "circle" | "square" | "disclosure-open" | "disclosure-closed";
 
@@ -25,7 +32,7 @@ export function blinkSymbolMarkerGeometry(
       blockOffset: ascentInt - size,
       inlineSize: size,
       blockSize: size,
-      outsideEndMargin: 8,
+      outsideEndMargin: BLINK_MARKER_PADDING_PX + 1,
     };
   }
   // Preserve C++ integer evaluation order from list_marker.cc.
@@ -38,7 +45,7 @@ export function blinkSymbolMarkerGeometry(
     blockOffset: Math.trunc((3 * (ascentInt - twoThirdsAscent)) / 2),
     inlineSize: bulletWidth,
     blockSize: bulletWidth,
-    outsideEndMargin: twoThirdsAscent + 8 - markerInlineSize,
+    outsideEndMargin: twoThirdsAscent + BLINK_MARKER_PADDING_PX + 1 - markerInlineSize,
   };
 }
 

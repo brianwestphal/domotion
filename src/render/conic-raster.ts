@@ -12,6 +12,7 @@
  * and physical tile size.
  */
 
+import { renderWarn } from "./render-warn.js";
 import sharp from "sharp";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { _conicTileCache } from "./raster-tile-cache.js";
@@ -67,7 +68,7 @@ export async function rasterizeConicGradients(
     if (gradient == null) {
       if (!warnedFailures.has(layerText)) {
         warnedFailures.add(layerText);
-        console.warn(`[domotion] could not parse conic-gradient; the layer will paint nothing: ${layerText}`);
+        renderWarn("conic-gradient", `could not parse conic-gradient; the layer will paint nothing: ${layerText}`);
       }
       return;
     }
@@ -136,7 +137,7 @@ export async function rasterizeConicGradients(
       rememberConicTile(layerText, sizeKey, dataUri);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      console.warn(`[domotion] conic tile ${sizeKey} could not be rasterized: ${reason}; layer: ${layerText}`);
+      renderWarn("conic-gradient", `conic tile ${sizeKey} could not be rasterized: ${reason}; layer: ${layerText}`);
     }
   });
   await Promise.all(tasks);

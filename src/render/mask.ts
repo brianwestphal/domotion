@@ -6,6 +6,7 @@
  * external deps are imported utilities only.
  */
 
+import { renderWarn } from "./render-warn.js";
 import { r, esc } from "./format.js";
 import { embedResizedDataUri } from "../capture/embed.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
@@ -132,7 +133,7 @@ function rewriteStructuredFragmentMarkup(
   edgeAliases: ReadonlyMap<string, string>,
   idPrefix: string,
   orphanState: { index: number; used: Set<string> },
-): string | null {
+): string {
   // First bind the exact source element represented by each graph node. The
   // capture marker avoids conflating duplicate author id attributes: only the
   // TreeScope target selected by Blink receives the node's alias.
@@ -318,11 +319,9 @@ export function rewriteFragmentResourceGraph(
       idPrefix,
       orphanState,
     );
-    if (rewritten == null) return null;
     dependencyOuterHTML.push(rewritten);
   }
   const rootOuterHTML = rewriteStructuredFragmentMarkup(outerHTML, graph, aliases, edgeAliases, idPrefix, orphanState);
-  if (rootOuterHTML == null) return null;
   return {
     rootOuterHTML,
     dependencyOuterHTML,
@@ -1118,8 +1117,9 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
         );
         return { contents, forceHide: false };
       }
-      console.warn(
-        `[domotion] Chromium raster tile unavailable for advanced mask gradient; using best-effort SVG interpolation: ${layer}`,
+      renderWarn(
+        "mask-image",
+        `Chromium raster tile unavailable for advanced mask gradient; using best-effort SVG interpolation: ${layer}`,
       );
     }
     let [repeatX, repeatY] = maskRepeatAxes(layerRepeat);
@@ -1276,8 +1276,9 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
                 layerPos,
               );
         if (fitted == null) {
-          console.warn(
-            `[domotion] mask-size:${layerSize} requires captured mask intrinsic dimensions; omitting inexact layer`,
+          renderWarn(
+            "mask-image",
+            `mask-size:${layerSize} requires captured mask intrinsic dimensions; omitting inexact layer`,
           );
           // A CSS image mask layer whose source cannot supply natural sizing
           // contributes transparent black; do not turn a failed exactness

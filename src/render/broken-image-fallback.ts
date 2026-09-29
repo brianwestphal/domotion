@@ -1,4 +1,5 @@
 /** Hybrid SVG emission for Chromium's HTML broken-image UA fallback. */
+import { renderWarn } from "./render-warn.js";
 import type { CapturedBrokenImageQuad, CapturedElement, TextSegment } from "../capture/types.js";
 import { esc, r } from "./format.js";
 import { renderMultiSegmentText } from "./text.js";
@@ -151,7 +152,7 @@ export function renderBrokenImageFallback(
     // Live capture promotes this condition to the classified terminal record.
     // Treat hand-built/older inconsistent records the same way instead of
     // silently emitting a vector-only fallback that claims exact ownership.
-    console.warn("[broken-image-fallback] visible Chromium icon has no authoritative raster; failing closed");
+    renderWarn("broken-image", "visible Chromium icon has no authoritative raster; failing closed");
     return { handled: true, defs, svg };
   }
 
