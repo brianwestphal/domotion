@@ -1579,12 +1579,23 @@ function splitCssDeclarations(body: string): string[] {
 }
 
 export function generateAnimatedSvg(config: AnimationConfig): string {
-  // One document scope for the macOS ideograph fallback cache across the whole
-  // composition: all frames (and the typing overlays rendered late, below) came
-  // from one captured page session, whose Chrome renderer shared one
-  // per-character fallback cache (see `beginCharacterFallbackDocument` in
-  // font-resolution.ts). Any nested render's own scope no-ops inside this one.
-  return withTextEngineDocument({ generation: "continue" }, () => generateAnimatedSvgBody(config)).value;
+  // The overlays render glyph paths into the process-global glyph-def registry as the body is built, and
+  // the body rolls that registry back to this point once it has read them (so a repeat call re-assigns
+  // the same ids). A throw anywhere in between — a missing overlay `src`, a text-track resolution error,
+  // a malformed custom transition — would skip that rollback and leave this call's glyphs registered, so
+  // the NEXT generation in the same process (storyboard and composite render several; the review server
+  // and test runs loop) would emit stale defs or shifted ids. Roll back on every exit.
+  const glyphDefsStart = glyphDefCount();
+  try {
+    // One document scope for the macOS ideograph fallback cache across the whole
+    // composition: all frames (and the typing overlays rendered late, below) came
+    // from one captured page session, whose Chrome renderer shared one
+    // per-character fallback cache (see `beginCharacterFallbackDocument` in
+    // font-resolution.ts). Any nested render's own scope no-ops inside this one.
+    return withTextEngineDocument({ generation: "continue" }, () => generateAnimatedSvgBody(config)).value;
+  } finally {
+    truncateGlyphDefs(glyphDefsStart);
+  }
 }
 
 interface AnimatedSvgBodyPlan {

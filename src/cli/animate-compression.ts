@@ -2,12 +2,22 @@ import type { AnimateConfig, AnimateFrameCfg } from "./animate-orchestrator.js";
 
 type RunStateInput = NonNullable<AnimateFrameCfg["states"]>[number];
 
-const AUTO_COLLAPSED_RUNS = new WeakSet<AnimateFrameCfg>();
+/**
+ * Marks a `states` frame the AUTOMATIC collapse pass synthesized (only those runs are eligible for the
+ * size-regression guard's revert; an author-written run is warned about, never silently rewritten).
+ *
+ * A symbol-keyed own property rather than a WeakSet of frame objects: an object spread (`{ ...frame }`,
+ * which config passes use freely) copies own enumerable symbol properties, so the mark follows a copy,
+ * whereas an identity-keyed WeakSet silently lost it and downgraded the run to "author-written". It is
+ * invisible to JSON and to zod, so it never reaches a serialized config.
+ */
+const AUTO_COLLAPSED = Symbol("domotion.autoCollapsedRun");
+type AutoCollapsedMark = { [AUTO_COLLAPSED]?: true };
 
 /** Whether this `states` frame was synthesized by the automatic collapse pass
  *  (rather than authored). Exported for unit tests. */
 export function wasAutoCollapsed(frame: AnimateFrameCfg): boolean {
-  return AUTO_COLLAPSED_RUNS.has(frame);
+  return (frame as AutoCollapsedMark)[AUTO_COLLAPSED] === true;
 }
 
 function collapseCompressibleRuns(
@@ -158,8 +168,8 @@ function collapseCompressibleRuns(
       duration: totalDuration,
       states,
     };
-    // Only the automatic pass's runs are guard-eligible (see AUTO_COLLAPSED_RUNS).
-    if (!strict) AUTO_COLLAPSED_RUNS.add(collapsed);
+    // Only the automatic pass's runs are guard-eligible (see AUTO_COLLAPSED).
+    if (!strict) (collapsed as AutoCollapsedMark)[AUTO_COLLAPSED] = true;
     const collapsedIdx = newFrames.length;
     newFrames.push(collapsed);
     for (let k = start; k <= end; k++) newIndexForOld[k] = collapsedIdx;

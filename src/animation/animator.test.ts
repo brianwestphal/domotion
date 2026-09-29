@@ -15,7 +15,14 @@ import type { IntraFrameAnimation } from "./animator.js";
 import type { CapturedElement } from "../capture/types.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/viewbox-culling.js";
 import { optimizeSvg } from "../post-processing/optimize.js";
-import { getFontInstance, resolveFontKey } from "../render/font-resolution.js";
+import {
+  clearGlyphDefs,
+  getFontInstance,
+  glyphDefCount,
+  resolveFontKey,
+  withRenderTextMode,
+} from "../render/font-resolution.js";
+import { renderTextAsPath } from "../render/text-to-path.js";
 
 // DM-1557: a typing overlay's wrapped lines paint as GLYPH PATHS
 // (`<g class="tN-text"><g transform="translate(x,baseline)" aria-label="…">`)
@@ -2547,5 +2554,60 @@ describe("angled linear wipe (DM-2041)", () => {
     const ys = [...clip.matchAll(/[-\d.]+px ([-\d.]+)px/g)].map((m) => Number(m[1]));
     expect(Math.min(...ys)).toBe(0);
     expect(Math.max(...ys)).toBe(100);
+  });
+});
+
+describe("generateAnimatedSvg rolls the glyph-def registry back when generation throws", () => {
+  const typingFrame = {
+    svgContent: `<rect width="300" height="90" fill="#0d1117"/>`,
+    duration: 1000,
+    overlays: [{ kind: "typing" as const, text: "hello", x: 20, y: 50, fontSize: 28, caret: true }],
+  };
+  const good = (): string =>
+    generateAnimatedSvg({
+      width: 300,
+      height: 90,
+      frames: [typingFrame, { svgContent: `<rect width="300" height="90"/>`, duration: 500 }],
+    });
+  // The typing overlay of frame 0 registers glyph paths, then frame 1's malformed transition throws while
+  // the body is still being built — after the glyphs exist, before the success-path rollback.
+  const failing = (): string =>
+    generateAnimatedSvg({
+      width: 300,
+      height: 90,
+      frames: [
+        typingFrame,
+        {
+          svgContent: `<rect width="300" height="90"/>`,
+          duration: 500,
+          transition: { type: "no-such-transition" } as never,
+        },
+        { svgContent: `<rect width="300" height="90"/>`, duration: 500 },
+      ],
+    });
+
+  it("leaves the registry exactly as it found it after a throw, and the next generation is byte-identical", () => {
+    const before = good();
+    const count = glyphDefCount();
+    expect(failing).toThrow();
+    expect(glyphDefCount()).toBe(count);
+    expect(good()).toBe(before);
+  });
+
+  it("keeps glyph defs the caller registered before the call, and only rolls back its own", () => {
+    clearGlyphDefs();
+    // A caller that rendered its own frames' text as glyph paths before calling generateAnimatedSvg.
+    withRenderTextMode("paths", () =>
+      renderTextAsPath("Hi", 0, 20, { fontSize: 20, fontFamily: "sans-serif", fontWeight: "400", fill: "#000" }),
+    );
+    const registered = glyphDefCount();
+    expect(registered).toBeGreaterThan(0);
+
+    expect(failing).toThrow();
+    expect(glyphDefCount()).toBe(registered); // the caller's glyphs survive; the failed call's are gone
+
+    good();
+    expect(glyphDefCount()).toBe(registered); // the success path also rolls back to the call's start
+    clearGlyphDefs();
   });
 });

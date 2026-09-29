@@ -66,7 +66,7 @@ import {
 } from "../capture/index.js";
 import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
 import { loadBrand, brandSchema, type Brand } from "../templates/brand.js";
-import { type BoxAnchor, borderBox } from "../capture/content-box.js";
+import { type BoxAnchor, borderBox, SelectorNotFoundError } from "../capture/content-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { elementTreeToSvgInner, getEmbeddedFontFaceCss, getRenderTextMode } from "../render/index.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
@@ -1722,6 +1722,10 @@ async function buildLiveCapturedFrame(
       if (a.type === "click" || a.type === "hover" || a.type === "fill") {
         const c = await queryCursorBox(page, a.selector, a.cursorAt, a.cursorOffset);
         if (c != null) autoCursorTargets.push({ frame: i, cx: c.cx, cy: c.cy, cursor: c.cursor });
+        else
+          log(
+            `animate: cursor "auto": selector "${a.selector}" matched no element in frame ${i}; no pointer for that ${a.type} (the action itself will report the missing element)`,
+          );
       }
     }
   }
@@ -2498,31 +2502,24 @@ function guardStatesRunSize(
 
       const demote: string[] = [];
       for (const region of run.regions) {
-        const marker = snapshotGeneration();
-        const shrank =
-          composeCompressedRun(states, { ...baseOpts, demotedRegions: [region] }).svg.length < run.svg.length;
-        restoreGeneration(marker);
+        const shrank = trialGeneration(
+          () => composeCompressedRun(states, { ...baseOpts, demotedRegions: [region] }).svg.length < run.svg.length,
+        );
         if (shrank) demote.push(region);
       }
       // Size the two fallbacks (trials — rolled back, so only the winner
       // re-composed below keeps its addressing).
       let demotedLen = Infinity;
       if (demote.length > 0) {
-        const marker = snapshotGeneration();
-        demotedLen = composeCompressedRun(states, { ...baseOpts, demotedRegions: demote }).svg.length;
-        restoreGeneration(marker);
+        demotedLen = trialGeneration(
+          () => composeCompressedRun(states, { ...baseOpts, demotedRegions: demote }).svg.length,
+        );
       }
-      const fbMarker = snapshotGeneration();
-      const flipbookLen = composeStatesFlipbook(
-        cloneTrees(),
-        holds,
-        cfg.width,
-        cfg.height,
-        `cr${i}`,
-        rootBg,
-        cfg.realText === true,
-      ).svg.length;
-      restoreGeneration(fbMarker);
+      const flipbookLen = trialGeneration(
+        () =>
+          composeStatesFlipbook(cloneTrees(), holds, cfg.width, cfg.height, `cr${i}`, rootBg, cfg.realText === true).svg
+            .length,
+      );
 
       // Pick the smallest; keep-all wins ties (never rewrite when nothing helps),
       // and demotion wins over the flipbook on a tie (the primary fallback).
@@ -2620,6 +2617,21 @@ const COMPRESS_SIZE_GUARD_RATIO = 1.02;
  * A run whose chrome is a byte smaller compressed still short-circuits.
  */
 const COMPRESS_SIZE_GUARD_AUTO_RATIO = 1;
+
+/**
+ * Run a SPECULATIVE composition and roll the glyph/font generation back afterwards — even when it
+ * throws. Trial composes are only sized; whatever they emitted (PUA / `dmfN` / `gN` addressing) must
+ * not leak into the real compose that follows, and a throw inside a trial (a malformed tree, a font
+ * that fails to open) must not leave the generation advanced for it either.
+ */
+export function trialGeneration<T>(trial: () => T): T {
+  const marker = snapshotGeneration();
+  try {
+    return trial();
+  } finally {
+    restoreGeneration(marker);
+  }
+}
 
 /**
  * DM-1764: the uncompressed counterpart to `composeCompressedRun` — the same N
@@ -3701,10 +3713,11 @@ type CursorStyleInput = z.infer<typeof cursorStyleSchema>;
  *  so the CLI cursor and the public `resolveCursorTarget` can't diverge.
  *  DM-1742: `at` picks one of the nine named anchor points (default center) and
  *  `offset` nudges from there — the auto-cursor aim vocabulary. `borderBox`
- *  throws on no-match; the `"auto"` recording path tolerates a missing selector
- *  (the action itself fails later, the cursor recording just skips it), so we map
- *  that throw back to null here. */
-async function queryCursorBox(
+ *  throws `SelectorNotFoundError` on no-match; the `"auto"` recording path tolerates a
+ *  missing selector (the action itself fails later, the cursor recording just skips it), so
+ *  ONLY that error maps to null. Any other failure — a page-context exception, a selector
+ *  syntax error, a navigation mid-evaluate — propagates rather than reading as "no target". */
+export async function queryCursorBox(
   page: Page,
   sel: string,
   at: BoxAnchor = "center",
@@ -3732,8 +3745,9 @@ async function queryCursorBox(
       return "default";
     }, sel);
     return { cx, cy, cursor };
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof SelectorNotFoundError) return null;
+    throw error;
   }
 }
 

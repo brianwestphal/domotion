@@ -1155,3 +1155,62 @@ describe("composeCompressedRun — real-text layer (DM-6SQXGF)", () => {
     expect(without.svg).not.toContain("data-domotion-real-text-layer");
   });
 });
+
+// The size guard in the orchestrator composes the SAME captured trees 2–4 times (keep-all, per-region
+// demotion, the flipbook trial) and callers can mutate a tree between composes. The pairing keys are
+// cached per element identity (WeakMaps), so these pin that no compose can observe another's stale keys.
+describe("composeCompressedRun — repeated and interleaved composes", () => {
+  const opts = { width: 400, height: 300 };
+  const twoLineStates = (): CompressedRunState[] => [
+    state([box([lineEl("hello world", { y: 100 }), lineEl("second line", { y: 130 })])], 100),
+    state([box([lineEl("hello worlds", { y: 100 }), lineEl("second line", { y: 130 })])], 100),
+    state([box([lineEl("hello worlds!", { y: 100 }), lineEl("second lines", { y: 130 })])], 100),
+  ];
+
+  it("returns byte-identical output for the same input regardless of composes in between", () => {
+    const states = twoLineStates();
+    const first = composeCompressedRun(states, opts);
+    // A compose with a different option set over the same tree objects, then the original again.
+    composeCompressedRun(states, { ...opts, demotedRegions: first.regions.slice(0, 1) });
+    composeCompressedRun(states, { ...opts, caret: true });
+    const again = composeCompressedRun(states, opts);
+    expect(again.svg).toBe(first.svg);
+    expect(again.durationMs).toBe(first.durationMs);
+  });
+
+  it("does not mutate its input trees", () => {
+    const states = twoLineStates();
+    const snapshot = JSON.stringify(states);
+    composeCompressedRun(states, opts);
+    composeCompressedRun(states, { ...opts, caret: true });
+    expect(JSON.stringify(states)).toBe(snapshot);
+  });
+
+  it("compose -> caller mutates a tree -> compose equals composing a fresh copy of the mutated trees", () => {
+    const states = twoLineStates();
+    composeCompressedRun(states, opts);
+
+    // Mutate the caller's trees in place: change what state 1 says and where the second line sits.
+    const line = states[1].tree[0].children[0];
+    line.text = "hello there";
+    line.textSegments![0].text = "hello there";
+    line.textSegments![0].xOffsets = [...("hello there" as string)].map((_, i) => 60 + i * ADV);
+    states[2].tree[0].children[1].y += 5;
+
+    const mutated = composeCompressedRun(states, opts);
+    const fresh = composeCompressedRun(structuredClone(states), opts);
+    expect(mutated.svg).toBe(fresh.svg);
+  });
+
+  it("buildCompressedRunPlan over the same tree objects after an in-place edit matches a plan over a clone", () => {
+    const trees = twoLineStates().map((s) => ({ tree: s.tree, holdMs: s.holdMs }));
+    const before = buildCompressedRunPlan(trees, "cr", []);
+    trees[1].tree[0].children[0].textSegments![0].text = "hxllo worlds";
+    const edited = buildCompressedRunPlan(trees, "cr", []);
+    const fromClone = buildCompressedRunPlan(structuredClone(trees), "cr", []);
+    const summarize = (plan: typeof edited): unknown[] => plan.thread.all.map((t) => [t.rec.ch, t.birth, t.death]);
+    expect(summarize(edited)).toEqual(summarize(fromClone));
+    // The edit is real: it changes the threading, so a stale cache would have been observable.
+    expect(summarize(edited)).not.toEqual(summarize(before));
+  });
+});

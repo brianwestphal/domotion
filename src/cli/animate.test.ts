@@ -2207,6 +2207,17 @@ describe("size-regression guard (DM-1764)", () => {
       expect(wasAutoCollapsed(out.frames[0])).toBe(false);
     });
 
+    it("keeps the mark across an object-spread copy (config passes copy frames freely) but not across JSON", () => {
+      const out = autoCompressRuns(cfgOf(eligible3(), { autoCompress: true }));
+      const frame = out.frames[0];
+      expect(wasAutoCollapsed({ ...frame })).toBe(true);
+      expect(wasAutoCollapsed({ ...frame, duration: 1 })).toBe(true);
+      // A serialized/parsed config is a different object graph, authored by definition.
+      expect(wasAutoCollapsed(JSON.parse(JSON.stringify(frame)))).toBe(false);
+      // The mark never shows up in the serialized form.
+      expect(JSON.stringify(frame)).not.toContain("autoCollapsed");
+    });
+
     it("does NOT flag a hand-authored `states:` frame", () => {
       const cfg = cfgOf([
         { input: "a.html", duration: 200, transition: cut, states: [{ duration: 100 }, { duration: 100 }] },

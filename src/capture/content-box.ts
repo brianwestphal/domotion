@@ -101,6 +101,22 @@ export function boxAnchorPoint(box: Rect, at: BoxAnchor = "top-left", dx = 0, dy
 }
 
 /**
+ * Thrown by `contentBox` / `borderBox` when the selector matches no element. It is a distinct class so
+ * a caller that tolerates "no such element" (the auto-cursor recorder) can catch exactly that and let
+ * every other failure — a page-context exception, a selector syntax error, a navigation mid-evaluate —
+ * surface instead of masquerading as "not found".
+ */
+export class SelectorNotFoundError extends Error {
+  constructor(
+    readonly helper: "contentBox" | "borderBox",
+    readonly selector: string,
+  ) {
+    super(`${helper}: selector "${selector}" matched no element`);
+    this.name = "SelectorNotFoundError";
+  }
+}
+
+/**
  * Measure the padding-inset content box of `selector` on `page`. Throws if the
  * selector matches no element (fail fast — a silently-missing element usually
  * means the script is subtly wrong, matching the declarative anchor's policy).
@@ -129,7 +145,7 @@ export async function contentBox(page: Page, selector: string, opts: ContentBoxO
       height: Math.max(0, r.height - bt - bb - pt - pb),
     };
   }, selector);
-  if (rect == null) throw new Error(`contentBox: selector "${selector}" matched no element`);
+  if (rect == null) throw new SelectorNotFoundError("contentBox", selector);
   return { ...rect, at: boxAnchorPoint(rect, opts.at ?? "top-left", opts.dx ?? 0, opts.dy ?? 0) };
 }
 
@@ -178,7 +194,7 @@ export async function borderBox(page: Page, selector: string, opts: BorderBoxOpt
     const r = el.getBoundingClientRect();
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   }, selector);
-  if (rect == null) throw new Error(`borderBox: selector "${selector}" matched no element`);
+  if (rect == null) throw new SelectorNotFoundError("borderBox", selector);
   return { ...rect, at: boxAnchorPoint(rect, opts.at ?? "top-left", opts.dx ?? 0, opts.dy ?? 0) };
 }
 

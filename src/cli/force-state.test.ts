@@ -199,3 +199,103 @@ describe("applyForcedPseudoStates control flow (DM-1516)", () => {
     expect(enables).toHaveLength(2);
   });
 });
+
+// ── Navigation invalidation and a dead page ────────────────────────────────────
+// The unit fake above has no `page.on`, so the `framenavigated` listener that
+// drops the cached document root was never exercised. This one records listeners.
+interface NavigablePage {
+  page: Page;
+  session: { sent: SentCall[]; fail?: Error };
+  navigate(frame: unknown): void;
+  mainFrame: object;
+  listenerCount(): number;
+}
+function navigablePage(matches: Record<string, number[]>): NavigablePage {
+  const mainFrame = { name: "main" };
+  const listeners: Array<(frame: unknown) => void> = [];
+  let documentGeneration = 0;
+  const session: { sent: SentCall[]; fail?: Error; send(method: string, params?: unknown): Promise<unknown> } = {
+    sent: [],
+    async send(method, params) {
+      this.sent.push({ method, params });
+      if (this.fail != null) throw this.fail;
+      if (method === "DOM.getDocument") return { root: { nodeId: 100 + documentGeneration++ } };
+      if (method === "DOM.querySelectorAll") {
+        return { nodeIds: matches[(params as { selector: string }).selector] ?? [] };
+      }
+      return {};
+    },
+  };
+  const page = {
+    context: () => ({ newCDPSession: async () => session }),
+    on: (event: string, cb: (frame: unknown) => void) => {
+      if (event === "framenavigated") listeners.push(cb);
+    },
+    mainFrame: () => mainFrame,
+  } as unknown as Page;
+  return {
+    page,
+    session,
+    navigate: (frame) => listeners.forEach((cb) => cb(frame)),
+    mainFrame,
+    listenerCount: () => listeners.length,
+  };
+}
+
+describe("applyForcedPseudoStates — document-root cache across navigation", () => {
+  const getDocumentCalls = (n: NavigablePage): number =>
+    n.session.sent.filter((c) => c.method === "DOM.getDocument").length;
+  const queriedRoots = (n: NavigablePage): unknown[] =>
+    n.session.sent
+      .filter((c) => c.method === "DOM.querySelectorAll")
+      .map((c) => (c.params as { nodeId: number }).nodeId);
+
+  it("resolves the document once and reuses the root for later calls on the same document", async () => {
+    const n = navigablePage({ ".btn": [7] });
+    await applyForcedPseudoStates(n.page, [{ selector: ".btn", states: ["hover"] }]);
+    await applyForcedPseudoStates(n.page, [{ selector: ".btn", reset: true }]);
+    expect(getDocumentCalls(n)).toBe(1);
+    expect(queriedRoots(n)).toEqual([100, 100]);
+  });
+
+  it("re-resolves the root after the MAIN frame navigates, but not for a child frame", async () => {
+    const n = navigablePage({ ".btn": [7] });
+    await applyForcedPseudoStates(n.page, [{ selector: ".btn", states: ["hover"] }]);
+
+    n.navigate({ name: "child" }); // an iframe navigating does not replace the top document
+    await applyForcedPseudoStates(n.page, [{ selector: ".btn", states: ["hover"] }]);
+    expect(getDocumentCalls(n)).toBe(1);
+
+    n.navigate(n.mainFrame); // a reload frame: new document, ids and forced overrides are gone
+    await applyForcedPseudoStates(n.page, [{ selector: ".btn", states: ["hover"] }]);
+    expect(getDocumentCalls(n)).toBe(2);
+    expect(queriedRoots(n)).toEqual([100, 100, 101]);
+  });
+
+  it("registers exactly one navigation listener per page however many times it is used", async () => {
+    const n = navigablePage({ ".btn": [7] });
+    for (let i = 0; i < 4; i++) await applyForcedPseudoStates(n.page, [{ selector: ".btn", states: ["hover"] }]);
+    expect(n.listenerCount()).toBe(1);
+  });
+
+  it("keeps per-page state independent: navigating one page does not invalidate another's root", async () => {
+    const a = navigablePage({ ".btn": [7] });
+    const b = navigablePage({ ".btn": [8] });
+    await applyForcedPseudoStates(a.page, [{ selector: ".btn", states: ["hover"] }]);
+    await applyForcedPseudoStates(b.page, [{ selector: ".btn", states: ["hover"] }]);
+    a.navigate(a.mainFrame);
+    await applyForcedPseudoStates(b.page, [{ selector: ".btn", states: ["hover"] }]);
+    expect(getDocumentCalls(b)).toBe(1);
+    await applyForcedPseudoStates(a.page, [{ selector: ".btn", states: ["hover"] }]);
+    expect(getDocumentCalls(a)).toBe(2);
+  });
+
+  it("surfaces the CDP error when the page has been closed instead of swallowing it", async () => {
+    const n = navigablePage({ ".btn": [7] });
+    await applyForcedPseudoStates(n.page, [{ selector: ".btn", states: ["hover"] }]);
+    n.session.fail = new Error("Protocol error (CSS.forcePseudoState): Target closed");
+    await expect(applyForcedPseudoStates(n.page, [{ selector: ".btn", states: ["hover"] }])).rejects.toThrow(
+      "Target closed",
+    );
+  });
+});
