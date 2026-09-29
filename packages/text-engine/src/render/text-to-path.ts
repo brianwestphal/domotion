@@ -15,20 +15,7 @@
  * everywhere it appears.
  */
 
-import { execFileSync } from "node:child_process";
-import { hostPlatform } from "./host-platform.js";
-import { existsSync } from "node:fs";
-import * as nodePath from "node:path";
-import { fileURLToPath } from "node:url";
-import * as fontkit from "fontkit";
-import {
-  createGlyphHelperFont,
-  isGlyphHelperAvailable,
-  linuxTargetStrikeGlyphs,
-  resolveSystemFallbackFonts,
-  resolveInstalledFont,
-  type GlyphRasterRepresentation,
-} from "./glyph-helper.js";
+import { isGlyphHelperAvailable, linuxTargetStrikeGlyphs, type GlyphRasterRepresentation } from "./glyph-helper.js";
 export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // The SHARED attribute escaper. Two local copies used to live in this file and
 // escaped only the five XML metacharacters, so a codepoint the XML `Char`
@@ -36,13 +23,10 @@ export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // reached the accessible name verbatim and made the whole document unparseable
 // — the consumer showed a broken-image icon rather than the drawing. Import the
 // one implementation instead of restating it; see `esc` for the disposition.
+import { hostPlatform } from "./host-platform.js";
 import { esc as escAttr } from "./format.js";
 import { visualTextSemantics } from "./text-semantics.js";
-import {
-  clearEmbeddedFontBuilder,
-  getBuiltEmbeddedFontFaceCss,
-  trackGlyphInEmbedFont,
-} from "./embedded-font-builder.js";
+import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { OBLIQUE_SHEAR, resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass } from "./embolden-outline.js";
 // DM-1984: the two "does this face need a synthetic bold / oblique?" predicates
 // live in one module because BOTH render modes ask them. Re-exported below so
@@ -59,9 +43,6 @@ export {
   synthesisAllowed,
   type FontSynthesisAllowance,
 } from "./synthesis-decision.js";
-import { UNICODE_FONT_PATHS, UNICODE_FONT_RANGES } from "./unicode-font-routing.darwin.generated.js";
-import { UNICODE_FONT_PATHS_LINUX, UNICODE_FONT_RANGES_LINUX } from "./unicode-font-routing.linux.generated.js";
-import { UNICODE_FONT_FILES_WIN32, UNICODE_FONT_RANGES_WIN32 } from "./unicode-font-routing.win32.generated.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
@@ -98,12 +79,10 @@ import {
 } from "./text-run-provenance.js";
 export { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
 import {
-  mathAlphaToBase,
   isLegitimatelyInklessCodepoint,
   isHarfbuzzDefaultIgnorable,
   canTextDecorationSkipInk,
   usesDedicatedShaper,
-  complexShaperBaseMarkDecomposition,
   isStrippableOrphanIgnorable,
   isLeftReorderingMatra,
   isRtlScriptCodepoint,
@@ -128,13 +107,11 @@ import {
   fontAutoInsertsDottedCircle,
   fontFeatureValueShapingOverride,
   FontVariantEmojiOverride,
-  fontHasSupportedColorTable,
   getFontInstance,
   getFontSourceInfo,
   glyphInkXRange,
   glyphPathIntercepts,
   haltInfoFor,
-  isNonCharacterCodepoint,
   mergeGaps,
   opticalCutOpszFor,
   pickWebfontVariantForCodepoint,
@@ -146,12 +123,9 @@ import {
   resolveFontForCodepoint,
   resolveFontKey,
   resolveFontKeyChain,
-  resolveFontSpec,
   resolveGlyphCommands,
-  setRenderTextMode,
   stretchPercent,
   syntheticMarkCenteringOffsetPx,
-  win,
   stackPrimaryIsSystemUi,
 } from "./font-resolution.js";
 
@@ -981,7 +955,7 @@ function renderTextPathRuns(
   // RATIO (`roundedSize / fontSize`) rather than a flat 0.7 so downstream
   // multiplications (`runScale * SMALL_CAP_SCALE`) land on the same rounded
   // pixel size Blink does.
-  const SMALL_CAP_SCALE = Math.round(fontSize * 0.7) / fontSize;
+  const SMALL_CAP_SCALE = synthesizedSmallCapsScale(fontSize);
   let synthLowerScale: number | null = null;
   let synthUpperScale: number | null = null;
   if (wantSmcp && !hasFeature("smcp")) synthLowerScale = SMALL_CAP_SCALE;
@@ -1890,6 +1864,8 @@ function singleFontMarkup(
         if (cp0 != null && i + 1 < xOffsets!.length) {
           const fullAdv = pos.xAdvance * scale; // full em advance, CSS px
           const capturedAdv = xOffsets![i + 1] - xOffsets![i]; // what Chrome used, CSS px
+          // NO UPSTREAM RULE: 0.75 is a detection threshold ("Chrome trimmed this glyph
+          // noticeably"), not a Blink constant; the trim itself is the captured advance.
           if (fullAdv > 0 && capturedAdv > 0 && capturedAdv < fullAdv * 0.75) {
             const halt = haltInfoFor(font, fontKey, cp0);
             if (halt.halved) tx += halt.xOffset; // font units
@@ -3356,7 +3332,7 @@ function renderEmbeddedGlyphRuns(
     // Webfont instances return null here (no backing file) and keep svg2ttf.
     const hintedSource = srcInfo;
     const ordinaryTextRendering = embeddedSystemFontTextRendering(
-      process.platform,
+      hostPlatform(),
       hintedSource != null,
       undefined,
       hintedSource?.postscriptName,
@@ -3470,7 +3446,7 @@ function renderEmbeddedGlyphRuns(
     const candidateStrikeSizes =
       srcInfo?.faceIndex != null && shearFactor === 0 && (textStrokeWidth == null || textStrokeWidth === 0)
         ? embeddedLinuxTargetStrikeSizes(
-            process.platform,
+            hostPlatform(),
             srcInfo.postscriptName,
             fontSize,
             glyphScales,
@@ -4765,6 +4741,8 @@ export function getDecorationMetrics(
     fontOptions.lang,
   );
   const upem = font?.unitsPerEm ?? 1000;
+  // NO UPSTREAM RULE: only reached when the capture carried no FloatAscent; 0.8em is a
+  // generic heuristic ascent, not any font's.
   const ascF = decoration.fontAscent ?? fontSize * 0.8;
   // `FontMetrics::Ascent()` = lroundf(FloatAscent) (`platform/fonts/font_metrics.h:109`).
   const ascI = Math.round(ascF);
@@ -4913,6 +4891,8 @@ export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
     stretchPercent(fontStretch),
     fontOptions.lang,
   );
+  // NO UPSTREAM RULE: 0.25em is the conventional space-width heuristic, used only when no
+  // face resolves or the face has no space glyph.
   if (font == null) return fontSize * 0.25;
   try {
     const g = font.layout(" ").glyphs[0] as { advanceWidth: number } | undefined;
@@ -5000,6 +4980,8 @@ export function measureEmphasisMarkMetrics(
   // Blink shapes with the main Font first, then calls EmphasisMarkFontData on
   // that selected run. Scaling here (instead of resolving again at mark size)
   // preserves the selected face and its optical cut.
+  // `kEmphasisMarkFontSizeMultiplier = 0.5f` (`platform/fonts/simple_font_data.cc:68`, used at
+  // `:305`, chromium rev 7d859f27); `CreateScaledFontData` rounds the resulting size.
   const markFontSize = Math.round(fontSize * 0.5);
   const scale = markFontSize / run.font.unitsPerEm;
   const centerX =
@@ -5299,6 +5281,9 @@ export function renderRadicalGlyph(
   // (≈2%); expressing them as fractions keeps the fit correct across sizes.
   // Fit the glyph ink to that inset box, uniform scale to preserve the √'s
   // natural aspect (a non-uniform stretch would distort the stroke weights).
+  // NO UPSTREAM RULE: these two fractions were read off a rasterized fixture, so they
+  // encode a rasterizer's antialiasing rather than Blink's radical geometry. Kept as the
+  // only known-good fit until the paint is transcribed from the MathML radical layout.
   const topInset = height * 0.07;
   const botInset = height * 0.02;
   const inkH = height - topInset - botInset;

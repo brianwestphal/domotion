@@ -53,7 +53,7 @@ import {
   type WebfontSynthesisFace,
 } from "./font-resolution.js";
 import { renderTextAsPath, setRenderTextMode } from "./text-to-path.js";
-import { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss } from "./embedded-font-builder.js";
+import { clearEmbeddedFontBuilder } from "./embedded-font-builder.js";
 import { skiaFakeBoldStrokeExtraPx } from "./embolden-outline.js";
 
 const face = (o: Partial<WebfontSynthesisFace>): WebfontSynthesisFace => ({

@@ -11,7 +11,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import sharp from "sharp";
-import { parseRegionsBlock, type Region } from "./regions-parser.js";
+import { type Region } from "./regions-parser.js";
 export { parseRegionsBlock, type ParseResult, type Region } from "./regions-parser.js";
 
 export type CropPlan = {

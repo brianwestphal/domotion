@@ -684,7 +684,7 @@ function composeScrollSvgBody(
   const captureGroups: string[] = [];
   const segmentCullCss: string[] = [];
   for (let paintIndex = 0; paintIndex < paintSegments.length; paintIndex++) {
-    const { segment: seg, index: segmentIndex } = paintSegments[paintIndex];
+    const { index: segmentIndex } = paintSegments[paintIndex];
     const offset = segOffsets[segmentIndex];
     const inner = elementTreeToSvgInner(
       strippedTrees[paintIndex],

@@ -12,7 +12,7 @@
 import { hostPlatform } from "./host-platform.js";
 import { existsSync } from "node:fs";
 import type { MetaResponse } from "./glyph-helper-outline.js";
-import type { FamilyResponse, HelperRequest, HelperResponse } from "./glyph-helper-protocol.js";
+import type { HelperRequest, HelperResponse } from "./glyph-helper-protocol.js";
 import {
   callGlyphHelper as callHelper,
   clearGlyphHelperTransport,

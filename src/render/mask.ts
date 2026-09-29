@@ -631,12 +631,10 @@ export function buildMaskBorder9Slice(
 
   const x0 = boxX,
     x1 = boxX + wl,
-    x2 = boxX + boxW - wr,
-    x3 = boxX + boxW;
+    x2 = boxX + boxW - wr;
   const y0 = boxY,
     y1 = boxY + wt,
-    y2 = boxY + boxH - wb,
-    y3 = boxY + boxH;
+    y2 = boxY + boxH - wb;
   const sxL = 0,
     sxR = natW - sr,
     sxC = sl,

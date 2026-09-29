@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  clearFontResolutionCaches,
   createFontRendererSession,
   getFontInstance,
   getFontSourceInfo,

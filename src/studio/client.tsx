@@ -349,10 +349,6 @@ function hasStoryPreview(): boolean {
   );
 }
 
-function previewKey(selection: NonNullable<typeof previewSelection.value>): string {
-  return selection.kind === "story" ? "story" : `scene:${selection.sceneId}`;
-}
-
 function annotationTargetLabel(target: StudioProject["review"]["annotations"][number]["target"]): string {
   if (target == null) return "Project-wide text note";
   const parts: string[] = [];

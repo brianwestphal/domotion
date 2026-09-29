@@ -774,7 +774,6 @@ export function renderInlineFragments(
   buildBackgroundLayerDef: BackgroundLayerBuilder,
   backgroundColorClipsToText: BackgroundColorClipsToText,
 ): void {
-  const { paintCtx, defsParts, svgParts, captureViewport } = state;
   const frags = el.inlineFragments!;
   const clone = (el.styles.boxDecorationBreak ?? "slice") === "clone";
   const bgImage = el.styles.backgroundImage;

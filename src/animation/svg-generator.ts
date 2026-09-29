@@ -27,7 +27,6 @@ import type {
   InteractOverlay,
   IntraFrameAnimation,
 } from "./overlay-schema.js";
-import { escapeHtml } from "../utils/escapeHtml.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { rootSvgA11y } from "../render/format.js";
 import {

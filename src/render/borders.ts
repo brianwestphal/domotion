@@ -1420,12 +1420,10 @@ function renderBorderImageGradient(
   // Slot geometry in element-absolute coords.
   const x0 = boxX,
     x1 = boxX + wl,
-    x2 = boxX + boxW - wr,
-    x3 = boxX + boxW;
+    x2 = boxX + boxW - wr;
   const y0 = boxY,
     y1 = boxY + wt,
-    y2 = boxY + boxH - wb,
-    y3 = boxY + boxH;
+    y2 = boxY + boxH - wb;
   // Source regions in source pixels (NB: corner rects + edge / center rects).
   const sxL = 0,
     sxR = natW - sr,
@@ -1665,12 +1663,10 @@ export function renderBorderImage(
   // Slot geometry (in element-absolute coords).
   const x0 = boxX,
     x1 = boxX + wl,
-    x2 = boxX + boxW - wr,
-    x3 = boxX + boxW;
+    x2 = boxX + boxW - wr;
   const y0 = boxY,
     y1 = boxY + wt,
-    y2 = boxY + boxH - wb,
-    y3 = boxY + boxH;
+    y2 = boxY + boxH - wb;
 
   // Corresponding source regions (in intrinsic image pixels).
   // Full image 9-slice mapping:

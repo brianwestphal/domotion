@@ -7,7 +7,7 @@
  */
 
 import { colorStr, parseColor, type RGBA } from "./colors.js";
-import { r, stopFmt } from "./format.js";
+import { stopFmt } from "./format.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 
 export interface GradientStop {
@@ -555,20 +555,6 @@ export function buildRadialGradientDef(
 
   const focal = innerR > 0 ? ` fx="${stopFmt(cx)}" fy="${stopFmt(cy)}" fr="${stopFmt(innerR)}"` : "";
   return `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="${stopFmt(cx)}" cy="${stopFmt(cy)}" r="${stopFmt(Math.max(outerR, Number.EPSILON))}"${focal}${spread}${gradientTransform}${interpolation.attribute}>${stopsMarkup}</radialGradient>`;
-}
-
-function resolvePosFraction(token: string, axis: "h" | "v"): number {
-  const t = token.trim();
-  if (t === "center") return 0.5;
-  if (axis === "h") {
-    if (t === "left") return 0;
-    if (t === "right") return 1;
-  } else {
-    if (t === "top") return 0;
-    if (t === "bottom") return 1;
-  }
-  if (/%$/.test(t)) return parseFloat(t) / 100;
-  return 0.5;
 }
 
 function splitGradientSpaces(text: string): string[] {

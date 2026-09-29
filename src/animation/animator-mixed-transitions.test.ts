@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateAnimatedSvg, type AnimationFrame } from "./animator.js";
+import { generateAnimatedSvg } from "./animator.js";
 import type { LegacyTransitionType } from "./transition-schema.js";
 import { buildMagicMove } from "./magic-move.js";
 import type { CapturedElement } from "../capture/types.js";

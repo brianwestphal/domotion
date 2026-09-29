@@ -73,7 +73,6 @@ import {
   getBuiltEmbeddedFontFaceCss,
   restoreEmbeddedFonts,
   snapshotEmbeddedFonts,
-  trackGlyphInEmbedFont,
 } from "./embedded-font-builder.js";
 export { getEmbeddedFontBuildDiagnostics, withHintedSubsetEnabled } from "./embedded-font-builder.js";
 export type { EmbeddedFontBuildDiagnostic, HintedSourceDisqualificationReason } from "./embedded-font-builder.js";
@@ -107,9 +106,6 @@ import {
   usesHarfbuzzShaping,
   complexShaperBaseMarkDecomposition,
   nfdBaseMarkDecomposition,
-  isStrippableOrphanIgnorable,
-  isLeftReorderingMatra,
-  isRtlScriptCodepoint,
   isIdeographicCp,
 } from "./unicode-classification.js";
 import { clearIcuHelper, ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
@@ -1703,60 +1699,6 @@ function pickWebfontVariant(
     }),
     best,
   );
-}
-
-/**
- * DM-652: pick a registered webfont variant and return both the FontInstance
- * (for metric computation) AND the original buffer (for `@font-face`
- * embedding). Mirrors `pickWebfontVariant`'s scoring so embedded-mode
- * selection lines up with the path-mode selection a paths-mode capture
- * would have used. Returns null when the family isn't registered or the
- * matched variant has no retained buffer.
- */
-function pickWebfontVariantWithBuffer(
-  family: string,
-  weight: number,
-  slant: number,
-  stretch: number = 100,
-): { variant: WebfontVariant; buffer: Buffer } | null {
-  const variants = webfontRegistry.get(family);
-  if (variants == null || variants.length === 0) return null;
-  const wantItalic = slant !== 0;
-  const bounds = webfontStretchBounds(variants);
-  const weightBounds = webfontWeightBounds(variants);
-  const LATIN_PROBE = 0x0041;
-  let best: WebfontVariant | null = null;
-  let bestScore = Infinity;
-  for (const v of variants) {
-    if (v.buffer == null) continue;
-    const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
-    const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
-    const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
-    const score =
-      rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + webfontWeightScore(v, weight, weightBounds);
-    // `<=`: last-declared wins on exact ties — Blink's reverse-declaration
-    // order (see the citation in pickWebfontVariantForCodepoint).
-    if (score <= bestScore) {
-      bestScore = score;
-      best = v;
-    }
-  }
-  if (best == null || best.buffer == null) return null;
-  return { variant: best, buffer: best.buffer };
-}
-
-/**
- * DM-652: resolve the first font in a CSS font-family stack that's
- * registered as a webfont with a retained buffer. Returns the lowercased
- * key suitable for `webfontRegistry.get`, or null when no name in the
- * stack matches a registered webfont (e.g. all generic / system fallbacks).
- */
-function firstWebfontFamilyInStack(fontFamily: string): string | null {
-  for (const entry of parseCssFontFamilyEntries(fontFamily)) {
-    const name = entry.name.toLowerCase();
-    if (webfontRegistry.has(name)) return name;
-  }
-  return null;
 }
 
 /**
@@ -10972,6 +10914,8 @@ export function haltInfoFor(
       // The selected feature must genuinely narrow this glyph
       // while keeping the SAME outline (pure GPOS) — otherwise it isn't the
       // fullwidth-punctuation trim case and we leave the glyph alone.
+      // NO UPSTREAM RULE: 0.6 is a detection threshold for "the halt form is genuinely
+      // narrower", not a Blink constant (Blink just applies the feature and takes the advance).
       if (hAdv > 0 && dAdv > 0 && hAdv <= dAdv * 0.6) {
         info = {
           halved: true,

@@ -132,11 +132,6 @@ async function removeEvaluateNameShim(frames: readonly Frame[]): Promise<void> {
   await Promise.all(frames.map((frame) => frame.evaluate(`delete globalThis.__name`).catch(() => undefined)));
 }
 
-function numeric(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function normalizeWritingMode(value: string): WritingMode {
   if (value === "vertical-rl" || value === "vertical-lr" || value === "sideways-rl" || value === "sideways-lr")
     return value;

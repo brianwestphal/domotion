@@ -1756,7 +1756,6 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   const pathTextRawSrc = singleSeg != null ? singleSeg.text : el.text;
   const pathTextRaw = suppressGlyphChars(pathTextRawSrc, singleSeg);
   const xOffsetsRelRaw = singleSeg?.xOffsets != null ? singleSeg.xOffsets.map((v) => v - tl) : undefined;
-  const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
   const reordered = applyBidi(pathTextRaw, xOffsetsRelRaw, bidiContextFor(el));
   const pathText = reordered.text;
   // DM-2470: shaped origins stay in Blink's pre-transform plane. The caller
@@ -1968,11 +1967,9 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
   const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   const elFontSize = parseFloat(el.styles.fontSize) || 14;
-  const fontFamily = capturedElementFontFamily(el);
   const elFontWeight = el.styles.fontWeight;
   const parts: string[] = [];
 
-  const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
   // DM-1055: resolve BiDi embedding levels on the WHOLE paragraph (`el.text`)
   // once, so a paired bracket split across soft-wrapped segments mirrors the
   // same as Chrome. Resolving per-segment (below) sees a lone bracket and
@@ -2205,7 +2202,6 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   const ffsFeatures = elementFontFeatures(el, fontFamily);
   const fvsAxes = opticalVariationSettings(el);
   if (el.textSegments != null && el.textSegments.length > 0) {
-    const dir = el.styles.direction === "rtl" ? "rtl" : "ltr";
     for (const seg of el.textSegments) {
       const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
       const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, bidiContextFor(el));

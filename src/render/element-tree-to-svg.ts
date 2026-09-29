@@ -4,12 +4,8 @@
  * Uses Playwright to inspect DOM elements and recreate them as native SVG.
  */
 
-import type { ElementHandle, Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import * as fontkit from "fontkit";
-import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
-import { renderRadicalGlyph, renderSourceOwnedTextBoundary } from "./text-to-path.js";
+import { renderRadicalGlyph } from "./text-to-path.js";
 import {
   getEmbeddedFontFaceCss,
   getGlyphDefs,
@@ -18,27 +14,18 @@ import {
 } from "./font-resolution.js";
 import { activeTextEngineDocument, withTextEngineDocument } from "./text-engine.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
-import { profAccum, profNow } from "./render-profile.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-controls.js";
-import { CAPTURE_SCRIPT } from "../capture/script.generated.js";
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
-import { clipPathShapeForElement, parseSameDocumentClipPathUrl, translateClipPath } from "./clip-path.js";
+import { clipPathShapeForElement, parseSameDocumentClipPathUrl } from "./clip-path.js";
 import { buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
-import {
-  buildLinearGradientDef,
-  buildRadialGradientDef,
-  parseBgPositionPx,
-  type GradientStop,
-} from "./gradient-defs.js";
+import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
 import { _conicTileCache } from "./raster-tile-cache.js";
 import {
-  isFlexOrGridContainerDisplay,
   establishesStackingContext,
   gatherStackingContextChildren,
-  isOverflowOnlySC,
   isFixedContainingBlock,
   paintOrderBuckets,
   paintsAtomicallyAsInlineBox,
@@ -59,29 +46,18 @@ import {
 // Re-export mask helpers used by focused geometry/emission tests.
 export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
 export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
-import { parseColor, colorStr, sameColor, shadeColor, type RGBA } from "./colors.js";
+import { parseColor, colorStr, type RGBA } from "./colors.js";
 import {
   parseCornerRadii,
   insetCornerRadii,
   outsetCornerRadiiForShadow,
   roundedRectPath,
   roundedRectSvg,
-  parseSide,
   dashArrayForStyle,
-  renderBorderImage,
   injectSvgSize,
-  roundBorderSideClipPolygon,
-  hyperellipseBorderSideClipPolygon,
-  contouredRectIntersectionPaths,
-  doubleBorderStripeGeometry,
-  pixelSnappedBorderReferenceRect,
-  uniformDoubleBorderStripeBoxes,
-  selectBestDashGap,
   type CornerRadii,
-  type CornerRadiusPair,
-  type BorderSide,
 } from "./borders.js";
-import { parseBoxShadow, type BoxShadow } from "./box-shadow.js";
+import { parseBoxShadow } from "./box-shadow.js";
 import {
   capturedBoxRespectsCssOverflow,
   isOverflowReplacedElement,
@@ -109,22 +85,18 @@ import type {
   CapturedBackgroundImage,
   CapturedElement,
   CapturedTreeInput,
-  TextSegment,
   MaskFragmentDef,
   MaskFragmentReference,
   MaskRasterRef,
   ClipPathFragmentDef,
-  CaptureWarning,
 } from "../capture/types.js";
 import { capturedTreeRoots, capturedTreeSessionGenericFamilies } from "../capture/tree-envelope.js";
 import {
   _dataUriCache,
   _resizedDataUriCache,
   embedResizedDataUri,
-  embedRemoteImages,
   resolveSvgSource,
   withActiveHiDPIFactor,
-  type EmbedRemoteImagesOptions,
 } from "../capture/embed.js";
 import {
   inlineImgSvg,
@@ -137,13 +109,10 @@ import {
 import { computeViewportMatrix, parsePreserveAspectRatio } from "./svg-viewport-matrix.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
-import { getLastCaptureWarnings, logCaptureWarnings } from "../capture/warnings.js";
-import { rasterizeBitmapGlyphs } from "../capture/emoji.js";
 import { blinkPlatformResizerStrokes } from "./resize-handle.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import { paintCustomScrollbars, type CustomScrollbarVectorPart } from "./custom-scrollbar.js";
 import { paintNativeScrollbarRasters } from "./native-scrollbar-raster.js";
-import { intersectBackgroundRects, resolveBackgroundAttachment } from "./background-attachment.js";
 import { paintBackgroundImageLayers, renderInlineFragments } from "./background-inline-paint.js";
 import { paintBorder, paintCollapsedBorderRects } from "./border-paint.js";
 import { buildPseudoBoxBgLayers, paintText } from "./text-paint.js";
@@ -156,9 +125,9 @@ import {
   collectParentElements,
 } from "./render-state-collectors.js";
 import { renderBrokenImageFallback } from "./broken-image-fallback.js";
-import { buildEmittedTextCtmMap, prepareAffineTextPaint, wrapAffineTextPaint } from "./text-affine.js";
+import { buildEmittedTextCtmMap } from "./text-affine.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "./real-text-layer.js";
-import { adjustedDashAttrs, paintOutline, paintThinDottedLine } from "./outline-paint.js";
+import { paintOutline } from "./outline-paint.js";
 export { thinDottedEndpointPlan } from "./outline-paint.js";
 
 // Public-API re-exports kept here for backward compatibility — older imports
@@ -1332,7 +1301,6 @@ function paintTruncationMarker(
     // Position: right edge of the content box. Baseline at the same y as
     // the element's text baseline (textTop + fontAscent if captured).
     const contentRightX = el.x + el.width - padR - brR;
-    const tx = contentRightX;
     const ty = el.textTop != null && el.fontAscent != null ? el.textTop + el.fontAscent : el.y + fontSizePx * 1.1;
     const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     // Paint a background rect under the marker so the overflowing text
@@ -3812,7 +3780,7 @@ function paintElementContentPhase(
   backgroundPhase: ElementBackgroundPhaseResult,
 ): boolean {
   const { state, el, indent, borderRadius, corners, textColor } = context;
-  const { svgParts, defsParts, paintCtx, defCtx, captureViewport } = state;
+  const { svgParts, defsParts, paintCtx, defCtx } = state;
   const { nativeDecoration, isMenulistButtonDecoration } = backgroundPhase;
   // Inline SVG content (see paintInlineSvg). A replaced element's SVG content
   // is its entire paint, so when present we push the content, close the
@@ -4213,17 +4181,7 @@ function renderElement(
   parentDisplayForEl?: string,
   phase: PaintPhase = "all",
 ): void {
-  const {
-    svgParts,
-    defsParts,
-    paintCtx,
-    defCtx,
-    captureViewport,
-    width,
-    height,
-    overflowClipPathIds,
-    offGridCollapsedCells,
-  } = state;
+  const { svgParts } = state;
   const reflectionFragmentStart = svgParts.length;
   if (paintAtomicElementPhase(state, el, depth, phase, reflectionFragmentStart)) return;
   // CSS 2.1 Appendix E splits an element's paint between two context-wide

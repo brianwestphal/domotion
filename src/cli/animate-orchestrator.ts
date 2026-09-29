@@ -529,7 +529,6 @@ const runStateSchema = z.object({
    */
   overlays: z.array(overlaySchema).optional(),
 });
-type RunStateInput = z.infer<typeof runStateSchema>;
 
 /**
  * DM-1770: explicit region declaration — `{ <name>: <selector> }`. Each
@@ -2218,7 +2217,6 @@ async function captureStatesRun(
   const regionNames = Object.keys(fc.regions ?? {});
   const regionIdOf = (name: string): string => `f${i}rg${regionNames.indexOf(name)}`;
   const regionIds = regionNames.map(regionIdOf);
-  const regionIdSet = new Set(regionIds);
   const stampRegions = async (): Promise<void> => {
     for (const name of regionNames) {
       const selector = fc.regions![name];

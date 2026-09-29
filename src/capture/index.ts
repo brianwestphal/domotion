@@ -20,12 +20,7 @@ import {
   type LaunchOptions,
   type Page,
 } from "@playwright/test";
-import {
-  _dataUriCache,
-  elementTreeToSvgInner,
-  wrapSvg,
-  rootSvgColorSchemeAttr,
-} from "../render/element-tree-to-svg.js";
+import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";

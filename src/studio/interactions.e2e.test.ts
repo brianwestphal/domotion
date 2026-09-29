@@ -1,6 +1,6 @@
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runStudioSemanticTracks, StudioInteractionError } from "./interactions.js";
+import { runStudioSemanticTracks } from "./interactions.js";
 
 const fixture = `<!doctype html>
 <style>body{margin:0}.spacer{height:1100px}.drop{width:100px;height:60px;background:#ddd}</style>

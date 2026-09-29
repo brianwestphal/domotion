@@ -257,7 +257,7 @@ function planPie(p: ChartParams, series: number[][], catLabel: (c: number) => st
 /** Line series: a polyline (+ area fill for single series) + dots per series,
  *  with category labels under the shared x positions. */
 function planLine(ctx: PlanCtx): { lines: SeriesLine[]; catLabels: Box[]; valueLabels: Box[] } {
-  const { p, nSeries, nCats, multi, val, colorOf, catLabel, maxVal, plot, showVals } = ctx;
+  const { p, nSeries, nCats, multi, val, catLabel, maxVal, plot, showVals } = ctx;
   const lines: SeriesLine[] = [];
   const catLabels: Box[] = [];
   const valueLabels: Box[] = [];

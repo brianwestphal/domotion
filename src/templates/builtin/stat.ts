@@ -99,7 +99,6 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
   if (blank(p.delta) != null) {
     const dir = resolveDeltaDir(p);
     const arrow = dir === "up" ? "▲" : "▼";
-    const chipColor = dir === "up" ? p.accent : "#ef4444";
     // strip a leading sign/arrow the author may have included; we supply the arrow.
     const deltaText = p.delta!.replace(/^[-+▲▼↑↓]\s*/, "");
     deltaMarkup = `<div class="st-delta"><span class="st-arrow">${arrow}</span> ${escapeHtml(deltaText)}</div>`;

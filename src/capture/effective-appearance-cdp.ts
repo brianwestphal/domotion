@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { CDPSession, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import {
   authorControlStyleFactsFromMatchedStyles,
   type AuthorControlStyleFacts,

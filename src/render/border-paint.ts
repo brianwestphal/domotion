@@ -16,7 +16,6 @@ import {
   pixelSnappedBorderReferenceRect,
   uniformDoubleBorderStripeBoxes,
   selectBestDashGap,
-  type BorderSide,
   type CornerRadii,
 } from "./borders.js";
 import { adjustedDashAttrs, paintThinDottedLine } from "./outline-paint.js";

@@ -317,7 +317,6 @@ function renderVerticalMixed(
 ): string {
   const units = graphemes(mirrorBidiBrackets(fragment.text, record.direction));
   if (units.length === 0) return "";
-  const allUpright = units.every(uprightVertical);
   const allRotated = units.every((unit) => !uprightVertical(unit));
   if (allRotated) return renderBaselineText(record, fragment, boxMatrix);
 
