@@ -59,7 +59,6 @@ import { createLineClampHandler } from "./line-clamp.js";
 import { resolveElementCursor, extractCssUrl, isOutsideCaptureViewport } from "./utils.js";
 import { parseCrossOriginAllowlist } from "./cross-origin.js";
 import { selectProjectiveRasterOwnerIndexes } from "../projective-owner.js";
-import { isWholeHostNativeAppearance } from "../effective-appearance.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../backdrop-effect-space.js";
 import { captureFontFamilyStack } from "../../font-family-stack.js";
 import { projectiveFrameStateFor, projectiveTransformFor } from "./walker/projective-state.js";
@@ -67,6 +66,13 @@ import { createCounterScopes } from "./walker/counter-scopes.js";
 import { createIframeRecursionHandler } from "./walker/iframe-recursion.js";
 import { createStyleRecordBuilder } from "./walker/style-record.js";
 import { createNativeControlsHandler } from "./walker/native-controls.js";
+import {
+  captureBackdropFilterRaster,
+  captureNativeControlDecorationRaster,
+  captureNativeControlRaster,
+  captureScrollbarRecord,
+  computedSizeFontMetric,
+} from "./walker/element-rasters.js";
 import { createScrollMarkersHandler } from "./walker/scroll-markers.js";
 
 const captureDocumentTree = (args) => {
@@ -756,20 +762,7 @@ const captureDocumentTree = (args) => {
       // serialized record is already in capture-viewport coordinates and may
       // be explicitly partial/unavailable; the renderer must never infer a
       // replacement from scrollWidth/clientWidth or scroll offsets.
-      scrollbars: (function () {
-        const _record = typeof args.sk === "string" && args.sk !== "" ? el[args.sk] : undefined;
-        if (
-          _record == null &&
-          (cs.overflowX === "auto" || cs.overflowX === "scroll" || cs.overflowY === "auto" || cs.overflowY === "scroll")
-        ) {
-          warn(
-            sel,
-            "scrollbar-capture",
-            "live Chromium scrollbar probe did not correlate this scroll host; legacy synthesis is disabled",
-          );
-        }
-        return _record;
-      })(),
+      scrollbars: captureScrollbarRecord({ args, el, cs, warn, sel }),
       animId: _animId,
       magicKey: _magicKey,
       // DM-2457: private correlation only. The Node/CDP post-pass resolves the
@@ -841,27 +834,22 @@ const captureDocumentTree = (args) => {
       // those metrics into paint space. Re-measure at computed size instead of
       // multiplying logical-size metrics by zoom: variable-font metrics can
       // change non-linearly when the computed size selects another instance.
-      fontAscent: (function () {
-        if (fontAscent == null) return fontAscent;
-        var _logical = parseFloat(cs.fontSize);
-        var _zoom = _effectiveZoomFor(el);
-        var _computed = _logical * _zoom;
-        if (!isFinite(_computed) || _zoom === 0) return fontAscent;
-        // Pseudo/input walkers may have supplied metrics for a style other
-        // than this host element. Preserve that source and only apply the
-        // established local metric when it does not match the host metric.
-        if (fontAscent !== _measureFontMetrics(cs).ascent) return fontAscent;
-        return _measureFontMetrics(cs, _computed.toFixed(4) + "px").ascent;
-      })(),
-      fontDescent: (function () {
-        if (fontDescent == null) return fontDescent;
-        var _logical = parseFloat(cs.fontSize);
-        var _zoom = _effectiveZoomFor(el);
-        var _computed = _logical * _zoom;
-        if (!isFinite(_computed) || _zoom === 0) return fontDescent;
-        if (fontDescent !== _measureFontMetrics(cs).descent) return fontDescent;
-        return _measureFontMetrics(cs, _computed.toFixed(4) + "px").descent;
-      })(),
+      fontAscent: computedSizeFontMetric({
+        metric: "ascent",
+        value: fontAscent,
+        cs,
+        el,
+        _effectiveZoomFor,
+        _measureFontMetrics,
+      }),
+      fontDescent: computedSizeFontMetric({
+        metric: "descent",
+        value: fontDescent,
+        cs,
+        el,
+        _effectiveZoomFor,
+        _measureFontMetrics,
+      }),
       inputXOffsets,
       textImageUri,
       textImageScale,
@@ -882,118 +870,45 @@ const captureDocumentTree = (args) => {
       // above from the actual auto mapping and cascade-origin author flags.
       // menulist-button/listbox/base states keep their author-owned host box
       // structural; native decoration splitting is owned by DM-2455.
-      nativeControlRaster: (function () {
-        if (!_nativeControlTag || rect.width <= 0 || rect.height <= 0) return undefined;
-        if (_effectiveAppearance != null && !isWholeHostNativeAppearance(_effectiveAppearance)) return undefined;
-        // null is the explicit fail-closed state: the cascade origin was not
-        // available, so preserve Chromium's source paint rather than guessing
-        // that the author or theme owns the box.
-        // Author outlines and validation-state focus rings paint outside the
-        // host border box even though the themed control itself is native.
-        // Blink's outline visual overflow is width + positive offset; include
-        // that surface in the same snapshot instead of clipping it at `rect`.
-        const outlineWidth = parseFloat(cs.outlineWidth) || 0;
-        const outlineOffset = parseFloat(cs.outlineOffset) || 0;
-        const expand =
-          cs.outlineStyle !== "none" && cs.outlineStyle !== "hidden" ? Math.max(0, outlineWidth + outlineOffset) : 0;
-        // Skia AA coverage may extend one device-independent pixel past the
-        // layout border box (notably the lower edge of rounded author borders
-        // on otherwise native inputs). Preserve that visual-overflow fringe;
-        // the screenshot and emitted <image> use this same rect, so no scaling
-        // or fixture geometry is introduced.
-        const paintOverflow = 1;
-        const rasterExpand = expand + paintOverflow;
-        return {
-          x: rect.left - vp.x - rasterExpand,
-          y: rect.top - vp.y - rasterExpand,
-          width: rect.width + rasterExpand * 2,
-          height: rect.height + rasterExpand * 2,
-          // Private capture-to-live-DOM correlation. The Node post-pass uses
-          // the pre-existing source registry, so no marker attribute can
-          // activate author CSS before the isolated Chromium screenshot.
-          sourceNodeIndex: _projectiveNodeIndex.get(el),
-          selector: sel,
-          // LayoutProgress::IsDeterminate feeds ThemePainterDefault's native
-          // progress parameters. Only the missing-value state advances its
-          // platform paint independently of author animation timelines.
-          frameSensitive: (tag === "progress" && !el.hasAttribute("value")) || undefined,
-        };
-      })(),
+      nativeControlRaster: captureNativeControlRaster({
+        _nativeControlTag,
+        rect,
+        _effectiveAppearance,
+        cs,
+        vp,
+        _projectiveNodeIndex,
+        sel,
+        tag,
+        el,
+      }),
       // A CSS-owned host can still contain either ThemePainter's select arrow
       // or layout-backed closed-UA-shadow decorations. Keep the host box and
       // value text structural, but reserve this narrow overlay so a failed
       // Chromium isolation can never reopen the sampled glyph functions.
-      nativeControlDecorationRaster: (function () {
-        if (_nativeDecorationKinds.length === 0 || rect.width <= 0 || rect.height <= 0) return undefined;
-        const rasterExpand = 1;
-        const _fileButtonPart =
-          _nativeDecorationKinds.indexOf("file-selector-button") >= 0
-            ? _nativeDecorationParts.find((_part) => _part.kind === "file-selector-button")
-            : undefined;
-        // ThemePainter owns exactly the file button's border box. The 4px
-        // logical-end margin and filename span are separate layout/text paint;
-        // author box-shadow is likewise structural outside this source crop.
-        const base =
-          _fileButtonPart != null
-            ? {
-                x: _fileButtonPart.x - vp.x,
-                y: _fileButtonPart.y - vp.y,
-                width: _fileButtonPart.width,
-                height: _fileButtonPart.height,
-                kinds: _nativeDecorationKinds,
-                exactPartBox: true,
-              }
-            : {
-                x: rect.left - vp.x - rasterExpand,
-                y: rect.top - vp.y - rasterExpand,
-                width: rect.width + rasterExpand * 2,
-                height: rect.height + rasterExpand * 2,
-                kinds: _nativeDecorationKinds,
-              };
-        if (_nativeDecorationUnavailableReason != null) {
-          return Object.assign(base, {
-            unavailableReason: _nativeDecorationUnavailableReason,
-            selector: sel,
-          });
-        }
-        if (_missingNativeDecorationKinds.length > 0) {
-          return Object.assign(base, {
-            unavailableReason: "pierced UA-shadow node missing: " + _missingNativeDecorationKinds.join(", "),
-            selector: sel,
-          });
-        }
-        const selectArrow = _nativeDecorationKinds.indexOf("menulist-button-arrow") >= 0;
-        if (!selectArrow && _nativeDecorationParts.length === 0) {
-          // Used display/visibility/opacity/geometry proves every candidate is
-          // currently non-painting (rest/readonly/disabled/base collapse).
-          return Object.assign(base, { empty: true });
-        }
-        return Object.assign(base, {
-          sourceNodeIndex: _projectiveNodeIndex.get(el),
-          selector: sel,
-          selectArrow: selectArrow || undefined,
-          parts: _nativeDecorationParts.length > 0 ? _nativeDecorationParts : undefined,
-        });
-      })(),
+      nativeControlDecorationRaster: captureNativeControlDecorationRaster({
+        _nativeDecorationKinds,
+        rect,
+        _nativeDecorationParts,
+        vp,
+        _nativeDecorationUnavailableReason,
+        sel,
+        _missingNativeDecorationKinds,
+        _projectiveNodeIndex,
+        el,
+      }),
       // DM-2171: backdrop-filter samples already-painted content behind this
       // element through a distinct Blink effect node. An img-rendered SVG has
       // no equivalent input surface, so preserve Chromium's composited pixels
       // for the complete isolation subtree at its paint-order position.
-      backdropFilterRaster: (function () {
-        const value = cs.backdropFilter || cs.webkitBackdropFilter || "";
-        if (value === "" || value === "none" || rect.width <= 0 || rect.height <= 0) return undefined;
-        const token = "bf" + _backdropRasterSeq++;
-        el.setAttribute("data-domotion-backdrop-raster", token);
-        return {
-          x: rect.left - vp.x,
-          y: rect.top - vp.y,
-          width: rect.width,
-          height: rect.height,
-          token,
-          selector: sel,
-          effectSpace: _backdropEffectSpaceFor(el),
-        };
-      })(),
+      backdropFilterRaster: captureBackdropFilterRaster({
+        cs,
+        rect,
+        el,
+        vp,
+        sel,
+        _backdropEffectSpaceFor,
+        nextBackdropToken: () => "bf" + _backdropRasterSeq++,
+      }),
       // DM-2415: a CSS URL filter containing feConvolveMatrix needs Blink's
       // original layer-space SourceGraphic pixels. The Node post-pass replaces
       // this placeholder with the isolated, fully-filtered Chromium surface.
