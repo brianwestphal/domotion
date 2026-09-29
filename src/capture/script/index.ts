@@ -69,6 +69,7 @@ import {
 import { nativeControlDecorationKinds } from "../native-control-decoration.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../backdrop-effect-space.js";
 import { captureFontFamilyStack } from "../../font-family-stack.js";
+import { projectiveFrameStateFor, projectiveTransformFor } from "./walker/projective-state.js";
 
 const captureDocumentTree = (args) => {
   const sel = args.sel;
@@ -312,48 +313,23 @@ const captureDocumentTree = (args) => {
     const _textPaintFact = _textPaintFactFor(el);
     const _pseudoFragmentFacts = _pseudoFragmentFactsFor(el);
     const _capturedFontFamilyStack = _fontFamilyStackFor(el, cs.fontFamily);
-    let projectiveTransform;
-    let projectiveHidden;
-    let projectiveFrameState;
     let transformSubtreeRaster;
     const _projectiveIndex = _projectiveNodeIndex.get(el);
     const _projectiveFact = _projectiveIndex != null ? _projectiveFacts[_projectiveIndex] : undefined;
-    if (
-      typeof args.pqt === "number" &&
-      isFinite(args.pqt) &&
-      _projectiveFact != null &&
-      _projectiveFact.influenced === true &&
-      _projectiveFact.computed != null
-    ) {
-      projectiveFrameState = {
-        source: "chromium-cdp-content-quad-v1",
-        sampleTimeMs: args.pqt,
-        animationCount: typeof args.pqa === "number" && isFinite(args.pqa) ? args.pqa : 0,
-        role: _projectiveFact.role,
-        influenced: true,
-        contentQuad: _projectiveFact.quad,
-        borderQuad: _projectiveFact.borderQuad,
-        residual: _projectiveFact.residual,
-        nonAffine: _projectiveFact.nonAffine === true,
-        ownsRasterBoundary: _nonAffineProjectiveRoots.has(el),
-        usedPreserve3d: _projectiveFact.usedPreserve3d,
-        groupingReasons: _projectiveFact.groupingReasons,
-        preserve3dLayoutApplicable: _projectiveFact.preserve3dLayoutApplicable === true,
-        computed: _projectiveFact.computed,
-      };
-    }
-    const _quad = _projectedQuads.get(el);
-    if (_quad != null && rect.width > 0 && rect.height > 0) {
-      const _abs = _homographyForRect(rect, _quad);
-      if (_abs != null) {
-        const _parentAbs = el.parentElement != null ? _projectiveAbsH.get(el.parentElement) : undefined;
-        const _parentInv = _parentAbs != null ? _invertH(_parentAbs) : null;
-        projectiveTransform = _parentInv != null ? _mulH(_parentInv, _abs) : _abs;
-        _projectiveAbsH.set(el, _abs);
-        const _area =
-          (_quad[1].x - _quad[0].x) * (_quad[3].y - _quad[0].y) - (_quad[1].y - _quad[0].y) * (_quad[3].x - _quad[0].x);
-        projectiveHidden = cs.backfaceVisibility === "hidden" && _area < 0;
-      }
+    const projectiveFrameState = projectiveFrameStateFor(args, _projectiveFact, _nonAffineProjectiveRoots.has(el));
+    let projectiveTransform;
+    let projectiveHidden;
+    const _projective = projectiveTransformFor(
+      vp,
+      rect,
+      _projectedQuads.get(el),
+      el.parentElement != null ? _projectiveAbsH.get(el.parentElement) : undefined,
+      cs.backfaceVisibility,
+    );
+    if (_projective != null) {
+      projectiveTransform = _projective.transform;
+      projectiveHidden = _projective.hidden;
+      _projectiveAbsH.set(el, _projective.absolute);
     }
     const _makeTransformSubtreeRaster = () => {
       let _left = rect.left,
@@ -2278,45 +2254,6 @@ const captureDocumentTree = (args) => {
     const _owner = _projectiveDomNodes[_ownerIndex];
     if (_owner != null) _nonAffineProjectiveRoots.add(_owner);
   }
-
-  const _invertH = (m) => {
-    const [a, b, c, d, e, f, g, h, i] = m;
-    const A = e * i - f * h,
-      B = c * h - b * i,
-      C = b * f - c * e;
-    const D = f * g - d * i,
-      E = a * i - c * g,
-      F = c * d - a * f;
-    const G = d * h - e * g,
-      H = b * g - a * h,
-      I = a * e - b * d;
-    const det = a * A + b * D + c * G;
-    if (!isFinite(det) || Math.abs(det) < 1e-12) return null;
-    return [A / det, B / det, C / det, D / det, E / det, F / det, G / det, H / det, I / det];
-  };
-  const _mulH = (a, b) => [
-    a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
-    a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
-    a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
-    a[3] * b[0] + a[4] * b[3] + a[5] * b[6],
-    a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
-    a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
-    a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
-    a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
-    a[6] * b[2] + a[7] * b[5] + a[8] * b[8],
-  ];
-  const _homographyForRect = (rect, q) => {
-    const x = rect.left - vp.x,
-      y = rect.top - vp.y,
-      w = rect.width,
-      h = rect.height;
-    if (w <= 0 || h <= 0) return null;
-    const a = (q[1].x - q[0].x) / w,
-      d = (q[1].y - q[0].y) / w;
-    const b = (q[3].x - q[0].x) / h,
-      e = (q[3].y - q[0].y) / h;
-    return [a, b, q[0].x - a * x - b * y, d, e, q[0].y - d * x - e * y, 0, 0, 1];
-  };
 
   // DM-1532: an element carrying `data-domotion-anim` gets a post-capture
   // intra-frame animation that CAN be a transform (e.g. an odometer digit reel
