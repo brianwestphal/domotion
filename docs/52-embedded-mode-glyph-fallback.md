@@ -29,6 +29,15 @@ pairs with DM-259 (Linux) / DM-260 (Windows) calibration. Sibling reference:
 > outline baked into the synthesized TTF — the same fallback `paths` mode got in
 > DM-891. Inert on macOS by design (see "Why it's inert here"); its first real
 > fixtures arrive with DM-259 / DM-260.
+>
+> **Builder note.** This doc describes the svg2ttf glyf-construction path. The
+> default embedded builder is now hb-subset, which preserves the source font's
+> hinting ([doc 99](99-hinted-embedded-subset.md); `hintedSubsetEnabled()` in
+> `embedded-font-builder.ts`, opt out with `DOMOTION_HINTED_SUBSET=0`). A glyph
+> whose outline came from the helper carries a different source file/gid identity
+> than the entry's, so it **disqualifies that entry from hb-subset** and it is
+> built by the svg2ttf arm described here — which is why the helper outline still
+> lands in a synthesized `glyf` font.
 
 The ownership-aware successor is `resolveGlyphCommands` in
 `packages/text-engine/src/render/font-resolution.ts`; it carries a disposition

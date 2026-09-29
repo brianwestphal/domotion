@@ -1,7 +1,7 @@
 ---
 id: "requirements/glyph-helper-dispatch"
 title: "Domotion: platform-aware glyph-helper dispatch"
-kind: "contract"
+kind: "evidence"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
@@ -11,6 +11,7 @@ code:
     "src/render/",
     "packages/text-engine/src/render/glyph-helper.test.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/glyph-helper-transport.ts",
     "packages/text-engine/src/render/helper-acquire.ts",
     "packages/text-engine/tools/linux-glyph-extractor/",
     "packages/text-engine/tools/macos-glyph-extractor/",
@@ -67,11 +68,11 @@ Generalize `coretext.ts` (rename concept: "native glyph helper", not
 "coretext") so `isHelperAvailable()` / `HELPER_PATH` dispatch by
 `process.platform`:
 
-| Platform | In-tree binary                                                              | Asset name                              |
-| -------- | --------------------------------------------------------------------------- | --------------------------------------- |
-| darwin   | `packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-darwin-universal` |
-| linux    | `packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-linux-x64`        |
-| win32    | `packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe` | `domotion-glyph-paths-win32-x64.exe`    |
+| Platform | In-tree binary                                                              | Asset name                                      |
+| -------- | --------------------------------------------------------------------------- | ----------------------------------------------- |
+| darwin   | `packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-darwin-universal`         |
+| linux    | `packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths`     | `domotion-glyph-paths-linux-x64` (and `-arm64`) |
+| win32    | `packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe` | `domotion-glyph-paths-win32-x64.exe`            |
 
 `DOMOTION_HELPER_PATH` overrides on all platforms; `DOMOTION_DISABLE_HELPER`
 disables. The IPC envelope + `parseSvgPath` + the `createGlyphHelperFont` wrapper
@@ -120,11 +121,15 @@ too. Confirm before implementing, since A touches the macOS-working render path.
 `src/render/coretext.ts` now resolves the helper binary **platform-aware**:
 
 - `HELPER_BINARIES` maps `darwin` / `linux` / `win32` to their in-tree
-  `tools/<platform>-glyph-extractor/` binary (`.exe` on Windows). The path is
-  resolved **two levels up** from the module (`src/render/` → repo root) —
-  fixing a latent bug from the DM-619d `src/render/` reorg, where the relative
-  path still pointed one level up at a nonexistent `src/tools/`, so even the
-  macOS in-tree binary was unreachable except via `DOMOTION_HELPER_PATH`.
+  `tools/<platform>-glyph-extractor/` binary (`.exe` on Windows). Originally
+  this was **two levels up** from `src/render/` to the repo-root `tools/`
+  (fixing a latent bug from the DM-619d reorg, where the relative path still
+  pointed at a nonexistent `src/tools/`). After the text-engine package split
+  the table lives in
+  `packages/text-engine/src/render/glyph-helper-transport.ts` (`HELPER_BINARIES`,
+  `resolveHelperPath`, `isGlyphHelperAvailable`, `startPersistent`,
+  `callHelperPersistent`), and the same two-levels-up walk from
+  `packages/text-engine/src/render/` lands in `packages/text-engine/tools/`.
 - `isGlyphHelperAvailable()` no longer hard-gates on `darwin`; it's available
   whenever a binary resolves for `process.platform`. `DOMOTION_HELPER_PATH`
   overrides on every platform; `DOMOTION_DISABLE_HELPER` disables.
@@ -142,10 +147,12 @@ pre-DM-888 names.
 
 **What A does NOT do** (deliberately out of scope, follow-ups filed):
 
-- **The probe-then-fallback trigger.** The renderer still routes to the helper
+- **The probe-then-fallback trigger.** _(Since built — both tiers are
+  implemented, see [doc 51](51-probe-then-fallback-dispatch.md); this bullet
+  records the state at DM-881.)_ At DM-881 the renderer routed to the helper
   only via the static `extractor: "coretext"` flag on `FONT_PATHS` entries
   (macOS PingFang only). The doc-16 "fontkit-empty path → consult helper for
-  _any_ font" trigger is not built, so on Linux/Windows the helper is resolvable
+  _any_ font" trigger was not yet built, so on Linux/Windows the helper was resolvable
   - invocable but nothing routes through it yet. Filed as a follow-up; pairs
     with the per-platform fallback calibration (DM-259 / DM-260).
 - **On-demand acquisition** for published consumers — piece B, now landed in

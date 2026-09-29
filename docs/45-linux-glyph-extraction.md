@@ -33,6 +33,7 @@ code:
     ".github/workflows/release-helpers.yml",
     "packages/text-engine/src/render/glyph-helper.test.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/glyph-helper-transport.ts",
     "packages/text-engine/src/render/helper-acquire.ts",
     "packages/text-engine/src/render/text-to-path.ts",
     "packages/text-engine/src/render/linux-glyph-extractor.test.ts",
@@ -267,15 +268,17 @@ does (the protocol is platform-neutral):
   envelope (asserted by the Linux serve test in `packages/text-engine/src/render/glyph-helper.test.ts`
   and validated end-to-end via `npm run test:linux-docker`).
 
-The renderer's wrapper (`packages/text-engine/src/render/glyph-helper.ts::callHelper`) starts one
+The renderer's transport (`packages/text-engine/src/render/glyph-helper-transport.ts`: `startPersistent`, `callHelperPersistent`) starts one
 long-lived `domotion-glyph-paths --serve` child and does a synchronous
 request→response round-trip per call, falling back transparently to one-shot
 `spawnSync` if the channel can't be established (e.g. an older downloaded binary
 that predates `--serve` — it dies on the unknown flag, the first round-trip
 fails, and the wrapper disables the persistent channel for the session). This was
 darwin-only when introduced (the CoreText helper); DM-1034 added the FreeType
-serve loop and lifted the gate for `linux`. Windows (DirectWrite) is still
-one-shot until its helper grows the same loop.
+serve loop and lifted the gate for `linux`, and DM-1035 gave the Windows
+(DirectWrite) helper the same loop (`win32-glyph-extractor/src/main.cpp`,
+`--serve-pipe` on Windows), so the persistent channel is live on all three
+platforms.
 
 ### The outline decomposer
 
@@ -419,18 +422,20 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   `linux-glyph-extractor` release job in `release-helpers.yml`. Built and
   validated in the Playwright Linux container (Liberation `H` + FreeSans 𝑎 parity
   with fontkit, byte-faithful).
-- ✅ **JS-side resolution wired** (DM-881, piece A): `packages/text-engine/src/render/glyph-helper.ts` is
-  no longer macOS-gated — it resolves the helper binary platform-aware
-  (`darwin`/`linux`/`win32` → the in-tree `tools/<platform>-glyph-extractor/`
-  binary, two levels up from the module), with `DOMOTION_HELPER_PATH` overriding
+- ✅ **JS-side resolution wired** (DM-881, piece A): the helper transport
+  (`packages/text-engine/src/render/glyph-helper-transport.ts`, behind the
+  `glyph-helper.ts` facade) is no longer macOS-gated — it resolves the helper
+  binary platform-aware (`darwin`/`linux`/`win32` → the in-tree
+  `packages/text-engine/tools/<platform>-glyph-extractor/` binary, two levels up
+  from the module), with `DOMOTION_HELPER_PATH` overriding
   on every platform. The engine-agnostic `createGlyphHelperFont` wrapper spawns the
   Linux FreeType binary and consumes its design-unit, y-up output unchanged. A
   Linux-gated dispatch test in `packages/text-engine/src/render/glyph-helper.test.ts` extracts an outline
   through the wrapper end-to-end (green in the `test:linux-docker` container).
 - ✅ **Persistent `--serve` mode** (DM-1034): the FreeType helper now implements
   the same line-delimited request/response serve loop as the macOS helper, reusing
-  opened `FT_Face`s across requests, and `glyph-helper.ts::callHelper`'s persistent
-  channel is enabled for `linux` (was darwin-only). Byte-identical to one-shot,
+  opened `FT_Face`s across requests, and the transport's persistent channel
+  (`callHelperPersistent`) is enabled for `linux` (was darwin-only). Byte-identical to one-shot,
   guarded by a Linux serve test in `packages/text-engine/src/render/glyph-helper.test.ts`. See
   "Persistent `--serve` mode" above.
 - ✅ **Scoped target-strike route** (DM-2623 / DM-2626 / DM-2627 / DM-2652 /
@@ -439,11 +444,11 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   strike-keyed fonts. Mixed synthesized caps are admitted only when every
   effective size has its own tuple. Other faces, sizes, styles, and failed
   helper probes retain the established route; none uses native font fallback.
-- ⏳ **Remaining — the probe-then-fallback _trigger_ (separate follow-up).** The
-  renderer can invoke the Linux helper through the DM-2623 target-strike route,
-  but the general fontkit-empty-path trigger remains unbuilt. That follow-up
-  pairs with the Linux fallback-chain calibration (DM-259) that decides which
-  additional fonts should route through it.
+- ✅ **Probe-then-fallback trigger shipped** — both tiers, the whole-font route
+  (DM-887) and the per-glyph fontkit-empty-path route (DM-891), are implemented;
+  see [doc 51](51-probe-then-fallback-dispatch.md). Which additional fonts route
+  through the helper on Linux is decided by the fallback-chain calibration
+  (DM-259) plus the `extractor: "native"` entries in `font-resolution.ts`.
 - ✅ **On-demand acquisition** for published consumers (download release asset →
   user cache → SHA-verify → chmod → reuse) — the missing DM-393 layer, landed in
   DM-886 (`packages/text-engine/src/render/helper-acquire.ts`; lazy first-render fetch, see docs/50).

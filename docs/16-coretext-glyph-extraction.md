@@ -1,6 +1,6 @@
 ---
 id: "requirements/coretext-glyph-extraction"
-title: "Domotion: native glyph-outline extraction (CoreText / Pango / DirectWrite)"
+title: "Domotion: native glyph-outline extraction (CoreText / FreeType / DirectWrite)"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
@@ -37,6 +37,7 @@ code:
     "packages/text-engine/src/render/font-resolution.ts",
     "packages/text-engine/src/render/glyph-helper.test.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/glyph-helper-transport.ts",
     "packages/text-engine/src/render/helper-acquire.ts",
     "packages/text-engine/src/render/text-to-path.ts",
     "packages/text-engine/src/render/unicode-classification.ts",
@@ -46,7 +47,7 @@ code:
 aliases: ["docs/16-coretext-glyph-extraction.md", "doc-16"]
 ---
 
-# Domotion: native glyph-outline extraction (CoreText / Pango / DirectWrite)
+# Domotion: native glyph-outline extraction (CoreText / FreeType / DirectWrite)
 
 Requirements for extracting vector glyph outlines via the host platform's native font engine instead of fontkit, so Domotion can render any font Chromium can paint — including fonts whose outlines are stored in proprietary tables fontkit doesn't parse. Origin: DM-385 (macOS / CoreText), with cross-platform analogues to be filed for Linux (Pango/Cairo) and Windows (DirectWrite).
 
@@ -87,7 +88,7 @@ These are the answers to the open-questions block on DM-385 — locked in, the r
 3. **Triggering**: **probe-then-fallback** — every glyph extraction tries fontkit first; if fontkit returns no outline (`glyphForCodePoint` null OR an empty path), the helper takes over. An in-memory cache keyed on `(fontFile, glyphId)` records the resolution decision so each glyph is probed once per render session.
 4. **Helper scope**: works for **any font** CoreText can open — not restricted to a proprietary-outline allowlist. Only invoked when the probe says fontkit can't handle the font. The helper is also the route for any font metadata fontkit can't surface, not just outline geometry.
 5. **Decoration metrics**: fontkit when it can read them; helper when fontkit can't. The helper exposes a `meta` request type returning `unitsPerEm`, ascent, descent, `post.underlinePosition` / `underlineThickness`, `OS/2.yStrikeoutPosition` / `yStrikeoutSize`. Caller prefers fontkit's values when available, falls back to the helper's.
-6. **Spawn model**: `spawnSync` per call, but the helper accepts an optional `--input <path>.json` for bulk requests so the caller can batch all glyphs needed across a render session into a single invocation. Stdin remains supported for the simple one-shot case.
+6. **Spawn model** _(as decided; superseded by the persistent `--serve` channel, DM-1031 — see Out of scope below)_: `spawnSync` per call, but the helper accepts an optional `--input <path>.json` for bulk requests so the caller can batch all glyphs needed across a render session into a single invocation. Stdin remains supported for the simple one-shot case.
 7. **Initial routing scope**: SC-only in the first PR (covers DM-364 / DM-382). TC / HK / MO / JP follow once SC lands clean — separate ticket.
 
 ## Non-goals
@@ -328,7 +329,7 @@ The same shape applies on Linux and Windows, swapping in the platform's native f
 | Platform | Engine      | API entry                             | Release asset name                                  |
 | -------- | ----------- | ------------------------------------- | --------------------------------------------------- |
 | macOS    | CoreText    | `CTFontCreatePathForGlyph`            | `domotion-glyph-paths-darwin-universal`             |
-| Linux    | Pango/Cairo | `cairo_glyph_path`                    | `domotion-glyph-paths-linux-x64` (and `-arm64`)     |
+| Linux    | FreeType    | `FT_Outline_Decompose`                | `domotion-glyph-paths-linux-x64` (and `-arm64`)     |
 | Windows  | DirectWrite | `IDWriteFontFace::GetGlyphRunOutline` | `domotion-glyph-paths-win32-x64.exe` (and `-arm64`) |
 
 The IPC protocol is identical across platforms so `text-to-path.ts` only needs one dispatch layer. The acquisition logic (cache path, download URL pattern, integrity verification) is shared too — only the asset filename differs by platform/arch.
@@ -338,15 +339,15 @@ The IPC protocol is identical across platforms so `text-to-path.ts` only needs o
 - GPOS / shaping — fontkit-owned.
 - Linux / Windows extractor implementations — separate tickets (DM-389 / DM-390).
 - Color emoji vector layers — uses a different CoreText API and merits its own ticket.
-- Persistent helper subprocess — deferred until spawn cost is measured against real workloads (DM-392).
+- ~~Persistent helper subprocess — deferred until spawn cost is measured against real workloads (DM-392).~~ **Shipped (DM-1031)**: the helpers implement a line-delimited `--serve` loop and the transport keeps one long-lived child per process.
 
 ## Follow-ups filed
 
 - **DM-387** — implement the Swift helper (`packages/text-engine/tools/macos-glyph-extractor/`).
 - **DM-388** — wire probe-then-fallback into `packages/text-engine/src/render/text-to-path.ts`.
-- **DM-389** — Linux native glyph extractor (Pango/Cairo).
+- **DM-389** — Linux native glyph extractor (built on FreeType directly, not Pango/Cairo — see doc 45).
 - **DM-390** — Windows native glyph extractor (DirectWrite).
 - **DM-391** — codesign / notarize the macOS helper binary (rolled into DM-387's release workflow).
-- **DM-392** — persistent-subprocess optimization for the helper (deferred until measured).
+- **DM-392** — persistent-subprocess optimization for the helper (shipped as DM-1031's `--serve` mode).
 - **DM-393** — GitHub Actions release workflow + Domotion-side on-demand download.
 - **DM-394** — extend PingFang routing to TC / HK / MO / JP after SC lands clean.

@@ -59,7 +59,7 @@ outlines, zero bundled-font weight.
 - **Trigger guards** — `process.platform === 'win32'`, helper present in the
   user cache (or downloads on first need), `DOMOTION_DISABLE_HELPER` unset.
 - **Distribution** — published as a GitHub release asset
-  `domotion-glyph-paths-win32-x64.exe` (and `-arm64` — see open questions),
+  `domotion-glyph-paths-win32-x64.exe` (and `-arm64`),
   downloaded on demand into the user-cache dir
   (`%LOCALAPPDATA%\domotion\<version>\bin\`), reused thereafter. **This
   supersedes the DM-390 ticket line "Pre-built binary committed at
@@ -77,8 +77,9 @@ outlines, zero bundled-font weight.
 - **Language/toolchain**: C++17, MSVC (`cl.exe` from the Visual Studio Build
   Tools / Windows SDK) on a `windows-latest` GitHub runner. DirectWrite headers
   (`dwrite.h`, `dwrite_3.h`) and `dwrite.lib` ship with the Windows SDK already
-  present on the runner; link `dwrite.lib`, `d2d1.lib` (for the path geometry
-  sink helper), and `windowscodecs.lib` if needed.
+  present on the runner. Only `dwrite.lib` is linked: `d2d1.h` is header-only
+  here (the geometry sink is implemented in the helper and no Direct2D function
+  is called), and `windowscodecs.lib` is not needed.
 - **Output**: a single self-contained `.exe`; statically link the CRT
   (`/MT`) so the binary runs on a clean Windows without a VC++ redistributable.
 
@@ -223,8 +224,13 @@ that predates `--serve`). DM-1035 lifted the persistent-channel gate for `win32`
 
 - `packages/text-engine/tools/win32-glyph-extractor/build.ps1` (PowerShell) and/or a `CMakeLists.txt`
   that the release workflow invokes on `windows-latest`. Documents the SDK
-  version and the `cl.exe` flags (`/std:c++17 /O2 /MT /EHsc`, link
-  `dwrite.lib d2d1.lib`).
+  version and the `cl.exe` flags. As built by `CMakeLists.txt`: `/O2 /EHsc /W3
+/Brepro` (deterministic builds, so the proposal and validation jobs can compare
+  executable fingerprints), static CRT `/MT`, link `dwrite.lib` only.
+  `build-msvc-direct.bat` is a tracked fallback for machines whose Visual Studio
+  Build Tools lack the CMake component (e.g. the Parallels VM): it runs vcvars
+  and compiles `src/main.cpp` directly with the same flags, falling back to the
+  arm64-hosted amd64 cross-compiler on Windows-on-ARM.
 - A `README.md` in the helper dir documenting how a contributor rebuilds it
   locally (Visual Studio Build Tools + Windows SDK).
 
@@ -263,9 +269,8 @@ a cert is provisioned.
 1. **Windows code-signing certificate** — does the project have (or want to
    acquire) an Authenticode cert? Determines whether the win32 asset is signed
    in CI or shipped unsigned initially.
-2. **arm64** — ship `domotion-glyph-paths-win32-arm64.exe` alongside x64, or x64
-   only until there's demand? (GitHub's `windows-latest` is x64; arm64 needs a
-   cross-compile or an arm64 runner.)
+2. ~~**arm64**~~ **Resolved** — `domotion-glyph-paths-win32-arm64.exe` ships
+   alongside x64 (built on GitHub's arm64 runners by `release-helpers.yml`).
 3. **`.ttc` face-index resolution** — confirm the postscriptName→face-index
    lookup works for the system `.ttc` collections (YaHei `msyh.ttc`, Yu Gothic
    `YuGothR.ttc`) via `IDWriteFontFace3::GetInformationalStrings`, vs. needing
@@ -343,19 +348,21 @@ a cert is provisioned.
   `windows-fidelity.yml`, manual dispatch) compiles it and runs the
   `packages/text-engine/src/render/win32-glyph-extractor.test.ts` fontkit-parity test on the real Windows
   font stack.
-- ⚠️ **Not yet compiled/run on real Windows.** Unlike the macOS (local Swift) and
-  Linux (Docker) helpers, there is no Windows/MSVC environment on the dev box and
-  Docker can't host Windows there — so this is validated only by the
-  `windows-latest` CI jobs above. Expect to iterate on the first green run; the
-  highest-risk spots are the **y-flip sign** (the bbox parity assertion catches a
-  wrong negation), `.ttc` face-index resolution via
-  `GetInformationalStrings(POSTSCRIPT_NAME)`, and the DirectWrite-3 variation path.
+- ✅ **Compiled and verified on real Windows** (DM-1035 / DM-1721): the helper
+  builds with MSVC on the Parallels Windows 11 VM and on `windows-latest`, and
+  the fontkit-parity test runs against the real Windows font stack. The original
+  first-run risk spots (**y-flip sign**, `.ttc` face-index resolution via
+  `GetInformationalStrings(POSTSCRIPT_NAME)`, the DirectWrite-3 variation path)
+  are covered by that test and the VM runs.
 - ⏳ **Remaining:** Windows Authenticode signing in CI (pending a cert — open
-  question 1); arm64 asset (open question 2). (The JS-side dispatch that
-  _invokes_ the helper is already wired — `packages/text-engine/src/render/glyph-helper.ts` is fully
-  platform-aware: `HELPER_BINARIES` includes `win32` and `resolveHelperPath` /
-  `isGlyphHelperAvailable` / `startPersistent` dispatch by `process.platform`
-  with no darwin gate. See the DM-1035 ✅ item below.)
+  question 1). The **arm64 asset is shipped**: `release-helpers.yml` builds
+  `domotion-glyph-paths-win32-arm64.exe` on GitHub's arm64 runners and
+  `helper-acquire.ts` resolves it for arm64 hosts. The JS-side dispatch that
+  _invokes_ the helper is platform-aware:
+  `packages/text-engine/src/render/glyph-helper-transport.ts` carries
+  `HELPER_BINARIES` (with `win32`), `resolveHelperPath`,
+  `isGlyphHelperAvailable`, `startPersistent` and `callHelperPersistent`, with no
+  darwin gate. See the DM-1035 ✅ item below.
 - ✅ **Persistent `--serve` mode — built + verified on real Windows** (DM-1035):
   the DirectWrite helper gained the same line-delimited serve loop + face-reuse
   cache as the Linux/macOS helpers (a structural mirror of the Linux change, no

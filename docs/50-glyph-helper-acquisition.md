@@ -11,6 +11,7 @@ code:
     ".github/workflows/release-helpers.yml",
     ".github/workflows/release.yml",
     "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/glyph-helper-transport.ts",
     "packages/text-engine/src/render/helper-acquire.ts",
     "tests/release-helpers-workflow.test.ts",
   ]
@@ -26,7 +27,7 @@ without it being committed to git or bundled in the tarball. Origin: DM-886
 (the missing DM-393 layer, discovered during DM-881 — see `docs/49`).
 
 > **Status: IMPLEMENTED (DM-886).** `packages/text-engine/src/render/helper-acquire.ts` ships the
-> acquisition layer, wired into `glyph-helper.ts`'s resolver as the third source.
+> acquisition layer, wired into the helper transport's resolver (`glyph-helper-transport.ts`, behind the `glyph-helper.ts` facade) as the third source.
 > The maintainer's decisions are recorded in [Decisions](#decisions-adopted).
 > This is piece **B** of the DM-881 split; piece A (platform-aware resolution in
 > `glyph-helper.ts`) is the consumer of this layer.
