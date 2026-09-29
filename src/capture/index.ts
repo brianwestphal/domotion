@@ -674,7 +674,7 @@ async function registerDiscoveredFont(
         // — a real distinction for the webfont synthetic-italic rule's
         // variable-`slnt`-axis exemption (`webfontSyntheticItalic`), which
         // only reaches an AUTO descriptor.
-        registerWebfont(
+        const registeredFace = registerWebfont(
           item.family,
           weightNum,
           item.style,
@@ -684,6 +684,10 @@ async function registerDiscoveredFont(
           item.weight,
           item.styleDesc,
         );
+        if (!registeredFace) {
+          lastError = "fontkit could not parse";
+          continue;
+        }
         report.push({
           family: item.family,
           weight: weightNum,
@@ -698,7 +702,10 @@ async function registerDiscoveredFont(
           lastError = "fontkit could not parse";
           continue;
         }
-        registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf);
+        if (!registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf)) {
+          lastError = "fontkit could not parse";
+          continue;
+        }
         report.push({
           family: meta.family,
           weight: meta.weight,

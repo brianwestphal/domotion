@@ -229,3 +229,48 @@ export interface HelperResponse {
     | { type: "systemfont"; found?: boolean; family?: string; error?: string }
   >;
 }
+
+/** A native helper answered with something that is not a response envelope. The
+ *  binaries are versioned separately from the package, so drift shows up here
+ *  rather than as an undefined-property crash three layers up. */
+export class HelperProtocolError extends Error {
+  constructor(
+    message: string,
+    /** Path of the helper binary that answered, when known. */
+    readonly helperPath: string | null,
+    /** Which carrier delivered the bytes (`persistent`, `one-shot`, …). */
+    readonly transport: string,
+  ) {
+    super(`glyph helper protocol error (${transport}, ${helperPath ?? "unknown binary"}): ${message}`);
+    this.name = "HelperProtocolError";
+  }
+}
+
+const EXCERPT_CHARS = 120;
+
+/**
+ * Parse and shape-check one helper response. Every consumer indexes
+ * `results[i]`, so the envelope must be an object with a `results` array;
+ * per-query fields stay optional by design (older binaries omit them) and are
+ * still checked by the consumer that reads them.
+ */
+export function parseHelperResponse(
+  text: string,
+  source: { helperPath: string | null; transport: string },
+): HelperResponse {
+  const excerpt = text.length > EXCERPT_CHARS ? `${text.slice(0, EXCERPT_CHARS)}…` : text;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new HelperProtocolError(
+      `response is not JSON (${error instanceof Error ? error.message : String(error)}): ${excerpt}`,
+      source.helperPath,
+      source.transport,
+    );
+  }
+  if (parsed === null || typeof parsed !== "object" || !Array.isArray((parsed as { results?: unknown }).results)) {
+    throw new HelperProtocolError(`missing "results" array: ${excerpt}`, source.helperPath, source.transport);
+  }
+  return parsed as HelperResponse;
+}

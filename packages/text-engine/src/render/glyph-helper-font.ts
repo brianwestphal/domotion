@@ -18,30 +18,10 @@ import {
 } from "./glyph-helper-outline.js";
 import type { HelperRequest, HelperResponse, ShapeResponseGlyph } from "./glyph-helper-protocol.js";
 import { callGlyphHelper as callHelper, isGlyphHelperAvailable } from "./glyph-helper-transport.js";
-
-const FONT_PROBE_ATTEMPTS = 6;
-
-function waitForFontProbeRetry(attempt: number): void {
-  const delayMs = 25 * 2 ** attempt;
-  try {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
-  } catch {
-    // A locked-down embedder may not expose SharedArrayBuffer. Keep the retry;
-    // only its backoff is lost.
-  }
-}
+import { retrySync } from "./sync-retry.js";
 
 function callGlyphHelperRecovering(request: HelperRequest): HelperResponse {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < FONT_PROBE_ATTEMPTS; attempt += 1) {
-    try {
-      return callHelper(request);
-    } catch (error) {
-      lastError = error;
-      if (attempt + 1 < FONT_PROBE_ATTEMPTS) waitForFontProbeRetry(attempt);
-    }
-  }
-  throw lastError;
+  return retrySync(() => callHelper(request));
 }
 
 export interface GlyphHelperFontInstance {

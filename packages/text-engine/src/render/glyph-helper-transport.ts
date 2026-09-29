@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 import { acquireGlyphHelperSync } from "./helper-acquire.js";
 import { hostPlatform } from "./host-platform.js";
 import { profAccum, profNow, renderProfileEnabled } from "./render-profile.js";
-import type { HelperRequest, HelperResponse } from "./glyph-helper-protocol.js";
+import { sleepSync } from "./sync-retry.js";
+import { parseHelperResponse, type HelperRequest, type HelperResponse } from "./glyph-helper-protocol.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -105,23 +106,6 @@ function fdOf(stream: unknown): number | undefined {
 }
 
 let _pipeSeq = 0;
-
-/**
- * Synchronously sleep, without burning a core.
- *
- * The connect loop below cannot yield to the event loop — the whole channel is
- * synchronous by design, and the child's `exit` event would never be delivered
- * anyway — so a plain spin would busy-wait. `Atomics.wait` on a private buffer
- * blocks the thread properly instead.
- */
-function sleepSync(ms: number): void {
-  try {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-  } catch {
-    // SharedArrayBuffer unavailable (locked-down embedder): fall through and let
-    // the caller spin. Slower, still correct.
-  }
-}
 
 /**
  * DM-1889: the persistent channel on Windows, carried over a named pipe.
@@ -374,7 +358,7 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
     const nl = serverLeftover.indexOf("\n");
     const respLine = serverLeftover.slice(0, nl);
     serverLeftover = serverLeftover.slice(nl + 1);
-    const resp = JSON.parse(respLine) as HelperResponse;
+    const resp = parseHelperResponse(respLine, { helperPath: helperPath ?? null, transport: "persistent" });
     if (renderProfileEnabled) profAccum("helperenv:parse", profNow() - _p0);
     persistentEverWorked = true;
     return resp;
@@ -439,7 +423,7 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
   if (proc.status !== 0) {
     throw new Error(`glyph helper failed (exit ${proc.status}): ${proc.stderr}`);
   }
-  return JSON.parse(proc.stdout) as HelperResponse;
+  return parseHelperResponse(proc.stdout, { helperPath: bin ?? null, transport: "one-shot" });
 }
 
 /**

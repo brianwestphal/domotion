@@ -13,6 +13,7 @@ import {
   clearTextEngineFonts,
   createTextEngineSession,
   registerTextEngineLocalFontAlias,
+  registerTextEngineWebfont,
   withTextEngineDocument,
 } from "./text-engine.js";
 
@@ -132,6 +133,16 @@ describe("text-engine facade", () => {
     expect(resumed.artifacts.glyphDefs).toContain('id="g1"');
     expect(resumed.artifacts.glyphDefs).not.toContain('id="g2"');
     expect(resumed.artifacts.glyphDefs).not.toContain("L3 0");
+  });
+
+  it("reports an unparseable webfont buffer instead of silently skipping it", () => {
+    const session = createTextEngineSession();
+    const outer = snapshotFontRegistrations();
+    expect(registerTextEngineWebfont(session, "Broken", 400, "normal", Buffer.from("not a font"))).toBe(false);
+    expect(registerTextEngineWebfont(session, "Broken", 400, "normal", Buffer.alloc(0))).toBe(false);
+    expect(snapshotFontRegistrations()).toEqual(outer);
+    const fonts = withTextEngineDocument({ session }, () => snapshotFontRegistrations());
+    expect(fonts.value.webfonts).toHaveLength(0);
   });
 
   it("rejects Promise-like document callbacks", () => {

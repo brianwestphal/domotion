@@ -27,6 +27,7 @@ import * as hb from "../../vendor/harfbuzzjs/dist/index.mjs";
 import bidiFactory from "bidi-js";
 import { getScript } from "unicode-properties";
 import { closeSync, openSync, readFileSync, readSync } from "node:fs";
+import { isTransientFsError, retrySync } from "./sync-retry.js";
 
 type PathCommand = { command: string; args: number[] };
 
@@ -584,20 +585,7 @@ export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): 
   let cacheable = true;
   let fd = -1;
   try {
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      try {
-        fd = openSync(fontPath, "r");
-        break;
-      } catch (error) {
-        const code = (error as NodeJS.ErrnoException)?.code;
-        if ((code !== "EMFILE" && code !== "ENFILE" && code !== "EAGAIN") || attempt === 5) throw error;
-        try {
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * 2 ** attempt);
-        } catch {
-          // Retry immediately when synchronous waiting is unavailable.
-        }
-      }
-    }
+    fd = retrySync(() => openSync(fontPath, "r"), { shouldRetry: isTransientFsError });
     const head = readAt(fd, 0, 12);
     if (head == null) throw new Error("truncated header");
     let faceOffset = 0;

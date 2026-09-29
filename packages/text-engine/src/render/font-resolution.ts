@@ -20,6 +20,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { hostPlatform } from "./host-platform.js";
 import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
+import { isTransientFsError, retrySync } from "./sync-retry.js";
 import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
@@ -752,15 +753,15 @@ export function registerWebfont(
   stretch?: string,
   weightDesc?: string,
   styleDesc?: string,
-): void {
+): boolean {
   const key = family.toLowerCase().replace(/^["']|["']$/g, "");
   let font: FontInstance;
   try {
     const created = fontkit.create(buffer) as unknown;
-    if (created == null) return;
+    if (created == null) return false;
     font = created as FontInstance;
   } catch {
-    return; // unparseable — silently skip; capture-side warning happens elsewhere
+    return false; // unparseable: nothing registered, and the caller is told so
   }
   const italic = style != null && style !== "" && style.toLowerCase() !== "normal";
   const list = webfontRegistry.get(key) ?? [];
@@ -782,6 +783,7 @@ export function registerWebfont(
     synthesisFace: buildWebfontSynthesisFace(font, weightCaps, styleCaps),
   });
   webfontRegistry.set(key, list);
+  return true;
 }
 
 /** The CSS `font-stretch` keyword → percentage table, transcribed from Blink's
@@ -4293,16 +4295,13 @@ function resolveLinuxSystemFallbackKeyForCp(
 // logic in `getFontInstance`. Cheap + cached: fontkit memoizes opened files, and
 // resolver results are memoized per codepoint by the caller.
 function fontFileCoversCodepoint(path: string, postscriptName: string | undefined, cp: number): boolean {
+  const opened = openFontkitFace(path, { postscriptName });
+  if (opened == null) return false;
   try {
-    const opened: any = fontkit.openSync(path);
-    let font: any = opened;
-    if (opened != null && Array.isArray(opened.fonts)) {
-      font =
-        postscriptName != null && opened.getFont != null
-          ? (opened.getFont(postscriptName) ?? opened.fonts[0])
-          : opened.fonts[0];
-    }
-    return font != null && typeof font.glyphForCodePoint === "function" && glyphIdForCp(font, cp) !== 0;
+    return (
+      typeof opened.face.glyphForCodePoint === "function" &&
+      glyphIdForCp(opened.face as unknown as FontInstance, cp) !== 0
+    );
   } catch {
     return false;
   }
@@ -4980,14 +4979,10 @@ function darwinCoreTextFamilyForKey(key: string): string | null {
   let psName = spec.postscriptName;
   if (psName == null || psName === "") {
     if (spec.path == null || spec.path === "") return null;
-    try {
-      const opened: any = fontkit.openSync(spec.path);
-      const f: any = opened?.fonts != null && Array.isArray(opened.fonts) ? opened.fonts[0] : opened;
-      const p = f?.postscriptName;
-      psName = typeof p === "string" ? p : undefined;
-    } catch {
-      return null;
-    }
+    const opened = openFontkitFace(spec.path);
+    if (opened == null) return null;
+    const p = opened.face.postscriptName;
+    psName = typeof p === "string" ? p : undefined;
   }
   if (psName == null || psName === "" || psName.startsWith(".")) return null;
   const fam = resolveInstalledFont(psName)?.familyName;
@@ -5438,20 +5433,8 @@ function linuxPrimaryCutKey(
 function fileFamilyNameForKey(key: string): string | null {
   const spec = resolveFontSpec(key);
   if (spec?.path == null || spec.path === "") return null;
-  try {
-    const opened: any = fontkit.openSync(spec.path);
-    let f: any = opened;
-    if (opened?.fonts != null && Array.isArray(opened.fonts)) {
-      f =
-        spec.postscriptName != null && opened.getFont != null
-          ? (opened.getFont(spec.postscriptName) ?? opened.fonts[0])
-          : opened.fonts[0];
-    }
-    const fam = f?.familyName;
-    return typeof fam === "string" && fam !== "" ? fam : null;
-  } catch {
-    return null;
-  }
+  const fam = openFontkitFace(spec.path, { postscriptName: spec.postscriptName })?.face.familyName;
+  return typeof fam === "string" && fam !== "" ? fam : null;
 }
 
 function win32FamilyKey(family: string, css?: CssFallbackDescription): string | null {
@@ -7350,52 +7333,21 @@ function instantiateResolvedFont(
     }
   }
 
-  let opened: any = null;
-  try {
-    opened = fontkit.openSync(spec.path);
-  } catch {
-    opened = null;
-  }
-  // TTC collections expose .fonts + .getFont(postscriptName). Pick the requested
-  // member; fall back to the first sub-font if the requested one is missing
-  // (defensive against OS font updates renaming members).
-  let font: any = null;
-  let faceIndex = 0;
+  // TTC collections expose .fonts + .getFont(postscriptName). The requested
+  // member is picked; the first sub-font stands in if it is missing (defensive
+  // against OS font updates renaming members).
+  const openedFace = openFontkitFace(spec.path, { postscriptName: spec.postscriptName, faceIndex: spec.faceIndex });
+  let font: any = openedFace?.face ?? null;
+  // The collection member index feeds hb-subset's hb_face_create.
+  const faceIndex = openedFace?.faceIndex ?? 0;
   // Whether `font` is the face `spec.postscriptName` names. False when a
-  // collection had no member of that name and the line below fell back to
-  // member zero — in which case member zero is genuinely what gets shaped, so
-  // `faceIndex` stays truthful about the loaded face while `nameMatched: false`
-  // records that it is not the requested one. (Contrast the native-helper branch
-  // above, where CoreText loads the requested face by name and it is the INDEX
-  // that cannot be named — there `faceIndex` becomes null.)
-  let nameMatched = true;
-  if (opened != null) {
-    font = opened;
-    if (opened.fonts != null && Array.isArray(opened.fonts)) {
-      font =
-        spec.faceIndex != null && spec.faceIndex >= 0 && spec.faceIndex < opened.fonts.length
-          ? opened.fonts[spec.faceIndex]
-          : spec.postscriptName != null && opened.getFont != null
-            ? (opened.getFont(spec.postscriptName) ?? opened.fonts[0])
-            : opened.fonts[0];
-      // DM-1714/DM-1716: the collection member index (for hb-subset's
-      // hb_face_create). Match by postscriptName, NOT object identity —
-      // fontkit's getFont() returns a NEW Font object, so indexOf() is always
-      // -1 (which silently subset member 0: NotoSansArmenian.ttc's member 0 is
-      // the BLACK weight, and the armenian fixture's dram sign embedded black
-      // instead of regular).
-      const psName = font?.postscriptName;
-      const idx = psName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === psName) : -1;
-      faceIndex = idx >= 0 ? idx : 0;
-      if (spec.faceIndex == null && spec.postscriptName != null && psName !== spec.postscriptName) nameMatched = false;
-    } else if (
-      spec.postscriptName != null &&
-      opened.postscriptName != null &&
-      opened.postscriptName !== spec.postscriptName
-    ) {
-      nameMatched = false;
-    }
-  }
+  // collection had no member of that name and member zero stands in — in which
+  // case member zero is genuinely what gets shaped, so `faceIndex` stays truthful
+  // about the loaded face while `nameMatched: false` records that it is not the
+  // requested one. (Contrast the native-helper branch above, where CoreText loads
+  // the requested face by name and it is the INDEX that cannot be named — there
+  // `faceIndex` becomes null.)
+  const nameMatched = openedFace?.nameMatched ?? true;
 
   const fontkitHasOutlines = font != null && fontHasOutlineTable(font);
   if (helperEligible && !fontkitHasOutlines && isGlyphHelperAvailable()) {
@@ -7974,28 +7926,8 @@ export function makeFontkitShaper(
   let font: any | null | undefined; // undefined = not yet opened, null = unopenable
   const open = (): any | null => {
     if (font !== undefined) return font;
-    font = null;
-    try {
-      const opened: any = fontkit.openSync(path);
-      let f: any = opened;
-      // TTC: pick the requested member, mirroring `getFontInstance`'s selection.
-      if (opened?.fonts != null && Array.isArray(opened.fonts)) {
-        f =
-          postscriptName != null && opened.getFont != null
-            ? (opened.getFont(postscriptName) ?? opened.fonts[0])
-            : opened.fonts[0];
-      }
-      if (f != null && variations != null && Object.keys(variations).length > 0 && f.getVariation != null) {
-        try {
-          f = f.getVariation(variations) ?? f;
-        } catch {
-          /* keep the base face */
-        }
-      }
-      font = f ?? null;
-    } catch {
-      font = null;
-    }
+    // TTC: the requested member, exactly as `getFontInstance` selects it.
+    font = openFontkitFace(path, { postscriptName, variations })?.face ?? null;
     return font;
   };
   return (text: string, direction?: "ltr" | "rtl", features?: string[], script?: string, language?: string) => {
@@ -8065,22 +7997,85 @@ function deriveClusters(text: string, glyphs: any[], direction?: string): number
 const fileFaceInfoCache = new Map<string, FileFaceInfo>();
 
 function openFontkitFileRecovering(path: string): any {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  return retrySync(() => fontkit.openSync(path), { shouldRetry: isTransientFsError });
+}
+
+/** The fontkit face object as far as this module reads it. The library's own
+ *  typings do not cover collections or variation, so this is the one place the
+ *  untyped boundary is named; callers below see this shape instead of `any`. */
+interface FontkitFace {
+  postscriptName?: string;
+  familyName?: string;
+  glyphForCodePoint?: (cp: number) => unknown;
+  getVariation?: (axes: Record<string, number>) => FontkitFace | undefined;
+  [key: string]: unknown;
+}
+
+interface OpenedFontkitFace {
+  face: FontkitFace;
+  /** Member index within a collection (0 for a single-face file). */
+  faceIndex: number;
+  /** False when the requested PostScript name was absent and member zero stands in. */
+  nameMatched: boolean;
+  /** The opened container, for callers that must look at sibling members. */
+  container: any;
+}
+
+/**
+ * Open `path` with fontkit and select one face, with the EMFILE/ENFILE/EAGAIN
+ * back-off, or null when the file is unopenable for a lasting reason.
+ *
+ * Member selection is the one `getFontInstance` has always used: an explicit
+ * in-range `faceIndex` wins, else the member named `postscriptName`, else member
+ * zero. `variations`, when non-empty, instance the chosen face (a failed or
+ * empty instancing keeps the base face).
+ */
+function openFontkitFace(
+  path: string,
+  options: { postscriptName?: string; faceIndex?: number; variations?: Record<string, number> } = {},
+): OpenedFontkitFace | null {
+  let container: any;
+  try {
+    container = openFontkitFileRecovering(path);
+  } catch {
+    return null;
+  }
+  if (container == null) return null;
+  let face: any = container;
+  let faceIndex = 0;
+  let nameMatched = true;
+  const { postscriptName, faceIndex: requested } = options;
+  if (Array.isArray(container.fonts)) {
+    face =
+      requested != null && requested >= 0 && requested < container.fonts.length
+        ? container.fonts[requested]
+        : postscriptName != null && container.getFont != null
+          ? (container.getFont(postscriptName) ?? container.fonts[0])
+          : container.fonts[0];
+    // Match by postscriptName, NOT object identity: fontkit's getFont() returns
+    // a NEW object, so indexOf() is always -1 (which once silently subset
+    // member 0 of NotoSansArmenian.ttc, the BLACK weight).
+    const ps = face?.postscriptName;
+    const idx = ps != null ? container.fonts.findIndex((m: any) => m?.postscriptName === ps) : -1;
+    faceIndex = idx >= 0 ? idx : 0;
+    if (requested == null && postscriptName != null && ps !== postscriptName) nameMatched = false;
+  } else if (
+    postscriptName != null &&
+    container.postscriptName != null &&
+    container.postscriptName !== postscriptName
+  ) {
+    nameMatched = false;
+  }
+  if (face == null) return null;
+  const { variations } = options;
+  if (variations != null && Object.keys(variations).length > 0 && face.getVariation != null) {
     try {
-      return fontkit.openSync(path);
-    } catch (error) {
-      lastError = error;
-      const code = (error as NodeJS.ErrnoException)?.code;
-      if ((code !== "EMFILE" && code !== "ENFILE" && code !== "EAGAIN") || attempt === 5) throw error;
-      try {
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * 2 ** attempt);
-      } catch {
-        // Retry immediately when synchronous waiting is unavailable.
-      }
+      face = face.getVariation(variations) ?? face;
+    } catch {
+      /* keep the base face */
     }
   }
-  throw lastError;
+  return { face: face as FontkitFace, faceIndex, nameMatched, container };
 }
 
 function resolveFaceInfoForFile(path: string, postscriptName?: string, preferredFaceIndex?: number): FileFaceInfo {
@@ -8818,7 +8813,7 @@ function helperGlyphOutline(source: FontSourceInfo, glyphId: number): HelperOutl
     result = { commands: [], disposition: "helper-font-unopenable" };
   } else {
     try {
-      const g = (helper as any).getGlyph(glyphId);
+      const g = (helper as unknown as NonNullable<ReturnType<typeof createGlyphHelperFont>>).getGlyph(glyphId);
       const commands: PathCommand[] = g?.path?.commands ?? [];
       result =
         commands.length > 0

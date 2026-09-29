@@ -26,6 +26,7 @@ export {
   isGlyphHelperAvailable,
   resolvedGlyphHelperPathForEvidence,
 } from "./glyph-helper-transport.js";
+import { retrySync } from "./sync-retry.js";
 export { buildGlyphHelperFontProbeEnvelope, createGlyphHelperFont } from "./glyph-helper-font.js";
 export type { GlyphHelperFontInstance, ShapedRunFallback } from "./glyph-helper-font.js";
 export { linuxTargetStrikeGlyphs } from "./linux-target-strike.js";
@@ -710,9 +711,10 @@ export function resolveInstalledFont(name: string, style?: InstalledFontStyle): 
   if (_installedFontCache.has(key)) return _installedFontCache.get(key)!;
   let resolved: InstalledFont | null = null;
   if (isGlyphHelperAvailable()) {
-    for (let attempt = 0; attempt < FAMILY_STYLE_MATCH_ATTEMPTS; attempt += 1) {
-      try {
-        const resp = callHelper({
+    let resp;
+    try {
+      resp = retrySync(() =>
+        callHelper({
           fonts: [],
           queries: [
             {
@@ -731,26 +733,21 @@ export function resolveInstalledFont(name: string, style?: InstalledFontStyle): 
                 : {}),
             },
           ],
-        });
-        const r = resp.results[0];
-        if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
-          resolved = {
-            postscriptName: r.postscriptName,
-            familyName: r.familyName ?? "",
-            path: preferredInstalledPath(r.postscriptName, r.path),
-            resolvedAxes: r.axes,
-            ctAxes: r.ctAxes,
-          };
-        }
-        break;
-      } catch {
-        if (attempt + 1 < FAMILY_STYLE_MATCH_ATTEMPTS) {
-          waitForFamilyStyleMatchRetry(attempt);
-          continue;
-        }
-        // A transport failure is not a stable "family absent" answer.
-        return null;
-      }
+        }),
+      );
+    } catch {
+      // A transport failure is not a stable "family absent" answer.
+      return null;
+    }
+    const r = resp.results[0];
+    if (r != null && r.type === "family" && r.found && r.path && r.postscriptName) {
+      resolved = {
+        postscriptName: r.postscriptName,
+        familyName: r.familyName ?? "",
+        path: preferredInstalledPath(r.postscriptName, r.path),
+        resolvedAxes: r.axes,
+        ctAxes: r.ctAxes,
+      };
     }
   }
   _installedFontCache.set(key, resolved);
@@ -853,18 +850,6 @@ export interface FamilyStyleMatch {
 const CT_TRAIT_ITALIC = 1 << 0;
 
 const _familyStyleMatchCache = new Map<string, FamilyStyleMatch | null>();
-const FAMILY_STYLE_MATCH_ATTEMPTS = 6;
-
-function waitForFamilyStyleMatchRetry(attempt: number): void {
-  const delayMs = 25 * 2 ** attempt;
-  try {
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
-  } catch {
-    // Locked-down embedders may not expose SharedArrayBuffer. Retrying without
-    // the backoff is still preferable to turning resource pressure into a
-    // permanent font-selection answer.
-  }
-}
 
 /** Internal status used by higher-level memos to distinguish a stable miss
  * from a transient helper failure. */
@@ -924,35 +909,31 @@ export function resolveFamilyStyleMatchWithStatus(
   if (cached !== undefined) return { match: cached, cacheable: true };
   let resolved: FamilyStyleMatch | null = null;
   if (isGlyphHelperAvailable()) {
-    for (let attempt = 0; attempt < FAMILY_STYLE_MATCH_ATTEMPTS; attempt += 1) {
-      try {
-        const resp = callHelper({
+    let resp;
+    try {
+      resp = retrySync(() =>
+        callHelper({
           fonts: [],
           queries: [{ type: "familyMatch", family, cssWeight: weight, italic, cssWidth: stretch }],
-        });
-        const r = resp.results[0];
-        if (r != null && r.type === "familyMatch" && r.found && r.postscriptName != null && r.postscriptName !== "") {
-          const chosen = (r.candidates ?? []).find((c) => c.name === r.postscriptName);
-          resolved = {
-            postscriptName: r.postscriptName,
-            weight: r.weight ?? weight,
-            italic: ((chosen?.traits ?? 0) & CT_TRAIT_ITALIC) !== 0,
-          };
-        }
-        break;
-      } catch {
-        if (attempt + 1 < FAMILY_STYLE_MATCH_ATTEMPTS) {
-          waitForFamilyStyleMatchRetry(attempt);
-          continue;
-        }
-        // A transport/process failure is not a stable "no match" answer.
-        // Degrade only after bounded backoff, and tell higher-level memos not
-        // to retain that fallback: a later request may succeed once transient
-        // spawn/resource pressure has cleared. Older helpers report an
-        // ordinary unknown-query response, so their stable null result still
-        // reaches the cache below.
-        return { match: null, cacheable: false };
-      }
+        }),
+      );
+    } catch {
+      // A transport/process failure is not a stable "no match" answer.
+      // Degrade only after bounded backoff, and tell higher-level memos not
+      // to retain that fallback: a later request may succeed once transient
+      // spawn/resource pressure has cleared. Older helpers report an
+      // ordinary unknown-query response, so their stable null result still
+      // reaches the cache below.
+      return { match: null, cacheable: false };
+    }
+    const r = resp.results[0];
+    if (r != null && r.type === "familyMatch" && r.found && r.postscriptName != null && r.postscriptName !== "") {
+      const chosen = (r.candidates ?? []).find((c) => c.name === r.postscriptName);
+      resolved = {
+        postscriptName: r.postscriptName,
+        weight: r.weight ?? weight,
+        italic: ((chosen?.traits ?? 0) & CT_TRAIT_ITALIC) !== 0,
+      };
     }
   }
   _familyStyleMatchCache.set(key, resolved);

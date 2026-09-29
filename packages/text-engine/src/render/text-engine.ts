@@ -325,10 +325,12 @@ export function registerTextEngineWebfont(
   stretch?: string,
   weightDesc?: string,
   styleDesc?: string,
-): void {
-  mutateSessionRegistrations(session, () =>
-    registerWebfont(family, weight, style, buffer, unicodeRange, stretch, weightDesc, styleDesc),
-  );
+): boolean {
+  let registered = false;
+  mutateSessionRegistrations(session, () => {
+    registered = registerWebfont(family, weight, style, buffer, unicodeRange, stretch, weightDesc, styleDesc);
+  });
+  return registered;
 }
 
 export function registerTextEngineLocalFontAlias(
