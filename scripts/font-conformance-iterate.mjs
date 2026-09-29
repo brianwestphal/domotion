@@ -106,7 +106,16 @@ function main() {
 
   for (let k = 1; k <= chunks; k++) {
     const outDir = join(outRoot, `chunk-${k}`);
-    const args = ["--import", "tsx", "tools/font-conformance.ts", "--shard", `${k}/${chunks}`, "--out", outDir, ...passthrough];
+    const args = [
+      "--import",
+      "tsx",
+      "tools/font-conformance.ts",
+      "--shard",
+      `${k}/${chunks}`,
+      "--out",
+      outDir,
+      ...passthrough,
+    ];
     const t0 = Date.now();
     // stderr is CAPTURED rather than inherited: CoreText writes a line per
     // hidden-face lookup, which drowns the per-chunk progress this tool exists
