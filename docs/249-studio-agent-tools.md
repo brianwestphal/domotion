@@ -65,7 +65,8 @@ Every response is compact and has one of four explicit states:
 - `clarification`: user intent or required AI review is ambiguous; the response
   carries a question, reason, and optional bounded choices.
 - `permission-required`: the host did not grant the exact named capability.
-- `conflict`: the request's project digest is stale.
+- `conflict`: a `project.edit` or `annotation.apply` request has a stale project
+  digest, or destructive confirmation names a different digest.
 
 Generated artifacts report both a canonical absolute `path` and normalized
 `workspacePath`. The core verifies that they agree and remain within the
@@ -84,8 +85,13 @@ Authority is supplied only through `RunStudioAgentToolOptions`:
 - Removing a stable scene, track, action, or composition-layer identity needs
   both a request-side destructive confirmation (reason plus exact digest) and
   the host's `destructiveProjectEdits` capability.
-- Mutations require the SHA-256 project digest returned by the preceding tool
-  call. A stale agent cannot overwrite concurrent authoring or review work.
+- `project.edit` and `annotation.apply` require the SHA-256 project digest
+  returned by a preceding tool call. A stale edit or annotation request returns
+  `conflict` before changing the project.
+- `capture.compile`, `render.preview`, and `render.video` do not accept a project
+  digest. Their host adapters may return an updated project, so the host must
+  serialize or reconcile generation results with concurrent project changes
+  before persisting them.
 - Artifact paths cannot escape the workspace. Existing destinations require an
   explicit `overwrite` request and the separate overwrite capability.
 - Generation callbacks, filesystem persistence, browser ownership, arbitrary
