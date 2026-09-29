@@ -2923,6 +2923,7 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         ".github/workflows/summary-disclosure-marker-parity.yml",
+        "tests/summary-disclosure-marker.e2e.test.ts",
         "src/capture/summary-marker-cdp.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/form-controls.ts",
@@ -3040,7 +3041,9 @@
       "code": [
         ".github/workflows/svg-effect-combinations.yml",
         "src/capture/script/walker/inline-svg.ts",
-        "tools/svg-effect-combination-corpus.ts"
+        "tools/svg-effect-combination-corpus.ts",
+        "tools/svg-effect-combination-oracle.ts",
+        "tests/svg-effect-combination-corpus.test.ts"
       ],
       "file": "188-generated-svg-effect-combinations.md"
     },
@@ -3058,6 +3061,7 @@
         "tools/parity-program.json",
         "tools/check-projective-owner-release.ts",
         "tools/projective-owner-release-producer.ts",
+        "tools/projective-owner-release-gate.ts",
         "tools/projective-owner-artifact-integrity.ts",
         "tests/projective-owner-artifact-integrity.test.ts"
       ],
@@ -3167,6 +3171,9 @@
       "code": [
         ".github/workflows/generic-family-preference-parity.yml",
         "src/capture/generic-font-probe.ts",
+        "src/capture/tree-envelope.ts",
+        "tools/generic-family-preference-oracle.ts",
+        "tools/generic-profile-target-oracle.ts",
         "src/capture/generic-font-probe.test.ts",
         "packages/text-engine/src/render/synchronous-scope.ts",
         "packages/text-engine/src/render/synchronous-scope.test.ts"

@@ -11,6 +11,8 @@ code:
     ".github/workflows/svg-effect-combinations.yml",
     "src/capture/script/walker/inline-svg.ts",
     "tools/svg-effect-combination-corpus.ts",
+    "tools/svg-effect-combination-oracle.ts",
+    "tests/svg-effect-combination-corpus.test.ts",
   ]
 aliases: ["docs/188-generated-svg-effect-combinations.md", "doc-188"]
 ---
@@ -83,7 +85,7 @@ The remaining axes include:
 The generator starts from the first uncovered value pair, then greedily fills
 each remaining axis with the value that closes the most uncovered pairs. The
 unit gate reruns the generator, requires byte-stable case ordering, proves all
-953 pairs, and rejects any accidental `url(...) <geometry-box>` clip because
+1,088 pairs (37 cases; 83 targeted triples, `tests/svg-effect-combination-corpus.test.ts`), and rejects any accidental `url(...) <geometry-box>` clip because
 Blink parses a reference clip as an exclusive grammar branch.
 
 The higher-order set comes from the cited Blink paint-property and resource
@@ -124,7 +126,7 @@ npm run paint:svg-effect-combinations -- --dpr 1,2 \
   --json tests/output/svg-effect-combinations/local/report.json
 ```
 
-The oracle requires all of the following:
+The oracle is `tools/svg-effect-combination-oracle.ts`; its pixel thresholds (`SVG_EFFECT_PIXEL_THRESHOLDS`) are a mean absolute channel error ≤ 2, a changed-pixel fraction ≤ 0.04 (`maxChangedPixelFraction`, per-channel change threshold 16), and an ink-bounds delta ≤ 2 device px. It requires all of the following:
 
 - one self-contained native SVG owner for every generated case;
 - no raster owner for identity/affine cases and exactly one Chromium-owned

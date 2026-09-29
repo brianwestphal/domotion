@@ -10,6 +10,9 @@ code:
   [
     ".github/workflows/generic-family-preference-parity.yml",
     "src/capture/generic-font-probe.ts",
+    "src/capture/tree-envelope.ts",
+    "tools/generic-family-preference-oracle.ts",
+    "tools/generic-profile-target-oracle.ts",
     "src/capture/generic-font-probe.test.ts",
     "packages/text-engine/src/render/synchronous-scope.ts",
     "packages/text-engine/src/render/synchronous-scope.test.ts",

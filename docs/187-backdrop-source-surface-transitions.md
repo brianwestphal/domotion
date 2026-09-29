@@ -180,10 +180,10 @@ between a baked box and separately filtered vector descendants. The problem is
 ownership/coordinate space, not blur arithmetic and not a larger raster-diff
 tolerance.
 
-The audit also records a stale diagnostic: successful Chromium raster rows
-still warn that backdrop-filter is only doc 19's solid frosted-glass
-approximation. Runtime warning ownership must move to the post-pass that knows
-whether raster materialization succeeded.
+The audit also recorded a stale diagnostic: successful Chromium raster rows
+warned that backdrop-filter was only doc 19's solid frosted-glass
+approximation. Runtime warning ownership moved to the post-pass that knows
+whether raster materialization succeeded (DM-2490, below).
 
 ## Follow-up completion
 
@@ -197,9 +197,11 @@ whether raster materialization succeeded.
   active pseudo owners and both destructive mutations for every owner.
 - **DM-2489 (landed; doc 192):** Chromium sibling order is preserved for
   fixed/hoisted backdrop rasters without weakening the oracle tolerance.
-- **DM-2490:** retire the pre-raster frosted-glass warning on successful
-  materialization and emit structured partial/unavailable diagnostics only
-  from the authoritative post-pass.
+- **DM-2490 (landed):** the pre-raster frosted-glass warning is retired on
+  successful materialization; structured exact/partial/unavailable diagnostics
+  come only from the authoritative post-pass (`src/capture/emoji.ts` emits the
+  frosted-glass text only inside an _unavailable_ warning; covered by
+  `src/capture/backdrop-raster-diagnostics.test.ts`).
 
 Doc 126's target snapshot remains the explicit fallback when authoritative
 source materialization is unavailable. Successful ordinary, fixed, and

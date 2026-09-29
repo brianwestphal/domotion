@@ -9,6 +9,7 @@ tickets: ["DM-2457"]
 code:
   [
     ".github/workflows/summary-disclosure-marker-parity.yml",
+    "tests/summary-disclosure-marker.e2e.test.ts",
     "src/capture/summary-marker-cdp.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/form-controls.ts",

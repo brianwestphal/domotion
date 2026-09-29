@@ -14,6 +14,7 @@ code:
     "tools/parity-program.json",
     "tools/check-projective-owner-release.ts",
     "tools/projective-owner-release-producer.ts",
+    "tools/projective-owner-release-gate.ts",
     "tools/projective-owner-artifact-integrity.ts",
     "tests/projective-owner-artifact-integrity.test.ts",
   ]

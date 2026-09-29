@@ -21,7 +21,7 @@ pinned Playwright Noble image used by Linux visual CI.
 
 ## Release facts and trust boundary
 
-The current package release, `v0.24.0`, contains
+The ratified package release, `v0.24.0` (the package has since moved on; this doc records no re-ratification of later releases), contains
 `domotion-glyph-paths-linux-arm64` and its checksum sidecar. The producer job
 (`release-helpers.yml` run 31917759532, job 95092429915) completed successfully.
 The independently versioned `icu-v78.2-domotion.1` release contains both the

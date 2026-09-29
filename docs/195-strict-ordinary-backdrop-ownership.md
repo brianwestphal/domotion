@@ -119,8 +119,11 @@ empty and is the strict materialization check.
 
 ## Gate
 
-`npm run paint:backdrop-source-audit -- --dpr 1,2` is strict by default and
-writes the schema-v2 report plus source/render/under/over/SVG artifacts.
+`npm run paint:backdrop-source-audit -- --dpr 1,2` is strict because the npm
+script passes `--strict` (`package.json`; `tools/backdrop-source-surface-audit.ts`
+defines the flag). Invoking `tools/backdrop-source-surface-audit.ts` directly
+without `--strict` runs the non-strict diagnostic mode that docs 187 and 194 show.
+It writes the schema-v2 report plus source/render/under/over/SVG artifacts.
 `.github/workflows/backdrop-source-surface-parity.yml` runs the same immutable
 matrix on native macOS, Linux, and Windows runners and uploads evidence even on
 failure. `tests/backdrop-source-surface-audit.test.ts` protects the source
