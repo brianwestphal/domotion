@@ -17,9 +17,9 @@
 
 import type { Page } from "@playwright/test";
 import { escapeHtml } from "../utils/escapeHtml.js";
-import type { CastOutputEvent, CastResizeEvent } from "./cast.js";
+import { parseCast, type CastOutputEvent, type CastResizeEvent, type ParsedCast } from "./cast.js";
 import { TerminalEmulator, gridSignature, type TermGrid, type TermCell, type TermCursor } from "./emulator.js";
-import type { TerminalTheme } from "./theme.js";
+import { resolveTheme, type TerminalTheme, type TerminalThemeSpec } from "./theme.js";
 
 export interface FrameBuildOptions {
   /** Output must pause this long (ms) to mark a settle point. Default 90. */
@@ -30,6 +30,56 @@ export interface FrameBuildOptions {
   maxFrameMs?: number;
   /** Tail hold (ms) added after the last event so the final screen lingers. Default 1500. */
   tailMs?: number;
+}
+
+/** The subset of the terminal options that decides the grid a cast is replayed on. */
+export interface CastSessionOptions {
+  theme?: string | TerminalThemeSpec;
+  /** Force the grid to this many columns (ignoring recorded resizes). */
+  cols?: number;
+  /** Force the grid to this many rows (ignoring recorded resizes). */
+  rows?: number;
+  log?: (msg: string) => void;
+}
+
+export interface CastSession {
+  theme: TerminalTheme;
+  cast: ParsedCast;
+  /** The initial grid. */
+  cols: number;
+  rows: number;
+  /** Mid-session resizes to honor; empty when the caller pinned the grid. */
+  resizes: CastResizeEvent[];
+  /** The largest grid across the initial size and every honored resize (the canvas size). */
+  maxCols: number;
+  maxRows: number;
+}
+
+/**
+ * Parse a cast and resolve the grid it is replayed on — shared by the full-frame and incremental
+ * pipelines so they cannot drift. Mid-session resize events are honored (DM-1246 / DM-1249) unless the
+ * caller pinned the grid via `cols` / `rows`, in which case the recording is fixed to that size and
+ * resizes are ignored. The canvas is sized to the largest grid across the initial size and every
+ * resize, so frames at any size fit (a smaller post-resize grid renders top-left, the theme background
+ * fills the rest, matching terminal anchoring).
+ */
+export function prepareCastSession(castText: string, opts: CastSessionOptions = {}): CastSession {
+  const theme = resolveTheme(opts.theme);
+  const cast = parseCast(castText);
+  const cols = opts.cols ?? cast.header.width;
+  const rows = opts.rows ?? cast.header.height;
+  const honorResizes = opts.cols == null && opts.rows == null;
+  const resizes = honorResizes ? cast.resizes : [];
+  let maxCols = cols;
+  let maxRows = rows;
+  for (const rz of resizes) {
+    if (rz.cols > maxCols) maxCols = rz.cols;
+    if (rz.rows > maxRows) maxRows = rz.rows;
+  }
+  opts.log?.(
+    `term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`,
+  );
+  return { theme, cast, cols, rows, resizes, maxCols, maxRows };
 }
 
 export interface TermFrame {
@@ -104,7 +154,7 @@ export async function buildFrames(
   return frames;
 }
 
-function cellStyle(cell: TermCell, theme: TerminalTheme): string {
+function cellStyle(cell: TermCell): string {
   const parts: string[] = [];
   if (cell.fg != null) parts.push(`color:${cell.fg}`);
   if (cell.bg != null) parts.push(`background:${cell.bg}`);
@@ -112,7 +162,6 @@ function cellStyle(cell: TermCell, theme: TerminalTheme): string {
   if (cell.italic) parts.push("font-style:italic");
   if (cell.dim) parts.push("opacity:.6");
   if (cell.underline) parts.push("text-decoration:underline");
-  void theme;
   return parts.join(";");
 }
 
@@ -151,7 +200,7 @@ export function rowInnerHtml(row: TermCell[], theme: TerminalTheme): string {
         .slice(runStart, x)
         .map((c) => c.char)
         .join("");
-      const style = cellStyle(row[runStart], theme);
+      const style = cellStyle(row[runStart]);
       spans.push(style === "" ? escapeHtml(text) : `<span style="${style}">${escapeHtml(text)}</span>`);
       runStart = x;
     }

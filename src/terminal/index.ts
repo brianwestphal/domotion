@@ -12,17 +12,17 @@
  */
 
 import type { Browser } from "@playwright/test";
-import { parseCast } from "./cast.js";
 import { TerminalEmulator } from "./emulator.js";
 import {
   buildFrames,
   gridToHtml,
   makeReferenceGrid,
   measureTermCanvas,
+  prepareCastSession,
   type FrameBuildOptions,
   type HtmlRenderOptions,
 } from "./render.js";
-import { resolveTheme, type TerminalThemeSpec } from "./theme.js";
+import type { TerminalThemeSpec } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../animation/animator.js";
@@ -116,26 +116,7 @@ export async function castToTermFrames(
   opts: TermToSvgOptions = {},
 ): Promise<TermFramesResult> {
   const log = opts.log ?? (() => {});
-  const theme = resolveTheme(opts.theme);
-  const cast = parseCast(castText);
-  const cols = opts.cols ?? cast.header.width;
-  const rows = opts.rows ?? cast.header.height;
-  // DM-1246: honor mid-session resize events — unless the caller forced a fixed
-  // grid via opts.cols/rows, in which case the recording is pinned to that size
-  // and resizes are ignored. The canvas is sized to the LARGEST grid across the
-  // initial size + every resize, so frames at any size fit (a smaller post-resize
-  // grid renders top-left, the theme bg fills the rest, matching terminal anchoring).
-  const honorResizes = opts.cols == null && opts.rows == null;
-  const resizes = honorResizes ? cast.resizes : [];
-  let maxCols = cols;
-  let maxRows = rows;
-  for (const rz of resizes) {
-    if (rz.cols > maxCols) maxCols = rz.cols;
-    if (rz.rows > maxRows) maxRows = rz.rows;
-  }
-  log(
-    `term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`,
-  );
+  const { theme, cast, cols, rows, resizes, maxCols, maxRows } = prepareCastSession(castText, { ...opts, log });
 
   const manageFonts = opts.manageFonts !== false;
   // Embedded-font mode accumulates glyphs into one growing custom TTF across

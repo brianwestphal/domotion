@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseCast } from "./cast.js";
 import { xterm256ToHex, THEMES, resolveThemeSpec } from "./theme.js";
 import { TerminalEmulator, gridSignature, type TermCell } from "./emulator.js";
-import { buildFrames, gridToHtml, type TermFrame } from "./render.js";
+import { buildFrames, gridToHtml, prepareCastSession, type TermFrame } from "./render.js";
 import { detectScroll, trackLines, detectInputFrames } from "./incremental.js";
 
 const E = "\x1b";
@@ -385,5 +385,52 @@ describe("incremental line-pool (DM-1225): detectScroll + trackLines", () => {
       const frames = [cframe(["building...", ""], 11, 0), cframe(["building...", "done."], 5, 1)];
       expect(detectInputFrames(frames)).toEqual([false, false]);
     });
+  });
+});
+
+describe("prepareCastSession (shared grid setup for the full-frame and incremental pipelines)", () => {
+  const cast = [
+    JSON.stringify({ version: 2, width: 80, height: 24 }),
+    JSON.stringify([0.1, "o", "hi"]),
+    JSON.stringify([0.5, "r", "120x40"]),
+    JSON.stringify([0.9, "r", "60x50"]),
+    JSON.stringify([1.2, "o", "bye"]),
+  ].join("\n");
+
+  it("honors recorded resizes and sizes the canvas to the largest grid on each axis", () => {
+    const session = prepareCastSession(cast);
+    expect([session.cols, session.rows]).toEqual([80, 24]);
+    expect(session.resizes.map((r) => [r.cols, r.rows])).toEqual([
+      [120, 40],
+      [60, 50],
+    ]);
+    expect([session.maxCols, session.maxRows]).toEqual([120, 50]);
+    expect(session.cast.events).toHaveLength(2);
+  });
+
+  it("pins the grid and ignores resizes when either dimension is forced", () => {
+    for (const forced of [{ cols: 100 }, { rows: 30 }, { cols: 100, rows: 30 }]) {
+      const session = prepareCastSession(cast, forced);
+      expect(session.resizes).toEqual([]);
+      expect(session.cols).toBe(forced.cols ?? 80);
+      expect(session.rows).toBe(forced.rows ?? 24);
+      expect([session.maxCols, session.maxRows]).toEqual([session.cols, session.rows]);
+    }
+  });
+
+  it("logs one line naming the grid, resizes, events and duration", () => {
+    const lines: string[] = [];
+    prepareCastSession(cast, { log: (line) => lines.push(line) });
+    expect(lines).toEqual(["term: 80×24 cells (2 resize(s) → max 120×50), 2 output events, 1.2s recorded"]);
+    const plain: string[] = [];
+    prepareCastSession(JSON.stringify({ version: 2, width: 10, height: 5 }) + "\n" + JSON.stringify([0, "o", "x"]), {
+      log: (line) => plain.push(line),
+    });
+    expect(plain[0]).toMatch(/^term: 10×5 cells, 1 output events, 0\.0s recorded$/);
+  });
+
+  it("resolves the theme once and rejects an unparseable cast", () => {
+    expect(prepareCastSession(cast, { theme: "github-light" }).theme.bg).not.toBe(prepareCastSession(cast).theme.bg);
+    expect(() => prepareCastSession("not a cast")).toThrow();
   });
 });

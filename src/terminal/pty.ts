@@ -65,6 +65,12 @@ export interface PtyCaptureOptions {
   input?: NodeJS.ReadStream | null;
   /** Optional progress log (stderr). */
   log?: (msg: string) => void;
+  /** Kill the child and reject when it has not exited after this many milliseconds. Default: no limit. */
+  timeoutMs?: number;
+  /** Kill the child and reject when this signal aborts (e.g. on SIGINT handling in the CLI). */
+  signal?: AbortSignal;
+  /** Wall clock in milliseconds, for deterministic event times in tests. Default: `Date.now`. */
+  now?: () => number;
 }
 
 export interface PtyCaptureResult {
@@ -151,6 +157,7 @@ export async function recordPtySession(
   const echo = opts.echo === undefined ? process.stdout : opts.echo;
   const input = opts.input === undefined ? (process.stdin.isTTY ? process.stdin : null) : opts.input;
 
+  const now = opts.now ?? Date.now;
   const [file, ...args] = command;
   const term = pty.spawn(file, args, {
     name: "xterm-256color",
@@ -160,17 +167,11 @@ export async function recordPtySession(
     env: { ...process.env, ...opts.env },
   });
 
-  const events: Array<[number, "o", string]> = [];
-  const start = nowMs();
-  term.onData((data) => {
-    events.push([(nowMs() - start) / 1000, "o", data]);
-    echo?.write(data);
-  });
-
-  // Forward stdin (raw) so the captured program is interactive; resize the pty
-  // when the controlling terminal resizes.
+  // From here on the child is alive, so every exit path — a throw while wiring stdin, a timeout, an
+  // abort, a normal exit — must kill it (if still running) and give the terminal back.
   const stdin = input as (NodeJS.ReadStream & { setRawMode?: (m: boolean) => void }) | null;
   const wasRaw = stdin?.isRaw ?? false;
+  let exited = false;
   const onStdin = (d: Buffer): void => term.write(d.toString("utf8"));
   const onResize = (): void => {
     const c = process.stdout.columns || cols;
@@ -181,28 +182,82 @@ export async function recordPtySession(
       /* pty may have exited */
     }
   };
-  if (stdin != null) {
-    if (stdin.isTTY && stdin.setRawMode != null) stdin.setRawMode(true);
-    stdin.on("data", onStdin);
-    stdin.resume();
-    process.stdout.on?.("resize", onResize);
+  let restoreRaw: (() => void) | undefined;
+  let stdinWired = false;
+  let resizeWired = false;
+  let timer: NodeJS.Timeout | undefined;
+  let onAbort: (() => void) | undefined;
+  try {
+    const events: Array<[number, "o", string]> = [];
+    const start = now();
+    term.onData((data) => {
+      events.push([(now() - start) / 1000, "o", data]);
+      echo?.write(data);
+    });
+
+    // Forward stdin (raw) so the captured program is interactive; resize the pty
+    // when the controlling terminal resizes.
+    if (stdin != null) {
+      if (stdin.isTTY && stdin.setRawMode != null) {
+        stdin.setRawMode(true);
+        restoreRaw = () => stdin.setRawMode?.(wasRaw);
+      }
+      stdinWired = true;
+      stdin.on("data", onStdin);
+      stdin.resume();
+      process.stdout.on("resize", onResize);
+      resizeWired = true;
+    }
+
+    const exitCode: number = await new Promise<number>((resolve, reject) => {
+      term.onExit(({ exitCode }) => {
+        exited = true;
+        resolve(exitCode);
+      });
+      if (opts.timeoutMs != null) {
+        timer = setTimeout(
+          () => reject(new Error(`term: command did not exit within ${opts.timeoutMs} ms and was killed`)),
+          opts.timeoutMs,
+        );
+      }
+      if (opts.signal != null) {
+        if (opts.signal.aborted) {
+          reject(new Error("term: capture aborted"));
+        } else {
+          onAbort = () => reject(new Error("term: capture aborted"));
+          opts.signal.addEventListener("abort", onAbort, { once: true });
+        }
+      }
+    });
+
+    const durationS = (now() - start) / 1000;
+    opts.log?.(`term: captured ${events.length} output event(s), ${durationS.toFixed(1)}s, exit ${exitCode}`);
+    return { cast: buildCastText(cols, rows, command, events), exitCode, cols, rows };
+  } finally {
+    if (timer != null) clearTimeout(timer);
+    if (onAbort != null) opts.signal?.removeEventListener("abort", onAbort);
+    if (!exited) {
+      try {
+        term.kill();
+      } catch {
+        /* already gone */
+      }
+    }
+    if (stdin != null) {
+      if (stdinWired) stdin.off("data", onStdin);
+      // Restore only what this call changed, and never let a failed restore (e.g. the TTY closed under
+      // us) replace the error that got us here.
+      if (restoreRaw != null) {
+        try {
+          restoreRaw();
+        } catch {
+          /* the terminal is gone; nothing left to restore */
+        }
+      }
+      stdin.pause();
+      if (resizeWired) process.stdout.off("resize", onResize);
+    }
   }
-
-  const exitCode: number = await new Promise((resolve) => {
-    term.onExit(({ exitCode }) => resolve(exitCode));
-  });
-
-  // Restore stdin.
-  if (stdin != null) {
-    stdin.off?.("data", onStdin);
-    if (stdin.isTTY && stdin.setRawMode != null) stdin.setRawMode(wasRaw);
-    stdin.pause?.();
-    process.stdout.off?.("resize", onResize);
-  }
-
-  const durationS = (nowMs() - start) / 1000;
-  opts.log?.(`term: captured ${events.length} output event(s), ${durationS.toFixed(1)}s, exit ${exitCode}`);
-  return { cast: buildCastText(cols, rows, command, events), exitCode, cols, rows };
 }
 
 /** asciinema v2 cast string from captured events — identical to what `parseCast` consumes. */
@@ -215,9 +270,4 @@ export function buildCastText(
   const header = JSON.stringify({ version: 2, width: cols, height: rows, command: command.join(" ") });
   const lines = [header, ...events.map((e) => JSON.stringify(e))];
   return lines.join("\n") + "\n";
-}
-
-// Wall-clock helper (kept tiny so tests can stub event times deterministically).
-function nowMs(): number {
-  return Date.now();
 }

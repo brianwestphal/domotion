@@ -23,7 +23,6 @@
  */
 
 import type { Browser } from "@playwright/test";
-import { parseCast } from "./cast.js";
 import { TerminalEmulator, type TermCell } from "./emulator.js";
 import {
   buildFrames,
@@ -31,11 +30,12 @@ import {
   rowInnerHtml,
   makeReferenceGrid,
   measureTermCanvas,
+  prepareCastSession,
   TERM_TYPE_DEFAULTS,
   type TermFrame,
   type HtmlRenderOptions,
 } from "./render.js";
-import { resolveTheme, type TerminalTheme } from "./theme.js";
+import type { TerminalTheme } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
@@ -344,30 +344,13 @@ export async function composeIncrementalTermSvg(
   opts: TermToSvgOptions = {},
 ): Promise<IncrementalResult> {
   const log = opts.log ?? (() => {});
-  const theme = resolveTheme(opts.theme);
   const manageFonts = opts.manageFonts !== false;
-  const cast = parseCast(castText);
-  const cols = opts.cols ?? cast.header.width;
-  const rows = opts.rows ?? cast.header.height;
-  // DM-1249: honor mid-session resize (like the full-frame path) unless the
-  // caller pinned the grid via opts.cols/rows. The canvas is sized to the
-  // largest grid across the initial size + all resizes; `trackLines` resets the
-  // line pool at each resize boundary.
-  const honorResizes = opts.cols == null && opts.rows == null;
-  const resizes = honorResizes ? cast.resizes : [];
-  let maxCols = cols;
-  let maxRows = rows;
-  for (const rz of resizes) {
-    if (rz.cols > maxCols) maxCols = rz.cols;
-    if (rz.rows > maxRows) maxRows = rz.rows;
-  }
+  // `trackLines` resets the line pool at each honored resize boundary.
+  const { theme, cast, cols, rows, resizes, maxCols, maxRows } = prepareCastSession(castText, { ...opts, log });
   const fontSize = opts.fontSize ?? TERM_TYPE_DEFAULTS.fontSize;
   const padding = opts.padding ?? TERM_TYPE_DEFAULTS.padding;
   const lineHeight = TERM_TYPE_DEFAULTS.lineHeight;
   const fontFamily = opts.fontFamily ?? TERM_TYPE_DEFAULTS.fontFamily;
-  log(
-    `term: ${cols}×${rows} cells${resizes.length > 0 ? ` (${resizes.length} resize(s) → max ${maxCols}×${maxRows})` : ""}, ${cast.events.length} output events, ${cast.duration.toFixed(1)}s recorded`,
-  );
 
   const emu = new TerminalEmulator(cols, rows, theme);
   let frames;
