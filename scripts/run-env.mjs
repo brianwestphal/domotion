@@ -304,28 +304,42 @@ async function launchedChromiumVersion() {
   }
 }
 
+/**
+ * The installed Playwright version, or `null` when it cannot be resolved. The one reader for every
+ * evidence producer: they used to resolve it five different ways (`playwright/package.json`,
+ * `playwright-core/package.json`, `@playwright/test/package.json`, and a cwd-relative
+ * `node_modules/...` read that breaks off the repo root). The three packages are versioned in
+ * lockstep, so the answer is the same; resolution is from THIS file, never the caller's cwd.
+ */
+export function playwrightVersion() {
+  const require = createRequire(import.meta.url);
+  for (const spec of ["@playwright/test/package.json", "playwright-core/package.json", "playwright/package.json"]) {
+    try {
+      return require(spec).version;
+    } catch {
+      /* try the next spelling */
+    }
+  }
+  return null;
+}
+
 /** Gather the real environment on this machine. */
 export async function captureRunEnv({ withInventory = true } = {}) {
   let osRelease = null;
-  let playwrightVersion = null;
+  let pwVersion = null;
   if (process.env.ImageOS == null || process.env.ImageOS.trim() === "") {
     try {
       osRelease = parseOsRelease(readFileSync("/etc/os-release", "utf8"));
     } catch {
       /* not linux */
     }
-    try {
-      const require = createRequire(import.meta.url);
-      playwrightVersion = require("@playwright/test/package.json").version;
-    } catch {
-      /* playwright not resolvable */
-    }
+    pwVersion = playwrightVersion();
   }
   const image = computeRunnerImage({
     imageOS: process.env.ImageOS,
     runnerArch: process.env.RUNNER_ARCH ?? process.arch,
     osRelease,
-    playwrightVersion,
+    playwrightVersion: pwVersion,
     platform: process.platform,
   });
   let fontInventory = null;

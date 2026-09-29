@@ -16,6 +16,8 @@ import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { chromium, type Page } from "playwright";
 import type { CapturedElement, CapturedNativeScrollbarRaster } from "../src/capture/types.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const SOURCE_REVISIONS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -1055,7 +1057,7 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
     import("../src/render/element-tree-to-svg.js"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
+  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
   // Playwright normally adds `--hide-scrollbars`, which would turn every
   // screenshot into a false negative for the exact thing this probe audits.
   const browser = await chromium.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });

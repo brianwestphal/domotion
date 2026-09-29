@@ -34,6 +34,8 @@ import {
   type JoinedTextSourceFragment,
 } from "../src/capture/text-fragment-spans.js";
 import { embeddedVariableFontBytes } from "./exact-shaping-control-fixtures.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 export const TEXT_FRAGMENT_SPAN_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -592,7 +594,7 @@ export async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanRepor
     import("@domotion/text-engine/testing"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
+  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
   const browser = await chromium.launch({ headless: true, args: ["--font-render-hinting=none"] });
   try {
     const context = await browser.newContext({ viewport: { width: 960, height: 640 }, deviceScaleFactor: 1 });

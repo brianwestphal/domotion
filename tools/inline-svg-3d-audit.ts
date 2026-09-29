@@ -17,6 +17,8 @@ import { pathToFileURL } from "node:url";
 import { chromium, type Page } from "playwright";
 import sharp from "sharp";
 import type { CapturedElement } from "../src/capture/types.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const SOURCE_REVISIONS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -789,7 +791,7 @@ export async function runInlineSvg3dAudit(
     import("../src/render/element-tree-to-svg.js"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
+  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
   const deviceScaleFactors = [...new Set(options.deviceScaleFactors ?? [1, 2])].sort((a, b) => a - b);
   if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0)) {
     throw new Error("--dpr requires one or more positive finite numbers");

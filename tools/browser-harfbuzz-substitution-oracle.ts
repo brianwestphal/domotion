@@ -25,6 +25,8 @@ import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine
 import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
 import { embeddedVariableFontBytes, sfntTableTags } from "./exact-shaping-control-fixtures.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   harfbuzzShapeRun,
   registerHbBufferSource,
@@ -734,9 +736,7 @@ function installedPlaywrightIdentity(): {
   playwrightVersion: string;
   playwrightChromiumRevision: string;
 } {
-  const packageMetadata = JSON.parse(readFileSync(resolve("node_modules/playwright-core/package.json"), "utf8")) as {
-    version?: string;
-  };
+  const packageMetadata = { version: readPlaywrightVersion() ?? undefined };
   const browserMetadata = JSON.parse(readFileSync(resolve("node_modules/playwright-core/browsers.json"), "utf8")) as {
     browsers?: { name?: string; revision?: string }[];
   };

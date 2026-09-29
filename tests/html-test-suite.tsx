@@ -35,7 +35,6 @@ import {
 } from "./harness-browsers.js";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -65,6 +64,8 @@ import { walkHtmlFiles } from "./walk-html-files.js";
 // resolves it at runtime, and tests are outside the tsc include set.
 // @ts-ignore -- no type declarations for the .mjs tool
 import { inventoryDocument } from "../tools/font-inventory.mjs";
+// @ts-ignore -- no type declarations for the .mjs tool
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   isGlyphHelperAvailable,
   profReset,
@@ -131,14 +132,7 @@ const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0" && !process.argv.inclu
 // see `expectedCachePlatformDir`. Without it a Linux container run (which
 // mounts this tree read-write) poisons the cache a macOS run then reads.
 const EXPECTED_CACHE_DIR = resolve(OUTPUT_DIR, ".expected-cache", expectedCachePlatformDir());
-const _require = createRequire(import.meta.url);
-const PLAYWRIGHT_VERSION: string = (() => {
-  try {
-    return _require("@playwright/test/package.json").version as string;
-  } catch {
-    return "unknown";
-  }
-})();
+const PLAYWRIGHT_VERSION: string = readPlaywrightVersion() ?? "unknown";
 // DM-1013: fold the CAPTURE_SCRIPT bundle hash into the cache key so a
 // bundle rebuild (`npm run build:capture-script`) invalidates every
 // cached tree. Read once at module init.

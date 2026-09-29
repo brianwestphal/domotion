@@ -8,6 +8,8 @@ import { pathToFileURL } from "node:url";
 import { chromium, type Page } from "@playwright/test";
 import sharp from "sharp";
 import type { CapturedElement } from "../src/capture/types.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   SVG_EFFECT_CASES,
   SVG_EFFECT_SOURCE_DECISIONS,
@@ -21,7 +23,7 @@ import {
 } from "./svg-effect-combination-corpus.js";
 
 const require = createRequire(import.meta.url);
-const playwrightVersion = (require("@playwright/test/package.json") as { version: string }).version;
+const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
 
 export const SVG_EFFECT_PIXEL_THRESHOLDS = {
   maxMeanAbsoluteChannelError: 2,

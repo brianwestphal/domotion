@@ -26,9 +26,9 @@ import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-import { computeRunEnv, envComparability, mergeShardEnvs } from "../scripts/run-env.mjs";
+import { computeRunEnv, envComparability, mergeShardEnvs, playwrightVersion } from "../scripts/run-env.mjs";
 
 /** The two real macOS runner environments, as observed in the two CI runs. */
 const MACOS_26_4 = computeRunEnv({
@@ -627,5 +627,21 @@ describe("demos:test:unicode honors its documented overrides", () => {
     const script: string = pkg.scripts["demos:test:unicode"];
     expect(script).toContain("HTML_TEST_OUTPUT_DIR=${HTML_TEST_OUTPUT_DIR:-");
     expect(script).toContain("HTML_TEST_DIR=${HTML_TEST_DIR:-");
+  });
+});
+
+describe("playwrightVersion", () => {
+  it("is the installed @playwright/test version, resolved from the repo rather than the cwd", () => {
+    const expected = JSON.parse(
+      readFileSync(resolve(import.meta.dirname, "../node_modules/@playwright/test/package.json"), "utf8"),
+    ).version as string;
+    expect(playwrightVersion()).toBe(expected);
+    const previous = process.cwd();
+    try {
+      process.chdir(tmpdir());
+      expect(playwrightVersion()).toBe(expected);
+    } finally {
+      process.chdir(previous);
+    }
   });
 });

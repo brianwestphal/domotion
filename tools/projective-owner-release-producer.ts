@@ -5,6 +5,8 @@ import { release } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import { NESTED_PROJECTIVE_VIEWPORT, runNestedProjectiveOwnershipAudit } from "./nested-projective-ownership-audit.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   PROJECTIVE_GATE_FAMILIES,
   PROJECTIVE_GATE_PROFILES,
@@ -21,7 +23,7 @@ const runnerImage = process.env.DOMOTION_RUNNER_IMAGE ?? `${process.platform}-lo
 const runnerImageVersion = process.env.ImageVersion ?? "local";
 const chromiumRevision = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const require = createRequire(import.meta.url);
-const playwrightVersion = (require("@playwright/test/package.json") as { version: string }).version;
+const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
 const fingerprint =
   `${process.platform}-${process.arch}-${runnerImage}-${runnerImageVersion}-${chromiumRevision}`.replaceAll("/", "-");
 const rows: ProjectiveOwnerReleaseReport["rows"] = [];

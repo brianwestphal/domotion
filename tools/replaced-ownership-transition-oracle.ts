@@ -12,6 +12,8 @@ import { chromium, type Browser, type BrowserContext, type Page, type Route } fr
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CaptureWarning } from "../src/capture/types.js";
 import { computeObjectFitRect } from "../src/render/element-tree-to-svg.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   adjudicateReplacedOwnershipTransitions,
   type ReplacedOwnership,
@@ -83,7 +85,7 @@ function sha256(value: string | Buffer): string {
 function canonicalFingerprint(browser: Browser, deviceScaleFactor: number): ReplacedPlatformFingerprint {
   const base = {
     chromiumVersion: browser.version(),
-    playwrightVersion: (require("playwright/package.json") as { version: string }).version,
+    playwrightVersion: (readPlaywrightVersion() ?? "unknown"),
     platform: platform(),
     architecture: arch(),
     osRelease: release(),

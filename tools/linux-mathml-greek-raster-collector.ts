@@ -41,6 +41,8 @@ import {
 } from "./linux-mathml-greek-raster-contract.js";
 import type { LinuxMathmlGreekRasterRow } from "./linux-mathml-greek-raster-gate.js";
 import { measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   hbSubsetRetainGids,
   resetTextRunProvenance,
@@ -49,7 +51,7 @@ import {
 } from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
-const PLAYWRIGHT_VERSION = (require("@playwright/test/package.json") as { version: string }).version;
+const PLAYWRIGHT_VERSION = (readPlaywrightVersion() ?? "unknown");
 const VIEWPORT = LINUX_MATHML_GREEK_CELL.viewport;
 const UNIQUE_PATHS_FAMILY = "DomotionFreeSansMathmlPaths";
 const UNIQUE_UNHINTED_FAMILY = "DomotionFreeSansMathmlUnhinted";

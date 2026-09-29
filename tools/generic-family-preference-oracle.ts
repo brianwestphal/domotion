@@ -39,6 +39,8 @@ import {
   type SessionGenericFamilyProbe,
 } from "../src/capture/generic-font-probe.js";
 import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   getSessionGenericFamilyOverrides,
   resolveFont,
@@ -745,7 +747,7 @@ export async function runGenericFamilyPreferenceOracle(
       release: release(),
       architecture: arch(),
       node: process.version,
-      playwright: (require("@playwright/test/package.json") as { version: string }).version,
+      playwright: (readPlaywrightVersion() ?? "unknown"),
       locale: Intl.DateTimeFormat().resolvedOptions().locale,
       lang: process.env.LANG ?? "unset",
       fontInventory: fontInventory(),

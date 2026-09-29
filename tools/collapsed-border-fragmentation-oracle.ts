@@ -21,6 +21,8 @@ import {
   type CollapsedBorderFragmentRecord,
 } from "../src/capture/collapsed-border-fragment-record.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -975,9 +977,7 @@ export async function runCollapsedBorderFragmentationOracle(): Promise<Collapsed
     const discriminators = buildCollapsedBorderFragmentDiscriminators(cases, print);
     const mutations = buildCollapsedBorderFragmentMutations(cases, print);
     const pass = Object.values(discriminators).every(Boolean) && mutations.every((mutation) => mutation.moved);
-    const packageJson = JSON.parse(
-      readFileSync(resolve(ROOT, "node_modules/@playwright/test/package.json"), "utf8"),
-    ) as { version: string };
+    const packageJson = { version: readPlaywrightVersion() ?? "unknown" };
     return {
       schemaVersion: 3,
       ticket: "DM-2558",

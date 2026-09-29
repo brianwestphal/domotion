@@ -24,6 +24,8 @@ import type {
   TextSegment,
 } from "../src/capture/types.js";
 import type { CapturedTextWritingMode } from "../src/capture/text-line-origin.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 export const TEXT_BASELINE_PROTOCOL_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -753,7 +755,7 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
   const capture = await import("../src/capture/index.js");
   const render = await import("../src/render/element-tree-to-svg.js");
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
+  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 900, height: 520 }, deviceScaleFactor: 1 });

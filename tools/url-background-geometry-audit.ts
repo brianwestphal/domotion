@@ -19,6 +19,8 @@ import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { chromium, type Page } from "playwright";
 import type { CapturedElement } from "../src/capture/types.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const SOURCE_REVISIONS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -817,7 +819,7 @@ export async function runUrlBackgroundGeometryAudit(
     import("../src/render/element-tree-to-svg.js"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
+  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });

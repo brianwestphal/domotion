@@ -106,13 +106,15 @@ function main() {
 
   for (let k = 1; k <= chunks; k++) {
     const outDir = join(outRoot, `chunk-${k}`);
-    const args = ["tsx", "tools/font-conformance.ts", "--shard", `${k}/${chunks}`, "--out", outDir, ...passthrough];
+    const args = ["--import", "tsx", "tools/font-conformance.ts", "--shard", `${k}/${chunks}`, "--out", outDir, ...passthrough];
     const t0 = Date.now();
     // stderr is CAPTURED rather than inherited: CoreText writes a line per
     // hidden-face lookup, which drowns the per-chunk progress this tool exists
     // to show. It is replayed verbatim when a chunk dies, so a real failure is
     // never swallowed — only the routine noise of a working run is.
-    const res = spawnSync("npx", args, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
+    // The current Node with `--import tsx`, not `npx`: npx is a `.cmd` shim that spawnSync cannot
+    // launch without a shell on Windows.
+    const res = spawnSync(process.execPath, args, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" });
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
 
     // The tool defines 0 = full agreement and 1 = mismatches found. Anything

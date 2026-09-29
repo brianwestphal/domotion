@@ -18,10 +18,12 @@ import { chromium } from "@playwright/test";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
 import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
 import { assetNameFor, ICU_COMPANION_VERSION, resolveIcuCompanionTarget } from "@domotion/text-engine/testing";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const require = createRequire(import.meta.url);
 const PKG = require("../package.json") as { version: string };
-const PLAYWRIGHT_VERSION = (require("@playwright/test/package.json") as { version: string }).version;
+const PLAYWRIGHT_VERSION = (readPlaywrightVersion() ?? "unknown");
 const REPO = "brianwestphal/domotion";
 
 // These are release facts, not tolerances.  A clobbered asset must make the

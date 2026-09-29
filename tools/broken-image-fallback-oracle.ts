@@ -24,6 +24,8 @@ import type {
   CapturedElement,
 } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 export const BROKEN_IMAGE_GATE_SOURCE_REVISIONS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -1645,7 +1647,7 @@ export function validateBrokenImageGateCorpus(): string[] {
 
 async function chromiumRevision(): Promise<{ playwrightVersion: string; chromiumRevision: string }> {
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (require("playwright/package.json") as { version: string }).version;
+  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
   try {
     const packagePath = require.resolve("playwright-core/package.json");
     const browsers = JSON.parse(readFileSync(resolve(dirname(packagePath), "browsers.json"), "utf8")) as {

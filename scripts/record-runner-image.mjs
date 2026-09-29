@@ -17,7 +17,7 @@
 // (writes to outPath, or stdout if omitted).
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { playwrightVersion as readPlaywrightVersion } from "./run-env.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 /**
@@ -73,12 +73,7 @@ function main() {
     } catch {
       /* not linux */
     }
-    try {
-      const require = createRequire(import.meta.url);
-      playwrightVersion = require("@playwright/test/package.json").version;
-    } catch {
-      /* playwright not resolvable */
-    }
+    playwrightVersion = readPlaywrightVersion();
   }
   const id = computeRunnerImage({
     imageOS: process.env.ImageOS,

@@ -12,6 +12,8 @@ import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { chromium, type CDPSession, type ElementHandle, type Page } from "playwright";
 import sharp from "sharp";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import type {
   CapturedElement,
   CapturedTextPaintAffine,
@@ -1045,7 +1047,7 @@ export async function runTextTransformGeometryAudit(
   const capture = await import("../src/capture/index.js"),
     render = await import("../src/render/element-tree-to-svg.js");
   const require = createRequire(import.meta.url),
-    playwrightVersion = (require("playwright/package.json") as { version: string }).version,
+    playwrightVersion = (readPlaywrightVersion() ?? "unknown"),
     dprs = options.deviceScaleFactors ?? [1, 2];
   const browser = await chromium.launch({ headless: true }),
     rows: TextTransformAuditRow[] = [],

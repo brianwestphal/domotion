@@ -6,11 +6,13 @@ import { pathToFileURL } from "node:url";
 import { chromium } from "@playwright/test";
 import sharp from "sharp";
 import { blinkCornerLine } from "./paint-geometry-oracle.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const SOURCE_REVISION = "chromium:7d859f271cbda744098ac69f44978d4edfa62be3";
 const DPR = 4;
 const require = createRequire(import.meta.url);
-const playwrightVersion = (require("@playwright/test/package.json") as { version: string }).version;
+const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
 
 export interface BrowserPaintProbe {
   id: string;

@@ -13,6 +13,8 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileSync } from "node:fs";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   chromium,
   type Browser,
@@ -620,7 +622,7 @@ export async function runSystemUiPreferenceRouteOracle(
       release: release(),
       architecture: arch(),
       node: process.version,
-      playwright: (require("@playwright/test/package.json") as { version: string }).version,
+      playwright: (readPlaywrightVersion() ?? "unknown"),
       locale: Intl.DateTimeFormat().resolvedOptions().locale,
       lang: process.env.LANG ?? "unset",
       fontInventory: fontInventory(),

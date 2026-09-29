@@ -35,6 +35,8 @@ import {
 } from "./paths-native-raster-corpus.js";
 import type { PathsRasterRow } from "./paths-native-raster-gate.js";
 import { measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   assessPathsNativeFaceIdentity,
   pathsRasterCssFamily,
@@ -47,7 +49,7 @@ import {
 } from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
-const PLAYWRIGHT_VERSION = (require("@playwright/test/package.json") as { version: string }).version;
+const PLAYWRIGHT_VERSION = (readPlaywrightVersion() ?? "unknown");
 const VIEWPORT = PATHS_NATIVE_RASTER_VIEWPORT;
 const ORIGIN_X = PATHS_NATIVE_RASTER_ORIGIN.x;
 const BASELINE_Y = PATHS_NATIVE_RASTER_ORIGIN.baselineY;
