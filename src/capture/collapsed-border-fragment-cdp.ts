@@ -25,6 +25,7 @@ import {
   type CollapsedBorderSectionSourceEvidence,
 } from "./collapsed-border-fragment-record.js";
 import type { CaptureWarning } from "./types.js";
+import { probeFailureWarning } from "./probe-failure.js";
 
 interface SourceNodeMetadata {
   nodeIndex: number;
@@ -450,7 +451,15 @@ async function measureProtocol(
   return result;
 }
 
-async function measureCssom(frames: readonly PreparedFrame[], key: string): Promise<CssomMap> {
+/** Reports one whole-frame probe failure. The frame contributes no evidence, which downstream
+ *  reads as an empty measurement, so the cause is surfaced here instead of being lost. */
+export type FrameProbeFailure = (error: unknown) => void;
+
+export async function measureCssom(
+  frames: readonly PreparedFrame[],
+  key: string,
+  onFrameFailure: FrameProbeFailure,
+): Promise<CssomMap> {
   const result: CssomMap = new Map();
   await Promise.all(
     frames.map(async ({ frame, token }) => {
@@ -467,7 +476,10 @@ async function measureCssom(frames: readonly PreparedFrame[], key: string): Prom
             })).filter((rect) => rect.width > 0 && rect.height > 0),
           );
         }, key)
-        .catch(() => [] as CollapsedBorderPhysicalRect[][]);
+        .catch((error: unknown) => {
+          onFrameFailure(error);
+          return [] as CollapsedBorderPhysicalRect[][];
+        });
       for (let nodeIndex = 0; nodeIndex < rows.length; nodeIndex++) {
         result.set(`${token}:${nodeIndex}`, rows[nodeIndex]);
       }
@@ -483,7 +495,11 @@ async function measureCssom(frames: readonly PreparedFrame[], key: string): Prom
  * membership at its exact cloned cell centers. No screenshot or fitted visual
  * threshold participates in this contract.
  */
-async function measureRepeatOccurrences(frames: readonly PreparedFrame[], key: string): Promise<RepeatMap> {
+export async function measureRepeatOccurrences(
+  frames: readonly PreparedFrame[],
+  key: string,
+  onFrameFailure: FrameProbeFailure,
+): Promise<RepeatMap> {
   const result: RepeatMap = new Map();
   await Promise.all(
     frames.map(async (prepared) => {
@@ -735,7 +751,8 @@ async function measureRepeatOccurrences(frames: readonly PreparedFrame[], key: s
           },
           { key, tables: prepared.tables },
         )
-        .catch(() => {
+        .catch((error: unknown) => {
+          onFrameFailure(error);
           return {
             tables: [] as Array<{ tableIndex: number; repeats: CollapsedBorderRepeatSectionEvidence[] }>,
             scrollRestoredExactly: false,
@@ -826,6 +843,18 @@ export async function prepareCollapsedBorderFragmentRecords(
     )
   ).filter((frame): frame is PreparedFrame => frame != null);
   const warnings: CaptureWarning[] = [];
+  const frameFailure =
+    (probe: string): FrameProbeFailure =>
+    (cause) =>
+      warnings.push(
+        probeFailureWarning({
+          selector,
+          feature: FEATURE,
+          probe: `${probe} probe for a frame`,
+          cause,
+          effect: "its collapsed-border section evidence is incomplete",
+        }),
+      );
   let session: CDPSession | undefined;
   let playbackRate: number | undefined;
   let neutral = false;
@@ -862,10 +891,10 @@ export async function prepareCollapsedBorderFragmentRecords(
     neutral = true;
     await settleFrames(prepared);
     const [cssom, protocol] = await Promise.all([
-      measureCssom(prepared, key),
+      measureCssom(prepared, key, frameFailure("CSSOM rect")),
       measureProtocol(session, key, prepared, contexts),
     ]);
-    const repeats = await measureRepeatOccurrences(prepared, key);
+    const repeats = await measureRepeatOccurrences(prepared, key, frameFailure("repeated-section occurrence"));
     const stylesRestoredExactly = await mutateTransforms(prepared, key, false);
     neutral = false;
     await settleFrames(prepared);

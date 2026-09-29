@@ -19,7 +19,9 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
    replaces visible glyph geometry and never changes default output.
 4. Unsupported, unavailable, or unauthenticated specialized paths fail closed
    with diagnostics. They do not silently guess, normalize evidence, or widen a
-   tolerance.
+   tolerance. A Node-side CDP probe that fails and is replaced by an empty value
+   reports a `CaptureWarning` naming the probe and its cause
+   (`src/capture/probe-failure.ts`); it is never an unexplained fidelity gap.
 5. Platform comparisons fingerprint the relevant OS, architecture, browser,
    profile/preferences, fonts, helpers, source pins, corpus, and artifacts.
 6. Output is deterministic under the same authenticated inputs. Animation,

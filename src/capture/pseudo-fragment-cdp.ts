@@ -30,6 +30,7 @@ import type {
   CaptureWarning,
 } from "./types.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
+import { probeFailureWarning } from "./probe-failure.js";
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
 import { parseFontVariationSettings } from "../render/text.js";
 
@@ -857,10 +858,11 @@ async function capturePseudoBackdropBoundary(
   }
 }
 
-async function addShapedAdvances(
+export async function addShapedAdvances(
   candidate: Candidate,
   rows: SnapshotLayoutRow[],
   key: string,
+  onFailure: (error: unknown) => void,
 ): Promise<SnapshotLayoutRow[]> {
   const strings = rows.flatMap((row) =>
     row.text == null
@@ -904,7 +906,10 @@ async function addShapedAdvances(
       },
       { key, elementIndex: candidate.elementIndex, pseudo: candidate.pseudo, strings },
     )
-    .catch(() => [] as number[]);
+    .catch((error: unknown) => {
+      onFailure(error);
+      return [] as number[];
+    });
   let cursor = 0;
   return rows.map((row) => ({
     ...row,
@@ -1188,6 +1193,22 @@ export async function preparePseudoFragmentGeometry(
   const candidates = prepared.flatMap((row) => row.candidates);
   const warnings: CaptureWarning[] = [];
   const facts = new Map<string, Record<number, CapturedPseudoFragmentSet[]>>();
+  /** Isolate one pseudo's Chromium-painted surface. A failure leaves a zero-size raster, i.e.
+   *  the pseudo's paint is absent, so it must be reported rather than swallowed. */
+  const isolate = (candidate: Candidate) =>
+    isolatePseudoSurface(page, prepared, candidate, key, viewport).catch((error: unknown) => {
+      warnings.push(
+        probeFailureWarning({
+          selector: candidate.selector,
+          feature: FEATURE,
+          probe: "isolated Chromium pseudo surface capture",
+          cause: error,
+          effect: "the pseudo's paint is missing from the output",
+          status: "unavailable",
+        }),
+      );
+      return { rect: { x: 0, y: 0, width: 0, height: 0 }, isolated: true as const };
+    });
   for (const frame of prepared) facts.set(frame.token, {});
   let session: CDPSession | undefined;
   let playbackRate: number | undefined;
@@ -1214,10 +1235,7 @@ export async function preparePseudoFragmentGeometry(
     for (const candidate of candidates) {
       if (candidate.backendNodeId == null) {
         const reason = "computed generated content had no correlatable Chromium pseudo backend node";
-        const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({
-          rect: { x: 0, y: 0, width: 0, height: 0 },
-          isolated: true as const,
-        }));
+        const terminalRaster = await isolate(candidate);
         const frameFacts = facts.get(candidate.token)!;
         (frameFacts[candidate.elementIndex] ??= []).push({
           source: "blink-pseudo-fragment-v1",
@@ -1243,11 +1261,32 @@ export async function preparePseudoFragmentGeometry(
         continue;
       }
       let rows = snapshotRows(snapshot, candidate.backendNodeId);
-      rows = await addShapedAdvances(candidate, rows, key);
+      rows = await addShapedAdvances(candidate, rows, key, (cause) =>
+        warnings.push(
+          probeFailureWarning({
+            selector: candidate.selector,
+            feature: FEATURE,
+            probe: "shaped-advance probe",
+            cause,
+            effect: "text advances for this pseudo are unavailable",
+          }),
+        ),
+      );
       const quads = await session
         .send("DOM.getContentQuads", { backendNodeId: candidate.backendNodeId })
         .then((result) => result.quads.map((value) => quad(value, viewport)))
-        .catch(() => [] as Quad[]);
+        .catch((cause: unknown) => {
+          warnings.push(
+            probeFailureWarning({
+              selector: candidate.selector,
+              feature: FEATURE,
+              probe: "DOM.getContentQuads",
+              cause,
+              effect: "physical pseudo quads are unavailable",
+            }),
+          );
+          return [] as Quad[];
+        });
       const decoded = decodePseudoFragmentProtocol({
         hostCorrelationId: candidate.correlationId,
         pseudo: candidate.pseudo,
@@ -1260,10 +1299,7 @@ export async function preparePseudoFragmentGeometry(
         record = exactRecord(candidate, decoded);
       } else {
         const reason = decoded.reason ?? decoded.status;
-        const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({
-          rect: { x: 0, y: 0, width: 0, height: 0 },
-          isolated: true as const,
-        }));
+        const terminalRaster = await isolate(candidate);
         record = {
           source: "blink-pseudo-fragment-v1",
           pseudo: `::${candidate.pseudo}`,
@@ -1288,10 +1324,7 @@ export async function preparePseudoFragmentGeometry(
       }
       if (record.status === "exact" && generatedImageNeedsIntrinsicSurface(candidate)) {
         const reason = "generated URL image intrinsic paint exceeds its pseudo layout slot";
-        const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({
-          rect: { x: 0, y: 0, width: 0, height: 0 },
-          isolated: true as const,
-        }));
+        const terminalRaster = await isolate(candidate);
         record = {
           ...record,
           status: "terminal-raster",
@@ -1352,10 +1385,7 @@ export async function preparePseudoFragmentGeometry(
   } catch (error) {
     for (const candidate of candidates) {
       const reason = error instanceof Error ? error.message : String(error);
-      const terminalRaster = await isolatePseudoSurface(page, prepared, candidate, key, viewport).catch(() => ({
-        rect: { x: 0, y: 0, width: 0, height: 0 },
-        isolated: true as const,
-      }));
+      const terminalRaster = await isolate(candidate);
       const frameFacts = facts.get(candidate.token)!;
       (frameFacts[candidate.elementIndex] ??= []).push({
         source: "blink-pseudo-fragment-v1",

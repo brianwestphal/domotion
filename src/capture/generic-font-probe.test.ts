@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { Page } from "@playwright/test";
 import {
   deserializeSessionGenericFamilyProbe,
   genericFamilyReplayName,
   genericFamilyProbeTargets,
   genericProbeArmed,
   languagesFromDomSnapshot,
+  probePageGenericFamilies,
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
 
@@ -110,5 +112,63 @@ describe("genericFamilyProbeTargets", () => {
     const restored = deserializeSessionGenericFamilyProbe(JSON.parse(JSON.stringify(serialized)));
     expect([...restored.common]).toEqual([...live.common]);
     expect([...restored.byScript.get("ARABIC")!]).toEqual([...live.byScript.get("ARABIC")!]);
+  });
+});
+
+describe("probePageGenericFamilies failure reporting", () => {
+  // The persistent session cache is keyed by Page, so each test uses its own fake.
+  const fakePage = (newCDPSession: () => Promise<unknown>, evaluate?: () => Promise<unknown>): Page =>
+    ({
+      context: () => ({ newCDPSession }),
+      once: () => {},
+      evaluate: evaluate ?? (async () => undefined),
+    }) as unknown as Page;
+
+  it("reports a probe that threw and returns null", async () => {
+    const failures: Array<[string, unknown]> = [];
+    const page = fakePage(async () => {
+      throw new Error("Target page, context or browser has been closed");
+    });
+
+    const result = await probePageGenericFamilies(page, (probe, cause) => failures.push([probe, cause]));
+
+    expect(result).toBeNull();
+    expect(failures).toEqual([
+      ["page generic-family probe", new Error("Target page, context or browser has been closed")],
+    ]);
+  });
+
+  it("reports failed page-language discovery separately, then the probe failure it led to", async () => {
+    const session = {
+      send: async (method: string) => {
+        if (method === "DOMSnapshot.captureSnapshot") throw new Error("snapshot refused");
+        return {};
+      },
+      detach: async () => {},
+    };
+    const failures: string[] = [];
+    const page = fakePage(
+      async () => session,
+      async () => {
+        throw new Error("evaluate refused");
+      },
+    );
+
+    const result = await probePageGenericFamilies(page, (probe, cause) =>
+      failures.push(`${probe}: ${(cause as Error).message}`),
+    );
+
+    expect(result).toBeNull();
+    expect(failures).toEqual([
+      "page language discovery: snapshot refused",
+      "page generic-family probe: evaluate refused",
+    ]);
+  });
+
+  it("does not require a failure callback", async () => {
+    const page = fakePage(async () => {
+      throw new Error("closed");
+    });
+    await expect(probePageGenericFamilies(page)).resolves.toBeNull();
   });
 });

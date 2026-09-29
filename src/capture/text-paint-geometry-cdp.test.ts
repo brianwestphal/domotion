@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CDPSession } from "@playwright/test";
 
-import { measureTextPaintRows } from "./text-paint-geometry-cdp.js";
+import { measureRangeFragments, measureTextPaintRows } from "./text-paint-geometry-cdp.js";
 
 const delay = (milliseconds: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -84,5 +84,47 @@ describe("bounded text paint CDP measurement (DM-2680)", () => {
     expect(result.has("f0:2")).toBe(false);
     expect(new Set(released)).toEqual(new Set(["10:0", "10:1", "10:2", "11:0", "11:1"]));
     expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toHaveLength(5);
+  });
+});
+
+describe("Range FragmentItem probe whole-frame failure", () => {
+  it("reports a failed frame once and keeps the other frames' rows", async () => {
+    const frameThatFails = {
+      // The first call is the tsx `__name` helper install (a string); the second is the probe.
+      evaluate: vi.fn(async (work: unknown) => {
+        if (typeof work === "string") return false;
+        throw new Error("Execution context was destroyed");
+      }),
+    };
+    const frameThatWorks = {
+      evaluate: vi.fn(async (work: unknown) =>
+        typeof work === "string" ? false : [{ fragments: [], failureReason: "measured" }],
+      ),
+    };
+    const frames = [
+      { frame: frameThatFails, token: "f0", rows: [], hasTransformOwners: false },
+      { frame: frameThatWorks, token: "f1", rows: [], hasTransformOwners: false },
+    ] as unknown as Parameters<typeof measureRangeFragments>[0];
+    const failures: unknown[] = [];
+
+    const result = await measureRangeFragments(frames, "probe", (error) => failures.push(error));
+
+    expect(failures).toEqual([new Error("Execution context was destroyed")]);
+    expect([...result.keys()]).toEqual(["f1:0"]);
+    expect(result.get("f1:0")?.failureReason).toBe("measured");
+  });
+
+  it("stays silent when every frame is measured", async () => {
+    const frames = [
+      {
+        frame: { evaluate: async (work: unknown) => (typeof work === "string" ? false : []) },
+        token: "f0",
+        rows: [],
+        hasTransformOwners: false,
+      },
+    ] as unknown as Parameters<typeof measureRangeFragments>[0];
+    const failures: unknown[] = [];
+    await measureRangeFragments(frames, "probe", (error) => failures.push(error));
+    expect(failures).toEqual([]);
   });
 });

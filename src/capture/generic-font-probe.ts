@@ -158,7 +158,11 @@ export function languagesFromDomSnapshot(snapshot: DomSnapshotLanguageFacts): st
   return [...languages];
 }
 
-async function pageLanguageFacts(cdp: CDPSession): Promise<string[]> {
+/** Receives the cause when the generic-family probe THREW (as opposed to legitimately
+ *  observing unstable settings, which is not an error and stays silent). */
+export type GenericProbeFailure = (probe: string, cause: unknown) => void;
+
+async function pageLanguageFacts(cdp: CDPSession, onFailure?: GenericProbeFailure): Promise<string[]> {
   // DM-2593: do not also walk `page.frames()` with Playwright evaluations.
   // On a reused page, Chromium can leave evaluation of a freshly navigated
   // `srcdoc` frame unresolved indefinitely. The flattened snapshot is already
@@ -172,7 +176,10 @@ async function pageLanguageFacts(cdp: CDPSession): Promise<string[]> {
       includePaintOrder: false,
     })
     .then(languagesFromDomSnapshot)
-    .catch(() => [] as string[]);
+    .catch((cause: unknown) => {
+      onFailure?.("page language discovery", cause);
+      return [] as string[];
+    });
 }
 
 export function genericFamilyProbeTargets(additionalLanguages: readonly string[] = []): ProbeTarget[] {
@@ -386,11 +393,14 @@ async function readPageGenericFamilies(
 /** Probe the exact page that will be captured. This observes profile defaults,
  * Playwright's injected table, and any later per-page CDP preference mutation
  * without navigating or replacing the caller's document. */
-export async function probePageGenericFamilies(page: Page): Promise<SessionGenericFamilyProbe | null> {
+export async function probePageGenericFamilies(
+  page: Page,
+  onFailure?: GenericProbeFailure,
+): Promise<SessionGenericFamilyProbe | null> {
   let cdp: CDPSession | null = null;
   try {
     cdp = await persistentTargetProbeSession(page);
-    const targets = genericFamilyProbeTargets(await pageLanguageFacts(cdp));
+    const targets = genericFamilyProbeTargets(await pageLanguageFacts(cdp, onFailure));
     await waitForGenericSettingsTurn(page);
     const first = await readPageGenericFamilies(page, cdp, targets);
     await waitForGenericSettingsTurn(page);
@@ -398,9 +408,12 @@ export async function probePageGenericFamilies(page: Page): Promise<SessionGener
     if (probeResultsEqual(first, second)) return second;
     await waitForGenericSettingsTurn(page);
     const third = await readPageGenericFamilies(page, cdp, targets);
+    // Three reads that never agree mean another session is mutating the settings; that is a
+    // legitimate "no stable authority" answer, not a probe failure, so it is not reported.
     return probeResultsEqual(second, third) ? third : null;
-  } catch {
+  } catch (cause) {
     if (cdp != null) invalidateTargetProbeSession(page, cdp);
+    onFailure?.("page generic-family probe", cause);
     return null;
   }
 }
@@ -505,11 +518,14 @@ function probeResultsEqual(a: SessionGenericFamilyProbe | null, b: SessionGeneri
  * `DOMOTION_GENERIC_PROBE=0`; never throws; deliberately re-probes every
  * capture because another CDP session can mutate Page settings at any time.
  */
-export async function ensureSessionGenericFamilyOverrides(page: Page): Promise<SessionGenericFamilyProbe | null> {
+export async function ensureSessionGenericFamilyOverrides(
+  page: Page,
+  onFailure?: GenericProbeFailure,
+): Promise<SessionGenericFamilyProbe | null> {
   if (!genericProbeArmed()) return null;
   // Do not cache by Page: Page.setFontFamilies is guarded once per
   // InspectorPageAgent SESSION, so another CDP session can legitimately
   // mutate the same page between two captures. Re-probing is the only source-
   // honest invalidation policy available through the public protocol.
-  return await probePageGenericFamilies(page);
+  return await probePageGenericFamilies(page, onFailure);
 }

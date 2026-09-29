@@ -20,6 +20,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { CDPSession, Frame, Page } from "@playwright/test";
 
 import { frameHostAllowed, parseCrossOriginAllowlist } from "./script/cross-origin.js";
+import { errorMessage } from "./probe-failure.js";
 import type {
   CapturedFrameAccess,
   CapturedFrameScrollOwner,
@@ -448,7 +449,10 @@ async function cdpFrameIds(
 ): Promise<{
   byToken: Map<string, string>;
   parents: Map<string, string | null>;
+  /** Why an OOPIF's identity handshake failed, keyed by frame token (absent when it succeeded). */
+  identityFailures: Map<string, string>;
 }> {
+  const identityFailures = new Map<string, string>();
   const session = await page.context().newCDPSession(page);
   let byToken: Map<string, string>;
   let parents: Map<string, string | null>;
@@ -481,15 +485,19 @@ async function cdpFrameIds(
   // parent-graph authority.
   const unresolved = setups.filter(({ token }) => !byToken.has(token));
   const oopifMaps = await Promise.all(
-    unresolved.map(async ({ frame }) => {
+    unresolved.map(async ({ frame, token }) => {
       const frameSession = await page
         .context()
         .newCDPSession(frame)
-        .catch(() => null);
+        .catch((error: unknown) => {
+          identityFailures.set(token, `attaching a CDP session to the frame failed: ${errorMessage(error)}`);
+          return null;
+        });
       if (frameSession == null) return new Map<string, string>();
       try {
         return await collectDefaultContextTokens(frameSession, propertyKey);
-      } catch {
+      } catch (error) {
+        identityFailures.set(token, `reading the frame's default execution context failed: ${errorMessage(error)}`);
         return new Map<string, string>();
       } finally {
         await frameSession.send("Runtime.disable").catch(() => undefined);
@@ -500,7 +508,13 @@ async function cdpFrameIds(
   for (const map of oopifMaps) {
     for (const [token, frameId] of map) byToken.set(token, frameId);
   }
-  return { byToken, parents };
+  return { byToken, parents, identityFailures };
+}
+
+/** The diagnostic for a frame whose Chromium identity could not be authenticated, naming the
+ *  underlying failure when the OOPIF handshake threw rather than merely finding nothing. */
+export function frameIdentityUnavailableDiagnostic(cause?: string): string {
+  return `frame identity could not be authenticated against Chromium's default execution context${cause == null ? "" : ` (${cause})`}; retained the Chromium raster and read no frame scroll state`;
 }
 
 function frameDiagnostic(frameId: string, origin: string, access: CapturedFrameAccess): string | undefined {
@@ -712,7 +726,7 @@ export async function prepareFrameScrollCapture(
     );
     throw error;
   }
-  const { byToken, parents: protocolParents } = cdpIdentity;
+  const { byToken, parents: protocolParents, identityFailures } = cdpIdentity;
   const byFrame = new Map<Frame, FrameSetup>(setups.map((entry) => [entry.frame, entry]));
   const allow = parseCrossOriginAllowlist(rawAllowlist);
   const allowlistCanonical = canonicalAllowlist(rawAllowlist);
@@ -751,8 +765,7 @@ export async function prepareFrameScrollCapture(
         identityDiagnostic =
           "frame setup became unavailable before Chromium identity authentication; retained the Chromium raster and read no frame scroll state";
       } else if (frameId === "") {
-        identityDiagnostic =
-          "frame identity could not be authenticated against Chromium's default execution context; retained the Chromium raster and read no frame scroll state";
+        identityDiagnostic = frameIdentityUnavailableDiagnostic(identityFailures.get(setup.token));
       } else if (frame === page.mainFrame()) {
         identityDiagnostic = `top frame ${frameId} did not resolve as Chromium's root browsing context; retained the Chromium raster and read no frame scroll state`;
       } else if (parentFrameId == null) {

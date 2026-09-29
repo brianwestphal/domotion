@@ -76,6 +76,7 @@ import {
 } from "./replaced-media-frame.js";
 import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element-raster.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
+import { probeFailureWarning } from "./probe-failure.js";
 import type { CapturedElement, CapturedFrameScrollState, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { createTextEngineSession, withTextEngineDocument, type TextEngineSession } from "../render/text-engine.js";
@@ -2202,7 +2203,19 @@ async function captureElementTreeWithWarningsInternal(
     // captureElementTreeEnvelope moves them into one JSON-stable Page envelope.
     // The renderer scopes either form to this tree, so independently captured
     // pages cannot contaminate one another. See `generic-font-probe.ts`.
-    const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page);
+    const genericProbeWarnings: CaptureWarning[] = [];
+    const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page, (probe, cause) =>
+      genericProbeWarnings.push(
+        probeFailureWarning({
+          selector,
+          feature: "generic-font-families",
+          probe,
+          cause,
+          effect:
+            "the captured tree carries no session generic-family record, so the renderer substitutes its defaults",
+        }),
+      ),
+    );
     await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
     await reverifyAnimationFrame();
 
@@ -2316,6 +2329,7 @@ async function captureElementTreeWithWarningsInternal(
       warnings.push(...(textPaintProbe?.warnings ?? []));
       const frameScrollState = await frameScrollCapture.snapshot();
       warnings.push(...frameScrollCapture.warnings);
+      warnings.push(...genericProbeWarnings);
       finalizeScrollbarResizerOverlap(typed.tree);
       try {
         // DM-2455: structural hosts keep their vector box/text while one separate

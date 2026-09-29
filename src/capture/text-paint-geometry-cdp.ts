@@ -2,6 +2,7 @@
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import type { CapturedElement, CapturedTextPaintQuad, CaptureWarning } from "./types.js";
+import { probeFailureWarning } from "./probe-failure.js";
 import { buildCapturedTextPaintGeometry, type ProtocolTextNodeGeometry } from "./text-fragment-geometry.js";
 import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
 
@@ -352,9 +353,11 @@ interface RangeMeasurement {
  * suffixes reveal the last full start.  Exact-rectangle occurrence ranks keep
  * duplicate physical rectangles explicit instead of selecting by proximity.
  */
-async function measureRangeFragments(
+export async function measureRangeFragments(
   frames: readonly PreparedFrame[],
   key: string,
+  /** Called once per frame whose whole probe failed; that frame contributes no rows. */
+  onFrameFailure: (error: unknown) => void,
 ): Promise<Map<string, RangeMeasurement>> {
   const output = new Map<string, RangeMeasurement>();
   await Promise.all(
@@ -461,7 +464,12 @@ async function measureRangeFragments(
           },
           { key },
         )
-        .catch(() => [] as RangeMeasurement[]);
+        .catch((error: unknown) => {
+          // A whole-frame failure drops every measured row, which downstream reads as
+          // "no correlation" per element. Report it once so it is not mistaken for that.
+          onFrameFailure(error);
+          return [] as RangeMeasurement[];
+        });
       if (installedTsxNameHelper) {
         await frame.evaluate("delete globalThis.__name").catch(() => undefined);
       }
@@ -607,7 +615,17 @@ export async function prepareTextPaintGeometry(
     await settleFrames(prepared);
     const [neutralQuads, neutralRangeFragments] = await Promise.all([
       measureTextPaintRows(session, key, prepared, contexts, viewport),
-      measureRangeFragments(prepared, key),
+      measureRangeFragments(prepared, key, (cause) =>
+        warnings.push(
+          probeFailureWarning({
+            selector,
+            feature: "transform",
+            probe: "Range FragmentItem probe for a frame",
+            cause,
+            effect: "its text elements take the legacy text path",
+          }),
+        ),
+      ),
     ]);
     const neutralResult = await captureNeutralTree(key);
     await mutateFrames(prepared, key, false);
