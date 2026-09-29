@@ -2,7 +2,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { ICU_BINARY, __resetIcuHelperForTest, isIcuHelperAvailable, queryIcuCodepoints } from "./icu-helper.js";
+import {
+  ICU_BINARY,
+  __resetIcuHelperForTest,
+  isIcuHelperAvailable,
+  parseIcuResponse,
+  queryIcuCodepoints,
+} from "./icu-helper.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const HELPER = path.join(
@@ -48,5 +54,71 @@ describe.runIf(haveLocalCompanion)("Chromium-pinned ICU companion (DM-2254)", ()
   it("rejects invalid scalar values before crossing the native boundary", () => {
     const rows = queryIcuCodepoints([-1, 0x110000, Number.NaN]);
     expect(rows.size).toBe(0);
+  });
+});
+
+describe("parseIcuResponse", () => {
+  const row = (cp: number, overrides: Record<string, unknown> = {}) => ({
+    cp,
+    found: true,
+    generalCategory: 1,
+    generalCategoryName: "Lu",
+    combiningClass: 0,
+    script: 25,
+    scriptName: "Latn",
+    scriptLongName: "Latin",
+    block: 1,
+    blockName: "Basic Latin",
+    bidiClass: 0,
+    bidiPairedBracketType: 0,
+    eastAsianWidth: 0,
+    indicPositionalCategory: 0,
+    indicSyllabicCategory: 0,
+    lineBreak: 0,
+    verticalOrientation: 0,
+    binaryProperties: 0,
+    scriptExtensions: [],
+    scriptExtensionNames: [],
+    ...overrides,
+  });
+  const envelope = (properties: unknown, overrides: Record<string, unknown> = {}) =>
+    JSON.stringify({ protocolVersion: "1", icuVersion: "78.2", unicodeVersion: "17.0", properties, ...overrides });
+
+  it("accepts a well-formed response", () => {
+    const parsed = parseIcuResponse(envelope([row(0x41), row(0x42)]));
+    expect(parsed?.properties.map((r) => r.cp)).toEqual([0x41, 0x42]);
+  });
+
+  it("rejects non-JSON, non-objects, wrong versions, and a missing or non-array properties field", () => {
+    expect(parseIcuResponse("not json")).toBeNull();
+    expect(parseIcuResponse("null")).toBeNull();
+    expect(parseIcuResponse("[]")).toBeNull();
+    expect(parseIcuResponse(envelope([], { protocolVersion: "2" }))).toBeNull();
+    expect(parseIcuResponse(envelope([], { icuVersion: "77.1" }))).toBeNull();
+    expect(parseIcuResponse(envelope([], { unicodeVersion: 17 }))).toBeNull();
+    expect(parseIcuResponse(envelope({ 0: row(0x41) }))).toBeNull();
+    expect(
+      parseIcuResponse(JSON.stringify({ protocolVersion: "1", icuVersion: "78.2", unicodeVersion: "17.0" })),
+    ).toBeNull();
+  });
+
+  it("drops only the malformed rows, so a bad row is never memoized as an answer", () => {
+    const parsed = parseIcuResponse(
+      envelope([
+        row(0x41),
+        row(0x42, { script: "Latn" }), // wrong type
+        row(0x43, { found: 1 }),
+        row(0x44, { scriptExtensions: ["x"] }),
+        row(0x45, { scriptExtensionNames: [1] }),
+        row(0x46, { blockName: undefined }),
+        row(0x47, { generalCategory: null }),
+        row(0x1_10000_0), // out of range
+        row(1.5),
+        null,
+        "row",
+        row(0x48),
+      ]),
+    );
+    expect(parsed?.properties.map((r) => r.cp)).toEqual([0x41, 0x48]);
   });
 });

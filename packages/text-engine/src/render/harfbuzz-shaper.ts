@@ -27,9 +27,8 @@ import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import bidiFactory from "bidi-js";
 import { getScript } from "unicode-properties";
 import * as hb from "../../vendor/harfbuzzjs/dist/index.mjs";
+import { parseSvgPath, type PathCommand } from "./glyph-helper-outline.js";
 import { isTransientFsError, retrySync } from "./sync-retry.js";
-
-type PathCommand = { command: string; args: number[] };
 
 interface ShapedGlyph {
   id: number;
@@ -69,38 +68,6 @@ interface HbEntry {
   pathCache: Map<number, PathCommand[]>;
 }
 const hbFontCache = new Map<string, HbEntry | null>();
-
-// Mirror of `glyph-helper.ts::parseSvgPath` — HarfBuzz's glyphToPath emits the
-// same absolute M/L/Q/C/Z grammar the CoreText helper does (TrueType outlines
-// are quadratic, so Q dominates; C handled defensively).
-function parseSvgPath(d: string): PathCommand[] {
-  if (d.length === 0) return [];
-  const tokens = d.match(/[MLQCZ]|-?\d+(?:\.\d+)?/g) ?? [];
-  const out: PathCommand[] = [];
-  let i = 0;
-  const num = (): number => Number(tokens[i++]);
-  while (i < tokens.length) {
-    const t = tokens[i++];
-    switch (t) {
-      case "M":
-        out.push({ command: "moveTo", args: [num(), num()] });
-        break;
-      case "L":
-        out.push({ command: "lineTo", args: [num(), num()] });
-        break;
-      case "Q":
-        out.push({ command: "quadraticCurveTo", args: [num(), num(), num(), num()] });
-        break;
-      case "C":
-        out.push({ command: "bezierCurveTo", args: [num(), num(), num(), num(), num(), num()] });
-        break;
-      case "Z":
-        out.push({ command: "closePath", args: [] });
-        break;
-    }
-  }
-  return out;
-}
 
 /**
  * Number of faces in `data`, by the rule HarfBuzz itself applies.

@@ -27,11 +27,69 @@ export interface IcuCodepointProperties {
   scriptExtensionNames: string[];
 }
 
-interface IcuResponse {
+export interface IcuResponse {
   protocolVersion: "1";
   icuVersion: "78.2";
   unicodeVersion: string;
   properties: IcuCodepointProperties[];
+}
+
+const ICU_PROTOCOL_VERSION = "1";
+const ICU_VERSION = "78.2";
+
+const NUMBER_FIELDS = [
+  "cp",
+  "generalCategory",
+  "combiningClass",
+  "script",
+  "block",
+  "bidiClass",
+  "bidiPairedBracketType",
+  "eastAsianWidth",
+  "indicPositionalCategory",
+  "indicSyllabicCategory",
+  "lineBreak",
+  "verticalOrientation",
+  "binaryProperties",
+] as const;
+const STRING_FIELDS = ["generalCategoryName", "scriptName", "scriptLongName", "blockName"] as const;
+
+function isIcuRow(value: unknown): value is IcuCodepointProperties {
+  if (value === null || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  if (typeof row.found !== "boolean") return false;
+  for (const field of NUMBER_FIELDS) if (typeof row[field] !== "number" || !Number.isFinite(row[field])) return false;
+  for (const field of STRING_FIELDS) if (typeof row[field] !== "string") return false;
+  if (!Array.isArray(row.scriptExtensions) || !row.scriptExtensions.every((n) => typeof n === "number")) return false;
+  if (!Array.isArray(row.scriptExtensionNames) || !row.scriptExtensionNames.every((n) => typeof n === "string")) {
+    return false;
+  }
+  return Number.isInteger(row.cp) && (row.cp as number) >= 0 && (row.cp as number) <= 0x10ffff;
+}
+
+/**
+ * Parse one companion response. The binary is versioned separately from the package, so the envelope
+ * (protocol and ICU versions, a `properties` array) is checked here rather than trusted; a row that does
+ * not have the documented shape is dropped so it can never be memoized and later read as a real answer.
+ * Any failure returns null — helper-absent mode is deliberately non-fatal.
+ */
+export function parseIcuResponse(text: string): IcuResponse | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== "object") return null;
+  const envelope = parsed as Partial<Record<keyof IcuResponse, unknown>>;
+  if (envelope.protocolVersion !== ICU_PROTOCOL_VERSION || envelope.icuVersion !== ICU_VERSION) return null;
+  if (typeof envelope.unicodeVersion !== "string" || !Array.isArray(envelope.properties)) return null;
+  return {
+    protocolVersion: ICU_PROTOCOL_VERSION,
+    icuVersion: ICU_VERSION,
+    unicodeVersion: envelope.unicodeVersion,
+    properties: envelope.properties.filter(isIcuRow),
+  };
 }
 
 const memo = new Map<number, IcuCodepointProperties>();
@@ -75,12 +133,7 @@ export function isIcuHelperAvailable(): boolean {
       : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
   });
   if (proc.status !== 0) return (helperValidated = false);
-  try {
-    const response = JSON.parse(proc.stdout) as IcuResponse;
-    return (helperValidated = response.protocolVersion === "1" && response.icuVersion === "78.2");
-  } catch {
-    return (helperValidated = false);
-  }
+  return (helperValidated = parseIcuResponse(proc.stdout) != null);
 }
 
 export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, IcuCodepointProperties> {
@@ -111,16 +164,10 @@ export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, I
         ? process.env
         : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
     });
-    if (proc.status === 0) {
-      try {
-        const response = JSON.parse(proc.stdout) as IcuResponse;
-        if (response.protocolVersion === "1" && response.icuVersion === "78.2") {
-          for (const row of response.properties) memo.set(row.cp, row);
-          while (memo.size > MAX_MEMO_ROWS) memo.delete(memo.keys().next().value!);
-        }
-      } catch {
-        /* helper-absent mode is deliberately non-fatal */
-      }
+    const response = proc.status === 0 ? parseIcuResponse(proc.stdout) : null;
+    if (response != null) {
+      for (const row of response.properties) memo.set(row.cp, row);
+      while (memo.size > MAX_MEMO_ROWS) memo.delete(memo.keys().next().value!);
     }
   }
   const result = new Map<number, IcuCodepointProperties>();

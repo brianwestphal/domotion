@@ -7362,18 +7362,7 @@ function instantiateResolvedFont(
     // static). Mirrors FreeType loading the named instance by index.
     instance = font;
     if (linuxInstanceAxes != null && font.getVariation != null) {
-      try {
-        const v = font.getVariation({ ...linuxInstanceAxes });
-        // Same broken-variation probe as applyVariationAxes: a WOFF2-style
-        // instance that can't expose its parent's tables falls back to the
-        // base face rather than crashing downstream.
-        if ((v as any).unitsPerEm != null) {
-          (v as any)._appliedVariationAxes = clampAxesToFvarRange({ ...linuxInstanceAxes }, font.variationAxes ?? {});
-          instance = v;
-        }
-      } catch {
-        /* keep the base face */
-      }
+      instance = instantiateVariation(font, linuxInstanceAxes) ?? instance;
     }
   } else {
     instance = applyVariationAxes(
@@ -8020,48 +8009,41 @@ function openFontkitFace(
   return { face: face as FontkitFace, faceIndex, nameMatched, container };
 }
 
+/** The `FileFaceInfo` describing one physical face (a collection member or a whole single-face file). */
+function describeFileFace(member: any, faceIndex: number, extra: Partial<FileFaceInfo> = {}): FileFaceInfo {
+  const axes = member?.variationAxes;
+  return {
+    faceIndex,
+    nameMatched: true,
+    fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
+    ...extra,
+    namedInstances: enumerateNamedInstances(member),
+    memberPostscriptName: member?.postscriptName ?? null,
+  };
+}
+
 function resolveFaceInfoForFile(path: string, postscriptName?: string, preferredFaceIndex?: number): FileFaceInfo {
   const cacheKey = `${path}#${postscriptName ?? ""}#${preferredFaceIndex ?? ""}`;
   const cached = fileFaceInfoCache.get(cacheKey);
   if (cached != null) return cached;
   let result: FileFaceInfo = { faceIndex: 0, nameMatched: true, fileAxes: null };
   try {
+    // Not `openFontkitFace`: that swallows an open failure into null, and this resolver must tell an
+    // unreadable file (not cached, see the catch below) from a readable one that lacks the name.
     const opened: any = openFontkitFileRecovering(path);
     if (opened?.fonts != null && Array.isArray(opened.fonts)) {
       if (preferredFaceIndex != null && preferredFaceIndex >= 0 && preferredFaceIndex < opened.fonts.length) {
-        const member = opened.fonts[preferredFaceIndex];
-        const axes = member?.variationAxes;
-        result = {
-          faceIndex: preferredFaceIndex,
-          nameMatched: true,
-          fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
-          namedInstances: enumerateNamedInstances(member),
-          memberPostscriptName: member?.postscriptName ?? null,
-        };
+        result = describeFileFace(opened.fonts[preferredFaceIndex], preferredFaceIndex);
       } else {
         // Match by postscriptName — getFont() returns a NEW object, so indexOf()
         // is always -1 (see the same fix in getFontInstance).
         const idx =
           postscriptName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === postscriptName) : -1;
         if (idx >= 0) {
-          const axes = opened.fonts[idx]?.variationAxes;
-          result = {
-            faceIndex: idx,
-            nameMatched: true,
-            fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
-            namedInstances: enumerateNamedInstances(opened.fonts[idx]),
-            memberPostscriptName: opened.fonts[idx]?.postscriptName ?? null,
-          };
+          result = describeFileFace(opened.fonts[idx], idx);
         } else if (postscriptName == null) {
           // No name to match: member zero IS the request, so index 0 is honest.
-          const axes = opened.fonts[0]?.variationAxes;
-          result = {
-            faceIndex: 0,
-            nameMatched: true,
-            fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
-            namedInstances: enumerateNamedInstances(opened.fonts[0]),
-            memberPostscriptName: opened.fonts[0]?.postscriptName ?? null,
-          };
+          result = describeFileFace(opened.fonts[0], 0);
         } else {
           // Not a physical member. Before giving up, check whether it is an fvar
           // NAMED INSTANCE of one — the usual shape for a CoreText-resolved face,
@@ -8070,15 +8052,7 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string, preferred
           for (let i = 0; i < opened.fonts.length; i++) {
             const instanceAxes = findNamedInstanceAxes(opened.fonts[i], postscriptName);
             if (instanceAxes == null) continue;
-            const axes = opened.fonts[i]?.variationAxes;
-            found = {
-              faceIndex: i,
-              nameMatched: true,
-              fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
-              instanceAxes,
-              namedInstances: enumerateNamedInstances(opened.fonts[i]),
-              memberPostscriptName: opened.fonts[i]?.postscriptName ?? null,
-            };
+            found = describeFileFace(opened.fonts[i], i, { instanceAxes });
             break;
           }
           // Neither a member nor a named instance of one. Member zero is a
@@ -8092,7 +8066,6 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string, preferred
     } else {
       // Not a collection: index 0 is the file's only face. It may still not be
       // the requested name (a relocated / stub file), which callers can see.
-      const axes = opened?.variationAxes;
       const psName = opened?.postscriptName;
       // A single-file VARIABLE font's named instances are ordinary requests
       // too — `Lexend-Medium` is an fvar instance of Lexend-Regular's file,
@@ -8103,14 +8076,10 @@ function resolveFaceInfoForFile(path: string, postscriptName?: string, preferred
       // equals the cut's weight.
       const instanceAxes =
         postscriptName != null && psName !== postscriptName ? findNamedInstanceAxes(opened, postscriptName) : null;
-      result = {
-        faceIndex: 0,
+      result = describeFileFace(opened, 0, {
         nameMatched: postscriptName == null || psName == null || psName === postscriptName || instanceAxes != null,
-        fileAxes: axes != null && Object.keys(axes).length > 0 ? axes : null,
         ...(instanceAxes != null ? { instanceAxes } : {}),
-        namedInstances: enumerateNamedInstances(opened),
-        memberPostscriptName: psName ?? null,
-      };
+      });
     }
   } catch {
     // Unreadable does not mean "member zero". It means no member identity was
@@ -9040,30 +9009,33 @@ function applyVariationAxes(
     }
   }
   if (Object.keys(axes).length === 0) return font;
-  let v: FontInstance;
+  return instantiateVariation(font, axes) ?? font;
+}
+
+/**
+ * The variation instance of `font` at `axes`, or null when the instance cannot be used and the caller
+ * should keep the base face. Shared by the CSS-driven path (`applyVariationAxes`) and the Linux named-
+ * instance path, which used to carry the same three steps separately:
+ *
+ * - `getVariation` may throw for an axis set fontkit rejects;
+ * - fontkit's WOFF2 variation path returns an instance whose internal stream does not expose the parent's
+ *   tables, so reading `unitsPerEm` / `layout(...)` throws "Cannot read properties of undefined" — probe
+ *   for that and refuse the instance;
+ * - the axis location the instance was created at is recorded (clamped to the fvar range, so byte-
+ *   identical out-of-range instances share one embedded entry) so the hinting-preserving embedded subset
+ *   can pin the SAME location when it instances the source file with hb-subset.
+ */
+// `font` is `any` at the fontkit boundary, like every other reader of `getVariation` / `variationAxes` here.
+function instantiateVariation(font: any, axes: Record<string, number>): FontInstance | null {
+  let instance: FontInstance;
   try {
-    v = font.getVariation(axes);
+    instance = font.getVariation!({ ...axes });
+    if ((instance as any).unitsPerEm == null) return null;
   } catch {
-    return font;
+    return null;
   }
-  // Fontkit's WOFF2 variation path returns an instance whose internal stream
-  // doesn't expose the parent's tables — accessing `unitsPerEm` /
-  // `layout(...)` throws "Cannot read properties of undefined". Probe for
-  // that and fall back to the original font when the variation is broken.
-  // For TTF/OTF parents the probe succeeds and we use the variation as-is.
-  try {
-    if ((v as any).unitsPerEm == null) return font;
-  } catch {
-    return font;
-  }
-  // DM-1716: record the axis location this variation instance was created at,
-  // so the hinting-preserving embedded subset can pin the SAME location when it
-  // instances the source file (hb-subset applies the same gvar deltas fontkit
-  // did — the pinned subset's outlines match what this instance shaped with).
-  // Clamped to the fvar range so byte-identical out-of-range instances share
-  // one embedded entry (see clampAxesToFvarRange).
-  (v as any)._appliedVariationAxes = clampAxesToFvarRange({ ...axes }, font.variationAxes ?? {});
-  return v;
+  (instance as any)._appliedVariationAxes = clampAxesToFvarRange({ ...axes }, font.variationAxes ?? {});
+  return instance;
 }
 
 /** The family-name spellings Blink classifies as `<generic-family>` keywords
