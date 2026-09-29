@@ -31,6 +31,14 @@ probes, provenance enable/read/reset, cache and registry resets, platform
 overrides, and the synthetic-font builder (`buildSfnt`). Any of it may change
 or disappear without a version bump.
 
+`./testing` stays in the exports map even if this workspace is ever published
+on its own rather than only bundled inside `domotion-svg`. Hiding it behind a
+custom export condition would not stop a consumer from enabling the same
+condition, and would force every root tool, probe and test run to pass it;
+leaving it out of the package would save nothing, because it only re-exports
+modules the stable entry points already ship. It stays documented as unstable
+instead, and the guards below keep it from growing.
+
 There is no deep-import subpath. Domotion's root `src/render/*` adapters
 re-export named symbols from the stable entry points; root tools and tests
 import `@domotion/text-engine/testing` directly. Three guards hold the surface:
