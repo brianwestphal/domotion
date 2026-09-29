@@ -119,3 +119,63 @@ export async function readJsonBody<T>(
   }
   return parsed.data;
 }
+
+/** A status and JSON body to answer a failed request with; the one shape every local server sends for an error. */
+export interface ErrorResponse {
+  status: number;
+  body: Record<string, unknown> & { error: string };
+}
+
+/**
+ * The default error mapping: a typed `HttpError` answers with its own status, anything else is the
+ * server's fault (500). A server with domain error classes maps those first and defers here.
+ */
+export function errorResponseFor(error: unknown): ErrorResponse {
+  const message = error instanceof Error ? error.message : String(error);
+  return { status: error instanceof HttpError ? error.status : 500, body: { error: message } };
+}
+
+export interface RouteContext {
+  req: IncomingMessage;
+  res: ServerResponse;
+  /** The request path with the query string removed. */
+  path: string;
+}
+
+export type RouteHandler = (context: RouteContext) => void | Promise<void>;
+
+export interface RouterOptions {
+  /** Map a server-specific error to a response; return `undefined` to use `errorResponseFor`. */
+  mapError?: (error: unknown) => ErrorResponse | undefined;
+  /** Called for every failed request after the response is chosen (default: log nothing). */
+  onError?: (context: RouteContext, response: ErrorResponse, error: unknown) => void;
+}
+
+/**
+ * A request handler over a route table keyed `"METHOD /path"` (`"POST /api/save"`). A key matches
+ * exactly; an unmatched request answers 404 `not found: <path>`. A handler that throws is answered
+ * once, through `mapError` then `errorResponseFor`, unless it already started the response.
+ */
+export function createRouter(
+  routes: Record<string, RouteHandler>,
+  options: RouterOptions = {},
+): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  const table = new Map(Object.entries(routes));
+  return async (req, res) => {
+    const path = (req.url ?? "/").split("?")[0];
+    const context: RouteContext = { req, res, path };
+    try {
+      const handler = table.get(`${req.method ?? "GET"} ${path}`);
+      if (handler == null) {
+        sendBuffer(res, 404, "text/plain; charset=utf-8", Buffer.from(`not found: ${path}`, "utf8"));
+        return;
+      }
+      await handler(context);
+    } catch (error) {
+      const response = options.mapError?.(error) ?? errorResponseFor(error);
+      options.onError?.(context, response, error);
+      if (!res.headersSent) sendJson(res, response.status, response.body);
+      else res.end();
+    }
+  };
+}

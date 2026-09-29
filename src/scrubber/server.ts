@@ -19,13 +19,21 @@
  * on shutdown.
  */
 
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage } from "node:http";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Browser, Page } from "@playwright/test";
-import { HttpError, readJsonBody, sendJson, startLocalServer } from "../utils/local-server.js";
+import {
+  HttpError,
+  createRouter,
+  readJsonBody,
+  sendJson,
+  startLocalServer,
+  type RouteContext,
+  type RouteHandler,
+} from "../utils/local-server.js";
 import {
   htmlWrapper,
   seekTo,
@@ -403,141 +411,133 @@ export async function startScrubberServer(inputs: ScrubberServerInputs): Promise
   // DM-1445: review mode writes `.ticket` files here (the launch cwd).
   const ticketDir = inputs.ticketDir ?? process.cwd();
 
-  const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    const url = (req.url ?? "/").split("?")[0];
-    try {
-      if (req.method === "GET" && (url === "/" || url === "/index.html")) {
-        const buf = Buffer.from(shellHtml, "utf-8");
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-length": buf.length });
-        res.end(buf);
-        return;
-      }
-      if (req.method === "GET" && url === "/client.js") {
-        const buf = Buffer.from(SCRUBBER_CLIENT_JS, "utf-8");
-        res.writeHead(200, { "content-type": "application/javascript; charset=utf-8", "content-length": buf.length });
-        res.end(buf);
-        return;
-      }
-      if (req.method === "POST" && url === "/timing") {
-        const { svg } = await parseBody(req, TIMING_BODY);
-        const t = await withChromium((page) => deriveTiming(page, svg));
-        sendJson(res, 200, t);
-        return;
-      }
-      if (req.method === "POST" && url === "/trim") {
-        const { svg, startMs, endMs, periodMs, crop } = await parseBody(req, TRIM_BODY);
-        const r = trimAnimatedSvg(svg, startMs, endMs, periodMs);
-        // DM-1104: vector crop — rewrite the trimmed SVG's root viewBox. Clamp
-        // to the frame's intrinsic size; a degenerate / off-canvas crop is
-        // ignored (returns the un-cropped trim).
-        let outSvg = r.svg;
-        if (crop != null) {
-          const size = parseSvgIntrinsicSize(outSvg) ?? parseSvgIntrinsicSize(svg);
-          const c = size != null ? clampCrop(crop, size.w, size.h) : null;
-          if (c != null) {
-            try {
-              outSvg = cropSvgViewBox(outSvg, c);
-            } catch (error) {
-              // The markup came from the client, so a markup the crop cannot handle is a bad request.
-              throw new HttpError(400, error instanceof Error ? error.message : String(error));
-            }
-          }
-        }
-        sendJson(res, 200, {
-          svg: outSvg,
-          slicedCss: r.slicedCss,
-          slicedSmil: r.slicedSmil,
-          shiftedCss: r.shiftedCss,
-          shiftedSmil: r.shiftedSmil,
-        });
-        return;
-      }
-      if (req.method === "POST" && url === "/export-frame") {
-        const { svg, timeMs, width, height, crop } = await parseBody(req, FRAME_BODY);
-        const png = await withChromium(async (page) => {
-          const vw = Math.max(1, Math.round(width)),
-            vh = Math.max(1, Math.round(height));
-          await page.setViewportSize({ width: vw, height: vh });
-          await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
-          await seekTo(page, timeMs);
-          // DM-1104: crop the raster output. width/height === the SVG's natural
-          // size, so the crop's user-units map 1:1 to viewport px.
-          const c = crop != null ? clampCrop(crop, vw, vh) : null;
-          return c != null
-            ? page.screenshot({ type: "png", scale: "device", clip: { x: c.x, y: c.y, width: c.w, height: c.h } })
-            : screenshot(page);
-        });
-        res.writeHead(200, { "content-type": "image/png", "content-length": png.length });
-        res.end(png);
-        return;
-      }
-      if (req.method === "POST" && url === "/export-range-video") {
-        const { svg, startMs, endMs, width, height, crop } = await parseBody(req, RANGE_VIDEO_BODY);
-        const t0 = Math.max(0, Math.min(startMs, endMs));
-        const t1 = Math.max(startMs, endMs);
-        if (!(t1 - t0 >= 1)) {
-          sendJson(res, 400, { error: "empty range — set an in/out window first" });
-          return;
-        }
-        const mp4 = await withChromium((page) => renderRangeVideo(page, svg, t0, t1, width, height, crop));
-        res.writeHead(200, { "content-type": "video/mp4", "content-length": mp4.length });
-        res.end(mp4);
-        return;
-      }
-      if (req.method === "POST" && url === "/ticket") {
-        // DM-1445: review mode only — write an issue `.ticket` file to the
-        // launch cwd and return its absolute path (also logged).
-        if (inputs.review !== true) throw new HttpError(404, "review mode is not enabled (run svg-scrubber --review)");
-        const body = await parseBody(req, TICKET_BODY);
-        const stamp = Date.now();
-        const slug = ticketSlug(body.svgName);
-        // DM-1449: optionally render the current frame to a sibling PNG (the
-        // whole frame at `frameTimeMs`, so it carries context for any number of
-        // regions). Reuses the same seek+screenshot path as /export-frame.
-        let framePng: string | null = null;
-        if (body.attachFrame && body.svg != null && body.svg.trim() !== "") {
-          const svg = body.svg;
-          try {
-            const pngBuf = await withChromium(async (page) => {
-              const size = parseSvgIntrinsicSize(svg) ?? { w: 800, h: 600 };
-              const vw = Math.max(1, Math.min(Math.round(size.w), MAX_DIM));
-              const vh = Math.max(1, Math.min(Math.round(size.h), MAX_DIM));
-              await page.setViewportSize({ width: vw, height: vh });
-              await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
-              await seekTo(page, body.frameTimeMs);
-              return screenshot(page);
-            });
-            const pngPath = join(ticketDir, `${slug}-${stamp}.png`);
-            writeFileSync(pngPath, pngBuf);
-            framePng = pngPath;
-            log(`🖼  wrote frame snapshot: ${pngPath}`);
-          } catch (e) {
-            log(`frame snapshot failed (ticket still written): ${e instanceof Error ? e.message : String(e)}`);
-          }
-        }
-        const { filename, content, ticket } = buildTicketFile(body, {
-          createdAt: new Date().toISOString(),
-          stamp,
-          slug,
-          framePng,
-        });
-        const outPath = join(ticketDir, filename);
-        writeFileSync(outPath, content, "utf-8");
-        log(`📝 wrote ticket: ${outPath}`);
-        sendJson(res, 200, { path: outPath, filename, title: ticket.title, framePng });
-        return;
-      }
-      res.writeHead(404, { "content-type": "text/plain" });
-      res.end(`not found: ${url}`);
-    } catch (err) {
-      // A validation / bad-input failure is the client's fault (4xx); everything
-      // else is a genuine server fault (5xx). DM-1065.
-      const status = err instanceof HttpError ? err.status : 500;
-      if (status >= 500) log(`request error: ${err instanceof Error ? err.message : String(err)}`);
-      if (!res.headersSent) sendJson(res, status, { error: err instanceof Error ? err.message : String(err) });
-      else res.end();
-    }
+  const shellPage = ({ res }: RouteContext): void => {
+    const buf = Buffer.from(shellHtml, "utf-8");
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-length": buf.length });
+    res.end(buf);
   };
+
+  const routes: Record<string, RouteHandler> = {
+    "GET /": shellPage,
+    "GET /index.html": shellPage,
+    "GET /client.js": ({ res }) => {
+      const buf = Buffer.from(SCRUBBER_CLIENT_JS, "utf-8");
+      res.writeHead(200, { "content-type": "application/javascript; charset=utf-8", "content-length": buf.length });
+      res.end(buf);
+    },
+    "POST /timing": async ({ req, res }) => {
+      const { svg } = await parseBody(req, TIMING_BODY);
+      const t = await withChromium((page) => deriveTiming(page, svg));
+      sendJson(res, 200, t);
+    },
+    "POST /trim": async ({ req, res }) => {
+      const { svg, startMs, endMs, periodMs, crop } = await parseBody(req, TRIM_BODY);
+      const r = trimAnimatedSvg(svg, startMs, endMs, periodMs);
+      // DM-1104: vector crop — rewrite the trimmed SVG's root viewBox. Clamp
+      // to the frame's intrinsic size; a degenerate / off-canvas crop is
+      // ignored (returns the un-cropped trim).
+      let outSvg = r.svg;
+      if (crop != null) {
+        const size = parseSvgIntrinsicSize(outSvg) ?? parseSvgIntrinsicSize(svg);
+        const c = size != null ? clampCrop(crop, size.w, size.h) : null;
+        if (c != null) {
+          try {
+            outSvg = cropSvgViewBox(outSvg, c);
+          } catch (error) {
+            // The markup came from the client, so a markup the crop cannot handle is a bad request.
+            throw new HttpError(400, error instanceof Error ? error.message : String(error));
+          }
+        }
+      }
+      sendJson(res, 200, {
+        svg: outSvg,
+        slicedCss: r.slicedCss,
+        slicedSmil: r.slicedSmil,
+        shiftedCss: r.shiftedCss,
+        shiftedSmil: r.shiftedSmil,
+      });
+    },
+    "POST /export-frame": async ({ req, res }) => {
+      const { svg, timeMs, width, height, crop } = await parseBody(req, FRAME_BODY);
+      const png = await withChromium(async (page) => {
+        const vw = Math.max(1, Math.round(width)),
+          vh = Math.max(1, Math.round(height));
+        await page.setViewportSize({ width: vw, height: vh });
+        await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
+        await seekTo(page, timeMs);
+        // DM-1104: crop the raster output. width/height === the SVG's natural
+        // size, so the crop's user-units map 1:1 to viewport px.
+        const c = crop != null ? clampCrop(crop, vw, vh) : null;
+        return c != null
+          ? page.screenshot({ type: "png", scale: "device", clip: { x: c.x, y: c.y, width: c.w, height: c.h } })
+          : screenshot(page);
+      });
+      res.writeHead(200, { "content-type": "image/png", "content-length": png.length });
+      res.end(png);
+    },
+    "POST /export-range-video": async ({ req, res }) => {
+      const { svg, startMs, endMs, width, height, crop } = await parseBody(req, RANGE_VIDEO_BODY);
+      const t0 = Math.max(0, Math.min(startMs, endMs));
+      const t1 = Math.max(startMs, endMs);
+      if (!(t1 - t0 >= 1)) {
+        sendJson(res, 400, { error: "empty range — set an in/out window first" });
+        return;
+      }
+      const mp4 = await withChromium((page) => renderRangeVideo(page, svg, t0, t1, width, height, crop));
+      res.writeHead(200, { "content-type": "video/mp4", "content-length": mp4.length });
+      res.end(mp4);
+    },
+    "POST /ticket": async ({ req, res }) => {
+      // DM-1445: review mode only — write an issue `.ticket` file to the
+      // launch cwd and return its absolute path (also logged).
+      if (inputs.review !== true) throw new HttpError(404, "review mode is not enabled (run svg-scrubber --review)");
+      const body = await parseBody(req, TICKET_BODY);
+      const stamp = Date.now();
+      const slug = ticketSlug(body.svgName);
+      // DM-1449: optionally render the current frame to a sibling PNG (the
+      // whole frame at `frameTimeMs`, so it carries context for any number of
+      // regions). Reuses the same seek+screenshot path as /export-frame.
+      let framePng: string | null = null;
+      if (body.attachFrame && body.svg != null && body.svg.trim() !== "") {
+        const svg = body.svg;
+        try {
+          const pngBuf = await withChromium(async (page) => {
+            const size = parseSvgIntrinsicSize(svg) ?? { w: 800, h: 600 };
+            const vw = Math.max(1, Math.min(Math.round(size.w), MAX_DIM));
+            const vh = Math.max(1, Math.min(Math.round(size.h), MAX_DIM));
+            await page.setViewportSize({ width: vw, height: vh });
+            await page.setContent(htmlWrapper(svg, "#0000"), { waitUntil: "load" });
+            await seekTo(page, body.frameTimeMs);
+            return screenshot(page);
+          });
+          const pngPath = join(ticketDir, `${slug}-${stamp}.png`);
+          writeFileSync(pngPath, pngBuf);
+          framePng = pngPath;
+          log(`🖼  wrote frame snapshot: ${pngPath}`);
+        } catch (e) {
+          log(`frame snapshot failed (ticket still written): ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      const { filename, content, ticket } = buildTicketFile(body, {
+        createdAt: new Date().toISOString(),
+        stamp,
+        slug,
+        framePng,
+      });
+      const outPath = join(ticketDir, filename);
+      writeFileSync(outPath, content, "utf-8");
+      log(`📝 wrote ticket: ${outPath}`);
+      sendJson(res, 200, { path: outPath, filename, title: ticket.title, framePng });
+    },
+  };
+
+  const handler = createRouter(routes, {
+    // A validation / bad-input failure is the client's fault (4xx); everything else is a genuine
+    // server fault (5xx) and is logged. DM-1065.
+    onError: (_context, response, error) => {
+      if (response.status >= 500) log(`request error: ${error instanceof Error ? error.message : String(error)}`);
+    },
+  });
 
   const local = await startLocalServer(handler, inputs.port ?? 0);
   return {

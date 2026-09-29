@@ -1,17 +1,21 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
   HttpError,
+  createRouter,
   readJsonBody,
   sendBuffer as sendBufferWith,
   sendJson as sendJsonWith,
   startLocalServer,
+  type ErrorResponse,
+  type RouteContext,
+  type RouteHandler,
 } from "../utils/local-server.js";
 import { assertHeadRevision, isStaleHeadError } from "./stale-head.js";
+import { verifyGeneratedProject } from "./generation-verifier.js";
 import { StudioProjectValidationError, validateStudioProject } from "./project.js";
 import {
   createStudioProjectFile,
@@ -181,7 +185,16 @@ function previewResponse(
   };
 }
 
-function errorResponse(error: unknown): { status: number; body: Record<string, unknown> } {
+/** Throws (404 / 409 / 413) unless the selection's artifact resolves inside the workspace, fits, and matches its digest. */
+function assertPreviewable(
+  workspaceRoot: string,
+  file: StudioProjectFile,
+  selection: z.infer<typeof previewBodySchema>["selection"],
+): void {
+  previewResponse(workspaceRoot, file, selection);
+}
+
+function errorResponse(error: unknown): ErrorResponse {
   if (error instanceof HttpError) return { status: error.status, body: { error: error.message } };
   if (isStaleHeadError(error)) return { status: 409, body: { error: (error as Error).message } };
   if (
@@ -316,204 +329,143 @@ export async function startStudioServer(inputs: StudioServerInputs = {}): Promis
   };
   const html = shell(bootstrap);
 
-  const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    const url = (req.url ?? "/").split("?")[0];
-    try {
-      if (req.method === "GET" && (url === "/" || url === "/index.html")) {
-        sendBuffer(res, 200, "text/html; charset=utf-8", Buffer.from(html, "utf8"));
-        return;
-      }
-      if (req.method === "GET" && url === "/client.js") {
-        sendBuffer(res, 200, "application/javascript; charset=utf-8", Buffer.from(STUDIO_CLIENT_JS, "utf8"));
-        return;
-      }
-      if (req.method === "GET" && url === "/scrubber") {
-        sendBuffer(res, 200, "text/html; charset=utf-8", Buffer.from(embeddedScrubberShell, "utf8"));
-        return;
-      }
-      if (req.method === "GET" && url === "/scrubber/client.js") {
-        sendBuffer(res, 200, "application/javascript; charset=utf-8", Buffer.from(SCRUBBER_CLIENT_JS, "utf8"));
-        return;
-      }
-      if (req.method === "POST" && url === "/api/open") {
-        const { path } = await readJsonBody(req, openBodySchema);
-        sendJson(res, 200, projectResponse(openStudioProjectFile(workspaceRoot, path)));
-        return;
-      }
-      if (req.method === "POST" && url === "/api/create") {
-        const body = await readJsonBody(req, createBodySchema);
-        sendJson(res, 201, projectResponse(createStudioProjectFile(workspaceRoot, body.path, body)));
-        return;
-      }
-      if (req.method === "POST" && url === "/api/save") {
-        const { path, project, expectedHeadRevisionId } = await readJsonBody(req, saveBodySchema);
-        const current = openStudioProjectFile(workspaceRoot, path);
-        assertHeadRevision(
-          "authoring",
-          expectedHeadRevisionId,
-          current.project.review.headRevisionId,
-          (message, code) => new StudioAuthoringError(message, code),
-        );
-        const proposed = validateStudioProject(project);
-        const committed = validateStudioProject(
-          commitStudioAuthoringRevision(current.project, proposed, { expectedHeadRevisionId }),
-        );
-        sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, path, committed)));
-        return;
-      }
-      if (req.method === "POST" && url === "/api/annotation") {
-        const body = await readJsonBody(req, annotationBodySchema);
-        const current = openStudioProjectFile(workspaceRoot, body.path);
-        const command = studioAnnotationCommandSchema.parse({
-          ...body.command,
-          author: {
-            kind: "human",
-            ...(body.command.author.name == null ? {} : { name: body.command.author.name }),
-          },
-        });
-        const result = applyStudioAnnotationCommand(current.project, command, {
-          expectedHeadRevisionId: body.expectedHeadRevisionId,
-        });
-        sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, body.path, result.project)));
-        return;
-      }
-      if (req.method === "POST" && url === "/api/timeline") {
-        const body = await readJsonBody(req, timelineBodySchema);
-        const current = openStudioProjectFile(workspaceRoot, body.path);
-        const result = applyStudioTimelineCommand(current.project, body.command, {
-          expectedHeadRevisionId: body.expectedHeadRevisionId,
-          author: { kind: "human" },
-        });
-        const saved = saveStudioProjectFile(workspaceRoot, body.path, result.project, result.project.updatedAt);
-        sendJson(res, 200, { ...projectResponse(saved), inverse: result.inverse });
-        return;
-      }
-      if (req.method === "POST" && url === "/api/preview") {
-        const body = await readJsonBody(req, previewBodySchema);
-        const file = openStudioProjectFile(workspaceRoot, body.path);
-        sendJson(res, 200, previewResponse(workspaceRoot, file, body.selection));
-        return;
-      }
-      if (req.method === "POST" && url === "/api/recording/import") {
-        const body = await readJsonBody(req, recordingImportBodySchema);
-        const current = openStudioProjectFile(workspaceRoot, body.path);
-        assertHeadRevision(
-          "authoring",
-          body.expectedHeadRevisionId,
-          current.project.review.headRevisionId,
-          (message, code) => new StudioAuthoringError(message, code),
-        );
-        if (inputs.recordingAi == null)
-          throw new HttpError(501, "Studio recording import requires configured AI healing and review adapters");
-        const imported = await importStudioInteractionRecording(current.project, body.recording, {
-          ai: inputs.recordingAi,
-          generatorVersion: "1",
-        });
-        if (imported.status === "clarification") {
-          sendJson(res, 200, { ...projectResponse(current), recordingImportResult: imported });
-          return;
-        }
-        persistStudioRecordingEvidence(workspaceRoot, imported);
-        const saved = saveStudioProjectFile(workspaceRoot, body.path, imported.project, imported.project.updatedAt);
-        sendJson(res, 200, {
-          ...projectResponse(saved),
-          recordingImportResult: {
-            status: "imported",
-            sceneId: imported.scene.id,
-            evidencePath: imported.evidencePath,
-            ai: imported.ai,
-          },
-        });
-        return;
-      }
-      if (req.method === "POST" && url === "/api/generate") {
-        const body = await readJsonBody(req, generationBodySchema);
-        const current = openStudioProjectFile(workspaceRoot, body.path);
-        assertHeadRevision(
-          "authoring",
-          body.expectedHeadRevisionId,
-          current.project.review.headRevisionId,
-          (message, code) => new StudioAuthoringError(message, code),
-        );
-        if (inputs.generate == null)
-          throw new HttpError(501, "Studio generation requires a configured AI healing and review adapter");
-        const generated = await inputs.generate({
-          project: structuredClone(current.project),
-          selection: body.selection,
-          workspaceRoot,
-          projectPath: current.path,
-          aiPolicy: { healing: "required", review: "required" },
-        });
-        if (generated.status === "clarification") {
-          z.strictObject({
-            status: z.literal("clarification"),
-            question: z.string().trim().min(1),
-            reason: z.string().trim().min(1),
-          }).parse(generated);
-          sendJson(res, 200, { ...projectResponse(current), generationResult: generated });
-          return;
-        }
-        const ai = generationAiSchema.parse(generated.ai);
-        const next = validateStudioProject(generated.project);
-        const authored = ({
-          review: _review,
-          artifacts: _artifacts,
-          updatedAt: _updatedAt,
-          ...value
-        }: StudioProject): unknown => value;
-        if (!isDeepStrictEqual(authored(next), authored(current.project))) {
-          throw new HttpError(400, "generation adapters must preserve authored narrative, scenes, and settings");
-        }
-        if (
-          !isDeepStrictEqual(
-            next.review.revisions.slice(0, current.project.review.revisions.length),
-            current.project.review.revisions,
-          ) ||
-          !isDeepStrictEqual(
-            next.review.annotations.slice(0, current.project.review.annotations.length),
-            current.project.review.annotations,
-          )
-        ) {
-          throw new HttpError(400, "generation adapters must preserve existing review provenance");
-        }
-        if (studioContentRevisionId(next) !== studioContentRevisionId(current.project)) {
-          throw new HttpError(400, "generation adapters cannot replace the saved authoring content revision");
-        }
-        if (
-          current.project.artifacts.some(
-            (artifact) => !next.artifacts.some((candidate) => isDeepStrictEqual(candidate, artifact)),
-          )
-        ) {
-          throw new HttpError(400, "generation adapters must preserve existing artifacts");
-        }
-        const contentRevisionId = studioContentRevisionId(next);
-        const matches = next.artifacts.some(
-          (artifact) =>
-            artifact.kind === "svg" &&
-            artifact.sourceRevisionId === contentRevisionId &&
-            (body.selection.kind === "story"
-              ? artifact.sceneIds == null || artifact.sceneIds.length === 0
-              : artifact.sceneIds?.length === 1 && artifact.sceneIds[0] === body.selection.sceneId),
-        );
-        if (!matches)
-          throw new HttpError(
-            400,
-            "generation adapter did not return a current SVG artifact for the requested selection",
-          );
-        previewResponse(workspaceRoot, { ...current, project: next }, body.selection);
-        const saved = saveStudioProjectFile(workspaceRoot, body.path, next);
-        sendJson(res, 200, { ...projectResponse(saved), generationResult: { status: "completed", ai } });
-        return;
-      }
-      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-      res.end(`not found: ${url}`);
-    } catch (error) {
-      const response = errorResponse(error);
-      log(`Studio request ${req.method ?? "?"} ${url}: ${String(response.body.error)}`);
-      if (!res.headersSent) sendJson(res, response.status, response.body);
-      else res.end();
-    }
+  const page = (contentType: string, body: string) => (context: RouteContext) =>
+    sendBuffer(context.res, 200, contentType, Buffer.from(body, "utf8"));
+  const requireHead = (path: string, expectedHeadRevisionId: string): StudioProjectFile => {
+    const current = openStudioProjectFile(workspaceRoot, path);
+    assertHeadRevision(
+      "authoring",
+      expectedHeadRevisionId,
+      current.project.review.headRevisionId,
+      (message, code) => new StudioAuthoringError(message, code),
+    );
+    return current;
   };
+
+  const routes: Record<string, RouteHandler> = {
+    "GET /": page("text/html; charset=utf-8", html),
+    "GET /index.html": page("text/html; charset=utf-8", html),
+    "GET /client.js": page("application/javascript; charset=utf-8", STUDIO_CLIENT_JS),
+    "GET /scrubber": page("text/html; charset=utf-8", embeddedScrubberShell),
+    "GET /scrubber/client.js": page("application/javascript; charset=utf-8", SCRUBBER_CLIENT_JS),
+
+    "POST /api/open": async ({ req, res }) => {
+      const { path } = await readJsonBody(req, openBodySchema);
+      sendJson(res, 200, projectResponse(openStudioProjectFile(workspaceRoot, path)));
+    },
+
+    "POST /api/create": async ({ req, res }) => {
+      const body = await readJsonBody(req, createBodySchema);
+      sendJson(res, 201, projectResponse(createStudioProjectFile(workspaceRoot, body.path, body)));
+    },
+
+    "POST /api/save": async ({ req, res }) => {
+      const { path, project, expectedHeadRevisionId } = await readJsonBody(req, saveBodySchema);
+      const current = requireHead(path, expectedHeadRevisionId);
+      const proposed = validateStudioProject(project);
+      const committed = validateStudioProject(
+        commitStudioAuthoringRevision(current.project, proposed, { expectedHeadRevisionId }),
+      );
+      sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, path, committed)));
+    },
+
+    "POST /api/annotation": async ({ req, res }) => {
+      const body = await readJsonBody(req, annotationBodySchema);
+      const current = openStudioProjectFile(workspaceRoot, body.path);
+      const command = studioAnnotationCommandSchema.parse({
+        ...body.command,
+        author: {
+          kind: "human",
+          ...(body.command.author.name == null ? {} : { name: body.command.author.name }),
+        },
+      });
+      const result = applyStudioAnnotationCommand(current.project, command, {
+        expectedHeadRevisionId: body.expectedHeadRevisionId,
+      });
+      sendJson(res, 200, projectResponse(saveStudioProjectFile(workspaceRoot, body.path, result.project)));
+    },
+
+    "POST /api/timeline": async ({ req, res }) => {
+      const body = await readJsonBody(req, timelineBodySchema);
+      const current = openStudioProjectFile(workspaceRoot, body.path);
+      const result = applyStudioTimelineCommand(current.project, body.command, {
+        expectedHeadRevisionId: body.expectedHeadRevisionId,
+        author: { kind: "human" },
+      });
+      const saved = saveStudioProjectFile(workspaceRoot, body.path, result.project, result.project.updatedAt);
+      sendJson(res, 200, { ...projectResponse(saved), inverse: result.inverse });
+    },
+
+    "POST /api/preview": async ({ req, res }) => {
+      const body = await readJsonBody(req, previewBodySchema);
+      const file = openStudioProjectFile(workspaceRoot, body.path);
+      sendJson(res, 200, previewResponse(workspaceRoot, file, body.selection));
+    },
+
+    "POST /api/recording/import": async ({ req, res }) => {
+      const body = await readJsonBody(req, recordingImportBodySchema);
+      const current = requireHead(body.path, body.expectedHeadRevisionId);
+      if (inputs.recordingAi == null)
+        throw new HttpError(501, "Studio recording import requires configured AI healing and review adapters");
+      const imported = await importStudioInteractionRecording(current.project, body.recording, {
+        ai: inputs.recordingAi,
+        generatorVersion: "1",
+      });
+      if (imported.status === "clarification") {
+        sendJson(res, 200, { ...projectResponse(current), recordingImportResult: imported });
+        return;
+      }
+      persistStudioRecordingEvidence(workspaceRoot, imported);
+      const saved = saveStudioProjectFile(workspaceRoot, body.path, imported.project, imported.project.updatedAt);
+      sendJson(res, 200, {
+        ...projectResponse(saved),
+        recordingImportResult: {
+          status: "imported",
+          sceneId: imported.scene.id,
+          evidencePath: imported.evidencePath,
+          ai: imported.ai,
+        },
+      });
+    },
+
+    "POST /api/generate": async ({ req, res }) => {
+      const body = await readJsonBody(req, generationBodySchema);
+      const current = requireHead(body.path, body.expectedHeadRevisionId);
+      if (inputs.generate == null)
+        throw new HttpError(501, "Studio generation requires a configured AI healing and review adapter");
+      const generated = await inputs.generate({
+        project: structuredClone(current.project),
+        selection: body.selection,
+        workspaceRoot,
+        projectPath: current.path,
+        aiPolicy: { healing: "required", review: "required" },
+      });
+      if (generated.status === "clarification") {
+        z.strictObject({
+          status: z.literal("clarification"),
+          question: z.string().trim().min(1),
+          reason: z.string().trim().min(1),
+        }).parse(generated);
+        sendJson(res, 200, { ...projectResponse(current), generationResult: generated });
+        return;
+      }
+      const ai = generationAiSchema.parse(generated.ai);
+      const next = validateStudioProject(generated.project);
+      verifyGeneratedProject(current.project, next, body.selection);
+      // The saved project must also be previewable: this resolves the artifact inside the workspace, bounds
+      // its size and checks its provenance digest, so an artifact that cannot be shown is refused before
+      // the save rather than discovered on the next preview. The response is not used.
+      assertPreviewable(workspaceRoot, { ...current, project: next }, body.selection);
+      const saved = saveStudioProjectFile(workspaceRoot, body.path, next);
+      sendJson(res, 200, { ...projectResponse(saved), generationResult: { status: "completed", ai } });
+    },
+  };
+
+  const handler = createRouter(routes, {
+    mapError: errorResponse,
+    onError: ({ req, path }, response) =>
+      log(`Studio request ${req.method ?? "?"} ${path}: ${String(response.body.error)}`),
+  });
 
   const local = await startLocalServer(handler, inputs.port ?? 0);
   return {
