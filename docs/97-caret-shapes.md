@@ -10,10 +10,11 @@ code:
   [
     "examples/animate/caret-shapes/",
     "src/animation/animator.ts",
+    "src/animation/svg-generator.ts",
     "src/animation/caret-metrics.test.ts",
     "src/animation/caret-metrics.ts",
     "src/animation/overlay-schema.ts",
-    "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/type-resample.test.ts",
     "src/cli/type-resample.ts",
     "src/terminal/incremental.ts",
@@ -106,7 +107,7 @@ The `typeResample` caret is a `blink` overlay; a block caret sets the overlay's 
 ## Files
 
 - `src/animation/caret-metrics.ts` — `CaretShape`, `caretShapeRect`, `BLOCK_CARET_ALPHA`, `underscoreCaretThicknessPx`.
-- `src/animation/animator.ts` — `buildTypingCaret` honors `caret.shape`; `renderBlinkOverlay` emits `fill-opacity`.
+- `src/animation/svg-generator.ts` (re-exported by the `animator.ts` facade) — `buildTypingCaret` honors `caret.shape`; `renderBlinkOverlay` emits `fill-opacity`.
 - `src/animation/overlay-schema.ts` — `caret.shape` on the typing overlay; `fillOpacity` on the `blink` overlay.
 - `src/cli/type-resample.ts` — `measureCaret` reads the field's `caret-shape` + applies the shape; `caretShape` on the spec.
-- `src/cli/animate.ts` — `caretShape` on the `typeResample` config schema.
+- `src/cli/animate-orchestrator.ts` — `caretShape` on the `typeResample` config schema (`typeResampleSchema`; `animate.ts` is a re-export facade).

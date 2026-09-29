@@ -68,8 +68,10 @@ a phone. So the phone bezel geometry **scales with the screen** by
 **1158×1998** output that still reads as a phone. The `max(1, …)` floor keeps a
 phone at or below the reference size on the calibrated bezel — a ≤390-wide
 capture is byte-for-byte identical to the pre-scaling output. `browser` / `window`
-bezels (a fixed-height top bar only) are unchanged; scaling their bar / traffic
-lights per width is a possible follow-up. The same scaling applies through the
+bezels scale too (DM-1577, [doc 65](65-device-chrome.md)): the bar height, corner
+radius and traffic lights scale by `s = max(1, min(screenW, screenH) / WINDOW_REF)`
+with `WINDOW_REF = 600` (`src/render/device-chrome.ts`), so a ≤600-min capture is
+byte-for-byte unchanged. The same scaling applies through the
 `device-mockup` template — `domotion template device-mockup --device phone
 --format reel` sizes the screen to 1080×1920 and wraps it in the scaled phone
 body.

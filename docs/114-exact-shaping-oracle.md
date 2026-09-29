@@ -10,12 +10,17 @@ code:
   [
     "packages/text-engine/src/render/harfbuzz-shaper.ts",
     "tools/exact-shaping-oracle.ts",
+    "tools/exact-shaping-control-fixtures.ts",
+    "tests/exact-shaping-control-fixtures.test.ts",
+    "tools/parity-environment.ts",
     "tools/shape-agreement-samples.ts",
   ]
 aliases: ["docs/114-exact-shaping-oracle.md"]
 ---
 
 # Exact shaping oracle
+
+See also the unified shaping evidence gate (`npm run fonts:shaping:unified`, [doc 141](141-unified-shaping-evidence.md)), which joins this oracle to the face and layout stages.
 
 `npm run fonts:shaping:exact` is Domotion's glyph-level, pre-raster shaping gate. It exists because Chromium's CDP font domain reports the selected face and glyph count, but not glyph IDs, clusters, positions, or flags.
 

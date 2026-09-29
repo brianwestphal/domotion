@@ -347,6 +347,17 @@ is read per call in `packages/text-engine/src/render/embedded-font-builder.ts` /
 `tools/run-ci-visual-tests.mjs --no-hinted-subset` (`hinted_subset` input in
 `.github/workflows/visual-tests.yml`; empty = renderer default).
 
+Related environment seams, all read per call and all defaulting to the production behavior:
+
+| Variable                                              | Effect                                                                                                                                                                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DOMOTION_LINUX_TARGET_STRIKE` (`!== "0"` = on)       | Enables the exact face/size/weight Linux target-strike route (`embeddedLinuxTargetStrikeEnabled` / `embeddedLinuxTargetStrikeSizes` in `text-to-path.ts`); `0` forces the ordinary hinted-subset route. |
+| `DOMOTION_LINUX_GEOMETRIC_PRECISION` (`!== "0"` = on) | Emits `text-rendering: geometricPrecision` for embedded runs whose source is a measured Linux system face (`embeddedSystemFontTextRendering`); `0` disables it.                                         |
+| `DOMOTION_LINUX_GEOMETRIC_PRECISION_FONTS`            | Comma-separated PostScript names replacing the built-in `LINUX_GEOMETRIC_PRECISION_FACES` allowlist (the WenQuanYi faces) for A/B evidence. It never changes face selection.                            |
+| `DOMOTION_HINTED_DEBUG=1`                             | Logs (`[hinted-debug]`) each hb-subset build and each silent fallback to the svg2ttf arm (`embedded-font-builder.ts`).                                                                                  |
+
+`compactGlyphIds` / `compactRetainedGlyphIds` (`hb-subset.ts`) remain as library helpers for compacting a retained-gid subset; the production hinted path keeps gids stable and does not call them.
+
 The default was flipped after full-sweep measurement on all three platforms:
 Linux unicode went from 815 failing fixtures to 75 (740 fixed, zero
 regressions vs the flag-off baseline), Windows halved its average diff on both

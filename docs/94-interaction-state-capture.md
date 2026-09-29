@@ -12,7 +12,7 @@ code:
     "examples/animate/hover-reveal/",
     "examples/animate/hover-state/",
     "examples/animate/js-reveal/",
-    "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/force-state.e2e.test.ts",
     "src/cli/force-state.test.ts",
     "src/cli/hover-detect.ts",
@@ -50,7 +50,7 @@ Two halves, mirroring the ticket:
   state ("hover this button") and Domotion captures the page's _real_ styling for
   that state. This also sets up the future no-DOM (PDF) input path, where the
   "state" is authored rather than detected.
-- **(a) Auto-detection — DESIGNED, not built.** Detect what a page _itself_
+- **(a) Auto-detection — PARTIALLY BUILT.** Options 1 and 2 shipped (hover-detect and the JS-reveal path, see below); Options 3 and 4 remain designed. Detect what a page _itself_
   changes around a pointer event and synthesize the transition automatically. The
   options are enumerated below with tradeoffs.
 
@@ -207,7 +207,7 @@ identity — `docs/84`). So "auto-detect a change" always reduces to "produce tw
 ### Option 1 — `hoverReveal` sugar (BUILT — DM-1562)
 
 A single per-frame field, `hoverReveal: { selector }`, that auto-expands (a pure
-config → config pre-pass, `expandHoverReveal` in `src/cli/animate.ts`) into two
+config → config pre-pass, `expandHoverReveal` in `src/cli/animate-orchestrator.ts`) into two
 frames — the frame at REST, then a `continue` frame that forces `:hover` on the
 same selector — with a crossfade between them and a cursor move onto the element.
 It's the `hover-state` example, from one line instead of two hand-wired frames.
@@ -234,7 +234,7 @@ own `transition` (if any) carries OUT of the reveal pair. Runnable example:
 ### Option 2 — `hoverDetect` computed-style-diff detection (BUILT — DM-1563)
 
 `hoverDetect: { selector }` on a frame that loads an `input`. A browser pre-pass
-(`expandHoverDetect` in `src/cli/animate.ts`, backed by the pure
+(`expandHoverDetect` in `src/cli/animate-orchestrator.ts`, backed by the pure
 `src/cli/hover-detect.ts` diff/classify helpers) drives a real `:hover`, snapshots
 `getComputedStyle` (+ geometry) on the target **and its descendants** before →
 after, and picks a synthesis from an allow-list of properties (color / background
@@ -356,7 +356,7 @@ non-structural `paint` → crossfade.
 
 - `src/cli/mutation-detect.ts` — `detectJsMutations` (the observer + dispatch +
   settle) and `buildJsRevealAnimation` (the crossfade compositor), wired into
-  `composeAnimateFrames` via the per-frame `jsReveal` field in `src/cli/animate.ts`.
+  `composeAnimateFrames` via the per-frame `jsReveal` field in `src/cli/animate-orchestrator.ts` (`jsRevealSchema`; `hoverRevealSchema` / `hoverDetectSchema` live there too; `animate.ts` is a re-export facade).
 - Tests: `src/cli/mutation-detect.test.ts` (pure defaulting),
   `src/cli/mutation-detect.e2e.test.ts` (real-Chromium: injected node + aria
   detected, no-op times out, no-match throws, config path nests the crossfade),

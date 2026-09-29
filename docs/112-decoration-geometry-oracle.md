@@ -18,6 +18,8 @@ aliases: ["docs/112-decoration-geometry-oracle.md", "doc-112"]
 
 # Text-Decoration Geometry Oracle
 
+> Set `DOMOTION_ORACLE_VERBOSE=1` to print the failing SVG-geometry cases even when that leg is demoted with `--no-gate-svg-geometry` (`tools/decoration-oracle.ts`).
+
 `tools/decoration-oracle.ts` (`npm run decorations:oracle`) grades text-decoration
 GEOMETRY — the painted line's y-position, thickness, and skip-ink painted
 segments — against Chrome's actual paint and against Blink's transcribed rules.

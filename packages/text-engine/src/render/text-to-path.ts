@@ -323,7 +323,8 @@ export function synthSmallCapsCharScale(
  * through another assignment algorithm.
  *
  * `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk solely
- * as an explicit mutation arm.
+ * as an explicit mutation arm. That changes fallback assignment only: the
+ * resulting runs are still shaped by HarfBuzz (doc 115).
  */
 export function splitTextIntoGlyphPathRuns(
   text: string,

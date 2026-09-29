@@ -9,7 +9,7 @@ tickets: ["DM-1592", "DM-1593", "DM-1595"]
 code:
   [
     "src/capture/embed.ts",
-    "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/capture.ts",
     "src/cli/index.ts",
     "src/render/element-tree-to-svg.ts",
@@ -81,7 +81,7 @@ establishes the replaced element's used box, then `LayoutReplaced` computes
 captured used border box through to `paintImage` and consults intrinsic
 dimensions only for the object-fit calculation.
 
-`prefixSvgIds` is shared with the animator's SVG-overlay inliner (`namespaceSvgIds` in `src/cli/animate.ts`), so the namespacing regexes live in exactly one place.
+`prefixSvgIds` is shared with the animator's SVG-overlay inliner (`namespaceSvgIds` in `src/cli/animate-orchestrator.ts`), so the namespacing regexes live in exactly one place.
 
 ## object-fit coverage
 
@@ -100,7 +100,7 @@ All `object-fit` values take the native path:
 
 - **`<img src="*.svg">`** (`inlineImgSvg`) — namespaces both ids and classes (self-contained file, no cross-SVG refs).
 - **Captured DOM inline `<svg>`** (`paintInlineSvg`) — namespaces ids by the captured document/shadow-root scope. Sibling SVGs in one source scope share a prefix, preserving legitimate cross-SVG `<use>` and paint-server references; independent iframe/shadow scopes receive different prefixes before they are combined into the consumer document. Same-scope `href`/`xlink:href`, CSS `url(#…)`, embedded ID selectors, SMIL event references, and ARIA IDREFs are rewritten only when their target exists, so unresolved references remain unresolved. CSS classes retain their separate per-inline-SVG namespace.
-- **Animator svg-overlay files** (`namespaceSvgIds` in `src/cli/animate.ts`) — namespaces ids (already) and now classes.
+- **Animator svg-overlay files** (`namespaceSvgIds` in `src/cli/animate-orchestrator.ts`) — namespaces ids (already) and now classes.
 
 ## Scope / known boundaries
 
@@ -121,4 +121,4 @@ All `object-fit` values take the native path:
 - `src/render/svg-inline.ts` — `prefixSvgIds`, `prefixSvgClasses`, `inlineImgSvg`, `flattenImgSvg`, and the internal `setFlattenNestedSvg` / `getFlattenNestedSvg` controls (+ the `InlineSvgPlacement` shape).
 - `src/cli/capture.ts` and `src/cli/index.ts` — the opt-in `--flatten-nested-svg` flag and help text.
 - `src/render/element-tree-to-svg.ts` — `paintImage` native-SVG branch.
-- `src/cli/animate.ts` — `namespaceSvgIds` now delegates to the shared `prefixSvgIds`.
+- `src/cli/animate-orchestrator.ts` — `namespaceSvgIds` now delegates to the shared `prefixSvgIds`.

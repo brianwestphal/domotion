@@ -2201,9 +2201,10 @@
         "code": [
           "examples/animate/type-resample/",
           "src/animation/animator.ts",
+          "src/animation/svg-generator.ts",
           "src/animation/caret-metrics.ts",
           "src/animation/overlay-schema.ts",
-          "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/type-resample.e2e.test.ts",
           "src/cli/type-resample.test.ts",
           "src/cli/type-resample.ts",
@@ -2229,7 +2230,7 @@
           "examples/animate/hover-reveal/",
           "examples/animate/hover-state/",
           "examples/animate/js-reveal/",
-          "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/force-state.e2e.test.ts",
           "src/cli/force-state.test.ts",
           "src/cli/hover-detect.ts",
@@ -2267,7 +2268,7 @@
         "tickets": ["DM-1592", "DM-1593", "DM-1595"],
         "code": [
           "src/capture/embed.ts",
-          "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/capture.ts",
           "src/cli/index.ts",
           "src/render/element-tree-to-svg.ts",
@@ -2293,10 +2294,11 @@
         "code": [
           "examples/animate/caret-shapes/",
           "src/animation/animator.ts",
+          "src/animation/svg-generator.ts",
           "src/animation/caret-metrics.test.ts",
           "src/animation/caret-metrics.ts",
           "src/animation/overlay-schema.ts",
-          "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/type-resample.test.ts",
           "src/cli/type-resample.ts",
           "src/terminal/incremental.ts",
@@ -2751,6 +2753,9 @@
         "code": [
           "packages/text-engine/src/render/harfbuzz-shaper.ts",
           "tools/exact-shaping-oracle.ts",
+          "tools/exact-shaping-control-fixtures.ts",
+          "tests/exact-shaping-control-fixtures.test.ts",
+          "tools/parity-environment.ts",
           "tools/shape-agreement-samples.ts"
         ],
         "aliases": ["docs/114-exact-shaping-oracle.md"]
@@ -2799,7 +2804,7 @@
         "owners": ["layout", "platform-release"],
         "platforms": [],
         "tickets": ["DM-2498"],
-        "code": ["tools/layout-stage-matrix.ts"],
+        "code": ["tools/layout-stage-matrix.ts", "tools/layout-stage-oracle.ts", "tests/layout-stage-matrix.test.ts"],
         "aliases": ["docs/116-layout-stage-parity.md"]
       }
     },
@@ -2878,7 +2883,13 @@
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": [],
-        "code": ["tools/helper-availability-contract.ts"],
+        "code": [
+          "tools/helper-availability-contract.ts",
+          "packages/text-engine/src/render/helper-availability-contract.ts",
+          "packages/text-engine/src/render/helper-availability-contract.test.ts",
+          "tools/collect-stage-evidence.ts",
+          ".github/workflows/helper-availability-contract.yml"
+        ],
         "aliases": ["docs/119-degraded-font-resolution.md", "doc-119"]
       }
     },

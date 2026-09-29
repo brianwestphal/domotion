@@ -158,6 +158,22 @@ Three defects were found and fixed in this tool **before any of its numbers were
 
 Positive control: the tool reports the glyph counts hand-measured against Chrome for `fi` → 1 (Times ligature), `Á` → 1 (precomposed), `क्षि` (4 chars) → 2, `السلام` (6 chars) → 5. Negative control: earlier revisions did report mismatches, so it is not a no-op.
 
+## Flags
+
+`npm run fonts:shaping -- <flags>` (`tools/shaping-conformance.ts`, `--help` prints them):
+
+| Flag                 | Meaning                                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--runs <file>`      | Run corpus (default `tools/shaping-conformance-runs.json`).                                                |
+| `--extract-runs`     | Re-derive the corpus from the fixtures and exit.                                                           |
+| `--source a,b`       | Fixture directories to extract from.                                                                       |
+| `--split-words`      | With `--extract-runs`, split every text node on whitespace (default: only axis- or feature-bearing nodes). |
+| `--max-runs n`       | Cap the corpus to the `n` most-used runs.                                                                  |
+| `--tolerance px`     | Per-glyph position tolerance (default 0.5).                                                                |
+| `--allowlist <file>` | Accepted-divergence file.                                                                                  |
+| `--out <dir>`        | Report directory (default `tests/output/shaping-conformance`).                                             |
+| `--batch n`          | Runs per probe page.                                                                                       |
+
 ## Baseline (macOS)
 
 Full derived corpus from `external/html-test`:
@@ -172,7 +188,7 @@ Full derived corpus from `external/html-test`:
 | MISMATCH unrendered               |                                       0 |                                       1 |                                       1 |
 | position deltas across count-only | median 1.20px · p90 2.82px · max 5.64px | median 0.88px · p90 2.57px · max 2.94px | median 0.88px · p90 2.57px · max 2.94px |
 
-The 2026-08-05 column is the committed corpus after the `font-stretch` re-extraction took it from 2,417 to 2,454 runs; the 37 added runs land wholly in `agree-exact` and every other tier is unchanged.
+The committed corpus has since grown to **2,502 runs** (`tools/shaping-conformance-runs.json`, extracted from `external/html-test` and `tests/fixtures/shaping`); this table was not re-measured for it, and the three-OS Unicode shaping workflow ([doc 205](205-unicode-shaping-conformance-corpus.md), `.github/workflows/shaping-unicode-conformance.yml`) runs the oracle on macOS, Linux and Windows. The 2026-08-05 column is the committed corpus after the `font-stretch` re-extraction took it from 2,417 to 2,454 runs; the 37 added runs land wholly in `agree-exact` and every other tier is unchanged.
 
 The 348 → 16 collapse is **not** the doing of the axis work in the column beside it; it is the per-script HarfBuzz shaping fixes (Telugu, Hangul, Devanagari, Hebrew, Arabic) that landed in between, which is exactly what this tool was built to grade. Measured as a controlled A/B on one machine at one commit: the 2,385-run corpus scores 2,355 exact / 16 count-only / 13 clustered / 1 unrendered, and adding the 32 axis-bearing runs moves only `agree-exact` (+32) with every other tier byte-identical. The remaining hard mismatch is an emoji run where Chrome produces 1 glyph and we produce 0.
 

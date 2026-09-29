@@ -6,7 +6,14 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
 tickets: []
-code: ["tools/helper-availability-contract.ts"]
+code:
+  [
+    "tools/helper-availability-contract.ts",
+    "packages/text-engine/src/render/helper-availability-contract.ts",
+    "packages/text-engine/src/render/helper-availability-contract.test.ts",
+    "tools/collect-stage-evidence.ts",
+    ".github/workflows/helper-availability-contract.yml",
+  ]
 aliases: ["docs/119-degraded-font-resolution.md", "doc-119"]
 ---
 

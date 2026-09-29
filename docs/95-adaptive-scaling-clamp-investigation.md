@@ -154,9 +154,10 @@ fraction of the cost.
   viewport-unit CSS _only_ when a format is chosen (static px otherwise), to keep
   byte-identical default output while getting viewport-responsive per-element
   control; scoped to the wrapping text cards, not the number cards.
-- **Fold `chart` axis/label type into adaptive scaling** — still outstanding from
-  DM-1541 regardless of which mechanism wins (uniform factor is the low-risk
-  choice here).
+- ~~**Fold `chart` axis/label type into adaptive scaling**~~ — **shipped (DM-1560)**:
+  `chart` takes the uniform adaptive factor `sf` (`formatScaleFactor`) for its axis /
+  label type and its single-series bar-thickness cap (`src/templates/builtin/chart.ts`),
+  byte-identical at `sf === 1`.
 
 ## Repro
 

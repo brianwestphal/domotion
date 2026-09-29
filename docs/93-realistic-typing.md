@@ -25,9 +25,10 @@ code:
   [
     "examples/animate/type-resample/",
     "src/animation/animator.ts",
+    "src/animation/svg-generator.ts",
     "src/animation/caret-metrics.ts",
     "src/animation/overlay-schema.ts",
-    "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/type-resample.e2e.test.ts",
     "src/cli/type-resample.test.ts",
     "src/cli/type-resample.ts",
@@ -49,7 +50,7 @@ designed here and tracked as follow-ups.
 
 The surface is the **`typing` overlay** (`docs/43-declarative-animate-config.md`
 §5, `docs/13-cursor-overlay.md`, `src/animation/overlay-schema.ts`), rendered by
-`renderTypingOverlay` in `src/animation/animator.ts`. It layers a typed-text
+`renderTypingOverlay` in `src/animation/svg-generator.ts`. It layers a typed-text
 reveal onto a captured frame — the mechanism the CLI/templates use to simulate a
 user typing into a field (see the `typing-search` and `form-fill` gallery
 examples).
@@ -435,10 +436,10 @@ override** (DM-1558). What remains:
   the **content** box (where text starts inside a padded field).
 - `docs/08-animation-model.md` — `AnimationOverlay` / `generateAnimatedSvg`, the
   renderer input the typing overlay is part of.
-- `src/animation/animator.ts` — `renderTypingOverlay`, `overlayAdvances`,
+- `src/animation/svg-generator.ts` (re-exported by the `animator.ts` facade) — `renderTypingOverlay`, `overlayAdvances`,
   `buildTypingPlan`, `planMistakes`, `buildTypingLines`, `buildTypingMistakes`,
   `buildTypingCaret` (the v1 overlay).
 - `src/cli/type-resample.ts` — `buildTypeResampleAnimation` (v2 per-keystroke
   re-sampling), wired into `composeAnimateFrames` via the per-frame `typeResample`
-  field in `src/cli/animate.ts`.
+  field in `src/cli/animate-orchestrator.ts` (`typeResampleSchema`; `animate.ts` is a re-export facade).
 - `examples/animate/type-resample/` — the runnable v2 demo + committed golden.

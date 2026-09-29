@@ -84,7 +84,8 @@ import { icuCodepointProperties } from "./icu-helper.js";
 import { isHarfbuzzDefaultIgnorable } from "./unicode-classification.js";
 
 /** Flag gate. Read per call so tests can toggle via env. Default ON;
- *  `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk. */
+ *  `DOMOTION_CLUSTER_FALLBACK=0` restores the legacy per-codepoint walk
+ *  (fallback assignment only: the runs are still shaped by HarfBuzz, doc 115). */
 export function clusterFallbackEnabled(): boolean {
   return process.env.DOMOTION_CLUSTER_FALLBACK !== "0";
 }

@@ -487,7 +487,7 @@ So there is deliberately **no resolver-side hook for it**, because there is noth
 What the extraction buys is therefore precise, and worth stating so a later reader does not mistake it for more:
 
 1. **The probe page now renders what the fixture renders.** Before this, a fixture declaring `"tnum"` or `"salt"` was asked about with features off, so Chrome shaped a different glyph run than the page under test. The reported face happened to be the same — but that is a fact about Blink that we now cite, not something the old page's silence established.
-2. **The corpus carries the property forward.** The shaping oracle ([doc 108](108-shaping-conformance-oracle.md)) is where a feature-driven glyph substitution can actually be adjudicated, since it compares painted glyph positions rather than face names. Its run corpus (`tools/shaping-conformance-runs.json`) is extracted separately and does **not** yet record feature settings; that gap is real and belongs to doc 108, not here.
+2. **The corpus carries the property forward.** The shaping oracle ([doc 108](108-shaping-conformance-oracle.md)) is where a feature-driven glyph substitution can actually be adjudicated, since it compares painted glyph positions rather than face names. Its run corpus (`tools/shaping-conformance-runs.json`) is extracted separately and **does** record `fontFeatureSettings` per run (41 of its 2,502 runs carry a non-normal value), so a feature-driven substitution is graded there, not here.
 3. **The stack label only grows when the value is non-normal**, so all pre-existing `byStack` baseline keys are unchanged and a baseline's per-stack rows stay readable across this change. Only the corpus's `generatedAt` moved.
 
 ### The variable-axis blind spot, measured rather than asserted
@@ -776,7 +776,7 @@ These are the numbers `tests/baselines/font-conformance-<os>.json` records and t
 
 `generatedAt` used to be a wall-clock ISO timestamp. That withheld the gate on every re-extraction, including one that produced a byte-identical corpus — and it is what turned the change above into three CI sweeps' worth of re-seeding for a corpus whose swept questions had barely moved.
 
-It is now `harvested:v1:<sha256-16>`, mirroring what the synthetic corpus already did. `harvestedCorpusIdentity()` digests **the questions and the platform**, and deliberately excludes two things:
+It is now `harvested:v2:<sha256-16>` (the version bumps whenever the question set grows; v2 added `font-variant-alternates` and `font-variant-emoji`), mirroring what the synthetic corpus already did. `harvestedCorpusIdentity()` digests **the questions and the platform**, and deliberately excludes two things:
 
 - `fixtures`, how many corpus files use a stack. A new fixture that uses an existing stack asks nothing new.
 - `example`, which fixture is cited for reproduction. Pure provenance.

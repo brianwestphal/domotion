@@ -6,7 +6,7 @@ status: "current"
 owners: ["layout", "platform-release"]
 platforms: []
 tickets: ["DM-2498"]
-code: ["tools/layout-stage-matrix.ts"]
+code: ["tools/layout-stage-matrix.ts", "tools/layout-stage-oracle.ts", "tests/layout-stage-matrix.test.ts"]
 aliases: ["docs/116-layout-stage-parity.md"]
 ---
 

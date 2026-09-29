@@ -142,6 +142,8 @@ Pipeline (all deterministic):
 
 ## Calibration (2026-07, macOS, Chromium via Playwright, DPR 2)
 
+> **Scope of the platform tag.** The calibration corpus below was rendered on macOS, so the thresholds have macOS provenance. The comparator itself (`src/review/glyph-compare.ts`, `tools/compare-glyphs.ts`) is platform-neutral and also runs on Linux and Windows glyph-sheet audits; this doc's front matter therefore lists all three platforms, and recalibrating the thresholds against another platform's rasterizer is an open measurement, not a claim made here.
+
 Corpus: `tools/glyph-compare-calibrate.ts` — 520 rendered cells, 410 scored
 pairs. SAME pairs (n=200) are re-renders at a 0.37 px subpixel phase shift
 across 10 families × 10 chars × {32, 16} px. DIFFERENT pairs: 9
