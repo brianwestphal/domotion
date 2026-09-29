@@ -549,7 +549,7 @@ function render() {
                 </div>
                 <div class="beat-list">
                   {current.narrative.beats.map((beat) => (
-                    <article class="beat" data-beat-id={beat.id}>
+                    <article class="beat" data-beat-id={beat.id} data-key={beat.id}>
                       <label class="field">
                         <span>Beat title</span>
                         <input data-field="beat-title" value={beat.title} aria-label={`Beat ${beat.id} title`} />
@@ -576,7 +576,7 @@ function render() {
                 </div>
                 <div class="scene-list">
                   {current.scenes.map((scene, index) => (
-                    <article class="scene" data-scene-id={scene.id}>
+                    <article class="scene" data-scene-id={scene.id} data-key={scene.id}>
                       <div class="scene-no">{index + 1}</div>
                       <div class="scene-editor">
                         <div class="scene-head">
@@ -613,7 +613,11 @@ function render() {
                             <select data-field="scene-beat" aria-label={`Scene ${index + 1} narrative beat`}>
                               <option value="">Unassigned</option>
                               {current.narrative.beats.map((beat) => (
-                                <option value={beat.id} selected={scene.narrativeBeatIds?.[0] === beat.id}>
+                                <option
+                                  value={beat.id}
+                                  data-key={beat.id}
+                                  selected={scene.narrativeBeatIds?.[0] === beat.id}
+                                >
                                   {beat.title}
                                 </option>
                               ))}
@@ -775,7 +779,12 @@ function render() {
                           <div class="semantic-actions">
                             {scene.tracks!.flatMap((track) =>
                               track.events.map((event) => (
-                                <div class="semantic-action" data-track-id={track.id} data-event-id={event.id}>
+                                <div
+                                  class="semantic-action"
+                                  data-track-id={track.id}
+                                  data-event-id={event.id}
+                                  data-key={`${track.id}:${event.id}`}
+                                >
                                   <code>
                                     {event.kind} · {semanticTargetLabel(event)}
                                   </code>
@@ -833,6 +842,7 @@ function render() {
                     <button
                       data-action="preview-scene"
                       data-preview-scene={scene.id}
+                      data-key={scene.id}
                       class={
                         previewSelection.value?.kind === "scene" && previewSelection.value.sceneId === scene.id
                           ? "primary"
@@ -939,7 +949,7 @@ function render() {
                       <div class="timeline-canvas" style={`width:${width + 150}px`}>
                         <div class="timeline-ruler" style={`width:${width}px`} aria-hidden="true"></div>
                         {timeline.rows.map((track) => (
-                          <div class="timeline-row" data-timeline-row={track.id}>
+                          <div class="timeline-row" data-timeline-row={track.id} data-key={track.id}>
                             <div class="timeline-label" title={track.label}>
                               {track.label}
                             </div>
@@ -948,6 +958,7 @@ function render() {
                                 <button
                                   class="timeline-item"
                                   data-timeline-id={item.id}
+                                  data-key={item.id}
                                   data-kind={item.kind}
                                   data-selected={String(timelineSelection.value.includes(item.id))}
                                   aria-pressed={timelineSelection.value.includes(item.id)}
@@ -1017,7 +1028,7 @@ function render() {
                           Whole project
                         </option>
                         {current.scenes.map((scene) => (
-                          <option value={scene.id} selected={annotationScene.value === scene.id}>
+                          <option value={scene.id} data-key={scene.id} selected={annotationScene.value === scene.id}>
                             {scene.title ?? scene.id}
                           </option>
                         ))}
@@ -1099,7 +1110,7 @@ function render() {
                 <div class="annotation-list">
                   {current.review.annotations.length === 0 && <p class="empty-notes">No review annotations yet.</p>}
                   {current.review.annotations.map((annotation) => (
-                    <article class="annotation" data-annotation-id={annotation.id}>
+                    <article class="annotation" data-annotation-id={annotation.id} data-key={annotation.id}>
                       <div class="annotation-head">
                         <span class="annotation-author">
                           {annotation.author.kind}

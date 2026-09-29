@@ -498,4 +498,59 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       await exportPage.close();
     }
   }, 60_000);
+
+  it("keeps focus and in-flight typing on the same scene when a sibling is removed or reordered", async () => {
+    if (!available || page == null || server == null) return;
+    const testPage = page;
+    await testPage.goto(server.url, { waitUntil: "load" });
+    await testPage.getByLabel("Project file").fill("keyed-lists.studio.json");
+    await testPage.getByLabel("New project title").fill("Keyed Lists");
+    await testPage.getByRole("button", { name: "Create" }).click();
+    await testPage.getByRole("heading", { name: "Keyed Lists" }).waitFor();
+    await testPage.getByRole("button", { name: "Add scene" }).click();
+    await testPage.locator("[data-scene-id]").nth(1).waitFor();
+    await testPage.getByLabel("Scene 1 title").fill("First");
+    await testPage.getByLabel("Scene 2 title").fill("Second");
+
+    const sceneIds = await testPage
+      .locator("[data-scene-id]")
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-scene-id")));
+    expect(sceneIds).toHaveLength(2);
+    const [firstId, secondId] = sceneIds as [string, string];
+    const activeSceneId = (): Promise<string | null | undefined> =>
+      testPage.evaluate(() => document.activeElement?.closest("[data-scene-id]")?.getAttribute("data-scene-id"));
+    // A programmatic click runs the same delegated handler a user's click does but, unlike a
+    // pointer click, does not move focus to the button — which is the state an in-flight edit
+    // is in when a keyboard or scripted action changes the list around it.
+    const click = (sceneId: string, action: string): Promise<void> =>
+      testPage
+        .locator(`[data-scene-id="${sceneId}"] [data-action="${action}"]`)
+        .evaluate((el) => (el as HTMLElement).click());
+
+    // Reorder: move the FIRST scene down while its title input has focus.
+    await testPage.getByLabel("Scene 1 title").focus();
+    await testPage.keyboard.press("End");
+    await click(firstId, "scene-down");
+    await expect.poll(() => testPage.locator("[data-scene-id]").first().getAttribute("data-scene-id")).toBe(secondId);
+    expect(await activeSceneId()).toBe(firstId);
+    await testPage.keyboard.type("!");
+    expect(await testPage.locator(`[data-scene-id="${firstId}"] [data-field="scene-title"]`).inputValue()).toBe(
+      "First!",
+    );
+    expect(await testPage.locator(`[data-scene-id="${secondId}"] [data-field="scene-title"]`).inputValue()).toBe(
+      "Second",
+    );
+
+    // Remove: delete the scene ABOVE the focused one.
+    await testPage.locator(`[data-scene-id="${firstId}"] [data-field="scene-title"]`).focus();
+    await testPage.keyboard.press("End");
+    testPage.once("dialog", (dialog) => void dialog.accept());
+    await click(secondId, "scene-remove");
+    await expect.poll(() => testPage.locator("[data-scene-id]").count()).toBe(1);
+    expect(await activeSceneId()).toBe(firstId);
+    await testPage.keyboard.type("?");
+    expect(await testPage.locator(`[data-scene-id="${firstId}"] [data-field="scene-title"]`).inputValue()).toBe(
+      "First!?",
+    );
+  }, 60_000);
 });
