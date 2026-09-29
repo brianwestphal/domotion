@@ -4062,6 +4062,12 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
         fontStretch: el.styles.fontStretch,
       },
       strokeCol,
+      {
+        // The content box starts inside the border and padding; Blink's block/inline offsets include them.
+        top: (parseFloat(el.styles.borderTopWidth) || 0) + (parseFloat(el.styles.paddingTop) || 0),
+        left: (parseFloat(el.styles.borderLeftWidth) || 0) + (parseFloat(el.styles.paddingLeft) || 0),
+        right: (parseFloat(el.styles.borderRightWidth) || 0) + (parseFloat(el.styles.paddingRight) || 0),
+      },
     );
     if (glyphRadical != null) {
       svgParts.push(`${indent}${glyphRadical}`);

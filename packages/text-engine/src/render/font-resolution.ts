@@ -10886,8 +10886,12 @@ export function haltInfoFor(
       // The selected feature must genuinely narrow this glyph
       // while keeping the SAME outline (pure GPOS) — otherwise it isn't the
       // fullwidth-punctuation trim case and we leave the glyph alone.
-      // NO UPSTREAM RULE: 0.6 is a detection threshold for "the halt form is genuinely
-      // narrower", not a Blink constant (Blink just applies the feature and takes the advance).
+      // Deliberate detection, not a port: Blink applies `halt` / `vhal` to the ranges its `HanKerning`
+      // pass selects (`platform/fonts/shaping/han_kerning.cc:330-337`, rev 7d859f27) and takes the
+      // resulting advance, so it never asks whether the form is "narrow enough". This asks it here
+      // because the caller reaches this only for glyphs the capture says were trimmed, and a `halt` that
+      // barely moves the advance is a different adjustment (e.g. a proportional tweak). 0.6 is not a
+      // Blink constant.
       if (hAdv > 0 && dAdv > 0 && hAdv <= dAdv * 0.6) {
         info = {
           halved: true,

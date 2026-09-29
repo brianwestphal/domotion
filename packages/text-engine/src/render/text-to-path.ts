@@ -1864,8 +1864,12 @@ function singleFontMarkup(
         if (cp0 != null && i + 1 < xOffsets!.length) {
           const fullAdv = pos.xAdvance * scale; // full em advance, CSS px
           const capturedAdv = xOffsets![i + 1] - xOffsets![i]; // what Chrome used, CSS px
-          // NO UPSTREAM RULE: 0.75 is a detection threshold ("Chrome trimmed this glyph
-          // noticeably"), not a Blink constant; the trim itself is the captured advance.
+          // Deliberate detection, not a port. Blink decides the trim per glyph in `HanKerning`
+          // (`platform/fonts/shaping/han_kerning.cc`: a CharType from the glyph bounds, then a `halt` /
+          // `vhal` feature range for the glyphs it trims, `:330-337`, rev 7d859f27), and the result is
+          // the captured advance — that IS Blink's answer. 0.75 only separates a trimmed advance (the
+          // `halt` form, about half the em) from an untrimmed one; it is not a Blink constant. Porting
+          // the CharType decision would replace the threshold outright.
           if (fullAdv > 0 && capturedAdv > 0 && capturedAdv < fullAdv * 0.75) {
             const halt = haltInfoFor(font, fontKey, cp0);
             if (halt.halved) tx += halt.xOffset; // font units
@@ -4741,12 +4745,21 @@ export function getDecorationMetrics(
     fontOptions.lang,
   );
   const upem = font?.unitsPerEm ?? 1000;
-  // NO UPSTREAM RULE: only reached when the capture carried no FloatAscent; 0.8em is a
-  // generic heuristic ascent, not any font's.
-  const ascF = decoration.fontAscent ?? fontSize * 0.8;
+  // The capture normally carries Blink's FloatAscent/FloatDescent. Without them, derive the same
+  // quantity from the resolved face the way `FontMetrics::AscentDescentWithHacks` does in its common
+  // branch (`platform/fonts/font_metrics.cc:116-118`, rev 7d859f27): the platform's ascent and descent
+  // rounded to whole pixels. fontkit's hhea ascender/descender stand in for the platform's SkFontMetrics
+  // (they agree wherever the platform reads hhea; platforms that read OS/2 typo metrics can differ), so
+  // this is an approximation of Blink's value, not a transcription of it.
+  //
+  // NO UPSTREAM RULE for the last resort: with no resolved face at all, 0.8em is a generic ascent. Blink
+  // has no such case — a Font always owns a primary face — so nothing there to transcribe.
+  const faceAscent = font != null ? Math.round((font.ascent * fontSize) / upem) : null;
+  const faceDescent = font != null ? Math.round((-font.descent * fontSize) / upem) : null;
+  const ascF = decoration.fontAscent ?? faceAscent ?? fontSize * 0.8;
   // `FontMetrics::Ascent()` = lroundf(FloatAscent) (`platform/fonts/font_metrics.h:109`).
   const ascI = Math.round(ascF);
-  const descF = decoration.fontDescent ?? Math.max(0, fontSize - ascF);
+  const descF = decoration.fontDescent ?? faceDescent ?? Math.max(0, fontSize - ascF);
 
   // Thickness — `ComputeDecorationThickness` (`text_decoration_info.cc:65-92`).
   const thSpec = (thicknessOverride ?? "auto").trim();
@@ -4891,8 +4904,11 @@ export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
     stretchPercent(fontStretch),
     fontOptions.lang,
   );
-  // NO UPSTREAM RULE: 0.25em is the conventional space-width heuristic, used only when no
-  // face resolves or the face has no space glyph.
+  // Blink's `space_width_` is `WidthForGlyph(GlyphForCharacter(' '))` (`platform/fonts/
+  // simple_font_data.cc:238-240`, rev 7d859f27) — glyph 0 (.notdef) when the face maps no space, which
+  // is also what fontkit's `layout(" ")` returns, so a face that resolves needs no special case.
+  // NO UPSTREAM RULE for the fallbacks below: 0.25em is the conventional space width, used only when no
+  // face resolves (Blink always has a primary face) or the layout yields no glyph at all.
   if (font == null) return fontSize * 0.25;
   try {
     const g = font.layout(" ").glyphs[0] as { advanceWidth: number } | undefined;
@@ -5194,26 +5210,21 @@ export function renderStretchyFenceGlyph(
 }
 
 /**
- * Render a MathML `<msqrt>` / `<mroot>` radical sign from the actual √ (U+221A)
- * font glyph fitted to the captured radical box, plus the horizontal overbar
- * (vinculum) extended across the radicand. (DM-897)
+ * Render a MathML `<msqrt>` / `<mroot>` radical sign from the actual √ (U+221A) font glyph plus the
+ * horizontal overbar (vinculum) across the radicand. (DM-897)
  *
- * Chromium paints the radical from the math font's glyph, which carries
- * stroke-weight contrast (thin descending stroke → thick rising stroke) and a
- * proper hook — a uniform-stroke synthesized path (the previous approach)
- * couldn't reproduce that look. The radicands in practice are close to the √
- * glyph's natural height, so a near-natural uniform scale fits without the
- * OpenType MATH-table vertical glyph assembly that taller radicals would need.
+ * Chromium paints the radical from the math font's glyph, which carries stroke-weight contrast (thin
+ * descending stroke → thick rising stroke) and a proper hook, so the glyph is emitted rather than a
+ * uniform-stroke synthesized path.
  *
- * Fit: scale uniformly so the glyph ink height fills the captured box height,
- * anchor the glyph's ink-left at `x` and ink-top at `topY` (so the V tip lands
- * at the box bottom, matching Chrome's painted radical). The glyph's own
- * overbar stub sits at the top; the separately-drawn rule continues it across
- * the radicand to `x + width`. The rule's y is nudged to Chrome's painted
- * vinculum, which sits ~1.5 px below the captured element-box top.
+ * Geometry follows Blink's MathML radical layout and painter (see the citations in the body): the glyph
+ * is drawn at its natural size with its ink top on the bar, the bar sits `rule + extra_ascender` below
+ * the content-box top and is pixel-snapped the way `MathMLPainter::PaintBar` snaps it. When the primary
+ * font carries an OpenType MATH table that geometry needs MathConstants and glyph variants that are not
+ * transcribed, so those fonts keep a fit to the captured box (`fitRadicalToCapturedBox`).
  *
- * Returns null (caller falls back to the synthesized path) when the √ glyph
- * can't be resolved or has no outline.
+ * Returns null (caller falls back to the synthesized path) when the √ glyph can't be resolved or has no
+ * outline.
  */
 export function renderRadicalGlyph(
   x: number,
@@ -5222,6 +5233,8 @@ export function renderRadicalGlyph(
   width: number,
   fontOptions: TextFontOptions,
   fill: string,
+  /** Border + padding of the `<msqrt>` / `<mroot>` box on the sides that offset its content. */
+  insets: { top: number; left: number; right: number } = { top: 0, left: 0, right: 0 },
 ): string | null {
   if (height <= 0 || width <= 0) return null;
   const cp = 0x221a; // √ SQUARE ROOT
@@ -5274,41 +5287,106 @@ export function renderRadicalGlyph(
   if (bbox == null || !(bbox.maxY > bbox.minY) || !(bbox.maxX > bbox.minX)) return null;
 
   const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands, stretch);
-  // The captured element box carries a small clearance above the painted
-  // vinculum and below the V tip (Chrome's RadicalVerticalGap + rule), so the
-  // radical INK is shorter than `height`. Pixel scan of the 22 px fixture put
-  // the top clearance at ~1.5 px (≈7% of the box) and the bottom at ~0.5 px
-  // (≈2%); expressing them as fractions keeps the fit correct across sizes.
-  // Fit the glyph ink to that inset box, uniform scale to preserve the √'s
-  // natural aspect (a non-uniform stretch would distort the stroke weights).
-  // NO UPSTREAM RULE: these two fractions were read off a rasterized fixture, so they
-  // encode a rasterizer's antialiasing rather than Blink's radical geometry. Kept as the
-  // only known-good fit until the paint is transcribed from the MathML radical layout.
+  const legacyMarkup = () => fitRadicalToCapturedBox(x, topY, height, width, bbox, defId, fill);
+  if (hasOpenTypeMathTable(font)) return legacyMarkup();
+
+  // A primary font WITHOUT a MATH table (the macOS `math` generic resolves to Times), transcribed from
+  // Blink at rev 7d859f27 (2026-06-27). Every number below is derived; none is fitted to a raster.
+  //
+  //  - `GetRadicalVerticalParameters` (core/layout/mathml/math_layout_utils.cc:161-192): with no
+  //    MathConstant, rule_thickness = `RuleThicknessFallback` = the primary font's UnderlineThickness
+  //    (math_layout_utils.h:49-54) and extra_ascender = rule_thickness.
+  //  - `MathRadicalLayoutAlgorithm::Layout` (math_radical_layout_algorithm.cc:148-160) puts the
+  //    baseline `base_ascent + gap + rule + extra_ascender` below the top of the content box, and
+  //    `MathMLPainter::PaintRadicalSymbol` (core/paint/mathml_painter.cc:102-160) puts the bar at
+  //    `baseline - gap - base_ascent` = `rule + extra_ascender` below that top, and the √ glyph's
+  //    origin at that offset plus the glyph's ink ascent, so the ink starts exactly at the bar top.
+  //  - `StretchyOperatorShaper::Shape` (platform/fonts/shaping/stretchy_operator_shaper.cc:133-181)
+  //    takes the smallest variant from `GetGlyphVariantRecords`, which for a font with no MATH table
+  //    is just the base glyph (open_type_math_support.cc:205-208): the √ is drawn at its NATURAL
+  //    size, not stretched to the box.
+  //  - `MathMLPainter::PaintBar` (mathml_painter.cc:19-32) snaps the bar rect to whole pixels and then
+  //    shifts it up by half the SNAPPED height (integer division).
+  //
+  // Measured against Chromium 1x across 13 font sizes (12-60 px): the box-top-to-radicand offset equals
+  // `gap + rule + extra` to LayoutUnit precision at every size, and the eight sizes whose bar is dark
+  // enough to scan land on the predicted snapped rows.
+  const scale = fontSize / font.unitsPerEm;
+  const underline = (font as { underlineThickness?: number }).underlineThickness;
+  const rule = layoutUnit(Number.isFinite(underline) ? (underline as number) * scale : 0);
+  const blockOffset = insets.top + rule + rule; // rule_thickness + extra_ascender (= rule_thickness)
+  const advance = (glyph as { advanceWidth?: number }).advanceWidth ?? bbox.maxX;
+  const originX = x + insets.left;
+  const baselineY = topY + blockOffset + bbox.maxY * scale;
+  const sStr = Number(scale.toFixed(5)).toString();
+  const negS = Number((-scale).toFixed(5)).toString();
+  const glyphMarkup = `<g transform="translate(${r2(originX)},${r2(baselineY)}) scale(${sStr},${negS})" fill="${fill}"><use href="#${defId}"/></g>`;
+
+  let overbar = "";
+  if (rule > 0) {
+    const barLeft = snapToPixel(originX + advance * scale);
+    const barRight = snapToPixel(x + width - insets.right);
+    const barTop = snapToPixel(topY + blockOffset);
+    const barHeight = snapToPixel(topY + blockOffset + rule) - barTop;
+    if (barRight > barLeft && barHeight > 0) {
+      const top = barTop - Math.trunc(barHeight / 2);
+      overbar = `<rect x="${barLeft}" y="${top}" width="${barRight - barLeft}" height="${barHeight}" fill="${fill}"/>`;
+    }
+  }
+  return glyphMarkup + overbar;
+}
+
+/** Blink's `LayoutUnit(float)`: 1/64 px, truncating toward zero (positive values only here). */
+function layoutUnit(value: number): number {
+  return Math.floor(value * 64) / 64;
+}
+
+/** `LayoutUnit::Round` as used by `ToPixelSnappedRect` for positive coordinates. */
+function snapToPixel(value: number): number {
+  return Math.floor(value + 0.5);
+}
+
+function hasOpenTypeMathTable(font: unknown): boolean {
+  const tables = (font as { directory?: { tables?: Record<string, unknown> } }).directory?.tables;
+  return tables?.MATH != null;
+}
+
+/**
+ * The √ of a primary font that HAS an OpenType MATH table: fitted to the captured box.
+ *
+ * NO UPSTREAM RULE: those fonts take their rule thickness, gap and extra ascender from MathConstants and
+ * pick a stretched variant or glyph assembly, none of which is transcribed yet. The two fractions below
+ * were read off a rasterized fixture (top clearance ~7 % of the box, bottom ~2 %), so they encode a
+ * rasterizer's antialiasing rather than Blink's radical geometry.
+ */
+function fitRadicalToCapturedBox(
+  x: number,
+  topY: number,
+  height: number,
+  width: number,
+  bbox: { minX: number; minY: number; maxX: number; maxY: number },
+  defId: string,
+  fill: string,
+): string {
   const topInset = height * 0.07;
   const botInset = height * 0.02;
   const inkH = height - topInset - botInset;
   const s = inkH / (bbox.maxY - bbox.minY);
-  // Anchor ink-left at x (translateX offsets the glyph origin so bbox.minX
-  // lands at x) and ink-top at `topY + topInset` (translateY maps bbox.maxY
-  // there under the -s vertical flip, same convention as the fence path).
+  // Anchor ink-left at x and ink-top at `topY + topInset` (translateY maps bbox.maxY there under the
+  // -s vertical flip, same convention as the fence path).
   const overbarY = topY + topInset;
   const tx = x - bbox.minX * s;
   const ty = overbarY + s * bbox.maxY;
   const sStr = Number(s.toFixed(5)).toString();
   const negS = Number((-s).toFixed(5)).toString();
   const glyphMarkup = `<g transform="translate(${r2(tx)},${r2(ty)}) scale(${sStr},${negS})" fill="${fill}"><use href="#${defId}"/></g>`;
-
-  // Overbar (vinculum): continue the glyph's top stub across the radicand to
-  // the radical's right edge, at the SAME y the glyph ink-top was anchored to
-  // so the stub and the extension form one continuous rule (a y mismatch here
-  // is what showed up as a doubled overbar line). 1 px matches the default
-  // rule thickness.
+  // Continue the glyph's top stub across the radicand at the SAME y the ink-top was anchored to.
   const glyphRight = x + (bbox.maxX - bbox.minX) * s;
   const overbarRight = x + width;
-  let overbar = "";
-  if (overbarRight > glyphRight) {
-    overbar = `<rect x="${r2(glyphRight)}" y="${r2(overbarY)}" width="${r2(overbarRight - glyphRight)}" height="1" fill="${fill}"/>`;
-  }
+  const overbar =
+    overbarRight > glyphRight
+      ? `<rect x="${r2(glyphRight)}" y="${r2(overbarY)}" width="${r2(overbarRight - glyphRight)}" height="1" fill="${fill}"/>`
+      : "";
   return glyphMarkup + overbar;
 }
 

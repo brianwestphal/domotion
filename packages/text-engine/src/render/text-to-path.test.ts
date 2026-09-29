@@ -2291,6 +2291,70 @@ describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
     expect(out!).toContain('height="1"');
   });
 
+  // Geometry transcribed from Blink (math_layout_utils.cc:161-192, mathml_painter.cc:19-32 and 102-160,
+  // rev 7d859f27) for a primary font with no MATH table — Times, what the `math` generic resolves to on
+  // macOS. The expected numbers below are the derivation worked by hand, and were cross-checked against
+  // Chromium's painted rows at 1x (msqrt at 22 px: bar row 2; 40 px: rows 3-4; 60 px: rows 5-7).
+  describe.skipIf(!MACOS_FONTS)("Blink radical geometry (no MATH table)", () => {
+    const bar = (out: string | null) => {
+      const m = /<rect x="(-?[\d.]+)" y="(-?[\d.]+)" width="(-?[\d.]+)" height="(-?[\d.]+)"/.exec(out ?? "");
+      return m == null ? null : { x: +m[1], y: +m[2], width: +m[3], height: +m[4] };
+    };
+    const radical = (size: number, insets?: { top: number; left: number; right: number }) => {
+      clearGlyphDefs();
+      return renderRadicalGlyph(
+        100,
+        200,
+        size,
+        size * 3,
+        { fontSize: size, fontFamily: "math", fontWeight: "400" },
+        "rgb(0,0,0)",
+        insets,
+      );
+    };
+
+    it("draws the √ at its natural size (fontSize / unitsPerEm), not stretched to the box", () => {
+      // Times has 2048 units per em: 22 / 2048 = 0.010742.
+      expect(radical(22)).toContain("scale(0.01074,-0.01074)");
+      // A box taller than the glyph must not change the scale.
+      clearGlyphDefs();
+      const tall = renderRadicalGlyph(
+        100,
+        200,
+        200,
+        66,
+        { fontSize: 22, fontFamily: "math", fontWeight: "400" },
+        "rgb(0,0,0)",
+      );
+      expect(tall).toContain("scale(0.01074,-0.01074)");
+    });
+
+    it("puts the bar rule+extra_ascender below the box top and snaps it as PaintBar does", () => {
+      // 22 px: rule = LayoutUnit(0.0493 * 22) = 1.078; top = 200 + 2.156 -> 202; bottom 203.234 -> 203; h = 1; shift 0.
+      expect(bar(radical(22))).toMatchObject({ y: 202, height: 1 });
+      // 40 px: top 200 + 3.938 -> 204; bottom 205.907 -> 206; h = 2; shift up 1 -> 203.
+      expect(bar(radical(40))).toMatchObject({ y: 203, height: 2 });
+      // 60 px: top 200 + 5.906 -> 206; bottom 208.859 -> 209; h = 3; shift up trunc(3/2) = 1 -> 205.
+      expect(bar(radical(60))).toMatchObject({ y: 205, height: 3 });
+    });
+
+    it("starts the bar after the √ advance and ends it at the content-box right edge", () => {
+      const b = bar(radical(22));
+      expect(b).not.toBeNull();
+      // Times' √ advance is 1125 units: 1125 / 2048 * 22 = 12.08, so the bar starts at round(112.08) = 112.
+      expect(b!.x).toBe(112);
+      expect(b!.x + b!.width).toBe(166); // 100 + 66
+    });
+
+    it("offsets the glyph and bar by the box's border and padding", () => {
+      const plain = bar(radical(40));
+      const inset = bar(radical(40, { top: 6, left: 4, right: 2 }));
+      expect(inset!.y).toBe(plain!.y + 6);
+      expect(inset!.x).toBe(plain!.x + 4);
+      expect(inset!.x + inset!.width).toBe(plain!.x + plain!.width - 2);
+    });
+  });
+
   it.skipIf(!MACOS_FONTS)("omits the overbar when the radical box has no width past the glyph", () => {
     clearGlyphDefs();
     // A zero/degenerate width can't host a vinculum extension.
@@ -3891,9 +3955,16 @@ describe("getDecorationMetrics: Blink's transcribed decoration rules (Chromium r
     );
   });
 
-  it("falls back to fontAscent = 0.8 × fontSize when no ascent is captured", () => {
-    // ascF 12.8 → ascI 13, t 1.6 → gap 1 → top 14.
-    expect(getDecorationMetrics(base).underlineTop).toBe(14);
+  it("derives the ascent from the resolved face (rounded, as font_metrics.cc:116-118) when none is captured", () => {
+    // The unresolvable family still resolves to the platform's default face, as it does in Blink, so the
+    // expectation is worked from that face's own hhea metrics rather than from a fixed number.
+    const font = getFontInstance(resolveFontKey(FF), 400, 16, 0);
+    expect(font).not.toBeNull();
+    const ascent = Math.round((font!.ascent * 16) / font!.unitsPerEm);
+    const descent = Math.round((-font!.descent * 16) / font!.unitsPerEm);
+    expect(getDecorationMetrics(base)).toEqual(
+      getDecorationMetrics(base, { fontAscent: ascent, fontDescent: descent }),
+    );
   });
 });
 

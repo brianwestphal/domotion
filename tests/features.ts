@@ -1343,6 +1343,16 @@ export const tests: FeatureTest[] = [
     height: 180,
   },
   {
+    // <msqrt> / <mroot> radical: the √ glyph at its natural size with its ink top on the bar, the bar
+    // rule + extra-ascender below the box top and pixel-snapped as MathMLPainter::PaintBar snaps it
+    // (math_layout_utils.cc GetRadicalVerticalParameters, mathml_painter.cc PaintRadicalSymbol). Three
+    // sizes cover the three snapped bar heights (1, 2 and 3 px).
+    name: "mathml-radical-bar-geometry",
+    html: `<div style="padding:18px;background:#fff;color:#111;font-family:math,serif"><math display="block" style="font-size:22px"><msqrt><mi>x</mi><mo>+</mo><mi>y</mi></msqrt></math><math display="block" style="font-size:40px"><msqrt><mi>x</mi><mo>+</mo><mi>y</mi></msqrt></math><math display="block" style="font-size:60px"><msqrt><mi>x</mi><mo>+</mo><mi>y</mi></msqrt></math></div>`,
+    width: 320,
+    height: 260,
+  },
+  {
     // DM-2397: generated Chromium operator-dictionary coverage. The first
     // row includes vertical stretchy pairs absent from the former curated
     // fence set; the second keeps inline-axis stretchy arrows and large-op
