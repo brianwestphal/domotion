@@ -1,6 +1,6 @@
+import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
 import { isSameProcessFrameError } from "./cdp-lifecycle.js";
 import { privateCaptureKey } from "./private-key.js";
-import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
 
 export const CAPTURE_RAF_CLOCK_PROTOCOL = "domotion-capture-raf-clock-v1" as const;
 

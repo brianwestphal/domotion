@@ -1,5 +1,5 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { createServer } from "node:http";
+import { afterAll, describe, expect, it } from "vitest";
 import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
 import { installCaptureRafClock, reverifyCaptureRafClock, sampleCaptureRafClock } from "../src/capture/raf-clock.js";
 

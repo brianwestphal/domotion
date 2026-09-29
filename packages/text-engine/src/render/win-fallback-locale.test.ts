@@ -21,10 +21,10 @@
 //
 //  2. The MEMO KEY. The answer is a function of the locale, so a key blind to it
 //     serves whichever language asked first to every later caller.
-import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import { blinkWinFallbackLocale, hanScriptForLocale, localeForSkFontMgr } from "./win-font-fallback.js";
 import { buildFallbackEnvelope, clearGlyphHelperCache, resolveSystemFallbackFonts } from "./glyph-helper.js";
 

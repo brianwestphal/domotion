@@ -6,10 +6,10 @@
 // one-entry set (no migration of committed baselines), selection is
 // fingerprint-equality over the tool's key list, and a write replaces only
 // its own environment's entry while preserving the others.
-import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 import {
   FAMILY_MATCH_ENV_KEYS,
   describeRecordedEnvs,

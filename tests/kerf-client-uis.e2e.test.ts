@@ -1,9 +1,9 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { afterAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { startBrowserCoverage, writeBrowserCoverage } from "../src/test-support/browser-coverage.js";
 import { startReviewServer } from "../src/review/server.js";

@@ -12,11 +12,11 @@
 // The run lookup is fixed too (it now matches on suite and OS, not just ref and
 // time), but this guard is the one that holds for any cause — a mis-staged
 // artifact, a truncated download, a baseline for another suite.
-import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { describe, it, expect } from "vitest";
 
 const SCRIPT = resolve(__dirname, "..", "scripts", "diff-against-baseline.mjs");
 

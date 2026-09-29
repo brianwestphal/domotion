@@ -11,10 +11,10 @@
 //
 // macOS-gated: the query enumerates through AppKit and the expected answers are
 // Chrome-on-macOS's, established over CDP.
-import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 
 // The SHIPPED binary first — the same one `__helperBinaryForPlatformForTest("darwin")`
 // resolves, so this runs for anyone who has built the helper rather than only

@@ -19,9 +19,9 @@
  *     [--cycle-ms 12000] [--segments 8] [--cycles 2] [--warmup-ms 1000]
  */
 
-import { chromium, webkit, firefox, type BrowserType } from "@playwright/test";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
+import { chromium, webkit, firefox, type BrowserType } from "@playwright/test";
 
 type BrowserName = "chromium" | "webkit" | "firefox";
 

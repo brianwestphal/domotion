@@ -14,8 +14,8 @@
  * The assertions below are therefore about CONTEXTUAL FORMS, not about glyph
  * counts or advances, because advances were never the thing that broke.
  */
-import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, it, expect } from "vitest";
 import { makeFontkitShaper, resolveFontSpec } from "./font-resolution.js";
 
 /** The platform's Arabic face, or null where this host has none. */

@@ -13,8 +13,6 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileSync } from "node:fs";
-// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
-import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   chromium,
   type Browser,
@@ -28,6 +26,8 @@ import {
   type SystemUiFontFace,
   invalidateFontEnvironmentCaches,
 } from "@domotion/text-engine/testing";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");

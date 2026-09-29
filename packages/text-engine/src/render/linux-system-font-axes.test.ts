@@ -24,10 +24,10 @@
 // skip elsewhere. The variable font is written from the committed
 // variable-axis fixture (OpenSans VF, wght [300, 800], wdth [75, 100]) so the
 // test does not depend on the host's font inventory.
-import { describe, expect, it, beforeAll } from "vitest";
 import { existsSync, readFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it, beforeAll } from "vitest";
 import { getFontInstance, __registerDynamicSystemFontForTest } from "./font-resolution.js";
 
 const fixture = "tests/fixtures/variable-axis/variable-axis.html";

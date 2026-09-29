@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
+import type { Page } from "@playwright/test";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
@@ -8,7 +9,6 @@ import {
   type TextSegment,
 } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import type { Page } from "@playwright/test";
 
 // DM-2417 browser matrix.  These are capture-contract assertions rather than
 // screenshot fixture coordinates: each row asks Chromium to lay out different

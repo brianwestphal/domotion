@@ -9,7 +9,11 @@ import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
-
+import {
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  getTextRunProvenance,
+} from "@domotion/text-engine/testing";
 import {
   clearGlyphDefs,
   clearWebfonts,
@@ -42,11 +46,6 @@ import {
   pathsRasterCssFamily,
   type PathsNativeHelperFaceEvidence,
 } from "./paths-native-face-identity.js";
-import {
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-  getTextRunProvenance,
-} from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = readPlaywrightVersion() ?? "unknown";

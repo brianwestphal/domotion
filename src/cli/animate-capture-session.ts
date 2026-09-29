@@ -1,8 +1,8 @@
 /** Browser/context/font lifecycle for one declarative animation capture run. */
 
+import type { Browser, Page } from "@playwright/test";
 import { MOBILE_USER_AGENT, PAGE_DEFAULT_TIMEOUT_MS } from "./common.js";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
-import type { Browser, Page } from "@playwright/test";
 import { attachWebfontTracker, injectBrandVariables } from "../capture/index.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts } from "../render/index.js";
 import type { Brand } from "../templates/brand.js";

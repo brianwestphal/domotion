@@ -1,5 +1,5 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
+import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { launchChromium, captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";

@@ -10,8 +10,8 @@
  * `--brand acme.json` (with a `logo`) auto-fills the end-card's logo.
  */
 
-import { cssValue, blank, THEMES } from "./shared.js";
 import { z } from "zod";
+import { cssValue, blank, THEMES } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";

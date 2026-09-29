@@ -24,13 +24,13 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { hostPlatform } from "./host-platform.js";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { hostPlatform } from "./host-platform.js";
 
 const require = createRequire(import.meta.url);
 // dist/render/helper-acquire.js → ../../package.json is the package root (same

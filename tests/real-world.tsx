@@ -31,10 +31,10 @@
  * Usage: npx tsx tests/real-world.tsx [--only google-desktop-fold]
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,

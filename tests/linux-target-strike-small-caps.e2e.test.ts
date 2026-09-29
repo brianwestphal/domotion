@@ -1,10 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
-
+import { isGlyphHelperAvailable } from "@domotion/text-engine/testing";
 import { launchChromium } from "../src/index.js";
 import { captureElementTree, elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import { isGlyphHelperAvailable } from "@domotion/text-engine/testing";
 
 const W = 360;
 const H = 80;

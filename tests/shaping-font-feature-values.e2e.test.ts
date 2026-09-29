@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { chromium, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chromium, type Browser, type Page } from "@playwright/test";
 import {
   chromeShaping,
   extractRuns,

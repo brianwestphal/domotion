@@ -140,15 +140,15 @@
  *
  * Exit codes: 0 all armed gates pass; 1 an armed gate failed; 2 setup error.
  */
-import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { release as osRelease, type as osType } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
+import { resolveFont } from "@domotion/text-engine/testing";
 import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { setRenderTextMode } from "../src/render/font-resolution.js";
-import { resolveFont } from "@domotion/text-engine/testing";
 
 // ── Tolerances ──────────────────────────────────────────────────────────
 /** C vs R: bar top / height, CSS px. Measurement noise at dsf 4 is ~0.06px

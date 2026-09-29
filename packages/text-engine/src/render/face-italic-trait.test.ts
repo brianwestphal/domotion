@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import * as fs from "node:fs";
+import { describe, expect, it } from "vitest";
 import { resolveFaceTraitItalic, isGlyphHelperAvailable } from "./glyph-helper.js";
 import { getFontInstance, resolveFontKey } from "./font-resolution.js";
 

@@ -1,3 +1,9 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
+import { readFileSync, realpathSync, statSync } from "node:fs";
+import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { z } from "zod";
 import {
   HttpError,
   readJsonBody,
@@ -6,12 +12,6 @@ import {
   startLocalServer,
 } from "../utils/local-server.js";
 import { assertHeadRevision, isStaleHeadError } from "./stale-head.js";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, statSync } from "node:fs";
-import { resolve } from "node:path";
-import { isDeepStrictEqual } from "node:util";
-import { z } from "zod";
 import { StudioProjectValidationError, validateStudioProject } from "./project.js";
 import {
   createStudioProjectFile,

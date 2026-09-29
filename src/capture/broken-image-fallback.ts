@@ -6,8 +6,8 @@
  * post-pass pierces it through CDP and attaches the used layout/text/AX facts
  * to the light-DOM image record produced by the synchronous capture bundle.
  */
-import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type { CDPSession, Page } from "@playwright/test";
+import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type {
   BrokenImageFallbackDisposition,
   CapturedBrokenImageFallback,

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, statSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, it, expect, vi } from "vitest";
 import { recordPtySession, buildCastText, ensureSpawnHelperExecutable } from "./pty.js";
 import { parseCast } from "./cast.js";
 

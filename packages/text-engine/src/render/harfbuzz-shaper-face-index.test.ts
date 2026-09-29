@@ -17,10 +17,10 @@
 // Synthetic collections rather than system fonts, for the same reason
 // `font-source-honesty.test.ts` uses them: the assertions need exact knowledge
 // of the member order and metrics, and must hold on every platform's CI.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearHbFontCache, harfbuzzShapeRun, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { buildSfnt, buildStaticHintedFont, wrapInTtc } from "./synth-test-fonts.js";
 import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";

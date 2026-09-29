@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import type { Page } from "@playwright/test";
 import { launchChromium } from "../src/capture/index.js";

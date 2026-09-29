@@ -30,10 +30,10 @@
  * and Windows declared-family paths are different code and would need their
  * own oracles.
  */
-import { chromium } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readdirSync, statSync, existsSync, writeFileSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
+import { chromium } from "@playwright/test";
 import * as fontkit from "fontkit";
 
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;

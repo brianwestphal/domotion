@@ -13,8 +13,8 @@
 // The collection case is the one worth a standing guard, because it is silent:
 // the wrong cut renders perfectly well, just heavier, and nothing downstream can
 // notice (`postscriptName` and `naturalWeight` both come back undefined).
-import { describe, expect, it } from "vitest";
 import { existsSync, openSync, readSync, closeSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { getFontInstance, platformFontKeys, resolveFontSpec } from "./font-resolution.js";
 
 const onDarwin = process.platform === "darwin";

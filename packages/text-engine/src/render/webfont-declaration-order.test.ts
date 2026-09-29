@@ -13,8 +13,8 @@
 // only — faces registered with NO font-weight descriptor. It must not reach
 // declared descriptors, where Blink's WeightDistance is the entire rule and
 // exact ties fall to declaration order.
-import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   registerWebfont,
   clearWebfonts,

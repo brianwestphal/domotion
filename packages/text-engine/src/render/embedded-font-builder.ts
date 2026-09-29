@@ -35,9 +35,9 @@
 // tracked instance from the shaped glyph outlines and hand it to svg2ttf.
 
 // svg2ttf ships no type declarations (see svg2ttf.d.ts for the tiny surface).
-import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import svg2ttf from "svg2ttf";
 import { shearPathCommands } from "./embolden-outline.js";
 import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
 import {

@@ -7,11 +7,9 @@
  * Domotion's declared-family → hardcoded candidate → MapCharacters → final
  * renderer key/gid path. Run only on native Windows after building the helper.
  */
-import { chromium } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
-import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
+import { chromium } from "@playwright/test";
 import {
   getFontSourceInfo,
   glyphIdForCp,
@@ -26,6 +24,8 @@ import {
   winFallbackPriorityForTextRun,
   splitTextIntoFontRunsShaped,
 } from "@domotion/text-engine/testing";
+import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
+import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 
 if (process.platform !== "win32") {
   process.stderr.write("unicode-font-route-trace requires a native Windows host\n");

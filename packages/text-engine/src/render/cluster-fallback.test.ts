@@ -9,8 +9,9 @@
 // them. That is the discrimination requirement: a test that both mechanisms
 // pass grades nothing. A candidate-local shaping miss must remain inside the
 // iterator rather than silently restart through the legacy path.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as fs from "node:fs";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import * as fontkit from "fontkit";
 import {
   chooseHintIndex,
   collectHintChars,
@@ -30,7 +31,6 @@ import {
 } from "./font-resolution.js";
 import { isIcuHelperAvailable } from "./icu-helper.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
-import * as fontkit from "fontkit";
 
 const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
 

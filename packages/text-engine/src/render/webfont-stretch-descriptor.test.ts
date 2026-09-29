@@ -12,8 +12,8 @@
 // (`FontCustomPlatformData::GetFontPlatformData`,
 // `font_custom_platform_data.cc:155-169`) — so a face declared
 // `font-stretch: 75%` pins wdth = 75 for EVERY request, normal included.
-import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   parseFontStretchDescriptor,
   registerWebfont,

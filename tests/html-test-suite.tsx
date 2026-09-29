@@ -26,17 +26,28 @@
  * Usage: npx tsx tests/html-test-suite.tsx [--only 07-svg-shapes]
  */
 
+import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type BrowserContext, type Page } from "@playwright/test";
+import { raw } from "kerfjs";
+import {
+  isGlyphHelperAvailable,
+  profReset,
+  profSnapshot,
+  getEmbeddedFontBuildDiagnostics,
+  resetGeneration,
+  getFixtureTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
 import {
   launchHarnessBrowsers,
   harnessBrowserNote,
   captureFlagsCacheToken,
   expectedCachePlatformDir,
 } from "./harness-browsers.js";
-import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
@@ -47,7 +58,6 @@ import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { type EmbeddedFontBuildDiagnostic } from "../src/render/font-resolution.js";
 import { type FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import { shouldCollectLinuxUnicodeTextEvidence } from "../src/review/linux-unicode-evidence.js";
-import { raw } from "kerfjs";
 import {
   comparePngs,
   MIN_REGION_AREA,
@@ -66,16 +76,6 @@ import { walkHtmlFiles } from "./walk-html-files.js";
 import { inventoryDocument } from "../tools/font-inventory.mjs";
 // @ts-ignore -- no type declarations for the .mjs tool
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
-import {
-  isGlyphHelperAvailable,
-  profReset,
-  profSnapshot,
-  getEmbeddedFontBuildDiagnostics,
-  resetGeneration,
-  getFixtureTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-} from "@domotion/text-engine/testing";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");

@@ -8,10 +8,9 @@
  * by an isolated Chromium-painted pseudo surface, never by a cloned layout.
  */
 
-import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { privateCaptureKey } from "./private-key.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { planPseudoBackdropIsolation, type PseudoBackdropSnapshotNode } from "./pseudo-backdrop-isolation.js";
 import {

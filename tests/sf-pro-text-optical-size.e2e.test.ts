@@ -1,5 +1,5 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { afterAll, describe, expect, it } from "vitest";
 import * as fk from "fontkit";
 import { launchChromium } from "../src/index.js";
 import { captureElementTree, elementTreeToSvg } from "../src/render/element-tree-to-svg.js";

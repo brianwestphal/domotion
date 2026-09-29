@@ -12,7 +12,12 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
+import {
+  ICU_BINARY,
+  isIcuHelperAvailable,
+  queryIcuCodepoints,
+  type IcuCodepointProperties,
+} from "@domotion/text-engine/testing";
 import {
   GRAPHEME_EXTEND_RANGES,
   MIXED_VERTICAL_UPRIGHT_RANGES,
@@ -27,12 +32,6 @@ import {
   type VerticalGlyphOrientation,
   type VerticalOrientationRun,
 } from "../src/vertical-orientation.js";
-import {
-  ICU_BINARY,
-  isIcuHelperAvailable,
-  queryIcuCodepoints,
-  type IcuCodepointProperties,
-} from "@domotion/text-engine/testing";
 
 export const VERTICAL_ORIENTATION_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",

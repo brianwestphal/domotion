@@ -15,8 +15,8 @@
  * (vertical, horizontal), so the whole value lands on each horizontal side.
  * Below the cap the old value was exactly half the right one.
  */
-import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { computeSkipInkGaps } from "./text-to-path.js";
 
 // Needs a real host font: these assertions are about painted outlines.

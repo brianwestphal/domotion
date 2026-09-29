@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, it, expect } from "vitest";
 
 // DM-1409: the showcase transition mini-demos must show motion in BOTH directions
 // — a regression where the incoming frame doesn't slide/fade IN (only the outgoing

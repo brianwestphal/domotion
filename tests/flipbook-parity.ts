@@ -1,7 +1,7 @@
-import { expect } from "vitest";
-import type { Page } from "@playwright/test";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { expect } from "vitest";
+import type { Page } from "@playwright/test";
 import { STRICT_CAPS, type CompareResult } from "../src/review/compare-pngs.js";
 
 /**

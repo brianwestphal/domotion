@@ -12,10 +12,10 @@
 // the rest of the package already needs (kerfjs jsx is compiled out by
 // esbuild at this step).
 
-import { build } from "esbuild";
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENTRY = resolve(ROOT, "src/review/client.tsx");

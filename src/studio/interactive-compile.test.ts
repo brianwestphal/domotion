@@ -1,7 +1,7 @@
-import type { Browser } from "@playwright/test";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { Browser } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import { compileStudioInteractiveProject, finalCursorPoint, sceneCursorOptions } from "./interactive-compile.js";
 import { STUDIO_PROJECT_FORMAT, STUDIO_PROJECT_VERSION, type StudioProject } from "./project-schema.js";

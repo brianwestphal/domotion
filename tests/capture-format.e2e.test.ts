@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { runCapture } from "../src/cli/capture.js";
 import { launchChromium } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";

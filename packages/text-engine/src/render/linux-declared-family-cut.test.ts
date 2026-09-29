@@ -22,8 +22,8 @@
 // Linux-gated AND helper-gated: the faces asserted are the noble image's
 // Liberation family, and an older helper binary that predates `familyMatch`
 // degrades the seam to the two-slot table by design.
-import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import {
   blinkAlternateFamilyName,
   getFontInstance,

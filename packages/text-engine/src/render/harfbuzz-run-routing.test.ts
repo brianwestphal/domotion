@@ -20,8 +20,8 @@
 //    character of an RTL buffer through the BMG involution first; these tests
 //    assert the painted bracket is the mirrored one, on both splitters and on
 //    both the guessed-direction and explicit-direction paths.
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   clearFontResolutionCaches,
   getFontInstance,

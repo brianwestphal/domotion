@@ -17,8 +17,8 @@
  * Run `domotion --help` for the full option list.
  */
 
-import { errorMessage, exitCodeFor } from "./common.js";
 import { createRequire } from "node:module";
+import { errorMessage, exitCodeFor } from "./common.js";
 import { runCapture } from "./capture.js";
 import { runAnimate } from "./animate.js";
 import { runTerm } from "./term.js";

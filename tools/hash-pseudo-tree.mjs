@@ -2,9 +2,9 @@
 // attr(), counter()/counters() incl. custom @counter-style, quotes, url, and
 // an empty-content decorative box) — exercises parsePseudoContent + the
 // empty-content branch.
+import { createHash } from "node:crypto";
 import { chromium } from "@playwright/test";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-import { createHash } from "node:crypto";
 const html = `<!doctype html><meta charset=utf8><style>
 @counter-style prefixed { system: numeric; symbols: "0" "1" "2" "3" "4" "5" "6" "7" "8" "9"; prefix: "Step "; suffix: ": "; pad: 2 "0"; }
 ol { counter-reset: step; } li { counter-increment: step; }

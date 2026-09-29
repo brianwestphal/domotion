@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 import { documentationCodePathErrors } from "../scripts/documentation-code-paths.mjs";
 
 const ROOT = resolve("/repo");

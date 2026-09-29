@@ -1,6 +1,6 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { Page } from "@playwright/test";
 import { launchChromium, captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";

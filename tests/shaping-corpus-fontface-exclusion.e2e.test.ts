@@ -19,11 +19,11 @@
  * the absence would also pass if the extractor stopped harvesting the family
  * for some unrelated reason, or harvested nothing at all.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { chromium, type Browser } from "@playwright/test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chromium, type Browser } from "@playwright/test";
 import { extractRuns, type RunCorpus } from "../tools/shaping-conformance.js";
 
 /**

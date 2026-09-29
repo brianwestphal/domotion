@@ -8,9 +8,9 @@
  * plus a looping `alternate` pulse on the button — one animation per element).
  */
 
+import { z } from "zod";
 import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
-import { z } from "zod";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { safeAreaPadding, type SafeInset } from "../formats.js";
 import type { Anims } from "../../cli/animate.js";

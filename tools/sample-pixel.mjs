@@ -1,5 +1,5 @@
-import { chromium } from "@playwright/test";
 import { resolve } from "node:path";
+import { chromium } from "@playwright/test";
 const url = "file://" + resolve("/Users/westphal/Documents/domotion/external/html-test/24-deep-initial-letter.html");
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1024, height: 1800 } })).newPage();

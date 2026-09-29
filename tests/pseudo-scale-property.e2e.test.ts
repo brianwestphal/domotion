@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
+import sharp from "sharp";
 import { launchChromium } from "../src/index.js";
 import { captureElementTreeWithWarnings, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
-import sharp from "sharp";
 
 // DM-1268: a pseudo-element's standalone `scale` / `rotate` / `translate`
 // properties (CSS Transforms 2) must compose into the captured pseudoBox

@@ -55,8 +55,8 @@
  * mismatch, 2 on a harness error. See `docs/107-font-conformance-oracle.md`.
  * ---------------------------------------------------------------------------
  */
-import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 import { hostname, cpus, release } from "node:os";
+import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 import { inventoryDocument } from "./font-inventory.mjs";
 import { intFlag, parseShardSpec } from "./lib/conformance-args.js";
 

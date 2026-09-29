@@ -1,6 +1,6 @@
-import { detachQuietly } from "./cdp-lifecycle.js";
 import sharp from "sharp";
 import type { CDPSession, ElementHandle, Page } from "@playwright/test";
+import { detachQuietly } from "./cdp-lifecycle.js";
 import {
   axisAlignedQuadBounds,
   mapCssRectToSourcePixels,

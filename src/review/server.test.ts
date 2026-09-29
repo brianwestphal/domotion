@@ -3,10 +3,10 @@
 // can't throw inside the request handler and crash the published `svg-review`
 // process. Also: an unknown route returns 404, never an unhandled throw.
 
-import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { startReviewServer, type ReviewServer } from "./server.js";
 
 let srv: ReviewServer | null = null;

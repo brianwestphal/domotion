@@ -26,10 +26,10 @@
 //   3. `node <this file>` (repo + fixtures are on the \\Mac\Home share).
 // Then refine on the host: `npx tsx tools/probe-1424-refine.mts`.
 
-import { chromium } from "@playwright/test";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
+import { chromium } from "@playwright/test";
 
 const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "\\\\Mac\\Home\\Documents\\html-test\\unicode");
 const OUT_PATH = process.env.OUT ?? "\\\\Mac\\Home\\Documents\\domotion\\tools\\scratch\\win32-calib.json";

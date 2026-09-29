@@ -1,10 +1,10 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Browser, Page } from "@playwright/test";
 import sharp from "sharp";
 import { launchChromium } from "../src/index.js";

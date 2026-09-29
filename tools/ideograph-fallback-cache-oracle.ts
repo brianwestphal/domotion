@@ -6,9 +6,8 @@
  * arm asks the production resolver in matching transient/named renderer scopes.
  * No expected font name is embedded: the host CoreText inventory owns it.
  */
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { spawnSync } from "node:child_process";
-
+import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import {
   __resolveSystemFallbackKeyForCpForTest,
   clearCharacterFallbackRendererScopesForTest,

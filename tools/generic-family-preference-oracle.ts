@@ -33,15 +33,6 @@ import {
   type Page,
 } from "@playwright/test";
 import {
-  ensureSessionGenericFamilyOverrides,
-  genericFamilyReplayName,
-  genericFamilyProbeTargets,
-  type SessionGenericFamilyProbe,
-} from "../src/capture/generic-font-probe.js";
-import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
-// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
-import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
-import {
   getSessionGenericFamilyOverrides,
   resolveFont,
   resolveFontForCodepoint,
@@ -50,6 +41,15 @@ import {
   setSessionGenericFamilyOverrides,
   withSessionGenericFamilyOverrides,
 } from "@domotion/text-engine/testing";
+import {
+  ensureSessionGenericFamilyOverrides,
+  genericFamilyReplayName,
+  genericFamilyProbeTargets,
+  type SessionGenericFamilyProbe,
+} from "../src/capture/generic-font-probe.js";
+import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");

@@ -18,8 +18,8 @@
 // `Lexend-Bold` (width 886.281 at 100px 'Hamburgefonstiv'), where the
 // axis-range clamp the code previously ran would paint `Lexend-Regular`
 // (847.000).
-import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   parseFontWeightDescriptor,
   registerWebfont,

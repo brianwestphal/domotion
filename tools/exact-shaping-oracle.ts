@@ -8,6 +8,13 @@
  * deliberately wrong controls. See docs/114-exact-shaping-oracle.md.
  */
 import { existsSync, writeFileSync } from "node:fs";
+import {
+  harfbuzzShapeRun,
+  harfbuzzGlyphQuery,
+  type ShapeResult,
+  platformFontKeys,
+  shapingFaceFor,
+} from "@domotion/text-engine/testing";
 import { versionString, BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { getFontInstance } from "../src/render/font-resolution.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
@@ -17,13 +24,6 @@ import {
   runApplicableShapingControls,
 } from "./exact-shaping-control-fixtures.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
-import {
-  harfbuzzShapeRun,
-  harfbuzzGlyphQuery,
-  type ShapeResult,
-  platformFontKeys,
-  shapingFaceFor,
-} from "@domotion/text-engine/testing";
 
 interface OracleGlyph {
   id: number;

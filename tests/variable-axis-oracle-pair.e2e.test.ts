@@ -15,9 +15,10 @@
  * `@font-face`, real `fvar`/`gvar`, three `font-variation-settings` locations —
  * and runs BOTH oracles' shipped comparison functions over the same instances.
  */
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 import { identifyFace } from "../tools/font-conformance.js";
 import { compareShaping } from "../tools/shaping-conformance.js";
 import {
@@ -34,7 +35,6 @@ import {
   type PairVerdict,
 } from "../tools/variable-axis-oracle-pair.js";
 import { registerWebfont } from "../src/render/font-resolution.js";
-import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 
 const TEXT = "Hamburgefonstiv";
 

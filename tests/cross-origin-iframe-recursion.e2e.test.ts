@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
-import { afterAll, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
+import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium, captureElementTreeWithWarnings, crossOriginFramesLaunchArgs } from "../src/capture/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import type { CapturedElement } from "../src/capture/types.js";

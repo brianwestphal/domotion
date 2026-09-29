@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, it, expect } from "vitest";
 
 // DM-1411: a scroll-landing demo shipped a fake placeholder "logo" (a `◐` glyph
 // in a blue gradient box) instead of the official Domotion brand mark. Guard the

@@ -12,10 +12,10 @@
 // Driven through a fake helper (`DOMOTION_HELPER_PATH`) because the real one
 // answers correctly — which is the point. These cover what happens when it does
 // not, i.e. exactly the case no real run will ever demonstrate.
-import { describe, expect, it, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { clearGlyphHelperCache, resolveSystemFallbackFonts, takeFallbackResponseAnomalies } from "./glyph-helper.js";
 
 let dir: string;

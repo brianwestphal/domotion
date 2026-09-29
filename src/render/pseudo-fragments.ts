@@ -8,11 +8,10 @@
  * cannot silently become geometry again.
  */
 
-import { isPaintedColor } from "../utils/transparent-background.js";
 import bidiFactory from "bidi-js";
+import { isPaintedColor } from "../utils/transparent-background.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { resolveCharOrientation } from "../vertical-orientation.js";
-
 import type { CapturedElement, CapturedPseudoFragmentSet, CapturedTextPaintAffine } from "../capture/types.js";
 import type { Point, PseudoBoxFragment, PseudoTextFragment, Rect } from "../capture/pseudo-fragment-protocol.js";
 import { esc, r } from "./format.js";

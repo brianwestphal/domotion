@@ -14,10 +14,10 @@
  *   domotion term --cast demo.cast -o demo.svg
  */
 
-import { requireField } from "./require-field.js";
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
+import { requireField } from "./require-field.js";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
 import { recordPtySession } from "../terminal/pty.js";

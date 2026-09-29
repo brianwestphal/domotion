@@ -23,8 +23,8 @@
  *   2304-2334.
  */
 
-import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Page } from "@playwright/test";
+import { privateCaptureKey } from "./private-key.js";
 import {
   authorControlStyleFactsFromMatchedStyles,
   effectiveAppearanceForControl,

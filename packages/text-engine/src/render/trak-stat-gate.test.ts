@@ -13,10 +13,10 @@
 // nothing on the Linux and Windows runners — and the reader it covers is a
 // hand-written parse of the table directory, i.e. exactly the kind of code that
 // wants checking everywhere rather than in one place.
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { faceHasTrakAndStat, clearTrakStatCache } from "./harfbuzz-shaper.js";
 
 /** A minimal single-face sfnt: a real table directory, no table bodies. Only

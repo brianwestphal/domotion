@@ -1,5 +1,5 @@
-import type { Page } from "@playwright/test";
 import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
+import type { Page } from "@playwright/test";
 
 /**
  * Shared PNG comparator used by every visual-regression runner in `tests/`.

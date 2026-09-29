@@ -8,7 +8,6 @@
  * backdrop by design; a reversible width:none discriminator is used only to
  * prove source-frame no-ink, never as the emitted pixel source.
  */
-import { detachQuietly } from "./cdp-lifecycle.js";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { arch, platform, release } from "node:os";
@@ -16,7 +15,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { detachQuietly } from "./cdp-lifecycle.js";
 import type {
   CapturedNativeScrollbarRaster,
   CapturedScrollbarPlatformFingerprint,

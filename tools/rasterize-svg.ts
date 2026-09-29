@@ -1,6 +1,6 @@
 // Rasterize an SVG via Playwright to compare to the test runner output
-import { chromium } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
+import { chromium } from "@playwright/test";
 
 const SVG_PATH = process.argv[2];
 const OUT_PATH = process.argv[3];

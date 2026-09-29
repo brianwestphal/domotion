@@ -1,7 +1,8 @@
-import { afterAll, describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, it, expect } from "vitest";
+import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 import { launchChromium } from "../capture/index.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { renderTemplateToSvg, validateTemplateParams } from "./render.js";
@@ -14,7 +15,6 @@ import { chartTemplate, buildChartHtml, planChart } from "./builtin/chart.js";
 import { chatTemplate } from "./builtin/chat.js";
 import { subscribeTemplate } from "./builtin/subscribe.js";
 import { counterTemplate } from "./builtin/counter.js";
-import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 
 /**
  * DM-1276: end-to-end render of both built-in templates through the real

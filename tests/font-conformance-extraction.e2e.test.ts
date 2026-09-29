@@ -12,11 +12,11 @@
  * one, and drives the real `extractStacks` against a real Chromium. It is the
  * check that distinguishes "extracted" from "asked".
  */
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
-import { chromium, type Browser } from "@playwright/test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { chromium, type Browser } from "@playwright/test";
 import { extractStacks } from "../tools/font-conformance.js";
 
 /**

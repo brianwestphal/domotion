@@ -6,11 +6,11 @@
  * captures, and composes one animated SVG with CSS keyframe transitions.
  */
 
-import { requireField } from "./require-field.js";
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import type { Browser, Page, CDPSession } from "@playwright/test";
+import { requireField } from "./require-field.js";
 // DM-1131: the authoring overlay / intra-frame-animation schemas below EXTEND
 // these single-source-of-truth base schemas (which also derive the renderer's
 // runtime types), so a field rename moves both views together instead of

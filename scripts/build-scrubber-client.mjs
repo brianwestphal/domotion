@@ -5,10 +5,10 @@
 // `tsc -p tsconfig.build.json` picks it up and ships it inside `dist/`. Mirrors
 // scripts/build-review-client.mjs (DM-1040).
 
-import { build } from "esbuild";
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENTRY = resolve(ROOT, "src/scrubber/client.tsx");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-
+import sharp from "sharp";
 import {
   exactCompositeDelta,
   planBackdropRootComposites,
@@ -8,7 +8,6 @@ import {
   type BackdropCompositeTarget,
 } from "./backdrop-composite-raster.js";
 import type { CapturedElement } from "./types.js";
-import sharp from "sharp";
 
 function element(tag: string, filter = "none", children: CapturedElement[] = []): CapturedElement {
   return {

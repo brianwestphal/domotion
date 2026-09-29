@@ -20,9 +20,9 @@
  * headline stays assembled.
  */
 
+import { z } from "zod";
 import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
-import { z } from "zod";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";

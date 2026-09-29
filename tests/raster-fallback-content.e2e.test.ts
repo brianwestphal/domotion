@@ -1,6 +1,6 @@
+import { createHash } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { createHash } from "node:crypto";
 import { captureElementTree, elementTreeToSvgInner, launchChromium } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";

@@ -15,11 +15,11 @@
  * fixture names present in BOTH runs. The two "newly passing" fixtures were not
  * passing; they were absent.
  */
-import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 
 const SCRIPT = join(process.cwd(), "scripts/merge-shard-results.mjs");
 

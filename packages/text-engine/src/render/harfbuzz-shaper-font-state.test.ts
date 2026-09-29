@@ -20,8 +20,8 @@
 // synthesizing one is not tractable: `trak` is a per-size interpolated table
 // and `STAT` has to be well-formed enough for HarfBuzz's sanitizer, so a
 // hand-built pair would be testing the builder rather than the shaper.
-import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it, beforeEach } from "vitest";
 import { clearHbFontCache, harfbuzzShapeRun } from "./harfbuzz-shaper.js";
 
 /** PingFang UI — carries `trak`, `STAT`, `GSUB`, and no `morx`. */

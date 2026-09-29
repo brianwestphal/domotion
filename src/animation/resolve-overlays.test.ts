@@ -1,6 +1,6 @@
-import type { CapturedElement } from "../capture/types.js";
 import { describe, it, expect } from "vitest";
 import type { Page } from "@playwright/test";
+import type { CapturedElement } from "../capture/types.js";
 import { resolveOverlays, resolveAnchoredOverlaysInTree } from "./resolve-overlays.js";
 
 /**

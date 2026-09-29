@@ -17,8 +17,8 @@
 // (writes to outPath, or stdout if omitted).
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { playwrightVersion as readPlaywrightVersion } from "./run-env.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { playwrightVersion as readPlaywrightVersion } from "./run-env.mjs";
 
 /**
  * Pure: derive the image id from already-gathered inputs.

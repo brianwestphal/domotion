@@ -1,5 +1,5 @@
-import type { Browser } from "@playwright/test";
 import { resolve } from "node:path";
+import type { Browser } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import { compileStudioProjectFile } from "./compile.js";
 import { loadStudioProject } from "./project.js";

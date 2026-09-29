@@ -84,7 +84,6 @@
  * breakdown says which script accounts for the drop.
  */ import { writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
-import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
 import {
   harfbuzzShapeRun,
   createGlyphHelperFont,
@@ -94,6 +93,7 @@ import {
   platformFontKeys,
   usesHarfbuzzShaping,
 } from "@domotion/text-engine/testing";
+import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
 
 interface Disagreement {
   face: string;

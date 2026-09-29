@@ -27,9 +27,9 @@
 // bug. A constant subtracted to close the SF India gap would break `NewYork-Regular`,
 // whose saturated tracking is a different value at a different upem, and would break
 // the two zero-tracking controls outright.
-import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 import * as fontkit from "fontkit";
 import { clearGlyphHelperCache, createGlyphHelperFont } from "./glyph-helper.js";
 

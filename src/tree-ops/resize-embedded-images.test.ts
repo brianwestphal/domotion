@@ -7,9 +7,9 @@
  * collapse, and the disabled-flag byte-identity guarantee.
  */
 
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { createHash } from "node:crypto";
 import { _dataUriCache, _resizedDataUriCache, embedResizedDataUri } from "../render/element-tree-to-svg.js";
 import { embedOriginalDataUri } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";

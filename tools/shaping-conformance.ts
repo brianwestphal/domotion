@@ -48,10 +48,20 @@
  * Exit code: 0 when every run agrees or is allowlisted, 1 on any mismatch,
  * 2 on a harness error — same contract as the face oracle, so it can gate.
  */
-import { chromium, type Browser } from "@playwright/test";
-import { finiteFlag, intFlag } from "./lib/conformance-args.js";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { chromium, type Browser } from "@playwright/test";
+import {
+  clearFontResolutionCaches,
+  harfbuzzGlyphQuery,
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  textRunProvenanceEnabled,
+  type TextRunProvenanceDiagnostic,
+  isHarfbuzzDefaultIgnorable,
+} from "@domotion/text-engine/testing";
+import { finiteFlag, intFlag } from "./lib/conformance-args.js";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { registerWebfont } from "../src/render/font-resolution.js";
 import {
@@ -78,16 +88,6 @@ import {
   fontFeatureEnvironmentKey,
   type AuthenticatedFontFeatureEnvironment,
 } from "./font-feature-value-environment.js";
-import {
-  clearFontResolutionCaches,
-  harfbuzzGlyphQuery,
-  getTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-  textRunProvenanceEnabled,
-  type TextRunProvenanceDiagnostic,
-  isHarfbuzzDefaultIgnorable,
-} from "@domotion/text-engine/testing";
 
 // ---------------------------------------------------------------------------
 // Types

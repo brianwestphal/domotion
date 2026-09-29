@@ -1,6 +1,11 @@
 import kerfjs from "eslint-plugin-kerfjs";
 import tsParser from "@typescript-eslint/parser";
+import importGroupOrder from "./eslint-rules/import-group-order.js";
 import mappedRowDataKey from "./eslint-rules/mapped-row-data-key.js";
+
+const domotion = {
+  rules: { "mapped-row-data-key": mappedRowDataKey, "import-group-order": importGroupOrder },
+};
 
 export default [
   {
@@ -58,7 +63,14 @@ export default [
     // The kerf BROWSER clients, where a keyless row loses focus on insert/delete. SSR-only JSX
     // (site pages, templates) has no reconciler and is deliberately not covered.
     files: ["src/**/client.tsx", "tests/review-client.tsx"],
-    plugins: { domotion: { rules: { "mapped-row-data-key": mappedRowDataKey } } },
+    plugins: { domotion },
     rules: { "domotion/mapped-row-data-key": "error" },
+  },
+  {
+    // Node built-ins, then packages, then local modules. Group order only (never alphabetical): the
+    // repo has import cycles whose behavior depends on local evaluation order.
+    files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs"],
+    plugins: { domotion },
+    rules: { "domotion/import-group-order": "error" },
   },
 ];

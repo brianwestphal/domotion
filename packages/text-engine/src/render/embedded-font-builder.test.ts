@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeAll, beforeEach, afterAll, afterEach } from "vitest";
-import * as fontkit from "fontkit";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it, beforeAll, beforeEach, afterAll, afterEach } from "vitest";
+import * as fontkit from "fontkit";
 import {
   clearEmbeddedFontBuilder,
   getBuiltEmbeddedFontFaceCss,

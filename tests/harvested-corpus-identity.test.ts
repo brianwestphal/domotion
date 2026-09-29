@@ -12,9 +12,9 @@
  * These tests pin the discrimination in both directions — what must NOT move the
  * identity, and what must.
  */
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import { harvestedCorpusIdentity } from "../tools/font-conformance.js";
 
 /** A minimal stack, with the bookkeeping fields the digest must ignore. */

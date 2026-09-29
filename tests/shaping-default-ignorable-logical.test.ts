@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { harfbuzzShapeRun } from "@domotion/text-engine/testing";
 import { BufferFlag } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import {
@@ -9,7 +10,6 @@ import {
   type OurShaping,
   type RunSpec,
 } from "../tools/shaping-conformance.js";
-import { harfbuzzShapeRun } from "@domotion/text-engine/testing";
 
 const MACOS_STANDALONE_SELECTORS = [0xe0110, 0xe0108, 0xfe06, 0xe017c, 0xe01c3, 0xe01c8];
 

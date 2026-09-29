@@ -1,12 +1,12 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { launchChromium } from "../src/index.js";
-import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
-import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import {
   isGlyphHelperAvailable,
   resolveInstalledFont,
   resolveSystemFallbackFonts,
 } from "@domotion/text-engine/testing";
+import { launchChromium } from "../src/index.js";
+import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // Browser-backed complement to the resolver regression test. Chromium is the
 // authority for the painted PostScript member and Range width; Domotion must

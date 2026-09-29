@@ -61,9 +61,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { chromium, type Browser, type BrowserContext } from "@playwright/test";
-import { renderTextAsPath, setRenderTextMode, getRenderTextMode } from "../src/render/text-to-path.js";
-import { clearGlyphDefs, getGlyphDefs, type RenderTextMode } from "../src/render/font-resolution.js";
-import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import {
   resolveFont,
   faceNeedsSyntheticBold,
@@ -71,6 +68,9 @@ import {
   clearEmbeddedFontBuilder,
   getBuiltEmbeddedFontFaceCss,
 } from "@domotion/text-engine/testing";
+import { renderTextAsPath, setRenderTextMode, getRenderTextMode } from "../src/render/text-to-path.js";
+import { clearGlyphDefs, getGlyphDefs, type RenderTextMode } from "../src/render/font-resolution.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const TEXT = "Hamburgefonstiv";
 /**

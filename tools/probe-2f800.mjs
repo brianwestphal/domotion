@@ -1,5 +1,5 @@
-import { chromium } from "@playwright/test";
 import { writeFileSync } from "node:fs";
+import { chromium } from "@playwright/test";
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1200, height: 400 }, deviceScaleFactor: 1 });

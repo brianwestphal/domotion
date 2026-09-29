@@ -13,10 +13,10 @@
 //
 // Synthetic collections rather than system fonts: the assertions need exact
 // knowledge of the member order and names, and must hold on every platform's CI.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";
 import { buildStaticHintedFont, buildVariableHintedFont, wrapInTtc } from "./synth-test-fonts.js";
 

@@ -1,8 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Browser } from "@playwright/test";
 import sharp from "sharp";
 import { composeAnimateConfig, runAnimate } from "../src/cli/animate.js";

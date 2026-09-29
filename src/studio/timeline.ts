@@ -1,5 +1,5 @@
-import { assertHeadRevision } from "./stale-head.js";
 import { z } from "zod";
+import { assertHeadRevision } from "./stale-head.js";
 import { frameAdvanceMs } from "../animation/frame-timeline.js";
 import type { StudioLayer, StudioProject, StudioReviewAuthor, StudioScene } from "./project-schema.js";
 

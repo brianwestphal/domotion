@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 import * as fontkit from "fontkit";
 
 // DM-872: validates the Linux FreeType glyph extractor

@@ -20,9 +20,9 @@
  *  not `filter: blur()`.
  */
 
+import { z } from "zod";
 import { cssValue } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
-import { z } from "zod";
 import type { AnimateConfig, Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";

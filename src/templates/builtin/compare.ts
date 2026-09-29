@@ -12,10 +12,10 @@
  * a clip.
  */
 
-import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { writeFileSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
 import { z } from "zod";
+import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { composeAnimatedLayers, type CompositeLayerAnimation } from "../../animation/index.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";

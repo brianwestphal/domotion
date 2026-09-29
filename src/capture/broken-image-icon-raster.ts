@@ -8,11 +8,10 @@
  * then preserves the icon resource's real alpha instead of baking the page
  * backdrop into the SVG stamp.
  */
-import { privateCaptureKey } from "./private-key.js";
 import { createHash } from "node:crypto";
 import type { CDPSession, Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { privateCaptureKey } from "./private-key.js";
 import { planNativeControlClip, type NativeControlViewport } from "./native-control-raster.js";
 
 export interface CapturedBrokenImageIconRaster {

@@ -1,10 +1,6 @@
 #!/usr/bin/env tsx
-import * as fk from "fontkit";
 import { writeFileSync } from "node:fs";
-import { captureElementTree, launchChromium, type CapturedElement, type TextSegment } from "../src/index.js";
-import { bidiLevelsFor, type BidiParagraphContext } from "../src/render/script-segmentation.js";
-import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
-import { parityEnvironment } from "./parity-environment.js";
+import * as fk from "fontkit";
 import {
   segmentForShaping,
   getTextRunProvenance,
@@ -12,6 +8,10 @@ import {
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
+import { captureElementTree, launchChromium, type CapturedElement, type TextSegment } from "../src/index.js";
+import { bidiLevelsFor, type BidiParagraphContext } from "../src/render/script-segmentation.js";
+import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
+import { parityEnvironment } from "./parity-environment.js";
 
 const fontkit = (fk as { default?: typeof fk }).default ?? fk;
 const FORWARD = "L שָׁלוֹם 123 مَرْحَبًا R";

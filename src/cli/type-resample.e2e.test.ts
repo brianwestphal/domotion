@@ -7,10 +7,10 @@
  * keystrokes — and that the whole `animate` config path composes it into one
  * frame's nested per-keystroke animated SVG.
  */
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Browser } from "@playwright/test";
 import { composeAnimateConfig, launchChromium, validateAnimateConfig } from "../index.js";
 import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resample.js";

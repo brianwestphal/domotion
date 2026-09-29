@@ -5,10 +5,10 @@
  * handler that INJECTS a dropdown menu and flips `aria-expanded`. The unit twin
  * (`mutation-detect.test.ts`) covers the pure spec defaulting.
  */
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Browser } from "@playwright/test";
 import { composeAnimateConfig, launchChromium, validateAnimateConfig } from "../index.js";
 import { buildJsRevealAnimation, detectJsMutations, resolveJsRevealSpec } from "./mutation-detect.js";

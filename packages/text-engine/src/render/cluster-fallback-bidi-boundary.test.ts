@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { splitTextIntoFontRunsShaped } from "./cluster-fallback.js";
 import {
   clearWebfonts,

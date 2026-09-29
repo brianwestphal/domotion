@@ -1,8 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
-import { chromium, type Browser } from "@playwright/test";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { chromium, type Browser } from "@playwright/test";
 import { startScrubberServer, type ScrubberServerHandle } from "../src/scrubber/server.js";
 import { closeSafely } from "../src/test-support/close-browser-safely.js";
 

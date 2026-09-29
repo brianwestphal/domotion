@@ -23,10 +23,10 @@
 // macOS ships system faces (GeezaPro, Helvetica, Al Nile, Baghdad) with a
 // `morx` table and no `GSUB` at all. `packages/text-engine/vendor/harfbuzzjs/` is v1.4.0 with the
 // wasm rebuilt using the configuration Chromium ships; see its README.
-import * as hb from "../../vendor/harfbuzzjs/dist/index.mjs";
+import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import bidiFactory from "bidi-js";
 import { getScript } from "unicode-properties";
-import { closeSync, openSync, readFileSync, readSync } from "node:fs";
+import * as hb from "../../vendor/harfbuzzjs/dist/index.mjs";
 import { isTransientFsError, retrySync } from "./sync-retry.js";
 
 type PathCommand = { command: string; args: number[] };

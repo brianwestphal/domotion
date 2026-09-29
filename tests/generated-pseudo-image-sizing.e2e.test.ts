@@ -1,9 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-
+import { afterAll, describe, expect, it } from "vitest";
 import { captureElementTreeWithWarnings, elementTreeToSvg, launchChromium } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 

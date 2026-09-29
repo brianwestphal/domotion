@@ -11,9 +11,9 @@
  * Transparent background by default so the SVG overlays whatever it's placed on.
  */
 
+import { z } from "zod";
 import { cssValue, CARD_FONT_STACK, THEMES } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
-import { z } from "zod";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { safeAreaPadding, type SafeInset } from "../formats.js";

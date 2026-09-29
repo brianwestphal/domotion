@@ -8,8 +8,8 @@
  * a collision-resistant expando before the in-page capture walk.
  */
 
-import { privateCaptureKey } from "./private-key.js";
 import type { Page } from "@playwright/test";
+import { privateCaptureKey } from "./private-key.js";
 import {
   authorControlStyleFactsFromMatchedStyles,
   type AuthorControlStyleFacts,

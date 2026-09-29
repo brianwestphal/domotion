@@ -18,7 +18,12 @@ import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
-
+import {
+  hbSubsetRetainGids,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  getTextRunProvenance,
+} from "@domotion/text-engine/testing";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import {
@@ -43,12 +48,6 @@ import type { LinuxMathmlGreekRasterRow } from "./linux-mathml-greek-raster-gate
 import { measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
-import {
-  hbSubsetRetainGids,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-  getTextRunProvenance,
-} from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = readPlaywrightVersion() ?? "unknown";

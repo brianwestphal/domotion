@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 
 /**
  * The `domotion` exit-code contract as a user sees it: 2 = the invocation was wrong (bad or

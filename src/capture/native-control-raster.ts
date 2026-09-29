@@ -26,11 +26,9 @@
  *    compositor surface through CopyFromSurface.
  */
 
-import { privateCaptureKey } from "./private-key.js";
-import { isPaintedColor } from "../utils/transparent-background.js";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { privateCaptureKey } from "./private-key.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 
 export interface NativeControlViewport {
@@ -395,7 +393,9 @@ export async function rasterizeNativeControlSurfaces(
                 style.backgroundImage !== "none" ||
                 style.boxShadow !== "none" ||
                 style.textShadow !== "none" ||
-                isPaintedColor(style.backgroundColor) ||
+                // Page-side: module imports do not exist here, so the shared predicate cannot be called. A
+                // COMPUTED color is always Chrome's canonical serialization, so one pattern covers it.
+                !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(style.backgroundColor) ||
                 [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].some(
                   (width) => Number.parseFloat(width) > 0,
                 ) ||

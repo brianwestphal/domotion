@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { chromium } from "@playwright/test";
 import { runAnimate } from "../src/cli/animate.js";
 import { launchChromium } from "../src/index.js";

@@ -12,16 +12,16 @@
  * Usage: npx tsx tests/runner.tsx [--only feature-name]
  */
 
-import { type BrowserContext, type Page } from "@playwright/test";
-import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type BrowserContext, type Page } from "@playwright/test";
+import { raw } from "kerfjs";
+import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { clearGlyphDefs, clearWebfonts, setRenderTextMode } from "../src/render/text-to-path.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
-import { raw } from "kerfjs";
 import { comparePngs, passes, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 

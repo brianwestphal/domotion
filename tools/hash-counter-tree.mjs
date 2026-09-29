@@ -1,8 +1,8 @@
 // DM-1086 byte oracle: capture a tree with @counter-style custom markers (which
 // exercise the counter-style pre-walk + resolver) and hash it.
+import { createHash } from "node:crypto";
 import { chromium } from "@playwright/test";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-import { createHash } from "node:crypto";
 const html = `<!doctype html><meta charset=utf8><style>
 @counter-style circled { system: fixed; symbols: "①" "②" "③" "④"; suffix: " "; }
 @counter-style myroman { system: additive; additive-symbols: 10 "X", 9 "IX", 5 "V", 4 "IV", 1 "I"; }

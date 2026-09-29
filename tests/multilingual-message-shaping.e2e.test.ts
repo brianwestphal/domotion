@@ -1,16 +1,16 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { launchChromium } from "../src/index.js";
-import { captureElementTreeWithWarnings } from "../src/capture/index.js";
-import type { CapturedElement } from "../src/capture/types.js";
-import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
-import { setRenderTextMode } from "../src/render/text-to-path.js";
-import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import {
   resetGeneration,
   getTextRunProvenance,
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
+import { launchChromium } from "../src/index.js";
+import { captureElementTreeWithWarnings } from "../src/capture/index.js";
+import type { CapturedElement } from "../src/capture/types.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-2619: focused production-pipeline coverage for the two platform findings
 // from 32-real-world-multilingual-messages. The Arabic assertion catches the

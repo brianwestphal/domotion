@@ -6,8 +6,9 @@
  * scroll machinery.
  */
 
-import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { parseArgs } from "node:util";
+import { resolve } from "node:path";
+import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import {
   captureElementTree,
   clearEmbeddedFonts,
@@ -47,7 +48,6 @@ import {
 } from "../capture/index.js";
 import { parseCrossOriginAllowlist } from "../capture/script/cross-origin.js";
 import { loadBrand } from "../templates/brand.js";
-import { resolve } from "node:path";
 import {
   applyReadyWaits,
   inferHarPageUrl,

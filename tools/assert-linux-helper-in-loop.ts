@@ -35,8 +35,8 @@
  * Exits non-zero when the matcher is absent or when disabling it does not move
  * the answer. Prints and exits 0 on non-Linux, so it is safe to call anywhere.
  */
-import { getFontInstance } from "../src/render/font-resolution.js";
 import { withSystemFallbackResolution, resolveLinuxFamilyMatch } from "@domotion/text-engine/testing";
+import { getFontInstance } from "../src/render/font-resolution.js";
 
 function fail(msg: string): never {
   console.error(`FAIL: ${msg}`);

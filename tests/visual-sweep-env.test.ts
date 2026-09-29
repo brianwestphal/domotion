@@ -22,12 +22,11 @@
  *  - a single run whose SHARDS straddled the rotation is reported as
  *    heterogeneous instead of silently blending into one baseline.
  */
-import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-
+import { describe, expect, it } from "vitest";
 import { computeRunEnv, envComparability, mergeShardEnvs, playwrightVersion } from "../scripts/run-env.mjs";
 
 /** The two real macOS runner environments, as observed in the two CI runs. */

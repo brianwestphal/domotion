@@ -1,5 +1,5 @@
-import { detachQuietly, isSameProcessFrameError } from "./cdp-lifecycle.js";
 import type { Frame, Page } from "@playwright/test";
+import { detachQuietly, isSameProcessFrameError } from "./cdp-lifecycle.js";
 
 export interface StableAnimationDocumentState {
   url: string;

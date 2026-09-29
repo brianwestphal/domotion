@@ -11,14 +11,13 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-
-import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import {
   harfbuzzGlyphQuery,
   harfbuzzShapeRun,
   registerHbBufferSource,
   type ShapeResult,
 } from "@domotion/text-engine/testing";
+import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 
 export const DEFAULT_VARIABLE_FIXTURE = "tests/fixtures/variable-axis/variable-axis.html";
 export const DEFAULT_TRACKING_FIXTURE = "tests/fixtures/exact-shaping/TRAK.ttf.base64";

@@ -15,10 +15,10 @@
 // matching the existing call site `(${CAPTURE_SCRIPT})({...args})`. See
 // DM-619a for the original design + DM-619e for the multi-file move.
 
-import { build } from "esbuild";
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENTRY = resolve(ROOT, "src/capture/script/index.ts");

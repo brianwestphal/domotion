@@ -1,6 +1,6 @@
-import { resolveInsideWorkspace } from "./workspace-path.js";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import type { Transition } from "../animation/transition-schema.js";
 import { parseSvgIntrinsicSize } from "../animation/svg-meta.js";

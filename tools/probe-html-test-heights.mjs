@@ -14,10 +14,10 @@
  * height is the lowest visible element's bottom edge, rounded up to the
  * next 8 px with an additional 8 px safety buffer.
  */
-import { chromium } from "playwright";
 import { readdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolve(__dirname, "..", "external", "html-test");

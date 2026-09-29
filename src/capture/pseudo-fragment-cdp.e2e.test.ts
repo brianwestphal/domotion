@@ -1,10 +1,9 @@
-import { chromium } from "@playwright/test";
-import { describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-
+import { chromium } from "@playwright/test";
+import { describe, expect, it } from "vitest";
 import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
 import type { CapturedPseudoFragmentSet } from "./types.js";
 

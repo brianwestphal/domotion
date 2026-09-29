@@ -7,19 +7,18 @@
  * fallback-family context, and quarter-pixel phase without changing selected
  * face, glyph, size, baseline, or paint.
  */
-import { chromium } from "@playwright/test";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chromium } from "@playwright/test";
 import * as fontkitNs from "fontkit";
 import sharp from "sharp";
 import svg2ttf from "svg2ttf";
-
-import { comparePngs } from "../src/review/compare-pngs.js";
 import { hbSubsetRetainGids, injectPuaCmap } from "@domotion/text-engine/testing";
+import { comparePngs } from "../src/review/compare-pngs.js";
 
 const fontkit = (fontkitNs as { default?: typeof fontkitNs }).default ?? fontkitNs;
 const FONT_PATHS = {

@@ -15,10 +15,10 @@
 // shards crash Chromium on memory), and writes the JSON in a finally so a
 // mid-run crash still yields partial data.
 
-import { chromium } from "@playwright/test";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
+import { chromium } from "@playwright/test";
 
 const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "/unicode");
 const OUT_PATH = process.env.OUT ?? "/out/probe-1416.json";

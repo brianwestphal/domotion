@@ -2,9 +2,9 @@
 // (border-radius, clip-path geo-box, overflow clip, mask, 2D transform, opacity,
 // filter, blend) so elementTreeToSvg output can be hashed before/after an
 // extraction. Writes the tree JSON to /tmp for the hash probe.
+import { writeFileSync } from "node:fs";
 import { chromium } from "@playwright/test";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-import { writeFileSync } from "node:fs";
 const html = `<!doctype html><meta charset=utf8><body style="margin:0">
 <div style="position:relative;width:400px;height:300px;background:#eee;padding:20px">
   <div style="width:120px;height:80px;background:linear-gradient(45deg,#f00,#00f);border-radius:10px 30px 50px 70px;border:4px solid #333;padding:8px"></div>

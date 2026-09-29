@@ -1,9 +1,9 @@
-import { resolveInsideWorkspace } from "./workspace-path.js";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import { z } from "zod";
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import { compileStudioSemanticTracks } from "./interactions.js";
 import { validateStudioProject } from "./project.js";
 import {

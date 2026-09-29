@@ -24,9 +24,9 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { startLocalServer, sendBuffer } from "../utils/local-server.js";
 import { readFileSync, existsSync } from "node:fs";
 import { basename, extname } from "node:path";
+import { startLocalServer, sendBuffer } from "../utils/local-server.js";
 import { REVIEW_CLIENT_JS } from "./client.bundle.generated.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 

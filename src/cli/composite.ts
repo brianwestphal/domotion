@@ -18,12 +18,12 @@
  *     } ] }
  */
 
-import { requireField } from "./require-field.js";
 import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
+import { requireField } from "./require-field.js";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import {

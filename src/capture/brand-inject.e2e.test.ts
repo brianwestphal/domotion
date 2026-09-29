@@ -1,8 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium, injectBrandVariables, captureElementTree } from "./index.js";
 import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";

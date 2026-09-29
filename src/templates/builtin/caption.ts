@@ -14,8 +14,8 @@
  * from→to schema can't express).
  */
 
-import { cssValue } from "./shared.js";
 import { z } from "zod";
+import { cssValue } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";

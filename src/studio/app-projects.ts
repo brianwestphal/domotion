@@ -1,7 +1,7 @@
-import { resolveInsideWorkspace } from "./workspace-path.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import * as nativePath from "node:path";
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import {
   STUDIO_PROJECT_FORMAT,
   STUDIO_PROJECT_SCHEMA_ID,

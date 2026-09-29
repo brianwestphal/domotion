@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { CapturedElement, CapturedSessionGenericFamilies } from "../capture/types.js";
-import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
-import { capturedSessionGenericFamilies } from "./element-tree-to-svg.js";
 import {
   getSessionGenericFamilyOverrides,
   setSessionGenericFamilyOverrides,
   withSessionGenericFamilyOverrides,
 } from "@domotion/text-engine/testing";
+import type { CapturedElement, CapturedSessionGenericFamilies } from "../capture/types.js";
+import { createCapturedTreeEnvelope } from "../capture/tree-envelope.js";
+import { capturedSessionGenericFamilies } from "./element-tree-to-svg.js";
 
 const root = (record?: CapturedSessionGenericFamilies): CapturedElement =>
   ({

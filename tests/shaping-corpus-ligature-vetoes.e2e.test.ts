@@ -19,11 +19,11 @@
  * letter-spacing rows and the case that separates a veto from an overridable
  * default would silently not be swept.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { chromium, type Browser } from "@playwright/test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chromium, type Browser } from "@playwright/test";
 import { extractRuns, type RunCorpus, type RunSpec } from "../tools/shaping-conformance.js";
 
 /** Single words, no whitespace, so the corpus's whitespace-free rule keeps them

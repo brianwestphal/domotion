@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-
+import { describe, expect, it } from "vitest";
 import {
   LINUX_TERMINAL_MASK_CASES,
   LINUX_TERMINAL_MASK_VARIANTS,

@@ -1,12 +1,12 @@
 import * as fk from "fontkit";
-import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
-import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
-import { setRenderTextMode } from "../src/render/text-to-path.js";
 import {
   getFixtureTextRunProvenance,
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
+import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
 
 const fontkit = (fk as { default?: typeof fk }).default ?? fk;
 const SOURCE = "LABEL TEXT";

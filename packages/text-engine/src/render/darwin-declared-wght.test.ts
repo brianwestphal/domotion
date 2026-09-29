@@ -11,8 +11,8 @@
 // Black master. Which named member AppKit exposes has changed across macOS
 // releases, so the host matcher is the unit authority and the browser-backed
 // E2E test independently verifies the face and advance Chromium paints.
-import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import {
   resolveFontKey,
   getFontInstance,

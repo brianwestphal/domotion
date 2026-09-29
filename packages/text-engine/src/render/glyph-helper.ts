@@ -9,8 +9,8 @@
  * internal and does not create a second public routing surface.
  */
 
-import { hostPlatform } from "./host-platform.js";
 import { existsSync } from "node:fs";
+import { hostPlatform } from "./host-platform.js";
 import type { MetaResponse } from "./glyph-helper-outline.js";
 import type { HelperRequest, HelperResponse } from "./glyph-helper-protocol.js";
 import {

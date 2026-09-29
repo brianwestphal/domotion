@@ -1,9 +1,9 @@
 // DM-1093 byte oracle: capture a tree with styled ::first-letter (font/color/
 // background/border) and an `initial-letter` drop-cap — exercises
 // buildFirstLetterSegment incl. the cap-height equalisation path.
+import { createHash } from "node:crypto";
 import { chromium } from "@playwright/test";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-import { createHash } from "node:crypto";
 const html = `<!doctype html><meta charset=utf8><style>
 p { font: 20px/1.4 serif; width: 360px; }
 .a::first-letter { color: #c30; font-weight: bold; font-size: 200%; background: #ffd; border: 1px solid #333; padding: 2px; }

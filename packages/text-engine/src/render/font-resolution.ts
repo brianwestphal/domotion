@@ -18,13 +18,13 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { hostPlatform } from "./host-platform.js";
-import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
-import { isTransientFsError, retrySync } from "./sync-retry.js";
 import { existsSync } from "node:fs";
 import * as nodePath from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
+import { hostPlatform } from "./host-platform.js";
+import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
+import { isTransientFsError, retrySync } from "./sync-retry.js";
 import {
   captureFontFamilyStack,
   capturedFontFamilyHeadIdentity,

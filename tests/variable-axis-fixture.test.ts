@@ -18,9 +18,10 @@
  * The live Chrome half — that Chrome's painted geometry moves the same way, and
  * that `identifyFace` cannot see any of it — is `variable-axis-oracle-pair.e2e.test.ts`.
  */
-import { beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { beforeAll, describe, expect, it } from "vitest";
 import * as fontkit from "fontkit";
+import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 import {
   DEFAULT_FIXTURE,
   alignMetricsToChrome,
@@ -34,7 +35,6 @@ import {
   parseSettings,
 } from "../tools/variable-axis-oracle-pair.js";
 import { registerWebfont } from "../src/render/font-resolution.js";
-import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 
 const html = existsSync(DEFAULT_FIXTURE) ? readFileSync(DEFAULT_FIXTURE, "utf-8") : "";
 const TEXT = "Hamburgefonstiv";

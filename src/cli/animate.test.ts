@@ -5,10 +5,10 @@
  * schema rules and `${}` substitution are deterministic and testable here.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   runAnimate,
   validateAnimateConfig,

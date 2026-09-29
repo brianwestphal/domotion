@@ -6,12 +6,12 @@
  *   [--dsf 1,2,4] [--zoom 0.8,1,1.25] [--report-only]
  *   [--max-edge-error 0.56] [--max-profile-rmse 0.48]
  */
-import { chromium, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chromium, type Page } from "@playwright/test";
 import sharp from "sharp";
 import { captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";

@@ -12,8 +12,8 @@
  * and physical tile size.
  */
 
-import { renderWarn } from "./render-warn.js";
 import sharp from "sharp";
+import { renderWarn } from "./render-warn.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { _conicTileCache } from "./raster-tile-cache.js";
 import { collectFormControlConicTiles } from "./form-controls.js";

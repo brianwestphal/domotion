@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 import { launchChromium } from "../index.js";
 import { runSvgToVideo } from "./svg-to-video-core.js";
 

@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
 import * as fontkit from "fontkit";
 import {
   __helperBinaryForPlatformForTest,

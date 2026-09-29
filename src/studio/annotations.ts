@@ -1,7 +1,7 @@
-import { assertHeadRevision } from "./stale-head.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
+import { assertHeadRevision } from "./stale-head.js";
 import {
   studioAnnotationTargetSchema,
   studioIdSchema,

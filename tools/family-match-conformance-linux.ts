@@ -52,11 +52,11 @@
  * Exit codes: 0 ok / 1 regression vs baseline / 2 cannot run / 3 environment
  * mismatch (refused to judge).
  */
-import { chromium } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { chromium } from "@playwright/test";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,

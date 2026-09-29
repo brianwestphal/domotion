@@ -10,10 +10,10 @@
  *   3. `hoverDetect` on a background/box-shadow hover DETECTS a paint change and
  *      synthesizes a rest→hover crossfade that carries the hover color.
  */
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Browser } from "@playwright/test";
 import { composeAnimateConfig, launchChromium, validateAnimateConfig } from "../index.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";

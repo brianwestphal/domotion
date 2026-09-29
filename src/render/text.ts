@@ -4,8 +4,8 @@
  * Renders text in SVG using fontkit path outlines for cross-browser identical rendering.
  */
 
-import { fontSizeOrDefault, FALLBACK_ASCENT_RATIO } from "./text-defaults.js";
 import bidiFactory from "bidi-js";
+import { fontSizeOrDefault, FALLBACK_ASCENT_RATIO } from "./text-defaults.js";
 import {
   computeSkipInkGaps,
   getDecorationMetrics,

@@ -1,6 +1,6 @@
-import { privateCaptureKey } from "./private-key.js";
 import { createHash } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
+import { privateCaptureKey } from "./private-key.js";
 import type { StableAnimationFrameState } from "./animation-frame.js";
 import type { StableCaptureRafState } from "./raf-clock.js";
 import type { CapturedElement } from "./types.js";

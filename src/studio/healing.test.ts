@@ -1,7 +1,7 @@
-import type { Browser } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { Browser } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
 import { resumeStudioHealingLoop, runStudioHealingLoop, StudioHealingError } from "./healing.js";
 import { STUDIO_PROJECT_FORMAT, STUDIO_PROJECT_VERSION, type StudioProject } from "./project-schema.js";

@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-import type { CapturedElement } from "../capture/types.js";
-import { elementTreeToSvg } from "./element-tree-to-svg.js";
-import { renderInputText, renderMultiSegmentText, renderSingleLineText } from "./text.js";
 import {
   getTextRunProvenance,
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
+import type { CapturedElement } from "../capture/types.js";
+import { elementTreeToSvg } from "./element-tree-to-svg.js";
+import { renderInputText, renderMultiSegmentText, renderSingleLineText } from "./text.js";
 
 const dataUri = "data:image/png;base64,Y2FwdHVyZS1yYXN0ZXI=";
 const styles = {

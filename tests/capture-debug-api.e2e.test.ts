@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { chromium } from "@playwright/test";
 import { assembleCaptureDebugBundle, captureElementTreeWithDebug, elementTreeToSvg } from "../src/index.js";

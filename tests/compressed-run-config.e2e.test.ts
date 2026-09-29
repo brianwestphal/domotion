@@ -1,7 +1,7 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { Page } from "@playwright/test";
 import { launchChromium } from "../src/capture/index.js";
 import { generateAnimatedSvg } from "../src/animation/index.js";

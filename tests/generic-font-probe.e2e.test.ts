@@ -1,7 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { chromium, type Browser, type BrowserContext } from "@playwright/test";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chromium, type Browser, type BrowserContext } from "@playwright/test";
+import { getSessionGenericFamilyOverrides, setSessionGenericFamilyOverrides } from "@domotion/text-engine/testing";
 import { captureElementTree, captureElementTreeEnvelope } from "../src/capture/index.js";
 import type { CapturedElement, CapturedTreeEnvelope } from "../src/capture/types.js";
 import { promoteCapturedSubtree } from "../src/capture/tree-envelope.js";
@@ -11,7 +12,6 @@ import {
   probePageGenericFamilies,
   probeSessionGenericFamilies,
 } from "../src/capture/generic-font-probe.js";
-import { getSessionGenericFamilyOverrides, setSessionGenericFamilyOverrides } from "@domotion/text-engine/testing";
 
 async function defaultCommonFamilyNames(
   context: BrowserContext,

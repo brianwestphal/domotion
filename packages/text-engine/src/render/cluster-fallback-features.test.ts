@@ -16,8 +16,8 @@
 // against the unfixed code because the recorded 7th positional argument
 // (`features`) would be `undefined` on every call, never the list passed via
 // `opts.features`.
-import { afterEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./harfbuzz-shaper.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./harfbuzz-shaper.js")>();

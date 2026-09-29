@@ -5,11 +5,11 @@
  * hands the template a `runAnimateConfig` bound to the existing pipeline.
  */
 
-import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Browser } from "@playwright/test";
+import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import {
   attachWebfontTracker,
   captureElementTree,

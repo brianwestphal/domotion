@@ -18,8 +18,8 @@
 // are Chrome-on-macOS's, established over CDP with `CSS.getPlatformFontsForNode`
 // (read by `postScriptName`, selecting the entry with the largest `glyphCount` —
 // the reported array is not ordered by coverage).
-import { beforeEach, describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearFontResolutionCaches,
   getFontInstance,

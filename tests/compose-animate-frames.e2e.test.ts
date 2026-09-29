@@ -1,8 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
-import { webkit } from "@playwright/test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { webkit } from "@playwright/test";
 import { launchChromium } from "../src/capture/index.js";
 import { composeAnimateConfig, composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";
 import { generateAnimatedSvg } from "../src/animation/index.js";

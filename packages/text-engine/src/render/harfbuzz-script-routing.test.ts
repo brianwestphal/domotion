@@ -21,8 +21,8 @@
 // object per codepoint silently hands the shaper one-character runs and turns
 // contextual shaping off), and the FontInstance metadata the embedded-font path
 // reads survives the proxy's fixed property set.
-import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   clearFontResolutionCaches,
   getFontInstance,

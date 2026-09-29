@@ -5,12 +5,12 @@
 // behind a loading overlay via /api/refresh-source. This test spawns the server
 // with a deliberately SLOW, failing `gh` on PATH and asserts the `/` route stays
 // fast (would be ≥5s if someone re-introduced the blocking fetch).
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 const SERVER = resolve(fileURLToPath(import.meta.url), "..", "review-server.tsx");
 const PORT = 4396;

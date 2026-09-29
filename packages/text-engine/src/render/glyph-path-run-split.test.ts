@@ -14,8 +14,8 @@
 // `DOMOTION_CLUSTER_FALLBACK=0` (the legacy walk, i.e. the pre-port behavior of
 // `textToPathMarkup`) these tests FAIL, which is the discrimination
 // requirement: a test both mechanisms pass grades nothing.
-import { describe, it, expect, afterEach, afterAll, beforeAll } from "vitest";
 import * as fs from "node:fs";
+import { describe, it, expect, afterEach, afterAll, beforeAll } from "vitest";
 import fontkit from "fontkit";
 import { splitTextIntoGlyphPathRuns } from "./text-to-path.js";
 import {

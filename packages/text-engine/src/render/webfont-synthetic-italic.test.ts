@@ -23,8 +23,8 @@
 // `oblique` at/above the sentinel angle), while an auto-descriptor VARIABLE
 // face whose slnt axis reaches a right-leaning (OT-negative) coordinate is
 // exempted.
-import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   webfontSyntheticItalic,
   parseFontStyleDescriptor,

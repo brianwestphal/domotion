@@ -29,13 +29,13 @@
  * Exit code is always 0 — this reports, it does not gate.
  */
 import { chromium } from "@playwright/test";
-import { getFontInstance } from "../src/render/font-resolution.js";
 import {
   resolveFontKeyChain,
   resolveFontForCodepoint,
   resolveFontSpec,
   stackPrimaryIsSystemUi,
 } from "@domotion/text-engine/testing";
+import { getFontInstance } from "../src/render/font-resolution.js";
 
 const P = (s: string): void => console.log(`FONTAGREE: ${s}`);
 

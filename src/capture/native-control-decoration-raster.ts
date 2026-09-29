@@ -9,10 +9,9 @@
  * pixels only; the structural renderer continues to own the host and text.
  */
 
-import { privateCaptureKey } from "./private-key.js";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { privateCaptureKey } from "./private-key.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import {
   cropNativeControlRgba,

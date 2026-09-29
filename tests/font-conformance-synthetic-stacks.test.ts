@@ -9,8 +9,8 @@
  * `--max-stacks` prefix meaningful, and the determinism the baseline comparator
  * depends on.
  */
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SYNTHETIC_STACKS_FILE,
   FAMILY_SPELLINGS,

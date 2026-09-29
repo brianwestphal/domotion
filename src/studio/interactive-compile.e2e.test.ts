@@ -1,7 +1,7 @@
-import { chromium, type Browser } from "@playwright/test";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { chromium, type Browser } from "@playwright/test";
 import { afterAll, describe, expect, it } from "vitest";
 import { compileStudioInteractiveProject, finalCursorPoint } from "./interactive-compile.js";
 import { loadStudioProject } from "./project.js";

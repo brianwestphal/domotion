@@ -9,8 +9,8 @@
  * value (the reels rest at their end digit). Brand- and format-aware.
  */
 
-import { cssValue, blank, THEMES } from "./shared.js";
 import { z } from "zod";
+import { cssValue, blank, THEMES } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";

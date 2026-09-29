@@ -1,8 +1,8 @@
 // DM-1086 byte oracle: capture a tree with inline <svg> icons (CSS-styled
 // fill/stroke, <use> refs, currentColor) — exercises captureInlineSvg.
+import { createHash } from "node:crypto";
 import { chromium } from "@playwright/test";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-import { createHash } from "node:crypto";
 const html = `<!doctype html><meta charset=utf8><style>
 .icon-btn { color: #c30; } .icon-btn svg { fill: none; stroke: currentColor; stroke-width: 2; }
 svg.css-geom circle { fill: green; } .css-geom { color: blue; }

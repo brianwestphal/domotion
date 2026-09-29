@@ -16,8 +16,8 @@
  * `embedRemoteImages` already inlined).
  */
 
-import sharp from "sharp";
 import { createHash } from "node:crypto";
+import sharp from "sharp";
 import { _dataUriCache, _resizedDataUriCache } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import type { AnimatedImageStaticFrameRecord } from "../capture/animated-image-static-frame.js";

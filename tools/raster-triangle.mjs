@@ -1,5 +1,5 @@
-import { chromium } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
+import { chromium } from "@playwright/test";
 const block = readFileSync("tests/output/triangle-block.txt", "utf8");
 // Wrap in a minimal svg, shifting the icon to origin for a tight 24x24 view.
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="55 3638 24 24" width="240" height="240">${block}</svg>`;

@@ -13,13 +13,12 @@
  *   npm run culling:animated-geometry-oracle -- --dpr 1,2 --zoom 1,1.25
  *     --json tests/output/animated-culling-geometry-darwin.json
  */
-import { chromium, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chromium, type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
-
 import type { IntraFrameAnimation } from "../src/animation/animator.js";
 import { generateAnimatedSvg } from "../src/animation/animator.js";
 import type { CapturedElement } from "../src/capture/types.js";

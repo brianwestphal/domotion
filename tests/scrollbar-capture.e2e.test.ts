@@ -1,9 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
-
 import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
 import { prepareFrameScrollCapture } from "../src/capture/frame-scroll-state.js";
 import { prepareCapturedScrollbarSets } from "../src/capture/scrollbar-capture.js";

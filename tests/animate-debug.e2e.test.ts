@@ -1,8 +1,8 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { runAnimate } from "../src/cli/animate.js";
 import { launchChromium } from "../src/index.js";

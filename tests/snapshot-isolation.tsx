@@ -18,10 +18,10 @@
  * Usage: npx tsx tests/snapshot-isolation.tsx
  */
 
-import { chromium } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from "@playwright/test";
 import { captureElementTreeWithWarnings } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
 

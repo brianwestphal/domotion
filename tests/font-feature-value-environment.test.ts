@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   authenticateFontFeatureEnvironment,
@@ -6,7 +7,6 @@ import {
   type AuthenticatedFontFeatureEnvironment,
   type RetainedFontSourceKind,
 } from "../tools/font-feature-value-environment.js";
-import { readFileSync } from "node:fs";
 
 const bytes = Buffer.from("authenticated-font-fixture");
 const sha256 = createHash("sha256").update(bytes).digest("hex");

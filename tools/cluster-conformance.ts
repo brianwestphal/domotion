@@ -61,15 +61,11 @@
  * harness error. Run the tsx/Playwright path with the sandbox disabled.
  * ---------------------------------------------------------------------------
  */
-import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
-import { clearWebfonts, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
-// Reuse the per-codepoint oracle's face-identity reconciliation verbatim, so
-// "same face" means the same thing in both instruments.
-import { type ChromeFace, identifyFace, type OurFace } from "./font-conformance.js";
 import {
   beginCharacterFallbackDocument,
   endCharacterFallbackDocument,
@@ -81,6 +77,10 @@ import {
   splitTextIntoGlyphPathRuns,
   hbSubsetRetainGids,
 } from "@domotion/text-engine/testing";
+import { clearWebfonts, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
+// Reuse the per-codepoint oracle's face-identity reconciliation verbatim, so
+// "same face" means the same thing in both instruments.
+import { type ChromeFace, identifyFace, type OurFace } from "./font-conformance.js";
 
 const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 

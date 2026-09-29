@@ -1,8 +1,8 @@
 #!/usr/bin/env npx tsx
 /** Same-machine system-ui family/cut assertion for DM-2087. */
 import { chromium } from "@playwright/test";
-import { resolveFontKey } from "../src/render/font-resolution.js";
 import { clearFontResolutionCaches, resolveFont } from "@domotion/text-engine/testing";
+import { resolveFontKey } from "../src/render/font-resolution.js";
 
 if (process.platform !== "linux") process.exit(0);
 

@@ -16,8 +16,8 @@
 //
 // The expectations are Chrome-on-macOS's own, read over CDP with
 // `CSS.getPlatformFontsForNode` (by `postScriptName`, largest `glyphCount`).
-import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { __resolveSystemFallbackKeyForCpForTest } from "./font-resolution.js";
 import { isGlyphHelperAvailable } from "./glyph-helper.js";
 

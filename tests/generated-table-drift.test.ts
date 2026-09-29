@@ -14,11 +14,11 @@
  * to the working tree regardless of outcome — the assertion is the
  * before/after string comparison, not the side effect of having regenerated.
  */
-import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { describe, it, expect } from "vitest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 

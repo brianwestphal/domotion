@@ -8,8 +8,8 @@
 // single-name stacks (both end at the standard-font terminal), so bare-name
 // probes could never discriminate them — only stacks with a later family can,
 // and these tests use exactly those.
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import {
   resolveFontKey,
   resolveFontSpec,

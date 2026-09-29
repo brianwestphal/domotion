@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { describe, it, expect } from "vitest";
 import { DEFAULT_SYNTHETIC_STACKS_FILE } from "../tools/font-conformance-synthetic-stacks.js";
 
 // The synthetic sweep shares its instrument, its shard script and its gate with

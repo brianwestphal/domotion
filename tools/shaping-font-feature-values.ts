@@ -6,6 +6,7 @@
  * to HarfBuzz.  The broad shaping corpus carries the storage in this compact
  * serializable form so its synthetic probe page can ask the same question.
  */
+import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "@domotion/text-engine/testing";
 import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import type {
   FontFeatureValueCategory,
@@ -13,7 +14,6 @@ import type {
   FontFeatureValueTables,
 } from "../src/font-feature-values-cascade.js";
 import { resolveFontVariantAlternates } from "../src/render/text.js";
-import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "@domotion/text-engine/testing";
 
 export type {
   FontFeatureValueCategory,

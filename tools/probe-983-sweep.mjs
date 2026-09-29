@@ -5,9 +5,9 @@
 // `UNICODE_FONTS_OUT` (defaults to /tmp/unicode-fonts.json). On Linux this
 // is invoked inside the Playwright Docker container so the probed font
 // choices are Chrome-on-Linux's actual fontconfig pick (DM-984).
-import { chromium } from "@playwright/test";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { chromium } from "@playwright/test";
 
 const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "../html-test/unicode");
 const OUT_PATH = process.env.UNICODE_FONTS_OUT ?? `${process.env.TMPDIR ?? "/tmp"}/unicode-fonts.json`;

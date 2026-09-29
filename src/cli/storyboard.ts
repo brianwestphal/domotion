@@ -41,13 +41,13 @@
  * `@font-face` collapse across all scenes (`dedupeCompositeFonts`).
  */
 
-import { requireField } from "./require-field.js";
-import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
+import { requireField } from "./require-field.js";
+import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { storyboardTransitionSchema as transitionSchema } from "../animation/transition-schema.js";
 import {
   launchChromium,

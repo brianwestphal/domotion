@@ -19,14 +19,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "
 import { platform } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
-import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
-import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
-import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
-import { embeddedVariableFontBytes, sfntTableTags } from "./exact-shaping-control-fixtures.js";
-// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
-import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
   harfbuzzShapeRun,
   registerHbBufferSource,
@@ -35,6 +28,12 @@ import {
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
+import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
+import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
+import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
+import { embeddedVariableFontBytes, sfntTableTags } from "./exact-shaping-control-fixtures.js";
+// @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
+import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 export const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 export const HARFBUZZ_REVISION = "4de187dd0a915d13c976fa8bd474c084229f3aab";

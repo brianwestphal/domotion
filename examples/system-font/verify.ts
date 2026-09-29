@@ -15,10 +15,10 @@
  *
  * Run: `npx tsx examples/system-font/verify.ts`
  */
-import { chromium } from "@playwright/test";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg } from "../../src/index.js";
 import { comparePngs } from "../../src/review/compare-pngs.js";
 

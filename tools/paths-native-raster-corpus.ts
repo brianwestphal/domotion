@@ -2,9 +2,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as fontkit from "fontkit";
-
-import type { PathsRasterRow } from "./paths-native-raster-gate.js";
 import { hbSubsetRetainGids } from "@domotion/text-engine/testing";
+import type { PathsRasterRow } from "./paths-native-raster-gate.js";
 
 export const PATHS_NATIVE_RASTER_SOURCE = {
   repository: "https://github.com/harfbuzz/harfbuzz",

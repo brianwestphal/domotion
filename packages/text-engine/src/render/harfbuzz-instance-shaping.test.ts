@@ -11,8 +11,8 @@
 // has to satisfy HarfBuzz's sanitizer, so a synthetic pair would test the
 // builder rather than the shaper. The platform-independent half — which faces
 // qualify — is covered by `trak-stat-gate.test.ts`.
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { installHarfbuzzShaping } from "./harfbuzz-shaper.js";
 import { clearFontResolutionCaches, getFontInstance } from "./font-resolution.js";
 

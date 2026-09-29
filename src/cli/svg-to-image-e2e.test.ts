@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { describe, expect, it } from "vitest";
 import { launchChromium } from "../index.js";
 import { generateAnimatedSvg } from "../animation/animator.js";
 import { runSvgToImage } from "./svg-to-image-core.js";

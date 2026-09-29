@@ -1,10 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   __resetAcquireStateForTest,
   acquireGlyphHelper,

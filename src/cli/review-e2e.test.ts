@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { Readable } from "node:stream";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
 import { chromium } from "@playwright/test";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { startBrowserCoverage, writeBrowserCoverage } from "../test-support/browser-coverage.js";

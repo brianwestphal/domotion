@@ -15,10 +15,9 @@
  * capture.
  */
 
-import type { Frame, Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-
+import type { Frame, Page } from "@playwright/test";
 import type { CapturedBackgroundImage } from "./types.js";
 
 const SUPPORTED_IMAGE_MIME_TYPES = new Set([

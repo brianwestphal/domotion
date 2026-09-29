@@ -8,9 +8,9 @@
  * grow about the axis for bars, a `clipPath` left-to-right reveal for the line).
  */
 
+import { z } from "zod";
 import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
-import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";

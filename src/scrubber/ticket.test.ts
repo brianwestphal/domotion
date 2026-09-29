@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { buildTicketFile, startScrubberServer, type ScrubberServerHandle } from "./server.js";
 
 /**

@@ -1,7 +1,15 @@
+import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-
+import {
+  invalidateFontEnvironmentCaches,
+  isGlyphHelperAvailable,
+  type TextEmitterTransitionDiagnostic,
+  type TextRunProvenanceDiagnostic,
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
 import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
@@ -12,15 +20,6 @@ import {
   type LinuxMathmlGreekTokenEvidence,
 } from "../tools/linux-mathml-greek-raster-contract.js";
 import { tests as featureTests } from "./features.js";
-import {
-  invalidateFontEnvironmentCaches,
-  isGlyphHelperAvailable,
-  type TextEmitterTransitionDiagnostic,
-  type TextRunProvenanceDiagnostic,
-  getTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-} from "@domotion/text-engine/testing";
 
 const env = await (async () => {
   try {

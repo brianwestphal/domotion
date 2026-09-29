@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { isHarPath, inferHarPageUrl } from "../src/cli/common.js";
 import { runCapture } from "../src/cli/capture.js";
 import { launchChromium } from "../src/index.js";

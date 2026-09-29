@@ -25,11 +25,10 @@
  * - scrollbar.cc:757-770,930-990
  */
 
-import { privateCaptureKey } from "./private-key.js";
 import { randomUUID } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { privateCaptureKey } from "./private-key.js";
 import type { ResolvedPseudoStyleCapture } from "./pseudo-style-cdp.js";
 import {
   analyzeNativeOverlayInk,

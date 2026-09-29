@@ -3,10 +3,10 @@
  * screenshot it at evenly-spaced animation timepoints. Lets us see whether
  * content "pops in" or scrolls cleanly across segment boundaries.
  */
-import { chromium } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from "@playwright/test";
 
 const TOOLS_DIR = dirname(fileURLToPath(import.meta.url));
 const SVG_PATH = resolve(TOOLS_DIR, "..", "tests/output/real-world/nytimes-desktop-scroll.svg");

@@ -8,10 +8,11 @@
  * loader — are the parts pinned here. Nothing in this file launches a browser;
  * the module only sweeps when invoked as a script.
  */
-import { describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { getFontSourceInfo, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
 import {
   allowlisted,
   buildUniverse,
@@ -33,7 +34,6 @@ import {
   type StackSpec,
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
-import { getFontSourceInfo, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
 
 describe("helperImplementationDigest", () => {
   it("is stable across rebuilt Windows executable bytes", () => {

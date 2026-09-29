@@ -1,8 +1,8 @@
-import type { Page } from "@playwright/test";
-import { describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Page } from "@playwright/test";
+import { describe, expect, it, vi } from "vitest";
 import {
   UsageError,
   errorMessage,

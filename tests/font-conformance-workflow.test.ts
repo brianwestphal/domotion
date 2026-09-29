@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { describe, it, expect } from "vitest";
 
 // The conformance oracle only measures what it claims to when the runner it
 // runs on can ask the OS the same question Chrome asks. On macOS and Windows

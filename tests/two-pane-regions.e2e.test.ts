@@ -1,6 +1,6 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { Page, BrowserContext } from "@playwright/test";
 import { launchChromium, captureElementTree } from "../src/capture/index.js";
 import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, FIXTURE_SERIF_STACK, registerFixtureFonts } from "./fixture-fonts.js";

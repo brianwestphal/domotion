@@ -1,4 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
+import * as fontkit from "fontkit";
+import sharp from "sharp";
 import { launchChromium } from "../src/capture/index.js";
 import { executeScrollPattern } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
@@ -6,8 +8,6 @@ import { setRenderTextMode, getRenderTextMode } from "../src/render/index.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import type { CapturedElement } from "../src/capture/types.js";
-import * as fontkit from "fontkit";
-import sharp from "sharp";
 
 async function setup() {
   try {

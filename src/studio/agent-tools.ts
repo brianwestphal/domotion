@@ -1,9 +1,9 @@
-import { resolveInsideWorkspace } from "./workspace-path.js";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
+import { resolveInsideWorkspace } from "./workspace-path.js";
 import { applyStudioAnnotationCommand } from "./annotations.js";
 import { createStudioProjectDocument } from "./app-projects.js";
 import { validateStudioProject } from "./project.js";

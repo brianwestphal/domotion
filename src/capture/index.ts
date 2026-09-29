@@ -9,8 +9,6 @@
  * the `domotion-svg/capture` subpath re-export.
  */
 
-import { privateCaptureKey } from "./private-key.js";
-import { disposeAll } from "./cdp-lifecycle.js";
 import { spawnSync } from "node:child_process";
 import sharp from "sharp";
 import {
@@ -22,6 +20,8 @@ import {
   type LaunchOptions,
   type Page,
 } from "@playwright/test";
+import { privateCaptureKey } from "./private-key.js";
+import { disposeAll } from "./cdp-lifecycle.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";

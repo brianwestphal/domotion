@@ -6,9 +6,8 @@
  * CAPTURE_SCRIPT through a private page-global registry.
  */
 
-import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Frame, Page } from "@playwright/test";
-
+import { privateCaptureKey } from "./private-key.js";
 import {
   buildCollapsedBorderFragmentRecord,
   canonicalCollapsedBorderLayoutUnit,

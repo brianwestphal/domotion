@@ -3,17 +3,6 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
-import {
-  clearEmbeddedFonts,
-  clearGlyphDefs,
-  renderTextAsPath,
-  selectedGlyphRasterSpans,
-  setRenderTextMode,
-  type RenderTextMode,
-} from "../src/render/text-to-path.js";
-import type { FontVariantEmojiOverride } from "../src/render/font-resolution.js";
-import { parityEnvironment } from "./parity-environment.js";
-import { bidiLevelsFor } from "../src/render/script-segmentation.js";
 import bidiFactory from "bidi-js";
 import {
   getTextRunProvenance,
@@ -25,6 +14,17 @@ import {
   helperRouteLedgerEnvironment,
   segmentForShaping,
 } from "@domotion/text-engine/testing";
+import {
+  clearEmbeddedFonts,
+  clearGlyphDefs,
+  renderTextAsPath,
+  selectedGlyphRasterSpans,
+  setRenderTextMode,
+  type RenderTextMode,
+} from "../src/render/text-to-path.js";
+import type { FontVariantEmojiOverride } from "../src/render/font-resolution.js";
+import { parityEnvironment } from "./parity-environment.js";
+import { bidiLevelsFor } from "../src/render/script-segmentation.js";
 
 interface OracleCase {
   id: string;

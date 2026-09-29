@@ -21,8 +21,8 @@
 // The downstream matching step (build the win32 chain from these advances)
 // lives with the calibration work, not here.
 
-import { chromium } from "playwright";
 import { writeFileSync } from "node:fs";
+import { chromium } from "playwright";
 
 const FONT_SIZE_PX = 64; // large for sub-pixel precision; advances scale linearly
 

@@ -10,10 +10,10 @@
  *      forced-hover frame's real styling, and the cascade sibling
  *      `.card:has(.cta:hover)` fires — not just the directly-hovered node.
  */
-import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import type { Browser } from "@playwright/test";
 import {
   applyForcedPseudoStates,

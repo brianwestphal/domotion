@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-
+import { resolveFakeBoldTextPaint } from "@domotion/text-engine/testing";
 import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
-import { resolveFakeBoldTextPaint } from "@domotion/text-engine/testing";
 
 // Paint-order coverage lives here because this file also owns the captured
 // `-webkit-text-stroke` tree controls below. Skia's fill and author stroke are

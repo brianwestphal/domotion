@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { describe, it, expect } from "vitest";
 
 // The visual sweep is only a fidelity signal if the runner renders the way a
 // developer does. On macOS and Windows the per-codepoint fallback resolver asks

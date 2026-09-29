@@ -21,8 +21,8 @@
 // condensed named instances AND a wdth axis): 50% / 62.5% / 75% all paint
 // `Skia-Regular_Condensed` at the same 130.08px — under an axis model those
 // three would differ.
-import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   getFontInstance,
   registerWebfont,

@@ -1,9 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import { describe, expect, it } from "vitest";
 import { runAnimatedImageOwnerResourceTruthAdjudicator } from "../tools/animated-image-owner-resource-truth-adjudicator.js";
 import {
   adjudicateAnimatedImageOwnerResourceTruth,

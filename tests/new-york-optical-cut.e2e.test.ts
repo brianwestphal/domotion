@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resolveFontKey } from "../src/render/font-resolution.js";
 import { resolveInstalledFont } from "@domotion/text-engine/testing";
+import { resolveFontKey } from "../src/render/font-resolution.js";
 
 // DM-1108: macOS New York optical-size cuts. Unlike SF Pro (one variable file
 // whose "SF Pro Text" cut is a CoreText-only named face → DM-1103 pins its

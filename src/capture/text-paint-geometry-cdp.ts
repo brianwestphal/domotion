@@ -1,7 +1,7 @@
 /** Chromium protocol prepass for exact affine text-fragment geometry (DM-2469). */
 
-import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Frame, Page } from "@playwright/test";
+import { privateCaptureKey } from "./private-key.js";
 import type { CapturedElement, CapturedTextPaintQuad, CaptureWarning } from "./types.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { buildCapturedTextPaintGeometry, type ProtocolTextNodeGeometry } from "./text-fragment-geometry.js";

@@ -1,6 +1,8 @@
 import * as fs from "fs";
+import { existsSync } from "node:fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
+import * as fontkit2 from "fontkit";
 import {
   blinkSuppressesInterLetterSpacing,
   cjkTrimShiftFontUnits,
@@ -72,8 +74,6 @@ import {
   withSystemFallbackResolution,
   __resolveSystemFallbackKeyForCpForTest,
 } from "./font-resolution.js";
-import { existsSync } from "node:fs";
-import * as fontkit2 from "fontkit";
 import {
   __builderInstanceKeysForTest,
   __builderRegistrySizeForTest,

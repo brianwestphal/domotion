@@ -59,15 +59,15 @@
  * error. See docs/107 and docs/108.
  * ---------------------------------------------------------------------------
  */
-import { chromium, type Browser, type Page } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { chromium, type Browser, type Page } from "@playwright/test";
+import { clearFontResolutionCaches, getFontSourceInfo } from "@domotion/text-engine/testing";
 import { identifyFace, type ChromeFace, type OurFace } from "./font-conformance.js";
 import { compareShaping } from "./shaping-conformance.js";
 import { getFontInstance, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
-import { clearFontResolutionCaches, getFontSourceInfo } from "@domotion/text-engine/testing";
 
 export const DEFAULT_FIXTURE = "tests/fixtures/variable-axis/variable-axis.html";
 

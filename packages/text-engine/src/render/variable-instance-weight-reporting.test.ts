@@ -19,8 +19,8 @@
  * `faceNeedsSyntheticBold` be deleted (see `synthesis-decision.ts` /
  * `synthesis-decision.test.ts`).
  */
-import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { getFontInstance, resolveFontKey } from "./font-resolution.js";
 import { faceNeedsSyntheticBold } from "./synthesis-decision.js";
 import { isGlyphHelperAvailable } from "./glyph-helper.js";

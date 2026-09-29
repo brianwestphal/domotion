@@ -2,9 +2,9 @@
 // against fonts synthesized from scratch (tests/synth-fonts.ts) so they are
 // platform-independent (no /System/Library/Fonts dependency) and can assert on
 // the EXACT hinting bytecode and gvar deltas being preserved.
-import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { describe, expect, it } from "vitest";
 import * as fkNs from "fontkit";
 import opentype from "opentype.js";
 import {

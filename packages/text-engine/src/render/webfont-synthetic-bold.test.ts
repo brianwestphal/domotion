@@ -43,8 +43,8 @@
 //     SYSTEM-font rule uses.
 //   Arial Bold buffer declared `font-weight: 400`, requested 700 → ink
 //     25979.1, identical to its 400 control: `!base_typeface_->isBold()`.
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   webfontSyntheticBold,
   registerWebfont,
