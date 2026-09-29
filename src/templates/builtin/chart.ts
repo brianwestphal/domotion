@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, CARD_FONT_STACK } from "./shared.js";
+import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -78,14 +78,13 @@ export const chartParamsSchema = z.object({
     .boolean()
     .default(true)
     .describe("Print each value at the end of its bar / point (single series only)."),
-  width: z.coerce.number().int().positive().default(1000).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(600).describe("Output height in px."),
+  ...sizeSchema({ width: 1000, height: 600 }),
   background: cssValue().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
   color: cssValue().default("#e6edf3").describe("Text / axis color (CSS color)."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
-  growMs: z.coerce.number().int().positive().default(750).describe("Grow / draw duration per element in ms."),
+  growMs: msSchema(750, "Grow / draw duration per element in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(110).describe("Delay between categories in ms."),
-  holdMs: z.coerce.number().int().positive().default(1800).describe("Hold time after the chart finishes in ms."),
+  holdMs: msSchema(1800, "Hold time after the chart finishes in ms."),
 });
 
 export type ChartParams = z.infer<typeof chartParamsSchema>;
@@ -536,6 +535,179 @@ export function planChart(p: ChartParams, sf = 1): ChartPlan {
   };
 }
 
+/** Which of the four drawn shapes a plan is; every per-shape decision below hangs off this one value. */
+export type ChartBodyKind = "pie" | "line" | "stacked" | "bars";
+
+export function chartBodyKind(plan: ChartPlan): ChartBodyKind {
+  if (plan.type === "pie" || plan.type === "donut") return "pie";
+  if (plan.type === "line") return "line";
+  return plan.stacked ? "stacked" : "bars";
+}
+
+/** Per-slice fade delay for the pie/donut sweep. */
+const PIE_SLICE_STAGGER = 90;
+const GROW_EASE = "cubic-bezier(0.22,1,0.36,1)";
+
+/** Grow one bar / stack from the axis (scaleY for columns, scaleX for bars). */
+function growAnimation(anims: Anims, p: ChartParams, plan: ChartPlan, selector: string, catIdx: number): void {
+  anims.push({
+    selector,
+    property: "transform",
+    from: plan.type === "bar" ? "scaleX(0)" : "scaleY(0)",
+    to: plan.type === "bar" ? "scaleX(1)" : "scaleY(1)",
+    duration: p.growMs,
+    delay: catIdx * p.staggerMs,
+    easing: GROW_EASE,
+    transformOrigin: plan.type === "bar" ? "left" : "bottom",
+  });
+}
+
+/** What differs between the four shapes: markup, motion, and how long the motion plays before the hold. */
+interface ChartBody {
+  html(p: ChartParams, plan: ChartPlan): string;
+  animate(p: ChartParams, plan: ChartPlan): Anims;
+  /** Milliseconds until the last element settles (the hold is added on top). */
+  playMs(p: ChartParams, plan: ChartPlan): number;
+  /** Whether the per-bar value labels fade in on their own schedule (stacked totals have none). */
+  animatesValueLabels: boolean;
+}
+
+const categoryPlayMs = (p: ChartParams, categories: number): number =>
+  Math.max(0, categories - 1) * p.staggerMs + p.growMs;
+
+const CHART_BODIES: Record<ChartBodyKind, ChartBody> = {
+  pie: {
+    html(p, plan) {
+      const paths = plan.slices
+        .map(
+          (s, i) =>
+            `<path class="ch-pie-slice ch-pie-slice-${i}" d="${s.path}" fill="${s.color}" stroke="${p.background}" stroke-width="2"/>`,
+        )
+        .join("");
+      return `<div class="ch-pie-wrap"><svg width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}"><g class="ch-pie-group">${paths}</g></svg></div>`;
+    },
+    animate(_p, plan) {
+      const anims: Anims = [];
+      // The pie spins + scales into place as one group, while the slices fade in
+      // staggered clockwise — a sweep.
+      anims.push({
+        selector: ".ch-pie-group",
+        property: "transform",
+        from: "scale(0.3) rotate(-22deg)",
+        to: "scale(1) rotate(0deg)",
+        duration: 640,
+        easing: "cubic-bezier(0.34,1.56,0.64,1)",
+        transformOrigin: "center",
+      });
+      plan.slices.forEach((_s, i) => {
+        anims.push({
+          selector: `.ch-pie-slice-${i}`,
+          property: "opacity",
+          from: "0",
+          to: "1",
+          duration: 260,
+          delay: i * PIE_SLICE_STAGGER,
+          easing: "ease-out",
+        });
+      });
+      return anims;
+    },
+    playMs: (_p, plan) => Math.max(640, Math.max(0, plan.slices.length - 1) * PIE_SLICE_STAGGER + 260),
+    animatesValueLabels: false,
+  },
+  line: {
+    html(p, plan) {
+      const svgInner = plan.lines
+        .map((l) => {
+          const area = l.areaPath != null ? `<path d="${l.areaPath}" fill="${l.color}" opacity="0.14"/>` : "";
+          const dots = l.dots
+            .map(
+              (d, i) =>
+                `<circle class="ch-dot ch-dot-${l.seriesIdx}-${i}" cx="${d.cx}" cy="${d.cy}" r="6" fill="${l.color}" stroke="${p.background}" stroke-width="3"/>`,
+            )
+            .join("");
+          return `<g class="ch-reveal ch-reveal-${l.seriesIdx}">${area}<polyline points="${l.points}" fill="none" stroke="${l.color}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>${dots}</g>`;
+        })
+        .join("");
+      return `<div class="ch-line-wrap"><svg width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}">${svgInner}</svg></div>`;
+    },
+    animate(p, plan) {
+      const anims: Anims = [];
+      for (const l of plan.lines) {
+        const n = l.dots.length;
+        const revealMs = p.growMs + Math.max(0, n - 1) * p.staggerMs;
+        anims.push({
+          selector: `.ch-reveal-${l.seriesIdx}`,
+          property: "clipPath",
+          from: "inset(0 100% 0 0)",
+          to: "inset(0 0% 0 0)",
+          duration: revealMs,
+          easing: "linear",
+        });
+        for (let i = 0; i < n; i++) {
+          const delay = n === 1 ? 0 : Math.round((i / (n - 1)) * revealMs);
+          anims.push({
+            selector: `.ch-dot-${l.seriesIdx}-${i}`,
+            property: "scale",
+            from: "0",
+            to: "1",
+            duration: 320,
+            delay,
+            easing: GROW_EASE,
+            transformOrigin: "center",
+          });
+        }
+      }
+      return anims;
+    },
+    playMs: (p, plan) => categoryPlayMs(p, Math.max(...plan.lines.map((l) => l.dots.length), 1)),
+    animatesValueLabels: true,
+  },
+  stacked: {
+    html(_p, plan) {
+      return plan.stacks
+        .map((st) => {
+          const segs = st.segments
+            .map((sg) =>
+              plan.type === "column"
+                ? `<div class="ch-seg" style="left:0;bottom:${sg.offset}px;width:100%;height:${sg.size}px;background:${sg.color}"></div>`
+                : `<div class="ch-seg" style="top:0;left:${sg.offset}px;height:100%;width:${sg.size}px;background:${sg.color}"></div>`,
+            )
+            .join("");
+          return `<div class="ch-stack ch-stack-${st.catIdx}" style="left:${st.left}px;top:${st.top}px;width:${st.width}px;height:${st.height}px">${segs}</div>`;
+        })
+        .join("\n  ");
+    },
+    animate(p, plan) {
+      const anims: Anims = [];
+      for (const st of plan.stacks) growAnimation(anims, p, plan, `.ch-stack-${st.catIdx}`, st.catIdx);
+      return anims;
+    },
+    playMs: (p, plan) => categoryPlayMs(p, plan.catLabels.length),
+    animatesValueLabels: false,
+  },
+  bars: {
+    html(p, plan) {
+      return plan.bars
+        .map((b, i) => {
+          const anchor =
+            plan.type === "column"
+              ? `left:${b.left}px;bottom:${p.height - (plan.plot.y + plan.plot.h)}px;width:${b.width}px;height:${b.height}px`
+              : `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px`;
+          return `<div class="ch-bar ch-bar-${i}" style="${anchor};background:${b.color}"></div>`;
+        })
+        .join("\n  ");
+    },
+    animate(p, plan) {
+      const anims: Anims = [];
+      plan.bars.forEach((b, i) => growAnimation(anims, p, plan, `.ch-bar-${i}`, b.catIdx));
+      return anims;
+    },
+    playMs: (p, plan) => categoryPlayMs(p, plan.catLabels.length),
+    animatesValueLabels: true,
+  },
+};
+
 /** Standalone HTML for the chart. Pure — unit-testable without a browser.
  *
  *  `sf` (DM-1560) is the adaptive per-ratio type scale (docs/91): it multiplies
@@ -557,7 +729,7 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
   const subColor = "rgba(255,255,255,0.6)";
   const gridColor = "rgba(255,255,255,0.10)";
 
-  const isPie = plan.type === "pie" || plan.type === "donut";
+  const isPie = chartBodyKind(plan) === "pie";
   const legend =
     plan.legend.length === 0
       ? ""
@@ -586,53 +758,7 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
     })
     .join("");
 
-  let body = "";
-  if (isPie) {
-    const paths = plan.slices
-      .map(
-        (s, i) =>
-          `<path class="ch-pie-slice ch-pie-slice-${i}" d="${s.path}" fill="${s.color}" stroke="${p.background}" stroke-width="2"/>`,
-      )
-      .join("");
-    body += `<div class="ch-pie-wrap"><svg width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}"><g class="ch-pie-group">${paths}</g></svg></div>`;
-  } else if (plan.type === "line") {
-    const svgInner = plan.lines
-      .map((l) => {
-        const area = l.areaPath != null ? `<path d="${l.areaPath}" fill="${l.color}" opacity="0.14"/>` : "";
-        const dots = l.dots
-          .map(
-            (d, i) =>
-              `<circle class="ch-dot ch-dot-${l.seriesIdx}-${i}" cx="${d.cx}" cy="${d.cy}" r="6" fill="${l.color}" stroke="${p.background}" stroke-width="3"/>`,
-          )
-          .join("");
-        return `<g class="ch-reveal ch-reveal-${l.seriesIdx}">${area}<polyline points="${l.points}" fill="none" stroke="${l.color}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>${dots}</g>`;
-      })
-      .join("");
-    body += `<div class="ch-line-wrap"><svg width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}">${svgInner}</svg></div>`;
-  } else if (plan.stacked) {
-    body += plan.stacks
-      .map((st) => {
-        const segs = st.segments
-          .map((sg) =>
-            plan.type === "column"
-              ? `<div class="ch-seg" style="left:0;bottom:${sg.offset}px;width:100%;height:${sg.size}px;background:${sg.color}"></div>`
-              : `<div class="ch-seg" style="top:0;left:${sg.offset}px;height:100%;width:${sg.size}px;background:${sg.color}"></div>`,
-          )
-          .join("");
-        return `<div class="ch-stack ch-stack-${st.catIdx}" style="left:${st.left}px;top:${st.top}px;width:${st.width}px;height:${st.height}px">${segs}</div>`;
-      })
-      .join("\n  ");
-  } else {
-    body += plan.bars
-      .map((b, i) => {
-        const anchor =
-          plan.type === "column"
-            ? `left:${b.left}px;bottom:${p.height - (plan.plot.y + plan.plot.h)}px;width:${b.width}px;height:${b.height}px`
-            : `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px`;
-        return `<div class="ch-bar ch-bar-${i}" style="${anchor};background:${b.color}"></div>`;
-      })
-      .join("\n  ");
-  }
+  const body = CHART_BODIES[chartBodyKind(plan)].html(p, plan);
 
   const valueMarkup = plan.valueLabels
     .map(
@@ -681,87 +807,13 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
 </body></html>`;
 }
 
-/** Per-slice fade delay for the pie/donut sweep. */
-const PIE_SLICE_STAGGER = 90;
-
 /** Grow each bar / stack from the axis (scaleY for columns, scaleX for bars) or
  *  reveal each line, plus fade the value labels / pop the dots — staggered by
  *  category. Pure. */
 export function buildChartAnimations(p: ChartParams, plan: ChartPlan): Anims {
-  const anims: Anims = [];
-  const ease = "cubic-bezier(0.22,1,0.36,1)";
-  const grow = (sel: string, catIdx: number): void => {
-    anims.push({
-      selector: sel,
-      property: "transform",
-      from: plan.type === "bar" ? "scaleX(0)" : "scaleY(0)",
-      to: plan.type === "bar" ? "scaleX(1)" : "scaleY(1)",
-      duration: p.growMs,
-      delay: catIdx * p.staggerMs,
-      easing: ease,
-      transformOrigin: plan.type === "bar" ? "left" : "bottom",
-    });
-  };
-
-  if (plan.type === "pie" || plan.type === "donut") {
-    // The pie spins + scales into place as one group, while the slices fade in
-    // staggered clockwise — a sweep.
-    anims.push({
-      selector: ".ch-pie-group",
-      property: "transform",
-      from: "scale(0.3) rotate(-22deg)",
-      to: "scale(1) rotate(0deg)",
-      duration: 640,
-      easing: "cubic-bezier(0.34,1.56,0.64,1)",
-      transformOrigin: "center",
-    });
-    plan.slices.forEach((_s, i) => {
-      anims.push({
-        selector: `.ch-pie-slice-${i}`,
-        property: "opacity",
-        from: "0",
-        to: "1",
-        duration: 260,
-        delay: i * PIE_SLICE_STAGGER,
-        easing: "ease-out",
-      });
-    });
-    return anims;
-  }
-
-  if (plan.type === "line") {
-    for (const l of plan.lines) {
-      const n = l.dots.length;
-      const revealMs = p.growMs + Math.max(0, n - 1) * p.staggerMs;
-      anims.push({
-        selector: `.ch-reveal-${l.seriesIdx}`,
-        property: "clipPath",
-        from: "inset(0 100% 0 0)",
-        to: "inset(0 0% 0 0)",
-        duration: revealMs,
-        easing: "linear",
-      });
-      for (let i = 0; i < n; i++) {
-        const delay = n === 1 ? 0 : Math.round((i / (n - 1)) * revealMs);
-        anims.push({
-          selector: `.ch-dot-${l.seriesIdx}-${i}`,
-          property: "scale",
-          from: "0",
-          to: "1",
-          duration: 320,
-          delay,
-          easing: ease,
-          transformOrigin: "center",
-        });
-      }
-    }
-  } else if (plan.stacked) {
-    for (const st of plan.stacks) grow(`.ch-stack-${st.catIdx}`, st.catIdx);
-  } else {
-    plan.bars.forEach((b, i) => grow(`.ch-bar-${i}`, b.catIdx));
-  }
-
-  if (!plan.stacked) {
+  const body = CHART_BODIES[chartBodyKind(plan)];
+  const anims: Anims = body.animate(p, plan);
+  if (body.animatesValueLabels) {
     plan.valueLabels.forEach((_v, i) => {
       // value labels track their bar's category; approximate via even spread.
       const delay =
@@ -782,13 +834,7 @@ export function buildChartAnimations(p: ChartParams, plan: ChartPlan): Anims {
 
 /** Total play time: the last category finishes, then hold. */
 export function chartDurationMs(p: ChartParams, plan: ChartPlan): number {
-  if (plan.type === "pie" || plan.type === "donut") {
-    const sweep = Math.max(640, Math.max(0, plan.slices.length - 1) * PIE_SLICE_STAGGER + 260);
-    return sweep + p.holdMs;
-  }
-  const cats = plan.type === "line" ? Math.max(...plan.lines.map((l) => l.dots.length), 1) : plan.catLabels.length;
-  const lastStart = Math.max(0, cats - 1) * p.staggerMs;
-  return lastStart + p.growMs + p.holdMs;
+  return CHART_BODIES[chartBodyKind(plan)].playMs(p, plan) + p.holdMs;
 }
 
 export const chartTemplate: Template<ChartParams> = {

@@ -10,7 +10,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, CARD_FONT_STACK } from "./shared.js";
+import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { safeAreaPadding, type SafeInset } from "../formats.js";
@@ -59,19 +59,13 @@ export const chatParamsSchema = z.object({
   themBubble: z.string().default("#e9e9eb").describe('"them" bubble color.'),
   themText: z.string().default("#111111").describe('"them" bubble text color.'),
   background: cssValue().default("#ffffff").describe("Thread background (CSS color)."),
-  width: z.coerce.number().int().positive().default(560).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(760).describe("Output height in px."),
+  ...sizeSchema({ width: 560, height: 760 }),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
   typing: z.coerce.boolean().default(true).describe('Show a "…" typing indicator before each "them" message.'),
-  typingMs: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(900)
-    .describe("How long the typing indicator shows before the message in ms."),
-  popMs: z.coerce.number().int().positive().default(360).describe("Pop-in duration per message in ms."),
+  typingMs: msSchema(900, "How long the typing indicator shows before the message in ms."),
+  popMs: msSchema(360, "Pop-in duration per message in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(650).describe("Delay between messages in ms."),
-  holdMs: z.coerce.number().int().positive().default(2000).describe("Hold after the last message in ms."),
+  holdMs: msSchema(2000, "Hold after the last message in ms."),
 });
 
 export type ChatParams = z.infer<typeof chatParamsSchema>;

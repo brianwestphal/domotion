@@ -21,7 +21,7 @@
  */
 
 import { z } from "zod";
-import { cssValue } from "./shared.js";
+import { cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { AnimateConfig, Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -69,14 +69,8 @@ export const backgroundLoopParamsSchema = z.object({
   ),
   background: cssValue().default("#0b1020").describe("Base fill behind the blobs (CSS color)."),
   count: z.coerce.number().int().min(1).max(24).default(5).describe("Number of blobs."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
-  durationMs: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(9000)
-    .describe("Base loop period in ms (each blob varies around it)."),
+  ...sizeSchema({ width: 1280, height: 720 }),
+  durationMs: msSchema(9000, "Base loop period in ms (each blob varies around it)."),
   seed: z.coerce.number().int().default(1).describe("PRNG seed — same seed ⇒ identical layout."),
 });
 

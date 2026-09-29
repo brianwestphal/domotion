@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, CARD_FONT_STACK } from "./shared.js";
+import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
 import { safeAreaPadding, type SafeInset } from "../formats.js";
@@ -38,11 +38,10 @@ export const subscribeParamsSchema = z.object({
       "Simulate a click after this delay: the CTA flips to the subscribed state and the bell fills. 0 disables it.",
     ),
   subscribedLabel: z.string().default("Subscribed").describe("Label after the simulated click."),
-  width: z.coerce.number().int().positive().default(760).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(360).describe("Output height in px."),
+  ...sizeSchema({ width: 760, height: 360 }),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
-  popMs: z.coerce.number().int().positive().default(520).describe("Pop-in duration in ms."),
-  holdMs: z.coerce.number().int().positive().default(2600).describe("Hold after the pop in ms."),
+  popMs: msSchema(520, "Pop-in duration in ms."),
+  holdMs: msSchema(2600, "Hold after the pop in ms."),
 });
 
 export type SubscribeParams = z.infer<typeof subscribeParamsSchema>;

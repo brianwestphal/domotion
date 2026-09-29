@@ -17,6 +17,7 @@ import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome } from "../../render/
 import { namespaceEmbeddedAnimatedSvg } from "../../animation/embed-namespace.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../../animation/svg-meta.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
+import { sizeSchema } from "./shared.js";
 
 export const deviceMockupParamsSchema = z.object({
   input: z
@@ -42,18 +43,13 @@ export const deviceMockupParamsSchema = z.object({
       "Play length (ms) of the animated screenSvg, so a `template` frame can size it. Auto-detected from --scene-dur when omitted.",
     ),
   device: z.enum(DEVICE_CHROMES).default("browser").describe('Bezel: "phone" | "browser" | "window".'),
-  width: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(960)
-    .describe("Inner screen width in px (ignored when screenSvg sets its own size)."),
-  height: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(600)
-    .describe("Inner screen height in px (ignored when screenSvg sets its own size)."),
+  ...sizeSchema(
+    { width: 960, height: 600 },
+    {
+      width: "Inner screen width in px (ignored when screenSvg sets its own size).",
+      height: "Inner screen height in px (ignored when screenSvg sets its own size).",
+    },
+  ),
   label: z.string().optional().describe("Chrome-bar text (browser URL / window title; ignored by phone)."),
   theme: z.enum(CHROME_THEMES).default("dark").describe('Bezel theme for browser/window: "dark" | "light".'),
   mobile: z.coerce.boolean().default(false).describe("Emulate a mobile device for the capture (use with phone)."),

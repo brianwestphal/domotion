@@ -10,7 +10,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, blank, THEMES } from "./shared.js";
+import { THEMES, blank, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -37,7 +37,7 @@ export const counterParamsSchema = z.object({
   suffix: z.string().optional().describe('Text after the number (e.g. "+" or "%").'),
   decimals: z.coerce.number().int().min(0).max(6).default(0).describe("Fixed decimal places (count mode)."),
   grouping: z.coerce.boolean().default(false).describe("Insert a thousands separator (count mode)."),
-  durationMs: z.coerce.number().int().positive().default(1600).describe("Roll duration in ms."),
+  durationMs: msSchema(1600, "Roll duration in ms."),
   staggerMs: z.coerce.number().int().min(0).default(60).describe("Per-digit stagger (ms), cascading left→right."),
   easing: z.string().default("cubic-bezier(0.22,1,0.36,1)").describe("CSS easing for the roll."),
   fontSize: z.coerce.number().int().positive().default(180).describe("Number font size in px."),
@@ -45,9 +45,8 @@ export const counterParamsSchema = z.object({
   background: cssValue().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
   color: cssValue().optional().describe("Number color. Defaults to the theme foreground."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
-  holdMs: z.coerce.number().int().positive().default(3200).describe("Total on-screen time in ms."),
+  ...sizeSchema({ width: 1280, height: 720 }),
+  holdMs: msSchema(3200, "Total on-screen time in ms."),
 });
 
 export type CounterParams = z.infer<typeof counterParamsSchema>;

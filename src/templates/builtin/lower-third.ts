@@ -12,7 +12,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, CARD_FONT_STACK, THEMES } from "./shared.js";
+import { CARD_FONT_STACK, THEMES, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -30,9 +30,8 @@ export const lowerThirdParamsSchema = z.object({
   accent: cssValue().default("#3b82f6").describe("Accent color (CSS color) for the bar."),
   theme: z.enum(THEMES).default("dark").describe('Text/panel theme: "dark" | "light".'),
   position: z.enum(POSITIONS).default("bottom-left").describe("Corner/edge the banner anchors to."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
-  holdMs: z.coerce.number().int().positive().default(3000).describe("Total on-screen time in ms."),
+  ...sizeSchema({ width: 1280, height: 720 }),
+  holdMs: msSchema(3000, "Total on-screen time in ms."),
   background: cssValue().default("transparent").describe('Frame background (CSS color or "transparent").'),
   logo: z.string().optional().describe("Optional brand mark (URL or absolute path) shown on the banner."),
   logoPosition: z

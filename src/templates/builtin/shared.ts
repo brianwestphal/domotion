@@ -35,3 +35,33 @@ export function cssValue(): z.ZodString {
     message: "must be a plain CSS value (no braces, angle brackets or line breaks)",
   }) as unknown as z.ZodString;
 }
+
+/**
+ * The output `width` / `height` pair every template declares: positive integers with a per-template
+ * default. `widthDescription` / `heightDescription` override the wording where the size is not the
+ * page size (a device mockup's inner screen).
+ */
+export function sizeSchema(
+  defaults: { width: number; height: number },
+  descriptions: { width?: string; height?: string } = {},
+) {
+  return {
+    width: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(defaults.width)
+      .describe(descriptions.width ?? "Output width in px."),
+    height: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(defaults.height)
+      .describe(descriptions.height ?? "Output height in px."),
+  };
+}
+
+/** A positive-integer millisecond param with a default; `description` says what the time measures. */
+export function msSchema(defaultMs: number, description: string) {
+  return z.coerce.number().int().positive().default(defaultMs).describe(description);
+}

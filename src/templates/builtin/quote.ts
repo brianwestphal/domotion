@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, blank, THEMES } from "./shared.js";
+import { THEMES, blank, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -41,9 +41,8 @@ export const quoteParamsSchema = z.object({
   background: cssValue().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
   textColor: cssValue().optional().describe("Quote text color. Defaults to the theme foreground."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
-  holdMs: z.coerce.number().int().positive().default(3800).describe("Total on-screen time in ms."),
+  ...sizeSchema({ width: 1280, height: 720 }),
+  holdMs: msSchema(3800, "Total on-screen time in ms."),
 });
 
 export type QuoteParams = z.infer<typeof quoteParamsSchema>;

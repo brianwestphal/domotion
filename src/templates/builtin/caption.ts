@@ -15,7 +15,7 @@
  */
 
 import { z } from "zod";
-import { cssValue } from "./shared.js";
+import { cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -41,16 +41,10 @@ export const captionParamsSchema = z.object({
     .describe("Opacity of the scrim behind the text (0 = transparent)."),
   textColor: cssValue().default("#ffffff").describe("Caption text color."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
-  inMs: z.coerce.number().int().positive().default(450).describe("Enter duration in ms."),
-  outMs: z.coerce.number().int().positive().default(450).describe("Exit duration in ms."),
-  holdMs: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2600)
-    .describe("Total on-screen time in ms (enter + hold + exit)."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
+  inMs: msSchema(450, "Enter duration in ms."),
+  outMs: msSchema(450, "Exit duration in ms."),
+  holdMs: msSchema(2600, "Total on-screen time in ms (enter + hold + exit)."),
+  ...sizeSchema({ width: 1280, height: 720 }),
 });
 
 export type CaptionParams = z.infer<typeof captionParamsSchema>;

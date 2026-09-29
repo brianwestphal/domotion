@@ -21,7 +21,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, CARD_FONT_STACK } from "./shared.js";
+import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { AnimateConfig } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -57,17 +57,16 @@ export const kineticTextParamsSchema = z.object({
     .default("loop")
     .describe('Loop style: "loop" (replay the reveal) | "boomerang" (continuous assemble/disassemble).'),
   by: z.enum(["word", "char"]).default("word").describe("Animate per word or per character."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
+  ...sizeSchema({ width: 1280, height: 720 }),
   fontSize: z.coerce.number().int().positive().default(88).describe("Font size in px."),
   fontWeight: z.coerce.number().int().default(800).describe("Font weight."),
   color: cssValue().default("#f5f7fa").describe("Text color (CSS color)."),
   background: cssValue().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
   align: z.enum(["center", "left"]).default("center").describe("Text alignment."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
-  staggerMs: z.coerce.number().int().positive().default(90).describe("Delay between units in ms."),
-  revealMs: z.coerce.number().int().positive().default(600).describe("Per-unit reveal duration in ms."),
-  holdMs: z.coerce.number().int().positive().default(1600).describe("Hold time after full reveal in ms."),
+  staggerMs: msSchema(90, "Delay between units in ms."),
+  revealMs: msSchema(600, "Per-unit reveal duration in ms."),
+  holdMs: msSchema(1600, "Hold time after full reveal in ms."),
 });
 
 export type KineticTextParams = z.infer<typeof kineticTextParamsSchema>;

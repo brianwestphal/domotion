@@ -9,7 +9,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, blank, THEMES } from "./shared.js";
+import { THEMES, blank, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -43,16 +43,15 @@ export const statParamsSchema = z.object({
   suffix: z.string().optional().describe('Text after the value (e.g. "%" or "K").'),
   decimals: z.coerce.number().int().min(0).max(6).default(0).describe("Fixed decimal places."),
   grouping: z.coerce.boolean().default(true).describe("Insert a thousands separator."),
-  durationMs: z.coerce.number().int().positive().default(1500).describe("Value roll duration in ms."),
+  durationMs: msSchema(1500, "Value roll duration in ms."),
   accent: cssValue().default("#22c55e").describe("Accent for the up-trend chip (down uses a red)."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
   background: cssValue().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
   color: cssValue().optional().describe("Value/text color. Defaults to the theme foreground."),
   fontSize: z.coerce.number().int().positive().default(200).describe("Value font size in px."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
-  holdMs: z.coerce.number().int().positive().default(3400).describe("Total on-screen time in ms."),
+  ...sizeSchema({ width: 1280, height: 720 }),
+  holdMs: msSchema(3400, "Total on-screen time in ms."),
 });
 
 export type StatParams = z.infer<typeof statParamsSchema>;
@@ -66,7 +65,13 @@ export function resolveDeltaDir(p: StatParams): "up" | "down" {
 }
 
 /** Build the standalone HTML + animations. Pure — unit-testable without a browser. */
-export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: string; animations: Anims } {
+/** Per-digit stagger of the value roll (ms), cascading left to right. */
+const STAT_STAGGER_MS = 60;
+
+export function buildStatHtml(
+  p: StatParams,
+  safeInset?: SafeInset,
+): { html: string; animations: Anims; rollEndMs: number } {
   const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
   // DM-1541: scale the value cell + label/delta type by the adaptive per-ratio
   // factor, then cap the value cell so the fixed-width (unwrappable) number fits
@@ -84,8 +89,11 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
     cellPx,
     durationMs: p.durationMs,
     easing: "cubic-bezier(0.22,1,0.36,1)",
-    staggerMs: 60,
+    staggerMs: STAT_STAGGER_MS,
   });
+  // When the last digit column settles: the roll length plus the stagger of every column after the first,
+  // read back from the animations the odometer emitted rather than assumed.
+  const rollEndMs = p.durationMs + Math.max(0, od.animations.length - 1) * STAT_STAGGER_MS;
   const prefix = blank(p.prefix) != null ? `<span class="st-affix">${escapeHtml(p.prefix!)}</span>` : "";
   const suffix = blank(p.suffix) != null ? `<span class="st-affix">${escapeHtml(p.suffix!)}</span>` : "";
   const label = blank(p.label) != null ? `<div class="st-label">${escapeHtml(p.label!)}</div>` : "";
@@ -99,14 +107,13 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
     const deltaText = p.delta!.replace(/^[-+▲▼↑↓]\s*/, "");
     deltaMarkup = `<div class="st-delta"><span class="st-arrow">${arrow}</span> ${escapeHtml(deltaText)}</div>`;
     // The chip fades in after the value has settled.
-    const rollEnd = p.durationMs + Math.max(0, od.animations.length - 1) * 60;
     animations.push({
       selector: ".st-delta",
       property: "opacity",
       from: "0",
       to: "1",
       duration: 400,
-      delay: rollEnd + 150,
+      delay: rollEndMs + 150,
       easing: "ease-out",
       fuse: [{ property: "translateY", from: "8px", to: "0px" }],
     });
@@ -128,7 +135,7 @@ export function buildStatHtml(p: StatParams, safeInset?: SafeInset): { html: str
   ${label}
   ${deltaMarkup}
 </body></html>`;
-  return { html, animations };
+  return { html, animations, rollEndMs };
 }
 
 export const statTemplate: Template<StatParams> = {
@@ -144,9 +151,10 @@ export const statTemplate: Template<StatParams> = {
     });
   },
   async render(params: StatParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
-    const { html, animations } = buildStatHtml(params, ctx.safeInset);
-    const rollEnd = params.durationMs + 8 * 60; // generous: roll + stagger + chip
-    const holdMs = Math.max(params.holdMs, rollEnd + 900);
+    const { html, animations, rollEndMs } = buildStatHtml(params, ctx.safeInset);
+    // The roll end is read back from the odometer (as counter does); 900 ms covers the trend chip (150 ms
+    // delay + 400 ms fade) and a beat of hold.
+    const holdMs = Math.max(params.holdMs, rollEndMs + 900);
     ctx.log(
       `template stat: ${params.value}${params.delta != null ? ` (${params.delta})` : ""}, ${params.width}×${params.height}`,
     );

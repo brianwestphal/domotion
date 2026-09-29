@@ -10,7 +10,7 @@
  */
 
 import { z } from "zod";
-import { cssValue, blank, THEMES } from "./shared.js";
+import { THEMES, blank, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -49,9 +49,8 @@ export const titleCardParamsSchema = z.object({
   accent: cssValue().default("#3b82f6").describe("Accent color for the eyebrow."),
   reveal: z.enum(REVEAL).default("fade-up").describe('Reveal motion: "fade-up" | "pop".'),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
-  holdMs: z.coerce.number().int().positive().default(3500).describe("Total on-screen time in ms."),
+  ...sizeSchema({ width: 1280, height: 720 }),
+  holdMs: msSchema(3500, "Total on-screen time in ms."),
   logo: z.string().optional().describe("Optional brand mark (URL or absolute path) shown above/below the title."),
   logoPosition: z
     .enum(["above", "below"])

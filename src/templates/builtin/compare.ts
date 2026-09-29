@@ -15,7 +15,7 @@
 import { writeFileSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
 import { z } from "zod";
-import { cssValue, CARD_FONT_STACK } from "./shared.js";
+import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { composeAnimatedLayers, type CompositeLayerAnimation } from "../../animation/index.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
@@ -34,10 +34,9 @@ export const compareParamsSchema = z.object({
   afterLabel: z.string().optional().describe("Caption badge for the after visual (bottom-right)."),
   accent: cssValue().default("#ffffff").describe("Divider line color (slide mode)."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("Label font."),
-  durationMs: z.coerce.number().int().positive().default(1600).describe("Reveal duration in ms."),
-  holdMs: z.coerce.number().int().positive().default(3200).describe("Total on-screen time in ms."),
-  width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
-  height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
+  durationMs: msSchema(1600, "Reveal duration in ms."),
+  holdMs: msSchema(3200, "Total on-screen time in ms."),
+  ...sizeSchema({ width: 1280, height: 720 }),
 });
 
 export type CompareParams = z.infer<typeof compareParamsSchema>;
