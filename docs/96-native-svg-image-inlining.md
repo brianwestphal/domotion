@@ -70,7 +70,7 @@ The result is emitted by `paintImage` in `src/render/element-tree-to-svg.ts`. A 
 
 Flattening is conservative. The renderer keeps the nested `<svg>` when the source lacks a usable coordinate system, uses viewport-relative percentages in painted geometry or user-space definitions, has CSS selectors beyond scoped class/id selectors, contains another `<svg>`, `<symbol>`, `<use>`, `<foreignObject>`, or `<image>`, or uses `vector-effect="non-scaling-stroke"`. The same fallback applies if the source cannot be parsed as an SVG. It does not turn the image into a raster.
 
-The CLI sets the internal `setFlattenNestedSvg(true)` process flag for its one-shot capture. In an in-process renderer, `setFlattenNestedSvg` / `getFlattenNestedSvg` are internal controls; callers that use them must restore the previous value after a capture. The public `domotion-svg/render` barrel does not export these controls.
+The CLI sets the internal `setFlattenNestedSvg(true)` process flag for its one-shot capture. In an in-process renderer, prefer the per-call `flattenNestedSvg` option of `elementTreeToSvg` (or the internal `withFlattenNestedSvg(enabled, fn)` scope): both restore the previous setting afterward, even when the render throws. `setFlattenNestedSvg` / `getFlattenNestedSvg` remain as internal process-wide controls, and a caller using the bare setter must restore the previous value itself. The public `domotion-svg/render` barrel does not export these controls.
 
 The placement rectangle is captured layout output, not a size recomputed from
 the asset. This mirrors Chromium revision `7d859f27`: flex/grid layout first
@@ -118,7 +118,7 @@ All `object-fit` values take the native path:
 ## Files
 
 - `src/capture/embed.ts` — `resolveSvgSource`.
-- `src/render/svg-inline.ts` — `prefixSvgIds`, `prefixSvgClasses`, `inlineImgSvg`, `flattenImgSvg`, and the internal `setFlattenNestedSvg` / `getFlattenNestedSvg` controls (+ the `InlineSvgPlacement` shape).
+- `src/render/svg-inline.ts` — `prefixSvgIds`, `prefixSvgClasses`, `inlineImgSvg`, `flattenImgSvg`, and the internal `setFlattenNestedSvg` / `getFlattenNestedSvg` / `withFlattenNestedSvg` controls (+ the `InlineSvgPlacement` shape).
 - `src/cli/capture.ts` and `src/cli/index.ts` — the opt-in `--flatten-nested-svg` flag and help text.
 - `src/render/element-tree-to-svg.ts` — `paintImage` native-SVG branch.
 - `src/cli/animate-orchestrator.ts` — `namespaceSvgIds` now delegates to the shared `prefixSvgIds`.

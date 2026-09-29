@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg } from "../src/index.js";
 import { clearEmbeddedFonts, clearGlyphDefs } from "../src/render/index.js";
-import { setFlattenNestedSvg } from "../src/render/svg-inline.js";
 
 // DM-7AN9AH: captured DOM inline `<svg>` flattens to a `<g transform>` when opt-in
 // is on, renders identically to the nested `<svg>` baseline, and falls back to the
@@ -25,12 +24,7 @@ afterAll(async () => {
 function render(tree: Awaited<ReturnType<typeof captureElementTree>>, flatten: boolean): string {
   clearGlyphDefs();
   clearEmbeddedFonts();
-  setFlattenNestedSvg(flatten);
-  try {
-    return elementTreeToSvg(tree, W, H, {});
-  } finally {
-    setFlattenNestedSvg(false);
-  }
+  return elementTreeToSvg(tree, W, H, { flattenNestedSvg: flatten });
 }
 
 async function shoot(svg: string): Promise<Buffer> {

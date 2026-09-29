@@ -169,7 +169,18 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
   return out;
 }
 
+// Memoized per roots array. A captured tree is treated as immutable once hit-tested:
+// the sequence records paint ORDER and clip rects at first use, so structural or
+// stacking edits (z-index, position, reparenting, resized boxes) made afterward are
+// invisible to a cached array. Callers that mutate a tree in place must call
+// `invalidateHitTestCache(elements)` (or hit-test a fresh array); plain coordinate
+// and `pointer-events` reads stay live because they are looked up per hit.
 const sequenceCache = new WeakMap<CapturedElement[], HitEntry[]>();
+
+/** Drop the memoized paint-order sequence for `elements` after mutating the tree in place. */
+export function invalidateHitTestCache(elements: CapturedElement[]): void {
+  sequenceCache.delete(elements);
+}
 
 /**
  * The visually-topmost captured element at viewport point (x, y), in true

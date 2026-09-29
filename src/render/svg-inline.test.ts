@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { inlineImgSvg, flattenImgSvg, isSvgSafeToFlatten, prefixSvgIds, prefixSvgClasses } from "./svg-inline.js";
-import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
+import {
+  inlineImgSvg,
+  flattenImgSvg,
+  isSvgSafeToFlatten,
+  prefixSvgIds,
+  prefixSvgClasses,
+  getFlattenNestedSvg,
+  setFlattenNestedSvg,
+  withFlattenNestedSvg,
+} from "./svg-inline.js";
+import { elementTreeToSvg, elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
 
 const BASE_STYLES = {
@@ -409,5 +418,59 @@ describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {
 
   it("returns null when there is no usable coordinate system", () => {
     expect(flattenImgSvg(`<svg><path d="M0 0h1v1z"/></svg>`, place)).toBeNull();
+  });
+});
+
+describe("nested-SVG flattening is a scoped, restorable setting (DM-K0S6ZS transitions)", () => {
+  const svg = `<svg viewBox="0 0 24 24"><rect width="24" height="24" fill="#f00"/></svg>`;
+  const tree = (): CapturedElement[] => [imgEl(SVG_URI(svg))];
+  const nested = /<svg[^>]*viewBox="0 0 24 24"/;
+
+  it("defaults off, and the scope restores the previous value on return and on throw", () => {
+    expect(getFlattenNestedSvg()).toBe(false);
+    expect(withFlattenNestedSvg(true, () => getFlattenNestedSvg())).toBe(true);
+    expect(getFlattenNestedSvg()).toBe(false);
+    expect(() =>
+      withFlattenNestedSvg(true, () => {
+        throw new Error("stop");
+      }),
+    ).toThrow("stop");
+    expect(getFlattenNestedSvg()).toBe(false);
+  });
+
+  it("nested scopes unwind one level at a time", () => {
+    withFlattenNestedSvg(true, () => {
+      withFlattenNestedSvg(false, () => expect(getFlattenNestedSvg()).toBe(false));
+      expect(getFlattenNestedSvg()).toBe(true);
+    });
+    expect(getFlattenNestedSvg()).toBe(false);
+  });
+
+  it("the render option flips the output for one call only: off → on → off on the same tree", () => {
+    const t = tree();
+    const off = elementTreeToSvg(t, 200, 200, {});
+    const on = elementTreeToSvg(t, 200, 200, { flattenNestedSvg: true });
+    const offAgain = elementTreeToSvg(t, 200, 200, {});
+    expect(off).toMatch(nested);
+    expect(on).not.toMatch(nested);
+    expect(on).toContain("matrix(");
+    expect(offAgain).toBe(off);
+    expect(getFlattenNestedSvg()).toBe(false);
+  });
+
+  it("an explicit false overrides a process-wide true, and the process setting survives the call", () => {
+    setFlattenNestedSvg(true);
+    try {
+      expect(elementTreeToSvg(tree(), 200, 200, { flattenNestedSvg: false })).toMatch(nested);
+      expect(getFlattenNestedSvg()).toBe(true);
+    } finally {
+      setFlattenNestedSvg(false);
+    }
+  });
+
+  it("a render that throws under the option leaves the setting restored", () => {
+    const bad = [{ ...imgEl(SVG_URI(svg)), styles: undefined }] as unknown as CapturedElement[];
+    expect(() => elementTreeToSvg(bad, 200, 200, { flattenNestedSvg: true })).toThrow();
+    expect(getFlattenNestedSvg()).toBe(false);
   });
 });

@@ -253,6 +253,21 @@ export function setFlattenNestedSvg(enabled: boolean): void {
 export function getFlattenNestedSvg(): boolean {
   return flattenNestedSvgEnabled;
 }
+/**
+ * Run `fn` with nested-SVG flattening forced to `enabled`, restoring the previous
+ * setting afterward even if `fn` throws. Prefer this (or the `flattenNestedSvg`
+ * render option) to the bare setter: the flag is process-global, so a setter call
+ * that is not paired with a reset leaks into every later render in the process.
+ */
+export function withFlattenNestedSvg<T>(enabled: boolean, fn: () => T): T {
+  const previous = flattenNestedSvgEnabled;
+  flattenNestedSvgEnabled = enabled;
+  try {
+    return fn();
+  } finally {
+    flattenNestedSvgEnabled = previous;
+  }
+}
 
 /** Resolve the source SVG's numeric viewBox (own viewBox, else synthesized from
  *  absolute width/height, else the `<img>` intrinsic size), or null. */

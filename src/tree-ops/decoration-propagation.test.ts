@@ -313,3 +313,47 @@ describe("propagateTextDecorations: decorating-box baselines (DM-1732)", () => {
     expect(child.propagatedDecorations?.[0]?.baselines).toBeUndefined();
   });
 });
+
+describe("propagateTextDecorations is idempotent and re-derives after edits", () => {
+  const build = (): { root: CapturedElement; parent: CapturedElement; child: CapturedElement } => {
+    const child = el({ text: "inner" });
+    const parent = el({ tag: "span", styles: decoStyles(), children: [child] });
+    const root = el({ tag: "div", children: [parent] });
+    return { root, parent, child };
+  };
+
+  it("running twice yields exactly the annotations of running once", () => {
+    const { root, child } = build();
+    propagateTextDecorations([root]);
+    const once = structuredClone(child.propagatedDecorations);
+    expect(once).toBeDefined();
+    propagateTextDecorations([root]);
+    expect(child.propagatedDecorations).toEqual(once);
+  });
+
+  it("clears an annotation once the ancestor stops decorating (run → mutate ancestor → run)", () => {
+    const { root, parent, child } = build();
+    propagateTextDecorations([root]);
+    expect(child.propagatedDecorations).toBeDefined();
+    parent.styles.textDecorationLine = "none";
+    propagateTextDecorations([root]);
+    expect(child.propagatedDecorations).toBeUndefined();
+  });
+
+  it("re-derives when the ancestor decoration changes rather than accumulating the old entry", () => {
+    const { root, parent, child } = build();
+    propagateTextDecorations([root]);
+    parent.styles.textDecorationColor = "rgb(0, 128, 0)";
+    propagateTextDecorations([root]);
+    expect(child.propagatedDecorations).toHaveLength(1);
+    expect(child.propagatedDecorations![0].color).toBe("rgb(0, 128, 0)");
+  });
+
+  it("an element that becomes atomic-inline between runs drops what it inherited", () => {
+    const { root, child } = build();
+    propagateTextDecorations([root]);
+    child.styles.display = "inline-block";
+    propagateTextDecorations([root]);
+    expect(child.propagatedDecorations).toBeUndefined();
+  });
+});

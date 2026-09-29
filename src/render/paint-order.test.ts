@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CapturedElement } from "../capture/types.js";
 import { cursorAtPoint } from "../animation/cursor-overlay.js";
-import { hitTestTopmost } from "./paint-order.js";
+import { hitTestTopmost, invalidateHitTestCache } from "./paint-order.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -185,5 +185,45 @@ describe("hitTestTopmost: basics", () => {
       cursor: "pointer",
     } as unknown as CapturedElement;
     expect(cursorAtPoint([bare], 50, 50)).toBe("pointer");
+  });
+});
+
+describe("hitTestTopmost: the memoized sequence follows the array, not the tree (transitions)", () => {
+  const pair = (): { roots: CapturedElement[]; low: CapturedElement; high: CapturedElement } => {
+    const low = el({ x: 0, y: 0, w: 100, h: 100, cursor: "text", styles: { position: "absolute", zIndex: "1" } });
+    const high = el({ x: 0, y: 0, w: 100, h: 100, cursor: "pointer", styles: { position: "absolute", zIndex: "2" } });
+    return { roots: [low, high], low, high };
+  };
+
+  it("a fresh array of the same elements is re-sequenced after an in-place stacking edit", () => {
+    const { roots, low, high } = pair();
+    expect(hitTestTopmost(roots, 10, 10)).toBe(high);
+    low.styles.zIndex = "3";
+    expect(hitTestTopmost([...roots], 10, 10)).toBe(low);
+  });
+
+  it("the same array keeps its cached order until invalidated", () => {
+    const { roots, low, high } = pair();
+    expect(hitTestTopmost(roots, 10, 10)).toBe(high);
+    low.styles.zIndex = "3";
+    expect(hitTestTopmost(roots, 10, 10)).toBe(high); // documented: stale by contract
+    invalidateHitTestCache(roots);
+    expect(hitTestTopmost(roots, 10, 10)).toBe(low);
+  });
+
+  it("geometry and pointer-events are read live, with no invalidation needed", () => {
+    const { roots, low, high } = pair();
+    expect(hitTestTopmost(roots, 10, 10)).toBe(high);
+    high.styles.pointerEvents = "none";
+    expect(hitTestTopmost(roots, 10, 10)).toBe(low);
+    high.styles.pointerEvents = undefined;
+    high.x = 500;
+    expect(hitTestTopmost(roots, 10, 10)).toBe(low);
+  });
+
+  it("invalidating an array that was never hit-tested is a no-op", () => {
+    const { roots, high } = pair();
+    invalidateHitTestCache(roots);
+    expect(hitTestTopmost(roots, 10, 10)).toBe(high);
   });
 });

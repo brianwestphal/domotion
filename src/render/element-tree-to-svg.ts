@@ -103,6 +103,7 @@ import {
   inlineImgSvg,
   flattenImgSvg,
   getFlattenNestedSvg,
+  withFlattenNestedSvg,
   isSvgSafeToFlatten,
   prefixSvgClasses,
   prefixSvgIds,
@@ -4485,9 +4486,13 @@ export function elementTreeToSvg(
      * this call through the text-engine document; the prior mode is restored
      * afterward. Omit to use the current default mode. */
     renderTextMode?: RenderTextMode;
+    /** Flatten flattenable nested `<svg>` wrappers into `<g transform>` for this
+     * call only (see `setFlattenNestedSvg`); the previous setting is restored
+     * afterward. Omit to use the current process setting. */
+    flattenNestedSvg?: boolean;
   },
 ): string {
-  const render = (): string => {
+  const renderNode = (): string => {
     const elements = capturedTreeRoots(input);
     const inner = elementTreeToSvgInner(
       input,
@@ -4506,6 +4511,8 @@ export function elementTreeToSvg(
       realTextLayer: opts?.realTextLayer,
     });
   };
+  const flatten = opts?.flattenNestedSvg;
+  const render = flatten == null ? renderNode : (): string => withFlattenNestedSvg(flatten, renderNode);
   return opts?.renderTextMode != null
     ? withTextEngineDocument({ generation: "continue", renderTextMode: opts.renderTextMode }, render).value
     : render();
