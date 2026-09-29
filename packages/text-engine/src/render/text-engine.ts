@@ -89,9 +89,12 @@ export interface TextEngineDocumentRequest {
    * join Domotion's ambient compatibility generation, or inside an existing
    * text-engine document. */
   session?: TextEngineSession;
-  /** Reset generated glyph/font artifacts, or continue the session generation. */
+  /** Reset generated glyph/font artifacts, or continue the session generation.
+   * A callback that throws commits nothing: the next `"continue"` resumes from the
+   * generation this document started with, not from its half-finished output. */
   generation?: "reset" | "continue";
-  /** Scoped text emitter selection. */
+  /** Scoped text emitter selection. A nested request naming a different mode
+   * than the active document throws rather than being silently ignored. */
   renderTextMode?: RenderTextMode;
   /** Captured browser generic-family preferences for this document. */
   genericFamilies?: SessionGenericFamilyOverrides | null;
@@ -223,6 +226,13 @@ export function withTextEngineDocument<T>(
       throw new Error("Cannot switch text-engine sessions inside an active document");
     }
     if (request.generation === "reset") throw new Error("Cannot reset a nested text-engine document generation");
+    if (request.renderTextMode != null && request.renderTextMode !== activeDocument.renderTextMode) {
+      // Honoring it would need a second render mode inside one document's
+      // artifacts; ignoring it would silently paint with the wrong one.
+      throw new Error(
+        `Cannot switch text-engine render mode from "${activeDocument.renderTextMode}" to "${request.renderTextMode}" inside an active document`,
+      );
+    }
     const value = runScoped(activeDocument, request, render);
     return { value, artifacts: collectArtifacts() };
   }
@@ -243,6 +253,9 @@ export function withTextEngineDocument<T>(
   else if (request.generation === "continue" && state.generation != null) restoreGeneration(state.generation);
   else resetGeneration();
 
+  // What the next `generation: "continue"` resumes from if this render throws.
+  const startGeneration = snapshotGeneration();
+  let completed = false;
   const mode = request.renderTextMode ?? state.defaultRenderTextMode ?? getRenderTextMode();
   const document = createDocument(session, mode);
   let artifacts: TextEngineArtifacts | null = null;
@@ -258,10 +271,13 @@ export function withTextEngineDocument<T>(
       }
     });
     artifacts = collectArtifacts();
+    completed = true;
     return { value, artifacts };
   } finally {
     state.registrations = snapshotFontRegistrations();
-    state.generation = snapshotGeneration();
+    // A render that threw commits nothing: half-registered `dmfN` families and
+    // `gN` defs would otherwise become what the next "continue" resumes from.
+    state.generation = completed ? snapshotGeneration() : startGeneration;
     restoreBaselineSnapSuppression(outerBaselineDepth);
     // Explicit sessions are isolated from the ambient compatibility state.
     // An implicit document is the migration bridge for existing Domotion

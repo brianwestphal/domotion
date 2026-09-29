@@ -111,7 +111,7 @@ import {
   isRtlScriptCodepoint,
   isIdeographicCp,
 } from "./unicode-classification.js";
-import { ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
+import { clearIcuHelper, ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "./icu-helper.js";
 export {
   mathAlphaToBase,
   isLegitimatelyInklessCodepoint,
@@ -3050,7 +3050,7 @@ function fallbackBaseFor(
   stretch: number = 100,
 ): { name: string; path?: string; data?: Buffer } {
   if (!_fallbackBaseFromPrimary || primaryKey == null) return { name: "Helvetica" };
-  const cacheKey = `${primaryKey}|${weight}|${fontSize}|${slant !== 0 ? 1 : 0}|${stretch}`;
+  const cacheKey = `${hostPlatform()}|${primaryKey}|${weight}|${fontSize}|${slant !== 0 ? 1 : 0}|${stretch}`;
   const hit = fallbackBaseCache.get(cacheKey);
   if (hit !== undefined) return hit;
 
@@ -3384,7 +3384,8 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
  *  - `clearFontResolutionCaches()` does NOT clear it: it is modeled state, not
  *    a memo — Chrome's cache is not dropped when our sweep trims memory. The
  *    entries are key strings; the faces they name re-materialize through the
- *    `dynamicSystemFontPaths` registry, which that reset also preserves.
+ *    `dynamicSystemFontPaths` registry, which that reset also preserves. (`invalidateFontEnvironmentCaches` clears
+ *    both, together.)
  *
  * The value stored is the final resolved `sysfb:` key — the post-re-selection
  * answer, exactly what Blink caches (the `FontPlatformData` AFTER
@@ -3400,7 +3401,7 @@ let _charFallbackDocDepth = 0;
 export interface FontRendererSession {
   readonly _fontRendererSession: symbol;
 }
-const _charFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();
+let _charFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();
 let _requestedCharFallbackRendererSession: FontRendererSession | null = null;
 
 export function createFontRendererSession(): FontRendererSession {
@@ -4892,7 +4893,7 @@ function win32PrimaryCutKey(key: string, weight: number, slant: number, stretch:
   )
     return null;
 
-  const cacheKey = `${key}|${weight}|${slant !== 0 ? 1 : 0}|${stretch}`;
+  const cacheKey = `${hostPlatform()}|${key}|${weight}|${slant !== 0 ? 1 : 0}|${stretch}`;
   const cached = win32PrimaryCutCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -5082,7 +5083,7 @@ function darwinPrimaryCutKey(
   if (declaredFamilyOverride == null && declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
 
   const italicRequested = slant !== 0;
-  const cacheKey = `${key}|${declaredFamilyOverride ?? declaredFamily ?? ""}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
+  const cacheKey = `${hostPlatform()}|${key}|${declaredFamilyOverride ?? declaredFamily ?? ""}|${weight}|${italicRequested ? 1 : 0}|${stretch}`;
   const cached = darwinPrimaryCutCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -7020,7 +7021,10 @@ export function fontInstanceCacheKey(
       : `-logical${logicalFontSize(variationSettings, fontSize)}-optical${opticalSizingDisabled(variationSettings) ? "none" : "auto"}`;
   const familyRoute = systemUiPrimary ? "system-ui" : `declared:${declaredFamily ?? ""}`;
   const widthRoute = wdthStretch !== 100 ? `-wdth${wdthStretch}` : "";
-  return `${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}${sizeSpaceKey}-${familyRoute}${widthRoute}`;
+  // Platform-prefixed like every other resolution memo: `effectiveKey` names a
+  // different file per host, so a `withHostPlatform` probe must not be served the
+  // real host's instance.
+  return `${hostPlatform()}|${effectiveKey}-${weight}-${fontSize}-${slant}-${fvsKey}${sizeSpaceKey}-${familyRoute}${widthRoute}`;
 }
 
 type RegisteredFontResolution = { handled: false } | { handled: true; instance: FontInstance | null };
@@ -10679,6 +10683,8 @@ export function clearFontResolutionCaches(): void {
   // Rebuilding one is a single fontkit open, which is what this whole entry
   // point trades memory for.
   coverageBitsets.clear();
+  // Same class as `helperFontCache` above: one retained HarfBuzz face per font file.
+  _clearHbFontCache();
   clearGlyphHelperCodepointMemos();
 }
 
@@ -10707,7 +10713,15 @@ export function invalidateFontEnvironmentCaches(): void {
   clearGlyphHelperCache();
   _clearHbFontCache();
   _clearTrakStatCache();
+  clearIcuHelper();
   dynamicSystemFontPaths.clear();
+  // The document-scoped ideograph cache stores `sysfb:` keys that resolve only
+  // through the registry cleared above; a surviving entry would name a face
+  // that no longer opens. Blink's Invalidate drops its fallback caches with the
+  // platform-data cache for the same reason. The open scope (if any) is emptied
+  // in place; session-owned maps are replaced so the next begin starts fresh.
+  _charFallbackDocCache?.clear();
+  _charFallbackRendererCaches = new WeakMap();
   declaredFamilyForKey.clear();
   win32SuffixDeclaredForKey.clear();
   localFontAliasRegistry.clear();

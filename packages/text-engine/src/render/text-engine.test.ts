@@ -102,6 +102,38 @@ describe("text-engine facade", () => {
     });
   });
 
+  it("rejects a nested render-mode request that conflicts with the active document", () => {
+    const session = createTextEngineSession();
+    withTextEngineDocument({ session, renderTextMode: "paths" }, () => {
+      expect(() => withTextEngineDocument({ renderTextMode: "embedded-font" }, () => undefined)).toThrow(
+        /switch text-engine render mode from "paths" to "embedded-font"/,
+      );
+      // Restating the active mode, or omitting it, still joins the document.
+      expect(() => withTextEngineDocument({ renderTextMode: "paths" }, () => undefined)).not.toThrow();
+      expect(() => withTextEngineDocument({}, () => undefined)).not.toThrow();
+      expect(getRenderTextMode()).toBe("paths");
+    });
+  });
+
+  it("does not commit a thrown render's generation: reset → throw → continue resumes the last good one", () => {
+    const session = createTextEngineSession();
+    withTextEngineDocument({ session, generation: "reset", renderTextMode: "paths" }, () => addTestGlyph(1));
+    expect(() =>
+      withTextEngineDocument({ session, generation: "continue", renderTextMode: "paths" }, () => {
+        addTestGlyph(2);
+        throw new Error("stop");
+      }),
+    ).toThrow("stop");
+    const resumed = withTextEngineDocument({ session, generation: "continue", renderTextMode: "paths" }, () => {
+      addTestGlyph(3);
+    });
+    // g0 (the committed document) and g1 (this one); the thrown glyph never got an id.
+    expect(resumed.artifacts.glyphDefs).toContain('id="g0"');
+    expect(resumed.artifacts.glyphDefs).toContain('id="g1"');
+    expect(resumed.artifacts.glyphDefs).not.toContain('id="g2"');
+    expect(resumed.artifacts.glyphDefs).not.toContain("L3 0");
+  });
+
   it("rejects Promise-like document callbacks", () => {
     const session = createTextEngineSession();
     expect(() =>

@@ -460,4 +460,19 @@ export function clearGlyphHelperTransport(): void {
   serverOutFd = undefined;
   serverLeftover = "";
   persistentDisabled = false;
+  // A swapped binary starts with no track record; a stale `true` would classify
+  // its first-call crash as transient and retry it forever.
+  persistentEverWorked = false;
+}
+
+/** Test-only: seed and read the persistent-channel classification flags. */
+export function __persistentFlagsForTest(set?: { disabled: boolean; everWorked: boolean }): {
+  disabled: boolean;
+  everWorked: boolean;
+} {
+  if (set != null) {
+    persistentDisabled = set.disabled;
+    persistentEverWorked = set.everWorked;
+  }
+  return { disabled: persistentDisabled, everWorked: persistentEverWorked };
 }

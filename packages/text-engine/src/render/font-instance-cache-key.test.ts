@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { withHostPlatform } from "./host-platform.js";
 import { coveredFontResolution, fontInstanceCacheKey, genericSettingsFamilyName } from "./font-resolution.js";
 
 describe("fontInstanceCacheKey", () => {
@@ -45,5 +46,11 @@ describe("coveredFontResolution", () => {
       decomposed: true,
       covered: true,
     });
+  });
+
+  it("separates the same request across simulated host platforms", () => {
+    const on = (platform: "darwin" | "linux" | "win32"): string =>
+      withHostPlatform(platform, () => fontInstanceCacheKey("face", 400, 16, 0, undefined, false, "Face", 100));
+    expect(new Set([on("darwin"), on("linux"), on("win32")]).size).toBe(3);
   });
 });

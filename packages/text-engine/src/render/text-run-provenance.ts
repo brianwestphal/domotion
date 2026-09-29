@@ -3,6 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import {
   ITALIC_SLNT,
   getFontSourceInfo,
+  registerFontEnvironmentInvalidator,
   resolveGlyphCommands,
   type FontRun,
   type FontVariantEmojiOverride,
@@ -97,6 +98,9 @@ let enabled = false;
 let runs: TextRunProvenanceDiagnostic[] = [];
 let transitions: TextEmitterTransitionDiagnostic[] = [];
 const sourceFileEvidence = new Map<string, TextRunProvenanceDiagnostic["selected"]["sourceFile"]>();
+// Hash/mtime evidence describes the files on disk at first read; a host font
+// environment change can replace them under the same path.
+registerFontEnvironmentInvalidator(() => sourceFileEvidence.clear());
 
 function fileEvidence(path: string | null): TextRunProvenanceDiagnostic["selected"]["sourceFile"] {
   if (path == null) return null;

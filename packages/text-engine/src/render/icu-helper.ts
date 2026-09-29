@@ -149,9 +149,12 @@ export const ICU_BINARY = {
   REGIONAL_INDICATOR: 1 << 9,
 } as const;
 
-export function __resetIcuHelperForTest(): void {
+/** Forget the discovered helper and every answer it produced (environment invalidation). */
+export function clearIcuHelper(): void {
   memo.clear();
   checked = false;
   helperPath = undefined;
   helperValidated = null;
 }
+
+export const __resetIcuHelperForTest = clearIcuHelper;

@@ -26,6 +26,7 @@ import {
   createFontRendererSession,
   endCharacterFallbackDocument,
   getFontInstance,
+  invalidateFontEnvironmentCaches,
   resolveFontKey,
   resolveFontSpec,
   selectCharacterFallbackRendererScope,
@@ -158,6 +159,48 @@ describe("document scope lifecycle", () => {
     beginCharacterFallbackDocument();
     expect(__characterFallbackDocumentCacheForTest()!.has("sentinel")).toBe(false);
     endCharacterFallbackDocument();
+  });
+});
+
+describe("host-environment invalidation and the document cache", () => {
+  // The cache stores `sysfb:` keys that resolve only through the dynamic-font
+  // registry invalidation clears, so a surviving entry names an unopenable face.
+  it("empties the open document scope in place", () => {
+    beginCharacterFallbackDocument();
+    const scope = __characterFallbackDocumentCacheForTest()!;
+    scope.set("k", "sysfb:Gone-Regular");
+    invalidateFontEnvironmentCaches();
+    expect(__characterFallbackDocumentCacheForTest()).toBe(scope);
+    expect(scope.size).toBe(0);
+    endCharacterFallbackDocument();
+  });
+
+  it("gives a session-owned scope a fresh map on its next document", () => {
+    const session = createFontRendererSession();
+    withFontRendererSession(session, () => {
+      beginCharacterFallbackDocument();
+      __characterFallbackDocumentCacheForTest()!.set("k", "sysfb:Gone-Regular");
+      endCharacterFallbackDocument();
+    });
+    invalidateFontEnvironmentCaches();
+    withFontRendererSession(session, () => {
+      beginCharacterFallbackDocument();
+      expect(__characterFallbackDocumentCacheForTest()!.size).toBe(0);
+      endCharacterFallbackDocument();
+    });
+  });
+
+  it("still reuses a session's map across documents after the invalidation", () => {
+    const session = createFontRendererSession();
+    invalidateFontEnvironmentCaches();
+    withFontRendererSession(session, () => {
+      beginCharacterFallbackDocument();
+      __characterFallbackDocumentCacheForTest()!.set("k", "v");
+      endCharacterFallbackDocument();
+      beginCharacterFallbackDocument();
+      expect(__characterFallbackDocumentCacheForTest()!.get("k")).toBe("v");
+      endCharacterFallbackDocument();
+    });
   });
 });
 
