@@ -8,6 +8,7 @@
  * by an isolated Chromium-painted pseudo surface, never by a cloned layout.
  */
 
+import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import sharp from "sharp";
 
@@ -1177,7 +1178,7 @@ export async function preparePseudoFragmentGeometry(
   selector: string,
   viewport: { x: number; y: number; width: number; height: number },
 ): Promise<PseudoFragmentProbe> {
-  const key = `__domotionPseudoFragments_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const key = privateCaptureKey("PseudoFragments");
   const initialFrames = page.frames();
   const nameShimFrames = await installEvaluateNameShim(initialFrames);
   const prepared = (

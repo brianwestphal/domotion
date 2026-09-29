@@ -9,6 +9,7 @@
  * pixels only; the structural renderer continues to own the host and text.
  */
 
+import { privateCaptureKey } from "./private-key.js";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
@@ -171,7 +172,7 @@ export async function rasterizeNativeControlDecorations(
       warn(options.warnings, active[index], "overlapping partial decoration owners cannot share one isolation atlas");
   }
 
-  const restoreKey = `__domotionDecorationRestore_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const restoreKey = privateCaptureKey("DecorationRestore");
   let facts: IsolationFact[] = active.map(() => ({ connected: false, fingerprintMatches: false }));
   let isolated: Awaited<ReturnType<typeof takeIsolationFrame>> = null;
   const isolationRows = active.map(({ element, raster }) => ({

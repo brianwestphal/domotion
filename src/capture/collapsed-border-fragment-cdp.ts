@@ -6,6 +6,7 @@
  * CAPTURE_SCRIPT through a private page-global registry.
  */
 
+import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Frame, Page } from "@playwright/test";
 
 import {
@@ -835,7 +836,7 @@ export async function prepareCollapsedBorderFragmentRecords(
   page: Page,
   selector: string,
 ): Promise<CollapsedBorderFragmentProbe> {
-  const key = `__domotionCollapsedBorderFragments_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const key = privateCaptureKey("CollapsedBorderFragments");
   const shimmedFrames = await installEvaluateNameShim(page.frames());
   const prepared = (
     await Promise.all(

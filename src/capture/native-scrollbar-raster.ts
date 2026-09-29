@@ -8,6 +8,7 @@
  * backdrop by design; a reversible width:none discriminator is used only to
  * prove source-frame no-ink, never as the emitted pixel source.
  */
+import { detachQuietly } from "./cdp-lifecycle.js";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { arch, platform, release } from "node:os";
@@ -108,7 +109,7 @@ export async function captureNativeScrollbarFingerprint(page: Page): Promise<Cap
       const commandLine = (await session.send("Browser.getBrowserCommandLine")) as { arguments?: string[] };
       launchArguments = commandLine.arguments ?? [];
     } finally {
-      await session.detach();
+      await detachQuietly(session);
     }
   } catch {
     // The raster remains usable, but the all-platform release gate rejects an

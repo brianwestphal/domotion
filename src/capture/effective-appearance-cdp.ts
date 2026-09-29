@@ -8,7 +8,7 @@
  * a collision-resistant expando before the in-page capture walk.
  */
 
-import { randomUUID } from "node:crypto";
+import { privateCaptureKey } from "./private-key.js";
 import type { Page } from "@playwright/test";
 import {
   authorControlStyleFactsFromMatchedStyles,
@@ -50,7 +50,7 @@ export interface EffectiveAppearanceFactCapture {
  */
 export async function captureEffectiveAppearanceFacts(page: Page): Promise<EffectiveAppearanceFactCapture> {
   const session = await page.context().newCDPSession(page);
-  const propertyKey = `__domotionEffectiveAppearance_${randomUUID().replaceAll("-", "")}`;
+  const propertyKey = privateCaptureKey("EffectiveAppearance");
   const objectGroup = `${propertyKey}_objects`;
   const hostObjectIds = new Set<string>();
   let setupFailure: string | undefined;

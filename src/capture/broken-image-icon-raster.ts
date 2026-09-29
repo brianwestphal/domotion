@@ -8,6 +8,7 @@
  * then preserves the icon resource's real alpha instead of baking the page
  * backdrop into the SVG stamp.
  */
+import { privateCaptureKey } from "./private-key.js";
 import { createHash } from "node:crypto";
 import type { CDPSession, Page } from "@playwright/test";
 import sharp from "sharp";
@@ -63,7 +64,7 @@ export async function captureBrokenImageIconRaster(
   const plan = planNativeControlClip(options.iconRect, options.viewport);
   if (plan == null) throw new Error("visible broken-image icon is outside the capture viewport");
 
-  const restoreKey = `__domotionBrokenIconRestore_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const restoreKey = privateCaptureKey("BrokenIconRestore");
   let iconObjectId: string | undefined;
   let uaRestore: unknown;
   try {

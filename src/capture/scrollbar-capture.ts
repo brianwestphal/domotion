@@ -25,6 +25,7 @@
  * - scrollbar.cc:757-770,930-990
  */
 
+import { privateCaptureKey } from "./private-key.js";
 import { randomUUID } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import sharp from "sharp";
@@ -884,7 +885,7 @@ async function captureNativeOverlayFrames(
   if (frameIndexes.every(({ indexes }) => indexes.length === 0) || source == null) {
     return { source, underlay: null, restored: null };
   }
-  const restoreKey = `__domotionScrollbarWidthRestore_${randomUUID().replaceAll("-", "")}`;
+  const restoreKey = privateCaptureKey("ScrollbarWidthRestore");
   let underlay: NativeScrollbarFrame | null = null;
   try {
     await Promise.all(
@@ -970,7 +971,7 @@ export async function prepareCapturedScrollbarSets(
     frameScrollCapture?: PreparedFrameScrollCapture;
   },
 ): Promise<PreparedScrollbarCapture> {
-  const propertyKey = `__domotionCapturedScrollbars_${randomUUID().replaceAll("-", "")}`;
+  const propertyKey = privateCaptureKey("CapturedScrollbars");
   const nodesKey = `${propertyKey}_nodes`;
   const markerAttribute = `data-${propertyKey.toLowerCase().replaceAll("_", "-")}`;
   let candidates: BrowserCandidate[];

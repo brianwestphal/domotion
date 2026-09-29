@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
+import { privateCaptureKey } from "./private-key.js";
+import { createHash } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import type { StableAnimationFrameState } from "./animation-frame.js";
 import type { StableCaptureRafState } from "./raf-clock.js";
@@ -186,7 +187,7 @@ export async function prepareReplacedMediaFrameTransaction(
     throw new Error("replaced-media transaction requires a finite non-negative time");
   }
 
-  const stateKey = `__domotionReplacedMedia_${randomUUID().replaceAll("-", "")}`;
+  const stateKey = privateCaptureKey("ReplacedMedia");
   const releasePageState = async (): Promise<void> => {
     await page
       .evaluate(async (key) => {

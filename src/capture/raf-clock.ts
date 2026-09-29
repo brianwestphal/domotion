@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { isSameProcessFrameError } from "./cdp-lifecycle.js";
+import { privateCaptureKey } from "./private-key.js";
 import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
 
 export const CAPTURE_RAF_CLOCK_PROTOCOL = "domotion-capture-raf-clock-v1" as const;
@@ -45,7 +46,7 @@ type PageClockState = {
  * because BrowserContext init scripts cannot instrument worker globals.
  */
 export async function installCaptureRafClock(context: BrowserContext): Promise<CaptureRafClockHandle> {
-  const controlKey = `__domotionRafClock_${randomUUID().replaceAll("-", "")}`;
+  const controlKey = privateCaptureKey("RafClock");
   await context.addInitScript(
     ({ key, protocol }) => {
       const scope = globalThis as typeof globalThis & Record<string, unknown>;
@@ -172,7 +173,7 @@ async function sampleFrame(
   try {
     session = await page.context().newCDPSession(frame);
   } catch (error) {
-    if (!/part of the parent frame's session/i.test(String(error))) throw error;
+    if (!isSameProcessFrameError(error)) throw error;
     session = await page.context().newCDPSession(page);
   }
   try {

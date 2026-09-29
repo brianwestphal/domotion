@@ -23,7 +23,7 @@
  *   2304-2334.
  */
 
-import { randomUUID } from "node:crypto";
+import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Page } from "@playwright/test";
 import {
   authorControlStyleFactsFromMatchedStyles,
@@ -558,7 +558,7 @@ export interface ResolvedPseudoStyleCapture {
  */
 export async function captureResolvedControlPseudoStyles(page: Page): Promise<ResolvedPseudoStyleCapture> {
   const session = await page.context().newCDPSession(page);
-  const propertyKey = `__domotionResolvedPseudos_${randomUUID().replaceAll("-", "")}`;
+  const propertyKey = privateCaptureKey("ResolvedPseudos");
   const decorationPropertyKey = `${propertyKey}_decorations`;
   const inputValuePropertyKey = `${propertyKey}_inputValue`;
   const objectGroup = `${propertyKey}_objects`;

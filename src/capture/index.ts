@@ -9,6 +9,8 @@
  * the `domotion-svg/capture` subpath re-export.
  */
 
+import { privateCaptureKey } from "./private-key.js";
+import { disposeAll } from "./cdp-lifecycle.js";
 import { spawnSync } from "node:child_process";
 import sharp from "sharp";
 import {
@@ -1310,7 +1312,7 @@ async function measureProjectivePaintQuads(
   viewport: { x: number; y: number; width: number; height: number },
   includeComputedFrameState: boolean,
 ): Promise<ProjectivePaintProbe> {
-  const key = `__domotionProjectivePaintNodes_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const key = privateCaptureKey("ProjectivePaintNodes");
   interface PreparedNode {
     parent: number | null;
     influenced: boolean;
@@ -1823,7 +1825,7 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
   dispose(): Promise<void>;
 }> {
   const frames = page.frames();
-  const propertyKey = `__domotionPseudoImageIntrinsic_${Math.random().toString(36).slice(2)}`;
+  const propertyKey = privateCaptureKey("PseudoImageIntrinsic");
   await Promise.all(
     frames.map(async (frame) => {
       try {
@@ -2304,18 +2306,18 @@ async function captureElementTreeWithWarningsInternal(
         })})`,
       );
     } finally {
-      if (result == null) await frameScrollCapture.dispose();
-      await collapsedBorderFragmentProbe?.dispose();
-      await pseudoFragmentProbe?.dispose();
-      await scrollbarCapture?.dispose();
-      await effectiveAppearance?.dispose();
-      await maskIntrinsicPrime.dispose();
-      await backgroundImagePrime.dispose();
-      await pseudoImagePrime.dispose();
-      if (result == null) {
-        await pseudoStyles?.dispose();
-        await projectiveProbe?.dispose();
-      }
+      await disposeAll(
+        result == null ? frameScrollCapture : undefined,
+        collapsedBorderFragmentProbe,
+        pseudoFragmentProbe,
+        scrollbarCapture,
+        effectiveAppearance,
+        maskIntrinsicPrime,
+        backgroundImagePrime,
+        pseudoImagePrime,
+        result == null ? pseudoStyles : undefined,
+        result == null ? projectiveProbe : undefined,
+      );
     }
     try {
       const typed = assertCapturedTreeShape(result) as { tree: CapturedElement[]; warnings: CaptureWarning[] };
@@ -2371,9 +2373,9 @@ async function captureElementTreeWithWarningsInternal(
         await reverifyAnimationFrame();
         await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
       } finally {
-        await pseudoStyles?.dispose();
+        // Cleared only after a clean dispose: on a throw the outer `finally` retries them.
+        await disposeAll(pseudoStyles, projectiveProbe);
         pseudoStyles = undefined;
-        await projectiveProbe?.dispose();
         projectiveProbe = undefined;
       }
       await reverifyAnimationFrame();
@@ -2421,10 +2423,7 @@ async function captureElementTreeWithWarningsInternal(
         ...(replacedMediaFrameState == null ? {} : { replacedMediaFrameState }),
       };
     } finally {
-      await frameScrollCapture.dispose();
-      await pseudoStyles?.dispose();
-      await projectiveProbe?.dispose();
-      await textPaintProbe?.dispose();
+      await disposeAll(frameScrollCapture, pseudoStyles, projectiveProbe, textPaintProbe);
     }
   } finally {
     await replacedMediaTransaction?.dispose();

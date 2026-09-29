@@ -1,3 +1,4 @@
+import { detachQuietly, isSameProcessFrameError } from "./cdp-lifecycle.js";
 import type { Frame, Page } from "@playwright/test";
 
 export interface StableAnimationDocumentState {
@@ -62,7 +63,7 @@ async function closedShadowRootCount(page: Page, frame: Frame): Promise<number> 
   } catch (error) {
     // Same-process child documents are included in the main target's flattened
     // snapshot and intentionally have no independent CDP session.
-    if (/part of the parent frame's session/i.test(String(error))) return 0;
+    if (isSameProcessFrameError(error)) return 0;
     throw error;
   }
   try {
@@ -81,7 +82,7 @@ async function closedShadowRootCount(page: Page, frame: Frame): Promise<number> 
     }
     return count;
   } finally {
-    await session.detach();
+    await detachQuietly(session);
   }
 }
 

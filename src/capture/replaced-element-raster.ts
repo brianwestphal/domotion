@@ -1,3 +1,4 @@
+import { detachQuietly } from "./cdp-lifecycle.js";
 import sharp from "sharp";
 import type { CDPSession, ElementHandle, Page } from "@playwright/test";
 import {
@@ -299,7 +300,7 @@ export async function rasterizeReplacedElements(
   }
   if (screenshotTargets.length === 0) {
     try {
-      await cdp?.detach();
+      await detachQuietly(cdp);
     } catch (error) {
       recordFailure(undefined, "cleanup", `could not detach CDP session: ${errorDetail(error)}`);
     }
@@ -694,7 +695,7 @@ export async function rasterizeReplacedElements(
       }
     }
     try {
-      await cdp?.detach();
+      await detachQuietly(cdp);
     } catch (error) {
       recordFailure(undefined, "cleanup", `could not detach CDP session: ${errorDetail(error)}`);
     }

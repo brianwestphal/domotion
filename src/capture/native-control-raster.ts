@@ -26,6 +26,7 @@
  *    compositor surface through CopyFromSurface.
  */
 
+import { privateCaptureKey } from "./private-key.js";
 import { isPaintedColor } from "../utils/transparent-background.js";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
@@ -332,7 +333,7 @@ export async function rasterizeNativeControlSurfaces(
   // atomic fallback; never take one screenshot per control.
   if (sourceFrame == null) sourceFrame = await takeAtomicFrame(page, viewport);
 
-  const restoreKey = `__domotionNativeControlRestore_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const restoreKey = privateCaptureKey("NativeControlRestore");
   let isolationFacts: IsolationFact[] = targets.map(() => ({
     connected: false,
     sourceOccluded: false,

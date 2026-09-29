@@ -1,5 +1,6 @@
 /** Chromium protocol prepass for exact affine text-fragment geometry (DM-2469). */
 
+import { privateCaptureKey } from "./private-key.js";
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import type { CapturedElement, CapturedTextPaintQuad, CaptureWarning } from "./types.js";
 import { probeFailureWarning } from "./probe-failure.js";
@@ -591,7 +592,7 @@ export async function prepareTextPaintGeometry(
   viewport: { x: number; y: number; width: number; height: number },
   captureNeutralTree: (key: string) => Promise<{ tree: CapturedElement[] }>,
 ): Promise<TextPaintGeometryProbe> {
-  const key = `__domotionTextPaintGeometry_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const key = privateCaptureKey("TextPaintGeometry");
   const prepared = (
     await Promise.all(page.frames().map((frame, index) => setupFrameRegistry(frame, selector, key, `f${index}`)))
   ).filter((frame): frame is PreparedFrame => frame != null);
