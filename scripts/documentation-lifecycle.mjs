@@ -3,6 +3,9 @@ const COMPLETE_OUTCOME = /\bcomplete(?:d)?\b/i;
 const NON_IMPLEMENTATION_COMPLETION =
   /\b(?:design|investigation|plan|proposal)\s+complete\b|\bimplementation\s+(?:pending|proposed|not\s+(?:started|implemented|shipped|complete))\b|\bnot\s+(?:implemented|shipped|complete)\b/i;
 
+/** A superseded record must point readers at the document that replaced it. */
+const SUPERSEDED_BY_LINK = /superseded\s+by\W[^\n]*\]\([^)]+\.md\)/i;
+
 function plainText(value) {
   return value.replace(/[*`_]/g, "").trim();
 }
@@ -32,6 +35,11 @@ export function completedCanonicalDeclaration(body) {
  * still describes proposed work. Shipped bodies must use current contract or
  * evidence metadata so consumers and generated packets can discover them. */
 export function lifecycleConsistencyErrors(filename, metadata, body) {
+  if (metadata.status === "superseded" && !SUPERSEDED_BY_LINK.test(body)) {
+    return [
+      `${filename}: superseded record must name its successor as "Superseded by" with a link to the replacing document`,
+    ];
+  }
   if (metadata.kind !== "proposal" && metadata.status !== "proposed") return [];
   const declaration = completedCanonicalDeclaration(body);
   return declaration == null

@@ -44,4 +44,14 @@ describe("documentation lifecycle consistency (DM-2633)", () => {
       ),
     ).toEqual([]);
   });
+
+  it("requires a superseded record to link its successor", () => {
+    const superseded = { kind: "archive", status: "superseded" };
+    expect(lifecycleConsistencyErrors("09.md", superseded, "# Old\n\nNo pointer.\n")).toHaveLength(1);
+    expect(lifecycleConsistencyErrors("09.md", superseded, "# Old\n\nSuperseded by the new doc.\n")).toHaveLength(1);
+    expect(
+      lifecycleConsistencyErrors("09.md", superseded, "# Old\n\n> **Superseded by** [doc 170](170-x.md).\n"),
+    ).toEqual([]);
+    expect(lifecycleConsistencyErrors("cur.md", { kind: "evidence", status: "current" }, "# Cur\n")).toEqual([]);
+  });
 });

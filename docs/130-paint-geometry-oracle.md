@@ -2,11 +2,18 @@
 id: "requirements/paint-geometry-oracle"
 title: "130 — Gradient, mask, clip, and resizer geometry oracle"
 kind: "evidence"
-status: "superseded"
+status: "current"
 owners: ["paint-effects", "layout", "platform-release"]
 platforms: []
 tickets: ["DM-2358", "DM-2528"]
-code: []
+code:
+  [
+    "tools/paint-geometry-oracle.ts",
+    "tools/paint-geometry-browser-oracle.ts",
+    "tests/paint-geometry-oracle.test.ts",
+    "tests/paint-geometry-browser-oracle.e2e.test.ts",
+    ".github/workflows/ci.yml",
+  ]
 aliases: ["docs/130-paint-geometry-oracle.md", "doc-130"]
 ---
 

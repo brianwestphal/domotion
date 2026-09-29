@@ -13,8 +13,12 @@ aliases: ["docs/186-animated-3d-frame-state-parity.md", "doc-186"]
 # 186 — Animated CSS 3D frame-state parity
 
 **Status:** exact document-timeline CSS/WAAPI and SMIL frame synchronization,
-quads, residuals, and atomic paint shipped; the macOS/Linux/Windows DPR 1/2
-owner-minimality expectation is known partial (DM-2356).
+quads, residuals, atomic paint, and smallest used-context raster ownership
+shipped and are gated on macOS/Linux/Windows at DPR 1/2 (DM-2492/2493, see
+[doc 189](189-nested-projective-context-ownership.md)). The remaining partial
+boundary is rAF and progress-timeline sampling (docs
+[221](221-scroll-view-raf-timeline-ownership.md) and
+[228](228-pre-navigation-raf-capture-ownership.md)).
 
 DM-2359 closes the gap between the static projective boundary in
 [doc 162](162-inline-svg-3d-transform-audit.md) and an animation that changes
@@ -88,8 +92,8 @@ Every 3D-influenced `CapturedElement` in an explicitly seeked capture may carry
 - HTML/SVG paint role;
 - CDP content and border quads in capture CSS coordinates;
 - held-out fourth-corner residual and non-affine activation bit;
-- selected `ownsRasterBoundary` result (currently conservative rather than
-  proven minimal across nested context breaks);
+- selected `ownsRasterBoundary` result (the smallest used-context owner across
+  nested context breaks);
 - the same-frame computed `transform`, independent translate/rotate/scale,
   transform origin/style, perspective/origin, and overflow axes.
 

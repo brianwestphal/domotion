@@ -57,7 +57,7 @@ may be preceded by a declared or priority face.
 | Embedded-font emitter                  | The selected `FontRun` is consumed directly                                            | PUA-mapped `<text>` plus hb-subset or svg2ttf bytes                                       | `EmbeddedFontBuildDiagnostic` proves aggregate source/builder state              | Diagnostics have no source spans, selected keys, clusters, or embedded-decline reason                                                           |
 | Embedded decline to paths              | Both emitters rerun from the same entry inputs                                         | Paths output after a null embedded result                                                 | Mode-parity tests exercise successful arms                                       | The transition and null reason are not recorded, so activation cannot be proven from a result artifact                                          |
 | Raster glyph overlay                   | Vector selection can be suppressed for captured raster-owned spans                     | Captured PNG region plus vector remainder                                                 | Raster-boundary oracle and emoji fixtures                                        | Production ownership still depends on hardcoded capture-side emoji gates; DM-2392 owns removal                                                  |
-| Raw `<text>` fallback in `text.ts`     | The original decision is discarded                                                     | The consumer browser resolves the captured CSS family again                               | Partial/all-raster suppression tests                                             | This is an unowned second font-selection pass; DM-2399 owns its removal or explicit degraded-boundary classification                            |
+| Raw `<text>` fallback in `text.ts`     | The original decision is discarded                                                     | The consumer browser resolves the captured CSS family again                               | Partial/all-raster suppression tests                                             | **Closed by DM-2399** — the raw `<text>` terminal was removed; see [doc 152](152-source-owned-text-failure-boundary.md)                         |
 
 ## Findings
 
@@ -83,9 +83,11 @@ may be preceded by a declared or priority face.
 5. **No new production face divergence was proven by static/source audit or the
    first renderer ledger.** Future assignment owners must add a route case and
    independent control before they can inherit that claim.
-6. **Raw `<text>` fallback is a separate correctness risk.** It delegates a
-   second face-selection pass to the SVG consumer, which need not have the
-   capture host's font inventory or fallback rules. DM-2399 isolates that work.
+6. **Raw `<text>` fallback was a separate correctness risk — closed by DM-2399.**
+   It delegated a second face-selection pass to the SVG consumer, which need not
+   have the capture host's font inventory or fallback rules. The renderer now
+   ends at a labeled non-painting boundary instead
+   ([doc 152](152-source-owned-text-failure-boundary.md)).
 
 ## Required renderer-facing record
 

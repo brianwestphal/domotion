@@ -996,8 +996,8 @@
     {
       "id": "requirements/demo-gallery",
       "title": "64 — Demo gallery",
-      "kind": "archive",
-      "status": "superseded",
+      "kind": "reference",
+      "status": "current",
       "owners": ["product-tooling"],
       "platforms": [],
       "code": [
@@ -2134,10 +2134,16 @@
       "id": "requirements/paint-geometry-oracle",
       "title": "130 — Gradient, mask, clip, and resizer geometry oracle",
       "kind": "evidence",
-      "status": "superseded",
+      "status": "current",
       "owners": ["paint-effects", "layout", "platform-release"],
       "platforms": [],
-      "code": [],
+      "code": [
+        "tools/paint-geometry-oracle.ts",
+        "tools/paint-geometry-browser-oracle.ts",
+        "tests/paint-geometry-oracle.test.ts",
+        "tests/paint-geometry-browser-oracle.e2e.test.ts",
+        ".github/workflows/ci.yml"
+      ],
       "file": "130-paint-geometry-oracle.md"
     },
     {
@@ -2179,10 +2185,14 @@
       "id": "requirements/raster-boundary-oracle",
       "title": "134 — Raster-fallback activation and vector-boundary oracle",
       "kind": "evidence",
-      "status": "superseded",
+      "status": "current",
       "owners": ["images-media", "platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": [],
+      "code": [
+        "tools/raster-boundary-oracle.ts",
+        "docs/reference/raster-image-fallback-cases.md",
+        ".github/workflows/ci.yml"
+      ],
       "file": "134-raster-boundary-oracle.md"
     },
     {
@@ -3419,10 +3429,16 @@
       "id": "requirements/scroll-view-raf-timeline-ownership",
       "title": "221 — Scroll/view/rAF timeline sampling ownership",
       "kind": "contract",
-      "status": "partial",
+      "status": "current",
       "owners": ["layout", "animation"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["src/capture/animation-frame.ts", "tools/timeline-sampling-ownership-oracle.ts"],
+      "code": [
+        "src/capture/animation-frame.ts",
+        "src/capture/raf-clock.ts",
+        "tests/raf-clock.e2e.test.ts",
+        ".github/workflows/raf-clock-ownership.yml",
+        "tools/timeline-sampling-ownership-oracle.ts"
+      ],
       "file": "221-scroll-view-raf-timeline-ownership.md"
     },
     {
@@ -3444,8 +3460,8 @@
     {
       "id": "requirements/legacy-webkit-gradient-geometry",
       "title": "223 — Legacy -webkit-gradient() geometry ownership",
-      "kind": "archive",
-      "status": "superseded",
+      "kind": "evidence",
+      "status": "current",
       "owners": ["paint-effects", "layout"],
       "platforms": [],
       "code": [

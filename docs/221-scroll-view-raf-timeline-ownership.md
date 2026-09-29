@@ -2,23 +2,31 @@
 id: "requirements/scroll-view-raf-timeline-ownership"
 title: "221 — Scroll/view/rAF timeline sampling ownership"
 kind: "contract"
-status: "partial"
+status: "current"
 owners: ["layout", "animation"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2553", "DM-2554"]
-code: ["src/capture/animation-frame.ts", "tools/timeline-sampling-ownership-oracle.ts"]
+code:
+  [
+    "src/capture/animation-frame.ts",
+    "src/capture/raf-clock.ts",
+    "tests/raf-clock.e2e.test.ts",
+    ".github/workflows/raf-clock-ownership.yml",
+    "tools/timeline-sampling-ownership-oracle.ts",
+  ]
 aliases: ["docs/221-scroll-view-raf-timeline-ownership.md", "doc-221"]
 ---
 
 # 221 — Scroll/view/rAF timeline sampling ownership
 
-**Status:** DM-2553 progress ownership implemented. Production prevalidates
+**Status:** Shipped. DM-2553 progress ownership: production prevalidates
 document and reachable open-shadow TreeScopes, holds every resolved
 ScrollTimeline/ViewTimeline effect at its exact CSS percentage, records and
 reverifies source/subject facts before capture prepasses, and fails before
-mutation on closed/inaccessible or unresolved scopes. DM-2554 still owns rAF
-callback queues and the final controlled-rendering barrier. No raster threshold
-or tolerance changed.
+mutation on closed/inaccessible or unresolved scopes. DM-2554 rAF ownership
+shipped separately: Window rAF is owned through the pre-navigation,
+target-authenticated protocol in [doc 228](228-pre-navigation-raf-capture-ownership.md).
+No raster threshold or tolerance changed.
 
 ## Question and verdict
 
@@ -36,9 +44,10 @@ progress-timeline effect can be paused and held at its own sampled
 `CSS.percent(...)`, but that does not freeze the timeline source, its range, or
 the compositor scroll state. The tested Playwright clock stops benign calls
 through the replaced page global, but page script can reach its saved native
-rAF through `__pwClock.builtins`, and worker rAF is not instrumented. A future
-protocol must own or explicitly reject those queues; current production does
-neither.
+rAF through `__pwClock.builtins`, and worker rAF is not instrumented. That is
+why production does not use the Playwright clock for rAF: doc 228 replaces it
+with a pre-navigation clock whose native function is never page-visible, and
+workers fail closed.
 
 ## Pinned Blink and compositor trace
 
@@ -85,9 +94,9 @@ timeline contract. For every Frame it:
 Closed ShadowRoots are detected with a flattened CDP DOMSnapshot and rejected
 before any Animation or SMIL timeline is touched because their animation set is
 not script-enumerable. Same-process child documents are authenticated by the
-main target snapshot; OOPIFs use their own CDP session. rAF remains the explicit
-DM-2554 boundary: the current settle callbacks can still run page or worker
-script, so progress/source exactness is not a claim of callback quiescence.
+main target snapshot; OOPIFs use their own CDP session. Callback quiescence is
+not a progress/source claim; it is owned separately by the rAF clock in
+[doc 228](228-pre-navigation-raf-capture-ownership.md).
 
 ## Exact live logical oracle
 
@@ -144,9 +153,9 @@ tree state.
 | progress animation outside the queried TreeScope                                                           | Fail until every reachable document/open-shadow scope is enumerated and the closed/inaccessible-scope policy is explicit.                                                                                                                                                          |
 | inactive/unresolved progress timeline                                                                      | Fail: there is no percentage to hold or verify.                                                                                                                                                                                                                                    |
 | smooth/compositor scroll, source/range mutation, target churn, or prepass drift                            | Fail: a held effect does not own those inputs.                                                                                                                                                                                                                                     |
-| rAF through a replaced page global                                                                         | The tested pre-navigation clock stops this benign case only; page-visible native builtins and workers prevent an ownership claim.                                                                                                                                                  |
-| saved-native/page-builtin rAF, worker rAF, uninstrumented/new target, mismatched time, or changing counter | Fail: callback ownership is incomplete. DM-2554 must own, disable, or reject every escape.                                                                                                                                                                                         |
-| paused fake rAF plus the current two-rAF settle helper                                                     | Fail: the settle promise cannot run while the shim is paused. A future protocol needs a controlled tick or authenticated non-rAF rendering barrier.                                                                                                                                |
+| rAF through a replaced page global                                                                         | Owned: the pre-navigation clock in [doc 228](228-pre-navigation-raf-capture-ownership.md) replaces rAF before author script and never publishes the saved native function.                                                                                                         |
+| saved-native/page-builtin rAF, worker rAF, uninstrumented/new target, mismatched time, or changing counter | Window escapes are closed by doc 228; dedicated/shared workers, OffscreenCanvas, an uninstrumented or new target, mismatched time, or a changing counter fail closed.                                                                                                              |
+| paused fake rAF plus the current two-rAF settle helper                                                     | Replaced: doc 228's controlled tick drains the queue at the caller's single finite time instead of awaiting a settle promise under a paused shim.                                                                                                                                  |
 
 ## Bounded follow-ups
 
@@ -155,11 +164,10 @@ tree state.
   three-platform animated-projective workflow runs the exact document/open-
   shadow/closed-shadow and HTML/SVG branch regression headlessly.
 - **DM-2554 — Install and authenticate pre-navigation rAF clocks across main
-  and OOPIF capture targets.** Use non-page-visible ownership or fail-closed
-  detection for saved native builtins; own, disable, or reject dedicated-worker
-  rAF; prove target identity and one paused time; replace the paused-rAF settle
-  barrier; reject late/native escape and target churn; then run the combined
-  progress/source/controlled-rendering/rAF ordering gate after DM-2553.
+  and OOPIF capture targets.** Completed in
+  [doc 228](228-pre-navigation-raf-capture-ownership.md)
+  (`src/capture/raf-clock.ts`, `tests/raf-clock.e2e.test.ts`,
+  `.github/workflows/raf-clock-ownership.yml`).
 
 DM-2554 now owns Window rAF through the pre-navigation, target-authenticated
 protocol in doc 228. Document and progress timelines retain their separate

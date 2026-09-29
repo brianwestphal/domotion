@@ -1,8 +1,8 @@
 ---
 id: "requirements/legacy-webkit-gradient-geometry"
 title: "223 — Legacy -webkit-gradient() geometry ownership"
-kind: "archive"
-status: "superseded"
+kind: "evidence"
+status: "current"
 owners: ["paint-effects", "layout"]
 platforms: []
 tickets: ["DM-2528"]

@@ -1,8 +1,8 @@
 ---
 id: "requirements/demo-gallery"
 title: "64 — Demo gallery"
-kind: "archive"
-status: "superseded"
+kind: "reference"
+status: "current"
 owners: ["product-tooling"]
 platforms: []
 tickets: ["DM-1308", "DM-1384", "DM-1414"]

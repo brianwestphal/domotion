@@ -12,6 +12,8 @@ aliases: ["docs/09-vertical-range.md", "doc-09"]
 
 # Domotion: vertical `<input type=range>`
 
+> **Superseded by** [doc 170](170-blink-effective-appearance-routing.md) and [doc 182](182-native-control-fallback-retirement.md) (native vertical ranges) and [doc 04](04-input-pseudos.md) (author-styled ranges).
+
 Requirements for vertical-axis range sliders in Domotion. Origin: DM-276 (follow-up from DM-273). Section 5 of `external/html-test/06-forms-style-range.html` declares a vertical slider via `writing-mode: vertical-lr; direction: rtl`; before this work the renderer always laid the track + thumb on the horizontal axis, so the captured 30×150 element painted as a misshapen horizontal slider stuffed into a tall narrow box.
 
 ## Why now
