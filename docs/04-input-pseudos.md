@@ -51,8 +51,8 @@ Requirements for honoring author CSS on `<input>` shadow-DOM pseudos in Domotion
 - `rangeTrackBg`, `rangeTrackBgImage`, `rangeTrackRadius`, `rangeTrackHeight`, `rangeTrackBorder`, `rangeTrackBoxShadow`.
 - `rangeThumbBg`, `rangeThumbBgImage`, `rangeThumbRadius`, `rangeThumbWidth`, `rangeThumbHeight`, `rangeThumbBorder`, `rangeThumbBoxShadow`.
 - `colorSwatchBg`, `colorSwatchRadius`, `colorSwatchBorder`.
-- `numberSpinButtonBg`, `numberSpinButtonBorder` (less commonly styled — capture but apply only when distinct).
-- `searchCancelButtonBg`, `searchCancelButtonBorder`.
+- `numberSpinButtonBg`, `numberSpinButtonBorder` (less commonly styled — capture but apply only when distinct). **Captured only:** no renderer reads them (see the SK-1222 / SK-1223 note below).
+- `searchCancelButtonBg`, `searchCancelButtonBorder`. **Captured only**, same as above.
 
 Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this only when `el.tag === 'input'` and the type matches.
 
@@ -60,7 +60,7 @@ Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this on
 
 > **Update (SK-1193):** the SK-1138 quirk was confirmed by direct probe to apply to every WebKit-internal input/progress/meter pseudo — `::-webkit-color-swatch`, `::-webkit-color-swatch-wrapper`, `::-webkit-inner-spin-button`, `::-webkit-search-cancel-button`, `::-webkit-progress-bar`, `::-webkit-progress-value`, `::-webkit-meter-bar`, and the meter value pseudos all return the host element's computed style rather than the pseudo's cascaded value. The lone exception is `::file-selector-button`, which Chromium implements as a real shadow DOM element rather than a UA-internal pseudo and resolves correctly via `getComputedStyle(el, pseudo)`.
 >
-> **Update (SK-1222 / SK-1223):** all the affected pseudos now flow through a generalized stylesheet walker (`_pseudoRules` / `_collectPseudoRules` / `_resolvePseudo` in `src/capture/script/` `CAPTURE_SCRIPT`). Each pseudo is keyed by short kind name (`'track'`, `'thumb'`, `'progress-bar'`, `'progress-value'`, `'meter-bar'`, `'meter-optimum'`, `'meter-suboptimum'`, `'meter-even-less-good'`, `'color-swatch'`, `'color-swatch-wrapper'`, `'inner-spin-button'`, `'search-cancel-button'`). Var/calc resolution (SK-1191), state-rule support (SK-1192), and gradient-def emission (SK-1224 / SK-1225 / SK-1226) all share that walker. Renderer pickup for the new color-swatch fields (`colorSwatchBg`, `colorSwatchBgImage`, `colorSwatchBorder`, `colorSwatchRadius`, `colorSwatchWrapperPadding`) lives in `renderColorSwatch`. Number and search inputs now render their real chrome too: `renderNumberInput` draws the inner-spin button and `renderSearchInput` draws the search-cancel button (both in `src/render/form-controls.ts`), consuming the captured `numberSpinButton*` / `searchCancelButton*` fields.
+> **Update (SK-1222 / SK-1223):** all the affected pseudos now flow through a generalized stylesheet walker (`_pseudoRules` / `_collectPseudoRules` / `_resolvePseudo` in `src/capture/script/` `CAPTURE_SCRIPT`). Each pseudo is keyed by short kind name (`'track'`, `'thumb'`, `'progress-bar'`, `'progress-value'`, `'meter-bar'`, `'meter-optimum'`, `'meter-suboptimum'`, `'meter-even-less-good'`, `'color-swatch'`, `'color-swatch-wrapper'`, `'inner-spin-button'`, `'search-cancel-button'`). Var/calc resolution (SK-1191), state-rule support (SK-1192), and gradient-def emission (SK-1224 / SK-1225 / SK-1226) all share that walker. Renderer pickup for the new color-swatch fields (`colorSwatchBg`, `colorSwatchBgImage`, `colorSwatchBorder`, `colorSwatchRadius`, `colorSwatchWrapperPadding`) lives in `renderColorSwatch`. _(Superseded.)_ This entry originally said number and search inputs draw their chrome through `renderNumberInput` / `renderSearchInput` in `src/render/form-controls.ts`, consuming the captured `numberSpinButton*` / `searchCancelButton*` fields. Neither function exists. The inner-spin and search-cancel parts are closed-shadow Chromium overlays owned by the native-control decoration path (`src/capture/native-control-decoration.ts`, kinds `inner-spin-button` and `search-cancel-button`; DM-2455, [doc 171](171-closed-shadow-control-decorations.md)), and the `numberSpinButton*` / `searchCancelButton*` fields in `src/capture/types.ts` have no renderer consumer.
 
 > **Current implementation:** the generalized stylesheet walker has been
 > retired. It applied declarations in source order and therefore disagreed
@@ -83,12 +83,13 @@ Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this on
 
 ## Render changes
 
-`src/render/form-controls.ts` `renderRange()` currently emits a fixed-style track + thumb. Change to:
+> **Design-era text, superseded.** The original plan below hardcoded a UA default (`rgb(239, 239, 239)` track, fixed 4 px track height, fixed 16×16 thumb) and compared captured values against it. None of that constant logic exists. Current behavior in `src/render/form-controls.ts`:
+>
+> - A range is **author-styled** only when the captured pseudo fields say so: `rangeTrackBg` present ⇒ styled track, `rangeThumbWidth` present ⇒ styled thumb, with geometry taken from the captured `rangeTrackHeight` / `rangeThumbWidth` / `rangeThumbHeight` / `rangeThumbRadius` (there are no fixed fallbacks). An unstyled track paints `fill="none"`.
+> - A native (UA-default) range takes the Chromium raster route (`formControlRenderRoute` → `native-raster`), not a synthesized shape ([doc 182](182-native-control-fallback-retirement.md)).
+> - `box-shadow` on track/thumb still routes through the shared `parseBoxShadow` + filter pipeline.
 
-1. If `el.rangeTrackBg` differs from the UA default (which we hardcode as `rgb(239, 239, 239)`), use the captured value for the track fill. Same for the thumb.
-2. If `el.rangeTrackHeight` is set, use it for the track rect height (currently fixed 4px).
-3. If `el.rangeThumbWidth/Height` is set, use them for the thumb circle/rect dimensions (currently fixed 16x16).
-4. `box-shadow` on track/thumb routes through the existing `parseBoxShadow` + filter pipeline added in SK-1113.
+Original plan, kept for history: `renderRange()` emitted a fixed-style track + thumb and was to (1) use captured track/thumb fills when different from the UA default, (2) use `rangeTrackHeight` for the track, (3) use `rangeThumbWidth/Height` for the thumb, and (4) route `box-shadow` through `parseBoxShadow`.
 
 ## Edge cases
 

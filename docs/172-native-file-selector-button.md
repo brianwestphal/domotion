@@ -6,7 +6,13 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2454"]
-code: ["tests/native-control-decoration.e2e.test.ts"]
+code:
+  [
+    "tests/native-control-decoration.e2e.test.ts",
+    "src/capture/native-control-decoration.ts",
+    "src/capture/pseudo-style-cdp.ts",
+    "src/capture/script/walker/form-controls.ts",
+  ]
 aliases: ["docs/172-native-file-selector-button.md", "doc-172"]
 ---
 

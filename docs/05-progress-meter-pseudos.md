@@ -101,7 +101,7 @@ In `src/render/form-controls.ts`:
 
 ## Edge cases
 
-- `<progress>` without a value attribute is indeterminate — Chrome paints a moving stripe. We can't animate; render the track empty and warn (existing behavior).
+- `<progress>` without a value attribute is indeterminate — Chrome paints a moving stripe. We can't animate it. A native indeterminate `<progress>` is the Chromium raster snapshot taken at capture time; an author-styled one paints only its captured track. There is no dedicated warning for this case.
 - `appearance: none` on the host strips ALL UA chrome — at that point the author is responsible for their own styling, but we should still honor the pseudos when they do that.
 - Padding on the bar pseudo affects where the value pseudo paints inside; mirror Chrome's content-box clipping.
 
@@ -115,6 +115,8 @@ In `src/render/form-controls.ts`:
 `06-forms-style-progress-meter.html` diff drops below 1.5% avg. Author-styled progress bars with gradient fills, custom heights, and rounded corners render correctly. UA-default progress/meter bars elsewhere don't regress.
 
 ## Native (UA-default) `<meter>` groove + value inset (DM-1156)
+
+> **Historical — superseded by DM-2458.** The sampled groove/inset constants below described `renderMeter()` calibrating a native `<meter>` against Chrome-on-macOS paint. That code is gone: `renderMeter` (`src/render/form-controls.ts`) now paints only the **captured** pseudo colors for an author-styled meter, and native (UA-default) `<meter>` / `<progress>` take the Chromium raster route, which captures Chromium's own pixels for the active platform, scheme, and state. See [doc 182](182-native-control-fallback-retirement.md) and the DM-2458 banner in [doc 29](29-dark-mode.md). The measurements are kept as design context only.
 
 Author-styled meters are covered above; the **UA-default** `<meter>` (no
 `appearance: none`, no pseudo styling) also needed calibration against
