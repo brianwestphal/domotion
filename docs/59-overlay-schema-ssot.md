@@ -10,6 +10,7 @@ code:
   [
     "scripts/generate-animate-schema.ts",
     "src/animation/overlay-schema.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/animate-config-json-schema.test.ts",
     "src/cli/animate.ts",
   ]
@@ -21,8 +22,8 @@ aliases: ["docs/59-overlay-schema-ssot.md", "doc-59"]
 Status: **shipped** (DM-1131). The overlay and intra-frame-animation shapes are
 defined once as zod schemas in `src/animation/overlay-schema.ts`; the renderer's
 runtime TypeScript types are `z.infer`red from them, and the declarative-config
-validator (`src/cli/animate.ts`) extends the same base schemas. One definition,
-two derived views.
+validator (`src/cli/animate-orchestrator.ts`) extends the same base schemas.
+One definition, two derived views.
 
 ## Why
 
@@ -51,7 +52,7 @@ src/animation/overlay-schema.ts        ← SSOT (zod)
         │                                   │
         │ z.infer                           │ .extend({...})
         ▼                                   ▼
-src/animation/animator.ts            src/cli/animate.ts
+src/animation/animator.ts            src/cli/animate-orchestrator.ts
    re-exports the resolved types        authoring schemas =
    that generateAnimatedSvg consumes    base.extend({ x:default(0), y:default(0),
                                                        anchor?, maxWidth? })
@@ -63,8 +64,8 @@ src/animation/animator.ts            src/cli/animate.ts
   package types (`TypingOverlay`, `TapOverlay`, `SvgOverlay`, `BlinkOverlay`,
   `ShineOverlay`, `InteractOverlay`, `AnimationOverlay`, `IntraFrameAnimation`)
   are `z.infer` of these and are re-exported unchanged from `domotion-svg`.
-- **Authoring view** (CLI): `src/cli/animate.ts` builds each overlay's config
-  schema by **extending** the matching base — adding the config-only
+- **Authoring view** (CLI): `src/cli/animate-orchestrator.ts` builds each
+  overlay's config schema by **extending** the matching base — adding the config-only
   conveniences (`x` / `y` defaulted to `0` so an `anchor` can supply them; the
   selector `anchor`; the typing `maxWidth`). The `svg` kind is the one exception:
   authoring takes a `src` file path that the CLI reads / namespaces into the

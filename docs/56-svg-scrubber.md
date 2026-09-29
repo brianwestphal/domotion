@@ -11,6 +11,7 @@ code:
     "scripts/build-scrubber-client.mjs",
     "src/cli/scrubber.ts",
     "src/scrubber/client.tsx",
+    "src/scrubber/embed.ts",
     "src/scrubber/server.e2e.test.ts",
     "src/scrubber/server.ts",
     "src/scrubber/trim.test.ts",
@@ -29,6 +30,9 @@ frame as a PNG, and trim the range to a new self-contained animated SVG.
 It complements the non-interactive `svg-to-video` CLI (doc 47): that bakes an
 SVG to a finished video file; this is the interactive bench for _deciding_ what
 you want before (or instead of) baking.
+
+Studio embeds the scrubber through `src/scrubber/embed.ts`; the preview contract
+is in [doc 250](250-studio-embedded-scrubber-preview.md).
 
 ## Usage
 

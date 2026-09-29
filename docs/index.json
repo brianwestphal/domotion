@@ -791,8 +791,14 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": [],
-        "tickets": ["DM-570"],
-        "code": ["tests/review-server.tsx"],
+        "tickets": ["DM-570", "DM-A3QT31", "DM-Q6WQNA"],
+        "code": [
+          "src/review/region-overlay.ts",
+          "src/utils/region-feedback.ts",
+          "tests/review-client.tsx",
+          "tests/review-server.tsx",
+          "tools/crop-regions.ts"
+        ],
         "aliases": ["docs/31-region-feedback.md", "doc-31"]
       }
     },
@@ -806,7 +812,13 @@
         "owners": ["rendering"],
         "platforms": [],
         "tickets": ["DM-1454"],
-        "code": ["tests/features.ts", "tests/real-world.tsx", "tests/showcase.tsx"],
+        "code": [
+          "src/cli/animate-artifact.ts",
+          "src/cli/template.ts",
+          "tests/features.ts",
+          "tests/real-world.tsx",
+          "tests/showcase.tsx"
+        ],
         "aliases": ["docs/32-svg-optimization.md", "doc-32"]
       }
     },
@@ -821,6 +833,10 @@
         "platforms": ["windows"],
         "tickets": ["DM-2460", "DM-2461", "DM-2462", "DM-599", "DM-602", "DM-603"],
         "code": [
+          "src/cli/animate-frame-capture.ts",
+          "src/cli/animate-orchestrator.ts",
+          "src/cli/capture.ts",
+          "src/cli/mutation-detect.ts",
           "src/render/culling-geometry.ts",
           "src/render/element-tree-to-svg.ts",
           "src/tree-ops/swept-transform-bounds.ts",
@@ -1047,7 +1063,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["animation"],
-        "platforms": ["windows"],
+        "platforms": [],
         "tickets": [
           "DM-1050",
           "DM-1134",
@@ -1093,6 +1109,8 @@
           "examples/animate/hover-reveal/",
           "examples/animate/hover-state/",
           "examples/animate/region-timing/",
+          "src/cli/animate-command.ts",
+          "src/cli/animate-compression.ts",
           "src/cli/animate-orchestrator.ts",
           "src/cli/animate.ts"
         ],
@@ -1168,7 +1186,7 @@
         "status": "current",
         "owners": ["product-tooling"],
         "platforms": [],
-        "tickets": ["DM-1362", "DM-262", "DM-877", "DM-878"],
+        "tickets": ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3"],
         "code": [
           ".github/workflows/release.yml",
           "scripts/check-pack-contents.mjs",
@@ -1187,7 +1205,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["images-media"],
-        "platforms": ["macos", "windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1142", "DM-1144", "DM-1146", "DM-873", "DM-885"],
         "code": [
           "src/cli/svg-to-video-core.test.ts",
@@ -1304,7 +1322,9 @@
           "examples/animate/magic-move/",
           "src/animation/animator.ts",
           "src/animation/magic-move.ts",
+          "src/animation/transition-schema.ts",
           "src/capture/script/walker/",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/animate.ts",
           "src/scroll/executor.ts",
           "src/tree-ops/tree-diff.ts"
@@ -1370,6 +1390,7 @@
           "scripts/build-scrubber-client.mjs",
           "src/cli/scrubber.ts",
           "src/scrubber/client.tsx",
+          "src/scrubber/embed.ts",
           "src/scrubber/server.e2e.test.ts",
           "src/scrubber/server.ts",
           "src/scrubber/trim.test.ts",
@@ -1419,6 +1440,7 @@
         "code": [
           "scripts/generate-animate-schema.ts",
           "src/animation/overlay-schema.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/animate-config-json-schema.test.ts",
           "src/cli/animate.ts"
         ],

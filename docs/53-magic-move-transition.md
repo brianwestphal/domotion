@@ -11,7 +11,9 @@ code:
     "examples/animate/magic-move/",
     "src/animation/animator.ts",
     "src/animation/magic-move.ts",
+    "src/animation/transition-schema.ts",
     "src/capture/script/walker/",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/animate.ts",
     "src/scroll/executor.ts",
     "src/tree-ops/tree-diff.ts",
@@ -38,8 +40,9 @@ across the cut. Origin: DM-112.
 > the glyph/font `<defs>` (`getEmbeddedFontFaceCss()`) _before_ calling
 > `generateAnimatedSvg`, so re-rendering inside the animator would reference
 > glyphs missing from the emitted defs. The bridge layer is therefore built
-> **caller-side** (`buildMagicMove`, invoked from `src/cli/animate.ts` while the
-> page/trees are live and before defs are finalized) and passed to the animator
+> **caller-side** (`buildMagicMove`, invoked from
+> `src/cli/animate-orchestrator.ts` while the page/trees are live and before
+> defs are finalized) and passed to the animator
 > as a pre-rendered `frame.magicMove` payload; the animator only schedules it
 > and emits the keyframes.
 
@@ -96,8 +99,8 @@ see `docs/08` — so this collapse is handled inline by the magic-move matcher).
 ## Architecture / what must be built
 
 1. **New transition type.** Add `"magic-move"` to the union in
-   `src/animation/animator.ts` (the `transition.type` field) and to the Zod enum
-   in `src/cli/animate.ts` (`transitionSchema`). Update `docs/08` + `docs/43`
+   `src/animation/transition-schema.ts` (the `transition.type` field and Zod
+   `transitionSchema`). Update `docs/08` + `docs/43`
    pointers.
 
 2. **Element-tree input to the animator.** `generateAnimatedSvg` composes from

@@ -4,7 +4,7 @@ title: "Domotion: animated SVG → video export (svg-to-video)"
 kind: "contract"
 status: "current"
 owners: ["images-media"]
-platforms: ["macos", "windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1142", "DM-1144", "DM-1146", "DM-873", "DM-885"]
 code:
   [

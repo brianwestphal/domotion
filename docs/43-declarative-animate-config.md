@@ -4,7 +4,7 @@ title: "43 — Declarative animate config"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["windows"]
+platforms: []
 tickets:
   [
     "DM-1050",
@@ -52,6 +52,8 @@ code:
     "examples/animate/hover-reveal/",
     "examples/animate/hover-state/",
     "examples/animate/region-timing/",
+    "src/cli/animate-command.ts",
+    "src/cli/animate-compression.ts",
     "src/cli/animate-orchestrator.ts",
     "src/cli/animate.ts",
   ]
@@ -95,7 +97,13 @@ Every `selector` is a CSS selector resolved **in page context at capture time** 
 
 ### Validation & errors
 
-The config is validated up front by the zod schema in `src/cli/animate.ts` (`animateConfigSchema`) — the schema is the source of truth (see `docs/08-animation-model.md` → "Config validation"). Every new field/action/overlay below extends that schema. Errors are path-specific, e.g. `animate: frames[2].actions[0].selector: Invalid input: expected string, received number`. Runtime failures (selector not found, wait timeout) throw `animate: frames[N]…: <what failed>`.
+The config is validated up front by `animateConfigSchema` in
+`src/cli/animate-orchestrator.ts` — the schema is the source of truth (see
+`docs/08-animation-model.md` → "Config validation"). Every new
+field/action/overlay below extends that schema. Errors are path-specific, e.g.
+`animate: frames[2].actions[0].selector: Invalid input: expected string, received number`.
+Runtime failures (selector not found, wait timeout) throw
+`animate: frames[N]…: <what failed>`.
 
 A standard **JSON Schema** projection of that zod schema ships with the package — see "Published JSON Schema" below — so editors can offer autocompletion and structural validation without running Domotion.
 
@@ -711,7 +719,7 @@ Point a config's `"$schema"` key at either the URL or a local path to get autoco
 
 The CLI ignores the `"$schema"` key. Every config under `examples/animate/` carries this pointer as a worked example.
 
-**Source of truth & sync.** The schema is _generated from_ the zod `animateConfigSchema` in `src/cli/animate.ts` — never hand-edited — so it cannot drift from what the CLI actually enforces. Regenerate with `npm run build:animate-schema` (also run automatically as part of `npm run build`); the `animate-config-json-schema.test.ts` unit test fails if the committed file is stale.
+**Source of truth & sync.** The schema is _generated from_ the zod `animateConfigSchema` in `src/cli/animate-orchestrator.ts` — never hand-edited — so it cannot drift from what the CLI actually enforces. Regenerate with `npm run build:animate-schema` (also run automatically as part of `npm run build`); the `animate-config-json-schema.test.ts` unit test fails if the committed file is stale.
 
 **Coverage caveat.** JSON Schema captures _structure and types_ only. Cross-field and content rules expressed as zod refinements — "frame 0 must load a content source (`input` / `cast` / `template`)", a `scroll.pattern` must parse against the scroll-pattern grammar (`docs/37`), a `replaceText.pattern` must be a valid regex — have no JSON Schema equivalent and are **not** represented. Those stay enforced at runtime by `validateAnimateConfig`. A config that passes the JSON Schema can still be rejected by the CLI for one of these reasons; the JSON Schema is an editor aid, not a substitute for the runtime validator.
 

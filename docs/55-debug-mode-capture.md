@@ -32,7 +32,7 @@ and feeds directly into the `svg-review` CLI documented in doc 54.
 
 When `--debug` (or `--debug-dir <path>`) is passed, the CLI creates a
 sibling folder next to the output (default `<output-name>.debug/`) and
-populates it with four artifacts:
+populates it with four core artifacts (and a fifth when `--format` is set):
 
 | File                 | Source                                      | Used by                                         |
 | -------------------- | ------------------------------------------- | ----------------------------------------------- |
@@ -40,6 +40,7 @@ populates it with four artifacts:
 | `expected.png`       | `page.screenshot()` of the clip rect        | `svg-review` as the expected image              |
 | `actual.svg`         | copy of the produced SVG                    | `svg-review` as the actual SVG                  |
 | `captured-tree.json` | the intermediate element tree (pre-render)  | maintainer inspection of capture decisions      |
+| `safe-area.json`     | safe-area geometry when `--format` is given | reproduce the chosen output framing             |
 
 The final log line of a `--debug` run tells the user exactly which
 `svg-review` invocation will open the bundle:

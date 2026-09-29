@@ -41,7 +41,7 @@ shaped Markdown snippet the user can paste directly.
 ## Invocation
 
 ```
-svg-review --expected expected.png --actual actual.svg [--port <n>]
+svg-review --expected expected.png --actual actual.svg [--port <n>] [--no-open]
 ```
 
 - `--expected` — PNG of what Chromium painted on the source page. Required.
@@ -52,9 +52,10 @@ svg-review --expected expected.png --actual actual.svg [--port <n>]
   would see. Required.
 - `--port` — port the local HTTP server binds to. When omitted, binds an
   OS-assigned free port (the URL is printed on startup).
+- `--no-open` — print the local URL without launching the default browser.
 
-The tool prints the URL it opens and (on platforms with a default browser
-opener) launches the page automatically.
+The tool prints the local URL and, unless `--no-open` is set, launches the
+default browser when one is available.
 
 ## UI
 
@@ -156,5 +157,5 @@ flag to `domotion capture` that emits a HAR plus other diagnostic
 artifacts. The two tickets share one user story: a consumer hits a render
 fidelity issue, runs the capture with `--debug` to get expected.png +
 actual.svg + a HAR, then runs `svg-review` against the first two to file
-a focused bug. The Markdown snippet should include "I have a HAR — request
-it" so the maintainer knows to ask for the HAR when reproducing.
+a focused bug. The generated Markdown reports the image and SVG evidence;
+the user can mention the HAR separately when sharing the debug bundle.

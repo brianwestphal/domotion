@@ -48,8 +48,8 @@ The browser fetches only the partitions whose declared range covers a codepoint 
 
 Domotion's webfont registry stores variants keyed by `(family, weight, italic)` only. Pre-DM-557 there was no `unicode-range` filtering at pick time:
 
-1. **DM-517 (`pickWebfontVariant`)**: returns the Latin-covering variant when ties exist (a tertiary scoring component biased toward Basic Latin coverage). Worked for Latin-only text but had no per-codepoint awareness — non-Latin runs in a partitioned family fell to system fonts.
-2. **DM-557 (`pickWebfontVariantForCodepoint`)**: this doc. Filters variants by `unicodeRangeCovers(v.unicodeRange, codepoint)` then scores by italic + weight. Wired into the run-splitter in `textToPathMarkup` so a mixed-script run (Latin + Cyrillic + Greek in the same `<p>`) routes each codepoint to the matching partition before falling through to the system fallback chain.
+1. **DM-517 (`pickWebfontVariant`)**: the module-private no-codepoint picker prefers a Latin-covering variant with a range-mismatch penalty of `1e7` before scoring stretch, style, and weight. Worked for Latin-only text but had no per-codepoint awareness — non-Latin runs in a partitioned family fell to system fonts.
+2. **DM-557 (`pickWebfontVariantForCodepoint`)**: this doc. Filters variants by `unicodeRangeCovers(v.unicodeRange, codepoint)` then scores stretch, italic, and weight. Wired into the run-splitter in `textToPathMarkup` so a mixed-script run (Latin + Cyrillic + Greek in the same `<p>`) routes each codepoint to the matching partition before falling through to the system fallback chain.
 
 ## API
 
@@ -66,8 +66,8 @@ interface WebfontVariant {
 
 Two pickers consult it:
 
-- `pickWebfontVariant(family, weight, fontSize, slant)` — Latin-bias scorer. Returns the primary variant for the family when no codepoint context is known (e.g., the fast-path single-font lookup before run-splitting).
-- `pickWebfontVariantForCodepoint(family, weight, fontSize, slant, codepoint)` — codepoint filter + italic/weight scorer. Returns null when no registered variant covers the codepoint; the caller then falls through to the system fallback chain.
+- `pickWebfontVariant(family, weight, fontSize, slant, variationSettings?, stretch?)` — module-private Latin-bias scorer. Returns the primary variant for the family when no codepoint context is known (e.g., the fast-path single-font lookup before run-splitting).
+- `pickWebfontVariantForCodepoint(family, weight, fontSize, slant, codepoint, variationSettings?, stretch?)` — exported codepoint filter + stretch/style/weight scorer. Returns null when no registered variant covers the codepoint; the caller then falls through to the system fallback chain.
 
 ## Run-splitter integration
 
@@ -88,7 +88,7 @@ The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontIn
 
 - **Single-partition family** (no `unicode-range` declared): The variant has `unicodeRange = undefined` which `unicodeRangeCovers` treats as covering all codepoints. The codepoint pick returns it for any input — same behavior as today, no regression.
 - **Codepoint not covered by any registered variant**: `pickWebfontVariantForCodepoint` returns null. The run-splitter walks the system fallback chain instead, just as it did before DM-557. The diff in this case is unchanged.
-- **Italic mismatch + range coverage tradeoff**: `pickWebfontVariantForCodepoint`'s scoring uses italic mismatch (1000) + weight delta. It does NOT have the 2000-penalty range mismatch term that `pickWebfontVariant` carries, because the codepoint variant has already filtered to range-covering candidates. Among range-covering candidates, italic match dominates weight match — same priority order as the rest of the picker family.
+- **Style, stretch, and range coverage**: `pickWebfontVariantForCodepoint` filters to range-covering candidates, then scores stretch distance, italic mismatch, and weight delta. The no-codepoint picker adds `WEBFONT_RANGE_MISMATCH = 1e7` for variants that miss its Latin probe; range coverage is a leading gate, not a tertiary tie-breaker.
 
 ## Verification
 

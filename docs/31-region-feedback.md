@@ -5,14 +5,21 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-570"]
-code: ["tests/review-server.tsx"]
+tickets: ["DM-570", "DM-A3QT31", "DM-Q6WQNA"]
+code:
+  [
+    "src/review/region-overlay.ts",
+    "src/utils/region-feedback.ts",
+    "tests/review-client.tsx",
+    "tests/review-server.tsx",
+    "tools/crop-regions.ts",
+  ]
 aliases: ["docs/31-region-feedback.md", "doc-31"]
 ---
 
 # Region-scoped feedback in the demos-review tool
 
-End-to-end contract for an extension of Domotion's local visual-regression review tool (`npm run demos:review` → `tests/review-server.tsx`) that lets the user point at specific rectangular regions of an `expected` / `actual` / `diff` PNG triplet, persist those regions as a comment on the originating Hot Sheet ticket, and have Domotion's AI iteration loop crop the source images to those regions before reasoning.
+End-to-end contract for an extension of Domotion's local visual-regression review tool (`npm run demos:review` → `tests/review-server.tsx`) that lets the user point at specific rectangular regions of an `expected` / `actual` / `diff` PNG triplet, persist those regions in a newly filed Hot Sheet ticket, and crop the source images for a later iteration.
 
 Tracked in DM-570.
 
@@ -20,15 +27,15 @@ Tracked in DM-570.
 
 When a real-world visual-regression test fails (e.g., `apple-mobile-fold`, `framer-mobile-fold`), the three PNGs the review tool shows for that test can be 1280 × 4000+ pixels. Verbal descriptions like _"look at the lowercase 'a'"_ or _"the doodles around the apple icon"_ are hard to ground without a coordinate system, and when those descriptions land on a Hot Sheet ticket as a comment, the AI iteration that follows has to skim the whole screenshot trying to find the area the user meant. Forcing the entire-page PNGs into the iteration prompt also burns context on mostly-unrelated pixels.
 
-The fix: let the user spatially constrain feedback by drawing rectangles directly on the review-tool images, persist those rectangles on the ticket alongside the typed comment, and have the iteration loop crop the sources accordingly.
+The fix: let the user spatially constrain feedback by drawing rectangles directly on the review-tool images and persist those rectangles in the ticket details alongside the typed comment. A separate crop command produces the focused images on demand.
 
 ## Surfaces
 
 This feature touches two surfaces and a metadata format that bridges them:
 
 1. **The Domotion review tool** (`tests/review-server.tsx`, served by `npm run demos:review`) — the only existing place where the `expected` / `actual` / `diff` triplet is shown side-by-side. Gets the drag-to-draw rectangle overlay and the comment-submission flow.
-2. **The Hot Sheet ticket** (via the Hot Sheet API the review tool already has access to in this dev environment) — receives the comment with an embedded `REGIONS:` block. Full PNG attachments stay attached to the ticket as today.
-3. **Domotion's AI iteration loop** — parses the latest note's `REGIONS:` block, crops the source images, writes the crops to a deterministic scratch path, and uses them as primary visual context.
+2. **The Hot Sheet ticket** (via the review tool's Hot Sheet API integration) — is newly filed with the comment and a `REGIONS:` block in its details. The full PNG triplet is attached.
+3. **The manual crop step** — `tools/crop-regions.ts` parses the ticket's `REGIONS:` block, crops the source images, and writes a deterministic scratch path. Current alphanumeric Hot Sheet slugs and headless operation still need DM-A3QT31.
 
 ## Workflow contract
 
@@ -65,7 +72,7 @@ Keyboard navigation:
   - **Unsupported behavior** — the fixture is outside the current rendering contract and needs an explicit support decision.
   - **Accepted rasterization-only variance** — logical output agrees and only the documented rasterization, hinting, or antialiasing floor remains.
 - The tool deliberately does not infer this classification from pixel scores. A screenshot can locate a residual, but cannot identify the pipeline stage that caused it; the reviewer must first compare the relevant logical-stage evidence.
-- On submit, the tool POSTs a note to the Hot Sheet API for the matching ticket. The note body is:
+- On submit, the tool files a Hot Sheet ticket whose details include:
 
   ```
   <user-typed comment text>
@@ -89,7 +96,10 @@ Keyboard navigation:
 
 ### Iteration consumes the regions
 
-When Claude is triggered on a ticket whose latest note contains a `REGIONS:` block:
+The cropper is available as a manual CLI step for legacy numeric tickets. The
+reviewer runs `npx tsx tools/crop-regions.ts --ticket DM-<number>` for a ticket with a `REGIONS:`
+block, then supplies the printed crop paths as visual context for the next
+iteration. It does not run automatically when an agent is triggered. The tool:
 
 1. Parse the block. Each entry → `{index, image?, x, y, w, h, caption?}`.
 2. For each entry, resolve the target attachment(s):
@@ -97,7 +107,7 @@ When Claude is triggered on a ticket whose latest note contains a `REGIONS:` blo
    - Without `image=` → all three triplet members for the test the ticket is about.
 3. For each `(rectangle, attachment)` pair, produce **one crop per rectangle** (no union-bbox collation — separate crops, in draw order). Crops are tight to the rectangle with no extra padding.
 4. Write crops to `tests/output/region-crops/DM-{ticket-id}/{noteId}/[{rectIndex}]-{imageBasename}.png` so subsequent runs can locate the same crops deterministically. The `{noteId}` segment keeps historical comments addressable.
-5. Inject the crops into Claude's working context as **primary** visual evidence, **in addition to** the full attached PNGs (which the Hot Sheet ticket continues to carry as today). The crops are labeled with `[index]`, `image=<basename>`, and the optional caption so Claude can read them with the user's framing.
+5. Prints the crop paths for the reviewer or agent to open as **primary** visual evidence alongside the full attached PNGs. The indexed paths retain the rectangle's identity; captions remain in the ticket details.
 
 ## Non-goals
 
@@ -117,10 +127,8 @@ REGIONS:
 - `image=` is optional. Match is substring against `attachments[].filename`; the review tool only ever emits `expected`, `actual`, or `diff` here, but the parser tolerates anything that uniquely identifies one attachment.
 - All four geometric fields are required. Negative coordinates are invalid (the review tool clamps drags to image bounds before serializing).
 
-## Implementation backlog (to be filed as follow-up tickets)
+## Implementation status
 
-- **Review-tool overlay** (`tests/review-server.tsx`): drag-to-draw / drag-edges-to-resize / click-interior-to-delete, multi-image sync across the triplet, auto-numbering, multi-rectangle handling.
-- **Review-tool comment composer**: free-text textarea, serialize-rectangles-on-submit, clear-on-submit, POST to Hot Sheet `POST /api/tickets/{id}/notes` (or equivalent) with the composed body.
-- **Iteration parser + cropper**: `REGIONS:` block parser, attachment-resolution helper, `sharp`-based per-rectangle PNG cropping, scratch-path writer at `tests/output/region-crops/DM-{id}/{noteId}/`.
-- **Iteration context-injection hook**: pulls the latest note's `REGIONS:` block on channel re-trigger and feeds the crops to Claude with labels.
-- **Optional polish**: keyboard shortcut to clear all in-progress rectangles without submitting; on-image rendering of the rectangle index + caption while drawing.
+- **Review-tool overlay and comment composer**: shipped in `src/review/region-overlay.ts`, `tests/review-client.tsx`, and `tests/review-server.tsx`. Rectangles are serialized with the submitted evidence; Escape clears in-progress rectangles.
+- **Parser and cropper**: shipped in `src/utils/region-feedback.ts` and `tools/crop-regions.ts`. Crop injection into an agent's context remains a manual step after running the CLI.
+- **Optional on-image captions while drawing**: not implemented (DM-Q6WQNA); the ticket retains captions after submission.

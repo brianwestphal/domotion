@@ -30,6 +30,11 @@ pairs with DM-259 (Linux) / DM-260 (Windows) calibration. Sibling reference:
 > DM-891. Inert on macOS by design (see "Why it's inert here"); its first real
 > fixtures arrive with DM-259 / DM-260.
 
+The ownership-aware successor is `resolveGlyphCommands` in
+`packages/text-engine/src/render/font-resolution.ts`; it carries a disposition
+alongside the outline. Historical `commandsFor` examples below describe the
+DM-892 integration and remain a command-only projection.
+
 ## The gap (before DM-892)
 
 Domotion has two text render modes (`packages/text-engine/src/render/text-to-path.ts`):

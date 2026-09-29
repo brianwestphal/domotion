@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1362", "DM-262", "DM-877", "DM-878"]
+tickets: ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3"]
 code:
   [
     ".github/workflows/release.yml",
@@ -38,18 +38,18 @@ the contract for that invocation surface.
 
 ## Invocation forms
 
-The package declares **five** bins (`domotion`, `svg-to-video`, `svg-to-image`,
-`svg-review`, `svg-scrubber`), none of which is named `domotion-svg`.
+The package declares **six** bins (`domotion`, `svg-to-video`, `svg-to-image`,
+`svg-review`, `svg-scrubber`, `domotion-studio`), none of which is named `domotion-svg`.
 npx only auto-runs a package's bin when the package declares exactly one, or one
 whose name matches the requested command — neither holds here — so the bin to
 run must be named explicitly:
 
-| Form                                   | Notes                                                                                                                                                                                                                                                                    |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `svg-scrubber` to run the other bins.                                                                       |
-| `npx domotion-svg <cmd> …`             | **Does NOT work** — with five bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding the other four bins broke the bare form — DM-1362.) |
-| `domotion <cmd> …`                     | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all five bins by name.                                                                                                                                       |
-| `npx tsx src/cli/index.ts <cmd> …`     | Local dev from a clone (the `npm run capture` script).                                                                                                                                                                                                                   |
+| Form                                   | Notes                                                                                                                                                                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `svg-scrubber` / `domotion-studio` to run the other bins.                                        |
+| `npx domotion-svg <cmd> …`             | **Does NOT work** — with six bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding more bins broke the bare form — DM-1362.) |
+| `domotion <cmd> …`                     | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all six bins by name.                                                                                                                             |
+| `npx tsx src/cli/index.ts <cmd> …`     | Local dev from a clone (the `npm run capture` script).                                                                                                                                                                                                        |
 
 Subcommands and their flags are documented by `domotion --help`; they are out
 of scope here. This doc covers only that the bin resolves, executes, and
@@ -101,7 +101,9 @@ build` removes it before compiling, then checks that every emitted `.js` and
 `npx -p domotion-svg domotion` downloads and runs the package, but the tool
 itself needs:
 
-- **Node.js 22+** — the engine the package targets.
+- **Node.js 22+** — the runtime the package targets. `package.json` currently
+  has no `engines` field, so npm does not enforce this floor at install time;
+  the CLI and test infrastructure are validated on Node 22+.
 - **A Playwright Chromium browser binary** — a separate download from the
   `@playwright/test` dependency. The CLI does **not** require the user to
   pre-install it: `launchChromium()` (`src/capture/index.ts`) catches the
@@ -119,7 +121,7 @@ itself needs:
   **registry-published** form is a supported contract. Adding a `prepare`
   build step to support git installs is a deliberate open decision, not an
   oversight (it would run `tsc` + the capture-script bundler on every plain
-  `npm install` in the repo). Tracked as a follow-up.
+  `npm install` in the repo). The decision is tracked in DM-T239R3.
 - **Tarball weight affects first-run latency.** `npx` downloads the whole
   tarball before the first run, so the published package's `files` allowlist is
   kept tight: `dist`, `assets`, `schemas`, `llms.txt`, `README.md`, `LICENSE`,

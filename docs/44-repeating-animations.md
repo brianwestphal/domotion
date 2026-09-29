@@ -58,6 +58,8 @@ The `typing` overlay reveals text but leaves no insertion caret. Add a `caret` o
 
 - Tracks the type cursor during typing, then blinks in place at the end of the text.
 - Defaults: `width` 1–2px, `color` inherits the typing color, `blinkMs` ≈ 530 (browser caret cadence). Blink = opacity 1↔0 on a `blinkMs` cycle.
+- `caret.shape` accepts `bar` (default), `block`, or `underscore`; the block
+  variant uses a translucent fill so the underlying glyph remains visible.
 - Pairs with the typing-overlay wrap (`bgWidth`, DM-840): on a wrapped field the caret sits at the end of the last wrapped line.
 
 This is the concrete thing the review-loop demo needed. Implemented as an extension of the typing overlay's renderer (it already computes per-character positions), reusing mechanism 1's repeat for the blink.
@@ -79,6 +81,7 @@ A general standalone blinker, for carets/dots not tied to a typing overlay (reco
 
 - Positioned by `x`/`y` or by an `anchor` (selector bbox — see `docs/43` §5).
 - Renders a bar/box that toggles opacity on a `periodMs` cycle for the frame's hold.
+- If omitted, `periodMs` defaults to 1000 ms.
 - Sugar over mechanism 1 (a `blink` overlay is a small rect + a repeating opacity animation), so it lands after 1 + 2.
 
 ## Shared semantics

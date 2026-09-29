@@ -6,7 +6,14 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-1454"]
-code: ["tests/features.ts", "tests/real-world.tsx", "tests/showcase.tsx"]
+code:
+  [
+    "src/cli/animate-artifact.ts",
+    "src/cli/template.ts",
+    "tests/features.ts",
+    "tests/real-world.tsx",
+    "tests/showcase.tsx",
+  ]
 aliases: ["docs/32-svg-optimization.md", "doc-32"]
 ---
 
@@ -55,7 +62,8 @@ svgz on an un-svgo'd SVG gzips reasonably (it's text), but running svgo first gi
 
 ## CLI integration
 
-Both subcommands honor `.svgz` auto-detection from `-o`:
+The `capture`, `animate`, and `template` subcommands honor `.svgz`
+auto-detection from `-o`:
 
 ```
 domotion capture ./hero.html -o hero.svgz        # gzipped svg; svgo implied
@@ -71,7 +79,10 @@ Rules:
 4. Stdout output (`-o -` or no `-o`) writes the raw bytes (gzip or text) directly; pipe through `gunzip -c` or pipe into a `.svgz`-named file.
 5. The "Wrote …" stderr line reports `KB svgz` vs `KB` so the user can see at a glance which form landed on disk.
 
-The `animate` subcommand follows the same rules. The JSON config's `"optimize": true` is still honored; `--no-optimize` on the command line wins over the config when the output is `.svgz` (treats the config as a default the user is overriding).
+The `animate` subcommand follows the same rules. The JSON config's
+`"optimize": true` is still honored; `--no-optimize` on the command line wins
+over the config regardless of output extension. The `template` verb shares
+the same `.svgz` and optimization write path.
 
 ## Public API
 

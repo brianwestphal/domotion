@@ -511,8 +511,10 @@ two chromium-version-nuance Latin blocks above, correctly left uncommitted).
 
 ## The probe script
 
-A `tools/probe-fallbacks-cross-platform.mjs` modelled on the existing
-`tools/probe-*.mjs` scripts: takes a primary family + a list of (block,
+A cross-platform probe was proposed here. The shipped probes are
+`tools/probe-fallbacks-linux.mjs` and `tools/probe-983-sweep.mjs`; the
+proposed generic `tools/probe-fallbacks-cross-platform.mjs` was not added.
+The intended method takes a primary family + a list of (block,
 representative-codepoint) pairs, launches Playwright Chromium, measures each
 `Range.getBoundingClientRect().width`, then for each candidate face (resolved
 through DM-258's `resolveFontSpec`) prints the fontkit advance and flags the
@@ -521,24 +523,22 @@ container for DM-259; a `windows-latest` runner for DM-260). Output is pasted
 into the per-platform chain functions with a one-line calibration comment per
 block (matching the macOS chain's comment style).
 
-## Execution environment (the blocker)
+## Historical execution environment
 
-- **Linux (DM-259)**: run the probe inside the Playwright Linux container —
+- **Linux (DM-259)**: calibration probes ran inside the Playwright Linux container —
   `npm run test:linux-docker` infrastructure already pins the same image CI
   uses. Requires Docker. _(Not available in the sandbox where DM-258 was
-  implemented — this is the gating dependency for DM-259's empirical step.)_
-- **Windows (DM-260)**: run the probe on a `windows-latest` GitHub runner
-  (the `windows-fidelity.yml` workflow already exists and is where DM-835's
-  Windows painted-width JSON lands). DM-836 is the ticket that consumes that
-  Windows probe data to build the win32 chain — DM-260 and DM-836 overlap and
-  should be reconciled (DM-260 = the requirements/methodology; DM-836 = the
-  data-driven implementation once a windows-latest run exists).
+  implemented; this was the gating dependency for DM-259's empirical step.)_
+- **Windows (DM-260)**: the plan used a `windows-latest` GitHub runner and the
+  `windows-fidelity.yml` workflow for painted-width evidence. DM-836 consumed
+  that data for the win32 chain; the overlap was between DM-260's methodology
+  and DM-836's data-driven implementation.
 
-## Open question — Linux font baseline
+## Historical Linux font baseline decision
 
 The Linux chain depends on **which fonts are installed**, and the Playwright
 Linux image does **not** ship Noto Sans CJK by default — it uses WenQuanYi Zen
-Hei / IPAGothic for CJK. Two options:
+Hei / IPAGothic for CJK. The original calibration considered two options:
 
 - **(A) Calibrate against the Playwright image as-is** — faithful to what CI
   actually renders, but the CJK faces aren't Noto, so the chain (and the

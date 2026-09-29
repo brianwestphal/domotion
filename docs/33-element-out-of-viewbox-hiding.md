@@ -8,6 +8,10 @@ platforms: ["windows"]
 tickets: ["DM-2460", "DM-2461", "DM-2462", "DM-599", "DM-602", "DM-603"]
 code:
   [
+    "src/cli/animate-frame-capture.ts",
+    "src/cli/animate-orchestrator.ts",
+    "src/cli/capture.ts",
+    "src/cli/mutation-detect.ts",
     "src/render/culling-geometry.ts",
     "src/render/element-tree-to-svg.ts",
     "src/tree-ops/swept-transform-bounds.ts",
@@ -105,7 +109,7 @@ a continuously animated SVG remains absent between them.
 Three output shapes, per element:
 
 1. **Always hidden (no animation, off-viewBox)** — emit `style="display:none"` directly on the element's `<g>`. No CSS rule, no keyframes.
-2. **Animated, hide before / after only** — emit a `@keyframes` block with the standard discrete-snap pattern (0.001 % gap between on/off keyframes, animation-timing-function: step-end). The shipped `buildCullKeyframes` helper in `src/tree-ops/viewbox-culling.ts` produces this block (toggling `visibility`, not `display`). Apply via a per-element class `dh-<n>` (display-hide-N).
+2. **Animated, hide before / after only** — emit a `@keyframes` block with the standard discrete-snap pattern (0.001 % gap between on/off keyframes, animation-timing-function: step-end). The shipped `buildCullKeyframes` helper in `src/tree-ops/viewbox-culling.ts` produces this block (toggling `visibility`, not `display`). Apply via a class derived from the visible interval, such as `cull-8_419-91_581`.
 3. **Always hidden during scroll animation** — same `@keyframes` shape but the visible window is empty. Effectively equivalent to `style="display:none"` but parameterized through the keyframe pipeline for uniformity.
 
 Classes are coalesced when N elements share the same visible interval (common in long-scroll captures where contiguous rows have identical t_visible_start / t_visible_end). Map `(t_visible_start, t_visible_end) → className`, emit one keyframes block per unique interval.
@@ -122,6 +126,10 @@ Classes are coalesced when N elements share the same visible interval (common in
   their already-baked frozen static/filter state is not re-applied.
 - **Composition time** emits/deduplicates the cull keyframes alongside the
   ordinary frame and intra-frame animation CSS.
+
+The pass is called from the standalone capture route in `src/cli/capture.ts`
+and the animation routes in `src/cli/animate-orchestrator.ts`,
+`src/cli/animate-frame-capture.ts`, and `src/cli/mutation-detect.ts`.
 
 ## Output size budget
 

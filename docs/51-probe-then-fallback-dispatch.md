@@ -31,6 +31,13 @@ DM-887 (follow-up to DM-881; pairs with DM-259 / DM-260).
 > fontkit opens but can't decode a specific glyph in. The two-tier framing +
 > findings that motivated it follow.
 
+The current text-emission route uses `resolveGlyphCommands` in
+`packages/text-engine/src/render/font-resolution.ts`. It returns both the
+outline commands and an ownership disposition, so callers can distinguish
+helper ink, legitimate empty glyphs, and unresolved missing ink. The older
+`commandsFor` function described below remains a command-only compatibility
+projection for callers outside the ownership-aware emitter.
+
 ## The gap
 
 DM-881 made the helper _resolvable + invocable_ on all three platforms, but the
