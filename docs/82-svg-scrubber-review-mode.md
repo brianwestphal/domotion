@@ -53,7 +53,7 @@ Shown only in `--review` mode, as an extra row in the transport bar:
 
 - **Title** (required) — becomes the ticket title.
 - **Category** — `bug` (default) / `issue` / `feature` / `task` /
-  `investigation`; becomes the ticket category.
+  `investigation` / `requirement_change`; becomes the ticket category.
 - **Mark region** — arms a drag-to-draw overlay on the stage. Drag a rectangle
   over the problem area; it's recorded in the SVG's **user-space units** (the
   same coordinate space as the crop rect, so it's meaningful regardless of zoom

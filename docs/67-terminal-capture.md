@@ -11,7 +11,7 @@ code:
     "examples/progress-install.ts",
     "examples/terminal-demo.ts",
     "src/animation/embed-timeline.ts",
-    "src/cli/index.ts",
+    "src/cli/term.ts",
     "src/terminal/",
     "src/terminal/font-dedup.e2e.test.ts",
   ]
@@ -153,7 +153,7 @@ synthesized cast colors identically to a recorded one.
 
 ## Architecture (4 stages)
 
-`src/terminal/` + the `term` subcommand in `src/cli/index.ts`. The backend is
+`src/terminal/` + the `term` subcommand (`runTerm` in `src/cli/term.ts`). The backend is
 deliberately source-agnostic — swap stage 1 for a `node-pty` byte stream and
 stages 2–4 are identical.
 

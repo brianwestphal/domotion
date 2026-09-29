@@ -965,7 +965,8 @@
       "platforms": [],
       "code": [
         "src/animation/resolve-overlays.ts",
-        "packages/text-engine/src/index.ts",
+        "src/index.ts",
+        "src/capture/content-box.ts",
         "tests/cross-region-anchor.e2e.test.ts"
       ],
       "file": "61-overlay-resolution-primitive.md"
@@ -994,7 +995,12 @@
       "status": "current",
       "owners": ["animation"],
       "platforms": [],
-      "code": ["src/cli/animate.ts", "packages/text-engine/src/index.ts"],
+      "code": [
+        "src/cli/animate-orchestrator.ts",
+        "src/capture/content-box.ts",
+        "src/capture/public.ts",
+        "src/index.ts"
+      ],
       "file": "63-cursor-action-primitives.md"
     },
     {
@@ -1078,7 +1084,7 @@
         "examples/progress-install.ts",
         "examples/terminal-demo.ts",
         "src/animation/embed-timeline.ts",
-        "src/cli/index.ts",
+        "src/cli/term.ts",
         "src/terminal/",
         "src/terminal/font-dedup.e2e.test.ts"
       ],
@@ -1118,7 +1124,8 @@
         "site/src/content/docs/usage/templates.md",
         "src/cli/animate-config-json-schema.ts",
         "src/cli/template.ts",
-        "packages/text-engine/src/index.ts",
+        "src/index.ts",
+        "src/templates/index.ts",
         "src/render/device-chrome.ts",
         "src/templates/builtin/",
         "src/templates/json-schema.ts",
@@ -3691,12 +3698,7 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": ["macos", "linux", "windows"],
-      "code": [
-        "src/capture/debug-bundle.ts",
-        "src/capture/index.ts",
-        "packages/text-engine/src/index.ts",
-        "tests/capture-debug-api.e2e.test.ts"
-      ],
+      "code": ["src/capture/debug-bundle.ts", "src/capture/index.ts", "tests/capture-debug-api.e2e.test.ts"],
       "file": "238-programmatic-debug-capture-bundles.md"
     },
     {

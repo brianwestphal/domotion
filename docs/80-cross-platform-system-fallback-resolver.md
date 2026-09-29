@@ -92,7 +92,7 @@ the host actually has a font that covers it and the browser would have painted a
 real glyph.
 
 macOS already closes that gap with a **live, per-codepoint resolver**:
-`resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)` asks CoreText
+`resolveSystemFallbackKeyForCp` asks CoreText
 (`CTFontCreateForString`, via the native Swift helper) which on-disk font it
 would pick for `cp`, registers that face under a dynamic `sysfb:<postscriptName>`
 key (`registerDynamicSystemFont`), and returns the key so the normal chain walker
@@ -291,9 +291,12 @@ out-of-table codepoint always tofu'd, regardless of what the system could paint.
 
 ## Design — symmetric per-platform backend behind one entry point
 
-`resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize)` is the single entry
-point. It memoizes per codepoint **and CSS description** (the macOS answer is
-weight- and style-dependent), then dispatches by platform:
+`resolveSystemFallbackKeyForCp(cp, weight = 400, slant = 0, fontSize = 16,
+primaryKey?, systemUiPrimary = false, lang?, …)` (`font-resolution.ts`) is the
+single entry point. It memoizes per codepoint **and CSS description** — the
+macOS answer is weight- and style-dependent, and the base family (`primaryKey`)
+and the content locale (`lang`) are memo-key components too (see
+`fallbackCacheKey`) — then dispatches by platform:
 
 | Platform | Backend                                                                       | Status                            |
 | -------- | ----------------------------------------------------------------------------- | --------------------------------- |

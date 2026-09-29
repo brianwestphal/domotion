@@ -1484,7 +1484,8 @@
         "tickets": ["DM-1132", "DM-1133", "DM-1793", "DM-1799", "DM-587"],
         "code": [
           "src/animation/resolve-overlays.ts",
-          "packages/text-engine/src/index.ts",
+          "src/index.ts",
+          "src/capture/content-box.ts",
           "tests/cross-region-anchor.e2e.test.ts"
         ],
         "aliases": ["docs/61-overlay-resolution-primitive.md", "doc-61"]
@@ -1521,7 +1522,12 @@
         "owners": ["animation"],
         "platforms": [],
         "tickets": ["DM-1132", "DM-1133", "DM-1135", "DM-1136"],
-        "code": ["src/cli/animate.ts", "packages/text-engine/src/index.ts"],
+        "code": [
+          "src/cli/animate-orchestrator.ts",
+          "src/capture/content-box.ts",
+          "src/capture/public.ts",
+          "src/index.ts"
+        ],
         "aliases": ["docs/63-cursor-action-primitives.md", "doc-63"]
       }
     },
@@ -1621,7 +1627,7 @@
           "examples/progress-install.ts",
           "examples/terminal-demo.ts",
           "src/animation/embed-timeline.ts",
-          "src/cli/index.ts",
+          "src/cli/term.ts",
           "src/terminal/",
           "src/terminal/font-dedup.e2e.test.ts"
         ],
@@ -1673,7 +1679,8 @@
           "site/src/content/docs/usage/templates.md",
           "src/cli/animate-config-json-schema.ts",
           "src/cli/template.ts",
-          "packages/text-engine/src/index.ts",
+          "src/index.ts",
+          "src/templates/index.ts",
           "src/render/device-chrome.ts",
           "src/templates/builtin/",
           "src/templates/json-schema.ts",
@@ -5024,12 +5031,7 @@
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2635"],
-        "code": [
-          "src/capture/debug-bundle.ts",
-          "src/capture/index.ts",
-          "packages/text-engine/src/index.ts",
-          "tests/capture-debug-api.e2e.test.ts"
-        ],
+        "code": ["src/capture/debug-bundle.ts", "src/capture/index.ts", "tests/capture-debug-api.e2e.test.ts"],
         "aliases": ["docs/238-programmatic-debug-capture-bundles.md", "doc-238"]
       }
     },
