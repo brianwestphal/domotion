@@ -4,6 +4,7 @@
  * Uses Playwright to inspect DOM elements and recreate them as native SVG.
  */
 
+import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-background.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { renderRadicalGlyph } from "./text-to-path.js";
 import {
@@ -257,7 +258,7 @@ export function transparentRootBgRect(elements: CapturedElement[], width: number
   if (elements.length === 0) return "";
   const styles = elements[0].styles;
   const rootBg = styles?.rootBgComputed;
-  if (rootBg == null || rootBg === "" || rootBg === "rgba(0, 0, 0, 0)" || rootBg === "transparent") {
+  if (!isPaintedColor(rootBg)) {
     return "";
   }
   return `<rect width="${width}" height="${height}" fill="${rootBg}" />`;
@@ -1311,10 +1312,7 @@ function paintTruncationMarker(
     // markerW: per-char ~0.95 of fontSize is a conservative width for
     // "…" in Helvetica/Arial/SF Pro; custom strings may be slightly off
     // but this is much closer than the previous 0.55 ratio.
-    const bgCol =
-      el.styles.backgroundColor != null && el.styles.backgroundColor !== "rgba(0, 0, 0, 0)"
-        ? el.styles.backgroundColor
-        : "rgb(255,255,255)";
+    const bgCol = isPaintedColor(el.styles.backgroundColor) ? el.styles.backgroundColor : "rgb(255,255,255)";
     // "…" in Helvetica/Arial/SF Pro has an advance of ~1000-1100 font
     // units / em (≈1.0× fontSize). Custom strings use length × 0.55 as
     // a generic ratio.
@@ -1386,7 +1384,7 @@ function customScrollbarBorderSide(
   return {
     width: `${r((parseFloat(value?.width ?? "0") || 0) * zoom)}px`,
     style: value?.style || "none",
-    color: value?.color || "rgba(0, 0, 0, 0)",
+    color: value?.color || TRANSPARENT_BLACK,
   };
 }
 
@@ -1449,7 +1447,7 @@ function paintCustomScrollbarVectorPart(
   const leftBorder = customScrollbarBorderSide(style.borderSides?.left, zoom);
   const uniformBorderWidth = `${border?.width ?? 0}px`;
   const uniformBorderStyle = border?.style ?? "none";
-  const uniformBorderColor = border?.color ?? "rgba(0, 0, 0, 0)";
+  const uniformBorderColor = border?.color ?? TRANSPARENT_BLACK;
   const perSideBorder = style.borderSides != null;
   const radiusLonghands = scaledScrollbarCornerLonghands(style.borderRadius, zoom);
   const rect = item.part.rect;
@@ -3062,8 +3060,7 @@ function paintPseudoBoxes(
       // (`pseudo-after-down-caret-vertical-align`) stays correct.
       if (pb.pseudo === "::after" && select === "inline") {
         const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
-        const hasBgColor =
-          pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
+        const hasBgColor = isPaintedColor(pb.backgroundColor);
         const hasBorder =
           (pb.borderTopWidth ?? 0) > 0 ||
           (pb.borderRightWidth ?? 0) > 0 ||
@@ -3121,10 +3118,7 @@ function paintPseudoBoxes(
       // a right triangle in the solid color. Detect + emit as <polygon>
       // since per-side <line> emission would draw a stub the wrong shape.
       const isOpaque = (c?: string): boolean =>
-        c != null &&
-        c !== "rgba(0, 0, 0, 0)" &&
-        c !== "transparent" &&
-        !/^rgba?\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*0\s*\)/i.test(c);
+        isPaintedColor(c) && !/^rgba?\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*0\s*\)/i.test(c);
       const bwT = pb.borderTopWidth ?? 0;
       const bwR = pb.borderRightWidth ?? 0;
       const bwB = pb.borderBottomWidth ?? 0;
@@ -3256,7 +3250,7 @@ function paintPseudoBoxes(
         color: string | undefined,
         style: string | undefined,
       ): void => {
-        if (!width || width <= 0 || !color || color === "rgba(0, 0, 0, 0)" || color === "transparent") return;
+        if (!width || width <= 0 || !isPaintedColor(color)) return;
         if (style === "none" || style === "hidden") return;
         const dash =
           style === "dashed"
@@ -3334,8 +3328,7 @@ function paintDeferredFadeOverlays(state: RenderState, el: CapturedElement, inde
     for (const pb of el.pseudoBoxes) {
       if (pb.pseudo !== "::after") continue;
       const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
-      const hasBgColor =
-        pb.backgroundColor != null && pb.backgroundColor !== "" && pb.backgroundColor !== "rgba(0, 0, 0, 0)";
+      const hasBgColor = isPaintedColor(pb.backgroundColor);
       const hasBorder =
         (pb.borderTopWidth ?? 0) > 0 ||
         (pb.borderRightWidth ?? 0) > 0 ||

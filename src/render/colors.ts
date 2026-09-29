@@ -19,8 +19,11 @@ export interface RGBA {
 export function parseColor(css: string): RGBA | null {
   if (css === "" || css === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
   // rgb()/rgba() — Chromium uses this form for srgb colors.
-  const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(css);
-  if (m != null) return { r: +m[1], g: +m[2], b: +m[3], a: m[4] != null ? +m[4] : 1 };
+  // Anchored, and accepts both the legacy comma form and the space/slash form
+  // (`rgb(0 0 0 / .5)`, `rgb(0 0 0 / 50%)`), so a trailing token or a modern
+  // spelling is neither half-matched nor rejected.
+  const m = /^\s*rgba?\(\s*(\d+)\s*[,\s]\s*(\d+)\s*[,\s]\s*(\d+)\s*(?:[,/]\s*([\d.]+)(%)?\s*)?\)\s*$/i.exec(css);
+  if (m != null) return { r: +m[1], g: +m[2], b: +m[3], a: m[4] != null ? (m[5] != null ? +m[4] / 100 : +m[4]) : 1 };
   // #rrggbb / #rrggbbaa — hex.
   const h = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(css);
   if (h != null) {

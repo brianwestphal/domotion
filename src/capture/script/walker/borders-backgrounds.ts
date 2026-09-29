@@ -40,6 +40,7 @@
 //   - **borderImageIntrinsicWidth / Height**: same pattern for border-
 //     image-source url().
 
+import { TRANSPARENT_BLACK } from "../../../utils/transparent-background.js";
 import { extractCssUrl } from "../utils.js";
 import {
   collapsedBorderStyle,
@@ -881,7 +882,7 @@ export const createBordersBackgroundsHandler = ({
             borderBottomWidth: "0px",
             borderLeftWidth: "0px",
             borderWidth: "0px",
-            borderColor: "rgba(0, 0, 0, 0)",
+            borderColor: TRANSPARENT_BLACK,
           };
         }
         if (tableRects != null && (isCollapsedStructural(tag, cs) || isCollapsedTableCell(tag, cs))) {
@@ -895,7 +896,7 @@ export const createBordersBackgroundsHandler = ({
             borderBottomWidth: "0px",
             borderLeftWidth: "0px",
             borderWidth: "0px",
-            borderColor: "rgba(0, 0, 0, 0)",
+            borderColor: TRANSPARENT_BLACK,
           };
         }
         if (isCollapsedStructural(tag, cs)) {
@@ -912,7 +913,7 @@ export const createBordersBackgroundsHandler = ({
             // falls back to `borderWidth` / `borderColor` when the per-side parses
             // resolve to a zero-width border, which would re-paint the structural box.
             borderWidth: "0px",
-            borderColor: "rgba(0, 0, 0, 0)",
+            borderColor: TRANSPARENT_BLACK,
           };
         }
         return {};

@@ -28,12 +28,21 @@ export function isTransparentBackground(bg: string): boolean {
   // rgba()/hsla() with a zero (or 0%) alpha component.
   const fn = v.match(/^(?:rgba|hsla)\(([^)]*)\)$/);
   if (fn != null) {
-    const parts = fn[1]
-      .split(/[,/]/)
-      .map((p) => p.trim())
-      .filter((p) => p !== "");
+    // Comma form, space form and the `/ alpha` slash form all reduce to the same tokens.
+    const parts = fn[1].split(/[\s,/]+/).filter((p) => p !== "");
     const a = parts[parts.length - 1];
     if (parts.length >= 4 && (a === "0%" || /^0(?:\.0+)?$/.test(a))) return true;
   }
   return false;
+}
+
+/** The computed-style spelling of "no color": what `getComputedStyle` reports for a
+ *  transparent color and the value to use where one must be supplied. Compare with
+ *  {@link isTransparentBackground} / {@link isPaintedColor}, never with `===`. */
+export const TRANSPARENT_BLACK = "rgba(0, 0, 0, 0)";
+
+/** True when `css` is a color that paints something: present and not transparent
+ *  in any spelling {@link isTransparentBackground} recognizes. */
+export function isPaintedColor(css: string | null | undefined): css is string {
+  return css != null && !isTransparentBackground(css);
 }

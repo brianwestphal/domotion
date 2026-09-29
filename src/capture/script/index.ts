@@ -19,6 +19,7 @@
 // (fixed-ancestor pre-pass, counter pre-walk, root-element capture, mask-def +
 // dark-mode attachment to the result tree).
 
+import { isPaintedColor } from "../../utils/transparent-background.js";
 import { createColorNorm } from "./color-norm.js";
 import { createEmojiDetect } from "./emoji-detect.js";
 import { createDottedCircleDetect } from "./dotted-circle-detect.js";
@@ -1041,7 +1042,7 @@ const captureDocumentTree = (args) => {
   // element, routing its gradient through the existing element-gradient path.
   const rootBgImage = rootCs.backgroundImage;
   const rootHasBgImage = rootBgImage != null && rootBgImage !== "none" && rootBgImage !== "";
-  const rootHasBg = (rootBg != null && rootBg !== "rgba(0, 0, 0, 0)" && rootBg !== "transparent") || rootHasBgImage;
+  const rootHasBg = isPaintedColor(rootBg) || rootHasBgImage;
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
   // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
   // Chrome paints it; we'd miss it if we only walked root.children (Element

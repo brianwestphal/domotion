@@ -7,6 +7,7 @@
  * boundary instead of substituting a platform-calibrated SVG approximation.
  */
 
+import { isPaintedColor } from "../utils/transparent-background.js";
 import type { CapturedElement } from "../capture/types.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { isWholeHostNativeAppearance } from "../capture/effective-appearance.js";
@@ -439,13 +440,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // For opaque non-repeating gradients this is invisible, but a repeating
   // gradient with transparent stops (e.g. tick-marks track) reveals the
   // color between stripes (DM-275).
-  if (
-    trackGradFill != null &&
-    styledTrack &&
-    s.rangeTrackBg !== "rgba(0, 0, 0, 0)" &&
-    s.rangeTrackBg != null &&
-    s.rangeTrackBg !== ""
-  ) {
+  if (trackGradFill != null && styledTrack && isPaintedColor(s.rangeTrackBg)) {
     parts.push(
       `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`,
     );

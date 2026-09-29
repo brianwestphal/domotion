@@ -7,6 +7,7 @@
 // across more than one line-box / column fragment. See the inline comments for
 // the trigger conditions (DM-754 / DM-937).
 
+import { isPaintedColor } from "../../../utils/transparent-background.js";
 export const detectInlineFragments = (el, cs, vp, captured) => {
   // CSS Multi-column Layout paints rules in each column row. A
   // column-span:all child ends the current row and starts another, so a
@@ -63,7 +64,7 @@ export const detectInlineFragments = (el, cs, vp, captured) => {
     }
   }
   var _bgC = captured.styles.backgroundColor;
-  var _hasBg = _bgC != null && _bgC !== "" && _bgC !== "transparent" && _bgC !== "rgba(0, 0, 0, 0)";
+  var _hasBg = isPaintedColor(_bgC);
   var _hasBgImage =
     captured.styles.backgroundImage != null &&
     captured.styles.backgroundImage !== "" &&

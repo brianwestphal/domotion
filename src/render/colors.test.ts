@@ -107,3 +107,18 @@ describe("shadeColor", () => {
     expect(shadeColor({ r: 0, g: 0, b: 0, a: 1 }, -50)).toEqual({ r: 0, g: 0, b: 0, a: 1 });
   });
 });
+
+describe("parseColor rgb()/rgba() forms", () => {
+  it("parses the comma and the space/slash spellings identically", () => {
+    expect(parseColor("rgb(1, 2, 3)")).toEqual({ r: 1, g: 2, b: 3, a: 1 });
+    expect(parseColor("rgba(1,2,3,0.5)")).toEqual({ r: 1, g: 2, b: 3, a: 0.5 });
+    expect(parseColor("rgb(1 2 3)")).toEqual({ r: 1, g: 2, b: 3, a: 1 });
+    expect(parseColor("rgb(1 2 3 / .5)")).toEqual({ r: 1, g: 2, b: 3, a: 0.5 });
+    expect(parseColor("rgb(1 2 3 / 50%)")).toEqual({ r: 1, g: 2, b: 3, a: 0.5 });
+  });
+
+  it("does not half-match a color embedded in other text", () => {
+    expect(parseColor("1px solid rgb(1, 2, 3)")).toBeNull();
+    expect(parseColor("rgb(1, 2, 3) trailing")).toBeNull();
+  });
+});

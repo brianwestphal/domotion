@@ -26,6 +26,7 @@
  *    compositor surface through CopyFromSurface.
  */
 
+import { isPaintedColor } from "../utils/transparent-background.js";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
@@ -393,7 +394,7 @@ export async function rasterizeNativeControlSurfaces(
                 style.backgroundImage !== "none" ||
                 style.boxShadow !== "none" ||
                 style.textShadow !== "none" ||
-                (style.backgroundColor !== "transparent" && style.backgroundColor !== "rgba(0, 0, 0, 0)") ||
+                isPaintedColor(style.backgroundColor) ||
                 [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].some(
                   (width) => Number.parseFloat(width) > 0,
                 ) ||

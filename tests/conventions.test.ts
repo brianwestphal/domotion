@@ -301,6 +301,22 @@ describe("project conventions", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("compares colors to transparent only through src/utils/transparent-background.ts", () => {
+    // `=== "rgba(0, 0, 0, 0)"` misses every other spelling of transparent (`#0000`, `rgba(0,0,0,0)`,
+    // `hsla(...)`, the `transparent` keyword) — the defect the canonical predicate closed. Use
+    // `isPaintedColor()` / `isTransparentBackground()`, and `TRANSPARENT_BLACK` where a value is needed.
+    const offenders: string[] = [];
+    for (const file of srcFiles()) {
+      const rel = file.slice(ROOT.length + 1);
+      if (rel === "src/utils/transparent-background.ts" || rel.endsWith(".generated.ts")) continue;
+      const code = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      if (/["']rgba\(0,\s*0,\s*0,\s*0\)["']/.test(code)) offenders.push(rel);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   /**
    * DM-1979: opening a URL goes through `openInBrowser`, never a hardcoded
    * platform binary.

@@ -4,6 +4,7 @@
 // are ordinary ESM for direct unit testing, but build-capture-script bundles
 // them into the one self-contained browser injection used by page.evaluate().
 
+import { TRANSPARENT_BLACK } from "../../../utils/transparent-background.js";
 export function captureGeometryStylePhase({
   el,
   cs,
@@ -229,7 +230,7 @@ export function assembleCaptureResultPhase({
   if (bordersOnlyCell) {
     captured.text = "";
     captured.children = [];
-    captured.styles.backgroundColor = "rgba(0, 0, 0, 0)";
+    captured.styles.backgroundColor = TRANSPARENT_BLACK;
     captured.styles.backgroundImage = undefined;
     captured.textSegments = undefined;
     captured.imageSrc = undefined;

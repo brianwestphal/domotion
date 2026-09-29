@@ -16,6 +16,7 @@
 // - The LayoutView constructor positions canvas backgrounds against the root
 //   box's stitched size.
 
+import { isPaintedColor } from "../../../utils/transparent-background.js";
 const TRANSFORM_WILL_CHANGE = new Set([
   "transform",
   "transform-style",
@@ -82,14 +83,7 @@ const hasPaintLayerTransform = (style) => {
 const isVisibleCanvasBackground = (style) => {
   const image = style.backgroundImage;
   const color = style.backgroundColor;
-  return (
-    (image != null && image !== "" && image !== "none") ||
-    (color != null &&
-      color !== "" &&
-      color !== "transparent" &&
-      color !== "rgba(0, 0, 0, 0)" &&
-      color !== "rgba(0,0,0,0)")
-  );
+  return (image != null && image !== "" && image !== "none") || isPaintedColor(color);
 };
 
 export const createBackgroundAttachmentHandler = ({

@@ -31,6 +31,7 @@
 //     UA-rendered native widgets driven by author CSS in the same way the
 //     input pseudos are, so they slot naturally next to them.
 
+import { TRANSPARENT_BLACK } from "../../../utils/transparent-background.js";
 export const createFormControlsHandler = ({
   normColor,
   resolvePseudo,
@@ -321,7 +322,7 @@ export const createFormControlsHandler = ({
         styledTrack && ts.backgroundColor !== ""
           ? normColor(ts.backgroundColor)
           : styledTrack
-            ? "rgba(0, 0, 0, 0)"
+            ? TRANSPARENT_BLACK
             : undefined;
       out.rangeTrackHeight = styledTrack ? ts.height : undefined;
       out.rangeTrackRadius = styledTrack ? ts.borderRadius : undefined;
@@ -330,7 +331,7 @@ export const createFormControlsHandler = ({
         styledThumb && ms.backgroundColor !== ""
           ? normColor(ms.backgroundColor)
           : styledThumb
-            ? "rgba(0, 0, 0, 0)"
+            ? TRANSPARENT_BLACK
             : undefined;
       out.rangeThumbWidth = styledThumb ? ms.width : undefined;
       out.rangeThumbHeight = styledThumb ? ms.height : undefined;

@@ -55,6 +55,7 @@
 // element's own textSegments. Those depend on text shaping state that
 // hasn't been pulled out of captureInner yet — follow-up.
 
+import { isPaintedColor } from "../../../utils/transparent-background.js";
 import { hasCssValue, sideWidths } from "../utils.js";
 
 export const pseudoCanvasFont = (pcs) =>
@@ -238,7 +239,7 @@ export const captureEmptyPseudoBox = (
   rect,
 ) => {
   const bgRaw = pcs.backgroundColor;
-  const hasBg = bgRaw && bgRaw !== "" && bgRaw !== "rgba(0, 0, 0, 0)" && bgRaw !== "transparent";
+  const hasBg = isPaintedColor(bgRaw);
   // DM-767: capture background-image (linear-gradient / radial-gradient /
   // url) on empty-content pseudos too. The `.corner::after` accent stripe
   // pattern in `24-deep-pseudo-shapes` is an absolutely-positioned 4 px
@@ -910,10 +911,7 @@ const buildPseudoContentHandler = ({
       // the parent's real text boundaries — at capture-time xPos isn't
       // final.
       const pseudoBgRaw = pcs.backgroundColor;
-      const pseudoBgColor =
-        pseudoBgRaw && pseudoBgRaw !== "" && pseudoBgRaw !== "rgba(0, 0, 0, 0)" && pseudoBgRaw !== "transparent"
-          ? normColor(pseudoBgRaw)
-          : "";
+      const pseudoBgColor = isPaintedColor(pseudoBgRaw) ? normColor(pseudoBgRaw) : "";
       const pseudoBR = parseFloat(pcs.borderRadius) || 0;
       // Capture a uniform border when all four sides match (renders as
       // `<rect stroke=…>`). When a single side carries a border (e.g.
@@ -926,8 +924,7 @@ const buildPseudoContentHandler = ({
       const bwLeft = parseFloat(pcs.borderLeftWidth) || 0;
       const bwUniform = bwTop > 0 && bwRight === bwTop && bwBottom === bwTop && bwLeft === bwTop;
       const pseudoBC = bwUniform ? normColor(pcs.borderTopColor) : "";
-      const colorIsPaintable = (raw: string): boolean =>
-        raw !== "" && raw !== "rgba(0, 0, 0, 0)" && raw !== "transparent";
+      const colorIsPaintable = (raw: string): boolean => isPaintedColor(raw);
       const sideBorderTopColor = bwTop > 0 ? normColor(pcs.borderTopColor) : "";
       const sideBorderRightColor = bwRight > 0 ? normColor(pcs.borderRightColor) : "";
       const sideBorderBottomColor = bwBottom > 0 ? normColor(pcs.borderBottomColor) : "";
@@ -972,7 +969,7 @@ const buildPseudoContentHandler = ({
         pseudoBgColor !== "" ||
         hasPseudoBgImg ||
         pseudoBR > 0 ||
-        (bwUniform && pseudoBC !== "" && pseudoBC !== "rgba(0, 0, 0, 0)") ||
+        (bwUniform && isPaintedColor(pseudoBC)) ||
         hasPerSideBorder ||
         pseudoTransform != null ||
         pseudoFilter != null ||
@@ -1002,7 +999,7 @@ const buildPseudoContentHandler = ({
             : undefined,
           borderRadius: pseudoBR > 0 ? pseudoBR : undefined,
           borderWidth: bwUniform ? bwTop : undefined,
-          borderColor: bwUniform && pseudoBC !== "" && pseudoBC !== "rgba(0, 0, 0, 0)" ? pseudoBC : undefined,
+          borderColor: bwUniform && isPaintedColor(pseudoBC) ? pseudoBC : undefined,
           transform: pseudoTransform,
           transformOrigin: pseudoTransformOrigin,
           filter: pseudoFilter,

@@ -8,6 +8,7 @@
  * cannot silently become geometry again.
  */
 
+import { isPaintedColor } from "../utils/transparent-background.js";
 import bidiFactory from "bidi-js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { resolveCharOrientation } from "../vertical-orientation.js";
@@ -422,7 +423,7 @@ function ownsSide(
 }
 
 function opaque(color: string): boolean {
-  return color !== "" && color !== "transparent" && color !== "rgba(0, 0, 0, 0)";
+  return isPaintedColor(color);
 }
 
 function borderLine(

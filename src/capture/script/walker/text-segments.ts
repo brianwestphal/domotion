@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { isPaintedColor } from "../../../utils/transparent-background.js";
 import {
   blinkUsesTextCombine,
   isMixedVerticalUpright,
@@ -673,7 +674,7 @@ export const buildFirstLetterTextSegment = (
   const bwL = parseFloat(flStyle.borderLeftWidth) || 0;
   const uniformBw = bwT > 0 && bwT === bwR_ && bwT === bwB && bwT === bwL;
   const bgRaw = flStyle.backgroundColor;
-  const hasBg = bgRaw && bgRaw !== "" && bgRaw !== "rgba(0, 0, 0, 0)" && bgRaw !== "transparent";
+  const hasBg = isPaintedColor(bgRaw);
   const bgImgRaw = flStyle.backgroundImage;
   const hasBgImg = bgImgRaw && bgImgRaw !== "" && bgImgRaw !== "none";
   const brad = parseFloat(flStyle.borderRadius) || 0;

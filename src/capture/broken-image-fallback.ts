@@ -6,6 +6,7 @@
  * post-pass pierces it through CDP and attaches the used layout/text/AX facts
  * to the light-DOM image record produced by the synchronous capture bundle.
  */
+import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type { CDPSession, Page } from "@playwright/test";
 import type {
   BrokenImageFallbackDisposition,
@@ -599,10 +600,10 @@ export async function captureBrokenImageFallbackFacts(
           rightStyle: containerStyle["border-right-style"] ?? "none",
           bottomStyle: containerStyle["border-bottom-style"] ?? "none",
           leftStyle: containerStyle["border-left-style"] ?? "none",
-          topColor: containerStyle["border-top-color"] ?? "rgba(0, 0, 0, 0)",
-          rightColor: containerStyle["border-right-color"] ?? "rgba(0, 0, 0, 0)",
-          bottomColor: containerStyle["border-bottom-color"] ?? "rgba(0, 0, 0, 0)",
-          leftColor: containerStyle["border-left-color"] ?? "rgba(0, 0, 0, 0)",
+          topColor: containerStyle["border-top-color"] ?? TRANSPARENT_BLACK,
+          rightColor: containerStyle["border-right-color"] ?? TRANSPARENT_BLACK,
+          bottomColor: containerStyle["border-bottom-color"] ?? TRANSPARENT_BLACK,
+          leftColor: containerStyle["border-left-color"] ?? TRANSPARENT_BLACK,
         };
         const padding = {
           top: numberStyle(containerStyle, "padding-top"),

@@ -1,3 +1,4 @@
+import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type { CapturedElement, CapturedTextPaintAffine, TextSegment } from "../capture/types.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { profAccum, profNow } from "./render-profile.js";
@@ -553,7 +554,7 @@ export function paintText(
               el,
               idPrefix: ctx.idPrefix,
               clipId: cid,
-              fillColor: "rgba(0,0,0,0)",
+              fillColor: TRANSPARENT_BLACK,
               overflowClip: textOverflowClip,
               affineMatrix,
             },
