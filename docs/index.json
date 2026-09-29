@@ -5486,6 +5486,26 @@
       }
     },
     {
+      "file": "handbook/manual-test-plan.md",
+      "metadata": {
+        "id": "handbook/manual-test-plan",
+        "title": "Manual test plan",
+        "kind": "reference",
+        "status": "current",
+        "owners": ["platform-release"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-YD693C"],
+        "code": [
+          "docs/handbook/major-release-visual-capture.md",
+          "docs/26-self-contained-svgs.md",
+          "tests/kerf-client-uis.e2e.test.ts",
+          ".github/workflows/generic-profile-target-parity.yml",
+          ".github/workflows/windows-fidelity.yml"
+        ],
+        "aliases": ["docs/handbook/manual-test-plan.md"]
+      }
+    },
+    {
       "file": "handbook/paint-effects-and-native-controls.md",
       "metadata": {
         "id": "handbook/paint-effects-and-native-controls",
