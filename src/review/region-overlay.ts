@@ -82,6 +82,22 @@ interface FigureContext {
   svg: SVGSVGElement;
 }
 
+/** Longest caption shown on the image before it is cut with an ellipsis (source-pixel budget, not a limit on the caption). */
+export const CAPTION_PREVIEW_MAX_CHARS = 44;
+/** Approximate advance of the 14 px monospace label font in source pixels, and the label's padding and height. */
+const CAPTION_CHAR_W = 8.4;
+const CAPTION_PAD = 6;
+const CAPTION_H = 22;
+/** Fewest characters worth drawing beside the badge; below this the label drops to the line under it. */
+const CAPTION_MIN_INLINE_CHARS = 12;
+
+/** The single-line, length-bounded text drawn on the image for a caption: whitespace collapsed, ellipsis when cut. */
+export function captionPreviewText(caption: string | undefined, maxChars: number = CAPTION_PREVIEW_MAX_CHARS): string {
+  const flat = (caption ?? "").replace(/\s+/g, " ").trim();
+  if (flat.length <= maxChars) return flat;
+  return maxChars < 2 ? "" : `${flat.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
 /** Resolve client-X/Y to source-PNG pixel coords for a given image. */
 function clientToSource(img: HTMLImageElement, clientX: number, clientY: number): { x: number; y: number } | null {
   if (img.naturalWidth === 0 || img.naturalHeight === 0) return null;
@@ -205,10 +221,10 @@ function createRegionOverlays(card: HTMLElement): OverlayHandle {
 
       const labelBg = document.createElementNS(SVG_NS, "rect");
       const labelText = `[${r.index}]`;
-      // Sized roughly to the label text. The numeric width is intentionally
-      // generous so the SVG-coord-space label remains readable when the
-      // image is scaled down in CSS.
-      const labelW = 22 + (labelText.length - 3) * 12;
+      // Sized to the label text: `[N]` in the 14 px monospace label font (about 8.4 px per character)
+      // plus the 4 px text inset and a matching right pad. The old fixed width was one character short, so
+      // the closing bracket spilled off the badge onto the image.
+      const labelW = Math.round(labelText.length * CAPTION_CHAR_W) + 8;
       const labelH = 22;
       labelBg.setAttribute("x", String(r.x));
       labelBg.setAttribute("y", String(r.y));
@@ -224,8 +240,56 @@ function createRegionOverlays(card: HTMLElement): OverlayHandle {
       label.textContent = labelText;
       g.appendChild(label);
 
+      appendCaptionPreview(g, r, labelW);
+
       ctx.svg.appendChild(g);
     }
+  }
+
+  /**
+   * Show the region's caption next to its badge while the reviewer types it, so the annotation reads on the
+   * image itself, not only in the list below. The preview is a plain label: it takes no pointer events and
+   * is never consulted by the hit tests (those run on the rect geometry), so drag, resize and delete behave
+   * exactly as before. Long captions are truncated with an ellipsis; the full text stays in the region list
+   * and in the serialized REGIONS block.
+   *
+   * Placement never covers the badge: the label sits to its right, truncated to the room left in the image;
+   * when a region hugs the right edge and less than `CAPTION_MIN_INLINE_CHARS` would fit there, the label
+   * drops to a second line under the badge instead, where it may use the image's full width.
+   */
+  function appendCaptionPreview(g: SVGGElement, r: Rect, badgeW: number): void {
+    const known = sourceW > 0;
+    const rightRoom = known ? sourceW - (r.x + badgeW) : Infinity;
+    const charsFor = (room: number): number => Math.floor((room - CAPTION_PAD * 2) / CAPTION_CHAR_W);
+    let x = r.x + badgeW;
+    let y = r.y;
+    let chars = Math.min(CAPTION_PREVIEW_MAX_CHARS, charsFor(rightRoom));
+    if (known && chars < CAPTION_MIN_INLINE_CHARS) {
+      // Not enough room beside the badge: use the line below it, starting at the region's left edge.
+      chars = Math.min(CAPTION_PREVIEW_MAX_CHARS, charsFor(sourceW));
+      y = r.y + CAPTION_H;
+      const width =
+        Math.round(Math.min(chars, captionPreviewText(r.caption, chars).length) * CAPTION_CHAR_W) + CAPTION_PAD * 2;
+      x = Math.max(0, Math.min(r.x, sourceW - width));
+    }
+    const text = captionPreviewText(r.caption, chars);
+    if (text === "") return;
+    const width = Math.round(text.length * CAPTION_CHAR_W) + CAPTION_PAD * 2;
+    const bg = document.createElementNS(SVG_NS, "rect");
+    bg.setAttribute("x", String(x));
+    bg.setAttribute("y", String(y));
+    bg.setAttribute("width", String(width));
+    bg.setAttribute("height", String(CAPTION_H));
+    bg.setAttribute("class", "region-caption-bg");
+    bg.setAttribute("pointer-events", "none");
+    g.appendChild(bg);
+    const label = document.createElementNS(SVG_NS, "text");
+    label.setAttribute("x", String(x + CAPTION_PAD));
+    label.setAttribute("y", String(y + 17));
+    label.setAttribute("class", "region-caption-text");
+    label.setAttribute("pointer-events", "none");
+    label.textContent = text;
+    g.appendChild(label);
   }
 
   // ── Numbering ──
@@ -422,6 +486,7 @@ function createRegionOverlays(card: HTMLElement): OverlayHandle {
       const target = rects.find((r) => r.index === index);
       if (target == null) return;
       target.caption = caption;
+      repaintAll();
     },
     addRegion: (rect) => {
       rects.push({ ...rect, index: nextIndex() });

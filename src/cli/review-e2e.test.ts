@@ -148,6 +148,66 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
     }
   }, 60_000);
 
+  it("shows the typed caption on the image itself: on all three previews, following resizes, and in the lightbox", async () => {
+    child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const url = await waitForUrl(child);
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+      await page.goto(url, { waitUntil: "networkidle" });
+      const actualImg = page.locator('figure[data-role="actual"] img');
+      await actualImg.waitFor({ state: "visible" });
+      const box = (await actualImg.boundingBox())!;
+      await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.55, { steps: 8 });
+      await page.mouse.up();
+
+      const captionInput = page.locator(".region-list input[type='text']");
+      await captionInput.waitFor({ state: "visible", timeout: 5_000 });
+      // Typing (not Enter) is what drives the preview, and it must not steal focus from the field.
+      await captionInput.pressSequentially("corner radius too tight");
+      expect(await captionInput.evaluate((el) => el === document.activeElement)).toBe(true);
+
+      const previews = page.locator(".imgs .region-overlay text.region-caption-text");
+      await expect.poll(() => previews.count()).toBe(3);
+      for (const text of await previews.allTextContents()) expect(text).toBe("corner radius too tight");
+
+      // The preview is a plain label: it does not intercept the pointer, so the rectangle can still be resized.
+      const rectBefore = await page.locator('figure[data-role="actual"] rect.region-rect').boundingBox();
+      const rightEdgeX = rectBefore!.x + rectBefore!.width;
+      const midY = rectBefore!.y + rectBefore!.height / 2;
+      await page.mouse.move(rightEdgeX, midY);
+      await page.mouse.down();
+      await page.mouse.move(rightEdgeX + 30, midY, { steps: 5 });
+      await page.mouse.up();
+      const rectAfter = await page.locator('figure[data-role="actual"] rect.region-rect').boundingBox();
+      expect(rectAfter!.width).toBeGreaterThan(rectBefore!.width + 15);
+      await expect.poll(() => previews.count()).toBe(3);
+
+      // Emptying the caption removes the previews again.
+      await captionInput.fill("");
+      await expect.poll(() => previews.count()).toBe(0);
+      await captionInput.pressSequentially("shown in the lightbox");
+
+      // The lightbox overlay paints the same caption.
+      // Click an empty corner of the figure: a click inside the drawn rectangle would delete it.
+      const figureBox = (await page.locator('figure[data-role="actual"]').boundingBox())!;
+      await page.mouse.click(figureBox.x + figureBox.width - 8, figureBox.y + figureBox.height - 8);
+      await page.getByRole("dialog", { name: "Rendering preview" }).waitFor({ state: "visible", timeout: 3_000 });
+      await expect
+        .poll(() => page.locator("#lb-overlay text.region-caption-text").textContent())
+        .toBe("shown in the lightbox");
+      await closeBrowserSafely(browser);
+    } catch (e) {
+      await closeBrowserSafely(browser);
+      throw e;
+    }
+  }, 60_000);
+
   it("clicking an image opens the fullscreen lightbox; arrow keys cycle expected→actual→diff (DM-951)", async () => {
     child = spawn("node", [CLI, "--expected", EXPECTED, "--actual", ACTUAL, "--no-open", "--port", "0"], {
       cwd: REPO_ROOT,

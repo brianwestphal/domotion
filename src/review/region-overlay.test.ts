@@ -2,7 +2,12 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { enableRegionOverlays, serializeRegions } from "./region-overlay.js";
+import {
+  CAPTION_PREVIEW_MAX_CHARS,
+  captionPreviewText,
+  enableRegionOverlays,
+  serializeRegions,
+} from "./region-overlay.js";
 
 function buildCard({
   naturalW = 100,
@@ -434,5 +439,166 @@ describe("region overlay — secondary views", () => {
     }) as typeof img.removeEventListener;
     handle.addView(img, svg)();
     expect(removed).toContain("load");
+  });
+});
+
+function captionTexts(figure: HTMLElement): string[] {
+  return Array.from(overlaySvg(figure).querySelectorAll("text.region-caption-text")).map((t) => t.textContent ?? "");
+}
+
+describe("captionPreviewText", () => {
+  it("collapses whitespace and trims", () => {
+    expect(captionPreviewText("  missing \n  CTA\tbutton ")).toBe("missing CTA button");
+    expect(captionPreviewText(undefined)).toBe("");
+    expect(captionPreviewText("   ")).toBe("");
+  });
+
+  it("keeps a caption at the limit whole and cuts a longer one with an ellipsis", () => {
+    const exact = "x".repeat(CAPTION_PREVIEW_MAX_CHARS);
+    expect(captionPreviewText(exact)).toBe(exact);
+    const cut = captionPreviewText("y".repeat(CAPTION_PREVIEW_MAX_CHARS + 20));
+    expect(cut.length).toBe(CAPTION_PREVIEW_MAX_CHARS);
+    expect(cut.endsWith("…")).toBe(true);
+  });
+});
+
+describe("region overlay — caption preview on the image", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("paints no preview until a caption is typed, then updates as the caption changes and clears when emptied", () => {
+    const { card, figures } = buildCard({ naturalW: 400, naturalH: 200, displayW: 400, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    drag(overlaySvg(figures[0]!), [10, 10], [60, 60]);
+    expect(captionTexts(figures[0]!)).toEqual([]);
+    handle.setCaption(1, "CTA missing");
+    expect(captionTexts(figures[0]!)).toEqual(["CTA missing"]);
+    handle.setCaption(1, "CTA missing here");
+    expect(captionTexts(figures[0]!)).toEqual(["CTA missing here"]);
+    handle.setCaption(1, "");
+    expect(captionTexts(figures[0]!)).toEqual([]);
+  });
+
+  it("shows the same preview on every figure of the triplet, and the badge keeps its own label", () => {
+    const { card, figures } = buildCard({ naturalW: 400, naturalH: 200, displayW: 400, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    drag(overlaySvg(figures[1]!), [10, 10], [60, 60]);
+    handle.setCaption(1, "shifted");
+    for (const figure of figures) {
+      expect(captionTexts(figure)).toEqual(["shifted"]);
+      expect(labels(figure)).toEqual(["[1]"]);
+    }
+  });
+
+  it("labels each region with its own caption and only the captioned ones", () => {
+    const { card, figures } = buildCard({ naturalW: 400, naturalH: 200, displayW: 400, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    drag(overlaySvg(figures[0]!), [5, 5], [25, 25]);
+    drag(overlaySvg(figures[0]!), [40, 40], [60, 60]);
+    handle.setCaption(2, "second only");
+    expect(captionTexts(figures[0]!)).toEqual(["second only"]);
+  });
+
+  it("is a plain label: no pointer events, so drag, resize and delete are unaffected", () => {
+    const { card, figures } = buildCard({ naturalW: 400, naturalH: 200, displayW: 400, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    const svg = overlaySvg(figures[0]!);
+    drag(svg, [10, 10], [60, 60]);
+    handle.setCaption(1, "annotated");
+    for (const el of svg.querySelectorAll(".region-caption-bg, .region-caption-text")) {
+      expect(el.getAttribute("pointer-events")).toBe("none");
+    }
+    // Resize by dragging the right edge with the preview present.
+    pointer(svg, "pointerdown", 60, 30);
+    pointer(svg, "pointermove", 80, 30);
+    pointer(svg, "pointerup", 80, 30);
+    expect(handle.getRegions()[0]).toMatchObject({ x: 10, w: 70, caption: "annotated" });
+    // Delete by clicking inside; the preview goes with its region.
+    pointer(svg, "pointerdown", 30, 30);
+    pointer(svg, "pointerup", 30, 30);
+    expect(handle.getRegions()).toEqual([]);
+    expect(captionTexts(figures[0]!)).toEqual([]);
+  });
+
+  const captionBox = (figure: HTMLElement): { x: number; y: number; width: number } => {
+    const bg = overlaySvg(figure).querySelector("rect.region-caption-bg")!;
+    return {
+      x: Number(bg.getAttribute("x")),
+      y: Number(bg.getAttribute("y")),
+      width: Number(bg.getAttribute("width")),
+    };
+  };
+  const badgeBox = (figure: HTMLElement): { x: number; y: number; width: number } => {
+    const bg = overlaySvg(figure).querySelector("rect.region-label-bg")!;
+    return {
+      x: Number(bg.getAttribute("x")),
+      y: Number(bg.getAttribute("y")),
+      width: Number(bg.getAttribute("width")),
+    };
+  };
+
+  it("sits directly right of the badge on the same line, and never over the badge", () => {
+    const { card, figures } = buildCard({ naturalW: 400, naturalH: 200, displayW: 400, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    handle.addRegion({ x: 20, y: 30, w: 60, h: 40 });
+    handle.setCaption(1, "short");
+    const badge = badgeBox(figures[0]!);
+    const caption = captionBox(figures[0]!);
+    expect(caption.y).toBe(badge.y);
+    expect(caption.x).toBe(badge.x + badge.width);
+  });
+
+  it("truncates to the room left of the image edge instead of sliding over the badge", () => {
+    const { card, figures } = buildCard({ naturalW: 300, naturalH: 200, displayW: 300, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    handle.addRegion({ x: 120, y: 30, w: 60, h: 40 });
+    handle.setCaption(1, "a caption that is far too long to fit beside the badge here");
+    const badge = badgeBox(figures[0]!);
+    const caption = captionBox(figures[0]!);
+    expect(caption.y).toBe(badge.y);
+    expect(caption.x).toBeGreaterThanOrEqual(badge.x + badge.width);
+    expect(caption.x + caption.width).toBeLessThanOrEqual(300 + 0.001);
+    expect(captionTexts(figures[0]!)[0]!.endsWith("…")).toBe(true);
+  });
+
+  it("drops to the line under the badge when a region hugs the right edge", () => {
+    const { card, figures } = buildCard({ naturalW: 300, naturalH: 200, displayW: 300, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    handle.addRegion({ x: 270, y: 30, w: 25, h: 40 });
+    handle.setCaption(1, "edge caption stays readable");
+    const badge = badgeBox(figures[0]!);
+    const caption = captionBox(figures[0]!);
+    expect(caption.y).toBeGreaterThan(badge.y);
+    expect(caption.x).toBeGreaterThanOrEqual(0);
+    expect(caption.x + caption.width).toBeLessThanOrEqual(300 + 0.001);
+    expect(captionTexts(figures[0]!)).toEqual(["edge caption stays readable"]);
+  });
+
+  it("truncates to the image width on a very narrow image", () => {
+    const { card, figures } = buildCard({ naturalW: 100, naturalH: 100 });
+    const handle = enableRegionOverlays(card);
+    handle.addRegion({ x: 80, y: 10, w: 15, h: 15 });
+    handle.setCaption(1, "a fairly long caption here");
+    const caption = captionBox(figures[0]!);
+    expect(caption.x).toBeGreaterThanOrEqual(0);
+    expect(caption.x + caption.width).toBeLessThanOrEqual(100 + 0.001);
+  });
+});
+
+describe("region overlay — badge sizing", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("makes the badge wide enough for its `[N]` label (three characters at ~8.4 px plus padding) and wider for [10]", () => {
+    const { card, figures } = buildCard({ naturalW: 400, naturalH: 200, displayW: 400, displayH: 200 });
+    const handle = enableRegionOverlays(card);
+    for (let i = 0; i < 10; i++) handle.addRegion({ x: 10 + i * 30, y: 10, w: 20, h: 20 });
+    const widths = Array.from(overlaySvg(figures[0]!).querySelectorAll("rect.region-label-bg")).map((r) =>
+      Number(r.getAttribute("width")),
+    );
+    expect(widths[0]).toBeGreaterThanOrEqual(3 * 8.4);
+    expect(widths[9]).toBeGreaterThan(widths[0]!);
   });
 });

@@ -99,6 +99,8 @@ function renderShell(label: string): string {
   .region-overlay rect.region-rect { fill: rgba(255, 99, 132, 0.18); stroke: #ff6384; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
   .region-overlay rect.region-label-bg { fill: #ff6384; }
   .region-overlay text.region-label-text { fill: #fff; font: 14px/1 ui-monospace, monospace; }
+  .region-overlay rect.region-caption-bg { fill: rgba(13, 17, 23, 0.86); stroke: #ff6384; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .region-overlay text.region-caption-text { fill: #fff; font: 14px/1 ui-monospace, monospace; pointer-events: none; }
 </style>
 </head>
 <body>

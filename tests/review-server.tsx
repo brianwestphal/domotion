@@ -839,6 +839,8 @@ const REVIEW_CSS = `
   .region-rect { fill: rgba(255,170,0,0.15); stroke: #ffaa00; stroke-width: 2; vector-effect: non-scaling-stroke; }
   .region-label-bg { fill: rgba(13,17,23,0.85); }
   .region-label-text { fill: #ffaa00; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; dominant-baseline: alphabetic; }
+  .region-caption-bg { fill: rgba(13,17,23,0.86); stroke: #ffaa00; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .region-caption-text { fill: #e6edf3; font-family: ui-monospace, monospace; font-size: 14px; dominant-baseline: alphabetic; pointer-events: none; }
   .skip-note { font-size: 12px; color: #8b949e; font-style: italic; padding: 10px 0; }
   .comment { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 8px; font: inherit; resize: vertical; min-height: 54px; }
   .classification-label { display: grid; gap: 5px; margin-bottom: 8px; color: #8b949e; font-size: 12px; font-weight: 600; }
