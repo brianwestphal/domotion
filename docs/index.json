@@ -2930,7 +2930,9 @@
           "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
           "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
           "packages/text-engine/src/render/font-resolution.ts",
-          "packages/text-engine/src/render/glyph-helper.ts"
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/harfbuzz-shaper.ts",
+          "packages/text-engine/src/render/cluster-fallback.ts"
         ],
         "aliases": ["docs/121-font-cache-parity.md", "doc-121"]
       }
@@ -2962,7 +2964,11 @@
         "owners": ["platform-release"],
         "platforms": ["linux"],
         "tickets": ["DM-2087"],
-        "code": ["tests/fontconfig/alternate-system-ui.conf"],
+        "code": [
+          "tests/fontconfig/alternate-system-ui.conf",
+          "tools/assert-linux-system-ui-profile.ts",
+          ".github/workflows/linux-system-ui-inventory.yml"
+        ],
         "aliases": ["docs/123-linux-system-ui-alternate-inventory.md", "doc-123"]
       }
     },
@@ -3158,7 +3164,7 @@
         "title": "CSS corner-shape superellipses",
         "kind": "contract",
         "status": "current",
-        "owners": ["text-fonts"],
+        "owners": ["paint-effects"],
         "platforms": [],
         "tickets": ["DM-2314", "DM-2315", "DM-2316", "DM-2317"],
         "code": ["tests/fixtures/html-test/corner-shape-superellipses.html"],
@@ -3203,7 +3209,7 @@
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": [],
-        "code": ["tools/parity-release-evidence.json"],
+        "code": ["tools/parity-release-evidence.json", "tools/parity-release-gate.ts"],
         "aliases": ["docs/138-parity-release-gate.md", "doc-138"]
       }
     },
@@ -3248,6 +3254,8 @@
         "tickets": [2625],
         "code": [
           "src/review/stage-evidence.ts",
+          "tools/collect-stage-evidence.ts",
+          "tools/build-stage-evidence.ts",
           "src/review/linux-unicode-evidence.ts",
           "tests/review-server.tsx",
           "tools/linux-unicode-mutation-matrix.ts",
@@ -3344,7 +3352,13 @@
         "owners": ["text-fonts", "paint-effects"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2350", "DM-2392", "DM-2507", "DM-2508", "DM-2509", "DM-2510", "DM-2534"],
-        "code": ["tools/unicode-font-route-trace.ts"],
+        "code": [
+          "tools/unicode-font-route-trace.ts",
+          "packages/text-engine/src/render/text-to-path.ts",
+          "src/capture/emoji.ts",
+          "packages/text-engine/src/render/glyph-helper-font.ts",
+          "packages/text-engine/src/render/text-run-provenance.ts"
+        ],
         "aliases": ["docs/145-renderer-owned-color-glyph-boundary.md", "doc-145"]
       }
     },

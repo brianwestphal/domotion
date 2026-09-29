@@ -6,7 +6,14 @@ status: "current"
 owners: ["text-fonts", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2350", "DM-2392", "DM-2507", "DM-2508", "DM-2509", "DM-2510", "DM-2534"]
-code: ["tools/unicode-font-route-trace.ts"]
+code:
+  [
+    "tools/unicode-font-route-trace.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
+    "src/capture/emoji.ts",
+    "packages/text-engine/src/render/glyph-helper-font.ts",
+    "packages/text-engine/src/render/text-run-provenance.ts",
+  ]
 aliases: ["docs/145-renderer-owned-color-glyph-boundary.md", "doc-145"]
 ---
 

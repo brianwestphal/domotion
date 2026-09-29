@@ -6,7 +6,7 @@ status: "partial"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets: []
-code: ["tools/parity-release-evidence.json"]
+code: ["tools/parity-release-evidence.json", "tools/parity-release-gate.ts"]
 aliases: ["docs/138-parity-release-gate.md", "doc-138"]
 ---
 

@@ -12,6 +12,8 @@ code:
     "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/harfbuzz-shaper.ts",
+    "packages/text-engine/src/render/cluster-fallback.ts",
   ]
 aliases: ["docs/121-font-cache-parity.md", "doc-121"]
 ---

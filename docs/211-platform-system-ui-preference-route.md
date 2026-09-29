@@ -119,3 +119,8 @@ joined the independently queried CoreText UI handle, repeat reads were stable,
 and the dynamically chosen Times generic-map mutation left all `system-ui` rows
 unchanged. The report carried font-inventory digest `25ffa1f91f5e6f79`; that
 digest is evidence for this machine, not an answer snapshot for another one.
+
+The Linux counterpart — an alternate `sans` preference that deliberately changes
+Chromium's UI answer, asserted by `tools/assert-linux-system-ui-profile.ts` and
+run by `.github/workflows/linux-system-ui-inventory.yml` — is
+[doc 123](123-linux-system-ui-alternate-inventory.md).

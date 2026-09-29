@@ -42,7 +42,7 @@ effective appearance, decoration kind, pseudo status, color scheme, accent,
 writing mode, direction, zoom, and transform facts rather than assuming that
 macOS, Linux, and Windows share pixels.
 
-Generated boxes no longer read the retired `pseudoBoxes` approximation. Their
+Generated boxes no longer read the `pseudoBoxes` approximation (this oracle stopped reading it; capture still populates it in `pseudo-content.ts`, and `paintPseudoBoxes` in `element-tree-to-svg.ts` still paints from it on the DM-1051 negative-z path, so it is not removed). Their
 geometry is the union of exact `CapturedPseudoFragmentSet.boxFragments`
 created from one DOMSnapshot epoch plus real pseudo content quads. Source ink
 bounds use connected, anti-aliased color coverage; tolerance remains at most

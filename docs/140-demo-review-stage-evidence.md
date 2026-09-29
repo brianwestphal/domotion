@@ -9,6 +9,8 @@ tickets: [2625]
 code:
   [
     "src/review/stage-evidence.ts",
+    "tools/collect-stage-evidence.ts",
+    "tools/build-stage-evidence.ts",
     "src/review/linux-unicode-evidence.ts",
     "tests/review-server.tsx",
     "tools/linux-unicode-mutation-matrix.ts",
@@ -27,7 +29,7 @@ explicit `visualFixtures` and `parityAreas` links in
 `tools/semantic-coverage.json`. The binding function does not accept image
 scores, so neither `diffPct` nor region severity can imply a logical cause.
 
-The first shard on every enabled platform runs the representative unified face/shaping,
+The first shard on every enabled platform (macOS, Linux and Windows jobs in `visual-tests.yml`) collects the reports with `npm run stage:evidence:collect` (`tools/collect-stage-evidence.ts`) and assembles the manifest with `npm run stage:evidence:build` (`tools/build-stage-evidence.ts`); `stage:evidence:compare-roll` and `stage:evidence:source-drift` compare across runs and revisions. It runs the representative unified face/shaping,
 layout, paint-geometry, transform, paint-order, replaced-element, and raster
 boundary oracles. Missing or crashed reports remain visibly `missing`; they are
 never converted into positive evidence. Unified shaping supplies Chromium

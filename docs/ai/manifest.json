@@ -2065,7 +2065,9 @@
         "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
         "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
         "packages/text-engine/src/render/font-resolution.ts",
-        "packages/text-engine/src/render/glyph-helper.ts"
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/harfbuzz-shaper.ts",
+        "packages/text-engine/src/render/cluster-fallback.ts"
       ],
       "file": "121-font-cache-parity.md"
     },
@@ -2089,7 +2091,11 @@
       "status": "current",
       "owners": ["platform-release"],
       "platforms": ["linux"],
-      "code": ["tests/fontconfig/alternate-system-ui.conf"],
+      "code": [
+        "tests/fontconfig/alternate-system-ui.conf",
+        "tools/assert-linux-system-ui-profile.ts",
+        ".github/workflows/linux-system-ui-inventory.yml"
+      ],
       "file": "123-linux-system-ui-alternate-inventory.md"
     },
     {
@@ -2238,7 +2244,7 @@
       "title": "CSS corner-shape superellipses",
       "kind": "contract",
       "status": "current",
-      "owners": ["text-fonts"],
+      "owners": ["paint-effects"],
       "platforms": [],
       "code": ["tests/fixtures/html-test/corner-shape-superellipses.html"],
       "file": "135-corner-shape-superellipses.md"
@@ -2270,7 +2276,7 @@
       "status": "partial",
       "owners": ["platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["tools/parity-release-evidence.json"],
+      "code": ["tools/parity-release-evidence.json", "tools/parity-release-gate.ts"],
       "file": "138-parity-release-gate.md"
     },
     {
@@ -2307,6 +2313,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/review/stage-evidence.ts",
+        "tools/collect-stage-evidence.ts",
+        "tools/build-stage-evidence.ts",
         "src/review/linux-unicode-evidence.ts",
         "tests/review-server.tsx",
         "tools/linux-unicode-mutation-matrix.ts",
@@ -2383,7 +2391,13 @@
       "status": "current",
       "owners": ["text-fonts", "paint-effects"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["tools/unicode-font-route-trace.ts"],
+      "code": [
+        "tools/unicode-font-route-trace.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
+        "src/capture/emoji.ts",
+        "packages/text-engine/src/render/glyph-helper-font.ts",
+        "packages/text-engine/src/render/text-run-provenance.ts"
+      ],
       "file": "145-renderer-owned-color-glyph-boundary.md"
     },
     {

@@ -6,7 +6,12 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["linux"]
 tickets: ["DM-2087"]
-code: ["tests/fontconfig/alternate-system-ui.conf"]
+code:
+  [
+    "tests/fontconfig/alternate-system-ui.conf",
+    "tools/assert-linux-system-ui-profile.ts",
+    ".github/workflows/linux-system-ui-inventory.yml",
+  ]
 aliases: ["docs/123-linux-system-ui-alternate-inventory.md", "doc-123"]
 ---
 
@@ -31,7 +36,9 @@ Run it locally with:
 npm run test:linux-system-ui-alternate
 ```
 
-The manual `Linux alternate system-ui inventory` workflow runs the same
+The script installs the alternate profile in the Linux container, asserts it took effect with `tools/assert-linux-system-ui-profile.ts` (the effective `fc-match sans` answer and the font-inventory digest), and then runs the bounded `fonts:conformance` slice.
+
+The manual `Linux alternate system-ui inventory` workflow (`.github/workflows/linux-system-ui-inventory.yml`) runs the same
 profile independently from the required Noble fidelity baseline. It records
 the effective `fc-match` result and font-inventory digest, checks Chromium and
 Domotion across normal, bold, italic, condensed, English/Japanese locale, and
