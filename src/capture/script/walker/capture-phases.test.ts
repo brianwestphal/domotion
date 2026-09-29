@@ -44,13 +44,20 @@ function geometry(node: Element, style: Record<string, unknown> = {}) {
 
 describe("in-page capture phase boundaries (DM-2639)", () => {
   it("keeps the four phases in the self-contained browser bundle and call order", () => {
+    // `normalizePseudoShadowPhase` runs inside the native-control handler
+    // (walker/native-controls.ts), whose factory is defined ahead of `captureInner` in the
+    // bundle; the phase itself is reached through the handler's single call from `captureInner`,
+    // so that call site is what carries the geometry -> pseudo/shadow -> traversal order.
     const geometryIndex = CAPTURE_SCRIPT.lastIndexOf("captureGeometryStylePhase({");
-    const pseudoIndex = CAPTURE_SCRIPT.lastIndexOf("normalizePseudoShadowPhase({");
+    const pseudoPhaseInHandlerIndex = CAPTURE_SCRIPT.indexOf("normalizePseudoShadowPhase({");
+    const handlerIndex = CAPTURE_SCRIPT.lastIndexOf("captureNativeControlState({");
     const traversalIndex = CAPTURE_SCRIPT.lastIndexOf("captureTraversalPhase({");
     const assemblyIndex = CAPTURE_SCRIPT.lastIndexOf("assembleCaptureResultPhase({");
     expect(geometryIndex).toBeGreaterThan(0);
-    expect(pseudoIndex).toBeGreaterThan(geometryIndex);
-    expect(traversalIndex).toBeGreaterThan(pseudoIndex);
+    expect(pseudoPhaseInHandlerIndex).toBeGreaterThan(0);
+    expect(pseudoPhaseInHandlerIndex).toBeLessThan(handlerIndex);
+    expect(handlerIndex).toBeGreaterThan(geometryIndex);
+    expect(traversalIndex).toBeGreaterThan(handlerIndex);
     expect(assemblyIndex).toBeGreaterThan(traversalIndex);
   });
 
