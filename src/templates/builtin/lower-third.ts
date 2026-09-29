@@ -11,6 +11,7 @@
  * Transparent background by default so the SVG overlays whatever it's placed on.
  */
 
+import { cssValue, CARD_FONT_STACK, THEMES } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -22,27 +23,23 @@ import { escapeHtml } from "../../utils/escapeHtml.js";
 const LOWER_THIRD_PADDING = 48;
 
 const POSITIONS = ["bottom-left", "bottom-center", "bottom-right", "top-left", "top-center", "top-right"] as const;
-const THEMES = ["dark", "light"] as const;
 
 export const lowerThirdParamsSchema = z.object({
   title: z.string().min(1).describe("Main title line (required)."),
   subtitle: z.string().optional().describe("Optional second line under the title."),
-  accent: z.string().default("#3b82f6").describe("Accent color (CSS color) for the bar."),
+  accent: cssValue().default("#3b82f6").describe("Accent color (CSS color) for the bar."),
   theme: z.enum(THEMES).default("dark").describe('Text/panel theme: "dark" | "light".'),
   position: z.enum(POSITIONS).default("bottom-left").describe("Corner/edge the banner anchors to."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3000).describe("Total on-screen time in ms."),
-  background: z.string().default("transparent").describe('Frame background (CSS color or "transparent").'),
+  background: cssValue().default("transparent").describe('Frame background (CSS color or "transparent").'),
   logo: z.string().optional().describe("Optional brand mark (URL or absolute path) shown on the banner."),
   logoPosition: z
     .enum(["panel", "top-left", "top-right"])
     .default("panel")
     .describe('Where the logo sits: "panel" (on the banner, default) or a "top-left"/"top-right" frame corner.'),
-  fontFamily: z
-    .string()
-    .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
-    .describe("CSS font-family stack for the banner text."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack for the banner text."),
 });
 
 export type LowerThirdParams = z.infer<typeof lowerThirdParamsSchema>;

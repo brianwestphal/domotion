@@ -8,6 +8,7 @@
  * the final value.
  */
 
+import { cssValue, blank, THEMES } from "./shared.js";
 import { z } from "zod";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
@@ -26,7 +27,6 @@ import {
 import { planOdometer, buildOdometerMarkup } from "./odometer.js";
 import type { SafeInset } from "../formats.js";
 
-const THEMES = ["dark", "light"] as const;
 const DELTA_DIRS = ["auto", "up", "down"] as const;
 const PADDING = 96;
 
@@ -44,22 +44,18 @@ export const statParamsSchema = z.object({
   decimals: z.coerce.number().int().min(0).max(6).default(0).describe("Fixed decimal places."),
   grouping: z.coerce.boolean().default(true).describe("Insert a thousands separator."),
   durationMs: z.coerce.number().int().positive().default(1500).describe("Value roll duration in ms."),
-  accent: z.string().default("#22c55e").describe("Accent for the up-trend chip (down uses a red)."),
+  accent: cssValue().default("#22c55e").describe("Accent for the up-trend chip (down uses a red)."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
-  background: z.string().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
-  color: z.string().optional().describe("Value/text color. Defaults to the theme foreground."),
+  background: cssValue().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
+  color: cssValue().optional().describe("Value/text color. Defaults to the theme foreground."),
   fontSize: z.coerce.number().int().positive().default(200).describe("Value font size in px."),
-  fontFamily: z.string().default(CARD_FONT_STACK).describe("CSS font-family stack."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3400).describe("Total on-screen time in ms."),
 });
 
 export type StatParams = z.infer<typeof statParamsSchema>;
-
-function blank(v: string | undefined): string | undefined {
-  return v != null && v !== "" ? v : undefined;
-}
 
 /** Resolve the trend direction: explicit, else the sign of the delta text (a
  *  leading "-" or "▼" → down), defaulting to up. */

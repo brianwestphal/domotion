@@ -69,8 +69,11 @@ export function loadBrand(path: string): Brand {
   let text: string;
   try {
     text = readFileSync(abs, "utf8");
-  } catch {
-    throw new Error(`brand: file not found: ${abs}`);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    throw new Error(
+      code === "ENOENT" ? `brand: file not found: ${abs}` : `brand: could not read ${abs} — ${(e as Error).message}`,
+    );
   }
   let parsed: unknown;
   try {

@@ -9,6 +9,7 @@
  * composes with the brand kit.
  */
 
+import { cssValue, blank, THEMES } from "./shared.js";
 import { z } from "zod";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -27,7 +28,6 @@ import type { SafeInset } from "../formats.js";
 
 const ALIGN = ["center", "left"] as const;
 const REVEAL = ["fade-up", "pop"] as const;
-const THEMES = ["dark", "light"] as const;
 const PADDING = 96; // generous default margin for a full-bleed card
 
 /**
@@ -44,11 +44,11 @@ export const titleCardParamsSchema = z.object({
   eyebrow: z.string().optional().describe("Optional small kicker/label above the headline."),
   align: z.enum(ALIGN).default("center").describe('Text alignment: "center" | "left".'),
   theme: z.enum(THEMES).default("dark").describe('Base theme when no explicit colors: "dark" | "light".'),
-  background: z.string().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
-  textColor: z.string().optional().describe("Headline/text color. Defaults to the theme foreground."),
-  accent: z.string().default("#3b82f6").describe("Accent color for the eyebrow."),
+  background: cssValue().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
+  textColor: cssValue().optional().describe("Headline/text color. Defaults to the theme foreground."),
+  accent: cssValue().default("#3b82f6").describe("Accent color for the eyebrow."),
   reveal: z.enum(REVEAL).default("fade-up").describe('Reveal motion: "fade-up" | "pop".'),
-  fontFamily: z.string().default(CARD_FONT_STACK).describe("CSS font-family stack."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3500).describe("Total on-screen time in ms."),
@@ -63,7 +63,7 @@ export type TitleCardParams = z.infer<typeof titleCardParamsSchema>;
 
 /** Build the standalone HTML. Pure (no I/O) so it's unit-testable without a browser. */
 export function buildTitleCardHtml(p: TitleCardParams, safeInset?: SafeInset): string {
-  const t = resolveCardTheme(p.theme, { background: brandOrUndef(p.background), text: p.textColor });
+  const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.textColor });
   // DM-1575: an optional brand mark above/below the title (the brand kit's `logo`
   // token maps here, like `cta`). It joins the staggered reveal and rests at
   // identity; `safeInset` is honored via the card padding (`cardHeadCss`).
@@ -98,11 +98,6 @@ export function buildTitleCardHtml(p: TitleCardParams, safeInset?: SafeInset): s
 <body>
   ${items.join("\n  ")}
 </body></html>`;
-}
-
-/** `undefined` for an empty/absent string, so a blank flag doesn't override the theme. */
-function brandOrUndef(v: string | undefined): string | undefined {
-  return v != null && v !== "" ? v : undefined;
 }
 
 export const titleCardTemplate: Template<TitleCardParams> = {

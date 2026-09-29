@@ -8,6 +8,7 @@
  * plus a looping `alternate` pulse on the button — one animation per element).
  */
 
+import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -20,12 +21,11 @@ export const subscribeParamsSchema = z.object({
   name: z.string().default("Domotion").describe("Channel / profile name."),
   subtitle: z.string().default("1.2M subscribers").describe("Sub-line (subscriber/follower count, handle, …)."),
   action: z.string().default("Subscribe").describe("Call-to-action button label (e.g. Subscribe / Follow)."),
-  accent: z.string().default("#ff0000").describe("Button color (CSS color)."),
-  avatarColor: z.string().default("#6366f1").describe("Avatar circle color (CSS color or gradient)."),
+  accent: cssValue().default("#ff0000").describe("Button color (CSS color)."),
+  avatarColor: cssValue().default("#6366f1").describe("Avatar circle color (CSS color or gradient)."),
   avatarText: z.string().optional().describe("Avatar initial (default: first letter of name)."),
   theme: z.enum(["light", "dark"]).default("light").describe('Card theme: "light" | "dark".'),
-  background: z
-    .string()
+  background: cssValue()
     .default("linear-gradient(135deg,#1e293b,#0f172a)")
     .describe("Frame background (CSS color/gradient)."),
   showBell: z.coerce.boolean().default(true).describe("Show the notification-bell button beside the CTA."),
@@ -40,10 +40,7 @@ export const subscribeParamsSchema = z.object({
   subscribedLabel: z.string().default("Subscribed").describe("Label after the simulated click."),
   width: z.coerce.number().int().positive().default(760).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(360).describe("Output height in px."),
-  fontFamily: z
-    .string()
-    .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
-    .describe("CSS font-family."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
   popMs: z.coerce.number().int().positive().default(520).describe("Pop-in duration in ms."),
   holdMs: z.coerce.number().int().positive().default(2600).describe("Hold after the pop in ms."),
 });

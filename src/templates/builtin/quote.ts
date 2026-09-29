@@ -8,6 +8,7 @@
  * brand kit.
  */
 
+import { cssValue, blank, THEMES } from "./shared.js";
 import { z } from "zod";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -24,7 +25,6 @@ import {
 } from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
-const THEMES = ["dark", "light"] as const;
 const PADDING = 96;
 
 export const quoteParamsSchema = z.object({
@@ -35,22 +35,18 @@ export const quoteParamsSchema = z.object({
     .string()
     .optional()
     .describe("A single initial shown in the avatar circle (defaults to the author's first letter)."),
-  avatarColor: z.string().optional().describe("Avatar circle fill (defaults to the accent)."),
-  accent: z.string().default("#3b82f6").describe("Accent color for the quote mark + rule + avatar."),
+  avatarColor: cssValue().optional().describe("Avatar circle fill (defaults to the accent)."),
+  accent: cssValue().default("#3b82f6").describe("Accent color for the quote mark + rule + avatar."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
-  background: z.string().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
-  textColor: z.string().optional().describe("Quote text color. Defaults to the theme foreground."),
-  fontFamily: z.string().default(CARD_FONT_STACK).describe("CSS font-family stack."),
+  background: cssValue().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
+  textColor: cssValue().optional().describe("Quote text color. Defaults to the theme foreground."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3800).describe("Total on-screen time in ms."),
 });
 
 export type QuoteParams = z.infer<typeof quoteParamsSchema>;
-
-function blank(v: string | undefined): string | undefined {
-  return v != null && v !== "" ? v : undefined;
-}
 
 /** Build the standalone HTML. Pure — unit-testable without a browser. */
 export function buildQuoteHtml(p: QuoteParams, safeInset?: SafeInset): string {

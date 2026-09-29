@@ -9,6 +9,7 @@
  * animation constraints as the other generators).
  */
 
+import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -54,16 +55,13 @@ const DEFAULT_THREAD: ChatMessage[] = [
 export const chatParamsSchema = z.object({
   messages: messagesSchema.default(DEFAULT_THREAD).describe('Thread: JSON [{from,text}] or lines "me: …" / "them: …".'),
   title: z.string().optional().describe("Contact name shown in the header (omit for no header)."),
-  accent: z.string().default("#3b82f6").describe('"me" bubble color (CSS color).'),
+  accent: cssValue().default("#3b82f6").describe('"me" bubble color (CSS color).'),
   themBubble: z.string().default("#e9e9eb").describe('"them" bubble color.'),
   themText: z.string().default("#111111").describe('"them" bubble text color.'),
-  background: z.string().default("#ffffff").describe("Thread background (CSS color)."),
+  background: cssValue().default("#ffffff").describe("Thread background (CSS color)."),
   width: z.coerce.number().int().positive().default(560).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(760).describe("Output height in px."),
-  fontFamily: z
-    .string()
-    .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
-    .describe("CSS font-family."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
   typing: z.coerce.boolean().default(true).describe('Show a "…" typing indicator before each "them" message.'),
   typingMs: z.coerce
     .number()

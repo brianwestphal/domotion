@@ -14,6 +14,7 @@
  * from→to schema can't express).
  */
 
+import { cssValue } from "./shared.js";
 import { z } from "zod";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
@@ -38,8 +39,8 @@ export const captionParamsSchema = z.object({
     .max(1)
     .default(0)
     .describe("Opacity of the scrim behind the text (0 = transparent)."),
-  textColor: z.string().default("#ffffff").describe("Caption text color."),
-  fontFamily: z.string().default(CARD_FONT_STACK).describe("CSS font-family stack."),
+  textColor: cssValue().default("#ffffff").describe("Caption text color."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   inMs: z.coerce.number().int().positive().default(450).describe("Enter duration in ms."),
   outMs: z.coerce.number().int().positive().default(450).describe("Exit duration in ms."),
   holdMs: z.coerce

@@ -12,6 +12,7 @@
  * a clip.
  */
 
+import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { writeFileSync } from "node:fs";
 import { join, resolve, extname } from "node:path";
 import { z } from "zod";
@@ -31,8 +32,8 @@ export const compareParamsSchema = z.object({
   direction: z.enum(DIRECTIONS).default("right").describe("Direction the reveal travels: right | left | down | up."),
   beforeLabel: z.string().optional().describe("Caption badge for the before visual (bottom-left)."),
   afterLabel: z.string().optional().describe("Caption badge for the after visual (bottom-right)."),
-  accent: z.string().default("#ffffff").describe("Divider line color (slide mode)."),
-  fontFamily: z.string().default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif").describe("Label font."),
+  accent: cssValue().default("#ffffff").describe("Divider line color (slide mode)."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("Label font."),
   durationMs: z.coerce.number().int().positive().default(1600).describe("Reveal duration in ms."),
   holdMs: z.coerce.number().int().positive().default(3200).describe("Total on-screen time in ms."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
@@ -57,6 +58,11 @@ function resolveSrc(src: string): string {
  * captured directly; an image/SVG asset is wrapped in a full-bleed page so its
  * bytes embed into the captured SVG. `slot` disambiguates the temp filename.
  */
+/** Escape a value for a double-quoted HTML attribute. */
+function escapeAttr(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 async function visualToSvg(
   ctx: TemplateRenderContext,
   src: string,
@@ -68,7 +74,7 @@ async function visualToSvg(
     const html = `<!doctype html><html><head><meta charset="utf-8"><style>
       *{margin:0}html,body{width:${w}px;height:${h}px;overflow:hidden}
       img{width:100%;height:100%;object-fit:cover;display:block}
-    </style></head><body><img src="file://${resolveSrc(src)}"></body></html>`;
+    </style></head><body><img src="file://${escapeAttr(resolveSrc(src))}"></body></html>`;
     const path = join(ctx.workDir, `compare-${slot}.html`);
     writeFileSync(path, html);
     const out = await ctx.captureToSvg({ input: path, width: w, height: h });

@@ -118,21 +118,25 @@ export async function renderTemplateToSvg<P>(
   const params = validateTemplateParams(template, applyBrandDefaults(template, rawParams, opts.brand));
   const log = opts.log ?? ((): void => {});
   const ownsBrowser = opts.browser == null;
-  const browser = opts.browser ?? (await launchChromium());
+  // The work directory is made first and the launch sits inside the `try`, so a failure of either
+  // cannot leak the other: a browser started before a throwing mkdtemp used to be left running.
   const workDir = mkdtempSync(join(tmpdir(), `domotion-tmpl-${template.name}-`));
+  let browser: Browser | undefined = opts.browser;
   try {
+    browser ??= await launchChromium();
+    const launched = browser;
     const ctx: TemplateRenderContext = {
-      browser,
+      browser: launched,
       workDir,
       log,
       ...(opts.safeInset != null ? { safeInset: opts.safeInset } : {}),
       runAnimateConfig: (cfg: AnimateConfig, configDir?: string): Promise<string> =>
-        composeAnimateConfig(browser, cfg, configDir ?? workDir, log),
-      captureToSvg: (p: CaptureToSvgParams): Promise<TemplateOutput> => captureToSvg(browser, p, log),
+        composeAnimateConfig(launched, cfg, configDir ?? workDir, log),
+      captureToSvg: (p: CaptureToSvgParams): Promise<TemplateOutput> => captureToSvg(launched, p, log),
     };
     return await template.render(params, ctx);
   } finally {
     rmSync(workDir, { recursive: true, force: true });
-    if (ownsBrowser) await browser.close();
+    if (ownsBrowser && browser != null) await browser.close();
   }
 }

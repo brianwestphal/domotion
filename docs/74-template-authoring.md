@@ -178,6 +178,13 @@ and is **projected to CLI flags** + a JSON Schema.
   `--params-file`. (A `union(string | array)` lets an array param also accept a
   comma-separated flag — see `background-loop`'s `--colors`.)
 - Invalid params fail before render with a path-specific error.
+- A param that is interpolated into your generated `<style>` (a color, background,
+  gradient or font stack) should not be able to close the block. The built-ins
+  declare those fields with `cssValue()` from `src/templates/builtin/shared.ts`,
+  which rejects braces, angle brackets and line breaks at validation time and
+  leaves every accepted value unchanged. Text that ends up in the page body is
+  HTML-escaped by the template instead; file paths placed in attributes are
+  attribute-escaped.
 
 ## `durationMs` — play nicely in animate configs
 

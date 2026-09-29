@@ -10,6 +10,7 @@
  * `--brand acme.json` (with a `logo`) auto-fills the end-card's logo.
  */
 
+import { cssValue, blank, THEMES } from "./shared.js";
 import { z } from "zod";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
@@ -27,7 +28,6 @@ import {
 } from "./text-card-common.js";
 import type { SafeInset } from "../formats.js";
 
-const THEMES = ["dark", "light"] as const;
 const PADDING = 96;
 
 /** A comma-separated string OR an array of handle strings. */
@@ -44,25 +44,21 @@ const handlesSchema = z.union([
 export const ctaParamsSchema = z.object({
   cta: z.string().min(1).describe("Call-to-action button label (required)."),
   headline: z.string().optional().describe("Headline above the button."),
-  ctaColor: z.string().default("#3b82f6").describe("CTA button fill color."),
+  ctaColor: cssValue().default("#3b82f6").describe("CTA button fill color."),
   logo: z.string().optional().describe("Optional logo image (URL or absolute path) shown above the headline."),
   handles: handlesSchema.optional().describe("Social handles / links (comma-separated or array), shown as a row."),
   url: z.string().optional().describe("A URL line under the handles."),
   pulse: z.coerce.boolean().default(true).describe("Whether the CTA button gently pulses."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
-  background: z.string().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
-  textColor: z.string().optional().describe("Headline/text color. Defaults to the theme foreground."),
-  fontFamily: z.string().default(CARD_FONT_STACK).describe("CSS font-family stack."),
+  background: cssValue().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
+  textColor: cssValue().optional().describe("Headline/text color. Defaults to the theme foreground."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(4000).describe("Total on-screen time in ms."),
 });
 
 export type CtaParams = z.infer<typeof ctaParamsSchema>;
-
-function blank(v: string | undefined): string | undefined {
-  return v != null && v !== "" ? v : undefined;
-}
 
 /** Build the standalone HTML. Pure — unit-testable without a browser. */
 export function buildCtaHtml(p: CtaParams, safeInset?: SafeInset): string {

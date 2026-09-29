@@ -8,6 +8,7 @@
  * grow about the axis for bars, a `clipPath` left-to-right reveal for the line).
  */
 
+import { cssValue, CARD_FONT_STACK } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { Anims } from "../../cli/animate.js";
@@ -79,12 +80,9 @@ export const chartParamsSchema = z.object({
     .describe("Print each value at the end of its bar / point (single series only)."),
   width: z.coerce.number().int().positive().default(1000).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(600).describe("Output height in px."),
-  background: z.string().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
-  color: z.string().default("#e6edf3").describe("Text / axis color (CSS color)."),
-  fontFamily: z
-    .string()
-    .default("-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif")
-    .describe("CSS font-family."),
+  background: cssValue().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
+  color: cssValue().default("#e6edf3").describe("Text / axis color (CSS color)."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
   growMs: z.coerce.number().int().positive().default(750).describe("Grow / draw duration per element in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(110).describe("Delay between categories in ms."),
   holdMs: z.coerce.number().int().positive().default(1800).describe("Hold time after the chart finishes in ms."),

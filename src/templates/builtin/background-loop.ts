@@ -20,6 +20,7 @@
  *  not `filter: blur()`.
  */
 
+import { cssValue } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { z } from "zod";
 import type { AnimateConfig, Anims } from "../../cli/animate.js";
@@ -66,7 +67,7 @@ export const backgroundLoopParamsSchema = z.object({
   colors: colorsSchema.describe(
     "Colors, cycled across the elements (CSS colors; a JSON array, or a comma-separated string).",
   ),
-  background: z.string().default("#0b1020").describe("Base fill behind the blobs (CSS color)."),
+  background: cssValue().default("#0b1020").describe("Base fill behind the blobs (CSS color)."),
   count: z.coerce.number().int().min(1).max(24).default(5).describe("Number of blobs."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),

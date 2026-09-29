@@ -9,6 +9,7 @@
  * value (the reels rest at their end digit). Brand- and format-aware.
  */
 
+import { cssValue, blank, THEMES } from "./shared.js";
 import { z } from "zod";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -26,7 +27,6 @@ import { planOdometer, planTimer, buildOdometerMarkup, type OdometerPlan } from 
 import type { SafeInset } from "../formats.js";
 
 const MODES = ["count", "timer"] as const;
-const THEMES = ["dark", "light"] as const;
 const PADDING = 96;
 
 export const counterParamsSchema = z.object({
@@ -42,9 +42,9 @@ export const counterParamsSchema = z.object({
   easing: z.string().default("cubic-bezier(0.22,1,0.36,1)").describe("CSS easing for the roll."),
   fontSize: z.coerce.number().int().positive().default(180).describe("Number font size in px."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
-  background: z.string().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
-  color: z.string().optional().describe("Number color. Defaults to the theme foreground."),
-  fontFamily: z.string().default(CARD_FONT_STACK).describe("CSS font-family stack."),
+  background: cssValue().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
+  color: cssValue().optional().describe("Number color. Defaults to the theme foreground."),
+  fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   width: z.coerce.number().int().positive().default(1280).describe("Output width in px."),
   height: z.coerce.number().int().positive().default(720).describe("Output height in px."),
   holdMs: z.coerce.number().int().positive().default(3200).describe("Total on-screen time in ms."),
@@ -97,10 +97,6 @@ export function buildCounterHtml(
   <div class="ct-num">${prefix}${od.html}${suffix}</div>
 </body></html>`;
   return { html, animations: od.animations };
-}
-
-function blank(v: string | undefined): string | undefined {
-  return v != null && v !== "" ? v : undefined;
 }
 
 export const counterTemplate: Template<CounterParams> = {

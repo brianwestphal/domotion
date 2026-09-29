@@ -204,6 +204,11 @@ export function safeAreaPadding(defaults: EdgeInset, safeInset?: SafeInset): str
  */
 export const ADAPTIVE_REFERENCE = { width: 1280, height: 720, inset: 96 } as const;
 
+/** Default clamp on the adaptive type scale. NO UPSTREAM RULE: a design bound (below 0.75 text
+ *  stops being legible at the smallest safe area; above 1.85 a card outgrows its reference layout). */
+const ADAPTIVE_SCALE_MIN = 0.75;
+const ADAPTIVE_SCALE_MAX = 1.85;
+
 /**
  * Per-template **adaptive scale factor** (docs/91, DM-1541): how much to scale a
  * text card's authored font sizes / spacing so a headline tuned for landscape
@@ -234,8 +239,8 @@ export function formatScaleFactor(
   const refW = ADAPTIVE_REFERENCE.width - 2 * ADAPTIVE_REFERENCE.inset;
   const refH = ADAPTIVE_REFERENCE.height - 2 * ADAPTIVE_REFERENCE.inset;
   const raw = Math.sqrt((contentW * contentH) / (refW * refH));
-  const min = opts.min ?? 0.75;
-  const max = opts.max ?? 1.85;
+  const min = opts.min ?? ADAPTIVE_SCALE_MIN;
+  const max = opts.max ?? ADAPTIVE_SCALE_MAX;
   return Math.min(max, Math.max(min, raw));
 }
 
