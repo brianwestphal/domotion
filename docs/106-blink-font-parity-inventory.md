@@ -121,11 +121,11 @@ Ordered by expected impact:
 
 1. ~~**Remove the interposed table** so `kSystemFonts` answers (macOS/Linux), keeping a transcribed table only where Blink has one (Windows).~~ **Done** — reordered rather than removed, see §4. The table survives as the fall-through for what the OS declines.
 2. ~~**Fix the macOS base-font argument**~~ **Done** — the cascade base is the run's own primary, matching `CTFontCreateForString(ct_font, …)`.
-3. **Audit the Linux locale argument** against `gfx::GetFallbackFontForChar`.
-4. **Port the Windows table** ahead of our `MapCharacters` call.
+3. ~~**Audit the Linux locale argument** against `gfx::GetFallbackFontForChar`.~~ **Done** — `GetFallbackFontForChar` adds the locale string verbatim as `FC_LANG` (`ui/gfx/font_fallback_linux.cc:251-253`, chromium `7d859f27`, 2026-06-27; the file IS in the local sparse checkout), and the live resolver carries the run's locale into fontconfig the same way (`fcLangProperty` in `font-resolution.ts`, `:lang=<tag>`, DM-1863). Region tags discriminate (`zh-cn` vs `zh-tw`); a script-subtag locale such as `zh-Hans` passes through unchanged and does not discriminate, which is what Chrome's verbatim `FC_LANG` does too, so no table is invented.
+4. ~~**Port the Windows table** ahead of our `MapCharacters` call.~~ **Done** — transcribed in `packages/text-engine/src/render/win-font-fallback.ts` (see §2/§3).
 5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the _first_ candidate. Done — the uncovered terminal pins the primary's `.notdef` in both modes; the single remaining exception is paths mode's uncovered-emoji terminal, which pins the chain tail on purpose so the raster-overlay advance stays aligned (an overlay mechanism, not a parity gap).
 6. ~~**Skip system fallback for private-use and noncharacter codepoints**~~ **Done** — `font_cache.cc:242-244`. Cost nothing to transcribe; the ranges are absent from the corpus, so measure it with a purpose-built fixture rather than expecting the sweep to speak.
-7. **Model `kFallbackPriorityFonts`** as the one-shot stage it is.
+7. ~~**Model `kFallbackPriorityFonts`** as the one-shot stage it is.~~ **Done** — the explicit `priority` stage in `cluster-fallback.ts`.
 
 Each has corpus-wide blast radius and needs a full-sweep A/B before landing, measured against the conformance oracle rather than fixture scores.
 
@@ -133,4 +133,4 @@ Each has corpus-wide blast radius and needs a full-sweep A/B before landing, mea
 
 **Rasterization.** Chrome rasterizes with Skia; our output is rasterized by the consumer browser (embedded mode) or emitted as vector outlines. That difference is accepted by the maintainer and is the documented hinting floor ([docs/42](42-cross-platform-fallback-calibration.md), [docs/99](99-hinted-embedded-subset.md)) — a separate concern from the matching mechanism.
 
-**Shaping** is in scope for parity but tracked separately, since it is the largest single item: Blink shapes with **HarfBuzz on every platform**, while we use fontkit's `layout()` generally and `harfbuzzjs` in only three narrow NFD branches — despite HarfBuzz already being vendored (`packages/text-engine/vendor/harfbuzzjs/`, rebuilt with Chromium's own HarfBuzz configuration — see its README) with a wrapper at `packages/text-engine/src/render/harfbuzz-shaper.ts`. The native helper's CoreText `shape` query is a third shaping path that would also need collapsing.
+**Shaping** is no longer a gap of this inventory: vendored HarfBuzz (`packages/text-engine/vendor/harfbuzzjs/`, built with Chromium's own configuration) is the single production shaper, wrapping every run via `harfbuzzShapedRunOverride` in `packages/text-engine/src/render/text-to-path.ts`. See [doc 115 — production HarfBuzz shaping](115-production-harfbuzz-shaping.md); the shaping oracle is [doc 108](108-shaping-conformance-oracle.md).
