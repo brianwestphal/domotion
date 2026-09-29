@@ -2838,3 +2838,49 @@ export interface CaptureWarning {
   /** Machine-readable fidelity state when a post-pass retained a fallback. */
   status?: "partial" | "unavailable";
 }
+
+/**
+ * The JSON-serialized argument bag the in-page CAPTURE_SCRIPT receives (`page.evaluate` runs the script
+ * as `(CAPTURE_SCRIPT)(args)`). The script is self-contained page code, so this is the whole interface
+ * between the Node-side prepasses and the synchronous walk: each `*Key` names a private, capture-local
+ * property on the page/elements where a CDP prepass left its facts, and is absent/empty when that prepass
+ * did not run.
+ */
+export interface CaptureScriptArgs {
+  /** Selector of the capture root. */
+  selector: string;
+  /** Capture viewport in page coordinates. */
+  viewport: { x: number; y: number; width: number; height: number };
+  /** The parsed `--cross-origin-frames` allowlist value; "" recurses only same-origin frames. */
+  crossOriginFrames: string;
+  /** Resizer (scrollbar corner) theme thickness and DIP scale, measured from Blink. */
+  resizerThemeThickness: number;
+  resizerScaleFromDip: number;
+  /** Resolved control-pseudo styles by host and the property that carries them on each host. */
+  pseudoStylePropertyKey: string;
+  pseudoStylesByHost: unknown;
+  /** Element property carrying the retained closed-shadow decoration node references. */
+  nativeDecorationPropertyKey: string;
+  /** Element property carrying the input value text geometry. */
+  inputValuePropertyKey: string;
+  /** Element property carrying the effective-appearance facts, and why they are unavailable. */
+  effectiveAppearancePropertyKey: string;
+  effectiveAppearanceSetupFailure?: string;
+  /** Element property carrying the live-scrollbar records. */
+  scrollbarPropertyKey: string;
+  /** Window property carrying the authenticated frame-scroll registry. */
+  frameScrollPropertyKey: string;
+  /** Projective (3D) facts by node index, the registry key, and the sampled animation frame. */
+  projectiveFacts: unknown[];
+  projectiveKey: string;
+  projectiveSampleTimeMs?: number;
+  projectiveAnimationCount?: number;
+  /** Registry keys of the collapsed-border, pseudo-fragment and pseudo-image prepasses. */
+  collapsedBorderFragmentKey: string;
+  pseudoFragmentKey: string;
+  pseudoImageSizingKey: string;
+  /** Registry key of the text-paint geometry prepass; set on the final capture only. */
+  textPaintGeometryKey?: string;
+  /** True for the all-transform-neutral probe capture that feeds the text-paint prepass. */
+  textPaintProbe?: boolean;
+}

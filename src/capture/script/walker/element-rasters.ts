@@ -8,7 +8,10 @@
 import { isWholeHostNativeAppearance } from "../../effective-appearance.js";
 
 export const captureScrollbarRecord = ({ args, el, cs, warn, sel }) => {
-  const _record = typeof args.sk === "string" && args.sk !== "" ? el[args.sk] : undefined;
+  const _record =
+    typeof args.scrollbarPropertyKey === "string" && args.scrollbarPropertyKey !== ""
+      ? el[args.scrollbarPropertyKey]
+      : undefined;
   if (
     _record == null &&
     (cs.overflowX === "auto" || cs.overflowX === "scroll" || cs.overflowY === "auto" || cs.overflowY === "scroll")

@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { captureElementTreeWithWarnings, launchChromium } from "../src/index.js";
 import { measureBlinkPlatformResizer } from "../src/capture/index.js";
 import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
-import type { CapturedElement } from "../src/capture/types.js";
+import type { CapturedElement, CaptureScriptArgs } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 async function setup() {
@@ -40,19 +40,19 @@ describeBrowser("Blink EffectiveAppearance native-control ownership", () => {
     try {
       await page.setContent(`<button id="unknown" style="margin:30px;width:140px;height:42px">unknown origin</button>`);
       const args = {
-        sel: "body",
-        vp: { x: 0, y: 0, ...viewport },
-        cof: "",
-        rt: 15,
-        rs: 1,
-        pk: "",
-        ps: {},
-        eak: "__deliberately_missing_effective_appearance_facts__",
-        ear: "forced inaccessible author stylesheet",
-        sk: "",
-        pq: [],
-        pqk: "",
-      };
+        selector: "body",
+        viewport: { x: 0, y: 0, ...viewport },
+        crossOriginFrames: "",
+        resizerThemeThickness: 15,
+        resizerScaleFromDip: 1,
+        pseudoStylePropertyKey: "",
+        pseudoStylesByHost: {},
+        effectiveAppearancePropertyKey: "__deliberately_missing_effective_appearance_facts__",
+        effectiveAppearanceSetupFailure: "forced inaccessible author stylesheet",
+        scrollbarPropertyKey: "",
+        projectiveFacts: [],
+        projectiveKey: "",
+      } satisfies Partial<CaptureScriptArgs>;
       const result = (await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(args)})`)) as {
         tree: CapturedElement[];
         warnings: Array<{ feature: string; detail: string }>;

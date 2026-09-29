@@ -56,16 +56,19 @@ export const homographyForRect = (vp, rect, q) => {
  */
 export const projectiveFrameStateFor = (args, fact, ownsRasterBoundary) => {
   if (
-    typeof args.pqt === "number" &&
-    isFinite(args.pqt) &&
+    typeof args.projectiveSampleTimeMs === "number" &&
+    isFinite(args.projectiveSampleTimeMs) &&
     fact != null &&
     fact.influenced === true &&
     fact.computed != null
   ) {
     return {
       source: "chromium-cdp-content-quad-v1",
-      sampleTimeMs: args.pqt,
-      animationCount: typeof args.pqa === "number" && isFinite(args.pqa) ? args.pqa : 0,
+      sampleTimeMs: args.projectiveSampleTimeMs,
+      animationCount:
+        typeof args.projectiveAnimationCount === "number" && isFinite(args.projectiveAnimationCount)
+          ? args.projectiveAnimationCount
+          : 0,
       role: fact.role,
       influenced: true,
       contentQuad: fact.quad,

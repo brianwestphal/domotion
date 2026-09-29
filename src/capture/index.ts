@@ -77,7 +77,14 @@ import {
 import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element-raster.js";
 import { _resetLastCaptureWarnings } from "./warnings.js";
 import { probeFailureWarning } from "./probe-failure.js";
-import type { CapturedElement, CapturedFrameScrollState, CapturedTreeEnvelope, CaptureWarning } from "./types.js";
+import { assertCapturedTreeShape } from "./tree-shape.js";
+import type {
+  CapturedElement,
+  CapturedFrameScrollState,
+  CapturedTreeEnvelope,
+  CaptureScriptArgs,
+  CaptureWarning,
+} from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { createTextEngineSession, withTextEngineDocument, type TextEngineSession } from "../render/text-engine.js";
 import {
@@ -2259,39 +2266,39 @@ async function captureElementTreeWithWarningsInternal(
       await reverifyAnimationFrame();
       pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
       await reverifyAnimationFrame();
-      const captureArgs = {
-        sel: selector,
-        vp: viewport,
-        cof: opts?.crossOriginFrames ?? "",
-        rt: resizerMetrics.themeThickness,
-        rs: resizerMetrics.scaleFromDIP,
-        pk: pseudoStyles.propertyKey,
-        ps: pseudoStyles.stylesByHost,
-        ndk: pseudoStyles.decorationPropertyKey,
-        ivk: pseudoStyles.inputValuePropertyKey,
-        eak: effectiveAppearance.propertyKey,
-        ear: effectiveAppearance.setupFailure,
-        sk: scrollbarCapture.propertyKey,
-        fk: frameScrollCapture.propertyKey,
-        pq: projectiveProbe.facts,
-        pqk: projectiveProbe.key,
-        pqt: animationFrameState?.requestedTimeMs,
-        pqa: animationFrameState?.animationCount,
-        cbfk: collapsedBorderFragmentProbe.key,
-        pgk: pseudoFragmentProbe.key,
-        pik: pseudoImagePrime.propertyKey,
+      const captureArgs: CaptureScriptArgs = {
+        selector,
+        viewport,
+        crossOriginFrames: opts?.crossOriginFrames ?? "",
+        resizerThemeThickness: resizerMetrics.themeThickness,
+        resizerScaleFromDip: resizerMetrics.scaleFromDIP,
+        pseudoStylePropertyKey: pseudoStyles.propertyKey,
+        pseudoStylesByHost: pseudoStyles.stylesByHost,
+        nativeDecorationPropertyKey: pseudoStyles.decorationPropertyKey,
+        inputValuePropertyKey: pseudoStyles.inputValuePropertyKey,
+        effectiveAppearancePropertyKey: effectiveAppearance.propertyKey,
+        effectiveAppearanceSetupFailure: effectiveAppearance.setupFailure,
+        scrollbarPropertyKey: scrollbarCapture.propertyKey,
+        frameScrollPropertyKey: frameScrollCapture.propertyKey,
+        projectiveFacts: projectiveProbe.facts,
+        projectiveKey: projectiveProbe.key,
+        projectiveSampleTimeMs: animationFrameState?.requestedTimeMs,
+        projectiveAnimationCount: animationFrameState?.animationCount,
+        collapsedBorderFragmentKey: collapsedBorderFragmentProbe.key,
+        pseudoFragmentKey: pseudoFragmentProbe.key,
+        pseudoImageSizingKey: pseudoImagePrime.propertyKey,
       };
       textPaintProbe = await prepareTextPaintGeometry(page, selector, viewport, async (textPaintKey) => {
         const neutralResult = await page.evaluate(
-          `(${CAPTURE_SCRIPT})(${JSON.stringify({ ...captureArgs, tgk: textPaintKey, tgp: true })})`,
+          `(${CAPTURE_SCRIPT})(${JSON.stringify({ ...captureArgs, textPaintGeometryKey: textPaintKey, textPaintProbe: true })})`,
         );
-        return neutralResult as { tree: CapturedElement[] };
+        return assertCapturedTreeShape(neutralResult, "neutral text-paint capture") as { tree: CapturedElement[] };
       });
       await reverifyAnimationFrame();
       result = await page.evaluate(
         `(${CAPTURE_SCRIPT})(${JSON.stringify({
           ...captureArgs,
-          tgk: textPaintProbe.key,
+          textPaintGeometryKey: textPaintProbe.key,
         })})`,
       );
     } finally {
@@ -2309,7 +2316,7 @@ async function captureElementTreeWithWarningsInternal(
       }
     }
     try {
-      const typed = result as { tree: CapturedElement[]; warnings: CaptureWarning[] };
+      const typed = assertCapturedTreeShape(result) as { tree: CapturedElement[]; warnings: CaptureWarning[] };
       await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
       const warnings = typed.warnings ?? [];
       for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {

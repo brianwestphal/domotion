@@ -83,18 +83,18 @@ import {
 import { createScrollMarkersHandler } from "./walker/scroll-markers.js";
 
 const captureDocumentTree = (args) => {
-  const sel = args.sel;
-  const vp = args.vp;
+  const sel = args.selector;
+  const vp = args.viewport;
   // DM-1442: cross-origin <iframe> recursion allowlist (the parsed
-  // `--cross-origin-frames` value, passed in as `args.cof`). null in the
+  // `--cross-origin-frames` value, passed in as `args.crossOriginFrames`). null in the
   // default (Phase 1) configuration — only same-origin frames recurse then.
-  const _crossOriginAllow = parseCrossOriginAllowlist(args.cof);
+  const _crossOriginAllow = parseCrossOriginAllowlist(args.crossOriginFrames);
   // DM-2537: Node authenticates each live main-world browsing context against
   // Chromium's DevTools FrameId before this synchronous walk begins. The
   // private registry is capture-local and removed in a finally; it prevents a
   // repeated URL, stale allowlist, or sibling-frame index from authorizing the
   // wrong document during a multi-segment scroll capture.
-  const _frameScrollKey = typeof args.fk === "string" ? args.fk : "";
+  const _frameScrollKey = typeof args.frameScrollPropertyKey === "string" ? args.frameScrollPropertyKey : "";
   const _svgReferenceScopes = new WeakMap();
   let _nextSvgReferenceScope = 0;
   function _svgReferenceScope(el) {
@@ -110,9 +110,9 @@ const captureDocumentTree = (args) => {
   // per-frame registry. The synchronous walker consumes only immutable facts;
   // no author-visible attributes or source-order guesses are involved.
   function _textPaintRegistryFor(el) {
-    if (typeof args.tgk !== "string" || args.tgk === "") return undefined;
+    if (typeof args.textPaintGeometryKey !== "string" || args.textPaintGeometryKey === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
-    return view != null ? view[args.tgk] : undefined;
+    return view != null ? view[args.textPaintGeometryKey] : undefined;
   }
   function _textPaintElementIndexFor(el) {
     var registry = _textPaintRegistryFor(el);
@@ -131,16 +131,19 @@ const captureDocumentTree = (args) => {
     return registry != null && index != null ? registry.token + ":" + index : undefined;
   }
   function _textPaintSourceTextNodeIndexFor(node) {
-    var registry = node != null && node.ownerDocument != null ? node.ownerDocument.defaultView?.[args.tgk] : undefined;
+    var registry =
+      node != null && node.ownerDocument != null
+        ? node.ownerDocument.defaultView?.[args.textPaintGeometryKey]
+        : undefined;
     return registry != null && registry.indexByTextNode != null ? registry.indexByTextNode.get(node) : undefined;
   }
   // DM-2467: exact generated-content fragment records are installed by one
   // frame-scoped CDP prepass. Presence (including a terminal-raster record)
   // disables the legacy clone/probe path for that live host.
   function _pseudoFragmentFactsFor(el) {
-    if (typeof args.pgk !== "string" || args.pgk === "") return undefined;
+    if (typeof args.pseudoFragmentKey !== "string" || args.pseudoFragmentKey === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
-    var registry = view != null ? view[args.pgk] : undefined;
+    var registry = view != null ? view[args.pseudoFragmentKey] : undefined;
     var index = registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
     return registry != null && index != null && registry.factsByElement != null
       ? registry.factsByElement[index]
@@ -183,8 +186,8 @@ const captureDocumentTree = (args) => {
     return tables;
   };
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules(
-    args.ps,
-    args.pk,
+    args.pseudoStylesByHost,
+    args.pseudoStylePropertyKey,
   );
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
   // DM-770: counter-style map is populated by the pre-walk below (which
@@ -225,7 +228,8 @@ const captureDocumentTree = (args) => {
   // prepass authenticated one transform-neutral physical section record from
   // independent CSSOM and protocol geometry. Keep the live DOM correlation in
   // a private WeakMap; no author-visible id participates in ownership.
-  const _collapsedBorderFragmentRegistry = typeof args.cbfk === "string" ? globalThis[args.cbfk] : null;
+  const _collapsedBorderFragmentRegistry =
+    typeof args.collapsedBorderFragmentKey === "string" ? globalThis[args.collapsedBorderFragmentKey] : null;
   const _collapsedBorderFragmentByTable = new WeakMap();
   if (
     _collapsedBorderFragmentRegistry != null &&
@@ -255,7 +259,7 @@ const captureDocumentTree = (args) => {
     vp,
     transformRelatedBoxFor: (el) => _transformRelatedBox.get(el),
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
-    scrollbarPropertyKey: args.sk,
+    scrollbarPropertyKey: args.scrollbarPropertyKey,
   });
   const { capturePseudoContent } = createPseudoContentHandler({
     vp,
@@ -268,14 +272,14 @@ const captureDocumentTree = (args) => {
     physicalComputedCssPixelTerms,
     physicalComputedGradientImage,
     fontFamilyStackFor: _fontFamilyStackFor,
-    pseudoImageSizingKey: args.pik,
+    pseudoImageSizingKey: args.pseudoImageSizingKey,
   });
   const { captureInputValue } = createInputValueHandler({
     vp,
     normColor,
     measureFontMetrics: _measureFontMetrics,
     fontFamilyStackFor: _fontFamilyStackFor,
-    valueTextGeometryKey: args.ivk,
+    valueTextGeometryKey: args.inputValuePropertyKey,
   });
   const { finalizeLineClampText } = createLineClampHandler({
     vp,
@@ -299,8 +303,8 @@ const captureDocumentTree = (args) => {
     resolvePseudo: _resolvePseudo,
     normColor,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
-    themeThickness: args.rt,
-    scaleFromDIP: args.rs,
+    themeThickness: args.resizerThemeThickness,
+    scaleFromDIP: args.resizerScaleFromDip,
     vp,
   });
 
@@ -504,7 +508,7 @@ const captureDocumentTree = (args) => {
       textPaintGeometry: _textPaintFact != null ? _textPaintFact.geometry : undefined,
       // Correlation marker emitted only by the all-transform-neutral probe
       // capture and consumed before that intermediate tree is discarded.
-      _textPaintSourceKey: args.tgp === true ? _textPaintSourceKeyFor(el) : undefined,
+      _textPaintSourceKey: args.textPaintProbe === true ? _textPaintSourceKeyFor(el) : undefined,
       lineClampTextFragments: _text.lineClampTextFragments || undefined,
       textTop: _text.textTop,
       textLeft: _text.textLeft,
@@ -842,9 +846,11 @@ const captureDocumentTree = (args) => {
   // or appended HTML child can change SVG layout.  SVG graphics children are
   // source-flattened affine and deliberately do not receive a general box
   // homography; outer SVG roots and HTML boxes may.
-  const _projectiveFacts = Array.isArray(args.pq) ? args.pq : [];
+  const _projectiveFacts = Array.isArray(args.projectiveFacts) ? args.projectiveFacts : [];
   const _projectiveDomNodes =
-    typeof args.pqk === "string" && Array.isArray(globalThis[args.pqk]) ? globalThis[args.pqk] : [];
+    typeof args.projectiveKey === "string" && Array.isArray(globalThis[args.projectiveKey])
+      ? globalThis[args.projectiveKey]
+      : [];
   const _projectiveNodeIndex = new WeakMap();
   const _projectedQuads = new WeakMap();
   const _projectiveAbsH = new WeakMap();
@@ -1093,8 +1099,8 @@ const captureDocumentTree = (args) => {
     try {
       var _rootScrollbarOwner = document.scrollingElement;
       var _rootScrollbarRecord =
-        _rootScrollbarOwner != null && typeof args.sk === "string" && args.sk !== ""
-          ? _rootScrollbarOwner[args.sk]
+        _rootScrollbarOwner != null && typeof args.scrollbarPropertyKey === "string" && args.scrollbarPropertyKey !== ""
+          ? _rootScrollbarOwner[args.scrollbarPropertyKey]
           : undefined;
       if (_rootScrollbarRecord != null) result[0].rootScrollbars = _rootScrollbarRecord;
       var _isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;

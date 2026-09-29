@@ -236,7 +236,7 @@ for (const fixture of fixtures) {
   });
   const expected = await chromiumGeometry(page, selector, fixture.normalizeScale ?? 1);
   const raw = (await page.evaluate(
-    `(${CAPTURE_SCRIPT})({sel:${JSON.stringify(selector)},vp:{x:0,y:0,width:900,height:700},cof:""})`,
+    `(${CAPTURE_SCRIPT})({selector:${JSON.stringify(selector)},viewport:{x:0,y:0,width:900,height:700},crossOriginFrames:""})`,
   )) as {
     tree: CapturedElement[];
     warnings?: Array<{ feature?: string; detail?: string }>;

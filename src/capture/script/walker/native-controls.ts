@@ -40,7 +40,10 @@ export const createNativeControlsHandler = (ctx) => {
       selectSize: tag === "select" ? +el.size : undefined,
       selectHasSizeAttribute: tag === "select" ? el.hasAttribute("size") : undefined,
     };
-    const _appearanceFacts = typeof args.eak === "string" && args.eak !== "" ? el[args.eak] : undefined;
+    const _appearanceFacts =
+      typeof args.effectiveAppearancePropertyKey === "string" && args.effectiveAppearancePropertyKey !== ""
+        ? el[args.effectiveAppearancePropertyKey]
+        : undefined;
     const _effectiveAppearance = _nativeControlTag
       ? effectiveAppearanceForControl(
           _specifiedAppearance,
@@ -50,7 +53,11 @@ export const createNativeControlsHandler = (ctx) => {
         )
       : "none";
     const _nativeDecorationRefs =
-      typeof args.ndk === "string" && args.ndk !== "" && Array.isArray(el[args.ndk]) ? el[args.ndk] : [];
+      typeof args.nativeDecorationPropertyKey === "string" &&
+      args.nativeDecorationPropertyKey !== "" &&
+      Array.isArray(el[args.nativeDecorationPropertyKey])
+        ? el[args.nativeDecorationPropertyKey]
+        : [];
     // A closed select's displayed option is not a source-DOM text node. Blink
     // paints it through `-internal-select-inner-element` in the UA shadow
     // tree (MenuListSelectType::UpdateTextStyleAndContent). Its line box can
@@ -210,7 +217,7 @@ export const createNativeControlsHandler = (ctx) => {
         const _reason =
           _appearanceFacts && _appearanceFacts.reason
             ? _appearanceFacts.reason
-            : args.ear || "no correlated Chromium matched-style facts";
+            : args.effectiveAppearanceSetupFailure || "no correlated Chromium matched-style facts";
         warn(
           sel,
           "effective-appearance-cascade",
