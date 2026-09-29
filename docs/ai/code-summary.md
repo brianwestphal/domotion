@@ -84,11 +84,14 @@ loading the historical documentation corpus.
   to Glassbox's README hero asset.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
-- `src/cli/` exposes capture, animate, template, terminal, review, and scrubber
-  workflows.
-- `src/utils/` holds cross-cutting runtime helpers; `src/generated/` contains
-  checked-in generated source; and `src/test-support/` contains reusable test
-  lifecycle helpers.
+- `src/cli/` exposes the capture, animate, composite, storyboard, template,
+  terminal, review, scrubber, studio, and svg-to-image/video workflows.
+- `src/utils/` holds cross-cutting runtime helpers; checked-in generated
+  source lives beside its owner (`packages/text-engine/src/generated/` for the
+  MathML operator dictionary, `src/capture/script.generated.ts`, and the
+  `*.bundle.generated.ts` clients); `src/test-support/` contains reusable test
+  lifecycle helpers; and `src/tooling/` holds root-level probe tests that are
+  not shipped.
 
 ## Published command-line programs
 
@@ -130,6 +133,8 @@ plus controlled-healing browser passes.
 - [Images, media, and embedding](../handbook/images-media-and-embedding.md)
 - [Animation and interaction](../handbook/animation-and-interaction.md)
 - [Platforms, testing, and release](../handbook/platforms-testing-and-release.md)
+- [Major-release visual capture checklist](../handbook/major-release-visual-capture.md)
+  (release-time README/examples/site demo refresh, not a domain handbook)
 
 Search the [manifest](manifest.json) by stable ID or code path, then open only
 the handbook and current reference/evidence records relevant to the change.

@@ -71,6 +71,7 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 - [Images, media, and embedding](../handbook/images-media-and-embedding.md)
 - [Animation and interaction](../handbook/animation-and-interaction.md)
 - [Platforms, testing, and release](../handbook/platforms-testing-and-release.md)
+- [Major-release visual capture checklist](../handbook/major-release-visual-capture.md)
 
 Studio's cross-domain authoring contract is
 [the versioned Studio project model](../239-studio-project-model.md).

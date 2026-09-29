@@ -55,8 +55,9 @@ lifetime contract.
 - **Logical key** — an internal string (`helvetica`, `times`, `cjk`, `sf-arabic`,
   `pingfang-sc`, `u-noto-sans`, …) that names a _role_, not a file. The platform
   layer maps a key → an actual font file. `webfont:<family>`, `localalias:<family>`,
-  `sysfb:<postscriptName>`, `u-…` (darwin generated), and `un-…` (Linux Noto
-  generated) are namespaced key families.
+  `sysfb:<postscriptName>`, `winfam:<postscriptName>` (a Blink-hardcoded Windows
+  family name resolved to a DirectWrite cut), `u-…` (darwin generated), and
+  `un-…` (Linux Noto generated) are namespaced key families.
 - **FontInstance** — the uniform interface (`packages/text-engine/src/render/font-resolution.ts`) both
   backing engines expose: fontkit `Font` OR a native glyph-helper instance. Carries
   `layout()`, `glyphForCodePoint()`, metrics.
@@ -70,14 +71,14 @@ lifetime contract.
 ```mermaid
 flowchart TD
   subgraph CAP["Capture time — src/capture/index.ts"]
-    A0["captureElementTree()"] --> A1["resetGeneration()<br/>clear embedded-font subset builder<br/>+ paths-mode glyph-defs registry"]
-    A0 --> A2["discoverAndRegisterWebfonts(page)<br/>after document.fonts.ready"]
+    A0["captureElementTree()"] --> A2["discoverAndRegisterWebfonts(page)<br/>after document.fonts.ready"]
     A2 --> A3{"@font-face src?"}
-    A3 -->|"real webfont bytes (url / data)"| A4["registerWebfont(family, weight,<br/>style, buffer, unicodeRange,<br/>stretch desc, weight desc)<br/>→ webfontRegistry"]
+    A3 -->|"real webfont bytes (url / data)"| A4["registerWebfont(family, weight,<br/>style, buffer, unicodeRange,<br/>stretch desc, weight desc, style desc)<br/>→ webfontRegistry"]
     A3 -->|"all local() → system font"| A5["registerLocalFontAlias(family,<br/>resolvedKey, weight, italic)<br/>→ localFontAliasRegistry"]
   end
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
+    B00["withTextEngineDocument() (text-engine.ts)<br/>generation: reset → resetGeneration()<br/>clear embedded-font subset builder + paths-mode glyph-defs registry<br/>(continue → restoreGeneration)"] --> B0
     B0["renderTextAsPath(text, ...)<br/>(one call per text segment)"] --> B1{"currentRenderTextMode"}
     B1 -->|"embedded-font (DEFAULT)"| B2["splitTextIntoFontRuns()<br/>→ splitTextIntoFontRunsShaped() (cluster-fallback.ts, DEFAULT)<br/>shape-then-requeue at shaped-cluster granularity (docs/113):<br/>segmentForShaping independently computes bidi/script<br/>(primary Script from Chromium-pinned ICU; helper-absent<br/>unicode-properties is best-effort only) and SymbolsIterator<br/>source-priority ranges, intersects by min end, then per item<br/>hb-shapes queued ranges with full-text context + resolved<br/>features and requeues only .notdef clusters;<br/>font-variant-emoji applies after the source split and declared<br/>families stay before the one-shot priority face.<br/>resolveFontForCodepoint = kSystemFonts, asked for<br/>ChooseHintIndex once per hint (also pinned-ICU Script).<br/>Dotted circles + canonical decomposition belong to the selected<br/>candidate shape; source text is never pre-committed. An<br/>unopenable candidate stays queued (no legacy restart). Assembly<br/>never merges across a shaping item and carries its resolved<br/>direction + ISO script.<br/>→ harfbuzzShapedRunOverride() per assembled run<br/>(ALL runs when glyph + pinned-ICU companions validate;<br/>outlines stay with the base engine).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit degraded legacy walk.<br/>→ layout(run.text, …, run.shapingScript, …)<br/>→ trackGlyphInEmbedFont()<br/>subset TTF + &lt;text&gt; w/ PUA cps"]
     B1 -->|"paths"| B3["textToPathMarkup()<br/>→ splitTextIntoGlyphPathRuns()<br/>→ splitTextIntoFontRunsShaped(…, mode:'paths') (SAME splitter, DEFAULT)<br/>raster emoji follow the ordinary Chromium face/terminal;<br/>the captured image overlay owns paint only<br/>+ authored source range preserved through selected shaping<br/>+ shaping-item boundary/direction preserved like embedded mode<br/>+ harfbuzzShapedRunOverride() per assembled run (same as embedded).<br/>DOMOTION_CLUSTER_FALLBACK=0 → explicit legacy per-cp walk.<br/>→ per-glyph &lt;path&gt;/&lt;use&gt; defs<br/>(ensureGlyphDef registry)"]
@@ -100,8 +101,11 @@ flowchart TD
   A5 -.-> C0
 ```
 
-**Source of truth:** `discoverAndRegisterWebfonts` + `resetGeneration` in
-`src/capture/index.ts`; `renderTextAsPath` / `textToPathMarkup` /
+**Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts`;
+`resetGeneration` / `snapshotGeneration` / `restoreGeneration` in
+`packages/text-engine/src/render/font-resolution.ts`, invoked by
+`withTextEngineDocument` in `packages/text-engine/src/render/text-engine.ts`;
+`renderTextAsPath` / `textToPathMarkup` /
 `splitTextIntoFontRuns` / `splitTextIntoGlyphPathRuns` in
 `packages/text-engine/src/render/text-to-path.ts` (incl. `renderTextAsSystemFont` for the
 `system-font` branch); the shared shaped splitter
@@ -186,7 +190,9 @@ production uses one namespace and therefore preserves mixed-language order.
 `resolveFontKey(fontFamily)` splits the computed CSS `font-family` string on
 commas, lowercases + strips quotes (`splitFontFamilyNames`), and walks the names
 in order, returning the FIRST that `matchFamilyNameToKey` resolves; if none match,
-the last-resort default is **`times`** (Chrome's macOS "Standard Font" default).
+it consults the script-keyed `-webkit-standard` entry (Blink's
+`settings.Standard(script)`) and only then falls to the calibrated default
+**`times`** (Chrome's macOS "Standard Font" default).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
 and then Blink's preferred STANDARD family (used by the per-codepoint resolver
 to reach later-declared families before the platform system-fallback stage).
@@ -477,7 +483,7 @@ flowchart TD
   R19 -.-> DX["installed exact member differs →<br/>sysfb:&lt;postscriptName&gt;<br/>+ declaredFamilyForKey"]
   R20 -.-> DX
 
-  RNext -.->|"stack exhausted, nothing matched"| DEF["default: times"]
+  RNext -.->|"stack exhausted, nothing matched"| DEF["-webkit-standard (settings.Standard(script))<br/>→ default: times"]
 ```
 
 **Why generics resolve where they do (macOS calibration — Blink `font_cache_mac.mm`):**
@@ -992,14 +998,17 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  RS0["resolveFontSpec(key)"] --> RS1{"resolvedSpecCache hit?"}
+  RS0["resolveFontSpec(key)"] --> RS1{"resolvedSpecCache hit?<br/>(memo key = hostPlatform()|key)"}
   RS1 -->|"yes"| RSC["return cached"]
-  RS1 -->|"no"| RS2{"key starts with 'sysfb:'?"}
-  RS2 -->|"yes"| RS3["dynamicSystemFontPaths.get(key)<br/>(registered by the live resolver / installed-font probe)"]
-  RS2 -->|"no"| RS4{"process.platform"}
-  RS4 -->|"linux"| RSL["resolveLinuxSpec(key):<br/>LINUX_FONT_PATHS[key].path if exists,<br/>else fc-match(fcMatch pattern)"]
+  RS1 -->|"no"| RS2{"key starts with 'sysfb:' or 'winfam:'?"}
+  RS2 -->|"yes"| RS3["dynamicSystemFontPaths.get(key)<br/>(sysfb: live resolver / installed-font probe;<br/>winfam: DirectWrite family cut)<br/>— path came from the OS, nothing to relocate"]
+  RS3 --> RSC
+  RS2 -->|"no"| RS4{"hostPlatform()"}
+  RS4 -->|"linux"| RSL["resolveLinuxSpec(key):<br/>noto profile: LINUX_FONT_PATHS_NOTO[key] if file exists,<br/>else LINUX_FONT_PATHS[key].path if exists,<br/>else fc-match(fcMatch pattern)"]
   RS4 -->|"win32"| RSW["resolveWin32Spec(key):<br/>WIN32_FONT_PATHS[key] if file exists"]
   RS4 -->|"default (darwin)"| RSD["FONT_PATHS[key] ?? null"]
+  RSL & RSW & RSD --> RSR["relocateMissingSpec()<br/>(missing path + native helper: re-find by postscriptName)"]
+  RSR --> RSC
 ```
 
 Three platform tables map the SAME logical keys to different files (doc
@@ -1096,7 +1105,7 @@ Ten codepoints is a diagnostic, not a proof. The exhaustive form of the same com
 | `sf-arabic`                          | FreeSerif                                              | Segoe UI                                  |
 | `sf-hebrew`                          | (Liberation Sans covers)                               | Segoe UI                                  |
 | `devanagari`                         | FreeSans                                               | Nirmala UI                                |
-| `thai`                               | Loma                                                   | Tahoma / Leelawadee UI                    |
+| `thai`                               | Loma                                                   | Leelawadee UI (`leeluisl.ttf`, Semilight) |
 | `symbols`/`zapf-dingbats`            | FreeSans / FreeSerif                                   | Segoe UI Symbol                           |
 | `stix-math`                          | FreeSans / FreeSerif                                   | Cambria Math                              |
 | `u-…`/`un-…` generated               | `unicode-font-routing.{linux,noto-linux}.generated.ts` | `unicode-font-routing.win32.generated.ts` |
@@ -1134,16 +1143,21 @@ Chromium-fidelity contract. See [doc 128](128-chromium-unicode-decision-audit.md
 flowchart TD
   F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain, …, fontVariantEmoji)"] --> FVE{"font-variant-emoji forces EMOJI<br/>presentation for cp?<br/>(emoji → any \p{Emoji} cp · unicode → Emoji_Presentation only;<br/>explicit VS15/VS16 in the text wins — caller passes undefined)"}
   FVE -->|"yes & color-emoji face covers cp"| FVE1["cover(color-emoji key)<br/>resolveColorEmojiKeyForCp — even over a covering primary<br/>(forced VS16: harfbuzz_face.cc:127-206)"]
-  FVE -->|"no / color font lacks cp (Blink's ignore-VS reset)"| F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?<br/>(the default cluster shaper already tested HarfBuzz's<br/>real normalization/coverage before this iterator runs)"]
+  FVE -->|"no / color font lacks cp (Blink's ignore-VS reset)"| FCS["helper-absent only: complexShaperBaseMarkDecomposition(cp)<br/>→ primary covers every part → hb shaping proxy over primary<br/>(supported mode: skipped, the cluster shaper already did this)"]
+  FCS --> F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?<br/>(the default cluster shaper already tested HarfBuzz's<br/>real normalization/coverage before this iterator runs)"]
   F1 -->|"yes"| F1H["cover(primaryKey)"]
-  F1 -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic?"}
+  F1 -->|"no"| FSP{"HarfBuzz same-font space fallback:<br/>isHarfbuzzSameFontSpaceFallback(cp) && primary covers U+0020?"}
+  FSP -->|"yes"| FSPH["cover(primaryKey, ' ')"]
+  FSP -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic?"}
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
   FSF1 --> F2
-  FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain<br/>(declared stack, then preferred STANDARD)<br/>literal coverage only in supported mode;<br/>JS NFD prediction is helper-absent compatibility"]
+  FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain<br/>(declared stack, then preferred STANDARD)<br/>literal coverage only in supported mode;<br/>JS NFD prediction is helper-absent compatibility<br/>(chain EMPTY: step 0b first — primary's NFD singleton /<br/>in-font canonical decomposition via hb proxy)"]
   F2 --> F2A["for each key: instanceFor(key)<br/>glyphForCodePoint(cp)?"]
   F2A -->|"hit"| F2H["cover(key)"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
-  FPUA -->|"yes — no system fallback at all"| F6
+  FPUA -->|"yes — no system fallback"| FLR{"darwin: Blink's explicit last-resort face covers cp?<br/>times, then lucida-grande ONLY if Times cannot be opened<br/>(font_fallback_iterator.cc:143-162, font_cache_mac.mm:376-393)"}
+  FLR -->|"yes"| FLRH["cover(times | lucida-grande)"]
+  FLR -->|"no / non-darwin"| F6
   FPUA -->|"no"| FSTD{"win32 pre-stage — FallbackOnStandardFontStyle<br/>(win/font_cache_skia_win.cc:270-277): italic run or<br/>weight ≥ 700 (kBoldWeightValue — NOT Linux's 600),<br/>non-emoji-presentation, head declared name matches primary,<br/>and the family's STANDARD-style cut covers cp?"}
   FSTD -->|"yes (win32 only) — stay in the family"| FSTDH["cover(primaryKey, standard-style instance)<br/>synthetic bold/italic derives downstream from the<br/>requested style against that face"]
   FSTD -->|"no / not win32"| FW{"_liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
@@ -1160,7 +1174,7 @@ flowchart TD
   F3 -->|"none"| F5["3. HELPER-ABSENT ONLY: Math-Alphanumeric decomposition<br/>decomposeMathAlphaRun(cp) → FreeFont base letter"]
   F5 -->|"hit"| F5H["cover(free-sans/serif variant, decomposed)"]
   F5 -->|"none"| F6["4. kOutOfLuck: covered=false<br/>→ caller applies uncovered terminal<br/>(both modes: first candidate's .notdef;<br/>a raster emoji overlay changes paint only)"]
-  F1H & F2H & F3H & F3HC & F4H & F5H & FSTDH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>both supported companions validated?<br/>(degraded mode retains legacy selective routes)"}
+  F1H & FSPH & F2H & F3H & F3HC & F4H & F5H & FSTDH & FLRH --> FHB{"POST-STEP · harfbuzzShapedScriptOverride(cp, res)<br/>both supported companions validated?<br/>(degraded mode retains legacy selective routes)"}
   FHB -->|"no and no degraded selective route"| FHB0["resolution unchanged"]
   FHB -->|"yes"| FHB1["shapingFaceFor(res.key, weight, size, slant, fvs) →<br/>makeHarfbuzzShapingInstance(base, path, faceIndex, size, axes,<br/>{ outlinesFromBase: true })<br/>HarfBuzz supplies ids / positions / clusters ·<br/>base engine still draws (base.getGlyph(id))<br/>+ carryFontInstanceMetadata(proxy, base)"]
 ```
@@ -1485,8 +1499,13 @@ run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
   regression (crbug.com/862352).
 
   The gate covers **both** 2a and 2b, because both stand in for `kSystemFonts` —
-  so the walk falls straight through to `kOutOfLuck` and the run keeps painting
-  from its primary. Two live defects came from not having it: macOS CoreText
+  so the walk skips the system stage. On macOS Blink's iterator still tries its
+  explicit last-resort face before `kFirstCandidateForNotdefGlyph`
+  (`font_fallback_iterator.cc:143-162`): Times, then Lucida Grande only if Times
+  cannot be opened (`font_cache_mac.mm:376-393`) — observable for U+F8FF, where a
+  Japanese serif primary lacks the Apple logo but Times carries it — and only
+  when that face lacks `cp` too does the walk fall to `kOutOfLuck`, leaving the
+  run painting from its primary. Two live defects came from not having it: macOS CoreText
   answers `SFCompact-Regular` for U+100000 (Apple keeps SF Symbols in plane 16),
   so a private-use codepoint painted a real SF glyph; and the chain tail answered
   LastResort for the rest, whose glyph is a rounded box with a `?` measuring
@@ -1651,17 +1670,17 @@ flowchart TD
   DSMP -->|"yes"| DSMP1["[localeKey?, pingfang-hk, pingfang-sc, cjk, last-resort]<br/>(serif: cjk-serif first)"]
   DSMP -->|"no"| DBOX["Box Drawing → mono: [primary, menlo, hiragino-jp]<br/>else [hiragino-jp, menlo]"]
   DBOX --> DDing["Dingbats → [zapf-dingbats, symbols]"]
-  DDing --> DPC["Per-codepoint routes:<br/>■□●○◆◇ → [lucida-grande, symbols]<br/>◈ U+25C8 → [korean, symbols]<br/>✓ U+2713 → [lucida-grande, zapf-dingbats, symbols]<br/>ℕℝℤ U+2115/211D/2124 → [menlo, symbols]<br/>ℵ U+2135 → [lucida-grande, symbols]<br/>⇐-⇕ U+21D0-21D5 → [hiragino-jp, korean, menlo, symbols]<br/>↔-↙ U+2194-2199 → [hiragino-jp, korean, lucida-grande, symbols]<br/>▣-▩ U+25A3-25A9 → [korean, symbols]<br/>♀♁♂ U+2640-2642 → [hiragino-jp, cjk, symbols]<br/>♔-♟ U+2654-265F → [menlo, symbols]"]
+  DDing --> DPC["Per-codepoint routes (mono/serif split: monoPrimary →<br/>menlo-first · serifPrimary+palatino → times-new-roman-first):<br/>■□●○◆◇ → mono [menlo, lucida-grande, symbols] ·<br/>serif [times-new-roman, lucida-grande, symbols] · sans [lucida-grande, symbols]<br/>◈ U+25C8 → [korean, symbols]<br/>✓ U+2713 → mono [menlo, zapf-dingbats, symbols] ·<br/>serif [zapf-dingbats, symbols] · sans [lucida-grande, zapf-dingbats, symbols]<br/>ℕℝℤ U+2115/211D/2124 → [menlo, symbols]<br/>ℵ U+2135 → [lucida-grande, symbols]<br/>⇐-⇕ U+21D0-21D5 → [hiragino-jp, korean, menlo, symbols]<br/>↖↘ U+2196/2198 → [lucida-grande, symbols] (precedes the U+2194-2199 range)<br/>↔-↙ U+2194-2199 → [hiragino-jp, korean, lucida-grande, symbols]<br/>▣-▩ U+25A3-25A9 → [korean, symbols]<br/>♀♁♂ U+2640-2642 → [hiragino-jp, cjk, symbols]<br/>♔-♟ U+2654-265F → [menlo, symbols]"]
   DPC --> DGEO{"Geometric Shapes /<br/>Misc Symbols U+25A0-26FF?"}
   DGEO -->|"mono"| DGEO1["[primary, menlo, hiragino-jp, symbols]"]
-  DGEO -->|"serif"| DGEO2["[cjk-serif, primary, hiragino-jp, symbols]"]
+  DGEO -->|"serif"| DGEO2["[cjk-serif, primary, hiragino-jp, symbols]<br/>(card suits ♠♣♥♦ U+2660/2663/2665/2666 →<br/>[times-new-roman, cjk-serif, hiragino-jp, symbols])"]
   DGEO -->|"sans"| DGEO3["[hiragino-jp, cjk, symbols]"]
-  DGEO --> DARR["Arrows ←→↑↓ U+2190-2193 → [lucida-grande, symbols]<br/>↗↙ U+2197/2199 → [cjk, hiragino-jp, symbols]"]
+  DGEO --> DARR["Arrows ←→↑↓ U+2190-2193 → mono [menlo, lucida-grande, symbols] ·<br/>serif [times-new-roman, lucida-grande, symbols] · sans [lucida-grande, symbols]<br/>↗↙ U+2197/2199 → [cjk, hiragino-jp, symbols]"]
   DARR --> DMATH["Math Alphanumeric → [stix-math, symbols]<br/>Super/Subscripts → [sf-pro, stix-math, hiragino-jp, symbols]<br/>‾ ¯ U+203E/00AF → [helvetica, symbols]<br/>∕ U+2215 → [] (defer to live CoreText → Helvetica Neue)"]
   DMATH --> DSYM["Letterlike / Arrows residue / Math Operators /<br/>Misc Technical U+2300-23FF / Pictograph residue → [symbols]"]
   DSYM --> DGEN{"lookupUnicodeFontRange(cp)<br/>(DM-983 generated table)"}
-  DGEN -->|"hit, emoji cp"| DGEN1["[generatedKey, symbols, u-noto-sans]"]
-  DGEN -->|"hit, non-emoji"| DGEN2["[generatedKey, symbols, u-noto-sans, last-resort]"]
+  DGEN -->|"hit, emoji cp"| DGEN1["[liveOverride ?? generatedKey, symbols, u-noto-sans]<br/>liveOverride = live resolver's answer when it differs<br/>from a usable route (or the route is unusable)"]
+  DGEN -->|"hit, non-emoji"| DGEN2["[liveOverride ?? generatedKey, symbols, u-noto-sans, last-resort]<br/>(u-noto-sans only when generatedRouteUsable)"]
   DGEN -->|"miss, non-emoji"| DGEN3["[u-noto-sans, last-resort]"]
   DGEN -->|"miss, emoji cp"| DGEN4["[] (raster &lt;image&gt; overlay handles it)"]
 ```
@@ -1674,8 +1693,9 @@ flowchart TD
 Hebrew→`[helvetica]` · Arabic→`[sf-arabic]`(FreeSerif) · Devanagari→`[devanagari]`(FreeSans) ·
 Thai→`[thai]`(Loma) · Hangul→`[cjk]`(WenQuanYi) · Box Drawing→mono `[primary, cjk]` / else `[helvetica, cjk]` ·
 Dingbats→`[free-sans, free-serif]` · Chess→`[free-serif, free-sans]` · ↗↙→`[cjk, helvetica]` ·
-Arrows→`[helvetica, free-sans]` · Geometric→`[helvetica, cjk]` · Misc Symbols→`[helvetica, hiragino-jp, free-sans]` ·
-Math Alpha→`[free-sans, free-serif]` · Letterlike/Math Ops→`[free-sans, helvetica]` · CJK BMP→`[cjk]` ·
+Arrows→`[helvetica]` (rest deferred to fc-match) · Geometric→`[helvetica, cjk]` · Misc Symbols→`[helvetica]` (rest deferred) ·
+Math Alpha→`[free-sans, free-serif]` · Super/Subscripts→`[helvetica, free-sans]` · Letterlike→`[free-sans, helvetica]` (defer-or-static) ·
+Math Ops→`[helvetica]` (rest deferred) · CJK BMP→`[cjk]` ·
 Pictograph residue→`[free-sans]` · else generated `UNICODE_FONT_RANGES_LINUX` → `[]`.
 
 `linuxDeferOrStatic(cp, fallback, primaryKey, lang, css)` is the "defer to the
@@ -1756,7 +1776,7 @@ flowchart TD
   WONE --> WPAN["+ pan-Unicode probe list:<br/>kCjkFonts when script_out is still Han, else kCommonFonts"]
   WPAN --> WKEY["presence probe: FindFamilyName, DEFAULT style<br/>( == Blink's IsFontPresent);<br/>not-installed families drop out"]
   WKEY --> WCUT["then SELECT the cut: GetFirstMatchingFont(weight, stretch, slant)<br/>at the RUN'S style → winfam:&lt;psName of that cut&gt;<br/>( == matchFamilyStyle(name, SkiaFontStyle()))"]
-  WCUT --> WNET["+ UNICODE_FONT_RANGES_WIN32 key, unless the live<br/>DirectWrite resolver already covers cp (win32DeferOrStatic,<br/>probed with the run's full weight/slant/primary/locale)"]
+  WCUT --> WNET["+ UNICODE_FONT_RANGES_WIN32 key ONLY in degraded mode<br/>(win32DeferOrStatic(fallback): returns [] whenever win32 + resolver armed<br/>+ glyph helper + ICU helper available — NO per-cp probe;<br/>the live DirectWrite stage is the walker's 2a after this chain)"]
 ```
 
 Two properties of the adapter that are load-bearing rather than incidental:
@@ -1872,7 +1892,7 @@ that face as a dynamic `sysfb:<name>` key, and hands it back to the chain walker
 
 ```mermaid
 flowchart TD
-  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji)"] --> SREM{"darwin AND isEmojiPresentationCp(cp)<br/>AND NOT suppressed?<br/>(emoji-modifier BASES included — categoriser order, not the<br/>Emoji_Presentation property; lone modifiers/regional indicators excluded.<br/>font-variant-emoji:text forces kText priority for \p{Emoji} cps —<br/>ApplyFontVariantEmojiOnFallbackPriority, harfbuzz_shaper.cc:184-198)"}
+  SR0["resolveSystemFallbackKeyForCp(cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation)"] --> SREM{"darwin AND isEmojiPresentationCp(cp)<br/>AND NOT suppressed?<br/>(emoji-modifier BASES included — categoriser order, not the<br/>Emoji_Presentation property; lone modifiers/regional indicators excluded.<br/>font-variant-emoji:text forces kText priority for \p{Emoji} cps —<br/>ApplyFontVariantEmojiOnFallbackPriority, harfbuzz_shaper.cc:184-198)"}
   SREM -->|"yes"| SREMF["return sysfb:AppleColorEmoji<br/>by-NAME lookup of 'Apple Color Emoji' — NO cascade walk<br/>(font_cache_mac.mm:319-324, kColorEmojiFontMac :288)"]
   SREM -->|"no"| SRUI{"systemUiPrimary?<br/>(stackPrimaryIsSystemUi — the STACK's first family,<br/>not derivable from the font key)"}
   SRUI -->|"yes (darwin)"| SRUIB["cascade base = the CoreText UI FONT<br/>helper systemUi:true → CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size)<br/>+ trait copy + wght/wdth axes (MatchSystemUIFont)<br/>DOMOTION_SYSTEM_UI_BASE=0 restores the named base"]
@@ -1880,7 +1900,7 @@ flowchart TD
   SRUIB --> SRDOC
   SRB --> SRDOC{"darwin AND [:Ideographic=Yes:]<br/>AND document scope open AND base not dot-prefixed/UI?<br/>(ideograph document cache — Blink's character_fallback_cache_)"}
   SRDOC -->|"cached face covers cp"| SRDOCH["return the DOCUMENT's cached key<br/>(the first ideograph's answer under this<br/>base+weight+style+size key — no re-ask)"]
-  SRDOC -->|"miss / not eligible"| SR1{"systemFallbackKeyCache hit?<br/>(memoized per cp + weight + italic + size + BASE + ui-base flag + lang)"}
+  SRDOC -->|"miss / not eligible"| SR1{"systemFallbackKeyCache hit?<br/>(memo key: hostPlatform | cp + weight + italic (+ darwin rawSlope/orientation)<br/>+ size + BASE + ui-base flag + lang + text-suppression flag<br/>(+ non-darwin primaryKey + declared-head identity))"}
   SR1 -->|"yes"| SRC["return cached key or null<br/>(+ first-writer insert into the document cache<br/>when eligible and non-null)"]
   SR1 -->|"no"| SR2{"process.platform"}
   SR2 -->|"darwin (always on)"| SRD0["CoreText CTFontCreateForString([cp])<br/>via native Swift helper (resolveSystemFallbackFonts)<br/>→ the NOMINATED face"]
@@ -2083,10 +2103,10 @@ Three consequences worth holding onto:
   The gate is `isEmojiPresentationCp(cp)` — one predicate shared by every
   platform's emoji stage, which is what Blink's `kEmojiEmoji` priority derives
   from (`IsEmojiPresentationEmoji` = `kEmojiEmoji | kEmojiEmojiWithVS`,
-  `font_fallback_priority.h:45-48`). Derived, not curated —
-  `isEmojiCodepoint`'s hand-listed ranges miss ⌚ U+231A / ⌛ U+231B / ⏩ U+23E9 /
-  ⏪ U+23EA because nobody sampled Miscellaneous Technical, which is exactly the
-  block the defect showed up in.
+  `font_fallback_priority.h:45-48`). Derived, not curated — the hand-listed
+  emoji ranges this predicate replaced (the since-removed `isEmojiCodepoint`)
+  missed ⌚ U+231A / ⌛ U+231B / ⏩ U+23E9 / ⏪ U+23EA because nobody sampled
+  Miscellaneous Technical, which is exactly the block the defect showed up in.
 
   It is **not** simply the Unicode `Emoji_Presentation` property, and the
   difference is an ORDERING in Blink's categoriser rather than a property.
