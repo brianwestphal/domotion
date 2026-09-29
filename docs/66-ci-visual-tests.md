@@ -11,11 +11,13 @@ code:
     ".github/workflows/fast-visual-tests.yml",
     ".github/workflows/visual-tests.yml",
     "scripts/ci-baseline-aggregate.mjs",
+    "scripts/ci-fast-baselines.mjs",
     "scripts/ci-run-fast-visuals.mjs",
     "scripts/diff-against-baseline.mjs",
     "scripts/diff-font-conformance-baseline.mjs",
     "scripts/merge-shard-results.mjs",
     "scripts/prune-passing-artifacts.mjs",
+    "scripts/record-runner-image.mjs",
     "scripts/run-env.mjs",
     "scripts/write-baseline.mjs",
     "src/review/side-digest.ts",
@@ -29,6 +31,7 @@ code:
     "tests/visual-tests-workflow.test.ts",
     "tests/worker-pool.ts",
     "tools/ab-compare-results.mjs",
+    "tools/ci-run-wait.mjs",
     "tools/run-ci-visual-tests.mjs",
   ]
 aliases: ["docs/66-ci-visual-tests.md", "doc-66"]
@@ -125,11 +128,40 @@ The review server prefers this transport when the branch exists: it resolves the
 
 ## What the workflow does
 
-`workflow_dispatch` inputs: `os` (default `macos`), `suite` (`unicode`|`html`), `shards` (`auto` = per-OS caps), `only`.
+`workflow_dispatch` inputs: `os` (default `macos`; `all` runs the three), `suite` (`unicode`|`html`), `shards` (`auto` = per-OS caps), `only`, `update_baseline`, `keep_passing`, `include_svg`, `dpr`, and the five A/B override inputs described under "A/B override inputs" below.
 
-- A `setup` job computes a per-OS shard matrix. `auto` → **macOS 5 / Linux 16 / Windows 5** (the practical public-repo concurrency ceilings — extra shards just queue).
+- A `setup` job computes a per-OS shard matrix. `auto` → **macOS 5 / Linux 16 / Windows 10** (the practical public-repo concurrency ceilings — extra shards just queue).
 - Per-OS test jobs shard the fixtures by **stride** (`HTML_TEST_SHARD=i/N`, `tests/shard.ts`): macOS on `macos-latest`, **Linux inside the pinned Playwright container** (`mcr.microsoft.com/playwright:v<locked>-noble`, for the calibrated FreeType/Liberation fonts — mirrors `test-linux.yml`), Windows on `windows-latest`. Each shard clones the fixtures, runs with the throttle off (`DOMOTION_NO_NICE=1`), prunes passing PNGs (`scripts/prune-passing-artifacts.mjs`), and uploads `results.json` + failing diffs as `results-<os>-shard<i>`.
 - An `aggregate` job downloads every shard, merges (`scripts/merge-shard-results.mjs`) into one `results-<os>.json`, writes a Markdown Step Summary (per-OS pass/fail + the failing-fixture table), then **diffs the merged run against the committed CI baseline** (`scripts/ci-baseline-aggregate.mjs` → `scripts/diff-against-baseline.mjs`) and appends a **Baseline diff** section (regressions / newly-passing / new / dropped). With the `update_baseline` dispatch input set, it also writes `baseline-<suite>-<os>.json` into the `visual-tests-merged` artifact for you to review + commit.
+
+### A/B override inputs
+
+Each override input is copied into an environment variable for the shard run. **Empty means the renderer's shipped default**; the value `0` (or `1` where stated) forces the other arm, so an A/B is two dispatches of the _same pushed ref_ that differ only in the flag. Diffing an armed run against the committed baseline instead would conflate the flag with whatever landed on `main` since that baseline was taken.
+
+| Workflow input        | Environment variable           | Meaning (default when empty)                                                                                                                          | `run-ci-visual-tests.mjs` flag                             |
+| --------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `dpr`                 | `CAPTURE_DPR`                  | Capture device pixel ratio (`1`); `2` renders expected and actual at 2× for the glyph-sheet audit                                                     | — (`gh workflow run … -f dpr=2`)                           |
+| `hinted_subset`       | `DOMOTION_HINTED_SUBSET`       | hb-subset hinting-preserving embedded path (ON); `0` = the svg2ttf control ([doc 99](99-hinted-embedded-subset.md))                                   | `--no-hinted-subset` (`--hinted-subset` is a no-op)        |
+| `fallback_base`       | `DOMOTION_FALLBACK_BASE`       | Ask CoreText for a substitute from the run's own primary (ON); `0` = the old hardcoded Helvetica base                                                 | `--no-fallback-base` (`--fallback-base` is a no-op)        |
+| `live_fallback_first` | `DOMOTION_LIVE_FALLBACK_FIRST` | Blink's `kSystemFonts` order — OS first, static chain as the net (ON); `0` = static chain first                                                       | `--no-live-fallback-first` (`--live-fallback-first` no-op) |
+| `system_ui_base`      | `DOMOTION_SYSTEM_UI_BASE`      | A `system-ui` run walks its cascade from the CoreText UI font (ON); `0` = the old non-UI base. Only meaningful together with `live_fallback_first` ON | `--no-system-ui-base`                                      |
+| `trak_hb_shaping`     | `DOMOTION_TRAK_HB_SHAPING`     | A `trak`+`STAT` face is shaped by HarfBuzz at the run's point size (ON); `0` = the platform shaper                                                    | `--no-trak-hb-shaping`                                     |
+
+Where each flag is described: [doc 99](99-hinted-embedded-subset.md) (`hinted_subset`), [doc 80](80-cross-platform-system-fallback-resolver.md) (`live_fallback_first`), and [the font-resolution diagram](font-resolution-diagram.md) (`fallback_base`, `live_fallback_first`, `system_ui_base`, `trak_hb_shaping`). The `0` arm of a default-ON flag is an instrument for measuring what the flag buys, not a supported render mode.
+
+### Dispatcher flags and helper scripts
+
+`tools/run-ci-visual-tests.mjs` accepts `--suite`, `--os`, `--shards`, `--only`, `--ref`, the A/B flags in the table above, and:
+
+- `--run-id <id>` — skip dispatch and watch; re-stage an **already-completed** run. Use it when a run finished but the driver gave up downloading (artifacts finalize after `gh run watch` returns).
+- `--eager` — download every shard's images up front (~GBs) instead of the default metadata-only staging that lets the review server lazy-fetch shards.
+- `--review` / `--no-review` — stage each OS's shard PNGs, SVGs, and merged `results.json` under `tests/output/review/ci-<os>/<suite>/` for the review UI's source toggle. **On by default**; `--no-review` skips it.
+
+Helpers it and the workflows rely on:
+
+- `tools/ci-run-wait.mjs` (`waitForRunCompletion`) — polls until GitHub reports the _whole_ run `completed` (90-minute default timeout, 10-second poll). `gh run watch` can return as soon as one failing matrix job fixes the result while the `if: always()` aggregate is still queued or publishing artifacts.
+- `scripts/record-runner-image.mjs` — computes each shard's runner-image identifier (→ the baseline's `meta.image`), including the Playwright-container identity on Linux.
+- `scripts/ci-fast-baselines.mjs` — the fast-suite baseline comparator/writer used by `.github/workflows/fast-visual-tests.yml`: diffs features, showcase, and real-world results against `tests/baselines/<suite>-<os>.json`, and with `--update-baseline` writes reviewable candidates.
 
 Manual `gh` equivalent (if you skip the helper):
 

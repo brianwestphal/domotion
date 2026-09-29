@@ -1038,11 +1038,13 @@
         ".github/workflows/fast-visual-tests.yml",
         ".github/workflows/visual-tests.yml",
         "scripts/ci-baseline-aggregate.mjs",
+        "scripts/ci-fast-baselines.mjs",
         "scripts/ci-run-fast-visuals.mjs",
         "scripts/diff-against-baseline.mjs",
         "scripts/diff-font-conformance-baseline.mjs",
         "scripts/merge-shard-results.mjs",
         "scripts/prune-passing-artifacts.mjs",
+        "scripts/record-runner-image.mjs",
         "scripts/run-env.mjs",
         "scripts/write-baseline.mjs",
         "src/review/side-digest.ts",
@@ -1056,6 +1058,7 @@
         "tests/visual-tests-workflow.test.ts",
         "tests/worker-pool.ts",
         "tools/ab-compare-results.mjs",
+        "tools/ci-run-wait.mjs",
         "tools/run-ci-visual-tests.mjs"
       ],
       "file": "66-ci-visual-tests.md"
