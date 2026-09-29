@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  __resetAcquireState,
+  __resetAcquireStateForTest,
   acquireGlyphHelper,
   acquireGlyphHelperSync,
   assetNameFor,
@@ -67,7 +67,7 @@ describe("parseSha256Sidecar", () => {
 });
 
 describe("acquisition failure / cache behavior (offline)", () => {
-  afterEach(() => __resetAcquireState());
+  afterEach(() => __resetAcquireStateForTest());
 
   it("returns undefined for an unsupported arch without touching the network", () => {
     expect(acquireGlyphHelperSync({ platform: "linux", arch: "ppc64" })).toBeUndefined();

@@ -16,7 +16,7 @@
  */
 export {
   __skiaLastResortKeysForTest,
-  _clusterFallbackCounters,
+  __clusterFallbackCountersForTest,
   splitTextIntoFontRunsShaped,
 } from "./render/cluster-fallback.js";
 export {

@@ -48,7 +48,7 @@ function resolveHelperPath(platform: NodeJS.Platform = hostPlatform()): string |
 
 /** Test-only: the in-tree helper path mapped for `platform`, ignoring the
  *  `DOMOTION_HELPER_PATH` override. `undefined` for platforms with no helper. */
-export function __helperBinaryForPlatform(platform: NodeJS.Platform): string | undefined {
+export function __helperBinaryForPlatformForTest(platform: NodeJS.Platform): string | undefined {
   return HELPER_BINARIES[platform];
 }
 

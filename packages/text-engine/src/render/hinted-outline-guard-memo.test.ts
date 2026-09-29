@@ -18,8 +18,12 @@ vi.mock("node:fs", async (orig) => {
   return { ...real, default: { ...real, readFileSync }, readFileSync };
 });
 
-const { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss, trackGlyphInEmbedFont, __clearHintedOutlineGuardMemo } =
-  await import("./embedded-font-builder.js");
+const {
+  clearEmbeddedFontBuilder,
+  getBuiltEmbeddedFontFaceCss,
+  trackGlyphInEmbedFont,
+  __clearHintedOutlineGuardMemoForTest,
+} = await import("./embedded-font-builder.js");
 
 /** Bytes that are not a usable sfnt, so the guard rejects the face — the
  *  PingFang case, minus 58 MB. */
@@ -42,12 +46,12 @@ beforeEach(() => {
   process.env.DOMOTION_HINTED_SUBSET = "1";
   readFileSync.mockReset();
   readFileSync.mockReturnValue(NOT_AN_SFNT);
-  __clearHintedOutlineGuardMemo();
+  __clearHintedOutlineGuardMemoForTest();
   clearEmbeddedFontBuilder();
 });
 afterEach(() => {
   delete process.env.DOMOTION_HINTED_SUBSET;
-  __clearHintedOutlineGuardMemo();
+  __clearHintedOutlineGuardMemoForTest();
   clearEmbeddedFontBuilder();
 });
 
@@ -75,7 +79,7 @@ describe("the outline guard is asked once per (path, face index)", () => {
     const path = "/fake/Rejected2.ttc";
     buildOnce(path, 0, "c");
     expect(reads(path)).toBe(1);
-    __clearHintedOutlineGuardMemo();
+    __clearHintedOutlineGuardMemoForTest();
     buildOnce(path, 0, "d");
     expect(reads(path)).toBe(2);
   });

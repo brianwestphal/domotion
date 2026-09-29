@@ -21,10 +21,10 @@
  */
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import {
-  _builderEntryFieldNames,
-  _builderEntryState,
-  _builderInstanceKeys,
-  _builderRegistrySize,
+  __builderEntryFieldNamesForTest,
+  __builderEntryStateForTest,
+  __builderInstanceKeysForTest,
+  __builderRegistrySizeForTest,
   clearEmbeddedFontBuilder,
   getBuiltEmbeddedFontFaceCss,
   restoreEmbeddedFonts,
@@ -160,7 +160,7 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     const SRC = { path: "/synthetic/source.ttf", faceIndex: 0, variationAxes: { wght: 400 } };
     trackGlyphInEmbedFont(KEY, 1000, 800, -200, 3, TRI, 600, { italic: false, weight: 400, hintedSource: SRC });
     trackGlyphInEmbedFont(KEY, 1000, 800, -200, 4, BOX, 610, { italic: false, weight: 400, hintedSource: SRC });
-    const before = _builderEntryState(KEY);
+    const before = __builderEntryStateForTest(KEY);
     expect(before).not.toBeNull();
     expect(before!.hintedSourceDisqualified).toBe(false);
 
@@ -172,30 +172,30 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     trackGlyphInEmbedFont(KEY, 1000, 800, -200, 5, BOX, 620, { italic: false, weight: 900, hintedSource: SRC });
     trackGlyphInEmbedFont(KEY, 1000, 800, -200, 6, TRI, 630, { italic: false, weight: 100, shearFactor: 0.25 });
     trackGlyphInEmbedFont("brand-new|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
-    const dirty = _builderEntryState(KEY)!;
+    const dirty = __builderEntryStateForTest(KEY)!;
     expect(dirty.glyphIds).not.toEqual(before!.glyphIds);
     expect(dirty.nextPua).toBeGreaterThan(before!.nextPua);
     expect(dirty.weightMin).toBe(100);
     expect(dirty.weightMax).toBe(900);
     expect(dirty.hintedSourceDisqualified).toBe(true);
-    expect(_builderRegistrySize()).toBe(2);
+    expect(__builderRegistrySizeForTest()).toBe(2);
 
     restoreEmbeddedFonts(marker);
 
-    expect(_builderEntryState(KEY)).toEqual(before);
-    expect(_builderRegistrySize()).toBe(1);
-    expect(_builderInstanceKeys()).toEqual([KEY]);
+    expect(__builderEntryStateForTest(KEY)).toEqual(before);
+    expect(__builderRegistrySizeForTest()).toBe(1);
+    expect(__builderInstanceKeysForTest()).toEqual([KEY]);
   });
 
   it("rolls back the dmfN family counter, so the next instance reuses the id", () => {
     trackGlyphInEmbedFont("first|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
     const marker = snapshotEmbeddedFonts();
     trackGlyphInEmbedFont("trial|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
-    expect(_builderEntryState("trial|w=400|s=0")!.cssFamily).toBe("dmf1");
+    expect(__builderEntryStateForTest("trial|w=400|s=0")!.cssFamily).toBe("dmf1");
 
     restoreEmbeddedFonts(marker);
     trackGlyphInEmbedFont("for-real|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
-    expect(_builderEntryState("for-real|w=400|s=0")!.cssFamily).toBe("dmf1");
+    expect(__builderEntryStateForTest("for-real|w=400|s=0")!.cssFamily).toBe("dmf1");
   });
 
   it("restores registry insertion order, not just the set of entries", () => {
@@ -208,10 +208,10 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     clearEmbeddedFontBuilder();
     trackGlyphInEmbedFont("k-b|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
     trackGlyphInEmbedFont("k-a|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
-    expect(_builderInstanceKeys()).toEqual(["k-b|w=400|s=0", "k-a|w=400|s=0"]);
+    expect(__builderInstanceKeysForTest()).toEqual(["k-b|w=400|s=0", "k-a|w=400|s=0"]);
 
     restoreEmbeddedFonts(marker);
-    expect(_builderInstanceKeys()).toEqual(["k-a|w=400|s=0", "k-b|w=400|s=0"]);
+    expect(__builderInstanceKeysForTest()).toEqual(["k-a|w=400|s=0", "k-b|w=400|s=0"]);
   });
 
   it("recovers state a speculative pass CLEARED outright", () => {
@@ -221,10 +221,10 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     trackGlyphInEmbedFont("keep|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
     const marker = snapshotEmbeddedFonts();
     clearEmbeddedFontBuilder();
-    expect(_builderRegistrySize()).toBe(0);
+    expect(__builderRegistrySizeForTest()).toBe(0);
     restoreEmbeddedFonts(marker);
-    expect(_builderRegistrySize()).toBe(1);
-    expect(_builderEntryState("keep|w=400|s=0")!.puas).toEqual([0xe000]);
+    expect(__builderRegistrySizeForTest()).toBe(1);
+    expect(__builderEntryStateForTest("keep|w=400|s=0")!.puas).toEqual([0xe000]);
   });
 
   it("nests: take, take, restore, restore unwinds to each marker in turn", () => {
@@ -233,12 +233,12 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     trackGlyphInEmbedFont("mid|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
     const inner = snapshotEmbeddedFonts();
     trackGlyphInEmbedFont("leaf|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
-    expect(_builderInstanceKeys()).toHaveLength(3);
+    expect(__builderInstanceKeysForTest()).toHaveLength(3);
 
     restoreEmbeddedFonts(inner);
-    expect(_builderInstanceKeys()).toEqual(["base|w=400|s=0", "mid|w=400|s=0"]);
+    expect(__builderInstanceKeysForTest()).toEqual(["base|w=400|s=0", "mid|w=400|s=0"]);
     restoreEmbeddedFonts(outer); // an inner restore must not invalidate the outer marker
-    expect(_builderInstanceKeys()).toEqual(["base|w=400|s=0"]);
+    expect(__builderInstanceKeysForTest()).toEqual(["base|w=400|s=0"]);
   });
 
   it("a restored marker is not aliased to the live registry", () => {
@@ -249,20 +249,20 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     // Mutating after a restore must not write through into the marker.
     trackGlyphInEmbedFont("alias|w=400|s=0", 1000, 800, -200, 3, BOX, 620);
     restoreEmbeddedFonts(marker);
-    expect(_builderEntryState("alias|w=400|s=0")!.glyphIds).toEqual([1]);
+    expect(__builderEntryStateForTest("alias|w=400|s=0")!.glyphIds).toEqual([1]);
   });
 
   it("restoring a marker taken before ANY font work empties the builder", () => {
     clearEmbeddedFontBuilder();
     const marker = snapshotEmbeddedFonts();
     composeSpeculative();
-    expect(_builderRegistrySize()).toBeGreaterThan(0);
+    expect(__builderRegistrySizeForTest()).toBeGreaterThan(0);
     restoreEmbeddedFonts(marker);
-    expect(_builderRegistrySize()).toBe(0);
+    expect(__builderRegistrySizeForTest()).toBe(0);
     expect(getBuiltEmbeddedFontFaceCss()).toBe("");
     // …and the family counter rewound with it.
     trackGlyphInEmbedFont("fresh|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
-    expect(_builderEntryState("fresh|w=400|s=0")!.cssFamily).toBe("dmf0");
+    expect(__builderEntryStateForTest("fresh|w=400|s=0")!.cssFamily).toBe("dmf0");
   });
 
   it("never throws on an empty / never-used builder, or on a repeated restore", () => {
@@ -270,7 +270,7 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     const marker = snapshotEmbeddedFonts();
     expect(() => restoreEmbeddedFonts(marker)).not.toThrow();
     expect(() => restoreEmbeddedFonts(marker)).not.toThrow();
-    expect(_builderRegistrySize()).toBe(0);
+    expect(__builderRegistrySizeForTest()).toBe(0);
   });
 
   it("pins the BuilderEntry field list the clone has to cover", () => {
@@ -279,7 +279,7 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
     // rollback — a partial rollback corrupts output more quietly than none.
     // If this fails: audit `cloneBuilderEntry`, then update the list.
     trackGlyphInEmbedFont("fields|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
-    expect(_builderEntryFieldNames("fields|w=400|s=0").sort()).toEqual([
+    expect(__builderEntryFieldNamesForTest("fields|w=400|s=0").sort()).toEqual([
       "ascender",
       "buildDiagnostic",
       "cssFamily",
@@ -350,7 +350,7 @@ describe("snapshotGeneration / restoreGeneration — both registries in one tran
 
     expect(() => restoreGeneration(marker)).not.toThrow();
     expect(getGlyphDefs()).toBe("");
-    expect(_builderRegistrySize()).toBe(0);
+    expect(__builderRegistrySizeForTest()).toBe(0);
     expect(() => restoreGeneration(marker)).not.toThrow();
   });
 
@@ -366,11 +366,11 @@ describe("snapshotGeneration / restoreGeneration — both registries in one tran
     trackGlyphInEmbedFont("n-c|w=400|s=0", 1000, 800, -200, 1, TRI, 600);
 
     restoreGeneration(inner);
-    expect(_builderInstanceKeys()).toEqual(["n-a|w=400|s=0", "n-b|w=400|s=0"]);
+    expect(__builderInstanceKeysForTest()).toEqual(["n-a|w=400|s=0", "n-b|w=400|s=0"]);
     expect(getGlyphDefs().match(/<path/g)).toHaveLength(2);
 
     restoreGeneration(outer);
-    expect(_builderInstanceKeys()).toEqual(["n-a|w=400|s=0"]);
+    expect(__builderInstanceKeysForTest()).toEqual(["n-a|w=400|s=0"]);
     expect(getGlyphDefs().match(/<path/g)).toHaveLength(1);
   });
 });

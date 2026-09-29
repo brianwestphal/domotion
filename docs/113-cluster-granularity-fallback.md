@@ -459,7 +459,7 @@ split at the exact cluster boundary Chrome uses.
 - `DOMOTION_CLUSTER_FALLBACK_DEBUG=1` — print invoked/accepted counters at exit
   (armed-mechanism proof for A/Bs; a flag being on is not evidence a mechanism
   ran).
-- `FontStageStats` (`_getFontStageStats` / `_resetFontStageStats`,
+- `FontStageStats` (`__getFontStageStatsForTest` / `__resetFontStageStatsForTest`,
   `font-resolution.ts`) — stage-attribution counters behind the static-chain
   retirement question; sweep driver pattern in `tools/scratch/` (see the
   Hot Sheet ticket notes for the exact scripts used here).

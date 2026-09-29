@@ -20,7 +20,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { CapturedElement, CaptureWarning } from "./types.js";
-import { _captureWarningSink } from "./warnings.js";
+import { captureWarningSink } from "./warnings.js";
 
 /** True for an absolute http(s) URL — the ones `embedRemoteImages` fetches and
  *  the data-URI pass-through leaves untouched. */
@@ -275,7 +275,7 @@ export async function embedRemoteImages(
   // Resolved at PUSH time, not here: a capture that overlaps this pass replaces the global
   // buffer, and a sink grabbed now would keep receiving into the discarded array.
   const warn = (warning: CaptureWarning): void => {
-    _captureWarningSink(options.warnings).push(warning);
+    captureWarningSink(options.warnings).push(warning);
   };
   const timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_FETCH_RETRIES;

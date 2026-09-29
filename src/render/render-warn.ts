@@ -1,4 +1,4 @@
-import { _captureWarningSink } from "../capture/warnings.js";
+import { captureWarningSink } from "../capture/warnings.js";
 
 /**
  * Report a render-side degradation: the renderer is about to paint something other than what
@@ -12,5 +12,5 @@ import { _captureWarningSink } from "../capture/warnings.js";
  */
 export function renderWarn(feature: string, detail: string, selector = ""): void {
   console.warn(`[domotion] ${detail}`);
-  _captureWarningSink().push({ selector, feature, detail });
+  captureWarningSink().push({ selector, feature, detail });
 }

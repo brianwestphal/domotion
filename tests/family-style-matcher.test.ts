@@ -16,7 +16,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-// The SHIPPED binary first — the same one `__helperBinaryForPlatform("darwin")`
+// The SHIPPED binary first — the same one `__helperBinaryForPlatformForTest("darwin")`
 // resolves, so this runs for anyone who has built the helper rather than only
 // for whoever last ran `swift build`. The debug build is the fallback so the
 // test is usable mid-iteration.

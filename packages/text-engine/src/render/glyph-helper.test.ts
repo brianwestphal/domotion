@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import {
-  __helperBinaryForPlatform,
+  __helperBinaryForPlatformForTest,
   buildGlyphHelperFontProbeEnvelope,
   clearGlyphHelperCache,
   createGlyphHelperFont,
@@ -104,9 +104,13 @@ describe("platform-aware helper resolution", () => {
   it("maps each supported platform to its in-tree extractor binary", () => {
     // Separator-agnostic: path.resolve emits `\` on a Windows host even for the
     // darwin/linux entries, so match either separator.
-    expect(__helperBinaryForPlatform("darwin")).toMatch(/tools[/\\]macos-glyph-extractor[/\\]domotion-glyph-paths$/);
-    expect(__helperBinaryForPlatform("linux")).toMatch(/tools[/\\]linux-glyph-extractor[/\\]domotion-glyph-paths$/);
-    expect(__helperBinaryForPlatform("win32")).toMatch(
+    expect(__helperBinaryForPlatformForTest("darwin")).toMatch(
+      /tools[/\\]macos-glyph-extractor[/\\]domotion-glyph-paths$/,
+    );
+    expect(__helperBinaryForPlatformForTest("linux")).toMatch(
+      /tools[/\\]linux-glyph-extractor[/\\]domotion-glyph-paths$/,
+    );
+    expect(__helperBinaryForPlatformForTest("win32")).toMatch(
       /tools[/\\]win32-glyph-extractor[/\\]domotion-glyph-paths\.exe$/,
     );
   });
@@ -116,15 +120,15 @@ describe("platform-aware helper resolution", () => {
     // the relative path still pointed one level up (src/tools/), so the in-tree
     // helper was unreachable. It must resolve to the package's tools/ dir
     // (packages/text-engine/tools/), two levels above packages/text-engine/src/render.
-    const darwinBin = __helperBinaryForPlatform("darwin")!;
+    const darwinBin = __helperBinaryForPlatformForTest("darwin")!;
     const moduleDir = path.dirname(fileURLToPath(import.meta.url)); // packages/text-engine/src/render
     const packageRoot = path.resolve(moduleDir, "..", "..");
     expect(darwinBin).toBe(path.join(packageRoot, "tools", "macos-glyph-extractor", "domotion-glyph-paths"));
   });
 
   it("returns no binary for a platform without a helper", () => {
-    expect(__helperBinaryForPlatform("aix")).toBeUndefined();
-    expect(__helperBinaryForPlatform("freebsd")).toBeUndefined();
+    expect(__helperBinaryForPlatformForTest("aix")).toBeUndefined();
+    expect(__helperBinaryForPlatformForTest("freebsd")).toBeUndefined();
   });
 
   it("runs JavaScript protocol adapters through Node on every platform", () => {
@@ -163,7 +167,7 @@ describe("platform-aware helper resolution", () => {
 // on Linux with the in-tree binary built (skipped elsewhere, so inert on
 // macOS/Windows CI). The binary-level FreeType parity is covered separately by
 // packages/text-engine/src/render/linux-glyph-extractor.test.ts; this asserts the JS dispatch path.
-const LINUX_HELPER = __helperBinaryForPlatform("linux");
+const LINUX_HELPER = __helperBinaryForPlatformForTest("linux");
 const linuxDispatchAvailable = process.platform === "linux" && LINUX_HELPER != null && existsSync(LINUX_HELPER);
 const describeLinux = linuxDispatchAvailable ? describe : describe.skip;
 

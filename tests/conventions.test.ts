@@ -301,6 +301,31 @@ describe("project conventions", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("names test-only seams __<name>ForTest, and leaves no other underscore-prefixed export", () => {
+    // Four spellings (`__xForTest`, `_xForTest`, `__x`, `_x`) made it impossible to tell a test seam from a
+    // production function by name; `_clearHbFontCache` was a production call dressed as a seam. A seam is
+    // `__...ForTest`; anything production-called is spelled plainly. The exported-private cache maps are the
+    // one allow-listed family (they are state, imported from their owner by design).
+    const ALLOWED = new Set(["_dataUriCache", "_resizedDataUriCache", "_conicTileCache", "_advancedGradientTileCache"]);
+    const SEAM = /^__[A-Za-z0-9]+ForTest$/;
+    const exportedUnderscore = /export\s+(?:async\s+)?(?:function|const|let|class)\s+(_+[A-Za-z][A-Za-z0-9]*)/g;
+    const offenders: string[] = [];
+    const roots = [resolve(ROOT, "src"), resolve(ROOT, "packages/text-engine/src")];
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((name) => {
+        const p = resolve(dir, name);
+        if (statSync(p).isDirectory()) return name === "node_modules" ? [] : walk(p);
+        return /\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name) && !name.endsWith(".generated.ts") ? [p] : [];
+      });
+    for (const file of roots.flatMap(walk)) {
+      for (const match of readFileSync(file, "utf8").matchAll(exportedUnderscore)) {
+        const name = match[1];
+        if (!SEAM.test(name) && !ALLOWED.has(name)) offenders.push(`${file.slice(ROOT.length + 1)}: ${name}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("compares colors to transparent only through src/utils/transparent-background.ts", () => {
     // `=== "rgba(0, 0, 0, 0)"` misses every other spelling of transparent (`#0000`, `rgba(0,0,0,0)`,
     // `hsla(...)`, the `transparent` keyword) — the defect the canonical predicate closed. Use

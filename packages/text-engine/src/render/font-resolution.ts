@@ -8856,7 +8856,7 @@ export function commandsFor(
 }
 
 /** Test-only: clear the per-glyph fallback caches (helper instances + outlines). */
-export function __clearGlyphFallbackCaches(): void {
+export function __clearGlyphFallbackCachesForTest(): void {
   helperFontCache.clear();
   helperOutlineCache.clear();
 }
@@ -11460,7 +11460,7 @@ export function fontFeatureValueShapingOverride(
  * how often does the static per-block chain still answer at all?" decides
  * whether the sampled chains can be retired, and it can only be answered by
  * counting at the decision sites. Unconditional cheap increments; no behavior
- * change. Read with `_getFontStageStats()`, reset with `_resetFontStageStats()`.
+ * change. Read with `__getFontStageStatsForTest()`, reset with `__resetFontStageStatsForTest()`.
  */
 export interface FontStageStats {
   /** Total `resolveFontForCodepoint` decisions. */
@@ -11501,7 +11501,7 @@ const _stageStats: FontStageStats = {
   staticCpSample: [],
 };
 const STATIC_CP_SAMPLE_CAP = 20000;
-export function _getFontStageStats(): FontStageStats {
+export function __getFontStageStatsForTest(): FontStageStats {
   return {
     ..._stageStats,
     staticKeyTally: new Map(_stageStats.staticKeyTally),
@@ -11509,7 +11509,7 @@ export function _getFontStageStats(): FontStageStats {
     staticCpSample: [..._stageStats.staticCpSample],
   };
 }
-export function _resetFontStageStats(): void {
+export function __resetFontStageStatsForTest(): void {
   _stageStats.calls = 0;
   _stageStats.fastPathPrimary = 0;
   _stageStats.systemStageReached = 0;

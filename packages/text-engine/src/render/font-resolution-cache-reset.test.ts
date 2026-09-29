@@ -17,7 +17,7 @@ import {
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
 import { __seedSystemUiFamilyForTest, __systemUiFamilyCacheForTest } from "./glyph-helper.js";
-import { _clusterVerdictCacheSizeForTest, _seedClusterVerdictCacheForTest } from "./cluster-fallback.js";
+import { __clusterVerdictCacheSizeForTest, __seedClusterVerdictCacheForTest } from "./cluster-fallback.js";
 
 /**
  * `clearFontResolutionCaches()` exists so a long sweep over a large codepoint
@@ -143,10 +143,10 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
   });
 
   it("environment invalidation expires shaped-cluster verdicts", () => {
-    _seedClusterVerdictCacheForTest();
-    expect(_clusterVerdictCacheSizeForTest()).toBe(1);
+    __seedClusterVerdictCacheForTest();
+    expect(__clusterVerdictCacheSizeForTest()).toBe(1);
     invalidateFontEnvironmentCaches();
-    expect(_clusterVerdictCacheSizeForTest()).toBe(0);
+    expect(__clusterVerdictCacheSizeForTest()).toBe(0);
   });
 
   it("environment invalidation expires the Windows menu-font preference", () => {

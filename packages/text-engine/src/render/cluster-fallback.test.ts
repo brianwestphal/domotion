@@ -16,9 +16,9 @@ import {
   collectHintChars,
   clusterFallbackEnabled,
   splitTextIntoFontRunsShaped,
-  _clusterFallbackCounters,
-  _isBlinkVariationSequenceForTest,
-  _effectiveFallbackPriorityForTest,
+  __clusterFallbackCountersForTest,
+  __isBlinkVariationSequenceForTest,
+  __effectiveFallbackPriorityForTest,
 } from "./cluster-fallback.js";
 import {
   resolveFont,
@@ -105,20 +105,20 @@ describe("collectHintChars (CollectFallbackHintChars port)", () => {
 
 describe("Character::IsVariationSequence transcription", () => {
   it("accepts emoji, standardized, and undecomposed ideographic sequences", () => {
-    expect(_isBlinkVariationSequenceForTest(0x2764, 0xfe0f)).toBe(true); // emoji VS16
-    expect(_isBlinkVariationSequenceForTest(0x0030, 0xfe00)).toBe(true); // standardized short zero
-    expect(_isBlinkVariationSequenceForTest(0x845b, 0xe0100)).toBe(true); // ideographic IVS
+    expect(__isBlinkVariationSequenceForTest(0x2764, 0xfe0f)).toBe(true); // emoji VS16
+    expect(__isBlinkVariationSequenceForTest(0x0030, 0xfe00)).toBe(true); // standardized short zero
+    expect(__isBlinkVariationSequenceForTest(0x845b, 0xe0100)).toBe(true); // ideographic IVS
   });
 
   it("rejects selectors that Blink leaves as ordinary default-ignorables", () => {
-    expect(_isBlinkVariationSequenceForTest(0x0061, 0xfe0f)).toBe(false); // non-Emoji + VS16
-    expect(_isBlinkVariationSequenceForTest(0x0061, 0xfe00)).toBe(false); // pair absent from standardized table
-    expect(_isBlinkVariationSequenceForTest(0xfa10, 0xe0100)).toBe(false); // compatibility-decomposable ideograph
+    expect(__isBlinkVariationSequenceForTest(0x0061, 0xfe0f)).toBe(false); // non-Emoji + VS16
+    expect(__isBlinkVariationSequenceForTest(0x0061, 0xfe00)).toBe(false); // pair absent from standardized table
+    expect(__isBlinkVariationSequenceForTest(0xfa10, 0xe0100)).toBe(false); // compatibility-decomposable ideograph
   });
 });
 
 describe("ApplyFontVariantEmojiOnFallbackPriority", () => {
-  const p = _effectiveFallbackPriorityForTest;
+  const p = __effectiveFallbackPriorityForTest;
 
   it("applies CSS to complete source items without overriding explicit selectors", () => {
     expect(p("text", undefined)).toBe("text");
@@ -190,18 +190,18 @@ describe("candidate-local HarfBuzz materialization failure", () => {
 
 (MACOS_FONTS ? describe : describe.skip)("shape-then-requeue vs Chrome ground truth (docs/113 §2)", () => {
   it("requeues valid variation sequences but ignores invalid base+selector pairs", () => {
-    const before = _clusterFallbackCounters();
+    const before = __clusterFallbackCountersForTest();
     expect(split("STIX Two Math", "0\uFE00")).toEqual([{ text: "0\uFE00", key: "sysfb:STIXTwoMath-Regular" }]); // positive cmap-14: the selected face owns the sequence
-    const afterPositiveCmap14 = _clusterFallbackCounters();
+    const afterPositiveCmap14 = __clusterFallbackCountersForTest();
     expect(afterPositiveCmap14.vsRequeued).toBe(before.vsRequeued);
 
     split("Helvetica", "0\uFE00"); // standardized short-zero sequence
-    const afterValid = _clusterFallbackCounters();
+    const afterValid = __clusterFallbackCountersForTest();
     expect(afterValid.vsRequeued).toBeGreaterThan(afterPositiveCmap14.vsRequeued);
     expect(afterValid.vsResets).toBeGreaterThan(afterPositiveCmap14.vsResets);
 
     split("Helvetica", "a\uFE00"); // not a Character::IsVariationSequence pair
-    const afterInvalid = _clusterFallbackCounters();
+    const afterInvalid = __clusterFallbackCountersForTest();
     expect(afterInvalid.vsRequeued).toBe(afterValid.vsRequeued);
   });
 
@@ -218,17 +218,17 @@ describe("candidate-local HarfBuzz materialization failure", () => {
   });
 
   it("does not treat an orphan selector as an independently fallbackable character", () => {
-    const before = _clusterFallbackCounters();
+    const before = __clusterFallbackCountersForTest();
     expect(split("Helvetica", "\uFE0F")).toEqual([{ text: "\uFE0F", key: "helvetica" }]);
-    const after = _clusterFallbackCounters();
+    const after = __clusterFallbackCountersForTest();
     expect(after.vsRequeued).toBe(before.vsRequeued);
     expect(after.vsResets).toBe(before.vsResets);
   });
 
   it("uses the one-shot emoji fallback-priority stage before ordinary system fallback", () => {
-    const before = _clusterFallbackCounters();
+    const before = __clusterFallbackCountersForTest();
     const runs = split("Helvetica", "😀");
-    const after = _clusterFallbackCounters();
+    const after = __clusterFallbackCountersForTest();
     expect(runs?.[0].key.toLowerCase()).toContain("applecoloremoji");
     expect(after.priorityAsked).toBeGreaterThan(before.priorityAsked);
     expect(after.priorityAnswered).toBeGreaterThan(before.priorityAnswered);
@@ -304,9 +304,9 @@ describe("candidate-local HarfBuzz materialization failure", () => {
   });
 
   it("bumps the armed-mechanism counters", () => {
-    const before = _clusterFallbackCounters();
+    const before = __clusterFallbackCountersForTest();
     split("Helvetica", "abc");
-    const after = _clusterFallbackCounters();
+    const after = __clusterFallbackCountersForTest();
     expect(after.invoked).toBeGreaterThan(before.invoked);
     expect(after.accepted).toBeGreaterThan(before.accepted);
   });
@@ -377,9 +377,9 @@ describe("candidate-local HarfBuzz materialization failure", () => {
     // HarfBuzzGetGlyph applies the face's unicode-range to `unicode` (U+0030),
     // not independently to its `variation_selector` (U+FE00).
     registerWebfont("DM VS Base Range", 400, "normal", fs.readFileSync(path), [[0x30, 0x30]]);
-    const before = _clusterFallbackCounters();
+    const before = __clusterFallbackCountersForTest();
     expect(split('"DM VS Base Range"', "0\uFE00")).toEqual([{ text: "0\uFE00", key: "webfont:dm vs base range" }]);
-    const after = _clusterFallbackCounters();
+    const after = __clusterFallbackCountersForTest();
     expect(after.vsRequeued).toBe(before.vsRequeued);
   });
 });

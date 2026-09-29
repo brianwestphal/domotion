@@ -32,7 +32,7 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
   });
 
   it("passes opts.features into the verdict shape call (not undefined)", async () => {
-    const { splitTextIntoFontRunsShaped, _clearClusterVerdictCache } = await import("./cluster-fallback.js");
+    const { splitTextIntoFontRunsShaped, clearClusterVerdictCache } = await import("./cluster-fallback.js");
     const { resolveFont, resolveFontKey, resolveFontKeyChain } = await import("./font-resolution.js");
     const { harfbuzzShapeRun } = await import("./harfbuzz-shaper.js");
     const spy = harfbuzzShapeRun as unknown as ReturnType<typeof vi.fn>;
@@ -45,7 +45,7 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     // Cache is keyed per (face, size, axes, direction, script, lang,
     // features, context) — clear it so the two calls below cannot short
     // circuit through a memoized entry from an earlier test/run.
-    _clearClusterVerdictCache();
+    clearClusterVerdictCache();
     spy.mockClear();
     splitTextIntoFontRunsShaped(
       "hello",
@@ -66,7 +66,7 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     expect(spy.mock.calls.length).toBeGreaterThan(0);
     for (const call of spy.mock.calls) expect(call[6]).toBeUndefined();
 
-    _clearClusterVerdictCache();
+    clearClusterVerdictCache();
     spy.mockClear();
     splitTextIntoFontRunsShaped(
       "hello",
@@ -91,7 +91,7 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
   });
 
   it("keys the verdict cache on features — two different feature lists are NOT treated as the same cache entry", async () => {
-    const { splitTextIntoFontRunsShaped, _clearClusterVerdictCache } = await import("./cluster-fallback.js");
+    const { splitTextIntoFontRunsShaped, clearClusterVerdictCache } = await import("./cluster-fallback.js");
     const { resolveFont, resolveFontKey, resolveFontKeyChain } = await import("./font-resolution.js");
     const { harfbuzzShapeRun } = await import("./harfbuzz-shaper.js");
     const spy = harfbuzzShapeRun as unknown as ReturnType<typeof vi.fn>;
@@ -100,7 +100,7 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
     const font = resolveFont("Helvetica", 400, 32, 0);
     const chain = resolveFontKeyChain("Helvetica");
 
-    _clearClusterVerdictCache();
+    clearClusterVerdictCache();
     splitTextIntoFontRunsShaped(
       "hello",
       font!,
@@ -143,7 +143,7 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
   });
 
   it("the live glyph-path splitter lets a feature-dependent verdict change font assignment", async () => {
-    const { _clearClusterVerdictCache } = await import("./cluster-fallback.js");
+    const { clearClusterVerdictCache } = await import("./cluster-fallback.js");
     const { resolveFont, resolveFontKey, resolveFontKeyChain, stackPrimaryIsSystemUi } =
       await import("./font-resolution.js");
     const { splitTextIntoGlyphPathRuns } = await import("./text-to-path.js");
@@ -185,10 +185,10 @@ const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Libr
         family,
         features,
       );
-    _clearClusterVerdictCache();
+    clearClusterVerdictCache();
     const defaultRuns = split();
     primaryPath = undefined;
-    _clearClusterVerdictCache();
+    clearClusterVerdictCache();
     spy.mockClear();
     const vetoedRuns = split(["-liga"]);
 

@@ -166,7 +166,7 @@ export async function acquireIcuCompanion(opts: IcuAcquireOptions = {}): Promise
   }
 }
 
-export function __resetIcuAcquireState(): void {
+export function __resetIcuAcquireStateForTest(): void {
   failed = false;
 }
 

@@ -22,7 +22,7 @@ import {
 export { OFFSET_PROBE_GLYPHS, measureOutlineOffsetY } from "./glyph-helper-outline.js";
 export type { GlyphRasterRepresentation } from "./glyph-helper-outline.js";
 export {
-  __helperBinaryForPlatform,
+  __helperBinaryForPlatformForTest,
   isGlyphHelperAvailable,
   resolvedGlyphHelperPathForEvidence,
 } from "./glyph-helper-transport.js";

@@ -26,7 +26,7 @@ import {
   registerWebfont,
   clearWebfonts,
 } from "./font-resolution.js";
-import { _clusterFallbackCounters } from "./cluster-fallback.js";
+import { __clusterFallbackCountersForTest } from "./cluster-fallback.js";
 import { hbSubsetRetainGids } from "./hb-subset.js";
 
 const MACOS_FONTS = process.platform === "darwin" && fs.existsSync("/System/Library/Fonts/Helvetica.ttc");
@@ -158,9 +158,9 @@ function splitFull(
   });
 
   it("bumps the armed-mechanism counters", () => {
-    const before = _clusterFallbackCounters();
+    const before = __clusterFallbackCountersForTest();
     split("Helvetica", "abc");
-    const after = _clusterFallbackCounters();
+    const after = __clusterFallbackCountersForTest();
     expect(after.invoked).toBeGreaterThan(before.invoked);
     expect(after.accepted).toBeGreaterThan(before.accepted);
   });

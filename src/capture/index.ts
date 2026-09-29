@@ -72,7 +72,7 @@ import {
   type StableReplacedMediaFrameState,
 } from "./replaced-media-frame.js";
 import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element-raster.js";
-import { _resetLastCaptureWarnings } from "./warnings.js";
+import { resetLastCaptureWarnings } from "./warnings.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { assertCapturedTreeShape } from "./tree-shape.js";
 import type {
@@ -2413,7 +2413,7 @@ async function captureElementTreeWithWarningsInternal(
         const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
         for (const root of typed.tree) root.sessionGenericFamilies = captured;
       }
-      _resetLastCaptureWarnings(warnings);
+      resetLastCaptureWarnings(warnings);
       return {
         tree: typed.tree,
         warnings,

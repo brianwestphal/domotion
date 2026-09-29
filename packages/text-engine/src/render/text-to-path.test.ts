@@ -26,7 +26,7 @@ import {
 } from "./text-to-path.js";
 import {
   glyphIdForCp,
-  __clearGlyphFallbackCaches,
+  __clearGlyphFallbackCachesForTest,
   __resolveDarwinFontSpecForTest,
   __resolveFontForCodepointForTest,
   __resolveFontSpecForTest,
@@ -75,9 +75,9 @@ import {
 import { existsSync } from "node:fs";
 import * as fontkit2 from "fontkit";
 import {
-  _builderInstanceKeys,
-  _builderRegistrySize,
-  _setBuilderNextPuaForTest,
+  __builderInstanceKeysForTest,
+  __builderRegistrySizeForTest,
+  __setBuilderNextPuaForTest,
   trackGlyphInEmbedFont,
 } from "./embedded-font-builder.js";
 import { clearGlyphHelperCache, resolveInstalledFont } from "./glyph-helper.js";
@@ -1844,7 +1844,7 @@ describe("isLegitimatelyInklessCodepoint (per-glyph fallback guard)", () => {
 });
 
 describe("commandsFor (per-glyph fallback routing)", () => {
-  beforeEach(() => __clearGlyphFallbackCaches());
+  beforeEach(() => __clearGlyphFallbackCachesForTest());
 
   it("returns fontkit's commands verbatim when present (fast path, no helper)", () => {
     const cmds = [
@@ -2010,7 +2010,7 @@ describe("source-owned no-outline boundary (DM-2399)", () => {
 // contour — i.e. the helper outline actually lands in the embedded font.
 describe("embedded-font mode: per-glyph helper fallback (DM-892)", () => {
   beforeEach(() => {
-    __clearGlyphFallbackCaches();
+    __clearGlyphFallbackCachesForTest();
     clearEmbeddedFonts();
   });
   afterEach(() => {
@@ -4169,9 +4169,9 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
       fill: "#000",
     });
     expect(first).toMatch(/<text[^>]+font-family="dmf\d+"/);
-    const key = _builderInstanceKeys()[0];
+    const key = __builderInstanceKeysForTest()[0];
     expect(key).toBeTruthy();
-    expect(_setBuilderNextPuaForTest(key!, 0xf900)).toBe(true);
+    expect(__setBuilderNextPuaForTest(key!, 0xf900)).toBe(true);
 
     setTextRunProvenanceEnabled(true);
     resetTextRunProvenance();
@@ -4308,7 +4308,7 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     const css = getEmbeddedFontFaceCss();
     const faceCount = (css.match(/@font-face/g) ?? []).length;
     expect(faceCount).toBe(3);
-    expect(_builderInstanceKeys()).toEqual(
+    expect(__builderInstanceKeysForTest()).toEqual(
       expect.arrayContaining([expect.stringContaining("|wght=540"), expect.stringContaining("|wght=100")]),
     );
   });
@@ -4323,10 +4323,10 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
       fill: "#000",
       variationSettings: { wght: 540 },
     });
-    expect(_builderRegistrySize()).toBe(1);
+    expect(__builderRegistrySizeForTest()).toBe(1);
 
     clearEmbeddedFonts();
-    expect(_builderRegistrySize()).toBe(0);
+    expect(__builderRegistrySizeForTest()).toBe(0);
     expect(getEmbeddedFontFaceCss()).toBe("");
 
     renderTextAsPath("CD", 0, 0, {
@@ -4336,9 +4336,9 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
       fill: "#000",
       variationSettings: { wght: 100 },
     });
-    expect(_builderRegistrySize()).toBe(1);
-    expect(_builderInstanceKeys()[0]).toContain("|wght=100");
-    expect(_builderInstanceKeys()[0]).not.toContain("|wght=540");
+    expect(__builderRegistrySizeForTest()).toBe(1);
+    expect(__builderInstanceKeysForTest()[0]).toContain("|wght=100");
+    expect(__builderInstanceKeysForTest()[0]).not.toContain("|wght=540");
   });
 
   it("the same (font, axes) combo across calls shares one @font-face entry", async () => {

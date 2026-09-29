@@ -11,7 +11,7 @@ import {
   embedRemoteImages,
   embedResizedDataUri,
 } from "./embed.js";
-import { _resetLastCaptureWarnings, getLastCaptureWarnings } from "./warnings.js";
+import { resetLastCaptureWarnings, getLastCaptureWarnings } from "./warnings.js";
 
 const URL_A = "https://example.test/a.png";
 const tree = (): CapturedElement[] =>
@@ -46,13 +46,13 @@ beforeEach(() => {
     }),
   );
   clearEmbeddedImageCaches();
-  _resetLastCaptureWarnings([]);
+  resetLastCaptureWarnings([]);
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   clearEmbeddedImageCaches();
-  _resetLastCaptureWarnings([]);
+  resetLastCaptureWarnings([]);
 });
 
 describe("clearEmbeddedImageCaches", () => {
@@ -101,7 +101,7 @@ describe("embedRemoteImages cache transitions", () => {
     };
     const pending = embedRemoteImages(tree(), opts);
     // A capture completes while the embed pass is still in flight and swaps the buffer.
-    _resetLastCaptureWarnings([]);
+    resetLastCaptureWarnings([]);
     release();
     await pending;
     expect(getLastCaptureWarnings().map((w) => w.feature)).toEqual(["remote-image"]);

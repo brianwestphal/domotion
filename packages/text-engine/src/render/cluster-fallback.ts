@@ -100,7 +100,7 @@ let _priorityAsked = 0;
 let _priorityAnswered = 0;
 let _vsRequeued = 0;
 let _vsResets = 0;
-export function _clusterFallbackCounters(): {
+export function __clusterFallbackCountersForTest(): {
   invoked: number;
   accepted: number;
   priorityAsked: number;
@@ -280,16 +280,16 @@ interface ClusterVerdict {
 }
 const verdictCache = new Map<string, ClusterVerdict[] | null>();
 const VERDICT_CACHE_CAP = 4096;
-export function _clearClusterVerdictCache(): void {
+export function clearClusterVerdictCache(): void {
   verdictCache.clear();
 }
-export function _clusterVerdictCacheSizeForTest(): number {
+export function __clusterVerdictCacheSizeForTest(): number {
   return verdictCache.size;
 }
-export function _seedClusterVerdictCacheForTest(): void {
+export function __seedClusterVerdictCacheForTest(): void {
   verdictCache.set("test", null);
 }
-registerFontEnvironmentInvalidator(_clearClusterVerdictCache);
+registerFontEnvironmentInvalidator(clearClusterVerdictCache);
 
 const CONTEXT_UNITS = 5;
 
@@ -421,7 +421,7 @@ function hasStandardizedVariationSequence(base: number, selector: number): boole
 
 /** Blink's `Character::IsVariationSequence` transcription
  * (`character_variation_sequences.cc`, Chromium rev 7d859f27). */
-export function _isBlinkVariationSequenceForTest(base: number, selector: number): boolean {
+export function __isBlinkVariationSequenceForTest(base: number, selector: number): boolean {
   if ((selector === 0xfe0e || selector === 0xfe0f) && isEmojiCharCp(base)) return true;
   if (hasStandardizedVariationSequence(base, selector)) return true;
   if (selector < 0xe0100 || selector > 0xe01ef) return false;
@@ -446,7 +446,7 @@ function collectVsSequences(
       isVariationSelectorCp(cp) &&
       prevIndex >= 0 &&
       !isVariationSelectorCp(prevCp) &&
-      _isBlinkVariationSequenceForTest(prevCp, cp)
+      __isBlinkVariationSequenceForTest(prevCp, cp)
     ) {
       out.push({ index: prevIndex, base: prevCp, selector: cp });
     } else if (fve != null && isEmojiCharCp(cp)) {
@@ -487,7 +487,7 @@ function vsUnmatchedInFace(face: HbFace, font: FontInstance, fontKey: string, se
 type Stage = "family" | "priority" | "system" | "lastResort" | "firstCandidate" | "outOfLuck";
 
 /** ApplyFontVariantEmojiOnFallbackPriority, exported as a pure test seam. */
-export function _effectiveFallbackPriorityForTest(
+export function __effectiveFallbackPriorityForTest(
   sourcePriority: SourceFallbackPriority,
   fontVariantEmoji: FontVariantEmojiOverride | undefined,
 ): SourceFallbackPriority {

@@ -195,7 +195,7 @@ export async function acquireGlyphHelper(opts: AcquireOptions = {}): Promise<str
 }
 
 /** Test-only: reset the per-process "sync download already failed" latch. */
-export function __resetAcquireState(): void {
+export function __resetAcquireStateForTest(): void {
   syncFailedThisProcess = false;
   warned.clear();
 }

@@ -15,7 +15,7 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
-  _clusterFallbackCounters,
+  __clusterFallbackCountersForTest,
   splitTextIntoFontRunsShaped,
   fontHasSupportedColorTable,
   getFontSourceInfo,
@@ -142,7 +142,7 @@ function runRouteCase(spec: RouteCase): RouteEvidence {
   const targetStart = spec.text.indexOf(spec.target);
   if (targetStart < 0) throw new Error(`audit target missing in ${spec.id}`);
   const targetEnd = targetStart + spec.target.length;
-  const before = _clusterFallbackCounters();
+  const before = __clusterFallbackCountersForTest();
   const runs = splitTextIntoFontRunsShaped(
     spec.text,
     primary,
@@ -158,7 +158,7 @@ function runRouteCase(spec: RouteCase): RouteEvidence {
     spec.fontVariantEmoji,
     fontFamily,
   );
-  const after = _clusterFallbackCounters();
+  const after = __clusterFallbackCountersForTest();
   const targetRun = runs.find((run) => targetStart >= run.startIdx && targetStart < run.endIdx) ?? null;
   const raster = selectedGlyphRasterSpans(spec.text, [{ start: targetStart, end: targetEnd }], {
     fontSize,

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { clearGlyphHelperCache, createGlyphHelperFont, isGlyphHelperAvailable } from "./glyph-helper.js";
 import {
-  __clearGlyphFallbackCaches,
+  __clearGlyphFallbackCachesForTest,
   clearFontResolutionCaches,
   coreTextDesignOutlineEligibility,
   getFontInstance,
@@ -52,7 +52,7 @@ describeMacHelper("SFNS production outline ownership (DM-2567)", () => {
 
     for (let coldIteration = 0; coldIteration < 2; coldIteration++) {
       clearFontResolutionCaches();
-      __clearGlyphFallbackCaches();
+      __clearGlyphFallbackCachesForTest();
 
       const iteration: { base: unknown[]; mutation: unknown[] } = { base: [], mutation: [] };
       for (const [label, axes] of [
@@ -106,7 +106,7 @@ describeMacHelper("SFNS production outline ownership (DM-2567)", () => {
     try {
       process.env.DOMOTION_DISABLE_HELPER = "1";
       clearGlyphHelperCache();
-      __clearGlyphFallbackCaches();
+      __clearGlyphFallbackCachesForTest();
       expect(resolveGlyphCommands(glyph, "sf-pro", 700, 13, 0, [0x7a], font)).toEqual({
         commands: [],
         disposition: "helper-unavailable",
@@ -115,7 +115,7 @@ describeMacHelper("SFNS production outline ownership (DM-2567)", () => {
       if (saved == null) delete process.env.DOMOTION_DISABLE_HELPER;
       else process.env.DOMOTION_DISABLE_HELPER = saved;
       clearGlyphHelperCache();
-      __clearGlyphFallbackCaches();
+      __clearGlyphFallbackCachesForTest();
     }
   });
 });

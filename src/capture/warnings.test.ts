@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-  _captureWarningSink,
+  captureWarningSink,
   getLastCaptureWarnings,
   logCaptureWarnings,
-  _resetLastCaptureWarnings,
+  resetLastCaptureWarnings,
 } from "./warnings.js";
 import type { CaptureWarning } from "./types.js";
 
@@ -13,13 +13,13 @@ const W: CaptureWarning[] = [
 ];
 
 afterEach(() => {
-  _resetLastCaptureWarnings([]);
+  resetLastCaptureWarnings([]);
   vi.restoreAllMocks();
 });
 
 describe("capture warnings buffer", () => {
   it("returns a deeply frozen snapshot detached from the reset source", () => {
-    _resetLastCaptureWarnings(W);
+    resetLastCaptureWarnings(W);
     const snapshot = getLastCaptureWarnings();
     expect(snapshot).toEqual(W);
     expect(snapshot).not.toBe(W);
@@ -37,7 +37,7 @@ describe("capture warnings buffer", () => {
   });
 
   it("keeps repeated reads and old snapshots stable under external mutation attempts", () => {
-    _resetLastCaptureWarnings(W);
+    resetLastCaptureWarnings(W);
     const first = getLastCaptureWarnings();
     const second = getLastCaptureWarnings();
     expect(second).toEqual(first);
@@ -50,24 +50,24 @@ describe("capture warnings buffer", () => {
   });
 
   it("handles reset and explicit/global sink transitions without cross-mutation", () => {
-    _resetLastCaptureWarnings([]);
+    resetLastCaptureWarnings([]);
     const empty = getLastCaptureWarnings();
     const explicit: CaptureWarning[] = [];
-    _captureWarningSink(explicit).push(W[0]);
+    captureWarningSink(explicit).push(W[0]);
     expect(explicit).toEqual([W[0]]);
     expect(getLastCaptureWarnings()).toEqual([]);
 
-    _captureWarningSink().push(W[1]);
+    captureWarningSink().push(W[1]);
     expect(getLastCaptureWarnings()).toEqual([W[1]]);
     expect(empty).toEqual([]);
     expect(explicit).toEqual([W[0]]);
 
-    _resetLastCaptureWarnings([W[0]]);
+    resetLastCaptureWarnings([W[0]]);
     expect(getLastCaptureWarnings()).toEqual([W[0]]);
   });
 
   it("logCaptureWarnings prints one stderr line per warning with the feature/selector/detail", () => {
-    _resetLastCaptureWarnings(W);
+    resetLastCaptureWarnings(W);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     logCaptureWarnings();
     expect(err).toHaveBeenCalledTimes(2);
@@ -76,14 +76,14 @@ describe("capture warnings buffer", () => {
   });
 
   it("logCaptureWarnings includes the label in the prefix when given", () => {
-    _resetLastCaptureWarnings([W[0]]);
+    resetLastCaptureWarnings([W[0]]);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     logCaptureWarnings("capture");
     expect(err.mock.calls[0][0]).toBe("[domotion capture] conic-gradient on .a — rasterized");
   });
 
   it("logCaptureWarnings is silent when there are no warnings", () => {
-    _resetLastCaptureWarnings([]);
+    resetLastCaptureWarnings([]);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     logCaptureWarnings();
     expect(err).not.toHaveBeenCalled();

@@ -33,11 +33,11 @@ export function logCaptureWarnings(label: string = ""): void {
  * capture. Neither the returned capture result nor a prior public snapshot can
  * mutate later global inspection state.
  */
-export function _resetLastCaptureWarnings(w: CaptureWarning[]): void {
+export function resetLastCaptureWarnings(w: CaptureWarning[]): void {
   _lastCaptureWarnings = w.map((warning) => ({ ...warning }));
 }
 
 /** @internal — mutable sink for capture internals; never export from the package root. */
-export function _captureWarningSink(explicit?: CaptureWarning[]): CaptureWarning[] {
+export function captureWarningSink(explicit?: CaptureWarning[]): CaptureWarning[] {
   return explicit ?? _lastCaptureWarnings;
 }

@@ -289,7 +289,7 @@ export interface EmbeddedFontSnapshot {
  * append-only Maps and the `hintedSource` record are copied explicitly.
  *
  * `EmbeddedGlyph` values are written once and never mutated in place, so
- * sharing those object references is safe. `_builderEntryFieldNames()` + its
+ * sharing those object references is safe. `__builderEntryFieldNamesForTest()` + its
  * unit test pin the field list, so adding a new MUTABLE CONTAINER field to
  * `BuilderEntry` fails loudly here rather than silently escaping the rollback.
  */
@@ -602,7 +602,7 @@ function rememberHintedOutlineGuard(path: string, faceIndex: number, verdict: bo
 
 /** Test-only: the memo is process-global, so a test that asserts read counts
  *  needs to start from a known state. */
-export function __clearHintedOutlineGuardMemo(): void {
+export function __clearHintedOutlineGuardMemoForTest(): void {
   hintedOutlineGuardMemo.clear();
 }
 
@@ -834,11 +834,8 @@ export function getBuiltEmbeddedFontFaceCss(): string {
 }
 
 /** Test-only: inspect builder state for assertions. */
-export function _builderRegistrySize(): number {
+export function __builderRegistrySizeForTest(): number {
   return builderRegistry.size;
-}
-export function _builderGlyphsFor(instanceKey: string): number {
-  return builderRegistry.get(instanceKey)?.glyphs.size ?? 0;
 }
 /**
  * Test-only: the live field names of a tracked entry. Pinned by a unit test so
@@ -847,7 +844,7 @@ export function _builderGlyphsFor(instanceKey: string): number {
  * silently escape `restoreEmbeddedFonts`, and a partial rollback corrupts
  * output more quietly than no rollback at all.
  */
-export function _builderEntryFieldNames(instanceKey: string): string[] {
+export function __builderEntryFieldNamesForTest(instanceKey: string): string[] {
   const entry = builderRegistry.get(instanceKey);
   return entry == null ? [] : Object.keys(entry);
 }
@@ -855,7 +852,7 @@ export function _builderEntryFieldNames(instanceKey: string): string[] {
  * Test-only: the complete mutable state of one tracked entry, flattened for
  * assertions. Covers every field a snapshot has to roll back.
  */
-export function _builderEntryState(instanceKey: string): {
+export function __builderEntryStateForTest(instanceKey: string): {
   cssFamily: string;
   nextPua: number;
   weightMin: number;
@@ -883,13 +880,13 @@ export function _builderEntryState(instanceKey: string): {
 
 /** Test-only: tracked instance keys, in registry insertion order (the order the
  *  `@font-face` rules are emitted in). */
-export function _builderInstanceKeys(): string[] {
+export function __builderInstanceKeysForTest(): string[] {
   return [...builderRegistry.keys()];
 }
 
 /** Test-only: move one live entry's allocator to a boundary value without
  * registering 6,400 distinct glyphs. Returns false when the key is absent. */
-export function _setBuilderNextPuaForTest(instanceKey: string, nextPua: number): boolean {
+export function __setBuilderNextPuaForTest(instanceKey: string, nextPua: number): boolean {
   const entry = builderRegistry.get(instanceKey);
   if (entry == null) return false;
   entry.nextPua = nextPua;
