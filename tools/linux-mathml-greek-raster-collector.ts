@@ -51,7 +51,7 @@ import {
 } from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
-const PLAYWRIGHT_VERSION = (readPlaywrightVersion() ?? "unknown");
+const PLAYWRIGHT_VERSION = readPlaywrightVersion() ?? "unknown";
 const VIEWPORT = LINUX_MATHML_GREEK_CELL.viewport;
 const UNIQUE_PATHS_FAMILY = "DomotionFreeSansMathmlPaths";
 const UNIQUE_UNHINTED_FAMILY = "DomotionFreeSansMathmlUnhinted";

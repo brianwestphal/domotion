@@ -23,7 +23,7 @@ import {
 } from "./svg-effect-combination-corpus.js";
 
 const require = createRequire(import.meta.url);
-const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+const playwrightVersion = readPlaywrightVersion() ?? "unknown";
 
 export const SVG_EFFECT_PIXEL_THRESHOLDS = {
   maxMeanAbsoluteChannelError: 2,

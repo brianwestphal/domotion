@@ -23,7 +23,7 @@ const runnerImage = process.env.DOMOTION_RUNNER_IMAGE ?? `${process.platform}-lo
 const runnerImageVersion = process.env.ImageVersion ?? "local";
 const chromiumRevision = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const require = createRequire(import.meta.url);
-const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+const playwrightVersion = readPlaywrightVersion() ?? "unknown";
 const fingerprint =
   `${process.platform}-${process.arch}-${runnerImage}-${runnerImageVersion}-${chromiumRevision}`.replaceAll("/", "-");
 const rows: ProjectiveOwnerReleaseReport["rows"] = [];

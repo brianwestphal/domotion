@@ -791,7 +791,7 @@ export async function runInlineSvg3dAudit(
     import("../src/render/element-tree-to-svg.js"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+  const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   const deviceScaleFactors = [...new Set(options.deviceScaleFactors ?? [1, 2])].sort((a, b) => a - b);
   if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0)) {
     throw new Error("--dpr requires one or more positive finite numbers");

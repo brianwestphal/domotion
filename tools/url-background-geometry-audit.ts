@@ -819,7 +819,7 @@ export async function runUrlBackgroundGeometryAudit(
     import("../src/render/element-tree-to-svg.js"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+  const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });

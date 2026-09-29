@@ -622,7 +622,7 @@ export async function runSystemUiPreferenceRouteOracle(
       release: release(),
       architecture: arch(),
       node: process.version,
-      playwright: (readPlaywrightVersion() ?? "unknown"),
+      playwright: readPlaywrightVersion() ?? "unknown",
       locale: Intl.DateTimeFormat().resolvedOptions().locale,
       lang: process.env.LANG ?? "unset",
       fontInventory: fontInventory(),

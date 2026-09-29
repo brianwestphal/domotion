@@ -1647,7 +1647,7 @@ export function validateBrokenImageGateCorpus(): string[] {
 
 async function chromiumRevision(): Promise<{ playwrightVersion: string; chromiumRevision: string }> {
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+  const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   try {
     const packagePath = require.resolve("playwright-core/package.json");
     const browsers = JSON.parse(readFileSync(resolve(dirname(packagePath), "browsers.json"), "utf8")) as {

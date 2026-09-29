@@ -49,7 +49,7 @@ import {
 } from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
-const PLAYWRIGHT_VERSION = (readPlaywrightVersion() ?? "unknown");
+const PLAYWRIGHT_VERSION = readPlaywrightVersion() ?? "unknown";
 const VIEWPORT = PATHS_NATIVE_RASTER_VIEWPORT;
 const ORIGIN_X = PATHS_NATIVE_RASTER_ORIGIN.x;
 const BASELINE_Y = PATHS_NATIVE_RASTER_ORIGIN.baselineY;

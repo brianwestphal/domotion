@@ -3,21 +3,32 @@
  * DM-575 — CLI helper that crops Hot Sheet attachments to the rectangles
  * encoded in a ticket's REGIONS: block (see docs/31-region-feedback.md).
  *
- * Reads `.hotsheet/settings.json` for the local Hot Sheet port + secret,
- * fetches the ticket via the API, parses the latest note (falling back to
- * the ticket's `details` field), runs the DM-574 plan + execute pipeline
- * against the ticket's image attachments, and prints the per-rectangle
- * crop paths so an AI-iteration loop can read them.
+ * Reads the ticket straight from its Hot Sheet v2 store (headless: no server
+ * or secret needed — see `tools/hotsheet-ticket.ts`), falling back to the
+ * legacy Hot Sheet HTTP API for a numeric ticket when no store is linked.
+ * Parses the latest note carrying a REGIONS: block (falling back to the
+ * ticket's details), runs the DM-574 plan + execute pipeline against the
+ * ticket's image attachments, and prints the per-rectangle crop paths so an
+ * AI-iteration loop can read them.
  *
  * Usage:
- *   npx tsx tools/crop-regions.ts --ticket DM-564
+ *   npx tsx tools/crop-regions.ts --ticket DM-HAWK2M        # v2 slug
+ *   npx tsx tools/crop-regions.ts --ticket DM-564           # legacy number
  *   npx tsx tools/crop-regions.ts --id 564 [--output-root tests/output/region-crops]
  */
-import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname, basename } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { executeRegionCrops, parseRegionsBlock, planRegionCrops, type Region } from "../src/utils/region-feedback.js";
+import {
+  parseTicketRef,
+  readTicketFromStore,
+  resolveStoreDir,
+  ticketDisplayId,
+  type StoreTicket,
+  type TicketRef,
+} from "./hotsheet-ticket.js";
 
 interface Settings {
   port: number;
@@ -67,18 +78,15 @@ function loadSettings(): Settings {
   return { port: raw.port, secret: raw.secret };
 }
 
-function parseArgs(argv: string[]): { id: number; outputRoot: string } {
-  let id: number | null = null;
+export function parseArgs(argv: string[]): { ref: TicketRef; outputRoot: string } {
+  let ref: TicketRef | null = null;
   let outputRoot = DEFAULT_OUTPUT_ROOT;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--ticket" || a === "-t") {
-      const v = argv[++i] ?? "";
-      const m = /^(?:DM-)?(\d+)$/.exec(v);
-      if (m == null) throw new Error(`Bad --ticket value: ${v}`);
-      id = Number(m[1]);
+      ref = parseTicketRef(argv[++i] ?? "");
     } else if (a === "--id") {
-      id = Number(argv[++i]);
+      ref = parseTicketRef(argv[++i] ?? "");
     } else if (a === "--output-root") {
       outputRoot = resolve(process.cwd(), argv[++i] ?? "");
     } else if (a === "--help" || a === "-h") {
@@ -86,15 +94,15 @@ function parseArgs(argv: string[]): { id: number; outputRoot: string } {
       process.exit(0);
     }
   }
-  if (id == null || !Number.isFinite(id)) {
+  if (ref == null) {
     printUsage();
-    throw new Error("Missing --ticket DM-{id} or --id {id}");
+    throw new Error("Missing --ticket DM-<slug> (or a legacy --id <number>)");
   }
-  return { id, outputRoot };
+  return { ref, outputRoot };
 }
 
 function printUsage(): void {
-  console.error("usage: tools/crop-regions.ts --ticket DM-{id} [--output-root tests/output/region-crops]");
+  console.error("usage: tools/crop-regions.ts --ticket DM-<slug|number> [--output-root tests/output/region-crops]");
 }
 
 async function fetchTicket(settings: Settings, id: number): Promise<RawTicket> {
@@ -105,8 +113,10 @@ async function fetchTicket(settings: Settings, id: number): Promise<RawTicket> {
   return (await resp.json()) as RawTicket;
 }
 
-function pickRegionsSource(ticket: RawTicket): { source: "note" | "details"; noteId: string; body: string } | null {
-  const notes = normalizeNotes(ticket.notes);
+export function pickRegionsSource(
+  ticket: Pick<LoadedTicket, "details" | "notes">,
+): { source: "note" | "details"; noteId: string; body: string } | null {
+  const notes = ticket.notes;
   for (let i = notes.length - 1; i >= 0; i--) {
     const n = notes[i]!;
     if (/^REGIONS:\s*$/m.test(n.text)) {
@@ -114,7 +124,7 @@ function pickRegionsSource(ticket: RawTicket): { source: "note" | "details"; not
       return { source: "note", noteId, body: n.text };
     }
   }
-  const details = ticket.details ?? "";
+  const details = ticket.details;
   if (/^REGIONS:\s*$/m.test(details)) {
     return { source: "details", noteId: "details", body: details };
   }
@@ -148,31 +158,71 @@ function tripletAttachments(attachmentPaths: string[]): string[] {
   return attachmentPaths.filter((p) => /-(expected|actual|diff)\.png$/i.test(p));
 }
 
+/** The fields `main` needs, whichever source (v2 store or legacy API) produced them. */
+interface LoadedTicket {
+  ticketNumber: string;
+  details: string;
+  notes: RawNote[];
+  /** PNG attachments as absolute paths carrying their ORIGINAL filenames (crop output is named after them). */
+  pngPaths: string[];
+}
+
+/** The ticket's PNG attachments that exist on disk. The store keeps each under its original filename, which is what names the crops. */
+function storePngPaths(ticket: StoreTicket): string[] {
+  return ticket.attachments
+    .filter((a) => a.filename.toLowerCase().endsWith(".png") && existsSync(a.path))
+    .map((a) => a.path);
+}
+
+async function loadTicket(ref: TicketRef): Promise<LoadedTicket> {
+  const storeDir = resolveStoreDir(PROJECT_ROOT);
+  if (storeDir != null) {
+    const found = readTicketFromStore(storeDir, ref);
+    if (found != null) {
+      return {
+        ticketNumber: found.slug,
+        details: found.details,
+        notes: found.notes.filter((n) => n.kind !== "activity").map((n) => ({ id: n.id, text: n.text })),
+        pngPaths: storePngPaths(found),
+      };
+    }
+    if (ref.kind === "slug") throw new Error(`${ref.slug} not found in the Hot Sheet store at ${storeDir}`);
+  }
+  if (ref.kind !== "legacy")
+    throw new Error(`no Hot Sheet store is linked for this project (looked for .hotsheet2/store)`);
+  const raw = await fetchTicket(loadSettings(), ref.number);
+  return {
+    ticketNumber: raw.ticket_number,
+    details: raw.details ?? "",
+    notes: normalizeNotes(raw.notes),
+    pngPaths: pngAttachments(raw),
+  };
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const settings = loadSettings();
-  const ticket = await fetchTicket(settings, args.id);
+  const ticket = await loadTicket(args.ref);
   const picked = pickRegionsSource(ticket);
   if (picked == null) {
-    console.log(`No REGIONS: block found on ${ticket.ticket_number}. Nothing to crop.`);
+    console.log(`No REGIONS: block found on ${ticket.ticketNumber}. Nothing to crop.`);
     return;
   }
   const { regions, warnings: parseWarnings } = parseRegionsBlock(picked.body);
   if (regions.length === 0) {
-    console.log(`REGIONS: block on ${ticket.ticket_number} had no usable entries.`);
+    console.log(`REGIONS: block on ${ticket.ticketNumber} had no usable entries.`);
     for (const w of parseWarnings) console.warn(`  parse: ${w}`);
     return;
   }
-  const attachmentPaths = pngAttachments(ticket);
+  const attachmentPaths = ticket.pngPaths;
   if (attachmentPaths.length === 0) {
-    throw new Error(`${ticket.ticket_number} has no PNG attachments to crop against.`);
+    throw new Error(`${ticket.ticketNumber} has no PNG attachments to crop against.`);
   }
   const tripletPaths = tripletAttachments(attachmentPaths);
   const { plans, warnings: planWarnings } = planRegionCrops({
     regions,
     attachmentPaths,
     tripletPaths: tripletPaths.length > 0 ? tripletPaths : undefined,
-    ticketId: args.id,
+    ticketId: ticketDisplayId(args.ref),
     noteId: picked.noteId,
     outputRoot: args.outputRoot,
   });
@@ -181,13 +231,13 @@ async function main(): Promise<void> {
 }
 
 function reportRun(
-  ticket: RawTicket,
+  ticket: LoadedTicket,
   picked: { source: "note" | "details"; noteId: string },
   regions: Region[],
   cropped: Array<{ region: Region; outputPath: string; imageBasename: string }>,
   warnings: string[],
 ): void {
-  console.log(`${ticket.ticket_number}: ${regions.length} region(s) from ${picked.source} → ${cropped.length} crop(s)`);
+  console.log(`${ticket.ticketNumber}: ${regions.length} region(s) from ${picked.source} → ${cropped.length} crop(s)`);
   for (const c of cropped) {
     console.log(
       `  [${c.region.index}] ${c.imageBasename} → ${c.outputPath}${c.region.caption != null ? `  (${c.region.caption})` : ""}`,
@@ -201,7 +251,10 @@ function reportRun(
   }
 }
 
-void main().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+// Run only when invoked as the entry script, so tests can import `parseArgs` / `pickRegionsSource`.
+if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  void main().catch((err: unknown) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}

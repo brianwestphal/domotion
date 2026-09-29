@@ -1047,7 +1047,7 @@ export async function runTextTransformGeometryAudit(
   const capture = await import("../src/capture/index.js"),
     render = await import("../src/render/element-tree-to-svg.js");
   const require = createRequire(import.meta.url),
-    playwrightVersion = (readPlaywrightVersion() ?? "unknown"),
+    playwrightVersion = readPlaywrightVersion() ?? "unknown",
     dprs = options.deviceScaleFactors ?? [1, 2];
   const browser = await chromium.launch({ headless: true }),
     rows: TextTransformAuditRow[] = [],

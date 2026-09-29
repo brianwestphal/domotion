@@ -755,7 +755,7 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
   const capture = await import("../src/capture/index.js");
   const render = await import("../src/render/element-tree-to-svg.js");
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+  const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 900, height: 520 }, deviceScaleFactor: 1 });

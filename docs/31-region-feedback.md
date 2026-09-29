@@ -35,7 +35,7 @@ This feature touches two surfaces and a metadata format that bridges them:
 
 1. **The Domotion review tool** (`tests/review-server.tsx`, served by `npm run demos:review`) — the only existing place where the `expected` / `actual` / `diff` triplet is shown side-by-side. Gets the drag-to-draw rectangle overlay and the comment-submission flow.
 2. **The Hot Sheet ticket** (via the review tool's Hot Sheet API integration) — is newly filed with the comment and a `REGIONS:` block in its details. The full PNG triplet is attached.
-3. **The manual crop step** — `tools/crop-regions.ts` parses the ticket's `REGIONS:` block, crops the source images, and writes a deterministic scratch path. Current alphanumeric Hot Sheet slugs and headless operation still need DM-A3QT31.
+3. **The manual crop step** — `tools/crop-regions.ts` parses the ticket's `REGIONS:` block, crops the source images, and writes a deterministic scratch path. It reads current slug-addressed Hot Sheet v2 tickets directly from the store (no server or secret) and still accepts legacy numeric ids.
 
 ## Workflow contract
 
@@ -98,10 +98,20 @@ Keyboard navigation:
 
 ### Iteration consumes the regions
 
-The cropper is available as a manual CLI step for legacy numeric tickets. The
-reviewer runs `npx tsx tools/crop-regions.ts --ticket DM-<number>` for a ticket with a `REGIONS:`
+The cropper is available as a manual CLI step. The reviewer runs
+`npx tsx tools/crop-regions.ts --ticket DM-<slug>` (a current Hot Sheet v2 slug such as
+`DM-HAWK2M`) or `--ticket DM-<number>` (a legacy numeric id) for a ticket with a `REGIONS:`
 block, then supplies the printed crop paths as visual context for the next
-iteration. It does not run automatically when an agent is triggered. The tool:
+iteration. It does not run automatically when an agent is triggered.
+
+**Where the ticket comes from.** The tool reads the ticket straight from its git-backed store —
+`$HOTSHEET_STORE`, else the path in `.hotsheet2/store` (legacy `.hotsheet/store`) — so it works
+headless, with no running Hot Sheet server and no secret. The store keeps a ticket at
+`tickets/<shard>/<ULID>.md` (YAML front matter, body, notes) and each attachment at
+`attachments/<ULID>/<attachment-id>/<original filename>`; crops are named after those original
+filenames and land in `tests/output/region-crops/DM-<slug>/<noteId>/`. Only when no store is linked
+does a legacy numeric ticket fall back to the Hot Sheet HTTP API (`HOTSHEET_PORT` /
+`HOTSHEET_SECRET`). Parsing and lookup live in `tools/hotsheet-ticket.ts`. The tool:
 
 1. Parse the block. Each entry → `{index, image?, x, y, w, h, caption?}`.
 2. For each entry, resolve the target attachment(s):

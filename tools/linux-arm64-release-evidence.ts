@@ -23,7 +23,7 @@ import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.m
 
 const require = createRequire(import.meta.url);
 const PKG = require("../package.json") as { version: string };
-const PLAYWRIGHT_VERSION = (readPlaywrightVersion() ?? "unknown");
+const PLAYWRIGHT_VERSION = readPlaywrightVersion() ?? "unknown";
 const REPO = "brianwestphal/domotion";
 
 // These are release facts, not tolerances.  A clobbered asset must make the

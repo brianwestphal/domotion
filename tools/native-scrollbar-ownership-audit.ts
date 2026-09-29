@@ -1057,7 +1057,7 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
     import("../src/render/element-tree-to-svg.js"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+  const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   // Playwright normally adds `--hide-scrollbars`, which would turn every
   // screenshot into a false negative for the exact thing this probe audits.
   const browser = await chromium.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });

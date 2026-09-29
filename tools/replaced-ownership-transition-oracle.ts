@@ -85,7 +85,7 @@ function sha256(value: string | Buffer): string {
 function canonicalFingerprint(browser: Browser, deviceScaleFactor: number): ReplacedPlatformFingerprint {
   const base = {
     chromiumVersion: browser.version(),
-    playwrightVersion: (readPlaywrightVersion() ?? "unknown"),
+    playwrightVersion: readPlaywrightVersion() ?? "unknown",
     platform: platform(),
     architecture: arch(),
     osRelease: release(),

@@ -594,7 +594,7 @@ export async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanRepor
     import("@domotion/text-engine/testing"),
   ]);
   const require = createRequire(import.meta.url);
-  const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+  const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   const browser = await chromium.launch({ headless: true, args: ["--font-render-hinting=none"] });
   try {
     const context = await browser.newContext({ viewport: { width: 960, height: 640 }, deviceScaleFactor: 1 });

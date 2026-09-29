@@ -24,7 +24,7 @@ const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const HARFBUZZ_REVISION = "4de187dd0a915d13c976fa8bd474c084229f3aab";
 const SKIA_REVISION = "62efacd37737505732dbe3d8daa62abd679626a1";
 const require = createRequire(import.meta.url);
-const playwrightVersion = (readPlaywrightVersion() ?? "unknown");
+const playwrightVersion = readPlaywrightVersion() ?? "unknown";
 
 type Expectation = "absent" | "unpainted" | "exact";
 
