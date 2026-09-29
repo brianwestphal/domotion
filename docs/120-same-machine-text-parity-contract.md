@@ -13,6 +13,9 @@ code:
     "tests/font-conformance.test.ts",
     "tools/cluster-conformance.ts",
     "tools/font-conformance.ts",
+    "tools/layout-stage-oracle.ts",
+    "tools/paths-native-raster-gate.ts",
+    "src/review/linux-unicode-evidence.ts",
   ]
 aliases: ["docs/120-same-machine-text-parity-contract.md", "doc-120"]
 ---
@@ -45,21 +48,44 @@ not required.
 
 ## Verdicts
 
-Every font, shaping, or layout gate must issue one of these verdict classes for
-each input. It must not collapse them into a pixel percentage:
+Every font, shaping, or layout gate issues a verdict per input and a report-level
+verdict. It must not collapse them into a pixel percentage. The vocabulary the
+gates actually emit is:
 
 1. **`exact-logical-agreement`** — face instance, glyph/cluster data, metrics,
    fallback boundaries, and layout agree. Pixel equality may additionally pass.
-2. **`accepted-rasterization-only`** — logical output is already proven equal;
+   Emitted as the report verdict by `tools/font-conformance.ts`,
+   `tools/cluster-conformance.ts`, `tools/layout-stage-oracle.ts`,
+   `tools/browser-harfbuzz-substitution-oracle.ts` and consumed by
+   `tools/build-stage-evidence.ts`. (`evidence-complete` is the equivalent
+   report verdict of the route/provenance ledgers: `renderer-font-route-oracle`,
+   `unified-shaping-oracle`, `mixed-bidi-logical-oracle`.)
+2. **`logical-mismatch`** — anything else that the gate could compare. It fails.
+   Allowlisting may record known work, but cannot relabel a mismatch as
+   rasterization-only. Per-row vocabularies are tool-local (`agree` / `mismatch`
+   / `skip` in the cluster oracle; `agree-*` / `mismatch-*` in the font oracle)
+   and roll up into this report verdict.
+3. **`verdict-withheld`** — the gate could not establish that it measured the
+   right thing: an incomplete corpus, a negative control that did not move
+   (disable-and-require-movement), or an environment fingerprint that changed.
+   Withheld is neither agreement nor mismatch and never passes.
+4. **`accepted-rasterization-only`** — logical output is already proven equal;
    the remaining bounded difference is attributable only to documented
-   rasterization, hinting, or antialiasing.
-3. **`explicit-unsupported`** — the input matches an enumerated unsupported
-   feature, was detected before approximation, and produced an actionable
-   diagnostic naming the feature and remediation or fallback. Silent
-   approximation is a failure, not this verdict.
+   rasterization, hinting, or antialiasing. The only gate that grants it is the
+   paths/native terminal-raster instrument
+   (`tools/paths-native-raster-gate.ts`, [doc 197](197-paths-native-raster-floor.md)),
+   per row, inside a fingerprint-scoped envelope; a row outside it is
+   `envelope-violation`. The Linux Unicode adjudicator
+   (`src/review/linux-unicode-evidence.ts`) yields the weaker
+   `raster-floor-candidate` (or `logical-mismatch` / `mutation-inert`), which is
+   a candidate for that acceptance, not the acceptance itself.
 
-Anything else is a logical mismatch and fails. Allowlisting may record known
-work, but cannot relabel a mismatch as rasterization-only.
+**There is no `explicit-unsupported` verdict class.** Unsupported input is
+handled upstream of the verdicts: it is classified by a production capture
+diagnostic or an explicit source-owned raster reservation (see
+[doc 116](116-layout-stage-parity.md)), so the gate sees a labeled, non-silent
+boundary rather than an unsupported verdict. Silent approximation remains a
+failure.
 
 ## Environment fingerprint
 
