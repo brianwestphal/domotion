@@ -25,7 +25,7 @@ import { type Browser } from "@playwright/test";
 import { launchChromium } from "../capture/index.js";
 import { comparePngs } from "../review/compare-pngs.js";
 import { startReviewServer } from "../review/server.js";
-import { cliFail, openInBrowser, parsePort } from "./common.js";
+import { cliFail, installShutdownHandlers, openInBrowser, parsePort } from "./common.js";
 
 const HELP = `svg-review — compare Domotion's actual.svg against expected.png
 
@@ -188,22 +188,11 @@ async function main(): Promise<void> {
     process.stdout.write(`svg-review: ${server.url}\n`);
     if (flags.open) await openInBrowser(server.url);
 
-    // Stay alive until Ctrl-C. Guard against re-entry (overlapping SIGINT +
-    // SIGTERM, or a repeated Ctrl-C) so we don't double-close the server /
-    // browser — mirrors scrubber.ts's `closing` flag (DM-1433).
-    let closing = false;
-    const shutdown = async (): Promise<void> => {
-      if (closing) return;
-      closing = true;
+    // Stay alive until Ctrl-C; the shared handler guards against a repeated or overlapping signal
+    // double-closing the server / browser (DM-1433).
+    installShutdownHandlers(async () => {
       await server.close();
       await browser.close();
-      process.exit(0);
-    };
-    process.on("SIGINT", () => {
-      void shutdown();
-    });
-    process.on("SIGTERM", () => {
-      void shutdown();
     });
     // Keep the event loop busy — the server holds the loop open anyway,
     // but be explicit so the user can read the printed URL.

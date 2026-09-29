@@ -450,3 +450,62 @@ export function writeOutput(svg: string, outPath: string | null, svgz: boolean, 
     process.stderr.write(`Wrote ${outPath} (${(svg.length / 1024).toFixed(1)} KB${extraInfo})\n`);
   }
 }
+
+/**
+ * Read a file the user named (a config, a cast, a theme) as UTF-8. A missing or unreadable file is a
+ * usage error with the label and the path, instead of a raw `ENOENT: no such file or directory, open ...`
+ * with no hint of which argument was wrong. `label` names the argument (`config`, `--cast`, `--theme-file`).
+ */
+export function readInputFile(path: string, label: string): string {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    if (code === "ENOENT") throw new UsageError(`${label} not found: ${path}`);
+    if (code === "EISDIR") throw new UsageError(`${label} is a directory, not a file: ${path}`);
+    throw new UsageError(`could not read ${label} ${path}: ${errorMessage(error)}`);
+  }
+}
+
+/**
+ * Write a finished SVG to `outPath`, creating missing parent directories, or to stdout when `outPath` is
+ * `-` or absent. Returns the resolved path written, or `null` when it went to stdout, so a caller can
+ * print its own "Wrote ..." line only for a file.
+ */
+export function writeSvgOutput(svg: string, outPath: string | null | undefined): string | null {
+  if (outPath == null || outPath === "-") {
+    process.stdout.write(svg);
+    return null;
+  }
+  const target = resolve(outPath);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, svg);
+  return target;
+}
+
+/**
+ * Close a long-lived server on SIGINT / SIGTERM and exit 0. A repeated or overlapping signal (Ctrl-C
+ * twice, SIGINT then SIGTERM) must not close twice, so the first one wins and later ones are ignored.
+ * `process` is injectable for tests. Returns the shutdown function so a caller can also trigger it.
+ */
+export function installShutdownHandlers(
+  close: () => Promise<void>,
+  options: { message?: string; process?: Pick<NodeJS.Process, "on" | "exit" | "stderr"> } = {},
+): () => Promise<void> {
+  const host = options.process ?? process;
+  let closing = false;
+  const shutdown = async (): Promise<void> => {
+    if (closing) return;
+    closing = true;
+    if (options.message != null) host.stderr.write(options.message);
+    await close();
+    host.exit(0);
+  };
+  host.on("SIGINT", () => {
+    void shutdown();
+  });
+  host.on("SIGTERM", () => {
+    void shutdown();
+  });
+  return shutdown;
+}

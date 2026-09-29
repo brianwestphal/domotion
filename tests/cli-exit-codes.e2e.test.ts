@@ -68,6 +68,41 @@ describe("domotion exit codes", () => {
     }
   });
 
+  it("a missing composite / storyboard config, term cast or theme file names the argument (2)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-exit-missing-"));
+    try {
+      for (const verb of ["composite", "storyboard"]) {
+        const missing = join(dir, `${verb}.json`);
+        const r = run(verb, missing);
+        expect(r.status).toBe(2);
+        expect(r.stderr).toContain(`config not found: ${missing}`);
+        expect(r.stderr).not.toMatch(/ENOENT/);
+      }
+      const cast = join(dir, "missing.cast");
+      const term = run("term", "--cast", cast);
+      expect(term.status).toBe(2);
+      expect(term.stderr).toContain(`--cast not found: ${cast}`);
+      expect(term.stderr).not.toMatch(/ENOENT/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("composite and storyboard reject a stray second positional instead of ignoring it (2)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-exit-extra-"));
+    try {
+      const config = join(dir, "c.json");
+      writeFileSync(config, JSON.stringify({ layers: [] }));
+      for (const verb of ["composite", "storyboard"]) {
+        const r = run(verb, config, "stray.json");
+        expect(r.status).toBe(2);
+        expect(r.stderr).toContain("unexpected extra argument: stray.json");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("term validates --mode and numeric flags before doing any work (2)", () => {
     const mode = run("term", "--cast", "nope.cast", "--mode", "sideways");
     expect(mode.status).toBe(2);

@@ -20,7 +20,6 @@
 
 import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { requireField } from "./require-field.js";
@@ -36,7 +35,7 @@ import {
 } from "../render/index.js";
 import { composeAnimatedLayers, type CompositeLayer } from "../animation/composite.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
-import { cliFail, UsageError, formatConfigIssues } from "./common.js";
+import { UsageError, errorMessage, formatConfigIssues, readInputFile, writeSvgOutput } from "./common.js";
 
 export const compositeLayerAnimationSchema = z.object({
   property: z.enum(["scale", "translateX", "translateY", "opacity", "transform", "clipScaleX", "clipScaleY"]),
@@ -120,7 +119,7 @@ async function renderLayerSource(
   log: (m: string) => void,
 ): Promise<{ svg: string; w: number; h: number; periodMs?: number }> {
   if (layer.cast != null) {
-    const castText = readFileSync(resolve(configDir, layer.cast), "utf8");
+    const castText = readInputFile(resolve(configDir, layer.cast), "composite layer cast");
     const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
       ...(layer.term ?? {}),
       log: (m) => log(`  ${m}`),
@@ -135,7 +134,7 @@ async function renderLayerSource(
     return { svg: out.svg, w: out.width, h: out.height, periodMs: out.durationMs ?? undefined };
   }
   // svg source: read a pre-rendered (static or animated) SVG.
-  const svg = readFileSync(resolve(configDir, requireField(layer.svg, "composite layer.svg")), "utf8");
+  const svg = readInputFile(resolve(configDir, requireField(layer.svg, "composite layer.svg")), "composite layer svg");
   const size = parseSvgIntrinsicSize(svg) ?? { w: layer.width ?? 0, h: layer.height ?? 0 };
   return { svg, w: size.w, h: size.h, periodMs: layer.period ?? detectAnimationPeriodMs(svg) };
 }
@@ -174,7 +173,10 @@ export async function composeCompositeConfig(
     for (const i of castIdxs) {
       const layer = cfg.layers[i];
       log(`Layer ${i + 1}/${n}: cast (shared font)…`);
-      const castText = readFileSync(resolve(configDir, requireField(layer.cast, "composite layer.cast")), "utf8");
+      const castText = readInputFile(
+        resolve(configDir, requireField(layer.cast, "composite layer.cast")),
+        "composite layer cast",
+      );
       const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
         ...(layer.term ?? {}),
         manageFonts: false,
@@ -262,26 +264,22 @@ export async function runComposite(argv: string[]): Promise<void> {
     if (!values.help) process.exit(2);
     return;
   }
+  if (positionals.length > 1) throw new UsageError(`unexpected extra argument: ${positionals[1]}`);
   const configPath = resolve(positionals[0]);
   let raw: unknown;
   try {
-    raw = JSON.parse(readFileSync(configPath, "utf8"));
+    raw = JSON.parse(readInputFile(configPath, "config"));
   } catch (e) {
-    cliFail("domotion composite", `could not read config ${configPath}: ${(e as Error).message}`, "usage");
-    return;
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`config ${configPath} is not valid JSON: ${errorMessage(e)}`);
   }
   const cfg = validateCompositeConfig(raw);
   const configDir = dirname(configPath);
   const browser = await launchChromium();
   try {
     const svg = await composeCompositeConfig(browser, cfg, configDir, (m) => process.stderr.write(m + "\n"));
-    const outPath = values.output ?? cfg.output;
-    if (outPath == null) {
-      process.stdout.write(svg);
-    } else {
-      writeFileSync(resolve(outPath), svg);
-      process.stderr.write(`Wrote ${resolve(outPath)} — ${(svg.length / 1024).toFixed(1)} KB\n`);
-    }
+    const written = writeSvgOutput(svg, values.output ?? cfg.output);
+    if (written != null) process.stderr.write(`Wrote ${written} — ${(svg.length / 1024).toFixed(1)} KB\n`);
   } finally {
     await browser.close();
   }

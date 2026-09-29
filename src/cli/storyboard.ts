@@ -43,7 +43,6 @@
 
 import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { requireField } from "./require-field.js";
@@ -83,14 +82,17 @@ import {
 } from "./animate.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import {
-  cliFail,
   loadInputIntoPage,
   applyReadyWaits,
   UsageError,
+  errorMessage,
   formatConfigIssues,
+  readInputFile,
+  writeSvgOutput,
   MOBILE_USER_AGENT,
   PAGE_DEFAULT_TIMEOUT_MS,
 } from "./common.js";
+import { inheritCanvasSizeParams } from "../templates/canvas-params.js";
 
 /** iOS UA used when a `capture` scene sets `mobile: true` (mirrors the capture path). */
 
@@ -314,13 +316,9 @@ async function renderScene(
     // Inherit the canvas size into the template's width/height params when its
     // schema declares them and the author left them unset (so a scene fills the
     // canvas by default) — the same rule `animate`'s template frames follow.
-    const shape = (template.paramsSchema as { shape?: Record<string, unknown> }).shape;
-    const base: Record<string, unknown> = {};
-    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "width")) base.width = canvasW;
-    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "height")) base.height = canvasH;
     const out = await renderTemplateToSvg(
       template,
-      { ...base, ...(scene.params ?? {}) },
+      inheritCanvasSizeParams(template.paramsSchema, { width: canvasW, height: canvasH }, scene.params),
       {
         browser,
         log: (m) => log(`  ${m}`),
@@ -329,7 +327,7 @@ async function renderScene(
     return { svg: out.svg, w: out.width, h: out.height, periodMs: out.durationMs ?? undefined };
   }
   if (scene.cast != null) {
-    const castText = readFileSync(resolve(configDir, scene.cast), "utf8");
+    const castText = readInputFile(resolve(configDir, scene.cast), "storyboard scene cast");
     const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
       ...(scene.term ?? {}),
       log: (m) => log(`  ${m}`),
@@ -340,7 +338,10 @@ async function renderScene(
     return captureSceneToSvg(browser, scene.capture, configDir, canvasW, canvasH, log);
   }
   // svg source: a pre-rendered (static or animated) SVG.
-  const svg = readFileSync(resolve(configDir, requireField(scene.svg, "storyboard scene.svg")), "utf8");
+  const svg = readInputFile(
+    resolve(configDir, requireField(scene.svg, "storyboard scene.svg")),
+    "storyboard scene svg",
+  );
   const size = parseSvgIntrinsicSize(svg) ?? { w: canvasW, h: canvasH };
   return { svg, w: size.w, h: size.h, periodMs: scene.period ?? detectAnimationPeriodMs(svg) };
 }
@@ -399,7 +400,10 @@ export async function composeStoryboardConfig(
     for (const i of castIdxs) {
       const scene = cfg.scenes[i];
       log(`Scene ${i + 1}/${n}: ${sceneLabel(scene)} (shared font)…`);
-      const castText = readFileSync(resolve(configDir, requireField(scene.cast, "storyboard scene.cast")), "utf8");
+      const castText = readInputFile(
+        resolve(configDir, requireField(scene.cast, "storyboard scene.cast")),
+        "storyboard scene cast",
+      );
       const { svg, width, height, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
         ...(scene.term ?? {}),
         manageFonts: false,
@@ -559,26 +563,22 @@ export async function runStoryboard(argv: string[]): Promise<void> {
     if (!values.help) process.exit(2);
     return;
   }
+  if (positionals.length > 1) throw new UsageError(`unexpected extra argument: ${positionals[1]}`);
   const configPath = resolve(positionals[0]);
   let raw: unknown;
   try {
-    raw = JSON.parse(readFileSync(configPath, "utf8"));
+    raw = JSON.parse(readInputFile(configPath, "config"));
   } catch (e) {
-    cliFail("domotion storyboard", `could not read config ${configPath}: ${(e as Error).message}`, "usage");
-    return;
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`config ${configPath} is not valid JSON: ${errorMessage(e)}`);
   }
   const cfg = validateStoryboardConfig(raw);
   const configDir = dirname(configPath);
   const browser = await launchChromium();
   try {
     const svg = await composeStoryboardConfig(browser, cfg, configDir, (m) => process.stderr.write(m + "\n"));
-    const outPath = values.output ?? cfg.output;
-    if (outPath == null) {
-      process.stdout.write(svg);
-    } else {
-      writeFileSync(resolve(outPath), svg);
-      process.stderr.write(`Wrote ${resolve(outPath)} — ${(svg.length / 1024).toFixed(1)} KB\n`);
-    }
+    const written = writeSvgOutput(svg, values.output ?? cfg.output);
+    if (written != null) process.stderr.write(`Wrote ${written} — ${(svg.length / 1024).toFixed(1)} KB\n`);
   } finally {
     await browser.close();
   }

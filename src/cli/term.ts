@@ -16,13 +16,13 @@
 
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { requireField } from "./require-field.js";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
 import { recordPtySession } from "../terminal/pty.js";
 import { THEMES, terminalThemeSpecSchema, type TerminalThemeSpec } from "../terminal/theme.js";
-import { cliFail, formatConfigIssues, errorMessage } from "./common.js";
+import { UsageError, cliFail, formatConfigIssues, errorMessage, readInputFile, writeSvgOutput } from "./common.js";
 
 const HELP = `domotion term — record a terminal session as an animated SVG
 
@@ -156,7 +156,7 @@ export async function runTerm(argv: string[]): Promise<void> {
     castText = r.cast;
   } else {
     castText =
-      castPath === "-" ? readFileSync(0, "utf8") : readFileSync(resolve(requireField(castPath, "--cast")), "utf8");
+      castPath === "-" ? readFileSync(0, "utf8") : readInputFile(resolve(requireField(castPath, "--cast")), "--cast");
   }
 
   // Theme: a bare `--theme <name>` stays a string (built-in). Any of --theme-file
@@ -168,8 +168,9 @@ export async function runTerm(argv: string[]): Promise<void> {
     if (themeFile != null) {
       let raw: unknown;
       try {
-        raw = JSON.parse(readFileSync(resolve(themeFile), "utf8"));
+        raw = JSON.parse(readInputFile(resolve(themeFile), "--theme-file"));
       } catch (e) {
+        if (e instanceof UsageError) throw e;
         cliFail("domotion term", `--theme-file is not valid JSON: ${errorMessage(e)}`, "usage");
       }
       // Shape-check the external JSON instead of casting it through with `as` —
@@ -216,17 +217,15 @@ export async function runTerm(argv: string[]): Promise<void> {
     const outPath =
       values.output ??
       (live ? "term.svg" : castPath != null && castPath !== "-" ? `${castPath.replace(/\.cast$/i, "")}.svg` : null);
-    if (outPath == null) {
-      process.stdout.write(svg);
-    } else {
-      writeFileSync(resolve(outPath), svg);
+    const written = writeSvgOutput(svg, outPath);
+    if (written != null) {
       // DM-1321: print the RENDERED play length too — it differs from the cast's
       // raw timestamps (minFrameMs/settleMs/maxFrameMs/tailMs re-time it), and an
       // `animate` cast frame's `duration` should be sized to this value, not the
       // recording's wall time. Surfacing it here saves the author a parse of the
       // output SVG's animation duration.
       process.stderr.write(
-        `Wrote ${resolve(outPath)} — ${frameCount} frames, ${width}×${height}px, ${(totalDurationMs / 1000).toFixed(2)}s play length, ${(svg.length / 1024).toFixed(1)} KB\n`,
+        `Wrote ${written} — ${frameCount} frames, ${width}×${height}px, ${(totalDurationMs / 1000).toFixed(2)}s play length, ${(svg.length / 1024).toFixed(1)} KB\n`,
       );
     }
   } finally {

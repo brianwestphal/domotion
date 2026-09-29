@@ -107,6 +107,7 @@ import {
   MOBILE_USER_AGENT,
   UsageError,
 } from "./common.js";
+import { inheritCanvasSizeParams } from "../templates/canvas-params.js";
 
 // ── Config schema (DM-843) ──────────────────────────────────────────────────
 // The animate config is external `JSON.parse`'d input, so it's validated with
@@ -1453,11 +1454,7 @@ async function renderTemplateFrames(
     // its schema declares them and the caller didn't set them, so the template
     // fills the frame. Introspect the zod object shape; templates without those
     // params (or non-object schemas) just get no injection.
-    const shape = (template.paramsSchema as { shape?: Record<string, unknown> }).shape;
-    const base: Record<string, unknown> = {};
-    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "width")) base.width = cfg.width;
-    if (shape != null && Object.prototype.hasOwnProperty.call(shape, "height")) base.height = cfg.height;
-    const rawParams = { ...base, ...(fc.params ?? {}) };
+    const rawParams = inheritCanvasSizeParams(template.paramsSchema, cfg, fc.params);
 
     let result;
     try {

@@ -20,7 +20,7 @@ import { resolve, basename } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { launchChromium } from "../capture/index.js";
 import { startScrubberServer } from "../scrubber/server.js";
-import { cliFail, openInBrowser, parsePort } from "./common.js";
+import { cliFail, installShutdownHandlers, openInBrowser, parsePort } from "./common.js";
 
 const HELP = `svg-scrubber — video-style playback / scrubbing for animated SVGs
 
@@ -96,20 +96,7 @@ async function main(): Promise<void> {
   process.stdout.write(`\n  svg-scrubber running at ${server.url}\n  Press Ctrl-C to stop.\n\n`);
   if (!values["no-open"]) await openInBrowser(server.url);
 
-  let closing = false;
-  const shutdown = async (): Promise<void> => {
-    if (closing) return;
-    closing = true;
-    process.stderr.write("\nshutting down…\n");
-    await server.close();
-    process.exit(0);
-  };
-  process.on("SIGINT", () => {
-    void shutdown();
-  });
-  process.on("SIGTERM", () => {
-    void shutdown();
-  });
+  installShutdownHandlers(() => server.close(), { message: "\nshutting down…\n" });
 }
 
 main().catch((err) => {

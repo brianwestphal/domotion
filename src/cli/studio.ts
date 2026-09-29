@@ -4,7 +4,7 @@ import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { startStudioServer } from "../studio/server.js";
-import { openInBrowser, parsePort } from "./common.js";
+import { installShutdownHandlers, openInBrowser, parsePort } from "./common.js";
 
 const HELP = `domotion-studio — local visual workspace for Domotion Studio projects
 
@@ -55,20 +55,7 @@ export async function runStudio(args: string[]): Promise<void> {
   );
   if (!values["no-open"]) await openInBrowser(server.url);
 
-  let closing = false;
-  const shutdown = async (): Promise<void> => {
-    if (closing) return;
-    closing = true;
-    process.stderr.write("\nshutting down…\n");
-    await server.close();
-    process.exit(0);
-  };
-  process.on("SIGINT", () => {
-    void shutdown();
-  });
-  process.on("SIGTERM", () => {
-    void shutdown();
-  });
+  installShutdownHandlers(() => server.close(), { message: "\nshutting down…\n" });
 }
 
 const invokedPath = process.argv[1];

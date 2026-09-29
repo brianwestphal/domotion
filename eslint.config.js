@@ -78,4 +78,25 @@ export default [
     plugins: { domotion },
     rules: { "domotion/import-group-order": "error", "domotion/no-import-in-page-callback": "error" },
   },
+  {
+    // The CLI verbs import from feature sub-barrels, never the package root: the root barrel re-exports the
+    // animate stack and importing it from a CLI module creates the circular-import TDZ documented in
+    // animate-command.ts (it broke the storyboard-schema build). Tests may still use the public entry.
+    files: ["src/cli/**/*.ts"],
+    ignores: ["src/cli/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["../index.js"],
+              message:
+                "Import from a feature sub-barrel (../capture/index.js, ../render/index.js, ...), not the package root.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

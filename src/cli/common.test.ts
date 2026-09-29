@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
@@ -8,12 +8,15 @@ import {
   errorMessage,
   exitCodeFor,
   formatConfigIssues,
+  installShutdownHandlers,
   loadInputIntoPage,
   parseNonNegativeInt,
   parsePort,
   parsePositiveInt,
+  readInputFile,
   shouldOpenInBrowser,
   writeOutput,
+  writeSvgOutput,
 } from "./common.js";
 
 describe("openInBrowser", () => {
@@ -153,5 +156,101 @@ describe("writeOutput", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("readInputFile", () => {
+  it("reads a file, and turns a missing one or a directory into a usage error naming the argument", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-read-input-"));
+    try {
+      writeFileSync(join(dir, "a.json"), "{}");
+      expect(readInputFile(join(dir, "a.json"), "config")).toBe("{}");
+      const missing = join(dir, "nope.json");
+      expect(() => readInputFile(missing, "config")).toThrow(UsageError);
+      expect(() => readInputFile(missing, "--cast")).toThrow(`--cast not found: ${missing}`);
+      expect(() => readInputFile(dir, "config")).toThrow(/config is a directory, not a file/);
+      expect(exitCodeFor(new UsageError("x"))).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("writeSvgOutput", () => {
+  it("creates missing parent directories and returns the resolved path", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-write-svg-"));
+    try {
+      const target = join(dir, "a", "b", "out.svg");
+      expect(writeSvgOutput("<svg/>", target)).toBe(target);
+      expect(readFileSync(target, "utf8")).toBe("<svg/>");
+      mkdirSync(join(dir, "c"));
+      expect(writeSvgOutput("<svg/>", join(dir, "c", "d.svg"))).toBe(join(dir, "c", "d.svg"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("sends `-`, null and undefined to stdout and writes no file", () => {
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      const cwd = mkdtempSync(join(tmpdir(), "domotion-write-svg-stdout-"));
+      expect(writeSvgOutput("<svg/>", "-")).toBeNull();
+      expect(writeSvgOutput("<svg/>", null)).toBeNull();
+      expect(writeSvgOutput("<svg/>", undefined)).toBeNull();
+      expect(write).toHaveBeenCalledTimes(3);
+      expect(existsSync(join(cwd, "-"))).toBe(false);
+      rmSync(cwd, { recursive: true, force: true });
+    } finally {
+      write.mockRestore();
+    }
+  });
+});
+
+describe("installShutdownHandlers", () => {
+  const fakeProcess = () => {
+    const handlers = new Map<string, () => void>();
+    const written: string[] = [];
+    return {
+      handlers,
+      written,
+      exits: [] as number[],
+      on(event: string, handler: () => void) {
+        handlers.set(event, handler);
+        return this;
+      },
+      exit(code?: number) {
+        this.exits.push(code ?? 0);
+        return undefined as never;
+      },
+      stderr: { write: (text: string) => written.push(text) > 0 },
+    };
+  };
+
+  it("closes once and exits 0 however many signals arrive, in either order", async () => {
+    const host = fakeProcess();
+    const close = vi.fn(async () => {});
+    installShutdownHandlers(close, { message: "bye\n", process: host as never });
+    expect([...host.handlers.keys()].sort()).toEqual(["SIGINT", "SIGTERM"]);
+    host.handlers.get("SIGINT")!();
+    host.handlers.get("SIGTERM")!();
+    host.handlers.get("SIGINT")!();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(host.exits).toEqual([0]);
+    expect(host.written).toEqual(["bye\n"]);
+  });
+
+  it("does not exit before the close finishes, and still exits once when close is slow", async () => {
+    const host = fakeProcess();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const shutdown = installShutdownHandlers(() => gate, { process: host as never });
+    const pending = shutdown();
+    void shutdown();
+    await Promise.resolve();
+    expect(host.exits).toEqual([]);
+    release();
+    await pending;
+    expect(host.exits).toEqual([0]);
   });
 });

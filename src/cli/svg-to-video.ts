@@ -13,7 +13,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { launchChromium } from "../index.js";
+import { launchChromium } from "../capture/index.js";
 import { runBin, makeLogger, parsePositiveFloat, parsePositiveInt } from "./common.js";
 import { runSvgToVideo, type SvgToVideoOptions } from "./svg-to-video-core.js";
 

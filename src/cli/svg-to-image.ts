@@ -13,7 +13,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { launchChromium } from "../index.js";
+import { launchChromium } from "../capture/index.js";
 import { runBin, makeLogger, parseNonNegativeFloat, parsePositiveInt } from "./common.js";
 import {
   resolveImageFormat,

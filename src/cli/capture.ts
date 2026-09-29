@@ -9,36 +9,29 @@
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
+import { captureElementTree, launchChromium } from "../capture/index.js";
+import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
+import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import {
-  captureElementTree,
-  clearEmbeddedFonts,
-  clearGlyphDefs,
-  clearWebfonts,
-  composeScrollSvg,
-  cullElementsOutsideViewBox,
   elementTreeToSvgInner,
-  embedRemoteImages,
-  executeScrollPattern,
   isDeviceChrome,
   DEVICE_CHROMES,
   isChromeTheme,
   CHROME_THEMES,
-  compressEmbeddedFontsToWoff2,
-  launchChromium,
-  logCaptureWarnings,
-  optimizeSvg,
-  parseScrollPattern,
-  resolveFormat,
-  safeAreaGuideSvg,
+  wrapInDeviceChrome,
+  wrapSvg,
+  clearEmbeddedFonts,
+  clearGlyphDefs,
+  clearWebfonts,
   setRenderTextMode,
   getRenderTextMode,
   RENDER_TEXT_MODES,
   isRenderTextMode,
-  formatNames,
-  type ResolvedFormat,
-  wrapInDeviceChrome,
-  wrapSvg,
-} from "../index.js";
+} from "../render/index.js";
+import { embedRemoteImages } from "../capture/embed.js";
+import { compressEmbeddedFontsToWoff2, optimizeSvg } from "../post-processing/index.js";
+import { logCaptureWarnings } from "../capture/warnings.js";
+import { resolveFormat, safeAreaGuideSvg, formatNames, type ResolvedFormat } from "../templates/index.js";
 import { setFlattenNestedSvg } from "../render/svg-inline.js";
 import {
   attachWebfontTracker,
