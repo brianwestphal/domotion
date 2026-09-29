@@ -19,6 +19,7 @@ code:
     "src/terminal/incremental.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/real-text-layer.ts",
+    "packages/text-engine/src/render/text-semantics.ts",
     "packages/text-engine/src/render/text-to-path.ts",
     "src/render/text.ts",
     "src/render/pseudo-fragments.ts",
@@ -34,9 +35,9 @@ aliases: ["docs/260-inline-svg-real-text-layer.md", "doc-260"]
 
 # 260 — Opt-in real-text layer for inline SVG
 
-Domotion can append a paintless layer of authored SVG `<text>` runs to a
-single-frame capture. The visible output remains the existing authenticated
-glyph geometry. The second layer exists only so an inline `<svg>` has searchable,
+Domotion can append a paintless layer of authored SVG `<text>` runs to a capture
+or composed multi-frame output. The visible output remains the existing
+authenticated glyph geometry. The second layer exists only so an inline `<svg>` has searchable,
 selectable, copyable text and a real accessibility text flow.
 
 This is deliberately opt-in. Use `domotion capture page.html --real-text` or
@@ -49,8 +50,9 @@ explicit `false` preserve the previous output byte-for-byte.
   `<g data-domotion-real-text-layer="true" fill="none" stroke="none"
 xml:space="preserve">`. Both paint properties are explicit. Consumer font
   fallback therefore cannot paint even if a viewer changes its defaults.
-- Each captured run becomes one ordinary `<text>` child. It uses the captured
-  font size, baseline, width, writing mode, direction, and Chromium-owned
+- Each captured run becomes one ordinary `<text>` child marked with
+  `data-domotion-real-text-run`. It uses the captured font size, baseline, width,
+  writing mode, direction, and Chromium-owned
   per-code-unit x/y positions. It does not serialize an authored `font-family`
   or an external resource reference.
 - Authored text comes from the segment's `dom-text-utf16-v1` source mapping.
@@ -80,7 +82,9 @@ does not reinterpret clusters or reshape the visible capture.
 ## Accessibility ownership
 
 The normal renderer labels each visual glyph run as an image. With the
-real-text option active, those text-only visual wrappers switch to
+real-text option active, `withTextEngineVisualSemanticsSuppressed` in
+`packages/text-engine/src/render/text-semantics.ts` switches those text-only
+visual wrappers to
 `aria-hidden="true"`, while the paintless `<text>` nodes own the readable flow.
 This prevents duplicate announcements. Non-text semantics such as broken-image
 fallback labels are not globally hidden. A caller-supplied root `<title>` is

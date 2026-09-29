@@ -39,7 +39,8 @@ and shaper to cooperate, so they must not be published as cyclic resolver and
 shaper packages.
 
 The private `@domotion/text-engine` npm workspace is the deliberate package
-seam. Its supported entry point is
+seam. Its supported package-root (`.`) entry point is
+`packages/text-engine/src/index.ts`, backed by
 `packages/text-engine/src/render/text-engine.ts`; focused integration entry
 points (`./font-resolution`, `./text`, `./capture`, `./helpers`, `./format`,
 `./diagnostics`, and the unstable `./testing` hooks) each publish an explicit
@@ -100,6 +101,9 @@ and their package-local tests.
 - Nested render adapters join the active document. They may add a scoped mode,
   generic-family profile, or baseline policy, but may not switch sessions or
   reset the enclosing generation.
+- `activeTextEngineDocument()` lets an internal renderer adapter join the
+  current document; `TextEngineDocumentRequest.genericFamilies` scopes the
+  captured browser's generic-family preferences to that document.
 - Every synchronous scope restores the previous process state on success,
   exceptions, and rejected Promise-like callbacks. Async work happens before
   entering a document; no engine state scope may cross an `await`.
@@ -118,6 +122,9 @@ markup. `withTextEngineDocument` returns the caller value plus
 `TextEngineArtifacts`: glyph definitions, embedded `@font-face` CSS, and
 embedded-font diagnostics.
 
+The `system-font` path records a `system-font-emitted` text-emitter transition
+when it emits authored SVG text; see doc 261 for its visual contract.
+
 DOM capture types, tree rendering, and authored real-text accessibility
 ownership remain in Domotion adapters. They consume the text-engine workspace;
 the workspace never imports them.
@@ -126,7 +133,7 @@ the workspace never imports them.
 
 - `npm test --workspace @domotion/text-engine` builds and runs the workspace's
   unit suite independently, then runs the native-helper transport performance
-  cases in an isolated single-worker lane.
+  cases in the isolated `test:transport-performance` lane.
 - `npm run conformance --workspace @domotion/text-engine` invokes the repository
   font-resolution, shaping, and decoration oracles against the built workspace.
 - Root `npm test`, `npm run typecheck`, and `npm run build` build and consume the

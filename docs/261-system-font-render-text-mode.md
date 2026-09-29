@@ -17,6 +17,7 @@ code:
     "src/cli/animate-command.ts",
     "src/cli/index.ts",
     "packages/text-engine/src/render/system-font-mode.test.ts",
+    "tests/system-font-mode.e2e.test.ts",
   ]
 aliases: ["docs/261-system-font-render-text-mode.md", "doc-261"]
 ---
@@ -51,6 +52,8 @@ not control.
   threads through the multi-frame flipbook, compressed-states runs, and the
   `--scroll` composer (which the `capture` CLI already routes through the same
   global). Same accepted values and CLI-boundary rejection as `capture`.
+- **`capture --scroll`:** `--text-mode` passes the selected mode to the scroll
+  composer's `renderText` option for every segment.
 - **API (scoped):** `elementTreeToSvg(tree, w, h, { renderTextMode: "system-font" })`
   applies the mode through one `withTextEngineDocument` transaction and
   restores the prior process state afterward. See doc 262.
@@ -100,7 +103,8 @@ edge, shifting the whole run left by its width and overlapping its neighbor;
 `text-anchor="end"` anchors the run's visual-left (the end, in rtl inline order)
 where it was captured. Verified by rasterization against Chrome for Hebrew+Latin,
 Arabic contextual joining, and paired-bracket mirroring; ltr runs emit no
-`direction` and are unaffected.
+`direction` and are unaffected. `tests/system-font-mode.e2e.test.ts` checks the
+RTL anchor and vertical-writing output in Chromium.
 
 ## Limitations (accepted for this mode)
 
