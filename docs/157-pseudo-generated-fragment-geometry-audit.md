@@ -364,8 +364,9 @@ plus negative `content:none` and hidden/clipped controls.
   decoder.** Complete: doc 175 records the source-owned decoder, 80-row live
   DPR matrix, and mutation-complete structural gate.
 - **DM-2467 — Capture source-owned before/after fragment and baseline
-  records.** Blocked by DM-2466; add the protocol-backed capture path and
-  fail-closed surface boundary.
+  records.** Complete (docs 175/176/178): the protocol-backed capture path
+  (`src/capture/pseudo-fragment-cdp.ts`, `CapturedPseudoFragmentSet` in
+  `src/capture/types.ts`) and fail-closed surface boundary shipped.
 - **DM-2468 — Render captured pseudo fragments and retire heuristic in-flow
   anchoring.** Complete: direct source-record paint, legacy-projection removal,
   and the all-platform independent visual gate are documented in doc 178.

@@ -2,7 +2,7 @@
 id: "requirements/sfns-mask-baseline-oracle"
 title: "SFNS CoreText mask and baseline oracle"
 kind: "evidence"
-status: "current"
+status: "partial"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos"]
 tickets: ["DM-2452", "DM-2567", "DM-2568", "DM-2575", "DM-2576", "DM-2586", "DM-2587", "DM-2588", "DM-2604"]
@@ -12,6 +12,11 @@ code:
     "tools/build-sfns-pinned-skia-collector.mjs",
     "tools/chromium-sfns-validation/",
     "tools/sfns-mask-baseline-oracle.ts",
+    "tools/sfns-outline-parity-gate.ts",
+    "tools/sfns-pinned-skia-mask-collector.ts",
+    "tools/build-sfns-pinned-chromium-validator.mjs",
+    ".github/workflows/sfns-outline-parity.yml",
+    ".github/workflows/sfns-terminal-mask-adjudication.yml",
     "tools/sfns-mask-baseline.swift",
     "tools/sfns-pinned-chromium-validation-collector.ts",
     "tools/sfns-pinned-ots-sanitizer/",

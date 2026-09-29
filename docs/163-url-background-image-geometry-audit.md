@@ -10,6 +10,7 @@ code:
   [
     ".github/workflows/url-background-geometry-parity.yml",
     "src/capture/background-image-sizing.ts",
+    "tools/url-background-geometry-audit.ts",
     "src/capture/script/walker/background-attachment.ts",
     "src/capture/script/walker/fragmentation.ts",
     "src/render/background-attachment.ts",

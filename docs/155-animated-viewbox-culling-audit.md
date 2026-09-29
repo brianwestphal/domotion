@@ -6,7 +6,13 @@ status: "current"
 owners: ["layout", "animation", "platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2386", "DM-2460", "DM-2461"]
-code: ["src/render/culling-geometry.ts", "src/tree-ops/swept-transform-bounds.ts", "src/tree-ops/viewbox-culling.ts"]
+code:
+  [
+    "src/render/culling-geometry.ts",
+    "src/tree-ops/swept-transform-bounds.ts",
+    "src/tree-ops/viewbox-culling.ts",
+    "tests/viewbox-culling-geometry.e2e.test.ts",
+  ]
 aliases: ["docs/155-animated-viewbox-culling-audit.md", "doc-155"]
 ---
 

@@ -45,7 +45,8 @@ rows with ordered `DOM.getContentQuads` results. It does not create, detach, or
 lay out a clone.
 
 A fresh macOS run against Playwright Chromium `147.0.7727.15` passed all 80
-scenario/DPR rows and rejected all 10 mutations:
+scenario/DPR rows (40 scenarios × DPR 1 and 2; the routine e2e test
+`tests/pseudo-fragment-geometry-oracle.e2e.test.ts` runs DPR 1 only and asserts 40) and rejected all 10 mutations:
 
 ```text
 pseudo fragment geometry oracle: 80/80 rows; 10/10 mutations;
