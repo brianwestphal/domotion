@@ -89,7 +89,9 @@ export async function installCaptureRafClock(context: BrowserContext): Promise<C
         value: cancel,
       });
 
-      const blockWorker = (): never => {
+      // A regular function, not an arrow: `new Worker()` on an arrow throws "not a constructor" BEFORE the body
+      // runs, so the attempt was never counted and the page saw a TypeError instead of NotSupportedError.
+      const blockWorker = function (): never {
         state.workerConstructionAttempts++;
         throw new DOMException("Worker rAF is unavailable during an authenticated capture frame", "NotSupportedError");
       };

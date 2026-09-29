@@ -261,6 +261,11 @@ function invalidateTargetProbeSession(target: Page | Frame, session: CDPSession)
   void session.detach().catch(() => {});
 }
 
+/** @internal — exposes the per-target observer-session cache to transition tests with a Page/CDP fake. */
+export const __persistentTargetProbeSessionForTest = persistentTargetProbeSession;
+/** @internal — see `__persistentTargetProbeSessionForTest`. */
+export const __invalidateTargetProbeSessionForTest = invalidateTargetProbeSession;
+
 async function waitForGenericSettingsTurn(target: Page | Frame): Promise<void> {
   // `Page.setFontFamilies` reaches the renderer asynchronously. Immediate
   // back-to-back platform-font reads can therefore agree on the pre-update
