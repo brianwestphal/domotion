@@ -5,8 +5,10 @@ import ts from "typescript";
 import { describe, it, expect } from "vitest";
 import * as pkg from "./index.js";
 import * as animation from "./animation/index.js";
+import * as capture from "./capture/public.js";
 import * as postProcessing from "./post-processing/index.js";
 import * as render from "./render/index.js";
+import * as scroll from "./scroll/public.js";
 import * as studio from "./studio/index.js";
 import * as templates from "./templates/index.js";
 import * as treeOps from "./tree-ops/index.js";
@@ -310,6 +312,40 @@ describe("public barrel export surface (DM-1058)", () => {
   // adding its row here, its row in the docs/api.md entry-point table, and its
   // import in scripts/pack-install-smoke.mjs.
   const SUBPATHS: ReadonlyArray<readonly [string, Record<string, unknown>, readonly string[]]> = [
+    [
+      "domotion-svg/capture",
+      capture,
+      [
+        "DemoRecorder",
+        "assembleCaptureDebugBundle",
+        "borderBox",
+        "boxAnchorPoint",
+        "captureElementTree",
+        "captureElementTreeEnvelope",
+        "captureElementTreeSelfContained",
+        "captureElementTreeWithDebug",
+        "captureElementTreeWithWarnings",
+        "contentBox",
+        "createCapturedTreeEnvelope",
+        "embedRemoteImages",
+        "getLastCaptureWarnings",
+        "injectBrandVariables",
+        "installCaptureRafClock",
+        "launchChromium",
+        "logCaptureWarnings",
+        "promoteCapturedSubtree",
+        "resolveCursorTarget",
+        "reverifyAnimationsAtFrame",
+        "reverifyCaptureRafClock",
+        "sampleCaptureRafClock",
+        "seekAnimationsToFrame",
+      ],
+    ],
+    [
+      "domotion-svg/scroll",
+      scroll,
+      ["ScrollExecutionError", "ScrollPatternError", "composeScrollSvg", "executeScrollPattern", "parseScrollPattern"],
+    ],
     [
       "domotion-svg/render",
       render,

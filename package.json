@@ -27,6 +27,14 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./capture": {
+      "types": "./dist/capture/public.d.ts",
+      "default": "./dist/capture/public.js"
+    },
+    "./scroll": {
+      "types": "./dist/scroll/public.d.ts",
+      "default": "./dist/scroll/public.js"
+    },
     "./render": {
       "types": "./dist/render/index.d.ts",
       "default": "./dist/render/index.js"

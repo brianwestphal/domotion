@@ -3,7 +3,8 @@
  * animated-SVG composer. Three files; tight coupling between them, no other
  * consumers inside the package. See DM-604 / DM-605..611 for the design.
  *
- * Public surface re-exported from the package barrel via `src/index.ts`.
+ * Internal barrel: the documented public subset lives in `./public.ts`, which
+ * the package root and the `domotion-svg/scroll` subpath re-export.
  */
 
 export { parseScrollPattern, ScrollPatternError } from "./pattern.js";

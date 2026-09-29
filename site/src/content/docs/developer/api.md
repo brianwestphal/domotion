@@ -9,7 +9,7 @@ Everything below is a named export of `domotion-svg` (ESM), the same surface the
 CLI is built on. This page is the canonical reference for that surface.
 
 The same named exports are also grouped by stage under narrower subpaths —
-`domotion-svg/render`, `domotion-svg/animation`, `domotion-svg/tree-ops`,
+`domotion-svg/capture`, `domotion-svg/scroll`, `domotion-svg/render`, `domotion-svg/animation`, `domotion-svg/tree-ops`,
 `domotion-svg/templates`, `domotion-svg/studio` and
 `domotion-svg/post-processing`. Each is a strict subset of the root entry and
 resolves to the same module, so mixing root and subpath imports is safe. Other

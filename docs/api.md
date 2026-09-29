@@ -18,6 +18,8 @@ The package's main entry is `dist/index.js`. Consumers import from
 | `domotion-svg`                 | `dist/index.js`                 | Everything documented in this file.                                                                                                                                                                                                                                     |
 | `domotion-svg/dist/index.js`   | `dist/index.js`                 | Alias of the root, kept because earlier docs recommended it.                                                                                                                                                                                                            |
 | `domotion-svg/post-processing` | `dist/post-processing/index.js` | The [Post-processing](#post-processing) passes only — a strict subset of the root surface.                                                                                                                                                                              |
+| `domotion-svg/capture`         | `dist/capture/public.js`        | The [Capture](#capture) exports only — a strict subset of the root surface. Resolves to the curated `src/capture/public.ts`, not the internal capture barrel.                                                                                                           |
+| `domotion-svg/scroll`          | `dist/scroll/public.js`         | The [Scroll](#scroll) exports only — a strict subset of the root surface. Resolves to the curated `src/scroll/public.ts`, not the internal scroll barrel.                                                                                                               |
 | `domotion-svg/render`          | `dist/render/index.js`          | The [Render](#render) exports, plus the capture-owned `createCapturedTreeEnvelope` / `promoteCapturedSubtree` and the `CapturedSessionGenericFamilies` / `CapturedTreeEnvelope` / `CapturedTreeInput` types the renderer accepts — a strict subset of the root surface. |
 | `domotion-svg/animation`       | `dist/animation/index.js`       | The [Animation](#animation) exports only — a strict subset of the root surface.                                                                                                                                                                                         |
 | `domotion-svg/tree-ops`        | `dist/tree-ops/index.js`        | The [Tree ops](#tree-ops) exports only — a strict subset of the root surface.                                                                                                                                                                                           |
@@ -38,11 +40,13 @@ A subpath resolves to the same compiled module the root re-exports, so importing
 one set of module-level state (render-text mode, webfont and embedded-font
 registries) — there is no dual-package split between entry points.
 
-The capture, scroll and terminal barrels have no subpath. The capture and
-scroll barrels also export internal helpers that the root deliberately omits,
-so exposing them would widen the public API; and the terminal barrel is only the
-two `castTo*` entry points without the parse / emulate / theme primitives the
-root also documents. Import those symbols from the package root.
+The capture and scroll subsystems' own barrels (`src/capture/index.ts`,
+`src/scroll/index.ts`) also export internal helpers that the root deliberately
+omits, so their subpaths resolve to a curated `public.ts` beside each barrel that
+holds exactly the documented subset; the root re-exports those same files. The
+terminal barrel has no subpath: it is only the two `castTo*` entry points
+without the parse / emulate / theme primitives the root also documents. Import
+those symbols from the package root.
 
 Per-feature barrels under `src/{capture,render,animation,scroll,tree-ops,post-processing}/index.ts`
 each define their own curated surface; `src/index.ts` aggregates them into the

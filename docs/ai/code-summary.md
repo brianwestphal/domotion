@@ -10,7 +10,9 @@ loading the historical documentation corpus.
   evidence, replaced/native surfaces, and the serialized page capture script.
   `capture/debug-bundle.ts` owns the filesystem-neutral in-memory reproduction
   artifacts used by programmatic capture callers; CLI directory conventions
-  remain under `src/cli/`.
+  remain under `src/cli/`. `capture/index.ts` is the internal barrel;
+  `capture/public.ts` is the documented subset the root and the
+  `domotion-svg/capture` subpath re-export (likewise `scroll/public.ts`).
   The browser payload enters through `src/capture/script/index.ts`; its
   geometry/style admission, pseudo/closed-shadow normalization, child
   traversal, and result assembly are isolated in

@@ -78,6 +78,8 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import * as root from "domotion-svg";
 import * as post from "domotion-svg/post-processing";
+import * as capture from "domotion-svg/capture";
+import * as scroll from "domotion-svg/scroll";
 import * as render from "domotion-svg/render";
 import * as animation from "domotion-svg/animation";
 import * as treeOps from "domotion-svg/tree-ops";
@@ -94,6 +96,8 @@ const engine = await import(pathToFileURL(engineMain).href);
 const missing = [
   ["domotion-svg", root, ["elementTreeToSvg", "captureElementTree"]],
   ["domotion-svg/post-processing", post, ["optimizeSvg", "compressEmbeddedFontsToWoff2"]],
+  ["domotion-svg/capture", capture, ["captureElementTree", "launchChromium"]],
+  ["domotion-svg/scroll", scroll, ["parseScrollPattern", "composeScrollSvg"]],
   ["domotion-svg/render", render, ["elementTreeToSvg", "setRenderTextMode"]],
   ["domotion-svg/animation", animation, ["generateAnimatedSvg", "composeAnimatedLayers"]],
   ["domotion-svg/tree-ops", treeOps, ["cullElementsOutsideViewBox", "diffTrees"]],
@@ -103,6 +107,8 @@ const missing = [
 if (missing.length > 0) throw new Error("missing exports: " + missing.join(", "));
 // A subpath must hand back the root's own binding, not a second module instance.
 const split = [
+  ["domotion-svg/capture", capture],
+  ["domotion-svg/scroll", scroll],
   ["domotion-svg/render", render],
   ["domotion-svg/animation", animation],
   ["domotion-svg/tree-ops", treeOps],

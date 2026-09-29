@@ -9,75 +9,14 @@
 // culled to reduce the surface and to make the package version (0.2.0+) honest
 // about what's stable. Per-feature barrels (`./capture`, `./render`,
 // `./animation`, `./scroll`, `./tree-ops`, `./post-processing`) each define
-// their own curated public surface — this file is the consumer-facing
-// aggregation of those barrels.
+// their own curated public surface (`./capture` and `./scroll` through their
+// `public.ts` subset) — this file is the consumer-facing aggregation of those
+// barrels.
 
 // ── Capture ────────────────────────────────────────────────────────────────
-// Note: `./capture/index.ts` also re-exports several internal helpers used
-// across the package (warning buffer, webfont tracker, embed pipeline). We
-// import the curated subset by name rather than `export *` to keep the
-// public surface honest. (DM-622 — leaving an audit of `capture/index.ts` as
-// follow-up; for now `src/index.ts` is the source of truth.)
-export {
-  captureElementTree,
-  captureElementTreeEnvelope,
-  captureElementTreeSelfContained,
-  captureElementTreeWithDebug,
-  captureElementTreeWithWarnings,
-  DemoRecorder,
-  launchChromium,
-  injectBrandVariables,
-  installCaptureRafClock,
-} from "./capture/index.js";
-export type {
-  CaptureOptions,
-  CaptureElementTreeOptions,
-  CaptureElementTreeDebugResult,
-  CaptureElementTreeResult,
-} from "./capture/index.js";
-export { assembleCaptureDebugBundle } from "./capture/debug-bundle.js";
-export type {
-  AssembleCaptureDebugBundleOptions,
-  CaptureDebugArtifacts,
-  CaptureDebugBundle,
-} from "./capture/debug-bundle.js";
-export { reverifyAnimationsAtFrame, seekAnimationsToFrame } from "./capture/animation-frame.js";
-export type {
-  SeekAnimationsToFrameOptions,
-  StableAnimationDocumentState,
-  StableAnimationFrameState,
-  StableProgressTimelineState,
-} from "./capture/animation-frame.js";
-export { reverifyCaptureRafClock, sampleCaptureRafClock } from "./capture/raf-clock.js";
-export type { CaptureRafClockHandle, CaptureRafTargetState, StableCaptureRafState } from "./capture/raf-clock.js";
-export type {
-  ReplacedMediaDimensions,
-  ReplacedMediaFrameOwner,
-  ReplacedMediaKind,
-  StableReplacedMediaFrameState,
-} from "./capture/replaced-media-frame.js";
-export { getLastCaptureWarnings, logCaptureWarnings } from "./capture/warnings.js";
-export { embedRemoteImages } from "./capture/embed.js";
-export type {
-  CapturedElement,
-  CapturedFrameAccess,
-  CapturedFrameScrollOwner,
-  CapturedFrameScrollRecord,
-  CapturedFrameScrollState,
-  CapturedSessionGenericFamilies,
-  CapturedTreeEnvelope,
-  CapturedTreeInput,
-  CaptureWarning,
-} from "./capture/types.js";
-export { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./capture/tree-envelope.js";
-// DM-1133: the padding-inset content box of a selector on a live page — where
-// text actually starts inside a padded field, for imperative typing-overlay
-// callers (and the building block for DM-1132's overlay resolver).
-// DM-1139 (doc 63 §1): `borderBox` is the symmetric BORDER-box sibling, and
-// `resolveCursorTarget` is the border-box-center sugar the CLI cursor uses — so
-// imperative cursor choreography matches the declarative `cursor` resolution.
-export { contentBox, boxAnchorPoint, borderBox, resolveCursorTarget } from "./capture/content-box.js";
-export type { ContentBox, ContentBoxOptions, BoxAnchor, BorderBox, BorderBoxOptions } from "./capture/content-box.js";
+// `./capture/index.ts` is the subsystem's internal barrel; `./capture/public.ts`
+// is its documented subset (also the `domotion-svg/capture` subpath).
+export * from "./capture/public.js";
 
 // ── Render ─────────────────────────────────────────────────────────────────
 export * from "./render/index.js";
@@ -86,41 +25,9 @@ export * from "./render/index.js";
 export * from "./animation/index.js";
 
 // ── Scroll ─────────────────────────────────────────────────────────────────
-// `./scroll/index.ts` also re-exports internal executor helpers
-// (`axisOfScroll`, `resolveAbsoluteTarget`, `resolveScrollAction`, plus
-// page-state types). We import the curated subset by name to keep them
-// internal-only.
-export {
-  parseScrollPattern,
-  ScrollPatternError,
-  executeScrollPattern,
-  ScrollExecutionError,
-  composeScrollSvg,
-} from "./scroll/index.js";
-export type {
-  ScrollPattern,
-  ScrollPatternSegment,
-  ScrollPatternAction,
-  ScrollAxis,
-  BracketedSegment,
-  FlatSegment,
-  ScrollAction,
-  PauseAction,
-  ScrollTarget,
-  DeltaTarget,
-  AbsoluteTarget,
-  Anchor,
-  NamedAnchor,
-  SelectorAnchor,
-  SignedLength,
-  Length,
-  Easing,
-  UntilClause,
-  PositionUntil,
-  CountUntil,
-  ScrollExecutorOptions,
-  ScrollComposerOptions,
-} from "./scroll/index.js";
+// `./scroll/public.ts` is the documented subset of the scroll barrel, which
+// also carries executor internals (also the `domotion-svg/scroll` subpath).
+export * from "./scroll/public.js";
 
 // ── Tree ops ───────────────────────────────────────────────────────────────
 export * from "./tree-ops/index.js";

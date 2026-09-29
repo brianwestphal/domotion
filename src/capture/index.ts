@@ -3,6 +3,10 @@
  *
  * Uses Playwright to navigate to a URL, wait for it to settle,
  * and capture the DOM as SVG via the dom-to-svg converter.
+ *
+ * Internal barrel: it also exports helpers shared across the package. The
+ * documented public subset lives in `./public.ts`, which the package root and
+ * the `domotion-svg/capture` subpath re-export.
  */
 
 import { spawnSync } from "node:child_process";
