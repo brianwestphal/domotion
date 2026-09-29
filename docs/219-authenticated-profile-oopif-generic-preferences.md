@@ -10,6 +10,7 @@ code:
   [
     ".github/workflows/generic-profile-target-parity.yml",
     "scripts/install-windows-profile-fixture-fonts.ps1",
+    "tools/build-generic-profile-fixture-fonts.mjs",
     "tools/generic-profile-target-oracle.ts",
   ]
 aliases: ["docs/219-authenticated-profile-oopif-generic-preferences.md", "doc-219"]

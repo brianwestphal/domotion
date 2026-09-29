@@ -9,6 +9,13 @@ tickets: ["DM-2578", "DM-2583", "DM-2585", "DM-2589", "DM-2590"]
 code:
   [
     "tools/animated-image-owner-resource-truth-chromium.patch",
+    "tools/animated-image-owner-resource-truth-collector.ts",
+    "tools/animated-image-owner-resource-truth-adjudicator.ts",
+    "tools/animated-image-owner-resource-truth-probes.ts",
+    "tools/animated-image-owner-resource-truth-fixtures.ts",
+    "tools/animated-image-owner-resource-truth-manifest.mjs",
+    "tools/animated-image-frame-selection-audit-cli.ts",
+    "src/capture/authenticated-animated-image-bytes.ts",
     "tools/animated-image-owner-resource-truth-schema.ts",
     "tools/animated-image-stock-cdp-support.ts",
   ]
@@ -253,7 +260,7 @@ interface AnimatedImageByteOwnershipRecord {
     navigationSequence: number;
   };
   owner: {
-    kind: "html-image" | "svg-image" | "image-input" | "css-image";
+    kind: "html-image" | "svg-image" | "input-image" | "css-image";
     backendNodeId: number;
     shadowHostBackendNodeIds: number[];
     shadowRootTypes: Array<"user-agent" | "open" | "closed">;
@@ -569,7 +576,7 @@ controls remain explicit body-free denials.
 
 The eligible retained positive cases are the stable HTML WebP and APNG rows,
 the settled same-origin redirect row, the stable HTML data/blob rows, and the
-stable image-input row. The existing private-truth schema already requires
+stable input-image row. The existing private-truth schema already requires
 each retained public body to equal the private `ResourceBuffer` in transport,
 decoded byte length, and SHA-256, and requires every denied or mutated row to
 retain no public body facts. DM-2585 may implement only this bounded subset;

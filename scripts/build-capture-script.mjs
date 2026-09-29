@@ -22,7 +22,11 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENTRY = resolve(ROOT, "src/capture/script/index.ts");
-const OUT = resolve(ROOT, "src/capture/script.generated.ts");
+// `DOMOTION_CAPTURE_SCRIPT_OUT` redirects the output so the determinism test can build twice
+// without touching the tracked file.
+const OUT = process.env.DOMOTION_CAPTURE_SCRIPT_OUT
+  ? resolve(process.env.DOMOTION_CAPTURE_SCRIPT_OUT)
+  : resolve(ROOT, "src/capture/script.generated.ts");
 
 const result = await build({
   entryPoints: [ENTRY],

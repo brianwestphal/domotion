@@ -6,13 +6,18 @@ status: "current"
 owners: ["text-fonts", "paint-effects", "platform-release", "product-tooling"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2530"]
-code: [".github/workflows/background-clip-text-native-parity.yml"]
+code:
+  [
+    ".github/workflows/background-clip-text-native-parity.yml",
+    "tools/background-clip-text-native-gate.ts",
+    "tools/background-clip-text-oracle.ts",
+  ]
 aliases: ["docs/228-background-clip-text-native-parity.md"]
 ---
 
 # 228 — Native `background-clip:text` parity
 
-DM-2530 promotes the vector-only `background-clip:text` oracle from a local
+DM-2530 promotes the vector-only `background-clip:text` oracle (`npm run background:clip-text-oracle`, `tools/background-clip-text-oracle.ts`; the native gate is `tools/background-clip-text-native-gate.ts`) from a local
 macOS discriminator to an authenticated Linux and Windows gate. The browser is
 always launched headlessly.
 

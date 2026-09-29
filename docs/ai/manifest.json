@@ -3338,7 +3338,13 @@
       "status": "current",
       "owners": ["text-fonts", "images-media", "platform-release"],
       "platforms": ["linux"],
-      "code": ["tools/linux-mathml-greek-raster-gate.ts", "tools/paths-native-raster-envelopes.json"],
+      "code": [
+        "tools/linux-mathml-greek-raster-contract.ts",
+        "tools/linux-mathml-greek-raster-collector.ts",
+        "tools/linux-mathml-greek-raster-gate.ts",
+        "tools/linux-mathml-greek-raster-envelopes.json",
+        ".github/workflows/linux-mathml-greek-raster-floor.yml"
+      ],
       "file": "210-linux-freesans-mathml-raster-supplement.md"
     },
     {
@@ -3378,7 +3384,9 @@
         "src/font-family-stack.test.ts",
         "packages/text-engine/src/font-family-stack.test.ts",
         "packages/text-engine/src/font-family-stack.ts",
-        "tests/font-family-stack-capture.e2e.test.ts"
+        "tests/font-family-stack-capture.e2e.test.ts",
+        "tests/capture-script-determinism.test.ts",
+        "scripts/build-capture-script.mjs"
       ],
       "file": "213-structured-font-family-stack.md"
     },
@@ -3479,6 +3487,7 @@
       "code": [
         ".github/workflows/generic-profile-target-parity.yml",
         "scripts/install-windows-profile-fixture-fonts.ps1",
+        "tools/build-generic-profile-fixture-fonts.mjs",
         "tools/generic-profile-target-oracle.ts"
       ],
       "file": "219-authenticated-profile-oopif-generic-preferences.md"
@@ -3552,7 +3561,11 @@
       "status": "current",
       "owners": ["platform-release"],
       "platforms": ["macos"],
-      "code": ["packages/text-engine/src/render/generic-script-families.test.ts"],
+      "code": [
+        "packages/text-engine/src/render/generic-script-families.test.ts",
+        "packages/text-engine/src/render/font-resolution.ts",
+        "src/capture/generic-font-probe.ts"
+      ],
       "file": "224-hidden-macos-hebrew-generic-face.md"
     },
     {
@@ -3581,7 +3594,12 @@
       "status": "current",
       "owners": ["text-fonts", "layout"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["tools/wrapped-decoration-fragment-oracle.ts"],
+      "code": [
+        "tools/wrapped-decoration-fragment-oracle.ts",
+        "src/render/decoration-fragment-ownership.ts",
+        "tests/wrapped-decoration-fragments.e2e.test.ts",
+        ".github/workflows/wrapped-decoration-fragments.yml"
+      ],
       "file": "226-wrapped-decoration-fragment-ownership.md"
     },
     {
@@ -3608,7 +3626,11 @@
       "status": "current",
       "owners": ["text-fonts", "paint-effects", "platform-release", "product-tooling"],
       "platforms": ["macos", "linux", "windows"],
-      "code": [".github/workflows/background-clip-text-native-parity.yml"],
+      "code": [
+        ".github/workflows/background-clip-text-native-parity.yml",
+        "tools/background-clip-text-native-gate.ts",
+        "tools/background-clip-text-oracle.ts"
+      ],
       "file": "228-background-clip-text-native-parity.md"
     },
     {
@@ -3618,7 +3640,7 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": ["macos", "linux", "windows"],
-      "code": [".github/workflows/raf-clock-ownership.yml", "tests/raf-clock.e2e.test.ts"],
+      "code": [".github/workflows/raf-clock-ownership.yml", "src/capture/raf-clock.ts", "tests/raf-clock.e2e.test.ts"],
       "file": "228-pre-navigation-raf-capture-ownership.md"
     },
     {
@@ -3628,7 +3650,7 @@
       "status": "current",
       "owners": ["images-media"],
       "platforms": [],
-      "code": ["tools/animated-image-frame-selection-audit.ts"],
+      "code": ["tools/animated-image-frame-selection-audit.ts", "src/capture/replaced-media-frame.ts"],
       "file": "229-live-replaced-media-frame-ownership.md"
     },
     {
@@ -3640,6 +3662,13 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "tools/animated-image-owner-resource-truth-chromium.patch",
+        "tools/animated-image-owner-resource-truth-collector.ts",
+        "tools/animated-image-owner-resource-truth-adjudicator.ts",
+        "tools/animated-image-owner-resource-truth-probes.ts",
+        "tools/animated-image-owner-resource-truth-fixtures.ts",
+        "tools/animated-image-owner-resource-truth-manifest.mjs",
+        "tools/animated-image-frame-selection-audit-cli.ts",
+        "src/capture/authenticated-animated-image-bytes.ts",
         "tools/animated-image-owner-resource-truth-schema.ts",
         "tools/animated-image-stock-cdp-support.ts"
       ],
@@ -3707,6 +3736,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/animated-image-static-frame.ts",
+        "tools/animated-image-production-release-gate.ts",
+        "tools/animated-image-production-release-gate-cli.ts",
         "src/capture/authenticated-animated-image-bytes.ts",
         "tests/animated-image-static-frame.e2e.test.ts",
         "tests/authenticated-animated-image-bytes.e2e.test.ts"

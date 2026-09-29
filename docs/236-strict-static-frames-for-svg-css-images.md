@@ -9,6 +9,8 @@ tickets: ["DM-2582"]
 code:
   [
     "src/capture/animated-image-static-frame.ts",
+    "tools/animated-image-production-release-gate.ts",
+    "tools/animated-image-production-release-gate-cli.ts",
     "src/capture/authenticated-animated-image-bytes.ts",
     "tests/animated-image-static-frame.e2e.test.ts",
     "tests/authenticated-animated-image-bytes.e2e.test.ts",
@@ -52,7 +54,7 @@ in [doc 235](235-public-svg-css-animated-image-owner-joins.md), together with
 the three-platform production artifact below. Live playback is unsupported, no
 visual tolerance changes, and capture without the option remains unchanged.
 
-The optional `Animated-image macOS Linux Windows production release` workflow retains
+The optional `Animated-image macOS Linux Windows production release` workflow (`.github/workflows/animated-image-production-release.yml`; aggregated by `tools/animated-image-production-release-gate.ts` and its `-cli.ts`) retains
 one native artifact per platform: the exact fresh-decoder proposal/validation
 report, machine-readable results for the authenticated owner/slot/frozen-PNG/
 resize/final-SVG production tests, and the runner/dependency fingerprint. Its

@@ -6,7 +6,13 @@ status: "current"
 owners: ["text-fonts", "layout"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2527"]
-code: ["tools/wrapped-decoration-fragment-oracle.ts"]
+code:
+  [
+    "tools/wrapped-decoration-fragment-oracle.ts",
+    "src/render/decoration-fragment-ownership.ts",
+    "tests/wrapped-decoration-fragments.e2e.test.ts",
+    ".github/workflows/wrapped-decoration-fragments.yml",
+  ]
 aliases: ["docs/226-wrapped-decoration-fragment-ownership.md", "doc-226"]
 ---
 

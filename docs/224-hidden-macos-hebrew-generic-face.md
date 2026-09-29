@@ -6,7 +6,12 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos"]
 tickets: ["DM-2550"]
-code: ["packages/text-engine/src/render/generic-script-families.test.ts"]
+code:
+  [
+    "packages/text-engine/src/render/generic-script-families.test.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "src/capture/generic-font-probe.ts",
+  ]
 aliases: ["docs/224-hidden-macos-hebrew-generic-face.md", "doc-224"]
 ---
 

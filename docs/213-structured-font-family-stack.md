@@ -12,6 +12,8 @@ code:
     "packages/text-engine/src/font-family-stack.test.ts",
     "packages/text-engine/src/font-family-stack.ts",
     "tests/font-family-stack-capture.e2e.test.ts",
+    "tests/capture-script-determinism.test.ts",
+    "scripts/build-capture-script.mjs",
   ]
 aliases: ["docs/213-structured-font-family-stack.md", "doc-213"]
 ---
@@ -114,4 +116,4 @@ entries and descriptor semantics only—there is no pixel assertion or
 tolerance.
 
 The generated capture script is rebuilt twice and must have the same SHA-256
-before handoff.
+before handoff; `tests/capture-script-determinism.test.ts` enforces this (two builds to a temporary path via `DOMOTION_CAPTURE_SCRIPT_OUT` must match each other and the tracked `src/capture/script.generated.ts`).

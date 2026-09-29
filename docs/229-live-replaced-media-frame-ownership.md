@@ -6,7 +6,7 @@ status: "current"
 owners: ["images-media"]
 platforms: []
 tickets: ["DM-2542"]
-code: ["tools/animated-image-frame-selection-audit.ts"]
+code: ["tools/animated-image-frame-selection-audit.ts", "src/capture/replaced-media-frame.ts"]
 aliases: ["docs/229-live-replaced-media-frame-ownership.md", "doc-229"]
 ---
 
@@ -134,9 +134,9 @@ tolerance. This proves arbitrary **static** frame selection for exact bytes; it
 does not prove live playback or ownership of bytes merely referenced by an
 element.
 
-### Recommended production boundary (not implemented)
+### Recommended production boundary (implemented by docs 232–236)
 
-Any production continuation should remain strict, explicit, and fail closed:
+The production continuation was built strict, explicit, and fail closed. The list below is the design contract; it is implemented by [doc 232](232-opt-in-authenticated-animated-image-byte-collector.md) (authenticated bytes), [doc 233](233-strict-animated-image-static-frame.md) (static-frame decode), [doc 234](234-frozen-animated-image-downstream-ownership.md) (downstream ownership), [doc 235](235-public-svg-css-animated-image-owner-joins.md) (SVG/CSS owner joins), and [doc 236](236-strict-static-frames-for-svg-css-images.md) (SVG/CSS static frames):
 
 1. accept an opt-in nonnegative frame index for a bounded set of animated-image
    owners; legacy capture remains unchanged when the option is absent;

@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2553", "DM-2554"]
-code: [".github/workflows/raf-clock-ownership.yml", "tests/raf-clock.e2e.test.ts"]
+code: [".github/workflows/raf-clock-ownership.yml", "src/capture/raf-clock.ts", "tests/raf-clock.e2e.test.ts"]
 aliases: ["docs/228-pre-navigation-raf-capture-ownership.md"]
 ---
 

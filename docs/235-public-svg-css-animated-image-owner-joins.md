@@ -37,7 +37,7 @@ This does not authorize `image-set()`, generated content, pseudos, closed
 shadow identities, repeated URL candidates, cache/revalidation, service
 workers, cross-origin bodies, or URL-only fallback. Public CSSOM cannot expose
 the selected Blink `StyleImage` identity for those cases, so they remain
-body-free denials. Windows/global ratification remains owned by DM-2590.
+body-free denials. The private owner/resource evidence has since been ratified on macOS/Linux/Windows (DM-2590, [doc 231](231-authenticated-animated-image-byte-ownership.md)) and the production workflow is three-platform ([doc 236](236-strict-static-frames-for-svg-css-images.md)), but the public-CDP support adjudicator (`tools/animated-image-stock-cdp-support.ts`) still reopens only the macOS/Linux four-arm adjudication and records `globalWindowsVerdict: "withheld"`. That is an interim boundary, not a Windows finding; rolling it forward to the six-artifact adjudication is tracked as a follow-up.
 
 The machine-readable authority is
 `ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET.publicOwnerJoin` and its exact

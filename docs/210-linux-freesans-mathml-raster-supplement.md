@@ -6,7 +6,14 @@ status: "current"
 owners: ["text-fonts", "images-media", "platform-release"]
 platforms: ["linux"]
 tickets: []
-code: ["tools/linux-mathml-greek-raster-gate.ts", "tools/paths-native-raster-envelopes.json"]
+code:
+  [
+    "tools/linux-mathml-greek-raster-contract.ts",
+    "tools/linux-mathml-greek-raster-collector.ts",
+    "tools/linux-mathml-greek-raster-gate.ts",
+    "tools/linux-mathml-greek-raster-envelopes.json",
+    ".github/workflows/linux-mathml-greek-raster-floor.yml",
+  ]
 aliases: ["docs/210-linux-freesans-mathml-raster-supplement.md", "doc-210"]
 ---
 
@@ -18,8 +25,11 @@ This supplement adds one Linux-only, source-owned `mathml-mi-greek-italic` cell 
 the ratified paths/native-raster floor. It does not add a seventh technology to
 the existing corpus: the six-technology matrix remains exactly 348 cells per
 run, and `tools/paths-native-raster-envelopes.json` is unchanged. The new cell
-has its own contract, collector, lossless artifacts, gate, reviewed envelope,
-and proposal/validation workflow.
+has its own contract (`tools/linux-mathml-greek-raster-contract.ts`), collector
+(`npm run fonts:paths-raster:linux-mathml:collect`), lossless artifacts, gate
+(`npm run fonts:paths-raster:linux-mathml:gate`), reviewed envelope
+(`tools/linux-mathml-greek-raster-envelopes.json`), and proposal/validation
+workflow (`.github/workflows/linux-mathml-greek-raster-floor.yml`).
 
 ## Authenticated source and logical ownership
 

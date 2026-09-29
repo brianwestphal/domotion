@@ -135,8 +135,8 @@ the outer consumer and the filter its inner input. In operation notation:
 source content -> filter -> blend with the effect-node backdrop
 ```
 
-Domotion's reference-box localization currently emits the reverse nesting at
-`src/render/element-tree-to-svg.ts:5432-5437`:
+Domotion's reference-box localization originally emitted the reverse nesting
+(the filter wrapper outside the blend):
 
 ```xml
 <g style="filter:url(#linear-matrix) ...">
@@ -145,7 +145,11 @@ Domotion's reference-box localization currently emits the reverse nesting at
 ```
 
 The filter wrapper creates a group around the blend, so the blend no longer
-sees the source backdrop. The exact symptom is that removing blend or source
+sees the source backdrop. That is fixed: when a localized reference filter
+and a blend coexist, `filterInsideBlend` in `src/render/element-tree-to-svg.ts`
+moves `mix-blend-mode` (and `isolation`) onto an outer wrapper
+(`outerBlendStyle`) with the filter inside it, matching `source -> filter ->
+blend`. The exact symptom is that removing blend or source
 isolation moves the Chromium source by 47–62 codes but moves the candidate by
 at most one code.
 
