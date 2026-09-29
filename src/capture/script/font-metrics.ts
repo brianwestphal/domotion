@@ -140,5 +140,33 @@ export const createFontMetrics = () => {
     return v;
   };
 
-  return { measureFontMetrics, substituteAliasedFamilies };
+  // Blink's `line-height: normal` for a font: the primary face's FontMetrics::LineSpacing() =
+  // lroundf(ascent) + lroundf(descent) + lroundf(line gap) (platform/fonts/simple_font_data.cc:176). The line
+  // gap is the platform's own leading (CoreText, FreeType, DirectWrite) and fontkit's hhea value does not
+  // reproduce it for the legacy Apple faces (Helvetica, Times, Courier read 0 there and 0.15 em in
+  // Chromium), so ask the browser: a hidden line-height:normal block's used height IS that value. Cached by
+  // font, like the ascent/descent above.
+  const spacingCache = new Map();
+  const measureNormalLineSpacing = (cs, fontSizeOverride) => {
+    const fs = cs.fontStyle || "normal";
+    const fw = cs.fontWeight || "400";
+    const fz = fontSizeOverride || cs.fontSize || "14px";
+    const ff = substituteAliasedFamilies(cs.fontFamily || "sans-serif");
+    const key = fs + "|" + fw + "|" + fz + "|" + ff;
+    let v = spacingCache.get(key);
+    if (v != null) return v;
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:absolute;left:-9999px;top:-9999px;visibility:hidden;margin:0;padding:0;border:0;white-space:pre;line-height:normal";
+    probe.style.font = fs + " " + fw + " " + fz + " " + ff;
+    probe.style.lineHeight = "normal";
+    probe.textContent = "Mxgp";
+    document.body.appendChild(probe);
+    v = probe.getBoundingClientRect().height;
+    document.body.removeChild(probe);
+    spacingCache.set(key, v);
+    return v;
+  };
+
+  return { measureFontMetrics, measureNormalLineSpacing, substituteAliasedFamilies };
 };

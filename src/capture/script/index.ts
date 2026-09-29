@@ -158,8 +158,11 @@ const captureDocumentTree = (args) => {
   const { normColor, normGradientColors } = createColorNorm();
   const { rasterCandidates, textNeedsRaster } = createEmojiDetect();
   const { markGetsDottedCircle } = createDottedCircleDetect();
-  const { measureFontMetrics: _measureFontMetrics, substituteAliasedFamilies: _substituteAliasedFamilies } =
-    createFontMetrics();
+  const {
+    measureFontMetrics: _measureFontMetrics,
+    measureNormalLineSpacing: _measureNormalLineSpacing,
+    substituteAliasedFamilies: _substituteAliasedFamilies,
+  } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const { familyIsUADefault: _familyIsUADefault, pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored } =
     createFontFamilyDefault();
@@ -540,6 +543,12 @@ const captureDocumentTree = (args) => {
         _effectiveZoomFor,
         _measureFontMetrics,
       }),
+      // Blink's `line-height: normal` at the computed size (see font-metrics.ts); only recorded when the
+      // computed value IS `normal`, so a numeric line-height never pays for the probe.
+      normalLineHeight:
+        cs.lineHeight === "normal" && isFinite(parseFloat(cs.fontSize) * _effectiveZoomFor(el))
+          ? _measureNormalLineSpacing(cs, (parseFloat(cs.fontSize) * _effectiveZoomFor(el)).toFixed(4) + "px")
+          : undefined,
       inputXOffsets: _text.inputXOffsets,
       textImageUri,
       textImageScale,

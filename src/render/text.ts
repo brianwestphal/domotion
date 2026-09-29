@@ -2188,10 +2188,12 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
   const fontWeight = el.styles.fontWeight;
   const lhStr = el.styles.lineHeight;
   const lhParsed = parseFloat(lhStr);
-  // NO UPSTREAM RULE for the fallbacks below: 1.2em stands in for `line-height: normal` (Blink uses the
-  // primary font's LineSpacing(), which varies per face), and the +4 inset is a stand-in for the control's
-  // border + padding when the capture recorded no text origin.
-  const lineHeight = lhStr !== "normal" && !isNaN(lhParsed) && lhParsed > 0 ? lhParsed : fontSize * 1.2;
+  // `line-height: normal` is the primary face's LineSpacing(), which the capture measures (see
+  // CapturedElement.normalLineHeight). NO UPSTREAM RULE for the fallbacks: 1.2em when an older cached tree
+  // carries no such measurement, and the +4 inset, a stand-in for the control's border + padding when the
+  // capture recorded no text origin.
+  const lineHeight =
+    lhStr !== "normal" && !isNaN(lhParsed) && lhParsed > 0 ? lhParsed : (el.normalLineHeight ?? fontSize * 1.2);
   const startX = el.textLeft ?? el.x + 4;
   const startY = el.textTop ?? el.y + 4;
   const parts: string[] = [];

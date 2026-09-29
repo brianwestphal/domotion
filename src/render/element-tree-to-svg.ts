@@ -961,10 +961,9 @@ function paintListMarker(el: CapturedElement, textColor: ReturnType<typeof parse
     const lsImage = el.styles.listStyleImage;
     const lsType = el.summaryMarkerGeometry?.listStyleType ?? el.styles.listStyleType ?? "disc";
     const fontSizePx = fontSizeOrDefault(el.styles.fontSize);
-    // NO UPSTREAM RULE for the 1.2 fallback: `line-height: normal` in Blink is the primary font's
-    // FontMetrics::LineSpacing() (ascent + descent + line gap), which varies per face; 1.2em only stands in
-    // when the computed value is not a length.
-    const lineHeightPx = parseFloat(el.styles.lineHeight) || fontSizePx * 1.2;
+    // `line-height: normal` is the primary face's FontMetrics::LineSpacing(), measured at capture time
+    // (CapturedElement.normalLineHeight). NO UPSTREAM RULE for the 1.2em fallback: older cached trees only.
+    const lineHeightPx = parseFloat(el.styles.lineHeight) || (el.normalLineHeight ?? fontSizePx * 1.2);
     const outside = (el.summaryMarkerGeometry?.listStylePosition ?? el.styles.listStylePosition) !== "inside";
     if (lsImage != null && lsImage !== "none") {
       const urlMatch = /^url\((?:"|')?([^"')]+)(?:"|')?\)$/i.exec(lsImage);

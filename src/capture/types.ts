@@ -2294,6 +2294,15 @@ export interface CapturedElement {
   fontAscent?: number;
   fontDescent?: number;
   /**
+   * Blink's used `line-height: normal` for the element's font, in px: the primary face's
+   * `FontMetrics::LineSpacing()` = round(ascent) + round(descent) + round(line gap)
+   * (`platform/fonts/simple_font_data.cc:176`). Read from a hidden `line-height: normal` block because the
+   * line gap is the platform's own leading, which fontkit's hhea value does not reproduce for every face.
+   * Present only when the computed line-height is `normal`; the renderer's 1.2em stand-in is the fallback
+   * for older cached trees.
+   */
+  normalLineHeight?: number;
+  /**
    * Per-char x positions for input/textarea value text (SK-1234), measured
    * via a hidden DOM probe with the same font/value. Lets the renderer
    * anchor each glyph at the position Chromium would paint instead of
