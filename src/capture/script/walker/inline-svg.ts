@@ -26,7 +26,10 @@ import {
   shouldStripPromotedViewportDimension,
 } from "./inline-svg-decisions.js";
 
-export const captureInlineSvg = (el, cs, warn, sel) => {
+// `externalSvgDocuments` is the prefetched `Map<documentUrl, { document, failure }>` of the SVG files the
+// page's `<use href="file.svg#id">` elements name (src/capture/external-svg-use.ts); undefined when the
+// prepass did not run for this frame.
+export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
   // Inline SVG icons styled by external CSS (e.g. '.icon-btn svg { fill:none;
   // stroke: currentColor; stroke-width: 2 }') need their resolved presentation
   // attributes baked into the outerHTML so the icon paints correctly when
@@ -393,11 +396,67 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
   // the cloned outerHTML carries dangling fragment refs whose targets
   // live in a sibling hidden-defs SVG that we never emit (apple.com
   // country dropdown checkmark, search/cart nav icons, footer social).
-  // Same-document fragment-only refs handled here; external file refs
-  // (./icons.svg#foo) and unresolved targets are left in place — the
-  // dangling ref still doesn't paint, but at least we tried.
+  // Same-document fragment refs are resolved against the live document. An
+  // external file ref (./icons.svg#foo) is resolved against the document the
+  // prepass fetched. Anything that cannot be inlined faithfully is left in
+  // place with a warning; when Chromium may still have painted it, the host
+  // <svg> is promoted to Chromium raster ownership (`_externalUseFailure`).
   const _svgNS = "http://www.w3.org/2000/svg";
   const _xlinkNS = "http://www.w3.org/1999/xlink";
+  var _externalUseFailure = null;
+  // Resolve an external reference to { target } (inline it), { missing } (the
+  // document loaded but names no such element: Chromium paints nothing, so
+  // the dangling <use> is already faithful) or { failure } (raster it).
+  const _externalUseTarget = (href) => {
+    var url;
+    try {
+      url = new URL(href, document.baseURI);
+    } catch (e) {
+      return { failure: "the reference is not a valid URL" };
+    }
+    var fragment = "";
+    if (url.hash.charAt(0) === "#") {
+      try {
+        fragment = decodeURIComponent(url.hash.slice(1));
+      } catch (e) {
+        fragment = url.hash.slice(1);
+      }
+    }
+    url.hash = "";
+    var entry =
+      externalSvgDocuments != null && externalSvgDocuments.get ? externalSvgDocuments.get(url.href) : undefined;
+    if (entry == null) return { failure: "the referenced document was not prefetched" };
+    if (entry.document == null) return { failure: entry.failure || "the referenced document could not be loaded" };
+    if (fragment === "") return { failure: "the reference names no element id" };
+    var sameDocument = entry.document === document;
+    var found = entry.document.getElementById(fragment);
+    if (found == null) return { missing: true };
+    if (found.namespaceURI !== _svgNS) return { missing: true };
+    if (sameDocument) return { target: found, external: false };
+    // A copy detached from its document loses that document's cascade and
+    // fragment scope. Refuse what would silently paint differently.
+    if (entry.document.getElementsByTagNameNS(_svgNS, "style").length > 0) {
+      return { failure: "the external document carries a <style> element, which is not applied to the inlined copy" };
+    }
+    if (found.querySelector("use") != null || found.localName === "use") {
+      return {
+        failure: "the external element contains a nested <use>, which would resolve against the wrong document",
+      };
+    }
+    var scan = [found].concat(Array.prototype.slice.call(found.getElementsByTagName("*")));
+    for (var si = 0; si < scan.length; si++) {
+      var attrs = scan[si].attributes;
+      for (var ai2 = 0; ai2 < attrs.length; ai2++) {
+        if (/url\(\s*['"]?#/.test(attrs[ai2].value)) {
+          return {
+            failure:
+              "the external element references a fragment resource (gradient, clip path, mask or filter) in its own document",
+          };
+        }
+      }
+    }
+    return { target: found, external: true };
+  };
   const _resolveUseRefs = (root, depth) => {
     if (depth > 5) return; // cycle / depth guard
     var uses = root.querySelectorAll ? root.querySelectorAll("use") : [];
@@ -405,9 +464,36 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
       var useEl = uses[ui];
       var href = useEl.getAttribute("href");
       if (href == null || href === "") href = useEl.getAttributeNS(_xlinkNS, "href") || "";
-      if (href.charAt(0) !== "#") continue; // external or invalid
-      var targetId = href.slice(1);
-      var target = document.getElementById(targetId);
+      if (href === "") continue;
+      var target;
+      var targetExternal = false;
+      var targetId;
+      if (href.charAt(0) === "#") {
+        targetId = href.slice(1);
+        target = document.getElementById(targetId);
+      } else {
+        var externalResult = _externalUseTarget(href);
+        if (externalResult.failure != null) {
+          _externalUseFailure = _externalUseFailure || '<use href="' + href + '"> ' + externalResult.failure;
+          warn(
+            sel,
+            "inline-svg",
+            '<use href="' +
+              href +
+              '"> could not be inlined: ' +
+              externalResult.failure +
+              "; promoted the outer inline SVG to Chromium raster ownership",
+          );
+          continue;
+        }
+        if (externalResult.missing) {
+          warn(sel, "inline-svg", '<use href="' + href + '"> names an element the external document does not contain');
+          continue;
+        }
+        target = externalResult.target;
+        targetExternal = externalResult.external;
+        targetId = target.getAttribute("id") || href;
+      }
       if (target == null) continue;
       if (target.namespaceURI !== _svgNS) continue;
       // DM-508: animated subtrees no longer trigger raster fallback. The
@@ -457,6 +543,9 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
         for (var ci = 0; ci < target.children.length; ci++) {
           var clonedChild = target.children[ci].cloneNode(true);
           innerSvg.appendChild(clonedChild);
+          // An external document's nodes have no computed style to bake (they are not rendered); their
+          // presentation attributes travel with the clone.
+          if (targetExternal) continue;
           // DM-508: bake t=0 computed styles on the inlined subtree.
           // The hidden-defs symbol's children carry CSS animations whose
           // computed values (transform, fill, opacity, etc.) reflect the
@@ -504,7 +593,7 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
         if (clonedTarget.removeAttribute) clonedTarget.removeAttribute("id");
         replacement.appendChild(clonedTarget);
         // DM-508: bake t=0 computed styles on the inlined target subtree.
-        _walkBake(target, clonedTarget);
+        if (!targetExternal) _walkBake(target, clonedTarget);
         // When the target itself is an `<svg>` (the framer.com toolbar
         // pattern: `<use href="#svgID">` → `<svg viewBox="0 0 20 20"
         // id="svgID"><path .../></svg>` living in a hidden defs container
@@ -682,5 +771,8 @@ export const captureInlineSvg = (el, cs, warn, sel) => {
   if (_affineFreezeFailure != null) {
     warn(sel, "inline-svg", _affineFreezeFailure + "; promoted the outer inline SVG to Chromium raster ownership");
   }
-  return { content: clone.outerHTML, affineFreezeFailed: _affineFreezeFailure != null };
+  return {
+    content: clone.outerHTML,
+    rasterOwnershipRequired: _affineFreezeFailure != null || _externalUseFailure != null,
+  };
 };

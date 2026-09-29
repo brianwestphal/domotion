@@ -20,6 +20,7 @@ import {
   type LaunchOptions,
   type Page,
 } from "@playwright/test";
+import { primeExternalSvgUseDocuments } from "./external-svg-use.js";
 import { privateCaptureKey } from "./private-key.js";
 import { disposeAll } from "./cdp-lifecycle.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
@@ -2230,16 +2231,18 @@ async function captureElementTreeWithWarningsInternal(
     await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
     await reverifyAnimationFrame();
 
-    const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime] = await Promise.all([
+    const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime, externalSvgUsePrime] = await Promise.all([
       primeMaskImageIntrinsics(page),
       primeBackgroundImageSizing(page),
       primePseudoImageIntrinsics(page),
+      primeExternalSvgUseDocuments(page),
     ]);
     const frameScrollCapture = await prepareFrameScrollCapture(page, opts?.crossOriginFrames).catch(async (error) => {
       await Promise.all([
         maskIntrinsicPrime.dispose().catch(() => undefined),
         backgroundImagePrime.dispose().catch(() => undefined),
         pseudoImagePrime.dispose().catch(() => undefined),
+        externalSvgUsePrime.dispose().catch(() => undefined),
       ]);
       throw error;
     });
@@ -2291,6 +2294,7 @@ async function captureElementTreeWithWarningsInternal(
         collapsedBorderFragmentKey: collapsedBorderFragmentProbe.key,
         pseudoFragmentKey: pseudoFragmentProbe.key,
         pseudoImageSizingKey: pseudoImagePrime.propertyKey,
+        externalSvgUseKey: externalSvgUsePrime.registryKey,
       };
       textPaintProbe = await prepareTextPaintGeometry(page, selector, viewport, async (textPaintKey) => {
         const neutralResult = await page.evaluate(
@@ -2315,6 +2319,7 @@ async function captureElementTreeWithWarningsInternal(
         maskIntrinsicPrime,
         backgroundImagePrime,
         pseudoImagePrime,
+        externalSvgUsePrime,
         result == null ? pseudoStyles : undefined,
         result == null ? projectiveProbe : undefined,
       );

@@ -2879,6 +2879,8 @@ export interface CaptureScriptArgs {
   collapsedBorderFragmentKey: string;
   pseudoFragmentKey: string;
   pseudoImageSizingKey: string;
+  /** Window property holding the prefetched external SVG documents that `<use href="file.svg#id">` names. */
+  externalSvgUseKey: string;
   /** Registry key of the text-paint geometry prepass; set on the final capture only. */
   textPaintGeometryKey?: string;
   /** True for the all-transform-neutral probe capture that feeds the text-paint prepass. */

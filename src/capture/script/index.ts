@@ -410,12 +410,16 @@ const captureDocumentTree = (args) => {
     const _listsCounters = captureListsCounters(el, cs, tag);
     let svgReferenceScope = undefined;
     if (tag === "svg") {
-      const inlineSvgCapture = captureInlineSvg(el, cs, warn, sel);
+      const externalSvgDocuments =
+        typeof args.externalSvgUseKey === "string" && args.externalSvgUseKey !== ""
+          ? globalThis[args.externalSvgUseKey]
+          : undefined;
+      const inlineSvgCapture = captureInlineSvg(el, cs, warn, sel, externalSvgDocuments);
       svgContent = inlineSvgCapture.content;
       // Missing/singular CTMs and failed isolated-clone correlation are an
       // explicit vector boundary, never a request for cssTransformToSvg's six-
       // entry matrix3d approximation. Reuse the outer Chromium raster owner.
-      if (inlineSvgCapture.affineFreezeFailed && transformSubtreeRaster == null) {
+      if (inlineSvgCapture.rasterOwnershipRequired && transformSubtreeRaster == null) {
         transformSubtreeRaster = _makeTransformSubtreeRaster();
       }
       svgReferenceScope = _svgReferenceScope(el);

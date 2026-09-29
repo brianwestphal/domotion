@@ -382,7 +382,12 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": [],
-      "code": ["src/capture/script/walker/inline-svg.ts", "tests/features.ts"],
+      "code": [
+        "src/capture/script/walker/inline-svg.ts",
+        "src/capture/external-svg-use.ts",
+        "tests/features.ts",
+        "tests/inline-svg-external-use.e2e.test.ts"
+      ],
       "file": "24-inline-svg-icon-references.md"
     },
     {

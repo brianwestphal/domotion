@@ -120,6 +120,14 @@ The affine/non-affine boundary is also covered by
 `npm run transform:geometry-oracle`, `npm run raster:boundary-oracle`, and the
 focused inline-SVG route/pixel oracle.
 
+### E8. Inline SVG with an external `<use>` that cannot be inlined
+
+Trigger: a `<use href="file.svg#id">` inside an inline `<svg>` names an element in another file that the capture cannot inline faithfully: the document failed to load (HTTP error, timeout, not well-formed SVG), is cross-origin or not http(s), carries a `<style>` element, has an element that references a fragment resource in its own document (`url(#gradient)`, clip path, mask, filter), contains a nested `<use>`, or the reference names no element id. A document that loads but simply lacks the element is not a trigger: Chromium paints nothing for it either, so the dangling `<use>` is already faithful and only a warning is emitted.
+
+Why: the capture script is synchronous, so `src/capture/external-svg-use.ts` prefetches each same-origin document first and the script inlines the target from it, as it does for a same-document `#id`. A detached copy loses the external document's cascade and fragment scope, so what would paint differently is refused rather than guessed.
+
+Capture and emit: each refusal emits an `inline-svg` warning naming the reference and the reason and sets `rasterOwnershipRequired`, which reuses the outer Chromium raster owner of E6 (`transformSubtreeRaster`); the SVG tree emits one `<image>` for the host `<svg>` and suppresses the clone. Doc: [24-inline-svg-icon-references.md](../24-inline-svg-icon-references.md). Test: `tests/inline-svg-external-use.e2e.test.ts`.
+
 ### E7. Chromium broken-image icon
 
 Trigger: a live failed `<img>` record exposes a visible UA-shadow

@@ -6,7 +6,7 @@ status: "current"
 owners: ["rendering"]
 platforms: []
 tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54"]
-code: ["src/capture/script/walker/inline-svg.ts", "tests/features.ts"]
+code: ["src/capture/script/walker/inline-svg.ts", "src/capture/external-svg-use.ts", "tests/features.ts", "tests/inline-svg-external-use.e2e.test.ts"]
 aliases: ["docs/24-inline-svg-icon-references.md", "doc-24"]
 ---
 
@@ -51,6 +51,12 @@ Implemented in DM-499 (this doc). `CAPTURE_SCRIPT` clones the host `<svg>`'s out
 - Cycle / depth guard: 5-level recursion limit on `<use>` chains.
 
 When the resolved subtree contains an active CSS animation (`getAnimations({subtree:true})` non-empty), capture no longer raster-falls-back (DM-508). The `_walkBake` pass bakes the subtree's computed presentation attributes and transforms at the moment of capture, so the t=0 paint state is captured declaratively in the inlined SVG — vector, self-contained, frozen at one frame. Capture still emits a warning so consumers know the snapshot is a single frame; animation timing and later frames don't survive (the same one-frame contract Domotion provides for any other time-varying content).
+
+### External-file references (`<use href="sprite.svg#icon">`)
+
+The capture script is synchronous and cannot fetch, so a prepass (`src/capture/external-svg-use.ts`, run in every frame before the walk) collects the distinct external documents the page's `<use>` elements name, fetches each same-origin one once with `fetch()`, parses it as an SVG document, and stashes it on the window under a private key (`CaptureScriptArgs.externalSvgUseKey`). The walker resolves the reference against that document and inlines the target exactly like a same-document one: `<symbol>` as a nested `<svg viewBox>`, anything else as `<g transform>`, `currentColor` resolved against the host, the `<use>`'s own attributes carried over. An external document's nodes are not rendered, so there is no computed style to bake; their presentation attributes travel with the clone.
+
+What is refused, with an `inline-svg` warning and Chromium raster ownership of the host `<svg>` ([raster fallback E8](reference/raster-image-fallback-cases.md)): a document that fails to load or parse, a cross-origin or non-http(s) URL (Chromium does not paint those, and no request is made), a document with a `<style>` element (its cascade is not applied to the copy), a target that references a fragment resource in its own document (`url(#…)`) or contains a nested `<use>`, and a reference with no fragment id. A document that loads but lacks the named element only warns: Chromium paints nothing, so the dangling `<use>` is faithful.
 
 Hidden-defs SVGs (`<svg style="position:absolute;width:0;height:0">` containing `<symbol>` definitions) capture as 0×0 elements; the renderer skips emission of their content so they don't paint visibly in the output.
 
@@ -113,9 +119,11 @@ The `<use>` resolver is covered by the `inline-svg-use-group` / `inline-svg-use-
 ## Open design questions
 
 1. **Symbol viewBox translation**: emit `<svg x y w h viewBox=…>{symbol.children}</svg>` or fully resolve to `<g transform=scale(…)>` after computing the scale factor manually? The first preserves declarative spec compliance; the second produces fewer nested SVG elements. Recommend the first (declarative form).
-2. **External-file refs (`./icons.svg#foo`)**: unresolved in the current capture
-   path; DM-553Y54 owns external resource resolution or a truthful raster
-   fallback.
+2. **External-file refs (`./icons.svg#foo`)**: resolved by the prefetch prepass
+   described under "Today's behavior"; what cannot be inlined faithfully is
+   handed to Chromium's raster with a warning. Open: inlining the external
+   document's own `<style>` cascade and fragment resources (gradients, clip
+   paths) instead of refusing them.
 3. **CSS-animated symbols**: if `<symbol id="icon">` has a child with a CSS animation, the cloned outerHTML captures the animation declaration, but the keyframe rules don't survive. _Resolved (DM-508): we do NOT rasterize these._ The `_walkBake` pass bakes each animated node's computed presentation attributes and transforms at t=0, so the inlined SVG carries the correct paint for the captured frame (vector, self-contained); capture only warns that the snapshot is one frame.
 4. **`fill="currentColor"` resolution**: resolved in the shipped path. The
    walker preserves the keyword while baking the cloned subtree, then
@@ -124,6 +132,5 @@ The `<use>` resolver is covered by the `inline-svg-use-group` / `inline-svg-use-
 
 ## Follow-ups to file when this lands
 
-- External-file `<use>` refs (`<use href="./icons.svg#foo">`) — needs an external-fetch capture path.
 - `<use>` chains (`<symbol id="a"><use href="#b"/></symbol>`) — recursive resolution with cycle detection.
 - Rasterization fallback bench step in `npm run demos:test` to ensure resolve-and-inline wins for the common case (no per-icon screenshots).
