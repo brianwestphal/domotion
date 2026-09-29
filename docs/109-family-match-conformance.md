@@ -145,7 +145,11 @@ checkout already shows what the successor algorithm looks like.
 
 ## Scope
 
-macOS only. Blink runs different code for this step on each platform, and a
+macOS only, and unlike its Linux and Windows siblings it has **no committed
+baseline and no CI job**: run it locally with `npm run fonts:family-match`
+(`--json` prints the report, `--allow <n>` tolerates up to `n` misses;
+the full result is written to `tests/output/family-match-conformance.json`).
+Blink runs different code for this step on each platform, and a
 number from one platform says nothing about another. The sibling oracles now
 exist: doc 110 (Linux — the fontconfig `matchFamilyName` transcription,
 `npm run fonts:family-match:linux`) and doc 111 (Windows — the DirectWrite

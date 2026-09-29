@@ -231,8 +231,11 @@ A fingerprint field ABSENT on either side is skipped rather than counted as a
 difference ("cannot tell", not "known different"), which is what let `chromium`
 join without disarming every committed baseline until each environment is
 re-seeded. The check arms by itself the first time an entry is recorded carrying
-it. `tests/family-match-baseline.test.ts` pins both halves and names the
-exemption so it is removed once every entry carries the field.
+it. **No committed baseline carries `chromium` yet**: the tools record it
+(`tools/family-match-conformance-linux.ts`, `-win32.ts`), but
+`tests/family-match-baseline.test.ts` exempts it as `AWAITING_RESEED`, so today a
+Chromium bump does NOT make the gate refuse to judge. The exemption is removed
+once every committed entry is re-seeded with the field.
 
 ## The CI gate
 
@@ -243,13 +246,14 @@ container: it builds the helper, runs the armed declared-family seam test
 nomination-walk pins execute rather than skip), then runs this oracle
 **regression-relative**, exactly like the feature-suite fidelity gates: a
 regression vs this environment's committed entry fails the job; identical or
-improved misses pass. Until a baseline recorded on the CI image is
-committed, the comparator's refuse-to-judge (exit 3) is turned into a green
-run that records a candidate and uploads it in the `family-match-linux`
-artifact — review it, commit `tests/baselines/family-match-linux.json`, and
-the gate arms on the next run. The committed entry as of this writing was
-recorded on arm64 (Docker on Apple Silicon), so the first CI run on the x64
-image is expected to take the candidate path.
+improved misses pass. If no committed entry matches the run's fingerprint,
+the comparator's refuse-to-judge (exit 3) is turned into a green run that
+records a candidate and uploads it in the `family-match-linux` artifact — review
+it, commit `tests/baselines/family-match-linux.json`, and the gate arms on the
+next run. The committed file already carries both an arm64 (Docker on Apple
+Silicon) and an x64 (CI image) entry, so the x64 runner is judged against its
+own entry; the candidate path recurs only when the image, fontconfig, or
+font inventory changes.
 
 ## What this oracle cannot see
 

@@ -119,17 +119,21 @@ and how a newly-added field arms without disarming the committed set.
 ## The CI gate
 
 The `Windows family-match conformance` job in
-`.github/workflows/windows-fidelity.yml` runs on every PR on
-`windows-latest`: it builds the DirectWrite helper, then runs this oracle
+`.github/workflows/windows-fidelity.yml` is **manual dispatch only**
+(`workflow_dispatch`; Windows is first-class validation but its DirectWrite
+conformance work is slow, so it is dispatched for Windows-affecting changes and
+release validation rather than per PR — the Linux sibling in doc 110 does run on
+`pull_request`). When dispatched it runs on `windows-latest`: it builds the DirectWrite helper, then runs this oracle
 **regression-relative** like the other fidelity gates — a regression vs this
-environment's committed entry fails the job. Until a baseline recorded on the
-CI runner is committed, the refuse-to-judge (exit 3) is turned into a green
-run that records a candidate and uploads it in the `family-match-windows`
-artifact — review it, commit `tests/baselines/family-match-windows.json`,
-and the gate arms on the next run. Two caveats worth restating: the
-committed entry as of this writing was recorded on the arm64 Windows 11 VM,
-so the first CI run is expected to take the candidate path; and
-`windows-latest` is Windows **Server**, whose font set is narrower than
+environment's committed entry fails the job. If no committed entry matches the
+run's fingerprint, the refuse-to-judge (exit 3) is turned into a green run that
+records a candidate and uploads it in the `family-match-windows` artifact —
+review it, commit `tests/baselines/family-match-windows.json`, and the gate arms
+on the next run. The committed file already carries both an arm64 (Windows 11
+VM) and an x64 (CI runner) entry. As in doc 110, no committed entry carries the
+`chromium` field yet (`AWAITING_RESEED` in `tests/family-match-baseline.test.ts`),
+so a Chromium bump does not currently refuse to judge. One caveat worth
+restating: `windows-latest` is Windows **Server**, whose font set is narrower than
 desktop Windows 11 — its numbers say nothing about the desktop entry, and
 each environment is judged only against itself.
 
