@@ -71,12 +71,14 @@ For each interaction the planner:
 The default lead-in is 500 ms. `start` lets a caller pass the prior scene's last
 point so the next scene approaches from a sensible location rather than an
 arbitrary corner. `StudioCursorChoreography` (`overlay`, `interactions`, `durationMs`,
-`timeOffsetMs`) has no dedicated final-point field: derive the point to chain from the
-last entry of `interactions` (`interactions.at(-1)`). Interactive scene capture
-(`src/studio/interactive-compile.ts`) does **not** currently pass `start` from one
-scene to the next — each scene plans its choreography with only its own seed plus
-any caller-supplied `cursor` options — so cross-scene continuity is a caller
-responsibility today (tracked as a follow-up). The browser-side helper is
+`timeOffsetMs`) has no dedicated final-point field: the point to chain is the last entry of
+`interactions` (`destinationPoint` for a drag, else `point`), exposed as `finalCursorPoint`
+in `src/studio/interactive-compile.ts`. Interactive scene capture chains it automatically:
+each live scene starts where the previous **consecutive** live scene left the cursor, so the
+pointer does not jump to a default corner at every boundary. Continuity ends at a pre-rendered
+(non-live) scene in between, since that is a different picture, and a scene with no
+cursor-visible interaction leaves the chain unchanged. A caller-supplied `cursor.start` is
+explicit art direction and wins for every scene (`sceneCursorOptions`). The browser-side helper is
 `buildStudioCursorChoreography` (`src/studio/index.ts`, [docs/api.md](api.md)). Later capture stages own scene/global time placement; this module only
 plans one inspected semantic sequence.
 

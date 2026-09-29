@@ -30,6 +30,7 @@ import {
   inspectStudioCursorTargets,
   planStudioCursorChoreography,
   type PlanStudioCursorChoreographyOptions,
+  type StudioCursorPoint,
   type StudioCursorChoreography,
   type StudioCursorTargetEvidence,
 } from "./cursor-choreography.js";
@@ -424,12 +425,39 @@ async function runScenePhase(
   }
 }
 
+/**
+ * Where the cursor rests after a scene's choreography: the destination of the last interaction (a drag
+ * ends elsewhere than it began), else its aim point. `undefined` when the scene had no cursor-visible
+ * interaction, so the caller keeps whatever it was chaining from.
+ */
+export function finalCursorPoint(
+  cursor: Pick<StudioCursorChoreography, "interactions">,
+): StudioCursorPoint | undefined {
+  const last = cursor.interactions.at(-1);
+  return last == null ? undefined : (last.destinationPoint ?? last.point);
+}
+
+/**
+ * The options one scene's cursor choreography is planned with. A caller-supplied `cursor.start` is an
+ * explicit art-direction choice and wins over continuity; otherwise the scene starts where the previous
+ * consecutive live scene left the cursor, so the pointer does not teleport to a default corner at every
+ * scene boundary.
+ */
+export function sceneCursorOptions(
+  sceneId: string,
+  chainFrom: StudioCursorPoint | undefined,
+  explicit: PlanStudioCursorChoreographyOptions | undefined,
+): PlanStudioCursorChoreographyOptions {
+  return { seed: sceneId, ...(chainFrom != null ? { start: chainFrom } : {}), ...(explicit ?? {}) };
+}
+
 async function compileLiveSegment(
   browser: Browser,
   project: StudioProject,
   scene: StudioScene,
   sceneIndex: number,
   options: CompileStudioInteractiveProjectOptions,
+  chainFrom?: StudioCursorPoint,
 ): Promise<{
   svg: string;
   durationMs: number;
@@ -503,7 +531,7 @@ async function compileLiveSegment(
       );
     }
     await runScenePhase(project, scene, sceneIndex, page, "afterCapture", options.runSceneHook);
-    const cursor = planStudioCursorChoreography(cursorTargets, { seed: scene.id, ...(options.cursor ?? {}) });
+    const cursor = planStudioCursorChoreography(cursorTargets, sceneCursorOptions(scene.id, chainFrom, options.cursor));
     const groups = scheduledGroups(plan, cursor);
     const authoredDuration = scene.render.recipe.duration ?? 0;
     const { frames, durationMs } = buildFrames(
@@ -585,10 +613,17 @@ export async function compileStudioInteractiveProject(
 
   try {
     const generatedAt = options.generatedAt?.() ?? new Date().toISOString();
+    // Where the previous CONSECUTIVE live scene left the cursor. A pre-rendered scene in between is a
+    // different picture, so continuity ends there.
+    let chainFrom: StudioCursorPoint | undefined;
     for (let sceneIndex = 0; sceneIndex < project.scenes.length; sceneIndex++) {
       const scene = project.scenes[sceneIndex];
-      if (!activeScene(scene)) continue;
-      const compiled = await compileLiveSegment(browser, project, scene, sceneIndex, options);
+      if (!activeScene(scene)) {
+        chainFrom = undefined;
+        continue;
+      }
+      const compiled = await compileLiveSegment(browser, project, scene, sceneIndex, options, chainFrom);
+      chainFrom = finalCursorPoint(compiled.cursor) ?? chainFrom;
       const stem = artifactStem(scene.id);
       const stagedSvg = join(stageDir, `${stem}.segment.svg`);
       const stagedEvidence = join(stageDir, `${stem}.evidence.json`);

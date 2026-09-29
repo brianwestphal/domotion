@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { compileStudioInteractiveProject } from "./interactive-compile.js";
+import { compileStudioInteractiveProject, finalCursorPoint, sceneCursorOptions } from "./interactive-compile.js";
 import { STUDIO_PROJECT_FORMAT, STUDIO_PROJECT_VERSION, type StudioProject } from "./project-schema.js";
 
 const noBrowser = null as unknown as Browser;
@@ -61,5 +61,55 @@ describe("Studio interactive compiler boundaries", () => {
     } finally {
       rmSync(artifactDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("cursor continuity between live scenes", () => {
+  const timing = (
+    point: { x: number; y: number },
+    destinationPoint?: { x: number; y: number },
+  ): {
+    eventId: string;
+    authoredAtMs: number;
+    presentedAtMs: number;
+    point: typeof point;
+    destinationPoint?: typeof point;
+  } => ({
+    eventId: "e",
+    authoredAtMs: 0,
+    presentedAtMs: 0,
+    point,
+    ...(destinationPoint != null ? { destinationPoint } : {}),
+  });
+
+  it("finalCursorPoint is the last interaction's rest point: a drag's destination, else its aim", () => {
+    expect(finalCursorPoint({ interactions: [] })).toBeUndefined();
+    expect(finalCursorPoint({ interactions: [timing({ x: 1, y: 2 })] })).toEqual({ x: 1, y: 2 });
+    expect(
+      finalCursorPoint({ interactions: [timing({ x: 1, y: 2 }), timing({ x: 3, y: 4 }, { x: 9, y: 8 })] }),
+    ).toEqual({
+      x: 9,
+      y: 8,
+    });
+  });
+
+  it("chains the previous scene's rest point as `start`, seeded by the scene id", () => {
+    expect(sceneCursorOptions("scene-b", { x: 5, y: 6 }, undefined)).toEqual({
+      seed: "scene-b",
+      start: { x: 5, y: 6 },
+    });
+    expect(sceneCursorOptions("scene-a", undefined, undefined)).toEqual({ seed: "scene-a" });
+  });
+
+  it("an explicit caller `cursor.start` (and seed) wins over continuity", () => {
+    expect(sceneCursorOptions("s", { x: 5, y: 6 }, { start: { x: 100, y: 100 } })).toEqual({
+      seed: "s",
+      start: { x: 100, y: 100 },
+    });
+    expect(sceneCursorOptions("s", { x: 5, y: 6 }, { seed: "fixed", leadInMs: 200 })).toEqual({
+      seed: "fixed",
+      start: { x: 5, y: 6 },
+      leadInMs: 200,
+    });
   });
 });

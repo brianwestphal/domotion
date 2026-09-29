@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { compileStudioInteractiveProject } from "./interactive-compile.js";
+import { compileStudioInteractiveProject, finalCursorPoint } from "./interactive-compile.js";
 import { loadStudioProject } from "./project.js";
 
 const fixturePath = resolve("tests/fixtures/studio/interactive-story.project.json");
@@ -133,4 +133,85 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
       rmSync(artifactDir, { recursive: true, force: true });
     }
   }, 120_000);
+
+  it("continues the cursor from one consecutive live scene into the next, unless a start is supplied or a static scene intervenes", async () => {
+    try {
+      browser ??= await chromium.launch({ headless: true });
+    } catch {
+      return;
+    }
+    const artifactDir = mkdtempSync(join(tmpdir(), "domotion-studio-chain-e2e-"));
+    try {
+      const base = loadStudioProject(fixturePath);
+      const live = base.scenes.find((scene) => scene.id === "scene-live")!;
+      const finish = base.scenes.find((scene) => scene.id === "scene-finish")!;
+      const second = structuredClone(live);
+      second.id = "scene-live-b";
+      second.title = "Second live";
+      second.narrativeBeatIds = ["beat-live-b"];
+      second.scriptHooks = [];
+      second.tracks = [
+        {
+          id: "track-live-b",
+          kind: "semantic-interactions",
+          events: [
+            { id: "event-open-b", atMs: 0, kind: "click", target: { role: "button", name: "Open details" } },
+            { id: "event-expand-b", atMs: 800, kind: "click", target: { role: "button", name: "Expand details" } },
+          ],
+        },
+      ];
+      const project = (scenes: typeof base.scenes): typeof base => {
+        const next = structuredClone(base);
+        next.scenes = scenes;
+        next.narrative.beats = scenes.map((scene) => ({
+          id: scene.narrativeBeatIds?.[0] ?? `beat-${scene.id}`,
+          title: scene.title ?? scene.id,
+          sceneIds: [scene.id],
+        }));
+        // Annotations and artifacts of the full fixture point at scenes a subset omits.
+        next.review.annotations = [];
+        next.artifacts = [];
+        return next;
+      };
+      const noopHook = async (): Promise<void> => {};
+      const hooks = { runSceneHook: noopHook, runHook: async () => undefined };
+      const compile = (scenes: typeof base.scenes, extra: Record<string, unknown> = {}) =>
+        compileStudioInteractiveProject(browser!, project(scenes), {
+          projectDir: fixtureDir,
+          artifactDir,
+          generatedAt,
+          generatorVersion: "test",
+          ...hooks,
+          ...extra,
+        });
+      const startOf = (cursor: { overlay: { events: Array<{ type: string; x?: number; y?: number }> } }) => {
+        const show = cursor.overlay.events[0];
+        expect(show.type).toBe("show");
+        return { x: show.x, y: show.y };
+      };
+
+      const chained = await compile([structuredClone(live), structuredClone(second)]);
+      expect(chained.segments).toHaveLength(2);
+      const rest = finalCursorPoint(chained.segments[0].cursor)!;
+      expect(rest).toBeDefined();
+      expect(startOf(chained.segments[1].cursor)).toEqual({ x: rest.x, y: rest.y });
+
+      // The same second scene planned alone starts from the default lead-in point instead.
+      const alone = await compile([structuredClone(second)]);
+      expect(startOf(alone.segments[0].cursor)).not.toEqual({ x: rest.x, y: rest.y });
+
+      // A pre-rendered scene between the two is a different picture: continuity ends there.
+      const interrupted = await compile([structuredClone(live), structuredClone(finish), structuredClone(second)]);
+      expect(startOf(interrupted.segments[1].cursor)).toEqual(startOf(alone.segments[0].cursor));
+
+      // An explicit start is art direction and wins for every scene.
+      const explicit = await compile([structuredClone(live), structuredClone(second)], {
+        cursor: { start: { x: 20, y: 30 } },
+      });
+      expect(startOf(explicit.segments[0].cursor)).toEqual({ x: 20, y: 30 });
+      expect(startOf(explicit.segments[1].cursor)).toEqual({ x: 20, y: 30 });
+    } finally {
+      rmSync(artifactDir, { recursive: true, force: true });
+    }
+  }, 240_000);
 });
