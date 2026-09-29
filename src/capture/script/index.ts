@@ -62,9 +62,9 @@ import { selectProjectiveRasterOwnerIndexes } from "../projective-owner.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../backdrop-effect-space.js";
 import { captureFontFamilyStack } from "../../font-family-stack.js";
 import {
-  projectiveFrameStateFor,
-  projectiveTransformFor,
+  projectiveStateFor,
   transformSubtreeRasterFor,
+  transformSubtreeRasterOwner,
 } from "./walker/projective-state.js";
 import { createCounterScopes } from "./walker/counter-scopes.js";
 import { createIframeRecursionHandler } from "./walker/iframe-recursion.js";
@@ -206,10 +206,8 @@ const captureDocumentTree = (args) => {
   });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp });
   const {
-    discoverMasks,
+    discoverFragmentReferences,
     computeMaskIntrinsic,
-    discoverClipPaths,
-    discoverFilters,
     maskDefs: _maskDefs,
     maskRasters: _maskRasters,
     clipPathDefs: _clipPathDefs,
@@ -326,41 +324,26 @@ const captureDocumentTree = (args) => {
     const _capturedFontFamilyStack = _fontFamilyStackFor(el, cs.fontFamily);
     let transformSubtreeRaster;
     const _projectiveIndex = _projectiveNodeIndex.get(el);
-    const _projectiveFact = _projectiveIndex != null ? _projectiveFacts[_projectiveIndex] : undefined;
-    const projectiveFrameState = projectiveFrameStateFor(args, _projectiveFact, _nonAffineProjectiveRoots.has(el));
-    let projectiveTransform;
-    let projectiveHidden;
-    const _projective = projectiveTransformFor(
+    const _ownsRasterBoundary = _nonAffineProjectiveRoots.has(el);
+    const { projectiveFrameState, projectiveTransform, projectiveHidden } = projectiveStateFor({
+      args,
       vp,
+      cs,
       rect,
-      _projectedQuads.get(el),
-      el.parentElement != null ? _projectiveAbsH.get(el.parentElement) : undefined,
-      cs.backfaceVisibility,
-    );
-    if (_projective != null) {
-      projectiveTransform = _projective.transform;
-      projectiveHidden = _projective.hidden;
-      _projectiveAbsH.set(el, _projective.absolute);
-    }
+      fact: _projectiveIndex != null ? _projectiveFacts[_projectiveIndex] : undefined,
+      ownsRasterBoundary: _ownsRasterBoundary,
+      quad: _projectedQuads.get(el),
+      parentAbsolute: el.parentElement != null ? _projectiveAbsH.get(el.parentElement) : undefined,
+      recordAbsolute: (absolute) => _projectiveAbsH.set(el, absolute),
+    });
     const _makeTransformSubtreeRaster = () => transformSubtreeRasterFor(el, rect, vp, _projectiveNodeIndex.get(el));
-    // SVG cannot encode a projective fourth corner or preserve-3d flattening.
-    // Snapshot the outermost 3D context once; descendants remain in the tree
-    // for metadata/paint ordering but the renderer returns after this image.
-    if (_nonAffineProjectiveRoots.has(el)) {
-      transformSubtreeRaster = _makeTransformSubtreeRaster();
-    }
-    // Missing, changing, singular, or projective text-fragment facts are an
-    // explicit Chromium surface boundary. Never fall back to the legacy
-    // scalar font/rect approximation for that transformed subtree.
-    if (_textPaintFact != null && _textPaintFact.surfaceReason != null && transformSubtreeRaster == null) {
-      transformSubtreeRaster = _makeTransformSubtreeRaster();
-      warn(
-        shortSelector(el),
-        "<transform>",
-        "Chromium text-fragment geometry unavailable; retained one outer raster surface: " +
-          _textPaintFact.surfaceReason,
-      );
-    }
+    transformSubtreeRaster = transformSubtreeRasterOwner({
+      makeRaster: _makeTransformSubtreeRaster,
+      ownsRasterBoundary: _ownsRasterBoundary,
+      textPaintFact: _textPaintFact,
+      warn,
+      selector: () => shortSelector(el),
+    });
     // DM-513: when an element's rect is outside the viewport, normally skip the
     // whole subtree. But position:fixed / position:sticky descendants escape
     // their containing-block flow and can paint INSIDE the viewport even when
@@ -394,57 +377,17 @@ const captureDocumentTree = (args) => {
     // these short and actionable — consumers (CLI, tests, demo scripts) log
     // them so the fidelity gaps are self-documenting.
     const sel = shortSelector(el);
-    const {
-      _effectiveAppearance,
-      _fileSelectorCapture,
-      _missingNativeDecorationKinds,
-      _nativeControlTag,
-      _nativeDecorationKinds,
-      _nativeDecorationParts,
-      _nativeDecorationUnavailableReason,
-      _selectDisplayTextGeometry,
-    } = captureNativeControlState({ el, cs, tag, sel, _pseudoFragmentFacts });
+    const _native = captureNativeControlState({ el, cs, tag, sel, _pseudoFragmentFacts });
     warnBeforeMaskDiscovery(el, cs, sel);
-    // Mask discovery — same-document fragment refs (`url("#id")`), element
-    // refs (`element(#id)`), and warnings for unsupported mask sources.
-    // Handler owns the maskDefs / maskRasters Maps that the orchestration
-    // tail consumes. See walker/masks-clips.ts.
-    const _maskFragmentReferences = discoverMasks(el, cs, sel);
-    const _maskFragmentReferenceScope =
-      _maskFragmentReferences != null && _maskFragmentReferences.length === 1
-        ? _maskFragmentReferences[0].scope
-        : undefined;
-    // DM-826: clip-path: url("#id") same-document fragment refs. Sibling of
-    // the mask discovery above; collects inline <clipPath> defs the
-    // renderer copies into the output SVG. See docs/39.
-    const _clipFragmentReferenceScope = discoverClipPaths(el, cs, sel);
-    // DM-934: CSS `filter: url(#id)` referencing an inline SVG <filter>.
-    // Collect the def so the renderer can copy it into the output SVG;
-    // the existing pass-through of cs.filter as an inline style then
-    // resolves against that same-document def.
-    const urlFilterRasterToken = discoverFilters(el, cs, sel);
+    const {
+      maskFragmentReferences: _maskFragmentReferences,
+      maskFragmentReferenceScope: _maskFragmentReferenceScope,
+      clipFragmentReferenceScope: _clipFragmentReferenceScope,
+      urlFilterRasterToken,
+    } = discoverFragmentReferences(el, cs, sel);
     warnAfterMaskDiscovery(el, cs, tag, sel);
     let svgContent = undefined;
-    const {
-      text,
-      textTop,
-      textLeft,
-      textHeight,
-      textWidth,
-      fontAscent,
-      fontDescent,
-      inputXOffsets,
-      placeholderColor,
-      placeholderFontStyle,
-      placeholderFontWeight,
-      placeholderFontFamily,
-      placeholderFontFamilyStack,
-      lineClampTextFragments,
-      textSegments,
-      pseudoBoxes,
-      pseudoImages,
-      isPlaceholderCapture,
-    } = captureTextPhase({ el, cs, tag, rect, _contentVisHidden, _pseudoFragmentFacts });
+    const _text = captureTextPhase({ el, cs, tag, rect, _contentVisHidden, _pseudoFragmentFacts });
 
     let textImageUri = undefined;
     const textImageScale = 2;
@@ -491,7 +434,7 @@ const captureDocumentTree = (args) => {
 
     const _captured = {
       tag,
-      text,
+      text: _text.text,
       x: _fsBox.x,
       y: _fsBox.y,
       width: _fsBox.width,
@@ -535,11 +478,9 @@ const captureDocumentTree = (args) => {
         frozenTransform,
         frozenTransformOrigin,
         projectiveTransform,
-        isPlaceholderCapture,
-        _effectiveAppearance,
-        _selectDisplayTextGeometry,
+        isPlaceholderCapture: _text.isPlaceholderCapture,
+        ..._native,
         _capturedFontFamilyStack,
-        _fileSelectorCapture,
       }),
       projectiveTransform,
       projectiveHidden,
@@ -554,21 +495,21 @@ const captureDocumentTree = (args) => {
       brokenImageFallback,
       svgContent,
       pseudoFragments: Array.isArray(_pseudoFragmentFacts) ? _pseudoFragmentFacts : undefined,
-      pseudoImages,
-      pseudoBoxes: pseudoBoxes.length > 0 ? pseudoBoxes : undefined,
+      pseudoImages: _text.pseudoImages,
+      pseudoBoxes: _text.pseudoBoxes.length > 0 ? _text.pseudoBoxes : undefined,
       // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
       // list-item index — see walker/lists-counters.ts.
       ..._listsCounters,
-      textSegments: textSegments.length > 0 ? textSegments : undefined,
+      textSegments: _text.textSegments.length > 0 ? _text.textSegments : undefined,
       textPaintGeometry: _textPaintFact != null ? _textPaintFact.geometry : undefined,
       // Correlation marker emitted only by the all-transform-neutral probe
       // capture and consumed before that intermediate tree is discarded.
       _textPaintSourceKey: args.tgp === true ? _textPaintSourceKeyFor(el) : undefined,
-      lineClampTextFragments: lineClampTextFragments || undefined,
-      textTop,
-      textLeft,
-      textHeight,
-      textWidth,
+      lineClampTextFragments: _text.lineClampTextFragments || undefined,
+      textTop: _text.textTop,
+      textLeft: _text.textLeft,
+      textHeight: _text.textHeight,
+      textWidth: _text.textWidth,
       // DM-2446: Blink chooses and measures the face at computed size
       // (logical CSS size × effective zoom), then the transform stage scales
       // those metrics into paint space. Re-measure at computed size instead of
@@ -576,7 +517,7 @@ const captureDocumentTree = (args) => {
       // change non-linearly when the computed size selects another instance.
       fontAscent: computedSizeFontMetric({
         metric: "ascent",
-        value: fontAscent,
+        value: _text.fontAscent,
         cs,
         el,
         _effectiveZoomFor,
@@ -584,24 +525,24 @@ const captureDocumentTree = (args) => {
       }),
       fontDescent: computedSizeFontMetric({
         metric: "descent",
-        value: fontDescent,
+        value: _text.fontDescent,
         cs,
         el,
         _effectiveZoomFor,
         _measureFontMetrics,
       }),
-      inputXOffsets,
+      inputXOffsets: _text.inputXOffsets,
       textImageUri,
       textImageScale,
       // Placeholder metadata (SK-1097 / SK-1100 / SK-1099): captured in
       // walker/input-value.ts when the host is a placeholder-shown input
       // or textarea. Undefined elsewhere.
-      isPlaceholderText: isPlaceholderCapture || undefined,
-      placeholderColor,
-      placeholderFontStyle,
-      placeholderFontWeight,
-      placeholderFontFamily,
-      placeholderFontFamilyStack,
+      isPlaceholderText: _text.isPlaceholderCapture || undefined,
+      placeholderColor: _text.placeholderColor,
+      placeholderFontStyle: _text.placeholderFontStyle,
+      placeholderFontWeight: _text.placeholderFontWeight,
+      placeholderFontFamily: _text.placeholderFontFamily,
+      placeholderFontFamilyStack: _text.placeholderFontFamilyStack,
       // Old-capture compatibility field. Current textarea and vertical text
       // capture is fully vector; see walker/text-segments.ts.
       elementRaster: computeElementRaster(el, cs, tag, rect, vp),
@@ -611,9 +552,8 @@ const captureDocumentTree = (args) => {
       // menulist-button/listbox/base states keep their author-owned host box
       // structural; native decoration splitting is owned by DM-2455.
       nativeControlRaster: captureNativeControlRaster({
-        _nativeControlTag,
+        ..._native,
         rect,
-        _effectiveAppearance,
         cs,
         vp,
         _projectiveNodeIndex,
@@ -626,13 +566,10 @@ const captureDocumentTree = (args) => {
       // value text structural, but reserve this narrow overlay so a failed
       // Chromium isolation can never reopen the sampled glyph functions.
       nativeControlDecorationRaster: captureNativeControlDecorationRaster({
-        _nativeDecorationKinds,
+        ..._native,
         rect,
-        _nativeDecorationParts,
         vp,
-        _nativeDecorationUnavailableReason,
         sel,
-        _missingNativeDecorationKinds,
         _projectiveNodeIndex,
         el,
       }),

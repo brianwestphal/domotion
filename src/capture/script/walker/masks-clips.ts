@@ -686,7 +686,32 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     return token;
   };
 
+  /**
+   * Run mask, clip-path and filter discovery for one element (in that order — each can warn and
+   * register defs) and summarize what the record needs from them.
+   */
+  const discoverFragmentReferences = (el, cs, sel) => {
+    // Mask discovery — same-document fragment refs (`url("#id")`), element
+    // refs (`element(#id)`), and warnings for unsupported mask sources.
+    const maskFragmentReferences = discoverMasks(el, cs, sel);
+    const maskFragmentReferenceScope =
+      maskFragmentReferences != null && maskFragmentReferences.length === 1
+        ? maskFragmentReferences[0].scope
+        : undefined;
+    // DM-826: clip-path: url("#id") same-document fragment refs. Sibling of
+    // the mask discovery above; collects inline <clipPath> defs the
+    // renderer copies into the output SVG. See docs/39.
+    const clipFragmentReferenceScope = discoverClipPaths(el, cs, sel);
+    // DM-934: CSS `filter: url(#id)` referencing an inline SVG <filter>.
+    // Collect the def so the renderer can copy it into the output SVG;
+    // the existing pass-through of cs.filter as an inline style then
+    // resolves against that same-document def.
+    const urlFilterRasterToken = discoverFilters(el, cs, sel);
+    return { maskFragmentReferences, maskFragmentReferenceScope, clipFragmentReferenceScope, urlFilterRasterToken };
+  };
+
   return {
+    discoverFragmentReferences,
     discoverMasks,
     computeMaskIntrinsic,
     discoverClipPaths,

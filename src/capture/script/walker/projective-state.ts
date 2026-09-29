@@ -135,3 +135,51 @@ export const transformSubtreeRasterFor = (el, rect, vp, sourceNodeIndex) => {
   }
   return { x: 0, y: 0, width: 0, height: 0, sourceNodeIndex: sourceNodeIndex };
 };
+
+/**
+ * Decide whether an element's whole subtree must be one Chromium raster surface. SVG cannot encode a
+ * projective fourth corner or preserve-3d flattening, so the outermost 3D context is snapshotted once
+ * (descendants remain in the tree for metadata and paint ordering). Missing, changing, singular, or
+ * projective text-fragment facts are likewise an explicit Chromium surface boundary — never a fall back
+ * to the legacy scalar font/rect approximation for that transformed subtree — and are reported.
+ * Returns the raster, or undefined when the subtree stays vector.
+ */
+export const transformSubtreeRasterOwner = ({ makeRaster, ownsRasterBoundary, textPaintFact, warn, selector }) => {
+  let raster;
+  if (ownsRasterBoundary) raster = makeRaster();
+  if (textPaintFact != null && textPaintFact.surfaceReason != null && raster == null) {
+    raster = makeRaster();
+    warn(
+      selector(),
+      "<transform>",
+      "Chromium text-fragment geometry unavailable; retained one outer raster surface: " + textPaintFact.surfaceReason,
+    );
+  }
+  return raster;
+};
+
+/**
+ * The projective facts recorded for one element: the CDP-sampled frame state, the parent-relative
+ * transform, and whether a back-facing element hides itself. `recordAbsolute` receives the element's
+ * absolute homography so the caller can store it for the element's children.
+ */
+export const projectiveStateFor = ({
+  args,
+  vp,
+  cs,
+  rect,
+  fact,
+  ownsRasterBoundary,
+  quad,
+  parentAbsolute,
+  recordAbsolute,
+}) => {
+  const projectiveFrameState = projectiveFrameStateFor(args, fact, ownsRasterBoundary);
+  const projective = projectiveTransformFor(vp, rect, quad, parentAbsolute, cs.backfaceVisibility);
+  if (projective != null) recordAbsolute(projective.absolute);
+  return {
+    projectiveFrameState,
+    projectiveTransform: projective != null ? projective.transform : undefined,
+    projectiveHidden: projective != null ? projective.hidden : undefined,
+  };
+};
