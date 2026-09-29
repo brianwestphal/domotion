@@ -32,7 +32,11 @@ import { hitTestTopmost } from "../render/paint-order.js";
 import { cursorGlyphSvg } from "./cursor-glyphs.js";
 
 export interface CursorStyle {
-  /** Pointer variant. v1: only `mouse` is rendered (touch falls through to the same arrow glyph). */
+  /**
+   * Pointer variant. `mouse` is the macOS arrow (or the per-keyword glyphs when a cursor-type resolver is
+   * supplied); `touch` is a translucent finger-contact disc centered on the hot point, with one
+   * appearance regardless of CSS `cursor` (a finger has no cursor types).
+   */
   pointer: "mouse" | "touch";
   /**
    * Inner ring + cursor stroke color. Defaults to white with a thin black
@@ -401,7 +405,17 @@ export function cursorOverlayMarkup(
   const pulseMarkup = clicks.map((c, i) => buildPulseFragment(c, i, uid, kf, totalDurationMs)).join("\n");
 
   let pointerGroup: string;
-  if (cursorTimeline != null && cursorTimeline.length > 0) {
+  if (style.pointer === "touch") {
+    // A touch contact looks the same over every element, so the per-keyword glyph layers are skipped and
+    // the show/hide track from the positions drives one disc; the pulse fragments still mark taps.
+    const visName = `co-vis-${uid}`;
+    kf.push(
+      `@keyframes ${visName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{opacity:${p.visible ? "1" : "0"}}`).join("")}}`,
+    );
+    pointerGroup = `    <g class="cursor-touch" opacity="0" style="animation:${posAnim},${visName} ${totalSec}s step-end infinite">
+      ${touchPointerGlyph(style.cursorScale)}
+    </g>`;
+  } else if (cursorTimeline != null && cursorTimeline.length > 0) {
     // DM-1106: one glyph per distinct keyword, each toggled by a DISCRETE opacity
     // track (SMIL `calcMode="discrete"` → CSS `step-end`, which holds each value
     // until the next keyframe). The parent carries the position animation.
@@ -496,6 +510,22 @@ function buildPulseFragment(c: ResolvedClick, idx: number, uid: string, kf: stri
       <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStrokeOuter}" stroke-width="2" opacity="0" style="${ringStyle(outerName)}" />
       <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStroke}" stroke-width="1" opacity="0" style="${ringStyle(innerName)}" />${secondaryHalf}
     </g>`;
+}
+
+/**
+ * Touch contact glyph: a soft dark disc with a white ring and a dark hairline outside it, centered on the hot
+ * point (0, 0) — the shape iOS/Android "show touches" overlays use, legible on light and dark backgrounds.
+ * 28 px across at scale 1 (33 with the hairline), roughly a fingertip on a phone-sized canvas.
+ */
+export function touchPointerGlyph(scale: number): string {
+  const k = scale || 1;
+  const r = 14 * k;
+  // Disc + white ring, then a thin dark hairline just outside the ring so the white reads on a LIGHT
+  // background too (a white ring alone vanishes on white; a dark disc alone vanishes on a dark button).
+  return (
+    `<circle cx="0" cy="0" r="${num(r)}" fill="rgba(20,20,20,0.38)" stroke="rgba(255,255,255,0.92)" stroke-width="${num(2 * k)}" />` +
+    `<circle cx="0" cy="0" r="${num(r + 2.5 * k)}" fill="none" stroke="rgba(0,0,0,0.4)" stroke-width="${num(k)}" />`
+  );
 }
 
 /** macOS-style cursor arrow path. The hot point (0, 0) sits at the tip. */

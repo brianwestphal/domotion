@@ -88,6 +88,10 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **cross-origin frame scroll ownership** (DM-2537): each scroll anchor carries a fresh Chromium `FrameId` graph, parent-relative allowlist/reachability decisions, exact frame-local scrollbar owners and raw RTL/vertical offsets; denied ancestors leak no descendant state and composition destructively rejects stale/omitted/wrong-frame authority. See [docs/217](docs/217-cross-origin-frame-scroll-ownership.md).
 - [x] **snapshot-isolation-pseudo-overlay** (DM-458, `tests/snapshot-isolation.tsx`): canvas covered by a sibling's `::after` pseudo overlay. Inspection-style — decodes the captured snapshot's PNG data URI and asserts no overlay-color pixels leaked through. Catches regressions in the hide-everything-else stylesheet that a comparison-style fixture wouldn't.
 
+### Animation overlays
+
+- [x] **cursor-touch-pointer** (doc 13, `tests/cursor-touch-pointer.e2e.test.ts`): `pointer: "touch"` paints a translucent dark disc with a white ring centered on the hot point (symmetric, unlike the mouse arrow), follows the script's show / move / hide events, and ignores the per-keyword cursor glyph timeline. Asserted on painted pixels with the overlay's CSS animations pinned to a moment.
+
 ### Showcase Integration Tests
 
 - [x] **showcase-typography**: Full-page layout with headings, badges, code blocks, inline code, status text

@@ -48,7 +48,7 @@ The static `30-cursor` html-test fixture is **not** the target of this overlay. 
 
 ## Design (per DM-277 feedback)
 
-- **Pointer style**: macOS arrow (white with black outline). Single pointer at a time — demos don't mix mouse and touch in one timeline.
+- **Pointer style**: macOS arrow (white with black outline) for `pointer: "mouse"`; a translucent dark disc with a white ring (28 px across at scale 1, centered on the hot point) for `pointer: "touch"`. Single pointer at a time — demos don't mix mouse and touch in one timeline.
 - **Click feedback**: a circular ring centered on the cursor, colorless (matches QuickTime). The ring scales out and fades.
   - **Primary click**: ring only.
   - **Secondary click**: ring + fill the **right half** of the inner circle with `rgba(0, 0, 0, 0.2)`.
@@ -165,7 +165,7 @@ const box = await borderBox(page, "#submit", { at: "center" }); // full box + an
 
 - **Pinch-zoom / rotation gestures**: not modeled.
 - **Pen / stylus**: render as mouse.
-- **Touch glyphs**: deferred (DM-G999GK) — `pointer: "touch"` is accepted but currently renders the same as mouse.
+- **Touch glyphs**: shipped. `pointer: "touch"` paints `touchPointerGlyph` (one appearance over every element: a finger has no cursor types, so the per-keyword glyph timeline is not used); show / hide / move events and the tap pulse behave as for the mouse. Multi-touch remains out of scope.
 - **Recording from real user sessions**: out of scope; the current API expects pre-authored event scripts.
 - **Multi-pointer**: explicitly out of scope.
 

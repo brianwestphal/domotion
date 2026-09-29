@@ -7,6 +7,7 @@ import {
   cursorAtPoint,
   cursorOverlayMarkup,
   resolveCursorScript,
+  touchPointerGlyph,
 } from "./cursor-overlay.js";
 
 const TOTAL = 4000;
@@ -237,5 +238,68 @@ describe("cursorOverlayMarkup: multi-glyph (DM-1106)", () => {
     expect(svg).not.toContain("<animate");
     // Two glyph layers, each toggled by a discrete (step-end) CSS opacity track.
     expect((svg.match(/co-glyph-[a-z0-9]+-\d+ [\d.]+s step-end infinite/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("cursorOverlayMarkup: touch pointer", () => {
+  const overlay = (pointer?: "mouse" | "touch"): CursorOverlay => ({
+    style: pointer == null ? undefined : { pointer },
+    events: [
+      { type: "show", t: 0, x: 40, y: 50 },
+      { type: "move", t: 500, duration: 300, to: { x: 200, y: 120 } },
+      { type: "click", t: 900 },
+      { type: "hide", t: 1500 },
+    ],
+  });
+  const markup = (
+    pointer?: "mouse" | "touch",
+    timeline: Array<{ t: number; cursor: string | null }> | null = null,
+  ): string => {
+    const r = resolveCursorScript(overlay(pointer), TOTAL, FRAME_STARTS, null);
+    return cursorOverlayMarkup(r.positions, r.clicks, r.style, TOTAL, timeline);
+  };
+
+  it("paints the touch disc instead of the mouse arrow, at the same hot point track", () => {
+    const touch = markup("touch");
+    expect(touch).toContain('class="cursor-touch"');
+    expect(touch).toContain(touchPointerGlyph(1));
+    expect(touch).not.toContain("cursor-arrow");
+    expect(touch).not.toContain("M 0 0 L 0 16");
+    // The same position and show/hide tracks as the mouse pointer.
+    expect(touch).toContain("translate(200px,120px)");
+    expect(touch).toMatch(/co-vis-[0-9a-z]+/);
+  });
+
+  it("leaves the mouse output untouched", () => {
+    const mouse = markup("mouse");
+    expect(mouse).toContain('class="cursor-arrow"');
+    expect(mouse).not.toContain("cursor-touch");
+    expect(markup()).toBe(mouse);
+  });
+
+  it("ignores the per-keyword glyph timeline: a finger has one appearance over every element", () => {
+    const withTimeline = markup("touch", [
+      { t: 0, cursor: "default" },
+      { t: 600, cursor: "pointer" },
+      { t: 1500, cursor: null },
+    ]);
+    expect(withTimeline).toContain('class="cursor-touch"');
+    expect(withTimeline).not.toContain("co-glyph-");
+    expect(withTimeline).not.toContain('class="cursor-pointer"');
+  });
+
+  it("scales the disc and its ring with cursorScale, and still marks taps with the pulse ring", () => {
+    expect(touchPointerGlyph(1)).toContain('r="14"');
+    expect(touchPointerGlyph(2)).toContain('r="28"');
+    expect(touchPointerGlyph(2)).toContain('stroke-width="4"');
+    expect(touchPointerGlyph(0)).toContain('r="14"'); // a zero/invalid scale falls back to 1
+    expect(markup("touch")).toContain("cursor-click-0");
+  });
+
+  it("hides the disc while the script has it hidden (show/hide events drive its opacity)", () => {
+    const touch = markup("touch");
+    const vis = /@keyframes co-vis-[0-9a-z]+\{([^}]*(?:\}[^@]*?)*)\}/.exec(touch)?.[0] ?? "";
+    expect(vis).toContain("opacity:1");
+    expect(vis).toContain("opacity:0");
   });
 });
