@@ -69,6 +69,23 @@ function requireGlassbox(root: string): void {
   }
 }
 
+export function glassboxToolCommand(
+  tool: "npm" | "tsx",
+  root: string,
+  platform: NodeJS.Platform = process.platform,
+): { file: string; shell: boolean } {
+  const windows = platform === "win32";
+  return {
+    file:
+      tool === "npm"
+        ? windows
+          ? "npm.cmd"
+          : "npm"
+        : resolve(root, windows ? "node_modules/.bin/tsx.cmd" : "node_modules/.bin/tsx"),
+    shell: windows,
+  };
+}
+
 function nextPort(start = 4188): Promise<number> {
   return import("node:net").then(
     ({ createServer }) =>
@@ -489,12 +506,13 @@ async function runCandidate(
 }
 
 function startGlassbox(root: string, port: number, configDir: string): ChildProcess {
-  const tsx = resolve(root, "node_modules/.bin/tsx");
+  const tsx = glassboxToolCommand("tsx", root);
   const child = spawn(
-    tsx,
+    tsx.file,
     ["src/cli.ts", "--demo:1", "--no-open", "--strict-port", "--ai-service-test", "--port", String(port)],
     {
       cwd: root,
+      shell: tsx.shell,
       env: { ...process.env, GLASSBOX_CONFIG_DIR: configDir },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -508,7 +526,12 @@ async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   requireGlassbox(options.glassboxRoot);
   mkdirSync(GENERATED_DIR, { recursive: true });
-  execFileSync("/bin/zsh", ["-ic", "npm run build:client"], { cwd: options.glassboxRoot, stdio: "inherit" });
+  const npm = glassboxToolCommand("npm", options.glassboxRoot);
+  execFileSync(npm.file, ["run", "build:client"], {
+    cwd: options.glassboxRoot,
+    shell: npm.shell,
+    stdio: "inherit",
+  });
   const configDir = mkdtempSync(resolve(tmpdir(), "domotion-glassbox-benchmark-"));
   const port = await nextPort();
   const url = `http://127.0.0.1:${String(port)}`;

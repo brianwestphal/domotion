@@ -3924,6 +3924,7 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "benchmarks/glassbox/glassbox.project.json",
+        "benchmarks/glassbox/README.md",
         "benchmarks/glassbox/run.ts",
         "benchmarks/glassbox/launch.html",
         "benchmarks/glassbox/handoff.html",

@@ -3,7 +3,11 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseStudioProjectJson } from "../src/studio/project.js";
-import { glassboxBenchmarkHealDecision, glassboxBenchmarkReviewDecision } from "../benchmarks/glassbox/run.js";
+import {
+  glassboxBenchmarkHealDecision,
+  glassboxBenchmarkReviewDecision,
+  glassboxToolCommand,
+} from "../benchmarks/glassbox/run.js";
 
 const PROJECT_PATH = resolve("benchmarks/glassbox/glassbox.project.json");
 
@@ -12,6 +16,19 @@ function project() {
 }
 
 describe("Glassbox Studio acceptance benchmark", () => {
+  it("resolves npm and tsx executables without a platform-specific login shell", () => {
+    expect(glassboxToolCommand("npm", "/work/glassbox", "linux")).toEqual({ file: "npm", shell: false });
+    expect(glassboxToolCommand("tsx", "/work/glassbox", "linux")).toEqual({
+      file: "/work/glassbox/node_modules/.bin/tsx",
+      shell: false,
+    });
+    expect(glassboxToolCommand("npm", "C:/work/glassbox", "win32")).toEqual({ file: "npm.cmd", shell: true });
+    expect(glassboxToolCommand("tsx", "C:/work/glassbox", "win32")).toMatchObject({
+      file: expect.stringContaining("tsx.cmd"),
+      shell: true,
+    });
+  });
+
   it("keeps the AI-authored story, real workflow, brand treatments, hooks, and outputs in durable project JSON", () => {
     const value = project();
     expect(value.review.revisions[0].author.kind).toBe("ai");

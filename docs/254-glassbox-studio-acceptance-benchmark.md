@@ -9,6 +9,7 @@ tickets: ["DM-2697"]
 code:
   [
     "benchmarks/glassbox/glassbox.project.json",
+    "benchmarks/glassbox/README.md",
     "benchmarks/glassbox/run.ts",
     "benchmarks/glassbox/launch.html",
     "benchmarks/glassbox/handoff.html",
@@ -114,8 +115,15 @@ repair, and the review edit-to-accept transition.
 
 `npm run benchmark:glassbox` is the live end-to-end acceptance run against the
 sibling Glassbox checkout. It builds Glassbox's client, launches its real demo
-server in an isolated config directory, captures the complete semantic flow,
+server in an isolated config directory, seeds its AI preferences through
+`POST /api/ai/preferences`, captures the complete semantic flow,
 forces the AI review revision, renders and reviews video, runs the controlled UI
 change through heal/recapture/review, verifies self-containment, writes evidence,
 and publishes the accepted baseline. `npm run benchmark:glassbox:quick` performs
 both browser passes without video or publication for iteration.
+
+The runner accepts `--simulate-ui-change` to enable the controlled healing
+pass, `--no-video` to skip video export/review, and `--no-publish` to leave
+Glassbox assets untouched. `--glassbox-root <dir>` selects a checkout and takes
+precedence over `GLASSBOX_ROOT`; otherwise the sibling checkout is used. See
+[the benchmark README](../benchmarks/glassbox/README.md) for the normal commands.
