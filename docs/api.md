@@ -103,6 +103,13 @@ live DOM and produces a serializable element tree the renderer can consume.
 Pure functions that take a captured tree and emit SVG markup. No DOM access,
 no Playwright dependency — these are the "node-side" half of the pipeline.
 
+The `capture` CLI also accepts `--flatten-nested-svg` to emit safely flattenable
+inlined SVG images as transformed `<g>` elements for importers that mishandle
+nested `<svg>`. It defaults off and retains the nested SVG for unsafe sources;
+see [native SVG image inlining](96-native-svg-image-inlining.md).
+The flag's process-level setter is internal and is not exported from
+`domotion-svg/render`.
+
 | Export                                                                                                                                                  | Kind             | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `elementTreeToSvg`                                                                                                                                      | function         | Render a captured element tree into a **complete `<svg>` document**. `{ realTextLayer: true }` appends paintless authored `<text>` for inline-SVG search, selection, copy, and accessibility; see docs 260. `{ renderTextMode: "system-font" }` selects the text-emit strategy for this call through an isolated text-engine document; see docs 261–262.                                                                                                                                      |

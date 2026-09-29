@@ -1484,6 +1484,8 @@
       "code": [
         "src/capture/embed.ts",
         "src/cli/animate.ts",
+        "src/cli/capture.ts",
+        "src/cli/index.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/resolve-svg-source.test.ts",
         "src/render/svg-inline.test.ts",
