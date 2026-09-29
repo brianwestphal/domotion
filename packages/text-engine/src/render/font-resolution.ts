@@ -3984,10 +3984,9 @@ export function resolveSystemFallbackKeyForCp(
  * A language-SCRIPT tag (`zh-Hans`) is passed through as-is and simply does not
  * discriminate, which is the same outcome as sending no locale. Mapping script
  * subtags onto regions (`Hans`→`cn`) would be inventing a table rather than
- * transcribing one, and the file that would settle what Chrome does here —
- * `ui/gfx/font_fallback_linux.cc` — is NOT in the local checkout (it carries the
- * Blink tree, not `ui/gfx`). Left alone deliberately, and recorded on the ticket
- * as the one open question rather than guessed at.
+ * transcribing one. Chrome does not do it either: `GetFallbackFontForChar` adds
+ * the locale string verbatim as `FC_LANG` (`ui/gfx/font_fallback_linux.cc:251-253`,
+ * chromium 7d859f27), so passing the tag through whole is the transcription.
  */
 export function fcLangProperty(lang?: string): string {
   if (lang == null) return "";
