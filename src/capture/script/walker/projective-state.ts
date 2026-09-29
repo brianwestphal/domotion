@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Projective (3D / perspective) frame state and homography math, extracted from
 // the capture script's `captureInner`. Part of the page-`evaluate`d CAPTURE_SCRIPT
@@ -6,8 +5,33 @@
 // orchestrator: everything the orchestrator owns (the CDP-supplied facts, the
 // non-affine owner set, the absolute-homography map) is passed in per call.
 
+import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
+import type { CaptureScriptArgs } from "../../types.js";
+
+type Matrix3 = number[];
+interface Point {
+  x: number;
+  y: number;
+}
+interface Viewport {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+/** The subset of DOMRect the projective math reads. */
+interface LayoutRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+type Warn = (selector: string, feature: string, detail: string) => void;
+
 /** 3×3 homography inverse (row-major); null when singular or non-finite. */
-export const invertH = (m) => {
+export const invertH = (m: Matrix3): Matrix3 | null => {
   const [a, b, c, d, e, f, g, h, i] = m;
   const A = e * i - f * h,
     B = c * h - b * i,
@@ -24,7 +48,7 @@ export const invertH = (m) => {
 };
 
 /** 3×3 homography product `a · b` (row-major). */
-export const mulH = (a, b) => [
+export const mulH = (a: Matrix3, b: Matrix3): Matrix3 => [
   a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
   a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
   a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
@@ -37,7 +61,7 @@ export const mulH = (a, b) => [
 ];
 
 /** The homography mapping an element's layout rect (viewport-relative) onto its projected quad. */
-export const homographyForRect = (vp, rect, q) => {
+export const homographyForRect = (vp: Viewport, rect: LayoutRect, q: Point[]): Matrix3 | null => {
   const x = rect.left - vp.x,
     y = rect.top - vp.y,
     w = rect.width,
@@ -54,7 +78,11 @@ export const homographyForRect = (vp, rect, q) => {
  * The CDP-sampled frame state recorded for a projective element, or undefined when the
  * capture carries no sample time or the element has no influenced fact.
  */
-export const projectiveFrameStateFor = (args, fact, ownsRasterBoundary) => {
+export const projectiveFrameStateFor = (
+  args: CaptureScriptArgs,
+  fact: ProjectivePaintNodeFact | undefined,
+  ownsRasterBoundary: boolean,
+) => {
   if (
     typeof args.projectiveSampleTimeMs === "number" &&
     isFinite(args.projectiveSampleTimeMs) &&
@@ -91,7 +119,13 @@ export const projectiveFrameStateFor = (args, fact, ownsRasterBoundary) => {
  * back-facing element hides itself. Null when there is no quad, the rect is empty, or the
  * quad degenerates.
  */
-export const projectiveTransformFor = (vp, rect, quad, parentAbsolute, backfaceVisibility) => {
+export const projectiveTransformFor = (
+  vp: Viewport,
+  rect: LayoutRect,
+  quad: Point[] | undefined,
+  parentAbsolute: Matrix3 | undefined,
+  backfaceVisibility: string,
+) => {
   if (quad == null || !(rect.width > 0 && rect.height > 0)) return null;
   const absolute = homographyForRect(vp, rect, quad);
   if (absolute == null) return null;
@@ -109,7 +143,12 @@ export const projectiveTransformFor = (vp, rect, quad, parentAbsolute, backfaceV
  * encode a projective fourth corner or preserve-3d flattening, so the outermost 3D context is one Chromium
  * raster; descendants stay in the tree for metadata and paint ordering.
  */
-export const transformSubtreeRasterFor = (el, rect, vp, sourceNodeIndex) => {
+export const transformSubtreeRasterFor = (
+  el: Element,
+  rect: LayoutRect,
+  vp: Viewport,
+  sourceNodeIndex: number | undefined,
+) => {
   let _left = rect.left,
     _top = rect.top,
     _right = rect.right,
@@ -147,8 +186,20 @@ export const transformSubtreeRasterFor = (el, rect, vp, sourceNodeIndex) => {
  * to the legacy scalar font/rect approximation for that transformed subtree — and are reported.
  * Returns the raster, or undefined when the subtree stays vector.
  */
-export const transformSubtreeRasterOwner = ({ makeRaster, ownsRasterBoundary, textPaintFact, warn, selector }) => {
-  let raster;
+export const transformSubtreeRasterOwner = ({
+  makeRaster,
+  ownsRasterBoundary,
+  textPaintFact,
+  warn,
+  selector,
+}: {
+  makeRaster: () => ReturnType<typeof transformSubtreeRasterFor>;
+  ownsRasterBoundary: boolean;
+  textPaintFact: { surfaceReason?: string | null } | null | undefined;
+  warn: Warn;
+  selector: () => string;
+}) => {
+  let raster: ReturnType<typeof transformSubtreeRasterFor> | undefined;
   if (ownsRasterBoundary) raster = makeRaster();
   if (textPaintFact != null && textPaintFact.surfaceReason != null && raster == null) {
     raster = makeRaster();
@@ -176,6 +227,16 @@ export const projectiveStateFor = ({
   quad,
   parentAbsolute,
   recordAbsolute,
+}: {
+  args: CaptureScriptArgs;
+  vp: Viewport;
+  cs: { backfaceVisibility: string };
+  rect: LayoutRect;
+  fact: ProjectivePaintNodeFact | undefined;
+  ownsRasterBoundary: boolean;
+  quad: Point[] | undefined;
+  parentAbsolute: Matrix3 | undefined;
+  recordAbsolute: (absolute: Matrix3) => void;
 }) => {
   const projectiveFrameState = projectiveFrameStateFor(args, fact, ownsRasterBoundary);
   const projective = projectiveTransformFor(vp, rect, quad, parentAbsolute, cs.backfaceVisibility);

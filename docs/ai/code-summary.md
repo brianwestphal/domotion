@@ -19,6 +19,16 @@ loading the historical documentation corpus.
   `src/capture/script/walker/capture-phases.ts`. The capture build inlines those
   importable/testable phases back into one self-contained `page.evaluate`
   function, so no module boundary leaks into the captured page (DM-2639).
+  `captureInner` (the per-element walk) is a short orchestrator over named
+  handlers under `walker/`: `projective-state.ts` (3D facts and homography),
+  `native-controls.ts` (appearance ownership, decoration parts, file input),
+  `text-phase.ts`, `image-elements.ts`, `style-record.ts` (the `styles` record),
+  `element-rasters.ts` (scrollbar/native-control/backdrop sub-records),
+  `fidelity-warnings.ts`, `scroll-markers.ts`, `iframe-recursion.ts`, and
+  `counter-scopes.ts`. The Node caller and the script share the typed
+  `CaptureScriptArgs` bag (`capture/types.ts`), and `capture/tree-shape.ts`
+  validates what `page.evaluate` returns. Modules without `@ts-nocheck` are
+  type-checked under the repo's strict config.
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
   decisions; it does not independently lay out the page. Browser-faithful text
   is a private workspace at `packages/text-engine/`: it owns resolution,

@@ -1,14 +1,25 @@
-// @ts-nocheck
 //
 // Fidelity warnings for features the renderer cannot fully round-trip, extracted from the capture
 // script's `captureInner`. They are emitted in two groups because mask/clip/filter discovery (which can
 // warn itself) runs between them and warning order is part of the capture's observable output. Part of the
 // page-`evaluate`d CAPTURE_SCRIPT bundle — self-contained, page globals only.
 
-export const createFidelityWarnings = (ctx) => {
+type Warn = (selector: string, feature: string, detail: string) => void;
+interface FrameAuthority {
+  access?: string;
+  frameId?: string;
+}
+interface FidelityWarningsContext {
+  warn: Warn;
+  _iframeIsRecursable: (el: Element) => unknown;
+  _iframeFrameAuthority: (el: Element) => FrameAuthority | null | undefined;
+  _frameScrollKey: string;
+}
+
+export const createFidelityWarnings = (ctx: FidelityWarningsContext) => {
   const { warn, _iframeIsRecursable, _iframeFrameAuthority, _frameScrollKey } = ctx;
   /** Warnings that precede mask / clip-path / filter discovery. */
-  const warnBeforeMaskDiscovery = (el, cs, sel) => {
+  const warnBeforeMaskDiscovery = (el: Element, cs: CSSStyleDeclaration, sel: string) => {
     if (cs.transform && cs.transform.startsWith("matrix3d")) {
       warn(sel, "transform-3d", "static 3D plane projected to vector SVG from Chromium-measured corners");
     }
@@ -28,7 +39,7 @@ export const createFidelityWarnings = (ctx) => {
     }
   };
   /** Warnings that follow mask / clip-path / filter discovery. */
-  const warnAfterMaskDiscovery = (el, cs, tag, sel) => {
+  const warnAfterMaskDiscovery = (el: Element, cs: CSSStyleDeclaration, tag: string, sel: string) => {
     if (cs.borderImageSource && cs.borderImageSource !== "none") {
       warn(sel, "border-image", "9-slice composition pending (SK-466); border-image-source ignored");
     }

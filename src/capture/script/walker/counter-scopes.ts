@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // CSS counter scope pre-walk, extracted from the capture script's orchestrator
 // (`captureDocumentTree`). Part of the page-`evaluate`d CAPTURE_SCRIPT bundle —
@@ -16,9 +15,25 @@
 // descendants; counter() resolves to the innermost ancestor's value;
 // counters() joins all values along the ancestor chain (outermost first).
 
+interface CounterEntry {
+  name: string;
+  value: number;
+  owner: Element;
+  scopeParent: Element | null;
+}
+interface CounterValue {
+  name: string;
+  value: number;
+}
+interface CounterSnapshots {
+  element: CounterValue[];
+  "::before": CounterValue[];
+  "::after": CounterValue[] | null;
+}
+
 export const createCounterScopes = () => {
-  const _counterSnapshot = new WeakMap();
-  function _parseCounterDecl(declStr, defaultValue) {
+  const _counterSnapshot = new WeakMap<Element, CounterSnapshots>();
+  function _parseCounterDecl(declStr: string, defaultValue: number): CounterValue[] {
     if (!declStr || declStr === "none") return [];
     // Format: "name1 [num] name2 [num] ..."
     const tokens = declStr.split(/\s+/);
@@ -38,9 +53,9 @@ export const createCounterScopes = () => {
   // Blink keeps one stack per counter name. A counter introduced on an
   // element remains visible to later siblings because its originating
   // element's parent is still an ancestor of those siblings.
-  const _counterStacks = new Map();
-  const _isAncestorOrSelf = (ancestor, node) => ancestor === node || ancestor.contains(node);
-  function _stack(name) {
+  const _counterStacks = new Map<string, CounterEntry[]>();
+  const _isAncestorOrSelf = (ancestor: Element, node: Element) => ancestor === node || ancestor.contains(node);
+  function _stack(name: string): CounterEntry[] {
     let stack = _counterStacks.get(name);
     if (stack == null) {
       stack = [];
@@ -48,7 +63,7 @@ export const createCounterScopes = () => {
     }
     return stack;
   }
-  function _removeStale(name, el) {
+  function _removeStale(name: string, el: Element) {
     const stack = _stack(name);
     while (stack.length > 0) {
       const parent = stack[stack.length - 1].scopeParent;
@@ -56,17 +71,17 @@ export const createCounterScopes = () => {
       stack.pop();
     }
   }
-  function _findInnermost(name) {
+  function _findInnermost(name: string): CounterEntry | null {
     const stack = _stack(name);
     return stack.length ? stack[stack.length - 1] : null;
   }
-  function _snapshotCounters() {
-    const result = [];
+  function _snapshotCounters(): CounterValue[] {
+    const result: CounterValue[] = [];
     for (const [name, stack] of _counterStacks) for (const entry of stack) result.push({ name, value: entry.value });
     return result;
   }
-  function _applyCounterStyle(owner, scopeParent, style) {
-    const touched = new Set();
+  function _applyCounterStyle(owner: Element, scopeParent: Element | null, style: CSSStyleDeclaration) {
+    const touched = new Set<string>();
     const resets = _parseCounterDecl(style.counterReset, 0);
     const increments = _parseCounterDecl(style.counterIncrement, 1);
     const sets = _parseCounterDecl(style.counterSet, 0);
@@ -89,7 +104,7 @@ export const createCounterScopes = () => {
     }
     return touched;
   }
-  function _counterPreWalk(el) {
+  function _counterPreWalk(el: Element) {
     const cs = window.getComputedStyle(el);
     // DM-705 / DM-706: CSS Lists 3 §2.3 ("Properties on a single element are
     // processed in the order reset, increment, set") — increment runs BEFORE
@@ -101,7 +116,11 @@ export const createCounterScopes = () => {
     const touched = _applyCounterStyle(el, el.parentElement, cs);
     const beforeStyle = window.getComputedStyle(el, "::before");
     for (const name of _applyCounterStyle(el, el, beforeStyle)) touched.add(name);
-    const snapshots = { element: _snapshotCounters(), "::before": _snapshotCounters(), "::after": null };
+    const snapshots: CounterSnapshots = {
+      element: _snapshotCounters(),
+      "::before": _snapshotCounters(),
+      "::after": null,
+    };
     for (const child of el.children) _counterPreWalk(child);
     const afterStyle = window.getComputedStyle(el, "::after");
     for (const name of _applyCounterStyle(el, el, afterStyle)) touched.add(name);
