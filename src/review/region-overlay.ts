@@ -25,6 +25,7 @@ const MIN_SIZE = 4; // px in source-PNG space — smaller rectangles snap-collap
 const DRAG_THRESHOLD = 4; // px in source-PNG space — below this on pointerup, treat as click, not draw
 
 export interface Rect {
+  /** 1-based label, unique within a card; renumbered densely after a delete. */
   index: number;
   x: number;
   y: number;
@@ -35,7 +36,7 @@ export interface Rect {
 }
 
 export interface OverlayHandle {
-  /** Snapshot the current rectangles, sorted by index. */
+  /** Snapshot the current rectangles, sorted by (1-based) index. */
   getRegions(): Rect[];
   /** DM-952: write a caption onto the rect at the given index. The
    *  caption persists across reindex-after-delete operations because
@@ -118,7 +119,19 @@ function resizeCursor(h: ResizeHandles): string {
   return "default";
 }
 
+// One overlay per card: a second `enableRegionOverlays(card)` would wrap the figures in a second
+// `.region-stage` and stack a second set of listeners over the first, so it returns the existing handle.
+const handleByCard = new WeakMap<HTMLElement, OverlayHandle>();
+
 export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
+  const existing = handleByCard.get(card);
+  if (existing != null) return existing;
+  const handle = createRegionOverlays(card);
+  if (card.querySelector(".region-overlay") != null) handleByCard.set(card, handle);
+  return handle;
+}
+
+function createRegionOverlays(card: HTMLElement): OverlayHandle {
   const figureEls = Array.from(card.querySelectorAll<HTMLElement>(".imgs figure[data-src]"));
   if (figureEls.length === 0) {
     return {
@@ -373,32 +386,45 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
       if (wasPending) onClickThrough();
     };
 
+    // A cancelled gesture (the browser took the pointer for a scroll, the pointer left the window, ...)
+    // is not a click: it must not fall through to the lightbox, and a rectangle that was still being
+    // drawn is abandoned rather than left half-drawn. A cancelled resize keeps its last geometry.
+    const cancelDrag = (ev: PointerEvent): void => {
+      if (drag == null) return;
+      if (ctx.svg.hasPointerCapture(ev.pointerId)) ctx.svg.releasePointerCapture(ev.pointerId);
+      if (drag.kind === "draw") {
+        rects.pop();
+        repaintAll();
+      }
+      drag = null;
+    };
+
     ctx.svg.addEventListener("pointermove", onHoverMove);
     ctx.svg.addEventListener("pointerdown", onPointerDown);
     ctx.svg.addEventListener("pointermove", onDragMove);
     ctx.svg.addEventListener("pointerup", endDrag);
-    ctx.svg.addEventListener("pointercancel", endDrag);
+    ctx.svg.addEventListener("pointercancel", cancelDrag);
 
     return () => {
       ctx.svg.removeEventListener("pointermove", onHoverMove);
       ctx.svg.removeEventListener("pointerdown", onPointerDown);
       ctx.svg.removeEventListener("pointermove", onDragMove);
       ctx.svg.removeEventListener("pointerup", endDrag);
-      ctx.svg.removeEventListener("pointercancel", endDrag);
+      ctx.svg.removeEventListener("pointercancel", cancelDrag);
     };
   }
 
   for (const ctx of figures) wireFigure(ctx);
 
   return {
-    getRegions: () => rects.map((r) => ({ ...r })),
+    getRegions: () => rects.map((r) => ({ ...r })).sort((a, b) => a.index - b.index),
     setCaption: (index: number, caption: string) => {
       const target = rects.find((r) => r.index === index);
       if (target == null) return;
       target.caption = caption;
     },
     addRegion: (rect) => {
-      rects.push({ ...rect, index: rects.length });
+      rects.push({ ...rect, index: nextIndex() });
       repaintAll();
     },
     clear: () => {
@@ -407,8 +433,9 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
     },
     addView: (img, svg, onClickThrough) => {
       svg.setAttribute("preserveAspectRatio", "none");
+      const onLoad = (): void => updateSourceFromImg(img, svg);
       if (img.complete) updateSourceFromImg(img, svg);
-      else img.addEventListener("load", () => updateSourceFromImg(img, svg));
+      else img.addEventListener("load", onLoad);
       // A synthetic figure host for the click-through path's
       // legacy-fallback (the caller normally supplies an explicit override
       // for the lightbox — close the maximised view on click — so the
@@ -420,8 +447,11 @@ export function enableRegionOverlays(card: HTMLElement): OverlayHandle {
       repaint(ctx);
       return () => {
         teardown();
+        img.removeEventListener("load", onLoad);
         const idx = figures.indexOf(ctx);
         if (idx >= 0) figures.splice(idx, 1);
+        // The caller owns the <svg> element but not the rectangles this view painted into it.
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
       };
     },
   };

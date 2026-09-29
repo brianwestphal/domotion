@@ -19,6 +19,7 @@
  */
 
 import { enableRegionOverlays, type Rect } from "./region-overlay.js";
+import { applyLightboxAspect, createLightboxOverlayBinding } from "./lightbox.js";
 
 declare global {
   interface Window {
@@ -75,7 +76,7 @@ function rebuildRegionList(): void {
     const row = document.createElement("div");
     row.className = "region-row";
     const idx = document.createElement("strong");
-    idx.textContent = `#${r.index + 1}`;
+    idx.textContent = `#${r.index}`;
     const input = document.createElement("input");
     input.type = "text";
     input.placeholder = `(${Math.round(r.x)}, ${Math.round(r.y)}, ${Math.round(r.w)}×${Math.round(r.h)}) — describe what's wrong here`;
@@ -134,8 +135,8 @@ function buildIssueMarkdown(): string {
           "| # | Region (x, y, w, h) | What's wrong |",
           "|--:|---|---|",
           ...regions.map(
-            (r, i) =>
-              `| ${i + 1} | (${Math.round(r.x)}, ${Math.round(r.y)}, ${Math.round(r.w)}, ${Math.round(r.h)}) | ${r.caption.replace(/\|/g, "\\|") || "_(describe)_"} |`,
+            (r) =>
+              `| ${r.index} | (${Math.round(r.x)}, ${Math.round(r.y)}, ${Math.round(r.w)}, ${Math.round(r.h)}) | ${r.caption.replace(/\|/g, "\\|") || "_(describe)_"} |`,
           ),
         ].join("\n");
   return `### Domotion render fidelity issue
@@ -198,52 +199,25 @@ let lightboxReturnFocus: HTMLElement | null = null;
 const figureImgs = Array.from(card.querySelectorAll<HTMLImageElement>(".imgs figure img"));
 const figureSrcs = figureImgs.map((i) => i.dataset["src"] ?? i.src);
 
-// DM-976: track the overlay view attached to the lightbox so we can
-// detach when closing. The same overlay handle drives both the card's
-// three figures AND the lightbox image — drawing in the lightbox edits
-// the same shared rects array, so a rect drawn while zoomed in shows up
-// on the thumbnails when the user closes the lightbox.
-let lbOverlayDetach: (() => void) | null = null;
-function attachLightboxOverlay(): void {
-  if (lbOverlayDetach != null) return;
-  // Clear leftover children from previous detach — addView() repaints fresh.
-  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
-  lbOverlayDetach = overlay.addView(lbImg, lbOverlay, closeLightbox);
-}
-function detachLightboxOverlay(): void {
-  if (lbOverlayDetach != null) lbOverlayDetach();
-  lbOverlayDetach = null;
-  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
-}
-
-// Apply the `.tall` class so a taller-than-wide image scales to viewport
-// width and the lightbox container scrolls vertically. Mirror of the
-// matching demos:review behavior.
-function applyLightboxAspect(): void {
-  const setAspect = (w: number, h: number): void => {
-    lightbox.classList.toggle("tall", h > w);
-  };
-  if (lbImg.naturalWidth > 0 && lbImg.naturalHeight > 0) {
-    setAspect(lbImg.naturalWidth, lbImg.naturalHeight);
-    return;
-  }
-  lbImg.addEventListener("load", () => setAspect(lbImg.naturalWidth, lbImg.naturalHeight), { once: true });
-}
+// DM-976: the same overlay handle drives both the card's three figures AND the lightbox image, so
+// drawing in the lightbox edits the shared rects and a rect drawn while zoomed in shows up on the
+// thumbnails when the lightbox closes.
+const lbBinding = createLightboxOverlayBinding(lbImg, lbOverlay, () => closeLightbox());
 
 function openLightboxAt(i: number): void {
   if (lbIndex < 0) lightboxReturnFocus = document.activeElement as HTMLElement | null;
   lbIndex = i;
   lbImg.src = figureSrcs[i]!;
   lightbox.classList.add("open");
-  applyLightboxAspect();
-  attachLightboxOverlay();
+  applyLightboxAspect(lightbox, lbImg);
+  lbBinding.attach(overlay);
   lightboxClose.focus();
 }
 function closeLightbox(): void {
   lbIndex = -1;
   lightbox.classList.remove("open");
   lightbox.classList.remove("tall");
-  detachLightboxOverlay();
+  lbBinding.detach();
   lightboxReturnFocus?.focus();
   lightboxReturnFocus = null;
 }
@@ -252,7 +226,7 @@ function closeLightbox(): void {
 // and captures pointer events for drag-to-draw / resize / delete. When a
 // pointerup is a non-drag click (just a tap), the overlay's wireFigure
 // dispatches a synthetic click on the parent `<figure>` (target = figure)
-// — see `region-overlay.ts:352`. Listen on the figure so that synthetic
+// — see the `onClickThrough` fallback in `region-overlay.ts`. Listen on the figure so that synthetic
 // click reaches us, AND skip any click whose original target lives inside
 // `.region-overlay` (drag-end of a real draw, resize-handle release,
 // interior-click delete). Without that skip the native browser click that

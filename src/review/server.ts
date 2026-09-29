@@ -26,7 +26,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { startLocalServer, sendBuffer } from "../utils/local-server.js";
 import { readFileSync, existsSync } from "node:fs";
-import { extname } from "node:path";
+import { basename, extname } from "node:path";
 import { REVIEW_CLIENT_JS } from "./client.bundle.generated.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
 
@@ -126,7 +126,7 @@ function renderShell(label: string): string {
 }
 
 export async function startReviewServer(inputs: ReviewServerInputs): Promise<ReviewServer> {
-  const label = inputs.label ?? inputs.actualSvg.split("/").pop() ?? "svg-review";
+  const label = inputs.label ?? (basename(inputs.actualSvg) || "svg-review");
   const clientJs = REVIEW_CLIENT_JS;
   // Read the static images once at startup, into memory. They're snapshot
   // files that don't mutate during the review session, so serving the cached
@@ -170,7 +170,7 @@ export async function startReviewServer(inputs: ReviewServerInputs): Promise<Rev
       // Never let a handler throw take down the process (mirrors scrubber/server.ts).
       try {
         res.writeHead(500, { "content-type": "text/plain" });
-        res.end(`svg-review error: ${(err as Error).message}`);
+        res.end(`svg-review error: ${err instanceof Error ? err.message : String(err)}`);
       } catch {
         /* response already partially written */
       }

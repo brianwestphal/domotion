@@ -21,6 +21,7 @@ import { signal, computed, each, effect, mount, delegate } from "kerfjs";
 
 import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./review-region-overlay.js";
 import { LOGICAL_CLASSIFICATIONS } from "../src/review/logical-classification.js";
+import { applyLightboxAspect, createLightboxOverlayBinding } from "../src/review/lightbox.js";
 import type { RelevantStageEvidence } from "../src/review/stage-evidence.js";
 
 type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "real-world";
@@ -591,46 +592,13 @@ mount(summaryEl, () => <SuiteSummary />);
 
 // ── Lightbox ──
 
-// Track the currently-attached fullscreen overlay so we can detach when the
-// lightbox closes or hops to a figure on a different card.
-let lbOverlayDetach: (() => void) | null = null;
-let lbOverlayCard: HTMLElement | null = null;
+// The fullscreen overlay stays attached across arrow-key navigation within one card's triplet and is
+// re-attached when the lightbox hops to a figure on a different card (see lightbox.ts).
+const lbBinding = createLightboxOverlayBinding(lbImg, lbOverlay, () => closeLightbox());
 
 function attachLightboxOverlay(card: HTMLElement): void {
-  // Already attached to this card → leave it alone so the user's in-flight
-  // rectangles continue to live across arrow-key navigation within the same
-  // triplet.
-  if (lbOverlayCard === card) return;
-  detachLightboxOverlay();
   const handle = overlayByCard.get(card);
-  if (handle == null) return;
-  // Clear any leftover children from a previous detach — addView() repaints
-  // fresh, but the SVG is the same node across openings.
-  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
-  lbOverlayDetach = handle.addView(lbImg, lbOverlay, closeLightbox);
-  lbOverlayCard = card;
-}
-
-function detachLightboxOverlay(): void {
-  if (lbOverlayDetach != null) lbOverlayDetach();
-  lbOverlayDetach = null;
-  lbOverlayCard = null;
-  while (lbOverlay.firstChild != null) lbOverlay.removeChild(lbOverlay.firstChild);
-}
-
-// Apply the `.tall` class so taller-than-wide images take the full viewport
-// width and the lightbox container scrolls vertically (DM-736). Falls back
-// to the dataset width/height of the figure if the image hasn't loaded yet.
-function applyLightboxAspect(figure: HTMLElement): void {
-  const setAspect = (w: number, h: number): void => {
-    lb.classList.toggle("tall", h > w);
-  };
-  if (lbImg.naturalWidth > 0 && lbImg.naturalHeight > 0) {
-    setAspect(lbImg.naturalWidth, lbImg.naturalHeight);
-    return;
-  }
-  // Wait for the first load to know the aspect ratio.
-  lbImg.addEventListener("load", () => setAspect(lbImg.naturalWidth, lbImg.naturalHeight), { once: true });
+  if (handle != null) lbBinding.attach(handle);
 }
 
 function showLightboxAt(idx: number, opts: { preserveScroll?: boolean } = {}): void {
@@ -661,7 +629,7 @@ function showLightboxAt(idx: number, opts: { preserveScroll?: boolean } = {}): v
 
 function closeLightbox(): void {
   lbOpen.value = false;
-  detachLightboxOverlay();
+  lbBinding.detach();
   lbFigures = [];
   lbIndex.value = -1;
 }
@@ -674,7 +642,7 @@ effect(() => {
     const src = fig.dataset["src"];
     if (src != null) lbImg.src = src;
     lb.classList.add("open");
-    applyLightboxAspect(fig);
+    applyLightboxAspect(lb, lbImg);
     const card = fig.closest<HTMLElement>(".card");
     if (card != null) attachLightboxOverlay(card);
   } else {

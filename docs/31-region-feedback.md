@@ -44,8 +44,10 @@ This feature touches two surfaces and a metadata format that bridges them:
 - **Draw**: mousedown-drag-mouseup on any of the three images draws a rectangle. The same pixel-coord rectangle is mirrored onto the two sibling images (the triplet is always the same dimensions in the real-world suite; same-size-only is enforced).
 - **Resize**: dragging an edge of an existing rectangle resizes it; the change mirrors across the triplet.
 - **Delete**: clicking the _interior_ of an existing rectangle removes it from all three images.
+- **Cancelled gestures**: a `pointercancel` (the browser took the pointer, it left the window) is not a click — it never opens the lightbox, and a rectangle still being drawn is abandoned; a cancelled resize keeps its last geometry.
+- **One overlay per card**: `enableRegionOverlays(card)` is idempotent — a second call returns the existing handle rather than nesting another `.region-stage` and stacking listeners. A detached secondary view (the lightbox) clears the rectangles it painted into the caller's `<svg>`.
 - **Multiple**: the user can have any number of rectangles in flight before submitting.
-- **Numbering**: rectangles are auto-numbered `[1]`, `[2]`, … in the order drawn, with the badge rendered at the top-left corner of each overlay. The user can reference them by index in the comment text (_"the missing CTA in [1]"_).
+- **Numbering**: rectangles are auto-numbered `[1]`, `[2]`, … (1-based, unique, dense) in the order drawn or added, with the badge rendered at the top-left corner of each overlay. A rectangle added through the "Add region" control takes the next free number exactly as a dragged one does, and deleting one renumbers the rest with their captions attached. Every consumer (badge, region list `#N`, Markdown rows, the serialized `REGIONS:` block) shows the same `index`. The user can reference them by index in the comment text (_"the missing CTA in [1]"_).
 
 ### Fullscreen / lightbox view
 
