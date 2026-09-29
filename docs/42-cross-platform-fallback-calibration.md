@@ -752,10 +752,12 @@ straight while reading the calibration numbers above:
 ## Acceptance criteria
 
 - **DM-259**: probe results documented per Unicode block on Linux; `linuxFallbackChain`
-  populated; `02-text-symbols` + other text fixtures pass within the 3.5%
-  threshold on Linux (same bar as macOS).
+  populated; the text fixtures pass the Linux feature-suite gate. That gate is
+  the platform hinting-floor cap in `tests/runner.tsx` (`HINTING_FLOOR_PCT`,
+  Linux ≤ 1% coverage), not the 3.5% threshold this record originally cited;
+  macOS stays the strict per-pixel gate (`regionCount === 0`).
 - **DM-260**: same, on Windows; `win32FallbackChain` populated; text fixtures
-  pass within threshold on Windows.
+  pass the Windows cap (≤ 4% coverage).
 - macOS chain byte-for-byte unchanged (regression guard: the existing
   `fallbackFontChain` unit tests still pass on darwin).
 

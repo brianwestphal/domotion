@@ -418,7 +418,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
           suite: suiteName,
           generatedAt: new Date().toISOString(),
           platform: process.platform,
-          browsers: browserNote ?? "default (one browser, no flags)",
+          browsers: browserNote ?? "one browser, no flags",
           results,
         },
         null,

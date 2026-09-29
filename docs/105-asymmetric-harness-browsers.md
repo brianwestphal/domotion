@@ -19,7 +19,7 @@ aliases: ["docs/105-asymmetric-harness-browsers.md", "doc-105"]
 
 # 105 — Asymmetric capture-vs-raster browsers in the visual harnesses
 
-Status: **shipped** (DM-1790). An opt-in mode that lets `tests/runner.tsx` and `tests/html-test-suite.tsx` launch **two** Chromiums — one for the expected paint, one for rasterizing the candidate SVG — so a launch flag can be applied to a single side. Default behavior is unchanged: no flags set ⇒ one browser, exactly as before.
+Status: **shipped** (DM-1790). An opt-in mode that lets `tests/runner.tsx` and `tests/html-test-suite.tsx` launch **two** Chromiums — one for the expected paint, one for rasterizing the candidate SVG — so a launch flag can be applied to a single side. With no environment flags set, a harness runs **one** browser using its own declared launch flags (if any) on both sides; the feature suite declares `--font-render-hinting=none` (see "Harness default flags"), the html-test suite declares none.
 
 ---
 
@@ -42,9 +42,18 @@ Three configurations matter:
 
 | Set             | Result                                                                                                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| neither         | **one** browser for both — the default fast path, unchanged, no extra process                                                       |
+| neither         | **one** browser for both — the default fast path, no extra process, the harness's own default flags (if any) on both sides          |
 | capture only    | **asymmetric**: flagged capture, unflagged raster. The consumer's condition, and the only honest way to measure a capture-only flag |
 | both, identical | symmetric-but-flagged — the coupled behavior the harness has always had, now reachable deliberately rather than by accident         |
+
+### Harness default flags — and replace-not-merge
+
+A harness may declare launch flags of its own, applied to **both** sides so the default stays a single browser (`resolveHarnessFlags(env, defaultLaunchFlags)` in `tests/harness-browsers.ts`, DM-1795):
+
+- `tests/runner.tsx` (the feature suite, `npm run demos:test`) calls `launchHarnessBrowsers(["--font-render-hinting=none"])`. Its baseline condition is therefore **symmetric-unhinted**, on purpose: it pins `paths` mode, where the SVG is vector geometry hinting cannot touch while the expected paint is grid-fitted, so unhinted capture aligns Chromium's paint with Domotion's unhinted outlines (rationale and per-platform measurements are in the comment above the call). macOS and Windows are unmoved by the flag; Linux improves. The reported run condition is `browsers: one, flagged --font-render-hinting=none (capture AND raster …)`.
+- `tests/html-test-suite.tsx` declares no defaults and exercises the shipped embedded-font mode, so it stays flagless (an unhinted capture would diverge from what a consumer's hinted browser paints).
+
+**The environment variables replace the harness defaults; they never merge with them.** If _either_ `DOMOTION_CAPTURE_FLAGS` or `DOMOTION_RASTER_FLAGS` is non-empty, both sides are taken from the environment alone. So `DOMOTION_RASTER_FLAGS=…` by itself silently drops the feature suite's capture-side `--font-render-hinting=none` (capture becomes flagless), and `DOMOTION_CAPTURE_FLAGS="--font-render-hinting=none"` on the feature suite yields the asymmetric _capture-unhinted, raster-default_ condition rather than the symmetric baseline. An experiment controls the whole launch and inherits nothing from the harness it runs in; to keep a default flag, restate it.
 
 ```sh
 # the consumer's condition — capture unhinted, rasterize as a consumer would
