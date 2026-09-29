@@ -58,6 +58,7 @@
 import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
 import { hostname, cpus, release } from "node:os";
 import { inventoryDocument } from "./font-inventory.mjs";
+import { intFlag, parseShardSpec } from "./lib/conformance-args.js";
 
 /**
  * Which machine produced this shard's answers.
@@ -1307,22 +1308,22 @@ export function parseArgs(argv: string[]): Options {
         o.includePua = false;
         break;
       case "--shard": {
-        const m = /^(\d+)\/(\d+)$/.exec(next());
-        if (m == null) throw new Error("--shard wants i/N");
-        o.shard = [parseInt(m[1], 10), parseInt(m[2], 10)];
+        const shard = parseShardSpec(next());
+        if (shard == null) throw new Error("--shard wants i/N");
+        o.shard = [shard.index, shard.total];
         break;
       }
       case "--stack-shard": {
-        const m = /^(\d+)\/(\d+)$/.exec(next());
-        if (m == null) throw new Error("--stack-shard wants i/N");
-        o.stackShard = [parseInt(m[1], 10), parseInt(m[2], 10)];
+        const shard = parseShardSpec(next());
+        if (shard == null) throw new Error("--stack-shard wants i/N");
+        o.stackShard = [shard.index, shard.total];
         break;
       }
       case "--batch":
-        o.batch = parseInt(next(), 10);
+        o.batch = intFlag(a, next());
         break;
       case "--concurrency":
-        o.concurrency = parseInt(next(), 10);
+        o.concurrency = intFlag(a, next());
         break;
       case "--out":
         o.outDir = next();
@@ -1334,16 +1335,16 @@ export function parseArgs(argv: string[]): Options {
         o.strictAlias = true;
         break;
       case "--max-stacks":
-        o.maxStacks = parseInt(next(), 10);
+        o.maxStacks = intFlag(a, next());
         break;
       case "--stack-filter":
         o.stackFilter = next();
         break;
       case "--max-rows":
-        o.maxRows = parseInt(next(), 10);
+        o.maxRows = intFlag(a, next());
         break;
       case "--reset-every":
-        o.resetEvery = parseInt(next(), 10);
+        o.resetEvery = intFlag(a, next(), 0);
         break;
       case "--allow-foreign-corpus":
         o.allowForeignCorpus = true;
@@ -1371,7 +1372,7 @@ export function parseArgs(argv: string[]): Options {
 
 async function main(): Promise<number> {
   const opts = parseArgs(process.argv.slice(2));
-  const browser = await chromium.launch();
+  let browser: Browser | null = null;
   try {
     if (opts.extractStacks) {
       const dirs = opts.sources.filter((d) => existsSync(d));
@@ -1379,6 +1380,7 @@ async function main(): Promise<number> {
         process.stderr.write(`none of the fixture sources exist: ${opts.sources.join(", ")}\n`);
         return 2;
       }
+      browser = await chromium.launch();
       const corpus = await extractStacks(browser, dirs, opts.stacksFile);
       process.stdout.write(`wrote ${corpus.stacks.length} distinct stacks to ${opts.stacksFile}\n`);
       return 0;
@@ -1444,6 +1446,14 @@ async function main(): Promise<number> {
       const [i, n] = opts.shard;
       universe = universe.filter((_, idx) => idx % n === i - 1);
     }
+
+    if (stacks.length === 0 || universe.length === 0) {
+      process.stderr.write(
+        `font-conformance: selected ${universe.length} codepoints and ${stacks.length} stacks; refusing an empty sweep\n`,
+      );
+      return 2;
+    }
+    browser = await chromium.launch();
 
     process.stdout.write(
       `font-conformance: ${universe.length.toLocaleString()} codepoints × ${stacks.length} stacks ` +
@@ -1875,7 +1885,7 @@ async function main(): Promise<number> {
   } finally {
     // Safe no-op when the early-exit paths returned before the sweep began.
     endCharacterFallbackDocument();
-    await browser.close();
+    await browser?.close();
   }
 }
 

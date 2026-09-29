@@ -18,9 +18,11 @@ code:
     "tests/baselines/README.md",
     "tests/fixtures/variable-axis/variable-axis.html",
     "tests/font-conformance-baseline.test.ts",
+    "tests/font-conformance-cli.test.ts",
     "tests/font-conformance-extraction.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
     "tests/font-conformance.test.ts",
+    "tests/conformance-args.test.ts",
     "tests/harvested-corpus-identity.test.ts",
     "tests/variable-axis-fixture.test.ts",
     "tests/variable-axis-oracle-pair.e2e.test.ts",
@@ -33,6 +35,7 @@ code:
     "tools/font-conformance-synthetic-stacks.ts",
     "tools/font-conformance.ts",
     "tools/font-inventory.mjs",
+    "tools/lib/conformance-args.ts",
     "tools/probe-variation-selector-vs-property.mjs",
     "tools/shaping-conformance-runs.json",
     "tools/variable-axis-oracle-pair.ts",
@@ -70,6 +73,11 @@ npx tsx tools/font-conformance.ts --extract-stacks         # re-derive the stack
 ```
 
 Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mismatch, `2` on a harness error. That is what makes it usable as a gate.
+Shard indices are 1-based and must satisfy `1 <= i <= N`; a shard that selects
+zero codepoints or zero stacks exits `2` before launching Chromium instead of
+reporting exact agreement. Numeric count flags require safe positive integers,
+except the documented `--reset-every 0` cache-reset opt-out. The visual harness
+and conformance CLI share the same shard parser in `tools/lib/conformance-args.ts`.
 
 | Flag                     | Meaning                                                                                                                                                                                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -82,6 +90,7 @@ Exit code is `0` when every comparison agrees or is allowlisted, `1` on any mism
 | `--no-pua`               | Drop `\p{Private_Use}` — 137k of the 292k codepoints. Makes the run a subset; the report records it.                                                                                                                                                |
 | `--shard i/N`            | Stride shard over codepoints.                                                                                                                                                                                                                       |
 | `--stack-shard i/N`      | Stride shard over stacks.                                                                                                                                                                                                                           |
+| `--max-stacks n`         | Retain only the first `n` corpus stacks; `n` must be positive.                                                                                                                                                                                      |
 | `--stack-filter text`    | Retain stacks whose complete serialized signature contains the case-insensitive text. This targets a family/style/locale/variation route without changing the codepoint selector.                                                                   |
 | `--batch n`              | Codepoints per probe page (default 8000).                                                                                                                                                                                                           |
 | `--concurrency n`        | Pipelined CDP calls in flight (default 128).                                                                                                                                                                                                        |

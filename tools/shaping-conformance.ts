@@ -49,6 +49,7 @@
  * 2 on a harness error — same contract as the face oracle, so it can gate.
  */
 import { chromium, type Browser } from "@playwright/test";
+import { finiteFlag, intFlag } from "./lib/conformance-args.js";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
@@ -1266,13 +1267,13 @@ export function parseArgs(argv: string[]): Options {
           .filter(Boolean);
         break;
       case "--max-runs":
-        o.maxRuns = parseInt(next(), 10);
+        o.maxRuns = intFlag(a, next());
         break;
       case "--split-words":
         o.splitWords = true;
         break;
       case "--tolerance":
-        o.tolerance = parseFloat(next());
+        o.tolerance = finiteFlag(a, next());
         break;
       case "--allowlist":
         o.allowlistFile = next();
@@ -1281,7 +1282,7 @@ export function parseArgs(argv: string[]): Options {
         o.outDir = next();
         break;
       case "--batch":
-        o.batch = parseInt(next(), 10);
+        o.batch = intFlag(a, next());
         break;
       case "-h":
       case "--help":

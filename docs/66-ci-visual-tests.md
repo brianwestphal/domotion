@@ -25,6 +25,7 @@ code:
     "tests/runner.tsx",
     "tests/shard-completeness.test.ts",
     "tests/shard.ts",
+    "tools/lib/conformance-args.ts",
     "tests/visual-tests-workflow.test.ts",
     "tests/worker-pool.ts",
     "tools/ab-compare-results.mjs",

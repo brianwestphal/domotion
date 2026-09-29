@@ -420,6 +420,25 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--reange", "0000"])).toThrow(/unknown option/);
     expect(() => parseArgs(["--shard", "2"])).toThrow(/i\/N/);
   });
+
+  it("rejects empty and out-of-range shards before starting the oracle", () => {
+    for (const flag of ["--shard", "--stack-shard"]) {
+      expect(() => parseArgs([flag, "0/8"])).toThrow(/out of range/);
+      expect(() => parseArgs([flag, "9/8"])).toThrow(/out of range/);
+      expect(() => parseArgs([flag, "1/0"])).toThrow(/out of range/);
+      expect(() => parseArgs([flag, "9007199254740993/9007199254740993"])).toThrow(/out of range/);
+    }
+  });
+
+  it("rejects malformed numeric flags while retaining reset-every zero", () => {
+    for (const flag of ["--batch", "--concurrency", "--max-stacks", "--max-rows"]) {
+      expect(() => parseArgs([flag, "abc"])).toThrow(/needs an integer/);
+      expect(() => parseArgs([flag, "0"])).toThrow(/needs an integer/);
+      expect(() => parseArgs([flag, "2x"])).toThrow(/needs an integer/);
+    }
+    expect(() => parseArgs(["--reset-every", "abc"])).toThrow(/needs an integer/);
+    expect(parseArgs(["--reset-every", "0"]).resetEvery).toBe(0);
+  });
 });
 
 /**

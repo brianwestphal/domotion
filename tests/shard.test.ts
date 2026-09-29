@@ -20,6 +20,7 @@ describe("parseShardSpec", () => {
     expect(() => parseShardSpec("0/5")).toThrow(); // 1-indexed
     expect(() => parseShardSpec("6/5")).toThrow(); // index > total
     expect(() => parseShardSpec("2/0")).toThrow(); // total < 1
+    expect(() => parseShardSpec("9007199254740993/9007199254740993")).toThrow();
   });
 });
 

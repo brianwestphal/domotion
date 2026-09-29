@@ -112,6 +112,8 @@ plus controlled-healing browser passes.
   source ownership, stage gates, activation, platform coverage, and gaps.
 - `tools/*oracle*`, `tools/*gate*`, and `.github/workflows/` produce and
   adjudicate exact logical, native, and visual evidence.
+- `tools/lib/conformance-args.ts` validates numeric flags and 1-based shard
+  selection for conformance tools and the visual harness.
 - `scripts/install-windows-profile-fixture-fonts.ps1` installs the generated
   Devanagari comparison faces used by the native Windows profile/target gate.
 - `scripts/materialize-source-authorities.mjs` reconstructs the source subset
