@@ -23,7 +23,14 @@ tickets:
     "SK-1225",
     "SK-1226",
   ]
-code: ["src/capture/script/", "src/render/form-controls.ts", "src/render/gradient-defs.ts", "src/render/gradients.ts"]
+code:
+  [
+    "src/capture/script/",
+    "src/render/advanced-gradient-raster.ts",
+    "src/render/form-controls.ts",
+    "src/render/gradient-defs.ts",
+    "src/render/gradients.ts",
+  ]
 aliases: ["docs/07-gradient-fills.md", "doc-07"]
 ---
 
@@ -53,7 +60,14 @@ Our output paints a flat `#4f46e5` (or no fill if the regex misses) instead of t
 - For `linear-gradient(...)` backgrounds, emit an SVG `<linearGradient>` def per gradient occurrence and apply it to the painted rect via `fill="url(#${idPrefix}gradN)"`.
 - Round-trip color stops with explicit positions, color-mix / oklch / lab colors (via the existing `normColor` probe), and `currentColor` references.
 - `radial-gradient(...)`, `conic-gradient(...)`, and the `repeating-*` variants are now all handled too (radial → `<radialGradient>`, conic → rasterized PNG `<pattern>`, repeating → tiled stops); see the Edge-cases / Status sections below.
-- Generalize the gradient-emission helper so the same plumbing works for slider track + thumb (SK-1138, SK-1192, SK-1191), progress / meter (SK-1222, doc 27), and the future input pseudos `::-webkit-color-swatch` etc. (SK-1223, doc 26).
+- Generalize the gradient-emission helper so the same plumbing works for slider track + thumb (SK-1138, SK-1192, SK-1191), progress / meter (SK-1222, doc 05), and the future input pseudos `::-webkit-color-swatch` etc. (SK-1223, doc 04).
+
+Normal page-backed capture sends conic layers and linear/radial layers that
+require CSS interpolation unavailable in SVG through
+`needsChromiumGradientRaster()` in `src/render/advanced-gradient-raster.ts`
+(DM-2308). This includes an explicit `in <space>` color interpolation clause or
+premultiplied-alpha stops. Chromium paints the tile; the renderer embeds it as
+a PNG `<pattern>`. Ordinary linear/radial gradients still use SVG gradient defs.
 
 ## Capture changes
 

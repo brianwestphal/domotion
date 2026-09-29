@@ -5,8 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2620", "DM-2327", "DM-526", "DM-547", "DM-549", "DM-550"]
-code: ["src/render/conic-raster.ts", "src/render/element-tree-to-svg.ts", "src/render/gradients.ts"]
+tickets: ["DM-2620", "DM-2327", "DM-526", "DM-547", "DM-549", "DM-550", "DM-T3A9W9", "DM-GA3VC1"]
+code:
+  [
+    "src/render/advanced-gradient-raster.ts",
+    "src/render/conic-raster.ts",
+    "src/render/element-tree-to-svg.ts",
+    "src/render/gradients.ts",
+  ]
 aliases: ["docs/28-conic-gradient.md", "doc-28"]
 ---
 
@@ -51,8 +57,8 @@ Rejected alternatives:
 
 **Out of scope (deferred):**
 
-- Conic animation via `@property --angle` + transitions. Domotion does not support CSS property animations across frames in general, and conic is no exception.
-- Per-frame conic re-rasterization in animated scenes. The renderer composes static frames; if two frames need different conic content, each frame's layer rasterizes independently — but no transition interpolation between conic instances.
+- Conic animation via `@property --angle` + transitions (DM-GA3VC1). Domotion does not support CSS property animations across frames in general, and conic is no exception.
+- Per-frame conic re-rasterization in animated scenes (DM-GA3VC1). The renderer composes static frames; if two frames need different conic content, each frame's layer rasterizes independently — but no transition interpolation between conic instances.
 
 ## Architecture
 
@@ -62,6 +68,9 @@ Rejected alternatives:
 backgrounds, deduplicates `(layerText, tileWidth, tileHeight)` tuples, and asks
 the live page to paint every conic/repeating-conic tuple. Results enter
 `_conicTileCache`; two consumers with the same layer and size share one PNG.
+The implementation lives in `src/render/advanced-gradient-raster.ts` (DM-2308),
+which also captures linear/radial layers whose explicit color space or
+premultiplied-alpha interpolation cannot be represented by SVG gradients.
 `rasterizeConicGradients` subsequently fills cache misses only, preserving the
 Chromium-owned result. Its recursive fallback walk includes exact generated
 `::before`/`::after` fragment records: those boxes own paint independently of
@@ -172,9 +181,10 @@ Existing callers (`parseGradient` consumers in form-controls + dom-to-svg) becom
 ## Acceptance criteria
 
 - `19-deep-color-mix` currentColor + transparent tinting row paints the intended gray/white checkerboard. Diff for that fixture drops from ~1 % avg to <0.5 % avg.
-- A standalone fixture demonstrating `conic-gradient(red, yellow, green, blue, red)` at `200×200` renders a smooth color-wheel. New: `tests/features/<NN>-conic-gradient.html`.
-- A standalone fixture demonstrating `repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px` renders a 24×24 alpha-checkerboard tiled across a `300×300` div.
-- A multi-layer fixture (`background: conic-gradient(...), linear-gradient(...), url(bg.png)`) renders with all three layers in the right stacking order.
+- `bg-conic-smooth` in `tests/features.ts` renders a 200×200 color wheel.
+- `bg-conic-checkerboard` renders a repeating 24×24 checkerboard tile.
+- `bg-conic-multilayer` stacks a conic layer over a linear gradient.
+- `bg-conic-single-axis-size` checks a one-axis size against a rectangular box.
 - Supported page-backed capture accepts every conic syntax Chromium serialized,
   without routing through Domotion's fallback parser. Direct-tree/helper-absent
   fallback warns loudly if it cannot parse or produce the required tile.
@@ -187,7 +197,7 @@ This doc fans out into the following sub-tickets (see DM-547 follow-ups):
 1. **Parser** (`parseConicGradient` in `src/render/gradients.ts` + tests).
 2. **Rasterizer + cache** (`src/render/conic-raster.ts` + `_conicTileCache` + `rasterizeConicGradients` pre-pass mirroring `resize-embedded-images.ts`).
 3. **Renderer wiring** (`buildConicGradientDef` branch in `src/render/element-tree-to-svg.ts`, warning-emit downgrade).
-4. **Fixtures + acceptance** (`tests/features/<NN>-conic-gradient.html`, `19-deep-color-mix` retest, FEATURES.md row).
+4. **Fixtures + acceptance** (`bg-conic-*` entries in `tests/features.ts`, `19-deep-color-mix` retest, FEATURES.md row).
 
 ## Status
 

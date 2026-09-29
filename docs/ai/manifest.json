@@ -109,6 +109,7 @@
       "platforms": [],
       "code": [
         "src/capture/script/",
+        "src/render/advanced-gradient-raster.ts",
         "src/render/form-controls.ts",
         "src/render/gradient-defs.ts",
         "src/render/gradients.ts"
@@ -209,6 +210,7 @@
         "src/animation/cursor-overlay.ts",
         "src/capture/script/utils.ts",
         "src/cli/animate.ts",
+        "src/cli/animate-orchestrator.ts",
         "src/render/paint-order.ts",
         "tools/cursor-catalog.mts"
       ],
@@ -379,7 +381,7 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": [],
-      "code": ["tests/features.ts"],
+      "code": ["src/capture/script/walker/inline-svg.ts", "tests/features.ts"],
       "file": "24-inline-svg-icon-references.md"
     },
     {
@@ -430,7 +432,12 @@
       "status": "current",
       "owners": ["paint-effects"],
       "platforms": [],
-      "code": ["src/render/conic-raster.ts", "src/render/element-tree-to-svg.ts", "src/render/gradients.ts"],
+      "code": [
+        "src/render/advanced-gradient-raster.ts",
+        "src/render/conic-raster.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/gradients.ts"
+      ],
       "file": "28-conic-gradient.md"
     },
     {

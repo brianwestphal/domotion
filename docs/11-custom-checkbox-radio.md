@@ -21,7 +21,7 @@ aliases: ["docs/11-custom-checkbox-radio.md", "doc-11"]
 Requirements for honoring author CSS on `appearance: none` and
 `appearance: base` checkboxes, radios, and switch-shaped toggles. Origin:
 DM-285 (follow-up from DM-247), completed by DM-2459 through the source-owned
-generated-pseudo pipeline. Doc 26 covers `<input>` shadow-DOM pseudos generally;
+generated-pseudo pipeline. Doc 04 covers `<input>` shadow-DOM pseudos generally;
 this doc focuses on checkable indicator ownership.
 
 **Source pins:** Chromium `7d859f271cbda744098ac69f44978d4edfa62be3`,

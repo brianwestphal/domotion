@@ -253,6 +253,7 @@
         ],
         "code": [
           "src/capture/script/",
+          "src/render/advanced-gradient-raster.ts",
           "src/render/form-controls.ts",
           "src/render/gradient-defs.ts",
           "src/render/gradients.ts"
@@ -397,12 +398,13 @@
         "status": "current",
         "owners": ["animation"],
         "platforms": ["macos", "windows"],
-        "tickets": ["DM-1106", "DM-1133", "DM-1139", "DM-1507", "DM-1742", "DM-1995", "DM-272", "DM-277"],
+        "tickets": ["DM-1106", "DM-1133", "DM-1139", "DM-1507", "DM-1742", "DM-1995", "DM-272", "DM-277", "DM-G999GK"],
         "code": [
           "src/animation/cursor-glyphs.ts",
           "src/animation/cursor-overlay.ts",
           "src/capture/script/utils.ts",
           "src/cli/animate.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/render/paint-order.ts",
           "tools/cursor-catalog.mts"
         ],
@@ -519,7 +521,7 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2380", "DM-457", "DM-2642"],
+        "tickets": ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG"],
         "code": [
           "src/capture/replaced-element-raster.ts",
           "src/capture/replaced-element-raster.test.ts",
@@ -651,8 +653,8 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": [],
-        "tickets": ["DM-258", "DM-279", "DM-499", "DM-508"],
-        "code": ["tests/features.ts"],
+        "tickets": ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54"],
+        "code": ["src/capture/script/walker/inline-svg.ts", "tests/features.ts"],
         "aliases": ["docs/24-inline-svg-icon-references.md", "doc-24"]
       }
     },
@@ -718,8 +720,13 @@
         "status": "current",
         "owners": ["paint-effects"],
         "platforms": [],
-        "tickets": ["DM-2620", "DM-2327", "DM-526", "DM-547", "DM-549", "DM-550"],
-        "code": ["src/render/conic-raster.ts", "src/render/element-tree-to-svg.ts", "src/render/gradients.ts"],
+        "tickets": ["DM-2620", "DM-2327", "DM-526", "DM-547", "DM-549", "DM-550", "DM-T3A9W9", "DM-GA3VC1"],
+        "code": [
+          "src/render/advanced-gradient-raster.ts",
+          "src/render/conic-raster.ts",
+          "src/render/element-tree-to-svg.ts",
+          "src/render/gradients.ts"
+        ],
         "aliases": ["docs/28-conic-gradient.md", "doc-28"]
       }
     },

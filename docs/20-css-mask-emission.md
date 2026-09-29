@@ -59,9 +59,13 @@ These two cases now emit SVG output:
 1. **`mask-image: element(#id)`** — references another DOM element as the mask source. Implemented (DM-494): the referenced element is captured as a painted snapshot and threaded through `elementMaskRasters` (built from `tree[0].maskRasters`), so an `element()` layer paints from that raster.
 2. **same-document `url(#fragment)` masks** (`mask-image: url("#mask-id")` referencing an inline `<mask>` defined in the page) — implemented (DM-493): `rewriteFragmentMaskDef` (`src/render/mask.ts`) rewrites the referenced inline `<mask>` def into the output and resolves the fragment, with `positionFragmentMaskDef` placing it.
 
-Still imperfect:
+Vendor shorthand route:
 
-- **CSS-only `-webkit-mask` shorthand** — when the author uses the vendor-prefixed shorthand and Chromium resolves `getComputedStyle().maskImage` to `none` (some browser-version combos), our emission path bails. CAPTURE_SCRIPT already fallbacks to `cs.webkitMaskImage` on lines 2141-2148; verify that's still firing correctly post-DM-470.
+- **CSS-only `-webkit-mask` shorthand** — when Chromium resolves
+  `getComputedStyle().maskImage` to `none`, the capture walker falls back to
+  `cs.webkitMaskImage` in `src/capture/script/walker/masks-clips.ts` before mask
+  emission. This route is implemented; compatibility remains dependent on
+  Chromium's computed-style result.
 
 ## Exact contain/cover position ownership (DM-2379)
 

@@ -65,6 +65,11 @@ const svg = await rec.captureCurrent(); // already self-contained
 
 The distributed-demo Domotion examples (`examples/showcase-rendering.ts`, `showcase-transitions.ts`, `hero-product-demo.ts`, `domotion-word-demo.ts`, `transition-tour.ts`, `transition-mixed.ts`, `iframe-recursion.ts`) call `embedRemoteImages` unconditionally — distributed demo SVGs always load in Preview / QuickLook regardless of how they're ingested. (`terminal-demo.ts` has no remote images to embed, so it doesn't.)
 
+Internal long-running embedders can call `clearEmbeddedImageCaches()` from
+`src/capture/embed.ts` between unrelated jobs to release the process-global
+source and resized-image data URI caches. The one-shot CLI does not need this
+explicit eviction.
+
 For end users who don't use `DemoRecorder` and want fine-grained control, the bare `embedRemoteImages(tree)` function is exported from the package root.
 
 ### Which capture sites embed

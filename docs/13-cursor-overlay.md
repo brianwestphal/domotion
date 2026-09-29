@@ -5,13 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["macos", "windows"]
-tickets: ["DM-1106", "DM-1133", "DM-1139", "DM-1507", "DM-1742", "DM-1995", "DM-272", "DM-277"]
+tickets: ["DM-1106", "DM-1133", "DM-1139", "DM-1507", "DM-1742", "DM-1995", "DM-272", "DM-277", "DM-G999GK"]
 code:
   [
     "src/animation/cursor-glyphs.ts",
     "src/animation/cursor-overlay.ts",
     "src/capture/script/utils.ts",
     "src/cli/animate.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/render/paint-order.ts",
     "tools/cursor-catalog.mts",
   ]
@@ -37,7 +38,7 @@ How it works:
 - **Timeline**: `resolveCursorScript` samples the resolved pointer path and emits a `cursorTimeline` entry whenever the keyword changes, **bisection-refining** the change time so the glyph switches at the boundary the pointer crosses. Hidden windows become `null` entries.
 - **Glyphs**: from `src/animation/cursor-glyphs.ts` — one Lucide-composed glyph per CSS `cursor` value, drawn hotspot-at-origin so each lands correctly under the shared position animation. See `tools/cursor-catalog.mts` for the visual catalog.
 - **Override**: a `move` / `show` event can set `cursor: "<keyword>"` to force a specific glyph for that segment, skipping the hit-test.
-- **Wiring**: the CLI (`src/cli/animate.ts`) builds a `resolveCursorAt(x, y, frameIndex)` from the per-frame captured trees and passes it via `generateAnimatedSvg`'s `resolveCursorAt` config. Omitting the resolver falls back to the single white arrow (back-compat).
+- **Wiring**: the CLI orchestration in `src/cli/animate-orchestrator.ts` builds a `resolveCursorAt(x, y, frameIndex)` from the per-frame captured trees and passes it via `generateAnimatedSvg`'s `resolveCursorAt` config. Omitting the resolver falls back to the single white arrow (back-compat).
 
 ## Use case
 
@@ -134,13 +135,10 @@ A new module `src/animation/cursor-overlay.ts`:
    - One `<circle>` per click at the click's `(x, y)`, its ring expanded by a `co-pulse-…` `@keyframes` using `transform: scale(…)` with `vector-effect: non-scaling-stroke` (so the stroke stays constant while the radius grows, matching the old `r` animation) plus an opacity fade. It runs once at the click time (`animation-delay: <t>s; animation-fill-mode: forwards`).
    - For secondary clicks, an additional `<path>` (right half-disc) inside the ring.
 
-The cursor arrow itself is a small SVG path approximating macOS's pointer:
-
-```
-M 0 0 L 0 16 L 4 12 L 7 18 L 9 17 L 6 11 L 12 11 Z
-```
-
-Stroke white-on-black so it's visible on either light or dark backgrounds.
+The cursor shape comes from the Lucide-composed catalog in
+`src/animation/cursor-glyphs.ts`. Its 24×24 glyphs have explicit hotspots and
+use a white halo under a dark stroke so they remain legible on light and dark
+backgrounds.
 
 ## Selector resolution
 
@@ -161,13 +159,13 @@ const [x, y] = await resolveCursorTarget(page, "#submit"); // border-box CENTER
 const box = await borderBox(page, "#submit", { at: "center" }); // full box + anchor
 ```
 
-`borderBox` is the BORDER-box sibling of `contentBox` (DM-1133) — same `{ at, dx, dy }` vocabulary, measured against `getBoundingClientRect`. The CLI's internal `queryCursorBox` (`src/cli/animate.ts`) is a thin wrapper over `borderBox(page, sel, { at: "center" })`, so imperative and declarative cursor targeting can't diverge. The cursor targets the **border** box; typing overlays target the **content** box — they differ by the element's border + padding, which is why the two helpers stay distinct rather than unifying under a `box:` discriminator.
+`borderBox` is the BORDER-box sibling of `contentBox` (DM-1133) — same `{ at, dx, dy }` vocabulary, measured against `getBoundingClientRect`. The CLI's internal `queryCursorBox` (`src/cli/animate-orchestrator.ts`) is a thin wrapper over `borderBox(page, sel, { at: "center" })`, so imperative and declarative cursor targeting can't diverge. The cursor targets the **border** box; typing overlays target the **content** box — they differ by the element's border + padding, which is why the two helpers stay distinct rather than unifying under a `box:` discriminator.
 
 ## Edge cases / out of scope
 
 - **Pinch-zoom / rotation gestures**: not modeled.
 - **Pen / stylus**: render as mouse.
-- **Touch glyphs**: deferred — `pointer: "touch"` accepted but currently renders the same as mouse. A future ticket can add a finger-pad indicator.
+- **Touch glyphs**: deferred (DM-G999GK) — `pointer: "touch"` is accepted but currently renders the same as mouse.
 - **Recording from real user sessions**: out of scope; the current API expects pre-authored event scripts.
 - **Multi-pointer**: explicitly out of scope.
 

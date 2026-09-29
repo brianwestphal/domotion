@@ -5,8 +5,8 @@ kind: "reference"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-258", "DM-279", "DM-499", "DM-508"]
-code: ["tests/features.ts"]
+tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54"]
+code: ["src/capture/script/walker/inline-svg.ts", "tests/features.ts"]
 aliases: ["docs/24-inline-svg-icon-references.md", "doc-24"]
 ---
 
@@ -44,7 +44,10 @@ Implemented in DM-499 (this doc). `CAPTURE_SCRIPT` clones the host `<svg>`'s out
 - `<symbol viewBox="…">` targets are inlined as a nested `<svg x y w h viewBox="…" preserveAspectRatio="…">{symbol.children}</svg>` — declarative form preserves SVG's own viewport scaling.
 - `<g>` / `<path>` / etc. targets are wrapped in `<g transform="translate(x, y)">{target.outerHTML}</g>`.
 - `<use>` presentation attrs (`fill`, `stroke`, `stroke-width`, `opacity`, `class`, `style`) override the same on the resolved root.
-- `currentColor` substitution: any `fill="currentColor"` / `stroke="currentColor"` in the resolved subtree is eagerly replaced with the host SVG's resolved `cs.color` so it survives re-embedding outside the original cascade.
+- `currentColor` substitution: the presentation-attribute bake preserves
+  `fill="currentColor"` / `stroke="currentColor"` in the resolved subtree.
+  `_substCurrentColor` then substitutes the host SVG's resolved `cs.color`
+  before re-embedding outside the original cascade.
 - Cycle / depth guard: 5-level recursion limit on `<use>` chains.
 
 When the resolved subtree contains an active CSS animation (`getAnimations({subtree:true})` non-empty), capture no longer raster-falls-back (DM-508). The `_walkBake` pass bakes the subtree's computed presentation attributes and transforms at the moment of capture, so the t=0 paint state is captured declaratively in the inlined SVG — vector, self-contained, frozen at one frame. Capture still emits a warning so consumers know the snapshot is a single frame; animation timing and later frames don't survive (the same one-frame contract Domotion provides for any other time-varying content).
@@ -110,9 +113,14 @@ The `<use>` resolver is covered by the `inline-svg-use-group` / `inline-svg-use-
 ## Open design questions
 
 1. **Symbol viewBox translation**: emit `<svg x y w h viewBox=…>{symbol.children}</svg>` or fully resolve to `<g transform=scale(…)>` after computing the scale factor manually? The first preserves declarative spec compliance; the second produces fewer nested SVG elements. Recommend the first (declarative form).
-2. **External-file refs (`./icons.svg#foo`)**: out of scope for this ticket? File a follow-up if seen in the wild — probably needs to fetch the external file at capture time, which is async and adds I/O cost similar to DM-258 font discovery.
+2. **External-file refs (`./icons.svg#foo`)**: unresolved in the current capture
+   path; DM-553Y54 owns external resource resolution or a truthful raster
+   fallback.
 3. **CSS-animated symbols**: if `<symbol id="icon">` has a child with a CSS animation, the cloned outerHTML captures the animation declaration, but the keyframe rules don't survive. _Resolved (DM-508): we do NOT rasterize these._ The `_walkBake` pass bakes each animated node's computed presentation attributes and transforms at t=0, so the inlined SVG carries the correct paint for the captured frame (vector, self-contained); capture only warns that the snapshot is one frame.
-4. **`fill="currentColor"` resolution**: `<use>` consumers commonly set `color:` on the host and the symbol uses `fill="currentColor"`. After our resolve-and-inline pass, `currentColor` resolves against the symbol's _own_ DOM context (which has no inherited color), not the consumer's. Should we eagerly substitute `currentColor` with the resolved color from the consumer's `cs.color` at capture time? Recommend yes — simpler than deferring resolution to render time.
+4. **`fill="currentColor"` resolution**: resolved in the shipped path. The
+   walker preserves the keyword while baking the cloned subtree, then
+   `_substCurrentColor` uses the consumer's resolved `cs.color` before the
+   cloned SVG is serialized.
 
 ## Follow-ups to file when this lands
 
