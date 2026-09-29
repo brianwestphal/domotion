@@ -9,10 +9,11 @@
  * packages/text-engine/src/render/embedded-font-snapshot.test.ts.
  */
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
-import { resetGeneration, restoreGeneration, snapshotGeneration } from "./text-to-path.js";
+import { restoreGeneration, snapshotGeneration } from "./text-to-path.js";
 import { elementTreeToSvg } from "./element-tree-to-svg.js";
 import { withTextEngineDocument, type TextEngineDocumentCallback } from "./text-engine.js";
 import type { CapturedElement } from "../capture/types.js";
+import { resetGeneration } from "@domotion/text-engine/testing";
 
 // ── Compose-level acceptance: a real elementTreeToSvg render ────────────────
 

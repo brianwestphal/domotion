@@ -33,7 +33,8 @@ import {
   ourGeometry,
   parseSettings,
 } from "../tools/variable-axis-oracle-pair.js";
-import { clearFontResolutionCaches, registerWebfont } from "../src/render/font-resolution.js";
+import { registerWebfont } from "../src/render/font-resolution.js";
+import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 
 const html = existsSync(DEFAULT_FIXTURE) ? readFileSync(DEFAULT_FIXTURE, "utf-8") : "";
 const TEXT = "Hamburgefonstiv";

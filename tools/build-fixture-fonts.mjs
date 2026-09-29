@@ -37,8 +37,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { buildSfnt } from "@domotion/text-engine/testing";
-import { hbSubsetRetainGids } from "@domotion/text-engine/text";
+import { buildSfnt, hbSubsetRetainGids } from "@domotion/text-engine/testing";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, "packages", "text-engine", "assets", "fonts", "fixture");

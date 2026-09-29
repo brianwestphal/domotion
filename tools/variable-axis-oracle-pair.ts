@@ -65,14 +65,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { identifyFace, type ChromeFace, type OurFace } from "./font-conformance.js";
 import { compareShaping } from "./shaping-conformance.js";
-import {
-  clearFontResolutionCaches,
-  getFontInstance,
-  getFontSourceInfo,
-  registerWebfont,
-  resolveFontKey,
-} from "../src/render/font-resolution.js";
+import { getFontInstance, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
+import { clearFontResolutionCaches, getFontSourceInfo } from "@domotion/text-engine/testing";
 
 export const DEFAULT_FIXTURE = "tests/fixtures/variable-axis/variable-axis.html";
 

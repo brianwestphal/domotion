@@ -33,7 +33,8 @@ import {
   type InstanceMeasurement,
   type PairVerdict,
 } from "../tools/variable-axis-oracle-pair.js";
-import { clearFontResolutionCaches, registerWebfont } from "../src/render/font-resolution.js";
+import { registerWebfont } from "../src/render/font-resolution.js";
+import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 
 const TEXT = "Hamburgefonstiv";
 

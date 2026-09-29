@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { __skiaLastResortKeysForTest } from "@domotion/text-engine/testing";
 import {
+  __skiaLastResortKeysForTest,
   blinkGenericFamilyFromDeclaredStack,
   createFontFallbackSemanticContext,
   declaredFamilyHeadIdentity,
   skiaLastResortFamilyQuestionOrder,
-} from "../src/render/font-resolution.js";
+} from "@domotion/text-engine/testing";
 import {
   GENERIC_FAMILY_SEMANTICS_CASES,
   adjudicateGenericFamilySemanticsRow,

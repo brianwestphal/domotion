@@ -10,22 +10,22 @@
 import { chromium } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
+import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 import {
-  getFontInstance,
   getFontSourceInfo,
   glyphIdForCp,
   resolveFontForCodepoint,
-  resolveFontKey,
   resolveFontKeyChain,
-} from "../src/render/font-resolution.js";
-import { glyphRasterRepresentation, selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
-import { createGlyphHelperFont, resolveInstalledFont, resolveSystemFallbackFonts } from "../src/render/glyph-helper.js";
-import {
+  glyphRasterRepresentation,
+  createGlyphHelperFont,
+  resolveInstalledFont,
+  resolveSystemFallbackFonts,
   blinkWinFallbackLocale,
   blinkWinHardcodedFamilies,
   winFallbackPriorityForTextRun,
-} from "../src/render/win-font-fallback.js";
-import { splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.js";
+  splitTextIntoFontRunsShaped,
+} from "@domotion/text-engine/testing";
 
 if (process.platform !== "win32") {
   process.stderr.write("unicode-font-route-trace requires a native Windows host\n");

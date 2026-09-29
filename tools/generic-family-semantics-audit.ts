@@ -15,18 +15,19 @@ import { pathToFileURL } from "node:url";
 
 import { chromium, type CDPSession, type Page } from "@playwright/test";
 
-import { __setWin32FamilyKeyResolverForTest, __skiaLastResortKeysForTest } from "@domotion/text-engine/testing";
 import {
+  __setWin32FamilyKeyResolverForTest,
+  __skiaLastResortKeysForTest,
   blinkGenericFamilyFromDeclaredStack,
   clearFontResolutionCaches,
   createFontFallbackSemanticContext,
   declaredFamilyHeadIdentity,
-  resolveFontKey,
   skiaLastResortFamilyQuestionOrder,
   skiaLastResortInitialFamily,
   win32FallbackChain,
-} from "../src/render/font-resolution.js";
-import type { WinGenericFamily } from "../src/render/win-font-fallback.js";
+  type WinGenericFamily,
+} from "@domotion/text-engine/testing";
+import { resolveFontKey } from "../src/render/font-resolution.js";
 
 export const GENERIC_FAMILY_SEMANTICS_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",

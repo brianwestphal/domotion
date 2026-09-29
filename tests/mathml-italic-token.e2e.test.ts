@@ -5,24 +5,22 @@ import { readFileSync } from "node:fs";
 import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
-import { invalidateFontEnvironmentCaches } from "../src/render/font-resolution.js";
-import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
-import type {
-  TextEmitterTransitionDiagnostic,
-  TextRunProvenanceDiagnostic,
-} from "../src/render/text-run-provenance.js";
-import {
-  getTextRunProvenance,
-  resetTextRunProvenance,
-  setRenderTextMode,
-  setTextRunProvenanceEnabled,
-} from "../src/render/text-to-path.js";
+import { setRenderTextMode } from "../src/render/text-to-path.js";
 import {
   LINUX_MATHML_GREEK_TOKENS,
   validateLinuxMathmlGreekTokenEvidence,
   type LinuxMathmlGreekTokenEvidence,
 } from "../tools/linux-mathml-greek-raster-contract.js";
 import { tests as featureTests } from "./features.js";
+import {
+  invalidateFontEnvironmentCaches,
+  isGlyphHelperAvailable,
+  type TextEmitterTransitionDiagnostic,
+  type TextRunProvenanceDiagnostic,
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
 
 const env = await (async () => {
   try {

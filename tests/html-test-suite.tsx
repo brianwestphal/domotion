@@ -33,7 +33,6 @@ import {
   captureFlagsCacheToken,
   expectedCachePlatformDir,
 } from "./harness-browsers.js";
-import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -46,18 +45,8 @@ import {
 } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
-import { profReset, profSnapshot } from "../src/render/render-profile.js";
-import {
-  getEmbeddedFontBuildDiagnostics,
-  resetGeneration,
-  type EmbeddedFontBuildDiagnostic,
-} from "../src/render/font-resolution.js";
-import {
-  getFixtureTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-  type FixtureTextRunProvenance,
-} from "../src/render/text-run-provenance.js";
+import { type EmbeddedFontBuildDiagnostic } from "../src/render/font-resolution.js";
+import { type FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import { shouldCollectLinuxUnicodeTextEvidence } from "../src/review/linux-unicode-evidence.js";
 import { raw } from "kerfjs";
 import {
@@ -76,6 +65,16 @@ import { walkHtmlFiles } from "./walk-html-files.js";
 // resolves it at runtime, and tests are outside the tsc include set.
 // @ts-ignore -- no type declarations for the .mjs tool
 import { inventoryDocument } from "../tools/font-inventory.mjs";
+import {
+  isGlyphHelperAvailable,
+  profReset,
+  profSnapshot,
+  getEmbeddedFontBuildDiagnostics,
+  resetGeneration,
+  getFixtureTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");

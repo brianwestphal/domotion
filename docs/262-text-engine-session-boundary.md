@@ -53,9 +53,16 @@ import `./testing` (`src/render/text-engine-boundary.test.ts` and
 `tests/conventions.test.ts` enforce both, plus the ban on relative imports into
 `packages/text-engine/{src,dist}`).
 
-The entry points are sized to what root production code and the root oracles
-under `tools/` actually import, not to what tests of engine logic would find
-convenient. A test that exercises only engine modules lives in the workspace
+The stable entry points are sized to exactly what root production code
+imports. Everything a root oracle, probe, fixture tool, or root test needs
+beyond that — resolver and shaping internals, helper and ICU queries,
+provenance enable/read/reset, cache resets, platform overrides, the
+synthetic-font builder — lives on the single unstable `./testing` entry, which
+tools and tests import directly rather than through a root adapter.
+`src/render/text-engine-boundary.test.ts` holds both directions: a stable entry
+point or root adapter exporting a symbol no production module imports fails,
+and so does a `./testing` symbol no root tool or test imports. Neither set is
+sized to what tests of engine logic would find convenient. A test that exercises only engine modules lives in the workspace
 (`packages/text-engine/src/**/*.test.ts`, run by
 `npm test --workspace @domotion/text-engine` on macOS and Linux CI) and imports
 those modules directly; that includes the native-helper parity tests
@@ -66,7 +73,7 @@ captured tree rendered through `elementTreeToSvg`, the root capture layer, a
 Playwright browser, or a root oracle under `tools/` — and then splits so its
 engine-only cases move (for example the root and workspace halves of
 `embedded-font-snapshot.test.ts`, `font-family-stack.test.ts`, and
-`webfont-unicode-range.test.ts`). `./testing` therefore carries only hooks a
+`webfont-unicode-range.test.ts`). `./testing` therefore carries only symbols a
 root tool or root test still needs.
 
 Resolution and shaping intentionally remain together. The shaped-cluster

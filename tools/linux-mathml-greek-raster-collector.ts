@@ -21,7 +21,6 @@ import sharp from "sharp";
 
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
-import { hbSubsetRetainGids } from "../src/render/hb-subset.js";
 import {
   clearGlyphDefs,
   clearWebfonts,
@@ -29,11 +28,8 @@ import {
   getGlyphDefs,
   registerWebfont,
   renderTextAsPath,
-  resetTextRunProvenance,
   setRenderTextMode,
-  setTextRunProvenanceEnabled,
 } from "../src/render/text-to-path.js";
-import { getTextRunProvenance } from "../src/render/text-run-provenance.js";
 import {
   FREE_SANS_NOBLE_PACKAGE,
   LINUX_MATHML_GREEK_CELL,
@@ -45,6 +41,12 @@ import {
 } from "./linux-mathml-greek-raster-contract.js";
 import type { LinuxMathmlGreekRasterRow } from "./linux-mathml-greek-raster-gate.js";
 import { measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
+import {
+  hbSubsetRetainGids,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  getTextRunProvenance,
+} from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = (require("@playwright/test/package.json") as { version: string }).version;

@@ -334,7 +334,7 @@ function mapRenderedSpanToDom(
   ];
 }
 
-type RendererProvenance = ReturnType<(typeof import("../src/render/text-run-provenance.js"))["getTextRunProvenance"]>;
+type RendererProvenance = ReturnType<(typeof import("@domotion/text-engine/testing"))["getTextRunProvenance"]>;
 
 function shapedEvidence(
   sourceFragments: NonNullable<CapturedElement["textPaintGeometry"]>["sourceFragments"],
@@ -466,7 +466,7 @@ async function runCase(
   capture: typeof import("../src/capture/index.js"),
   render: typeof import("../src/render/element-tree-to-svg.js"),
   textPath: typeof import("../src/render/text-to-path.js"),
-  provenanceApi: typeof import("../src/render/text-run-provenance.js"),
+  provenanceApi: typeof import("@domotion/text-engine/testing"),
 ): Promise<{ row: TextFragmentSpanRow; mutations: TextFragmentSpanMutationResult[] }> {
   await page.setContent(fixtureHtml(test, fontBase64), { waitUntil: "load" });
   await page.locator("#target").evaluate((element, text) => {
@@ -589,7 +589,7 @@ export async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanRepor
     import("../src/capture/index.js"),
     import("../src/render/element-tree-to-svg.js"),
     import("../src/render/text-to-path.js"),
-    import("../src/render/text-run-provenance.js"),
+    import("@domotion/text-engine/testing"),
   ]);
   const require = createRequire(import.meta.url);
   const playwrightVersion = (require("playwright/package.json") as { version: string }).version;

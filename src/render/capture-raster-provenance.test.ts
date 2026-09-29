@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
 import { elementTreeToSvg } from "./element-tree-to-svg.js";
 import { renderInputText, renderMultiSegmentText, renderSingleLineText } from "./text.js";
-import { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
+import {
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
 
 const dataUri = "data:image/png;base64,Y2FwdHVyZS1yYXN0ZXI=";
 const styles = {

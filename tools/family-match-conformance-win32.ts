@@ -57,7 +57,6 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import * as fontkit from "fontkit";
-import { win32FamilySuffixAdjustment } from "../src/render/win32-family-suffix.js";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,
@@ -65,6 +64,7 @@ import {
   describeRecordedEnvs,
   writeBaselineSet,
 } from "./family-match-baseline.js";
+import { win32FamilySuffixAdjustment } from "@domotion/text-engine/testing";
 
 const WEIGHTS = [100, 200, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900] as const;
 const BASELINE = resolve("tests", "baselines", "family-match-windows.json");

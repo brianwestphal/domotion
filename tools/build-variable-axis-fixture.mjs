@@ -50,7 +50,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
-import { hbSubsetRetainGids } from "../dist/render/hb-subset.js";
+import { hbSubsetRetainGids } from "@domotion/text-engine/testing";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, "tests/fixtures/variable-axis");

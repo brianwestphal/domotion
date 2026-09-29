@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { platform, release, arch } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { platformFontKeys, shapingFaceFor } from "../src/render/font-resolution.js";
+import { platformFontKeys, shapingFaceFor } from "@domotion/text-engine/testing";
 
 type SourceAuthority = "chromium" | "harfbuzz" | "skia" | "icu";
 

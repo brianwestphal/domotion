@@ -1,14 +1,8 @@
 // Root adapter over the text-engine workspace's public entry points (packages/text-engine/README.md).
 export {
-  getTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-} from "@domotion/text-engine/diagnostics";
-export {
   clearEmbeddedFonts,
   clearGlyphDefs,
   clearWebfonts,
-  ensureGlyphDef,
   type FontSynthesisAllowance,
   getFontInstance,
   getGlyphDefs,
@@ -16,25 +10,20 @@ export {
   registerLocalFontAlias,
   registerWebfont,
   type RenderTextMode,
-  resetGeneration,
   restoreGeneration,
   setRenderTextMode,
   snapshotGeneration,
-  unicodeRangeCovers,
 } from "@domotion/text-engine/font-resolution";
 export {
   computeSkipInkGaps,
   cssWeightOf,
   getDecorationMetrics,
-  glyphRasterRepresentation,
   isStretchyFenceChar,
   measureEmphasisMarkMetrics,
   measureInkMetrics,
-  positionShapedClusters,
   renderRadicalGlyph,
   renderSourceOwnedTextBoundary,
   renderStretchyFenceGlyph,
   renderTextAsPath,
   selectedGlyphRasterSpans,
-  splitTextIntoGlyphPathRuns,
 } from "@domotion/text-engine/text";

@@ -38,17 +38,16 @@ import {
   genericFamilyProbeTargets,
   type SessionGenericFamilyProbe,
 } from "../src/capture/generic-font-probe.js";
+import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
 import {
-  getFontInstance,
   getSessionGenericFamilyOverrides,
   resolveFont,
   resolveFontForCodepoint,
-  resolveFontKey,
   resolveFontKeyChain,
   resolveFontSpec,
   setSessionGenericFamilyOverrides,
   withSessionGenericFamilyOverrides,
-} from "../src/render/font-resolution.js";
+} from "@domotion/text-engine/testing";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");

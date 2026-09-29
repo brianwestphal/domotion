@@ -26,9 +26,11 @@ loading the historical documentation corpus.
   native and ICU helpers, HarfBuzz, font fixtures, and package-local tests.
   Domotion consumes its session/document/run facade and the focused
   `./font-resolution`, `./text`, `./capture`, `./helpers`, `./format`, `./diagnostics`, and
-  `./testing` entry points (no deep-import subpath); root `src/render/*` files
-  that re-export named symbols from them are compatibility adapters, not
-  duplicate implementations. Tests of engine-only logic (including the native
+  unstable `./testing` entry points (no deep-import subpath). The stable
+  entries carry only what root production code imports; root `src/render/*`
+  files that re-export named symbols from them are compatibility adapters, not
+  duplicate implementations. Root oracles, probes, and root tests import
+  engine internals from `@domotion/text-engine/testing` directly. Tests of engine-only logic (including the native
   helper parity tests) live in the workspace, not the root. Keep resolution and shaping together because shaped-cluster
   fallback makes them mutually dependent. See docs 262 and the canonical font
   resolution diagram.

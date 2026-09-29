@@ -2,18 +2,16 @@
 import * as fk from "fontkit";
 import { writeFileSync } from "node:fs";
 import { captureElementTree, launchChromium, type CapturedElement, type TextSegment } from "../src/index.js";
-import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "../src/render/script-segmentation.js";
+import { bidiLevelsFor, type BidiParagraphContext } from "../src/render/script-segmentation.js";
+import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
+import { parityEnvironment } from "./parity-environment.js";
 import {
-  clearEmbeddedFonts,
-  clearGlyphDefs,
+  segmentForShaping,
   getTextRunProvenance,
   positionShapedClusters,
-  renderTextAsPath,
   resetTextRunProvenance,
-  setRenderTextMode,
   setTextRunProvenanceEnabled,
-} from "../src/render/text-to-path.js";
-import { parityEnvironment } from "./parity-environment.js";
+} from "@domotion/text-engine/testing";
 
 const fontkit = (fk as { default?: typeof fk }).default ?? fk;
 const FORWARD = "L שָׁלוֹם 123 مَرْحَبًا R";

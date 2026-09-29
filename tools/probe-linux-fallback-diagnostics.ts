@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 /** DM-2086: pair Fontconfig construction diagnostics with Chrome-observable paint. */
 import { chromium } from "@playwright/test";
-import { resolveFcFallbackDiagnostic } from "../src/render/glyph-helper.js";
+import { resolveFcFallbackDiagnostic } from "@domotion/text-engine/testing";
 
 const cases = [
   { cp: 0x0600, lang: "ko" },

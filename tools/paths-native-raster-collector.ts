@@ -17,11 +17,8 @@ import {
   getGlyphDefs,
   registerWebfont,
   renderTextAsPath,
-  resetTextRunProvenance,
   setRenderTextMode,
-  setTextRunProvenanceEnabled,
 } from "../src/render/text-to-path.js";
-import { getTextRunProvenance } from "../src/render/text-run-provenance.js";
 import {
   loadPathsRasterFixtures,
   PATHS_NATIVE_RASTER_FEATURES,
@@ -43,6 +40,11 @@ import {
   pathsRasterCssFamily,
   type PathsNativeHelperFaceEvidence,
 } from "./paths-native-face-identity.js";
+import {
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  getTextRunProvenance,
+} from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = (require("@playwright/test/package.json") as { version: string }).version;

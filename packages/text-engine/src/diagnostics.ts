@@ -1,17 +1,8 @@
 /**
- * `@domotion/text-engine/diagnostics` — opt-in text-run provenance recording and
- * render-phase profiling counters. Recording is off by default and never changes
- * emitted SVG.
+ * `@domotion/text-engine/diagnostics` — the render-phase profiling counters and
+ * text-emitter transition recording the root renderer calls. Recording is off by
+ * default and never changes emitted SVG; enabling, reading, and resetting it is
+ * a harness concern on `./testing`.
  */
-export { profAccum, profNow, profReset, profSnapshot } from "./render/render-profile.js";
-export {
-  type FixtureTextRunProvenance,
-  getFixtureTextRunProvenance,
-  getTextRunProvenance,
-  recordTextEmitterTransition,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-  type TextEmitterTransitionDiagnostic,
-  type TextRunProvenanceDiagnostic,
-  textRunProvenanceEnabled,
-} from "./render/text-run-provenance.js";
+export { profAccum, profNow } from "./render/render-profile.js";
+export { type FixtureTextRunProvenance, recordTextEmitterTransition } from "./render/text-run-provenance.js";

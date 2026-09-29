@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { acquireIcuCompanionSync } from "../src/render/icu-helper-acquire.js";
+import { acquireIcuCompanionSync } from "@domotion/text-engine/testing";
 
 interface Digest {
   protocolVersion: string;

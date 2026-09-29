@@ -147,7 +147,8 @@ import { release as osRelease, type as osType } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
-import { resolveFont, setRenderTextMode } from "../src/render/font-resolution.js";
+import { setRenderTextMode } from "../src/render/font-resolution.js";
+import { resolveFont } from "@domotion/text-engine/testing";
 
 // ── Tolerances ──────────────────────────────────────────────────────────
 /** C vs R: bar top / height, CSS px. Measurement noise at dsf 4 is ~0.06px

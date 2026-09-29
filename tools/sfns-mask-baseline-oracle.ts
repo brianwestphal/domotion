@@ -15,14 +15,7 @@ import type { Page } from "@playwright/test";
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
-import { clearFontResolutionCaches, clearGlyphDefs, setRenderTextMode } from "../src/render/font-resolution.js";
-import { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "../src/render/glyph-helper.js";
-import {
-  getTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-  type TextRunProvenanceDiagnostic,
-} from "../src/render/text-run-provenance.js";
+import { clearGlyphDefs, setRenderTextMode } from "../src/render/font-resolution.js";
 import {
   SFNS_BASE_AXES,
   SFNS_MUTATION_AXES,
@@ -37,6 +30,15 @@ import {
   type SfnsOracleRow,
   type SfnsScenarioId,
 } from "./sfns-mask-baseline-schema.js";
+import {
+  clearFontResolutionCaches,
+  isGlyphHelperAvailable,
+  resolvedGlyphHelperPathForEvidence,
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  type TextRunProvenanceDiagnostic,
+} from "@domotion/text-engine/testing";
 
 const FONT_PATH = "/System/Library/Fonts/SFNS.ttf" as const;
 const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3" as const;

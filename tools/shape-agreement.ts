@@ -84,11 +84,16 @@
  * breakdown says which script accounts for the drop.
  */ import { writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
-import { harfbuzzShapeRun } from "../src/render/harfbuzz-shaper.js";
-import { createGlyphHelperFont, isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
-import { resolveFontSpec, shapingFaceFor, platformFontKeys } from "../src/render/font-resolution.js";
-import { usesHarfbuzzShaping } from "../src/render/unicode-classification.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
+import {
+  harfbuzzShapeRun,
+  createGlyphHelperFont,
+  isGlyphHelperAvailable,
+  resolveFontSpec,
+  shapingFaceFor,
+  platformFontKeys,
+  usesHarfbuzzShaping,
+} from "@domotion/text-engine/testing";
 
 interface Disagreement {
   face: string;

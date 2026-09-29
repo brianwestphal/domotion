@@ -188,7 +188,11 @@ describe("project conventions", () => {
   // doors the map cannot close: a relative import into
   // `packages/text-engine/{src,dist}` (which bypasses package resolution and,
   // for `src`, loads a second copy of the engine's process-global registries),
-  // and production `src/` code importing the unstable `./testing` hooks.
+  // and production `src/` code importing the unstable `./testing` entry. That
+  // entry carries every engine symbol root oracles, probes and root tests need
+  // but production does not (the stable entry points are held to exactly the
+  // production set by src/render/text-engine-boundary.test.ts), so tools and
+  // tests import it directly rather than through a `src/render/*` adapter.
   it("imports the text-engine workspace only through its public entry points (DM-DS8AGC)", () => {
     const ENTRY_POINTS = new Set([
       "",

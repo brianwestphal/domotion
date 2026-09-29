@@ -14,25 +14,28 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { _clusterFallbackCounters } from "@domotion/text-engine/testing";
-import { splitTextIntoFontRunsShaped } from "../src/render/cluster-fallback.js";
 import {
+  _clusterFallbackCounters,
+  splitTextIntoFontRunsShaped,
   fontHasSupportedColorTable,
   getFontSourceInfo,
   resolveFont,
-  resolveFontKey,
   resolveFontKeyChain,
   stackPrimaryIsSystemUi,
   type FontRun,
-  type FontVariantEmojiOverride,
-} from "../src/render/font-resolution.js";
-import { sourcePriorityItems, type SourcePriorityItem } from "../src/render/emoji-presentation-priority.js";
-import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
-import { ICU_BINARY, icuCodepointProperties, isIcuHelperAvailable } from "../src/render/icu-helper.js";
-import { bidiLevelsFor, segmentForShaping } from "../src/render/script-segmentation.js";
+  sourcePriorityItems,
+  type SourcePriorityItem,
+  isGlyphHelperAvailable,
+  ICU_BINARY,
+  icuCodepointProperties,
+  isIcuHelperAvailable,
+  segmentForShaping,
+} from "@domotion/text-engine/testing";
+import { resolveFontKey, type FontVariantEmojiOverride } from "../src/render/font-resolution.js";
+import { bidiLevelsFor } from "../src/render/script-segmentation.js";
 import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 
-export { sourcePriorityItems } from "../src/render/emoji-presentation-priority.js";
+export { sourcePriorityItems } from "@domotion/text-engine/testing";
 
 export const EMOJI_OWNERSHIP_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",

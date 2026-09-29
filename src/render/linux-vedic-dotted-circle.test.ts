@@ -2,7 +2,6 @@ import fs from "node:fs";
 import * as fontkit from "fontkit";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { LINUX_VEDIC_DOTTED_CIRCLE_RECORDS } from "../review/linux-unicode-evidence.js";
-import { hbSubsetRetainGids } from "./hb-subset.js";
 import {
   clearEmbeddedFonts,
   clearWebfonts,
@@ -10,7 +9,12 @@ import {
   renderTextAsPath,
   setRenderTextMode,
 } from "./text-to-path.js";
-import { getTextRunProvenance, resetTextRunProvenance, setTextRunProvenanceEnabled } from "./text-run-provenance.js";
+import {
+  hbSubsetRetainGids,
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
 
 const FREE_SERIF = "/usr/share/fonts/truetype/freefont/FreeSerif.ttf";
 const FAMILY =

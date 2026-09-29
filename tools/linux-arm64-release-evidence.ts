@@ -15,12 +15,9 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
 import { chromium } from "@playwright/test";
-import { acquireGlyphHelper, assetNameFor } from "../src/render/helper-acquire.js";
-import {
-  acquireIcuCompanion,
-  ICU_COMPANION_VERSION,
-  resolveIcuCompanionTarget,
-} from "../src/render/icu-helper-acquire.js";
+import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
+import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
+import { assetNameFor, ICU_COMPANION_VERSION, resolveIcuCompanionTarget } from "@domotion/text-engine/testing";
 
 const require = createRequire(import.meta.url);
 const PKG = require("../package.json") as { version: string };

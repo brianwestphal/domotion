@@ -6,7 +6,7 @@ import {
   getSessionGenericFamilyOverrides,
   setSessionGenericFamilyOverrides,
   withSessionGenericFamilyOverrides,
-} from "./font-resolution.js";
+} from "@domotion/text-engine/testing";
 
 const root = (record?: CapturedSessionGenericFamilies): CapturedElement =>
   ({

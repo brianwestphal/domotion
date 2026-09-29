@@ -6,12 +6,12 @@ import { captureElementTree, captureElementTreeEnvelope } from "../src/capture/i
 import type { CapturedElement, CapturedTreeEnvelope } from "../src/capture/types.js";
 import { promoteCapturedSubtree } from "../src/capture/tree-envelope.js";
 import { capturedSessionGenericFamilies, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
-import { getSessionGenericFamilyOverrides, setSessionGenericFamilyOverrides } from "../src/render/font-resolution.js";
 import {
   ensureSessionGenericFamilyOverrides,
   probePageGenericFamilies,
   probeSessionGenericFamilies,
 } from "../src/capture/generic-font-probe.js";
+import { getSessionGenericFamilyOverrides, setSessionGenericFamilyOverrides } from "@domotion/text-engine/testing";
 
 async function defaultCommonFamilyNames(
   context: BrowserContext,

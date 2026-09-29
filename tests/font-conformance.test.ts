@@ -32,8 +32,8 @@ import {
   type OurFace,
   type StackSpec,
 } from "../tools/font-conformance.js";
-import { getFontInstance, getFontSourceInfo, resolveFontSpec } from "../src/render/font-resolution.js";
-import { resolveInstalledFont } from "../src/render/glyph-helper.js";
+import { getFontInstance } from "../src/render/font-resolution.js";
+import { getFontSourceInfo, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
 
 describe("helperImplementationDigest", () => {
   it("is stable across rebuilt Windows executable bytes", () => {

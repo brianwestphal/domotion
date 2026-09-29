@@ -32,7 +32,7 @@ import {
   isIcuHelperAvailable,
   queryIcuCodepoints,
   type IcuCodepointProperties,
-} from "../src/render/icu-helper.js";
+} from "@domotion/text-engine/testing";
 
 export const VERTICAL_ORIENTATION_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",

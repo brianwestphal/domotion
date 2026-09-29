@@ -27,7 +27,7 @@ import {
   resolveFakeBoldTextPaint,
   type FakeBoldSvgPaintPass,
   type SkiaFakeBoldPaintStage,
-} from "../src/render/embolden-outline.js";
+} from "@domotion/text-engine/testing";
 
 type Platform = "darwin" | "linux" | "win32";
 type Hinting = "unhinted" | "light" | "native-full";

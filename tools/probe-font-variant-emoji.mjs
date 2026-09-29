@@ -30,15 +30,15 @@
 //     in the loop at all — the failure it guards against is a resolver that was
 //     shipped "default-on" and answered nothing for weeks.
 import { chromium } from "@playwright/test";
+import { resolveFontKey } from "@domotion/text-engine/font-resolution";
+import { selectedGlyphRasterSpans } from "@domotion/text-engine/text";
 import {
   resolveFont,
-  resolveFontKey,
   resolveFontKeyChain,
   resolveFontForCodepoint,
   resolveFontSpec,
   splitTextIntoFontRunsShaped,
-} from "@domotion/text-engine/font-resolution";
-import { selectedGlyphRasterSpans } from "@domotion/text-engine/text";
+} from "@domotion/text-engine/testing";
 
 // Emoji-presentation-by-default (Blink's `IsEmojiPresentationEmoji` true), then
 // text-presentation-by-default ones — the half where `font-variant-emoji: emoji`

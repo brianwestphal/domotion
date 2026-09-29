@@ -12,29 +12,49 @@ subpaths, each an explicit named-export list (`src/<subpath>.ts`):
 | Subpath                 | Owns                                                                                                                                                                             |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@domotion/text-engine` | `TextEngineSession`, `withTextEngineDocument`, run/document/artifact types                                                                                                       |
-| `./font-resolution`     | face/key resolution, per-codepoint and cluster fallback, webfont and local-alias registries, render-text mode, glyph-definition and embedded-font generation state               |
-| `./text`                | text-to-path emission, HarfBuzz shaping, script/bidi segmentation, Unicode and emoji classification, decoration/ink metrics, synthetic-bold paint, hb-subset                     |
+| `./font-resolution`     | family-key and face lookup, webfont and local-alias registries, render-text mode, glyph-definition and embedded-font generation state                                            |
+| `./text`                | text-to-path emission, bidi levels, visual-text semantics, decoration/ink and emphasis-mark metrics, stretchy-fence and radical glyphs                                           |
 | `./capture`             | page-context-safe helpers shared with the in-page capture script (CSS `font-family` stack parsing/serialization, emoji-presentation detection); must stay free of Node built-ins |
-| `./helpers`             | native glyph-helper and ICU companion acquisition, availability, and queries                                                                                                     |
+| `./helpers`             | native glyph-helper and ICU companion acquisition                                                                                                                                |
 | `./format`              | the SVG number/escape/attribute formatting primitives the engine emits with                                                                                                      |
-| `./diagnostics`         | opt-in text-run provenance and render-phase profiling                                                                                                                            |
-| `./testing`             | the few cache/registry and override hooks root oracles and root tests still need, plus the synthetic-font builder (`buildSfnt`); not a stable API                                |
+| `./diagnostics`         | render-phase profiling counters and text-emitter transition recording                                                                                                            |
+| `./testing`             | **unstable**: everything root oracles, probes, fixture tooling and root tests need that production does not — see below                                                          |
+
+The stable subpaths are sized to exactly what Domotion's root production code
+imports; nothing else. `./testing` is the single unstable entry point. It holds
+the resolver internals (`resolveFont`, `resolveFontForCodepoint`,
+`fallbackFontChain`, the character-fallback document and renderer-scope hooks,
+the Windows fallback table queries), the shaping and segmentation internals
+(`harfbuzzShapeRun`, `harfbuzzGlyphQuery`, `segmentForShaping`,
+`hbSubsetRetainGids`), the native glyph-helper and ICU queries and availability
+probes, provenance enable/read/reset, cache and registry resets, platform
+overrides, and the synthetic-font builder (`buildSfnt`). Any of it may change
+or disappear without a version bump.
 
 There is no deep-import subpath. Domotion's root `src/render/*` adapters
-re-export named symbols from these entry points, and
-`tests/conventions.test.ts` rejects any root import of another subpath, any
-relative import into `packages/text-engine/{src,dist}`, and any production
-`src/` import of `./testing`. Widen an entry point deliberately, by adding the
-symbol to its list, when a root caller genuinely needs it.
+re-export named symbols from the stable entry points; root tools and tests
+import `@domotion/text-engine/testing` directly. Three guards hold the surface:
 
-The entry points are sized to what root production code and the root oracles
-under `tools/` import. Tests of engine-only logic live in this workspace
-(`src/**/*.test.ts`) and import modules directly, including the native-helper
-parity tests (`src/render/{linux,win32}-glyph-extractor.test.ts`) and the
-synthetic test fonts (`src/render/synth-test-fonts.ts`). A root test stays in
-the root only when it also needs root infrastructure (a captured tree rendered
-by `elementTreeToSvg`, the root capture layer, Playwright, or a root oracle);
-do not widen an entry point just so such a test can reach an engine internal —
+- `src/render/text-engine-boundary.test.ts` fails when a stable entry point or a
+  root adapter exports a symbol no root production module imports, and when
+  `./testing` exports a symbol no root tool or test imports (or a root file
+  imports one it does not export).
+- `tests/conventions.test.ts` rejects any root import of another subpath, any
+  relative import into `packages/text-engine/{src,dist}`, and any production
+  `src/` import of `./testing`.
+- The exports map has no wildcard, so Node and TypeScript cannot resolve
+  anything else.
+
+Move a symbol from `./testing` to a stable entry point, and add it to the
+matching root adapter, when root production code starts needing it.
+
+Tests of engine-only logic live in this workspace (`src/**/*.test.ts`) and
+import modules directly, including the native-helper parity tests
+(`src/render/{linux,win32}-glyph-extractor.test.ts`) and the synthetic test
+fonts (`src/render/synth-test-fonts.ts`). A root test stays in the root only
+when it also needs root infrastructure (a captured tree rendered by
+`elementTreeToSvg`, the root capture layer, Playwright, or a root oracle); do
+not widen an entry point just so such a test can reach an engine internal —
 move or split the test instead.
 
 Run it independently from the repository root with:

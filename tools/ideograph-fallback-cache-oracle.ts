@@ -12,15 +12,13 @@ import { spawnSync } from "node:child_process";
 import {
   __resolveSystemFallbackKeyForCpForTest,
   clearCharacterFallbackRendererScopesForTest,
-} from "@domotion/text-engine/testing";
-import {
   beginCharacterFallbackDocument,
   createFontRendererSession,
   endCharacterFallbackDocument,
-  resolveFontKey,
   resolveFontSpec,
   withFontRendererSession,
-} from "../src/render/font-resolution.js";
+} from "@domotion/text-engine/testing";
+import { resolveFontKey } from "../src/render/font-resolution.js";
 
 const EXT_A = 0x3400;
 const TARGET = 0x4e9f;

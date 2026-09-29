@@ -18,7 +18,7 @@ import {
   harfbuzzShapeRun,
   registerHbBufferSource,
   type ShapeResult,
-} from "../src/render/harfbuzz-shaper.js";
+} from "@domotion/text-engine/testing";
 
 export const DEFAULT_VARIABLE_FIXTURE = "tests/fixtures/variable-axis/variable-axis.html";
 export const DEFAULT_TRACKING_FIXTURE = "tests/fixtures/exact-shaping/TRAK.ttf.base64";

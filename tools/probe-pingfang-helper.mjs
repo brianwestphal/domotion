@@ -1,7 +1,7 @@
 import { setRenderTextMode } from "../dist/render/text-to-path.js";
 
-// Access internals — import glyph-helper directly
-const { createGlyphHelperFont, isGlyphHelperAvailable } = await import("../dist/render/glyph-helper.js");
+// Glyph-helper queries are oracle hooks on the engine's unstable ./testing entry.
+const { createGlyphHelperFont, isGlyphHelperAvailable } = await import("@domotion/text-engine/testing");
 console.log("helper available?", isGlyphHelperAvailable());
 
 const helper = createGlyphHelperFont({

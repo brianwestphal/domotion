@@ -5,8 +5,8 @@ import { resolve } from "node:path";
 import {
   helperAvailabilityContract,
   type HelperAvailabilityContract,
-} from "../src/render/helper-availability-contract.js";
-import { isGlyphHelperAvailable } from "../src/render/glyph-helper.js";
+  isGlyphHelperAvailable,
+} from "@domotion/text-engine/testing";
 
 type SupportedPlatform = "darwin" | "linux" | "win32";
 

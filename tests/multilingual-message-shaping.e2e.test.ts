@@ -3,14 +3,14 @@ import { launchChromium } from "../src/index.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
-import { resetGeneration } from "../src/render/font-resolution.js";
 import { setRenderTextMode } from "../src/render/text-to-path.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import {
+  resetGeneration,
   getTextRunProvenance,
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
-} from "../src/render/text-run-provenance.js";
-import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+} from "@domotion/text-engine/testing";
 
 // DM-2619: focused production-pipeline coverage for the two platform findings
 // from 32-real-world-multilingual-messages. The Arabic assertion catches the

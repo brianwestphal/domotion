@@ -158,6 +158,9 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
+import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
+import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
 import {
   ITALIC_SLNT,
   beginCharacterFallbackDocument,
@@ -165,21 +168,18 @@ import {
   clearFontResolutionCaches,
   endCharacterFallbackDocument,
   type FontInstance,
-  getFontInstance,
   getFontSourceInfo,
   opticalCutOpszFor,
   resolveFontForCodepoint,
-  resolveFontKey,
   resolveFontKeyChain,
   resolveFontSpec,
   setSessionGenericFamilyOverrides,
   stackPrimaryIsSystemUi,
   stretchPercent,
-} from "../src/render/font-resolution.js";
-import { glyphHelperCodepointMemoSize, resolveInstalledFont } from "../src/render/glyph-helper.js";
-import { isHarfbuzzDefaultIgnorable } from "../src/render/unicode-classification.js";
-import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
-import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
+  glyphHelperCodepointMemoSize,
+  resolveInstalledFont,
+  isHarfbuzzDefaultIgnorable,
+} from "@domotion/text-engine/testing";
 
 // ---------------------------------------------------------------------------
 // Types

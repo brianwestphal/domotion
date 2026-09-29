@@ -43,14 +43,14 @@
 // does consult first. There the "static" row is parity, not interposition. The
 // no-counterpart-in-Blink claim is a macOS/Linux one.
 import { readFileSync } from "node:fs";
+import { resolveFontKey } from "../src/render/font-resolution.js";
+import { buildUniverse } from "./font-conformance.js";
 import {
   fallbackFontChain,
   resolveFont,
-  resolveFontKey,
   resolveFontKeyChain,
   resolveFontForCodepoint,
-} from "../src/render/font-resolution.js";
-import { buildUniverse } from "./font-conformance.js";
+} from "@domotion/text-engine/testing";
 
 // `--family "<stack>"` sweeps a stack directly (distribution only, no Chrome
 // column); otherwise the first positional is a conformance report and the

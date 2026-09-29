@@ -21,8 +21,11 @@ import {
   type LaunchOptions,
   type Page,
 } from "@playwright/test";
-import { resolveSystemUiFontFace, type SystemUiFontFace } from "../src/render/glyph-helper.js";
-import { invalidateFontEnvironmentCaches } from "../src/render/font-resolution.js";
+import {
+  resolveSystemUiFontFace,
+  type SystemUiFontFace,
+  invalidateFontEnvironmentCaches,
+} from "@domotion/text-engine/testing";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");

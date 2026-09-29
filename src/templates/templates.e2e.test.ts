@@ -14,7 +14,7 @@ import { chartTemplate, buildChartHtml, planChart } from "./builtin/chart.js";
 import { chatTemplate } from "./builtin/chat.js";
 import { subscribeTemplate } from "./builtin/subscribe.js";
 import { counterTemplate } from "./builtin/counter.js";
-import { clearFontResolutionCaches } from "../render/font-resolution.js";
+import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
 
 /**
  * DM-1276: end-to-end render of both built-in templates through the real

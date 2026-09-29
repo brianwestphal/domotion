@@ -52,22 +52,13 @@ import { chromium, type Browser } from "@playwright/test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
-import { clearFontResolutionCaches, registerWebfont } from "../src/render/font-resolution.js";
-import { harfbuzzGlyphQuery } from "../src/render/harfbuzz-shaper.js";
+import { registerWebfont } from "../src/render/font-resolution.js";
 import {
   parseFontFeatureSettings,
   parseFontVariationSettings,
   resolveFontVariantFeatures,
   mergeFeatureLists,
 } from "../src/render/text.js";
-import {
-  getTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
-  textRunProvenanceEnabled,
-  type TextRunProvenanceDiagnostic,
-} from "../src/render/text-run-provenance.js";
-import { isHarfbuzzDefaultIgnorable } from "../src/render/unicode-classification.js";
 import { parseCssFontFamilyEntries } from "../src/font-family-stack.js";
 import {
   fuseFontFeatureValueRules,
@@ -86,6 +77,16 @@ import {
   fontFeatureEnvironmentKey,
   type AuthenticatedFontFeatureEnvironment,
 } from "./font-feature-value-environment.js";
+import {
+  clearFontResolutionCaches,
+  harfbuzzGlyphQuery,
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  textRunProvenanceEnabled,
+  type TextRunProvenanceDiagnostic,
+  isHarfbuzzDefaultIgnorable,
+} from "@domotion/text-engine/testing";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -12,8 +12,8 @@ import type {
   FontFeatureValueTable,
   FontFeatureValueTables,
 } from "../src/font-feature-values-cascade.js";
-import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "../src/render/harfbuzz-shaper.js";
 import { resolveFontVariantAlternates } from "../src/render/text.js";
+import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "@domotion/text-engine/testing";
 
 export type {
   FontFeatureValueCategory,

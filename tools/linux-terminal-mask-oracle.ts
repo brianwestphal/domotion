@@ -18,8 +18,8 @@ import * as fontkitNs from "fontkit";
 import sharp from "sharp";
 import svg2ttf from "svg2ttf";
 
-import { hbSubsetRetainGids, injectPuaCmap } from "../src/render/hb-subset.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
+import { hbSubsetRetainGids, injectPuaCmap } from "@domotion/text-engine/testing";
 
 const fontkit = (fontkitNs as { default?: typeof fontkitNs }).default ?? fontkitNs;
 const FONT_PATHS = {

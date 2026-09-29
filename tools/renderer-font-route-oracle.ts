@@ -6,23 +6,25 @@ import { chromium } from "playwright";
 import {
   clearEmbeddedFonts,
   clearGlyphDefs,
-  getTextRunProvenance,
   renderTextAsPath,
-  resetTextRunProvenance,
   selectedGlyphRasterSpans,
   setRenderTextMode,
-  setTextRunProvenanceEnabled,
   type RenderTextMode,
 } from "../src/render/text-to-path.js";
 import type { FontVariantEmojiOverride } from "../src/render/font-resolution.js";
-import { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "../src/render/glyph-helper.js";
+import { parityEnvironment } from "./parity-environment.js";
+import { bidiLevelsFor } from "../src/render/script-segmentation.js";
+import bidiFactory from "bidi-js";
 import {
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+  isGlyphHelperAvailable,
+  resolvedGlyphHelperPathForEvidence,
   helperAvailabilityContract,
   helperRouteLedgerEnvironment,
-} from "../src/render/helper-availability-contract.js";
-import { parityEnvironment } from "./parity-environment.js";
-import { bidiLevelsFor, segmentForShaping } from "../src/render/script-segmentation.js";
-import bidiFactory from "bidi-js";
+  segmentForShaping,
+} from "@domotion/text-engine/testing";
 
 interface OracleCase {
   id: string;

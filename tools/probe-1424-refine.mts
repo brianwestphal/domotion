@@ -13,7 +13,7 @@
 // for the flip).
 
 import { readFileSync } from "node:fs";
-import { win32FallbackChain } from "@domotion/text-engine/font-resolution";
+import { win32FallbackChain } from "@domotion/text-engine/testing";
 
 const IN = process.env.IN ?? "tools/scratch/win32-calib.json";
 const data = JSON.parse(readFileSync(IN, "utf-8"));
