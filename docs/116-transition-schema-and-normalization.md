@@ -14,7 +14,7 @@ code:
     "src/cli/storyboard.ts",
     "tests/feature-coverage.ts",
   ]
-aliases: ["docs/116-transition-schema-and-normalization.md", "doc-116"]
+aliases: ["docs/116-transition-schema-and-normalization.md"]
 ---
 
 # 116 — Transition schema and compatibility normalization

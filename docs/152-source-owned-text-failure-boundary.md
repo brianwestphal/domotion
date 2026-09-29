@@ -7,7 +7,7 @@ owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2399", "DM-2511"]
 code: ["src/render/form-controls.ts", "packages/text-engine/src/render/text-to-path.test.ts", "src/render/text.ts"]
-aliases: ["docs/152-source-owned-text-failure-boundary.md", "doc-152"]
+aliases: ["docs/152-source-owned-text-failure-boundary.md"]
 ---
 
 # Source-owned text failure boundary

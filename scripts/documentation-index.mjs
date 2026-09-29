@@ -231,6 +231,7 @@ async function generatedArtifacts(entries) {
 const errors = [];
 const entries = [];
 const ids = new Map();
+const aliases = new Map();
 for (const filename of files()) {
   const path = resolve(docsRoot, filename);
   const source = readFileSync(path, "utf8");
@@ -249,6 +250,12 @@ for (const filename of files()) {
   errors.push(...internalLinkErrors(filename, body));
   if (ids.has(metadata.id)) errors.push(`${filename}: duplicate stable id also used by ${ids.get(metadata.id)}`);
   ids.set(metadata.id, filename);
+  for (const alias of metadata.aliases) {
+    // A bare `doc-N` shared by two files makes prose references by number ambiguous, so
+    // colliding numbers must drop the bare alias and keep only their unique `docs/<file>` path.
+    if (aliases.has(alias)) errors.push(`${filename}: duplicate alias ${alias} also used by ${aliases.get(alias)}`);
+    else aliases.set(alias, filename);
+  }
   entries.push({ file: filename, metadata });
 }
 

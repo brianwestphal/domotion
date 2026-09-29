@@ -7,7 +7,7 @@ owners: ["layout", "platform-release"]
 platforms: []
 tickets: ["DM-2498"]
 code: ["tools/layout-stage-matrix.ts"]
-aliases: ["docs/116-layout-stage-parity.md", "doc-116"]
+aliases: ["docs/116-layout-stage-parity.md"]
 ---
 
 # Text layout and SVG placement parity

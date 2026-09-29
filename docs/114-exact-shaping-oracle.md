@@ -12,7 +12,7 @@ code:
     "tools/exact-shaping-oracle.ts",
     "tools/shape-agreement-samples.ts",
   ]
-aliases: ["docs/114-exact-shaping-oracle.md", "doc-114"]
+aliases: ["docs/114-exact-shaping-oracle.md"]
 ---
 
 # Exact shaping oracle
