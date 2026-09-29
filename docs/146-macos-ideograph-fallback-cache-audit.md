@@ -65,24 +65,21 @@ process, recording the actual PostScript face each time.
 
 ## Domotion audit result
 
-The current model correctly implements the ideographic gate, base identifier,
-weight/size separation, cmap hit test, successful-only insertion,
-first-writer-wins behavior, nested scopes, and ordered sequence effect. It has
-two known approximations:
+DM-2401 completed the exact-key and renderer-lifetime work. The current
+`characterFallbackDocKey` includes the base identifier, raw weight, full raw
+slope, orientation, and effective font size. It retains the ideographic gate,
+cmap hit test, successful-only insertion, and first-writer-wins behavior.
 
-1. `characterFallbackDocKey` folds style to `slant !== 0`, losing Blink's raw
-   slope distinctions, and it omits orientation.
-2. `beginCharacterFallbackDocument` creates a fresh map for every top-level
-   render. That is safer than process-global accidental contamination, but it
-   is not Blink's renderer-thread lifetime and cannot reproduce same-renderer
-   navigation reuse.
-
-DM-2401 owns the implementation correction. It must thread exact slope and
-orientation through fallback routing, introduce explicit renderer-session
-identity/lifetime, and add activation controls that distinguish same-renderer
-navigation from a new renderer. It must not add CJK codepoint, range, or font
-rules: pinned ICU supplies the property gate and the selected face's cmap owns
-coverage.
+`beginCharacterFallbackDocument` opens a fresh map for a top-level render by
+default. When a caller uses `createFontRendererSession` and
+`withFontRendererSession`, the map belongs to that renderer identity and can
+survive subsequent document scopes, including a simulated same-renderer
+navigation. A different session gets a separate map. The
+`fonts:ideograph-cache:oracle` command compares those lifetimes with browser and
+helper evidence; `character-fallback-document-cache.test.ts` covers raw key
+identity and ordered transitions. Pinned ICU supplies the property gate, and
+the selected face's cmap owns coverage; no CJK-specific codepoint or font rules
+are added.
 
 ## Source map
 

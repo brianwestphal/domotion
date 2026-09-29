@@ -3346,9 +3346,9 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
  *    effective font size. The base is the run's primary
  *    (`font_fallback_list_->PrimarySimpleFontDataWithSpace(...)`,
  *    shaping/font_fallback_iterator.cc:279-281 at tag 147.0.7727.15) — our
- *    `fallbackBaseFor(primaryKey).name`. Orientation is constant-horizontal in
- *    this resolver, and style folds to the same italic bit the raw ask itself
- *    discriminates on, so neither needs more resolution than the ask has.
+ *    `fallbackBaseFor(primaryKey).name`. The key retains the raw style slope
+ *    and orientation independently of the compatibility slant bit used by
+ *    other resolver paths.
  *  - NO KEY for dot-prefixed faces (`BuildIdentifierKey`,
  *    character_fallback_cache.mm:36-82): a `.`-PS-named font yields a key only
  *    when its descriptor carries BOTH `NSCTFontUIUsageAttribute` and
@@ -3370,19 +3370,17 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
  * SCOPE — the part that is deliberately different from every other cache in
  * this module. Blink's map lives on `FontCache` (font_cache.h:338), reached via
  * `FontCache::Get()` → `FontGlobalContext::GetFontCache()` (font_cache.cc:121)
- * — per renderer main thread, which for Domotion's one-page-per-capture flow
- * is per captured document. Modeling it process-globally would make answers
- * depend on SWEEP order (which fixture rendered first in this Node process);
- * scoping it to an explicitly-begun document makes them depend on DOCUMENT
- * order, which is the thing being modeled. Therefore:
+ * — per renderer main thread, including same-renderer navigation. Modeling
+ * it process-globally would make answers depend on unrelated sweep order;
+ * an explicit FontRendererSession owns reuse across documents. Therefore:
  *
  *  - The map exists ONLY between `beginCharacterFallbackDocument()` /
  *    `endCharacterFallbackDocument()`. No active document → no lookup, no
  *    insert — the resolver stays context-free exactly as before.
- *  - Every top-level render entry opens a FRESH document scope (depth-counted,
- *    `finally`-paired), so no state can survive into the next render; the
- *    animator opens ONE scope spanning all frames, because Chrome's cache
- *    persists across the frames of one capture session.
+ *  - A top-level render opens a fresh document scope (depth-counted,
+ *    `finally`-paired). Without an owned renderer session it gets a fresh map;
+ *    with one it reuses that session's map across document scopes. The animator
+ *    opens one scope spanning its frames.
  *  - `clearFontResolutionCaches()` does NOT clear it: it is modeled state, not
  *    a memo — Chrome's cache is not dropped when our sweep trims memory. The
  *    entries are key strings; the faces they name re-materialize through the
