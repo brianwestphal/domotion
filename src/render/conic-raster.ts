@@ -19,6 +19,7 @@ import { collectFormControlConicTiles } from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
 import { type RGBA, parseColor } from "./colors.js";
 import { parseConicGradient, type ConicGradient, type ConicStop, type PosValue } from "./gradients.js";
+import { cyclicBackgroundLayer } from "./image-pattern.js";
 
 export interface RasterizeConicOptions {
   /**
@@ -82,7 +83,7 @@ export async function rasterizeConicGradients(
         for (let li = 0; li < layers.length; li++) {
           const layer = layers[li].trim();
           if (!/^(?:repeating-)?conic-gradient\(/i.test(layer)) continue;
-          const sizeCss = (sizes[li] ?? sizes[0] ?? "auto").trim();
+          const sizeCss = cyclicBackgroundLayer(sizes, li, "auto").trim();
           const tile = computeTileSize(sizeCss, el.width, el.height);
           consider(layer, tile.w, tile.h);
         }
@@ -107,7 +108,7 @@ export async function rasterizeConicGradients(
           for (let li = 0; li < layers.length; li++) {
             const layer = layers[li].trim();
             if (!/^(?:repeating-)?conic-gradient\(/i.test(layer)) continue;
-            const sizeCss = (sizes[li] ?? sizes[0] ?? "auto").trim();
+            const sizeCss = cyclicBackgroundLayer(sizes, li, "auto").trim();
             const tile = computeTileSize(sizeCss, rect.width, rect.height);
             consider(layer, tile.w, tile.h);
           }
@@ -133,9 +134,9 @@ export async function rasterizeConicGradients(
         .toBuffer();
       const dataUri = `data:image/png;base64,${png.toString("base64")}`;
       rememberConicTile(layerText, sizeKey, dataUri);
-    } catch {
-      // Per-tuple failure: leave the cache miss in place; renderer falls back
-      // to the parse-failure warning path.
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn(`[domotion] conic tile ${sizeKey} could not be rasterized: ${reason}; layer: ${layerText}`);
     }
   });
   await Promise.all(tasks);

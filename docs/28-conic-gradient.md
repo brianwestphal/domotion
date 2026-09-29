@@ -72,6 +72,8 @@ Blink-captured local border size (DM-2620).
 
 For a `background-size: <w> <h>` (explicit) or `0/24px 24px` (shorthand) layer, the tile is `<w> × <h>` CSS px. For `background-size: auto / cover / contain`, the tile is the element rect (with cover/contain math identical to the existing image-pattern path).
 
+For a single-axis size such as `background-size: 40px` on a 40×30 box, the omitted height is `auto`, so the cache and emitted pattern both use a 40×30 tile. When a background has more layers than size entries, the size list repeats cyclically. The Chromium pre-pass, helper-absent fallback, and SVG renderer use the same size calculation and layer index.
+
 Computed `background-size` is captured in the physical coordinate space used by
 `getBoundingClientRect()`: px terms are multiplied by cumulative CSS effective
 zoom while percentages stay box-relative. Fractional physical dimensions are

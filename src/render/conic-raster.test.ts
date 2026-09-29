@@ -166,6 +166,83 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     expect(dataUri.startsWith("data:image/png;base64,")).toBe(true);
   });
 
+  it("uses the same 40x30 tile for a single-axis background-size in the pre-pass and renderer", async () => {
+    const { rasterizeConicGradients } = await import("./conic-raster.js");
+    const { _conicTileCache, elementTreeToSvg } = await import("./element-tree-to-svg.js");
+    _conicTileCache.clear();
+    const layer = "conic-gradient(red, blue)";
+    const tree: any = [
+      {
+        tag: "div",
+        tagName: "div",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 30,
+        styles: {
+          backgroundImage: layer,
+          backgroundSize: "40px",
+          backgroundColor: "transparent",
+          color: "black",
+          borderColor: "transparent",
+        },
+        children: [],
+      },
+    ];
+
+    await rasterizeConicGradients(tree);
+    expect([...(_conicTileCache.get(layer)?.keys() ?? [])]).toEqual(["40x30"]);
+    const svg = elementTreeToSvg(tree, 40, 30);
+    expect(svg).toMatch(/<pattern[^>]+width="40" height="30"/);
+    expect(svg).toMatch(/<image href="data:image\/png;base64,/);
+    _conicTileCache.clear();
+  });
+
+  it("cycles a two-entry size list across four conic layers in both passes", async () => {
+    const { rasterizeConicGradients } = await import("./conic-raster.js");
+    const { _conicTileCache, elementTreeToSvg } = await import("./element-tree-to-svg.js");
+    _conicTileCache.clear();
+    const layers = [
+      "conic-gradient(red, blue)",
+      "conic-gradient(green, yellow)",
+      "conic-gradient(black, white)",
+      "conic-gradient(cyan, magenta)",
+    ];
+    const tree: any = [
+      {
+        tag: "div",
+        tagName: "div",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 30,
+        styles: {
+          backgroundImage: layers.join(", "),
+          backgroundSize: "12px 10px, 20px 15px",
+          backgroundColor: "transparent",
+          color: "black",
+          borderColor: "transparent",
+        },
+        children: [],
+      },
+    ];
+
+    await rasterizeConicGradients(tree);
+    expect(layers.map((layer) => [...(_conicTileCache.get(layer)?.keys() ?? [])])).toEqual([
+      ["12x10"],
+      ["20x15"],
+      ["12x10"],
+      ["20x15"],
+    ]);
+    const svg = elementTreeToSvg(tree, 40, 30);
+    expect(svg.match(/<image href="data:image\/png;base64,/g)).toHaveLength(4);
+    expect(svg.match(/<pattern[^>]+width="12" height="10"/g)).toHaveLength(2);
+    expect(svg.match(/<pattern[^>]+width="20" height="15"/g)).toHaveLength(2);
+    _conicTileCache.clear();
+  });
+
   it("dedupes (layerText, tileSize) tuples — multiple consumers share one cache entry", async () => {
     const { rasterizeConicGradients } = await import("./conic-raster.js");
     const { _conicTileCache } = await import("./element-tree-to-svg.js");
@@ -264,6 +341,37 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
       expect(conicWarnings[0]).toContain(broken);
     } finally {
       console.warn = orig;
+    }
+  });
+
+  it("reports a failed raster tuple with its size and cause", async () => {
+    const { rasterizeConicGradients } = await import("./conic-raster.js");
+    const { _conicTileCache } = await import("./element-tree-to-svg.js");
+    _conicTileCache.clear();
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message?: unknown) => warnings.push(String(message));
+    try {
+      await rasterizeConicGradients(
+        [
+          {
+            tagName: "div",
+            x: 0,
+            y: 0,
+            width: 40,
+            height: 30,
+            styles: { backgroundImage: "conic-gradient(red, blue)", backgroundSize: "40px" },
+            children: [],
+          },
+        ] as any,
+        { hiDPIFactor: Number.POSITIVE_INFINITY },
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("conic tile 40x30 could not be rasterized:");
+      expect(warnings[0]).toContain("conic-gradient(red, blue)");
+      expect(_conicTileCache.size).toBe(0);
+    } finally {
+      console.warn = originalWarn;
     }
   });
 });

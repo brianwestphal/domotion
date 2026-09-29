@@ -9,6 +9,7 @@
  */
 
 import { splitTopLevelCommas } from "./css-tokens.js";
+import { cyclicBackgroundLayer } from "./image-pattern.js";
 import type { MaskImageRect } from "./mask-position.js";
 
 export interface MaskPhysicalEdges {
@@ -95,10 +96,6 @@ export function resolveHtmlMaskReferenceBox(
   return { ...borderBox };
 }
 
-function cyclic(values: string[], index: number, fallback: string): string {
-  return values.length > 0 ? values[index % values.length] : fallback;
-}
-
 /** Resolve one layer without collapsing origin into clip. */
 export function resolveMaskOriginClipLayer(
   borderBox: MaskImageRect,
@@ -107,8 +104,8 @@ export function resolveMaskOriginClipLayer(
 ): ResolvedMaskLayerGeometry {
   const origins = splitTopLevelCommas(context.originCss);
   const clips = splitTopLevelCommas(context.clipCss);
-  const origin = normalizeHtmlMaskBox(cyclic(origins, layerIndex, "border-box"), false);
-  const clip = normalizeHtmlMaskBox(cyclic(clips, layerIndex, "border-box"), true);
+  const origin = normalizeHtmlMaskBox(cyclicBackgroundLayer(origins, layerIndex, "border-box"), false);
+  const clip = normalizeHtmlMaskBox(cyclicBackgroundLayer(clips, layerIndex, "border-box"), true);
   const positioningArea = resolveHtmlMaskReferenceBox(borderBox, origin, context.border, context.padding);
   const paintingArea =
     clip === "no-clip" ? null : resolveHtmlMaskReferenceBox(borderBox, clip, context.border, context.padding);

@@ -203,6 +203,14 @@ export const tests: FeatureTest[] = [
     html: `<div style="padding: 20px;"><div style="width: 240px; height: 240px; background: repeating-conic-gradient(#ddd 0 25%, white 0 50%) 0/24px 24px;"></div></div>`,
   },
   {
+    // The omitted background-size height is auto (the 90px box height),
+    // including when the tile width is explicitly 40px.
+    name: "bg-conic-single-axis-size",
+    html: `<div style="padding:20px;background:#fff"><div style="width:160px;height:90px;background-image:repeating-conic-gradient(#4f46e5 0 25%,#f8fafc 0 50%);background-size:40px;background-repeat:repeat"></div></div>`,
+    width: 220,
+    height: 150,
+  },
+  {
     // DM-547: from <angle> + at <position> — pie-meter-like sweep with off-center origin.
     name: "bg-conic-from-at",
     html: `<div style="padding: 20px;"><div style="width: 200px; height: 200px; background: conic-gradient(from 90deg at 30% 70%, #4f46e5 0% 25%, #ec4899 25% 75%, #4f46e5 75% 100%);"></div></div>`,

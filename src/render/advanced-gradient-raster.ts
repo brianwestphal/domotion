@@ -15,6 +15,7 @@ import { splitTopLevelCommas } from "./css-tokens.js";
 import { computeTileSize } from "./conic-raster.js";
 import { _conicTileCache } from "./element-tree-to-svg.js";
 import { collectFormControlConicTiles } from "./form-controls.js";
+import { cyclicBackgroundLayer } from "./image-pattern.js";
 
 export const _advancedGradientTileCache = new Map<string, Map<string, string>>();
 
@@ -62,11 +63,7 @@ export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: 
         const sizes = splitTopLevelCommas(sizeCss ?? "auto");
         for (let index = 0; index < layers.length; index++) {
           const layer = layers[index].trim();
-          const tile = computeTileSize(
-            (sizes[index % Math.max(1, sizes.length)] ?? "auto").trim(),
-            el.width,
-            el.height,
-          );
+          const tile = computeTileSize(cyclicBackgroundLayer(sizes, index, "auto").trim(), el.width, el.height);
           consider(layer, tile.w, tile.h);
         }
       }

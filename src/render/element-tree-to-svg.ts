@@ -4710,9 +4710,9 @@ function buildBackgroundLayerDef(
  * `_conicTileCache` (normally painted by the live Chromium page; CPU fallback
  * only when that page-backed pre-pass was unavailable).
  *
- * Tile size resolves from `sizeCss` against the element rect (mirrors the
- * tile-sizing logic in `conic-raster.ts computeTileSize` so cache lookups
- * line up). Background-position offset is applied to the pattern's x/y attrs.
+ * Tile size resolves through the same `computeTileSize` used by both raster
+ * prepasses, so their cache keys and this lookup stay aligned.
+ * Background-position offset is applied to the pattern's x/y attrs.
  *
  * Returns empty string when the cache misses; the caller warns loudly and
  * skips emission.
@@ -4727,24 +4727,7 @@ function buildConicGradientDef(
   sizeCss: string,
   posCss: string,
 ): string {
-  // Tile size: mirrors `computeTileSize` in conic-raster.ts.
-  const trimmed = sizeCss.trim();
-  let tileW = w,
-    tileH = h;
-  if (trimmed !== "" && trimmed !== "auto" && trimmed !== "cover" && trimmed !== "contain") {
-    const parts = trimmed.split(/\s+/);
-    const parseDim = (tok: string, basis: number): number => {
-      if (tok === "auto") return basis;
-      const m = /^(-?\d+(?:\.\d+)?|-?\.\d+)(%|px)?$/.exec(tok);
-      if (m == null) return basis;
-      const v = parseFloat(m[1]);
-      const unit = m[2] ?? "px";
-      if (unit === "%") return (v / 100) * basis;
-      return v;
-    };
-    tileW = parseDim(parts[0], w);
-    tileH = parts.length > 1 ? parseDim(parts[1], h) : tileW;
-  }
+  const { w: tileW, h: tileH } = computeTileSize(sizeCss, w, h);
   const tileWInt = Math.max(1, Math.round(tileW));
   const tileHInt = Math.max(1, Math.round(tileH));
   const sizeKey = `${tileWInt}x${tileHInt}`;

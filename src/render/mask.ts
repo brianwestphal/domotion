@@ -9,7 +9,7 @@
 import { r, esc } from "./format.js";
 import { embedResizedDataUri } from "../capture/embed.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
-import { buildImagePatternDef } from "./image-pattern.js";
+import { buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef } from "./gradient-defs.js";
 import {
   buildLinearGradientDef as buildExactLinearGradientDef,
@@ -1415,8 +1415,6 @@ export function buildMaskDef(
   // emission altogether and the element would show UNMASKED (opposite of
   // what we want), so force emission of an empty mask when it's set.
   let forceHide = false;
-  const cyclic = (values: string[], index: number, fallback: string): string =>
-    values.length > 0 ? values[index % values.length] : fallback;
   const normalizedLayerDefs: string[] = [];
   for (let li = layers.length - 1; li >= 0; li--) {
     const fragmentMask = fragmentMaskLayers?.get(li);
@@ -1454,9 +1452,9 @@ export function buildMaskDef(
         paintW: painting.width,
         paintH: painting.height,
         layer: layers[li].trim(),
-        layerSize: cyclic(sizeLayers, li, "auto").trim(),
-        layerPos: cyclic(posLayers, li, "0% 0%").trim(),
-        layerRepeat: cyclic(repeatLayers, li, "repeat").trim(),
+        layerSize: cyclicBackgroundLayer(sizeLayers, li, "auto").trim(),
+        layerPos: cyclicBackgroundLayer(posLayers, li, "0% 0%").trim(),
+        layerRepeat: cyclicBackgroundLayer(repeatLayers, li, "repeat").trim(),
         elementRasters,
         intrinsic:
           maskIntrinsic == null || maskIntrinsic.length === 0 ? null : maskIntrinsic[li % maskIntrinsic.length],
@@ -1477,7 +1475,7 @@ export function buildMaskDef(
     // by their positioned definition; explicitly luminance ordinary layers
     // need the equivalent one-layer conversion before entering that alpha
     // recurrence. (`match-source` ordinary images/gradients are alpha.)
-    const layerMode = cyclic(modeLayers, li, "match-source").trim().toLowerCase();
+    const layerMode = cyclicBackgroundLayer(modeLayers, li, "match-source").trim().toLowerCase();
     const layerNeedsLuminance =
       layerMode === "luminance" || (layerMode === "match-source" && /^element\(\s*#/i.test(layers[li].trim()));
     if (hasFragmentLayer && layerNeedsLuminance && contents.length > 0) {
@@ -1566,7 +1564,8 @@ export function buildMaskDef(
   // layer's own Porter-Duff operator to the accumulated destination. The old
   // uniform-operator shortcuts below are compact and exact for two layers;
   // arbitrary lists and 3+ layers need the actual sequential recurrence.
-  const operatorAt = (layerIndex: number): string => normaliseComposite(cyclic(compositeLayers, layerIndex, "add"));
+  const operatorAt = (layerIndex: number): string =>
+    normaliseComposite(cyclicBackgroundLayer(compositeLayers, layerIndex, "add"));
   const topOperators = activeLayers.slice(0, -1).map((layer) => operatorAt(layer.index));
   const needsSequentialComposition =
     activeLayers.length > 2 || new Set(topOperators).size > 1 || (hasFragmentLayer && activeLayers.length > 1);
