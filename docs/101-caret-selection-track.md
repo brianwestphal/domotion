@@ -4,7 +4,7 @@ title: "101 — Caret + selection track (declarative, anchored to captured text)
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1756"]
 code:
   [

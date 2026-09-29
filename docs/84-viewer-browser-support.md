@@ -4,7 +4,7 @@ title: "84 — Viewer browser support (where the output SVGs play)"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1507", "DM-1511", "DM-1512", "DM-1514", "DM-1517", "DM-1529"]
 code: ["src/animation/composite.ts", "src/post-processing/clip-transform-safety.ts"]
 aliases: ["docs/84-viewer-browser-support.md", "doc-84"]

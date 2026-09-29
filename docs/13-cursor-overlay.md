@@ -4,7 +4,7 @@ title: "Domotion: cursor / click overlay"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["macos", "windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1106", "DM-1133", "DM-1139", "DM-1507", "DM-1742", "DM-1995", "DM-272", "DM-277", "DM-G999GK"]
 code:
   [

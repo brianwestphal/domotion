@@ -4,7 +4,7 @@ title: "Mixed-script bidi logical geometry"
 kind: "contract"
 status: "current"
 owners: ["text-fonts", "layout"]
-platforms: ["macos", "windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2524", "DM-2619"]
 code:
   [

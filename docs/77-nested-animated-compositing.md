@@ -4,7 +4,7 @@ title: "77 — Nested animated compositing (DM-1323)"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1287", "DM-1292", "DM-1296", "DM-1319", "DM-1322", "DM-1323", "DM-1329", "DM-1331"]
 code:
   [

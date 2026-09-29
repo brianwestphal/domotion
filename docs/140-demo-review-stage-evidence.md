@@ -4,7 +4,7 @@ title: "Demo-review stage evidence"
 kind: "evidence"
 status: "current"
 owners: ["product-tooling"]
-platforms: ["linux"]
+platforms: ["macos", "linux", "windows"]
 tickets: [2625]
 code:
   [

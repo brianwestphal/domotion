@@ -4,7 +4,7 @@ title: "35. Scroll composer: position:sticky hoisting"
 kind: "contract"
 status: "current"
 owners: ["layout"]
-platforms: ["windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-641", "DM-643", "DM-645"]
 code:
   [

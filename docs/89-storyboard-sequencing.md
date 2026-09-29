@@ -4,7 +4,7 @@ title: "89 — Storyboard sequencing (DM-1527)"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1319", "DM-1329", "DM-1331", "DM-1524", "DM-1527", "DM-1552", "DM-1553", "DM-1554", "DM-2688"]
 code:
   [

@@ -4,7 +4,7 @@ title: '96 — Native inlining of <img src=".svg">'
 kind: "contract"
 status: "current"
 owners: ["images-media"]
-platforms: ["windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1592", "DM-1593", "DM-1595"]
 code:
   [

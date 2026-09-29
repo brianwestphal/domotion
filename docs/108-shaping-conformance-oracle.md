@@ -4,7 +4,7 @@ title: "108 — Shaping conformance oracle"
 kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release", "product-tooling"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1964", "DM-2521"]
 code:
   [

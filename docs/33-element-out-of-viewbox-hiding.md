@@ -4,7 +4,7 @@ title: "33 — Element-level out-of-viewBox hiding (DM-603 / DM-2460 / DM-2461)"
 kind: "contract"
 status: "current"
 owners: ["layout"]
-platforms: ["windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2460", "DM-2461", "DM-2462", "DM-599", "DM-602", "DM-603"]
 code:
   [

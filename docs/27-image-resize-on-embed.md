@@ -4,7 +4,7 @@ title: "27 — Image resize-on-embed"
 kind: "contract"
 status: "current"
 owners: ["images-media"]
-platforms: ["linux"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2477", "DM-258", "DM-260", "DM-512", "DM-526", "DM-542", "DM-FZ5734"]
 code:
   [

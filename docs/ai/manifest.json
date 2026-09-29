@@ -122,7 +122,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["animation"],
-      "platforms": ["windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "examples/animate/",
         "examples/animate/README.md",
@@ -204,7 +204,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["animation"],
-      "platforms": ["macos", "windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/animation/cursor-glyphs.ts",
         "src/animation/cursor-overlay.ts",
@@ -400,7 +400,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["rendering"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "examples/showcase-rendering.ts",
         "src/embed-remote-images.test.ts",
@@ -416,7 +416,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["images-media"],
-      "platforms": ["linux"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/embed-hidpi-scope.test.ts",
         "src/capture/embed.ts",
@@ -509,7 +509,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["layout"],
-      "platforms": ["windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/cli/animate-frame-capture.ts",
         "src/cli/animate-orchestrator.ts",
@@ -538,7 +538,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["layout"],
-      "platforms": ["windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/scroll/executor.ts",
         "src/scroll/hoist-fixed.ts",
@@ -1205,7 +1205,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["animation"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "examples/composite-desktop.ts",
         "examples/composite/desktop-terminal.json",
@@ -1333,7 +1333,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["rendering"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": ["src/animation/composite.ts", "src/post-processing/clip-transform-safety.ts"],
       "file": "84-viewer-browser-support.md"
     },
@@ -1400,7 +1400,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["animation"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "examples/output/storyboard-demo.svg",
         "examples/storyboard-demo.ts",
@@ -1510,7 +1510,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["images-media"],
-      "platforms": ["windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/embed.ts",
         "src/cli/animate.ts",
@@ -1552,7 +1552,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["text-fonts"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/review/glyph-compare.e2e.test.ts",
         "src/review/glyph-compare.test.ts",
@@ -1635,7 +1635,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["text-fonts"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "examples/animate/compressed-run/",
         "src/animation/animator.ts",
@@ -1663,7 +1663,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["rendering"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "examples/animate/compressed-run/",
         "examples/animate/editor-session/",
@@ -1693,7 +1693,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["animation", "platform-release"],
-      "platforms": ["windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "examples/animate/editor-session/",
         "examples/animate/form-fill/",
@@ -1783,7 +1783,7 @@
       "kind": "evidence",
       "status": "current",
       "owners": ["text-fonts", "platform-release", "product-tooling"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "tests/fixtures/shaping",
         "tests/fixtures/shaping/letter-spacing-ligature-vetoes.html",
@@ -2256,7 +2256,7 @@
       "kind": "evidence",
       "status": "current",
       "owners": ["product-tooling"],
-      "platforms": ["linux"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/review/stage-evidence.ts",
         "src/review/linux-unicode-evidence.ts",
@@ -3307,7 +3307,7 @@
       "kind": "contract",
       "status": "current",
       "owners": ["text-fonts", "layout"],
-      "platforms": ["macos", "windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         ".github/workflows/mixed-bidi-logical-conformance.yml",
         "packages/text-engine/src/render/mixed-bidi-logical.test.ts",
@@ -3421,7 +3421,7 @@
       "kind": "contract",
       "status": "partial",
       "owners": ["layout", "animation"],
-      "platforms": ["macos"],
+      "platforms": ["macos", "linux", "windows"],
       "code": ["src/capture/animation-frame.ts", "tools/timeline-sampling-ownership-oracle.ts"],
       "file": "221-scroll-view-raf-timeline-ownership.md"
     },

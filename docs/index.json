@@ -269,7 +269,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["animation"],
-        "platforms": ["windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": [
           "DM-1297",
           "DM-1414",
@@ -397,7 +397,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["animation"],
-        "platforms": ["macos", "windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1106", "DM-1133", "DM-1139", "DM-1507", "DM-1742", "DM-1995", "DM-272", "DM-277", "DM-G999GK"],
         "code": [
           "src/animation/cursor-glyphs.ts",
@@ -680,7 +680,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["rendering"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-512", "DM-528", "DM-529"],
         "code": [
           "examples/showcase-rendering.ts",
@@ -700,7 +700,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["images-media"],
-        "platforms": ["linux"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2477", "DM-258", "DM-260", "DM-512", "DM-526", "DM-542", "DM-FZ5734"],
         "code": [
           "src/capture/embed-hidpi-scope.test.ts",
@@ -830,7 +830,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["layout"],
-        "platforms": ["windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2460", "DM-2461", "DM-2462", "DM-599", "DM-602", "DM-603"],
         "code": [
           "src/cli/animate-frame-capture.ts",
@@ -867,7 +867,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["layout"],
-        "platforms": ["windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-641", "DM-643", "DM-645"],
         "code": [
           "src/scroll/executor.ts",
@@ -1787,7 +1787,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["animation"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1287", "DM-1292", "DM-1296", "DM-1319", "DM-1322", "DM-1323", "DM-1329", "DM-1331"],
         "code": [
           "examples/composite-desktop.ts",
@@ -1959,7 +1959,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["rendering"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1507", "DM-1511", "DM-1512", "DM-1514", "DM-1517", "DM-1529"],
         "code": ["src/animation/composite.ts", "src/post-processing/clip-transform-safety.ts"],
         "aliases": ["docs/84-viewer-browser-support.md", "doc-84"]
@@ -2096,7 +2096,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["animation"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1319", "DM-1329", "DM-1331", "DM-1524", "DM-1527", "DM-1552", "DM-1553", "DM-1554", "DM-2688"],
         "code": [
           "examples/output/storyboard-demo.svg",
@@ -2248,7 +2248,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["images-media"],
-        "platforms": ["windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1592", "DM-1593", "DM-1595"],
         "code": [
           "src/capture/embed.ts",
@@ -2298,7 +2298,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["text-fonts"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1686"],
         "code": [
           "src/review/glyph-compare.e2e.test.ts",
@@ -2404,7 +2404,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["text-fonts"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1756"],
         "code": [
           "examples/animate/compressed-run/",
@@ -2436,7 +2436,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["rendering"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1763"],
         "code": [
           "examples/animate/compressed-run/",
@@ -2474,7 +2474,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["animation", "platform-release"],
-        "platforms": ["windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1767", "DM-1796", "DM-1799", "DM-2641", "DM-S9HCAT"],
         "code": [
           "examples/animate/editor-session/",
@@ -2583,7 +2583,7 @@
         "kind": "evidence",
         "status": "current",
         "owners": ["text-fonts", "platform-release", "product-tooling"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1964", "DM-2521"],
         "code": [
           "tests/fixtures/shaping",
@@ -3196,7 +3196,7 @@
         "kind": "evidence",
         "status": "current",
         "owners": ["product-tooling"],
-        "platforms": ["linux"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": [2625],
         "code": [
           "src/review/stage-evidence.ts",
@@ -4543,7 +4543,7 @@
         "kind": "contract",
         "status": "current",
         "owners": ["text-fonts", "layout"],
-        "platforms": ["macos", "windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2524", "DM-2619"],
         "code": [
           ".github/workflows/mixed-bidi-logical-conformance.yml",
@@ -4685,7 +4685,7 @@
         "kind": "contract",
         "status": "partial",
         "owners": ["layout", "animation"],
-        "platforms": ["macos"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-2553", "DM-2554"],
         "code": ["src/capture/animation-frame.ts", "tools/timeline-sampling-ownership-oracle.ts"],
         "aliases": ["docs/221-scroll-view-raf-timeline-ownership.md", "doc-221"]

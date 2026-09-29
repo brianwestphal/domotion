@@ -4,7 +4,7 @@ title: "08 — Animation model: transitions, overlays, intra-frame motion"
 kind: "contract"
 status: "current"
 owners: ["animation"]
-platforms: ["windows"]
+platforms: ["macos", "linux", "windows"]
 tickets:
   [
     "DM-1297",

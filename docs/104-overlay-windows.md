@@ -4,7 +4,7 @@ title: "104 — Per-overlay windows (endAt) and per-state overlays inside a comp
 kind: "contract"
 status: "current"
 owners: ["animation", "platform-release"]
-platforms: ["windows"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1767", "DM-1796", "DM-1799", "DM-2641", "DM-S9HCAT"]
 code:
   [

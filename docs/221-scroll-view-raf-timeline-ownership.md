@@ -4,7 +4,7 @@ title: "221 — Scroll/view/rAF timeline sampling ownership"
 kind: "contract"
 status: "partial"
 owners: ["layout", "animation"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-2553", "DM-2554"]
 code: ["src/capture/animation-frame.ts", "tools/timeline-sampling-ownership-oracle.ts"]
 aliases: ["docs/221-scroll-view-raf-timeline-ownership.md", "doc-221"]

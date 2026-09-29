@@ -4,7 +4,7 @@ title: "26 — Self-contained SVGs (remote image inlining)"
 kind: "contract"
 status: "current"
 owners: ["rendering"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-512", "DM-528", "DM-529"]
 code:
   [

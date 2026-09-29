@@ -4,7 +4,7 @@ title: "98 — Glyph font-identity comparator (compare-glyphs)"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1686"]
 code:
   [
