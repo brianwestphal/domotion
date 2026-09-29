@@ -18,7 +18,7 @@
 
 import sharp from "sharp";
 import { createHash } from "node:crypto";
-import { _dataUriCache, _resizedDataUriCache } from "../render/element-tree-to-svg.js";
+import { _dataUriCache, _resizedDataUriCache } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import type { AnimatedImageStaticFrameRecord } from "../capture/animated-image-static-frame.js";
 
@@ -168,10 +168,11 @@ export async function resizeEmbeddedImages(
       rememberFrozenResize(frozenSource, out, outputMeta.width ?? 0, outputMeta.height ?? 0, w, h, true, frozenRecords);
     } catch {
       if (frozenSource != null) throw new Error("strict animated-image frozen PNG resize failed");
-      // Per-image failure: fall back to source bytes so the SVG still
-      // renders. The renderer's `embedResizedDataUri` lookup will hit the
-      // source data URI cached under this sizeKey.
-      rememberResized(url, sizeKey, sourceDataUri);
+      // Per-image failure: leave the size slot EMPTY. The renderer's
+      // `embedResizedDataUri` misses and falls back to `embedAsDataUri(url)`,
+      // which returns these same source bytes, so the SVG still renders. Caching
+      // the source under the key would also pin it: a later pass with a valid
+      // source for the same URL would find the slot filled and never re-resize.
     }
   });
   await Promise.all(tasks);

@@ -41,6 +41,7 @@
  * `@font-face` collapse across all scenes (`dedupeCompositeFonts`).
  */
 
+import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -263,6 +264,7 @@ async function captureSceneToSvg(
     await loadInputIntoPage(page, input);
     await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });
     clearWebfonts();
+    clearCaptureGenerationCaches();
     await discoverAndRegisterWebfonts(page, tracker.urls);
     tracker.detach();
     // Self-contained capture: a storyboard scene renders straight into the

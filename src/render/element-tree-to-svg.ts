@@ -33,6 +33,7 @@ import {
 } from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
+import { _conicTileCache } from "./raster-tile-cache.js";
 import {
   isFlexOrGridContainerDisplay,
   establishesStackingContext,
@@ -220,7 +221,7 @@ function resolvedOverflowClipMarginGeometry(
  * the renderer emits a `<pattern><image>` for a conic background layer. Empty
  * at module load — first capture with conic content fills it.
  */
-export const _conicTileCache = new Map<string, Map<string, string>>();
+export { _conicTileCache };
 
 /**
  * Wrap inner SVG markup (as returned by `elementTreeToSvg`) in a complete

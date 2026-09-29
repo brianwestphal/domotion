@@ -67,8 +67,10 @@ The distributed-demo Domotion examples (`examples/showcase-rendering.ts`, `showc
 
 Internal long-running embedders can call `clearEmbeddedImageCaches()` from
 `src/capture/embed.ts` between unrelated jobs to release the process-global
-source and resized-image data URI caches. The one-shot CLI does not need this
-explicit eviction.
+source and resized-image data URI caches. The CLI capture, template, storyboard
+and animate entry points already reset them (together with the raster tile
+caches) at the start of each capture generation via
+`clearCaptureGenerationCaches()` in `src/capture/generation-caches.ts`.
 
 For end users who don't use `DemoRecorder` and want fine-grained control, the bare `embedRemoteImages(tree)` function is exported from the package root.
 

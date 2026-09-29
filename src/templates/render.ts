@@ -5,6 +5,7 @@
  * hands the template a `runAnimateConfig` bound to the existing pipeline.
  */
 
+import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,6 +48,7 @@ async function captureToSvg(
     await loadInputIntoPage(page, p.input, { networkIdle: p.networkIdle });
     await applyReadyWaits(page, { wait: p.wait ?? 200, waitFor: p.waitFor, fontsReady: true });
     clearWebfonts();
+    clearCaptureGenerationCaches();
     await discoverAndRegisterWebfonts(page, tracker.urls);
     tracker.detach();
     const tree = await captureElementTree(page, p.selector ?? "body", {

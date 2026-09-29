@@ -429,3 +429,29 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
     expect(dataUri.startsWith("data:image/png;base64,")).toBe(true);
   });
 });
+
+describe("resizeEmbeddedImages failure isolation", () => {
+  it("does not pin a corrupt source under its size key, so a later valid source is resized", async () => {
+    const url = "https://example.test/flaky.png";
+    const tree = (): any => [
+      {
+        tagName: "img",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        imageSrc: url,
+        styles: {},
+        children: [],
+      },
+    ];
+    _dataUriCache.set(url, "data:image/png;base64,bm90LWEtcG5n");
+    await resizeEmbeddedImages(tree(), { hiDPIFactor: 1 });
+    expect(embedResizedDataUri(url, 100, 100, 1)).toBe("data:image/png;base64,bm90LWEtcG5n");
+    expect(_resizedDataUriCache.get(url)?.has("100x100") ?? false).toBe(false);
+
+    _dataUriCache.set(url, await makePngDataUri(800, 800));
+    await resizeEmbeddedImages(tree(), { hiDPIFactor: 1 });
+    expect(_resizedDataUriCache.get(url)?.has("100x100")).toBe(true);
+  });
+});

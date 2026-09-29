@@ -6,6 +6,7 @@
  * scroll machinery.
  */
 
+import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { parseArgs } from "node:util";
 import {
   captureElementTree,
@@ -317,6 +318,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // request stack, and register them with text-to-path so the renderer
     // draws with the real webfont glyphs instead of a system substitute.
     clearWebfonts();
+    clearCaptureGenerationCaches();
     await timed(log, `  registered webfonts (${tracker.urls.size})`, () =>
       discoverAndRegisterWebfonts(page, tracker.urls),
     );

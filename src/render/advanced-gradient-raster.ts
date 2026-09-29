@@ -13,11 +13,11 @@ import type { Page } from "@playwright/test";
 import type { CapturedElement } from "../capture/types.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { computeTileSize } from "./conic-raster.js";
-import { _conicTileCache } from "./element-tree-to-svg.js";
+import { _advancedGradientTileCache, _conicTileCache } from "./raster-tile-cache.js";
 import { collectFormControlConicTiles } from "./form-controls.js";
 import { cyclicBackgroundLayer } from "./image-pattern.js";
 
-export const _advancedGradientTileCache = new Map<string, Map<string, string>>();
+export { _advancedGradientTileCache };
 
 export function needsChromiumGradientRaster(layer: string): boolean {
   if (/^(?:repeating-)?conic-gradient\(/i.test(layer.trim())) return true;

@@ -1,5 +1,6 @@
 /** Browser/context/font lifecycle for one declarative animation capture run. */
 
+import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import type { Browser, Page } from "@playwright/test";
 import { attachWebfontTracker, injectBrandVariables } from "../capture/index.js";
 import { clearEmbeddedFonts, clearGlyphDefs, clearWebfonts } from "../render/index.js";
@@ -44,6 +45,7 @@ export async function openAnimateCaptureSession(
   page.setDefaultNavigationTimeout(90_000);
 
   clearWebfonts();
+  clearCaptureGenerationCaches();
   clearEmbeddedFonts();
   clearGlyphDefs();
   const tracker = attachWebfontTracker(page);

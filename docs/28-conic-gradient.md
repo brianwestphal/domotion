@@ -68,6 +68,11 @@ Rejected alternatives:
 backgrounds, deduplicates `(layerText, tileWidth, tileHeight)` tuples, and asks
 the live page to paint every conic/repeating-conic tuple. Results enter
 `_conicTileCache`; two consumers with the same layer and size share one PNG.
+The cache lives in `src/render/raster-tile-cache.ts` and is reset with
+`clearCaptureGenerationCaches()` where each capture generation starts (beside
+`clearWebfonts()`, before the page is captured). It is never reset between a
+capture and its render, and a rasterizer never overwrites an existing tile, so
+without the reset a long-lived host would keep the first document's tile forever.
 The implementation lives in `src/render/advanced-gradient-raster.ts` (DM-2308),
 which also captures linear/radial layers whose explicit color space or
 premultiplied-alpha interpolation cannot be represented by SVG gradients.

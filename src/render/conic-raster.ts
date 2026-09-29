@@ -14,7 +14,7 @@
 
 import sharp from "sharp";
 import { splitTopLevelCommas } from "./css-tokens.js";
-import { _conicTileCache } from "./element-tree-to-svg.js";
+import { _conicTileCache } from "./raster-tile-cache.js";
 import { collectFormControlConicTiles } from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
 import { type RGBA, parseColor } from "./colors.js";
