@@ -18,7 +18,9 @@ import {
 const position = (value: number): string => Number(value.toFixed(3)).toString();
 
 /** Suppress duplicate run-level labels while a real-text layer owns semantics. */
-export function withRealTextLayerVisualSemantics<T>(render: () => T): T {
+export function withRealTextLayerVisualSemantics<F extends () => unknown>(
+  render: Parameters<typeof withTextEngineVisualSemanticsSuppressed<F>>[0],
+): ReturnType<F> {
   return withTextEngineVisualSemanticsSuppressed(render);
 }
 
