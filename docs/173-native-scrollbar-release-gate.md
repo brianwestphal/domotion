@@ -26,10 +26,11 @@ still adjudicate `READY` before release
 This gate is the release boundary for the hybrid ownership model in
 [doc 165](165-native-scrollbar-layout-paint-ownership-audit.md) and the live
 capture contract in [doc 169](169-authoritative-scrollbar-capture.md). It does
-not turn the DM-2481 observational report into a passing result. The current
-renderer still emits neither Chromium-resolved custom parts nor same-frame
-native strips, so any `partial`, warning-bearing, `*-current-gap`, or
-`native-platform-fingerprint` row is a blocker.
+not turn the DM-2481 observational report into a passing result. The renderer
+ships Chromium-resolved custom parts and same-frame native strips; the gate
+still needs fresh independent native evidence before release. Any `partial`,
+warning-bearing, `*-current-gap`, or `native-platform-fingerprint` row is a
+blocker.
 
 ## Source boundary
 

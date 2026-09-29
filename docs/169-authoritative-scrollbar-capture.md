@@ -12,6 +12,7 @@ code:
     "src/capture/scrollbar-capture.ts",
     "src/render/custom-scrollbar.ts",
     "src/render/native-scrollbar-raster.ts",
+    "tools/native-scrollbar-ownership-audit.ts",
   ]
 aliases: ["docs/169-authoritative-scrollbar-capture.md", "doc-169"]
 ---
