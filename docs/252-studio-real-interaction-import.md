@@ -60,7 +60,8 @@ file is never overwritten.
 
 ## Required AI interpretation and review
 
-Import has no deterministic or replay-only shortcut. A configured AI healing
+Import has no deterministic or replay-only shortcut. An embedding host enables
+it through `startStudioServer({ recordingAi })`. A configured AI healing
 adapter receives the complete redacted recording, current project, and the
 non-optional policy `{ healing: "required", review: "required" }`. It removes
 pointer/key/mutation noise, chooses accessibility-first stable targets,
@@ -83,11 +84,16 @@ lets authors retime them without editing JSON. Further scene title, source,
 duration, transition, treatment, and generation edits use the existing
 immutable authoring command and exact undo model.
 
-The standalone app accepts a validated redacted recording document through
+The server accepts a validated redacted recording document through
 `POST /api/recording/import`. The route checks the expected project revision,
-requires both AI adapters, preserves clarification as a non-mutating result,
-persists evidence inside the workspace, and atomically saves the imported
-project.
+requires the configured healing and review adapter, preserves clarification as
+a non-mutating result, persists evidence inside the workspace, and atomically
+saves the imported project. The published `domotion-studio` / `domotion studio`
+binary supplies no recording adapter. Its bootstrap sets
+`recordingImportAvailable: false`, the Import control is disabled, and a direct
+call to the route returns HTTP 501. Recording and import are available when a
+host supplies the adapter; the browser recording API itself remains usable
+independently.
 
 ## Verification
 
@@ -99,9 +105,10 @@ server route and evidence file.
 
 `src/studio/recording.e2e.test.ts` records a real Chromium flow containing
 password entry, pointer travel/click, scrolling, DOM/class feedback, computed
-CSS, and a secret-bearing history URL. It proves the secrets are absent,
-imports a noise-reduced semantic scene through both AI stages, edits its timing
-with the normal authoring command, changes the fixture's DOM nesting, visual
+CSS, and a secret-bearing history URL. With test-supplied AI adapters, it
+proves the secrets are absent, imports a noise-reduced semantic scene through
+both AI stages, edits its timing with the normal authoring command, changes
+the fixture's DOM nesting, visual
 CSS, and button name, and replays it through `compileStudioInteractiveProject`
 using the AI-selected stable target.
 

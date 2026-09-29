@@ -59,8 +59,16 @@ project. The temporary file is removed on either success or failure.
 ## Local server contract
 
 The server reuses `startLocalServer`, including its ephemeral-port and prompt
-idle-connection shutdown behavior. It serves one bundled Kerf client and three
-JSON operations:
+idle-connection shutdown behavior. It serves one bundled Kerf client and
+workspace-bounded JSON routes:
+
+The published `domotion-studio` / `domotion studio` binary starts the server
+without AI adapters. Its bootstrap reports `generationAvailable: false` and
+`recordingImportAvailable: false`, disabling Generate and Import controls.
+Embedding hosts can supply `generate` and `recordingAi` to `startStudioServer`;
+the corresponding `/api/generate` and `/api/recording/import` routes return HTTP
+501 when their adapter is absent. Generation always receives
+`aiPolicy: { healing: "required", review: "required" }`.
 
 - `POST /api/create` with `{ path, title, width?, height? }` creates a valid
   version-1 project containing one narrative beat and one title-card scene.

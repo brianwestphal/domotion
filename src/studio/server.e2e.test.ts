@@ -101,6 +101,39 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     if (root !== "") rmSync(root, { recursive: true, force: true });
   }, 15_000);
 
+  it("keeps generation and recording import unavailable without host AI adapters", async () => {
+    if (!available || browser == null) return;
+    const file = createStudioProjectFile(root, "without-ai.studio.json", { title: "Manual Studio" });
+    const bareServer = await startStudioServer({ workspaceRoot: root, initialProjectPath: file.relativePath });
+    const barePage = await browser.newPage();
+    try {
+      await barePage.goto(bareServer.url, { waitUntil: "load" });
+      expect(await barePage.getByRole("button", { name: "Generate whole story" }).isDisabled()).toBe(true);
+      expect(await barePage.getByRole("button", { name: "Import as editable scene" }).isDisabled()).toBe(true);
+
+      const base = { path: file.relativePath, expectedHeadRevisionId: file.project.review.headRevisionId };
+      const generation = await barePage.request.post(new URL("/api/generate", bareServer.url).toString(), {
+        data: { ...base, selection: { kind: "story" } },
+      });
+      expect(generation.status()).toBe(501);
+      expect(await generation.json()).toMatchObject({
+        error: "Studio generation requires a configured AI healing and review adapter",
+      });
+
+      const recording = await barePage.request.post(new URL("/api/recording/import", bareServer.url).toString(), {
+        data: { ...base, recording: {} },
+      });
+      expect(recording.status()).toBe(501);
+      expect(await recording.json()).toMatchObject({
+        error: "Studio recording import requires configured AI healing and review adapters",
+      });
+      expect(openStudioProjectFile(root, file.relativePath).project).toEqual(file.project);
+    } finally {
+      await barePage.close();
+      await bareServer.close();
+    }
+  });
+
   it("creates, edits, saves, and reopens a project through the real browser UI", async () => {
     if (!available || page == null || server == null) return;
     const testPage = page;

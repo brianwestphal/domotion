@@ -58,6 +58,12 @@ edit does.
 
 Scene and whole-story generation are provided by a host adapter. Every request
 receives the non-optional policy `{ healing: "required", review: "required" }`.
+An embedding host enables this through `startStudioServer({ generate })`.
+`POST /api/generate` accepts a project path, expected review-head revision,
+and a story or scene selection; the server passes the policy as `aiPolicy` to
+the adapter. The published `domotion-studio` / `domotion studio` binary supplies
+no generation adapter. Its bootstrap sets `generationAvailable: false`, the
+Generate controls are disabled, and a direct call to the route returns HTTP 501. Manual authoring, saving, and reviewing remain available.
 A completed result must explicitly report accepted AI healing and AI review,
 preserve the authored narrative/scenes/settings and existing provenance, and
 publish a current digest-checked SVG artifact. An ambiguous result returns a
@@ -89,8 +95,9 @@ No font, glyph, HarfBuzz, or Skia ownership changes in this feature.
 `src/studio/authoring.test.ts` covers immutable scene operations, recursive ID
 remapping, beat membership, destructive guards, exact undo, and content
 revisions. Storyboard/timeline tests cover trim validation and source-local
-retiming. `src/studio/server.e2e.test.ts` authors and persists a multi-scene,
-multi-beat story in Chromium, edits source/timing/fit/transition/treatment and
+retiming. With a test-supplied generation adapter,
+`src/studio/server.e2e.test.ts` authors and persists a multi-scene, multi-beat
+story in Chromium, edits source/timing/fit/transition/treatment and
 generation instructions, invokes required-AI scene generation, opens the real
 Scrubber preview, and reopens the same persisted project.
 
