@@ -149,6 +149,22 @@ describe("document scope lifecycle", () => {
     });
   });
 
+  it("rejects a different renderer session requested inside an open document", () => {
+    const a = createFontRendererSession();
+    const b = createFontRendererSession();
+    withFontRendererSession(a, () => {
+      beginCharacterFallbackDocument();
+      expect(() => withFontRendererSession(b, () => undefined)).toThrow(/switch font renderer sessions/);
+      // Re-entering the owning session is fine.
+      expect(withFontRendererSession(a, () => 1)).toBe(1);
+      endCharacterFallbackDocument();
+    });
+    // An anonymous document rejects any named session, too.
+    beginCharacterFallbackDocument();
+    expect(() => withFontRendererSession(a, () => undefined)).toThrow(/switch font renderer sessions/);
+    endCharacterFallbackDocument();
+  });
+
   it("restores the previous selection so unrelated default renders stay isolated", () => {
     const session = createFontRendererSession();
     withFontRendererSession(session, () => {

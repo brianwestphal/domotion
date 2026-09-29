@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { _clearHbFontCache, harfbuzzShapeRun, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
+import { clearHbFontCache, harfbuzzShapeRun, makeHarfbuzzShapingInstance } from "./harfbuzz-shaper.js";
 import { buildSfnt, buildStaticHintedFont, wrapInTtc } from "./synth-test-fonts.js";
 import { __resolveFaceInfoForFileForTest as faceInfo, clearFontResolutionCaches } from "./font-resolution.js";
 
@@ -47,12 +47,12 @@ beforeEach(() => {
   );
   sfntPath = path.join(dir, "solo.ttf");
   writeFileSync(sfntPath, buildStaticHintedFont({ family: "SynthSolo" }));
-  _clearHbFontCache();
+  clearHbFontCache();
   clearFontResolutionCaches();
 });
 
 afterEach(() => {
-  _clearHbFontCache();
+  clearHbFontCache();
   clearFontResolutionCaches();
   rmSync(dir, { recursive: true, force: true });
 });
@@ -82,7 +82,7 @@ describe("collection member selection", () => {
     expect(advanceAt(ttcPath, 1)).toBe(WIDE_ADVANCE);
     expect(advanceAt(ttcPath, 0)).toBe(NARROW_ADVANCE);
 
-    _clearHbFontCache();
+    clearHbFontCache();
     expect(advanceAt(ttcPath, 1)).toBe(WIDE_ADVANCE);
     expect(advanceAt(ttcPath, 0)).toBe(NARROW_ADVANCE);
     expect(advanceAt(ttcPath, 1)).toBe(WIDE_ADVANCE);

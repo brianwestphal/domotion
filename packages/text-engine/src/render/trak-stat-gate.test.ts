@@ -17,7 +17,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { faceHasTrakAndStat, _clearTrakStatCache } from "./harfbuzz-shaper.js";
+import { faceHasTrakAndStat, clearTrakStatCache } from "./harfbuzz-shaper.js";
 
 /** A minimal single-face sfnt: a real table directory, no table bodies. Only
  *  the directory is read, so the bodies never have to exist. */
@@ -61,11 +61,11 @@ const write = (bytes: Buffer): string => {
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "domotion-trak-"));
-  _clearTrakStatCache();
+  clearTrakStatCache();
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
-  _clearTrakStatCache();
+  clearTrakStatCache();
 });
 
 describe("the trak + STAT gate", () => {
@@ -136,7 +136,7 @@ describe("the trak + STAT gate", () => {
     expect(faceHasTrakAndStat(p, 0)).toBe(true);
     writeFileSync(p, sfnt([{ tag: "glyf" }]));
     expect(faceHasTrakAndStat(p, 0)).toBe(true); // memoised, not re-read
-    _clearTrakStatCache();
+    clearTrakStatCache();
     expect(faceHasTrakAndStat(p, 0)).toBe(false); // the control
   });
 });

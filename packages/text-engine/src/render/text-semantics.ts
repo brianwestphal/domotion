@@ -1,13 +1,16 @@
 import { esc } from "./format.js";
+import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
 
 let visualSemanticsSuppressionDepth = 0;
 
 /** Suppress duplicate run-level labels while a Domotion-owned readable text
  * layer supplies the authored semantics for the same glyph geometry. */
-export function withTextEngineVisualSemanticsSuppressed<T>(render: () => T): T {
+export function withTextEngineVisualSemanticsSuppressed<F extends () => unknown>(
+  render: SynchronousCallback<F>,
+): ReturnType<F> {
   visualSemanticsSuppressionDepth++;
   try {
-    return render();
+    return invokeSynchronousCallback("withTextEngineVisualSemanticsSuppressed", render);
   } finally {
     visualSemanticsSuppressionDepth--;
   }

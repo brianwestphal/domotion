@@ -39,6 +39,7 @@ import svg2ttf from "svg2ttf";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { shearPathCommands } from "./embolden-outline.js";
+import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
 import {
   appendGlyphCopy,
   getHbSubsetAttemptDiagnostics,
@@ -60,11 +61,14 @@ function hintedSubsetEnabled(): boolean {
 
 /** Synchronous mutation scope used by exact evidence runs. It changes only
  * subset construction; face selection and shaping remain untouched. */
-export function withHintedSubsetEnabled<T>(enabled: boolean, fn: () => T): T {
+export function withHintedSubsetEnabled<F extends () => unknown>(
+  enabled: boolean,
+  fn: SynchronousCallback<F>,
+): ReturnType<F> {
   const previous = hintedSubsetOverride;
   hintedSubsetOverride = enabled;
   try {
-    return fn();
+    return invokeSynchronousCallback("withHintedSubsetEnabled", fn);
   } finally {
     hintedSubsetOverride = previous;
   }

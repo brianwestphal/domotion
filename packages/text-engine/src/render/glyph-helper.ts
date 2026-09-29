@@ -251,11 +251,14 @@ export function resolveFcFallbackDiagnostic(cps: number[], lang: string = "en"):
 const _fcFallbackCache = new Map<string, FcFallbackFont | null>();
 let _fcFallbackRendererDepth = 0;
 let _fcFallbackRendererKey = "default";
+// The key each nested `begin` displaced, so its `end` can restore it.
+const _fcFallbackRendererKeyStack: string[] = [];
 const _fcFallbackRendererCaches = new Map<string, Map<number, FcFallbackFont | null>>();
 
 export function beginFcFallbackRendererScope(key: string = "default"): void {
   if (_fcFallbackRendererDepth === 0) _fcFallbackRendererCaches.clear();
   _fcFallbackRendererDepth++;
+  _fcFallbackRendererKeyStack.push(_fcFallbackRendererKey);
   _fcFallbackRendererKey = key;
   if (!_fcFallbackRendererCaches.has(key)) _fcFallbackRendererCaches.set(key, new Map());
 }
@@ -267,7 +270,10 @@ export function selectFcFallbackRendererScope(key: string): void {
 }
 
 export function endFcFallbackRendererScope(): void {
-  if (_fcFallbackRendererDepth > 0) _fcFallbackRendererDepth--;
+  if (_fcFallbackRendererDepth > 0) {
+    _fcFallbackRendererDepth--;
+    _fcFallbackRendererKey = _fcFallbackRendererKeyStack.pop() ?? "default";
+  }
   if (_fcFallbackRendererDepth === 0) _fcFallbackRendererCaches.clear();
 }
 

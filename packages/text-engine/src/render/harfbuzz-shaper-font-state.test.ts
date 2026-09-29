@@ -22,7 +22,7 @@
 // hand-built pair would be testing the builder rather than the shaper.
 import { describe, expect, it, beforeEach } from "vitest";
 import { existsSync } from "node:fs";
-import { _clearHbFontCache, harfbuzzShapeRun } from "./harfbuzz-shaper.js";
+import { clearHbFontCache, harfbuzzShapeRun } from "./harfbuzz-shaper.js";
 
 /** PingFang UI — carries `trak`, `STAT`, `GSUB`, and no `morx`. */
 const PINGFANG = "/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc";
@@ -39,7 +39,7 @@ function firstAdvance(sizePx: number | undefined): number {
 }
 
 beforeEach(() => {
-  _clearHbFontCache();
+  clearHbFontCache();
 });
 
 describe("AAT tracking follows the run's size", () => {

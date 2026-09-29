@@ -64,8 +64,8 @@ import {
   makeHarfbuzzShapeFallback,
   makeHarfbuzzShapingInstance,
   registerHbBufferSource,
-  _clearHbFontCache,
-  _clearTrakStatCache,
+  clearHbFontCache,
+  clearTrakStatCache,
 } from "./harfbuzz-shaper.js";
 import {
   clearEmbeddedFontBuilder,
@@ -667,26 +667,10 @@ export function withRenderTextMode<F extends () => unknown>(
 }
 
 /**
- * Per-render-pass tracker for fonts that text emission asked us to embed.
- * Keyed by a stable string identifier per (fontPath × postscriptName) so
- * the same font referenced from multiple text runs collapses to one
- * `@font-face` declaration. `getEmbeddedFontFaceCss()` reads the source
- * bytes for each entry and emits one rule per font.
+ * Reset the embedded-font subset builder (the per-generation `@font-face`
+ * registry and its `dmfN` family counter).
  */
-interface EmbeddedFontEntry {
-  /** CSS family name the renderer assigns to this entry — references it from `<text font-family="…">`. */
-  cssFamily: string;
-  /** Source TTF/OTF/WOFF bytes ready to base64-encode into the `data:` URI. */
-  buffer: Buffer;
-  /** MIME type for the data URI — `font/ttf`, `font/otf`, `font/woff2`, etc. */
-  mime: string;
-}
-const embeddedFonts = new Map<string, EmbeddedFontEntry>();
-let embeddedFontIdCounter = 0;
-
 export function clearEmbeddedFonts(): void {
-  embeddedFonts.clear();
-  embeddedFontIdCounter = 0;
   clearEmbeddedFontBuilder();
 }
 
@@ -706,52 +690,13 @@ export function resetGeneration(): void {
 }
 
 /**
- * Read the source bytes for a registered or system font and return them
- * paired with a content type that matches the on-disk container. WOFF2
- * webfonts arrive at the capture pipeline already-decompressed to raw
- * TTF/OTF bytes (capture.ts/loadWebfont), so the data we have is what we
- * embed — we don't re-compress to WOFF2 even though we have wawoff2
- * available, to keep the MVP path simple. File-size optimisation via
- * compression is a follow-up.
- */
-function fontBufferAndMime(buffer: Buffer): { buffer: Buffer; mime: string } {
-  if (buffer.length >= 4) {
-    const sig = buffer.subarray(0, 4).toString("hex");
-    if (sig === "774f4632") return { buffer, mime: "font/woff2" }; // 'wOF2'
-    if (sig === "774f4646") return { buffer, mime: "font/woff" }; // 'wOFF'
-    if (sig === "4f54544f") return { buffer, mime: "font/otf" }; // 'OTTO'
-    if (sig === "74746366") return { buffer, mime: "font/collection" }; // 'ttcf'
-  }
-  return { buffer, mime: "font/ttf" };
-}
-
-/**
- * Register a font for embedding under a renderer-assigned CSS family
- * name. Idempotent on (key) — the same key returns the same css family
- * across calls so multiple text runs over the same font collapse to one
- * `@font-face` block.
- */
-function registerEmbeddedFont(key: string, buffer: Buffer): string {
-  const existing = embeddedFonts.get(key);
-  if (existing != null) return existing.cssFamily;
-  const cssFamily = `dmf${embeddedFontIdCounter++}`;
-  const { buffer: outBuf, mime } = fontBufferAndMime(buffer);
-  embeddedFonts.set(key, { cssFamily, buffer: outBuf, mime });
-  return cssFamily;
-}
-
-/**
  * Emit one `@font-face` rule per font the embedded-font path registered
  * during this render pass. Returns the CSS to inject into the SVG's
  * `<style>` block (or `<defs><style>`). Empty string when no fonts were
  * registered (e.g. `renderText: "paths"`).
  */
 export function getEmbeddedFontFaceCss(): string {
-  // DM-655: the registerEmbeddedFont(...) path that emitted whole webfont
-  // buffers is gone — every embedded font now goes through the custom-TTF
-  // builder. Keep the legacy `embeddedFonts` map drained-and-ignored for
-  // a release so any in-flight callers don't crash on the missing path;
-  // delete the legacy map entirely once nothing references it.
+  // Every embedded font goes through the custom-TTF subset builder.
   return getBuiltEmbeddedFontFaceCss();
 }
 
@@ -3398,6 +3343,8 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
 const _macCharFallbackCacheEnabled = process.env.DOMOTION_MAC_CHAR_FALLBACK_CACHE !== "0";
 let _charFallbackDocCache: Map<string, string> | null = null;
 let _charFallbackDocDepth = 0;
+/** The renderer session the open document scope was begun under (null = anonymous). */
+let _charFallbackDocSession: FontRendererSession | null = null;
 export interface FontRendererSession {
   readonly _fontRendererSession: symbol;
 }
@@ -3409,11 +3356,19 @@ export function createFontRendererSession(): FontRendererSession {
 }
 
 /** Select a renderer lifetime only for the synchronous render callback. */
-export function withFontRendererSession<T>(session: FontRendererSession, render: () => T): T {
+export function withFontRendererSession<F extends () => unknown>(
+  session: FontRendererSession,
+  render: SynchronousCallback<F>,
+): ReturnType<F> {
+  // An open document already owns its fallback cache; a different session
+  // requested inside it could only be ignored, so say so instead.
+  if (_charFallbackDocDepth > 0 && _charFallbackDocSession !== session) {
+    throw new Error("Cannot switch font renderer sessions inside an open character-fallback document");
+  }
   const previous = _requestedCharFallbackRendererSession;
   _requestedCharFallbackRendererSession = session;
   try {
-    return render();
+    return invokeSynchronousCallback("withFontRendererSession", render);
   } finally {
     _requestedCharFallbackRendererSession = previous;
   }
@@ -3424,6 +3379,7 @@ export function withFontRendererSession<T>(session: FontRendererSession, render:
 export function beginCharacterFallbackDocument(): void {
   if (_charFallbackDocDepth === 0) {
     const rendererSession = _requestedCharFallbackRendererSession;
+    _charFallbackDocSession = rendererSession;
     if (rendererSession == null) {
       _charFallbackDocCache = new Map();
     } else {
@@ -3444,6 +3400,7 @@ export function endCharacterFallbackDocument(): void {
   if (_charFallbackDocDepth > 0) _charFallbackDocDepth--;
   if (_charFallbackDocDepth === 0) {
     _charFallbackDocCache = null;
+    _charFallbackDocSession = null;
     endFcFallbackRendererScope();
   }
 }
@@ -10644,7 +10601,7 @@ export function getGlyphDefsSince(startCount: number): string {
  * Deliberately NOT cleared, because they are registries rather than memos and
  * dropping them would change behavior, not just cost:
  *
- *  - `webfontRegistry` / `embeddedFonts` / `localFontAliasRegistry` — caller-
+ *  - `webfontRegistry` / `localFontAliasRegistry` — caller-
  *    supplied state (see `clearWebfonts` / `clearEmbeddedFonts` to drop those
  *    deliberately).
  *  - `dynamicSystemFontPaths` — on-disk faces the system fallback discovered
@@ -10684,7 +10641,7 @@ export function clearFontResolutionCaches(): void {
   // point trades memory for.
   coverageBitsets.clear();
   // Same class as `helperFontCache` above: one retained HarfBuzz face per font file.
-  _clearHbFontCache();
+  clearHbFontCache();
   clearGlyphHelperCodepointMemos();
 }
 
@@ -10711,8 +10668,8 @@ export function registerFontEnvironmentInvalidator(invalidate: () => void): () =
 export function invalidateFontEnvironmentCaches(): void {
   clearFontResolutionCaches();
   clearGlyphHelperCache();
-  _clearHbFontCache();
-  _clearTrakStatCache();
+  clearHbFontCache();
+  clearTrakStatCache();
   clearIcuHelper();
   dynamicSystemFontPaths.clear();
   // The document-scoped ideograph cache stores `sysfb:` keys that resolve only

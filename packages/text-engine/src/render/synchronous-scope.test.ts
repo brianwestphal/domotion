@@ -1,18 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  createFontRendererSession,
   getRenderTextMode,
   getSessionGenericFamilyOverrides,
   getSystemFallbackResolution,
   setRenderTextMode,
   setSessionGenericFamilyOverrides,
   setSystemFallbackResolution,
+  withFontRendererSession,
   withRenderTextMode,
   withSessionGenericFamilyOverrides,
   withSystemFallbackResolution,
   type SessionGenericFamilyOverrides,
 } from "./font-resolution.js";
 import { hostPlatform, withHostPlatform } from "./host-platform.js";
+import { withHintedSubsetEnabled } from "./embedded-font-builder.js";
 import { invokeSynchronousCallback } from "./synchronous-scope.js";
+import { visualTextOnlyHiddenAttr, withTextEngineVisualSemanticsSuppressed } from "./text-semantics.js";
 
 const EMPTY_OVERRIDES: SessionGenericFamilyOverrides = {
   common: new Map(),
@@ -103,6 +107,49 @@ describe("synchronous renderer-state scope contract (DM-2637)", () => {
     await Promise.resolve();
     expect(seenAfterAwait).toBe(prior);
   });
+
+  it("rejects async visual-semantics work and restores before its continuation", async () => {
+    let seenAfterAwait: string | null = null;
+    expect(() =>
+      withTextEngineVisualSemanticsSuppressed((async () => {
+        expect(visualTextOnlyHiddenAttr()).toBe(` aria-hidden="true"`);
+        await Promise.resolve();
+        seenAfterAwait = visualTextOnlyHiddenAttr();
+      }) as unknown as () => void),
+    ).toThrow(/withTextEngineVisualSemanticsSuppressed callback must be synchronous/);
+    expect(visualTextOnlyHiddenAttr()).toBe("");
+    await Promise.resolve();
+    expect(seenAfterAwait).toBe("");
+  });
+
+  it("nests visual-semantics suppression and returns the callback value", () => {
+    const seen = withTextEngineVisualSemanticsSuppressed(() =>
+      withTextEngineVisualSemanticsSuppressed(() => visualTextOnlyHiddenAttr()),
+    );
+    expect(seen).toBe(` aria-hidden="true"`);
+    expect(visualTextOnlyHiddenAttr()).toBe("");
+  });
+
+  it("rejects async renderer-session work and restores the request before its continuation", async () => {
+    const session = createFontRendererSession();
+    expect(() => withFontRendererSession(session, (async () => undefined) as unknown as () => void)).toThrow(
+      /withFontRendererSession callback must be synchronous/,
+    );
+    // The restored (null) request means a following document does not reuse `session`'s cache.
+    expect(withFontRendererSession(session, () => 7)).toBe(7);
+  });
+
+  it("scopes the hinted-subset override, rejects async callbacks, and restores after throws", async () => {
+    expect(withHintedSubsetEnabled(false, () => "ok")).toBe("ok");
+    expect(() =>
+      withHintedSubsetEnabled(false, () => {
+        throw new Error("stop");
+      }),
+    ).toThrow("stop");
+    expect(() => withHintedSubsetEnabled(false, (async () => undefined) as unknown as () => void)).toThrow(
+      /withHintedSubsetEnabled callback must be synchronous/,
+    );
+  });
 });
 
 // Compile-time half of the public contract. These calls stay unreachable so
@@ -116,4 +163,10 @@ if (false) {
   withSessionGenericFamilyOverrides(EMPTY_OVERRIDES, async () => undefined);
   // @ts-expect-error DM-2637: renderer state scopes do not cross await points.
   withHostPlatform("linux", async () => undefined);
+  // @ts-expect-error renderer state scopes do not cross await points.
+  withTextEngineVisualSemanticsSuppressed(async () => undefined);
+  // @ts-expect-error renderer state scopes do not cross await points.
+  withFontRendererSession(createFontRendererSession(), async () => undefined);
+  // @ts-expect-error renderer state scopes do not cross await points.
+  withHintedSubsetEnabled(true, async () => undefined);
 }

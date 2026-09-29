@@ -260,7 +260,7 @@ export function withTextEngineDocument<T>(
   const document = createDocument(session, mode);
   let artifacts: TextEngineArtifacts | null = null;
   try {
-    const value = withFontRendererSession(state.renderer, () => {
+    const value = withFontRendererSession(state.renderer, (() => {
       beginCharacterFallbackDocument();
       activeDocument = document;
       try {
@@ -269,7 +269,7 @@ export function withTextEngineDocument<T>(
         activeDocument = null;
         endCharacterFallbackDocument();
       }
-    });
+    }) as unknown as SynchronousCallback<() => T>);
     artifacts = collectArtifacts();
     completed = true;
     return { value, artifacts };

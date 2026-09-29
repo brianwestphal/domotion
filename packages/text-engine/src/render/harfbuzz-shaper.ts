@@ -257,7 +257,7 @@ export function hbShapingBaseOf<T extends object>(view: T): T {
   return (hbProxyBase.get(view) as T | undefined) ?? view;
 }
 
-export function _clearHbFontCache(): void {
+export function clearHbFontCache(): void {
   hbFontCache.clear();
 }
 
@@ -642,7 +642,7 @@ export function faceHasTrakAndStat(fontPath: string, faceIndex: number | null): 
 }
 
 /** Test seam: drop the memoised `trak`/`STAT` verdicts. */
-export function _clearTrakStatCache(): void {
+export function clearTrakStatCache(): void {
   trakStatCache.clear();
 }
 
