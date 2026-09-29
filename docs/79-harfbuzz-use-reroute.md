@@ -2,20 +2,23 @@
 id: "requirements/harfbuzz-use-reroute"
 title: "HarfBuzz routing for complex-script edge cases (DM-1197, DM-1215)"
 kind: "contract"
-status: "current"
+status: "partial"
 owners: ["rendering"]
-platforms: ["macos"]
+platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1028", "DM-1197", "DM-1215", "DM-983"]
-code: ["packages/text-engine/src/render/font-resolution.ts"]
+code: ["packages/text-engine/src/render/font-resolution.ts", "packages/text-engine/src/render/text-to-path.ts"]
 aliases: ["docs/79-harfbuzz-use-reroute.md", "doc-79"]
 ---
 
 # HarfBuzz routing for complex-script edge cases (DM-1197, DM-1215)
 
-This doc covers two narrow uses of the `harfbuzz-shaper.ts` machinery, both routing
-specific complex-script runs through real HarfBuzz (harfbuzzjs, the engine Chrome
-embeds) where macOS shaping diverges from Chrome's paint: (1) USE-shaped precomposed
-letters (DM-1197, below) and (2) orphaned-mark dotted circles (DM-1215, at the end).
+This doc records two historical edge-case routes through `harfbuzz-shaper.ts`:
+the helper-absent USE precomposed-letter compatibility route (DM-1197) and the
+orphaned-mark dotted-circle route (DM-1215). The supported helper-backed path
+shapes selected runs through `harfbuzzShapedRunOverride`, not the DM-1197
+per-codepoint reroute. See [doc 128](128-chromium-unicode-decision-audit.md)
+and the [font-resolution diagram](font-resolution-diagram.md) for that path.
+The routes are keyed by helper availability and shaping context, not by OS.
 
 The HarfBuzz in question is **vendored**, not the npm build: `packages/text-engine/vendor/harfbuzzjs/`
 is harfbuzzjs v1.4.0 with the wasm rebuilt using the HarfBuzz configuration
@@ -26,11 +29,13 @@ vendored" section of [font-resolution-diagram.md](font-resolution-diagram.md).
 
 ## USE-shaped precomposed letters (DM-1197)
 
-A narrow shaping reroute: a handful of complex-script precomposed letters paint
-DIFFERENTLY in Chrome than in Domotion's macOS shaping path, so the renderer
-shapes those specific runs with the real HarfBuzz library (harfbuzzjs) instead.
+A helper-absent compatibility reroute for a handful of complex-script
+precomposed letters. It addresses a historical difference between Chrome and
+Domotion's macOS CoreText shaping path. With both the native glyph helper and
+the pinned ICU helper available, this per-codepoint test is disabled and the
+supported run-level HarfBuzz path owns shaping.
 
-## The divergence
+## Historical divergence
 
 Chrome shapes all complex text with **HarfBuzz**. For a precomposed letter that
 has a canonical `base + combining-mark` decomposition AND whose script is shaped
@@ -56,12 +61,14 @@ the same sequence back to the precomposed `ktVa` glyph, whose built-in nukta sit
 ≈3px higher (touching the base). Result: the nukta lands in the wrong place vs
 Chrome (DM-1197 — the Kaithi `U+110AB` "dot position" diff).
 
-## The reroute
+## Helper-absent reroute
 
-`resolveFontForCodepoint` (`packages/text-engine/src/render/font-resolution.ts`) detects these
-codepoints via `complexShaperBaseMarkDecomposition(cp)` and, when the primary
-font covers the decomposed pieces, sets the run's `fontOverride` to a HarfBuzz
-shaping instance (`packages/text-engine/src/render/harfbuzz-shaper.ts::makeHarfbuzzShapingInstance`).
+`resolveFontForCodepoint` (`packages/text-engine/src/render/font-resolution.ts`)
+sets `helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable()` and
+evaluates `complexShaperBaseMarkDecomposition(cp)` only when `helperBacked` is
+false. If the primary font covers the decomposed pieces, it sets the run's
+`fontOverride` to a HarfBuzz shaping instance
+(`packages/text-engine/src/render/harfbuzz-shaper.ts::makeHarfbuzzShapingInstance`).
 That instance delegates every metric / coverage query to the base instance but
 overrides `layout()` to shape via harfbuzzjs (the same engine Chrome embeds) and
 return the glyphs (outlines from `font.glyphToPath`), GPOS positions, and source
@@ -69,13 +76,19 @@ clusters. The run text stays the SOURCE codepoint — HarfBuzz decomposes
 internally, like Chrome — so clusters / captured xOffsets stay aligned and the
 embedded-font emitter's cluster-aware anchoring (DM-1028) places the mark.
 
+On the supported path, `harfbuzzShapedRunOverride` in `font-resolution.ts`
+wraps selected concrete-face runs after fallback splitting; `text-to-path.ts`
+applies that override in both text emission routes. The native/fontkit instance
+continues to provide outlines and metrics. This run-level mechanism replaces
+the need for the special USE predicate when helpers are available.
+
 harfbuzzjs is also robust where fontkit isn't: it does not crash on the Indic
-Noto GSUB tables, so this works for the exact fonts that forced the CoreText
-route in the first place.
+Noto GSUB tables, so the compatibility route remains useful when a native
+helper is unavailable.
 
 ## Scope — USE shaper ONLY
 
-The reroute fires ONLY for codepoints in a USE-shaped block. The dedicated
+In helper-absent mode, the reroute fires ONLY for codepoints in a USE-shaped block. The dedicated
 HarfBuzz shapers — Indic (Devanagari … Sinhala), Thai/Lao, **Tibetan**, Myanmar,
 Khmer, Arabic, Hebrew, Hangul (`DEDICATED_SHAPER_RANGES`) — are excluded for two
 reasons:
@@ -88,7 +101,7 @@ reasons:
    CLI render the precomposed glyph (`[gh.]`). Rerouting Tibetan regressed the
    tibetan fixture until the exclusion was added.
 
-As of writing the reroute affects 13 codepoints in 3 blocks: Balinese
+The helper-absent predicate covers 13 codepoints in 3 blocks: Balinese
 (`U+1B06`, `U+1B08`, `U+1B0A`, `U+1B0C`, `U+1B0E`, `U+1B12`), Kaithi (`U+1109A`,
 `U+1109C`, `U+110AB`), and Tulu-Tigalari (`U+11383`, `U+11385`, `U+1138E`,
 `U+11391`). The gate is unit-tested in `text-to-path.test.ts`.

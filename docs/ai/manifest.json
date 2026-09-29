@@ -1204,10 +1204,10 @@
       "id": "requirements/harfbuzz-use-reroute",
       "title": "HarfBuzz routing for complex-script edge cases (DM-1197, DM-1215)",
       "kind": "contract",
-      "status": "current",
+      "status": "partial",
       "owners": ["rendering"],
-      "platforms": ["macos"],
-      "code": ["packages/text-engine/src/render/font-resolution.ts"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": ["packages/text-engine/src/render/font-resolution.ts", "packages/text-engine/src/render/text-to-path.ts"],
       "file": "79-harfbuzz-use-reroute.md"
     },
     {
