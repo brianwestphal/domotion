@@ -17,6 +17,7 @@
  * Run `domotion --help` for the full option list.
  */
 
+import { errorMessage, exitCodeFor } from "./common.js";
 import { createRequire } from "node:module";
 import { runCapture } from "./capture.js";
 import { runAnimate } from "./animate.js";
@@ -352,7 +353,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
   } catch (err) {
-    process.stderr.write(`domotion: ${err instanceof Error ? err.message : String(err)}\n`);
-    process.exit(1);
+    process.stderr.write(`domotion: ${errorMessage(err)}\n`);
+    process.exit(exitCodeFor(err));
   }
 }

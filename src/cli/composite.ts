@@ -36,7 +36,7 @@ import {
 } from "../render/index.js";
 import { composeAnimatedLayers, type CompositeLayer } from "../animation/composite.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
-import { cliFail } from "./common.js";
+import { cliFail, UsageError, formatConfigIssues } from "./common.js";
 
 export const compositeLayerAnimationSchema = z.object({
   property: z.enum(["scale", "translateX", "translateY", "opacity", "transform", "clipScaleX", "clipScaleY"]),
@@ -107,8 +107,7 @@ export type CompositeLayerPlacement = z.infer<typeof compositeLayerPlacementSche
 export function validateCompositeConfig(raw: unknown): CompositeConfig {
   const parsed = compositeConfigSchema.safeParse(raw);
   if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    throw new Error(`composite: ${first.path.join(".")}: ${first.message}`);
+    throw new UsageError(`composite: ${formatConfigIssues(parsed.error)}`);
   }
   return parsed.data;
 }

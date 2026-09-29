@@ -55,6 +55,16 @@ root entry you actually consume.
 DM-622 (May 2026) rewrote this surface as a breaking change (0.1.1 → 0.2.0).
 The cull was ~14 internal helpers; this list is what remains.
 
+## CLI exit codes
+
+Every `domotion` verb follows one convention (the standalone `svg-to-image` / `svg-to-video` bins already did):
+
+- **`0`** success.
+- **`2`** the invocation was wrong: an unknown or malformed flag, a missing or conflicting option, a numeric flag out of range, a config file that does not exist or fails validation (every issue is listed on one line). Nothing was rendered.
+- **`1`** the work itself failed (a page would not load, a render or write error).
+
+Internally a verb signals the first case by throwing `UsageError` (`src/cli/common.ts`); `util.parseArgs` failures are classified the same way. `--wait 0` is a valid value.
+
 ## Capture
 
 In-browser DOM capture via Playwright Chromium. The capture step walks the

@@ -8,7 +8,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -29,7 +29,15 @@ export function parseIntFlag(value: string | undefined, name: string, def: numbe
 export function parsePositiveInt(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;
   const n = Number(value);
-  if (!Number.isInteger(n) || n <= 0) throw new Error(`--${name} expects a positive integer, got "${value}"`);
+  if (!Number.isInteger(n) || n <= 0) throw new UsageError(`--${name} expects a positive integer, got "${value}"`);
+  return n;
+}
+
+/** Parse an OPTIONAL non-negative-integer flag (0 allowed) — `undefined` when absent. */
+export function parseNonNegativeInt(value: string | undefined, name: string): number | undefined {
+  if (value == null) return undefined;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) throw new UsageError(`--${name} expects a non-negative integer, got "${value}"`);
   return n;
 }
 
@@ -44,7 +52,7 @@ export function parsePort(value: string | undefined): number | undefined {
   if (value == null) return undefined;
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0 || n > 65535) {
-    throw new Error(`--port expects an integer in 0..65535 (0 = an OS-assigned free port), got "${value}"`);
+    throw new UsageError(`--port expects an integer in 0..65535 (0 = an OS-assigned free port), got "${value}"`);
   }
   return n;
 }
@@ -53,7 +61,7 @@ export function parsePort(value: string | undefined): number | undefined {
 export function parsePositiveFloat(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;
   const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`--${name} expects a positive number, got "${value}"`);
+  if (!Number.isFinite(n) || n <= 0) throw new UsageError(`--${name} expects a positive number, got "${value}"`);
   return n;
 }
 
@@ -61,7 +69,7 @@ export function parsePositiveFloat(value: string | undefined, name: string): num
 export function parseNonNegativeFloat(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;
   const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) throw new Error(`--${name} expects a number >= 0, got "${value}"`);
+  if (!Number.isFinite(n) || n < 0) throw new UsageError(`--${name} expects a number >= 0, got "${value}"`);
   return n;
 }
 
@@ -120,6 +128,56 @@ export async function openInBrowser(url: string): Promise<void> {
 export { isTransparentBackground } from "../utils/transparent-background.js";
 
 /**
+ * A failure of the INVOCATION rather than of the work: a bad or missing flag, a
+ * conflicting pair of options, a config file that does not exist or does not
+ * validate. `runBin` and the top-level `domotion` dispatcher map it to exit
+ * code 2; every other thrown error is a runtime failure (exit 1).
+ */
+export class UsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UsageError";
+  }
+}
+
+/** Exit code for a thrown error under the 2 = usage / 1 = runtime convention. */
+export function exitCodeFor(error: unknown): 1 | 2 {
+  if (error instanceof UsageError) return 2;
+  // `util.parseArgs` rejects an unknown flag, a missing value or a stray positional with
+  // ERR_PARSE_ARGS_*; that is the caller's invocation being wrong, not the work failing.
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && code.startsWith("ERR_PARSE_ARGS_") ? 2 : 1;
+}
+
+/** The message of anything thrown, without asserting it is an `Error`. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Render every issue of a zod validation failure on one line, `path: message`
+ * separated by `; `, with array indexes as `[n]`. Showing them all lets a user fix
+ * a config in one round trip instead of one error per run.
+ */
+export function formatConfigIssues(err: { issues: ReadonlyArray<{ path: PropertyKey[]; message: string }> }): string {
+  return err.issues
+    .map((issue) => {
+      const path = issue.path
+        .map((seg) => (typeof seg === "number" ? `[${seg}]` : `.${String(seg)}`))
+        .join("")
+        .replace(/^\./, "");
+      return path === "" ? issue.message : `${path}: ${issue.message}`;
+    })
+    .join("; ");
+}
+
+/** iPhone user agent for `--mobile` captures (one string for every verb that emulates a phone). */
+export const MOBILE_USER_AGENT = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
+
+/** Default Playwright action/navigation timeout for CLI-driven pages, in milliseconds. */
+export const PAGE_DEFAULT_TIMEOUT_MS = 90_000;
+
+/**
  * Print a CLI error to stderr with the bin's `name:` prefix and exit. The
  * exit-code convention shared across all four bins (DM-1071): `2` = usage /
  * argument error (bad flags, missing input, file-not-found before any work),
@@ -165,14 +223,15 @@ export async function runBin<O>(spec: {
 export function parseColorScheme(value: string | undefined): "light" | "dark" | "no-preference" | undefined {
   if (value == null) return undefined;
   if (value === "light" || value === "dark" || value === "no-preference") return value;
-  throw new Error(`--color-scheme expects one of "light", "dark", "no-preference"; got "${value}"`);
+  throw new UsageError(`--color-scheme expects one of "light", "dark", "no-preference"; got "${value}"`);
 }
 
 export function parseTuple(value: string, len: number, name: string): number[] {
   const parts = value.split(",").map((s) => s.trim());
-  if (parts.length !== len) throw new Error(`--${name} expects ${len} comma-separated numbers, got "${value}"`);
+  if (parts.length !== len) throw new UsageError(`--${name} expects ${len} comma-separated numbers, got "${value}"`);
   const nums = parts.map((p) => Number(p));
-  if (nums.some((n) => !Number.isFinite(n))) throw new Error(`--${name} contains a non-numeric component: "${value}"`);
+  if (nums.some((n) => !Number.isFinite(n)))
+    throw new UsageError(`--${name} contains a non-numeric component: "${value}"`);
   return nums;
 }
 
@@ -237,7 +296,7 @@ export async function loadInputIntoPage(page: Page, input: string, opts?: { netw
     return;
   }
   const path = resolve(input);
-  if (!existsSync(path)) throw new Error(`input file not found: ${path}`);
+  if (!existsSync(path)) throw new UsageError(`input file not found: ${path}`);
   await page.goto(pathToFileURL(path).href, { waitUntil });
 }
 
@@ -377,6 +436,7 @@ export function writeOutput(svg: string, outPath: string | null, svgz: boolean, 
     if (outPath === null) {
       process.stdout.write(buf);
     } else {
+      mkdirSync(dirname(outPath), { recursive: true });
       writeFileSync(outPath, buf);
       process.stderr.write(`Wrote ${outPath} (${(buf.length / 1024).toFixed(1)} KB svgz${extraInfo})\n`);
     }
@@ -385,6 +445,7 @@ export function writeOutput(svg: string, outPath: string | null, svgz: boolean, 
   if (outPath === null) {
     process.stdout.write(svg);
   } else {
+    mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, svg);
     process.stderr.write(`Wrote ${outPath} (${(svg.length / 1024).toFixed(1)} KB${extraInfo})\n`);
   }

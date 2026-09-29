@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import { optimizeSvg } from "../post-processing/index.js";
-import { isSvgzPath, makeLogger, timed, writeOutput } from "./common.js";
+import { isSvgzPath, makeLogger, timed, writeOutput, UsageError } from "./common.js";
 import {
   describeTemplateParams,
   listBuiltinTemplates,
@@ -79,7 +79,7 @@ export async function runTemplate(args: string[], _help: string): Promise<void> 
     return;
   }
   if (values.optimize === true && values["no-optimize"] === true) {
-    throw new Error("template: --optimize and --no-optimize are mutually exclusive");
+    throw new UsageError("template: --optimize and --no-optimize are mutually exclusive");
   }
 
   // Merge params: --params-file < --params < individual flags.
@@ -87,7 +87,7 @@ export async function runTemplate(args: string[], _help: string): Promise<void> 
   const paramsFile = values["params-file"] as string | undefined;
   if (paramsFile != null) {
     const path = resolve(paramsFile);
-    if (!existsSync(path)) throw new Error(`template: --params-file not found: ${path}`);
+    if (!existsSync(path)) throw new UsageError(`template: --params-file not found: ${path}`);
     Object.assign(raw, parseParamsJson(readFileSync(path, "utf8"), `--params-file ${paramsFile}`));
   }
   const paramsInline = values.params as string | undefined;
@@ -144,10 +144,10 @@ function parseParamsJson(text: string, where: string): Record<string, unknown> {
   try {
     parsed = JSON.parse(text);
   } catch (e) {
-    throw new Error(`template: ${where} is not valid JSON — ${(e as Error).message}`);
+    throw new UsageError(`template: ${where} is not valid JSON — ${(e as Error).message}`);
   }
   if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(`template: ${where} must be a JSON object of params`);
+    throw new UsageError(`template: ${where} must be a JSON object of params`);
   }
   return parsed as Record<string, unknown>;
 }

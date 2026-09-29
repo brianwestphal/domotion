@@ -22,7 +22,7 @@ import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
 import { recordPtySession } from "../terminal/pty.js";
 import { THEMES, terminalThemeSpecSchema, type TerminalThemeSpec } from "../terminal/theme.js";
-import { cliFail } from "./common.js";
+import { cliFail, formatConfigIssues, errorMessage } from "./common.js";
 
 const HELP = `domotion term — record a terminal session as an animated SVG
 
@@ -107,12 +107,40 @@ export async function runTerm(argv: string[]): Promise<void> {
     cliFail("domotion term", "give EITHER --cast <file> OR a live command after `--`, not both", "usage");
   }
 
-  const num = (v: string | undefined): number | undefined => {
+  // Every flag is validated up front (exit 2) — BEFORE a live command runs or Chromium
+  // launches, so a typo never costs the user their recorded session.
+  const num = (
+    v: string | undefined,
+    flag: string,
+    kind: "positive" | "non-negative" | "positive-int",
+  ): number | undefined => {
     if (v == null) return undefined;
     const n = Number(v);
-    if (!Number.isFinite(n)) cliFail("domotion term", `invalid numeric value: ${v}`, "usage");
+    const ok =
+      Number.isFinite(n) &&
+      (kind === "positive" ? n > 0 : kind === "non-negative" ? n >= 0 : Number.isInteger(n) && n > 0);
+    if (!ok) {
+      const want =
+        kind === "positive-int" ? "a positive integer" : kind === "positive" ? "a positive number" : "a number >= 0";
+      cliFail("domotion term", `--${flag} expects ${want}, got "${v}"`, "usage");
+    }
     return n;
   };
+  const cols = num(values.cols, "cols", "positive-int");
+  const rows = num(values.rows, "rows", "positive-int");
+  const fontSize = num(values["font-size"], "font-size", "positive");
+  const settleMs = num(values["settle-ms"], "settle-ms", "non-negative");
+  const minFrameMs = num(values["min-frame-ms"], "min-frame-ms", "non-negative");
+  const maxFrameMs = num(values["max-frame-ms"], "max-frame-ms", "non-negative");
+  const tailMs = num(values["tail-ms"], "tail-ms", "non-negative");
+  const mode = values.mode;
+  if (mode != null && mode !== "incremental" && mode !== "full") {
+    cliFail("domotion term", `--mode must be "incremental" or "full", got "${mode}"`, "usage");
+  }
+  const cursor = values.cursor;
+  if (cursor != null && !["block", "bar", "underline", "none"].includes(cursor)) {
+    cliFail("domotion term", `--cursor must be block | bar | underline | none, got "${cursor}"`, "usage");
+  }
 
   // Source the asciinema cast text from EITHER a recorded file or a live pty run.
   // The live path runs the command, echoes it to the terminal, and records the
@@ -121,8 +149,8 @@ export async function runTerm(argv: string[]): Promise<void> {
   let castText: string;
   if (live) {
     const r = await recordPtySession(command, {
-      cols: num(values.cols),
-      rows: num(values.rows),
+      cols,
+      rows,
       log: (m) => process.stderr.write(m + "\n"),
     });
     castText = r.cast;
@@ -142,15 +170,18 @@ export async function runTerm(argv: string[]): Promise<void> {
       try {
         raw = JSON.parse(readFileSync(resolve(themeFile), "utf8"));
       } catch (e) {
-        cliFail("domotion term", `--theme-file is not valid JSON: ${(e as Error).message}`, "usage");
+        cliFail("domotion term", `--theme-file is not valid JSON: ${errorMessage(e)}`, "usage");
       }
       // Shape-check the external JSON instead of casting it through with `as` —
       // a malformed theme (wrong-length ansi[], non-string bg) would otherwise
       // flow unvalidated into the renderer.
       const parsed = terminalThemeSpecSchema.safeParse(raw);
       if (!parsed.success) {
-        const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
-        cliFail("domotion term", `--theme-file has an invalid theme shape: ${detail}`, "usage");
+        cliFail(
+          "domotion term",
+          `--theme-file has an invalid theme shape: ${formatConfigIssues(parsed.error)}`,
+          "usage",
+        );
       }
       spec = parsed.data;
     }
@@ -164,27 +195,19 @@ export async function runTerm(argv: string[]): Promise<void> {
 
   const browser = await launchChromium();
   try {
-    const mode = values.mode;
-    if (mode != null && mode !== "incremental" && mode !== "full") {
-      cliFail("domotion term", `--mode must be "incremental" or "full", got "${mode}"`, "usage");
-    }
-    const cursor = values.cursor;
-    if (cursor != null && !["block", "bar", "underline", "none"].includes(cursor)) {
-      cliFail("domotion term", `--cursor must be block | bar | underline | none, got "${cursor}"`, "usage");
-    }
     const { svg, width, height, frameCount, totalDurationMs } = await castToAnimatedSvg(castText, browser, {
       theme,
       mode: mode as "incremental" | "full" | undefined,
       cursor: cursor as "block" | "bar" | "underline" | "none" | undefined,
       cursorColor: values["cursor-color"],
-      fontSize: num(values["font-size"]),
+      fontSize,
       fontFamily: values["font-family"],
-      cols: num(values.cols),
-      rows: num(values.rows),
-      settleMs: num(values["settle-ms"]),
-      minFrameMs: num(values["min-frame-ms"]),
-      maxFrameMs: num(values["max-frame-ms"]),
-      tailMs: num(values["tail-ms"]),
+      cols,
+      rows,
+      settleMs,
+      minFrameMs,
+      maxFrameMs,
+      tailMs,
       log: (m) => process.stderr.write(m + "\n"),
     });
 

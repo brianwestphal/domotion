@@ -82,10 +82,17 @@ import {
   cursorStyleSchema,
 } from "./animate.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
-import { cliFail, loadInputIntoPage, applyReadyWaits } from "./common.js";
+import {
+  cliFail,
+  loadInputIntoPage,
+  applyReadyWaits,
+  UsageError,
+  formatConfigIssues,
+  MOBILE_USER_AGENT,
+  PAGE_DEFAULT_TIMEOUT_MS,
+} from "./common.js";
 
 /** iOS UA used when a `capture` scene sets `mobile: true` (mirrors the capture path). */
-const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
 
 // ── Config schema ────────────────────────────────────────────────────────────
 // The storyboard config is external `JSON.parse`'d input, so it's validated with
@@ -218,8 +225,7 @@ type SceneCfg = StoryboardScene;
 export function validateStoryboardConfig(raw: unknown): StoryboardConfig {
   const parsed = storyboardConfigSchema.safeParse(raw);
   if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    throw new Error(`storyboard: ${first.path.join(".")}: ${first.message}`);
+    throw new UsageError(`storyboard: ${formatConfigIssues(parsed.error)}`);
   }
   return parsed.data;
 }
@@ -253,13 +259,13 @@ async function captureSceneToSvg(
   const ctx = await browser.newContext({
     viewport: { width: canvasW, height: canvasH },
     isMobile: cap.mobile === true,
-    ...(cap.mobile === true ? { userAgent: MOBILE_UA } : {}),
+    ...(cap.mobile === true ? { userAgent: MOBILE_USER_AGENT } : {}),
     ...(cap.colorScheme != null ? { colorScheme: cap.colorScheme } : {}),
   });
   try {
     const page = await ctx.newPage();
-    page.setDefaultTimeout(90_000);
-    page.setDefaultNavigationTimeout(90_000);
+    page.setDefaultTimeout(PAGE_DEFAULT_TIMEOUT_MS);
+    page.setDefaultNavigationTimeout(PAGE_DEFAULT_TIMEOUT_MS);
     const tracker = attachWebfontTracker(page);
     const input = cap.url ?? resolve(configDir, requireField(cap.file, "storyboard capture.file"));
     await loadInputIntoPage(page, input);

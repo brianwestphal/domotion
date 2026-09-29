@@ -12,7 +12,7 @@ import { launchChromium } from "../capture/index.js";
 import { setRenderTextMode, RENDER_TEXT_MODES, isRenderTextMode } from "../render/index.js";
 import { loadBrand, type Brand } from "../templates/brand.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
-import { makeLogger, parseIntFlag } from "./common.js";
+import { makeLogger, parseIntFlag, UsageError } from "./common.js";
 import { composeAnimateConfig, validateAnimateConfig } from "./animate-orchestrator.js";
 import { writeAnimateArtifact } from "./animate-artifact.js";
 import { logAnimateDebugBundle, writeAnimateDebugActual } from "./animate-debug.js";
@@ -45,16 +45,16 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
     process.stdout.write(help);
     process.exit(0);
   }
-  if (positionals.length === 0) throw new Error("animate: missing <config.json>");
-  if (positionals.length > 1) throw new Error(`animate: unexpected extra argument "${positionals[1]}"`);
+  if (positionals.length === 0) throw new UsageError("animate: missing <config.json>");
+  if (positionals.length > 1) throw new UsageError(`animate: unexpected extra argument "${positionals[1]}"`);
   if (values.optimize === true && values["no-optimize"] === true) {
-    throw new Error("animate: --optimize and --no-optimize are mutually exclusive");
+    throw new UsageError("animate: --optimize and --no-optimize are mutually exclusive");
   }
   if (values["auto-compress"] === true && values["no-auto-compress"] === true) {
-    throw new Error("animate: --auto-compress and --no-auto-compress are mutually exclusive");
+    throw new UsageError("animate: --auto-compress and --no-auto-compress are mutually exclusive");
   }
   if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
-    throw new Error(
+    throw new UsageError(
       `animate: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`,
     );
   }
@@ -69,7 +69,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   }
 
   const configPath = resolve(positionals[0]);
-  if (!existsSync(configPath)) throw new Error(`animate: config not found: ${configPath}`);
+  if (!existsSync(configPath)) throw new UsageError(`animate: config not found: ${configPath}`);
   const cfg = validateAnimateConfig(JSON.parse(readFileSync(configPath, "utf8")) as unknown);
   const configDir = dirname(configPath);
   if (values["auto-compress"] === true) cfg.autoCompress = true;

@@ -1,5 +1,6 @@
 /** Browser/context/font lifecycle for one declarative animation capture run. */
 
+import { MOBILE_USER_AGENT, PAGE_DEFAULT_TIMEOUT_MS } from "./common.js";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import type { Browser, Page } from "@playwright/test";
 import { attachWebfontTracker, injectBrandVariables } from "../capture/index.js";
@@ -35,14 +36,14 @@ export async function openAnimateCaptureSession(
   const context = await browser.newContext({
     viewport: { width: options.width, height: options.height },
     isMobile: options.mobile,
-    ...(options.mobile ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+    ...(options.mobile ? { userAgent: MOBILE_USER_AGENT } : {}),
     ...(options.colorScheme != null ? { colorScheme: options.colorScheme } : {}),
     ...(options.recordHarPath != null ? { recordHar: { path: options.recordHarPath, mode: "minimal" as const } } : {}),
   });
   if (options.brand != null) await injectBrandVariables(context, options.brand);
   const page = await context.newPage();
-  page.setDefaultTimeout(90_000);
-  page.setDefaultNavigationTimeout(90_000);
+  page.setDefaultTimeout(PAGE_DEFAULT_TIMEOUT_MS);
+  page.setDefaultNavigationTimeout(PAGE_DEFAULT_TIMEOUT_MS);
 
   clearWebfonts();
   clearCaptureGenerationCaches();

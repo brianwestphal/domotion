@@ -99,7 +99,14 @@ import {
   writeEmbeddedAnimateDebugFrame,
   writeLiveAnimateDebugFrame,
 } from "./animate-debug.js";
-import { applyReadyWaits, loadInputIntoPage, timed } from "./common.js";
+import {
+  applyReadyWaits,
+  loadInputIntoPage,
+  timed,
+  formatConfigIssues,
+  MOBILE_USER_AGENT,
+  UsageError,
+} from "./common.js";
 
 // ── Config schema (DM-843) ──────────────────────────────────────────────────
 // The animate config is external `JSON.parse`'d input, so it's validated with
@@ -3576,7 +3583,7 @@ async function expandHoverDetect(
     const ctx = await browser.newContext({
       viewport: { width: cfg.width, height: cfg.height },
       isMobile: cfg.mobile === true,
-      ...(cfg.mobile === true ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+      ...(cfg.mobile === true ? { userAgent: MOBILE_USER_AGENT } : {}),
       ...(cfg.colorScheme != null ? { colorScheme: cfg.colorScheme } : {}),
     });
     let diff: HoverDiff;
@@ -3681,19 +3688,7 @@ function synthesizeMotionAnimations(diff: HoverDiff, selector: string, durationM
 export function validateAnimateConfig(raw: unknown): AnimateConfig {
   const result = animateConfigSchema.safeParse(raw);
   if (result.success) return result.data;
-  throw new Error(`animate: ${formatConfigIssues(result.error)}`);
-}
-
-function formatConfigIssues(err: z.ZodError): string {
-  return err.issues
-    .map((issue) => {
-      const path = issue.path
-        .map((seg) => (typeof seg === "number" ? `[${seg}]` : `.${String(seg)}`))
-        .join("")
-        .replace(/^\./, "");
-      return path === "" ? issue.message : `${path}: ${issue.message}`;
-    })
-    .join("; ");
+  throw new UsageError(`animate: ${formatConfigIssues(result.error)}`);
 }
 
 /**

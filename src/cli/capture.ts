@@ -61,6 +61,10 @@ import {
   resolveOutputPath,
   timed,
   writeOutput,
+  UsageError,
+  MOBILE_USER_AGENT,
+  PAGE_DEFAULT_TIMEOUT_MS,
+  parseNonNegativeInt,
 } from "./common.js";
 import { setupDebugBundle } from "./debug-bundle.js";
 
@@ -107,32 +111,32 @@ interface CaptureFlagValues {
  */
 function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   if (values.optimize === true && values["no-optimize"] === true) {
-    throw new Error("capture: --optimize and --no-optimize are mutually exclusive");
+    throw new UsageError("capture: --optimize and --no-optimize are mutually exclusive");
   }
   if (values.chrome != null && !isDeviceChrome(values.chrome)) {
-    throw new Error(`capture: --chrome expects one of ${DEVICE_CHROMES.join(", ")}, got "${values.chrome}"`);
+    throw new UsageError(`capture: --chrome expects one of ${DEVICE_CHROMES.join(", ")}, got "${values.chrome}"`);
   }
   if (values["chrome-theme"] != null && !isChromeTheme(values["chrome-theme"])) {
-    throw new Error(
+    throw new UsageError(
       `capture: --chrome-theme expects one of ${CHROME_THEMES.join(", ")}, got "${values["chrome-theme"]}"`,
     );
   }
   // DM-1442: --cross-origin-frames must be `*` or a non-empty comma-separated
   // host[:port] allowlist. Reject an empty value rather than silently no-op'ing.
   if (values["cross-origin-frames"] != null && parseCrossOriginAllowlist(values["cross-origin-frames"]) == null) {
-    throw new Error(
+    throw new UsageError(
       `capture: --cross-origin-frames expects "*" or a comma-separated host[:port] list, got "${values["cross-origin-frames"]}"`,
     );
   }
   // DM-889: `--url` / `--har-fallback` only apply to a `.har` input, so reject
   // them on a non-HAR input rather than silently ignoring.
   if (!har && (values.url != null || values["har-fallback"] === true)) {
-    throw new Error("capture: --url / --har-fallback only apply to a .har input");
+    throw new UsageError("capture: --url / --har-fallback only apply to a .har input");
   }
   // DM-6SQXGF: --real-text now composes with --scroll (the composer emits a
   // paintless real-text layer per visibility-gated scroll region).
   if (typeof values["text-mode"] === "string" && !isRenderTextMode(values["text-mode"])) {
-    throw new Error(
+    throw new UsageError(
       `capture: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`,
     );
   }
@@ -188,8 +192,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     process.stdout.write(help);
     process.exit(0);
   }
-  if (positionals.length === 0) throw new Error("capture: missing <input> (URL, path, or '-')");
-  if (positionals.length > 1) throw new Error(`capture: unexpected extra argument "${positionals[1]}"`);
+  if (positionals.length === 0) throw new UsageError("capture: missing <input> (URL, path, or '-')");
+  if (positionals.length > 1) throw new UsageError(`capture: unexpected extra argument "${positionals[1]}"`);
 
   const input = positionals[0];
   // DM-889: a `.har` input is replayed offline via routeFromHAR (auto-detected
@@ -217,7 +221,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   let fmt: ResolvedFormat | undefined;
   if (values.format != null) fmt = resolveFormat(values.format);
   if (values["safe-guide"] === true && fmt == null) {
-    throw new Error(
+    throw new UsageError(
       `capture: --safe-guide requires --format (a preset (${formatNames().join(", ")}) or WIDTHxHEIGHT) so there is a safe area to draw`,
     );
   }
@@ -232,7 +236,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     clip: values.clip != null ? (parseTuple(values.clip, 4, "clip") as [number, number, number, number]) : undefined,
     scroll:
       values["scroll-to"] != null ? (parseTuple(values["scroll-to"], 2, "scroll-to") as [number, number]) : undefined,
-    wait: parseIntFlag(values.wait, "wait", 200),
+    wait: parseNonNegativeInt(values.wait, "wait") ?? 200,
     waitFor: values["wait-for"],
     fontsReady: values["no-fonts-ready"] !== true,
     networkIdle: values["network-idle"] === true,
@@ -265,7 +269,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     const ctx = await browser.newContext({
       viewport: { width: flags.width, height: flags.height },
       isMobile: flags.mobile,
-      ...(flags.mobile ? { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)" } : {}),
+      ...(flags.mobile ? { userAgent: MOBILE_USER_AGENT } : {}),
       ...(flags.colorScheme != null ? { colorScheme: flags.colorScheme } : {}),
       // DM-945: record HAR for `--debug` so the consumer can reproduce
       // the exact network state offline (the same `tests/cache/real-
@@ -285,8 +289,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     const page = await ctx.newPage();
     // DM-479: bump Playwright's 30 s defaults to 90 s. Long captures on
     // heavy pages routinely push past 30 s.
-    page.setDefaultTimeout(90_000);
-    page.setDefaultNavigationTimeout(90_000);
+    page.setDefaultTimeout(PAGE_DEFAULT_TIMEOUT_MS);
+    page.setDefaultNavigationTimeout(PAGE_DEFAULT_TIMEOUT_MS);
     // Track every font URL the browser fetches during the page load. Most
     // webfonts are cross-origin (Google Fonts, Adobe Fonts CDNs) and don't
     // expose their resource-timing entries to JS, so this listener-based
@@ -334,7 +338,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       const speedRaw = values["scroll-speed"];
       const speed = speedRaw != null ? Number(speedRaw) : undefined;
       if (speed != null && (!Number.isFinite(speed) || speed <= 0)) {
-        throw new Error(`--scroll-speed expects a positive number (px/s), got "${speedRaw}"`);
+        throw new UsageError(`--scroll-speed expects a positive number (px/s), got "${speedRaw}"`);
       }
       log(`Running scroll pattern: ${values.scroll}`);
       const segments = await executeScrollPattern(page, pattern, {
