@@ -111,14 +111,15 @@ describe("platform-aware helper resolution", () => {
     );
   });
 
-  it("resolves the binary two levels up from the module (repo-root tools/)", () => {
-    // Regression for the DM-619d reorg bug: when this module moved to src/render/
+  it("resolves the binary two levels up from the module (packages/text-engine/tools/)", () => {
+    // Regression for the DM-619d reorg bug: when this module moved under src/render/
     // the relative path still pointed one level up (src/tools/), so the in-tree
-    // helper was unreachable. It must resolve to the repo-root tools/ dir.
+    // helper was unreachable. It must resolve to the package's tools/ dir
+    // (packages/text-engine/tools/), two levels above packages/text-engine/src/render.
     const darwinBin = __helperBinaryForPlatform("darwin")!;
-    const moduleDir = path.dirname(fileURLToPath(import.meta.url)); // src/render
-    const repoRoot = path.resolve(moduleDir, "..", "..");
-    expect(darwinBin).toBe(path.join(repoRoot, "tools", "macos-glyph-extractor", "domotion-glyph-paths"));
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url)); // packages/text-engine/src/render
+    const packageRoot = path.resolve(moduleDir, "..", "..");
+    expect(darwinBin).toBe(path.join(packageRoot, "tools", "macos-glyph-extractor", "domotion-glyph-paths"));
   });
 
   it("returns no binary for a platform without a helper", () => {
