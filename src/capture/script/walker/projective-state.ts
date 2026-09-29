@@ -100,3 +100,38 @@ export const projectiveTransformFor = (vp, rect, quad, parentAbsolute, backfaceV
     hidden: backfaceVisibility === "hidden" && area < 0,
   };
 };
+
+/**
+ * The bounding raster surface of an element's whole subtree, clipped to the capture viewport. SVG cannot
+ * encode a projective fourth corner or preserve-3d flattening, so the outermost 3D context is one Chromium
+ * raster; descendants stay in the tree for metadata and paint ordering.
+ */
+export const transformSubtreeRasterFor = (el, rect, vp, sourceNodeIndex) => {
+  let _left = rect.left,
+    _top = rect.top,
+    _right = rect.right,
+    _bottom = rect.bottom;
+  const _subs = el.getElementsByTagName("*");
+  for (let _ri = 0; _ri < _subs.length; _ri++) {
+    const _rr = _subs[_ri].getBoundingClientRect();
+    if (_rr.width <= 0 || _rr.height <= 0) continue;
+    _left = Math.min(_left, _rr.left);
+    _top = Math.min(_top, _rr.top);
+    _right = Math.max(_right, _rr.right);
+    _bottom = Math.max(_bottom, _rr.bottom);
+  }
+  const _rx = Math.max(vp.x, _left),
+    _ry = Math.max(vp.y, _top);
+  const _rright = Math.min(vp.x + vp.width, _right),
+    _rbottom = Math.min(vp.y + vp.height, _bottom);
+  if (_rright > _rx && _rbottom > _ry) {
+    return {
+      x: _rx - vp.x,
+      y: _ry - vp.y,
+      width: _rright - _rx,
+      height: _rbottom - _ry,
+      sourceNodeIndex: sourceNodeIndex,
+    };
+  }
+  return { x: 0, y: 0, width: 0, height: 0, sourceNodeIndex: sourceNodeIndex };
+};

@@ -61,12 +61,17 @@ import { parseCrossOriginAllowlist } from "./cross-origin.js";
 import { selectProjectiveRasterOwnerIndexes } from "../projective-owner.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../backdrop-effect-space.js";
 import { captureFontFamilyStack } from "../../font-family-stack.js";
-import { projectiveFrameStateFor, projectiveTransformFor } from "./walker/projective-state.js";
+import {
+  projectiveFrameStateFor,
+  projectiveTransformFor,
+  transformSubtreeRasterFor,
+} from "./walker/projective-state.js";
 import { createCounterScopes } from "./walker/counter-scopes.js";
 import { createIframeRecursionHandler } from "./walker/iframe-recursion.js";
 import { createStyleRecordBuilder } from "./walker/style-record.js";
 import { createNativeControlsHandler } from "./walker/native-controls.js";
 import { createTextPhaseHandler } from "./walker/text-phase.js";
+import { captureImageElement } from "./walker/image-elements.js";
 import { createFidelityWarnings } from "./walker/fidelity-warnings.js";
 import {
   captureBackdropFilterRaster,
@@ -337,35 +342,7 @@ const captureDocumentTree = (args) => {
       projectiveHidden = _projective.hidden;
       _projectiveAbsH.set(el, _projective.absolute);
     }
-    const _makeTransformSubtreeRaster = () => {
-      let _left = rect.left,
-        _top = rect.top,
-        _right = rect.right,
-        _bottom = rect.bottom;
-      const _subs = el.getElementsByTagName("*");
-      for (let _ri = 0; _ri < _subs.length; _ri++) {
-        const _rr = _subs[_ri].getBoundingClientRect();
-        if (_rr.width <= 0 || _rr.height <= 0) continue;
-        _left = Math.min(_left, _rr.left);
-        _top = Math.min(_top, _rr.top);
-        _right = Math.max(_right, _rr.right);
-        _bottom = Math.max(_bottom, _rr.bottom);
-      }
-      const _rx = Math.max(vp.x, _left),
-        _ry = Math.max(vp.y, _top);
-      const _rright = Math.min(vp.x + vp.width, _right),
-        _rbottom = Math.min(vp.y + vp.height, _bottom);
-      if (_rright > _rx && _rbottom > _ry) {
-        return {
-          x: _rx - vp.x,
-          y: _ry - vp.y,
-          width: _rright - _rx,
-          height: _rbottom - _ry,
-          sourceNodeIndex: _projectiveNodeIndex.get(el),
-        };
-      }
-      return { x: 0, y: 0, width: 0, height: 0, sourceNodeIndex: _projectiveNodeIndex.get(el) };
-    };
+    const _makeTransformSubtreeRaster = () => transformSubtreeRasterFor(el, rect, vp, _projectiveNodeIndex.get(el));
     // SVG cannot encode a projective fourth corner or preserve-3d flattening.
     // Snapshot the outermost 3D context once; descendants remain in the tree
     // for metadata/paint ordering but the renderer returns after this image.
@@ -447,7 +424,6 @@ const captureDocumentTree = (args) => {
     // resolves against that same-document def.
     const urlFilterRasterToken = discoverFilters(el, cs, sel);
     warnAfterMaskDiscovery(el, cs, tag, sel);
-    let imageSrc = undefined;
     let svgContent = undefined;
     const {
       text,
@@ -473,62 +449,16 @@ const captureDocumentTree = (args) => {
     let textImageUri = undefined;
     const textImageScale = 2;
 
-    if (tag === "img") {
-      // currentSrc is the URL the browser actually resolved + loaded (from
-      // srcset / <picture> <source>). Fall back to src when currentSrc is empty.
-      imageSrc = el.currentSrc || el.src;
-      // Intrinsic <img> dims — used by the renderer for object-fit: none.
-      if (el.naturalWidth > 0 && el.naturalHeight > 0) {
-        var imageIntrinsic = { w: el.naturalWidth, h: el.naturalHeight };
-        var imageEffectiveZoom = _effectiveZoomFor(el);
-      }
-      // Broken-image fallback (DM-372): el.complete && naturalWidth===0 means
-      // the browser tried to load and failed (or src was empty). Chrome paints
-      // a small broken-image icon plus the alt text inline. Capture both so
-      // the renderer can synthesize the same fallback.
-      var imageBroken = el.complete && el.naturalWidth === 0;
-      var imageAlt = el.alt || "";
-      // Seed only light-DOM/source facts here. Closed UA-shadow ownership,
-      // used geometry, text shaping/font facts, and AX semantics are attached
-      // by the Node/CDP post-pass while the private live-node registry exists.
-      var _imageHasSrc = el.hasAttribute("src");
-      var _imageHasAlt = el.hasAttribute("alt");
-      var _imageHasTitle = el.hasAttribute("title");
-      var brokenImageFallback = {
-        schemaVersion: 1,
-        authority: "chromium-ua-shadow-v1",
+    const { imageSrc, imageIntrinsic, imageEffectiveZoom, imageBroken, imageAlt, brokenImageFallback } =
+      captureImageElement({
+        el,
+        tag,
+        rect,
+        vp,
+        sel,
+        effectiveZoomFor: _effectiveZoomFor,
         sourceNodeIndex: _projectiveNodeIndex.get(el),
-        selector: sel,
-        effectiveZoom: _effectiveZoomFor(el),
-        hostRect: {
-          x: rect.left - vp.x,
-          y: rect.top - vp.y,
-          width: rect.width,
-          height: rect.height,
-        },
-        source: {
-          complete: el.complete === true,
-          naturalWidth: Number(el.naturalWidth) || 0,
-          naturalHeight: Number(el.naturalHeight) || 0,
-          currentSrc: el.currentSrc || "",
-          src: { present: _imageHasSrc, value: _imageHasSrc ? el.getAttribute("src") : null },
-          alt: { present: _imageHasAlt, value: _imageHasAlt ? el.getAttribute("alt") : null },
-          title: { present: _imageHasTitle, value: _imageHasTitle ? el.getAttribute("title") : null },
-          // Blink HTMLImageElement::AltText: a present alt wins even when it
-          // is empty; title is consulted only when alt is absent.
-          resolvedText: _imageHasAlt
-            ? el.getAttribute("alt") || ""
-            : _imageHasTitle
-              ? el.getAttribute("title") || ""
-              : "",
-        },
-      };
-    } else if (tag === "input" && el.type === "image") {
-      // <input type="image"> renders the src as a clickable button-image.
-      // No currentSrc / naturalWidth on HTMLInputElement; the bounding rect
-      // already reflects width/height attributes or the image's natural size.
-      imageSrc = el.src;
-    }
+      });
     const _listsCounters = captureListsCounters(el, cs, tag);
     let svgReferenceScope = undefined;
     if (tag === "svg") {
