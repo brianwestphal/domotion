@@ -2086,7 +2086,8 @@
           "src/animation/motion-presets.ts",
           "src/animation/overlay-schema.ts",
           "src/animation/shine.ts",
-          "src/cli/animate.ts"
+          "src/animation/svg-generator.ts",
+          "src/animation/transition-schema.ts"
         ],
         "aliases": ["docs/88-transition-effect-expansion.md", "doc-88"]
       }
@@ -2719,6 +2720,7 @@
         "code": [
           "schemas/animate-config.schema.json",
           "src/animation/animator.ts",
+          "src/animation/svg-generator.ts",
           "src/animation/animator.test.ts",
           "tests/compose-animate-frames.e2e.test.ts"
         ],
@@ -2803,6 +2805,11 @@
         "code": [
           "src/animation/transition-schema.test.ts",
           "src/animation/transition-schema.ts",
+          "src/cli/animate-config-json-schema.ts",
+          "src/cli/storyboard-config-json-schema.ts",
+          "scripts/generate-animate-schema.ts",
+          "scripts/generate-storyboard-schema.ts",
+          "schemas/storyboard-config.schema.json",
           "src/cli/animate.ts",
           "src/cli/storyboard.ts",
           "tests/feature-coverage.ts"

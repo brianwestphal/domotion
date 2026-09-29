@@ -29,7 +29,8 @@ code:
     "src/animation/motion-presets.ts",
     "src/animation/overlay-schema.ts",
     "src/animation/shine.ts",
-    "src/cli/animate.ts",
+    "src/animation/svg-generator.ts",
+    "src/animation/transition-schema.ts",
   ]
 aliases: ["docs/88-transition-effect-expansion.md", "doc-88"]
 ---
@@ -314,18 +315,23 @@ cross-family boundaries end to end.
 
 ## Where to look
 
-- `src/animation/animator.ts` — transition routing (`PUSH_DIRS`, `REVEAL_KINDS`,
-  `classifyEntrance` / `classifyExit` / `composedBoundaryNeeded` /
+- `src/animation/svg-generator.ts` — transition routing and emission
+  (`classifyEntrance` / `classifyExit` / `composedBoundaryNeeded` /
   `emitComposedFrame` for the DM-1548 unified compositor,
   `emitSlideFrame`, `emitRevealFrame`, the zoom `entranceScale` + `shine` sweep in
   the crossfade branch) and the `shine` overlay (`renderShineOverlay`). The clock
-  wipe's polygon math is `revealShapeOf` (folds `wipe-radial`→`iris`,
-  `wipe-clock`→`clock`) + `clockWipeClip` / `clockWipeStops` (DM-1547).
+  wipe's polygon math is `clockWipeClip` (DM-1547); the angled linear wipe is
+  `linearWipeClip` ([doc 114](114-angled-linear-wipe.md)).
+  `src/animation/animator.ts` is the stable public facade over it.
 - `src/animation/shine.ts` — the shared `buildShineSweep` helper.
 - `src/animation/easing.ts` — `springEasingFn` / `springLinearEasing`.
 - `src/animation/motion-presets.ts` — the `spring-bouncy` / `spring-soft` presets.
-- CLI + schema: the `transition.type` enum in `src/cli/animate.ts` and the
-  generated `schemas/animate-config.schema.json`; the `shine` overlay in
+- Schema: the `transition.type` enum lives in `src/animation/transition-schema.ts`
+  (`legacyTransitionTypeSchema` + the parameterized families of
+  [doc 117](117-parameterized-built-in-transitions.md) /
+  [doc 118](118-custom-transition-recipes.md); normalization in
+  [doc 116](116-transition-schema-and-normalization.md)) and feeds the generated
+  `schemas/animate-config.schema.json`; the `shine` overlay in
   `src/animation/overlay-schema.ts`.
 - Runnable demo: `examples/showcase-transitions.ts` →
   `examples/output/transition-{wipe,iris,zoom,shine,effects}.svg`.

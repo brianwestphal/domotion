@@ -59,8 +59,9 @@ renders above the title; `logoPosition` places it.
 
 A pull-quote block + attribution (name, role/handle, optional avatar
 initial/color). Quote fades/slides in; a large decorative quotation mark and an
-accent rule animate in. Params: `quote` (req), `author`, `role`, `avatarColor`,
-`avatarInitial`, `accent`, theme, sizing.
+accent rule animate in. Params (`quoteParamsSchema`): `quote` (req), `author`, `role`, `avatarInitial`,
+`avatarColor`, `accent`, `theme`, `background`, `textColor`, `fontFamily`,
+`width`, `height`, `holdMs`.
 
 ### 3. `caption` (subtitle strip)
 
@@ -68,8 +69,10 @@ A single caption line for **pairing over other content** — transparent
 background, anchored bottom-center within safe margins, with an explicit in/out
 (fade or slide). Distinct from `lower-third` (a titled panel with accent bar):
 `caption` is a lightweight subtitle for compositing over a captured demo/video.
-Params: `text` (req), `position`, `maxWidthPct`, `bgOpacity`, `in`/`out` preset,
-`holdMs`, sizing.
+Params (`captionParamsSchema`): `text` (req), `position`
+(`bottom-center` | `top-center` | `center`), `motion` (`fade` | `slide`),
+`maxWidthPct`, `bgOpacity`, `textColor`, `fontFamily`, `inMs`, `outMs`, `holdMs`,
+`width`, `height`.
 
 ### 4. `counter` (countdown / number-ticker)
 
@@ -79,15 +82,19 @@ per-frame text):** render each digit column as a vertical strip `0..9` (or the
 needed range) inside a clipped box and `translateY` the strip so the target digit
 lands in the window. That's a pure `transform` animation — cross-engine-safe,
 scalable, and fuse-friendly — instead of many discrete text frames. Per-digit
-stagger + easing gives the satisfying "roll." Params: `from`, `to`, `duration`,
-`prefix`, `suffix`, `grouping` (thousands sep), `decimals`, `easing`.
+stagger + easing gives the satisfying "roll." Params (`counterParamsSchema`):
+`to` (req), `from`, `mode` (`count` | `timer`), `prefix`, `suffix`, `decimals`,
+`grouping` (thousands sep), `durationMs`, `staggerMs`, `easing`, `fontSize`,
+`theme`, `background`, `color`, `fontFamily`, `width`, `height`, `holdMs`.
 
 ### 5. `stat` (big-stat / KPI callout)
 
 A large headline value + label + optional delta/trend chip (`▲ 8.1%`). The value
-reuses the `counter` odometer; the delta chip fades in after. Params: `value`,
-`label`, `delta`, `deltaDir` (up/down), `accent`, `animateValue` (bool → odometer
-from 0), sizing. (Shares the digit-reel module with `counter`.)
+reuses the `counter` odometer; the delta chip fades in after. Params
+(`statParamsSchema`): `value` (req), `label`, `delta`, `deltaDir`
+(`up` | `down` | `auto`), `animateValue` (bool → odometer from 0), `prefix`,
+`suffix`, `decimals`, `grouping`, `durationMs`, `accent`, `theme`, `background`,
+`color`, `fontSize`, `fontFamily`, `width`, `height`, `holdMs`. (Shares the digit-reel module with `counter`.)
 
 ### 6. `compare` (before / after)
 
@@ -95,8 +102,11 @@ Two visuals (image, captured page, or an existing SVG) with the "after" revealed
 over the "before" via a **clip-path wipe or slider** (linear/vertical), plus
 optional before/after labels. The wipe is the same clip-path animation family as
 DM-1524; this template is a packaged front-end for the common comparison case.
-Params: `before` (req), `after` (req), `mode` (wipe/slide), `direction`, `labels`,
-sizing. (Static inputs nest as images/SVG; a captured page uses `captureToSvg`.)
+Params (`compareParamsSchema`): `before` (req), `after` (req), `mode`
+(`wipe` | `slide`), `direction` (`right` | `left` | `down` | `up`), `beforeLabel`,
+`afterLabel`, `accent` (slide divider color), `fontFamily`, `durationMs`,
+`holdMs`, `width`, `height`. The schemas in `src/templates/builtin/*.ts` are
+authoritative; `domotion template <name> --help` prints them. (Static inputs nest as images/SVG; a captured page uses `captureToSvg`.)
 
 ### 7. `cta` (end-card)
 

@@ -382,7 +382,7 @@ A frame may embed a named **template** (doc 70) instead of an `input` page or a 
 }
 ```
 
-- `template` — a built-in (`lower-third`, `device-mockup`, `background-loop`, `kinetic-text`) or an installed `domotion-template-<name>` package, resolved exactly like the `domotion template` verb.
+- `template` — any built-in registered in `src/templates/registry.ts` (`listBuiltinTemplates()`; the 14 built-ins are enumerated in [doc 70](70-template-system.md), and each one's params are in its own zod schema — see doc 86 for the creative pack) or an installed `domotion-template-<name>` package, resolved exactly like the `domotion template` verb.
 - `params` — validated against that template's own zod schema at compose time; an unknown name or bad params fails with a path-specific error. `${vars}` interpolation applies to `params` strings (§7).
 
 **Semantics & guardrails.**

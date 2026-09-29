@@ -30,9 +30,9 @@ DM-2071 adds canonical family forms alongside the byte-compatible legacy names. 
 { "type": "shine", "duration": 300, "shine": { "angle": 20, "bandWidth": 0.25, "color": "#fff", "opacity": 0.5 } }
 ```
 
-- Angles are degrees clockwise from the positive x axis for push/linear reveal. Clock `startAngle` remains degrees clockwise from 12 o'clock.
+- Angles are degrees clockwise from the positive x axis for push/linear reveal, bounded to `[-360, 360]` by the parameterized schemas. The legacy `wipe` alias's `wipeAngle` is deliberately **unbounded** (it predates the schema and stays backward compatible); angles enter only trigonometric clip math, so any finite value is equivalent to itself modulo 360 and the bound is an authoring guard, not a behavioral difference. Clock `startAngle` remains degrees clockwise from 12 o'clock.
 - Push `distance` is a viewport fraction on each projected axis, bounded `(0, 2]`; `direction` is an alternative to `angle`.
-- Origins are viewport-relative `{x,y}` coordinates, each clamped by validation to `[0,1]`.
+- Origins are viewport-relative `{x,y}` coordinates. Each component must lie in `[0,1]`; a value outside that range is **rejected by validation**, not clamped (`originSchema`, `transition-schema.ts`).
 - Radial `radius` is a farthest-corner coverage multiplier in `[1,2]`, so completion always covers the viewport.
 - Zoom `fromScale` is `[0.01,4]` and always settles at `scale(1)`.
 - Shine `bandWidth` is a viewport-width fraction `(0,2]`; opacity is `[0,1]`. Color is an SVG color string.

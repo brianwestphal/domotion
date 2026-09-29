@@ -10,6 +10,11 @@ code:
   [
     "src/animation/transition-schema.test.ts",
     "src/animation/transition-schema.ts",
+    "src/cli/animate-config-json-schema.ts",
+    "src/cli/storyboard-config-json-schema.ts",
+    "scripts/generate-animate-schema.ts",
+    "scripts/generate-storyboard-schema.ts",
+    "schemas/storyboard-config.schema.json",
     "src/cli/animate.ts",
     "src/cli/storyboard.ts",
     "tests/feature-coverage.ts",
@@ -23,7 +28,7 @@ DM-2070 ships the foundation proposed in doc 115: one transition contract and on
 
 ## Contract
 
-`src/animation/transition-schema.ts` is the source of truth. Its zod schema derives the public `Transition` TypeScript type, validates `animate` and `storyboard` configs, and feeds both generated JSON Schemas. Storyboard adds one capability refinement: it rejects `magic-move` with an actionable error because opaque scenes do not provide the paired element trees that effect requires.
+`src/animation/transition-schema.ts` is the source of truth. Its zod schema derives the public `Transition` TypeScript type, validates `animate` and `storyboard` configs, and feeds both generated JSON Schemas. The generated JSON Schemas come from `src/cli/animate-config-json-schema.ts` and `src/cli/storyboard-config-json-schema.ts` (run by `scripts/generate-animate-schema.ts` and `scripts/generate-storyboard-schema.ts`), producing `schemas/animate-config.schema.json` and `schemas/storyboard-config.schema.json`. Storyboard adds one capability refinement: it rejects `magic-move` with an actionable error because opaque scenes do not provide the paired element trees that effect requires.
 
 Every existing spelling remains accepted: `crossfade`, the five push/scroll spellings, `cut`, `magic-move`, the four reveal spellings, both zoom spellings, and `shine`. Existing easing, linear-wipe angle, and clock-wipe controls are unchanged. Negative durations are rejected consistently.
 

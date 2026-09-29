@@ -144,16 +144,21 @@ it does **not** reinvent transitions. The full **cross-engine-safe (opaque-scene
 safe)** vocabulary is exposed — the originals plus the DM-1524 expansion (docs/88),
 plumbed straight through (DM-1552; no storyboard-side machinery, just a wider enum):
 
-| `type`                                | Effect                                                                                                                   |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `crossfade`                           | Fade the outgoing scene out while the incoming fades in (a dissolve).                                                    |
-| `cut`                                 | Instant switch — no fade, no slide (`duration` ignored).                                                                 |
-| `push-left` / `push-right`            | The outgoing scene slides off one side; the incoming slides in from the other (horizontal directional).                  |
-| `scroll` (== `push-up`) / `push-down` | The vertical directional pushes (slide up-and-in-from-below, or down-and-in-from-above).                                 |
-| `wipe`                                | A linear left→right `clip-path` reveal — the incoming scene unveils on top while the outgoing holds beneath.             |
-| `iris`                                | An expanding-circle `clip-path` reveal from the center.                                                                  |
-| `zoom-in` / `zoom-out`                | A scale dolly under a crossfade — the incoming scene grows `0.9→1` (in) or settles `1.1→1` (out), resting at `scale(1)`. |
-| `shine`                               | A crossfade with a swept gradient highlight over the handoff window.                                                     |
+| `type`                                | Effect                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crossfade`                           | Fade the outgoing scene out while the incoming fades in (a dissolve).                                                                                                                                |
+| `cut`                                 | Instant switch — no fade, no slide (`duration` ignored).                                                                                                                                             |
+| `push-left` / `push-right`            | The outgoing scene slides off one side; the incoming slides in from the other (horizontal directional).                                                                                              |
+| `scroll` (== `push-up`) / `push-down` | The vertical directional pushes (slide up-and-in-from-below, or down-and-in-from-above).                                                                                                             |
+| `wipe`                                | A linear `clip-path` reveal (left→right by default; optional `wipeAngle`) — the incoming scene unveils on top while the outgoing holds beneath.                                                      |
+| `iris`                                | An expanding-circle `clip-path` reveal from the center.                                                                                                                                              |
+| `wipe-radial`                         | An expanding-circle reveal like `iris`, on the wipe family (accepts `easing`).                                                                                                                       |
+| `wipe-clock`                          | A clock-hand sweep reveal; optional `wipeStartAngle` and `wipeCounterclockwise`.                                                                                                                     |
+| `zoom-in` / `zoom-out`                | A scale dolly under a crossfade — the incoming scene grows `0.9→1` (in) or settles `1.1→1` (out), resting at `scale(1)`.                                                                             |
+| `shine`                               | A crossfade with a swept gradient highlight over the handoff window.                                                                                                                                 |
+| `push` / `reveal` / `zoom` / `custom` | The **parameterized** families (`push: {direction\|angle, distance}`, `reveal: {shape: linear\|radial\|clock, …}`, `zoom: {…}`, `custom: {…}`), each with `easing`; authoring reference in docs/117. |
+
+The accepted set is exactly `storyboardTransitionSchema` (`src/animation/transition-schema.ts`, exported for the storyboard config schema): the full `transitionSchema` union minus `magic-move`.
 
 Every one is pure `transform` / `clip-path` / `opacity` / gradient (no animated CSS
 `filter`), so it plays identically on Blink and WebKit — see docs/88 for the full
