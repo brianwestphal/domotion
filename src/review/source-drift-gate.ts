@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { z } from "zod";
+import { stableDigest } from "./stable-digest.js";
 
 export type ConformanceMode = "representative" | "exhaustive";
 export interface SourceFingerprint {
@@ -22,26 +23,31 @@ export interface SourceDriftEvidence {
   unicodeProperties: DecisionRow[];
   shapingDecisions: DecisionRow[];
 }
+const decisionRowSchema = z.object({ id: z.string(), property: z.string(), input: z.string(), output: z.unknown() });
+
+/** Runtime shape of {@link SourceDriftEvidence}: the payload arrives from a JSON artifact. */
+export const sourceDriftEvidenceSchema = z.object({
+  fingerprint: z.object({
+    chromiumRevision: z.string(),
+    chromiumHarfBuzzRevision: z.string(),
+    harfbuzzRevision: z.string(),
+    icuRevision: z.string(),
+    icuDataSha256: z.string(),
+    helperBinaries: z.record(z.string(), z.string()),
+    generatedClassifiers: z.record(z.string(), z.string()),
+  }),
+  mode: z.enum(["representative", "exhaustive"]),
+  unicodeProperties: z.array(decisionRowSchema),
+  shapingDecisions: z.array(decisionRowSchema),
+});
+
 export interface SourceDriftReview {
   sourceRefs: string[];
   updatedPropertyRows: string[];
   updatedShapingRows: string[];
 }
 
-const stable = (value: unknown): unknown =>
-  Array.isArray(value)
-    ? value.map(stable)
-    : value != null && typeof value === "object"
-      ? Object.fromEntries(
-          Object.entries(value as Record<string, unknown>)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, item]) => [key, stable(item)]),
-        )
-      : value;
-const digest = (value: unknown): string =>
-  createHash("sha256")
-    .update(JSON.stringify(stable(value)))
-    .digest("hex");
+const digest = stableDigest;
 const complete = (value: unknown): boolean =>
   typeof value === "string"
     ? value.length > 0 && !["unknown", "unavailable", "missing"].includes(value)
@@ -56,12 +62,33 @@ const changedRows = (before: DecisionRow[], after: DecisionRow[]): string[] => {
   return [...new Set([...a.keys(), ...b.keys()])].filter((id) => a.get(id) !== b.get(id)).sort();
 };
 
+export interface SourceDriftVerdict {
+  schemaVersion: 1;
+  verdict: "comparable" | "verdict-withheld";
+  rollChanged: boolean;
+  unicodeChanges: string[];
+  shapingChanges: string[];
+  blockers: string[];
+}
+
+/** The withheld verdict for evidence that could not even be read. */
+export function invalidSourceDriftVerdict(): SourceDriftVerdict {
+  return {
+    schemaVersion: 1,
+    verdict: "verdict-withheld",
+    rollChanged: false,
+    unicodeChanges: [],
+    shapingChanges: [],
+    blockers: ["invalid-source-drift-payload"],
+  };
+}
+
 /** Fail-closed adjudication for the ICU/HarfBuzz boundary Chromium consumes. */
 export function compareSourceDrift(
   before: SourceDriftEvidence,
   after: SourceDriftEvidence,
   review?: SourceDriftReview,
-) {
+): SourceDriftVerdict {
   const fingerprintComplete = complete(before.fingerprint) && complete(after.fingerprint);
   const profileComparable = before.mode === after.mode;
   const unicodeChanges = changedRows(before.unicodeProperties, after.unicodeProperties);

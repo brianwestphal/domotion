@@ -40,4 +40,46 @@ describe("roll differential", () => {
     n.reportPayloads!["icu-harfbuzz-source-drift"] = {};
     expect(compareRollArtifacts(artifact("old", 1), n).pass).toBe(false);
   });
+
+  const goodDrift = {
+    fingerprint: {
+      chromiumRevision: "a",
+      chromiumHarfBuzzRevision: "b",
+      harfbuzzRevision: "c",
+      icuRevision: "d",
+      icuDataSha256: "e",
+      helperBinaries: { x: "1" },
+      generatedClassifiers: { y: "2" },
+    },
+    mode: "representative",
+    unicodeProperties: [{ id: "u1", property: "p", input: "i", output: 1 }],
+    shapingDecisions: [{ id: "s1", property: "p", input: "i", output: 1 }],
+  };
+  const withDrift = (revision: string, payload: unknown): RollArtifact => {
+    const a = artifact(revision, 1);
+    a.reportPayloads!["icu-harfbuzz-source-drift"] = payload;
+    return a;
+  };
+
+  it("compares two well-formed source-drift payloads", () => {
+    const result = compareRollArtifacts(withDrift("old", goodDrift), withDrift("new", structuredClone(goodDrift)));
+    expect(result.sourceDrift?.verdict).toBe("comparable");
+    expect(result.pass).toBe(true);
+  });
+
+  it("withholds the verdict on a malformed payload instead of throwing a TypeError", () => {
+    for (const bad of [
+      {},
+      { fingerprint: {} },
+      { ...goodDrift, mode: "sometimes" },
+      { ...goodDrift, unicodeProperties: "x" },
+    ]) {
+      let result: ReturnType<typeof compareRollArtifacts> | undefined;
+      expect(() => {
+        result = compareRollArtifacts(withDrift("old", goodDrift), withDrift("new", bad));
+      }).not.toThrow();
+      expect(result?.sourceDrift?.blockers).toEqual(["invalid-source-drift-payload"]);
+      expect(result?.pass).toBe(false);
+    }
+  });
 });

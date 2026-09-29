@@ -256,6 +256,10 @@ function cleanCompareResult(): CompareResult {
 }
 
 /** Browser-owned pixel analysis for inputs already proven byte-distinct. */
+/** How many regions the comparison outlines on the diff image AND returns in `regions` (both use the
+ *  same cap: an outlined region is a reported one). Interpolated into the browser source. */
+export const MAX_REPORTED_REGIONS = 32;
+
 export function buildBrowserComparisonSource(
   expectedBytes: Buffer,
   actualBytes: Buffer,
@@ -582,8 +586,7 @@ export function buildBrowserComparisonSource(
       }
       // Magenta outlines for regions (cap at top 32 so we don't spam huge
       // images with dozens of low-area outlines).
-      const MAX_OUTLINES = 32;
-      for (let i = 0; i < Math.min(surviving.length, MAX_OUTLINES); i++) {
+      for (let i = 0; i < Math.min(surviving.length, ${MAX_REPORTED_REGIONS}); i++) {
         const r = surviving[i];
         rect(r.x, r.y, r.w, r.h, 255, 0, 255);
       }
@@ -616,8 +619,7 @@ export function buildBrowserComparisonSource(
       diffCtx.putImageData(diffData, 0, 0);
       // Cap the returned regions payload at 32 to keep the JSON small;
       // surviving array is already sorted area-desc.
-      const REGIONS_CAP = 32;
-      const trimmedRegions = surviving.slice(0, REGIONS_CAP);
+      const trimmedRegions = surviving.slice(0, ${MAX_REPORTED_REGIONS});
       // DM-1874: a per-SIDE fingerprint, so a later report can say which image
       // moved rather than only that the distance between them did. Deliberately
       // lossy — see src/review/side-digest.ts for why a content hash is useless

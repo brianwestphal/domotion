@@ -1,5 +1,11 @@
-import { createHash } from "node:crypto";
-import { compareSourceDrift, type SourceDriftEvidence, type SourceDriftReview } from "./source-drift-gate.js";
+import { stableDigest } from "./stable-digest.js";
+import {
+  compareSourceDrift,
+  invalidSourceDriftVerdict,
+  sourceDriftEvidenceSchema,
+  type SourceDriftReview,
+  type SourceDriftVerdict,
+} from "./source-drift-gate.js";
 export interface RollArtifact {
   environmentFingerprint: Record<string, unknown>;
   reports: Array<{ area: string; status: string }>;
@@ -17,21 +23,8 @@ export interface RollReview {
   >;
   sourceDrift?: SourceDriftReview;
 }
-const stable = (v: unknown): unknown =>
-  Array.isArray(v)
-    ? v.map(stable)
-    : v != null && typeof v === "object"
-      ? Object.fromEntries(
-          Object.entries(v as Record<string, unknown>)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([k, x]) => [k, stable(x)]),
-        )
-      : v;
-const digest = (v: unknown) =>
-  createHash("sha256")
-    .update(JSON.stringify(stable(v)))
-    .digest("hex");
-function comparable(env: Record<string, unknown>) {
+const digest = stableDigest;
+function comparable(env: Record<string, unknown>): Record<string, unknown> {
   const c = structuredClone(env) as Record<string, unknown>;
   delete c.fingerprint;
   const r = c.runtimes as Record<string, unknown> | undefined;
@@ -40,7 +33,17 @@ function comparable(env: Record<string, unknown>) {
   if (b) delete b.version;
   return c;
 }
-export function compareRollArtifacts(oldRun: RollArtifact, newRun: RollArtifact, review?: RollReview) {
+export interface RollComparison {
+  schemaVersion: 1;
+  environmentComparable: boolean;
+  stageChanges: Array<{ area: string; oldDigest: string; newDigest: string }>;
+  visualChanges: Array<{ id: string; oldDigest: string | undefined; newDigest: string | undefined }>;
+  missingReviews: string[];
+  sourceDrift: SourceDriftVerdict | undefined;
+  pass: boolean;
+}
+
+export function compareRollArtifacts(oldRun: RollArtifact, newRun: RollArtifact, review?: RollReview): RollComparison {
   const environmentComparable =
     digest(comparable(oldRun.environmentFingerprint)) === digest(comparable(newRun.environmentFingerprint));
   const areas = [...new Set([...oldRun.reports.map((r) => r.area), ...newRun.reports.map((r) => r.area)])].sort();
@@ -62,11 +65,20 @@ export function compareRollArtifacts(oldRun: RollArtifact, newRun: RollArtifact,
         !x || x.sourceRefs.length === 0 || (x.classification !== "no-semantic-change" && x.updatedRows.length === 0)
       );
     });
-  const oldSource = oldRun.reportPayloads?.["icu-harfbuzz-source-drift"] as SourceDriftEvidence | undefined;
-  const newSource = newRun.reportPayloads?.["icu-harfbuzz-source-drift"] as SourceDriftEvidence | undefined;
-  const sourcePayloadMismatch = (oldSource == null) !== (newSource == null);
-  const sourceDrift =
-    oldSource != null && newSource != null ? compareSourceDrift(oldSource, newSource, review?.sourceDrift) : undefined;
+  const oldRaw = oldRun.reportPayloads?.["icu-harfbuzz-source-drift"];
+  const newRaw = newRun.reportPayloads?.["icu-harfbuzz-source-drift"];
+  const sourcePayloadMismatch = (oldRaw == null) !== (newRaw == null);
+  // The payloads come from JSON artifacts, so they are validated rather than cast: a malformed one
+  // withholds the verdict (fail closed) instead of throwing a TypeError out of the comparator.
+  let sourceDrift: SourceDriftVerdict | undefined;
+  if (oldRaw != null && newRaw != null) {
+    const before = sourceDriftEvidenceSchema.safeParse(oldRaw);
+    const after = sourceDriftEvidenceSchema.safeParse(newRaw);
+    sourceDrift =
+      before.success && after.success
+        ? compareSourceDrift(before.data, after.data, review?.sourceDrift)
+        : invalidSourceDriftVerdict();
+  }
   const sourceComparable = !sourcePayloadMismatch && (sourceDrift == null || sourceDrift.verdict === "comparable");
   return {
     schemaVersion: 1,

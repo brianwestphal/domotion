@@ -732,6 +732,22 @@ function bboxOf(cov: Float32Array, w: number, h: number): { x: number; y: number
  * Throws when either image has no ink or the ink is below
  * `thresholds.minInkPx` tall AND wide (too small to classify).
  */
+
+// Geometry of the comparison, in the same crop pixels as the calibrated thresholds above. These are
+// implementation choices of this comparator (it is not a Blink port), calibrated with the corpus in
+// doc 98; changing one moves the hotspot noise floor, so re-run `glyph-compare-calibrate` after.
+
+/** Padding around the larger ink box when both crops are centered on a common canvas. */
+const CANVAS_MARGIN_PX = 8;
+/** Integer-shift search window (± px) for the coarse alignment. */
+const SHIFT_SEARCH_RADIUS_PX = 3;
+/** Sub-pixel step of the second parabolic refinement; brings residual misalignment under ~0.1 px. */
+const FINE_ALIGN_STEP_PX = 0.25;
+/** Skirt added around the ink union so antialiased edge mass is inside the zoning boxes. */
+const AA_SKIRT_MARGIN_PX = 2;
+/** Minimum zone size: the ink union is split into at most 5x5 zones of at least this many px. */
+const ZONE_MIN_SIZE_PX = 6;
+
 export function compareGlyphCoverage(
   a: CoverageMap,
   b: CoverageMap,
@@ -757,7 +773,7 @@ export function compareGlyphCoverage(
   }
 
   // ── Common canvas, centered by ink-box centers ──
-  const margin = 8;
+  const margin = CANVAS_MARGIN_PX;
   const cw = Math.max(a.inkBox.w, b.inkBox.w) + margin * 2;
   const ch = Math.max(a.inkBox.h, b.inkBox.h) + margin * 2;
   let ca = centerOnCanvas(a, cw, ch);
@@ -777,8 +793,8 @@ export function compareGlyphCoverage(
     nccAt.set(key, v);
     return v;
   };
-  for (let dy = -3; dy <= 3; dy++) {
-    for (let dx = -3; dx <= 3; dx++) {
+  for (let dy = -SHIFT_SEARCH_RADIUS_PX; dy <= SHIFT_SEARCH_RADIUS_PX; dy++) {
+    for (let dx = -SHIFT_SEARCH_RADIUS_PX; dx <= SHIFT_SEARCH_RADIUS_PX; dx++) {
       const v = evalShift(dx, dy);
       if (v > bestNcc) {
         bestNcc = v;
@@ -800,7 +816,7 @@ export function compareGlyphCoverage(
   // the residual misalignment to ≲ 0.1 px, which directly lowers the
   // same-render hotspot noise floor (the hotspot is the discriminator for
   // lookalike families, so alignment quality buys detection margin).
-  const fineStep = 0.25;
+  const fineStep = FINE_ALIGN_STEP_PX;
   const fx2 = refine(
     evalShift(bestDx + fx - fineStep, bestDy + fy),
     evalShift(bestDx + fx, bestDy + fy),
@@ -902,14 +918,14 @@ export function compareGlyphCoverage(
   // ≥0.5 contour drops that mass from one image's zones but not the other's
   // (a DM-1686 calibration false-mismatch source). Including the skirt
   // restores the coverage-integral's subpixel invariance.
-  const AA_MARGIN = 2;
+  const AA_MARGIN = AA_SKIRT_MARGIN_PX;
   const ux0 = Math.max(0, Math.min(boxA.x, boxB.x) - AA_MARGIN);
   const uy0 = Math.max(0, Math.min(boxA.y, boxB.y) - AA_MARGIN);
   const ux1 = Math.min(cw, Math.max(boxA.x + boxA.w, boxB.x + boxB.w) + AA_MARGIN);
   const uy1 = Math.min(ch, Math.max(boxA.y + boxA.h, boxB.y + boxB.h) + AA_MARGIN);
   const ubox = { x: ux0, y: uy0, w: ux1 - ux0, h: uy1 - uy0 };
-  const zonesX = Math.max(1, Math.min(5, Math.floor(ubox.w / 6)));
-  const zonesY = Math.max(1, Math.min(5, Math.floor(ubox.h / 6)));
+  const zonesX = Math.max(1, Math.min(5, Math.floor(ubox.w / ZONE_MIN_SIZE_PX)));
+  const zonesY = Math.max(1, Math.min(5, Math.floor(ubox.h / ZONE_MIN_SIZE_PX)));
   const za = zoningVector(ca, cw, ch, ubox, zonesX, zonesY);
   const zb = zoningVector(cb, cw, ch, ubox, zonesX, zonesY);
   let zsum = 0;
