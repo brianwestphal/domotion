@@ -18,11 +18,18 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { parseFlags, flag } from "../tools/lib/cli.mjs";
 
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
-}
+const values = parseFlags(process.argv.slice(2), {
+  commit: { type: "string" },
+  env: { type: "string" },
+  helper: { type: "string" },
+  image: { type: "string" },
+  os: { type: "string" },
+  out: { type: "string" },
+  results: { type: "string" },
+});
+const arg = (name, fallback = null) => flag(values, name, fallback);
 
 const os = arg("--os");
 if (os == null) {

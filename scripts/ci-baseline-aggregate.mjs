@@ -18,11 +18,17 @@
 import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { parseFlags, flag } from "../tools/lib/cli.mjs";
 
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
-}
+const values = parseFlags(process.argv.slice(2), {
+  "captured-at": { type: "string" },
+  commit: { type: "string" },
+  input: { type: "string" },
+  out: { type: "string" },
+  suite: { type: "string" },
+  "update-baseline": { type: "boolean" },
+});
+const arg = (name, fallback = null) => flag(values, name, fallback);
 
 const input = arg("--input");
 const suite = arg("--suite", "unicode");

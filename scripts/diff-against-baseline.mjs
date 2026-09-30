@@ -33,13 +33,18 @@
 //               attributions on a single fixture.
 
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
-
+import { parseFlags, flag } from "../tools/lib/cli.mjs";
 import { envComparability } from "./run-env.mjs";
 
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
-}
+const values = parseFlags(process.argv.slice(2), {
+  baseline: { type: "string" },
+  env: { type: "string" },
+  label: { type: "string" },
+  results: { type: "string" },
+  summary: { type: "string" },
+  strict: { type: "boolean" },
+});
+const arg = (name, fallback = null) => flag(values, name, fallback);
 
 const resultsPath = arg("--results");
 const baselinePath = arg("--baseline");

@@ -37,6 +37,7 @@ code:
     "tests/shard-completeness.test.ts",
     "tests/shard.ts",
     "tools/lib/conformance-args.ts",
+    "tools/lib/cli.mjs",
     "tests/visual-tests-workflow.test.ts",
     "tests/worker-pool.ts",
     "tools/ab-compare-results.mjs",
@@ -47,6 +48,13 @@ aliases: ["docs/66-ci-visual-tests.md", "doc-66"]
 ---
 
 # Distributed visual-regression testing on GitHub Actions (DM-1216)
+
+The visual workflow scripts parse declared command-line options through
+`tools/lib/cli.mjs`. An unknown option, positional argument, or option without
+its required value stops the command before it reads or writes evidence.
+String options accept both `--name value` and `--name=value`. The shared gate helper uses
+exit code 0 for agreement, 1 for a measured mismatch, and 2 for a command or
+runtime error.
 
 The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual suites run locally as a _deliberately throttled background job_ (`tests/worker-pool.ts`: `min(8, cores/4)` workers at macOS BACKGROUND QoS), so a full unicode sweep takes ~1h. The suites are embarrassingly parallel and the fixture repo (`github.com/brianwestphal/html-test`) is **public**, so GitHub-hosted runners are free here. `.github/workflows/visual-tests.yml` fans the suite out across many runners; a single dispatch turns ~1h into a few minutes, off your machine.
 

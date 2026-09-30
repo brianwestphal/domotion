@@ -26,11 +26,19 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { parseFlags, flag } from "../tools/lib/cli.mjs";
 
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
-}
+const values = parseFlags(process.argv.slice(2), {
+  "captured-at": { type: "string" },
+  commit: { type: "string" },
+  env: { type: "string" },
+  image: { type: "string" },
+  os: { type: "string" },
+  out: { type: "string" },
+  results: { type: "string" },
+  suite: { type: "string" },
+});
+const arg = (name, fallback = null) => flag(values, name, fallback);
 
 const resultsPath = arg("--results");
 const outPath = arg("--out");

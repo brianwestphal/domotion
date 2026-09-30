@@ -3,11 +3,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { parseFlags, flag } from "../tools/lib/cli.mjs";
 
-function arg(name, fallback = null) {
-  const index = process.argv.indexOf(name);
-  return index >= 0 && index + 1 < process.argv.length ? process.argv[index + 1] : fallback;
-}
+const values = parseFlags(process.argv.slice(2), {
+  os: { type: "string" },
+  output: { type: "string" },
+  "update-baseline": { type: "boolean" },
+});
+const arg = (name, fallback = null) => flag(values, name, fallback);
 
 const os = arg("--os");
 const outputDir = resolve(arg("--output", "tests/output"));

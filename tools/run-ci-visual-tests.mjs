@@ -25,14 +25,32 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseFlags, flag } from "./lib/cli.mjs";
 import { waitForRunCompletion } from "./ci-run-wait.mjs";
 
 const WORKFLOW = "visual-tests.yml";
 
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
-}
+const values = parseFlags(process.argv.slice(2), {
+  only: { type: "string" },
+  os: { type: "string" },
+  ref: { type: "string" },
+  "run-id": { type: "string" },
+  shards: { type: "string" },
+  suite: { type: "string" },
+  eager: { type: "boolean" },
+  "fallback-base": { type: "boolean" },
+  "hinted-subset": { type: "boolean" },
+  "live-fallback-first": { type: "boolean" },
+  "no-fallback-base": { type: "boolean" },
+  "no-hinted-subset": { type: "boolean" },
+  "no-live-fallback-first": { type: "boolean" },
+  "no-review": { type: "boolean" },
+  "no-system-ui-base": { type: "boolean" },
+  "no-trak-hb-shaping": { type: "boolean" },
+  "system-ui-base": { type: "boolean" },
+  "update-baseline": { type: "boolean" },
+});
+const arg = (name, fallback = null) => flag(values, name, fallback);
 function sh(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts }).trim();
 }

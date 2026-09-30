@@ -20,13 +20,18 @@
 
 import { readdirSync, statSync, readFileSync, writeFileSync, existsSync, appendFileSync, copyFileSync } from "node:fs";
 import { resolve, join, basename, dirname } from "node:path";
-
+import { parseFlags, flag } from "../tools/lib/cli.mjs";
 import { mergeShardEnvs } from "./run-env.mjs";
 
-function arg(name, fallback = null) {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
-}
+const values = parseFlags(process.argv.slice(2), {
+  expect: { type: "string" },
+  input: { type: "string" },
+  out: { type: "string" },
+  summary: { type: "string" },
+  strict: { type: "boolean" },
+  "strict-env": { type: "boolean" },
+});
+const arg = (name, fallback = null) => flag(values, name, fallback);
 
 const inputDir = arg("--input");
 if (inputDir == null) {
