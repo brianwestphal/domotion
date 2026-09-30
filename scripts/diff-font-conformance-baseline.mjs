@@ -27,17 +27,20 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-const args = process.argv.slice(2);
-const get = (flag, dflt = null) => {
-  const i = args.indexOf(flag);
-  return i >= 0 && args[i + 1] != null ? args[i + 1] : dflt;
-};
-const strict = args.includes("--strict");
-const update = args.includes("--update-baseline");
-const resultsPath = get("--results");
-const baselinePath = get("--baseline");
-const label = get("--label", "font-conformance");
-const commit = get("--commit", process.env.GITHUB_SHA ?? "");
+export function parseBaselineArgs(args, env = process.env) {
+  const get = (flag, dflt = null) => {
+    const i = args.indexOf(flag);
+    return i >= 0 && args[i + 1] != null ? args[i + 1] : dflt;
+  };
+  return {
+    strict: args.includes("--strict"),
+    update: args.includes("--update-baseline"),
+    resultsPath: get("--results"),
+    baselinePath: get("--baseline"),
+    label: get("--label", "font-conformance"),
+    commit: get("--commit", env.GITHUB_SHA ?? ""),
+  };
+}
 
 /**
  * Is this run comparable with that baseline?
@@ -137,7 +140,7 @@ function emit(lines) {
   }
 }
 
-function baselineFrom(run) {
+export function baselineFrom(run, commit = "") {
   return {
     meta: { ...run.meta, commit: commit || run.meta?.commit || null },
     summary: run.summary,
@@ -215,12 +218,7 @@ export function oracleMovement(runFaces, baseCounts) {
   return { comparable: true, total, moved };
 }
 
-function main() {
-  if (resultsPath == null) {
-    process.stderr.write("--results is required\n");
-    process.exit(2);
-  }
-  const run = JSON.parse(readFileSync(resultsPath, "utf8"));
+export function formatRunHeader(run, label) {
   const md = [`## ${label}`, ""];
 
   const total = run.summary?.mismatchTotal ?? 0;
@@ -240,6 +238,17 @@ function main() {
     `| corpus | \`${run.meta?.corpus?.file ?? "?"}\` |`,
     "",
   );
+  return md;
+}
+
+function main() {
+  const { strict, update, resultsPath, baselinePath, label, commit } = parseBaselineArgs(process.argv.slice(2));
+  if (resultsPath == null) {
+    process.stderr.write("--results is required\n");
+    process.exit(2);
+  }
+  const run = JSON.parse(readFileSync(resultsPath, "utf8"));
+  const md = formatRunHeader(run, label);
 
   // An incomplete merge is not a score. Say so before anything is compared.
   if (run.meta?.complete === false) {
@@ -279,7 +288,7 @@ function main() {
       emit(md);
       process.exit(1); // always fatal: this is a request to record something known-wrong
     }
-    writeFileSync(baselinePath, `${JSON.stringify(baselineFrom(run), null, 2)}\n`);
+    writeFileSync(baselinePath, `${JSON.stringify(baselineFrom(run, commit), null, 2)}\n`);
     md.push(`Baseline written to \`${baselinePath}\`.`, "");
     emit(md);
     return;
@@ -311,6 +320,15 @@ function main() {
     process.exit(strict ? 1 : 0);
   }
 
+  const verdict = compareAgainstBaseline(run, base, md, strict);
+  emit(verdict.lines);
+  if (verdict.exitCode !== 0) process.exit(verdict.exitCode);
+}
+
+/** Decide a comparable run using data only; the CLI owns output and exit status. */
+export function compareAgainstBaseline(run, base, md = [], strict = false) {
+  const total = run.summary?.mismatchTotal ?? 0;
+  const routes = run.summary?.distinctMismatchPairs ?? 0;
   const baseTotal = base.summary?.mismatchTotal ?? 0;
   const baseRoutes = base.summary?.distinctMismatchPairs ?? 0;
   const d = stackDelta(run.byStack ?? {}, base.byStack ?? {});
@@ -395,8 +413,7 @@ function main() {
           `> sampled (stack, codepoint) pair. The gate passes with this warning.`,
           "",
         );
-        emit(md);
-        return;
+        return { lines: md, exitCode: 0 };
       }
       md.push(
         `> **VERDICT WITHHELD.** Chrome's own answers moved by ${oracle.total.toLocaleString()},`,
@@ -407,8 +424,7 @@ function main() {
         `> Re-run or re-seed only after understanding which side changed.`,
         "",
       );
-      emit(md);
-      process.exit(strict ? 1 : 0);
+      return { lines: md, exitCode: strict ? 1 : 0 };
     }
   }
 
@@ -442,8 +458,7 @@ function main() {
     "",
   );
 
-  emit(md);
-  if (strict && regressed) process.exit(1);
+  return { lines: md, exitCode: strict && regressed ? 1 : 0 };
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) main();

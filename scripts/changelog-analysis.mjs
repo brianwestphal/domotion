@@ -17,12 +17,15 @@
  *
  * Prints a human-readable report to stdout. Writes nothing — the skill reads
  * this, then reads the real per-file diffs, then authors the document.
+ * `collectChangelog` gathers git evidence with an injectable command reader;
+ * `formatChangelog` formats that evidence without reading git or writing output.
  *
  * Ported from ~/Documents/apple-fm's changelog-analysis.mjs; the git plumbing
  * is identical, only the repo-specific classification + public-surface probes
  * (packages/text-engine/src/index.ts barrel, src/cli/* flags, package.json bin) are Domotion's.
  */
 import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 function git(args) {
   return execFileSync("git", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
@@ -63,13 +66,13 @@ function cmpTag(a, b) {
  * The most recent *production* release tag that is an ancestor of HEAD.
  * Production = a `vX.Y.Z` tag with no pre-release suffix (`-beta`, `-rc`, …).
  */
-function latestProductionTag(head) {
-  const tags = git(["tag", "--list", "v*"])
+function latestProductionTag(head, runGit = git, runGitOk = gitOk) {
+  const tags = runGit(["tag", "--list", "v*"])
     .split("\n")
     .map((t) => t.trim())
     .filter(Boolean)
     .filter((t) => /^v\d+\.\d+\.\d+$/.test(t)) // strict production semver, no suffix
-    .filter((t) => gitOk(["merge-base", "--is-ancestor", t, head]) !== null);
+    .filter((t) => runGitOk(["merge-base", "--is-ancestor", t, head]) !== null);
   tags.sort(cmpTag);
   return tags.length > 0 ? tags[tags.length - 1] : null;
 }
@@ -116,25 +119,23 @@ function padL(s, n) {
   return s.length >= n ? s : " ".repeat(n - s.length) + s;
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
+export function collectChangelog(args, { runGit = git, runGitOk = gitOk } = {}) {
   const head = args.head ?? "HEAD";
-  const base = args.base ?? latestProductionTag(head);
+  const base = args.base ?? latestProductionTag(head, runGit, runGitOk);
 
   if (base === null) {
-    console.error(
-      "No production release tag (vX.Y.Z) found as an ancestor of HEAD.\n" + "Pass one explicitly with --base <tag>.",
-    );
-    process.exit(1);
+    return {
+      error: "No production release tag (vX.Y.Z) found as an ancestor of HEAD.\nPass one explicitly with --base <tag>.",
+    };
   }
 
   const range = `${base}..${head}`;
-  const baseInfo = git(["log", "-1", "--format=%h %ci %s", base]).trim();
-  const headInfo = git(["log", "-1", `--format=%h %ci %s`, head]).trim();
-  const commitCount = git(["rev-list", "--count", range]).trim();
+  const baseInfo = runGit(["log", "-1", "--format=%h %ci %s", base]).trim();
+  const headInfo = runGit(["log", "-1", `--format=%h %ci %s`, head]).trim();
+  const commitCount = runGit(["rev-list", "--count", range]).trim();
 
   // All production tags, to warn if a newer one exists that isn't the base.
-  const allProd = git(["tag", "--list", "v*"])
+  const allProd = runGit(["tag", "--list", "v*"])
     .split("\n")
     .map((t) => t.trim())
     .filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
@@ -142,7 +143,7 @@ function main() {
   const newestProd = allProd[allProd.length - 1];
 
   // numstat by area (--no-renames so a rename reads as delete+add and classifies cleanly)
-  const numstat = git(["diff", "--numstat", "--no-renames", range])
+  const numstat = runGit(["diff", "--numstat", "--no-renames", range])
     .split("\n")
     .filter(Boolean)
     .map((l) => {
@@ -171,7 +172,7 @@ function main() {
   }
 
   // A/M/D classification
-  const status = git(["diff", "--name-status", "--no-renames", range])
+  const status = runGit(["diff", "--name-status", "--no-renames", range])
     .split("\n")
     .filter(Boolean)
     .map((l) => {
@@ -186,8 +187,8 @@ function main() {
 
   // Public API export delta (the packages/text-engine/src/index.ts barrel — the package's curated surface).
   let apiDelta = null;
-  if (gitOk(["cat-file", "-e", `${head}:packages/text-engine/src/index.ts`]) !== null) {
-    const d = git(["diff", range, "--", "packages/text-engine/src/index.ts"])
+  if (runGitOk(["cat-file", "-e", `${head}:packages/text-engine/src/index.ts`]) !== null) {
+    const d = runGit(["diff", range, "--", "packages/text-engine/src/index.ts"])
       .split("\n")
       .filter((l) => /^[+-]/.test(l) && !/^[+-]{3}/.test(l))
       .filter((l) => /\bexport\b|\bfrom\b/.test(l));
@@ -196,7 +197,7 @@ function main() {
 
   // New/removed CLI flags across src/cli/* (excluding tests).
   let flagDelta = null;
-  const cliDiff = gitOk(["diff", range, "--", "src/cli", ":(exclude)src/cli/*.test.ts"]);
+  const cliDiff = runGitOk(["diff", range, "--", "src/cli", ":(exclude)src/cli/*.test.ts"]);
   if (cliDiff != null && cliDiff.length > 0) {
     const added2 = new Set();
     const removed2 = new Set();
@@ -214,7 +215,7 @@ function main() {
   let binDelta = null;
   const readJsonField = (ref, field) => {
     try {
-      const pj = JSON.parse(git(["show", `${ref}:package.json`]));
+      const pj = JSON.parse(runGit(["show", `${ref}:package.json`]));
       return pj[field] ?? {};
     } catch {
       return {};
@@ -232,10 +233,10 @@ function main() {
 
   // Dependency changes (package.json dependencies + devDependencies).
   let depDelta = null;
-  if (gitOk(["cat-file", "-e", `${head}:package.json`]) !== null) {
+  if (runGitOk(["cat-file", "-e", `${head}:package.json`]) !== null) {
     const readDeps = (ref) => {
       try {
-        const pj = JSON.parse(git(["show", `${ref}:package.json`]));
+        const pj = JSON.parse(runGit(["show", `${ref}:package.json`]));
         return { ...(pj.dependencies ?? {}), ...(pj.devDependencies ?? {}) };
       } catch {
         return {};
@@ -254,7 +255,62 @@ function main() {
   const baseVer = readJsonField(base, "version");
   const headVer = readJsonField(head, "version");
 
-  // ---- print ----
+  return {
+    args,
+    base,
+    head,
+    range,
+    baseInfo,
+    headInfo,
+    commitCount,
+    newestProd,
+    areas,
+    prodAdd,
+    prodDel,
+    totAdd,
+    totDel,
+    numstat,
+    status,
+    added,
+    removed,
+    newProduct,
+    apiDelta,
+    flagDelta,
+    binDelta,
+    depDelta,
+    baseVer,
+    headVer,
+  };
+}
+
+export function formatChangelog(analysis) {
+  if (analysis.error) return analysis.error;
+  const {
+    args,
+    base,
+    head,
+    range,
+    baseInfo,
+    headInfo,
+    commitCount,
+    newestProd,
+    areas,
+    prodAdd,
+    prodDel,
+    totAdd,
+    totDel,
+    numstat,
+    status,
+    added,
+    removed,
+    newProduct,
+    apiDelta,
+    flagDelta,
+    binDelta,
+    depDelta,
+    baseVer,
+    headVer,
+  } = analysis;
   const L = [];
   L.push("# Technical Changelog Analysis");
   L.push("");
@@ -334,7 +390,17 @@ function main() {
   L.push("       `git show " + base + ":<file> | grep -c <symbol>`  (0 → added in range)");
   L.push("  3. Note what already shipped at " + base + " (baseline, NOT a change).");
   L.push("  4. Write docs/technical-changelog/" + base + "-v<next>.md, grounded in the diff.");
-  console.log(L.join("\n"));
+  return L.join("\n");
 }
 
-main();
+function main() {
+  const analysis = collectChangelog(parseArgs(process.argv.slice(2)));
+  if (analysis.error) {
+    console.error(formatChangelog(analysis));
+    process.exitCode = 1;
+    return;
+  }
+  console.log(formatChangelog(analysis));
+}
+
+if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) main();

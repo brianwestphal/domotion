@@ -639,6 +639,12 @@ Two behaviors, both of which exist because the alternative is a confident number
 
 **Baseline-relative, not absolute zero.** macOS does not measure zero after years of work; Linux and Windows had never been measured at all. A gate demanding zero fails identically on every run and therefore grades nothing. `scripts/diff-font-conformance-baseline.mjs` fails on a _regression_ against the platform's own last recorded measurement — a stack whose mismatch count rose, a stack that newly disagrees, or a new disagreeing route. The absolute count is reported and tracked, never enforced. This is the same model as the per-platform visual-fidelity gates (`tests/baselines/README.md`).
 
+The baseline command separates flag parsing, run header formatting, baseline
+projection, and comparable-run decisions from file I/O and process exit. Its
+`compareAgainstBaseline` result carries both report lines and exit status so
+unit tests can cover regression, oracle movement, and verdict withholding
+without invoking the CLI; a real CLI regression still checks emitted output.
+
 **A run can be refused rather than judged.** The oracle's answers are a function of the runner's installed fonts, the host ICU's codepoint universe, and which stacks were swept. If any of those moved, the two numbers are not measuring the same thing, and comparing them anyway yields a confident regression or a confident all-clear, both meaningless. So the baseline records the runner image, the font-inventory digest (`tools/font-inventory.mjs`), the Unicode/ICU versions, the corpus identity, and the slice — and on any difference the comparator withholds the verdict and says which field moved. A runner image rotation is then a visible environment change to re-seed against, not an unexplained score move.
 
 **A missing shard is fatal, not a log line.** `scripts/merge-font-conformance-shards.mjs` counts the reports it merged against the requested shard count and marks the merge incomplete if any is absent; the comparator refuses to judge an incomplete merge. A shard that dies writes no report, and a total summed over the survivors is smaller — which reads exactly like an improvement.

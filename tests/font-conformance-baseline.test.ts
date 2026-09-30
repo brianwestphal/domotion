@@ -13,14 +13,120 @@
  *    different ICU codepoint universe, a different slice) and the two numbers
  *    are compared anyway, yielding a confident verdict about nothing.
  */
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { environmentConflicts, mergeShards, sliceOf } from "../scripts/merge-font-conformance-shards.mjs";
 import {
+  baselineFrom,
+  compareAgainstBaseline,
   comparability,
+  formatRunHeader,
   oracleMovement,
+  parseBaselineArgs,
   resolverAnswersMatch,
   stackDelta,
 } from "../scripts/diff-font-conformance-baseline.mjs";
+
+describe("baseline command seams", () => {
+  it("parses flags and builds a deterministic baseline projection", () => {
+    expect(parseBaselineArgs(["--results", "run.json", "--strict"], { GITHUB_SHA: "abc" })).toMatchObject({
+      resultsPath: "run.json",
+      strict: true,
+      commit: "abc",
+    });
+    const run = {
+      meta: {
+        commit: "old",
+        stackPrimaries: [
+          { fontFamily: "Times", fontSize: 12, fontWeight: 400, fontStyle: "normal", chromePrimary: "A" },
+        ],
+      },
+      summary: { comparisons: 2, mismatchTotal: 1 },
+      byStack: { Times: 1 },
+      byPair: { "A → B": 1 },
+      chromeFaces: { A: 2 },
+      resolverAnswerDigests: { shard: "digest" },
+    };
+    const baseline = baselineFrom(run, "new");
+    expect(baseline.meta.commit).toBe("new");
+    expect(baseline.chromeFaces).toEqual(["A"]);
+    expect(baseline.stackPrimaries).toEqual([{ key: "Times@12/400/normal", chromePrimary: "A" }]);
+    expect(formatRunHeader(run, "fixture").join("\n")).toContain("**1** (50.000%)");
+  });
+
+  it("separates comparison decisions from CLI output and exit", () => {
+    const base = {
+      summary: { mismatchTotal: 1, distinctMismatchPairs: 1 },
+      byStack: { Times: 1 },
+      byPair: { "A → B": 1 },
+      chromeFaceCounts: { A: 2 },
+      resolverAnswerDigests: { shard: "same" },
+      stackPrimaries: [],
+    };
+    const run = {
+      summary: { mismatchTotal: 1, distinctMismatchPairs: 1 },
+      byStack: { Times: 1 },
+      byPair: { "A → B": 1 },
+      chromeFaces: { A: 2 },
+      resolverAnswerDigests: { shard: "same" },
+      meta: {},
+    };
+    expect(compareAgainstBaseline(run, base, [], true)).toMatchObject({ exitCode: 0 });
+    const regressed = compareAgainstBaseline(
+      { ...run, byStack: { Times: 2 }, summary: { mismatchTotal: 2 } },
+      base,
+      [],
+      true,
+    );
+    expect(regressed.exitCode).toBe(1);
+    expect(regressed.lines.join("\n")).toContain("Regression vs this platform");
+    const oracleMoved = compareAgainstBaseline(
+      { ...run, summary: { mismatchTotal: 2 }, chromeFaces: { A: 3 } },
+      base,
+      [],
+      true,
+    );
+    expect(oracleMoved.exitCode).toBe(0);
+    expect(oracleMoved.lines.join("\n")).toContain("resolver-answer digest is unchanged");
+  });
+
+  it("writes a baseline through the CLI using the same projected data", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-font-baseline-seams-"));
+    try {
+      const resultPath = join(dir, "result.json");
+      const baselinePath = join(dir, "baseline.json");
+      const run = {
+        meta: { complete: true },
+        summary: { comparisons: 2, mismatchTotal: 1 },
+        byStack: {},
+        byPair: {},
+        chromeFaces: {},
+      };
+      writeFileSync(resultPath, JSON.stringify(run));
+      const output = execFileSync(
+        process.execPath,
+        [
+          "scripts/diff-font-conformance-baseline.mjs",
+          "--results",
+          resultPath,
+          "--baseline",
+          baselinePath,
+          "--update-baseline",
+          "--commit",
+          "fixture",
+        ],
+        { encoding: "utf8" },
+      );
+      expect(output).toContain("Baseline written");
+      expect(JSON.parse(readFileSync(baselinePath, "utf8"))).toEqual(baselineFrom(run, "fixture"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 const report = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   meta: {
