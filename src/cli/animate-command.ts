@@ -18,7 +18,7 @@ import { writeAnimateArtifact } from "./animate-artifact.js";
 import { logAnimateDebugBundle, writeAnimateDebugActual } from "./animate-debug.js";
 import { setupDebugBundle } from "./debug-bundle.js";
 
-export async function runAnimate(args: string[], help: string): Promise<void> {
+export function parseAnimateArgs(args: string[]) {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
@@ -41,10 +41,7 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       help: { type: "boolean", short: "h" },
     },
   });
-  if (values.help === true) {
-    process.stdout.write(help);
-    process.exit(0);
-  }
+  if (values.help === true) return { help: true as const };
   if (positionals.length === 0) throw new UsageError("animate: missing <config.json>");
   if (positionals.length > 1) throw new UsageError(`animate: unexpected extra argument "${positionals[1]}"`);
   if (values.optimize === true && values["no-optimize"] === true) {
@@ -58,16 +55,6 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
       `animate: --text-mode expects one of ${RENDER_TEXT_MODES.join(", ")}, got "${values["text-mode"]}"`,
     );
   }
-  // DM-FJZQ34: select the text-emit strategy for this one-shot CLI process,
-  // mirroring `capture` (DM-2716). The mode is a render-side process-global, so
-  // setting it before the animate pipeline runs threads it through every frame's
-  // render and the scroll composer. `system-font` emits authored `<text>` painted
-  // by the CONSUMER's fonts (smaller, not pixel-faithful); `paths` /
-  // `embedded-font` are the fidelity modes.
-  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
-    setRenderTextMode(values["text-mode"]);
-  }
-
   const configPath = resolve(positionals[0]);
   if (!existsSync(configPath)) throw new UsageError(`animate: config not found: ${configPath}`);
   const cfg = validateAnimateConfig(JSON.parse(readFileSync(configPath, "utf8")) as unknown);
@@ -87,10 +74,31 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   if (values.width != null) cfg.width = parseIntFlag(values.width, "width", cfg.width);
   if (values.height != null) cfg.height = parseIntFlag(values.height, "height", cfg.height);
 
+  const brand: Brand | undefined = values.brand != null ? loadBrand(resolve(values.brand)) : undefined;
+
+  return { help: false as const, values, cfg, configPath, configDir, safeInset, brand };
+}
+
+export async function runAnimate(args: string[], help: string): Promise<void> {
+  const parsed = parseAnimateArgs(args);
+  if (parsed.help) {
+    process.stdout.write(help);
+    return;
+  }
+  await executeAnimate(parsed);
+}
+
+export async function executeAnimate(
+  parsed: Exclude<ReturnType<typeof parseAnimateArgs>, { help: true }>,
+): Promise<void> {
+  const { values, cfg, configPath, configDir, safeInset, brand } = parsed;
+  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
+    setRenderTextMode(values["text-mode"]);
+  }
+
   const log = makeLogger(values.quiet === true);
   const outputArg = values.output ?? cfg.output;
   const { debug, debugDir } = setupDebugBundle("animate", values.debug, values["debug-dir"], outputArg, log);
-  const brand: Brand | undefined = values.brand != null ? loadBrand(resolve(values.brand)) : undefined;
   log("Launching Chromium…");
   const browser = await launchChromium();
   let svg: string;

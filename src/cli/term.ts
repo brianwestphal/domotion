@@ -16,15 +16,15 @@
 
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { requireField } from "./require-field.js";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
 import { recordPtySession } from "../terminal/pty.js";
 import { THEMES, terminalThemeSpecSchema, type TerminalThemeSpec } from "../terminal/theme.js";
-import { UsageError, cliFail, formatConfigIssues, errorMessage, readInputFile, writeSvgOutput } from "./common.js";
+import { UsageError, formatConfigIssues, errorMessage, readInputFile, writeSvgOutput } from "./common.js";
 
-const HELP = `domotion term — record a terminal session as an animated SVG
+export const TERM_HELP = `domotion term — record a terminal session as an animated SVG
 
 Usage:
   domotion term --cast <file.cast> [-o out.svg] [options]   # from a recording
@@ -66,7 +66,7 @@ Options:
   -h, --help           Show this help.
 `;
 
-export async function runTerm(argv: string[]): Promise<void> {
+export function parseTermArgs(argv: string[]) {
   // `domotion term -- <cmd …>` runs a live command in a pty; everything after
   // the first `--` is the command, everything before is our own options.
   const sepIdx = argv.indexOf("--");
@@ -99,12 +99,10 @@ export async function runTerm(argv: string[]): Promise<void> {
   });
 
   const live = command.length > 0;
-  if (values.help || (!live && values.cast == null)) {
-    (values.help ? process.stdout : process.stderr).write(HELP);
-    process.exit(values.help ? 0 : 2);
-  }
+  if (values.help) return { help: true as const };
+  if (!live && values.cast == null) throw new UsageError("term: --cast <file> or a live command after -- is required");
   if (live && values.cast != null) {
-    cliFail("domotion term", "give EITHER --cast <file> OR a live command after `--`, not both", "usage");
+    throw new UsageError("give EITHER --cast <file> OR a live command after `--`, not both");
   }
 
   // Every flag is validated up front (exit 2) — BEFORE a live command runs or Chromium
@@ -122,7 +120,7 @@ export async function runTerm(argv: string[]): Promise<void> {
     if (!ok) {
       const want =
         kind === "positive-int" ? "a positive integer" : kind === "positive" ? "a positive number" : "a number >= 0";
-      cliFail("domotion term", `--${flag} expects ${want}, got "${v}"`, "usage");
+      throw new UsageError(`--${flag} expects ${want}, got "${v}"`);
     }
     return n;
   };
@@ -135,28 +133,17 @@ export async function runTerm(argv: string[]): Promise<void> {
   const tailMs = num(values["tail-ms"], "tail-ms", "non-negative");
   const mode = values.mode;
   if (mode != null && mode !== "incremental" && mode !== "full") {
-    cliFail("domotion term", `--mode must be "incremental" or "full", got "${mode}"`, "usage");
+    throw new UsageError(`--mode must be "incremental" or "full", got "${mode}"`);
   }
   const cursor = values.cursor;
   if (cursor != null && !["block", "bar", "underline", "none"].includes(cursor)) {
-    cliFail("domotion term", `--cursor must be block | bar | underline | none, got "${cursor}"`, "usage");
+    throw new UsageError(`--cursor must be block | bar | underline | none, got "${cursor}"`);
   }
-
-  // Source the asciinema cast text from EITHER a recorded file or a live pty run.
-  // The live path runs the command, echoes it to the terminal, and records the
-  // same `[time,"o",data]` events into a cast string for the shared backend.
-  const castPath = values.cast;
-  let castText: string;
-  if (live) {
-    const r = await recordPtySession(command, {
-      cols,
-      rows,
-      log: (m) => process.stderr.write(m + "\n"),
-    });
-    castText = r.cast;
-  } else {
-    castText =
-      castPath === "-" ? readFileSync(0, "utf8") : readInputFile(resolve(requireField(castPath, "--cast")), "--cast");
+  if (values.theme != null && !(values.theme in THEMES)) {
+    throw new UsageError(`--theme must be one of ${Object.keys(THEMES).join(" | ")}, got "${values.theme}"`);
+  }
+  if (values.cast != null && values.cast !== "-" && !existsSync(resolve(values.cast))) {
+    throw new UsageError(`--cast not found: ${resolve(values.cast)}`);
   }
 
   // Theme: a bare `--theme <name>` stays a string (built-in). Any of --theme-file
@@ -171,18 +158,14 @@ export async function runTerm(argv: string[]): Promise<void> {
         raw = JSON.parse(readInputFile(resolve(themeFile), "--theme-file"));
       } catch (e) {
         if (e instanceof UsageError) throw e;
-        cliFail("domotion term", `--theme-file is not valid JSON: ${errorMessage(e)}`, "usage");
+        throw new UsageError(`--theme-file is not valid JSON: ${errorMessage(e)}`);
       }
       // Shape-check the external JSON instead of casting it through with `as` —
       // a malformed theme (wrong-length ansi[], non-string bg) would otherwise
       // flow unvalidated into the renderer.
       const parsed = terminalThemeSpecSchema.safeParse(raw);
       if (!parsed.success) {
-        cliFail(
-          "domotion term",
-          `--theme-file has an invalid theme shape: ${formatConfigIssues(parsed.error)}`,
-          "usage",
-        );
+        throw new UsageError(`--theme-file has an invalid theme shape: ${formatConfigIssues(parsed.error)}`);
       }
       spec = parsed.data;
     }
@@ -192,6 +175,50 @@ export async function runTerm(argv: string[]): Promise<void> {
     theme = spec;
   } else {
     theme = values.theme;
+  }
+
+  return {
+    help: false as const,
+    values,
+    live,
+    command,
+    cols,
+    rows,
+    fontSize,
+    settleMs,
+    minFrameMs,
+    maxFrameMs,
+    tailMs,
+    mode,
+    cursor,
+    theme,
+  };
+}
+
+export async function runTerm(argv: string[]): Promise<void> {
+  const parsed = parseTermArgs(argv);
+  if (parsed.help) {
+    process.stdout.write(TERM_HELP);
+    return;
+  }
+  await executeTerm(parsed);
+}
+
+export async function executeTerm(parsed: Exclude<ReturnType<typeof parseTermArgs>, { help: true }>): Promise<void> {
+  const { values, live, command, cols, rows, fontSize, settleMs, minFrameMs, maxFrameMs, tailMs, mode, cursor, theme } =
+    parsed;
+  const castPath = values.cast;
+  let castText: string;
+  if (live) {
+    const r = await recordPtySession(command, {
+      cols,
+      rows,
+      log: (m) => process.stderr.write(m + "\n"),
+    });
+    castText = r.cast;
+  } else {
+    castText =
+      castPath === "-" ? readFileSync(0, "utf8") : readInputFile(resolve(requireField(castPath, "--cast")), "--cast");
   }
 
   const browser = await launchChromium();

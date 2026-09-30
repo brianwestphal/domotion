@@ -46,6 +46,7 @@ import { resolve, dirname } from "node:path";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { requireField } from "./require-field.js";
+import { loadTemplateRenderer } from "../templates/lazy-renderer.js";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { storyboardTransitionSchema as transitionSchema } from "../animation/transition-schema.js";
 import {
@@ -305,8 +306,7 @@ async function renderScene(
   log: (m: string) => void,
 ): Promise<RenderedScene> {
   if (scene.template != null) {
-    const { loadTemplate } = await import("../templates/registry.js");
-    const { renderTemplateToSvg } = await import("../templates/render.js");
+    const { loadTemplate, renderTemplateToSvg } = await loadTemplateRenderer();
     let template;
     try {
       template = await loadTemplate(scene.template);
@@ -533,7 +533,7 @@ export async function composeStoryboardConfig(
   return svg;
 }
 
-const HELP = `domotion storyboard — sequence distinct scenes into one animated SVG
+export const STORYBOARD_HELP = `domotion storyboard — sequence distinct scenes into one animated SVG
 
 Usage:
   domotion storyboard <config.json> [-o out.svg]
@@ -552,17 +552,14 @@ Options:
   -h, --help           Show this help.
 `;
 
-export async function runStoryboard(argv: string[]): Promise<void> {
+export function parseStoryboardArgs(argv: string[]) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
     options: { output: { type: "string", short: "o" }, help: { type: "boolean", short: "h" } },
   });
-  if (values.help || positionals.length === 0) {
-    (values.help ? process.stdout : process.stderr).write(HELP);
-    if (!values.help) process.exit(2);
-    return;
-  }
+  if (values.help) return { help: true as const };
+  if (positionals.length === 0) throw new UsageError("storyboard: missing <config.json>");
   if (positionals.length > 1) throw new UsageError(`unexpected extra argument: ${positionals[1]}`);
   const configPath = resolve(positionals[0]);
   let raw: unknown;
@@ -574,6 +571,22 @@ export async function runStoryboard(argv: string[]): Promise<void> {
   }
   const cfg = validateStoryboardConfig(raw);
   const configDir = dirname(configPath);
+  return { help: false as const, values, cfg, configDir };
+}
+
+export async function runStoryboard(argv: string[]): Promise<void> {
+  const parsed = parseStoryboardArgs(argv);
+  if (parsed.help) {
+    process.stdout.write(STORYBOARD_HELP);
+    return;
+  }
+  await executeStoryboard(parsed);
+}
+
+export async function executeStoryboard(
+  parsed: Exclude<ReturnType<typeof parseStoryboardArgs>, { help: true }>,
+): Promise<void> {
+  const { values, cfg, configDir } = parsed;
   const browser = await launchChromium();
   try {
     const svg = await composeStoryboardConfig(browser, cfg, configDir, (m) => process.stderr.write(m + "\n"));

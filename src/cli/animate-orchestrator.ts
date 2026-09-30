@@ -108,6 +108,7 @@ import {
   UsageError,
 } from "./common.js";
 import { inheritCanvasSizeParams } from "../templates/canvas-params.js";
+import { loadTemplateRenderer } from "../templates/lazy-renderer.js";
 
 // ── Config schema (DM-843) ──────────────────────────────────────────────────
 // The animate config is external `JSON.parse`'d input, so it's validated with
@@ -1435,8 +1436,7 @@ async function renderTemplateFrames(
   const idxs = cfg.frames.flatMap((f, i) => (f.template != null ? [i] : []));
   if (idxs.length === 0) return out;
 
-  const { loadTemplate } = await import("../templates/registry.js");
-  const { renderTemplateToSvg } = await import("../templates/render.js");
+  const { loadTemplate, renderTemplateToSvg } = await loadTemplateRenderer();
 
   for (const i of idxs) {
     const fc = cfg.frames[i];

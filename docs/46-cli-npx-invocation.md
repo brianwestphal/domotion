@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3"]
+tickets: ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3", "DM-VESM0M"]
 code:
   [
     ".github/workflows/release.yml",
@@ -16,6 +16,8 @@ code:
     "assets/git-install-postinstall.mjs",
     "src/capture/index.ts",
     "src/cli/index.ts",
+    "src/cli/common.ts",
+    "src/templates/lazy-renderer.ts",
   ]
 aliases: ["docs/46-cli-npx-invocation.md", "doc-46"]
 ---
@@ -58,6 +60,15 @@ run must be named explicitly:
 Subcommands and their flags are documented by `domotion --help`; they are out
 of scope here. This doc covers only that the bin resolves, executes, and
 reports correct top-level metadata.
+
+## CLI phase and error contract
+
+Each bin and `domotion` verb parses its arguments before running work. Its
+parser validates flags, config shape, and other invocation inputs without
+launching Chromium or a local server. The shared `runBin` harness reports a
+parse failure with exit code 2 and a failure during execution with exit code 1.
+Help exits successfully without starting work. The template renderer used by
+animate, composite, and storyboard loads only when a template source is used.
 
 ## Package contract
 

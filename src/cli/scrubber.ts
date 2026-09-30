@@ -17,10 +17,11 @@
 
 import { parseArgs } from "node:util";
 import { resolve, basename } from "node:path";
+import { pathToFileURL } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { launchChromium } from "../capture/index.js";
 import { startScrubberServer } from "../scrubber/server.js";
-import { cliFail, installShutdownHandlers, openInBrowser, parsePort } from "./common.js";
+import { installShutdownHandlers, openInBrowser, parsePort, runBin, UsageError } from "./common.js";
 
 const HELP = `svg-scrubber — video-style playback / scrubbing for animated SVGs
 
@@ -51,9 +52,9 @@ written as a .ticket JSON file (frame time, range, and region included) in the
 current directory, ready to import into a tracker like Hot Sheet.
 `;
 
-async function main(): Promise<void> {
+export function parseScrubberArgs(argv: string[]) {
   const { values, positionals } = parseArgs({
-    args: process.argv.slice(2),
+    args: argv,
     allowPositionals: true,
     strict: true,
     options: {
@@ -63,7 +64,21 @@ async function main(): Promise<void> {
       help: { type: "boolean", short: "h", default: false },
     },
   });
-  if (values.help) {
+  if (values.help) return { help: true as const };
+  if (positionals.length > 1) throw new UsageError(`unexpected extra argument: ${positionals[1]}`);
+  const file = positionals[0] == null ? undefined : resolve(positionals[0]);
+  if (file != null && !existsSync(file)) throw new UsageError(`file not found: ${file}`);
+  return {
+    help: false as const,
+    file,
+    port: parsePort(values.port),
+    open: !values["no-open"],
+    review: values.review === true,
+  };
+}
+
+export async function executeScrubber(parsed: ReturnType<typeof parseScrubberArgs>): Promise<void> {
+  if (parsed.help) {
     process.stdout.write(HELP);
     return;
   }
@@ -71,18 +86,16 @@ async function main(): Promise<void> {
   let initialSvg: string | undefined;
   let initialName: string | undefined;
   let initialPath: string | undefined;
-  const file = positionals[0];
+  const file = parsed.file;
   if (file != null) {
-    const p = resolve(file);
-    if (!existsSync(p)) cliFail("svg-scrubber", `file not found: ${p}`, "usage");
-    initialSvg = readFileSync(p, "utf-8");
-    initialName = basename(p);
-    initialPath = p;
+    initialSvg = readFileSync(file, "utf-8");
+    initialName = basename(file);
+    initialPath = file;
   }
 
-  const review = values.review === true;
+  const review = parsed.review;
   const server = await startScrubberServer({
-    port: parsePort(values.port),
+    port: parsed.port,
     initialSvg,
     initialName,
     initialPath,
@@ -94,11 +107,12 @@ async function main(): Promise<void> {
   if (review) process.stderr.write(`Review mode: .ticket files will be written to ${process.cwd()}\n`);
 
   process.stdout.write(`\n  svg-scrubber running at ${server.url}\n  Press Ctrl-C to stop.\n\n`);
-  if (!values["no-open"]) await openInBrowser(server.url);
+  if (parsed.open) await openInBrowser(server.url);
 
   installShutdownHandlers(() => server.close(), { message: "\nshutting down…\n" });
 }
 
-main().catch((err) => {
-  cliFail("svg-scrubber", err instanceof Error ? err.message : String(err), "runtime");
-});
+const invokedPath = process.argv[1];
+if (invokedPath != null && import.meta.url === pathToFileURL(resolve(invokedPath)).href) {
+  void runBin({ name: "svg-scrubber", help: HELP, helpOnEmpty: false, parse: parseScrubberArgs, run: executeScrubber });
+}

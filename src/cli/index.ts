@@ -18,14 +18,14 @@
  */
 
 import { createRequire } from "node:module";
-import { errorMessage, exitCodeFor } from "./common.js";
-import { runCapture } from "./capture.js";
-import { runAnimate } from "./animate.js";
-import { runTerm } from "./term.js";
-import { runTemplate } from "./template.js";
-import { runComposite } from "./composite.js";
-import { runStoryboard } from "./storyboard.js";
-import { runStudio } from "./studio.js";
+import { runBin } from "./common.js";
+import { parseCaptureArgs, executeCapture } from "./capture.js";
+import { parseAnimateArgs, executeAnimate } from "./animate-command.js";
+import { parseTermArgs, executeTerm, TERM_HELP } from "./term.js";
+import { parseTemplateArgs, executeTemplate } from "./template.js";
+import { parseCompositeArgs, executeComposite, COMPOSITE_HELP } from "./composite.js";
+import { parseStoryboardArgs, executeStoryboard, STORYBOARD_HELP } from "./storyboard.js";
+import { parseStudioArgs, executeStudio, STUDIO_HELP } from "./studio.js";
 
 // Read the version from package.json at runtime rather than hardcoding it, so
 // `domotion --version` always matches the installed package (the literal had
@@ -332,28 +332,94 @@ async function main(): Promise<void> {
   const cmd = argv[0];
   const rest = argv.slice(1);
 
-  try {
-    if (cmd === "capture") {
-      await runCapture(rest, HELP);
-    } else if (cmd === "animate") {
-      await runAnimate(rest, HELP);
-    } else if (cmd === "term") {
-      await runTerm(rest);
-    } else if (cmd === "template") {
-      await runTemplate(rest, HELP);
-    } else if (cmd === "composite") {
-      await runComposite(rest);
-    } else if (cmd === "storyboard") {
-      await runStoryboard(rest);
-    } else if (cmd === "studio") {
-      await runStudio(rest);
-    } else {
-      process.stderr.write(`domotion: unknown command "${cmd}"\n\n`);
-      process.stderr.write(HELP);
-      process.exit(2);
-    }
-  } catch (err) {
-    process.stderr.write(`domotion: ${errorMessage(err)}\n`);
-    process.exit(exitCodeFor(err));
+  if (cmd === "capture") {
+    await runBin({
+      name: "domotion",
+      help: HELP,
+      argv: rest,
+      helpOnEmpty: false,
+      autoHelp: false,
+      parse: parseCaptureArgs,
+      run: async (opts) => {
+        if (opts.help) process.stdout.write(HELP);
+        else await executeCapture(opts);
+      },
+    });
+  } else if (cmd === "animate") {
+    await runBin({
+      name: "domotion",
+      help: HELP,
+      argv: rest,
+      helpOnEmpty: false,
+      autoHelp: false,
+      parse: parseAnimateArgs,
+      run: async (opts) => {
+        if (opts.help) process.stdout.write(HELP);
+        else await executeAnimate(opts);
+      },
+    });
+  } else if (cmd === "term") {
+    await runBin({
+      name: "domotion",
+      help: TERM_HELP,
+      argv: rest,
+      helpOnEmpty: false,
+      autoHelp: false,
+      parse: parseTermArgs,
+      run: async (opts) => {
+        if (opts.help) process.stdout.write(TERM_HELP);
+        else await executeTerm(opts);
+      },
+    });
+  } else if (cmd === "template") {
+    await runBin({
+      name: "domotion",
+      help: HELP,
+      argv: rest,
+      helpOnEmpty: false,
+      autoHelp: false,
+      parse: parseTemplateArgs,
+      run: executeTemplate,
+    });
+  } else if (cmd === "composite") {
+    await runBin({
+      name: "domotion",
+      help: COMPOSITE_HELP,
+      argv: rest,
+      helpOnEmpty: false,
+      autoHelp: false,
+      parse: parseCompositeArgs,
+      run: async (opts) => {
+        if (opts.help) process.stdout.write(COMPOSITE_HELP);
+        else await executeComposite(opts);
+      },
+    });
+  } else if (cmd === "storyboard") {
+    await runBin({
+      name: "domotion",
+      help: STORYBOARD_HELP,
+      argv: rest,
+      helpOnEmpty: false,
+      autoHelp: false,
+      parse: parseStoryboardArgs,
+      run: async (opts) => {
+        if (opts.help) process.stdout.write(STORYBOARD_HELP);
+        else await executeStoryboard(opts);
+      },
+    });
+  } else if (cmd === "studio") {
+    await runBin({
+      name: "domotion",
+      help: STUDIO_HELP,
+      argv: rest,
+      helpOnEmpty: false,
+      autoHelp: false,
+      parse: parseStudioArgs,
+      run: executeStudio,
+    });
+  } else {
+    process.stderr.write(`domotion: unknown command "${cmd}"\n\n`);
+    process.stderr.write(HELP);
+    process.exit(2);
   }
 }

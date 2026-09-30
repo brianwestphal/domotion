@@ -745,7 +745,9 @@
         "scripts/prepare-git-install.mjs",
         "assets/git-install-postinstall.mjs",
         "src/capture/index.ts",
-        "src/cli/index.ts"
+        "src/cli/index.ts",
+        "src/cli/common.ts",
+        "src/templates/lazy-renderer.ts"
       ],
       "file": "46-cli-npx-invocation.md"
     },

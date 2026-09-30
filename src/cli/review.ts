@@ -25,7 +25,7 @@ import { type Browser } from "@playwright/test";
 import { launchChromium } from "../capture/index.js";
 import { comparePngs } from "../review/compare-pngs.js";
 import { startReviewServer } from "../review/server.js";
-import { cliFail, installShutdownHandlers, openInBrowser, parsePort } from "./common.js";
+import { installShutdownHandlers, openInBrowser, parsePort, runBin, UsageError } from "./common.js";
 
 const HELP = `svg-review — compare Domotion's actual.svg against expected.png
 
@@ -59,7 +59,7 @@ interface ReviewFlags {
   open: boolean;
 }
 
-function parseFlags(argv: string[]): ReviewFlags | { help: true } {
+export function parseReviewArgs(argv: string[]): ReviewFlags | { help: true } {
   const { values } = parseArgs({
     args: argv,
     strict: true,
@@ -73,14 +73,20 @@ function parseFlags(argv: string[]): ReviewFlags | { help: true } {
   });
   if (values.help) return { help: true };
   if (values.expected == null || values.actual == null) {
-    throw new Error("svg-review: --expected and --actual are required (use --help for usage)");
+    throw new UsageError("--expected and --actual are required (use --help for usage)");
   }
-  return {
+  const flags = {
     expected: resolve(values.expected),
     actual: resolve(values.actual),
     port: parsePort(values.port),
     open: !values["no-open"],
   };
+  if (!existsSync(flags.expected)) throw new UsageError(`expected PNG not found: ${flags.expected}`);
+  if (!existsSync(flags.actual)) throw new UsageError(`actual file not found: ${flags.actual}`);
+  const ext = extname(flags.actual).toLowerCase();
+  if (ext !== ".svg" && ext !== ".png")
+    throw new UsageError(`--actual must be .svg or .png (got ${ext || "no extension"})`);
+  return flags;
 }
 
 async function rasteriseSvg(
@@ -123,23 +129,10 @@ async function rasteriseSvg(
   return dims;
 }
 
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  let flags: ReviewFlags | { help: true };
-  try {
-    flags = parseFlags(argv);
-  } catch (e) {
-    cliFail("svg-review", (e as Error).message, "usage");
-  }
+export async function executeReview(flags: ReviewFlags | { help: true }): Promise<void> {
   if ("help" in flags) {
     process.stdout.write(HELP);
     return;
-  }
-  if (!existsSync(flags.expected)) {
-    cliFail("svg-review", `expected PNG not found: ${flags.expected}`, "usage");
-  }
-  if (!existsSync(flags.actual)) {
-    cliFail("svg-review", `actual file not found: ${flags.actual}`, "usage");
   }
 
   const tmp = mkdtempSync(resolve(tmpdir(), "svg-review-"));
@@ -163,7 +156,7 @@ async function main(): Promise<void> {
       actualSvg = resolve(tmp, "actual.svg");
       writeFileSync(actualSvg, `<!-- consumer supplied actual as PNG (${basename(flags.actual)}) — no source SVG -->`);
     } else {
-      throw new Error(`svg-review: --actual must be .svg or .png (got ${ext || "no extension"})`);
+      throw new Error(`unexpected actual file extension: ${ext}`);
     }
 
     const diffPng = resolve(tmp, "diff.png");
@@ -203,10 +196,11 @@ async function main(): Promise<void> {
     await browser.close().catch(() => {
       /* ignore */
     });
-    cliFail("svg-review", (e as Error).message, "runtime");
+    throw e;
   }
 }
 
-main().catch((e) => {
-  cliFail("svg-review", `fatal: ${(e as Error).message}`, "runtime");
-});
+const invokedPath = process.argv[1];
+if (invokedPath != null && import.meta.url === pathToFileURL(resolve(invokedPath)).href) {
+  void runBin({ name: "svg-review", help: HELP, helpOnEmpty: false, parse: parseReviewArgs, run: executeReview });
+}

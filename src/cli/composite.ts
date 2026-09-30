@@ -23,6 +23,7 @@ import { resolve, dirname } from "node:path";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
 import { requireField } from "./require-field.js";
+import { loadTemplateRenderer } from "../templates/lazy-renderer.js";
 import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg } from "../terminal/index.js";
 import {
@@ -127,8 +128,7 @@ async function renderLayerSource(
     return { svg, w: width, h: height, periodMs: totalDurationMs };
   }
   if (layer.template != null) {
-    const { loadTemplate } = await import("../templates/registry.js");
-    const { renderTemplateToSvg } = await import("../templates/render.js");
+    const { loadTemplate, renderTemplateToSvg } = await loadTemplateRenderer();
     const template = await loadTemplate(layer.template);
     const out = await renderTemplateToSvg(template, layer.params ?? {}, { browser, log: (m) => log(`  ${m}`) });
     return { svg: out.svg, w: out.width, h: out.height, periodMs: out.durationMs ?? undefined };
@@ -238,7 +238,7 @@ export async function composeCompositeConfig(
   return result.svg;
 }
 
-const HELP = `domotion composite — stack layers (cast / template / svg) into one animated SVG
+export const COMPOSITE_HELP = `domotion composite — stack layers (cast / template / svg) into one animated SVG
 
 Usage:
   domotion composite <config.json> [-o out.svg]
@@ -253,17 +253,14 @@ Options:
   -h, --help           Show this help.
 `;
 
-export async function runComposite(argv: string[]): Promise<void> {
+export function parseCompositeArgs(argv: string[]) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
     options: { output: { type: "string", short: "o" }, help: { type: "boolean", short: "h" } },
   });
-  if (values.help || positionals.length === 0) {
-    (values.help ? process.stdout : process.stderr).write(HELP);
-    if (!values.help) process.exit(2);
-    return;
-  }
+  if (values.help) return { help: true as const };
+  if (positionals.length === 0) throw new UsageError("composite: missing <config.json>");
   if (positionals.length > 1) throw new UsageError(`unexpected extra argument: ${positionals[1]}`);
   const configPath = resolve(positionals[0]);
   let raw: unknown;
@@ -275,6 +272,22 @@ export async function runComposite(argv: string[]): Promise<void> {
   }
   const cfg = validateCompositeConfig(raw);
   const configDir = dirname(configPath);
+  return { help: false as const, values, cfg, configDir };
+}
+
+export async function runComposite(argv: string[]): Promise<void> {
+  const parsed = parseCompositeArgs(argv);
+  if (parsed.help) {
+    process.stdout.write(COMPOSITE_HELP);
+    return;
+  }
+  await executeComposite(parsed);
+}
+
+export async function executeComposite(
+  parsed: Exclude<ReturnType<typeof parseCompositeArgs>, { help: true }>,
+): Promise<void> {
+  const { values, cfg, configDir } = parsed;
   const browser = await launchChromium();
   try {
     const svg = await composeCompositeConfig(browser, cfg, configDir, (m) => process.stderr.write(m + "\n"));

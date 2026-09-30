@@ -8,6 +8,7 @@
 
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { captureElementTree, launchChromium } from "../capture/index.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
@@ -135,7 +136,11 @@ function validateCaptureFlags(values: CaptureFlagValues, har: boolean): void {
   }
 }
 
-export async function runCapture(args: string[], help: string): Promise<void> {
+export function parseCaptureArgs(args: string[]): ReturnType<typeof parseCaptureOptions> {
+  return parseCaptureOptions(args);
+}
+
+function parseCaptureOptions(args: string[]) {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
@@ -181,10 +186,7 @@ export async function runCapture(args: string[], help: string): Promise<void> {
       help: { type: "boolean", short: "h" },
     },
   });
-  if (values.help === true) {
-    process.stdout.write(help);
-    process.exit(0);
-  }
+  if (values.help === true) return { help: true as const };
   if (positionals.length === 0) throw new UsageError("capture: missing <input> (URL, path, or '-')");
   if (positionals.length > 1) throw new UsageError(`capture: unexpected extra argument "${positionals[1]}"`);
 
@@ -193,17 +195,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   // by extension, like `.svgz` output).
   const har = isHarPath(input);
   validateCaptureFlags(values, har);
-  // DM-2716: select the text-emit strategy for this one-shot CLI process. The
-  // mode is a render-side process-global; setting it here covers the ordinary
-  // and scroll render paths below. `--text-mode system-font` emits
-  // authored `<text>` painted by the CONSUMER's installed fonts (smaller output,
-  // not pixel-faithful); `paths` / `embedded-font` are the fidelity modes.
-  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
-    setRenderTextMode(values["text-mode"]);
+  if (input !== "-" && !/^https?:\/\//i.test(input) && !existsSync(resolve(input))) {
+    throw new UsageError(`input file not found: ${resolve(input)}`);
   }
-  // DM-K0S6ZS: opt-in — flatten inlined `<img src=*.svg>` nested `<svg>`s into a
-  // `<g transform>` (falls back to the nested `<svg>` for unsafe sources).
-  if (values["flatten-nested-svg"] === true) setFlattenNestedSvg(true);
   // DM-1538: `--format <name|WxH>` sizes the capture VIEWPORT via the shared
   // format machinery (docs/87, docs/90). Precedence stays explicit `--width` /
   // `--height` > format > default 800×600 — so `parseIntFlag`'s default becomes
@@ -241,6 +235,37 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     realTextLayer: values["real-text"] === true,
   };
 
+  const pattern = values.scroll == null ? undefined : parseScrollPattern(values.scroll);
+  const speedRaw = values["scroll-speed"];
+  const speed = speedRaw == null ? undefined : Number(speedRaw);
+  if (speed != null && (!Number.isFinite(speed) || speed <= 0)) {
+    throw new UsageError(`--scroll-speed expects a positive number (px/s), got "${speedRaw}"`);
+  }
+  const brand = values.brand == null ? undefined : loadBrand(resolve(values.brand));
+
+  return { help: false as const, values, flags, input, har, fmt, svgz, pattern, speed, brand };
+}
+
+export async function runCapture(args: string[], help: string): Promise<void> {
+  const parsed = parseCaptureArgs(args);
+  if (parsed.help) {
+    process.stdout.write(help);
+    return;
+  }
+  await executeCapture(parsed);
+}
+
+export async function executeCapture(
+  parsed: Exclude<ReturnType<typeof parseCaptureArgs>, { help: true }>,
+): Promise<void> {
+  const { values, flags, input, har, fmt, svgz, pattern, speed, brand } = parsed;
+  // The mode is process-global and applies only once execution begins.
+  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
+    setRenderTextMode(values["text-mode"]);
+  }
+  // Flatten inlined SVG images only for this one-shot execution.
+  if (values["flatten-nested-svg"] === true) setFlattenNestedSvg(true);
+
   const log = makeLogger(values.quiet === true);
   const { debug, debugDir } = setupDebugBundle("capture", values.debug, values["debug-dir"], flags.output, log);
   // DM-1442: opt-in cross-origin iframe recursion launches Chromium with web
@@ -275,8 +300,8 @@ export async function runCapture(args: string[], help: string): Promise<void> {
     // injecting the brand's CSS custom properties (`--brand-primary`, …) onto
     // `:root` before it paints, so a page authored against `var(--brand-*)`
     // picks up the brand. Must run on the context before the first newPage().
-    if (values.brand != null) {
-      await injectBrandVariables(ctx, loadBrand(resolve(values.brand)));
+    if (brand != null) {
+      await injectBrandVariables(ctx, brand);
       log(`Injecting brand CSS variables from ${values.brand}`);
     }
     const page = await ctx.newPage();
@@ -323,16 +348,9 @@ export async function runCapture(args: string[], help: string): Promise<void> {
 
     const clip = flags.clip ?? [0, 0, flags.width, flags.height];
     let svg: string;
-    if (values.scroll != null) {
-      // DM-609: scroll-demo mode. Parse the pattern, run the executor against
-      // the live page (which captures + diffs per segment), compose the
-      // multi-capture animated SVG.
-      const pattern = parseScrollPattern(values.scroll);
-      const speedRaw = values["scroll-speed"];
-      const speed = speedRaw != null ? Number(speedRaw) : undefined;
-      if (speed != null && (!Number.isFinite(speed) || speed <= 0)) {
-        throw new UsageError(`--scroll-speed expects a positive number (px/s), got "${speedRaw}"`);
-      }
+    if (pattern != null) {
+      // DM-609: scroll-demo mode. The parsed pattern runs against the live page
+      // and its captures are composed into the animated SVG.
       log(`Running scroll pattern: ${values.scroll}`);
       const segments = await executeScrollPattern(page, pattern, {
         // This path embeds the segments itself below — after the cull pass, so

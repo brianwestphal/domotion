@@ -22,6 +22,16 @@ function run(...args: string[]): { status: number | null; stderr: string } {
   return { status: r.status, stderr: r.stderr };
 }
 
+function runStandalone(
+  entry: "review" | "scrubber" | "studio",
+  ...args: string[]
+): { status: number | null; stderr: string } {
+  const dist = resolve(REPO_ROOT, `dist/cli/${entry}.js`);
+  const entryArgv = existsSync(dist) ? [dist] : ["--import", "tsx", resolve(REPO_ROOT, `src/cli/${entry}.ts`)];
+  const r = spawnSync(process.execPath, [...entryArgv, ...args], { encoding: "utf8", timeout: 60_000 });
+  return { status: r.status, stderr: r.stderr };
+}
+
 describe("domotion exit codes", () => {
   it("animate with no config is a usage error (2)", () => {
     const r = run("animate");
@@ -110,5 +120,12 @@ describe("domotion exit codes", () => {
     const cols = run("term", "--cast", "nope.cast", "--cols=-5");
     expect(cols.status).toBe(2);
     expect(cols.stderr).toMatch(/--cols expects a positive integer/);
+  });
+
+  it("template and standalone server bins reject invalid invocation before launching work (2)", () => {
+    expect(run("template", "title-card", "--params", "[").status).toBe(2);
+    expect(runStandalone("studio", "a.json", "b.json").status).toBe(2);
+    expect(runStandalone("scrubber", "a.svg", "b.svg").status).toBe(2);
+    expect(runStandalone("review", "--expected", "missing.png", "--actual", "missing.svg").status).toBe(2);
   });
 });

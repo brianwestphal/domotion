@@ -1207,7 +1207,7 @@
         "status": "current",
         "owners": ["product-tooling"],
         "platforms": [],
-        "tickets": ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3"],
+        "tickets": ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3", "DM-VESM0M"],
         "code": [
           ".github/workflows/release.yml",
           ".github/workflows/ci.yml",
@@ -1216,7 +1216,9 @@
           "scripts/prepare-git-install.mjs",
           "assets/git-install-postinstall.mjs",
           "src/capture/index.ts",
-          "src/cli/index.ts"
+          "src/cli/index.ts",
+          "src/cli/common.ts",
+          "src/templates/lazy-renderer.ts"
         ],
         "aliases": ["docs/46-cli-npx-invocation.md", "doc-46"]
       }

@@ -27,6 +27,8 @@ import {
   applyFormatSize,
   formatNames,
   loadBrand,
+  applyBrandDefaults,
+  validateTemplateParams,
   type ParamInfo,
   type ResolvedFormat,
   type Brand,
@@ -47,18 +49,12 @@ const FIXED_OPTIONS: ArgOptions = {
   help: { type: "boolean", short: "h" },
 };
 
-export async function runTemplate(args: string[], _help: string): Promise<void> {
+export async function parseTemplateArgs(args: string[]) {
   const name = args[0];
 
   // `domotion template` / `--help` (no name) → overview + list.
-  if (name == null || name === "-h" || name === "--help") {
-    process.stdout.write(overviewHelp());
-    return;
-  }
-  if (name === "list") {
-    process.stdout.write(listHelp());
-    return;
-  }
+  if (name == null || name === "-h" || name === "--help") return { help: overviewHelp() };
+  if (name === "list") return { help: listHelp() };
 
   const template = await loadTemplate(name);
   const paramInfos = describeTemplateParams(template);
@@ -74,10 +70,7 @@ export async function runTemplate(args: string[], _help: string): Promise<void> 
 
   const { values } = parseArgs({ args: args.slice(1), options, allowPositionals: false, strict: true });
 
-  if (values.help === true) {
-    process.stdout.write(templateHelp(template, paramInfos));
-    return;
-  }
+  if (values.help === true) return { help: templateHelp(template, paramInfos) };
   if (values.optimize === true && values["no-optimize"] === true) {
     throw new UsageError("template: --optimize and --no-optimize are mutually exclusive");
   }
@@ -116,6 +109,21 @@ export async function runTemplate(args: string[], _help: string): Promise<void> 
   let brand: Brand | undefined;
   const brandArg = values.brand as string | undefined;
   if (brandArg != null) brand = loadBrand(resolve(brandArg));
+  validateTemplateParams(template, applyBrandDefaults(template, raw, brand));
+
+  return { template, raw, fmt, brand, values };
+}
+
+export async function runTemplate(args: string[], _help: string): Promise<void> {
+  await executeTemplate(await parseTemplateArgs(args));
+}
+
+export async function executeTemplate(parsed: Awaited<ReturnType<typeof parseTemplateArgs>>): Promise<void> {
+  if ("help" in parsed) {
+    process.stdout.write(parsed.help ?? "");
+    return;
+  }
+  const { template, raw, fmt, brand, values } = parsed;
 
   const log = makeLogger(values.quiet === true);
   log("Launching Chromium…");

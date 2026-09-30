@@ -189,27 +189,31 @@ export function cliFail(name: string, message: string, kind: "usage" | "runtime"
 }
 
 /**
- * Shared entry-point harness for the standalone one-shot bins (`svg-to-image`,
- * `svg-to-video`). Wraps the identical two-phase contract (DM-1434): print
- * `help` for no-args / `-h` / `--help`, then `parse` the args (any throw → usage
- * error, exit 2) and `run` the work (any throw → runtime error, exit 1). The bin
- * supplies its own `parseArgs` + options-building inside `parse` (so the precise
- * per-bin option types stay local) and the worker in `run`.
+ * Shared entry-point harness for standalone bins and `domotion` verbs. It
+ * parses before running any work: parse failures exit 2, execution failures
+ * exit 1. A caller may supply a verb's argv and let its parser handle help or
+ * missing arguments; standalone one-shot bins keep automatic help by default.
  */
 export async function runBin<O>(spec: {
   name: string;
   help: string;
-  parse: (argv: string[]) => O;
+  parse: (argv: string[]) => O | Promise<O>;
   run: (opts: O) => Promise<unknown>;
+  argv?: string[];
+  helpOnEmpty?: boolean;
+  autoHelp?: boolean;
 }): Promise<void> {
-  const argv = process.argv.slice(2);
-  if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help") {
+  const argv = spec.argv ?? process.argv.slice(2);
+  if (
+    spec.autoHelp !== false &&
+    ((argv.length === 0 && spec.helpOnEmpty !== false) || argv[0] === "-h" || argv[0] === "--help")
+  ) {
     process.stdout.write(spec.help);
     process.exit(0);
   }
   let opts: O;
   try {
-    opts = spec.parse(argv);
+    opts = await spec.parse(argv);
   } catch (err) {
     cliFail(spec.name, err instanceof Error ? err.message : String(err), "usage");
   }
