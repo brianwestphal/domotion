@@ -52,6 +52,13 @@ deviation for box, inline, control, and text shadows.
   is a private workspace at `packages/text-engine/`: it owns resolution,
   fallback, shaping, glyph/outline and embedded-font emission, platform routing,
   native and ICU helpers, HarfBuzz, font fixtures, and package-local tests.
+  `packages/text-engine/src/render/font-resolution.ts` is the compatibility
+  barrel. Focused render modules own platform paths/chains, family matching,
+  webfont registration, font instances, live and per-codepoint fallback,
+  character-cache state, shaping routes, generation, and text mode; see the
+  [font-resolution diagram](../font-resolution-diagram.md) for the ownership map.
+  The text-engine build imports its compiled Node ESM entry as a runtime
+  initialization check after TypeScript compilation.
   Domotion consumes its session/document/run facade and the focused
   `./font-resolution`, `./text`, `./capture`, `./helpers`, `./format`, `./diagnostics`, and
   unstable `./testing` entry points (no deep-import subpath). The stable

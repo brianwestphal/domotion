@@ -60,7 +60,9 @@ import {
 } from "./font-resolution.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FONT_RESOLUTION_SRC = readFileSync(path.join(HERE, "font-resolution.ts"), "utf-8");
+const SHAPING_ROUTE_SRC = readFileSync(path.join(HERE, "shaping-route.ts"), "utf-8");
+const CODEPOINT_RESOLVER_SRC = readFileSync(path.join(HERE, "codepoint-resolver.ts"), "utf-8");
+const SYSTEM_FALLBACK_SRC = readFileSync(path.join(HERE, "system-fallback-resolver.ts"), "utf-8");
 const TEXT_TO_PATH_SRC = readFileSync(path.join(HERE, "text-to-path.ts"), "utf-8");
 
 /** Normalize formatting-only choices made by Prettier while preserving tokens. */
@@ -111,7 +113,9 @@ function systemFallbackCallArgs(src: string): string[] {
         .replace(/\s+/g, " ")
         .trim()
         .replace(/,$/, "")
-        .replace(/primaryFontKey/g, "primaryKey"),
+        .replace(/primaryFontKey/g, "primaryKey")
+        .replace(/request\./g, "")
+        .replace(/semanticContext\.declaredFamily/g, "declaredFamily"),
     );
   }
   return out;
@@ -121,9 +125,9 @@ function systemFallbackCallArgs(src: string): string[] {
  *  The coverage probe is deliberately NOT here anymore: it delegates to
  *  `resolveFontForCodepoint` and reaches the platform only through it. */
 const RUN_CONTEXT_ASKERS = [
-  // `resolveFontForCodepointInner` is now deliberately a thin coordinator;
-  // the actual ordered walk (and therefore the live platform ask) lives here.
-  "walkFontFallbackStages",
+  // The typed request wrapper carries the walk's complete run context to the
+  // public positional adapter; the test seam speaks that positional API.
+  "resolveSystemFallbackKeyForRequest",
   "__resolveSystemFallbackKeyForCpForTest",
 ] as const;
 
@@ -134,7 +138,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // historical drifts were each a single argument or stage present in one
     // copy and not the other, and comparing shapes (rather than naming the
     // expectation) is satisfied by a shared omission.
-    const body = normalizedSource(bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef")));
+    const body = normalizedSource(bodyAfterParams(functionBody(SHAPING_ROUTE_SRC, "codepointResolvesToNotdef")));
     expect(body).toContain(
       "return !resolveFontForCodepoint(cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, lang, fontKeyChain, systemUiPrimary, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation, semanticContext).covered;",
     );
@@ -145,7 +149,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // a chain scan, a direct platform ask) recreates the drift surface this
     // file exists to close. The body may contain the delegation and nothing
     // else that resolves fonts.
-    const body = bodyAfterParams(functionBody(FONT_RESOLUTION_SRC, "codepointResolvesToNotdef"));
+    const body = bodyAfterParams(functionBody(SHAPING_ROUTE_SRC, "codepointResolvesToNotdef"));
     for (const banned of [
       "resolveSystemFallbackKeyForCp(",
       "fallbackFontChain(",
@@ -174,8 +178,11 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
   });
 
   it("hands the system-fallback resolver the same arguments from every remaining run-context asker", () => {
+    expect(normalizedSource(functionBody(CODEPOINT_RESOLVER_SRC, "walkFontFallbackStages"))).toContain(
+      "resolveSystemFallbackKeyForRequest(request)",
+    );
     const perAsker = RUN_CONTEXT_ASKERS.map((name) => {
-      const calls = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name));
+      const calls = systemFallbackCallArgs(functionBody(SYSTEM_FALLBACK_SRC, name));
       expect(calls.length, `${name} must reach the platform exactly once`).toBe(1);
       return calls[0];
     });
@@ -197,7 +204,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     // RAW CSS font-family stack, consulted by the Linux standard-style retry
     // (the primary-vs-declared-name divergence this ticket closed).
     for (const name of RUN_CONTEXT_ASKERS) {
-      const args = systemFallbackCallArgs(functionBody(FONT_RESOLUTION_SRC, name))[0];
+      const args = systemFallbackCallArgs(functionBody(SYSTEM_FALLBACK_SRC, name))[0];
       expect(
         args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation"),
         `${name}: ${args}`,

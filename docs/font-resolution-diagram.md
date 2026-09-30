@@ -11,7 +11,13 @@ route, and explicitly degraded per-codepoint route.
 > fallback chains, the family→key map, the per-codepoint resolver, the live
 > system-fallback backends, or the render-text-mode branch **must update the
 > matching diagram + prose here in the same commit**. The authoritative source is
-> `packages/text-engine/src/render/font-resolution.ts` (routing tables + resolvers),
+> `packages/text-engine/src/render/font-resolution.ts` (compatibility re-export barrel),
+> `packages/text-engine/src/render/font-paths.{darwin,linux,win32}.ts`,
+> `font-spec.ts`, `family-match.ts`, `font-instance.ts`,
+> `fallback-chain.{darwin,linux,win32}.ts` plus `fallback-chain.ts`,
+> `character-fallback-cache.ts`, `system-fallback-resolver.ts`,
+> `emoji-presentation.ts`, `webfont-registry.ts`, `codepoint-resolver.ts`,
+> `shaping-route.ts`, `generation.ts`, and `render-text-mode.ts` (implementation),
 > `packages/text-engine/src/render/win-font-fallback.ts` (Blink's hardcoded Windows stage, transcribed),
 > `packages/text-engine/src/render/glyph-helper.ts` (fallback/cache facade),
 > `packages/text-engine/src/render/glyph-helper-transport.ts` (binary discovery and carrier),
@@ -48,6 +54,18 @@ while application rendering migrates to the narrow session/document/run facade;
 they must never grow a second implementation. See docs 262 for the API and
 lifetime contract.
 
+`font-resolution.ts` preserves existing imports as a re-export barrel. Platform
+font tables and static chains live in their platform modules; family matching,
+font instances, webfont registration, live system fallback, and the per-codepoint
+walker each have an owner. `font-request.ts` carries one typed fallback request
+through the walker and live resolver, while the exported positional functions
+remain compatibility adapters. The renderer session's character cache and
+generation lifecycle are separate from the memoized font instance and family
+selection state. Text-path ownership and mark centering live with
+`text-to-path.ts`; decoration intercept geometry lives in
+`decoration-geometry.ts`. This is a module ownership change, with the routing
+and fallback order below unchanged.
+
 ---
 
 ## Legend
@@ -58,7 +76,7 @@ lifetime contract.
   `sysfb:<postscriptName>`, `winfam:<postscriptName>` (a Blink-hardcoded Windows
   family name resolved to a DirectWrite cut), `u-…` (darwin generated), and
   `un-…` (Linux Noto generated) are namespaced key families.
-- **FontInstance** — the uniform interface (`packages/text-engine/src/render/font-resolution.ts`) both
+- **FontInstance** — the uniform interface (`packages/text-engine/src/render/font-instance.ts`) both
   backing engines expose: fontkit `Font` OR a native glyph-helper instance. Carries
   `layout()`, `glyphForCodePoint()`, metrics.
 - **Primary** — the font the run's own `font-family` resolves to (first matched
@@ -103,7 +121,7 @@ flowchart TD
 
 **Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts`;
 `resetGeneration` / `snapshotGeneration` / `restoreGeneration` in
-`packages/text-engine/src/render/font-resolution.ts`, invoked by
+`packages/text-engine/src/render/generation.ts`, invoked by
 `withTextEngineDocument` in `packages/text-engine/src/render/text-engine.ts`;
 `renderTextAsPath` / `textToPathMarkup` /
 `splitTextIntoFontRuns` / `splitTextIntoGlyphPathRuns` in
@@ -111,7 +129,7 @@ flowchart TD
 `system-font` branch); the shared shaped splitter
 (`splitTextIntoFontRunsShaped`) in `packages/text-engine/src/render/cluster-fallback.ts`; the mode
 switch (`currentRenderTextMode` / `withRenderTextMode`) in
-`packages/text-engine/src/render/font-resolution.ts`; the `system-font` bidi opt-out in
+`packages/text-engine/src/render/render-text-mode.ts`; the `system-font` bidi opt-out in
 `applyBidi` / `applyBidiAt` (`src/render/text.ts`).
 
 ### Render-text mode (embedded-font vs paths vs system-font)
@@ -504,7 +522,8 @@ flowchart TD
 | `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `math`, `emoji`, `fangsong`, `-apple-system`                                              | `null`                     | **skipped** (not in Blink's keyword table — `css_value_keywords.json5:173-181`; Chrome walks the stack, ultimately to `times`)   |
 
 **Source of truth:** `matchFamilyNameToKey` / `resolveFontKey` /
-`resolveFontKeyChain` / `splitFontFamilyNames` in `packages/text-engine/src/render/font-resolution.ts`.
+`resolveFontKeyChain` in `packages/text-engine/src/render/family-match.ts` and
+`splitFontFamilyNames` in `packages/text-engine/src/render/font-instance.ts`.
 Doc [03](03-font-family-chain.md).
 
 ---
@@ -937,7 +956,8 @@ the angle.
 `darwinSystemUiWdth` / `resolveFontSpec` / `applyVariationAxes` /
 `subBoldWeightCutSuffix` / `darwinPrimaryCutKey` / `win32PrimaryCutKey` /
 `linuxPrimaryCutKey` / `fontHasOutlineTable` / `commandsFor` in
-`packages/text-engine/src/render/font-resolution.ts`; `win32FamilySuffixAdjustment` in
+`packages/text-engine/src/render/{font-instance,font-spec,family-match,fallback-chain}.ts`;
+`win32FamilySuffixAdjustment` in
 `packages/text-engine/src/render/win32-family-suffix.ts`; `resolveFamilyStyleMatch` /
 `resolveLinuxFamilyMatch` / `resolveInstalledFont` in the
 `packages/text-engine/src/render/glyph-helper.ts` facade; native adapter construction in
@@ -992,7 +1012,7 @@ flowchart TD
 **Source of truth:** `registerWebfont` / `pickWebfontVariant` /
 `pickWebfontVariantForCodepoint` / `webfontVariantsInDeclarationOrder` /
 `unicodeRangeCovers` / `registerLocalFontAlias` /
-`pickLocalFontAliasVariant` in `packages/text-engine/src/render/font-resolution.ts`.
+`pickLocalFontAliasVariant` in `packages/text-engine/src/render/webfont-registry.ts`.
 
 ---
 
@@ -1119,7 +1139,8 @@ CI-image chain. Overridable via `DOMOTION_LINUX_FONT_PROFILE=noto|bare`.
 
 **Source of truth:** `resolveFontSpec` / `resolveLinuxSpec` / `resolveWin32Spec` /
 `fcMatch` / `linuxFontProfile` / `FONT_PATHS` / `LINUX_FONT_PATHS` /
-`WIN32_FONT_PATHS` in `packages/text-engine/src/render/font-resolution.ts`; the four
+`WIN32_FONT_PATHS` in `packages/text-engine/src/render/font-paths.*.ts` and
+`font-spec.ts`; the four
 `unicode-font-routing.*.generated.ts` tables.
 
 ---
@@ -1204,7 +1225,7 @@ Notes:
   `sinh` remains USE).
 
 - **The reroute also applies at RUN level, because the resolver alone cannot
-  reach every run** (`harfbuzzShapedRunOverride`, `font-resolution.ts`). Under
+  reach every run** (`harfbuzzShapedRunOverride`, `shaping-route.ts`). Under
   the default shaped splitter only the kSystemFonts stage calls
   `resolveFontForCodepoint`; the primary and declared-family candidates are
   materialized directly (`splitShapedInner`, `cluster-fallback.ts`), so the
@@ -1294,7 +1315,7 @@ Notes:
 
 - **A RUN-level sibling of the post-step exists for OpenType feature state
   fontkit cannot express** (`fontFeatureValueShapingOverride`,
-  `font-resolution.ts`). Feature-list entries are HarfBuzz feature strings
+  `shaping-route.ts`). Feature-list entries are HarfBuzz feature strings
   (`liga` / `-liga` / `aalt=2` — `parseFontFeatureSettings` keeps disables and
   values, matching Blink's verbatim append in `font_features.cc:203-225`, rev
   `7d859f27`). When a run's list carries a disable or an explicit value
@@ -1614,7 +1635,8 @@ run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
   delegation at the source level plus the later-declared-family behavior.
 
 **Source of truth:** `resolveFontForCodepoint` / `codepointResolvesToNotdef` /
-`sfProCoverageOtfKey` / `decomposeMathAlphaRun` in `packages/text-engine/src/render/font-resolution.ts`.
+`sfProCoverageOtfKey` in `shaping-route.ts` and `decomposeMathAlphaRun` in
+`fallback-chain.ts` (`resolveFontForCodepoint` lives in `codepoint-resolver.ts`).
 Doc [80](80-cross-platform-system-fallback-resolver.md).
 
 ---
@@ -1879,7 +1901,7 @@ separately under 17 controls.
 **Source of truth:** `fallbackFontChain` / `darwinFallbackChain` /
 `linuxFallbackChain` / `linuxNotoFallbackChain` / `win32FallbackChain` /
 `win32FamilyKey` / `win32DeferOrStatic` / `pingfangKeyForLang` / the `is*Block`
-predicates / `binarySearchRange` in `packages/text-engine/src/render/font-resolution.ts`, and the whole
+predicates / `binarySearchRange` in `packages/text-engine/src/render/fallback-chain*.ts`, and the whole
 of `packages/text-engine/src/render/win-font-fallback.ts`. Doc
 [42](42-cross-platform-fallback-calibration.md).
 
@@ -2325,7 +2347,8 @@ native helpers via a `HasCharacter` guard reporting `found:false`; Linux via
 **Source of truth:** `resolveSystemFallbackKeyForCp` /
 `resolveLinuxSystemFallbackKeyForCp` / `fontFileCoversCodepoint` /
 `registerDynamicSystemFont` / `withSystemFallbackResolution` in
-`packages/text-engine/src/render/font-resolution.ts`; `resolveSystemFallbackFonts` /
+`packages/text-engine/src/render/system-fallback-resolver.ts` and
+`font-paths.win32.ts`; `resolveSystemFallbackFonts` /
 `resolveInstalledFont` in the `packages/text-engine/src/render/glyph-helper.ts` facade,
 `createGlyphHelperFont` in `packages/text-engine/src/render/glyph-helper-font.ts`, and
 `isGlyphHelperAvailable` in `packages/text-engine/src/render/glyph-helper-transport.ts`. Doc
@@ -2373,7 +2396,8 @@ the weight-matched cut IS the base entry, so nothing changes there.
 
 **Source of truth:** `beginCharacterFallbackDocument` /
 `endCharacterFallbackDocument` / `characterFallbackDocKey` / `fallbackBaseFor`
-in `packages/text-engine/src/render/font-resolution.ts`; `isIdeographicCp` in
+in `packages/text-engine/src/render/character-fallback-cache.ts` and
+`system-fallback-resolver.ts`; `isIdeographicCp` in
 `packages/text-engine/src/render/unicode-classification.ts`; pinned by
 `packages/text-engine/src/render/character-fallback-document-cache.test.ts`.
 
@@ -2407,7 +2431,8 @@ flowchart TD
 
 **Source of truth:** `resolveGlyphCommands` / `classifyEmptyGlyphOutline` /
 `helperGlyphOutline` / `ensureGlyphDef` / `getGlyphDefs` in
-`packages/text-engine/src/render/font-resolution.ts`; `renderSourceOwnedTextBoundary` and the
+`packages/text-engine/src/render/font-instance.ts` and `generation.ts`;
+`renderSourceOwnedTextBoundary` and the
 ownership ledger in `packages/text-engine/src/render/text-to-path.ts`;
 `trackGlyphInEmbedFont` / `getBuiltEmbeddedFontFaceCss` in
 `packages/text-engine/src/render/embedded-font-builder.ts`. Docs [51](51-probe-then-fallback-dispatch.md),

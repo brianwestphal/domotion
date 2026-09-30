@@ -50,7 +50,7 @@
   ],
   "scripts": {
     "clean": "tsc -b tsconfig.build.json --clean",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "build": "npm run clean && tsc -p tsconfig.build.json && node tools/check-runtime-import.mjs",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "npm run build && npm run test:unit && npm run test:transport-performance",

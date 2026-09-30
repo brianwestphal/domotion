@@ -35,7 +35,7 @@ import {
 import { isGlyphHelperAvailable } from "./glyph-helper.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SRC = readFileSync(path.join(HERE, "font-resolution.ts"), "utf-8");
+const SRC = readFileSync(path.join(HERE, "codepoint-resolver.ts"), "utf-8");
 
 /** U+0E01 THAI KO KAI — a fallback-only codepoint for a Helvetica /
  *  Liberation Sans primary on every calibrated platform, with a static-chain

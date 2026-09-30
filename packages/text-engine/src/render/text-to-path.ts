@@ -46,6 +46,7 @@ export {
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
 import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
+import type { FontRequest } from "./font-request.js";
 
 const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
   "Arabic",
@@ -96,8 +97,7 @@ import {
   FontRun,
   ITALIC_SLNT,
   PathCommand,
-  TextPathOwnership,
-  TextPathResult,
+  GlyphCommandDisposition,
   codepointResolvesToNotdef,
   createFontFallbackSemanticContext,
   fontCoversCp,
@@ -105,7 +105,6 @@ import {
   currentRenderTextMode,
   ensureGlyphDef,
   fallbackFontChain,
-  fontAutoInsertsDottedCircle,
   fontFeatureValueShapingOverride,
   FontVariantEmojiOverride,
   getFontInstance,
@@ -116,7 +115,6 @@ import {
   mergeGaps,
   opticalCutOpszFor,
   pickWebfontVariantForCodepoint,
-  r2,
   glyphIdForCp,
   harfbuzzShapedRunOverride,
   resolveDottedCircleHbRun,
@@ -126,9 +124,104 @@ import {
   resolveFontKeyChain,
   resolveGlyphCommands,
   stretchPercent,
-  syntheticMarkCenteringOffsetPx,
   stackPrimaryIsSystemUi,
 } from "./font-resolution.js";
+
+export interface TextPathOwnershipSpan {
+  /** UTF-16 source coordinates. A shaping cluster may cover several scalars. */
+  sourceSpan: [number, number];
+  glyphId: number;
+  disposition: GlyphCommandDisposition | "capture-raster";
+}
+
+export interface TextPathOwnership {
+  /** Successful source-backed vector outlines (fontkit or native helper). */
+  vectorGlyphs: number;
+  /** Selected glyphs whose concrete pixels are supplied by capture overlays. */
+  rasterGlyphs: number;
+  /** Empty glyphs proven to represent no painted ink. */
+  inklessGlyphs: number;
+  /** Empty outline outcomes that are neither raster-owned nor proven no-ink. */
+  degradedGlyphs: TextPathOwnershipSpan[];
+}
+
+export interface TextPathResult {
+  /** SVG markup: <use> references for each glyph */
+  markup: string;
+  /** Actual rendered width in CSS pixels */
+  width: number;
+  /** Paint ownership for every glyph that reached the path emitter. */
+  ownership: TextPathOwnership;
+}
+
+// DM-1126: x-extent of a glyph's ink, in font units. Prefers `glyph.bbox`
+// (fontkit supplies it); falls back to scanning the path commands' coordinate
+// pairs (the native CoreText glyph-helper leaves `bbox` undefined). Control
+// points slightly over-estimate the true curve extent, but that's symmetric
+// enough for centering a combining mark over its base. Null when no geometry.
+function glyphInkBoundsX(glyph: {
+  bbox?: { minX: number; maxX: number };
+  path?: { commands: Array<{ args: number[] }> };
+}): { minX: number; maxX: number } | null {
+  const bb = glyph.bbox;
+  if (bb != null && Number.isFinite(bb.minX) && Number.isFinite(bb.maxX) && bb.maxX > bb.minX) {
+    return { minX: bb.minX, maxX: bb.maxX };
+  }
+  const cmds = glyph.path?.commands;
+  if (cmds == null) return null;
+  let minX = Infinity,
+    maxX = -Infinity;
+  for (const c of cmds) {
+    const a = c.args;
+    for (let i = 0; i + 1 < a.length; i += 2) {
+      const x = a[i];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+  }
+  return maxX > minX ? { minX, maxX } : null;
+}
+
+// DM-1126: does the primary font's OWN shaping of a lone mark already emit a
+// dotted circle? Native-extractor (CoreText/AAT) Indic faces — DevanagariMT, the
+// Sangam MN family, etc. — auto-insert the U+25CC for an orphaned combining mark,
+// so Domotion already renders them correctly and a synthetic insertion would
+// DOUBLE the circle (regressing the standard Indic blocks). fontkit faces like
+// Mukta emit just the bare mark and DO need the synthetic ◌. Detect by GID — the
+// native glyph-helper leaves `codePoints` empty.
+export function fontAutoInsertsDottedCircle(primaryFont: FontInstance, ch: string): boolean {
+  const circleGid = glyphIdForCp(primaryFont, 0x25cc);
+  if (circleGid === 0) return false;
+  const lone = primaryFont.layout(ch);
+  return lone.glyphs.length > 1 || lone.glyphs.some((g) => g.id === circleGid);
+}
+
+// DM-1126: the CSS-px shift to center a zero-advance combining mark's ink over
+// the synthetic ◌'s ink, replicating HarfBuzz's fallback mark positioning. The
+// fontkit-rendered Indic faces (e.g. Mukta) carry their Vedic marks' ink at
+// NEGATIVE x (authored to overhang a preceding base) with NO GPOS mark-to-base
+// anchor, so the shaper reports xOffset 0 and the raw glyph would paint to the
+// circle's left. Aligning ink-centers reproduces the "mark sits on the circle"
+// Chrome paints. Returns 0 when geometry is unavailable.
+export function syntheticMarkCenteringOffsetPx(primaryFont: FontInstance, ch: string, fontSize: number): number {
+  // `glyphForCodePoint`'s declared return omits `path`/`bbox`; both backing
+  // implementations populate them at runtime (used for the ink-bounds scan).
+  const circleGlyph = primaryFont.glyphForCodePoint(0x25cc) as unknown as Parameters<typeof glyphInkBoundsX>[0];
+  const circleBounds = glyphInkBoundsX(circleGlyph);
+  const markGlyph = primaryFont.layout(ch).glyphs[0];
+  const markBounds = markGlyph != null ? glyphInkBoundsX(markGlyph) : null;
+  if (circleBounds == null || markBounds == null) return 0;
+  const circleCx = (circleBounds.minX + circleBounds.maxX) / 2;
+  const markCx = (markBounds.minX + markBounds.maxX) / 2;
+  return (circleCx - markCx) * (fontSize / primaryFont.unitsPerEm);
+}
+
+/** Two-decimal SVG coordinate formatter for glyph-path geometry (math radical /
+ *  stretchy-fence markup). Named distinctly from the one-decimal `r` in
+ *  `format.ts` so the precision is explicit at the call site (DM-1340). */
+export function r2(n: number): string {
+  return Number(n.toFixed(2)).toString();
+}
 
 // Deliberate compatibility surface. Historically this module used a blanket
 // resolver re-export, which made every internal resolver helper accidental API.
@@ -559,7 +652,7 @@ export function textFontRequest(
   fontWeight: string,
   fontStyle: string | undefined,
   fontStretch: string | undefined,
-): { weight: number; slant: number; stretch: number } {
+): Pick<FontRequest, "weight" | "slant" | "stretch"> {
   return {
     weight: parseFloat(fontWeight) || 400,
     slant: slantForStyle(fontStyle),

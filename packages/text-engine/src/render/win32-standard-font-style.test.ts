@@ -104,12 +104,13 @@ describe("win32 FallbackOnStandardFontStyle — win/font_cache_skia_win.cc:270-2
 });
 
 describe("win32DeferOrStatic keeps sampled inventory out of supported routing", () => {
-  const SRC = readFileSync(path.join(HERE, "font-resolution.ts"), "utf-8");
+  const MATCH_SRC = readFileSync(path.join(HERE, "family-match.ts"), "utf-8");
+  const CHAIN_SRC = readFileSync(path.join(HERE, "fallback-chain.win32.ts"), "utf-8");
 
   const functionBody = (fnName: string): string => {
-    const at = SRC.search(new RegExp(`^function ${fnName}\\(`, "m"));
+    const at = MATCH_SRC.search(new RegExp(`^(?:export )?function ${fnName}\\(`, "m"));
     expect(at, `no top-level function ${fnName}`).toBeGreaterThanOrEqual(0);
-    return SRC.slice(at, SRC.indexOf("\n}\n", at));
+    return MATCH_SRC.slice(at, MATCH_SRC.indexOf("\n}\n", at));
   };
 
   it("gates the generated range on both companions and never treats a DirectWrite miss as permission", () => {
@@ -120,6 +121,6 @@ describe("win32DeferOrStatic keeps sampled inventory out of supported routing", 
   });
 
   it("receives only the degraded fallback candidates from its call site", () => {
-    expect(SRC.replace(/\s+/g, " ")).toContain("win32DeferOrStatic([generatedKey])");
+    expect(CHAIN_SRC.replace(/\s+/g, " ")).toContain("win32DeferOrStatic([generatedKey])");
   });
 });
