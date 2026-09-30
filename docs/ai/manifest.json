@@ -2914,12 +2914,14 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/text-line-origin.test.ts",
+        "src/capture/text-paint-geometry-cdp.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/text-affine.test.ts",
         "src/render/text-affine.ts",
         "src/render/text-paint.ts",
         "src/render/text-stroke-synthesis.test.ts",
         "tests/text-affine-render.e2e.test.ts",
+        "tests/truncation-marker-capture.e2e.test.ts",
         "tools/text-affine-baseline-protocol-oracle.ts"
       ],
       "file": "177-affine-text-paint-consumption.md"
@@ -3421,7 +3423,9 @@
         "packages/text-engine/src/font-family-stack.ts",
         "tests/font-family-stack-capture.e2e.test.ts",
         "tests/capture-script-determinism.test.ts",
-        "scripts/build-capture-script.mjs"
+        "scripts/build-capture-script.mjs",
+        "src/capture/text-paint-geometry-cdp.ts",
+        "tests/truncation-marker-capture.e2e.test.ts"
       ],
       "file": "213-structured-font-family-stack.md"
     },
@@ -4330,6 +4334,7 @@
       "owners": ["text-fonts"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
+        "src/capture/text-paint-geometry-cdp.ts",
         "src/capture/script/index.ts",
         "src/capture/script/walker/text-segments.ts",
         "packages/text-engine/src/render/font-resolution.ts",
@@ -4343,7 +4348,8 @@
         "packages/text-engine/src/render/text-to-path.ts",
         "packages/text-engine/src/render/text-engine.ts",
         "src/render/text.ts",
-        "tests/feature-coverage.ts"
+        "tests/feature-coverage.ts",
+        "tests/truncation-marker-capture.e2e.test.ts"
       ],
       "file": "handbook/text-and-fonts.md"
     }
