@@ -23,6 +23,8 @@ aliases: ["docs/20-css-mask-emission.md", "doc-20"]
 
 # 20 — CSS mask → SVG `<mask>` emission
 
+`mask-border-source: url(...)` shares its nine-piece parser, snapped destination grid, and tile-axis calculations with border images. See [doc 263](263-nine-piece-image-paint.md).
+
 ## Context
 
 CSS `mask-image` lets authors hide / reveal parts of an element by alpha-or-luminance compositing the element's paint against an image, gradient, or referenced graphic. SVG natively supports the same concept via `<mask>` with a `maskUnits="userSpaceOnUse"` content rect.

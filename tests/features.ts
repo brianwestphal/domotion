@@ -1312,6 +1312,21 @@ export const tests: FeatureTest[] = [
     height: 160,
   },
   {
+    // DM-PQN8QN: the filled center obeys the two repeat axes as well as edges.
+    name: "border-image-gradient-space-center",
+    html: `<div style="padding:24px;background:#0d1117"><div style="width:213px;height:97px;border:12px solid transparent;border-image:linear-gradient(45deg,#ef4444,#38bdf8) 20% fill / 12px / 0 space"></div></div>`,
+    width: 290,
+    height: 170,
+  },
+  {
+    // Mask borders use the same snapped nine-piece grid and space gaps as
+    // border images, sampling one original source texture across all slots.
+    name: "mask-border-url-space-center",
+    html: `<div style="padding:24px;background:#0d1117"><div style="width:213px;height:97px;background:#f97316;-webkit-mask-box-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2230%22 height=%2230%22><rect width=%2230%22 height=%2230%22 fill=%22white%22/></svg>') 10 fill / 12px / 0 space"></div></div>`,
+    width: 290,
+    height: 170,
+  },
+  {
     // DM-758: `mask-border` (legacy `-webkit-mask-box-image`) with a
     // gradient source + `slice 1 fill / 0 / 0` paints the entire element
     // through the gradient as a mask. Verifies the gradient routes through

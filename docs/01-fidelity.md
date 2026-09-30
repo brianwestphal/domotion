@@ -175,7 +175,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [x] border-style: groove, ridge, inset, outset — implemented in the `src/render/element-tree-to-svg.ts` uniform-border path
 - [x] border-radius percentages (e.g. `border-radius: 50%` → circle when symmetric box) — SK-1093
 - [x] per-corner border-radius (asymmetric `10px 30px 50px 70px`) and elliptical corners (`50px / 20px`) — DM-300, see docs/14
-- [ ] border-image — tracked SK-466
+- [~] border-image — URL and gradient sources use shared nine-piece slice, snapped destination, and repeat/round/space tiling geometry; see [doc 263](263-nine-piece-image-paint.md). Other source forms remain tracked by SK-466.
 - [x] outline (style/width/color/offset, including dashed/dotted/double) — SK-1111 / DM-2355
 - [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113
 - [x] text-shadow: x/y offset + blur, multi-layered — SK-1113

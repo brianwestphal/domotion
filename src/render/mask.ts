@@ -8,7 +8,14 @@
 
 import { renderWarn } from "./render-warn.js";
 import { r, esc } from "./format.js";
-import { embedResizedDataUri } from "../capture/embed.js";
+import { embedOriginalDataUri, embedResizedDataUri } from "../capture/embed.js";
+import {
+  ninePieceTileAxis,
+  parseNinePieceInputs,
+  paintNinePiece,
+  type NinePieceRepeat,
+  type NinePieceSlot,
+} from "./nine-piece.js";
 import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import { buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
 import { buildLinearGradientDef, buildRadialGradientDef } from "./gradient-defs.js";
@@ -539,14 +546,6 @@ export function positionObjectBoundingBoxClipPathDef(
  * clip / mask id allocation. Returns `null` when the slice / width values
  * resolve to a degenerate region (no mask painted).
  */
-type MaskBorderRepeat = "stretch" | "repeat" | "round" | "space";
-const MASK_BORDER_REPEATS = new Set<string>(["stretch", "repeat", "round", "space"]);
-
-function normalizeMaskBorderRepeat(raw: string | undefined): MaskBorderRepeat {
-  if (raw != null && MASK_BORDER_REPEATS.has(raw)) return raw as MaskBorderRepeat;
-  return "stretch";
-}
-
 export function buildMaskBorder9Slice(
   el: CapturedElement,
   url: string,
@@ -562,87 +561,23 @@ export function buildMaskBorder9Slice(
   const natH = el.styles.maskBorderIntrinsicHeight ?? 0;
   if (natW <= 0 || natH <= 0) return null;
 
-  // Slice — numbers are source pixels, percentages of source dims, optional `fill`.
-  const fillCenter = /\bfill\b/i.test(sliceRaw);
-  const sliceTokens = sliceRaw
-    .replace(/\bfill\b/i, "")
-    .trim()
-    .split(/\s+/);
-  const parseSliceTok = (t: string | undefined): { pct?: number; px?: number } => {
-    if (t == null || t === "") return { px: 0 };
-    if (/%$/.test(t)) return { pct: parseFloat(t) };
-    return { px: parseFloat(t) };
-  };
-  const sliceNums = sliceTokens.map(parseSliceTok);
-  const resolveSlice = (tok: { pct?: number; px?: number }, basis: number): number => {
-    if (tok.pct != null) return (tok.pct / 100) * basis;
-    return tok.px ?? 0;
-  };
-  const st = resolveSlice(sliceNums[0] ?? { px: 0 }, natH);
-  const sr = resolveSlice(sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
-  const sb = resolveSlice(sliceNums[2] ?? sliceNums[0] ?? { px: 0 }, natH);
-  const sl = resolveSlice(sliceNums[3] ?? sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
-
-  // Width — px / % / unitless multiplier of border-width (defaults to 0 for
-  // mask-border since masks usually have no element border).
   const bwTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
   const bwRight = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
   const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
   const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-  const parseLen = (tok: string | undefined, basis: number, borderW: number): number => {
-    if (tok == null || tok === "" || tok === "auto") return borderW;
-    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-    const n = parseFloat(tok);
-    return Number.isFinite(n) ? n * borderW : borderW;
-  };
-  const wTokens = widthRaw.trim().split(/\s+/);
-  const wt = parseLen(wTokens[0], el.height, bwTop);
-  const wr = parseLen(wTokens[1] ?? wTokens[0], el.width, bwRight);
-  const wb = parseLen(wTokens[2] ?? wTokens[0], el.height, bwBottom);
-  const wl = parseLen(wTokens[3] ?? wTokens[1] ?? wTokens[0], el.width, bwLeft);
-
-  // Outset — defaults to 0.
-  const parseOutset = (tok: string | undefined, basis: number, borderW: number): number => {
-    if (tok == null || tok === "") return 0;
-    if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-    if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-    const n = parseFloat(tok);
-    return Number.isFinite(n) ? n * borderW : 0;
-  };
-  const oTokens = outsetRaw.trim().split(/\s+/);
-  const ot = parseOutset(oTokens[0], el.height, bwTop);
-  const or_ = parseOutset(oTokens[1] ?? oTokens[0], el.width, bwRight);
-  const ob = parseOutset(oTokens[2] ?? oTokens[0], el.height, bwBottom);
-  const ol = parseOutset(oTokens[3] ?? oTokens[1] ?? oTokens[0], el.width, bwLeft);
-
-  // Mask region = border-box ± outset.
-  const boxX = el.x - ol;
-  const boxY = el.y - ot;
-  const boxW = el.width + ol + or_;
-  const boxH = el.height + ot + ob;
-  if (boxW <= 0 || boxH <= 0) return null;
-
-  // Repeat — `stretch` / `repeat` / `round` / `space` (per axis, optional).
-  const rTokens = repeatRaw.trim().toLowerCase().split(/\s+/);
-  const rH = normalizeMaskBorderRepeat(rTokens[0]);
-  const rV = rTokens[1] != null && rTokens[1] !== "" ? normalizeMaskBorderRepeat(rTokens[1]) : rH;
-
-  const x0 = boxX,
-    x1 = boxX + wl,
-    x2 = boxX + boxW - wr;
-  const y0 = boxY,
-    y1 = boxY + wt,
-    y2 = boxY + boxH - wb;
-  const sxL = 0,
-    sxR = natW - sr,
-    sxC = sl,
-    sxW_C = natW - sl - sr;
-  const syT = 0,
-    syB = natH - sb,
-    syC = st,
-    syH_C = natH - st - sb;
-
+  const parsed = parseNinePieceInputs({
+    box: { x: el.x, y: el.y, width: el.width, height: el.height },
+    borderWidths: { top: bwTop, right: bwRight, bottom: bwBottom, left: bwLeft },
+    sliceRaw,
+    widthRaw,
+    outsetRaw,
+    repeatRaw,
+    intrinsic: { width: natW, height: natH },
+  });
+  if (parsed == null) return null;
+  // NinePieceImagePainter samples one image object for every slot. Embedding
+  // the original bytes once keeps adjacent bilinear sample edges coherent.
+  const sourceHref = embedOriginalDataUri(url);
   const maskChildren: string[] = [];
   const maskDefs: string[] = []; // patterns + clipPaths nested inside the <mask>
   let clipIdx = clipIdxStart;
@@ -672,7 +607,7 @@ export function buildMaskBorder9Slice(
     const imgW = natW * scaleX;
     const imgH = natH * scaleY;
     maskChildren.push(
-      `<image href="${esc(embedResizedDataUri(url, imgW, imgH))}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
+      `<image href="${esc(sourceHref)}" x="${r(imgX)}" y="${r(imgY)}" width="${r(imgW)}" height="${r(imgH)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
     );
   };
 
@@ -689,39 +624,18 @@ export function buildMaskBorder9Slice(
     mode: "repeat" | "round" | "space",
   ): void => {
     if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0) return;
-    let tileW: number, tileH: number;
-    if (axis === "x") {
-      tileH = dhSlot;
-      tileW = sw * (dhSlot / sh);
-      if (mode === "round") {
-        const count = Math.max(1, Math.round(dwSlot / tileW));
-        tileW = dwSlot / count;
-      }
-    } else {
-      tileW = dwSlot;
-      tileH = sh * (dwSlot / sw);
-      if (mode === "round") {
-        const count = Math.max(1, Math.round(dhSlot / tileH));
-        tileH = dhSlot / count;
-      }
-    }
-    let patternW = tileW,
-      patternH = tileH;
-    let patternX = dxSlot,
-      patternY = dySlot;
-    if (mode === "space") {
-      if (axis === "x") {
-        const count = Math.floor(dwSlot / tileW);
-        if (count <= 0) return;
-        patternW = dwSlot / count;
-        patternX = dxSlot + (patternW - tileW) / 2;
-      } else {
-        const count = Math.floor(dhSlot / tileH);
-        if (count <= 0) return;
-        patternH = dhSlot / count;
-        patternY = dySlot + (patternH - tileH) / 2;
-      }
-    }
+    const tile = ninePieceTileAxis(
+      axis === "x" ? dwSlot : dhSlot,
+      axis === "x" ? sw * (dhSlot / sh) : sh * (dwSlot / sw),
+      mode,
+    );
+    if (tile == null) return;
+    const tileW = axis === "x" ? tile.tile : dwSlot;
+    const tileH = axis === "y" ? tile.tile : dhSlot;
+    const patternW = axis === "x" ? tile.period : dwSlot;
+    const patternH = axis === "y" ? tile.period : dhSlot;
+    const patternX = dxSlot + (axis === "x" ? tile.phase : 0);
+    const patternY = dySlot + (axis === "y" ? tile.phase : 0);
     const patId = `${idPrefix}mbip${clipIdx++}`;
     const imgScaleX = tileW / sw;
     const imgScaleY = tileH / sh;
@@ -736,7 +650,7 @@ export function buildMaskBorder9Slice(
         : "";
     const imgClip = mode === "space" ? ` clip-path="url(#${clipBgId})"` : "";
     maskDefs.push(
-      `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`,
+      `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(patternX)}" y="${r(patternY)}" width="${r(patternW)}" height="${r(patternH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`,
     );
     maskChildren.push(
       `<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`,
@@ -768,52 +682,15 @@ export function buildMaskBorder9Slice(
     sh: number,
     scaleX: number,
     scaleY: number,
-    modeH: MaskBorderRepeat,
-    modeV: MaskBorderRepeat,
+    modeH: NinePieceRepeat,
+    modeV: NinePieceRepeat,
   ): void => {
     if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0 || scaleX <= 0 || scaleY <= 0) return;
-    let tileW = sw * scaleX;
-    let tileH = sh * scaleY;
-    if (tileW <= 0 || tileH <= 0) return;
-    let periodW = tileW,
-      periodH = tileH;
-    let phaseX = 0,
-      phaseY = 0;
-    if (modeH === "round") {
-      const c = Math.max(1, Math.round(dwSlot / tileW));
-      tileW = dwSlot / c;
-      periodW = tileW;
-    } else if (modeH === "space") {
-      const c = Math.floor(dwSlot / tileW);
-      if (c <= 0) return;
-      const sp = (dwSlot - c * tileW) / (c + 1);
-      periodW = tileW + sp;
-      phaseX = sp;
-    } else if (modeH === "repeat") {
-      phaseX = (dwSlot - tileW) / 2;
-      // Anchor the centered pattern at dxSlot for SVG's userSpaceOnUse so
-      // tiles step out symmetrically; phaseX may go negative, that's fine.
-    } else {
-      // stretch on x: one tile spans the full width.
-      tileW = dwSlot;
-      periodW = dwSlot;
-    }
-    if (modeV === "round") {
-      const c = Math.max(1, Math.round(dhSlot / tileH));
-      tileH = dhSlot / c;
-      periodH = tileH;
-    } else if (modeV === "space") {
-      const c = Math.floor(dhSlot / tileH);
-      if (c <= 0) return;
-      const sp = (dhSlot - c * tileH) / (c + 1);
-      periodH = tileH + sp;
-      phaseY = sp;
-    } else if (modeV === "repeat") {
-      phaseY = (dhSlot - tileH) / 2;
-    } else {
-      tileH = dhSlot;
-      periodH = dhSlot;
-    }
+    const xTile = ninePieceTileAxis(dwSlot, sw * scaleX, modeH);
+    const yTile = ninePieceTileAxis(dhSlot, sh * scaleY, modeV);
+    if (xTile == null || yTile == null) return;
+    const { tile: tileW, period: periodW, phase: phaseX } = xTile;
+    const { tile: tileH, period: periodH, phase: phaseY } = yTile;
     const imgScaleX = tileW / sw;
     const imgScaleY = tileH / sh;
     const inImgX = -sx * imgScaleX;
@@ -834,56 +711,21 @@ export function buildMaskBorder9Slice(
       imgClip = ` clip-path="url(#${clipId})"`;
     }
     maskDefs.push(
-      `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dxSlot + phaseX)}" y="${r(dySlot + phaseY)}" width="${r(periodW)}" height="${r(periodH)}">${clipDef}<image href="${esc(embedResizedDataUri(url, inImgW, inImgH))}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`,
+      `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(dxSlot + phaseX)}" y="${r(dySlot + phaseY)}" width="${r(periodW)}" height="${r(periodH)}">${clipDef}<image href="${esc(sourceHref)}" x="${r(inImgX)}" y="${r(inImgY)}" width="${r(inImgW)}" height="${r(inImgH)}" preserveAspectRatio="none"${imgClip} /></pattern>`,
     );
     maskChildren.push(
       `<rect x="${r(dxSlot)}" y="${r(dySlot)}" width="${r(dwSlot)}" height="${r(dhSlot)}" fill="url(#${patId})" />`,
     );
   };
 
-  // 4 corners — always stretched.
-  emitStretched(x0, y0, wl, wt, sxL, syT, sl, st); // NW
-  emitStretched(x2, y0, wr, wt, sxR, syT, sr, st); // NE
-  emitStretched(x0, y2, wl, wb, sxL, syB, sl, sb); // SW
-  emitStretched(x2, y2, wr, wb, sxR, syB, sr, sb); // SE
-  // Top + Bottom edges.
-  if (rH === "stretch") {
-    emitStretched(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
-    emitStretched(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
-  } else {
-    emitTiledEdge(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH);
-    emitTiledEdge(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH);
-  }
-  // Left + Right edges.
-  if (rV === "stretch") {
-    emitStretched(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
-    emitStretched(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
-  } else {
-    emitTiledEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV);
-    emitTiledEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV);
-  }
-  // Center — when `fill` is present in the slice. Chrome's
-  // `-webkit-mask-box-image` parser implicitly adds `fill` even when CSS
-  // doesn't write it; the capture-side reads from the webkit-prefixed
-  // properties so that resolved `fill` flows through here. Per spec the
-  // center's tile_scale is Edge::Scale() from the adjacent edges (wt/st on
-  // x, wl/sl on y) — NOT a stretch-to-fill — so `space` / `round` / `repeat`
-  // modes tile the source-center subimage across the dest area at that
-  // scale, NOT one giant stretched tile. (See DM-825 + the `niche-mask-border`
-  // .mb-3 fixture: 5×3 grid of 32×32 source-center tiles with 2.67 px
-  // horizontal `space` gaps + 0 vertical gap, fused with the 16×96 left/
-  // right edge tiles + corners to paint 7 visible vertical slats.)
-  if (fillCenter) {
-    if (rH === "stretch" && rV === "stretch") {
-      emitStretched(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
-    } else {
-      // Edge::Scale() for the adjacent edges; fall back to bottom/right
-      // when top/left are zero-width (degenerate but possible).
-      const scaleX = st > 0 && wt > 0 ? wt / st : sb > 0 && wb > 0 ? wb / sb : 1;
-      const scaleY = sl > 0 && wl > 0 ? wl / sl : sr > 0 && wr > 0 ? wr / sr : 1;
-      emitTiledCenter(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C, scaleX, scaleY, rH, rV);
-    }
-  }
+  const args = ({ destination: d, source: s }: NinePieceSlot) =>
+    [d.x, d.y, d.width, d.height, s.x, s.y, s.width, s.height] as const;
+  paintNinePiece(parsed, {
+    stretch: (slot) => emitStretched(...args(slot)),
+    edge: (slot, axis, mode) => emitTiledEdge(...args(slot), axis, mode),
+    center: (slot, horizontal, vertical, scaleX, scaleY) =>
+      emitTiledCenter(...args(slot), scaleX, scaleY, horizontal, vertical),
+  });
 
   if (maskChildren.length === 0) return null;
   const def = `<mask id="${maskId}" maskUnits="userSpaceOnUse" mask-type="alpha">${maskDefs.join("")}${maskChildren.join("")}</mask>`;

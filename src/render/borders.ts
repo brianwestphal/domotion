@@ -9,6 +9,14 @@ import { parseColor, type RGBA } from "./colors.js";
 import type { CapturedElement } from "../capture/types.js";
 import { embedOriginalDataUri } from "../capture/embed.js";
 import { parseGradient, buildLinearGradientDef, buildRadialGradientDef } from "./gradients.js";
+import {
+  parseNinePieceInputs,
+  paintNinePiece,
+  ninePieceTileAxis,
+  type NinePieceSlot,
+  type NinePieceRepeat,
+} from "./nine-piece.js";
+export { snapNinePieceDestinationGrid, borderImageSpaceTiling, type NinePieceDestinationGrid } from "./nine-piece.js";
 
 /** Blink DrawDoubleBoxSide uses `(thickness + 1) / 3` integer division. */
 export function doubleBorderStripeGeometry(width: number): { stripe: number; offset: number } {
@@ -153,67 +161,6 @@ export function findOffGridCollapsedCells(cells: CollapseCellRect[]): boolean[] 
       hasShiftedConsensus(c.y + c.height, hEdges);
   }
   return result;
-}
-
-/** `border-image-repeat` per-axis keyword. */
-type BorderImageRepeat = "stretch" | "repeat" | "round" | "space";
-const BORDER_IMAGE_REPEATS = new Set<string>(["stretch", "repeat", "round", "space"]);
-
-function normalizeBorderImageRepeat(raw: string | undefined): BorderImageRepeat {
-  if (raw != null && BORDER_IMAGE_REPEATS.has(raw)) return raw as BorderImageRepeat;
-  return "stretch";
-}
-
-export interface NinePieceDestinationGrid {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
-}
-
-/** Mirror Blink's ToPixelSnappedRect + NinePieceImageGrid::SnapEdgeWidths. */
-export function snapNinePieceDestinationGrid(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  left: number,
-  right: number,
-  top: number,
-  bottom: number,
-): NinePieceDestinationGrid {
-  const snappedX = Math.round(x);
-  const snappedY = Math.round(y);
-  // SnapSizeToPixel snaps the far edge relative to the snapped origin.
-  const snappedWidth = Math.round(x + width) - snappedX;
-  const snappedHeight = Math.round(y + height) - snappedY;
-  const snapEdges = (start: number, end: number, extent: number): [number, number] =>
-    extent - start - end <= 1 / 64
-      ? [Math.round(start), extent - Math.round(start)]
-      : [Math.floor(start), Math.floor(end)];
-  const [snappedLeft, snappedRight] = snapEdges(left, right, snappedWidth);
-  const [snappedTop, snappedBottom] = snapEdges(top, bottom, snappedHeight);
-  return {
-    x: snappedX,
-    y: snappedY,
-    width: snappedWidth,
-    height: snappedHeight,
-    left: snappedLeft,
-    right: snappedRight,
-    top: snappedTop,
-    bottom: snappedBottom,
-  };
-}
-
-export function borderImageSpaceTiling(destination: number, tile: number): { spacing: number; period: number } | null {
-  const count = Math.floor(destination / tile);
-  if (count <= 0) return null;
-  const spacing = (destination - tile * count) / (count + 1);
-  return { spacing, period: tile + spacing };
 }
 
 /** Per-corner border-radius axis-pair (h = horizontal, v = vertical).
@@ -1278,38 +1225,6 @@ export function injectSvgSize(svgHtml: string, w: number, h: number): string {
  * Returns { svg, usedIds }. usedIds indicates how many clipIdx values were
  * consumed so the caller can keep its own counter in sync.
  */
-// ── border-image token parsers (shared by the gradient + URL 9-slice paths) ──
-// All three are pure functions of their args; lifted to module scope (DM-1370)
-// from the identical closures that renderBorderImageGradient and
-// renderBorderImage each defined inline.
-
-/** A `border-image-outset` token → px. `%` is of `basis`, a length unit is
- *  absolute px, a bare number multiplies the side's border-width; empty → 0. */
-function parseOutset(tok: string | undefined, basis: number, borderW: number): number {
-  if (tok == null || tok === "") return 0;
-  if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-  if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-  const n = parseFloat(tok);
-  return Number.isFinite(n) ? n * borderW : 0;
-}
-
-/** A `border-image-width` token → px. Like {@link parseOutset} but `auto` /
- *  empty / a non-finite bare number default to the side's border-width. */
-function parseBorderImageLen(tok: string | undefined, basis: number, borderW: number): number {
-  if (tok == null || tok === "" || tok === "auto") return borderW;
-  if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-  if (/(px|em|rem|pt|pc|cm|mm|in|Q)$/.test(tok)) return parseFloat(tok) || 0;
-  // Unitless number -> multiplier of border-width.
-  const n = parseFloat(tok);
-  return Number.isFinite(n) ? n * borderW : borderW;
-}
-
-/** A parsed `border-image-slice` token (`{ pct }` of `basis`, or `{ px }`) → px. */
-function resolveSlice(tok: { pct?: number; px?: number }, basis: number): number {
-  if (tok.pct != null) return (tok.pct / 100) * basis;
-  return tok.px ?? 0;
-}
-
 /**
  * Render a `border-image-source` that's a CSS gradient as a proper 9-slice.
  *
@@ -1341,68 +1256,26 @@ function renderBorderImageGradient(
   if (grad == null) return { svg: "", usedIds: 0 };
   if (grad.kind !== "linear" && grad.kind !== "radial") return { svg: "", usedIds: 0 };
 
-  const sliceRaw = el.styles.borderImageSlice ?? "100%";
-  const fillCenter = /\bfill\b/i.test(sliceRaw);
   const bwTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
   const bwRight = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
   const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
   const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
 
-  // Outsets: default 0. Same parsing as URL path.
-  const outsetTokens = (el.styles.borderImageOutset ?? "0").trim().split(/\s+/);
-  const ot = parseOutset(outsetTokens[0], el.height, bwTop);
-  const or_ = parseOutset(outsetTokens[1] ?? outsetTokens[0], el.width, bwRight);
-  const ob = parseOutset(outsetTokens[2] ?? outsetTokens[0], el.height, bwBottom);
-  const ol = parseOutset(outsetTokens[3] ?? outsetTokens[1] ?? outsetTokens[0], el.width, bwLeft);
-
-  // Border-image-width per side; default = element's border-width. Same as URL path.
-  const widthTokens = (el.styles.borderImageWidth ?? "").trim().split(/\s+/);
-  let wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
-  let wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
-  let wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
-  let wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
-
-  // Blink constructs NinePieceImageGrid from ToPixelSnappedRect(area), then
-  // SnapEdgeWidths floors non-abutting edge widths (or symmetrically assigns
-  // the final pixel when opposing edges abut). Build the same integer grid
-  // before deriving any of the nine destination rectangles.
-  const grid = snapNinePieceDestinationGrid(
-    el.x - ol,
-    el.y - ot,
-    el.width + ol + or_,
-    el.height + ot + ob,
-    wl,
-    wr,
-    wt,
-    wb,
-  );
+  const parsed = parseNinePieceInputs({
+    box: { x: el.x, y: el.y, width: el.width, height: el.height },
+    borderWidths: { top: bwTop, right: bwRight, bottom: bwBottom, left: bwLeft },
+    sliceRaw: el.styles.borderImageSlice ?? "100%",
+    widthRaw: el.styles.borderImageWidth ?? "",
+    outsetRaw: el.styles.borderImageOutset ?? "0",
+    repeatRaw: el.styles.borderImageRepeat ?? "stretch",
+  });
+  if (parsed == null) return { svg: "", usedIds: 0 };
+  const { grid } = parsed;
   const { x: boxX, y: boxY, width: boxW, height: boxH } = grid;
-  ({ left: wl, right: wr, top: wt, bottom: wb } = grid);
-  if (boxW <= 0 || boxH <= 0) return { svg: "", usedIds: 0 };
 
   // Gradient sources have the size of the border-image-area.
   const natW = boxW;
   const natH = boxH;
-
-  // Slice: numbers = source pixels, percentages = of source dims, optional `fill`.
-  const sliceTokens = sliceRaw
-    .replace(/\bfill\b/i, "")
-    .trim()
-    .split(/\s+/);
-  const sliceNums = sliceTokens.map((t) => {
-    if (/%$/.test(t)) return { pct: parseFloat(t) };
-    return { px: parseFloat(t) };
-  });
-  const st = resolveSlice(sliceNums[0] ?? { px: 0 }, natH);
-  const sr = resolveSlice(sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
-  const sb = resolveSlice(sliceNums[2] ?? sliceNums[0] ?? { px: 0 }, natH);
-  const sl = resolveSlice(sliceNums[3] ?? sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
-
-  // Repeat policy per axis.
-  const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
-  const rH = normalizeBorderImageRepeat((repeatTokens[0] ?? "stretch").toLowerCase());
-  const rV =
-    repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
 
   // Gradient def in source space (0, 0) - (natW, natH). Positioned at the
   // border-image-area's element-absolute origin (boxX, boxY) so the inner
@@ -1416,23 +1289,6 @@ function renderBorderImageGradient(
   const def =
     grad.kind === "linear" ? buildLinearGradientDef(grad, gid, gradRect) : buildRadialGradientDef(grad, gid, gradRect);
   defsParts.push(def);
-
-  // Slot geometry in element-absolute coords.
-  const x0 = boxX,
-    x1 = boxX + wl,
-    x2 = boxX + boxW - wr;
-  const y0 = boxY,
-    y1 = boxY + wt,
-    y2 = boxY + boxH - wb;
-  // Source regions in source pixels (NB: corner rects + edge / center rects).
-  const sxL = 0,
-    sxR = natW - sr,
-    sxC = sl,
-    sxW_C = natW - sl - sr;
-  const syT = 0,
-    syB = natH - sb,
-    syC = st,
-    syH_C = natH - st - sb;
 
   const parts: string[] = [];
 
@@ -1487,43 +1343,15 @@ function renderBorderImageGradient(
     mode: "repeat" | "round" | "space",
   ): void => {
     if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
-    let tileW: number, tileH: number;
-    if (axis === "x") {
-      tileH = dh;
-      tileW = sw * (dh / sh);
-      if (mode === "round") {
-        const count = Math.max(1, Math.round(dw / tileW));
-        tileW = dw / count;
-      }
-    } else {
-      tileW = dw;
-      tileH = sh * (dw / sw);
-      if (mode === "round") {
-        const count = Math.max(1, Math.round(dh / tileH));
-        tileH = dh / count;
-      }
-    }
-    let patternW = tileW,
-      patternH = tileH;
-    let tileOffX = 0,
-      tileOffY = 0;
-    if (mode === "repeat") {
-      if (axis === "x") tileOffX = (dw - tileW) / 2;
-      else tileOffY = (dh - tileH) / 2;
-    }
-    if (mode === "space") {
-      if (axis === "x") {
-        const tiling = borderImageSpaceTiling(dw, tileW);
-        if (tiling == null) return;
-        patternW = tiling.period;
-        tileOffX = tiling.spacing;
-      } else {
-        const tiling = borderImageSpaceTiling(dh, tileH);
-        if (tiling == null) return;
-        patternH = tiling.period;
-        tileOffY = tiling.spacing;
-      }
-    }
+    const tile =
+      axis === "x" ? ninePieceTileAxis(dw, sw * (dh / sh), mode) : ninePieceTileAxis(dh, sh * (dw / sw), mode);
+    if (tile == null) return;
+    const tileW = axis === "x" ? tile.tile : dw;
+    const tileH = axis === "y" ? tile.tile : dh;
+    const patternW = axis === "x" ? tile.period : dw;
+    const patternH = axis === "y" ? tile.period : dh;
+    const tileOffX = axis === "x" ? tile.phase : 0;
+    const tileOffY = axis === "y" ? tile.phase : 0;
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
     usedIds++;
     defsParts.push(
@@ -1532,31 +1360,36 @@ function renderBorderImageGradient(
     parts.push(`${indent}<rect x="${r(dx)}" y="${r(dy)}" width="${r(dw)}" height="${r(dh)}" fill="url(#${patId})" />`);
   };
 
-  // 4 corners — always stretched.
-  emitStretchedSlot(x0, y0, wl, wt, sxL, syT, sl, st); // NW
-  emitStretchedSlot(x2, y0, wr, wt, sxR, syT, sr, st); // NE
-  emitStretchedSlot(x0, y2, wl, wb, sxL, syB, sl, sb); // SW
-  emitStretchedSlot(x2, y2, wr, wb, sxR, syB, sr, sb); // SE
-  // Top + Bottom edges.
-  if (rH === "stretch") {
-    emitStretchedSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
-    emitStretchedSlot(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
-  } else {
-    emitTiledEdgeSlot(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH);
-    emitTiledEdgeSlot(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH);
-  }
-  // Left + Right edges.
-  if (rV === "stretch") {
-    emitStretchedSlot(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
-    emitStretchedSlot(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
-  } else {
-    emitTiledEdgeSlot(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV);
-    emitTiledEdgeSlot(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV);
-  }
-  // Center — only when `fill`.
-  if (fillCenter) {
-    emitStretchedSlot(x1, y1, x2 - x1, y2 - y1, sxC, syC, sxW_C, syH_C);
-  }
+  const emitTiledCenterSlot = (
+    slot: NinePieceSlot,
+    horizontal: NinePieceRepeat,
+    vertical: NinePieceRepeat,
+    scaleX: number,
+    scaleY: number,
+  ): void => {
+    const d = slot.destination;
+    const s = slot.source;
+    if (d.width <= 0 || d.height <= 0 || s.width <= 0 || s.height <= 0) return;
+    const xTile = ninePieceTileAxis(d.width, s.width * scaleX, horizontal);
+    const yTile = ninePieceTileAxis(d.height, s.height * scaleY, vertical);
+    if (xTile == null || yTile == null) return;
+    const patId = `${idPrefix}bip${clipIdx + usedIds++}`;
+    defsParts.push(
+      `<pattern id="${patId}" patternUnits="userSpaceOnUse" x="${r(d.x + xTile.phase)}" y="${r(d.y + yTile.phase)}" width="${r(xTile.period)}" height="${r(yTile.period)}">${innerSvgForSlot(0, 0, xTile.tile, yTile.tile, s.x, s.y, s.width, s.height)}</pattern>`,
+    );
+    parts.push(
+      `${indent}<rect x="${r(d.x)}" y="${r(d.y)}" width="${r(d.width)}" height="${r(d.height)}" fill="url(#${patId})" />`,
+    );
+  };
+
+  const args = ({ destination: d, source: s }: NinePieceSlot) =>
+    [d.x, d.y, d.width, d.height, s.x, s.y, s.width, s.height] as const;
+  paintNinePiece(parsed, {
+    stretch: (slot) => emitStretchedSlot(...args(slot)),
+    edge: (slot, axis, mode) => emitTiledEdgeSlot(...args(slot), axis, mode),
+    center: (slot, horizontal, vertical, scaleX, scaleY) =>
+      emitTiledCenterSlot(slot, horizontal, vertical, scaleX, scaleY),
+  });
 
   if (parts.length === 0) return { svg: "", usedIds: 0 };
   return { svg: parts.join("\n"), usedIds };
@@ -1601,71 +1434,30 @@ export function renderBorderImage(
   const natH = el.styles.borderImageIntrinsicHeight ?? 0;
   if (natW <= 0 || natH <= 0) return { svg: "", usedIds: 0 };
 
-  // Slice values: numbers are pixels (intrinsic image pixels). Percentages
-  // resolve against natW/natH. 'fill' keyword (anywhere) enables center.
-  const sliceRaw = el.styles.borderImageSlice ?? "100%";
-  const fillCenter = /\bfill\b/i.test(sliceRaw);
-  const sliceTokens = sliceRaw
-    .replace(/\bfill\b/i, "")
-    .trim()
-    .split(/\s+/);
-  const sliceNums = sliceTokens.map((t) => {
-    if (/%$/.test(t)) {
-      // First two tokens measure vertically (top/bottom from natH); next two horizontally (right/left from natW).
-      // We'll resolve per-side below using index.
-      return { pct: parseFloat(t) };
-    }
-    return { px: parseFloat(t) };
-  });
-  const st = resolveSlice(sliceNums[0] ?? { px: 0 }, natH);
-  const sr = resolveSlice(sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
-  const sb = resolveSlice(sliceNums[2] ?? sliceNums[0] ?? { px: 0 }, natH);
-  const sl = resolveSlice(sliceNums[3] ?? sliceNums[1] ?? sliceNums[0] ?? { px: 0 }, natW);
-
-  // Widths and outsets: CSS allows px/%/unitless. Unitless = multiplier of the
-  // element's border-width on that side. 'auto' = element's border-width.
+  // Widths and outsets use the shared nine-piece parser.
   const bwTop = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
   const bwRight = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
   const bwBottom = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
   const bwLeft = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-  const widthTokens = (el.styles.borderImageWidth ?? "").trim().split(/\s+/);
-  let wt = parseBorderImageLen(widthTokens[0], el.height, bwTop);
-  let wr = parseBorderImageLen(widthTokens[1] ?? widthTokens[0], el.width, bwRight);
-  let wb = parseBorderImageLen(widthTokens[2] ?? widthTokens[0], el.height, bwBottom);
-  let wl = parseBorderImageLen(widthTokens[3] ?? widthTokens[1] ?? widthTokens[0], el.width, bwLeft);
-
-  // Outsets: same parsing; default 0.
-  const outsetTokens = (el.styles.borderImageOutset ?? "0").trim().split(/\s+/);
-  const ot = parseOutset(outsetTokens[0], el.height, bwTop);
-  const or_ = parseOutset(outsetTokens[1] ?? outsetTokens[0], el.width, bwRight);
-  const ob = parseOutset(outsetTokens[2] ?? outsetTokens[0], el.height, bwBottom);
-  const ol = parseOutset(outsetTokens[3] ?? outsetTokens[1] ?? outsetTokens[0], el.width, bwLeft);
-
-  const grid = snapNinePieceDestinationGrid(
-    el.x - ol,
-    el.y - ot,
-    el.width + ol + or_,
-    el.height + ot + ob,
-    wl,
-    wr,
-    wt,
-    wb,
-  );
+  const parsed = parseNinePieceInputs({
+    box: { x: el.x, y: el.y, width: el.width, height: el.height },
+    borderWidths: { top: bwTop, right: bwRight, bottom: bwBottom, left: bwLeft },
+    sliceRaw: el.styles.borderImageSlice ?? "100%",
+    widthRaw: el.styles.borderImageWidth ?? "",
+    outsetRaw: el.styles.borderImageOutset ?? "0",
+    repeatRaw: el.styles.borderImageRepeat ?? "stretch",
+    intrinsic: { width: natW, height: natH },
+  });
+  if (parsed == null) return { svg: "", usedIds: 0 };
+  const { grid, slices, repeatH: rH, repeatV: rV } = parsed;
+  const { top: st, right: sr, bottom: sb, left: sl } = slices;
+  const { top: wt, right: wr, bottom: wb, left: wl } = grid;
   const { x: boxX, y: boxY, width: boxW, height: boxH } = grid;
-  ({ left: wl, right: wr, top: wt, bottom: wb } = grid);
-
-  // Repeat policy per axis (tokens order: H V; fallback: single token applies to both).
-  const repeatTokens = (el.styles.borderImageRepeat ?? "stretch").trim().split(/\s+/);
-  const rH = normalizeBorderImageRepeat((repeatTokens[0] ?? "stretch").toLowerCase());
-  const rV =
-    repeatTokens[1] != null && repeatTokens[1] !== "" ? normalizeBorderImageRepeat(repeatTokens[1].toLowerCase()) : rH;
 
   // Slot geometry (in element-absolute coords).
-  const x0 = boxX,
-    x1 = boxX + wl,
+  const x1 = boxX + wl,
     x2 = boxX + boxW - wr;
-  const y0 = boxY,
-    y1 = boxY + wt,
+  const y1 = boxY + wt,
     y2 = boxY + boxH - wb;
 
   // Corresponding source regions (in intrinsic image pixels).
@@ -1673,13 +1465,9 @@ export function renderBorderImage(
   //   NW = (0,0)-(sl,st); N = (sl,0)-(natW-sr,st); NE = (natW-sr,0)-(natW,st)
   //   W  = (0,st)-(sl,natH-sb); C = (sl,st)-(natW-sr,natH-sb); E = (natW-sr,st)-(natW,natH-sb)
   //   SW = (0,natH-sb)-(sl,natH); S = (sl,natH-sb)-(natW-sr,natH); SE = ...
-  const sxL = 0,
-    sxR = natW - sr,
-    sxC = sl,
+  const sxC = sl,
     sxW_C = natW - sl - sr;
-  const syT = 0,
-    syB = natH - sb,
-    syC = st,
+  const syC = st,
     syH_C = natH - st - sb;
 
   const parts: string[] = [];
@@ -1729,50 +1517,23 @@ export function renderBorderImage(
   ): void => {
     if (dwSlot <= 0 || dhSlot <= 0 || sw <= 0 || sh <= 0) return;
     // Natural tile size = source region scaled to match the slot's non-tiling dimension.
-    let tileW: number, tileH: number;
-    if (axis === "x") {
-      // Top / bottom edges: tile horizontally; non-tiling dim is height.
-      tileH = dhSlot;
-      tileW = sw * (dhSlot / sh);
-      if (mode === "round") {
-        const count = Math.max(1, Math.round(dwSlot / tileW));
-        tileW = dwSlot / count;
-      }
-    } else {
-      tileW = dwSlot;
-      tileH = sh * (dwSlot / sw);
-      if (mode === "round") {
-        const count = Math.max(1, Math.round(dhSlot / tileH));
-        tileH = dhSlot / count;
-      }
-    }
+    const tile =
+      axis === "x"
+        ? ninePieceTileAxis(dwSlot, sw * (dhSlot / sh), mode)
+        : ninePieceTileAxis(dhSlot, sh * (dwSlot / sw), mode);
+    if (tile == null) return;
+    const tileW = axis === "x" ? tile.tile : dwSlot;
+    const tileH = axis === "y" ? tile.tile : dhSlot;
     // Blink's CalculateSpaceNeeded distributes the remainder across N + 1
     // gaps: one full gap at each end and one between each pair of tiles. If
     // N === 0 no border is drawn for that side. The `<image>` inside the cell needs a
     // `<clipPath>` clipped to the slice region (0, 0, tileW, tileH) —
     // otherwise the image extends past the slice into the gap, painting
     // source pixels beyond the slice region instead of transparent gap.
-    let patternW = tileW,
-      patternH = tileH;
-    let patternX = dxSlot,
-      patternY = dySlot;
-    if (mode === "repeat") {
-      if (axis === "x") patternX += (dwSlot - tileW) / 2;
-      else patternY += (dhSlot - tileH) / 2;
-    }
-    if (mode === "space") {
-      if (axis === "x") {
-        const tiling = borderImageSpaceTiling(dwSlot, tileW);
-        if (tiling == null) return;
-        patternW = tiling.period;
-        patternX = dxSlot + tiling.spacing;
-      } else {
-        const tiling = borderImageSpaceTiling(dhSlot, tileH);
-        if (tiling == null) return;
-        patternH = tiling.period;
-        patternY = dySlot + tiling.spacing;
-      }
-    }
+    const patternW = axis === "x" ? tile.period : dwSlot;
+    const patternH = axis === "y" ? tile.period : dhSlot;
+    const patternX = dxSlot + (axis === "x" ? tile.phase : 0);
+    const patternY = dySlot + (axis === "y" ? tile.phase : 0);
     const patId = `${idPrefix}bip${clipIdx + usedIds}`;
     usedIds++;
     const scaleX = tileW / sw,
@@ -1786,94 +1547,30 @@ export function renderBorderImage(
     );
   };
 
-  // Corners: always stretched (CSS spec).
-  emitStretchedSlice(x0, y0, wl, wt, sxL, syT, sl, st); // NW
-  emitStretchedSlice(x2, y0, wr, wt, sxR, syT, sr, st); // NE
-  emitStretchedSlice(x0, y2, wl, wb, sxL, syB, sl, sb); // SW
-  emitStretchedSlice(x2, y2, wr, wb, sxR, syB, sr, sb); // SE
-
-  // Top + Bottom edges (horizontal axis).
-  if (rH === "stretch") {
-    emitStretchedSlice(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st);
-    emitStretchedSlice(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb);
-  } else {
-    emitTiledSliceEdge(x1, y0, x2 - x1, wt, sxC, syT, sxW_C, st, "x", rH);
-    emitTiledSliceEdge(x1, y2, x2 - x1, wb, sxC, syB, sxW_C, sb, "x", rH);
-  }
-  // Left + Right edges (vertical axis).
-  if (rV === "stretch") {
-    emitStretchedSlice(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C);
-    emitStretchedSlice(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C);
-  } else {
-    emitTiledSliceEdge(x0, y1, wl, y2 - y1, sxL, syC, sl, syH_C, "y", rV);
-    emitTiledSliceEdge(x2, y1, wr, y2 - y1, sxR, syC, sr, syH_C, "y", rV);
-  }
+  const args = ({ destination: d, source: s }: NinePieceSlot) =>
+    [d.x, d.y, d.width, d.height, s.x, s.y, s.width, s.height] as const;
   // Center (only if `fill`). Per CSS Backgrounds 3 §6.1.3 the middle slice
   // is tiled in both directions when `border-image-repeat` is non-stretch,
   // using the SAME tile sizing as the corresponding edge — horizontal axis
   // matches the top edge derivation (tileW_natural = sxW_C × wt / st),
   // vertical matches the left edge derivation (tileH_natural = syH_C × wl / sl).
   // Single stretched <image> for stretch×stretch; otherwise a 2D <pattern>.
-  if (fillCenter) {
+  const emitCenterSlice = (centerSlot: NinePieceSlot): void => {
     const dwCenter = x2 - x1;
     const dhCenter = y2 - y1;
-    if (rH === "stretch" && rV === "stretch") {
-      emitStretchedSlice(x1, y1, dwCenter, dhCenter, sxC, syC, sxW_C, syH_C);
-    } else if (dwCenter > 0 && dhCenter > 0 && sxW_C > 0 && syH_C > 0 && st > 0 && sl > 0) {
+    if (dwCenter > 0 && dhCenter > 0 && sxW_C > 0 && syH_C > 0 && st > 0 && sl > 0) {
       // Per-axis tile size.
       const tileWNatural = sxW_C * (wt / st);
       const tileHNatural = syH_C * (wl / sl);
-      let tileW: number, tileH: number;
-      let patternW: number, patternH: number;
-      let tileOffX = 0,
-        tileOffY = 0;
-      // Horizontal.
-      if (rH === "stretch") {
-        tileW = dwCenter;
-        patternW = dwCenter;
-      } else if (rH === "round") {
-        const count = Math.max(1, Math.round(dwCenter / tileWNatural));
-        tileW = dwCenter / count;
-        patternW = tileW;
-      } else if (rH === "space") {
-        const tiling = borderImageSpaceTiling(dwCenter, tileWNatural);
-        if (tiling == null) {
-          tileW = 0;
-          patternW = 0;
-        } else {
-          tileW = tileWNatural;
-          patternW = tiling.period;
-          tileOffX = tiling.spacing;
-        }
-      } else {
-        // "repeat"
-        tileW = tileWNatural;
-        patternW = tileWNatural;
-        tileOffX = (dwCenter - tileW) / 2;
-      }
-      // Vertical.
-      if (rV === "stretch") {
-        tileH = dhCenter;
-        patternH = dhCenter;
-      } else if (rV === "round") {
-        const count = Math.max(1, Math.round(dhCenter / tileHNatural));
-        tileH = dhCenter / count;
-        patternH = tileH;
-      } else if (rV === "space") {
-        const tiling = borderImageSpaceTiling(dhCenter, tileHNatural);
-        if (tiling == null) {
-          tileH = 0;
-          patternH = 0;
-        } else {
-          tileH = tileHNatural;
-          patternH = tiling.period;
-          tileOffY = tiling.spacing;
-        }
-      } else {
-        tileH = tileHNatural;
-        patternH = tileHNatural;
-        tileOffY = (dhCenter - tileH) / 2;
-      }
+      const xTile = ninePieceTileAxis(dwCenter, tileWNatural, rH);
+      const yTile = ninePieceTileAxis(dhCenter, tileHNatural, rV);
+      if (xTile == null || yTile == null) return;
+      const tileW = xTile.tile,
+        tileH = yTile.tile;
+      const patternW = xTile.period,
+        patternH = yTile.period;
+      const tileOffX = xTile.phase,
+        tileOffY = yTile.phase;
       if (tileW > 0 && tileH > 0 && patternW > 0 && patternH > 0) {
         const patId = `${idPrefix}bipc${clipIdx + usedIds}`;
         usedIds++;
@@ -1895,7 +1592,13 @@ export function renderBorderImage(
         );
       }
     }
-  }
+  };
+
+  paintNinePiece(parsed, {
+    stretch: (slot) => emitStretchedSlice(...args(slot)),
+    edge: (slot, axis, mode) => emitTiledSliceEdge(...args(slot), axis, mode),
+    center: (slot) => emitCenterSlice(slot),
+  });
 
   return { svg: parts.join("\n"), usedIds };
 }

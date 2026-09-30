@@ -5572,6 +5572,26 @@
       }
     },
     {
+      "file": "263-nine-piece-image-paint.md",
+      "metadata": {
+        "id": "requirements/nine-piece-image-paint",
+        "title": "263 — Shared nine-piece border and mask image paint",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["paint-effects"],
+        "platforms": [],
+        "tickets": ["DM-PQN8QN"],
+        "code": [
+          "src/render/nine-piece.ts",
+          "src/render/nine-piece.test.ts",
+          "src/render/borders.ts",
+          "src/render/mask.ts",
+          "tests/features.ts"
+        ],
+        "aliases": ["docs/263-nine-piece-image-paint.md", "doc-263"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6014,6 +6034,7 @@
     "260": ["requirements/inline-svg-real-text-layer"],
     "261": ["requirements/system-font-render-text-mode"],
     "262": ["requirements/text-engine-session-boundary"],
+    "263": ["requirements/nine-piece-image-paint"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],
