@@ -4,7 +4,6 @@ import { parseColor, colorStr, sameColor } from "./colors.js";
 import {
   parseSide,
   parseCornerRadii,
-  dashArrayForStyle,
   renderBorderImage,
   insetCornerRadii,
   roundedRectPath,
@@ -15,92 +14,75 @@ import {
   doubleBorderStripeGeometry,
   pixelSnappedBorderReferenceRect,
   uniformDoubleBorderStripeBoxes,
-  selectBestDashGap,
   type CornerRadii,
 } from "./borders.js";
-import { adjustedDashAttrs, paintThinDottedLine } from "./outline-paint.js";
+import { paintThinDottedLine } from "./outline-paint.js";
+import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 import type { PaintCtx } from "./element-tree-to-svg.js";
 
-// 3D bevel border (DM-280): groove / ridge / inset / outset. Each side is a
-// trapezoid polygon so the shade pairs miter cleanly at corners; groove/ridge
-// split each trapezoid into outer/inner halves with inverted shades. Extracted
-// from paintBorder's uniform branch (DM-1342) — pure code move, byte-identical.
+type BevelSide = "top" | "right" | "bottom" | "left";
+type BevelColor = { r: number; g: number; b: number; a: number };
+
+/** Chromium BoxBorderPainter darkens the base color to two thirds per channel. */
+export function bevelShades(color: BevelColor, style: string, side: BevelSide): { outer: string; inner: string } {
+  const dark = colorStr({
+    r: Math.round((color.r * 2) / 3),
+    g: Math.round((color.g * 2) / 3),
+    b: Math.round((color.b * 2) / 3),
+    a: color.a,
+  });
+  const light = colorStr(color);
+  const topLeft = side === "top" || side === "left";
+  const outerLight = (style === "ridge" || style === "outset") === topLeft;
+  return { outer: outerLight ? light : dark, inner: outerLight ? dark : light };
+}
+
+/** Full and split trapezoids share one border-box geometry for every bevel side. */
+export function bevelSidePolygons(
+  el: CapturedElement,
+  w: number,
+): Record<BevelSide, { full: string; outer: string; inner: string }> {
+  const x0 = el.x,
+    y0 = el.y,
+    x1 = el.x + el.width,
+    y1 = el.y + el.height;
+  const h = w / 2;
+  return {
+    top: {
+      full: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
+      outer: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - h)},${r(y0 + h)} ${r(x0 + h)},${r(y0 + h)}`,
+      inner: `${r(x0 + h)},${r(y0 + h)} ${r(x1 - h)},${r(y0 + h)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
+    },
+    right: {
+      full: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
+      outer: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - h)},${r(y1 - h)} ${r(x1 - h)},${r(y0 + h)}`,
+      inner: `${r(x1 - h)},${r(y0 + h)} ${r(x1 - h)},${r(y1 - h)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
+    },
+    bottom: {
+      full: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
+      outer: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - h)},${r(y1 - h)} ${r(x0 + h)},${r(y1 - h)}`,
+      inner: `${r(x0 + h)},${r(y1 - h)} ${r(x1 - h)},${r(y1 - h)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
+    },
+    left: {
+      full: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
+      outer: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + h)},${r(y1 - h)} ${r(x0 + h)},${r(y0 + h)}`,
+      inner: `${r(x0 + h)},${r(y0 + h)} ${r(x0 + h)},${r(y1 - h)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
+    },
+  };
+}
+
 export function paintBevelBorder(
   ctx: PaintCtx,
   el: CapturedElement,
   indent: string,
   bt: NonNullable<ReturnType<typeof parseSide>>,
 ): void {
-  const style = bt.style;
-  const w = bt.w;
-  const x0 = el.x,
-    y0 = el.y;
-  const x1 = el.x + el.width,
-    y1 = el.y + el.height;
-  // Match Chromium's BoxBorderPainter: darker = base × 2/3 per channel,
-  // lighter = the base color itself (no actual lightening). The
-  // earlier symmetric ±22% lightness shift in HSL space produced too
-  // much contrast vs Chromium's painted output (DM-293).
-  const darker = colorStr({
-    r: Math.round((bt.color.r * 2) / 3),
-    g: Math.round((bt.color.g * 2) / 3),
-    b: Math.round((bt.color.b * 2) / 3),
-    a: bt.color.a,
+  paintMixedBevelBorder(ctx, el, indent, bt.w, bt.color, {
+    top: bt.style,
+    right: bt.style,
+    bottom: bt.style,
+    left: bt.style,
   });
-  const lighter = colorStr(bt.color);
-  // tl = top + left (sharing one shade); br = bottom + right (other shade).
-  const tlIsLighter = style === "outset" || style === "ridge";
-  const tlColor = tlIsLighter ? lighter : darker;
-  const brColor = tlIsLighter ? darker : lighter;
-  // Trapezoid polygons for each side. Outer corners are the captured
-  // border-box corners; inner corners are inset by w on each axis.
-  const topPoly = `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`;
-  const rightPoly = `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`;
-  const bottomPoly = `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`;
-  const leftPoly = `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`;
-  if (style === "inset" || style === "outset") {
-    ctx.svgParts.push(`${indent}<polygon points="${topPoly}" fill="${tlColor}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${leftPoly}" fill="${tlColor}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${rightPoly}" fill="${brColor}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${bottomPoly}" fill="${brColor}" />`);
-  } else {
-    // Groove / ridge: split each trapezoid horizontally in half so the
-    // outer half and inner half can carry inverse shades. The mid-line
-    // for the top trapezoid runs from (x0+w/2, y0+w/2) to
-    // (x1-w/2, y0+w/2) — i.e., w/2 inset on every axis.
-    const halfW = w / 2;
-    const xa = x0,
-      xb = x1,
-      ya = y0,
-      yb = y1;
-    // Outer halves: top, right, bottom, left — each is a 4-pt polygon.
-    const topOuter = `${r(xa)},${r(ya)} ${r(xb)},${r(ya)} ${r(xb - halfW)},${r(ya + halfW)} ${r(xa + halfW)},${r(ya + halfW)}`;
-    const rightOuter = `${r(xb)},${r(ya)} ${r(xb)},${r(yb)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xb - halfW)},${r(ya + halfW)}`;
-    const bottomOuter = `${r(xa)},${r(yb)} ${r(xb)},${r(yb)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xa + halfW)},${r(yb - halfW)}`;
-    const leftOuter = `${r(xa)},${r(ya)} ${r(xa)},${r(yb)} ${r(xa + halfW)},${r(yb - halfW)} ${r(xa + halfW)},${r(ya + halfW)}`;
-    // Inner halves: top, right, bottom, left.
-    const topInner = `${r(xa + halfW)},${r(ya + halfW)} ${r(xb - halfW)},${r(ya + halfW)} ${r(xb - w)},${r(ya + w)} ${r(xa + w)},${r(ya + w)}`;
-    const rightInner = `${r(xb - halfW)},${r(ya + halfW)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xb - w)},${r(yb - w)} ${r(xb - w)},${r(ya + w)}`;
-    const bottomInner = `${r(xa + halfW)},${r(yb - halfW)} ${r(xb - halfW)},${r(yb - halfW)} ${r(xb - w)},${r(yb - w)} ${r(xa + w)},${r(yb - w)}`;
-    const leftInner = `${r(xa + halfW)},${r(ya + halfW)} ${r(xa + halfW)},${r(yb - halfW)} ${r(xa + w)},${r(yb - w)} ${r(xa + w)},${r(ya + w)}`;
-    // groove: outer is darker on top+left, lighter on bottom+right
-    // (carved-in look); inner is the inverse so the inside of the
-    // groove brightens on top+left.
-    // ridge:  outer is lighter on top+left, darker on bottom+right
-    // (raised look); inner is the inverse.
-    const outerTL = style === "ridge" ? lighter : darker;
-    const outerBR = style === "ridge" ? darker : lighter;
-    const innerTL = outerBR;
-    const innerBR = outerTL;
-    ctx.svgParts.push(`${indent}<polygon points="${topOuter}" fill="${outerTL}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${leftOuter}" fill="${outerTL}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${rightOuter}" fill="${outerBR}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${bottomOuter}" fill="${outerBR}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${topInner}" fill="${innerTL}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${leftInner}" fill="${innerTL}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${rightInner}" fill="${innerBR}" />`);
-    ctx.svgParts.push(`${indent}<polygon points="${bottomInner}" fill="${innerBR}" />`);
-  }
 }
 
 // The four CSS border styles that paint a light/dark 3D bevel.
@@ -124,64 +106,29 @@ function paintMixedBevelBorder(
   color: { r: number; g: number; b: number; a: number },
   styles: { top: string; right: string; bottom: string; left: string },
 ): void {
-  const x0 = el.x,
-    y0 = el.y,
-    x1 = el.x + el.width,
-    y1 = el.y + el.height;
-  const darker = colorStr({
-    r: Math.round((color.r * 2) / 3),
-    g: Math.round((color.g * 2) / 3),
-    b: Math.round((color.b * 2) / 3),
-    a: color.a,
-  });
-  const lighter = colorStr(color);
-  const halfW = w / 2;
-  // Full trapezoids (inset/outset) + outer/inner halves (groove/ridge) — same
-  // geometry as paintBevelBorder, keyed per side.
-  const full = {
-    top: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
-    right: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
-    bottom: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
-    left: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
-  };
-  const outer = {
-    top: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - halfW)},${r(y0 + halfW)} ${r(x0 + halfW)},${r(y0 + halfW)}`,
-    right: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x1 - halfW)},${r(y0 + halfW)}`,
-    bottom: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x0 + halfW)},${r(y1 - halfW)}`,
-    left: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + halfW)},${r(y1 - halfW)} ${r(x0 + halfW)},${r(y0 + halfW)}`,
-  };
-  const inner = {
-    top: `${r(x0 + halfW)},${r(y0 + halfW)} ${r(x1 - halfW)},${r(y0 + halfW)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
-    right: `${r(x1 - halfW)},${r(y0 + halfW)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
-    bottom: `${r(x0 + halfW)},${r(y1 - halfW)} ${r(x1 - halfW)},${r(y1 - halfW)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
-    left: `${r(x0 + halfW)},${r(y0 + halfW)} ${r(x0 + halfW)},${r(y1 - halfW)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
-  };
+  const polygons = bevelSidePolygons(el, w);
   for (const side of ["top", "right", "bottom", "left"] as const) {
     const style = styles[side];
-    const isTL = side === "top" || side === "left";
+    const shades = bevelShades(color, style, side);
+    const shape = polygons[side];
     if (style === "inset" || style === "outset") {
-      const fill = style === "outset" ? (isTL ? lighter : darker) : isTL ? darker : lighter;
-      ctx.svgParts.push(`${indent}<polygon points="${full[side]}" fill="${fill}" />`);
+      ctx.svgParts.push(`${indent}<polygon points="${shape.full}" fill="${shades.outer}" />`);
     } else {
-      // groove / ridge: outer + inner halves carry inverse shades (matches the
-      // uniform path's TL/BR grouping, applied per-side).
-      const outerFill = style === "ridge" ? (isTL ? lighter : darker) : isTL ? darker : lighter;
-      const innerFill = style === "ridge" ? (isTL ? darker : lighter) : isTL ? lighter : darker;
-      ctx.svgParts.push(`${indent}<polygon points="${outer[side]}" fill="${outerFill}" />`);
-      ctx.svgParts.push(`${indent}<polygon points="${inner[side]}" fill="${innerFill}" />`);
+      ctx.svgParts.push(`${indent}<polygon points="${shape.outer}" fill="${shades.outer}" />`);
+      ctx.svgParts.push(`${indent}<polygon points="${shape.inner}" fill="${shades.inner}" />`);
     }
   }
 }
 
-// Uniform `double` border: two parallel strokes each 1/3 of border-width with a
-// 1/3 gap, collapse-aware. Extracted from paintBorder (DM-1342) — byte-identical.
+// Uniform `double` border: two parallel strokes each 1/3 of border width with a
+// 1/3 gap, using the collapse mode resolved by paintBorder.
 function paintUniformDoubleBorder(
   ctx: PaintCtx,
   el: CapturedElement,
   indent: string,
   corners: ReturnType<typeof parseCornerRadii>,
   bt: NonNullable<ReturnType<typeof parseSide>>,
-  offGridCollapsedCells: Set<CapturedElement>,
+  collapse: boolean,
 ): void {
   // CSS double border: two parallel strokes each 1/3 of border-width,
   // separated by 1/3 gap. Our captured rect is the border box (outer
@@ -195,7 +142,6 @@ function paintUniformDoubleBorder(
   // by bt.w/2 in collapse mode (Blink's
   // `CollapsedBorderPainter::PaintCollapsedBorders` centers the
   // collapsed-border rect on the grid line).
-  const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   const collapseShift = collapse ? bt.w / 2 : 0;
   // BoxBorderPainter initializes one pixel-snapped outer contour, then derives
   // both uniform-double stripe contours from integer outsets of that reference.
@@ -229,17 +175,16 @@ function paintUniformDashedDottedBorder(
   el: CapturedElement,
   indent: string,
   bt: NonNullable<ReturnType<typeof parseSide>>,
-  offGridCollapsedCells: Set<CapturedElement>,
+  collapse: boolean,
 ): void {
   const style = bt.style;
-  const thinDotted = style === "dotted" && Math.round(bt.w) <= 3;
+  const thinDotted = style === "dotted" && isThinDotted(bt.w);
   // Dashed/dotted uniform borders need per-side dash spacing — Chrome
   // adjusts the dash cycle so dashes start and end exactly at corners.
   // SVG `stroke-dasharray` on a single rect would use ONE pattern across
   // all 4 sides, but the top/bottom and left/right have different
   // lengths, so the pattern would mis-align at every corner. Emit 4
   // lines instead so each side gets its own adjusted pattern.
-  const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   const inset = collapse ? 0 : bt.w / 2;
   // Chromium has two dotted branches: widths 1--3 use square {w,w}
   // intervals plus explicit endpoint dots; thicker strokes use zero-length
@@ -258,7 +203,7 @@ function paintUniformDashedDottedBorder(
   //   • Thick dotted: Chromium's `DrawLineWithStyle` moves the
   //     line endpoints IN by width/2 before stroking round-dotted
   //     lines so the round endcap fits inside the line. Matching
-  //     that is necessary for `adjustedDashAttrs` (which assumes a
+  //     that is necessary for `openDashArray` (which assumes a
   //     post-move sideLength) to compute Chrome-equivalent dot
   //     centers. The adjacent sides' first dots overlap at the
   //     corner, producing one visible corner dot. (DM-805.)
@@ -288,7 +233,7 @@ function paintUniformDashedDottedBorder(
       ctx.svgParts.push(...paintThinDottedLine(x1, y1, x2, y2, bt.w, colorStr(bt.color), indent));
       continue;
     }
-    const { array: dash, offset } = adjustedDashAttrs(style, bt.w, len);
+    const dash = openDashArray(style, bt.w, len);
     // DM-912: the dash math computes pattern positions from `len` (the
     // OUTER corner-to-corner length, e.g. 300 for a 10 px border on a
     // 300 px box), but the SVG `<line>` is drawn from the INNER
@@ -299,7 +244,7 @@ function paintUniformDashedDottedBorder(
     // `stroke-dashoffset` equal to `cornerTrim` rewinds the pattern
     // so the visible portion aligns with Chrome's per-edge dash
     // positions.
-    const phaseOffset = cornerTrim > 0 ? offset + cornerTrim : offset;
+    const phaseOffset = cornerTrim;
     const dashAttrs =
       dash !== ""
         ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}`
@@ -335,19 +280,16 @@ function createContouredRingMask(
   return maskId;
 }
 
-// Uniform solid border (also the fallback for dashed/dotted with rounded corners
-// or non-uniform radii): a single inset, device-pixel-rounded rounded-rect stroke.
-// Extracted from paintBorder (DM-1342) — byte-identical.
+// Uniform solid border, also used for dashed/dotted rounded contours: a single
+// inset, device-pixel-rounded rounded-rect stroke.
 function paintUniformSolidBorder(
   ctx: PaintCtx,
   el: CapturedElement,
   indent: string,
   corners: ReturnType<typeof parseCornerRadii>,
   bt: NonNullable<ReturnType<typeof parseSide>>,
-  offGridCollapsedCells: Set<CapturedElement>,
+  collapse: boolean,
 ): void {
-  const dash = dashArrayForStyle(bt.style, bt.w);
-  const linecap = "";
   // CSS paints borders INSIDE the border-box. SVG strokes are centered on
   // the path, so half would spill outside. Inset the rect by half the
   // stroke width so the stroke sits entirely inside the element box.
@@ -358,10 +300,8 @@ function paintUniformSolidBorder(
   // Centered painting (no inset) lets the two cells' borders overlap
   // exactly, producing a single 1px line — matching Chrome's collapsed
   // table grid.
-  const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   const half = collapse ? 0 : bt.w / 2;
   const strokeCorners = insetCornerRadii(corners, half, half, half, half);
-  const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
   // Chrome paints borders aligned to device pixels: it rounds the box
   // edges to integers before stroking. Our captured `el.x / el.y` are
   // fractional from `getBoundingClientRect()`, so emitting the stroke
@@ -375,6 +315,17 @@ function paintUniformSolidBorder(
   const boxTop = collapse ? el.y : Math.round(el.y);
   const boxRight = collapse ? el.x + el.width : Math.round(el.x + el.width);
   const boxBottom = collapse ? el.y + el.height : Math.round(el.y + el.height);
+  const dash = closedDashArray(
+    bt.style,
+    bt.w,
+    roundedRectPerimeter(
+      Math.max(0, boxRight - boxLeft - half * 2),
+      Math.max(0, boxBottom - boxTop - half * 2),
+      strokeCorners,
+    ),
+  );
+  const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+  const linecap = bt.style === "dotted" && !isThinDotted(bt.w) ? ` stroke-linecap="round"` : "";
   const hasNonRoundContour = corners.curvature != null && Object.values(corners.curvature).some((value) => value !== 2);
   // Blink paints non-round borders as the area between its outer and aligned
   // inner ContouredRects. An SVG centerline stroke cannot represent a concave
@@ -425,7 +376,7 @@ export function paintCollapsedBorderRects(ctx: PaintCtx, el: CapturedElement, in
       );
       continue;
     }
-    if (rect.style === "double" && thickness >= 3) {
+    if (rect.style === "double" && thickness >= DOUBLE_MIN_WIDTH) {
       const stripe = thickness / 3;
       if (horizontal) {
         ctx.svgParts.push(
@@ -449,10 +400,9 @@ export function paintCollapsedBorderRects(ctx: PaintCtx, el: CapturedElement, in
       ctx.defsParts.push(
         `<clipPath id="${clipId}"><rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"/></clipPath>`,
       );
-      const { array, offset } = adjustedDashAttrs(rect.style, thickness, length);
-      const dash =
-        array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
-      const cap = rect.style === "dotted" ? ` stroke-linecap="round"` : "";
+      const array = openDashArray(rect.style, thickness, length);
+      const dash = array !== "" ? ` stroke-dasharray="${array}"` : "";
+      const cap = rect.style === "dotted" && !isThinDotted(thickness) ? ` stroke-linecap="round"` : "";
       const x1 = horizontal ? rect.x : rect.x + thickness / 2;
       const y1 = horizontal ? rect.y + thickness / 2 : rect.y;
       const x2 = horizontal ? rect.x + rect.width : x1;
@@ -463,14 +413,9 @@ export function paintCollapsedBorderRects(ctx: PaintCtx, el: CapturedElement, in
       continue;
     }
     if (isBevelStyle(rect.style)) {
-      const dark = colorStr({
-        r: Math.round((color.r * 2) / 3),
-        g: Math.round((color.g * 2) / 3),
-        b: Math.round((color.b * 2) / 3),
-        a: color.a,
-      });
-      const first = rect.style === "outset" || rect.style === "ridge" ? fill : dark;
-      const second = rect.style === "groove" || rect.style === "ridge" ? (first === fill ? dark : fill) : first;
+      const shades = bevelShades(color, rect.style, "top");
+      const first = shades.outer;
+      const second = rect.style === "groove" || rect.style === "ridge" ? shades.inner : first;
       if (rect.style === "inset" || rect.style === "outset") {
         ctx.svgParts.push(
           `${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}" fill="${first}" />`,
@@ -516,6 +461,7 @@ export function paintBorder(
     : renderBorderImage(el, indent, ctx.idPrefix, ctx.defsParts, ctx.peekClipIdx());
   if (borderImageMarkup.usedIds > 0) ctx.advanceClipIdx(borderImageMarkup.usedIds);
   const borderImagePainted = borderImageMarkup.svg !== "";
+  const borderCollapseMode = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   if (borderImagePainted) ctx.svgParts.push(borderImageMarkup.svg);
 
   // Border — uniform or per-side. Skipped when a border-image painted above.
@@ -568,14 +514,14 @@ export function paintBorder(
     // Border visual came from border-image. Skip the plain-border emission.
   } else if (uniform && bt != null && bt.w > 0) {
     const style = bt.style;
-    if (style === "double" && bt.w >= 3) {
-      paintUniformDoubleBorder(ctx, el, indent, corners, bt, offGridCollapsedCells);
+    if (style === "double" && bt.w >= DOUBLE_MIN_WIDTH) {
+      paintUniformDoubleBorder(ctx, el, indent, corners, bt, borderCollapseMode);
     } else if ((style === "groove" || style === "ridge" || style === "inset" || style === "outset") && bt.w >= 1) {
       paintBevelBorder(ctx, el, indent, bt);
     } else if ((style === "dashed" || style === "dotted") && corners.uniform && corners.tl.h === 0) {
-      paintUniformDashedDottedBorder(ctx, el, indent, bt, offGridCollapsedCells);
+      paintUniformDashedDottedBorder(ctx, el, indent, bt, borderCollapseMode);
     } else {
-      paintUniformSolidBorder(ctx, el, indent, corners, bt, offGridCollapsedCells);
+      paintUniformSolidBorder(ctx, el, indent, corners, bt, borderCollapseMode);
     }
   } else if (!uniform) {
     // Mixed per-side 3D bevel (e.g. ridge top/bottom + groove left/right): same
@@ -609,7 +555,7 @@ export function paintBorder(
         left: bl.style,
       });
     } else {
-      paintPerSideBorder(ctx, el, indent, corners, bt, br, bb, bl, offGridCollapsedCells);
+      paintPerSideBorder(ctx, el, indent, corners, bt, br, bb, bl, borderCollapseMode);
     }
   } else if (borderWidth > 0 && borderColor != null && borderColor.a > 0.01) {
     // Legacy path for elements whose per-side captures weren't parsed cleanly.
@@ -624,44 +570,53 @@ export function paintBorder(
 // Per-side border (mixed widths / styles / colors): the highest-coupling border
 // strategy. Solid sides become mitered trapezoids (or annular wedges when the box
 // has rounded corners); double/dashed/dotted sides become clipped <line>s. Mints
-// many per-side clip ids via ctx. Extracted verbatim from paintBorder (DM-1342) —
-// byte-identical (only `'\''` comment-escape artifacts cleaned to `'`).
+// many per-side clip ids via ctx.
+interface SideGeometry {
+  side: ReturnType<typeof parseSide>;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  length: number;
+  polygon: string;
+  doubleNormals: readonly [number, number, number, number];
+}
+
+/** Blink's raster clip expands curved side strokes by this width multiple.
+ * SVG clips the logical border ring directly, so the overdraw stays out of
+ * the emitted SVG stroke width (doc 127). */
+export const BLINK_CURVED_BORDER_CLIP_OVERDRAW = 2.2;
+
 /**
- * Emit ONE per-side border (extracted from `paintPerSideBorder`'s main emit
- * loop, DM-1458; called once per side index). Solid sides without a rounded
+ * Emit one per-side border. Solid sides without a rounded
  * corner paint as a mitered trapezoid <polygon>; `double` sides paint two
  * parallel inset/outset <line> strokes; dashed / dotted / solid-collapsed sides
  * paint a single <line> with the right dash + linecap. Sides with a rounded
- * outer corner are skipped here — they were already emitted as annular wedges
- * by the caller. Body unchanged (the loop's `continue` becomes an early
- * `return`), so output is byte-identical.
+ * outer corner are skipped here because the caller already emitted annular wedges.
  */
 function emitBorderSide(
   ctx: PaintCtx,
   indent: string,
-  i: number,
-  sides: Array<[ReturnType<typeof parseSide>, number, number, number, number, number]>,
-  trapezoids: Array<[ReturnType<typeof parseSide>, string]>,
-  doubleSides: Array<[number, number, number, number]>,
-  useTrapezoid: (side: ReturnType<typeof parseSide>) => boolean,
+  geometry: SideGeometry,
+  collapse: boolean,
   hasOuterRadius: boolean,
   curvedStyledSide: boolean,
-  sideClipForStyle: (i: number, side: ReturnType<typeof parseSide>) => string,
+  sideClipForStyle: (geometry: SideGeometry) => string,
 ): void {
-  const [side, x1, y1, x2, y2, len] = sides[i];
+  const { side, x1, y1, x2, y2, length: len } = geometry;
   if (side == null || side.w <= 0 || side.color.a < 0.01) return;
   if (side.style === "none" || side.style === "hidden") return;
   if (curvedStyledSide && (side.style === "dashed" || side.style === "dotted")) return;
-  if (useTrapezoid(side)) {
+  if (!collapse && side.style === "solid") {
     // DM-773: solid sides with rounded corners already emitted as
     // annular wedges above (geometry-correct for any radius). Skip
     // the legacy trapezoid emit so we don't double-paint.
     if (hasOuterRadius) return;
     // Emit as a polygon trapezoid that tapers correctly at corners.
-    ctx.svgParts.push(`${indent}<polygon points="${trapezoids[i][1]}" fill="${colorStr(side.color)}" />`);
+    ctx.svgParts.push(`${indent}<polygon points="${geometry.polygon}" fill="${colorStr(side.color)}" />`);
     return;
   }
-  if (side.style === "double" && side.w >= 3) {
+  if (side.style === "double" && side.w >= DOUBLE_MIN_WIDTH) {
     // Two parallel strokes, each w/3 wide, separated by a w/3 gap.
     // Outer stroke center sits at (sideCenter + outerNormal * w/3),
     // inner at (sideCenter + innerNormal * w/3). Each stroke = w/3 thick.
@@ -673,12 +628,12 @@ function emitBorderSide(
     // and the inner stroke 1/3 of the way inside — matching Blink's
     // `CollapsedBorderPainter::PaintCollapsedDoubleBorder`.
     const { stripe: strokeW, offset: offset_ } = doubleBorderStripeGeometry(side.w);
-    const [oxN, oyN, ixN, iyN] = doubleSides[i];
+    const [oxN, oyN, ixN, iyN] = geometry.doubleNormals;
     const ox = oxN * offset_,
       oy = oyN * offset_;
     const ix = ixN * offset_,
       iy = iyN * offset_;
-    const clipAttr = sideClipForStyle(i, side);
+    const clipAttr = sideClipForStyle(geometry);
     ctx.svgParts.push(
       `${indent}<line x1="${r(x1 + ox)}" y1="${r(y1 + oy)}" x2="${r(x2 + ox)}" y2="${r(y2 + oy)}" stroke="${colorStr(side.color)}" stroke-width="${r(strokeW)}"${clipAttr} />`,
     );
@@ -687,7 +642,7 @@ function emitBorderSide(
     );
     return;
   }
-  const thinDotted = side.style === "dotted" && Math.round(side.w) <= 3;
+  const thinDotted = side.style === "dotted" && isThinDotted(side.w);
   const thickDotted = side.style === "dotted" && !thinDotted;
   const vertical = x1 === x2;
   // Blink computes the dash effect from the full side length. Only after that
@@ -699,14 +654,14 @@ function emitBorderSide(
   const drawY1 = vertical ? y1 + endpointInset : y1;
   const drawX2 = vertical ? x2 : x2 - endpointInset;
   const drawY2 = vertical ? y2 - endpointInset : y2;
-  const { array: dash, offset } = adjustedDashAttrs(side.style, side.w, len);
+  const dash = openDashArray(side.style, side.w, len);
   // Dotted uses `0.01 period` dasharray that needs round linecaps to
   // render as circles (DM-399). Chromium's BoxBorderPainter draws
   // dotted as "0 length dash strokes and round endcaps, producing
   // circles" (verified via Chromium source). Dashed keeps default
   // butt caps so the dash:gap ratio paints flat-ended rectangles.
-  const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
-  const clipAttr = sideClipForStyle(i, side);
+  const linecap = side.style === "dotted" && !isThinDotted(side.w) ? ` stroke-linecap="round"` : "";
+  const clipAttr = sideClipForStyle(geometry);
   if (thinDotted) {
     ctx.svgParts.push(
       ...paintThinDottedLine(x1, y1, x2, y2, side.w, colorStr(side.color), indent).map((markup) =>
@@ -715,16 +670,7 @@ function emitBorderSide(
     );
     return;
   }
-  // The gap is selected from the full side, but Skia starts the dash phase at
-  // DrawLineWithStyle's already-inset endpoint. Rewinding by `endpointInset`
-  // invents a corner-centered dot and shifts every interior dot left/up; the
-  // mixed 6px bottom border visibly demonstrates that error. Keep only an
-  // explicit style-owned phase (currently zero for this branch).
-  const phaseOffset = offset;
-  const dashAttrs =
-    dash !== ""
-      ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}`
-      : "";
+  const dashAttrs = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
   ctx.svgParts.push(
     `${indent}<line x1="${r(drawX1)}" y1="${r(drawY1)}" x2="${r(drawX2)}" y2="${r(drawY2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttrs}${linecap}${clipAttr} />`,
   );
@@ -739,7 +685,7 @@ export function paintPerSideBorder(
   br: ReturnType<typeof parseSide>,
   bb: ReturnType<typeof parseSide>,
   bl: ReturnType<typeof parseSide>,
-  offGridCollapsedCells: Set<CapturedElement>,
+  collapse: boolean,
 ): void {
   const collapsedSegments = el.styles.collapsedBorderSegments;
   if (collapsedSegments != null) {
@@ -752,10 +698,9 @@ export function paintPerSideBorder(
       const x2 = horizontal ? el.x + el.width * seg.end : x1;
       const y2 = horizontal ? y1 : el.y + el.height * seg.end;
       const len = horizontal ? Math.abs(x2 - x1) : Math.abs(y2 - y1);
-      const { array, offset } = adjustedDashAttrs(side.style, side.w, len);
-      const dash =
-        array !== "" ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}` : "";
-      const cap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+      const array = openDashArray(side.style, side.w, len);
+      const dash = array !== "" ? ` stroke-dasharray="${array}"` : "";
+      const cap = side.style === "dotted" && !isThinDotted(side.w) ? ` stroke-linecap="round"` : "";
       ctx.svgParts.push(
         `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dash}${cap} />`,
       );
@@ -773,7 +718,6 @@ export function paintPerSideBorder(
   // border-collapse:collapse → paint each side ON the cell edge (not
   // inset by half-width), so two adjacent cells' shared sides overlap
   // exactly and produce a single line instead of a doubled one.
-  const collapse = el.styles.borderCollapse === "collapse" && !offGridCollapsedCells.has(el);
   const inset = (w: number) => (collapse ? 0 : w / 2);
   const tw = bt?.w ?? 0;
   const rw = br?.w ?? 0;
@@ -788,44 +732,49 @@ export function paintPerSideBorder(
   const bxT = roundEdges ? Math.round(el.y) : el.y;
   const bxR = roundEdges ? Math.round(el.x + el.width) : el.x + el.width;
   const bxB = roundEdges ? Math.round(el.y + el.height) : el.y + el.height;
-  const sides: Array<[typeof bt, number, number, number, number, number]> = [
-    [bt, bxL, bxT + inset(tw), bxR, bxT + inset(tw), Math.max(0, bxR - bxL)],
-    [br, bxR - inset(rw), bxT, bxR - inset(rw), bxB, Math.max(0, bxB - bxT)],
-    [bb, bxL, bxB - inset(bw), bxR, bxB - inset(bw), Math.max(0, bxR - bxL)],
-    [bl, bxL + inset(lw), bxT, bxL + inset(lw), bxB, Math.max(0, bxB - bxT)],
-  ];
-  // For SOLID sides (and only when not collapsed), emit each side as a
-  // `<polygon>` trapezoid that meets adjacent sides at a miter — this
-  // produces Chrome's BoxBorderPainter taper exactly without needing
-  // the trimAdj winner-takes-corner heuristic. The trapezoid's outer
-  // edge sits flush with the box outer rect, and the inner edge is
-  // inset by the side's width, with the corner points meeting the
-  // adjacent sides' inner edges. Dashed / dotted / double / etc. sides
-  // continue to use `<line>` because they'd need a clip-path to
-  // reproduce the trapezoid taper, which would clip the dashes
-  // mid-pattern. DM-421.
-  const useTrapezoid = (side: typeof bt) => !collapse && side != null && side.style === "solid" && side.w > 0;
-  const trapezoids: Array<[typeof bt, string]> = [
-    // top: outer L,T  outer R,T  inner R-rw,T+tw  inner L+lw,T+tw
-    [bt, `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(bxR - rw)},${r(bxT + tw)} ${r(bxL + lw)},${r(bxT + tw)}`],
-    // right: outer R,T  outer R,B  inner R-rw,B-bw  inner R-rw,T+tw
-    [br, `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(bxR - rw)},${r(bxB - bw)} ${r(bxR - rw)},${r(bxT + tw)}`],
-    // bottom: outer R,B  outer L,B  inner L+lw,B-bw  inner R-rw,B-bw
-    [bb, `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(bxL + lw)},${r(bxB - bw)} ${r(bxR - rw)},${r(bxB - bw)}`],
-    // left: outer L,B  outer L,T  inner L+lw,T+tw  inner L+lw,B-bw
-    [bl, `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(bxL + lw)},${r(bxT + tw)} ${r(bxL + lw)},${r(bxB - bw)}`],
-  ];
-  // Per-side `double` style — emit two parallel strokes each w/3 wide
-  // separated by a w/3 gap (CSS spec). DM-436. Each side has its own
-  // perpendicular axis, so we offset along the inward normal.
-  const doubleSides: Array<[number, number, number, number]> = [
-    // For each side, the [outerOffsetX, outerOffsetY, innerOffsetX, innerOffsetY]
-    // expressed as multipliers of the side's own width applied to its centerline.
-    // Top: inward normal is +y. Outer stroke at center - w/3, inner at center + w/3.
-    [0, -1, 0, 1], // top: outer up (toward outer edge), inner down
-    [-1, 0, 1, 0], // right: outer right (outer edge), inner left
-    [0, 1, 0, -1], // bottom: outer down, inner up
-    [1, 0, -1, 0], // left: outer left, inner right
+  // One record per side keeps its centerline, miter clip, and double-stroke
+  // normals together. The clockwise order also owns rounded wedge indexing.
+  const sides: SideGeometry[] = [
+    {
+      side: bt,
+      x1: bxL,
+      y1: bxT + inset(tw),
+      x2: bxR,
+      y2: bxT + inset(tw),
+      length: Math.max(0, bxR - bxL),
+      polygon: `${r(bxL)},${r(bxT)} ${r(bxR)},${r(bxT)} ${r(bxR - rw)},${r(bxT + tw)} ${r(bxL + lw)},${r(bxT + tw)}`,
+      doubleNormals: [0, -1, 0, 1],
+    },
+    {
+      side: br,
+      x1: bxR - inset(rw),
+      y1: bxT,
+      x2: bxR - inset(rw),
+      y2: bxB,
+      length: Math.max(0, bxB - bxT),
+      polygon: `${r(bxR)},${r(bxT)} ${r(bxR)},${r(bxB)} ${r(bxR - rw)},${r(bxB - bw)} ${r(bxR - rw)},${r(bxT + tw)}`,
+      doubleNormals: [-1, 0, 1, 0],
+    },
+    {
+      side: bb,
+      x1: bxL,
+      y1: bxB - inset(bw),
+      x2: bxR,
+      y2: bxB - inset(bw),
+      length: Math.max(0, bxR - bxL),
+      polygon: `${r(bxR)},${r(bxB)} ${r(bxL)},${r(bxB)} ${r(bxL + lw)},${r(bxB - bw)} ${r(bxR - rw)},${r(bxB - bw)}`,
+      doubleNormals: [0, 1, 0, -1],
+    },
+    {
+      side: bl,
+      x1: bxL + inset(lw),
+      y1: bxT,
+      x2: bxL + inset(lw),
+      y2: bxB,
+      length: Math.max(0, bxB - bxT),
+      polygon: `${r(bxL)},${r(bxB)} ${r(bxL)},${r(bxT)} ${r(bxL + lw)},${r(bxT + tw)} ${r(bxL + lw)},${r(bxB - bw)}`,
+      doubleNormals: [1, 0, -1, 0],
+    },
   ];
   // DM-697: non-solid sides (double / dashed / dotted) need the same
   // diagonal-miter clip at corners that solid sides get from the
@@ -836,10 +785,10 @@ export function paintPerSideBorder(
   // strokes spill into adjacent sides' wedges and produce square
   // corners instead of the diagonal cut Chrome paints. Build a
   // clipPath per non-solid side and wrap its emission in it.
-  const sideClipForStyle = (i: number, side: typeof bt) => {
-    if (collapse || side == null || side.w <= 0) return "";
+  const sideClipForStyle = (geometry: SideGeometry) => {
+    if (collapse || geometry.side == null || geometry.side.w <= 0) return "";
     const cid = ctx.nextClipId("bs");
-    ctx.defsParts.push(`<clipPath id="${cid}"><polygon points="${trapezoids[i][1]}"/></clipPath>`);
+    ctx.defsParts.push(`<clipPath id="${cid}"><polygon points="${geometry.polygon}"/></clipPath>`);
     return ` clip-path="url(#${cid})"`;
   };
   // DM-686: border-radius + per-side borders. The trapezoids and lines
@@ -933,16 +882,17 @@ export function paintPerSideBorder(
     const ringMaskId = ctx.nextClipId("bm");
     ctx.defsParts.push(`<mask id="${ringMaskId}"><path d="${annularPath}" fill="white" fill-rule="evenodd"/></mask>`);
     for (let i = 0; i < sides.length; i++) {
-      const side = sides[i][0];
+      const side = sides[i].side;
       if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
       if (side.style !== "dashed" && side.style !== "dotted") continue;
-      const thinDotted = side.style === "dotted" && Math.round(side.w) <= 3;
-      // Blink expands this stroke to 2.2 * max-adjacent-width solely so its
+      const thinDotted = side.style === "dotted" && isThinDotted(side.w);
+      // Blink expands this stroke by BLINK_CURVED_BORDER_CLIP_OVERDRAW times
+      // max-adjacent-width solely so its
       // raster clip can antialias the border-ring edges. SVG clips/masks are
       // vector-antialiased themselves, so preserve the resulting logical
       // ink thickness here rather than copying that Skia overdraw width.
       const strokeWidth = side.w;
-      const dash = adjustedClosedDashArray(side.style, side.w, centerLength, thinDotted);
+      const dash = closedDashArray(side.style, side.w, centerLength, thinDotted);
       const cid = ctx.nextClipId("bc");
       ctx.defsParts.push(`<clipPath id="${cid}"><polygon points="${annularWedges[i]}"/></clipPath>`);
       const linecap = side.style === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
@@ -963,7 +913,7 @@ export function paintPerSideBorder(
   if (hasOuterRadius) {
     // Emit solid sides as annular wedges first.
     for (let i = 0; i < sides.length; i++) {
-      const side = sides[i][0];
+      const side = sides[i].side;
       if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
       if (side.style !== "solid") continue;
       const wid = ctx.nextClipId("bw");
@@ -979,39 +929,10 @@ export function paintPerSideBorder(
     ctx.svgParts.push(`${indent}<g clip-path="url(#${rcid})">`);
     roundedSideGroupOpen = true;
   }
-  for (let i = 0; i < sides.length; i++) {
-    emitBorderSide(
-      ctx,
-      indent,
-      i,
-      sides,
-      trapezoids,
-      doubleSides,
-      useTrapezoid,
-      hasOuterRadius,
-      curvedStyledSide,
-      sideClipForStyle,
-    );
+  for (const geometry of sides) {
+    emitBorderSide(ctx, indent, geometry, collapse, hasOuterRadius, curvedStyledSide, sideClipForStyle);
   }
   if (roundedSideGroupOpen) ctx.svgParts.push(`${indent}</g>`);
-}
-
-/**
- * Per-side adjusted dash array. Chrome'\''s dashed/dotted border rasterizer
- * (see Blink `BoxPainterBase::PaintBorderSides`) sizes each side'\''s dash
- * cycle so dashes start and end exactly at the corners — otherwise the last
- * dash before a corner is partial and the pattern looks ragged.
- *
- * Algorithm: ideal period (dash + gap) is `4 * width` for dashed, `2 * width`
- * for dotted. Compute cycle count `N = round(sideLength / period)` (clamped
- * to ≥1), then scale dash and gap by `sideLength / (N * period)` so
- * `N * (dash + gap) === sideLength` exactly.
- *
- * Returns "" when style isn'\''t dashed/dotted, or when the side is too short
- * to fit even one cycle (renderer falls back to solid).
- */
-export function adjustedDashArray(style: string, width: number, sideLength: number): string {
-  return adjustedDashAttrs(style, width, sideLength).array;
 }
 
 function quarterEllipseLength(rx: number, ry: number): number {
@@ -1044,39 +965,3 @@ export function roundedRectPerimeter(width: number, height: number, corners: Cor
     quarterEllipseLength(corners.bl.h, corners.bl.v)
   );
 }
-
-export function adjustedClosedDashArray(style: string, width: number, pathLength: number, thinDotted: boolean): string {
-  if (pathLength <= 0 || width <= 0) return "";
-  if (style === "dashed") {
-    const dashLength = width * (width >= 3 ? 2 : 3);
-    const targetGap = width * (width >= 3 ? 1 : 2);
-    const gap = selectBestDashGap(pathLength, dashLength, targetGap, true);
-    return gap > 0 ? `${r(dashLength)} ${r(gap)}` : "";
-  }
-  if (style === "dotted") {
-    if (thinDotted) return `${r(Math.round(width))} ${r(Math.round(width))}`;
-    const gap = selectBestDashGap(pathLength, width, width, true);
-    return gap > 0 ? `0.01 ${r(gap + width - 0.01)}` : "";
-  }
-  return "";
-}
-
-/**
- * Returns the `stroke-dasharray` value AND the matching `stroke-dashoffset`
- * needed to center the dash pattern within the side so it visually matches
- * Chromium's BoxBorderPainter (DM-318).
- *
- * For dotted: Chromium centers each dot in its half-period slot — i.e. dots
- *   are inset from each corner by half a period rather than starting flush.
- *   In SVG terms, the dasharray is `0.01 period` with linecap=round (so each
- *   "dash" renders as a single dot), and stroke-dashoffset is set to half a
- *   period so the line starts mid-gap and the first dot appears at period/2.
- *
- * For dashed: Chromium also tends to center the dash pattern — the first
- *   dash starts at gap/2 from the corner so each side has equal margin. The
- *   prior implementation started the cycle with a full dash flush at the
- *   corner, which left a visible phase offset vs Chrome's painted output.
- *
- * Returns offset as a number (0 if no shift needed), the caller emits a
- * `stroke-dashoffset` attribute when offset !== 0.
- */

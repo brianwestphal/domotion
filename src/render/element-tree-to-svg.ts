@@ -1,3 +1,4 @@
+import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 /**
  * DOM-to-SVG Converter
  *
@@ -56,7 +57,6 @@ import {
   outsetCornerRadiiForShadow,
   roundedRectPath,
   roundedRectSvg,
-  dashArrayForStyle,
   injectSvgSize,
   type CornerRadii,
 } from "./borders.js";
@@ -1645,7 +1645,11 @@ function paintResizeHandle(
     const insetShadows = shadowCtx.svgParts.splice(0);
     if (border != null && border.width > 0 && border.style !== "none") {
       const half = border.width / 2;
-      const dash = dashArrayForStyle(border.style, border.width);
+      const centerWidth = Math.max(0, handle.width - border.width);
+      const centerHeight = Math.max(0, handle.height - border.width);
+      const centerRadius = Math.min(Math.max(0, radius - half), centerWidth / 2, centerHeight / 2);
+      const perimeter = 2 * (centerWidth + centerHeight) - (8 - 2 * Math.PI) * centerRadius;
+      const dash = closedDashArray(border.style, border.width, perimeter);
       const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
       if (radius > 0) {
         out.push(
@@ -3777,13 +3781,12 @@ function paintElementBorderPhase(context: ElementPaintPhaseContext): void {
   if (paintBoxPhase && el.columnRules != null) {
     for (const rule of el.columnRules) {
       const ruleColor = colorStr(parseColor(rule.color) ?? { r: 0, g: 0, b: 0, a: 1 });
+      const dashArray = openDashArray(rule.style, rule.width, Math.abs(rule.y2 - rule.y1));
       const dash =
-        rule.style === "dashed"
-          ? ` stroke-dasharray="${r(rule.width * 3)},${r(rule.width * 3)}"`
-          : rule.style === "dotted"
-            ? ` stroke-dasharray="0,${r(rule.width * 2)}" stroke-linecap="round"`
-            : "";
-      if (rule.style === "double" && rule.width >= 3) {
+        dashArray === ""
+          ? ""
+          : ` stroke-dasharray="${dashArray}"${rule.style === "dotted" && !isThinDotted(rule.width) ? ' stroke-linecap="round"' : ""}`;
+      if (rule.style === "double" && rule.width >= DOUBLE_MIN_WIDTH) {
         const part = rule.width / 3;
         svgParts.push(
           `${indent}<line x1="${r(rule.x - part)}" y1="${r(rule.y1)}" x2="${r(rule.x - part)}" y2="${r(rule.y2)}" stroke="${ruleColor}" stroke-width="${r(part)}" />`,
@@ -3802,7 +3805,7 @@ function paintElementBorderPhase(context: ElementPaintPhaseContext): void {
   // Outline (SK-1111): drawn outside the border-box and shifted further out
   // by outline-offset (which can be negative). Doesn't take layout space —
   // the captured rect is the border-box, so we inflate from that. Outline
-  // styles (solid / dashed / dotted) reuse dashArrayForStyle.
+  // styles (solid / dashed / dotted) use the shared stroke rules.
   if (paintBoxPhase) {
     svgParts.push(...paintOutline(el, borderRadius, indent));
   }

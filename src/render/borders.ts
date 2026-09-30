@@ -1171,25 +1171,6 @@ export function computeWedgeApexes(
   };
 }
 
-/** Stroke-dasharray pattern for CSS border-style (dashed / dotted). Solid
- *  styles return an empty pattern (caller should omit the attribute entirely).
- *
- *   - dashed: dash = 2 * width, gap = width (a 2:1 ratio). DM-267.
- *   - dotted: SQUARE dots of side = width, gap = width — NOT round dots.
- *     Skia's kDottedStroke uses [width, width] dash pattern with butt caps,
- *     so each dash is a w×w square. (DM-368.)
- *  Caller should NOT add `stroke-linecap="round"` for dotted — square caps
- *  (the SVG default `butt`) match Chrome's painted output. */
-export function dashArrayForStyle(style: string, width: number): string {
-  switch (style) {
-    case "dashed":
-      return `${r(width * 2)} ${r(width)}`;
-    case "dotted":
-      return `${r(width)} ${r(width)}`;
-    default:
-      return "";
-  }
-}
 /**
  * Force inline `<svg ...>` width/height to the captured layout size. Inline
  * icon SVGs in the wild fall into two cases that both need this:

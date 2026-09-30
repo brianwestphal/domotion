@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   computeWedgeApexes,
   borderImageSpaceTiling,
-  dashArrayForStyle,
   doubleBorderStripeGeometry,
   pixelSnappedBorderReferenceRect,
   uniformDoubleBorderStripeBoxes,
@@ -662,19 +661,6 @@ describe("parseSide", () => {
 
   it("returns null when the color can't be parsed", () => {
     expect(parseSide("1px", "solid", "not-a-color")).toBeNull();
-  });
-});
-
-describe("dashArrayForStyle", () => {
-  it("emits a 2:1 dash for `dashed`", () => {
-    expect(dashArrayForStyle("dashed", 2)).toBe("4 2");
-  });
-  it("emits a 1:1 dash for `dotted`", () => {
-    expect(dashArrayForStyle("dotted", 3)).toBe("3 3");
-  });
-  it("emits '' for solid / other styles", () => {
-    expect(dashArrayForStyle("solid", 2)).toBe("");
-    expect(dashArrayForStyle("double", 2)).toBe("");
   });
 });
 

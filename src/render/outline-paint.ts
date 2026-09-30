@@ -1,62 +1,7 @@
 import type { CapturedElement } from "../capture/types.js";
-import { dashArrayForStyle, selectBestDashGap } from "./borders.js";
 import { colorStr, parseColor } from "./colors.js";
 import { r } from "./format.js";
-
-export function adjustedDashAttrs(style: string, width: number, sideLength: number): { array: string; offset: number } {
-  if (sideLength <= 0 || width <= 0) return { array: "", offset: 0 };
-  // DM-805: faithful port of Chromium's `DashEffectFromStrokeStyle` +
-  // `SelectBestDashGap` from
-  // `third_party/blink/renderer/platform/graphics/styled_stroke_data.cc`.
-  // The previous implementation scaled the dash/gap pair to fit a whole
-  // number of cycles AND offset the start by gap/2 — visually close but not
-  // pixel-matching Chrome (Chrome keeps the natural dash size + only adjusts
-  // the gap + starts flush at the corner). Verified against painted output
-  // on the `18-border-styles` fixture: 6 px dashed on a 188 px side paints
-  // 11 dashes (dash=12 / gap=5.6, flush at corner), NOT 10 dashes (12.53 /
-  // 6.27 / mid-gap-offset) as the old algorithm emitted.
-  if (style === "dashed") {
-    // dash_length = width * (width >= 3 ? 2 : 3); gap_length similarly.
-    const dashLen = width * (width >= 3 ? 2 : 3);
-    const gapTarget = width * (width >= 3 ? 1 : 2);
-    if (sideLength <= dashLen * 2) {
-      // Chrome's "no space for dashes" branch — emit a continuous solid
-      // line (no dasharray). Below that, "exactly 2 dashes proportionally
-      // sized" is a sub-case but the visual is nearly identical to the
-      // pixel diff harness; collapse to solid here.
-      return { array: "", offset: 0 };
-    }
-    const gap = selectBestDashGap(sideLength, dashLen, gapTarget, false);
-    if (gap <= 0) return { array: "", offset: 0 };
-    // Start flush at the corner — matches Chrome's `MakeDash` with phase 0.
-    return { array: `${r(dashLen)} ${r(gap)}`, offset: 0 };
-  }
-  if (style === "dotted") {
-    // Chrome's thick-dotted branch (`!StrokeIsDashed(width, kDottedStroke)`
-    // — true for width > 3):
-    //   1. The line endpoints are first moved IN by width/2 (round endcap
-    //      fits inside the line). Caller is responsible for that inward
-    //      move via cornerTrim = width/2 (see element-tree-to-svg's per-
-    //      side emit loop) so `sideLength` here is the POST-move length.
-    //   2. SelectBestDashGap with dash_length = gap_length = width.
-    //   3. dasharray = [0, gap + width - epsilon] with round caps —
-    //      produces a dot of diameter `width` per cycle.
-    // Note: the legacy `cornerTrim = bt.w >= 8 ? inset : 0` rule meant
-    // thin (< 8 px) dotted borders skipped the inward move; the per-side
-    // emit loop now insets dotted always so this entry point sees the
-    // chromy effective length.
-    if (sideLength < width * 2) {
-      // Chrome's "Not enough space for 2 dots" branch — single dot via a
-      // gap longer than the line.
-      return { array: `0.01 ${r(width * 2)}`, offset: 0 };
-    }
-    const gap = selectBestDashGap(sideLength, width, width, false);
-    if (gap <= 0) return { array: "", offset: 0 };
-    const kEpsilon = 0.01;
-    return { array: `0.01 ${r(gap + width - kEpsilon)}`, offset: 0 };
-  }
-  return { array: "", offset: 0 };
-}
+import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 
 export interface ThinDottedEndpointPlan {
   startDotGrowth: number | null;
@@ -183,7 +128,7 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
       // Outline radius: CSS spec says rounded outlines follow the border
       // radius extended outward by the offset+width. Approximate.
       const oRadius = borderRadius > 0 ? borderRadius + inflate : 0;
-      if (ostyle === "double" && ow >= 3) {
+      if (ostyle === "double" && ow >= DOUBLE_MIN_WIDTH) {
         // Chromium's PaintDoubleOutline (third_party/blink/renderer/core/
         // paint/outline_painter.cc): stroke_width = round(width / 3).
         // Outer stripe occupies the OUTER `sw` pixels of the outline rect,
@@ -225,7 +170,7 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         // math used for dashed/dotted borders. We only take this path when the
         // outline is NOT rounded (oRadius == 0); for rounded outlines the
         // single-rect emit remains the closest SVG-native fit.
-        const thinDotted = ostyle === "dotted" && Math.round(ow) <= 3;
+        const thinDotted = ostyle === "dotted" && isThinDotted(ow);
         const linecap = ostyle === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
         const oxR = ox + owd,
           oyB = oy + oh;
@@ -236,18 +181,10 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
           sideBottom = oyB + jointOffset;
         const hLen = sideRight - sideLeft,
           vLen = sideBottom - sideTop;
-        const hAttrs = (() => {
-          const { array, offset } = adjustedDashAttrs(ostyle, ow, hLen);
-          return array !== ""
-            ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}`
-            : "";
-        })();
-        const vAttrs = (() => {
-          const { array, offset } = adjustedDashAttrs(ostyle, ow, vLen);
-          return array !== ""
-            ? ` stroke-dasharray="${array}"${offset !== 0 ? ` stroke-dashoffset="${r(offset)}"` : ""}`
-            : "";
-        })();
+        const hDash = openDashArray(ostyle, ow, hLen);
+        const vDash = openDashArray(ostyle, ow, vLen);
+        const hAttrs = hDash !== "" ? ` stroke-dasharray="${hDash}"` : "";
+        const vAttrs = vDash !== "" ? ` stroke-dasharray="${vDash}"` : "";
         const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
         // Four sides, each starting at its top-left corner so the
         // dash pattern phases identically per side.
@@ -268,19 +205,9 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
           );
         }
       } else {
-        let dash = dashArrayForStyle(ostyle, ow);
-        const linecap = ostyle === "dotted" ? ` stroke-linecap="round"` : "";
-        if ((ostyle === "dashed" || ostyle === "dotted") && oRadius > 0) {
-          const perimeter = 2 * (owd + oh - 4 * oRadius) + 2 * Math.PI * oRadius;
-          if (ostyle === "dashed") {
-            const dashLen = ow * (ow >= 3 ? 2 : 3);
-            const gap = selectBestDashGap(perimeter, dashLen, ow * (ow >= 3 ? 1 : 2), true);
-            dash = gap > 0 ? `${r(dashLen)} ${r(gap)}` : "";
-          } else {
-            const gap = selectBestDashGap(perimeter, ow, ow, true);
-            dash = gap > 0 ? `0.01 ${r(gap + ow - 0.01)}` : "";
-          }
-        }
+        const perimeter = 2 * (owd + oh - 4 * oRadius) + 2 * Math.PI * oRadius;
+        const dash = closedDashArray(ostyle, ow, perimeter);
+        const linecap = ostyle === "dotted" && !isThinDotted(ow) ? ` stroke-linecap="round"` : "";
         out.push(
           `${indent}<rect x="${r(ox)}" y="${r(oy)}" width="${r(owd)}" height="${r(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
         );

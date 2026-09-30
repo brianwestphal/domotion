@@ -1,3 +1,5 @@
+import { openDashArray, closedDashArray, isThinDotted } from "./stroke-style.js";
+import { roundedRectPerimeter } from "./border-paint.js";
 import type { CapturedBackgroundImage, CapturedElement } from "../capture/types.js";
 import { resolveBackgroundAttachment, intersectBackgroundRects } from "./background-attachment.js";
 import {
@@ -6,7 +8,6 @@ import {
   roundedRectSvg,
   parseCornerRadii,
   parseSide,
-  dashArrayForStyle,
   type CornerRadii,
 } from "./borders.js";
 import { parseBoxShadow } from "./box-shadow.js";
@@ -644,9 +645,9 @@ export function paintInlineFragment(
   const drawSide = (side: typeof sbt, x1: number, y1: number, x2: number, y2: number) => {
     if (side == null || side.w <= 0 || side.color.a < 0.01) return;
     if (side.style === "none" || side.style === "hidden") return;
-    const dash = dashArrayForStyle(side.style, side.w);
+    const dash = openDashArray(side.style, side.w, Math.hypot(x2 - x1, y2 - y1));
     const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-    const linecap = side.style === "dotted" ? ` stroke-linecap="round"` : "";
+    const linecap = side.style === "dotted" && !isThinDotted(side.w) ? ` stroke-linecap="round"` : "";
     svgParts.push(
       `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(side.color)}" stroke-width="${r(side.w)}"${dashAttr}${linecap} />`,
     );
@@ -686,9 +687,13 @@ export function paintInlineFragment(
   ) {
     const half = sbt.w / 2;
     const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
-    const dash = dashArrayForStyle(sbt.style, sbt.w);
+    const dash = closedDashArray(
+      sbt.style,
+      sbt.w,
+      roundedRectPerimeter(Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners),
+    );
     const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-    const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
+    const linecap = sbt.style === "dotted" && !isThinDotted(sbt.w) ? ` stroke-linecap="round"` : "";
     svgParts.push(
       `${indent}${roundedRectSvg(f.x + half, f.y + half, Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners, `fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap}`)}`,
     );
@@ -739,9 +744,13 @@ export function paintInlineFragment(
         (br.h > 0 || br.v > 0 ? ` A${r(br.h)},${r(br.v)} 0 0 1 ${r(fxR - br.h)},${r(fyB)}` : "") +
         ` L${r(fxL)},${r(fyB)}`;
     }
-    const dash = dashArrayForStyle(sbt.style, sbt.w);
+    const dash = openDashArray(
+      sbt.style,
+      sbt.w,
+      roundedRectPerimeter(fxR - fxL, fyB - fyT, strokeCorners) - (fyB - fyT),
+    );
     const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-    const linecap = sbt.style === "dotted" ? ` stroke-linecap="round"` : "";
+    const linecap = sbt.style === "dotted" && !isThinDotted(sbt.w) ? ` stroke-linecap="round"` : "";
     svgParts.push(
       `${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap} />`,
     );

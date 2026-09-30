@@ -5,11 +5,13 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35"]
+tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C"]
 code:
   [
     ".github/workflows/border-phase-oracle.yml",
     "src/render/outline-paint.ts",
+    "src/render/stroke-style.ts",
+    "src/render/border-paint.ts",
     "src/render/thin-dotted-endpoints.test.ts",
   ]
 aliases: ["docs/127-border-outline-phase-oracle.md", "doc-127"]
@@ -78,7 +80,26 @@ their ceilings unchanged; doc 191 records the exact geometry, ceilings, and
 evidence fingerprints.
 
 Outline emission and its shared dashed/dotted side geometry live in
-`src/render/outline-paint.ts`. The element-tree renderer remains the paint-order
+`src/render/outline-paint.ts` and `src/render/stroke-style.ts`. The latter
+implements Blink's `DashLengthRatio`, `DashGapRatio`, and
+`DashEffectFromStrokeStyle` from pinned
+`third_party/blink/renderer/platform/graphics/styled_stroke_data.cc` for open
+side paths and closed contours. Thin dotted strokes use square dash intervals;
+thick dots use round caps and a 0.01-pixel endpoint epsilon. A short path with
+no room for two dashes emits no dash attribute. Box borders, outlines, inline
+fragments, pseudo boxes, and column rules share the same calculations.
+
+`src/render/border-paint.ts` shares one bevel shade and trapezoid plan across
+uniform and mixed groove/ridge/inset/outset borders. The shade is the base
+color or two thirds of each color channel. `paintBorder` resolves collapsed
+table mode once and passes it to its side painters. Each mixed border side
+carries its centerline, miter polygon, and double-stroke normals together.
+Blink's curved border raster clip widens its temporary stroke to 2.2 times the
+largest adjacent width; the SVG path retains the logical side width because
+its vector clip and mask already antialias the ring. This deviation is named
+`BLINK_CURVED_BORDER_CLIP_OVERDRAW` in the renderer.
+
+The element-tree renderer remains the paint-order
 orchestrator and calls this state-independent owner at the existing outline
 phase; the public endpoint-plan export remains available through the legacy
 element-tree module.
