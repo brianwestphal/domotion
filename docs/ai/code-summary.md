@@ -94,6 +94,9 @@ loading the historical documentation corpus.
   to Glassbox's README hero asset.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
+  `compare-pngs.ts` coordinates PNG diffing, while typed
+  `compare-pngs.browser.ts` is bundled at build time for the canvas analysis;
+  it imports the shared digest from `side-digest.ts`.
 - `src/cli/` exposes the capture, animate, composite, storyboard, template,
   terminal, review, scrubber, studio, and svg-to-image/video workflows.
 - `src/utils/` holds cross-cutting runtime helpers; checked-in generated

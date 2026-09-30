@@ -58,8 +58,8 @@ describe("buildBrowserComparisonSource(): analysis-stage boundary", () => {
     const source = buildBrowserComparisonSource(Buffer.from("expected"), Buffer.from("actual"), 17, 23);
     expect(source).toContain(Buffer.from("expected").toString("base64"));
     expect(source).toContain(Buffer.from("actual").toString("base64"));
-    expect(source).toContain("const TILE = 17");
-    expect(source).toContain("const SIG = 23");
+    expect(source).toContain("17, 23,");
+    expect(source).toContain("browserComparison.compareImages");
     expect(source).toMatch(/^\(async \(\) => \{/);
     expect(source).toMatch(/\}\)\(\)$/);
   });

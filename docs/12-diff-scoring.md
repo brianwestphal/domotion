@@ -5,9 +5,11 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1783", "DM-1784", "DM-262", "DM-2700", "DM-281", "DM-379", "DM-383", "DM-715", "DM-884"]
+tickets: ["DM-1783", "DM-1784", "DM-262", "DM-2700", "DM-281", "DM-379", "DM-383", "DM-715", "DM-884", "DM-4E12K1"]
 code:
   [
+    "src/review/compare-pngs.browser.test.ts",
+    "src/review/compare-pngs.browser.ts",
     "src/review/compare-pngs.test.ts",
     "src/review/compare-pngs.ts",
     "tests/fixture-fonts.ts",
@@ -293,19 +295,23 @@ hinting floor", DM-262 / DM-884).
 
 ## Shared comparator
 
-The implementation lives in **`src/review/compare-pngs.ts`** (there is no
+The coordinator lives in **`src/review/compare-pngs.ts`** (there is no
 `tests/` copy). It's imported by every visual-regression runner —
 `tests/runner.tsx` (features / showcase), `tests/html-test-suite.tsx` (the
 html-test sweep), `tests/real-world.tsx` — and by the published **`svg-review`**
 CLI, so the pass criterion, AA detection, shift pre-filter, region scoring, and
-the diff-PNG overlays are identical everywhere. The pixel work runs inside
-`page.evaluate(...)` because the canvas APIs that decode and walk the PNGs only
-exist in a browser context. The pure scalar helpers (`passes`, `classifyDiff`)
-are unit-tested in `src/review/compare-pngs.test.ts`.
+the diff-PNG overlays are identical everywhere. The typed pixel analyzer lives
+in `src/review/compare-pngs.browser.ts`; its generated bundle runs inside
+`page.evaluate(...)` because the canvas APIs exist in the browser. The bundle
+imports the shared `side-digest.ts` implementation, so Node and browser use
+one digest algorithm. `src/review/compare-pngs.browser.test.ts` tests the pixel
+algorithm with a canvas boundary fake; the pure scalar helpers (`passes`,
+`classifyDiff`) are unit-tested in `src/review/compare-pngs.test.ts`.
 
 ## Tests
 
 - `npm run demos:test:html` — full html-test suite; `results.json` carries the
   per-fixture metrics above so reviewers can triage by `verdict` / `coveragePct`.
 - `npm test` — unit tests, including `compare-pngs.test.ts` for the `passes`
-  region-count gate and the `classifyDiff` tier boundaries.
+  region-count gate and the `classifyDiff` tier boundaries, plus
+  `compare-pngs.browser.test.ts` for browser pixel scoring.

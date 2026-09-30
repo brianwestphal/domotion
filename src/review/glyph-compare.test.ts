@@ -304,6 +304,23 @@ describe("compareGlyphCoverage verdicts", () => {
     ...over,
   });
 
+  it("applies upper and lower threshold directions at their hard and soft boundaries", () => {
+    const neutral = thinDetailMetrics({ unexplainedA: 0, unexplainedB: 0, d95: 0 });
+    const massHard = decide({ ...neutral, inkLogRatio: DEFAULT_THRESHOLDS.inkLogRatio + 0.001 }, DEFAULT_THRESHOLDS);
+    expect(massHard.hardSignals).toContain("mass");
+    const massSoft = decide({ ...neutral, inkLogRatio: DEFAULT_THRESHOLDS.inkLogRatio * 0.9 }, DEFAULT_THRESHOLDS);
+    expect(massSoft.softSignals).toContain("mass");
+    expect(massSoft.hardSignals).not.toContain("mass");
+
+    const nccHard = decide({ ...neutral, ncc: DEFAULT_THRESHOLDS.nccMin - 0.001 }, DEFAULT_THRESHOLDS);
+    expect(nccHard.hardSignals).toContain("ncc");
+    const nccSoftBoundary = 1 - (1 - DEFAULT_THRESHOLDS.nccMin) * DEFAULT_THRESHOLDS.softFactor;
+    const nccSoft = decide({ ...neutral, ncc: (DEFAULT_THRESHOLDS.nccMin + nccSoftBoundary) / 2 }, DEFAULT_THRESHOLDS);
+    expect(nccSoft.softSignals).toContain("ncc");
+    expect(nccSoft.hardSignals).not.toContain("ncc");
+    expect(decide({ ...neutral, ncc: nccSoftBoundary }, DEFAULT_THRESHOLDS).softSignals).not.toContain("ncc");
+  });
+
   it("clears an outline/d95-only mismatch at high NCC (thin-detail guard)", () => {
     const r = decide(thinDetailMetrics(), DEFAULT_THRESHOLDS);
     expect(r.hardSignals).toEqual(expect.arrayContaining(["outline", "d95"]));

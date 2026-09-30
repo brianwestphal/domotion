@@ -377,8 +377,21 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1783", "DM-1784", "DM-262", "DM-2700", "DM-281", "DM-379", "DM-383", "DM-715", "DM-884"],
+        "tickets": [
+          "DM-1783",
+          "DM-1784",
+          "DM-262",
+          "DM-2700",
+          "DM-281",
+          "DM-379",
+          "DM-383",
+          "DM-715",
+          "DM-884",
+          "DM-4E12K1"
+        ],
         "code": [
+          "src/review/compare-pngs.browser.test.ts",
+          "src/review/compare-pngs.browser.ts",
           "src/review/compare-pngs.test.ts",
           "src/review/compare-pngs.ts",
           "tests/fixture-fonts.ts",

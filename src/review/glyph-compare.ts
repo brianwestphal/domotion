@@ -983,78 +983,103 @@ export function decide(m: GlyphCompareMetrics, t: GlyphCompareThresholds, warnin
   const maxH = Math.max(m.inkHeightA, m.inkHeightB);
   const sizeAllow = Math.max(t.sizeDiffPx, t.sizeDiffFrac * maxH);
 
-  const check = (name: string, value: number, hard: number, describe: (v: number) => string): void => {
-    const soft = hard * t.softFactor;
-    if (value > hard) {
-      hardSignals.push(name);
-      reasons.push(describe(value));
-    } else if (value > soft) {
-      softSignals.push(name);
-      reasons.push(`${describe(value)} (soft — below the hard threshold)`);
-    }
-  };
-
-  check(
-    "size",
-    m.sizeDiffPx,
-    sizeAllow,
-    (v) =>
-      `ink bounding boxes differ by ${v.toFixed(1)}px (${m.inkWidthA}×${m.inkHeightA} vs ${m.inkWidthB}×${m.inkHeightB}) — size / width-class / x-height mismatch`,
-  );
-  check(
-    "mass",
-    Math.abs(m.inkLogRatio),
-    t.inkLogRatio,
-    () =>
-      `ink mass differs ×${Math.exp(Math.abs(m.inkLogRatio)).toFixed(2)} (${m.inkLogRatio > 0 ? "A heavier" : "B heavier"}) — weight mismatch (bold vs regular?)`,
-  );
-  check(
-    "outline",
-    Math.max(m.unexplainedA, m.unexplainedB),
-    t.unexplainedFrac,
-    (v) =>
-      `${(v * 100).toFixed(1)}% of ink is farther than ${t.outlineTolerancePx}px from the other image's ink — different glyph outline`,
-  );
-  check(
-    "d95",
-    m.d95,
-    t.d95Px,
-    (v) => `95th-percentile edge distance ${v.toFixed(2)}px exceeds the AA/subpixel noise band — shape difference`,
-  );
-  check(
-    "hotspot",
-    m.hotspotMax,
-    maxH >= t.recommendedInkPx ? t.hotspotMax : t.hotspotMaxSmall,
-    (v) =>
-      `local coverage hotspot ${v.toFixed(2)} — a concentrated patch of ink is present in one render and absent in the other (terminal / tail / spur difference)`,
-  );
-  check(
-    "stroke",
-    Math.abs(m.strokeLogRatio),
-    t.strokeLogRatio,
-    () => `mean stroke width ${m.strokeWidthA.toFixed(2)}px vs ${m.strokeWidthB.toFixed(2)}px — weight/design mismatch`,
-  );
+  const checks: Array<{
+    name: string;
+    value: number;
+    hard: number;
+    direction: "above" | "below";
+    describe: (value: number, soft: boolean) => string;
+  }> = [
+    {
+      name: "size",
+      value: m.sizeDiffPx,
+      hard: sizeAllow,
+      direction: "above",
+      describe: (v) =>
+        `ink bounding boxes differ by ${v.toFixed(1)}px (${m.inkWidthA}×${m.inkHeightA} vs ${m.inkWidthB}×${m.inkHeightB}) — size / width-class / x-height mismatch`,
+    },
+    {
+      name: "mass",
+      value: Math.abs(m.inkLogRatio),
+      hard: t.inkLogRatio,
+      direction: "above",
+      describe: () =>
+        `ink mass differs ×${Math.exp(Math.abs(m.inkLogRatio)).toFixed(2)} (${m.inkLogRatio > 0 ? "A heavier" : "B heavier"}) — weight mismatch (bold vs regular?)`,
+    },
+    {
+      name: "outline",
+      value: Math.max(m.unexplainedA, m.unexplainedB),
+      hard: t.unexplainedFrac,
+      direction: "above",
+      describe: (v) =>
+        `${(v * 100).toFixed(1)}% of ink is farther than ${t.outlineTolerancePx}px from the other image's ink — different glyph outline`,
+    },
+    {
+      name: "d95",
+      value: m.d95,
+      hard: t.d95Px,
+      direction: "above",
+      describe: (v) =>
+        `95th-percentile edge distance ${v.toFixed(2)}px exceeds the AA/subpixel noise band — shape difference`,
+    },
+    {
+      name: "hotspot",
+      value: m.hotspotMax,
+      hard: maxH >= t.recommendedInkPx ? t.hotspotMax : t.hotspotMaxSmall,
+      direction: "above",
+      describe: (v) =>
+        `local coverage hotspot ${v.toFixed(2)} — a concentrated patch of ink is present in one render and absent in the other (terminal / tail / spur difference)`,
+    },
+    {
+      name: "stroke",
+      value: Math.abs(m.strokeLogRatio),
+      hard: t.strokeLogRatio,
+      direction: "above",
+      describe: () =>
+        `mean stroke width ${m.strokeWidthA.toFixed(2)}px vs ${m.strokeWidthB.toFixed(2)}px — weight/design mismatch`,
+    },
+    {
+      name: "orientation",
+      value: m.orientL1,
+      hard: t.orientL1,
+      direction: "above",
+      describe: (v) =>
+        `edge-orientation histograms differ (L1 ${v.toFixed(2)}) — slant / serif / terminal-shape difference`,
+    },
+    {
+      name: "zoning",
+      value: m.zoningL2,
+      hard: t.zoningL2,
+      direction: "above",
+      describe: (v) =>
+        `ink mass distribution differs (zoning RMS ${v.toFixed(3)}) — x-height / midline / aperture difference`,
+    },
+    {
+      name: "ncc",
+      value: m.ncc,
+      hard: t.nccMin,
+      direction: "below",
+      describe: (_v, soft) =>
+        soft
+          ? `normalized cross-correlation ${m.ncc.toFixed(3)} near the ${t.nccMin} same-render floor (soft)`
+          : `normalized cross-correlation ${m.ncc.toFixed(3)} below the ${t.nccMin} same-render floor`,
+    },
+  ];
   // Stroke-modulation (contrastLogRatio) is intentionally NOT gated — ridge
   // sampling quantizes too coarsely at text sizes (same-pair noise reaches
   // ln 2); it stays in the metrics as a human-readable diagnostic.
-  check(
-    "orientation",
-    m.orientL1,
-    t.orientL1,
-    (v) => `edge-orientation histograms differ (L1 ${v.toFixed(2)}) — slant / serif / terminal-shape difference`,
-  );
-  check(
-    "zoning",
-    m.zoningL2,
-    t.zoningL2,
-    (v) => `ink mass distribution differs (zoning RMS ${v.toFixed(3)}) — x-height / midline / aperture difference`,
-  );
-  if (m.ncc < t.nccMin) {
-    hardSignals.push("ncc");
-    reasons.push(`normalized cross-correlation ${m.ncc.toFixed(3)} below the ${t.nccMin} same-render floor`);
-  } else if (m.ncc < 1 - (1 - t.nccMin) * t.softFactor) {
-    softSignals.push("ncc");
-    reasons.push(`normalized cross-correlation ${m.ncc.toFixed(3)} near the ${t.nccMin} same-render floor (soft)`);
+  for (const check of checks) {
+    const soft = check.direction === "above" ? check.hard * t.softFactor : 1 - (1 - check.hard) * t.softFactor;
+    const hardHit = check.direction === "above" ? check.value > check.hard : check.value < check.hard;
+    const softHit = check.direction === "above" ? check.value > soft : check.value < soft;
+    if (hardHit) {
+      hardSignals.push(check.name);
+      reasons.push(check.describe(check.value, false));
+    } else if (softHit) {
+      softSignals.push(check.name);
+      const reason = check.describe(check.value, true);
+      reasons.push(check.direction === "above" ? `${reason} (soft — below the hard threshold)` : reason);
+    }
   }
   if (m.holesA !== m.holesB) {
     // Below the recommended resolution a thin counter (the eye of a 16 px

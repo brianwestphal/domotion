@@ -188,6 +188,8 @@
       "owners": ["rendering"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
+        "src/review/compare-pngs.browser.test.ts",
+        "src/review/compare-pngs.browser.ts",
         "src/review/compare-pngs.test.ts",
         "src/review/compare-pngs.ts",
         "tests/fixture-fonts.ts",
