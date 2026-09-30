@@ -2557,7 +2557,7 @@ describe("compressMarkedRuns (DM-1761): the explicit per-frame `compress: true` 
 // DM-FJZQ34: `--text-mode` arg handling on the `animate` CLI. These stay pure —
 // each case throws (out-of-enum, or a deliberately missing config) BEFORE
 // runAnimate launches Chromium, so no browser is needed. The valid-mode case
-// asserts the render-text process-global was flipped, then restores it.
+// asserts parse failure leaves the render-text process-global untouched.
 describe("animate --text-mode arg handling (DM-FJZQ34)", () => {
   it("rejects an out-of-enum --text-mode with a clear message", async () => {
     const prev = getRenderTextMode();
@@ -2570,15 +2570,15 @@ describe("animate --text-mode arg handling (DM-FJZQ34)", () => {
     }
   });
 
-  it("a valid --text-mode flips the render-text process-global before the pipeline runs", async () => {
+  it("a valid --text-mode does not mutate render mode when config parsing fails", async () => {
     const prev = getRenderTextMode();
     try {
-      // Missing config → throws at existsSync, AFTER the mode is applied but
-      // BEFORE launchChromium, so this observes the flag's side effect purely.
+      // Parsing the missing config fails before executeAnimate applies the
+      // validated option, so the failed command cannot leak process state.
       await expect(runAnimate(["/no/such/config.json", "--text-mode", "system-font"], "")).rejects.toThrow(
         /config not found/,
       );
-      expect(getRenderTextMode()).toBe("system-font");
+      expect(getRenderTextMode()).toBe(prev);
     } finally {
       setRenderTextMode(prev);
     }
