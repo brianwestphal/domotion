@@ -1602,14 +1602,16 @@ function elementFontFeatures(el: CapturedElement, fontFamily = capturedElementFo
   return mergeFeatureLists(alternates, parseFontFeatureSettings(el.styles.fontFeatureSettings));
 }
 
-/** Shared selected-face input for the post-capture color-glyph classifier. */
-export function capturedTextSegmentFontFeatures(el: CapturedElement, seg: TextSegment): string[] | undefined {
-  const family = capturedSegmentFontFamily(el, seg);
+function resolveSegmentFeatures(
+  el: CapturedElement,
+  variant: string | undefined,
+  family: string,
+): string[] | undefined {
   const ffs = elementFontFeatures(el, family);
   return mergeFeatureLists(
     mergeFeatureLists(
       mergeFeatureLists(
-        resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
+        resolveCapsFeatures(variant, el.styles.fontVariantCaps),
         resolveFontVariantFeatures(
           el.styles.fontVariantEastAsian,
           el.styles.fontVariantNumeric,
@@ -1624,6 +1626,11 @@ export function capturedTextSegmentFontFeatures(el: CapturedElement, seg: TextSe
     ),
     resolveChwsFeature(ffs),
   );
+}
+
+/** Shared selected-face input for the post-capture color-glyph classifier. */
+export function capturedTextSegmentFontFeatures(el: CapturedElement, seg: TextSegment): string[] | undefined {
+  return resolveSegmentFeatures(el, seg.fontVariant, capturedSegmentFontFamily(el, seg));
 }
 
 // DM-578: parse `font-variation-settings` into the `{ axisTag: value }` shape
@@ -1702,8 +1709,49 @@ export function mergeFeatureLists(a: string[] | undefined, b: string[] | undefin
 /**
  * Render a single-line text element.
  */
+type PathOptions = Parameters<typeof renderTextAsPath>[3];
+
+/** Shared run options; each caller supplies only typography and geometry that
+ * differ for its captured segment. */
+function buildPathOptions(
+  el: CapturedElement,
+  options: Pick<PathOptions, "fontSize" | "fontFamily" | "fontWeight" | "fill"> & Partial<PathOptions>,
+): PathOptions {
+  const stroke = textStrokeParams(el.styles);
+  return {
+    lang: el.styles.lang,
+    textStrokeWidth: stroke.width,
+    textStrokeColor: stroke.color,
+    paintOrder: stroke.paintOrder,
+    bidiOverride: bidiContextFor(el),
+    fontStretch: el.styles.fontStretch,
+    fontVariantEmoji: fontVariantEmojiOf(el.styles),
+    fontSynthesis: fontSynthesisOf(el.styles),
+    textRendering: el.styles.textRendering,
+    ...options,
+  };
+}
+
+function resolveSegmentTypography(el: CapturedElement, seg: TextSegment | undefined, fillColor: string) {
+  return {
+    color: seg?.color ?? fillColor,
+    fontSize: seg?.fontSize ?? fontSizeOrDefault(el.styles.fontSize),
+    fontWeight: seg?.fontWeight ?? el.styles.fontWeight,
+    fontFamily: seg == null ? capturedElementFontFamily(el) : capturedSegmentFontFamily(el, seg),
+    fontStyle: seg?.fontStyle ?? el.styles.fontStyle,
+    ascent: seg?.fontAscent ?? el.fontAscent,
+  };
+}
+
+function emitRasterSegment(seg: TextSegment, clipId: string): string | null {
+  if (seg.rasterDataUri == null || seg.rasterRect == null) return null;
+  recordTextEmitterTransition({ kind: "capture-raster", sourceText: seg.text, reason: "text-segment-raster" });
+  const rect = seg.rasterRect;
+  const clip = seg.rasterEmojiSide != null ? "" : ` clip-path="url(#${clipId})"`;
+  return `<image href="${seg.rasterDataUri}" x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}" preserveAspectRatio="none"${clip}/>`;
+}
+
 export function renderSingleLineText(opts: RenderTextOpts): string {
-  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   // Raster fallback (DM-626 follow-up to DM-583): when the only segment
   // is a pseudo whose codepoints fontkit can't shape (e.g. icon-font
@@ -1715,17 +1763,9 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // it (DM-596). Use the screenshot instead — pixel-faithful and
   // anchored at the position Chromium painted from.
   const ssSeg = el.textSegments != null && el.textSegments.length === 1 ? el.textSegments[0] : undefined;
-  if (ssSeg != null && ssSeg.rasterDataUri != null && ssSeg.rasterRect != null) {
-    recordTextEmitterTransition({
-      kind: "capture-raster",
-      sourceText: ssSeg.text,
-      reason: "text-segment-raster",
-    });
-    const rr = ssSeg.rasterRect;
-    // DM-1271: skip the line-box clip when the rect was grown to a color emoji's
-    // overflowing painted square (see the multi-segment path for the rationale).
-    const rasterClip = ssSeg.rasterEmojiSide != null ? "" : ` clip-path="url(#${clipId})"`;
-    return `<image href="${ssSeg.rasterDataUri}" x="${r(rr.x)}" y="${r(rr.y)}" width="${r(rr.width)}" height="${r(rr.height)}" preserveAspectRatio="none"${rasterClip}/>`;
+  if (ssSeg != null) {
+    const raster = emitRasterSegment(ssSeg, clipId);
+    if (raster != null) return raster;
   }
   const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const fontFamily = capturedElementFontFamily(el);
@@ -1764,27 +1804,10 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // DM-2470: shaped origins stay in Blink's pre-transform plane. The caller
   // applies the complete signed affine paint matrix to the whole text bundle.
   const xOffsetsRel = reordered.xOffsets;
-  const ffsFeatures = elementFontFeatures(
+  const features = resolveSegmentFeatures(
     el,
+    singleSeg?.fontVariant,
     singleSeg == null ? fontFamily : capturedSegmentFontFamily(el, singleSeg),
-  );
-  const features = mergeFeatureLists(
-    mergeFeatureLists(
-      mergeFeatureLists(
-        resolveCapsFeatures(singleSeg?.fontVariant, el.styles.fontVariantCaps),
-        resolveFontVariantFeatures(
-          el.styles.fontVariantEastAsian,
-          el.styles.fontVariantNumeric,
-          el.styles.fontVariantLigatures,
-          el.styles.letterSpacing,
-          el.styles.textRendering,
-          el.styles.fontKerning,
-          el.styles.fontVariantPosition,
-        ),
-      ),
-      ffsFeatures,
-    ),
-    resolveChwsFeature(ffsFeatures),
   );
   const variationSettings = opticalVariationSettings(el);
   // DM-495: when the only segment is a pseudo with its own typography
@@ -1793,19 +1816,13 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
   // specific overrides on the segment, but the singleSeg path was reading
   // host-level fields exclusively, so a `.marker::after { color: white }`
   // pseudo painted in the marker's own color (typically inherited black).
-  const segColor = singleSeg?.color ?? fillColor;
-  const segFontSize = singleSeg?.fontSize ?? fontSize;
-  const segFontWeight = singleSeg?.fontWeight ?? fontWeight;
-  const segAscent = singleSeg?.fontAscent ?? el.fontAscent;
-  // DM-513: pseudo-element font-family override (e.g. icon font on
-  // `[class^="icon-"]:before { font-family: "sdicon" }`).
-  const segFontFamily = singleSeg == null ? fontFamily : capturedSegmentFontFamily(el, singleSeg);
-  // Pseudo-element font-style override (Slashdot's `.carouselHeading::after`
-  // is italic on a non-italic host). The multi-segment path already did the
-  // `seg.fontStyle ?? el.styles.fontStyle` fallback below; the single-segment
-  // path was reading host fontStyle exclusively, so a pseudo's italic was
-  // silently swallowed.
-  const segFontStyle = singleSeg?.fontStyle ?? el.styles.fontStyle;
+  const typography = resolveSegmentTypography(el, singleSeg, fillColor);
+  const segColor = typography.color;
+  const segFontSize = typography.fontSize;
+  const segFontWeight = typography.fontWeight;
+  const segAscent = typography.ascent;
+  const segFontFamily = typography.fontFamily;
+  const segFontStyle = typography.fontStyle;
   // DM-507: when the single segment is a pseudo with its own paint box
   // (background-color / border-radius / border), emit a <rect> behind the
   // glyphs. Same as the multi-segment path; without this the badge / pill
@@ -1853,28 +1870,24 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       }
     }
   }
-  const result = renderTextAsPath(pathText, tl, renderY, {
-    fontSize: segFontSize,
-    fontFamily: segFontFamily,
-    fontWeight: segFontWeight,
-    fill: segColor,
-    targetWidth: el.textWidth,
-    xOffsets: xOffsetsRel,
-    fontStyle: segFontStyle,
-    ascentOverride: renderAscent,
-    features,
-    lang: el.styles.lang,
-    variationSettings,
-    textStrokeWidth: _ts.width,
-    textStrokeColor: _ts.color,
-    paintOrder: _ts.paintOrder,
-    dottedCircleMarks: singleSeg?.dottedCircleMarks,
-    bidiOverride: bidiContextFor(el),
-    fontStretch: el.styles.fontStretch,
-    fontVariantEmoji: fontVariantEmojiOf(el.styles),
-    fontSynthesis: fontSynthesisOf(el.styles),
-    textRendering: el.styles.textRendering,
-  });
+  const result = renderTextAsPath(
+    pathText,
+    tl,
+    renderY,
+    buildPathOptions(el, {
+      fontSize: segFontSize,
+      fontFamily: segFontFamily,
+      fontWeight: segFontWeight,
+      fill: segColor,
+      targetWidth: el.textWidth,
+      xOffsets: xOffsetsRel,
+      fontStyle: segFontStyle,
+      ascentOverride: renderAscent,
+      features,
+      variationSettings,
+      dottedCircleMarks: singleSeg?.dottedCircleMarks,
+    }),
+  );
   // Decorations anchor on the text fragment TOP (`tt`) + the captured
   // FloatAscent — the same pair Blink's decoration offsets are expressed
   // against (`local_origin_.line_over` + `FontMetrics` in
@@ -1967,10 +1980,7 @@ function renderSingleSegPseudoBox(
  * Render multi-segment text (mixed content like: <p>Text <code>x</code> more</p>).
  */
 export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegment[]): string {
-  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
-  const elFontSize = fontSizeOrDefault(el.styles.fontSize);
-  const elFontWeight = el.styles.fontWeight;
   const parts: string[] = [];
 
   // DM-1055: resolve BiDi embedding levels on the WHOLE paragraph (`el.text`)
@@ -1992,20 +2002,9 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // segment's layout box. Skip the path pipeline — the rasterRect was sized
     // to the full line box, so y/height here use that same rect so the image
     // lands exactly where Chrome painted it.
-    if (seg.rasterDataUri != null && seg.rasterRect != null) {
-      recordTextEmitterTransition({
-        kind: "capture-raster",
-        sourceText: seg.text,
-        reason: "text-segment-raster",
-      });
-      // DM-1271: when the rect was grown to a color emoji's painted square (its
-      // advance overflows the line box), skip the line-box clip — an inline
-      // pseudo doesn't clip overflow, so Chrome paints the emoji past the line
-      // box and clipping it back re-cuts the glyph's top/bottom.
-      const rasterClip = seg.rasterEmojiSide != null ? "" : ` clip-path="url(#${clipId})"`;
-      parts.push(
-        `<image href="${seg.rasterDataUri}" x="${r(seg.rasterRect.x)}" y="${r(seg.rasterRect.y)}" width="${r(seg.rasterRect.width)}" height="${r(seg.rasterRect.height)}" preserveAspectRatio="none"${rasterClip}/>`,
-      );
+    const raster = emitRasterSegment(seg, clipId);
+    if (raster != null) {
+      parts.push(raster);
       continue;
     }
     // DM-497: pseudo-element paint box. ::before / ::after with their own
@@ -2061,37 +2060,18 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     // purple-bold, the abbr[title]::after blue-and-smaller, etc. ::first-line
     // uses the same mechanism — the first segment of a paragraph inherits a
     // pseudo-style override from CAPTURE_SCRIPT (DM-294).
-    const segColor = seg.color ?? fillColor;
-    const segFontSize = seg.fontSize ?? elFontSize;
-    const segFontWeight = seg.fontWeight ?? elFontWeight;
-    const segFontStyle = seg.fontStyle ?? el.styles.fontStyle;
-    // DM-513: pseudos with `font-family: 'sdicon'` etc. need their icon font
-    // routed through the renderer, not the parent element's body font.
-    const segFontFamily = capturedSegmentFontFamily(el, seg);
+    const typography = resolveSegmentTypography(el, seg, fillColor);
+    const segColor = typography.color;
+    const segFontSize = typography.fontSize;
+    const segFontWeight = typography.fontWeight;
+    const segFontStyle = typography.fontStyle;
+    const segFontFamily = typography.fontFamily;
     // Honor either segment-level font-variant override (::first-line) or
     // the element-level font-variant-caps. (DM-294, DM-361, DM-444). See
     // resolveCapsFeatures (module scope) for the full spec mapping. Merge with
     // author-set `font-feature-settings` (DM-564) — e.g. Inter's `cv11`
     // single-story `a` alternate is set by next/font marketing pages.
-    const segFfsFeatures = elementFontFeatures(el, segFontFamily);
-    const segFeatures = mergeFeatureLists(
-      mergeFeatureLists(
-        mergeFeatureLists(
-          resolveCapsFeatures(seg.fontVariant, el.styles.fontVariantCaps),
-          resolveFontVariantFeatures(
-            el.styles.fontVariantEastAsian,
-            el.styles.fontVariantNumeric,
-            el.styles.fontVariantLigatures,
-            el.styles.letterSpacing,
-            el.styles.textRendering,
-            el.styles.fontKerning,
-            el.styles.fontVariantPosition,
-          ),
-        ),
-        segFfsFeatures,
-      ),
-      resolveChwsFeature(segFfsFeatures),
-    );
+    const segFeatures = capturedTextSegmentFontFeatures(el, seg);
     // Pass per-char xOffsets through (relative to seg.x) so multi-line wrapped
     // text anchors glyphs at the exact Chromium-measured positions.
     const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
@@ -2111,27 +2091,23 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
     }
     const segXOffsets = reordered.xOffsets;
     const segAscent = seg.fontAscent ?? el.fontAscent;
-    const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
-      fontSize: segFontSize,
-      fontFamily: segFontFamily,
-      fontWeight: segFontWeight,
-      fill: segColor,
-      xOffsets: segXOffsets,
-      fontStyle: segFontStyle,
-      ascentOverride: segAscent,
-      features: segFeatures,
-      lang: el.styles.lang,
-      variationSettings: elVariationSettings,
-      textStrokeWidth: _ts.width,
-      textStrokeColor: _ts.color,
-      paintOrder: _ts.paintOrder,
-      dottedCircleMarks: seg.dottedCircleMarks,
-      bidiOverride: bidiContextFor(el),
-      fontStretch: el.styles.fontStretch,
-      fontVariantEmoji: fontVariantEmojiOf(el.styles),
-      fontSynthesis: fontSynthesisOf(el.styles),
-      textRendering: el.styles.textRendering,
-    });
+    const result = renderTextAsPath(
+      reordered.text,
+      seg.x,
+      seg.y,
+      buildPathOptions(el, {
+        fontSize: segFontSize,
+        fontFamily: segFontFamily,
+        fontWeight: segFontWeight,
+        fill: segColor,
+        xOffsets: segXOffsets,
+        fontStyle: segFontStyle,
+        ascentOverride: segAscent,
+        features: segFeatures,
+        variationSettings: elVariationSettings,
+        dottedCircleMarks: seg.dottedCircleMarks,
+      }),
+    );
     segParts.push(result);
     // DM-1723/DM-1725: the element's own decoration plus every ancestor
     // decorating box's propagated entry paint independently (Blink's
@@ -2181,7 +2157,6 @@ export function renderMultiSegmentText(opts: RenderTextOpts, segments: TextSegme
  * Render multi-line text (pre blocks).
  */
 export function renderMultiLineText(opts: RenderTextOpts): string {
-  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   const fontSize = fontSizeOrDefault(el.styles.fontSize);
   const fontFamily = capturedElementFontFamily(el);
@@ -2214,33 +2189,30 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const xOffsetsRelRaw = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
       const reordered = applyBidi(suppressGlyphChars(seg.text, seg), xOffsetsRelRaw, bidiContextFor(el));
       const segXOffsets = reordered.xOffsets;
-      const segFontSize = seg.fontSize ?? fontSize;
-      const segFontWeight = seg.fontWeight ?? fontWeight;
-      const segColor = seg.color ?? fillColor;
-      const segAscent = seg.fontAscent ?? el.fontAscent;
-      const segFontFamily = capturedSegmentFontFamily(el, seg);
-      const segFeatures = elementFontFeatures(el, segFontFamily);
-      const result = renderTextAsPath(reordered.text, seg.x, seg.y, {
-        fontSize: segFontSize,
-        fontFamily: segFontFamily,
-        fontWeight: segFontWeight,
-        fill: segColor,
-        xOffsets: segXOffsets,
-        fontStyle: el.styles.fontStyle,
-        ascentOverride: segAscent,
-        features: segFeatures,
-        lang: el.styles.lang,
-        variationSettings: fvsAxes,
-        textStrokeWidth: _ts.width,
-        textStrokeColor: _ts.color,
-        paintOrder: _ts.paintOrder,
-        dottedCircleMarks: seg.dottedCircleMarks,
-        bidiOverride: bidiContextFor(el),
-        fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles),
-        fontSynthesis: fontSynthesisOf(el.styles),
-        textRendering: el.styles.textRendering,
-      });
+      const typography = resolveSegmentTypography(el, seg, fillColor);
+      const segFontSize = typography.fontSize;
+      const segFontWeight = typography.fontWeight;
+      const segColor = typography.color;
+      const segAscent = typography.ascent;
+      const segFontFamily = typography.fontFamily;
+      const segFeatures = capturedTextSegmentFontFeatures(el, seg);
+      const result = renderTextAsPath(
+        reordered.text,
+        seg.x,
+        seg.y,
+        buildPathOptions(el, {
+          fontSize: segFontSize,
+          fontFamily: segFontFamily,
+          fontWeight: segFontWeight,
+          fill: segColor,
+          xOffsets: segXOffsets,
+          fontStyle: typography.fontStyle,
+          ascentOverride: segAscent,
+          features: segFeatures,
+          variationSettings: fvsAxes,
+          dottedCircleMarks: seg.dottedCircleMarks,
+        }),
+      );
       parts.push(`  ${result}`);
     }
   } else {
@@ -2249,25 +2221,21 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
       const line = lines[li];
       if (line === "") continue;
       const lineY = startY + li * lineHeight;
-      const result = renderTextAsPath(line, startX, lineY, {
-        fontSize,
-        fontFamily,
-        fontWeight,
-        fill: fillColor,
-        fontStyle: el.styles.fontStyle,
-        ascentOverride: el.fontAscent,
-        features: ffsFeatures,
-        lang: el.styles.lang,
-        variationSettings: fvsAxes,
-        textStrokeWidth: _ts.width,
-        textStrokeColor: _ts.color,
-        paintOrder: _ts.paintOrder,
-        bidiOverride: bidiContextFor(el),
-        fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles),
-        fontSynthesis: fontSynthesisOf(el.styles),
-        textRendering: el.styles.textRendering,
-      });
+      const result = renderTextAsPath(
+        line,
+        startX,
+        lineY,
+        buildPathOptions(el, {
+          fontSize,
+          fontFamily,
+          fontWeight,
+          fill: fillColor,
+          fontStyle: el.styles.fontStyle,
+          ascentOverride: el.fontAscent,
+          features: ffsFeatures,
+          variationSettings: fvsAxes,
+        }),
+      );
       parts.push(`  ${result}`);
     }
   }
@@ -2279,7 +2247,6 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
  * Render input/textarea text.
  */
 export function renderInputText(opts: RenderTextOpts): string {
-  const _ts = textStrokeParams(opts.el.styles);
   const { el, clipId, fillColor } = opts;
   // Compatibility for captured trees produced before textarea/vertical text
   // gained vector line/run geometry. Current captures never set this field.
@@ -2328,49 +2295,42 @@ export function renderInputText(opts: RenderTextOpts): string {
     const segParts: string[] = [];
     for (const seg of el.textSegments) {
       const segXOffsetsRel = seg.xOffsets != null ? seg.xOffsets.map((v) => v - seg.x) : undefined;
-      const segResult = renderTextAsPath(seg.text, seg.x, seg.y, {
-        fontSize,
-        fontFamily,
-        fontWeight: textFontWeight,
-        fill: textColor,
-        xOffsets: segXOffsetsRel,
-        fontStyle: textFontStyle,
-        ascentOverride: el.fontAscent,
-        features: inputFeatures,
-        lang: el.styles.lang,
-        variationSettings: inputAxes,
-        textStrokeWidth: _ts.width,
-        textStrokeColor: _ts.color,
-        paintOrder: _ts.paintOrder,
-        bidiOverride: bidiContextFor(el),
-        fontStretch: el.styles.fontStretch,
-        fontVariantEmoji: fontVariantEmojiOf(el.styles),
-        fontSynthesis: fontSynthesisOf(el.styles),
-        textRendering: el.styles.textRendering,
-      });
+      const segResult = renderTextAsPath(
+        seg.text,
+        seg.x,
+        seg.y,
+        buildPathOptions(el, {
+          fontSize,
+          fontFamily,
+          fontWeight: textFontWeight,
+          fill: textColor,
+          xOffsets: segXOffsetsRel,
+          fontStyle: textFontStyle,
+          ascentOverride: el.fontAscent,
+          features: inputFeatures,
+          variationSettings: inputAxes,
+        }),
+      );
       segParts.push(segResult);
     }
     if (segParts.length > 0) return `<g clip-path="url(#${clipId})">${segParts.join("")}</g>`;
   }
-  const result = renderTextAsPath(el.text, textX, tt, {
-    fontSize,
-    fontFamily,
-    fontWeight: textFontWeight,
-    fill: textColor,
-    xOffsets: xOffsetsRel,
-    fontStyle: textFontStyle,
-    ascentOverride: el.fontAscent,
-    features: inputFeatures,
-    lang: el.styles.lang,
-    variationSettings: inputAxes,
-    textStrokeWidth: _ts.width,
-    textStrokeColor: _ts.color,
-    paintOrder: _ts.paintOrder,
-    bidiOverride: bidiContextFor(el),
-    fontStretch: el.styles.fontStretch,
-    fontVariantEmoji: fontVariantEmojiOf(el.styles),
-    textRendering: el.styles.textRendering,
-  });
+  const result = renderTextAsPath(
+    el.text,
+    textX,
+    tt,
+    buildPathOptions(el, {
+      fontSize,
+      fontFamily,
+      fontWeight: textFontWeight,
+      fill: textColor,
+      xOffsets: xOffsetsRel,
+      fontStyle: textFontStyle,
+      ascentOverride: el.fontAscent,
+      features: inputFeatures,
+      variationSettings: inputAxes,
+    }),
+  );
   // Clip the path-rendered text to the input's content rect so values that
   // overflow the visible width (common on readonly inputs with long text or
   // any input narrower than its value) are truncated like Chrome paints

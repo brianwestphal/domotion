@@ -16,6 +16,9 @@ export interface RGBA {
   a: number;
 }
 
+/** Renderer visibility floor for captured alpha channels. */
+export const INVISIBLE_ALPHA = 0.01;
+
 export function parseColor(css: string): RGBA | null {
   if (css === "" || css === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
   // rgb()/rgba() — Chromium uses this form for srgb colors.

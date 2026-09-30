@@ -190,12 +190,12 @@ describe("buildMaskDef — composite (DM-395)", () => {
       "no-repeat, no-repeat",
       "intersect, intersect",
     );
-    // Two distinct mask elements: outer 'm' + inner 'm i1'.
-    expect((r.def.match(/<mask\s/g) ?? []).length).toBe(2);
+    // Both layers pass through the same bottom-up compositor as 3+ layers.
+    expect((r.def.match(/<mask\s/g) ?? []).length).toBe(4);
     expect(r.def).toContain('id="m"');
-    expect(r.def).toContain('id="mi1"');
-    // The outer mask's painted rect should reference the inner mask.
-    expect(r.def).toMatch(/fill="url\(#mg0\)"\s*mask="url\(#mi1\)"/);
+    expect(r.def).toContain('id="mraw0"');
+    expect(r.def).toContain('id="mraw1"');
+    expect(r.def).toMatch(/<g mask="url\(#mraw0\)"><rect[^>]*mask="url\(#mraw1\)"/);
   });
 });
 

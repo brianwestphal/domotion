@@ -1471,11 +1471,26 @@ function maskRows(): OracleRow[] {
       op: "add",
       marker: (def: string) => !def.includes("<feColorMatrix") && (def.match(/<mask /g)?.length ?? 0) === 1,
     },
-    { op: "intersect", marker: (def: string) => def.includes('id="mci1"') && def.includes('mask="url(#mci1)"') },
-    { op: "subtract", marker: (def: string) => def.includes('id="mcs1"') && def.includes('id="mcinv"') },
+    {
+      op: "intersect",
+      marker: (def: string) =>
+        def.includes('id="mcacc0"') &&
+        def.includes(
+          '<g mask="url(#mcraw0)"><rect x="0" y="0" width="100" height="80" fill="#fff" mask="url(#mcraw1)"',
+        ),
+    },
+    {
+      op: "subtract",
+      marker: (def: string) =>
+        def.includes('id="mcacc0"') && def.includes('id="mcnota0"') && def.includes('id="mcinv"'),
+    },
     {
       op: "exclude",
-      marker: (def: string) => def.includes('id="mcx0"') && def.includes('id="mcx1"') && def.includes('id="mcinv"'),
+      marker: (def: string) =>
+        def.includes('id="mcacc0"') &&
+        def.includes('id="mcnota0"') &&
+        def.includes('id="mcnots0"') &&
+        def.includes('id="mcinv"'),
     },
   ]) {
     const composite = buildMaskDef("mc", twoLayers, 0, 0, 100, 80, "alpha", "auto", "0% 0%", "no-repeat", test.op).def;

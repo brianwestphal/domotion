@@ -11,13 +11,9 @@
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { cyclicBackgroundLayer } from "./image-pattern.js";
 import type { MaskImageRect } from "./mask-position.js";
+import type { PhysicalEdges } from "./geometry-box.js";
 
-export interface MaskPhysicalEdges {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-}
+export type MaskPhysicalEdges = PhysicalEdges;
 
 export interface MaskOriginClipContext {
   /** Computed, comma-separated `mask-origin` layer list. */

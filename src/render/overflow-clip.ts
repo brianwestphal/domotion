@@ -1,4 +1,5 @@
 import { insetCornerRadii, outsetCornerRadiiWithCoverageCorrection, type CornerRadii } from "./borders.js";
+import type { PhysicalEdges } from "./geometry-box.js";
 
 export type OverflowClipReferenceBox = "border-box" | "padding-box" | "content-box";
 
@@ -9,12 +10,7 @@ export interface ParsedOverflowClipMargin {
   hasEffect: boolean;
 }
 
-export interface PhysicalBoxSides {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-}
+export type PhysicalBoxSides = PhysicalEdges;
 
 export interface OverflowClipActivation {
   overflowX?: string;

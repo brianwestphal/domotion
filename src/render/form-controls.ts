@@ -1,3 +1,4 @@
+import { emitGaussianBlurFilter } from "./gaussian-blur.js";
 /**
  * Source-owned structural form-control paint.
  *
@@ -639,7 +640,9 @@ export function renderFileSelectorOutsetShadow(
       const filterId = defCtx.nextGradId();
       const pad = Math.max(1, shadow.blur * 2);
       defCtx.defsParts.push(
-        `<filter id="${filterId}" filterUnits="userSpaceOnUse" x="${r(x - pad)}" y="${r(y - pad)}" width="${r(width + pad * 2)}" height="${r(height + pad * 2)}"><feGaussianBlur stdDeviation="${r(shadow.blur / 2)}"/></filter>`,
+        emitGaussianBlurFilter(filterId, shadow.blur, {
+          region: { x: x - pad, y: y - pad, width: width + pad * 2, height: height + pad * 2 },
+        }),
       );
       filterAttr = ` filter="url(#${filterId})"`;
     }

@@ -889,6 +889,23 @@ function resolvedMaskPaintAreas(
  * source that Chrome renders as a full hide (SK-859/SK-860) — the caller forces
  * emission of an empty `<mask>` in that case.
  */
+function resolveLayerTile(
+  sizeCss: string,
+  area: { width: number; height: number },
+  naturalWidth: number,
+  naturalHeight: number,
+  heightAuto: (width: number) => number,
+): { width: number; height: number } {
+  const tokens = sizeCss.trim().split(/\s+/);
+  const axis = (token: string | undefined, basis: number, fallback: number): number => {
+    if (token == null || token === "auto" || token === "") return fallback;
+    if (token.endsWith("%")) return (parseFloat(token) / 100) * basis;
+    return parseFloat(token) || fallback;
+  };
+  const width = axis(tokens[0], area.width, naturalWidth);
+  return { width, height: tokens.length > 1 ? axis(tokens[1], area.height, naturalHeight) : heightAuto(width) };
+}
+
 function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide: boolean } {
   const {
     id,
@@ -916,28 +933,13 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     // positioning model as url() masks. mask-size:80px+mask-position:25% 25%
     // means the gradient is painted in an 80x80 patch positioned 25%/25% of
     // the available space — not stretched to fill the whole element.
-    let gradW = w,
-      gradH = h;
     const sizeTok = layerSize.trim().split(/\s+/);
-    const resolveSize = (tok: string, basis: number, fallback: number): number => {
-      if (tok == null || tok === "auto" || tok === "") return fallback;
-      if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-      return parseFloat(tok) || fallback;
-    };
-    if (layerSize === "contain" || layerSize === "cover" || layerSize === "auto" || layerSize === "") {
-      gradW = w;
-      gradH = h;
-    } else {
-      gradW = resolveSize(sizeTok[0], w, w);
-      // DM-679: single-length mask-size per CSS Backgrounds 3 §3.7
-      // means `width=N, height=auto`. For gradient layers (no intrinsic
-      // size) `auto` resolves to the container's corresponding axis, not
-      // to the width again. Previously we squared the box (gradH = gradW)
-      // which made `radial-gradient(circle, …) mask-size: 80px` paint a
-      // smaller hard circle than Chrome (radius derived from 80×80 farthest-
-      // corner ≈ 56.6 vs Chrome's 80×containerH farthest-corner ≈ 72).
-      gradH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : h;
-    }
+    const gradientTile =
+      layerSize === "contain" || layerSize === "cover"
+        ? { width: w, height: h }
+        : resolveLayerTile(layerSize, { width: w, height: h }, w, h, () => h);
+    let gradW = gradientTile.width,
+      gradH = gradientTile.height;
     if (gradW <= 0 || gradH <= 0) return { contents, forceHide: false };
     const gradientOffset = resolveMaskPosition(layerPos, w - gradW, h - gradH);
     let gx = elX + gradientOffset.x;
@@ -1033,24 +1035,22 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     const raster = elementRasters.get(refId);
     if (raster == null || raster.dataUri == null) return { contents, forceHide: false };
     const intrinsic = { w: raster.width, h: raster.height };
-    let imgW = intrinsic.w,
-      imgH = intrinsic.h;
-    const sizeTok = layerSize.trim().split(/\s+/);
-    const resolveSize = (tok: string, basis: number, intrinsicDim: number): number => {
-      if (tok == null || tok === "auto" || tok === "") return intrinsicDim;
-      if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-      return parseFloat(tok) || intrinsicDim;
-    };
     let fitted: MaskImageRect | null = null;
     if (layerSize === "contain" || layerSize === "cover") {
       fitted = resolveMaskContainCoverRect({ x: elX, y: elY, width: w, height: h }, intrinsic, layerSize, layerPos);
       if (fitted == null) return { contents, forceHide: false };
-      imgW = fitted.width;
-      imgH = fitted.height;
-    } else {
-      imgW = resolveSize(sizeTok[0], w, intrinsic.w);
-      imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, intrinsic.h) : imgW * (intrinsic.h / intrinsic.w);
     }
+    const tile =
+      fitted ??
+      resolveLayerTile(
+        layerSize,
+        { width: w, height: h },
+        intrinsic.w,
+        intrinsic.h,
+        (width) => width * (intrinsic.h / intrinsic.w),
+      );
+    const imgW = tile.width,
+      imgH = tile.height;
     const imageOffset = resolveMaskPosition(layerPos, w - imgW, h - imgH);
     const ix = fitted?.x ?? elX + imageOffset.x;
     const iy = fitted?.y ?? elY + imageOffset.y;
@@ -1098,14 +1098,6 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     const isNoRepeat = urlRepeatX === "no-repeat" && urlRepeatY === "no-repeat";
     if (isNoRepeat) {
       // Resolve mask-size + mask-position to a concrete image rect.
-      let imgW = w,
-        imgH = h;
-      const sizeTok = layerSize.trim().split(/\s+/);
-      const resolveSize = (tok: string, basis: number, intrinsicDim: number): number => {
-        if (tok == null || tok === "auto" || tok === "") return intrinsicDim;
-        if (/%$/.test(tok)) return (parseFloat(tok) / 100) * basis;
-        return parseFloat(tok) || intrinsicDim;
-      };
       let fitted: MaskImageRect | null = null;
       if (layerSize === "contain" || layerSize === "cover") {
         fitted =
@@ -1122,20 +1114,15 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
             "mask-image",
             `mask-size:${layerSize} requires captured mask intrinsic dimensions; omitting inexact layer`,
           );
-          // A CSS image mask layer whose source cannot supply natural sizing
-          // contributes transparent black; do not turn a failed exactness
-          // probe into an unmasked (fully visible) element.
           contents.push(
             `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="transparent" />`,
           );
           return { contents, forceHide: false };
         }
-        imgW = fitted.width;
-        imgH = fitted.height;
-      } else {
-        imgW = resolveSize(sizeTok[0], w, w);
-        imgH = sizeTok.length > 1 ? resolveSize(sizeTok[1], h, h) : imgW;
       }
+      const tile = fitted ?? resolveLayerTile(layerSize, { width: w, height: h }, w, h, (width) => width);
+      const imgW = tile.width,
+        imgH = tile.height;
       const imageOffset = resolveMaskPosition(layerPos, w - imgW, h - imgH);
       const ix = fitted?.x ?? elX + imageOffset.x;
       const iy = fitted?.y ?? elY + imageOffset.y;
@@ -1175,55 +1162,107 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
   return { contents, forceHide: false };
 }
 
-export function buildMaskDef(
+function composeMaskLayersSequential(
   id: string,
-  maskImage: string,
-  elX: number,
-  elY: number,
-  w: number,
-  h: number,
-  maskMode: string,
-  sizeCss: string,
-  posCss: string,
-  repeatCss: string,
-  compositeCss: string,
-  /** DM-494: lookup table for `mask-image: element(#id)` references. Optional —
-   *  callers without element() refs can omit it. The renderer's main caller
-   *  threads through `elementMaskRasters` (collected from tree[0].maskRasters);
-   *  unit tests can pass undefined to exercise the non-element() branches. */
-  elementRasters?: ReadonlyMap<string, MaskRasterRef>,
-  /** Per-mask-image natural dimensions captured from Chromium. */
-  maskIntrinsic?: ReadonlyArray<MaskIntrinsicSize | null>,
-  /** Wrapped-inline / fragmented paint geometry (DM-2379). */
-  fragmentGeometry?: MaskFragmentGeometry,
-  /** Independent per-layer HTML mask-origin/mask-clip geometry (DM-2472). */
-  originClip?: MaskOriginClipContext,
-  /**
-   * Local SVG mask-source layers already materialized into root-space SVG
-   * masks. The map key is the computed `mask-image` layer index. These
-   * sources ignore ordinary image geometry; each referenced mask has already
-   * baked that layer's effective alpha/luminance mode.
-   */
+  maskRegion: MaskImageRect,
+  maskType: "alpha" | "luminance",
+  activeLayers: Array<{ contents: string[]; index: number }>,
+  operatorAt: (index: number) => string,
   fragmentMaskLayers?: ReadonlyMap<number, MaterializedFragmentMaskLayer>,
-): { id: string; def: string } {
-  const layers = splitTopLevelCommas(maskImage);
-  const sizeLayers = splitTopLevelCommas(sizeCss);
-  const posLayers = splitTopLevelCommas(posCss);
-  const repeatLayers = splitTopLevelCommas(repeatCss);
-  const compositeLayers = splitTopLevelCommas(compositeCss);
-  const modeLayers = splitTopLevelCommas(maskMode);
-  const hasFragmentLayer = fragmentMaskLayers != null && fragmentMaskLayers.size > 0;
+): string {
+  const defs: string[] = [];
+  const fullRect = (maskId: string): string =>
+    `<rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="#fff" mask="url(#${maskId})" />`;
+  const intersectRegions = (a: MaskImageRect, b: MaskImageRect): MaskImageRect => {
+    const x = Math.max(a.x, b.x),
+      y = Math.max(a.y, b.y);
+    const right = Math.min(a.x + a.width, b.x + b.width);
+    const bottom = Math.min(a.y + a.height, b.y + b.height);
+    return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+  };
+  const rectPath = (rect: MaskImageRect): string =>
+    `M${r(rect.x)} ${r(rect.y)}H${r(rect.x + rect.width)}V${r(rect.y + rect.height)}H${r(rect.x)}Z`;
+  const rawIds = new Map<number, string>();
+  for (const layer of activeLayers) {
+    const rawId = `${id}raw${layer.index}`;
+    rawIds.set(layer.index, rawId);
+    defs.push(
+      `<mask id="${rawId}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="${maskType}">${layer.contents.join("")}</mask>`,
+    );
+  }
+  const invFilterId = `${id}inv`;
+  defs.push(
+    `<filter id="${invFilterId}" filterUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`,
+  );
+  const inverse = (sourceId: string, suffix: string): string => {
+    const inverseId = `${id}not${suffix}`;
+    defs.push(
+      `<mask id="${inverseId}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha"><g filter="url(#${invFilterId})"><rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="transparent" />${fullRect(sourceId)}</g></mask>`,
+    );
+    return inverseId;
+  };
+  let accumulated = rawIds.get(activeLayers[activeLayers.length - 1].index)!;
+  for (let position = activeLayers.length - 2; position >= 0; position--) {
+    const layer = activeLayers[position];
+    const source = rawIds.get(layer.index)!;
+    const combined = `${id}acc${position}`;
+    const op = operatorAt(layer.index);
+    let operationBody: string;
+    if (op === "intersect") {
+      operationBody = `<g mask="url(#${source})">${fullRect(accumulated)}</g>`;
+    } else if (op === "subtract") {
+      operationBody = `<g mask="url(#${inverse(accumulated, `a${position}`)})">${fullRect(source)}</g>`;
+    } else if (op === "exclude") {
+      const notAccumulated = inverse(accumulated, `a${position}`);
+      const notSource = inverse(source, `s${position}`);
+      operationBody = `<g mask="url(#${notAccumulated})">${fullRect(source)}</g><g mask="url(#${notSource})">${fullRect(accumulated)}</g>`;
+    } else {
+      operationBody = `${fullRect(accumulated)}${fullRect(source)}`;
+    }
 
-  // Determine mask-type per CSS mask-mode.
-  //   - alpha: explicit author opt-in to alpha-channel masking.
-  //   - luminance: explicit author opt-in to RGB-luminance masking.
-  //   - match-source (default): the source type drives the mode. Per CSS Masking:
-  //     gradient + bitmap url() sources → alpha (the practical behavior we
-  //     already emit), but element() paint references → luminance (the painted
-  //     RGB drives mask alpha; this is what Chromium implements for `element()`
-  //     under `match-source`). DM-494: when ANY layer in this mask is an
-  //     element() ref AND the author hasn't picked a mode explicitly, switch
-  //     to luminance for spec compliance.
+    let body = operationBody;
+    const fragmentRegion = fragmentMaskLayers?.get(layer.index)?.region;
+    if (fragmentRegion != null) {
+      // SVGMaskPainter clips the graphics context to ResourceBoundingBox()
+      // before BeginLayer(composite_op). The Porter-Duff result therefore
+      // replaces the accumulated destination only inside this fragment's
+      // resource region; destination pixels outside it survive unchanged.
+      const operationRegion = intersectRegions(maskRegion, fragmentRegion);
+      const coversMaskRegion =
+        operationRegion.x <= maskRegion.x &&
+        operationRegion.y <= maskRegion.y &&
+        operationRegion.x + operationRegion.width >= maskRegion.x + maskRegion.width &&
+        operationRegion.y + operationRegion.height >= maskRegion.y + maskRegion.height;
+      if (operationRegion.width <= 0 || operationRegion.height <= 0) {
+        body = fullRect(accumulated);
+      } else if (!coversMaskRegion) {
+        const clipId = `${id}opclip${position}`;
+        defs.push(
+          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(operationRegion.x)}" y="${r(operationRegion.y)}" width="${r(operationRegion.width)}" height="${r(operationRegion.height)}" /></clipPath>`,
+        );
+        const outsideDestination = `<path d="${rectPath(maskRegion)}${rectPath(operationRegion)}" fill="#fff" fill-rule="evenodd" mask="url(#${accumulated})" />`;
+        body = `${outsideDestination}<g clip-path="url(#${clipId})">${operationBody}</g>`;
+      }
+    }
+    defs.push(
+      `<mask id="${combined}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${body}</mask>`,
+    );
+    accumulated = combined;
+  }
+  defs.push(
+    `<mask id="${id}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${fullRect(accumulated)}</mask>`,
+  );
+  return defs.join("");
+}
+
+function resolveMaskTypeAndRegion(
+  layers: string[],
+  maskMode: string,
+  fragmentMaskLayers: ReadonlyMap<number, MaterializedFragmentMaskLayer> | undefined,
+  originClip: MaskOriginClipContext | undefined,
+  borderBox: MaskImageRect,
+): { maskType: "alpha" | "luminance"; maskRegion: MaskImageRect; explicitMaskRegion: string } {
+  const hasFragmentLayer = fragmentMaskLayers != null && fragmentMaskLayers.size > 0;
   const hasElementLayer = layers.some((l) => /^element\(\s*#/i.test(l.trim()));
   let maskType: "alpha" | "luminance";
   if (hasFragmentLayer) maskType = "alpha";
@@ -1231,7 +1270,6 @@ export function buildMaskDef(
   else if (maskMode === "alpha") maskType = "alpha";
   else maskType = hasElementLayer ? "luminance" : "alpha";
 
-  const borderBox = { x: elX, y: elY, width: w, height: h };
   const hasNoClipLayer =
     originClip != null &&
     layers.some((_, layerIndex) => resolveMaskOriginClipLayer(borderBox, layerIndex, originClip).clip === "no-clip");
@@ -1241,6 +1279,47 @@ export function buildMaskDef(
       ? ` x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}"`
       : "";
 
+  return { maskType, maskRegion, explicitMaskRegion };
+}
+
+function collectMaskLayerContents(input: {
+  id: string;
+  layers: string[];
+  sizeLayers: string[];
+  posLayers: string[];
+  repeatLayers: string[];
+  modeLayers: string[];
+  elX: number;
+  elY: number;
+  w: number;
+  h: number;
+  maskRegion: MaskImageRect;
+  hasFragmentLayer: boolean;
+  elementRasters?: ReadonlyMap<string, MaskRasterRef>;
+  maskIntrinsic?: ReadonlyArray<MaskIntrinsicSize | null>;
+  fragmentGeometry?: MaskFragmentGeometry;
+  originClip?: MaskOriginClipContext;
+  fragmentMaskLayers?: ReadonlyMap<number, MaterializedFragmentMaskLayer>;
+}): { layerContents: string[][]; forceHide: boolean; normalizedLayerDefs: string[] } {
+  const {
+    id,
+    layers,
+    sizeLayers,
+    posLayers,
+    repeatLayers,
+    modeLayers,
+    elX,
+    elY,
+    w,
+    h,
+    maskRegion,
+    hasFragmentLayer,
+    elementRasters,
+    maskIntrinsic,
+    fragmentGeometry,
+    originClip,
+    fragmentMaskLayers,
+  } = input;
   // Per-layer contents. contents[li] = array of SVG strings (gradient defs
   // + painted rect/image) for layer li. We keep each layer separate so
   // mask-composite: intersect can emit one <mask> per layer and chain them
@@ -1331,6 +1410,74 @@ export function buildMaskDef(
       layerContents[li] = contents;
     }
   }
+  return { layerContents, forceHide, normalizedLayerDefs };
+}
+
+export function buildMaskDef(
+  id: string,
+  maskImage: string,
+  elX: number,
+  elY: number,
+  w: number,
+  h: number,
+  maskMode: string,
+  sizeCss: string,
+  posCss: string,
+  repeatCss: string,
+  compositeCss: string,
+  /** DM-494: lookup table for `mask-image: element(#id)` references. Optional —
+   *  callers without element() refs can omit it. The renderer's main caller
+   *  threads through `elementMaskRasters` (collected from tree[0].maskRasters);
+   *  unit tests can pass undefined to exercise the non-element() branches. */
+  elementRasters?: ReadonlyMap<string, MaskRasterRef>,
+  /** Per-mask-image natural dimensions captured from Chromium. */
+  maskIntrinsic?: ReadonlyArray<MaskIntrinsicSize | null>,
+  /** Wrapped-inline / fragmented paint geometry (DM-2379). */
+  fragmentGeometry?: MaskFragmentGeometry,
+  /** Independent per-layer HTML mask-origin/mask-clip geometry (DM-2472). */
+  originClip?: MaskOriginClipContext,
+  /**
+   * Local SVG mask-source layers already materialized into root-space SVG
+   * masks. The map key is the computed `mask-image` layer index. These
+   * sources ignore ordinary image geometry; each referenced mask has already
+   * baked that layer's effective alpha/luminance mode.
+   */
+  fragmentMaskLayers?: ReadonlyMap<number, MaterializedFragmentMaskLayer>,
+): { id: string; def: string } {
+  const layers = splitTopLevelCommas(maskImage);
+  const sizeLayers = splitTopLevelCommas(sizeCss);
+  const posLayers = splitTopLevelCommas(posCss);
+  const repeatLayers = splitTopLevelCommas(repeatCss);
+  const compositeLayers = splitTopLevelCommas(compositeCss);
+  const modeLayers = splitTopLevelCommas(maskMode);
+  const hasFragmentLayer = fragmentMaskLayers != null && fragmentMaskLayers.size > 0;
+  const { maskType, maskRegion, explicitMaskRegion } = resolveMaskTypeAndRegion(
+    layers,
+    maskMode,
+    fragmentMaskLayers,
+    originClip,
+    { x: elX, y: elY, width: w, height: h },
+  );
+
+  const { layerContents, forceHide, normalizedLayerDefs } = collectMaskLayerContents({
+    id,
+    layers,
+    sizeLayers,
+    posLayers,
+    repeatLayers,
+    modeLayers,
+    elX,
+    elY,
+    w,
+    h,
+    maskRegion,
+    hasFragmentLayer,
+    elementRasters,
+    maskIntrinsic,
+    fragmentGeometry,
+    originClip,
+    fragmentMaskLayers,
+  });
   const withNormalizedLayers = (def: string): string => normalizedLayerDefs.join("") + def;
   // Drop empty layers (e.g. unsupported layer values) to simplify downstream.
   const activeLayers = layerContents
@@ -1351,271 +1498,32 @@ export function buildMaskDef(
     return { id, def: "" };
   }
 
-  // Resolve per-layer composite operator. CSS accepts one value applied to
-  // all layers or a comma-separated list. Chromium's `mask-composite`
-  // standard property maps to the same keyword names; the legacy
-  // `-webkit-mask-composite` form uses source-over / source-in / source-
-  // out / xor. We accept both by normalizing via `normaliseComposite()`
-  // because Chromium's getComputedStyle reports whichever longhand the
-  // author last set, and the capture falls back to the webkit alias when
-  // the standard property is empty (e.g. on older Chromium builds that
-  // haven't shipped the unprefixed property).
-  //
-  // Only `intersect` and `subtract` / `exclude` need special handling —
-  // `add` is the SVG default (layers stack additively in a single
-  // <mask>). `intersect` chains nested masks; `subtract` / `exclude`
-  // emit SVG filters with `feComposite` since neither is directly
-  // expressible by stacking mask layers (DM-586).
-  const normaliseComposite = (raw: string): string => {
-    const t = raw.trim().toLowerCase();
-    if (t === "source-over") return "add";
-    if (t === "source-in") return "intersect";
-    if (t === "source-out") return "subtract";
-    if (t === "xor") return "exclude";
-    return t;
+  // CSS accepts standard and legacy WebKit composite names. Blink paints
+  // from the bottom layer upward with the upper layer's operator.
+  const normalizeComposite = (raw: string): string => {
+    const value = raw.trim().toLowerCase();
+    if (value === "source-over") return "add";
+    if (value === "source-in") return "intersect";
+    if (value === "source-out") return "subtract";
+    if (value === "xor") return "exclude";
+    return value;
   };
-  const composite = normaliseComposite(compositeLayers[0] ?? "add");
-  const isIntersect = composite === "intersect" && compositeLayers.every((c) => normaliseComposite(c) === "intersect");
-  const isSubtract = composite === "subtract" && compositeLayers.every((c) => normaliseComposite(c) === "subtract");
-  const isExclude = composite === "exclude" && compositeLayers.every((c) => normaliseComposite(c) === "exclude");
-
-  // Helper: inject `mask="url(#X)"` into the last self-closing tag of a
-  // layer's contents (the rect/image that PAINTS the mask source — earlier
-  // entries are supporting defs like <pattern>/<linearGradient>). Returns
-  // a new items array.
-  const gateLastWithMask = (items: string[], maskId: string): string[] => {
-    if (items.length === 0) return items;
-    const cloned = items.slice();
-    const last = cloned[cloned.length - 1];
-    cloned[cloned.length - 1] =
-      /\/>$/.test(last) && !/\smask\s*=/.test(last)
-        ? last.replace(/\/>$/, ` mask="url(#${maskId})"/>`)
-        : `<g mask="url(#${maskId})">${last}</g>`;
-    return cloned;
-  };
-
-  // Filter that inverts alpha — used by subtract/exclude to build per-layer
-  // "transparent where this layer is opaque" masks. The matrix maps alpha:
-  // A' = -1 * A + 1, leaving RGB at 0. Inserted once into the defs block
-  // when any subtract/exclude path needs it.
-  const buildInvertAlphaFilter = (filterId: string): string =>
-    `<filter id="${filterId}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`;
-
-  // Blink paints from the bottom layer upward and applies each non-bottom
-  // layer's own Porter-Duff operator to the accumulated destination. The old
-  // uniform-operator shortcuts below are compact and exact for two layers;
-  // arbitrary lists and 3+ layers need the actual sequential recurrence.
   const operatorAt = (layerIndex: number): string =>
-    normaliseComposite(cyclicBackgroundLayer(compositeLayers, layerIndex, "add"));
+    normalizeComposite(cyclicBackgroundLayer(compositeLayers, layerIndex, "add"));
   const topOperators = activeLayers.slice(0, -1).map((layer) => operatorAt(layer.index));
   const needsSequentialComposition =
-    activeLayers.length > 2 || new Set(topOperators).size > 1 || (hasFragmentLayer && activeLayers.length > 1);
+    activeLayers.length > 1 && (hasFragmentLayer || topOperators.some((operator) => operator !== "add"));
   if (needsSequentialComposition) {
-    const defs: string[] = [];
-    const fullRect = (maskId: string): string =>
-      `<rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="#fff" mask="url(#${maskId})" />`;
-    const intersectRegions = (a: MaskImageRect, b: MaskImageRect): MaskImageRect => {
-      const x = Math.max(a.x, b.x),
-        y = Math.max(a.y, b.y);
-      const right = Math.min(a.x + a.width, b.x + b.width);
-      const bottom = Math.min(a.y + a.height, b.y + b.height);
-      return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+    return {
+      id,
+      def: withNormalizedLayers(
+        composeMaskLayersSequential(id, maskRegion, maskType, activeLayers, operatorAt, fragmentMaskLayers),
+      ),
     };
-    const rectPath = (rect: MaskImageRect): string =>
-      `M${r(rect.x)} ${r(rect.y)}H${r(rect.x + rect.width)}V${r(rect.y + rect.height)}H${r(rect.x)}Z`;
-    const rawIds = new Map<number, string>();
-    for (const layer of activeLayers) {
-      const rawId = `${id}raw${layer.index}`;
-      rawIds.set(layer.index, rawId);
-      defs.push(
-        `<mask id="${rawId}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="${maskType}">${layer.contents.join("")}</mask>`,
-      );
-    }
-    const invFilterId = `${id}inv`;
-    defs.push(
-      `<filter id="${invFilterId}" filterUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}"><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1 1"/></filter>`,
-    );
-    const inverse = (sourceId: string, suffix: string): string => {
-      const inverseId = `${id}not${suffix}`;
-      defs.push(
-        `<mask id="${inverseId}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha"><g filter="url(#${invFilterId})"><rect x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" fill="transparent" />${fullRect(sourceId)}</g></mask>`,
-      );
-      return inverseId;
-    };
-    let accumulated = rawIds.get(activeLayers[activeLayers.length - 1].index)!;
-    for (let position = activeLayers.length - 2; position >= 0; position--) {
-      const layer = activeLayers[position];
-      const source = rawIds.get(layer.index)!;
-      const combined = `${id}acc${position}`;
-      const op = operatorAt(layer.index);
-      let operationBody: string;
-      if (op === "intersect") {
-        operationBody = `<g mask="url(#${source})">${fullRect(accumulated)}</g>`;
-      } else if (op === "subtract") {
-        operationBody = `<g mask="url(#${inverse(accumulated, `a${position}`)})">${fullRect(source)}</g>`;
-      } else if (op === "exclude") {
-        const notAccumulated = inverse(accumulated, `a${position}`);
-        const notSource = inverse(source, `s${position}`);
-        operationBody = `<g mask="url(#${notAccumulated})">${fullRect(source)}</g><g mask="url(#${notSource})">${fullRect(accumulated)}</g>`;
-      } else {
-        operationBody = `${fullRect(accumulated)}${fullRect(source)}`;
-      }
-
-      let body = operationBody;
-      const fragmentRegion = fragmentMaskLayers?.get(layer.index)?.region;
-      if (fragmentRegion != null) {
-        // SVGMaskPainter clips the graphics context to ResourceBoundingBox()
-        // before BeginLayer(composite_op). The Porter-Duff result therefore
-        // replaces the accumulated destination only inside this fragment's
-        // resource region; destination pixels outside it survive unchanged.
-        const operationRegion = intersectRegions(maskRegion, fragmentRegion);
-        const coversMaskRegion =
-          operationRegion.x <= maskRegion.x &&
-          operationRegion.y <= maskRegion.y &&
-          operationRegion.x + operationRegion.width >= maskRegion.x + maskRegion.width &&
-          operationRegion.y + operationRegion.height >= maskRegion.y + maskRegion.height;
-        if (operationRegion.width <= 0 || operationRegion.height <= 0) {
-          body = fullRect(accumulated);
-        } else if (!coversMaskRegion) {
-          const clipId = `${id}opclip${position}`;
-          defs.push(
-            `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(operationRegion.x)}" y="${r(operationRegion.y)}" width="${r(operationRegion.width)}" height="${r(operationRegion.height)}" /></clipPath>`,
-          );
-          const outsideDestination = `<path d="${rectPath(maskRegion)}${rectPath(operationRegion)}" fill="#fff" fill-rule="evenodd" mask="url(#${accumulated})" />`;
-          body = `${outsideDestination}<g clip-path="url(#${clipId})">${operationBody}</g>`;
-        }
-      }
-      defs.push(
-        `<mask id="${combined}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${body}</mask>`,
-      );
-      accumulated = combined;
-    }
-    defs.push(
-      `<mask id="${id}" maskUnits="userSpaceOnUse" x="${r(maskRegion.x)}" y="${r(maskRegion.y)}" width="${r(maskRegion.width)}" height="${r(maskRegion.height)}" mask-type="alpha">${fullRect(accumulated)}</mask>`,
-    );
-    return { id, def: withNormalizedLayers(defs.join("")) };
   }
 
-  // For the default add case (single layer OR all-add), flatten every
-  // layer's contents into one <mask>. SVG stacks them additively — alpha
-  // accumulates where layers overlap.
-  if (!isIntersect && !isSubtract && !isExclude) {
-    const flat = nonEmpty.flat().join("");
-    const def = `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${flat}</mask>`;
-    return { id, def: withNormalizedLayers(def) };
-  }
-  if (nonEmpty.length === 1) {
-    // Single-layer composite is just the layer itself regardless of op.
-    const flat = nonEmpty[0].join("");
-    const def = `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${flat}</mask>`;
-    return { id, def: withNormalizedLayers(def) };
-  }
-
-  if (isIntersect) {
-    // Intersect: chain N masks so each layer gates the next. Layer 0 is the
-    // outer mask (the one the element references); each layer's painted rect
-    // carries a mask="url(#inner)" attribute pointing at layer i+1, so its
-    // pixels only show where layer i+1 is also opaque. Walk from the innermost
-    // layer outward so we can reference already-built inner mask ids.
-    const defs: string[] = [];
-    let innerId: string | null = null;
-    for (let li = nonEmpty.length - 1; li >= 0; li--) {
-      const isOuter = li === 0;
-      const layerMaskId = isOuter ? id : `${id}i${li}`;
-      const items = innerId != null ? gateLastWithMask(nonEmpty[li], innerId) : nonEmpty[li];
-      defs.push(
-        `<mask id="${layerMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${items.join("")}</mask>`,
-      );
-      innerId = layerMaskId;
-    }
-    return { id, def: withNormalizedLayers(defs.join("")) };
-  }
-
-  if (isSubtract) {
-    // Subtract: result α = L0 * (1 - L1) * (1 - L2) * ... — each subsequent
-    // layer erases from the cumulative result. Implement via per-layer
-    // alpha-inverted inner masks chained together: layer i's paint is
-    // gated by mask=url(#layer_{i+1}-inverted), which is gated by
-    // mask=url(#layer_{i+2}-inverted), and so on. (Same chain structure
-    // as intersect, except each inner mask wraps its paint in a
-    // <g filter="url(#invertAlpha)"> so the inner mask's emitted alpha
-    // is `1 - layer_alpha` rather than `layer_alpha`.)
-    const defs: string[] = [];
-    const invFilterId = `${id}inv`;
-    defs.push(buildInvertAlphaFilter(invFilterId));
-    let innerId: string | null = null;
-    for (let li = nonEmpty.length - 1; li >= 1; li--) {
-      const layerMaskId = `${id}s${li}`;
-      const items = innerId != null ? gateLastWithMask(nonEmpty[li], innerId) : nonEmpty[li];
-      // Wrap the paint inside a filter-applying <g> so the emitted alpha
-      // is (1 - layer_alpha).
-      defs.push(
-        `<mask id="${layerMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"><g filter="url(#${invFilterId})">${items.join("")}</g></mask>`,
-      );
-      innerId = layerMaskId;
-    }
-    // Outer mask: layer 0's paint, gated by the inverted-subsequent-layers chain.
-    const outerItems = innerId != null ? gateLastWithMask(nonEmpty[0], innerId) : nonEmpty[0];
-    defs.push(
-      `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${outerItems.join("")}</mask>`,
-    );
-    return { id, def: withNormalizedLayers(defs.join("")) };
-  }
-
-  // Exclude: a XOR b = a * (1 - b) + b * (1 - a). Generalises to N layers as
-  // the symmetric difference, but CSS exclude is rarely authored with > 2
-  // layers — we handle the common 2-layer case and fall back to add-style
-  // for higher arity (paint stacks with the inverted chain applied to each
-  // contribution). Build:
-  //   - inv0 = invertAlpha(L0)
-  //   - inv1 = invertAlpha(L1)
-  //   - outer mask: L0-paint mask=url(#inv1), L1-paint mask=url(#inv0)
-  // For 3+ layers: each layer's paint is gated by the cumulative inverse of
-  // every OTHER layer (i.e. layer i paints where all layers j != i are
-  // transparent). Less common but follows the same pattern.
-  {
-    const defs: string[] = [];
-    const invFilterId = `${id}inv`;
-    defs.push(buildInvertAlphaFilter(invFilterId));
-    // Build one inverted mask per layer.
-    const invMaskIds: string[] = [];
-    for (let li = 0; li < nonEmpty.length; li++) {
-      const invMaskId = `${id}x${li}`;
-      defs.push(
-        `<mask id="${invMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"><g filter="url(#${invFilterId})">${nonEmpty[li].join("")}</g></mask>`,
-      );
-      invMaskIds.push(invMaskId);
-    }
-    // For N layers, chain the inverted masks of all other layers via
-    // intersect-style mask= attribute nesting. For N = 2 this collapses to
-    // a single mask= per layer.
-    const outerContents: string[] = [];
-    for (let li = 0; li < nonEmpty.length; li++) {
-      // Build a chain mask of all other layers' inversions.
-      let chainId: string | null = null;
-      for (let lj = nonEmpty.length - 1; lj >= 0; lj--) {
-        if (lj === li) continue;
-        if (chainId == null) {
-          chainId = invMaskIds[lj];
-          continue;
-        }
-        // Build a sub-mask that gates invMaskIds[lj]'s paint with chainId.
-        const subMaskId = `${id}x${li}c${lj}`;
-        // The inverted mask's paint is the filter-wrapped layer; gate it
-        // with the existing chainId by injecting a mask= onto its painted
-        // rect inside the filter wrapper. Easier: just inline another
-        // <g mask=url(#chainId)> wrapping the filter <g>.
-        defs.push(
-          `<mask id="${subMaskId}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}"><g mask="url(#${chainId})"><g filter="url(#${invFilterId})">${nonEmpty[lj].join("")}</g></g></mask>`,
-        );
-        chainId = subMaskId;
-      }
-      const items = chainId != null ? gateLastWithMask(nonEmpty[li], chainId) : nonEmpty[li];
-      outerContents.push(items.join(""));
-    }
-    defs.push(
-      `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${outerContents.join("")}</mask>`,
-    );
-    return { id, def: withNormalizedLayers(defs.join("")) };
-  }
+  // A single layer needs no composition. Additive layers can share one SVG mask.
+  const flat = nonEmpty.flat().join("");
+  const def = `<mask id="${id}" maskUnits="userSpaceOnUse"${explicitMaskRegion} mask-type="${maskType}">${flat}</mask>`;
+  return { id, def: withNormalizedLayers(def) };
 }

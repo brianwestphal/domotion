@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
+import { firstCssFunctionToken, parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
+
+describe("firstCssFunctionToken", () => {
+  it("stops at the matching close after nested and quoted parentheses", () => {
+    expect(firstCssFunctionToken('linear-gradient(rgb(1, 2, 3), url("x)y")) trailing')).toBe(
+      'linear-gradient(rgb(1, 2, 3), url("x)y"))',
+    );
+    expect(firstCssFunctionToken("not a function")).toBeNull();
+  });
+});
 
 describe("parseCssUrl", () => {
   it("extracts double-, single-, and unquoted url() contents", () => {

@@ -1,4 +1,7 @@
+import { emitGaussianBlurFilter } from "./gaussian-blur.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
+const UNBOUNDED_CLIP_EXTENT = 100000;
+
 /**
  * DOM-to-SVG Converter
  *
@@ -50,7 +53,7 @@ import {
 // Re-export mask helpers used by focused geometry/emission tests.
 export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
 export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
-import { parseColor, colorStr, type RGBA } from "./colors.js";
+import { parseColor, colorStr, INVISIBLE_ALPHA, type RGBA } from "./colors.js";
 import {
   parseCornerRadii,
   insetCornerRadii,
@@ -71,7 +74,7 @@ import {
   type OverflowClipMarginGeometry,
 } from "./overflow-clip.js";
 import { cssTransformToSvg } from "./transforms.js";
-import { parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
+import { firstCssFunctionToken, parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import {
   buildLinearGradientDef as buildExactLinearGradientDef,
   buildRadialGradientDef as buildExactRadialGradientDef,
@@ -445,15 +448,12 @@ function paintBoxShadow(
     const shadowCorners = outsetCornerRadiiForShadow(corners, sh.spread);
     let filterAttr = "";
     if (sh.blur > 0) {
-      const stdDev = sh.blur / 2;
       const fid = ctx.nextClipId("sh");
       // Filter region needs to extend beyond the shadow rect by enough
       // padding to keep the Gaussian fall-off from clipping. Use a
       // generous 200% on each side; primitiveUnits inherits the default
       // userSpaceOnUse-equivalent so stdDeviation is in CSS pixels.
-      ctx.defsParts.push(
-        `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
-      );
+      ctx.defsParts.push(emitGaussianBlurFilter(fid, sh.blur));
       filterAttr = ` filter="url(#${fid})"`;
     }
     ctx.svgParts.push(
@@ -671,7 +671,7 @@ function paintBackgroundColor(
   const out: string[] = [];
   if (useInlineFragments) {
     // background painted per-fragment in renderInlineFragments above
-  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > 0.01 && !backgroundColorClipsToText(el)) {
+  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > INVISIBLE_ALPHA && !backgroundColorClipsToText(el)) {
     out.push(`${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`);
   } else if (!suppressEmptyCell && el.styles.frostedBgFallback != null) {
     // DM-476: backdrop-filter has no SVG equivalent, so when this element
@@ -770,7 +770,7 @@ function paintSyntheticListMarker(
   const markerColorSource = el.summaryMarkerGeometry?.color ?? el.markerColor;
   const markerStyleColor = markerColorSource != null ? parseColor(markerColorSource) : null;
   const markerColor =
-    markerStyleColor != null && markerStyleColor.a > 0.01
+    markerStyleColor != null && markerStyleColor.a > INVISIBLE_ALPHA
       ? colorStr(markerStyleColor)
       : textColor != null
         ? colorStr(textColor)
@@ -1176,11 +1176,8 @@ function paintInsetBoxShadow(
     const shadowColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
     let filterAttr = "";
     if (sh.blur > 0) {
-      const stdDev = sh.blur / 2;
       const fid = ctx.nextClipId("ish");
-      ctx.defsParts.push(
-        `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
-      );
+      ctx.defsParts.push(emitGaussianBlurFilter(fid, sh.blur));
       filterAttr = ` filter="url(#${fid})"`;
     }
     const cid = ctx.nextClipId("ishc");
@@ -1730,7 +1727,6 @@ function buildRenderState(
   width: number,
   height: number,
   idPrefix: string,
-  hiDPIFactor: number,
 ): { state: RenderState; fragmentFilterDefs: Map<string, { id: string; outerHTML: string }> } {
   // DM-1723: annotate in-flow descendants of decorating boxes with their
   // ancestor's propagated text-decoration (CSS Text Decoration 3 §2 —
@@ -1922,7 +1918,7 @@ function elementTreeToSvgInnerImpl(
    */
   includeEmbeddedFontCss: boolean = includeGlyphDefs,
 ): string {
-  const { state, fragmentFilterDefs } = buildRenderState(elements, width, height, idPrefix, hiDPIFactor);
+  const { state, fragmentFilterDefs } = buildRenderState(elements, width, height, idPrefix);
   const { svgParts, defsParts, hoistedFromAncestor, overflowClipForHoisted } = state;
 
   // DM-934: emit captured inline <filter> defs eagerly into the output
@@ -2522,13 +2518,12 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners:
     // inverse) needs the outer clip to NOT bind on the visible axis. A
     // huge ±100000 extension lets descendants paint past the border-box
     // on that axis while the clipped axis stays bounded.
-    const UNBOUNDED_CP = 100000;
     const xVisibleCp = oxV === "visible" && oyV === "clip";
     const yVisibleCp = oyV === "visible" && oxV === "clip";
-    const cpX = xVisibleCp ? el.x - UNBOUNDED_CP : el.x - inflateL;
-    const cpW = xVisibleCp ? el.width + UNBOUNDED_CP * 2 : el.width + inflateL + inflateR;
-    const cpY = yVisibleCp ? el.y - UNBOUNDED_CP : el.y - inflateT;
-    const cpH = yVisibleCp ? el.height + UNBOUNDED_CP * 2 : el.height + inflateT + inflateB;
+    const cpX = xVisibleCp ? el.x - UNBOUNDED_CLIP_EXTENT : el.x - inflateL;
+    const cpW = xVisibleCp ? el.width + UNBOUNDED_CLIP_EXTENT * 2 : el.width + inflateL + inflateR;
+    const cpY = yVisibleCp ? el.y - UNBOUNDED_CLIP_EXTENT : el.y - inflateT;
+    const cpH = yVisibleCp ? el.height + UNBOUNDED_CLIP_EXTENT * 2 : el.height + inflateT + inflateB;
     clipPathUrlId = paintCtx.nextClipId("cp");
     defsParts.push(
       `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,
@@ -2572,28 +2567,8 @@ export function parseBoxReflection(value: string | undefined, width: number, hei
   const offset = Number.isFinite(n) ? (/\%$/.test(rawOffset) ? (n * basis) / 100 : n) : 0;
   let maskImage: string | undefined;
   const tail = head[3]?.trim();
-  if (tail != null && tail !== "" && tail !== "none") {
-    const fn = /^(?:repeating-)?(?:linear|radial|conic)-gradient\(|^url\(/i.exec(tail);
-    if (fn != null) {
-      let depth = 0;
-      let quote = "";
-      for (let i = fn[0].length - 1; i < tail.length; i++) {
-        const ch = tail[i];
-        if (quote !== "") {
-          if (ch === quote && tail[i - 1] !== "\\") quote = "";
-          continue;
-        }
-        if (ch === '"' || ch === "'") {
-          quote = ch;
-          continue;
-        }
-        if (ch === "(") depth++;
-        else if (ch === ")" && --depth === 0) {
-          maskImage = tail.slice(0, i + 1);
-          break;
-        }
-      }
-    }
+  if (tail != null && /^(?:(?:repeating-)?(?:linear|radial|conic)-gradient|url)\(/i.test(tail)) {
+    maskImage = firstCssFunctionToken(tail) ?? undefined;
   }
   return { direction, offset, maskImage };
 }
@@ -3078,13 +3053,269 @@ function renderMaskPhaseOnce(state: RenderState, el: CapturedElement): string | 
  * belongs to neither: the caller defers it to after child recursion so it wins
  * z over child text (`paintDeferredFadeOverlays`).
  */
+type PseudoBoxPaint = NonNullable<CapturedElement["pseudoBoxes"]>[number];
+
+function isOpaquePseudoBorderColor(color?: string): boolean {
+  return color != null && (parseColor(color)?.a ?? 0) >= INVISIBLE_ALPHA;
+}
+
+function isDeferredFadeOverlay(pb: PseudoBoxPaint): boolean {
+  const hasBackgroundImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
+  const hasBorder =
+    (pb.borderTopWidth ?? 0) > 0 ||
+    (pb.borderRightWidth ?? 0) > 0 ||
+    (pb.borderBottomWidth ?? 0) > 0 ||
+    (pb.borderLeftWidth ?? 0) > 0;
+  return (
+    pb.pseudo === "::after" &&
+    (pb.zIndex == null || pb.zIndex >= 0) &&
+    hasBackgroundImage &&
+    !isPaintedColor(pb.backgroundColor) &&
+    !hasBorder
+  );
+}
+
+function emitPseudoBoxBackgroundLayers(state: RenderState, pb: PseudoBoxPaint, indent: string): void {
+  if (pb.backgroundImage == null || pb.backgroundImage === "none" || pb.backgroundImage === "") return;
+  const { paintCtx, defsParts, svgParts, captureViewport } = state;
+  const layers = splitTopLevelCommas(pb.backgroundImage);
+  for (let li = layers.length - 1; li >= 0; li--) {
+    const defId = paintCtx.nextClipId("pbg");
+    const out = buildBackgroundLayerDef(
+      defId,
+      layers[li].trim(),
+      pb.x,
+      pb.y,
+      pb.width,
+      pb.height,
+      pb.backgroundSize ?? "auto",
+      pb.backgroundPosition ?? "0% 0%",
+      "repeat",
+      null,
+      "scroll",
+      captureViewport,
+    );
+    if (out.def === "") continue;
+    defsParts.push(out.def);
+    const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
+    svgParts.push(
+      `${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`,
+    );
+  }
+}
+
+function wrapPseudoBoxAtom(state: RenderState, pb: PseudoBoxPaint, indent: string, start: number): void {
+  const hasFilter = pb.filter != null && pb.filter.trim() !== "" && pb.filter.trim() !== "none";
+  const hasTransform = pb.transform != null && pb.transform.trim() !== "" && pb.transform.trim() !== "none";
+  const hasOpacity = pb.opacity != null && pb.opacity < 1;
+  if (!hasFilter && !hasTransform && !hasOpacity) return;
+  const added = state.svgParts.splice(start);
+  if (added.length === 0) return;
+  const inner = added.map((markup) => (markup.startsWith(indent) ? markup.slice(indent.length) : markup)).join("");
+  state.svgParts.push(`${indent}${wrapPseudoPaintEffects(pb, inner)}`);
+}
+
+function paintPseudoBoxTriangle(state: RenderState, pb: PseudoBoxPaint, indent: string): boolean {
+  const { svgParts } = state;
+  // CSS triangle: 0×0 box with one solid border and adjacent borders
+  // transparent / zero. Borders meet at 45° corners and visually form
+  // a right triangle in the solid color. Detect + emit as <polygon>
+  // since per-side <line> emission would draw a stub the wrong shape.
+  const bwT = pb.borderTopWidth ?? 0;
+  const bwR = pb.borderRightWidth ?? 0;
+  const bwB = pb.borderBottomWidth ?? 0;
+  const bwL = pb.borderLeftWidth ?? 0;
+  const opaqueSides = [
+    bwT > 0 && isOpaquePseudoBorderColor(pb.borderTopColor),
+    bwR > 0 && isOpaquePseudoBorderColor(pb.borderRightColor),
+    bwB > 0 && isOpaquePseudoBorderColor(pb.borderBottomColor),
+    bwL > 0 && isOpaquePseudoBorderColor(pb.borderLeftColor),
+  ];
+  const opaqueCount = opaqueSides.filter((s) => s).length;
+  const totalBorderCount = [bwT, bwR, bwB, bwL].filter((w) => w > 0).length;
+  // The content area (inside borders) collapses to ≤ 1px when borders
+  // sum across the dimension to ≥ box dim. That's the CSS triangle
+  // pattern. If the content area is non-trivial it's a normal box
+  // and we'd want per-side <line> emission instead.
+  const contentW = pb.width - bwL - bwR;
+  const contentH = pb.height - bwT - bwB;
+  const isTriangle = opaqueCount === 1 && totalBorderCount >= 2 && contentW <= 1 && contentH <= 1;
+  if (isTriangle) {
+    // Identify the solid side and compute the triangle vertices.
+    // Outer-box corners: (x,y), (x+w,y), (x+w,y+h), (x,y+h).
+    // The solid-border side's outer edge contributes two corners; the
+    // apex is the opposite-side outer corner where the adjacent
+    // transparent borders meet at 45°.
+    const X = pb.x;
+    const Y = pb.y;
+    const W = pb.width;
+    const H = pb.height;
+    let pts: Array<[number, number]> = [];
+    let color = "";
+    if (opaqueSides[0]) {
+      // Top solid: triangle pointing DOWN. The visible trapezoid
+      // collapses to a triangle when content collapses; apex is the
+      // inner-bottom corner where borderRight + borderLeft meet.
+      // With our 0×0 case, apex = (bwL, H) so the triangle is
+      // (0,0) → (W,0) → (bwL, H). But for symmetric tail (left=right
+      // borders equal), apex = (W/2, H). We use bwL when borders
+      // differ.
+      pts = [
+        [X, Y],
+        [X + W, Y],
+        [X + bwL, Y + H],
+      ];
+      color = pb.borderTopColor!;
+    } else if (opaqueSides[1]) {
+      pts = [
+        [X + W, Y],
+        [X + W, Y + H],
+        [X + W - bwR, Y + bwT],
+      ];
+      color = pb.borderRightColor!;
+    } else if (opaqueSides[2]) {
+      pts = [
+        [X + W, Y + H],
+        [X, Y + H],
+        [X + W - bwR, Y + H - bwB],
+      ];
+      color = pb.borderBottomColor!;
+    } else if (opaqueSides[3]) {
+      pts = [
+        [X, Y + H],
+        [X, Y],
+        [X + bwL, Y + bwT],
+      ];
+      color = pb.borderLeftColor!;
+    }
+    if (pts.length === 3 && color !== "") {
+      const polyPts = pts.map((p) => `${r(p[0])},${r(p[1])}`).join(" ");
+      svgParts.push(`${indent}<polygon points="${polyPts}" fill="${color}" />`);
+    }
+    return true;
+  }
+  return false;
+}
+
+function paintPseudoBoxBorders(state: RenderState, pb: PseudoBoxPaint, indent: string): void {
+  const { svgParts } = state;
+  // DM-765: when all four borders are uniform AND the pseudo has a
+  // non-zero border-radius (e.g. the `.dot::before { width: 8px;
+  // height: 8px; border: 2px solid; border-radius: 50% }` chip in
+  // `24-deep-pseudo-shapes`), the four straight `<line>` strokes
+  // would form a SQUARE outline around the rounded background fill,
+  // making a green-square-with-darker-square instead of the
+  // green-circle-with-darker-ring Chrome paints. Emit a single
+  // stroked `<rect rx>` in that case so the outline follows the
+  // background's curve.
+  const bwT = pb.borderTopWidth ?? 0;
+  const bwR = pb.borderRightWidth ?? 0;
+  const bwB = pb.borderBottomWidth ?? 0;
+  const bwL = pb.borderLeftWidth ?? 0;
+  const uniformBorder =
+    bwT > 0 &&
+    bwT === bwR &&
+    bwR === bwB &&
+    bwB === bwL &&
+    pb.borderTopColor != null &&
+    pb.borderTopColor === pb.borderRightColor &&
+    pb.borderRightColor === pb.borderBottomColor &&
+    pb.borderBottomColor === pb.borderLeftColor &&
+    (pb.borderTopStyle == null || pb.borderTopStyle === pb.borderRightStyle);
+  if (uniformBorder && pb.borderRadius != null && pb.borderRadius > 0 && isOpaquePseudoBorderColor(pb.borderTopColor)) {
+    const style = pb.borderTopStyle ?? "solid";
+    if (style !== "none" && style !== "hidden") {
+      const w = bwT;
+      const half = w / 2;
+      // Inset the stroke rect by half the stroke width so the stroke
+      // sits entirely inside the box (matches CSS, where borders paint
+      // inside the border box).
+      const sx = pb.x + half;
+      const sy = pb.y + half;
+      const sw = Math.max(0, pb.width - w);
+      const sh = Math.max(0, pb.height - w);
+      const sr = Math.max(0, pb.borderRadius - half);
+      const dash =
+        style === "dashed"
+          ? ` stroke-dasharray="${r(w * 2)},${r(w * 2)}"`
+          : style === "dotted"
+            ? ` stroke-dasharray="${r(w)},${r(w)}"`
+            : "";
+      svgParts.push(
+        `${indent}<rect x="${r(sx)}" y="${r(sy)}" width="${r(sw)}" height="${r(sh)}" rx="${r(sr)}" fill="none" stroke="${pb.borderTopColor}" stroke-width="${r(w)}"${dash} />`,
+      );
+      return;
+    }
+  }
+  // Per-side borders. Each painted side gets one <line> across the
+  // appropriate edge. For h=0 / w=0 boxes this collapses to a single
+  // visible hairline — the separator case.
+  const side = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    width: number | undefined,
+    color: string | undefined,
+    style: string | undefined,
+  ): void => {
+    if (!width || width <= 0 || !isPaintedColor(color)) return;
+    if (style === "none" || style === "hidden") return;
+    const dash =
+      style === "dashed"
+        ? ` stroke-dasharray="${r(width * 2)},${r(width * 2)}"`
+        : style === "dotted"
+          ? ` stroke-dasharray="${r(width)},${r(width)}"`
+          : "";
+    svgParts.push(
+      `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${r(width)}"${dash} />`,
+    );
+  };
+  side(
+    pb.x,
+    pb.y + (pb.borderTopWidth ?? 0) / 2,
+    pb.x + pb.width,
+    pb.y + (pb.borderTopWidth ?? 0) / 2,
+    pb.borderTopWidth,
+    pb.borderTopColor,
+    pb.borderTopStyle,
+  );
+  side(
+    pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2,
+    pb.y,
+    pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2,
+    pb.y + pb.height,
+    pb.borderRightWidth,
+    pb.borderRightColor,
+    pb.borderRightStyle,
+  );
+  side(
+    pb.x,
+    pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2,
+    pb.x + pb.width,
+    pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2,
+    pb.borderBottomWidth,
+    pb.borderBottomColor,
+    pb.borderBottomStyle,
+  );
+  side(
+    pb.x + (pb.borderLeftWidth ?? 0) / 2,
+    pb.y,
+    pb.x + (pb.borderLeftWidth ?? 0) / 2,
+    pb.y + pb.height,
+    pb.borderLeftWidth,
+    pb.borderLeftColor,
+    pb.borderLeftStyle,
+  );
+}
+
 function paintPseudoBoxes(
   state: RenderState,
   el: CapturedElement,
   indent: string,
   select: "behind" | "inline" = "inline",
 ): void {
-  const { paintCtx, defsParts, svgParts, captureViewport } = state;
+  const { svgParts } = state;
   if (el.pseudoBoxes != null) {
     for (const pb of el.pseudoBoxes) {
       // DM-1051: a NEGATIVE z-index pseudo box paints BEHIND the host's
@@ -3106,19 +3337,7 @@ function paintPseudoBoxes(
       // shape). Decorative pseudoBoxes (carets, dividers, dots) keep
       // the previous in-place emit so vertical-align caret placement
       // (`pseudo-after-down-caret-vertical-align`) stays correct.
-      if (pb.pseudo === "::after" && select === "inline") {
-        const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
-        const hasBgColor = isPaintedColor(pb.backgroundColor);
-        const hasBorder =
-          (pb.borderTopWidth ?? 0) > 0 ||
-          (pb.borderRightWidth ?? 0) > 0 ||
-          (pb.borderBottomWidth ?? 0) > 0 ||
-          (pb.borderLeftWidth ?? 0) > 0;
-        // A negative-z gradient `::after` is NOT a fade overlay (it already
-        // took the `"behind"` path above), so only the auto / non-negative
-        // ones defer to the on-top pass.
-        if (hasBgImage && !hasBgColor && !hasBorder) continue;
-      }
+      if (select === "inline" && isDeferredFadeOverlay(pb)) continue;
       // Snapshot svgParts.length so the complete pseudo paint can be wrapped
       // in its Blink-owned filter / transform / opacity effect nodes.
       const pbStart = svgParts.length;
@@ -3134,231 +3353,15 @@ function paintPseudoBoxes(
       // element background-image path. Each layer goes through
       // `buildBackgroundLayerDef` to produce an SVG paint server, then a
       // covering `<rect>` references it.
-      if (pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "") {
-        const pbLayers = splitTopLevelCommas(pb.backgroundImage);
-        for (let li = pbLayers.length - 1; li >= 0; li--) {
-          const layer = pbLayers[li].trim();
-          const defId = paintCtx.nextClipId("pbg");
-          const out = buildBackgroundLayerDef(
-            defId,
-            layer,
-            pb.x,
-            pb.y,
-            pb.width,
-            pb.height,
-            pb.backgroundSize ?? "auto",
-            pb.backgroundPosition ?? "0% 0%",
-            "repeat",
-            null,
-            "scroll",
-            captureViewport,
-          );
-          if (out.def === "") continue;
-          defsParts.push(out.def);
-          const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
-          svgParts.push(
-            `${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`,
-          );
-        }
-      }
-      // CSS triangle: 0×0 box with one solid border and adjacent borders
-      // transparent / zero. Borders meet at 45° corners and visually form
-      // a right triangle in the solid color. Detect + emit as <polygon>
-      // since per-side <line> emission would draw a stub the wrong shape.
-      const isOpaque = (c?: string): boolean =>
-        isPaintedColor(c) && !/^rgba?\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*0\s*\)/i.test(c);
-      const bwT = pb.borderTopWidth ?? 0;
-      const bwR = pb.borderRightWidth ?? 0;
-      const bwB = pb.borderBottomWidth ?? 0;
-      const bwL = pb.borderLeftWidth ?? 0;
-      const opaqueSides = [
-        bwT > 0 && isOpaque(pb.borderTopColor),
-        bwR > 0 && isOpaque(pb.borderRightColor),
-        bwB > 0 && isOpaque(pb.borderBottomColor),
-        bwL > 0 && isOpaque(pb.borderLeftColor),
-      ];
-      const opaqueCount = opaqueSides.filter((s) => s).length;
-      const totalBorderCount = [bwT, bwR, bwB, bwL].filter((w) => w > 0).length;
-      // The content area (inside borders) collapses to ≤ 1px when borders
-      // sum across the dimension to ≥ box dim. That's the CSS triangle
-      // pattern. If the content area is non-trivial it's a normal box
-      // and we'd want per-side <line> emission instead.
-      const contentW = pb.width - bwL - bwR;
-      const contentH = pb.height - bwT - bwB;
-      const isTriangle = opaqueCount === 1 && totalBorderCount >= 2 && contentW <= 1 && contentH <= 1;
-      if (isTriangle) {
-        // Identify the solid side and compute the triangle vertices.
-        // Outer-box corners: (x,y), (x+w,y), (x+w,y+h), (x,y+h).
-        // The solid-border side's outer edge contributes two corners; the
-        // apex is the opposite-side outer corner where the adjacent
-        // transparent borders meet at 45°.
-        const X = pb.x;
-        const Y = pb.y;
-        const W = pb.width;
-        const H = pb.height;
-        let pts: Array<[number, number]> = [];
-        let color = "";
-        if (opaqueSides[0]) {
-          // Top solid: triangle pointing DOWN. The visible trapezoid
-          // collapses to a triangle when content collapses; apex is the
-          // inner-bottom corner where borderRight + borderLeft meet.
-          // With our 0×0 case, apex = (bwL, H) so the triangle is
-          // (0,0) → (W,0) → (bwL, H). But for symmetric tail (left=right
-          // borders equal), apex = (W/2, H). We use bwL when borders
-          // differ.
-          pts = [
-            [X, Y],
-            [X + W, Y],
-            [X + bwL, Y + H],
-          ];
-          color = pb.borderTopColor!;
-        } else if (opaqueSides[1]) {
-          pts = [
-            [X + W, Y],
-            [X + W, Y + H],
-            [X + W - bwR, Y + bwT],
-          ];
-          color = pb.borderRightColor!;
-        } else if (opaqueSides[2]) {
-          pts = [
-            [X + W, Y + H],
-            [X, Y + H],
-            [X + W - bwR, Y + H - bwB],
-          ];
-          color = pb.borderBottomColor!;
-        } else if (opaqueSides[3]) {
-          pts = [
-            [X, Y + H],
-            [X, Y],
-            [X + bwL, Y + bwT],
-          ];
-          color = pb.borderLeftColor!;
-        }
-        if (pts.length === 3 && color !== "") {
-          const polyPts = pts.map((p) => `${r(p[0])},${r(p[1])}`).join(" ");
-          svgParts.push(`${indent}<polygon points="${polyPts}" fill="${color}" />`);
-        }
-        flushPbTransformWrap();
+      emitPseudoBoxBackgroundLayers(state, pb, indent);
+      if (paintPseudoBoxTriangle(state, pb, indent)) {
+        wrapPseudoBoxAtom(state, pb, indent, pbStart);
         continue;
       }
-      // DM-765: when all four borders are uniform AND the pseudo has a
-      // non-zero border-radius (e.g. the `.dot::before { width: 8px;
-      // height: 8px; border: 2px solid; border-radius: 50% }` chip in
-      // `24-deep-pseudo-shapes`), the four straight `<line>` strokes
-      // would form a SQUARE outline around the rounded background fill,
-      // making a green-square-with-darker-square instead of the
-      // green-circle-with-darker-ring Chrome paints. Emit a single
-      // stroked `<rect rx>` in that case so the outline follows the
-      // background's curve.
-      const uniformBorder =
-        bwT > 0 &&
-        bwT === bwR &&
-        bwR === bwB &&
-        bwB === bwL &&
-        pb.borderTopColor != null &&
-        pb.borderTopColor === pb.borderRightColor &&
-        pb.borderRightColor === pb.borderBottomColor &&
-        pb.borderBottomColor === pb.borderLeftColor &&
-        (pb.borderTopStyle == null || pb.borderTopStyle === pb.borderRightStyle);
-      if (uniformBorder && pb.borderRadius != null && pb.borderRadius > 0 && isOpaque(pb.borderTopColor)) {
-        const style = pb.borderTopStyle ?? "solid";
-        if (style !== "none" && style !== "hidden") {
-          const w = bwT;
-          const half = w / 2;
-          // Inset the stroke rect by half the stroke width so the stroke
-          // sits entirely inside the box (matches CSS, where borders paint
-          // inside the border box).
-          const sx = pb.x + half;
-          const sy = pb.y + half;
-          const sw = Math.max(0, pb.width - w);
-          const sh = Math.max(0, pb.height - w);
-          const sr = Math.max(0, pb.borderRadius - half);
-          const dash =
-            style === "dashed"
-              ? ` stroke-dasharray="${r(w * 2)},${r(w * 2)}"`
-              : style === "dotted"
-                ? ` stroke-dasharray="${r(w)},${r(w)}"`
-                : "";
-          svgParts.push(
-            `${indent}<rect x="${r(sx)}" y="${r(sy)}" width="${r(sw)}" height="${r(sh)}" rx="${r(sr)}" fill="none" stroke="${pb.borderTopColor}" stroke-width="${r(w)}"${dash} />`,
-          );
-          flushPbTransformWrap();
-          continue;
-        }
-      }
-      // Per-side borders. Each painted side gets one <line> across the
-      // appropriate edge. For h=0 / w=0 boxes this collapses to a single
-      // visible hairline — the separator case.
-      const side = (
-        x1: number,
-        y1: number,
-        x2: number,
-        y2: number,
-        width: number | undefined,
-        color: string | undefined,
-        style: string | undefined,
-      ): void => {
-        if (!width || width <= 0 || !isPaintedColor(color)) return;
-        if (style === "none" || style === "hidden") return;
-        const dash =
-          style === "dashed"
-            ? ` stroke-dasharray="${r(width * 2)},${r(width * 2)}"`
-            : style === "dotted"
-              ? ` stroke-dasharray="${r(width)},${r(width)}"`
-              : "";
-        svgParts.push(
-          `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${color}" stroke-width="${r(width)}"${dash} />`,
-        );
-      };
-      side(
-        pb.x,
-        pb.y + (pb.borderTopWidth ?? 0) / 2,
-        pb.x + pb.width,
-        pb.y + (pb.borderTopWidth ?? 0) / 2,
-        pb.borderTopWidth,
-        pb.borderTopColor,
-        pb.borderTopStyle,
-      );
-      side(
-        pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2,
-        pb.y,
-        pb.x + pb.width - (pb.borderRightWidth ?? 0) / 2,
-        pb.y + pb.height,
-        pb.borderRightWidth,
-        pb.borderRightColor,
-        pb.borderRightStyle,
-      );
-      side(
-        pb.x,
-        pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2,
-        pb.x + pb.width,
-        pb.y + pb.height - (pb.borderBottomWidth ?? 0) / 2,
-        pb.borderBottomWidth,
-        pb.borderBottomColor,
-        pb.borderBottomStyle,
-      );
-      side(
-        pb.x + (pb.borderLeftWidth ?? 0) / 2,
-        pb.y,
-        pb.x + (pb.borderLeftWidth ?? 0) / 2,
-        pb.y + pb.height,
-        pb.borderLeftWidth,
-        pb.borderLeftColor,
-        pb.borderLeftStyle,
-      );
+      paintPseudoBoxBorders(state, pb, indent);
       // Wrap whatever this iteration emitted (rect / lines / polygon /
       // per-side strokes) as one generated-content paint atom.
-      function flushPbTransformWrap() {
-        const hasFilter = pb.filter != null && pb.filter.trim() !== "" && pb.filter.trim() !== "none";
-        const hasTransform = pb.transform != null && pb.transform.trim() !== "" && pb.transform.trim() !== "none";
-        const hasOpacity = pb.opacity != null && pb.opacity < 1;
-        if (!hasFilter && !hasTransform && !hasOpacity) return;
-        const added = svgParts.splice(pbStart);
-        if (added.length === 0) return;
-        const inner = added.map((s) => (s.startsWith(indent) ? s.slice(indent.length) : s)).join("");
-        svgParts.push(`${indent}${wrapPseudoPaintEffects(pb, inner)}`);
-      }
-      flushPbTransformWrap();
+      wrapPseudoBoxAtom(state, pb, indent, pbStart);
     }
   }
 }
@@ -3371,47 +3374,12 @@ function paintPseudoBoxes(
  * everything else already painted inline via `paintPseudoBoxes`. Body unchanged.
  */
 function paintDeferredFadeOverlays(state: RenderState, el: CapturedElement, indent: string): void {
-  const { paintCtx, defsParts, svgParts, captureViewport } = state;
+  const { svgParts } = state;
   if (el.pseudoBoxes != null) {
     for (const pb of el.pseudoBoxes) {
-      if (pb.pseudo !== "::after") continue;
-      const hasBgImage = pb.backgroundImage != null && pb.backgroundImage !== "none" && pb.backgroundImage !== "";
-      const hasBgColor = isPaintedColor(pb.backgroundColor);
-      const hasBorder =
-        (pb.borderTopWidth ?? 0) > 0 ||
-        (pb.borderRightWidth ?? 0) > 0 ||
-        (pb.borderBottomWidth ?? 0) > 0 ||
-        (pb.borderLeftWidth ?? 0) > 0;
-      if (!(hasBgImage && !hasBgColor && !hasBorder)) continue;
-      // DM-1051: a negative z-index glow was already painted behind in the
-      // early loop — don't re-emit it on top here.
-      if (pb.zIndex != null && pb.zIndex < 0) continue;
+      if (!isDeferredFadeOverlay(pb)) continue;
       const pbEffectStart = svgParts.length;
-      const pbLayers = splitTopLevelCommas(pb.backgroundImage!);
-      for (let li = pbLayers.length - 1; li >= 0; li--) {
-        const layer = pbLayers[li].trim();
-        const defId = paintCtx.nextClipId("pbg");
-        const out = buildBackgroundLayerDef(
-          defId,
-          layer,
-          pb.x,
-          pb.y,
-          pb.width,
-          pb.height,
-          pb.backgroundSize ?? "auto",
-          pb.backgroundPosition ?? "0% 0%",
-          "repeat",
-          null,
-          "scroll",
-          captureViewport,
-        );
-        if (out.def === "") continue;
-        defsParts.push(out.def);
-        const rxAttr = pb.borderRadius && pb.borderRadius > 0 ? ` rx="${r(pb.borderRadius)}"` : "";
-        svgParts.push(
-          `${indent}<rect x="${r(pb.x)}" y="${r(pb.y)}" width="${r(pb.width)}" height="${r(pb.height)}"${rxAttr} fill="url(#${defId})" />`,
-        );
-      }
+      emitPseudoBoxBackgroundLayers(state, pb, indent);
       const added = svgParts.splice(pbEffectStart);
       if (added.length > 0) {
         const inner = added.map((s) => (s.startsWith(indent) ? s.slice(indent.length) : s)).join("");
@@ -3500,16 +3468,15 @@ export function childOverflowClipGeometry(
       height += protrude;
     }
   }
-  const unbounded = 100000;
   // SVG has one clip shape, so model a visible axis by extending it beyond any
   // plausible paint area while retaining the other axis's authored clip.
   if (!containClips && ox === "visible" && oy === "clip") {
-    x = el.x - unbounded;
-    width = el.width + unbounded * 2;
+    x = el.x - UNBOUNDED_CLIP_EXTENT;
+    width = el.width + UNBOUNDED_CLIP_EXTENT * 2;
   }
   if (!containClips && oy === "visible" && ox === "clip") {
-    y = el.y - unbounded;
-    height = el.height + unbounded * 2;
+    y = el.y - UNBOUNDED_CLIP_EXTENT;
+    height = el.height + UNBOUNDED_CLIP_EXTENT * 2;
   }
   return { x, y, width, height, corners: clipCorners };
 }
@@ -4273,8 +4240,7 @@ function renderElement(
   const corners = parseCornerRadii(el.styles, el.width, el.height);
   const boxPaintCorners =
     tableGridRect == null ? corners : parseCornerRadii(el.styles, boxPaintEl.width, boxPaintEl.height);
-  const _rawBorderRadius = parseFloat(el.styles.borderTopLeftRadius ?? el.styles.borderRadius ?? "0") || 0;
-  const borderRadius = Math.min(_rawBorderRadius, el.width / 2, el.height / 2);
+  const borderRadius = Math.min(corners.tl.h, corners.tl.v);
   const opacity = parseFloat(el.styles.opacity);
   // DM-2171 / DM-2206: Blink evaluates backdrop-filter against a previously
   // painted backdrop surface. SVG has no way to address that prior surface,
@@ -4437,6 +4403,11 @@ function renderElement(
     if (outerBlendStyle !== "") svgParts.push(`${indent}</g>`);
   };
 
+  const finish = (): void => {
+    closeWrappers();
+    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+  };
+
   if (backdropCompositeRaster != null) {
     // Chromium captured this root/target as one transparent effect surface.
     // Discard all vectors tentatively emitted above, stamp it once in the box
@@ -4447,8 +4418,7 @@ function renderElement(
         `${indent}<image data-domotion-no-hoist="effect-surface" href="${backdropCompositeRaster.dataUri}" x="${r(backdropCompositeRaster.x)}" y="${r(backdropCompositeRaster.y)}" width="${r(backdropCompositeRaster.width)}" height="${r(backdropCompositeRaster.height)}" preserveAspectRatio="none"/>`,
       );
     }
-    closeWrappers();
-    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    finish();
     return;
   }
 
@@ -4472,14 +4442,12 @@ function renderElement(
     if (childClipId != null) svgParts.push(`${indent}</g>`);
   }
   if (!paintInlinePhase) {
-    closeWrappers();
-    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    finish();
     return;
   }
 
   if (paintElementContentPhase(elementPaintContext, backgroundPhase)) {
-    closeWrappers();
-    appendBoxReflection(state, el, reflectionFragmentStart, depth);
+    finish();
     return;
   }
 
@@ -4487,8 +4455,7 @@ function renderElement(
 
   paintElementOverlayPhase(elementPaintContext, childPlan);
 
-  closeWrappers();
-  appendBoxReflection(state, el, reflectionFragmentStart, depth);
+  finish();
 }
 
 /**

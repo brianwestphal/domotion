@@ -1,3 +1,4 @@
+import { emitGaussianBlurFilter } from "./gaussian-blur.js";
 import { openDashArray, closedDashArray, isThinDotted } from "./stroke-style.js";
 import { roundedRectPerimeter } from "./border-paint.js";
 import type { CapturedBackgroundImage, CapturedElement } from "../capture/types.js";
@@ -11,7 +12,7 @@ import {
   type CornerRadii,
 } from "./borders.js";
 import { parseBoxShadow } from "./box-shadow.js";
-import { parseColor, colorStr, sameColor } from "./colors.js";
+import { parseColor, colorStr, sameColor, INVISIBLE_ALPHA } from "./colors.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { r } from "./format.js";
 import { cyclicBackgroundLayer } from "./image-pattern.js";
@@ -355,7 +356,7 @@ export function paintBackgroundImageLayers(
   // bottom image and every higher image. This also covers color-only
   // background-clip:text, where computed background-image is `none`.
   const bgColor = parseColor(el.styles.backgroundColor);
-  if (bgColor != null && bgColor.a > 0.01 && backgroundColorClipsToText(el)) {
+  if (bgColor != null && bgColor.a > INVISIBLE_ALPHA && backgroundColorClipsToText(el)) {
     const colorIndex = imageLayers.length;
     const colorFill = colorStr(bgColor);
     textBgClipFills[colorIndex] = colorFill;
@@ -500,11 +501,8 @@ export function paintInlineFragment(
       const shadowCorners = outsetCornerRadiiForShadow(fragCorners, sh.spread);
       let filterAttr = "";
       if (sh.blur > 0) {
-        const stdDev = sh.blur / 2;
         const fid = paintCtx.nextClipId("sh");
-        defsParts.push(
-          `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${r(stdDev)}"/></filter>`,
-        );
+        defsParts.push(emitGaussianBlurFilter(fid, sh.blur));
         filterAttr = ` filter="url(#${fid})"`;
       }
       svgParts.push(
@@ -514,7 +512,7 @@ export function paintInlineFragment(
   }
 
   // Background color.
-  if (bgColor != null && bgColor.a > 0.01 && !backgroundColorClipsToText(element)) {
+  if (bgColor != null && bgColor.a > INVISIBLE_ALPHA && !backgroundColorClipsToText(element)) {
     svgParts.push(
       `${indent}${roundedRectSvg(f.x, f.y, f.width, f.height, fragCorners, `fill="${colorStr(bgColor)}"`)}`,
     );
@@ -643,7 +641,7 @@ export function paintInlineFragment(
   const wantRight = clone || (fragsAxisIsBlock ? true : isLast);
 
   const drawSide = (side: typeof sbt, x1: number, y1: number, x2: number, y2: number) => {
-    if (side == null || side.w <= 0 || side.color.a < 0.01) return;
+    if (side == null || side.w <= 0 || side.color.a < INVISIBLE_ALPHA) return;
     if (side.style === "none" || side.style === "hidden") return;
     const dash = openDashArray(side.style, side.w, Math.hypot(x2 - x1, y2 - y1));
     const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";

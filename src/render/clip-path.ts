@@ -8,6 +8,7 @@
  */
 
 import { r } from "./format.js";
+import { geometryBoxOutsets } from "./geometry-box.js";
 import {
   insetCornerRadii,
   outsetCornerRadiiWithCorrection,
@@ -113,19 +114,7 @@ export function clipReferenceBox(
     bottom: px(el.styles.marginBottom),
     left: px(el.styles.marginLeft),
   };
-  let outsets = { top: 0, right: 0, bottom: 0, left: 0 };
-  if (geometryBox === "padding-box")
-    outsets = { top: -border.top, right: -border.right, bottom: -border.bottom, left: -border.left };
-  else if (geometryBox === "content-box" || geometryBox === "fill-box")
-    outsets = {
-      top: -border.top - padding.top,
-      right: -border.right - padding.right,
-      bottom: -border.bottom - padding.bottom,
-      left: -border.left - padding.left,
-    };
-  else if (geometryBox === "margin-box") outsets = margin;
-  else if (geometryBox === "half-border-box")
-    outsets = { top: -border.top / 2, right: -border.right / 2, bottom: -border.bottom / 2, left: -border.left / 2 };
+  const outsets = geometryBoxOutsets(geometryBox, border, padding, margin);
   return {
     x: el.x - outsets.left,
     y: el.y - outsets.top,
@@ -243,23 +232,16 @@ export function translateClipPath(value: string, x: number, y: number, w: number
     const trV = resolvePx(pickCorner(vTok, 1), insetH);
     const brV = resolvePx(pickCorner(vTok, 2), insetH);
     const blV = resolvePx(pickCorner(vTok, 3), insetH);
-    // CSS Backgrounds 3 §5.5 corner-overlap scale-down: scale all four
-    // corners uniformly so no pair on the same edge exceeds the edge length.
-    const sums = [
-      [tlH + trH, insetW],
-      [trV + brV, insetH],
-      [brH + blH, insetW],
-      [blV + tlV, insetH],
-    ];
-    let scale = 1;
-    for (const [s, lim] of sums) if (s > 0 && lim > 0) scale = Math.min(scale, lim / s);
-    const corners = {
-      tl: { h: tlH * scale, v: tlV * scale },
-      tr: { h: trH * scale, v: trV * scale },
-      br: { h: brH * scale, v: brV * scale },
-      bl: { h: blH * scale, v: blV * scale },
-      uniform: tlH === trH && tlH === brH && tlH === blH && tlH === tlV && tlH === trV && tlH === brV && tlH === blV,
-    };
+    const corners = parseCornerRadii(
+      {
+        borderTopLeftRadius: `${tlH}px ${tlV}px`,
+        borderTopRightRadius: `${trH}px ${trV}px`,
+        borderBottomRightRadius: `${brH}px ${brV}px`,
+        borderBottomLeftRadius: `${blH}px ${blV}px`,
+      },
+      insetW,
+      insetH,
+    );
     if (corners.uniform) {
       const rxAttr = corners.tl.h > 0 ? ` rx="${r(corners.tl.h)}" ry="${r(corners.tl.v)}"` : "";
       return `<rect x="${r(x + left)}" y="${r(y + top)}" width="${r(insetW)}" height="${r(insetH)}"${rxAttr} />`;

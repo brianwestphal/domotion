@@ -1,3 +1,4 @@
+import { emitGaussianBlurFilter } from "./gaussian-blur.js";
 import { renderWarn } from "./render-warn.js";
 import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type { CapturedElement, CapturedTextPaintAffine, TextSegment } from "../capture/types.js";
@@ -5,7 +6,7 @@ import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import { profAccum, profNow } from "./render-profile.js";
 import { r } from "./format.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
-import { parseColor, colorStr } from "./colors.js";
+import { parseColor, colorStr, INVISIBLE_ALPHA } from "./colors.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { renderSingleLineText, renderMultiSegmentText, renderMultiLineText, renderInputText } from "./text.js";
 import { renderVerticalSegments, renderVerticalSystemFontText, hasVerticalSegments } from "./vertical-text.js";
@@ -14,6 +15,50 @@ import { renderSourceOwnedTextBoundary } from "./text-to-path.js";
 import { prepareAffineTextPaint, wrapAffineTextPaint } from "./text-affine.js";
 import type { PaintCtx } from "./element-tree-to-svg.js";
 import type { BackgroundLayerBuilder } from "./background-inline-paint.js";
+
+function shadowTextElement(el: CapturedElement, color: string): CapturedElement {
+  return {
+    ...el,
+    styles: { ...el.styles, webkitTextStrokeColor: color, textDecorationColor: color },
+    propagatedDecorations: el.propagatedDecorations?.map((decoration) => ({ ...decoration, color })),
+  };
+}
+
+function shadowTextSegment(
+  seg: TextSegment,
+  color: string,
+  dx: number,
+  dy: number,
+  dropPseudoBox = false,
+): TextSegment {
+  return {
+    ...seg,
+    color,
+    x: seg.x + dx,
+    y: seg.y + dy,
+    xOffsets: seg.xOffsets?.map((value) => value + dx),
+    rasterRect: undefined,
+    rasterDataUri: undefined,
+    rasterGlyphs: undefined,
+    ...(dropPseudoBox ? { pseudoBox: undefined } : {}),
+  };
+}
+
+function emitTextShadowPass(
+  ctx: PaintCtx,
+  indent: string,
+  body: string,
+  blur: number,
+  color: string,
+  prefix: string,
+): void {
+  if (blur > 0) {
+    const id = ctx.nextClipId(prefix);
+    ctx.defsParts.push(emitGaussianBlurFilter(id, blur, { sourceAlphaColor: color }));
+    body = `<g filter="url(#${id})">${body}</g>`;
+  }
+  ctx.svgParts.push(`${indent}${body}`);
+}
 
 // Vertical writing-mode text (SK-1128 / DM-990): writing-mode != horizontal-tb
 // is captured as an element-raster screenshot and stamped as an <image>,
@@ -195,7 +240,7 @@ export function resolveTextFill(
 ): { fillColor: string; textIsTransparent: boolean } {
   const tfcRaw = el.styles.webkitTextFillColor;
   const tfc = tfcRaw != null ? parseColor(tfcRaw) : null;
-  const textIsTransparent = tfc != null ? tfc.a < 0.01 : textColor != null && textColor.a < 0.01;
+  const textIsTransparent = tfc != null ? tfc.a < INVISIBLE_ALPHA : textColor != null && textColor.a < INVISIBLE_ALPHA;
   // Topmost text-clipped layer is the visible color over the glyphs when
   // we fall into the non-mask path; in the mask path below ALL layers
   // composite (DM-696). Find the topmost (lowest li) non-empty entry.
@@ -355,34 +400,13 @@ export function paintText(
         if (sh.inset) continue; // text-shadow has no inset; defensive
         const shadowFillColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
         const shifted: CapturedElement = {
-          ...el,
-          styles: {
-            ...el.styles,
-            webkitTextStrokeColor: shadowFillColor,
-            textDecorationColor: shadowFillColor,
-          },
-          propagatedDecorations: el.propagatedDecorations?.map((decoration) => ({
-            ...decoration,
-            color: shadowFillColor,
-          })),
+          ...shadowTextElement(el, shadowFillColor),
           x: el.x + sh.x,
           y: el.y + sh.y,
           textLeft: el.textLeft != null ? el.textLeft + sh.x : undefined,
           textTop: el.textTop != null ? el.textTop + sh.y : undefined,
-          textSegments: el.textSegments?.map((s) => ({
-            ...s,
-            color: shadowFillColor,
-            x: s.x + sh.x,
-            y: s.y + sh.y,
-            xOffsets: s.xOffsets?.map((v) => v + sh.x),
-            // The shadow shouldnt double-stamp emoji/raster overlays —
-            // those already carry their own pixel-baked color and shifting
-            // them paints the same emoji again. Drop them on the shadow
-            // copy so only the path text gets shadowed.
-            rasterRect: undefined,
-            rasterDataUri: undefined,
-            rasterGlyphs: undefined,
-          })),
+          // Pixel-baked raster overlays must not be stamped a second time.
+          textSegments: el.textSegments?.map((seg) => shadowTextSegment(seg, shadowFillColor, sh.x, sh.y)),
         };
         // Patterned text decorations derive their local clip ids from `clipId`.
         // A shadow is a second rendering of the same run, so reusing the main
@@ -390,20 +414,12 @@ export function paintText(
         // then clip the foreground decoration. The shadow does not use the
         // element overflow clip, so a unique token is sufficient here.
         const shadowClipId = ctx.nextClipId("tsd");
-        let body = renderOneText(
+        const body = renderOneText(
           ctx,
           { el: shifted, idPrefix: ctx.idPrefix, clipId: shadowClipId, fillColor: shadowFillColor, affineMatrix },
           emit,
         );
-        if (sh.blur > 0) {
-          const stdDev = sh.blur / 2;
-          const fid = ctx.nextClipId("tsh");
-          ctx.defsParts.push(
-            `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="${r(stdDev)}" result="blur"/><feFlood flood-color="${shadowFillColor}" result="color"/><feComposite in="color" in2="blur" operator="in"/></filter>`,
-          );
-          body = `<g filter="url(#${fid})">${body}</g>`;
-        }
-        ctx.svgParts.push(`${indent}${body}`);
+        emitTextShadowPass(ctx, indent, body, sh.blur, shadowFillColor, "tsh");
       }
       // DM-993: per-segment text-shadow (DM-989 follow-up). When a styled
       // segment carries its own `seg.textShadow` (the DM-989 ::first-letter
@@ -424,35 +440,11 @@ export function paintText(
             const sh = segShadows[si];
             if (sh.inset) continue;
             const segShadowFill = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
-            const shiftedSeg: TextSegment = {
-              ...seg,
-              color: segShadowFill,
-              x: seg.x + sh.x,
-              y: seg.y + sh.y,
-              xOffsets: seg.xOffsets?.map((v) => v + sh.x),
-              rasterRect: undefined,
-              rasterDataUri: undefined,
-              rasterGlyphs: undefined,
-              // Drop the pseudoBox on the shadow copy — backgrounds and
-              // borders aren't part of the text shadow (they paint
-              // separately via the pseudoBox path). Otherwise we'd stamp
-              // a recolored gradient-pill rect underneath the shadow.
-              pseudoBox: undefined,
-            };
-            const shadowEl: CapturedElement = {
-              ...el,
-              styles: {
-                ...el.styles,
-                webkitTextStrokeColor: segShadowFill,
-                textDecorationColor: segShadowFill,
-              },
-              propagatedDecorations: el.propagatedDecorations?.map((decoration) => ({
-                ...decoration,
-                color: segShadowFill,
-              })),
-            };
+            // Pseudo backgrounds and borders paint separately from the glyph shadow.
+            const shiftedSeg = shadowTextSegment(seg, segShadowFill, sh.x, sh.y, true);
+            const shadowEl = shadowTextElement(el, segShadowFill);
             const shadowClipId = ctx.nextClipId("tsd");
-            let segBody = wrapAffineTextPaint(
+            const segBody = wrapAffineTextPaint(
               affineMatrix,
               renderMultiSegmentText(
                 {
@@ -465,15 +457,7 @@ export function paintText(
                 [shiftedSeg],
               ),
             );
-            if (sh.blur > 0) {
-              const stdDev = sh.blur / 2;
-              const fid = ctx.nextClipId("tssh");
-              ctx.defsParts.push(
-                `<filter id="${fid}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="${r(stdDev)}" result="blur"/><feFlood flood-color="${segShadowFill}" result="color"/><feComposite in="color" in2="blur" operator="in"/></filter>`,
-              );
-              segBody = `<g filter="url(#${fid})">${segBody}</g>`;
-            }
-            ctx.svgParts.push(`${indent}${segBody}`);
+            emitTextShadowPass(ctx, indent, segBody, sh.blur, segShadowFill, "tssh");
           }
         }
       }

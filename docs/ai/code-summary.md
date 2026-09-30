@@ -4,6 +4,24 @@ Read `CLAUDE.md` first. This page is deliberately compact; use the generated
 [manifest](manifest.json) or an on-demand [domain packet](packets/) instead of
 loading the historical documentation corpus.
 
+## Render naming and import order
+
+Render functions use `resolve*` for pure decisions and geometry, `build*` for
+owned definitions or value construction, `emit*` for SVG markup insertion,
+`paint*` for a CSS paint phase, and `render*` for complete text or element
+dispatch. Name helpers for the operation they perform rather than the caller
+that first needed them. The ESLint import group rule keeps Node built-ins,
+packages, and local imports in that order while preserving each group's source
+order; local import evaluation order can affect existing module cycles.
+
+`src/render/mask.ts` resolves the mask region, builds individual layers, then
+composes active layers bottom-up. `src/render/element-tree-to-svg.ts` owns the
+element paint lifecycle and delegates generated pseudo backgrounds, triangles,
+borders, and effect wrappers to named helpers. Text path emitters share their
+captured segment typography and common path options through `src/render/text.ts`.
+`src/render/gaussian-blur.ts` converts Blink shadow blur radius to SVG standard
+deviation for box, inline, control, and text shadows.
+
 ## Main pipeline
 
 - `src/capture/` owns browser bring-up, DOM/style/geometry collection, source

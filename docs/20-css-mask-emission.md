@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2379", "DM-2472", "DM-2494", "DM-2520", "DM-470", "DM-493", "DM-494"]
+tickets: ["DM-2379", "DM-2472", "DM-2494", "DM-2520", "DM-470", "DM-493", "DM-494", "DM-156VR5"]
 code:
   [
     "src/capture/script/walker/masks-clips.ts",
@@ -43,7 +43,7 @@ Until DM-470, the capture path warned `mask: captured but not emitted — mask s
 
 - `mask-image: linear-gradient(...)` / `radial-gradient(...)` / `repeating-…-gradient(...)` — emitted as `<linearGradient>` / `<radialGradient>` painted into a sized `<rect>` inside the `<mask>`, with `mask-size` / `mask-position` honored.
 - `mask-image: url("…")` — emitted as `<image>` inside the `<mask>`, sized via `mask-size` (auto / contain / cover / explicit) and offset via the computed two-axis `mask-position` (percentages, lengths, and linear `calc()` mixtures).
-- Multi-layer `mask-image: a, b, c` — flattened into one `<mask>` for the additive composite (the common default). `mask-composite: intersect` chains nested masks.
+- Multi-layer `mask-image: a, b, c` — flattened into one `<mask>` for the additive composite (the common default). `intersect`, `subtract`, and `exclude` use one bottom-up sequential compositor for both two-layer and longer stacks; each upper layer applies its own operator to the accumulated destination.
 - Multi-layer local SVG fragments (DM-2520) — capture keeps ordered
   `(layerIndex,TreeScope,id)` references. The renderer materializes each
   fragment's units, channel, region, and zoom, then applies cyclic per-layer
@@ -53,6 +53,12 @@ Until DM-470, the capture path warned `mask: captured but not emitted — mask s
 - `mask-mode: alpha | luminance` — translates to SVG `mask-type` on the `<mask>` element. Defaults to `alpha` for gradients / bitmaps (matches Chromium's practical behavior for `mask-mode: match-source`).
 
 Renderer wiring (`src/render/element-tree-to-svg.ts`): when `el.styles.maskImage` is non-empty, the mask def is pushed into `defsParts` and the rendered group gets `mask="url(#mkN)"`.
+
+Mask emission separates mask type/region resolution, per-layer content collection,
+and sequential composition. Gradient, `element()`, and `url()` layer builders
+share size token resolution while retaining each source's distinct `auto`
+height rule. A single supported layer uses one SVG mask, independent of its
+composite keyword.
 
 ## Also implemented (previously the ticket gap)
 

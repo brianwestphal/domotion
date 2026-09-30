@@ -21,6 +21,28 @@ export function parseCssUrl(token: string): string | null {
   return raw.replace(/\\(.)/g, "$1");
 }
 
+/** Read one balanced CSS function token, including nested functions and quoted
+ * parentheses. Trailing tokens are left to the caller. */
+export function firstCssFunctionToken(input: string): string | null {
+  const start = /^[a-z-]+\(/i.exec(input);
+  if (start == null) return null;
+  let depth = 0;
+  let quote = "";
+  for (let index = start[0].length - 1; index < input.length; index++) {
+    const char = input[index];
+    if (quote !== "") {
+      if (char === quote && input[index - 1] !== "\\") quote = "";
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === "(") {
+      depth++;
+    } else if (char === ")" && --depth === 0) {
+      return input.slice(0, index + 1);
+    }
+  }
+  return null;
+}
+
 /**
  * Split a comma-separated list respecting parentheses nesting. Used to split
  * multiple CSS background layers like:
