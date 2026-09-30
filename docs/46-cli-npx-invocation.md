@@ -9,8 +9,11 @@ tickets: ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3"]
 code:
   [
     ".github/workflows/release.yml",
+    ".github/workflows/ci.yml",
     "scripts/check-pack-contents.mjs",
     "scripts/pack-install-smoke.mjs",
+    "scripts/prepare-git-install.mjs",
+    "assets/git-install-postinstall.mjs",
     "src/capture/index.ts",
     "src/cli/index.ts",
   ]
@@ -20,7 +23,7 @@ aliases: ["docs/46-cli-npx-invocation.md", "doc-46"]
 # Domotion: CLI invocation as an npm bin (`npx -p domotion-svg domotion`)
 
 Requirements for running Domotion's command-line interface without a local
-clone — against the published package. Origin: DM-877.
+clone, from the published package or a Git commit. Origin: DM-877.
 
 ## Problem
 
@@ -44,12 +47,13 @@ npx only auto-runs a package's bin when the package declares exactly one, or one
 whose name matches the requested command — neither holds here — so the bin to
 run must be named explicitly:
 
-| Form                                   | Notes                                                                                                                                                                                                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npx -p domotion-svg domotion <cmd> …` | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `svg-scrubber` / `domotion-studio` to run the other bins.                                        |
-| `npx domotion-svg <cmd> …`             | **Does NOT work** — with six bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding more bins broke the bare form — DM-1362.) |
-| `domotion <cmd> …`                     | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all six bins by name.                                                                                                                             |
-| `npx tsx src/cli/index.ts <cmd> …`     | Local dev from a clone (the `npm run capture` script).                                                                                                                                                                                                        |
+| Form                                                             | Notes                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npx -p domotion-svg domotion <cmd> …`                           | **Canonical zero-install form.** `-p` installs the package, `domotion` selects the bin. Swap `domotion` for `svg-to-video` / `svg-review` / `svg-to-image` / `svg-scrubber` / `domotion-studio` to run the other bins.                                        |
+| `npx -p github:brianwestphal/domotion#<commit> domotion <cmd> …` | **Git-source form.** Pin a commit for reproducibility; npm builds the checked-out source before installing it. All six bins can be named after `-p`.                                                                                                          |
+| `npx domotion-svg <cmd> …`                                       | **Does NOT work** — with six bins and none matching the package name, npx can't pick one and errors `could not determine executable to run`. (It resolved while the package shipped a single `domotion` bin; adding more bins broke the bare form — DM-1362.) |
+| `domotion <cmd> …`                                               | After a global (`npm i -g domotion-svg`) or local (`node_modules/.bin/domotion`) install. The install links all six bins by name.                                                                                                                             |
+| `npx tsx src/cli/index.ts <cmd> …`                               | Local dev from a clone (the `npm run capture` script).                                                                                                                                                                                                        |
 
 Subcommands and their flags are documented by `domotion --help`; they are out
 of scope here. This doc covers only that the bin resolves, executes, and
@@ -77,6 +81,21 @@ build` removes it before compiling, then checks that every emitted `.js` and
   includes `dist`, so the compiled entry point ships. **`package.json` is
   always included in an npm tarball regardless of `files`**, which the version
   read below relies on.
+- **Git-source build** — npm clones Git dependencies and runs their `prepare`
+  script before packing them. `prepare-git-install.mjs` builds when any package
+  entry point is missing; this happens in a clean Git checkout because `dist/`
+  is ignored. A local install after a build can reuse its artifacts. `prepack`
+  still performs a clean build for release tarballs. Git-source installs fetch
+  dev dependencies and run the generators and TypeScript compiler on the
+  consumer's machine, so they take longer than registry installs. npm's Git
+  install path drops the private bundled workspace even though `npm pack` of
+  the same Git ref retains it. During npm's temporary Git staging, `prepare`
+  places a built copy under `assets/git-install/`. The package's `postinstall`
+  step places it in `node_modules/@domotion/text-engine`. Registry installs run
+  the same short hook, which does nothing when no Git payload is present. The
+  root declares the workspace's runtime dependencies so npm installs them
+  even when it drops the bundle. A normal local install keeps npm's workspace
+  link, and the published tarball does not carry the extra Git payload.
 - **No host-local helper artifacts in the tarball** — the bundled
   `@domotion/text-engine` workspace ships `tools/` for the helper _sources_, but
   built glyph helpers and the acquired ICU companion (`domotion-icu`,
@@ -113,15 +132,13 @@ itself needs:
   `capture` / `animate` therefore works from a cold machine, at the cost of a
   one-time browser download.
 
-## Caveats / non-goals
+## Caveats
 
-- **Git-URL invocation is not supported.** `npx github:brianwestphal/domotion`
-  would fetch the repo, where `dist/` is gitignored and there is no `prepare`
-  script to build it on install — so the bin target would be missing. Only the
-  **registry-published** form is a supported contract. Adding a `prepare`
-  build step to support git installs is a deliberate open decision, not an
-  oversight (it would run `tsc` + the capture-script bundler on every plain
-  `npm install` in the repo). The decision is tracked in DM-T239R3.
+- **A Git URL still needs an explicit bin.** `npx github:brianwestphal/domotion`
+  cannot select among six bins; use `npx -p github:brianwestphal/domotion#<commit>
+domotion …`. The Git checkout's build requires the package's development
+  dependencies and may fetch native helper inputs. The Playwright Chromium
+  browser remains a separate first-run download.
 - **Tarball weight affects first-run latency.** `npx` downloads the whole
   tarball before the first run, so the published package's `files` allowlist is
   kept tight: `dist`, `assets`, `schemas`, `llms.txt`, `README.md`, `LICENSE`,
@@ -161,3 +178,8 @@ before every release: the smoke runs in `release.yml`'s `npm-dry-run`
 preflight (a prerequisite of the publish jobs) and in `ci.yml`'s `build` job,
 on Linux. Per-platform install smoke on macOS/Windows runners is not yet
 wired.
+
+`npm run smoke:git-install` uses the same consumer assertions but installs a
+local Git URL pinned to the checkout's commit. Its CI matrix runs on Linux,
+macOS, and Windows; it exercises `prepare` from a clean Git source, all six
+bin links, the public imports, and a browser capture.

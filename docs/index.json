@@ -1196,8 +1196,11 @@
         "tickets": ["DM-1362", "DM-262", "DM-877", "DM-878", "DM-T239R3"],
         "code": [
           ".github/workflows/release.yml",
+          ".github/workflows/ci.yml",
           "scripts/check-pack-contents.mjs",
           "scripts/pack-install-smoke.mjs",
+          "scripts/prepare-git-install.mjs",
+          "assets/git-install-postinstall.mjs",
           "src/capture/index.ts",
           "src/cli/index.ts"
         ],

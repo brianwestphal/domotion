@@ -10,7 +10,7 @@
 // entry points, resolves the bundled workspace's own dependencies from inside
 // it, and renders a small text fixture through the installed CLI.
 //
-// Usage: node scripts/pack-install-smoke.mjs [--keep]   (npm run smoke:pack-install)
+// Usage: node scripts/pack-install-smoke.mjs [--git] [--keep]
 // Requires a built dist/ (`npm run build`); packs with --ignore-scripts so the
 // prepack rebuild is not repeated. Chromium for the render step is installed
 // into the consumer project with the consumer's own Playwright, as a user would.
@@ -19,10 +19,11 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const keep = process.argv.includes("--keep");
+const fromGit = process.argv.includes("--git");
 const isWindows = process.platform === "win32";
 
 function run(command, args, options = {}) {
@@ -44,7 +45,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-if (!existsSync(join(root, "dist", "index.js"))) {
+if (!fromGit && !existsSync(join(root, "dist", "index.js"))) {
   throw new Error("dist/ is missing — run `npm run build` first");
 }
 
@@ -56,17 +57,25 @@ try {
   mkdirSync(packDir);
   mkdirSync(project);
 
-  const packed = JSON.parse(
-    run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir], { cwd: root }),
-  )[0];
-  const tarball = join(packDir, packed.filename);
+  const source = fromGit
+    ? `git+${pathToFileURL(root).href}#${run("git", ["rev-parse", "HEAD"], { cwd: root }).trim()}`
+    : join(
+        packDir,
+        JSON.parse(run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir], { cwd: root }))[0]
+          .filename,
+      );
   const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 
   writeFileSync(
     join(project, "package.json"),
     JSON.stringify({ name: "domotion-pack-smoke", version: "0.0.0", private: true, type: "module" }, null, 2),
   );
-  run("npm", ["install", tarball, "--cache", cache, "--no-audit", "--no-fund", "--prefer-online"], { cwd: project });
+  const installLog = run(
+    "npm",
+    ["install", source, "--cache", cache, "--no-audit", "--no-fund", "--prefer-online", "--foreground-scripts"],
+    { cwd: project },
+  );
+  if (fromGit) process.stdout.write(installLog);
 
   // Import surface + bundled-workspace dependency resolution, from the
   // consumer's point of view (no repo node_modules on the resolution path).
@@ -123,6 +132,12 @@ console.log(JSON.stringify({ rootExports: Object.keys(root).length, engineExport
   process.stdout.write(`[pack-install-smoke] imports: ${run("node", ["imports.mjs"], { cwd: project }).trim()}\n`);
 
   const bin = join(project, "node_modules", ".bin", isWindows ? "domotion.cmd" : "domotion");
+  for (const name of ["domotion", "svg-to-video", "svg-to-image", "svg-review", "svg-scrubber", "domotion-studio"]) {
+    assert(
+      existsSync(join(project, "node_modules", ".bin", isWindows ? `${name}.cmd` : name)),
+      `${name} bin is missing`,
+    );
+  }
   const reported = run(bin, ["--version"], { cwd: project }).trim();
   assert(reported.includes(version), `installed CLI reported ${JSON.stringify(reported)}, expected ${version}`);
 
@@ -141,7 +156,7 @@ console.log(JSON.stringify({ rootExports: Object.keys(root).length, engineExport
   assert(/#123456|rgb\(18,\s*52,\s*86\)/i.test(svg), "capture output does not contain the fixture's text paint");
   assert(/<text\b|<path\b|<use\b/.test(svg), "capture output contains no text geometry");
   process.stdout.write(
-    `[pack-install-smoke] OK — ${packed.filename} installs, imports and renders (${svg.length} bytes)\n`,
+    `[pack-install-smoke] OK — ${fromGit ? "Git source" : "packed tarball"} installs, imports and renders (${svg.length} bytes)\n`,
   );
 } finally {
   if (keep) process.stdout.write(`[pack-install-smoke] kept ${work}\n`);

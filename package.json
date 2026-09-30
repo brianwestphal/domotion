@@ -104,6 +104,10 @@
     "unicode:vertical-orientation:oracle": "node --import tsx tools/vertical-orientation-oracle.ts",
     "build": "npm run clean:dist && npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:studio-client && npm run build:animate-schema && npm run build:composite-schema && npm run build:storyboard-schema && npm run build:studio-project-schema && tsc -p tsconfig.build.json && npm run check:package-dist",
     "prepack": "npm run build",
+    "prepare": "node scripts/prepare-git-install.mjs",
+    "postinstall": "node assets/git-install-postinstall.mjs",
+    "smoke:git-install": "node scripts/pack-install-smoke.mjs --git",
+    "test:git-prepare": "node --test scripts/prepare-git-install.test.mjs",
     "prepublishOnly": "npm run check:pack-contents",
     "typecheck": "npm run build:capture-script && npm run build:review-client && npm run build:scrubber-client && npm run build:studio-client && npm run typecheck --workspace @domotion/text-engine && tsc --noEmit",
     "format": "prettier --write .",
@@ -260,6 +264,7 @@
     "sharp": "^0.35.4",
     "svg2ttf": "^6.1.0",
     "svgo": "^4.1.0",
+    "unicode-properties": "^1.4.1",
     "wawoff2": "^2.0.1",
     "zod": "^4.4.3"
   },
