@@ -57,6 +57,26 @@ describe("CLI parse phases", () => {
     if (!("help" in parsed)) expect(parsed.raw.title).toBe("Hello");
   });
 
+  it("template CLI accepts legacy flags and preserves source precedence", async () => {
+    const parsed = await parseTemplateArgs([
+      "kinetic-text",
+      "--params",
+      '{"text":"Hi","color":"red","holdMs":500}',
+      "--color",
+      "green",
+      "--textColor",
+      "blue",
+      "--holdMs",
+      "600",
+      "--tailMs",
+      "700",
+    ]);
+    if ("help" in parsed) throw new Error("unexpected help");
+    expect(parsed.raw).toMatchObject({ text: "Hi", textColor: "blue", tailMs: "700" });
+    expect(parsed.raw).not.toHaveProperty("color");
+    expect(parsed.raw).not.toHaveProperty("holdMs");
+  });
+
   it("server bins validate paths, ports and extra arguments before starting", () => {
     const png = tempFile("expected.png", "png");
     expect(parseReviewArgs(["--expected", png, "--actual", png, "--port", "0"])).toMatchObject({ port: 0 });

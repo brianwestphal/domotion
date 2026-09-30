@@ -85,7 +85,7 @@ scalable, and fuse-friendly — instead of many discrete text frames. Per-digit
 stagger + easing gives the satisfying "roll." Params (`counterParamsSchema`):
 `to` (req), `from`, `mode` (`count` | `timer`), `prefix`, `suffix`, `decimals`,
 `grouping` (thousands sep), `durationMs`, `staggerMs`, `easing`, `fontSize`,
-`theme`, `background`, `color`, `fontFamily`, `width`, `height`, `holdMs`.
+`theme`, `background`, `textColor`, `fontFamily`, `width`, `height`, `holdMs`.
 
 ### 5. `stat` (big-stat / KPI callout)
 
@@ -94,7 +94,7 @@ reuses the `counter` odometer; the delta chip fades in after. Params
 (`statParamsSchema`): `value` (req), `label`, `delta`, `deltaDir`
 (`up` | `down` | `auto`), `animateValue` (bool → odometer from 0), `prefix`,
 `suffix`, `decimals`, `grouping`, `durationMs`, `accent`, `theme`, `background`,
-`color`, `fontSize`, `fontFamily`, `width`, `height`, `holdMs`. (Shares the digit-reel module with `counter`.)
+`textColor`, `fontSize`, `fontFamily`, `width`, `height`, `holdMs`. (Shares the digit-reel module with `counter`.)
 
 ### 6. `compare` (before / after)
 

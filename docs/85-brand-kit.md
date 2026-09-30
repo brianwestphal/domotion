@@ -122,17 +122,17 @@ Initial mapping for the current built-ins:
 | Template            | Brand token → param                                                                                                                                                                |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **lower-third**     | `accent`→`accent`, `background`→`background`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1545 — a small brand mark on the banner, inside the safe area)                         |
-| **chart**           | `text`→`color`, `background`→`background`, `font.family`→`fontFamily`, `palette`→series `colors`                                                                                   |
+| **chart**           | `text`→`textColor`, `background`→`background`, `font.family`→`fontFamily`, `palette`→series `colors`                                                                               |
 | **chat**            | `primary`→`accent`, `background`→`background`, `font.family`→`fontFamily`                                                                                                          |
 | **subscribe**       | `primary`→`accent`, `primary`→`avatarColor`, `background`→`background`, `font.family`→`fontFamily`                                                                                 |
-| **kinetic-text**    | `text`→`color`, `background`→`background`, `font.family`→`fontFamily`                                                                                                              |
+| **kinetic-text**    | `text`→`textColor`, `background`→`background`, `font.family`→`fontFamily`                                                                                                          |
 | **background-loop** | `background`→`background`, `palette`→blob `colors`                                                                                                                                 |
 | **cta** (end-card)  | `primary`→`ctaColor`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1539 — the first built-in to consume `brand.logo`)              |
 | **title-card**      | `accent`→`accent`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`, `logo`→`logo` (DM-1575 — the mark renders above the title, placed by `logoPosition`) |
 | **quote**           | `primary`→`accent`, `background`→`background`, `text`→`textColor`, `font.family`→`fontFamily`                                                                                      |
 | **caption**         | `font.family`→`fontFamily` only (text color is tuned for legibility over arbitrary footage, so brand `text` is deliberately NOT mapped)                                            |
-| **counter**         | `text`→`color`, `background`→`background`, `font.family`→`fontFamily`                                                                                                              |
-| **stat**            | `primary`→`accent`, `text`→`color`, `background`→`background`, `font.family`→`fontFamily`                                                                                          |
+| **counter**         | `text`→`textColor`, `background`→`background`, `font.family`→`fontFamily`                                                                                                          |
+| **stat**            | `primary`→`accent`, `text`→`textColor`, `background`→`background`, `font.family`→`fontFamily`                                                                                      |
 | **compare**         | (none — no `brandDefaults`; its divider `accent` and label font take their own defaults)                                                                                           |
 | **device-mockup**   | (no natural brand slot in v1; chrome theme stays as-is)                                                                                                                            |
 

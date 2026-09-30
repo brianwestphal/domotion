@@ -43,7 +43,7 @@ export const counterParamsSchema = z.object({
   fontSize: z.coerce.number().int().positive().default(180).describe("Number font size in px."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
   background: cssValue().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
-  color: cssValue().optional().describe("Number color. Defaults to the theme foreground."),
+  textColor: cssValue().optional().describe("Number color. Defaults to the theme foreground."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   ...sizeSchema({ width: 1280, height: 720 }),
   holdMs: msSchema(3200, "Total on-screen time in ms."),
@@ -63,7 +63,7 @@ export function buildCounterHtml(
   p: CounterParams,
   safeInset?: SafeInset,
 ): { html: string; animations: ReturnType<typeof buildOdometerMarkup>["animations"] } {
-  const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
+  const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.textColor });
   const plan = planCounter(p);
   // DM-1541: scale the odometer cell size (which drives the roll geometry) by the
   // adaptive per-ratio factor so the number reads at 9:16, then cap it so the
@@ -103,9 +103,10 @@ export const counterTemplate: Template<CounterParams> = {
   description:
     "Odometer number-ticker: roll a value from→to (count up/down or a timer) with grouping, decimals, prefix/suffix.",
   paramsSchema: counterParamsSchema,
+  paramAliases: { color: "textColor" },
   brandDefaults(brand: Brand): Partial<CounterParams> {
     return brandParams<CounterParams>({
-      color: brand.palette?.text,
+      textColor: brand.palette?.text,
       background: brandBackground(brand),
       fontFamily: brand.font?.family,
     });

@@ -47,7 +47,7 @@ domotion template background-loop --variant stars --colors "#7aa2f7,#bb9af7,#7dc
 | `background`       | string                                                              | `#0b1020`              | Base fill behind the blobs.                                                                                                             |
 | `count`            | int 1–24                                                            | `5`                    | Number of blobs.                                                                                                                        |
 | `width` / `height` | int                                                                 | `1280` / `720`         | Output size in px.                                                                                                                      |
-| `durationMs`       | int                                                                 | `9000`                 | Base loop period; each blob's drift/breathe period varies around it.                                                                    |
+| `loopMs`           | int                                                                 | `9000`                 | Base loop period; each blob's drift/breathe period varies around it. `durationMs` remains an alias.                                     |
 | `seed`             | int                                                                 | `1`                    | PRNG seed — **same seed ⇒ identical layout** (deterministic, reproducible).                                                             |
 
 ## How it works (design rules)

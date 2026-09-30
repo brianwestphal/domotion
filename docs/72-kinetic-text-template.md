@@ -49,15 +49,15 @@ domotion template kinetic-text \
 | `width` / `height` | int                                            | `1280` / `720` | Output size in px.                                                                                                                                |
 | `fontSize`         | int                                            | `88`           | Font size in px.                                                                                                                                  |
 | `fontWeight`       | int                                            | `800`          | Font weight.                                                                                                                                      |
-| `color`            | string                                         | `#f5f7fa`      | Text color.                                                                                                                                       |
+| `textColor`        | string                                         | `#f5f7fa`      | Text color (`color` remains an alias).                                                                                                            |
 | `background`       | string                                         | `#0b1020`      | Frame background (or `transparent`).                                                                                                              |
 | `align`            | `center` \| `left`                             | `center`       | Text alignment.                                                                                                                                   |
 | `fontFamily`       | string                                         | system sans    | CSS font-family stack.                                                                                                                            |
 | `staggerMs`        | int                                            | `90`           | Delay between units.                                                                                                                              |
 | `revealMs`         | int                                            | `600`          | Per-unit reveal duration.                                                                                                                         |
-| `holdMs`           | int                                            | `1600`         | Hold after the full reveal.                                                                                                                       |
+| `tailMs`           | int                                            | `1600`         | Time after the full reveal (`holdMs` remains an alias).                                                                                           |
 
-On-screen time (`loop`) = `(units − 1) × staggerMs + revealMs + holdMs`; for
+On-screen time (`loop`) = `(units − 1) × staggerMs + revealMs + tailMs`; for
 `boomerang` it's `(units − 1) × staggerMs + 2 × revealMs` (one assemble +
 disassemble — the per-unit animations then repeat infinitely).
 

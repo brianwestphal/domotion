@@ -37,18 +37,18 @@ me: Yep — just shipped it
 them: Amazing 🙌" -o thread.svg
 ```
 
-| Param                            | Type                         | Default                | Meaning                                                 |
-| -------------------------------- | ---------------------------- | ---------------------- | ------------------------------------------------------- |
-| `messages`                       | `{from,text}[]` **or** lines | a sample thread        | The thread. JSON array, or lines `me: …` / `them: …`.   |
-| `title`                          | string                       | —                      | Contact name (shown in the header; omit for no header). |
-| `accent`                         | string                       | `#3b82f6`              | `me` bubble color.                                      |
-| `themBubble` / `themText`        | string                       | `#e9e9eb` / `#111111`  | `them` bubble + text color.                             |
-| `background`                     | string                       | `#ffffff`              | Thread background.                                      |
-| `typing`                         | boolean                      | `true`                 | Show a "…" typing indicator before each `them` message. |
-| `typingMs`                       | int                          | `900`                  | How long the indicator shows before the message.        |
-| `width` / `height`               | int                          | `560` / `760`          | Output size.                                            |
-| `fontFamily`                     | string                       | system sans            | CSS font-family.                                        |
-| `popMs` / `staggerMs` / `holdMs` | int                          | `360` / `650` / `2000` | Pop duration / gap between messages / hold.             |
+| Param                            | Type                         | Default                | Meaning                                                                                  |
+| -------------------------------- | ---------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| `messages`                       | `{from,text}[]` **or** lines | a sample thread        | The thread. JSON array, or lines `me: …` / `them: …`.                                    |
+| `title`                          | string                       | —                      | Contact name (shown in the header; omit for no header).                                  |
+| `accent`                         | string                       | `#3b82f6`              | `me` bubble color.                                                                       |
+| `themBubble` / `themText`        | string                       | `#e9e9eb` / `#111111`  | `them` bubble + text color.                                                              |
+| `background`                     | string                       | `#ffffff`              | Thread background.                                                                       |
+| `typing`                         | boolean                      | `true`                 | Show a "…" typing indicator before each `them` message.                                  |
+| `typingMs`                       | int                          | `900`                  | How long the indicator shows before the message.                                         |
+| `width` / `height`               | int                          | `560` / `760`          | Output size.                                                                             |
+| `fontFamily`                     | string                       | system sans            | CSS font-family.                                                                         |
+| `popMs` / `staggerMs` / `tailMs` | int                          | `360` / `650` / `2000` | Pop duration / gap between messages / time after the last message. `holdMs` is an alias. |
 
 **Motion.** Each message is a transform-wrapper (`.ct-pop`) around an opacity
 inner (`.ct-bubble`) — two elements so the _pop_ and the _fade_ don't clobber each
@@ -93,7 +93,7 @@ domotion template subscribe --name "Ada Lovelace" --subtitle "@ada · 89.4K foll
 | `subscribedLabel`            | string            | `Subscribed`                    | Label after the simulated click.                                            |
 | `width` / `height`           | int               | `760` / `360`                   | Output size.                                                                |
 | `fontFamily`                 | string            | system sans                     | CSS font-family.                                                            |
-| `popMs` / `holdMs`           | int               | `520` / `2600`                  | Pop duration / hold.                                                        |
+| `popMs` / `tailMs`           | int               | `520` / `2600`                  | Pop duration / time after the click. `holdMs` is an alias.                  |
 
 **Motion.** A one-shot pop (`.sub-pop` scales `0.82 → 1` about center, `.sub-inner`
 fades) settles the card, then the CTA (`.sub-cta`) keeps a gentle looping pulse

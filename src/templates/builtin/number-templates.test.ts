@@ -150,9 +150,9 @@ describe("counter template (DM-1532)", () => {
     expect(animations.every((a) => a.to === "0px")).toBe(true); // identity rest
   });
 
-  it("brandDefaults maps text→color, background, font", () => {
+  it("brandDefaults maps text→textColor, background, font", () => {
     expect(counterTemplate.brandDefaults!(BRAND)).toEqual({
-      color: "#e6edf3",
+      textColor: "#e6edf3",
       background: "#0b1020",
       fontFamily: "Inter, sans-serif",
     });
@@ -191,6 +191,6 @@ describe("stat template (DM-1532)", () => {
   });
 
   it("brandDefaults maps primary→accent", () => {
-    expect(statTemplate.brandDefaults!(BRAND)).toMatchObject({ accent: "#2f6df6", color: "#e6edf3" });
+    expect(statTemplate.brandDefaults!(BRAND)).toMatchObject({ accent: "#2f6df6", textColor: "#e6edf3" });
   });
 });

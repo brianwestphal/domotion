@@ -70,7 +70,7 @@ export const backgroundLoopParamsSchema = z.object({
   background: cssValue().default("#0b1020").describe("Base fill behind the blobs (CSS color)."),
   count: z.coerce.number().int().min(1).max(24).default(5).describe("Number of blobs."),
   ...sizeSchema({ width: 1280, height: 720 }),
-  durationMs: msSchema(9000, "Base loop period in ms (each blob varies around it)."),
+  loopMs: msSchema(9000, "Base loop period in ms (each blob varies around it)."),
   seed: z.coerce.number().int().default(1).describe("PRNG seed — same seed ⇒ identical layout."),
 });
 
@@ -141,8 +141,8 @@ export function planBlobs(p: BackgroundLoopParams): Blob[] {
     const cy = rnd() * p.height;
     const angle = rnd() * Math.PI * 2;
     const dist = (0.5 + rnd() * 0.5) * style.drift * minDim;
-    const driftMs = Math.round(p.durationMs * (0.8 + rnd() * 0.8));
-    const breatheMs = Math.round(p.durationMs * (0.6 + rnd() * 0.7));
+    const driftMs = Math.round(p.loopMs * (0.8 + rnd() * 0.8));
+    const breatheMs = Math.round(p.loopMs * (0.6 + rnd() * 0.7));
     blobs.push({
       idx: i,
       color: p.colors[i % p.colors.length],
@@ -276,7 +276,7 @@ export function buildGradientPanAnimations(p: BackgroundLoopParams): Anims {
       property: "transform",
       from: "translate(0px, 0px)",
       to: `translate(-${shift}px, 0px)`,
-      duration: p.durationMs,
+      duration: p.loopMs,
       easing: "linear",
       repeat: "infinite",
     },
@@ -360,7 +360,7 @@ export function buildGridAnimations(p: BackgroundLoopParams, cell: number): Anim
       property: "transform",
       from: "translate(0px, 0px)",
       to: `translate(${cell}px, ${cell}px)`,
-      duration: p.durationMs,
+      duration: p.loopMs,
       easing: "linear",
       repeat: "infinite",
     },
@@ -528,7 +528,7 @@ export function planWaves(p: BackgroundLoopParams): WaveLayer[] {
       path: sineWavePath(w2, p.height, baseline, amp, period),
       opacity: 0.4 + t * 0.45,
       // Front (fast) → back (slow): clearly different speeds = obvious parallax.
-      driftMs: Math.round(p.durationMs * (2.2 - t * 1.3) * (0.9 + rnd() * 0.2)),
+      driftMs: Math.round(p.loopMs * (2.2 - t * 1.3) * (0.9 + rnd() * 0.2)),
     });
   }
   return layers;
@@ -636,6 +636,7 @@ export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
   name: "background-loop",
   description: "Procedural seamlessly-looping animated background (drifting, breathing color blobs).",
   paramsSchema: backgroundLoopParamsSchema,
+  paramAliases: { durationMs: "loopMs" },
   brandDefaults(brand: Brand): Partial<BackgroundLoopParams> {
     return brandParams<BackgroundLoopParams>({
       background: brandBackground(brand),
@@ -645,14 +646,14 @@ export const backgroundLoopTemplate: Template<BackgroundLoopParams> = {
   async render(params: BackgroundLoopParams, ctx: TemplateRenderContext): Promise<TemplateOutput> {
     const built = VARIANT_BUILDERS[variantFamily(params.variant)](params);
     ctx.log(built.log);
-    // Hold for one full base period (params.durationMs) so the looping reads in
+    // Hold for one full base period (params.loopMs) so the looping reads in
     // the timeline; the variants loop infinitely.
     return runSingleFrameGenerator(ctx, {
       name: "background-loop",
       html: built.html,
       width: params.width,
       height: params.height,
-      durationMs: params.durationMs,
+      durationMs: params.loopMs,
       animations: built.animations,
     });
   },

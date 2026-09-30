@@ -151,9 +151,9 @@ describe("per-template brandDefaults mapping (DM-1530)", () => {
     expect("logo" in lowerThirdTemplate.brandDefaults!(ACME)).toBe(false);
   });
 
-  it("chart maps text→color, background, font, palette→series colors", () => {
+  it("chart maps text→textColor, background, font, palette→series colors", () => {
     expect(chartTemplate.brandDefaults!(ACME)).toEqual({
-      color: "#e6edf3",
+      textColor: "#e6edf3",
       background: "linear-gradient(135deg,#1e293b,#0f172a)",
       fontFamily: "Inter, sans-serif",
       colors: ["#2f6df6", "#22d3ee"],
@@ -165,9 +165,14 @@ describe("per-template brandDefaults mapping (DM-1530)", () => {
     expect(subscribeTemplate.brandDefaults!(ACME)).toMatchObject({ accent: "#2f6df6", avatarColor: "#2f6df6" });
   });
 
-  it("kinetic-text maps text→color; background-loop maps palette→colors", () => {
-    expect(kineticTextTemplate.brandDefaults!(ACME)).toMatchObject({ color: "#e6edf3" });
+  it("kinetic-text maps text→textColor; background-loop maps palette→colors", () => {
+    expect(kineticTextTemplate.brandDefaults!(ACME)).toMatchObject({ textColor: "#e6edf3" });
     expect(backgroundLoopTemplate.brandDefaults!(ACME)).toMatchObject({ colors: ["#2f6df6", "#22d3ee"] });
+  });
+
+  it("legacy explicit text color overrides the canonical brand default", () => {
+    const merged = applyBrandDefaults(kineticTextTemplate, { text: "Hi", color: "#123456" }, ACME);
+    expect(validateTemplateParams(kineticTextTemplate, merged)).toMatchObject({ textColor: "#123456" });
   });
 
   it("device-mockup has no brand slot", () => {

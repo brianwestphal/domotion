@@ -121,6 +121,8 @@ export interface Template<P = unknown> {
   description: string;
   /** Zod schema for the template's parameters. */
   paramsSchema: ZodType<P>;
+  /** Legacy parameter names resolved before schema validation. Canonical keys win. */
+  paramAliases?: Record<string, string>;
   /**
    * Map a brand kit's tokens (docs/85) to this template's params, supplying
    * *defaults* only. Returns a partial params object merged BENEATH the caller's

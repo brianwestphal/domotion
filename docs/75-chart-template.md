@@ -38,24 +38,24 @@ domotion template chart --type line --data "12,18,15,28,24,38,44" -o dau.svg
 
 ## Parameters
 
-| Param                  | Type                                            | Default                                                    | Meaning                                                        |
-| ---------------------- | ----------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
-| `type`                 | `column` \| `bar` \| `line` \| `pie` \| `donut` | `column`                                                   | Bars (vertical/horizontal), a line, or a pie / donut.          |
-| `data`                 | number[] / number[][] / string                  | —                                                          | One or more series (**required**). See below.                  |
-| `labels`               | string[] **or** CSV string                      | —                                                          | Category labels (cycled if shorter than the data).             |
-| `seriesNames`          | string[] **or** CSV string                      | —                                                          | Legend names, one per series (multi-series only).              |
-| `layout`               | `grouped` \| `stacked`                          | `grouped`                                                  | Multi-series bars: side-by-side or stacked.                    |
-| `title`                | string                                          | —                                                          | Title shown above the plot.                                    |
-| `colors`               | string[] **or** CSV string                      | indigo/cyan/pink/amber/green/violet                        | Per-**series** when multi-series, else per-bar.                |
-| `max`                  | number                                          | nice round value ≥ largest datum                           | Axis maximum.                                                  |
-| `yTicks`               | int                                             | `4`                                                        | Value-axis gridline / tick divisions (`0` disables the scale). |
-| `showValues`           | boolean                                         | `true`                                                     | Print each value at the bar end / point (single series only).  |
-| `width` / `height`     | int                                             | `1000` / `600`                                             | Output size in px.                                             |
-| `background` / `color` | string                                          | `#0b1020` / `#e6edf3`                                      | Frame background / text color.                                 |
-| `fontFamily`           | string                                          | `-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif` | Font for the title / labels / values.                          |
-| `growMs`               | int                                             | `750`                                                      | Grow / draw duration per element.                              |
-| `staggerMs`            | int                                             | `110`                                                      | Delay between categories.                                      |
-| `holdMs`               | int                                             | `1800`                                                     | Hold after the chart finishes.                                 |
+| Param                      | Type                                            | Default                                                    | Meaning                                                        |
+| -------------------------- | ----------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
+| `type`                     | `column` \| `bar` \| `line` \| `pie` \| `donut` | `column`                                                   | Bars (vertical/horizontal), a line, or a pie / donut.          |
+| `data`                     | number[] / number[][] / string                  | —                                                          | One or more series (**required**). See below.                  |
+| `labels`                   | string[] **or** CSV string                      | —                                                          | Category labels (cycled if shorter than the data).             |
+| `seriesNames`              | string[] **or** CSV string                      | —                                                          | Legend names, one per series (multi-series only).              |
+| `layout`                   | `grouped` \| `stacked`                          | `grouped`                                                  | Multi-series bars: side-by-side or stacked.                    |
+| `title`                    | string                                          | —                                                          | Title shown above the plot.                                    |
+| `colors`                   | string[] **or** CSV string                      | indigo/cyan/pink/amber/green/violet                        | Per-**series** when multi-series, else per-bar.                |
+| `max`                      | number                                          | nice round value ≥ largest datum                           | Axis maximum.                                                  |
+| `yTicks`                   | int                                             | `4`                                                        | Value-axis gridline / tick divisions (`0` disables the scale). |
+| `showValues`               | boolean                                         | `true`                                                     | Print each value at the bar end / point (single series only).  |
+| `width` / `height`         | int                                             | `1000` / `600`                                             | Output size in px.                                             |
+| `background` / `textColor` | string                                          | `#0b1020` / `#e6edf3`                                      | Frame background / text color (`color` is an alias).           |
+| `fontFamily`               | string                                          | `-apple-system, system-ui, 'Segoe UI', Roboto, sans-serif` | Font for the title / labels / values.                          |
+| `growMs`                   | int                                             | `750`                                                      | Grow / draw duration per element.                              |
+| `staggerMs`                | int                                             | `110`                                                      | Delay between categories.                                      |
+| `tailMs`                   | int                                             | `1800`                                                     | Time after the chart finishes (`holdMs` is an alias).          |
 
 **`data` shapes (DM-1301).** A single series is a `number[]` (or CSV `"1,2,3"`).
 **Multiple series** are a `number[][]` (or a string with `;` between series:
@@ -70,7 +70,7 @@ gridlines behind the plot at the nice-max divisions with tick labels on the valu
 axis — horizontal (left labels) for `column` / `line`, vertical (bottom labels)
 for `bar`. `yTicks: 0` removes them.
 
-On-screen time = `(categories − 1) × staggerMs + growMs + holdMs`.
+On-screen time = `(categories − 1) × staggerMs + growMs + tailMs`.
 
 ## How it animates
 

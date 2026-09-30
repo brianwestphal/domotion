@@ -71,12 +71,25 @@ async function captureToSvg(
 /** Validate raw params against a template's zod schema, applying defaults. Throws
  *  a `template "<name>": …` error listing the offending paths on failure. */
 export function validateTemplateParams<P>(template: Template<P>, raw: unknown): P {
-  const result = template.paramsSchema.safeParse(raw);
+  const result = template.paramsSchema.safeParse(normalizeTemplateAliases(template, raw));
   if (result.success) return result.data;
   const issues = result.error.issues
     .map((i) => `${i.path.length > 0 ? i.path.join(".") : "(root)"}: ${i.message}`)
     .join("; ");
   throw new Error(`template "${template.name}": invalid params — ${issues}`);
+}
+
+/** Resolve legacy keys without wrapping the ZodObject used by CLI and JSON Schema tooling. */
+export function normalizeTemplateAliases<P>(template: Template<P>, raw: unknown): unknown {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw) || template.paramAliases == null) return raw;
+  const normalized = { ...(raw as Record<string, unknown>) };
+  for (const [alias, canonical] of Object.entries(template.paramAliases)) {
+    if (alias in normalized) {
+      if (!(canonical in normalized)) normalized[canonical] = normalized[alias];
+      delete normalized[alias];
+    }
+  }
+  return normalized;
 }
 
 export interface RenderTemplateOptions {
@@ -102,7 +115,10 @@ export interface RenderTemplateOptions {
 export function applyBrandDefaults<P>(template: Template<P>, rawParams: unknown, brand: Brand | undefined): unknown {
   if (brand == null || template.brandDefaults == null) return rawParams;
   if (rawParams == null || typeof rawParams !== "object" || Array.isArray(rawParams)) return rawParams;
-  return { ...template.brandDefaults(brand), ...(rawParams as Record<string, unknown>) };
+  return {
+    ...template.brandDefaults(brand),
+    ...(normalizeTemplateAliases(template, rawParams) as Record<string, unknown>),
+  };
 }
 
 /**

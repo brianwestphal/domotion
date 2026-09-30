@@ -5,6 +5,8 @@ import { validateTemplateParams } from "./render.js";
 import { templateParamsJsonSchema, describeTemplateParams } from "./json-schema.js";
 import { lowerThirdTemplate, buildLowerThirdHtml, lowerThirdParamsSchema } from "./builtin/lower-third.js";
 import { deviceMockupTemplate } from "./builtin/device-mockup.js";
+import { counterTemplate } from "./builtin/counter.js";
+import { statTemplate } from "./builtin/stat.js";
 import {
   backgroundLoopTemplate,
   backgroundLoopParamsSchema,
@@ -124,6 +126,41 @@ describe("param validation + JSON-Schema projection", () => {
       /template "lower-third": invalid params.*title/s,
     );
     expect(() => validateTemplateParams(lowerThirdTemplate, { title: "x", theme: "purple" })).toThrow(/theme/);
+  });
+
+  it("accepts legacy parameter names while canonical names win conflicts", () => {
+    expect(validateTemplateParams(kineticTextTemplate, { text: "Hello", color: "red", holdMs: 700 })).toMatchObject({
+      textColor: "red",
+      tailMs: 700,
+    });
+    expect(validateTemplateParams(chartTemplate, { data: [1], color: "blue", holdMs: 800 })).toMatchObject({
+      textColor: "blue",
+      tailMs: 800,
+    });
+    expect(validateTemplateParams(chatTemplate, { messages: "me: hi", holdMs: 900 })).toMatchObject({ tailMs: 900 });
+    expect(validateTemplateParams(subscribeTemplate, { name: "X", holdMs: 1000 })).toMatchObject({ tailMs: 1000 });
+    expect(validateTemplateParams(backgroundLoopTemplate, { durationMs: 1234 })).toMatchObject({ loopMs: 1234 });
+    expect(validateTemplateParams(counterTemplate, { to: 12, color: "red" })).toMatchObject({ textColor: "red" });
+    expect(validateTemplateParams(statTemplate, { value: 12, color: "blue" })).toMatchObject({ textColor: "blue" });
+    expect(
+      validateTemplateParams(kineticTextTemplate, {
+        text: "Hi",
+        color: "red",
+        textColor: "blue",
+        holdMs: 10,
+        tailMs: 20,
+      }),
+    ).toMatchObject({ textColor: "blue", tailMs: 20 });
+  });
+
+  it("all built-in aliases target canonical schema fields", () => {
+    for (const template of listBuiltinTemplates()) {
+      const properties = templateParamsJsonSchema(template).properties as Record<string, unknown>;
+      for (const [alias, canonical] of Object.entries(template.paramAliases ?? {})) {
+        expect(properties).toHaveProperty(canonical);
+        expect(properties).not.toHaveProperty(alias);
+      }
+    }
   });
 
   it("templateParamsJsonSchema projects to an object schema with the params as properties", () => {
@@ -481,7 +518,7 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
   });
 
   it("staggers each unit by staggerMs and sizes the duration to reveal-end + hold", () => {
-    const p = parse({ text: "a b c", staggerMs: 100, revealMs: 500, holdMs: 1000 });
+    const p = parse({ text: "a b c", staggerMs: 100, revealMs: 500, tailMs: 1000 });
     const plan = planUnits(p);
     const anims = buildKineticAnimations(p, plan);
     expect(anims.find((a) => a.selector === ".kt-w-2")!.delay).toBe(200); // 3rd unit
@@ -533,7 +570,7 @@ describe("kinetic-text generation (pure, no browser) — DM-1277", () => {
     );
     expect(boom.every((a) => a.repeat === "infinite" && a.alternate === true)).toBe(true);
     // Boomerang's play time frames an assemble + disassemble cycle (no hold).
-    const p = parse({ text: "a b", loop: "boomerang", staggerMs: 100, revealMs: 500, holdMs: 9999 });
+    const p = parse({ text: "a b", loop: "boomerang", staggerMs: 100, revealMs: 500, tailMs: 9999 });
     expect(kineticDurationMs(p, planUnits(p).count)).toBe(100 + 500 * 2);
   });
 
@@ -731,7 +768,7 @@ describe("chart generation (pure, no browser) — DM-1279", () => {
 
   it("the template is registered and validates params", () => {
     expect(chartTemplate.name).toBe("chart");
-    const p = parse({ type: "column", data: [1, 2, 3], staggerMs: 100, growMs: 600, holdMs: 1000 });
+    const p = parse({ type: "column", data: [1, 2, 3], staggerMs: 100, growMs: 600, tailMs: 1000 });
     expect(chartDurationMs(p, planChart(p))).toBe(200 + 600 + 1000); // last cat start + grow + hold
   });
 });
@@ -795,7 +832,7 @@ describe("chat generation (pure, no browser) — DM-1278", () => {
     expect(pop0.transformOrigin).toBe("bottom right"); // me → right
     expect(anims.find((a) => a.selector === ".ct-pop-1")!.transformOrigin).toBe("bottom left"); // them → left
     expect(anims.find((a) => a.selector === ".ct-bubble-1")!.delay).toBe(500); // staggered
-    expect(chatDurationMs(p)).toBe(500 + 300 + p.holdMs);
+    expect(chatDurationMs(p)).toBe(500 + 300 + p.tailMs);
   });
 
   // DM-1302: a "…" indicator precedes each them message; the thread runs
@@ -816,7 +853,7 @@ describe("chat generation (pure, no browser) — DM-1278", () => {
     // them2: type[1900..2800], pop 2800.
     expect(typingStart).toEqual([0, null, 1900]); // them msgs type; me msg doesn't
     expect(popStart).toEqual([900, 1400, 2800]); // them pops after typingMs; sequential
-    expect(chatDurationMs(p)).toBe(2800 + 300 + p.holdMs);
+    expect(chatDurationMs(p)).toBe(2800 + 300 + p.tailMs);
 
     const html = buildChatHtml(p);
     expect(html).toMatch(/class="ct-typing-wrap ct-typing-wrap-0"/);
@@ -888,7 +925,7 @@ describe("subscribe generation (pure, no browser) — DM-1278", () => {
   });
 
   it("cross-fades the two states at clickAfterMs (and the done button pops); durationMs extends to the click", () => {
-    const p = parse({ name: "X", clickAfterMs: 1500, holdMs: 1000 });
+    const p = parse({ name: "X", clickAfterMs: 1500, tailMs: 1000 });
     const anims = buildSubscribeAnimations(p);
     const out = anims.find((a) => a.selector === ".sub-state-cta")!;
     const inn = anims.find((a) => a.selector === ".sub-state-done")!;
@@ -903,7 +940,7 @@ describe("subscribe generation (pure, no browser) — DM-1278", () => {
     // duration runs to the click + cross-fade + hold (not just the pop).
     expect(subscribeDurationMs(p)).toBe(1500 + 280 + 1000);
     // disabled → no click anims, duration is pop + hold.
-    const off = parse({ name: "X", clickAfterMs: 0, holdMs: 1000 });
+    const off = parse({ name: "X", clickAfterMs: 0, tailMs: 1000 });
     expect(buildSubscribeAnimations(off).some((a) => a.selector === ".sub-state-done")).toBe(false);
     expect(subscribeDurationMs(off)).toBe(off.popMs + 1000);
   });

@@ -78,12 +78,18 @@ interface Template<P> {
   name: string; // the registry key + `domotion template <name>`
   description: string; // one line; shown by `domotion template list`
   paramsSchema: ZodType<P>;
+  paramAliases?: Record<string, string>; // legacy name → canonical schema field
   render(params: P, ctx: TemplateRenderContext): Promise<TemplateOutput>;
 }
 ```
 
 `render` receives **already-validated, defaulted** params (the host runs your
 `paramsSchema` first) and a context of building blocks:
+
+Define aliases on the template rather than wrapping the Zod object. The host
+resolves aliases before validation, so the canonical field stays visible to
+CLI help and JSON Schema. An explicit canonical field takes precedence when
+both names appear. Legacy CLI flags are accepted too.
 
 ```ts
 interface TemplateRenderContext {

@@ -16,6 +16,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
+import { normalizeTemplateAliases } from "../templates/render.js";
 import { optimizeSvg } from "../post-processing/index.js";
 import { isSvgzPath, makeLogger, timed, writeOutput, UsageError } from "./common.js";
 import {
@@ -67,6 +68,11 @@ export async function parseTemplateArgs(args: string[]) {
     if (p.name in options) continue; // never shadow a fixed option
     options[p.name] = { type: p.kind === "boolean" ? "boolean" : "string" };
   }
+  for (const [alias, canonical] of Object.entries(template.paramAliases ?? {})) {
+    const target = paramInfos.find((p) => p.name === canonical);
+    if (target != null && !(alias in options))
+      options[alias] = { type: target.kind === "boolean" ? "boolean" : "string" };
+  }
 
   const { values } = parseArgs({ args: args.slice(1), options, allowPositionals: false, strict: true });
 
@@ -81,10 +87,18 @@ export async function parseTemplateArgs(args: string[]) {
   if (paramsFile != null) {
     const path = resolve(paramsFile);
     if (!existsSync(path)) throw new UsageError(`template: --params-file not found: ${path}`);
-    Object.assign(raw, parseParamsJson(readFileSync(path, "utf8"), `--params-file ${paramsFile}`));
+    Object.assign(
+      raw,
+      normalizeTemplateAliases(template, parseParamsJson(readFileSync(path, "utf8"), `--params-file ${paramsFile}`)),
+    );
   }
   const paramsInline = values.params as string | undefined;
-  if (paramsInline != null) Object.assign(raw, parseParamsJson(paramsInline, "--params"));
+  if (paramsInline != null)
+    Object.assign(raw, normalizeTemplateAliases(template, parseParamsJson(paramsInline, "--params")));
+  for (const [alias, canonical] of Object.entries(template.paramAliases ?? {})) {
+    const value = (values as Record<string, unknown>)[alias];
+    if (value !== undefined) raw[canonical] = value;
+  }
   for (const p of paramInfos) {
     const v = (values as Record<string, unknown>)[p.name];
     if (v !== undefined) raw[p.name] = v;

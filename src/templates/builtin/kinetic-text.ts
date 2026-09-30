@@ -60,13 +60,13 @@ export const kineticTextParamsSchema = z.object({
   ...sizeSchema({ width: 1280, height: 720 }),
   fontSize: z.coerce.number().int().positive().default(88).describe("Font size in px."),
   fontWeight: z.coerce.number().int().default(800).describe("Font weight."),
-  color: cssValue().default("#f5f7fa").describe("Text color (CSS color)."),
+  textColor: cssValue().default("#f5f7fa").describe("Text color (CSS color)."),
   background: cssValue().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
   align: z.enum(["center", "left"]).default("center").describe("Text alignment."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   staggerMs: msSchema(90, "Delay between units in ms."),
   revealMs: msSchema(600, "Per-unit reveal duration in ms."),
-  holdMs: msSchema(1600, "Hold time after full reveal in ms."),
+  tailMs: msSchema(1600, "Hold time after full reveal in ms."),
 });
 
 export type KineticTextParams = z.infer<typeof kineticTextParamsSchema>;
@@ -286,7 +286,7 @@ export function buildKineticHtml(
   }
   .kt-headline {
     font-size: ${p.fontSize}px; font-weight: ${p.fontWeight}; line-height: 1.1;
-    color: ${p.color}; letter-spacing: -0.02em; text-align: ${textAlign};
+    color: ${p.textColor}; letter-spacing: -0.02em; text-align: ${textAlign};
     max-width: 100%;
   }
   .kt-line { display: block; }
@@ -406,7 +406,7 @@ export function buildKineticAnimations(
 export function kineticDurationMs(p: KineticTextParams, count: number): number {
   const lastStart = Math.max(0, count - 1) * p.staggerMs;
   if (p.loop === "boomerang") return lastStart + p.revealMs * 2;
-  return lastStart + p.revealMs + p.holdMs;
+  return lastStart + p.revealMs + p.tailMs;
 }
 
 export const kineticTextTemplate: Template<KineticTextParams> = {
@@ -414,9 +414,10 @@ export const kineticTextTemplate: Template<KineticTextParams> = {
   description:
     "Kinetic typography — reveal a headline (rise / slide / fade / clip / pop) word- or char-by-char, with multi-line (\\n), inline emphasis tags, and a loop / boomerang mode.",
   paramsSchema: kineticTextParamsSchema,
+  paramAliases: { color: "textColor", holdMs: "tailMs" },
   brandDefaults(brand: Brand): Partial<KineticTextParams> {
     return brandParams<KineticTextParams>({
-      color: brand.palette?.text,
+      textColor: brand.palette?.text,
       background: brandBackground(brand),
       fontFamily: brand.font?.family,
     });

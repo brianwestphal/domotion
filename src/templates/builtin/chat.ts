@@ -65,7 +65,7 @@ export const chatParamsSchema = z.object({
   typingMs: msSchema(900, "How long the typing indicator shows before the message in ms."),
   popMs: msSchema(360, "Pop-in duration per message in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(650).describe("Delay between messages in ms."),
-  holdMs: msSchema(2000, "Hold after the last message in ms."),
+  tailMs: msSchema(2000, "Hold after the last message in ms."),
 });
 
 export type ChatParams = z.infer<typeof chatParamsSchema>;
@@ -241,13 +241,14 @@ export function buildChatAnimations(p: ChatParams): Anims {
 /** Total play time: the last message pops, then hold. */
 export function chatDurationMs(p: ChatParams): number {
   const { popStart } = chatTimeline(p);
-  return popStart[popStart.length - 1] + p.popMs + p.holdMs;
+  return popStart[popStart.length - 1] + p.popMs + p.tailMs;
 }
 
 export const chatTemplate: Template<ChatParams> = {
   name: "chat",
   description: "A message thread whose bubbles pop in one at a time (iMessage / WhatsApp style).",
   paramsSchema: chatParamsSchema,
+  paramAliases: { holdMs: "tailMs" },
   brandDefaults(brand: Brand): Partial<ChatParams> {
     return brandParams<ChatParams>({
       accent: brand.palette?.primary,

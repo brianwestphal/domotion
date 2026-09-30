@@ -47,7 +47,7 @@ export const statParamsSchema = z.object({
   accent: cssValue().default("#22c55e").describe("Accent for the up-trend chip (down uses a red)."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
   background: cssValue().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),
-  color: cssValue().optional().describe("Value/text color. Defaults to the theme foreground."),
+  textColor: cssValue().optional().describe("Value/text color. Defaults to the theme foreground."),
   fontSize: z.coerce.number().int().positive().default(200).describe("Value font size in px."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family stack."),
   ...sizeSchema({ width: 1280, height: 720 }),
@@ -72,7 +72,7 @@ export function buildStatHtml(
   p: StatParams,
   safeInset?: SafeInset,
 ): { html: string; animations: Anims; rollEndMs: number } {
-  const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.color });
+  const t = resolveCardTheme(p.theme, { background: blank(p.background), text: p.textColor });
   // DM-1541: scale the value cell + label/delta type by the adaptive per-ratio
   // factor, then cap the value cell so the fixed-width (unwrappable) number fits
   // the safe content width — a big number on a narrow reel would otherwise
@@ -142,10 +142,11 @@ export const statTemplate: Template<StatParams> = {
   name: "stat",
   description: "Big KPI callout: an odometer value + label + optional trend chip (▲/▼) that fades in after the roll.",
   paramsSchema: statParamsSchema,
+  paramAliases: { color: "textColor" },
   brandDefaults(brand: Brand): Partial<StatParams> {
     return brandParams<StatParams>({
       accent: brand.palette?.primary,
-      color: brand.palette?.text,
+      textColor: brand.palette?.text,
       background: brandBackground(brand),
       fontFamily: brand.font?.family,
     });

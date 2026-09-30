@@ -41,7 +41,7 @@ export const subscribeParamsSchema = z.object({
   ...sizeSchema({ width: 760, height: 360 }),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
   popMs: msSchema(520, "Pop-in duration in ms."),
-  holdMs: msSchema(2600, "Hold after the pop in ms."),
+  tailMs: msSchema(2600, "Hold after the pop in ms."),
 });
 
 export type SubscribeParams = z.infer<typeof subscribeParamsSchema>;
@@ -233,13 +233,14 @@ export function buildSubscribeAnimations(p: SubscribeParams): Anims {
 /** Total play time: the pop (or the simulated click, if later), then hold. */
 export function subscribeDurationMs(p: SubscribeParams): number {
   const settled = p.clickAfterMs > 0 ? p.clickAfterMs + CLICK_FADE_MS : p.popMs;
-  return settled + p.holdMs;
+  return settled + p.tailMs;
 }
 
 export const subscribeTemplate: Template<SubscribeParams> = {
   name: "subscribe",
   description: "A subscribe / follow pop-up card that pops in with a pulsing call-to-action button.",
   paramsSchema: subscribeParamsSchema,
+  paramAliases: { holdMs: "tailMs" },
   brandDefaults(brand: Brand): Partial<SubscribeParams> {
     return brandParams<SubscribeParams>({
       accent: brand.palette?.primary,

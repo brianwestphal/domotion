@@ -80,11 +80,11 @@ export const chartParamsSchema = z.object({
     .describe("Print each value at the end of its bar / point (single series only)."),
   ...sizeSchema({ width: 1000, height: 600 }),
   background: cssValue().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
-  color: cssValue().default("#e6edf3").describe("Text / axis color (CSS color)."),
+  textColor: cssValue().default("#e6edf3").describe("Text / axis color (CSS color)."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
   growMs: msSchema(750, "Grow / draw duration per element in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(110).describe("Delay between categories in ms."),
-  holdMs: msSchema(1800, "Hold time after the chart finishes in ms."),
+  tailMs: msSchema(1800, "Hold time after the chart finishes in ms."),
 });
 
 export type ChartParams = z.infer<typeof chartParamsSchema>;
@@ -778,7 +778,7 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; }
   html, body { width: ${canvasW}px; height: ${canvasH}px; }
-  body { background: ${p.background}; font-family: ${p.fontFamily}; color: ${p.color}; position: relative; }
+  body { background: ${p.background}; font-family: ${p.fontFamily}; color: ${p.textColor}; position: relative; }
   .ch-safe { position: absolute; left: ${inset != null ? inset.left : 0}px; top: ${inset != null ? inset.top : 0}px; width: ${p.width}px; height: ${p.height}px; }
   .ch-title { position: absolute; left: 40px; top: 22px; font-size: ${fs(30)}px; font-weight: 700; letter-spacing: -0.01em; }
   .ch-legend { position: absolute; right: 40px; display: flex; gap: 20px; font-size: ${fs(17)}px; color: ${subColor}; }
@@ -792,7 +792,7 @@ export function buildChartHtml(p: ChartParams, plan: ChartPlan, inset?: SafeInse
   .ch-val { position: absolute; font-size: ${fs(19)}px; font-weight: 600; }
   .ch-cat { position: absolute; font-size: ${fs(17)}px; font-weight: 500; color: ${subColor}; white-space: nowrap; overflow: hidden; }
   .ch-line-wrap, .ch-pie-wrap { position: absolute; left: 0; top: 0; width: ${p.width}px; height: ${p.height}px; }
-  .ch-legend-v { position: absolute; right: 44px; top: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 16px; font-size: ${fs(19)}px; color: ${p.color}; }
+  .ch-legend-v { position: absolute; right: 44px; top: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 16px; font-size: ${fs(19)}px; color: ${p.textColor}; }
   .ch-pie-group { transform-box: fill-box; transform-origin: center; }
 </style></head>
 <body>
@@ -834,16 +834,17 @@ export function buildChartAnimations(p: ChartParams, plan: ChartPlan): Anims {
 
 /** Total play time: the last category finishes, then hold. */
 export function chartDurationMs(p: ChartParams, plan: ChartPlan): number {
-  return CHART_BODIES[chartBodyKind(plan)].playMs(p, plan) + p.holdMs;
+  return CHART_BODIES[chartBodyKind(plan)].playMs(p, plan) + p.tailMs;
 }
 
 export const chartTemplate: Template<ChartParams> = {
   name: "chart",
   description: "Animated column / bar / line chart from one or more series (bars grow, lines draw in).",
   paramsSchema: chartParamsSchema,
+  paramAliases: { color: "textColor", holdMs: "tailMs" },
   brandDefaults(brand: Brand): Partial<ChartParams> {
     return brandParams<ChartParams>({
-      color: brand.palette?.text,
+      textColor: brand.palette?.text,
       background: brandBackground(brand),
       fontFamily: brand.font?.family,
       colors: brandSeriesColors(brand),
