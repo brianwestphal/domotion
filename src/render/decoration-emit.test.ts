@@ -9,6 +9,17 @@ import { describe, expect, it } from "vitest";
 
 import { emitDecorationLine, type DecorationLineCtx } from "./text.js";
 
+describe("decoration style dispatch", () => {
+  it("keeps each emitter's geometry stable across interleaved styles", () => {
+    const styles = ["solid", "wavy", "double", "dashed", "dotted", "solid"] as const;
+    const output = styles.map((style) => emitDecorationLine(20.4, 2, "underline", false, ctx(style)));
+    expect(output[0]).toBe(output[5]);
+    expect(new Set(output.slice(0, 5)).size).toBe(5);
+    expect(output[1]).toContain("<path");
+    expect(output[2].match(/<line /g)).toHaveLength(2);
+  });
+});
+
 /** Ctx with skip-ink disabled (no gaps) spanning x ∈ [0, 100]. */
 function ctx(style: string | undefined): DecorationLineCtx {
   return {

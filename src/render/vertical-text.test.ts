@@ -526,4 +526,48 @@ describe("renderVerticalSegments — line-relative decoration paint (DM-2514)", 
     expect(markup).toContain('stroke-width="2"');
     expect(markup).not.toContain('stroke-width="5"');
   });
+
+  it("uses an exact vertical decorating fragment when capture provides one", () => {
+    const el = makeUnderlineEl("vertical-lr", "left");
+    el.styles.textDecorationLine = "none";
+    el.propagatedDecorations = [
+      {
+        line: "underline",
+        style: "solid",
+        color: "red",
+        thickness: "auto",
+        underlineOffset: "auto",
+        lengthScale: 1,
+        fontFamily: "serif",
+        fontSize: 50,
+        fontWeight: "700",
+        fontAscent: 42,
+        fontDescent: 8,
+        decorationFragments: [
+          {
+            version: "blink-decorating-box-fragment-v1",
+            fragmentIndex: 0,
+            writingMode: "vertical-lr",
+            direction: "ltr",
+            inlineStart: 50,
+            inlineEnd: 90,
+            lineOver: 100,
+            baseline: 120,
+            usedFontAscent: 42,
+            usedFontDescent: 8,
+            continuationPhase: 0,
+          },
+        ],
+      } as never,
+    ];
+    const markup = renderVerticalSegments(el, "black");
+    expect(markup).toContain('stroke="red"');
+    expect(markup).toContain('stroke-width="5"');
+    const fragments = (el.propagatedDecorations![0] as unknown as { decorationFragments: { baseline: number }[] })
+      .decorationFragments;
+    fragments[0].baseline += 9;
+    const shiftedMarkup = renderVerticalSegments(el, "black");
+    expect(shiftedMarkup).not.toBe(markup);
+    expect(shiftedMarkup).toContain('stroke-width="5"');
+  });
 });

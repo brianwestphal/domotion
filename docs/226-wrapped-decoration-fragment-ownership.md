@@ -5,11 +5,13 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2527"]
+tickets: ["DM-2527", "DM-EX6D5N"]
 code:
   [
     "tools/wrapped-decoration-fragment-oracle.ts",
     "src/render/decoration-fragment-ownership.ts",
+    "src/render/text.ts",
+    "src/render/vertical-text.ts",
     "tests/wrapped-decoration-fragments.e2e.test.ts",
     ".github/workflows/wrapped-decoration-fragments.yml",
   ]
@@ -47,6 +49,13 @@ used-font ascent/descent and an explicit zero continuation phase. Rendering
 joins by line identity and inline overlap; equal candidates fail closed. Older
 captures and wrappers without a direct text witness retain the legacy baseline
 fallback instead of inventing a fragment.
+
+Horizontal and vertical painters collect the applied decoration declarations
+in the same inherited-first order, then select the decorating fragment for
+their own writing axis. A vertical run without an exact fragment witness keeps
+its target UsedFont metrics because Blink disables non-horizontal decorating
+boxes there. With an exact witness, the captured decorating-box baseline and
+font metrics determine the decoration's line-relative placement.
 
 ## Gate
 

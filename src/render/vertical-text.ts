@@ -31,12 +31,14 @@ import { measureEmphasisMarkMetrics, renderTextAsPath, cssWeightOf } from "./tex
 import {
   capturedSegmentFontFamily,
   capturedTextSegmentFontFeatures,
-  decorationLengthScale,
+  collectAppliedDecorationDeclarations,
   emphasisGraphemeSpans,
   parseFontVariationSettings,
   parseTextEmphasisMark,
+  pickPropagatedBaseline,
   renderTextDecoration,
 } from "./text.js";
+import { selectDecorationFragment, type DecorationFragmentCarrier } from "./decoration-fragment-ownership.js";
 import { localeToScriptCodeForFontSelection } from "./generic-script-families.js";
 import { esc } from "./format.js";
 import { visualTextOnlyHiddenAttr } from "./real-text-layer.js";
@@ -282,33 +284,7 @@ function verticalDecorationIdBase(el: CapturedElement, seg: TextSegment): string
  * the shared horizontal source transcription rather than column-edge values.
  */
 function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillColor: string): string {
-  const applied = [
-    ...(el.propagatedDecorations ?? []).map((pd) => ({
-      line: pd.line,
-      color: pd.color ?? fillColor,
-      style: pd.style,
-      thickness: pd.thickness,
-      underlineOffset: pd.underlineOffset,
-      lengthScale: pd.lengthScale ?? 1,
-    })),
-    ...(el.styles.textDecorationLine != null &&
-    el.styles.textDecorationLine !== "" &&
-    el.styles.textDecorationLine !== "none"
-      ? [
-          {
-            line: el.styles.textDecorationLine,
-            color:
-              el.styles.textDecorationColor && el.styles.textDecorationColor !== "currentcolor"
-                ? el.styles.textDecorationColor
-                : fillColor,
-            style: el.styles.textDecorationStyle,
-            thickness: el.styles.textDecorationThickness,
-            underlineOffset: el.styles.textUnderlineOffset,
-            lengthScale: decorationLengthScale(el.styles),
-          },
-        ]
-      : []),
-  ];
+  const applied = collectAppliedDecorationDeclarations(el, fillColor);
   if (applied.length === 0) return "";
   const wm = seg.verticalWritingMode ?? "vertical-rl";
   const segFontSize = seg.fontSize ?? fontSizeOrDefault(el.styles.fontSize);
@@ -328,17 +304,41 @@ function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillCol
   const features = capturedTextSegmentFontFeatures(el, seg);
   const idBase = verticalDecorationIdBase(el, seg);
   const lineRelative = applied
-    .map((deco, index) =>
-      renderTextDecoration({
+    .map((deco, index) => {
+      const pd = deco.kind === "propagated" ? deco.source : undefined;
+      const owned =
+        pd != null
+          ? selectDecorationFragment(
+              (pd as typeof pd & DecorationFragmentCarrier).decorationFragments,
+              {
+                writingMode: wm,
+                inlineStart: seg.y,
+                inlineEnd: seg.y + seg.height,
+                lineOver: seg.x,
+                baseline: seg.x + segAscent,
+              },
+              pd.fontSize,
+            )
+          : undefined;
+      // Blink disables non-horizontal decorating boxes. Legacy propagated
+      // declarations therefore use the target run's UsedFont; an exact
+      // fragment witness can supply the decorating box's captured metrics.
+      const pdAscent = owned?.usedFontAscent ?? segAscent;
+      const pdBaseline =
+        pd != null
+          ? (owned?.baseline ?? pickPropagatedBaseline(pd.baselines, seg.x + segAscent, pd.fontSize))
+          : seg.x + segAscent;
+      const lineRelativeBaseline = seg.y + segAscent + pdBaseline - (seg.x + segAscent);
+      return renderTextDecoration({
         textDecorationLine: deco.line,
         decorationColor: deco.color,
         style: deco.style,
         segX: seg.x,
-        fragTop: seg.y,
+        fragTop: pd != null ? lineRelativeBaseline - pdAscent : seg.y,
         runBaselineY: seg.y + segAscent,
         segWidth: seg.height,
-        fontAscent: segAscent,
-        fontDescent: segDescent,
+        fontAscent: pdAscent,
+        fontDescent: owned?.usedFontDescent ?? segDescent,
         fontSize: segFontSize,
         fontFamily: segFamily,
         fontWeight: segWeight,
@@ -358,9 +358,13 @@ function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillCol
         skipInk: el.styles.textDecorationSkipInk,
         features,
         runXOffsets,
+        metricsFontFamily: owned != null ? pd?.fontFamily : undefined,
+        metricsFontSize: owned != null ? pd?.fontSize : undefined,
+        metricsFontWeight: owned != null ? pd?.fontWeight : undefined,
+        metricsFontStyle: owned != null ? pd?.fontStyle : undefined,
         idBase: `${idBase}-${index}`,
-      }),
-    )
+      });
+    })
     .join("");
   if (lineRelative === "") return "";
   return `<g transform="${lineRelativeToPhysicalTransform(seg.x, seg.y, seg.width, seg.height, wm)}">${lineRelative}</g>`;

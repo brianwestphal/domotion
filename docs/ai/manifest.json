@@ -3626,6 +3626,8 @@
       "code": [
         "tools/wrapped-decoration-fragment-oracle.ts",
         "src/render/decoration-fragment-ownership.ts",
+        "src/render/text.ts",
+        "src/render/vertical-text.ts",
         "tests/wrapped-decoration-fragments.e2e.test.ts",
         ".github/workflows/wrapped-decoration-fragments.yml"
       ],
