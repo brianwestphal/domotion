@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio", "capture", "animation"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2685"]
+tickets: ["DM-2685", "DM-QYTRKQ"]
 code:
   [
     "src/studio/interactive-compile.ts",
@@ -36,6 +36,13 @@ authored project and opens one isolated capture context per active scene. The
 scene's URL or file is loaded once. Its semantic steps execute in the same page,
 in compiled order, so accessibility locators, application state, DOM identity,
 webfonts, scrolling, and later controls revealed by earlier actions remain live.
+
+Each live scene owns one text-engine session. Discovered webfonts register in
+that session after asynchronous browser fetches. The rest capture, subsequent
+states, transition bridges, and final SVG synthesis continue its render
+generation, so the segment emits the accumulated glyph definitions and embedded
+font CSS once. Concurrent scenes keep their font registrations and generated
+text artifacts separate.
 
 Immediately before each visual action, Studio inspects the actual target border
 box and computed cursor. It then wraps the action in proactive DOM/CSS
@@ -104,6 +111,10 @@ state/evidence/cursor synthesis, storyboard embedding, stable repeat output,
 artifact upsert without authored-data loss, failed-recapture preservation,
 context cleanup, and staging cleanup. Browser-free coverage proves unchanged
 pre-rendered-scene compilation and both success/failure staging cleanup.
+Concurrent Chromium scene compilation is compared with serial output to guard
+against cross-scene text artifacts. A separate browser test registers webfonts
+through asynchronous fetches and checks that each owning session resolves only
+its own face.
 
 On an actionable replay failure, the compiler also captures a bounded AI-mode
 ARIA snapshot, raw DOM author hints, live geometry, computed CSS, completed

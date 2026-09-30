@@ -12,13 +12,8 @@ import type { CapturedElement } from "../capture/types.js";
 import { openAnimateCaptureSession } from "../cli/animate-capture-session.js";
 import { applyReadyWaits, loadInputIntoPage } from "../cli/common.js";
 import type { StoryboardScene } from "../cli/storyboard.js";
-import {
-  clearEmbeddedFonts,
-  clearGlyphDefs,
-  elementTreeToSvgInner,
-  getEmbeddedFontFaceCss,
-  getGlyphDefs,
-} from "../render/index.js";
+import { elementTreeToSvgInner } from "../render/index.js";
+import { createTextEngineSession, withTextEngineDocument, type TextEngineSession } from "../render/text-engine.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
 import {
   compileStudioProjectWithSceneOverrides,
@@ -277,12 +272,15 @@ async function captureState(
   width: number,
   height: number,
   prefix: string,
+  textEngineSession: TextEngineSession,
 ): Promise<CapturedState> {
   const tree = await captureElementTreeSelfContained(page, selector, { x: 0, y: 0, width, height });
   const cull = cullElementsOutsideViewBox(tree, width, height, undefined, 0, 1);
   return {
     tree,
-    svgContent: elementTreeToSvgInner(tree, width, height, prefix, false, 2, false),
+    svgContent: withTextEngineDocument({ session: textEngineSession, generation: "continue" }, () =>
+      elementTreeToSvgInner(tree, width, height, prefix, false, 2, false),
+    ).value,
     cullCss: cull.css,
     background: tree[0]?.styles?.rootBgComputed,
   };
@@ -472,6 +470,7 @@ async function compileLiveSegment(
   const projectDir = options.projectDir ?? process.cwd();
   const input = cap.url ?? resolve(projectDir, cap.file!);
   const plan = compileStudioSemanticTracks(scene.tracks ?? [], { path: `$.scenes[${sceneIndex}].tracks` });
+  const textEngineSession = createTextEngineSession();
   const session = await openAnimateCaptureSession(browser, {
     width: project.canvas.width,
     height: project.canvas.height,
@@ -482,20 +481,24 @@ async function compileLiveSegment(
   const evidence: StudioInteractionEvidence[] = [];
   let activeEventId: string | undefined;
   try {
-    // One live segment is one render-generation scope. Frame bodies reference
-    // these glyph paths, then the animator emits the accumulated definitions
-    // once at the top level instead of repeating identical ids in every state.
-    clearEmbeddedFonts();
-    clearGlyphDefs();
+    // One text-engine session owns every captured state and bridge in this
+    // scene, across the async browser work between synchronous renders.
     const { page, tracker } = session;
     await loadInputIntoPage(page, input);
     await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });
-    await discoverAndRegisterWebfonts(page, tracker.urls);
+    await discoverAndRegisterWebfonts(page, tracker.urls, textEngineSession);
     await runScenePhase(project, scene, sceneIndex, page, "beforeCapture", options.runSceneHook);
 
     const selector = cap.selector ?? "body";
     const states: CapturedState[] = [
-      await captureState(page, selector, project.canvas.width, project.canvas.height, `studio-${scene.id}-s0-`),
+      await captureState(
+        page,
+        selector,
+        project.canvas.width,
+        project.canvas.height,
+        `studio-${scene.id}-s0-`,
+        textEngineSession,
+      ),
     ];
     const cursorTargets: StudioCursorTargetEvidence[] = [];
     for (const step of plan.steps) {
@@ -517,7 +520,7 @@ async function compileLiveSegment(
       evidence.push(observed);
       completedEventIds.push(step.event.id);
       activeEventId = undefined;
-      await discoverAndRegisterWebfonts(page, tracker.urls);
+      await discoverAndRegisterWebfonts(page, tracker.urls, textEngineSession);
       states.push(
         await captureState(
           page,
@@ -525,6 +528,7 @@ async function compileLiveSegment(
           project.canvas.width,
           project.canvas.height,
           `studio-${scene.id}-s${states.length}-`,
+          textEngineSession,
         ),
       );
     }
@@ -532,26 +536,35 @@ async function compileLiveSegment(
     const cursor = planStudioCursorChoreography(cursorTargets, sceneCursorOptions(scene.id, chainFrom, options.cursor));
     const groups = scheduledGroups(plan, cursor);
     const authoredDuration = scene.render.recipe.duration ?? 0;
-    const { frames, durationMs } = buildFrames(
-      states,
-      groups,
-      evidence,
-      project.canvas.width,
-      project.canvas.height,
-      Math.max(authoredDuration, plan.durationMs + cursor.timeOffsetMs, cursor.durationMs + DEFAULT_STATE_TAIL_MS),
-    );
     await runScenePhase(project, scene, sceneIndex, page, "beforeCompile", options.runSceneHook);
-    const svg = generateAnimatedSvg({
-      width: project.canvas.width,
-      height: project.canvas.height,
-      frames,
-      sharedDefs: getGlyphDefs(),
-      fontFaceCss: getEmbeddedFontFaceCss(),
-      cursorOverlay: cursor.overlay,
-      background: states[0].background,
-      title: scene.title,
-      desc: scene.description,
-    });
+    const { svg, durationMs } = withTextEngineDocument(
+      { session: textEngineSession, generation: "continue" },
+      (document) => {
+        const { frames, durationMs } = buildFrames(
+          states,
+          groups,
+          evidence,
+          project.canvas.width,
+          project.canvas.height,
+          Math.max(authoredDuration, plan.durationMs + cursor.timeOffsetMs, cursor.durationMs + DEFAULT_STATE_TAIL_MS),
+        );
+        const artifacts = document.artifacts();
+        return {
+          durationMs,
+          svg: generateAnimatedSvg({
+            width: project.canvas.width,
+            height: project.canvas.height,
+            frames,
+            sharedDefs: artifacts.glyphDefs,
+            fontFaceCss: artifacts.embeddedFontFaceCss,
+            cursorOverlay: cursor.overlay,
+            background: states[0].background,
+            title: scene.title,
+            desc: scene.description,
+          }),
+        };
+      },
+    ).value;
     await runScenePhase(project, scene, sceneIndex, page, "afterCompile", options.runSceneHook);
     options.log?.(
       `Generated interactive Studio segment "${scene.id}": ${states.length} captured states, ${durationMs}ms`,

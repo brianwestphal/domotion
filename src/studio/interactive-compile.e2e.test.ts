@@ -1,8 +1,13 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import { afterAll, describe, expect, it } from "vitest";
+import { resolveFontKeyChain } from "@domotion/text-engine/testing";
+import { discoverAndRegisterWebfonts } from "../capture/index.js";
+import { createTextEngineSession, withTextEngineDocument } from "../render/text-engine.js";
 import { compileStudioInteractiveProject, finalCursorPoint, inspectStudioHealingPage } from "./interactive-compile.js";
 import { loadStudioProject } from "./project.js";
 
@@ -238,4 +243,99 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
       await page.close();
     }
   });
+
+  it("keeps interleaved live-scene text generations isolated", async () => {
+    browser ??= await chromium.launch({ headless: true });
+    const root = mkdtempSync(join(tmpdir(), "domotion-studio-text-sessions-"));
+    const authored = loadStudioProject(fixturePath);
+    const compile = (label: string, artifactDir: string, rendezvous?: () => Promise<void>) =>
+      compileStudioInteractiveProject(browser!, authored, {
+        projectDir: fixtureDir,
+        artifactDir,
+        generatedAt,
+        generatorVersion: "test",
+        runSceneHook: async ({ page, phase }) => {
+          if (phase !== "beforeCapture") return;
+          await page.locator("main").evaluate((element, value) => {
+            const heading = document.createElement("div");
+            heading.textContent = value;
+            element.prepend(heading);
+          }, label);
+          await rendezvous?.();
+        },
+        runHook: async ({ page }) => {
+          await page.locator("#panel").evaluate((element) => {
+            element.textContent = "Details hooked";
+          });
+        },
+      });
+    try {
+      const soloA = await compile("Alpha Ω", join(root, "solo-a"));
+      const soloB = await compile("Beta Ж", join(root, "solo-b"));
+      let arrivals = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const rendezvous = async (): Promise<void> => {
+        if (++arrivals === 2) release();
+        await gate;
+      };
+      const [parallelA, parallelB] = await Promise.all([
+        compile("Alpha Ω", join(root, "parallel-a"), rendezvous),
+        compile("Beta Ж", join(root, "parallel-b"), rendezvous),
+      ]);
+      expect(parallelA.segments[0].sha256).toBe(soloA.segments[0].sha256);
+      expect(parallelB.segments[0].sha256).toBe(soloB.segments[0].sha256);
+      expect(parallelA.segments[0].sha256).not.toBe(parallelB.segments[0].sha256);
+      expect(browser.contexts()).toHaveLength(0);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 240_000);
+
+  it("registers discovered webfonts into the owning session across asynchronous fetches", async () => {
+    browser ??= await chromium.launch({ headless: true });
+    const font = readFileSync(resolve("tests/fixtures/font-palette/COLR-palettes-test-font.ttf"));
+    const server = createServer((request, response) => {
+      if (request.url === "/font.ttf") {
+        response.writeHead(200, { "content-type": "font/ttf" });
+        response.end(font);
+        return;
+      }
+      const family = request.url === "/beta" ? "Studio Beta" : "Studio Alpha";
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(
+        `<style>@font-face{font-family:"${family}";src:url(/font.ttf)} body{font-family:"${family}"}</style><p>${family}</p>`,
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const outer = resolveFontKeyChain("Studio Alpha");
+    const collect = async (path: string, family: string) => {
+      const page = await browser!.newPage();
+      const session = createTextEngineSession();
+      try {
+        await page.goto(`${baseUrl}/${path}`);
+        const report = await discoverAndRegisterWebfonts(page, [], session);
+        expect(report.some((row) => row.family === family && row.ok)).toBe(true);
+        return withTextEngineDocument({ session }, () => ({
+          own: resolveFontKeyChain(family),
+          other: resolveFontKeyChain(family === "Studio Alpha" ? "Studio Beta" : "Studio Alpha"),
+        })).value;
+      } finally {
+        await page.close();
+      }
+    };
+    try {
+      const [alpha, beta] = await Promise.all([collect("alpha", "Studio Alpha"), collect("beta", "Studio Beta")]);
+      expect(alpha.own).toContain("webfont:studio alpha");
+      expect(alpha.other).not.toContain("webfont:studio beta");
+      expect(beta.own).toContain("webfont:studio beta");
+      expect(beta.other).not.toContain("webfont:studio alpha");
+      expect(resolveFontKeyChain("Studio Alpha")).toEqual(outer);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 60_000);
 });
