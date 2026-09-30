@@ -132,6 +132,15 @@ export interface SuiteResult {
   pass: boolean;
 }
 
+export interface FeatureSuiteRun {
+  results: SuiteResult[];
+  failed: number;
+}
+
+export function countFeatureFailures(results: ReadonlyArray<Pick<SuiteResult, "pass">>): number {
+  return results.filter((result) => !result.pass).length;
+}
+
 interface RunnerWorker {
   context: BrowserContext;
   page: Page;
@@ -289,7 +298,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
  * owns its own capture context+page and compare canvas page so the runs
  * don't serialize behind a single Playwright tab. DM-456.
  */
-export async function runFeatureTests(tests: FeatureTest[], suiteName?: string): Promise<SuiteResult[]> {
+export async function runFeatureTests(tests: FeatureTest[], suiteName?: string): Promise<FeatureSuiteRun> {
   const args = process.argv.slice(2);
   const onlyTest = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
 
@@ -298,7 +307,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   const jobs = onlyTest != null ? tests.filter((t) => t.name === onlyTest) : tests;
   if (jobs.length === 0) {
     console.log(`No tests matched (--only ${onlyTest ?? "(none)"}).`);
-    return [];
+    return { results: [], failed: 0 };
   }
 
   // DM-459: yield CPU to interactive work — Chromium subprocesses inherit.
@@ -424,7 +433,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
 
   // Summary
   const passed = results.filter((r) => r.pass).length;
-  const failed = results.filter((r) => !r.pass).length;
+  const failed = countFeatureFailures(results);
   console.log(`\n${passed} passed, ${failed} failed out of ${results.length} tests`);
 
   if (failed > 0) {
@@ -435,9 +444,9 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
       );
     }
     console.log("\nReview tool: npx tsx tests/review-server.tsx");
-    process.exit(1);
+    return { results, failed };
   }
 
   console.log("\nReview tool: npx tsx tests/review-server.tsx");
-  return results;
+  return { results, failed };
 }

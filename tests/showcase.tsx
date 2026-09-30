@@ -160,4 +160,6 @@ const tests: FeatureTest[] = [
   },
 ];
 
-void runFeatureTests(tests, "showcase");
+void runFeatureTests(tests, "showcase").then(({ failed }) => {
+  if (failed > 0) process.exitCode = 1;
+});

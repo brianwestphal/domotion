@@ -1869,5 +1869,7 @@ export const tests: FeatureTest[] = [
 // Only auto-run the suite when invoked directly (not when the fixtures are
 // imported by another harness, e.g. the byte-identical refactor baseline).
 if (process.argv[1] != null && process.argv[1].endsWith("features.ts")) {
-  void runFeatureTests(tests, "features");
+  void runFeatureTests(tests, "features").then(({ failed }) => {
+    if (failed > 0) process.exitCode = 1;
+  });
 }

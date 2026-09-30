@@ -56,6 +56,11 @@ String options accept both `--name value` and `--name=value`. The shared gate he
 exit code 0 for agreement, 1 for a measured mismatch, and 2 for a command or
 runtime error.
 
+The feature fixture harness returns `{ results, failed }` from
+`runFeatureTests`. Importers can inspect failed regions without terminating
+their process; the `features`, `showcase`, and `composed-parity` command entry
+points set exit code 1 when `failed > 0`.
+
 The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual suites run locally as a _deliberately throttled background job_ (`tests/worker-pool.ts`: `min(8, cores/4)` workers at macOS BACKGROUND QoS), so a full unicode sweep takes ~1h. The suites are embarrassingly parallel and the fixture repo (`github.com/brianwestphal/html-test`) is **public**, so GitHub-hosted runners are free here. `.github/workflows/visual-tests.yml` fans the suite out across many runners; a single dispatch turns ~1h into a few minutes, off your machine.
 
 ## When to use it
