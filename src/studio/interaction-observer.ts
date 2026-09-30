@@ -10,6 +10,7 @@ import {
 import { JS_REVEAL_DEFAULTS } from "../cli/mutation-detect.js";
 import type { StudioSemanticStep } from "./interactions.js";
 import { resolveStudioSemanticTarget } from "./interactions.js";
+import { studioPageDomPath } from "./page-script/selector.js";
 
 export type StudioObservationPhase = "baseline" | "action";
 export type StudioEvidenceClassification = "direct-feedback" | "action-effect" | "incidental-churn";
@@ -137,6 +138,7 @@ export class StudioInteractionObservationError extends Error {
 }
 
 const OBSERVER_KEY = "__domotionStudioInteractionObserverV1";
+const DOM_PATH_KEY = "__domotionStudioDomPathV1";
 const OBSERVED_STYLE_PROPERTIES = [
   ...HOVER_DIFF_PROPERTIES,
   "display",
@@ -335,10 +337,14 @@ async function beginObservation(
   related: Array<ElementHandle<Element>>,
   options: Required<Pick<ObserveStudioInteractionOptions, "baselineMs" | "maxNodes">> & { ignoredAttributes: string[] },
 ): Promise<void> {
-  await page.evaluate(
-    async ({ target, related, options, key, properties }) => {
+  await page.evaluate(`globalThis[${JSON.stringify(DOM_PATH_KEY)}] = (${studioPageDomPath.toString()})`);
+  const pending = page.evaluate(
+    async ({ target, related, options, key, pathKey, properties }) => {
       const root = globalThis as unknown as Record<string, unknown>;
       if (root[key] != null) throw new Error("a Studio interaction observation is already active");
+      const domPath = root[pathKey] as ((node: Node) => string) | undefined;
+      delete root[pathKey];
+      if (typeof domPath !== "function") throw new Error("Studio DOM path helper is unavailable");
       const started = performance.now();
       const references = new WeakMap<Node, string>();
       const referenceNodes = new Map<string, Node>();
@@ -355,28 +361,6 @@ async function beginObservation(
       let truncated = false;
 
       const round = (value: number): number => Math.round(value * 1000) / 1000;
-      const domPath = (node: Node): string => {
-        if (node.nodeType === Node.TEXT_NODE) return `${domPath(node.parentNode ?? document.documentElement)}/text()`;
-        if (!(node instanceof Element)) return node.nodeName.toLowerCase();
-        if (
-          node.id !== "" &&
-          [...document.querySelectorAll("[id]")].filter((candidate) => candidate.id === node.id).length === 1
-        )
-          return `#${node.id}`;
-        const parts: string[] = [];
-        for (
-          let element: Element | null = node;
-          element != null && element !== document.documentElement;
-          element = element.parentElement
-        ) {
-          const siblings =
-            element.parentElement == null
-              ? []
-              : [...element.parentElement.children].filter((item) => item.localName === element.localName);
-          parts.push(`${element.localName}:nth-of-type(${Math.max(1, siblings.indexOf(element) + 1)})`);
-        }
-        return `html/${parts.reverse().join("/")}`;
-      };
       const refFor = (node: Node): string => {
         const known = references.get(node);
         if (known != null) return known;
@@ -594,7 +578,19 @@ async function beginObservation(
         targetRef: refFor(target),
       };
     },
-    { target, related, options, key: OBSERVER_KEY, properties: [...OBSERVED_STYLE_PROPERTIES] },
+    {
+      target,
+      related,
+      options,
+      key: OBSERVER_KEY,
+      pathKey: DOM_PATH_KEY,
+      properties: [...OBSERVED_STYLE_PROPERTIES],
+    },
+  );
+  await pending.finally(() =>
+    page
+      .evaluate((key) => delete (globalThis as unknown as Record<string, unknown>)[key], DOM_PATH_KEY)
+      .catch(() => {}),
   );
 }
 

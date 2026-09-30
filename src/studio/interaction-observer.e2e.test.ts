@@ -282,4 +282,50 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     expect(await page.locator("[data-domotion-studio-target]").count()).toBe(0);
     expect(await page.evaluate(() => "__domotionStudioInteractionObserverV1" in globalThis)).toBe(false);
   });
+
+  it("keeps duplicate-ID and text-node paths stable, then reinstalls the helper after navigation", async () => {
+    await page.setContent('<main><span id="repeated">One</span><span id="repeated">Two</span></main>');
+    const duplicate = await observeStudioInteraction(
+      page,
+      {
+        eventId: "duplicate",
+        path: "$.duplicate",
+        target: page.locator("span").nth(1),
+        baselineMs: 0,
+        settleMs: 150,
+        debounceMs: 0,
+      },
+      () =>
+        page
+          .locator("span")
+          .nth(1)
+          .evaluate((element) => {
+            element.firstChild!.textContent = "Updated";
+          }),
+    );
+    expect(duplicate.targetRef).toContain("/span:nth-of-type(2)");
+    expect(duplicate.mutations.some((mutation) => mutation.targetRef.endsWith("/span:nth-of-type(2)/text()"))).toBe(
+      true,
+    );
+    expect(await page.evaluate(() => "__domotionStudioDomPathV1" in globalThis)).toBe(false);
+
+    await page.goto('data:text/html,<main><button id="fresh">Fresh</button></main>');
+    const fresh = await observeStudioInteraction(
+      page,
+      {
+        eventId: "fresh",
+        path: "$.fresh",
+        target: page.locator("#fresh"),
+        baselineMs: 0,
+        settleMs: 150,
+        debounceMs: 0,
+      },
+      () =>
+        page.locator("#fresh").evaluate((element) => {
+          element.textContent = "Changed";
+        }),
+    );
+    expect(fresh.targetRef).toContain("#fresh");
+    expect(await page.evaluate(() => "__domotionStudioDomPathV1" in globalThis)).toBe(false);
+  });
 });

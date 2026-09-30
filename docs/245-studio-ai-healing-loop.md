@@ -55,7 +55,12 @@ evidence when available, and an inspection taken before the live page closes.
 The inspection contains Playwright's AI-mode ARIA snapshot plus bounded raw DOM
 author hints, element rectangles, and selected computed CSS. The ARIA snapshot
 is the semantic role/name authority; Studio does not synthesize browser roles
-or accessible names from tags.
+or accessible names from tags. Raw hint selectors use the shared browser-page
+helper in `src/studio/page-script/selector.ts`, retaining the healing policy:
+ID, then `data-testid` (including an empty attribute), then a bounded
+`body >` path with `nth-of-type` siblings. Recorder selectors retain their
+separate name fallback and `html >` path policy. These hints do not change
+semantic target resolution.
 
 The geometry and style facts intentionally call the live platform APIs.
 Chromium updates lifecycle before `Element::GetBoundingClientRect()` in

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import { afterAll, describe, expect, it } from "vitest";
-import { compileStudioInteractiveProject, finalCursorPoint } from "./interactive-compile.js";
+import { compileStudioInteractiveProject, finalCursorPoint, inspectStudioHealingPage } from "./interactive-compile.js";
 import { loadStudioProject } from "./project.js";
 
 const fixturePath = resolve("tests/fixtures/studio/interactive-story.project.json");
@@ -214,4 +214,28 @@ describe("Studio interactive segment compilation (DM-2685)", () => {
       rmSync(artifactDir, { recursive: true, force: true });
     }
   }, 240_000);
+
+  it("preserves healing selector policy and reinstalls it after navigation", async () => {
+    browser ??= await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    try {
+      await page.setContent(
+        '<main><button id="same">One</button><button id="same">Two</button><button data-testid="">Empty</button><button name="named">Named</button></main>',
+      );
+      const first = await inspectStudioHealingPage(page);
+      expect(first.candidates.filter((candidate) => candidate.selector === "#same")).toHaveLength(2);
+      expect(first.candidates.some((candidate) => candidate.selector === '[data-testid=""]')).toBe(true);
+      expect(first.candidates.some((candidate) => candidate.selector === "body > main > button:nth-of-type(4)")).toBe(
+        true,
+      );
+      expect(await page.evaluate(() => "__domotionStudioHealingSelectorV1" in globalThis)).toBe(false);
+
+      await page.goto("data:text/html,<main><button>Fresh</button></main>");
+      const second = await inspectStudioHealingPage(page);
+      expect(second.candidates.find((candidate) => candidate.text === "Fresh")?.selector).toBe("body > main > button");
+      expect(await page.evaluate(() => "__domotionStudioHealingSelectorV1" in globalThis)).toBe(false);
+    } finally {
+      await page.close();
+    }
+  });
 });

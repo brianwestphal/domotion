@@ -46,10 +46,12 @@ import {
   type StudioSemanticPlan,
 } from "./interactions.js";
 import { validateStudioProject } from "./project.js";
+import { studioPageSelectorFor } from "./page-script/selector.js";
 import type { StudioArtifact, StudioProject, StudioScene } from "./project-schema.js";
 
 const DEFAULT_STATE_TAIL_MS = 400;
 const DEFAULT_SEGMENT_MIN_MS = 800;
+const HEALING_SELECTOR_KEY = "__domotionStudioHealingSelectorV1";
 
 export interface StudioSceneHookContext {
   page: Page;
@@ -173,72 +175,68 @@ export async function inspectStudioHealingPage(page: Page, maxCandidates = 250):
     .locator("body")
     .ariaSnapshot({ mode: "ai", depth: 12 })
     .catch(() => "");
-  const raw = await page.locator("body *").evaluateAll((elements, limit) => {
-    const selector = (element: Element): string => {
-      if (element.id !== "") return `#${CSS.escape(element.id)}`;
-      const testId = element.getAttribute("data-testid");
-      if (testId != null) return `[data-testid=${JSON.stringify(testId)}]`;
-      const parts: string[] = [];
-      let current: Element | null = element;
-      while (current != null && current.tagName.toLowerCase() !== "body" && parts.length < 5) {
-        const tag = current.tagName.toLowerCase();
-        const siblings =
-          current.parentElement == null
-            ? []
-            : [...current.parentElement.children].filter((item) => item.tagName === current!.tagName);
-        parts.unshift(siblings.length > 1 ? `${tag}:nth-of-type(${siblings.indexOf(current) + 1})` : tag);
-        current = current.parentElement;
-      }
-      return `body > ${parts.join(" > ")}`;
-    };
-    const interesting = elements.filter((element) => {
-      const style = getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      const tag = element.tagName.toLowerCase();
-      return (
-        rect.width > 0 &&
-        rect.height > 0 &&
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        (element.hasAttribute("role") ||
-          element.hasAttribute("aria-label") ||
-          element.hasAttribute("data-testid") ||
-          element.id !== "" ||
-          ["button", "a", "input", "select", "textarea", "label", "summary"].includes(tag))
-      );
-    });
-    const candidates = interesting.slice(0, limit).map((element) => {
-      const html = element as HTMLElement;
-      const control = element as HTMLInputElement;
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      const labels =
-        "labels" in control && control.labels != null
-          ? [...control.labels].map((label) => label.innerText.trim()).filter(Boolean)
-          : [];
-      const roleAttribute = element.getAttribute("role") ?? undefined;
-      const ariaLabelAttribute = element.getAttribute("aria-label") ?? undefined;
-      const labelText = labels.join(" ") || undefined;
-      return {
-        selector: selector(element),
-        tag: element.tagName.toLowerCase(),
-        ...(roleAttribute == null ? {} : { roleAttribute }),
-        ...(ariaLabelAttribute == null ? {} : { ariaLabelAttribute }),
-        ...(labelText == null ? {} : { labelText }),
-        text: (html.innerText ?? element.textContent ?? "").trim().slice(0, 240),
-        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        styles: {
-          display: style.display,
-          visibility: style.visibility,
-          opacity: style.opacity,
-          cursor: style.cursor,
-          pointerEvents: style.pointerEvents,
-          position: style.position,
-        },
-      };
-    });
-    return { candidates, truncated: interesting.length > limit };
-  }, maxCandidates);
+  await page.evaluate(`globalThis[${JSON.stringify(HEALING_SELECTOR_KEY)}] = (${studioPageSelectorFor.toString()})`);
+  const pending = page.locator("body *").evaluateAll(
+    (elements, { limit, selectorKey }) => {
+      const root = globalThis as unknown as Record<string, unknown>;
+      const selector = root[selectorKey] as ((element: Element, mode: "healing") => string) | undefined;
+      delete root[selectorKey];
+      if (typeof selector !== "function") throw new Error("Studio healing selector helper is unavailable");
+      const interesting = elements.filter((element) => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        const tag = element.tagName.toLowerCase();
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          (element.hasAttribute("role") ||
+            element.hasAttribute("aria-label") ||
+            element.hasAttribute("data-testid") ||
+            element.id !== "" ||
+            ["button", "a", "input", "select", "textarea", "label", "summary"].includes(tag))
+        );
+      });
+      const candidates = interesting.slice(0, limit).map((element) => {
+        const html = element as HTMLElement;
+        const control = element as HTMLInputElement;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const labels =
+          "labels" in control && control.labels != null
+            ? [...control.labels].map((label) => label.innerText.trim()).filter(Boolean)
+            : [];
+        const roleAttribute = element.getAttribute("role") ?? undefined;
+        const ariaLabelAttribute = element.getAttribute("aria-label") ?? undefined;
+        const labelText = labels.join(" ") || undefined;
+        return {
+          selector: selector(element, "healing"),
+          tag: element.tagName.toLowerCase(),
+          ...(roleAttribute == null ? {} : { roleAttribute }),
+          ...(ariaLabelAttribute == null ? {} : { ariaLabelAttribute }),
+          ...(labelText == null ? {} : { labelText }),
+          text: (html.innerText ?? element.textContent ?? "").trim().slice(0, 240),
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          styles: {
+            display: style.display,
+            visibility: style.visibility,
+            opacity: style.opacity,
+            cursor: style.cursor,
+            pointerEvents: style.pointerEvents,
+            position: style.position,
+          },
+        };
+      });
+      return { candidates, truncated: interesting.length > limit };
+    },
+    { limit: maxCandidates, selectorKey: HEALING_SELECTOR_KEY },
+  );
+  const raw = await pending.finally(() =>
+    page
+      .evaluate((key) => delete (globalThis as unknown as Record<string, unknown>)[key], HEALING_SELECTOR_KEY)
+      .catch(() => {}),
+  );
   return {
     url: page.url(),
     title: await page.title(),

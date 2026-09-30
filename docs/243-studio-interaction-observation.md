@@ -50,7 +50,10 @@ configurable node limit. It records:
 
 Node references are assigned in document order inside the observation and
 stored in a page-local `WeakMap`; Studio does not annotate application nodes to
-create identities. The known temporary semantic-action marker is ignored only
+create identities. Their browser-page DOM paths use a unique ID when one exists,
+or an `html/` path with `nth-of-type` positions; text nodes append `/text()`.
+The path helper is shared from `src/studio/page-script/selector.ts` and is
+installed for each observation, including after navigation. The known temporary semantic-action marker is ignored only
 when explicitly listed in `ignoredAttributes` (it is the default).
 
 ## Meaning and provenance
