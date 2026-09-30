@@ -128,6 +128,23 @@ async function setupFrameRegistry(
         }> = [];
         const textRows: Array<{ element: Element; textNode: Text }> = [];
         const indexByTextNode = new WeakMap<Text, number>();
+        // Blink's generated text-overflow marker is not a DOM text interval.
+        // An isolated Range therefore cannot reproduce its full FragmentItem,
+        // even for untransformed single-line text. Leave that narrow case to
+        // the captured source-run + marker painter instead of treating it as
+        // an affine-geometry failure and rasterizing the whole element.
+        // IsDisplayBlockContainer in computed_style.h (Chromium 7d859f27)
+        // excludes flex/grid, whose anonymous text items do not get markers.
+        const textOverflowContainers = new Set([
+          "block",
+          "list-item",
+          "inline-block",
+          "flow-root",
+          "flow-root list-item",
+          "inline flow-root list-item",
+          "table-cell",
+          "table-caption",
+        ]);
         for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
           const element = elements[elementIndex];
           const style = getComputedStyle(element);
@@ -155,6 +172,17 @@ async function setupFrameRegistry(
             if (cursor === root) break;
             cursor = cursor.parentElement;
           }
+          const directTextNodes = Array.from(element.childNodes).filter(
+            (child): child is Text => child.nodeType === Node.TEXT_NODE && (child.textContent?.trim() ?? "") !== "",
+          );
+          const untransformedTextOverflow =
+            owners.length === 0 &&
+            directTextNodes.length === 1 &&
+            style.textOverflow === "ellipsis" &&
+            textOverflowContainers.has(style.display) &&
+            (style.whiteSpace === "nowrap" || style.whiteSpace === "pre") &&
+            style.overflowX === "hidden";
+          if (untransformedTextOverflow) continue;
           for (let childIndex = 0; childIndex < element.childNodes.length; childIndex++) {
             const child = element.childNodes[childIndex];
             if (child.nodeType !== Node.TEXT_NODE || child.textContent == null || child.textContent.trim() === "")

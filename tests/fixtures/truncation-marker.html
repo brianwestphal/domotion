@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  body {
+    margin: 0;
+    background: white;
+  }
+  .row {
+    width: 112px;
+    height: 28px;
+    margin: 24px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background: white;
+    font:
+      20px/28px Arial,
+      sans-serif;
+  }
+  #truncated {
+    color: rgb(192, 32, 32);
+  }
+  #fitting {
+    color: rgb(32, 64, 192);
+  }
+</style>
+<div id="truncated" class="row">abcdefghijklmno pqrstuvwxyz</div>
+<div id="fitting" class="row">short</div>

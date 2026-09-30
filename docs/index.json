@@ -4029,15 +4029,27 @@
         "status": "current",
         "owners": ["text-fonts", "paint-effects"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668", "DM-J875TW"],
+        "tickets": [
+          "DM-2467",
+          "DM-2468",
+          "DM-2469",
+          "DM-2470",
+          "DM-2546",
+          "DM-2547",
+          "DM-2668",
+          "DM-J875TW",
+          "DM-VY5DHJ"
+        ],
         "code": [
           "src/capture/text-line-origin.test.ts",
+          "src/capture/text-paint-geometry-cdp.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/text-affine.test.ts",
           "src/render/text-affine.ts",
           "src/render/text-paint.ts",
           "src/render/text-stroke-synthesis.test.ts",
           "tests/text-affine-render.e2e.test.ts",
+          "tests/truncation-marker-capture.e2e.test.ts",
           "tools/text-affine-baseline-protocol-oracle.ts"
         ],
         "aliases": ["docs/177-affine-text-paint-consumption.md", "doc-177"]
@@ -4672,14 +4684,16 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": [],
-        "tickets": ["DM-2518"],
+        "tickets": ["DM-2518", "DM-VY5DHJ"],
         "code": [
           "src/font-family-stack.test.ts",
           "packages/text-engine/src/font-family-stack.test.ts",
           "packages/text-engine/src/font-family-stack.ts",
           "tests/font-family-stack-capture.e2e.test.ts",
           "tests/capture-script-determinism.test.ts",
-          "scripts/build-capture-script.mjs"
+          "scripts/build-capture-script.mjs",
+          "src/capture/text-paint-geometry-cdp.ts",
+          "tests/truncation-marker-capture.e2e.test.ts"
         ],
         "aliases": ["docs/213-structured-font-family-stack.md", "doc-213"]
       }
@@ -5802,8 +5816,9 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1775", "DM-2596", "DM-2643"],
+        "tickets": ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ"],
         "code": [
+          "src/capture/text-paint-geometry-cdp.ts",
           "src/capture/script/index.ts",
           "src/capture/script/walker/text-segments.ts",
           "packages/text-engine/src/render/font-resolution.ts",
@@ -5817,7 +5832,8 @@
           "packages/text-engine/src/render/text-to-path.ts",
           "packages/text-engine/src/render/text-engine.ts",
           "src/render/text.ts",
-          "tests/feature-coverage.ts"
+          "tests/feature-coverage.ts",
+          "tests/truncation-marker-capture.e2e.test.ts"
         ],
         "aliases": ["docs/handbook/text-and-fonts.md"]
       }

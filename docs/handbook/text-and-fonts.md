@@ -5,9 +5,10 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1775", "DM-2596", "DM-2643"]
+tickets: ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ"]
 code:
   [
+    "src/capture/text-paint-geometry-cdp.ts",
     "src/capture/script/index.ts",
     "src/capture/script/walker/text-segments.ts",
     "packages/text-engine/src/render/font-resolution.ts",
@@ -22,6 +23,7 @@ code:
     "packages/text-engine/src/render/text-engine.ts",
     "src/render/text.ts",
     "tests/feature-coverage.ts",
+    "tests/truncation-marker-capture.e2e.test.ts",
   ]
 aliases: ["docs/handbook/text-and-fonts.md"]
 ---
@@ -50,6 +52,9 @@ upstream source traces, corpora, and retained runs remain in the linked records.
    paint-only effects use their declared specialized route. Placement stays in
    captured physical coordinates, including fragmentation, transforms, zoom,
    vertical orientation, and generated content.
+   An untransformed single-line block container with a CSS overflow ellipsis
+   retains its full source text and uses the text engine's measured marker;
+   ambiguous or transformed fragment geometry retains Chromium's raster surface.
 5. Logical agreement is exact. Native raster comparison is a later,
    fingerprinted platform gate and may not hide a face, shaping, placement, or
    metric disagreement.

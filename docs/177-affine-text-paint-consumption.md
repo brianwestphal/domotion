@@ -5,16 +5,18 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668", "DM-J875TW"]
+tickets: ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668", "DM-J875TW", "DM-VY5DHJ"]
 code:
   [
     "src/capture/text-line-origin.test.ts",
+    "src/capture/text-paint-geometry-cdp.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/text-affine.test.ts",
     "src/render/text-affine.ts",
     "src/render/text-paint.ts",
     "src/render/text-stroke-synthesis.test.ts",
     "tests/text-affine-render.e2e.test.ts",
+    "tests/truncation-marker-capture.e2e.test.ts",
     "tools/text-affine-baseline-protocol-oracle.ts",
   ]
 aliases: ["docs/177-affine-text-paint-consumption.md", "doc-177"]
@@ -82,6 +84,15 @@ text shadow, decoration, stroke, background-clip text, and the source-owned
 error boundary. Singular, non-finite, mixed-plane, uncorrelated, or projective
 facts fail closed to the existing outer Chromium raster owner; they never
 reactivate scalar placement.
+
+One untransformed, single direct text node with `text-overflow: ellipsis`,
+`overflow-x: hidden`, and a single-line block-container display bypasses the
+affine FragmentItem probe. Blink's generated ellipsis has no DOM UTF-16 span,
+so an isolated Range cannot reproduce the full FragmentItem even though the
+ordinary source text and its captured character positions are available. The
+renderer clips that full source and paints the measured marker. Transformed
+text and other ambiguous fragments retain the fail-closed Chromium surface.
+The default-capture HTML fixture checks SVG marker provenance and browser ink.
 
 Text-shadow copies retain the complete source text paint shape: fill, author
 stroke, and every applied decoration are recolored to the shadow color before

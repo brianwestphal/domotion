@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: []
-tickets: ["DM-2518"]
+tickets: ["DM-2518", "DM-VY5DHJ"]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -14,6 +14,8 @@ code:
     "tests/font-family-stack-capture.e2e.test.ts",
     "tests/capture-script-determinism.test.ts",
     "scripts/build-capture-script.mjs",
+    "src/capture/text-paint-geometry-cdp.ts",
+    "tests/truncation-marker-capture.e2e.test.ts",
   ]
 aliases: ["docs/213-structured-font-family-stack.md", "doc-213"]
 ---
@@ -98,12 +100,13 @@ All renderer entry points call the shared serializer before face resolution.
 If the structured field is absent, the legacy string is retained unchanged so
 previous capture files remain readable.
 
-The legacy `text-overflow` marker fallback also renders its measured ellipsis
+The `text-overflow` marker path also renders its measured ellipsis
 or author string through the text engine. It emits glyph paths or an embedded
 font subset at the captured baseline, rather than a plain SVG `<text>` that
-would depend on the SVG viewer's installed fonts. The fallback needs a
-captured element that retains its full overflowing source text; common
-browser-painted ellipses are rasterized or otherwise handled during capture.
+would depend on the SVG viewer's installed fonts. Default capture retains a
+single untransformed overflowing text node in a block container for this path;
+other fragment shapes can still use Chromium's raster surface when their
+source intervals cannot be proven.
 
 ## Exact gates
 
