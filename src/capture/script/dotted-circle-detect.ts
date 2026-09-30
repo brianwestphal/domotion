@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // DM-1126: detect, at CAPTURE time (in Chrome, with the real shaper), whether
 // Chrome inserts a U+25CC DOTTED CIRCLE base before an orphaned combining mark.
@@ -24,7 +23,13 @@
 // renderer-owned decision: ordinary letters and default-shaper marks differ from
 // the explicit-circle control and therefore answer false.
 
-export const dottedCircleInkMatches = (bare, comb) => {
+interface InkStats {
+  cnt: number;
+  w: number;
+  mask: Uint8Array;
+}
+
+export const dottedCircleInkMatches = (bare: InkStats, comb: InkStats): boolean => {
   const ratio = comb.cnt > 0 ? bare.cnt / comb.cnt : 0;
   let union = 0,
     xor = 0;
@@ -36,23 +41,24 @@ export const dottedCircleInkMatches = (bare, comb) => {
   return bare.cnt > 20 && ratio > 0.9 && comb.w <= bare.w * 1.25 && mismatch < 0.12;
 };
 
-export const isDottedCircleProbeCandidate = (ch) => /\p{M}|\p{Lo}|\p{Lm}/u.test(ch);
+export const isDottedCircleProbeCandidate = (ch: string): boolean => /\p{M}|\p{Lo}|\p{Lm}/u.test(ch);
 
 export const createDottedCircleDetect = () => {
-  let _cv = null;
-  let _ctx = null;
-  const _cache = new Map();
+  let _cv: HTMLCanvasElement | null = null;
+  let _ctx: CanvasRenderingContext2D | null = null;
+  const _cache = new Map<string, boolean>();
 
   // Fixed 32px probe (independent of the element's font size): whether Chrome
   // circles a mark is a property of the (mark, font) pair, not the size, and a
   // fixed size keeps the pixel-count / width thresholds stable.
-  const inkStats = (s, font) => {
+  const inkStats = (s: string, font: string): InkStats => {
     if (_ctx == null) {
       _cv = document.createElement("canvas");
       _cv.width = 96;
       _cv.height = 64;
       _ctx = _cv.getContext("2d", { willReadFrequently: true });
     }
+    if (_ctx == null) throw new Error("Canvas 2D context unavailable");
     _ctx.clearRect(0, 0, 96, 64);
     _ctx.fillStyle = "#000";
     _ctx.textBaseline = "middle";
@@ -84,7 +90,7 @@ export const createDottedCircleDetect = () => {
   // The ink heuristic below is the real gate (a normal letter renders WITHOUT a
   // circle, so bare ≠ comb → false), so including Lo / Lm only widens what's
   // probed, never forces a false positive.
-  const markGetsDottedCircle = (cp, ch, font) => {
+  const markGetsDottedCircle = (cp: number, ch: string, font: string | null | undefined): boolean => {
     if (font == null || font === "") return false;
     if (!isDottedCircleProbeCandidate(ch)) return false;
     const key = cp + "|" + font;

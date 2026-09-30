@@ -1,10 +1,23 @@
-// @ts-nocheck
 //
 // Source-owned phase boundaries for the in-page element walker. These helpers
 // are ordinary ESM for direct unit testing, but build-capture-script bundles
 // them into the one self-contained browser injection used by page.evaluate().
 
 import { TRANSPARENT_BLACK } from "../../../utils/transparent-background.js";
+import type { CapturedElement, TextSegment } from "../../types.js";
+
+type ViewportOrigin = { x: number; y: number };
+type WorkingCapturedElement = CapturedElement & {
+  _iframeRecursed?: boolean;
+  _scrollMarkerGroupBefore?: boolean;
+  scrollButtons?: CapturedElement[];
+};
+export type NativeDecorationRef = {
+  kind: string;
+  node: Node;
+  ownership?: { effectiveAppearance?: string | null; reason?: string } | null;
+};
+type NativeDecorationPart = { kind: string; index: number; x: number; y: number; width: number; height: number };
 export function captureGeometryStylePhase({
   el,
   cs,
@@ -14,6 +27,15 @@ export function captureGeometryStylePhase({
   transformInfluenced,
   animInfluenced,
   isOutsideCaptureViewport,
+}: {
+  el: HTMLElement;
+  cs: CSSStyleDeclaration;
+  rect: DOMRect;
+  vp: ViewportOrigin;
+  fixedAncestors: Set<Element>;
+  transformInfluenced: Set<Element>;
+  animInfluenced: Set<Element>;
+  isOutsideCaptureViewport: (rect: DOMRect, vp: ViewportOrigin) => boolean;
 }) {
   const outsideViewport = isOutsideCaptureViewport(rect, vp);
   // Ruby base/annotation boxes belong to the parent's ruby column. In vertical
@@ -104,6 +126,15 @@ export function normalizePseudoShadowPhase({
   fontFamilyStackFor,
   nativeDecorationRefs,
   nativeDecorationKinds,
+}: {
+  el: Element;
+  pseudoFragmentFacts:
+    | Array<{ typography?: { fontFamily?: string; fontFamilyStack?: TextSegment["fontFamilyStack"] }; pseudo: string }>
+    | null
+    | undefined;
+  fontFamilyStackFor: (el: Element, family: string, pseudo: string) => TextSegment["fontFamilyStack"];
+  nativeDecorationRefs: NativeDecorationRef[];
+  nativeDecorationKinds: string[];
 }) {
   if (Array.isArray(pseudoFragmentFacts)) {
     for (const fact of pseudoFragmentFacts) {
@@ -112,9 +143,9 @@ export function normalizePseudoShadowPhase({
     }
   }
 
-  const nativeDecorationParts = [];
-  const missingNativeDecorationKinds = [];
-  let nativeDecorationUnavailableReason;
+  const nativeDecorationParts: NativeDecorationPart[] = [];
+  const missingNativeDecorationKinds: string[] = [];
+  let nativeDecorationUnavailableReason: string | undefined;
   for (let kindIndex = 0; kindIndex < nativeDecorationKinds.length; kindIndex++) {
     const kind = nativeDecorationKinds[kindIndex];
     if (kind === "menulist-button-arrow") continue;
@@ -188,11 +219,21 @@ export function normalizePseudoShadowPhase({
   };
 }
 
-export function captureTraversalPhase({ el, tag, contentVisibilityHidden, capture }) {
-  const children = [];
+export function captureTraversalPhase({
+  el,
+  tag,
+  contentVisibilityHidden,
+  capture,
+}: {
+  el: Element;
+  tag: string;
+  contentVisibilityHidden: boolean;
+  capture: (el: Element) => WorkingCapturedElement | null;
+}): CapturedElement[] {
+  const children: CapturedElement[] = [];
   if (contentVisibilityHidden) return children;
   for (const child of el.children) {
-    if (tag === "details" && !el.open && child.tagName.toLowerCase() !== "summary") continue;
+    if (tag === "details" && !(el as HTMLDetailsElement).open && child.tagName.toLowerCase() !== "summary") continue;
     if (tag === "select" && (child.tagName.toLowerCase() === "option" || child.tagName.toLowerCase() === "optgroup"))
       continue;
     const captured = capture(child);
@@ -225,13 +266,38 @@ export function assembleCaptureResultPhase({
   handleReplacedElement,
   captureScrollMarkerGroup,
   captureScrollButtons,
-}) {
+}: {
+  captured: WorkingCapturedElement;
+  el: Element;
+  cs: CSSStyleDeclaration;
+  tag: string;
+  rect: DOMRect;
+  vp: ViewportOrigin;
+  bordersOnlyCell: boolean;
+  detectInlineFragments: (el: Element, cs: CSSStyleDeclaration, vp: ViewportOrigin, captured: CapturedElement) => void;
+  iframeFrameAuthority: (el: Element) => CapturedElement["frameScrollIdentity"] | null;
+  captureIframeRecursion: (el: Element, cs: CSSStyleDeclaration, rect: DOMRect) => CapturedElement | null;
+  handleReplacedElement: (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    tag: string,
+    rect: DOMRect,
+    captured: WorkingCapturedElement,
+    bordersOnlyCell: boolean,
+  ) => void;
+  captureScrollMarkerGroup: (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    rect: DOMRect,
+  ) => { node: CapturedElement; before: boolean } | null;
+  captureScrollButtons: (el: Element, cs: CSSStyleDeclaration, rect: DOMRect) => CapturedElement[] | null;
+}): WorkingCapturedElement {
   detectInlineFragments(el, cs, vp, captured);
   if (bordersOnlyCell) {
     captured.text = "";
     captured.children = [];
     captured.styles.backgroundColor = TRANSPARENT_BLACK;
-    captured.styles.backgroundImage = undefined;
+    (captured.styles as Partial<typeof captured.styles>).backgroundImage = undefined;
     captured.textSegments = undefined;
     captured.imageSrc = undefined;
     captured.svgContent = undefined;

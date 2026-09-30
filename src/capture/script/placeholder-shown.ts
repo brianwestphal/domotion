@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // `:placeholder-shown` background-color capture. The renderer applies the
 // captured color conditionally on inputs whose value is empty + a
@@ -12,21 +11,23 @@
 import { isUnsetCssValue, firstColorRe } from "./utils.js";
 
 export const createPlaceholderShown = () => {
-  const rules = [];
-  const collect = (cssRules) => {
+  const rules: Array<{ hostSel: string; bg: string }> = [];
+  const collect = (cssRules: CSSRuleList | null) => {
     if (cssRules == null) return;
     for (let i = 0; i < cssRules.length; i++) {
-      const rule = cssRules[i];
+      const rule = cssRules[i] as CSSRule & Partial<CSSStyleRule & CSSGroupingRule>;
       if (rule == null) continue;
       const sel = rule.selectorText;
       if (typeof sel === "string" && sel.indexOf(":placeholder-shown") >= 0) {
         const hostSel = sel.replace(/:placeholder-shown/g, "").trim() || "*";
         const decl = rule.style;
         let bg = "";
-        if (!isUnsetCssValue(decl.backgroundColor)) bg = decl.backgroundColor;
-        else if (!isUnsetCssValue(decl.background)) {
-          const cm = decl.background.match(firstColorRe);
-          if (cm != null) bg = cm[1];
+        if (decl != null) {
+          if (!isUnsetCssValue(decl.backgroundColor)) bg = decl.backgroundColor;
+          else if (!isUnsetCssValue(decl.background)) {
+            const cm = decl.background.match(firstColorRe);
+            if (cm != null) bg = cm[1];
+          }
         }
         if (bg !== "") rules.push({ hostSel: hostSel, bg: bg });
       }
@@ -43,7 +44,7 @@ export const createPlaceholderShown = () => {
 
   // Resolve `:placeholder-shown` bg color for an empty-with-placeholder input.
   // Returns the captured color or empty string. Later-source rules win.
-  const resolvePlaceholderShownBg = (el) => {
+  const resolvePlaceholderShownBg = (el: Element): string => {
     let bg = "";
     for (let i = 0; i < rules.length; i++) {
       const r = rules[i];

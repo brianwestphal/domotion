@@ -1,29 +1,34 @@
-// @ts-nocheck
 //
 // Pure decisions shared by the live masks/clips walker. This module remains
 // dependency-free so build-capture-script can inline it into CAPTURE_SCRIPT
 // while unit tests exercise the parsing and graph rules without a browser.
 
-export const scopedFragmentKey = (scope, id) => String(scope) + "\u0000" + id;
+export const scopedFragmentKey = (scope: string | number, id: string): string => String(scope) + "\u0000" + id;
 
-export const svgUnit = (animatedEnumeration, attr) => {
+export const svgUnit = (
+  animatedEnumeration: { baseVal?: number } | null | undefined,
+  attr: string | null | undefined,
+): "objectBoundingBox" | "userSpaceOnUse" => {
   const current = animatedEnumeration && animatedEnumeration.baseVal;
   if (current === 2 || String(attr || "").toLowerCase() === "objectboundingbox") return "objectBoundingBox";
   return "userSpaceOnUse";
 };
 
-export const svgLengthString = (animatedLength, fallback) => {
+export const svgLengthString = (
+  animatedLength: { baseVal?: { valueAsString?: string } } | null | undefined,
+  fallback: string,
+): string => {
   const value = animatedLength && animatedLength.baseVal && animatedLength.baseVal.valueAsString;
   return typeof value === "string" && value !== "" ? value : fallback;
 };
 
-export const svgLengthValue = (animatedLength) => {
+export const svgLengthValue = (animatedLength: { baseVal?: { value?: number } } | null | undefined): number => {
   const value = animatedLength && animatedLength.baseVal && animatedLength.baseVal.value;
-  return Number.isFinite(value) ? value : 0;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 };
 
-export const splitCssLayers = (value) => {
-  const layers = [];
+export const splitCssLayers = (value: string): string[] => {
+  const layers: string[] = [];
   let depth = 0,
     start = 0;
   for (let i = 0; i < value.length; i++) {
@@ -39,7 +44,7 @@ export const splitCssLayers = (value) => {
   return layers;
 };
 
-export const decodeFragmentId = (value) => {
+export const decodeFragmentId = (value: string): string => {
   try {
     return decodeURIComponent(value);
   } catch (e) {
@@ -47,7 +52,11 @@ export const decodeFragmentId = (value) => {
   }
 };
 
-export const classifyFragmentReference = (rawValue, baseUrl, documentUrl) => {
+export const classifyFragmentReference = (
+  rawValue: string | null | undefined,
+  baseUrl: string,
+  documentUrl: string,
+): { status: "local" | "safe" | "external"; target?: string } => {
   const raw = String(rawValue || "").trim();
   if (raw === "") return { status: "external", target: raw };
   if (raw.charAt(0) === "#") {
@@ -71,7 +80,10 @@ export const classifyFragmentReference = (rawValue, baseUrl, documentUrl) => {
   return { status: "external", target: raw };
 };
 
-export const replaceCssUrls = (value, replace) => {
+export const replaceCssUrls = (
+  value: string | null | undefined,
+  replace: (raw: string) => string | null | undefined,
+): string => {
   return String(value || "").replace(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi, (full, dq, sq, bare) => {
     const raw = dq != null ? dq : sq != null ? sq : String(bare || "").trim();
     const replacement = replace(raw);
@@ -79,17 +91,21 @@ export const replaceCssUrls = (value, replace) => {
   });
 };
 
-export const fragmentCycles = (root, nodeCount, edges) => {
-  const outgoing = Array.from({ length: nodeCount }, () => []);
+export const fragmentCycles = (
+  root: number,
+  nodeCount: number,
+  edges: Array<{ from: number; to?: number; status: string }>,
+): number[][] => {
+  const outgoing: number[][] = Array.from({ length: nodeCount }, () => []);
   for (const edge of edges) {
     if (edge.status === "resolved" && edge.to != null && !outgoing[edge.from].includes(edge.to)) {
       outgoing[edge.from].push(edge.to);
     }
   }
   const state = Array.from({ length: nodeCount }, () => 0);
-  const stack = [];
-  const cycles = [];
-  const visit = (index) => {
+  const stack: number[] = [];
+  const cycles: number[][] = [];
+  const visit = (index: number): void => {
     state[index] = 1;
     stack.push(index);
     for (const next of outgoing[index]) {

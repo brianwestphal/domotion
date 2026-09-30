@@ -9,12 +9,13 @@ class CSSFontPaletteValuesRule {
     public overrideColors: string,
   ) {}
 }
-const element = (rules: unknown[], adoptedRules: unknown[] = []) => ({
-  ownerDocument: {
-    styleSheets: [{ cssRules: rules }],
-    adoptedStyleSheets: adoptedRules.length === 0 ? [] : [{ cssRules: adoptedRules }],
-  },
-});
+const element = (rules: unknown[], adoptedRules: unknown[] = []) =>
+  ({
+    ownerDocument: {
+      styleSheets: [{ cssRules: rules }],
+      adoptedStyleSheets: adoptedRules.length === 0 ? [] : [{ cssRules: adoptedRules }],
+    },
+  }) as unknown as Element;
 
 const normal = {
   token: "normal",
@@ -155,7 +156,7 @@ describe("font-palette rule ownership", () => {
         },
       ],
     };
-    const resolved = resolveFontPalette(el, {
+    const resolved = resolveFontPalette(el as unknown as Element, {
       fontPalette: "palette-mix(in oklab, --from 70%, --to)",
       fontFamily: "Audit",
     });
@@ -169,8 +170,8 @@ describe("font-palette rule ownership", () => {
         hueInterpolationMethod: null,
       }),
     );
-    expect(resolved.mix.start).toEqual(expect.objectContaining({ token: "--from", basePalette: "normal" }));
-    expect(resolved.mix.end).toEqual(expect.objectContaining({ token: "--to", basePalette: "normal" }));
+    expect(resolved.mix?.start).toEqual(expect.objectContaining({ token: "--from", basePalette: "normal" }));
+    expect(resolved.mix?.end).toEqual(expect.objectContaining({ token: "--to", basePalette: "normal" }));
   });
 
   it("keeps raw calc percentages in identity while clamping only normalized paint progress", () => {
@@ -224,7 +225,7 @@ describe("font-palette rule ownership", () => {
       shadowRoot: null,
     };
     const host = { shadowRoot: { children: [documentOwned, shadowOnly] } };
-    expect(resolveShadowFontPalettes(host)).toEqual([
+    expect(resolveShadowFontPalettes(host as unknown as Element)).toEqual([
       expect.objectContaining({
         path: "s.0",
         text: "A",

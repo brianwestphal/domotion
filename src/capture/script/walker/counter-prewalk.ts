@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // DM-770: the `@counter-style` pre-walk — collects every `@counter-style` rule
 // definition from `document.styleSheets` into the shared counter-style map that
@@ -14,11 +13,30 @@
 // uses page globals (document, window.CSSCounterStyleRule) and closes over
 // nothing but the passed-in `counterStyles` map.
 
-export const createCounterStylePrewalk = ({ counterStyles }) => {
-  function _parseStringList(s) {
+import type { CounterStyleDefinition } from "./counter-style-resolver.js";
+
+type CounterStyleRule = CSSRule & {
+  name: string;
+  system: string;
+  symbols: string;
+  additiveSymbols: string;
+  prefix: string;
+  suffix: string;
+  negative: string;
+  pad: string;
+  range: string;
+  fallback: string;
+};
+
+export const createCounterStylePrewalk = ({
+  counterStyles,
+}: {
+  counterStyles: Record<string, CounterStyleDefinition>;
+}) => {
+  function _parseStringList(s: string): string[] {
     // CSS string list — sequence of "double-quoted" strings (CSS escapes any
     // quote char). Whitespace-separated. Returns array of unescaped strings.
-    const out = [];
+    const out: string[] = [];
     let i = 0;
     while (i < s.length) {
       while (i < s.length && /\s/.test(s[i])) i++;
@@ -55,11 +73,11 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
     }
     return out;
   }
-  function _parseAdditiveSymbols(s) {
+  function _parseAdditiveSymbols(s: string): Array<{ weight: number; sym: string }> {
     // `additive-symbols: 10 "X", 9 "IX", 5 "V", ...`
     // Comma-separated weight + symbol pairs. Returns array sorted by weight
     // descending (largest first — required by the additive algorithm).
-    const out = [];
+    const out: Array<{ weight: number; sym: string }> = [];
     for (const tok of s.split(",")) {
       const m = /(-?\d+)\s+(.+)/.exec(tok.trim());
       if (m == null) continue;
@@ -70,16 +88,22 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
     out.sort((a, b) => b.weight - a.weight);
     return out;
   }
-  function _walkRulesForCounterStyles(rules) {
+  function _walkRulesForCounterStyles(rules: CSSRuleList): void {
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
       // CSSCounterStyleRule.type === 11. Also covered by `instanceof
       // CSSCounterStyleRule` in modern browsers — both forms work.
-      if (rule.type === 11 || (window.CSSCounterStyleRule != null && rule instanceof window.CSSCounterStyleRule)) {
-        const name = rule.name;
+      if (
+        rule.type === 11 ||
+        ("CSSCounterStyleRule" in window &&
+          window.CSSCounterStyleRule != null &&
+          rule instanceof window.CSSCounterStyleRule)
+      ) {
+        const counterRule = rule as CounterStyleRule;
+        const name = counterRule.name;
         if (!name) continue;
-        let extendsName;
-        let sys = rule.system || "symbolic";
+        let extendsName: string | undefined;
+        let sys = counterRule.system || "symbolic";
         // `system: extends upper-roman` → sys == "extends upper-roman".
         const extMatch = /^extends\s+(\S+)/.exec(sys);
         if (extMatch) {
@@ -90,14 +114,14 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
           const sysMatch = /^(cyclic|numeric|alphabetic|symbolic|fixed|additive)\b/.exec(sys);
           sys = sysMatch ? sysMatch[1] : "symbolic";
         }
-        const symbols = rule.symbols ? _parseStringList(rule.symbols) : [];
-        const additiveSymbols = rule.additiveSymbols ? _parseAdditiveSymbols(rule.additiveSymbols) : [];
-        const prefix = rule.prefix ? (_parseStringList(rule.prefix)[0] ?? "") : "";
+        const symbols = counterRule.symbols ? _parseStringList(counterRule.symbols) : [];
+        const additiveSymbols = counterRule.additiveSymbols ? _parseAdditiveSymbols(counterRule.additiveSymbols) : [];
+        const prefix = counterRule.prefix ? (_parseStringList(counterRule.prefix)[0] ?? "") : "";
         // Default suffix is ". " for most systems per the CSS spec; Chrome
         // returns the empty string when no `suffix` descriptor is set. Treat
         // empty as default.
-        const suffix = rule.suffix ? (_parseStringList(rule.suffix)[0] ?? ". ") : ". ";
-        const negativeRaw = rule.negative;
+        const suffix = counterRule.suffix ? (_parseStringList(counterRule.suffix)[0] ?? ". ") : ". ";
+        const negativeRaw = counterRule.negative;
         let negPrefix = "-";
         let negSuffix = "";
         if (negativeRaw) {
@@ -107,8 +131,8 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
         }
         let padLen = 0;
         let padSym = "";
-        if (rule.pad) {
-          const pm = /^\s*(\d+)\s+(.+)$/.exec(rule.pad);
+        if (counterRule.pad) {
+          const pm = /^\s*(\d+)\s+(.+)$/.exec(counterRule.pad);
           if (pm != null) {
             padLen = parseInt(pm[1], 10);
             padSym = _parseStringList(pm[2])[0] ?? "";
@@ -116,15 +140,15 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
         }
         let rangeLo = -Infinity;
         let rangeHi = Infinity;
-        if (rule.range && rule.range !== "auto") {
+        if (counterRule.range && counterRule.range !== "auto") {
           // "infinite infinite" or "1 39" or "-3 5" etc.
-          const rm = /(-?\d+|infinite)\s+(-?\d+|infinite)/.exec(rule.range);
+          const rm = /(-?\d+|infinite)\s+(-?\d+|infinite)/.exec(counterRule.range);
           if (rm != null) {
             rangeLo = rm[1] === "infinite" ? -Infinity : parseInt(rm[1], 10);
             rangeHi = rm[2] === "infinite" ? Infinity : parseInt(rm[2], 10);
           }
         }
-        const fallback = rule.fallback || "decimal";
+        const fallback = counterRule.fallback || "decimal";
         counterStyles[name] = {
           system: sys,
           symbols,
@@ -140,9 +164,9 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
           fallback,
           extendsName,
         };
-      } else if (rule.cssRules) {
+      } else if ("cssRules" in rule && rule.cssRules) {
         // @media / @supports / @layer — walk nested rule lists.
-        _walkRulesForCounterStyles(rule.cssRules);
+        _walkRulesForCounterStyles(rule.cssRules as CSSRuleList);
       }
     }
   }
@@ -150,7 +174,7 @@ export const createCounterStylePrewalk = ({ counterStyles }) => {
   // `.cssRules` access — skip them silently). DM-1443: accepts an optional
   // `doc` so the same pre-walk can collect `@counter-style` rules from a
   // recursed same-origin iframe's own stylesheets, not just the top document.
-  return (doc) => {
+  return (doc?: Document) => {
     const _doc = doc || document;
     for (const sheet of Array.from(_doc.styleSheets)) {
       try {

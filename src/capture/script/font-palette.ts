@@ -1,6 +1,13 @@
-// @ts-nocheck
-
 import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
+import type { CapturedFontPaletteIdentity } from "../types.js";
+
+type PaletteRule = CSSRule & {
+  name: string;
+  fontFamily: string;
+  basePalette: string;
+  overrideColors: string;
+};
+type PaletteRuleRow = Pick<PaletteRule, "name" | "fontFamily" | "basePalette" | "overrideColors">;
 
 /**
  * Capture Blink's author-facing palette ownership record. Computed style keeps
@@ -18,11 +25,11 @@ import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
  * like StyleEngine's map Set() in style_engine.cc:3577-3586.
  */
 export const createFontPaletteResolver = () => {
-  const cache = new WeakMap();
-  const rulesFor = (doc) => {
+  const cache = new WeakMap<Document, PaletteRuleRow[]>();
+  const rulesFor = (doc: Document): PaletteRuleRow[] => {
     const hit = cache.get(doc);
     if (hit != null) return hit;
-    const rows = [];
+    const rows: PaletteRuleRow[] = [];
     const sheets = [...Array.from(doc.styleSheets ?? [])];
     for (const sheet of Array.from(doc.adoptedStyleSheets ?? [])) {
       if (!sheets.includes(sheet)) sheets.push(sheet);
@@ -36,27 +43,29 @@ export const createFontPaletteResolver = () => {
       }
       for (const rule of Array.from(rules ?? [])) {
         if (rule.constructor?.name !== "CSSFontPaletteValuesRule") continue;
+        const paletteRule = rule as PaletteRule;
         rows.push({
-          name: rule.name,
-          fontFamily: rule.fontFamily,
-          basePalette: rule.basePalette,
-          overrideColors: rule.overrideColors,
+          name: paletteRule.name,
+          fontFamily: paletteRule.fontFamily,
+          basePalette: paletteRule.basePalette,
+          overrideColors: paletteRule.overrideColors,
         });
       }
     }
     cache.set(doc, rows);
     return rows;
   };
-  const families = (value) => parseCssFontFamilyEntries(value).map((entry) => entry.name.toLowerCase());
+  const families = (value: string): string[] =>
+    parseCssFontFamilyEntries(value).map((entry) => entry.name.toLowerCase());
 
-  const resolveLeaf = (doc, requestedFamilies, token) => {
+  const resolveLeaf = (doc: Document, requestedFamilies: string[], token: string): CapturedFontPaletteIdentity => {
     const kind =
       token === "normal" || token === "light" || token === "dark"
         ? token
         : token.startsWith("--")
           ? "custom"
           : "unresolved";
-    const record = {
+    const record: CapturedFontPaletteIdentity = {
       token,
       kind,
       ruleScope: null,
@@ -66,7 +75,7 @@ export const createFontPaletteResolver = () => {
     };
     if (kind !== "custom") return record;
     const rows = rulesFor(doc);
-    let rule = null;
+    let rule: PaletteRuleRow | null = null;
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
       if (row.name === token && families(row.fontFamily || "").some((family) => requestedFamilies.includes(family))) {
@@ -75,7 +84,7 @@ export const createFontPaletteResolver = () => {
       }
     }
     if (rule == null) return { ...record, basePalette: "normal" };
-    const overrides = [];
+    const overrides: Array<{ index: number; color: string }> = [];
     const re = /(\d+)\s+([^,]+)(?:,|$)/g;
     let match;
     while ((match = re.exec(rule.overrideColors || "")) != null)
@@ -89,8 +98,8 @@ export const createFontPaletteResolver = () => {
     };
   };
 
-  const splitTopLevel = (value) => {
-    const parts = [];
+  const splitTopLevel = (value: string): string[] => {
+    const parts: string[] = [];
     let depth = 0;
     let start = 0;
     for (let index = 0; index < value.length; index += 1) {
@@ -106,19 +115,19 @@ export const createFontPaletteResolver = () => {
     return parts;
   };
 
-  const endpoint = (value) => {
+  const endpoint = (value: string): { token: string; percentage: number | null } => {
     const match = /^(.*\S)\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+))%$/.exec(value.trim());
     return match == null
       ? { token: value.trim(), percentage: null }
       : { token: match[1].trim(), percentage: Number(match[2]) };
   };
 
-  const animatedPaletteMix = (el, token) => {
+  const animatedPaletteMix = (el: Element, token: string): boolean => {
     if (!token.startsWith("palette-mix(")) return false;
     try {
       const animations = Array.from(el.getAnimations?.() ?? []);
       for (let index = animations.length - 1; index >= 0; index -= 1) {
-        const effect = animations[index].effect;
+        const effect = animations[index].effect as KeyframeEffect | null;
         if (effect?.target != null && effect.target !== el) continue;
         if (effect?.getComputedTiming?.().progress == null) continue;
         if (
@@ -133,7 +142,12 @@ export const createFontPaletteResolver = () => {
     return false;
   };
 
-  const resolveToken = (doc, requestedFamilies, token, animationRoot = false) => {
+  const resolveToken = (
+    doc: Document,
+    requestedFamilies: string[],
+    token: string,
+    animationRoot = false,
+  ): CapturedFontPaletteIdentity => {
     const text = (token || "normal").trim();
     if (!text.startsWith("palette-mix(") || !text.endsWith(")")) {
       return resolveLeaf(doc, requestedFamilies, text);
@@ -147,7 +161,7 @@ export const createFontPaletteResolver = () => {
     const hueInterpolationMethod = animationRoot
       ? null
       : interpolation.length >= 3 && interpolation.at(-1) === "hue"
-        ? interpolation.at(-2)
+        ? (interpolation.at(-2) ?? "shorter")
         : "shorter";
     const start = endpoint(parts[1]);
     const end = endpoint(parts[2]);
@@ -186,16 +200,19 @@ export const createFontPaletteResolver = () => {
     };
   };
 
-  const resolveFontPalette = (el, cs) => {
+  const resolveFontPalette = (
+    el: Element,
+    cs: Pick<CSSStyleDeclaration, "fontPalette" | "fontFamily">,
+  ): CapturedFontPaletteIdentity => {
     const token = cs.fontPalette || "normal";
     const requested = families(cs.fontFamily || "");
     return resolveToken(el.ownerDocument, requested, token, animatedPaletteMix(el, token));
   };
 
-  const resolveShadowFontPalettes = (host) => {
+  const resolveShadowFontPalettes = (host: Element) => {
     if (host.shadowRoot == null) return undefined;
-    const rows = [];
-    const visit = (container, prefix) => {
+    const rows: Array<{ path: string; text: string; fontFamily: string; palette: CapturedFontPaletteIdentity }> = [];
+    const visit = (container: Element | ShadowRoot, prefix: string): void => {
       const children = Array.from(container.children ?? []);
       for (let index = 0; index < children.length; index += 1) {
         const child = children[index];

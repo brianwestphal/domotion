@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Multi-fragment inline / multi-column block detection, extracted from the
 // capture script's captureInner (DM-1436). Part of the page-evaluated
@@ -8,7 +7,14 @@
 // the trigger conditions (DM-754 / DM-937).
 
 import { isPaintedColor } from "../../../utils/transparent-background.js";
-export const detectInlineFragments = (el, cs, vp, captured) => {
+import type { CapturedElement } from "../../types.js";
+
+export const detectInlineFragments = (
+  el: Element,
+  cs: CSSStyleDeclaration,
+  vp: { x: number; y: number },
+  captured: CapturedElement,
+): void => {
   // CSS Multi-column Layout paints rules in each column row. A
   // column-span:all child ends the current row and starts another, so a
   // rule reconstructed from the container's union box would incorrectly
@@ -31,7 +37,7 @@ export const detectInlineFragments = (el, cs, vp, captured) => {
       _ownCount = Math.max(1, Math.floor((_contentWidth + _ownGap) / (_ownColumnWidth + _ownGap)));
     }
     if (Number.isFinite(_ownCount) && _ownCount > 1 && _contentWidth > 0 && _contentBottom > _contentTop) {
-      var _rows = [];
+      var _rows: Array<[number, number]> = [];
       var _rowStart = _contentTop;
       for (var _si = 0; _si < el.children.length; _si++) {
         var _span = el.children[_si];
@@ -117,7 +123,7 @@ export const detectInlineFragments = (el, cs, vp, captured) => {
   if ((_hasPaint || _hasDecoration) && (_isInline || _inMultiColumn)) {
     var _cr = el.getClientRects();
     if (_cr != null && _cr.length > 1) {
-      var _frags = [];
+      var _frags: NonNullable<CapturedElement["inlineFragments"]> = [];
       for (var _ci = 0; _ci < _cr.length; _ci++) {
         var _f = _cr[_ci];
         // Skip zero-area fragments — Chrome occasionally emits these for

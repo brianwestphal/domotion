@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Tiny CSS-value utilities shared between the capture script's helper
 // modules. Kept in their own file so pseudo-rules / placeholder-shown /
@@ -7,14 +6,15 @@
 
 // CSS keywords that mean "no author-set value" in a getComputedStyle longhand.
 // The 'inherit' / 'initial' / 'unset' / 'revert' set is per CSS Cascade L4.
-export const isUnsetCssValue = (v) => v === "" || v === "initial" || v === "inherit" || v === "unset" || v === "revert";
+export const isUnsetCssValue = (v: string | null | undefined): boolean =>
+  v === "" || v === "initial" || v === "inherit" || v === "unset" || v === "revert";
 
 // True when a computed-style value is present and meaningful — not null/undefined,
 // not the empty string, not the `none` keyword. Collapses the recurring
 // `v && v !== 'none' && v !== ''` / `v != null && v !== '' && v !== 'none'` triple
 // (equivalent for CSS string values, which are never falsy other than ''). NOT the
 // inverse of `isUnsetCssValue` — that tests the cascade keywords; this tests none/empty.
-export const hasCssValue = (v) => v != null && v !== "" && v !== "none";
+export const hasCssValue = (v: string | null | undefined): boolean => v != null && v !== "" && v !== "none";
 
 // Extract the url() target from a CSS image value (border-image-source,
 // mask-box-image-source, background-image, image-set candidate, …). Handles all
@@ -26,7 +26,7 @@ export const hasCssValue = (v) => v != null && v !== "" && v !== "none";
 // attribute quotes (`\"`) was silently truncated → `new Image().naturalWidth`
 // read 0. This is the escaped-quote-aware extractor, shared so all the
 // intrinsic-dimension probes stay consistent. Pure (no DOM).
-export const extractCssUrl = (value) => {
+export const extractCssUrl = (value: string | null | undefined): string | null => {
   const u = /\burl\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)\s]+))\s*\)/.exec(value || "");
   if (u == null) return null;
   const raw = u[1] || u[2] || u[3] || "";
@@ -41,12 +41,11 @@ export const extractCssUrl = (value) => {
 // border, '' for padding / margin). e.g. sideWidths(cs, 'border', 'Width') reads
 // border{Top,Right,Bottom,Left}Width; sideWidths(cs, 'padding', '') reads
 // padding{Top,Right,Bottom,Left}.
-export const sideWidths = (cs, prop, suffix) => ({
-  top: parseFloat(cs[prop + "Top" + suffix]) || 0,
-  right: parseFloat(cs[prop + "Right" + suffix]) || 0,
-  bottom: parseFloat(cs[prop + "Bottom" + suffix]) || 0,
-  left: parseFloat(cs[prop + "Left" + suffix]) || 0,
-});
+export const sideWidths = (cs: CSSStyleDeclaration, prop: "border" | "padding" | "margin", suffix: "Width" | "") => {
+  const width = (side: "Top" | "Right" | "Bottom" | "Left"): number =>
+    parseFloat(cs[`${prop}${side}${suffix}` as keyof CSSStyleDeclaration] as string) || 0;
+  return { top: width("Top"), right: width("Right"), bottom: width("Bottom"), left: width("Left") };
+};
 
 // First-color extractor for a CSS background-shorthand: picks the *color* layer
 // out of a shorthand that may also carry a gradient or url() image. Catches
@@ -83,7 +82,7 @@ const _TEXT_INPUT_TYPES = new Set(["text", "search", "url", "tel", "email", "pas
  *     they never reach the `auto` branch.
  * Returns a single CSS cursor keyword.
  */
-export const resolveElementCursor = (el, cs) => {
+export const resolveElementCursor = (el: HTMLElement, cs: CSSStyleDeclaration): string => {
   let c = (cs.cursor || "auto").trim();
   if (c.indexOf("url(") !== -1) {
     // Keep only the comma-separated keyword fallback (last token).
@@ -116,5 +115,7 @@ export const resolveElementCursor = (el, cs) => {
   }
   return "default";
 };
-export const isOutsideCaptureViewport = (rect, vp) =>
-  rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;
+export const isOutsideCaptureViewport = (
+  rect: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
+  vp: { x: number; y: number; width: number; height: number },
+): boolean => rect.right < vp.x || rect.bottom < vp.y || rect.left > vp.x + vp.width || rect.top > vp.y + vp.height;

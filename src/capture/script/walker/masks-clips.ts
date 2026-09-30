@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // CSS mask discovery: walks each element's `cs.mask` / `cs.maskImage`
 // (incl. `-webkit-` prefix) and routes the mask source into one of three
@@ -41,6 +40,14 @@
 // the walk completes and stamps them onto the root captured element.
 
 import { extractCssUrl } from "../utils.js";
+import type {
+  ClipPathFragmentDef,
+  MaskFragmentDef,
+  MaskFragmentReference,
+  MaskRasterRef,
+  SvgFragmentDependencyEdge,
+  SvgFragmentDependencyNode,
+} from "../../types.js";
 import {
   classifyFragmentReference,
   fragmentCycles,
@@ -52,19 +59,28 @@ import {
   svgUnit,
 } from "./masks-clips-decisions.js";
 
-export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
-  const maskDefs = new Map();
-  const maskRasters = new Map();
-  const clipPathDefs = new Map();
+type FragmentContext = {
+  vp: { x: number; y: number };
+  warn: (selector: string, property: string, message: string) => void;
+  referenceScopeFor: (element: Element) => number;
+};
+
+type FragmentPlan = { surface: string; kind: "href" | "url"; raw: string; token: string };
+type MaskIntrinsic = { w: number; h: number; ratio: number } | null;
+
+export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }: FragmentContext) => {
+  const maskDefs = new Map<string, MaskFragmentDef>();
+  const maskRasters = new Map<string, MaskRasterRef | null>();
+  const clipPathDefs = new Map<string, ClipPathFragmentDef>();
   let maskRasterIdx = 0;
 
   // DOM ids are TreeScope-local. In particular, an outer document and a
   // recursed same-origin iframe can both define `#m` without sharing an SVG
   // resource. Keep the author id for diagnostics/serialization, but key the
   // capture maps by the same deterministic scope carried by each consumer.
-  const fragmentTarget = (el, id) => {
-    const root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
-    if (root != null && typeof root.getElementById === "function") {
+  const fragmentTarget = (el: Element, id: string): Element | null => {
+    const root = el.getRootNode() as Document | ShadowRoot;
+    if (root != null && "getElementById" in root && typeof root.getElementById === "function") {
       return root.getElementById(id);
     }
     return (el.ownerDocument || document).getElementById(id);
@@ -127,25 +143,25 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     "shape-rendering",
     "mix-blend-mode",
   ];
-  const documentUrlWithoutFragment = (source) => {
+  const documentUrlWithoutFragment = (source: Element) => {
     const doc = source.ownerDocument || document;
     const href = String(doc.URL || doc.baseURI || "");
     const hash = href.indexOf("#");
     return hash < 0 ? href : href.slice(0, hash);
   };
-  const buildFragmentDependencyGraph = (rootTarget, sel, property) => {
+  const buildFragmentDependencyGraph = (rootTarget: Element, sel: string, property: string) => {
     const svgNs = "http://www.w3.org/2000/svg";
     const xlinkNs = "http://www.w3.org/1999/xlink";
-    const nodes = [];
-    const sourceByNode = [];
-    const nodeBySource = new Map();
-    const edges = [];
-    const plansBySource = new Map();
-    const queue = [];
+    const nodes: SvgFragmentDependencyNode[] = [];
+    const sourceByNode: Element[] = [];
+    const nodeBySource = new Map<Element, number>();
+    const edges: SvgFragmentDependencyEdge[] = [];
+    const plansBySource = new Map<Element, FragmentPlan[]>();
+    const queue: number[] = [];
     let refSequence = 0;
     let failure = "";
 
-    const ensureNode = (target) => {
+    const ensureNode = (target: Element): number | null => {
       const existing = nodeBySource.get(target);
       if (existing != null) return existing;
       const id = target.getAttribute && target.getAttribute("id");
@@ -165,16 +181,16 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     const rootIndex = ensureNode(rootTarget);
     if (rootIndex == null) return null;
 
-    const addPlan = (source, from, surface, kind, raw) => {
+    const addPlan = (source: Element, from: number, surface: string, kind: "href" | "url", raw: string) => {
       const classified = classifyFragmentReference(
         raw,
-        source.baseURI || (source.ownerDocument && source.ownerDocument.baseURI),
+        source.baseURI || source.ownerDocument.baseURI,
         documentUrlWithoutFragment(source),
       );
       if (classified.status === "safe") return null;
       const token = "__domotion_fragment_ref_" + refSequence++ + "__";
       const scope = referenceScopeFor(source);
-      const edge = {
+      const edge: SvgFragmentDependencyEdge = {
         from,
         scope,
         kind,
@@ -183,7 +199,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         status: "external",
       };
       if (classified.status === "local") {
-        const target = fragmentTarget(source, classified.target);
+        const target = fragmentTarget(source, classified.target || "");
         if (target == null || target.namespaceURI !== svgNs) {
           edge.status = "missing";
         } else if (!target.isConnected || target.getRootNode() !== source.getRootNode()) {
@@ -204,10 +220,10 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       plansBySource.set(source, plans);
       return token;
     };
-    const scanUrls = (source, from, surface, value) => {
+    const scanUrls = (source: Element, from: number, surface: string, value: string) => {
       replaceCssUrls(value, (raw) => addPlan(source, from, surface, "url", raw));
     };
-    const hasDefsAncestorBefore = (node, target) => {
+    const hasDefsAncestorBefore = (node: Element, target: Element) => {
       let current = node.parentElement;
       while (current != null && current !== target) {
         if ((current.localName || "").toLowerCase() === "defs") return true;
@@ -215,9 +231,9 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       }
       return false;
     };
-    const scanTarget = (index) => {
+    const scanTarget = (index: number) => {
       const target = sourceByNode[index];
-      const walk = (source) => {
+      const walk = (source: Element) => {
         if (source !== target) {
           const knownNode = nodeBySource.get(source);
           if (knownNode != null && knownNode !== index) return;
@@ -283,11 +299,11 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       }
     }
     const graphTargets = new Set(sourceByNode);
-    const containsGraphTarget = (source) => {
+    const containsGraphTarget = (source: Element) => {
       for (const target of graphTargets) if (source === target || source.contains(target)) return true;
       return false;
     };
-    const hasPotentialFragmentReference = (source) => {
+    const hasPotentialFragmentReference = (source: Element) => {
       for (const node of [source].concat(Array.from(source.querySelectorAll ? source.querySelectorAll("*") : []))) {
         const href = node.getAttribute && (node.getAttribute("href") || node.getAttributeNS(xlinkNs, "href"));
         if (href) return true;
@@ -300,7 +316,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       }
       return false;
     };
-    const planValue = (source, surface, value) => {
+    const planValue = (source: Element, surface: string, value: string) => {
       const plans = (plansBySource.get(source) || []).filter((plan) => plan.surface === surface);
       let cursor = 0;
       if (surface === "href") {
@@ -312,9 +328,9 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         return plan == null ? null : plan.token;
       });
     };
-    const serialize = (sourceRoot, serializationNode) => {
-      const cloneRoot = sourceRoot.cloneNode(true);
-      const bake = (source, clone) => {
+    const serialize = (sourceRoot: Element, serializationNode: number) => {
+      const cloneRoot = sourceRoot.cloneNode(true) as SVGElement;
+      const bake = (source: Element, clone: SVGElement) => {
         if (source.namespaceURI !== svgNs) return;
         const tag = (source.localName || "").toLowerCase();
         if (tag === "script" || tag === "style") {
@@ -354,7 +370,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
         const count = Math.min(sourceChildren.length, cloneChildren.length);
         // Iterate backwards because removing a clone child must not shift the
         // remaining source↔clone correspondence.
-        for (let child = count - 1; child >= 0; child--) bake(sourceChildren[child], cloneChildren[child]);
+        for (let child = count - 1; child >= 0; child--)
+          bake(sourceChildren[child], cloneChildren[child] as SVGElement);
       };
       bake(sourceRoot, cloneRoot);
       return cloneRoot.outerHTML;
@@ -380,8 +397,8 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   // same per-layer aspect facts while the page-owned resources are loaded.
   // This mirrors backgroundIntrinsic and deliberately leaves gradient /
   // element() layers null (element() dimensions come from maskRasters).
-  const computeMaskIntrinsic = (el, cs) => {
-    const primed = el && el.__domotionMaskIntrinsic;
+  const computeMaskIntrinsic = (el: Element, cs: CSSStyleDeclaration): MaskIntrinsic[] => {
+    const primed = (el as Element & { __domotionMaskIntrinsic?: MaskIntrinsic[] }).__domotionMaskIntrinsic;
     if (Array.isArray(primed)) return primed;
     const maskImage = cs.maskImage || cs.webkitMaskImage || "";
     if (maskImage === "" || maskImage === "none") return [];
@@ -397,7 +414,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     });
   };
 
-  const discoverMasks = (el, cs, sel) => {
+  const discoverMasks = (el: Element, cs: CSSStyleDeclaration, sel: string): MaskFragmentReference[] | undefined => {
     if (!cs.mask || cs.mask === "none" || cs.mask === "") return;
     // DM-1446/DM-2338: element() remains document-local. Fragment URL refs
     // below are narrower still: Blink resolves them in the originating
@@ -417,7 +434,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
     // Preserve that layer index explicitly: a renderer must not collapse the
     // list to one author id or lose which mask-mode/composite entry belongs to
     // which resource.
-    const fragmentReferences = [];
+    const fragmentReferences: MaskFragmentReference[] = [];
     const layers = splitCssLayers(miSrc);
     for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
       const layer = layers[layerIndex].trim();
@@ -434,8 +451,9 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       if (!maskDefs.has(key)) {
         const capturedGraph = buildFragmentDependencyGraph(target, sel, "mask");
         if (capturedGraph == null) continue;
-        const maskUnits = svgUnit(target.maskUnits, target.getAttribute("maskUnits"));
-        const maskContentUnits = svgUnit(target.maskContentUnits, target.getAttribute("maskContentUnits"));
+        const maskTarget = target as SVGMaskElement;
+        const maskUnits = svgUnit(maskTarget.maskUnits, target.getAttribute("maskUnits"));
+        const maskContentUnits = svgUnit(maskTarget.maskContentUnits, target.getAttribute("maskContentUnits"));
         const targetView = target.ownerDocument && target.ownerDocument.defaultView;
         const computedMaskType = targetView != null ? targetView.getComputedStyle(target).maskType : "";
         maskDefs.set(key, {
@@ -447,16 +465,16 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
           maskContentUnits,
           maskType: computedMaskType === "alpha" ? "alpha" : "luminance",
           region: {
-            x: svgLengthString(target.x, "-10%"),
-            y: svgLengthString(target.y, "-10%"),
-            width: svgLengthString(target.width, "120%"),
-            height: svgLengthString(target.height, "120%"),
+            x: svgLengthString(maskTarget.x, "-10%"),
+            y: svgLengthString(maskTarget.y, "-10%"),
+            width: svgLengthString(maskTarget.width, "120%"),
+            height: svgLengthString(maskTarget.height, "120%"),
           },
           userSpaceRegion: {
-            x: svgLengthValue(target.x),
-            y: svgLengthValue(target.y),
-            width: svgLengthValue(target.width),
-            height: svgLengthValue(target.height),
+            x: svgLengthValue(maskTarget.x),
+            y: svgLengthValue(maskTarget.y),
+            width: svgLengthValue(maskTarget.width),
+            height: svgLengthValue(maskTarget.height),
           },
         });
       }
@@ -571,10 +589,9 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   // `url(#id)` — so by the time we get here a successfully-resolved external ref
   // looks like any same-document fragment. The `extFragMatch` branch below only
   // fires when that pre-pass couldn't resolve it (fetch failed / non-http).
-  const discoverClipPaths = (el, cs, sel) => {
+  const discoverClipPaths = (el: Element, cs: CSSStyleDeclaration, sel: string) => {
     const cp = cs.clipPath;
     if (!cp || cp === "none" || cp === "") return;
-    const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
 
     // Blink parses url() as an exclusive ReferenceClipPathOperation. A
     // geometry box can accompany a basic shape or stand alone, but cannot be
@@ -635,7 +652,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   //
   // Multi-value forms like `filter: blur(2px) url(#svg-glow)` collect every
   // url(#id) found in the value; each gets its own captured def.
-  const filterDefs = new Map();
+  const filterDefs = new Map<string, { id: string; outerHTML: string }>();
   let urlFilterRasterIdx = 0;
 
   // DM-2415: feConvolveMatrix consumes layer-space SourceGraphic pixels.
@@ -644,7 +661,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
   // longer exists. Detect only that primitive here; ordinary URL-reference
   // filters keep the native SVG path. A referenced filter can inherit its
   // primitive list through href/xlink:href, so follow that chain as well.
-  const filterContainsConvolveMatrix = (filter, seen) => {
+  const filterContainsConvolveMatrix = (filter: Element, seen: Set<Element>): boolean => {
     if (filter == null || seen.has(filter)) return false;
     seen.add(filter);
     const descendants = filter.getElementsByTagName("*");
@@ -660,7 +677,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
       filterContainsConvolveMatrix(inherited, seen)
     );
   };
-  const discoverFilters = (el, cs, sel) => {
+  const discoverFilters = (el: Element, cs: CSSStyleDeclaration, sel: string) => {
     const f = cs.filter;
     if (!f || f === "none" || f === "") return undefined;
     const doc = el.ownerDocument || document; // DM-1446: resolve inner-iframe defs
@@ -690,7 +707,7 @@ export const createMasksClipsHandler = ({ vp, warn, referenceScopeFor }) => {
    * Run mask, clip-path and filter discovery for one element (in that order — each can warn and
    * register defs) and summarize what the record needs from them.
    */
-  const discoverFragmentReferences = (el, cs, sel) => {
+  const discoverFragmentReferences = (el: Element, cs: CSSStyleDeclaration, sel: string) => {
     // Mask discovery — same-document fragment refs (`url("#id")`), element
     // refs (`element(#id)`), and warnings for unsupported mask sources.
     const maskFragmentReferences = discoverMasks(el, cs, sel);

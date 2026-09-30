@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { isPaintedColor } from "../../../utils/transparent-background.js";
+import type { CapturedTextSegmentSourceMapping, TextSegment } from "../../types.js";
 import {
   blinkUsesTextCombine,
   isMixedVerticalUpright,
@@ -8,6 +8,59 @@ import {
 } from "../../../vertical-orientation.js";
 
 export { isMixedVerticalUpright, resolveCharOrientation };
+type Viewport = { x: number; y: number };
+type TextChar = {
+  ch: string;
+  sourceText: string;
+  sourceStart: number;
+  sourceEnd: number;
+  sourceTextNodeIndex?: number;
+  domText: string;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  transformedLengthChanged: boolean;
+};
+type MappingChar = {
+  ch: string;
+  sourceStart: number;
+  sourceEnd: number;
+  sourceTextNodeIndex?: number;
+  domText: string;
+};
+type TextLine = {
+  chars: TextChar[];
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  text?: string;
+  sourceText?: string;
+  xOffsets?: number[];
+};
+type TextCaptureResult = {
+  applied: boolean;
+  text: string;
+  textSegments: TextSegment[];
+  textLeft?: number;
+  textTop?: number;
+  textWidth?: number;
+  textHeight?: number;
+  fontAscent?: number;
+  fontDescent?: number;
+};
+type Metrics = { ascent: number; descent: number };
+type TextServices = {
+  vp: Viewport;
+  measureFontMetrics: (style: CSSStyleDeclaration) => Metrics;
+  rasterCandidates: (text: string, variant?: string) => Array<{ start: number; end: number }>;
+  normColor: (color: string) => string;
+  markGetsDottedCircle: (cp: number, ch: string, font: string) => boolean;
+  finalizeLineClampText?: (el: HTMLElement, cs: CSSStyleDeclaration, result: TextCaptureResult) => TextCaptureResult;
+  fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => TextSegment["fontFamilyStack"];
+  sourceTextNodeIndexFor?: (node: Node) => number | undefined;
+};
 //
 // Text-node walker: builds the per-line `textSegments` array from the host
 // element's child text nodes by walking each character's
@@ -88,7 +141,13 @@ export { isMixedVerticalUpright, resolveCharOrientation };
 // vertical writing modes are now reconstructed from captured logical line/run
 // geometry, so no current live capture activates a whole-element text raster.
 
-export const computeElementRaster = (el, cs, tag, rect, vp) => {
+export const computeElementRaster = (
+  el: Element,
+  cs: CSSStyleDeclaration,
+  tag: string,
+  rect: DOMRect,
+  vp: Viewport,
+) => {
   // DM-991: `<textarea>` content path now uses native SVG; DM-990:
   // vertical writing-mode path now uses native SVG too. The element-
   // raster path no longer triggers for any captured case — kept as a
@@ -110,7 +169,7 @@ export const computeElementRaster = (el, cs, tag, rect, vp) => {
 // it through CSS and apply the mapping ourselves at capture time. Pure codepoint
 // math + the alternate-Greek-symbol tail. Hoisted to module scope from inside
 // createTextSegmentsHandler (DM-1087) — it closes over nothing.
-const mathItalicChar = (ch) => {
+const mathItalicChar = (ch: string) => {
   const code = ch.codePointAt(0);
   if (code == null) return ch;
   // Latin Mathematical Italic Capital A..Z = U+1D434..U+1D44D.
@@ -162,7 +221,7 @@ const mathItalicChar = (ch) => {
 const _RE_LETTER = /\p{L}/u;
 const _RE_WORD_CHAR = /[\p{L}\p{M}\p{N}]/u;
 const _MIDWORD_CONNECTORS = "'’··״"; // ' ’ · · ״
-const TITLECASE_DIGRAPHS = {
+const TITLECASE_DIGRAPHS: Record<string, string> = {
   Ǆ: "ǅ",
   ǆ: "ǅ",
   Ǉ: "ǈ",
@@ -172,7 +231,7 @@ const TITLECASE_DIGRAPHS = {
   Ǳ: "ǲ",
   ǳ: "ǲ",
 };
-export const capitalizeCss = (s) => {
+export const capitalizeCss = (s: string) => {
   let atWordStart = true;
   let out = "";
   for (const ch of s) {
@@ -190,12 +249,12 @@ export const capitalizeCss = (s) => {
 };
 
 /** Preserve the source span that produced every rendered text-transform chunk. */
-export const transformTextWithSourceSpans = (source, transform, lang) => {
+export const transformTextWithSourceSpans = (source: string, transform: string, lang?: string) => {
   const out = [];
   let atWordStart = true;
   for (let i = 0; i < source.length;) {
     const cp = source.codePointAt(i);
-    const sourceText = String.fromCodePoint(cp);
+    const sourceText = String.fromCodePoint(cp!);
     let rendered = sourceText;
     if (transform === "uppercase") rendered = lang ? sourceText.toLocaleUpperCase(lang) : sourceText.toUpperCase();
     else if (transform === "lowercase") rendered = lang ? sourceText.toLocaleLowerCase(lang) : sourceText.toLowerCase();
@@ -236,15 +295,19 @@ export const transformTextWithSourceSpans = (source, transform, lang) => {
 // ZWJ/ZWNJ are the shaping machines' `Z` category and are transparent to the
 // base/no-base state. Do not generalize this to every Format character: bidi
 // controls and other Cf scalars are removed/itemized by different stages.
-export const isShapingTransparentControl = (ch) => ch === "\u200C" || ch === "\u200D";
+export const isShapingTransparentControl = (ch: string) => ch === "\u200C" || ch === "\u200D";
 
 /** Build a stable DOM-text mapping for one homogeneous captured character run. */
-export const sourceMappingForTextChars = (chars, role) => {
+export const sourceMappingForTextChars = (
+  chars: MappingChar[],
+  role: "ordinary" | "first-letter",
+): CapturedTextSegmentSourceMapping | undefined => {
   if (chars.length === 0) return undefined;
   const sourceTextNodeIndex = chars[0].sourceTextNodeIndex;
   const domText = chars[0].domText;
   if (
     !Number.isInteger(sourceTextNodeIndex) ||
+    sourceTextNodeIndex == null ||
     sourceTextNodeIndex < 0 ||
     typeof domText !== "string" ||
     chars.some((char) => char.sourceTextNodeIndex !== sourceTextNodeIndex || char.domText !== domText)
@@ -254,11 +317,11 @@ export const sourceMappingForTextChars = (chars, role) => {
   let sourceStart = Infinity;
   let sourceEnd = -Infinity;
   const renderedChunks = chars.map((char) => {
-    const renderedUtf16Span = [renderedOffset, renderedOffset + char.ch.length];
+    const renderedUtf16Span: [number, number] = [renderedOffset, renderedOffset + char.ch.length];
     renderedOffset += char.ch.length;
     sourceStart = Math.min(sourceStart, char.sourceStart);
     sourceEnd = Math.max(sourceEnd, char.sourceEnd);
-    return { renderedUtf16Span, domUtf16Span: [char.sourceStart, char.sourceEnd] };
+    return { renderedUtf16Span, domUtf16Span: [char.sourceStart, char.sourceEnd] as [number, number] };
   });
   return {
     source: "dom-text-utf16-v1",
@@ -271,7 +334,15 @@ export const sourceMappingForTextChars = (chars, role) => {
 };
 
 /** Capture vertical text columns using browser Range geometry. */
-export const captureVerticalTextSegments = ({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs) => {
+export const captureVerticalTextSegments = (
+  {
+    vp,
+    measureFontMetrics,
+    sourceTextNodeIndexFor,
+  }: Pick<TextServices, "vp" | "measureFontMetrics" | "sourceTextNodeIndexFor">,
+  el: HTMLElement,
+  cs: CSSStyleDeclaration,
+): TextCaptureResult => {
   const wm = cs.writingMode;
   const textOrientation = cs.textOrientation || "mixed";
   // Sideways-* modes are equivalent to text-orientation: sideways
@@ -281,7 +352,7 @@ export const captureVerticalTextSegments = ({ vp, measureFontMetrics, sourceText
   // `vertical-rl` + `text-orientation: sideways`.
   const isSideways = wm === "sideways-rl" || wm === "sideways-lr";
   const effectiveTextOrientation = isSideways ? "sideways" : textOrientation;
-  const textSegments = [];
+  const textSegments: TextSegment[] = [];
   let text = "";
   let minLeft = Infinity;
   let minTop = Infinity;
@@ -295,15 +366,20 @@ export const captureVerticalTextSegments = ({ vp, measureFontMetrics, sourceText
   // glyph's actual horizontal advance, so we probe via canvas.
   const _vertCanvas = document.createElement("canvas");
   const _vertCtx = _vertCanvas.getContext("2d");
+  if (_vertCtx == null) throw new Error("Canvas 2D context is unavailable");
   _vertCtx.font = `${cs.fontStyle || "normal"} ${cs.fontWeight || "400"} ${cs.fontSize} ${cs.fontFamily}`;
-  const measureNaturalWidth = (ch) => _vertCtx.measureText(ch).width;
+  const measureNaturalWidth = (ch: string) => _vertCtx.measureText(ch).width;
   const allChars = []; // {ch, x, y, w, h, naturalW} viewport-page coords (NOT yet vp-adjusted)
   for (const node of el.childNodes) {
     if (node.nodeType !== Node.TEXT_NODE) continue;
     const sourceRaw = node.textContent || "";
     const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
     const tt = cs.textTransform;
-    const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || "");
+    const mapped = transformTextWithSourceSpans(
+      sourceRaw,
+      tt,
+      (cs as CSSStyleDeclaration & { lang?: string }).lang || el.lang || "",
+    );
     const raw = mapped.map((part) => part.rendered).join("");
     if (!raw.trim()) continue;
     text += raw.trim() + " ";
@@ -347,7 +423,8 @@ export const captureVerticalTextSegments = ({ vp, measureFontMetrics, sourceText
   // paints it — there's no digits-combine to honor (the earlier all-digits
   // branch was dead/never-fired; re-probe Chrome and revisit if a future
   // version ships `digits`).
-  const tcu = cs.textCombineUpright || cs.webkitTextCombine || "";
+  const tcu =
+    cs.textCombineUpright || (cs as CSSStyleDeclaration & { webkitTextCombine?: string }).webkitTextCombine || "";
   // LayoutTextCombine::IsSupportedMode rejects every horizontal typographic
   // mode. Blink defines sideways-lr/sideways-rl as horizontal typographic,
   // so authored `all` is ordinary sideways text in those modes.
@@ -472,12 +549,17 @@ export const captureVerticalTextSegments = ({ vp, measureFontMetrics, sourceText
 
 /** Build the styled first-letter segment and its captured paint box. */
 export const buildFirstLetterTextSegment = (
-  { vp, measureFontMetrics, normColor, fontFamilyStackFor },
-  firstLetterChars,
-  flStyle,
-  hasInitialLetter,
-  el,
-  cs,
+  {
+    vp,
+    measureFontMetrics,
+    normColor,
+    fontFamilyStackFor,
+  }: Pick<TextServices, "vp" | "measureFontMetrics" | "normColor" | "fontFamilyStackFor">,
+  firstLetterChars: TextChar[],
+  flStyle: CSSStyleDeclaration,
+  hasInitialLetter: boolean,
+  el: HTMLElement,
+  cs: CSSStyleDeclaration,
 ) => {
   const styledText = firstLetterChars.map((c) => c.ch).join("");
   const minL = Math.min(...firstLetterChars.map((c) => c.left));
@@ -486,7 +568,7 @@ export const buildFirstLetterTextSegment = (
   const maxB = Math.max(...firstLetterChars.map((c) => c.bottom));
   // Per-char xOffsets in viewport-relative coords (one entry per UTF-16
   // unit, matching the convention in the body segments).
-  const xoff = [];
+  const xoff: number[] = [];
   for (const c of firstLetterChars) {
     for (let k = 0; k < c.ch.length; k++) xoff.push(c.left - vp.x);
   }
@@ -525,12 +607,11 @@ export const buildFirstLetterTextSegment = (
   if (hasInitialLetter) {
     const probeCanvas = document.createElement("canvas");
     const probeCtx = probeCanvas.getContext("2d");
+    if (probeCtx == null) throw new Error("Canvas 2D context is unavailable");
     probeCtx.font = `${flStyle.fontStyle || "normal"} ${flStyle.fontWeight || "400"} 100px ${flStyle.fontFamily || "serif"}`;
     const probeM = probeCtx.measureText(styledText);
     const naturalWidthAt100 = probeM.width;
     const ascentRatio = probeM.fontBoundingBoxAscent / 100;
-    const hM = probeCtx.measureText("H");
-    const capHeightRatio = hM.actualBoundingBoxAscent / 100;
     const pseudoComputedW = parseFloat(flStyle.width);
     if (Number.isFinite(pseudoComputedW) && pseudoComputedW > 0 && naturalWidthAt100 > 0) {
       // `flStyle.width` is the pseudo's content-box width Chrome sized the
@@ -708,7 +789,7 @@ export const buildFirstLetterTextSegment = (
     flStyle.textShadow !== "" && flStyle.textShadow !== "none" && flStyle.textShadow !== cs.textShadow
       ? flStyle.textShadow
       : undefined;
-  const styledSeg = {
+  const styledSeg: TextSegment = {
     text: styledText,
     sourceMapping: sourceMappingForTextChars(firstLetterChars, "first-letter"),
     x: flGlyphX,
@@ -739,8 +820,8 @@ const buildTextSegmentsHandler = ({
   finalizeLineClampText,
   fontFamilyStackFor,
   sourceTextNodeIndexFor,
-}) => {
-  const finishLineClamp = (el, cs, result) =>
+}: TextServices) => {
+  const finishLineClamp = (el: HTMLElement, cs: CSSStyleDeclaration, result: TextCaptureResult) =>
     finalizeLineClampText == null ? result : finalizeLineClampText(el, cs, result);
   const sourceMappingForChars = sourceMappingForTextChars;
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
@@ -765,7 +846,7 @@ const buildTextSegmentsHandler = ({
   // `yOffsets[]` (per char) so the renderer can emit each char at its
   // captured position, wrapping rotated chars in a `<g transform=
   // "rotate(90, …)">`.
-  const captureVertical = (el, cs) =>
+  const captureVertical = (el: HTMLElement, cs: CSSStyleDeclaration) =>
     captureVerticalTextSegments({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs);
 
   // DM-989: build the styled ::first-letter TextSegment from the chars selected
@@ -774,7 +855,13 @@ const buildTextSegmentsHandler = ({
   // Returns the segment plus its bounding box; the caller unshifts the segment,
   // sets the emit flag, and folds the box into the host's text envelope. Closes
   // over the factory's vp / measureFontMetrics / normColor. From captureTextSegments (DM-1093).
-  const buildFirstLetterSegment = (firstLetterChars, flStyle, hasInitialLetter, el, cs) =>
+  const buildFirstLetterSegment = (
+    firstLetterChars: TextChar[],
+    flStyle: CSSStyleDeclaration,
+    hasInitialLetter: boolean,
+    el: HTMLElement,
+    cs: CSSStyleDeclaration,
+  ) =>
     buildFirstLetterTextSegment(
       { vp, measureFontMetrics, normColor, fontFamilyStackFor },
       firstLetterChars,
@@ -784,7 +871,7 @@ const buildTextSegmentsHandler = ({
       cs,
     );
 
-  const captureTextSegments = (el, cs) => {
+  const captureTextSegments = (el: HTMLElement, cs: CSSStyleDeclaration): TextCaptureResult => {
     // DM-990: dispatch vertical writing-mode elements to the column-
     // grouping capture path. The horizontal walker below groups chars
     // by `top` which puts every char of a vertical column into a
@@ -793,7 +880,7 @@ const buildTextSegmentsHandler = ({
     if (wm === "vertical-rl" || wm === "vertical-lr" || wm === "sideways-rl" || wm === "sideways-lr") {
       return finishLineClamp(el, cs, captureVertical(el, cs));
     }
-    const textSegments = [];
+    const textSegments: TextSegment[] = [];
     let text = "";
     let minLeft = Infinity;
     let minTop = Infinity;
@@ -820,7 +907,11 @@ const buildTextSegmentsHandler = ({
     // at. To render the W faithfully we derive the effective font-size at
     // capture time below by reading the font's cap-height ratio from a
     // canvas `measureText('H').actualBoundingBoxAscent` probe (DM-989).
-    const flInitialLetterRaw = (flStyle.initialLetter || flStyle.webkitInitialLetter || "").trim();
+    const flInitialLetterRaw = (
+      (flStyle as CSSStyleDeclaration & { initialLetter?: string; webkitInitialLetter?: string }).initialLetter ||
+      (flStyle as CSSStyleDeclaration & { webkitInitialLetter?: string }).webkitInitialLetter ||
+      ""
+    ).trim();
     const hasInitialLetter =
       flInitialLetterRaw !== "" && flInitialLetterRaw !== "normal" && flInitialLetterRaw !== "auto";
     // Trigger: ANY pseudo-vs-host computed-style delta the path renderer
@@ -847,9 +938,9 @@ const buildTextSegmentsHandler = ({
     // selects `"T`; `'s-Gravenhage` selects `'s`; `Évidemment` and
     // `Ñoño` each select one precomposed codepoint. Digraphs are NOT
     // combined — `Dž` selects only `D` (matches Chrome).
-    const isFirstLetterPunct = (ch) => /\p{P}/u.test(ch);
-    const isCombiningMark = (ch) => /\p{M}/u.test(ch);
-    const selectFirstLetter = (chars) => {
+    const isFirstLetterPunct = (ch: string) => /\p{P}/u.test(ch);
+    const isCombiningMark = (ch: string) => /\p{M}/u.test(ch);
+    const selectFirstLetter = (chars: TextChar[]) => {
       let i = 0;
       while (i < chars.length && /\s/.test(chars[i].ch)) i++;
       const start = i;
@@ -861,7 +952,7 @@ const buildTextSegmentsHandler = ({
       while (i < chars.length && isFirstLetterPunct(chars[i].ch)) i++;
       return { start, end: i };
     };
-    let firstLetterChars = null; // collected cRec records for the styled segment, filled during loop 4 on line 0
+    let firstLetterChars: TextChar[] | null = null; // collected cRec records for the styled segment, filled during loop 4 on line 0
     let firstLetterStartIdx = -1;
     let firstLetterEndIdx = -1;
     let didEmitStyledFirstLetter = false;
@@ -888,7 +979,11 @@ const buildTextSegmentsHandler = ({
       const sourceRaw = node.textContent || "";
       const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
       const tt = cs.textTransform;
-      const mapped = transformTextWithSourceSpans(sourceRaw, tt, cs.lang || el.lang || "");
+      const mapped = transformTextWithSourceSpans(
+        sourceRaw,
+        tt,
+        (cs as CSSStyleDeclaration & { lang?: string }).lang || el.lang || "",
+      );
       const raw = mapped.map((part) => part.rendered).join("");
       if (!raw.trim()) continue;
       // DM-747: when `<mi>` math-italic substitution applies, the element's
@@ -900,8 +995,8 @@ const buildTextSegmentsHandler = ({
       text += rawForText + " ";
 
       // Group characters by their laid-out line (matching rect.top).
-      const lines = [];
-      let cur = null;
+      const lines: TextLine[] = [];
+      let cur: TextLine | null = null;
       for (let sourcePartIndex = 0; sourcePartIndex < mapped.length; sourcePartIndex++) {
         const part = mapped[sourcePartIndex];
         const r = document.createRange();
@@ -995,14 +1090,14 @@ const buildTextSegmentsHandler = ({
       if (cur != null) lines.push(cur);
 
       // BiDi visual-fragment splitting (DM-323).
-      const fragmentedLines = [];
+      const fragmentedLines: TextLine[] = [];
       for (const ln of lines) {
         if (ln.chars.length <= 1) {
           fragmentedLines.push(ln);
           continue;
         }
-        let frag = { chars: [ln.chars[0]], top: ln.top, bottom: ln.bottom };
-        const fragments = [frag];
+        let frag: TextLine = { chars: [ln.chars[0]], top: ln.top, bottom: ln.bottom, left: ln.left, right: ln.right };
+        const fragments: TextLine[] = [frag];
         // An xOffset discontinuity larger than this (px) between adjacent chars
         // marks a BiDi fragment boundary (a visual reorder jump), not a normal
         // advance.
@@ -1013,7 +1108,7 @@ const buildTextSegmentsHandler = ({
           const leftJump = cc.left < prev.left - BIDI_FRAGMENT_GAP_PX;
           const rightJump = cc.left > prev.right + BIDI_FRAGMENT_GAP_PX;
           if (leftJump || rightJump) {
-            frag = { chars: [cc], top: ln.top, bottom: ln.bottom };
+            frag = { chars: [cc], top: ln.top, bottom: ln.bottom, left: cc.left, right: cc.right };
             fragments.push(frag);
           } else {
             frag.chars.push(cc);
@@ -1039,7 +1134,7 @@ const buildTextSegmentsHandler = ({
         ln.text = ln.chars.map((c) => c.ch).join("");
         ln.sourceText = ln.chars.map((c) => c.sourceText).join("");
         if (!ln.chars.some((c) => c.transformedLengthChanged)) {
-          const xo = [];
+          const xo: number[] = [];
           for (const c of ln.chars) {
             for (let k = 0; k < c.ch.length; k++) xo.push(c.left);
           }
@@ -1048,7 +1143,7 @@ const buildTextSegmentsHandler = ({
       }
 
       for (const line of lines) {
-        const visualText = line.text.replace(/[\t\n\r]/g, " ");
+        const visualText = (line.text ?? "").replace(/[\t\n\r]/g, " ");
         if (visualText.replace(/\s/g, "") === "") continue;
         // ::first-letter selection runs ONLY on the very first non-empty
         // line of the very first text node that produces visible chars.
@@ -1065,7 +1160,10 @@ const buildTextSegmentsHandler = ({
           firstLetterChars = [];
         }
         const rasterGlyphs = [];
-        const rasterSpans = rasterCandidates(visualText, cs.fontVariantEmoji);
+        const rasterSpans = rasterCandidates(
+          visualText,
+          (cs as CSSStyleDeclaration & { fontVariantEmoji?: string }).fontVariantEmoji,
+        );
         const rasterSpanAt = new Map(rasterSpans.map((span) => [span.start, span]));
         // DM-1126: UTF-16 indices of orphaned combining marks where Chrome
         // auto-inserts a U+25CC dotted circle (detected via the canvas probe).
@@ -1126,7 +1224,7 @@ const buildTextSegmentsHandler = ({
             // pipeline doesn't double-paint underneath the styled segment).
             // `capture/emoji.ts::rasterizeBitmapGlyphs` skips entries with
             // zero-area rects so no screenshot is taken.
-            firstLetterChars.push(cRec);
+            firstLetterChars!.push(cRec);
             rasterGlyphs.push({
               charIndex: utf16Idx,
               rect: { x: 0, y: 0, width: 0, height: 0 },
@@ -1141,7 +1239,7 @@ const buildTextSegmentsHandler = ({
             let spanBottom = cRec.bottom;
             let spanCi = ci + 1;
             let spanUtf16 = utf16Idx + cRec.ch.length;
-            while (spanCi < line.chars.length && spanUtf16 < span.end) {
+            while (span != null && spanCi < line.chars.length && spanUtf16 < span.end) {
               const member = line.chars[spanCi++];
               spanRight = Math.max(spanRight, member.right);
               spanBottom = Math.max(spanBottom, member.bottom);
@@ -1149,7 +1247,7 @@ const buildTextSegmentsHandler = ({
             }
             rasterGlyphs.push({
               charIndex: utf16Idx,
-              charLength: span.end - span.start,
+              charLength: span!.end - span!.start,
               rect: {
                 x: cRec.left - vp.x,
                 y: cRec.top - vp.y,
@@ -1179,7 +1277,7 @@ const buildTextSegmentsHandler = ({
           // multiple rendered codepoints, so CSSOM exposes no internal glyph
           // anchors. Let HarfBuzz shape that rendered run normally instead of
           // inventing duplicate offsets from the source span.
-          xOffsets: line.xOffsets?.map((v) => v - vp.x),
+          xOffsets: line.xOffsets?.map((v: number) => v - vp.x),
           // AX exposes the exact retained fragment after this synchronous
           // walk. Keep Range advances so the refinement can remove laid-out
           // but unpainted clamp-tail glyphs without estimating their widths.
@@ -1228,7 +1326,10 @@ const buildTextSegmentsHandler = ({
         const firstLineMap = transformTextWithSourceSpans(
           firstSeg.sourceText,
           flLineStyle.textTransform,
-          flLineStyle.lang || cs.lang || el.lang || "",
+          (flLineStyle as CSSStyleDeclaration & { lang?: string }).lang ||
+            (cs as CSSStyleDeclaration & { lang?: string }).lang ||
+            el.lang ||
+            "",
         );
         firstSeg.text = firstLineMap
           .map((part) => part.rendered)
@@ -1281,4 +1382,4 @@ const buildTextSegmentsHandler = ({
 };
 
 /** Construct the text walker while keeping its captured dependencies explicit. */
-export const createTextSegmentsHandler = (dependencies) => buildTextSegmentsHandler(dependencies);
+export const createTextSegmentsHandler = (dependencies: TextServices) => buildTextSegmentsHandler(dependencies);

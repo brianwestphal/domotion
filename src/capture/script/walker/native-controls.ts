@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Native-control appearance ownership, closed-shadow decoration parts, the closed <select> display
 // text geometry and the <input type=file> button/status capture — the form-control decision blocks
@@ -10,10 +9,34 @@ import {
   autoAppearanceForControl,
   effectiveAppearanceForControl,
 } from "../../effective-appearance.js";
+import type { AuthorControlStyleFacts } from "../../effective-appearance.js";
+import type { CaptureScriptArgs, TextSegment } from "../../types.js";
 import { nativeControlDecorationKinds } from "../../native-control-decoration.js";
 import { normalizePseudoShadowPhase } from "./capture-phases.js";
+import type { NativeDecorationRef } from "./capture-phases.js";
 
-export const createNativeControlsHandler = (ctx) => {
+type NativeHostElement = HTMLInputElement & Omit<HTMLSelectElement, "type">;
+type PseudoFragmentFact = {
+  typography?: { fontFamily?: string; fontFamilyStack?: TextSegment["fontFamilyStack"] };
+  pseudo: string;
+};
+type TextCapture = {
+  text?: string;
+  textSegments: Array<TextSegment & { fontDescent?: number }>;
+  fontAscent?: number;
+  fontDescent?: number;
+};
+
+export const createNativeControlsHandler = (ctx: {
+  args: CaptureScriptArgs;
+  vp: { x: number; y: number };
+  warn: (selector: string, category: string, message: string) => void;
+  normColor: (color: string) => string;
+  captureTextSegments: (el: Element, cs: CSSStyleDeclaration) => TextCapture;
+  _effectiveZoomFor: (el: Element) => number;
+  _fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => TextSegment["fontFamilyStack"];
+  _measureFontMetrics: (cs: CSSStyleDeclaration) => { ascent: number; descent: number };
+}) => {
   const {
     args,
     vp,
@@ -24,7 +47,19 @@ export const createNativeControlsHandler = (ctx) => {
     _fontFamilyStackFor,
     _measureFontMetrics,
   } = ctx;
-  const captureNativeControlState = ({ el, cs, tag, sel, _pseudoFragmentFacts }) => {
+  const captureNativeControlState = ({
+    el,
+    cs,
+    tag,
+    sel,
+    _pseudoFragmentFacts,
+  }: {
+    el: NativeHostElement;
+    cs: CSSStyleDeclaration;
+    tag: string;
+    sel: string;
+    _pseudoFragmentFacts: PseudoFragmentFact[] | null | undefined;
+  }) => {
     const _nativeControlTag =
       tag === "input" ||
       tag === "select" ||
@@ -42,7 +77,9 @@ export const createNativeControlsHandler = (ctx) => {
     };
     const _appearanceFacts =
       typeof args.effectiveAppearancePropertyKey === "string" && args.effectiveAppearancePropertyKey !== ""
-        ? el[args.effectiveAppearancePropertyKey]
+        ? (el as unknown as Record<string, (AuthorControlStyleFacts & { reason?: string }) | undefined>)[
+            args.effectiveAppearancePropertyKey
+          ]
         : undefined;
     const _effectiveAppearance = _nativeControlTag
       ? effectiveAppearanceForControl(
@@ -52,11 +89,11 @@ export const createNativeControlsHandler = (ctx) => {
           cs.boxShadow != null && cs.boxShadow !== "" && cs.boxShadow !== "none",
         )
       : "none";
-    const _nativeDecorationRefs =
+    const _nativeDecorationRefs: NativeDecorationRef[] =
       typeof args.nativeDecorationPropertyKey === "string" &&
       args.nativeDecorationPropertyKey !== "" &&
-      Array.isArray(el[args.nativeDecorationPropertyKey])
-        ? el[args.nativeDecorationPropertyKey]
+      Array.isArray((el as unknown as Record<string, unknown>)[args.nativeDecorationPropertyKey])
+        ? (el as unknown as Record<string, NativeDecorationRef[]>)[args.nativeDecorationPropertyKey]
         : [];
     // A closed select's displayed option is not a source-DOM text node. Blink
     // paints it through `-internal-select-inner-element` in the UA shadow
@@ -123,12 +160,12 @@ export const createNativeControlsHandler = (ctx) => {
     // author-owned pseudo route the same physical rect as Blink.
     let _fileSelectorCapture;
     if (tag === "input" && el.type === "file") {
-      let _buttonNode;
-      let _statusNode;
+      let _buttonNode: (Element & { value?: string }) | undefined;
+      let _statusNode: Element | undefined;
       for (let _fri = 0; _fri < _nativeDecorationRefs.length; _fri++) {
         const _entry = _nativeDecorationRefs[_fri];
         if (_entry == null || !(_entry.node instanceof Element)) continue;
-        if (_entry.kind === "file-selector-button") _buttonNode = _entry.node;
+        if (_entry.kind === "file-selector-button") _buttonNode = _entry.node as Element & { value?: string };
         else if (_entry.kind === "file-selector-status") _statusNode = _entry.node;
       }
       const _paintScale = _effectiveZoomFor(el);
@@ -149,7 +186,7 @@ export const createNativeControlsHandler = (ctx) => {
       }
       const _statusRect = _statusNode && _statusNode.getBoundingClientRect();
       const _statusStyle = _statusNode && getComputedStyle(_statusNode);
-      const _statusText = _statusNode && captureTextSegments(_statusNode, _statusStyle);
+      const _statusText = _statusNode && _statusStyle && captureTextSegments(_statusNode, _statusStyle);
       if (_statusText && Array.isArray(_statusText.textSegments)) {
         for (let _fsi = 0; _fsi < _statusText.textSegments.length; _fsi++) {
           const _seg = _statusText.textSegments[_fsi];
@@ -169,7 +206,7 @@ export const createNativeControlsHandler = (ctx) => {
                 y: _buttonRect.top - vp.y,
                 width: _buttonRect.width,
                 height: _buttonRect.height,
-                text: _buttonNode.value || _buttonNode.getAttribute("value") || "",
+                text: _buttonNode?.value || _buttonNode?.getAttribute("value") || "",
                 textWidth: _buttonTextWidth,
                 fontSize: (parseFloat(_buttonStyle.fontSize) || 0) * _paintScale,
                 fontFamily: _buttonStyle.fontFamily,
@@ -193,7 +230,7 @@ export const createNativeControlsHandler = (ctx) => {
                 y: _statusRect.top - vp.y,
                 width: _statusRect.width,
                 height: _statusRect.height,
-                text: _statusText.text || _statusNode.textContent || "",
+                text: _statusText.text || _statusNode?.textContent || "",
                 textSegments: _statusText.textSegments,
                 fontSize: (parseFloat(_statusStyle.fontSize) || 0) * _paintScale,
                 fontFamily: _statusStyle.fontFamily,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Same-origin and allowlisted cross-origin <iframe> recursion.
 // Extracted from the capture script's orchestrator (`captureDocumentTree`).
@@ -6,13 +5,25 @@
 // everything the orchestrator owns is passed in through the factory argument.
 
 import { frameHostAllowed } from "../cross-origin.js";
+import type { CrossOriginAllowlist } from "../cross-origin.js";
+import type { CapturedElement } from "../../types.js";
 import { sideWidths } from "../utils.js";
 
-export const createIframeRecursionHandler = (ctx) => {
+type FrameAuthority = NonNullable<CapturedElement["frameScrollIdentity"]> & { token?: string };
+
+export const createIframeRecursionHandler = (ctx: {
+  _counterPreWalk: (root: Element) => void;
+  _crossOriginAllow: CrossOriginAllowlist | null;
+  _fixedAncestors: Set<Element>;
+  _frameScrollKey: string;
+  _runCounterStylePrewalk: (doc?: Document) => void;
+  _transformInfluenced: Set<Element>;
+  capture: (el: Element) => CapturedElement | null;
+  normColor: (color: string) => string;
+  vp: { x: number; y: number; width: number; height: number };
+}) => {
   const {
     _counterPreWalk,
-    _counterSnapshot,
-    _counterStyles,
     _crossOriginAllow,
     _fixedAncestors,
     _frameScrollKey,
@@ -30,7 +41,7 @@ export const createIframeRecursionHandler = (ctx) => {
   // `--cross-origin-frames` path), Phase-1 same-origin recursion refuses to
   // recurse it until the allowlist gate is wired. srcdoc / about:blank report
   // origin "null" (or inherit the embedder) — treated as same-origin.
-  function _frameIsCrossOrigin(el) {
+  function _frameIsCrossOrigin(el: HTMLIFrameElement): boolean {
     try {
       var w = el.contentWindow;
       if (w == null) return true;
@@ -46,7 +57,7 @@ export const createIframeRecursionHandler = (ctx) => {
   // allowlist? Matched against the frame's CURRENT origin (readable here only
   // because web security was disabled to make the document accessible),
   // falling back to the `src` attribute. null allowlist ⇒ never (Phase 1).
-  function _crossOriginFrameAllowed(el) {
+  function _crossOriginFrameAllowed(el: HTMLIFrameElement): boolean {
     if (_crossOriginAllow == null) return false;
     var url;
     try {
@@ -61,16 +72,16 @@ export const createIframeRecursionHandler = (ctx) => {
   // allowlist digest as the current document, and name the current Chromium
   // frame as its protocol parent. Failure is a raster boundary, never a URL- or
   // DOM-order fallback.
-  function _iframeFrameAuthority(el) {
+  function _iframeFrameAuthority(el: HTMLIFrameElement): FrameAuthority | null {
     if (_frameScrollKey === "") return null;
     try {
       // Node binds the child authority to this exact Chromium frame-owner
       // Element. Unlike reading a property through contentWindow, this remains
       // available for an inaccessible cross-origin child and can therefore
       // identify the raster boundary without crossing the Same-Origin Policy.
-      var child = el[_frameScrollKey];
+      var child = (el as unknown as Record<string, FrameAuthority | undefined>)[_frameScrollKey];
       var parentView = el.ownerDocument && el.ownerDocument.defaultView;
-      var parent = parentView && parentView[_frameScrollKey];
+      var parent = parentView && (parentView as unknown as Record<string, FrameAuthority | undefined>)[_frameScrollKey];
       if (child == null || parent == null) return null;
       if (child.source !== "chromium-cdp-frame-scroll-v1" || parent.source !== "chromium-cdp-frame-scroll-v1")
         return null;
@@ -84,7 +95,8 @@ export const createIframeRecursionHandler = (ctx) => {
         // main-world token before using the earlier allowlist decision, so a
         // navigation during the async prepasses can only become a raster.
         var childView = el.contentWindow;
-        var liveChild = childView && childView[_frameScrollKey];
+        var liveChild =
+          childView && (childView as unknown as Record<string, FrameAuthority | undefined>)[_frameScrollKey];
         if (
           liveChild == null ||
           liveChild.token !== child.token ||
@@ -105,7 +117,7 @@ export const createIframeRecursionHandler = (ctx) => {
   // not yet loaded, a media/pixel frame with no DOM, or access throws). Used
   // both to gate the recursion and to decide whether to emit the "rendered as a
   // raster" warning.
-  function _iframeIsRecursable(el) {
+  function _iframeIsRecursable(el: HTMLIFrameElement): Document | null {
     if (el.tagName == null || el.tagName.toLowerCase() !== "iframe") return null;
     var doc;
     try {
@@ -137,7 +149,11 @@ export const createIframeRecursionHandler = (ctx) => {
   // relative to its own frame's viewport, so successive shifts accumulate the
   // content-box origins down the chain). Returns the inner <html> node, or
   // undefined when the frame isn't recursable.
-  function _captureIframeRecursion(el, cs, rect) {
+  function _captureIframeRecursion(
+    el: HTMLIFrameElement,
+    cs: CSSStyleDeclaration,
+    rect: DOMRect,
+  ): CapturedElement | undefined {
     var doc = _iframeIsRecursable(el);
     if (doc == null) return undefined;
     // Content-box top-left of the iframe in top-document client coords. The
@@ -150,7 +166,7 @@ export const createIframeRecursionHandler = (ctx) => {
       savedY = vp.y;
     vp.x = savedX - dx;
     vp.y = savedY - dy;
-    var node;
+    var node: CapturedElement | null | undefined;
     try {
       // DM-1443: run the pre-passes (cull exemptions, cumulative scale, CSS
       // counters, @counter-style) against the inner document FIRST — with `vp`
@@ -191,14 +207,14 @@ export const createIframeRecursionHandler = (ctx) => {
   // background propagation), or null when the canvas is transparent (no fill —
   // the iframe stays see-through, as Chrome paints it). `<html>` wins when
   // opaque; otherwise `<body>` propagates to the canvas.
-  function _isOpaqueColor(c) {
+  function _isOpaqueColor(c: string | null | undefined): boolean {
     return c != null && c !== "" && c !== "transparent" && !/,\s*0\s*\)\s*$/.test(c);
   }
-  function _resolveIframeCanvasColor(doc) {
+  function _resolveIframeCanvasColor(doc: Document): string | null {
     var htmlBg = getComputedStyle(doc.documentElement).backgroundColor;
     if (_isOpaqueColor(htmlBg)) return normColor(htmlBg);
     var bodyBg = doc.body != null ? getComputedStyle(doc.body).backgroundColor : null;
-    if (_isOpaqueColor(bodyBg)) return normColor(bodyBg);
+    if (bodyBg != null && _isOpaqueColor(bodyBg)) return normColor(bodyBg);
     return null;
   }
 
@@ -211,7 +227,7 @@ export const createIframeRecursionHandler = (ctx) => {
   // snapshots inner counters into `_counterSnapshot`, and folds the iframe's own
   // `@counter-style` rules into `_counterStyles`. Runs with `vp` already shifted
   // to the iframe's space so the cull tests use the real painted region.
-  function _runInnerDocumentPrePasses(doc) {
+  function _runInnerDocumentPrePasses(doc: Document): void {
     var rootEl = doc.documentElement;
     var allEls = rootEl.getElementsByTagName("*");
     // position:fixed / sticky in-viewport ancestors (DM-513).

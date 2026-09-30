@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Replaced-element snapshot capture: tags the live DOM with
 // `data-domotion-rid` and stashes a bootstrap content-box rect on the captured
@@ -34,11 +33,19 @@
 // next.
 
 import { hasCssValue, sideWidths } from "../utils.js";
+import type { CapturedElement } from "../../types.js";
 
-export const createReplacedElementsHandler = ({ vp }) => {
+export const createReplacedElementsHandler = ({ vp }: { vp: { x: number; y: number } }) => {
   let _replacedIdx = 0;
 
-  const handleReplacedElement = (el, cs, tag, rect, captured, bordersOnlyCell) => {
+  const handleReplacedElement = (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    tag: string,
+    rect: DOMRect,
+    captured: CapturedElement & { _iframeRecursed?: boolean },
+    bordersOnlyCell: boolean,
+  ): void => {
     if (bordersOnlyCell || cs.display === "none" || rect.width <= 0 || rect.height <= 0) return;
 
     // Path 1: built-in replaced tags + custom elements with open shadow DOM.
@@ -105,7 +112,7 @@ export const createReplacedElementsHandler = ({ vp }) => {
       // Suppress broken bg-image emission and offscreen text — the raster
       // already covers both. Keep border + bg-color emission so a styled
       // border around the icon (rare but supported) still paints.
-      captured.styles.backgroundImage = undefined;
+      (captured.styles as Partial<typeof captured.styles>).backgroundImage = undefined;
       captured.text = "";
       captured.textSegments = undefined;
     }

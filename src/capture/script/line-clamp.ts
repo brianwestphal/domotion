@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // DM-2417: small, source-shaped primitives shared by the capture-side
 // line-clamp probe.  Blink treats the generated clamp ellipsis as an inline
@@ -9,9 +8,28 @@
 // model of the feature.
 
 import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
+import type { TextSegment } from "../types.js";
+
+type ClampChar = {
+  node: Node;
+  owner: HTMLElement;
+  ch: string;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+};
+type ClampLine = { blockOffset: number; chars: ClampChar[] };
+type ClampContext = {
+  root: HTMLElement;
+  clampCount: number;
+  writingMode: string;
+  lines: ClampLine[];
+  marker: TextSegment;
+};
 
 /** Parse Blink's computed `-webkit-line-clamp` value. */
-export const parseBlinkLineClampCount = (value) => {
+export const parseBlinkLineClampCount = (value: unknown): number | null => {
   if (typeof value !== "string" || !/^\s*[1-9]\d*\s*$/.test(value)) return null;
   const count = Number.parseInt(value, 10);
   return Number.isSafeInteger(count) && count > 0 ? count : null;
@@ -24,7 +42,17 @@ export const parseBlinkLineClampCount = (value) => {
  * mandatory: an authored `display:flow-root` with the two WebKit properties is
  * not a line-clamp formatting context.
  */
-export const blinkLineClampActivation = ({ webkitLineClamp, webkitBoxOrient, computedDisplay, behaviorallyClamps }) => {
+export const blinkLineClampActivation = ({
+  webkitLineClamp,
+  webkitBoxOrient,
+  computedDisplay,
+  behaviorallyClamps,
+}: {
+  webkitLineClamp: string;
+  webkitBoxOrient: string;
+  computedDisplay: string;
+  behaviorallyClamps: boolean;
+}): { clampCount: number } | null => {
   const clampCount = parseBlinkLineClampCount(webkitLineClamp);
   if (clampCount == null) return null;
   if (webkitBoxOrient !== "vertical") return null;
@@ -34,7 +62,7 @@ export const blinkLineClampActivation = ({ webkitLineClamp, webkitBoxOrient, com
 };
 
 /** Blink's primary-font coverage fallback for the generated marker. */
-export const blinkLineClampEllipsisText = (primaryFontHasHorizontalEllipsis) =>
+export const blinkLineClampEllipsisText = (primaryFontHasHorizontalEllipsis: boolean): string =>
   primaryFontHasHorizontalEllipsis ? "\u2026" : "...";
 
 /**
@@ -48,7 +76,13 @@ export const blinkShouldEmitLineClampEllipsis = ({
   totalLineCount,
   emptyLine = false,
   blockInInline = false,
-}) =>
+}: {
+  active: boolean;
+  clampCount: number;
+  totalLineCount: number;
+  emptyLine?: boolean;
+  blockInInline?: boolean;
+}): boolean =>
   active === true &&
   Number.isInteger(clampCount) &&
   clampCount > 0 &&
@@ -57,7 +91,7 @@ export const blinkShouldEmitLineClampEllipsis = ({
   !blockInInline;
 
 /** Block-axis ordering of line boxes in the three supported writing modes. */
-export const blinkLogicalLineOrder = (blockOffsets, writingMode) => {
+export const blinkLogicalLineOrder = (blockOffsets: Iterable<number>, writingMode: string): number[] => {
   const unique = [...new Set(blockOffsets)].sort((a, b) => a - b);
   return writingMode === "vertical-rl" || writingMode === "sideways-rl" ? unique.reverse() : unique;
 };
@@ -68,11 +102,20 @@ export const blinkLogicalLineOrder = (blockOffsets, writingMode) => {
  * RTL backs up by the shaped marker advance.  The same rule applies to the Y
  * inline axis in vertical writing.
  */
-export const blinkLineClampInlineStart = ({ direction, adjacentInlineStart, adjacentInlineEnd, ellipsisAdvance }) =>
-  direction === "rtl" ? adjacentInlineStart - ellipsisAdvance : adjacentInlineEnd;
+export const blinkLineClampInlineStart = ({
+  direction,
+  adjacentInlineStart,
+  adjacentInlineEnd,
+  ellipsisAdvance,
+}: {
+  direction: string;
+  adjacentInlineStart: number;
+  adjacentInlineEnd: number;
+  ellipsisAdvance: number;
+}): number => (direction === "rtl" ? adjacentInlineStart - ellipsisAdvance : adjacentInlineEnd);
 
 /** Clamp-owned source fragments past the Nth logical line do not paint. */
-export const blinkLineClampLineIsVisible = (logicalLineIndex, clampCount) =>
+export const blinkLineClampLineIsVisible = (logicalLineIndex: number, clampCount: number): boolean =>
   Number.isInteger(logicalLineIndex) &&
   Number.isInteger(clampCount) &&
   logicalLineIndex >= 0 &&
@@ -80,8 +123,8 @@ export const blinkLineClampLineIsVisible = (logicalLineIndex, clampCount) =>
 
 const VERTICAL_WRITING_RE = /^(?:vertical|sideways)-/;
 
-const collectTextCharacters = (root, vertical) => {
-  const chars = [];
+const collectTextCharacters = (root: HTMLElement, vertical: boolean): ClampChar[] => {
+  const chars: ClampChar[] = [];
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node != null; node = walker.nextNode()) {
     const owner = node.parentElement;
@@ -91,6 +134,7 @@ const collectTextCharacters = (root, vertical) => {
     const source = node.textContent || "";
     for (let offset = 0; offset < source.length;) {
       const cp = source.codePointAt(offset);
+      if (cp == null) break;
       const ch = String.fromCodePoint(cp);
       const range = root.ownerDocument.createRange();
       range.setStart(node, offset);
@@ -116,9 +160,9 @@ const collectTextCharacters = (root, vertical) => {
   return chars;
 };
 
-const groupLogicalLines = (chars, writingMode) => {
+const groupLogicalLines = (chars: ClampChar[], writingMode: string): ClampLine[] => {
   const vertical = VERTICAL_WRITING_RE.test(writingMode);
-  const groups = [];
+  const groups: ClampLine[] = [];
   for (const char of chars) {
     const offset = vertical ? char.left : char.top;
     let line = groups.find((candidate) => Math.abs(candidate.blockOffset - offset) <= 1);
@@ -138,10 +182,10 @@ const groupLogicalLines = (chars, writingMode) => {
 // has a clamp-owned scroll extent while the latter expands to all lines.  The
 // clone keeps the real subtree/styles/font fallback, so this is a behavioral
 // platform query rather than a fixture-derived dimension threshold.
-const behaviorallyClampsInClone = (el, cs, writingMode) => {
+const behaviorallyClampsInClone = (el: HTMLElement, cs: CSSStyleDeclaration, writingMode: string): boolean => {
   const parent = el.parentNode;
   if (parent == null) return false;
-  const clone = el.cloneNode(true);
+  const clone = el.cloneNode(true) as HTMLElement;
   clone.setAttribute("aria-hidden", "true");
   clone.inert = true;
   clone.style.setProperty("position", "fixed", "important");
@@ -173,7 +217,7 @@ const behaviorallyClampsInClone = (el, cs, writingMode) => {
   }
 };
 
-const firstFamily = (familyList) => {
+const firstFamily = (familyList: string): string => {
   return parseCssFontFamilyEntries(familyList || "")[0]?.name || "sans-serif";
 };
 
@@ -181,7 +225,7 @@ const firstFamily = (familyList) => {
 // Installed platform primary faces used by Blink all carry U+2026 on supported
 // targets; an unavailable/custom primary falls through to the three-period
 // branch.  The return value is kept explicit on the captured fragment.
-const primaryFontHasEllipsis = (doc, cs) => {
+const primaryFontHasEllipsis = (doc: Document, cs: CSSStyleDeclaration): boolean => {
   const primary = firstFamily(cs.fontFamily).toLowerCase();
   let sawMatchingFace = false;
   for (const face of doc.fonts) {
@@ -205,7 +249,7 @@ const primaryFontHasEllipsis = (doc, cs) => {
   return !sawMatchingFace;
 };
 
-const measureMarker = (doc, cs, text, writingMode, scale) => {
+const measureMarker = (doc: Document, cs: CSSStyleDeclaration, text: string, writingMode: string, scale: number) => {
   const probe = doc.createElement("span");
   probe.setAttribute("aria-hidden", "true");
   probe.textContent = text;
@@ -243,12 +287,24 @@ const measureMarker = (doc, cs, text, writingMode, scale) => {
  * text walker; a WeakMap makes the root analysis single-shot while descendants
  * reuse the exact logical-line ownership established for their clamp root.
  */
-export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effectiveZoomFor, fontFamilyStackFor }) => {
-  const contexts = new WeakMap();
+export const createLineClampHandler = ({
+  vp,
+  measureFontMetrics,
+  normColor,
+  effectiveZoomFor,
+  fontFamilyStackFor,
+}: {
+  vp: { x: number; y: number };
+  measureFontMetrics: (cs: CSSStyleDeclaration) => { ascent: number; descent: number };
+  normColor: (color: string) => string;
+  effectiveZoomFor: (el: Element) => number;
+  fontFamilyStackFor: (el: Element, family: string) => TextSegment["fontFamilyStack"];
+}) => {
+  const contexts = new WeakMap<HTMLElement, ClampContext | null>();
   let probeSequence = 0;
 
-  const analyzeRoot = (el, cs) => {
-    if (contexts.has(el)) return contexts.get(el);
+  const analyzeRoot = (el: HTMLElement, cs: CSSStyleDeclaration): ClampContext | null => {
+    if (contexts.has(el)) return contexts.get(el) ?? null;
     const parsed = parseBlinkLineClampCount(cs.webkitLineClamp || "");
     if (parsed == null || cs.webkitBoxOrient !== "vertical" || cs.display !== "flow-root") {
       contexts.set(el, null);
@@ -312,7 +368,7 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
     const lineRight = Math.max(...clampLine.chars.map((char) => char.right));
     const lineTop = Math.min(...clampLine.chars.map((char) => char.top));
     const lineBottom = Math.max(...clampLine.chars.map((char) => char.bottom));
-    const marker = vertical
+    const marker: TextSegment = vertical
       ? {
           text: markerText,
           x: lineLeft - vp.x,
@@ -356,15 +412,15 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
     return context;
   };
 
-  const nearestContext = (el) => {
-    for (let cursor = el; cursor != null; cursor = cursor.parentElement) {
+  const nearestContext = (el: HTMLElement): ClampContext | null => {
+    for (let cursor: HTMLElement | null = el; cursor != null; cursor = cursor.parentElement) {
       const context = contexts.has(cursor) ? contexts.get(cursor) : analyzeRoot(cursor, getComputedStyle(cursor));
       if (context != null) return context;
     }
     return null;
   };
 
-  const segmentLineIndex = (segment, context) => {
+  const segmentLineIndex = (segment: TextSegment, context: ClampContext): number => {
     const vertical = VERTICAL_WRITING_RE.test(context.writingMode);
     const offset = vertical ? segment.x + vp.x : segment.y + vp.y;
     let bestIndex = -1;
@@ -379,7 +435,11 @@ export const createLineClampHandler = ({ vp, measureFontMetrics, normColor, effe
     return bestDistance <= 1.5 ? bestIndex : -1;
   };
 
-  const finalizeLineClampText = (el, cs, result) => {
+  const finalizeLineClampText = <T extends { textSegments?: TextSegment[] }>(
+    el: HTMLElement,
+    cs: CSSStyleDeclaration,
+    result: T,
+  ) => {
     // Establish a root context before descending capture reaches its children.
     analyzeRoot(el, cs);
     const context = nearestContext(el);

@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Blink-resolved WebKit form-control pseudo facts are collected by the
 // Node-side CDP prepass (`pseudo-style-cdp.ts`). Most of these pseudos are
@@ -20,7 +19,11 @@ const _emptyPseudo = {
   boxShadow: "",
 };
 
-export const createPseudoRules = (stylesByHost, propertyKey) => {
+type PseudoStyle = typeof _emptyPseudo;
+export const createPseudoRules = (
+  stylesByHost: Record<string, Record<string, PseudoStyle>> | null | undefined,
+  propertyKey: string | null | undefined,
+) => {
   // Resolve a single border-corner-radius value (e.g. "30px" or "50% 20%") to
   // a px-based axis-pair the renderer can use. Chrome's longhand corner values
   // come back already-resolved to px when the author used px, but a percent-
@@ -36,7 +39,7 @@ export const createPseudoRules = (stylesByHost, propertyKey) => {
   // screen). Pass the effective zoom so px values track the painted size;
   // % values resolve against the (already-scaled) rect, so the `* zoom`
   // skip on that branch keeps them correct.
-  const resolveCornerRadius = (v, w, h, zoom) => {
+  const resolveCornerRadius = (v: string | null | undefined, w: number, h: number, zoom?: number | null): string => {
     if (v == null || v === "") return "0px 0px";
     const z = zoom == null || zoom <= 0 ? 1 : zoom;
     const parts = v.split(/\s+/);
@@ -47,9 +50,9 @@ export const createPseudoRules = (stylesByHost, propertyKey) => {
     return aPx + "px " + bPx + "px";
   };
 
-  const resolvePseudo = (el, kind) => {
+  const resolvePseudo = (el: Element, kind: string): PseudoStyle => {
     if (propertyKey == null || propertyKey === "" || stylesByHost == null) return _emptyPseudo;
-    const hostId = el[propertyKey];
+    const hostId = (el as unknown as Record<string, string | undefined>)[propertyKey];
     if (hostId == null) return _emptyPseudo;
     return stylesByHost[hostId] && stylesByHost[hostId][kind] ? stylesByHost[hostId][kind] : _emptyPseudo;
   };

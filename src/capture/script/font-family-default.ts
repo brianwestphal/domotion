@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // DM-2051: detect a `kStandardFamily` element — one whose `font-family` is the
 // UA-default initial value because NO author rule set it anywhere in the
@@ -38,7 +37,7 @@ import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
 // CSS generic-family keywords (+ the -webkit- / ui- forms Blink recognizes).
 // A computed first-family equal to one of these is a DECLARED or UA generic,
 // never the concrete standard initial value — so it is not this case.
-const GENERIC_FAMILY_KEYWORDS = {
+const GENERIC_FAMILY_KEYWORDS: Record<string, number> = {
   serif: 1,
   "sans-serif": 1,
   monospace: 1,
@@ -61,9 +60,11 @@ export const createFontFamilyDefault = () => {
   // Cache author font selectors per Document. Iframe recursion walks elements
   // from several documents in one capture; consulting only the top document's
   // sheets makes an inherited iframe rule look like the UA default.
-  const selectorsByDocument = new WeakMap();
-  const splitSelectorList = (selectorText) => {
-    const selectors = [];
+  type PseudoFamilyRule = { pseudoName: string; hostSelector: string; value: string };
+  type FamilySelectors = { familySelectors: string[]; pseudoFamilyRules: PseudoFamilyRule[] };
+  const selectorsByDocument = new WeakMap<Document, FamilySelectors>();
+  const splitSelectorList = (selectorText: string): string[] => {
+    const selectors: string[] = [];
     let token = "",
       quote = "",
       square = 0,
@@ -98,7 +99,7 @@ export const createFontFamilyDefault = () => {
     return selectors;
   };
   const pseudoNames = ["before", "after", "first-letter", "first-line", "placeholder", "file-selector-button"];
-  const pseudoHostSelector = (selector, pseudoName) => {
+  const pseudoHostSelector = (selector: string, pseudoName: string): string | null => {
     const lower = selector.toLowerCase();
     let quote = "",
       square = 0,
@@ -145,10 +146,14 @@ export const createFontFamilyDefault = () => {
     }
     return null;
   };
-  const collect = (cssRules, familySelectors, pseudoFamilyRules) => {
+  const collect = (
+    cssRules: CSSRuleList | null,
+    familySelectors: string[],
+    pseudoFamilyRules: PseudoFamilyRule[],
+  ): void => {
     if (cssRules == null) return;
     for (let i = 0; i < cssRules.length; i++) {
-      const rule = cssRules[i];
+      const rule = cssRules[i] as CSSRule & Partial<CSSStyleRule & CSSGroupingRule>;
       if (rule == null) continue;
       const sel = rule.selectorText;
       if (typeof sel === "string" && rule.style != null && rule.style.fontFamily !== "") {
@@ -156,7 +161,7 @@ export const createFontFamilyDefault = () => {
           const pseudo = pseudoNames
             .map((name) => ({ name, hostSelector: pseudoHostSelector(selector, name) }))
             .find((candidate) => candidate.hostSelector != null);
-          if (pseudo != null) {
+          if (pseudo?.hostSelector != null) {
             pseudoFamilyRules.push({
               pseudoName: pseudo.name,
               hostSelector: pseudo.hostSelector,
@@ -171,11 +176,11 @@ export const createFontFamilyDefault = () => {
       if (rule.cssRules != null && rule.cssRules.length > 0) collect(rule.cssRules, familySelectors, pseudoFamilyRules);
     }
   };
-  const selectorsFor = (doc) => {
+  const selectorsFor = (doc: Document): FamilySelectors => {
     const cached = selectorsByDocument.get(doc);
     if (cached != null) return cached;
-    const familySelectors = [],
-      pseudoFamilyRules = [];
+    const familySelectors: string[] = [],
+      pseudoFamilyRules: PseudoFamilyRule[] = [];
     for (let i = 0; i < doc.styleSheets.length; i++) {
       try {
         collect(doc.styleSheets[i].cssRules, familySelectors, pseudoFamilyRules);
@@ -196,13 +201,13 @@ export const createFontFamilyDefault = () => {
   // cascade means the element is not the standard initial value. (`textarea`
   // computes the `monospace` keyword — a later UA rule wins — and is excluded by
   // the generic-name test regardless, but is listed here for completeness.)
-  const UA_CONCRETE_FAMILY_TAGS = { INPUT: 1, TEXTAREA: 1, SELECT: 1, BUTTON: 1, KEYGEN: 1 };
+  const UA_CONCRETE_FAMILY_TAGS: Record<string, number> = { INPUT: 1, TEXTAREA: 1, SELECT: 1, BUTTON: 1, KEYGEN: 1 };
 
-  const nodeSetsNonStandardFamily = (n, familySelectors) => {
+  const nodeSetsNonStandardFamily = (n: Element, familySelectors: string[]): boolean => {
     // A UA system-control font (concrete, not kStandardFamily).
     if (UA_CONCRETE_FAMILY_TAGS[n.tagName] === 1) return true;
     // Inline style (reflects `font-family:` AND the `font` shorthand).
-    if (n.style != null && n.style.fontFamily !== "") return true;
+    if ("style" in n && (n as HTMLElement).style != null && (n as HTMLElement).style.fontFamily !== "") return true;
     // `<font face>` presentation attribute (obsolete but present in fixtures).
     if (n.tagName === "FONT" && n.hasAttribute("face")) return true;
     // Any author rule that sets font-family and matches this node.
@@ -220,14 +225,14 @@ export const createFontFamilyDefault = () => {
 
   // Whether `el`'s computed `font-family` is the UA-default (kStandardFamily)
   // rather than an author-declared or UA-generic family.
-  const familyIsUADefault = (el, computedFontFamily) => {
+  const familyIsUADefault = (el: Element, computedFontFamily: string): boolean => {
     if (typeof computedFontFamily !== "string" || computedFontFamily === "") return false;
     const { familySelectors } = selectorsFor(el.ownerDocument || document);
     // (1) concrete-name test on the first family.
     const first = parseCssFontFamilyEntries(computedFontFamily)[0]?.name ?? "";
     if (first === "" || GENERIC_FAMILY_KEYWORDS[first.toLowerCase()] === 1) return false;
     // (2) no author font-family on self or any ancestor (font-family inherits).
-    let n = el;
+    let n: Element | null = el;
     while (n != null && n.nodeType === 1) {
       if (nodeSetsNonStandardFamily(n, familySelectors)) return false;
       n = n.parentElement;
@@ -238,7 +243,7 @@ export const createFontFamilyDefault = () => {
   // `getComputedStyle(host, pseudo)` cannot distinguish inherited kStandard
   // from an authored declaration of the same concrete settings face. Join the
   // pseudo back to matching author rules before inheriting the host sentinel.
-  const pseudoFamilyIsAuthored = (el, pseudo) => {
+  const pseudoFamilyIsAuthored = (el: Element, pseudo: string): boolean => {
     const pseudoName = String(pseudo || "")
       .replace(/^:+/, "")
       .toLowerCase();

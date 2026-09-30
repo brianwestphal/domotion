@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // List & counter capture: list-item detection, list-style-image intrinsic
 // dimensions, list-item index computation, and `::marker` pseudo style
@@ -10,17 +9,20 @@
 // walker, not per-walk-step.
 //
 // Bundled into the page-context capture script via the index.ts orchestrator;
-// no runtime imports of its own. Use `// @ts-nocheck` at the top because the
-// outer-page environment exposes `document` / `window` / `Image` without the
-// project's tsconfig DOM lib applying.
+// no runtime imports of its own.
 
 export const createListsCountersHandler = ({
   normColor,
   resolveCounterStyle,
   isCustomCounterStyle,
   measureFontMetrics,
+}: {
+  normColor: (color: string) => string;
+  resolveCounterStyle: (name: string, index: number) => string | null;
+  isCustomCounterStyle: (name: string) => boolean;
+  measureFontMetrics: (cs: CSSStyleDeclaration) => { ascent: number; descent: number };
 }) => {
-  const captureListsCounters = (el, cs, tag) => {
+  const captureListsCounters = (el: Element, cs: CSSStyleDeclaration, tag: string) => {
     // CSS treats any element with display:list-item as a list item — the tag
     // alone isn't enough. An <li> with display:inline-block (e.g. a horizontal
     // social-icon strip) does NOT paint a marker per spec. Conversely a <div>
@@ -73,11 +75,11 @@ export const createListsCountersHandler = ({
           const reversed = parentTag === "ol" && parent.hasAttribute("reversed");
           let start = 1;
           if (parentTag === "ol" && parent.hasAttribute("start"))
-            start = parseInt(parent.getAttribute("start"), 10) || 1;
+            start = parseInt(parent.getAttribute("start") ?? "", 10) || 1;
           if (reversed) start = siblings.length;
           let cur = start;
           for (const s of siblings) {
-            if (s.hasAttribute("value")) cur = parseInt(s.getAttribute("value"), 10) || cur;
+            if (s.hasAttribute("value")) cur = parseInt(s.getAttribute("value") ?? "", 10) || cur;
             if (s === el) {
               listItemIndex = cur;
               break;

@@ -22,7 +22,12 @@ describe("detectInlineFragments", () => {
         boxDecorationBreak: "slice",
       },
     };
-    detectInlineFragments(el, { display: "inline" }, { x: 0, y: 0 }, captured);
+    detectInlineFragments(
+      el as unknown as Element,
+      { display: "inline" } as CSSStyleDeclaration,
+      { x: 0, y: 0 },
+      captured,
+    );
     expect(captured.inlineFragments).toEqual([
       { x: 12.25, y: 20.5, width: 80, height: 18 },
       { x: 12.25, y: 42.25, width: 54, height: 18 },
@@ -51,7 +56,12 @@ describe("detectInlineFragments", () => {
       },
     };
 
-    detectInlineFragments(el, { display: "inline" }, { x: 10, y: 20 }, captured);
+    detectInlineFragments(
+      el as unknown as Element,
+      { display: "inline" } as CSSStyleDeclaration,
+      { x: 10, y: 20 },
+      captured,
+    );
 
     expect(captured.inlineFragments).toEqual([
       { x: 22, y: 588, width: 58, height: 78 },

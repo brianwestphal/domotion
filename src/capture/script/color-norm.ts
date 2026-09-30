@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Color-string normalization. `normColor(c, elColor)` turns any CSS <color>
 // (named, hex, hsl, hwb, lab/lch, oklab/oklch, color(), color-mix(), etc.)
@@ -22,7 +21,7 @@ export const createColorNorm = () => {
   probe.style.visibility = "hidden";
   document.body.appendChild(probe);
 
-  const normColor = (c, elColor) => {
+  const normColor = (c: string | null | undefined, elColor?: string | null): string | null | undefined => {
     if (c == null || c === "" || c === "transparent" || c === "currentcolor" || c === "auto") return c;
     // Fast path: already in rgb/rgba/#hex form.
     if (/^(rgba?\(|#[0-9a-f]{3,8}$)/i.test(c)) return c;
@@ -52,7 +51,7 @@ export const createColorNorm = () => {
   // inside gradients to its target color space (e.g. `color-mix(in oklch,
   // red, blue)` serializes as `oklch(...)`), but we match it defensively in
   // case future Chromium versions change that.
-  const normGradientColors = (text, elColor) => {
+  const normGradientColors = (text: string | null | undefined, elColor?: string | null): string | null | undefined => {
     if (text == null || text === "" || text === "none") return text;
     // Match a color-function identifier followed by a balanced (...) group.
     const fnRe = /\b(oklch|oklab|lab|lch|hwb|hsl|hsla|color|color-mix)\(/gi;

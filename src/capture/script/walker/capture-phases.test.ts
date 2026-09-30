@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
 import { CAPTURE_SCRIPT } from "../../script.generated.js";
+import type { CapturedElement } from "../../types.js";
 import {
   assembleCaptureResultPhase,
   captureGeometryStylePhase,
@@ -17,7 +18,7 @@ function element(tag = "div") {
   return node;
 }
 
-function geometry(node: Element, style: Record<string, unknown> = {}) {
+function geometry(node: HTMLElement, style: Record<string, unknown> = {}) {
   return captureGeometryStylePhase({
     el: node,
     cs: {
@@ -32,8 +33,8 @@ function geometry(node: Element, style: Record<string, unknown> = {}) {
       overflowY: "visible",
       position: "static",
       ...style,
-    },
-    rect,
+    } as CSSStyleDeclaration,
+    rect: rect as DOMRect,
     vp: viewport,
     fixedAncestors: new Set(),
     transformInfluenced: new Set(),
@@ -94,14 +95,14 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
       fontFamilyStackFor: stack,
       nativeDecorationRefs: [{ kind: "file-selector-button", node: button, ownership: null }],
       nativeDecorationKinds: ["file-selector-button"],
-    });
+    } as unknown as Parameters<typeof normalizePseudoShadowPhase>[0]);
     const second = normalizePseudoShadowPhase({
       el: owner,
       pseudoFragmentFacts: secondFacts,
       fontFamilyStackFor: stack,
       nativeDecorationRefs: [],
       nativeDecorationKinds: [],
-    });
+    } as unknown as Parameters<typeof normalizePseudoShadowPhase>[0]);
     expect(firstFacts[0]!.typography.fontFamilyStack).toEqual(["A", "::before"]);
     expect(secondFacts[0]!.typography.fontFamilyStack).toEqual(["B", "::after"]);
     expect(first.nativeDecorationParts).toHaveLength(1);
@@ -129,14 +130,14 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
       tag: "div",
       contentVisibilityHidden: false,
       capture: firstCapture,
-    });
+    } as unknown as Parameters<typeof captureTraversalPhase>[0]);
     const second = captureTraversalPhase({
       el: parent,
       tag: "div",
       contentVisibilityHidden: true,
       capture: makeCapture(),
-    });
-    expect(first.map((entry) => entry.id)).toEqual(["marker", "child", "button"]);
+    } as unknown as Parameters<typeof captureTraversalPhase>[0]);
+    expect(first.map((entry) => (entry as CapturedElement & { id: string }).id)).toEqual(["marker", "child", "button"]);
     expect(first[1]).not.toHaveProperty("scrollMarkerGroup");
     expect(first[1]).not.toHaveProperty("scrollButtons");
     expect(second).toEqual([]);
@@ -173,7 +174,7 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
       vp: viewport,
       bordersOnlyCell: true,
       ...dependencies,
-    });
+    } as unknown as Parameters<typeof assembleCaptureResultPhase>[0]);
     assembleCaptureResultPhase({
       captured: second,
       el: element(),
@@ -183,7 +184,7 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
       vp: viewport,
       bordersOnlyCell: false,
       ...dependencies,
-    });
+    } as unknown as Parameters<typeof assembleCaptureResultPhase>[0]);
     expect(first).toMatchObject({ text: "", children: [], styles: { backgroundColor: "rgba(0, 0, 0, 0)" } });
     expect(first.imageSrc).toBeUndefined();
     expect(second).toMatchObject({ text: "visible", children: [{ id: "child" }], styles: { backgroundColor: "red" } });

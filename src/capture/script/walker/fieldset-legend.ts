@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // <fieldset> top-aligned <legend> box adjustment, extracted from the capture
 // script's `captureInner` (DM-1436). Part of the page-`evaluate`d CAPTURE_SCRIPT
@@ -12,7 +11,7 @@
 // capture the legend's x range for the renderer to notch the top border behind
 // it. DM-342/DM-343.
 
-export const computeFieldsetLegendBox = (el, tag, rect, vp) => {
+export const computeFieldsetLegendBox = (el: Element, tag: string, rect: DOMRect, vp: { x: number; y: number }) => {
   let fieldsetLegendNotch;
   let fsX = rect.left - vp.x;
   let fsY = rect.top - vp.y;

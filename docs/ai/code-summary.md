@@ -45,8 +45,9 @@ deviation for box, inline, control, and text shadows.
   `fidelity-warnings.ts`, `scroll-markers.ts`, `iframe-recursion.ts`, and
   `counter-scopes.ts`. The Node caller and the script share the typed
   `CaptureScriptArgs` bag (`capture/types.ts`), and `capture/tree-shape.ts`
-  validates what `page.evaluate` returns. Modules without `@ts-nocheck` are
-  type-checked under the repo's strict config.
+  validates what `page.evaluate` returns. Every module under
+  `src/capture/script/` is type-checked under the repo's strict config; the
+  browser bundle erases these annotations before serialization.
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
   decisions; it does not independently lay out the page. Browser-faithful text
   is a private workspace at `packages/text-engine/`: it owns resolution,

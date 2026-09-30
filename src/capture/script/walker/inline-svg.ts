@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // DM-279 / DM-306 / DM-346 / DM-499 / DM-524 / DM-720 / DM-778: bake an inline
 // <svg>'s resolved presentation + geometry attributes onto a clone and inline
@@ -16,6 +15,7 @@ import {
   serializeSvgAffine,
   svgAffineMaxPointError,
 } from "../../svg-affine-freeze.js";
+import type { SvgAffineMatrix } from "../../svg-affine-freeze.js";
 import {
   composeUseTransform,
   isActiveSvgTransformValue,
@@ -29,7 +29,31 @@ import {
 // `externalSvgDocuments` is the prefetched `Map<documentUrl, { document, failure }>` of the SVG files the
 // page's `<use href="file.svg#id">` elements name (src/capture/external-svg-use.ts); undefined when the
 // prepass did not run for this frame.
-export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
+type SvgGraphicsNode = SVGElement & {
+  getCTM?: () => DOMMatrix | null;
+  getBBox?: () => DOMRect;
+};
+type AffineRecord = {
+  cloneNode: SvgGraphicsNode;
+  expected: SvgAffineMatrix;
+  frozen: SvgAffineMatrix;
+  points: [number, number][];
+  serialized: string;
+  skip: boolean;
+};
+type ExternalSvgEntry = { document?: Document; failure?: string };
+type ExternalUseResult =
+  | { failure: string; missing?: never; target?: never; external?: never }
+  | { missing: true; failure?: never; target?: never; external?: never }
+  | { target: Element; external: boolean; failure?: never; missing?: never };
+
+export const captureInlineSvg = (
+  el: SVGSVGElement,
+  cs: CSSStyleDeclaration,
+  warn: (selector: string, property: string, message: string) => void,
+  sel: string,
+  externalSvgDocuments?: Map<string, ExternalSvgEntry>,
+) => {
   // Inline SVG icons styled by external CSS (e.g. '.icon-btn svg { fill:none;
   // stroke: currentColor; stroke-width: 2 }') need their resolved presentation
   // attributes baked into the outerHTML so the icon paints correctly when
@@ -39,16 +63,16 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
   const svgStroke = cs.stroke;
   const svgStrokeWidth = cs.strokeWidth;
   const svgFontFamily = cs.fontFamily;
-  const clone = el.cloneNode(true);
+  const clone = el.cloneNode(true) as SVGSVGElement;
   // DM-2473: Blink resolves an SVG graphics child's complete transform into
   // LocalToSVGParentTransform and deliberately flattens it to affine before
   // paint. CTM correlation observes that used result without reproducing
   // transform-box, stroke bounds, z-origin, zoom, motion, or 3D math here.
   // A nested SVG retains intrinsic x/y + viewBox mapping after transforms
   // are neutralized, so its serialized owner is usedLocal * inverse(base).
-  var _affineFreezeFailure = null;
-  const _affineFreezeRecords = [];
-  const _frozenByClone = new WeakMap();
+  var _affineFreezeFailure: string | null = null;
+  const _affineFreezeRecords: AffineRecord[] = [];
+  const _frozenByClone = new WeakMap<SVGElement, AffineRecord>();
   const _transformProperties = new Set([
     "transform",
     "transform-origin",
@@ -63,7 +87,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
     "offset-anchor",
     "offset-rotate",
   ]);
-  const _matrixFrom = (matrix) =>
+  const _matrixFrom = (matrix: DOMMatrix | null | undefined): SvgAffineMatrix | null =>
     matrix == null
       ? null
       : {
@@ -74,12 +98,13 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
           e: Number(matrix.e),
           f: Number(matrix.f),
         };
-  const _nearestCtmParent = (node) => {
-    var parent = node.parentElement;
-    while (parent != null && typeof parent.getCTM !== "function") parent = parent.parentElement;
+  const _nearestCtmParent = (node: SVGElement): SvgGraphicsNode | null => {
+    var parent = node.parentElement as SvgGraphicsNode | null;
+    while (parent != null && typeof parent.getCTM !== "function")
+      parent = parent.parentElement as SvgGraphicsNode | null;
     return parent;
   };
-  const _hasTransformSignal = (node, style) => {
+  const _hasTransformSignal = (node: SVGElement, style: CSSStyleDeclaration) => {
     if (node.hasAttribute && node.hasAttribute("transform")) return true;
     for (const prop of ["transform", "translate", "rotate", "scale", "offset-path"]) {
       if (isActiveSvgTransformValue(style.getPropertyValue(prop))) return true;
@@ -90,7 +115,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
     }
     return false;
   };
-  const _neutralizeProbeTransform = (probe) => {
+  const _neutralizeProbeTransform = (probe: SVGElement) => {
     if (probe.style == null) return;
     probe.style.setProperty("transform", "none", "important");
     probe.style.setProperty("translate", "none", "important");
@@ -103,13 +128,13 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
     probe.style.setProperty("opacity", "0", "important");
     probe.style.setProperty("pointer-events", "none", "important");
   };
-  const _cleanCloneTransformOwner = (node, serialized) => {
+  const _cleanCloneTransformOwner = (node: SVGElement, serialized: string) => {
     node.setAttribute("transform", serialized);
     if (node.style != null) {
       for (const prop of _transformProperties) node.style.removeProperty(prop);
     }
   };
-  const _freezeUsedAffine = (origNode, cloneNode, ocs) => {
+  const _freezeUsedAffine = (origNode: SvgGraphicsNode, cloneNode: SvgGraphicsNode, ocs: CSSStyleDeclaration) => {
     if (_affineFreezeFailure != null || !_hasTransformSignal(origNode, ocs)) return;
     if (typeof origNode.getCTM !== "function") {
       _affineFreezeFailure = "transformed SVG node does not expose getCTM()";
@@ -120,8 +145,8 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
       _affineFreezeFailure = "transformed SVG node has no correlatable SVG parent CTM";
       return;
     }
-    var usedCtm = null;
-    var parentCtm = null;
+    var usedCtm: SvgAffineMatrix | null = null;
+    var parentCtm: SvgAffineMatrix | null = null;
     try {
       usedCtm = _matrixFrom(origNode.getCTM());
       parentCtm = _matrixFrom(parent.getCTM());
@@ -129,16 +154,16 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
       _affineFreezeFailure = "Blink-used parent-relative affine matrix could not be read";
       return;
     }
-    var probe = null;
-    var neutralCtm = null;
+    var probe: SvgGraphicsNode | null = null;
+    var neutralCtm: SvgAffineMatrix | null = null;
     try {
       // A sibling probe asks Blink for the intrinsic mapping that remains
       // with transform contributors disabled. This is identity for normal
       // graphics and includes x/y + viewBox mapping for nested viewports.
-      probe = cloneNode.cloneNode(false);
+      probe = cloneNode.cloneNode(false) as SvgGraphicsNode;
       _neutralizeProbeTransform(probe);
       if (probe.setAttribute) probe.setAttribute("aria-hidden", "true");
-      origNode.parentElement.appendChild(probe);
+      origNode.parentElement!.appendChild(probe);
       neutralCtm = _matrixFrom(probe.getCTM && probe.getCTM());
     } catch (e) {
       neutralCtm = null;
@@ -155,13 +180,13 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
       return;
     }
     _cleanCloneTransformOwner(cloneNode, serialized);
-    var points = [
+    var points: [number, number][] = [
       [0, 0],
       [1, 0],
       [0, 1],
     ];
     try {
-      const bbox = origNode.getBBox();
+      const bbox = origNode.getBBox?.();
       if (bbox != null && [bbox.x, bbox.y, bbox.width, bbox.height].every(Number.isFinite)) {
         points = [
           [bbox.x, bbox.y],
@@ -185,7 +210,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
   // currentColor), not the intended HDS palette color. Treat such
   // unresolved CSS-function values as "no concrete attribute" so we bake
   // the resolved computed value over them.
-  function _hasConcreteAttr(node, attr) {
+  function _hasConcreteAttr(node: Element, attr: string) {
     return node.hasAttribute(attr) && isConcreteSvgAttributeValue(node.getAttribute(attr));
   }
   if (svgFill && svgFill !== "" && !_hasConcreteAttr(el, "fill")) clone.setAttribute("fill", svgFill);
@@ -243,7 +268,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
   // paths want d) and (b) computed values need light normalisation
   // (strip "px"; unwrap path("…") for d) before they're valid as XML
   // presentation attributes.
-  const _svgGeomAttrsByTag = {
+  const _svgGeomAttrsByTag: Record<string, string[]> = {
     circle: ["cx", "cy", "r"],
     ellipse: ["cx", "cy", "rx", "ry"],
     rect: ["x", "y", "width", "height", "rx", "ry"],
@@ -266,7 +291,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
     "mask-composite",
     "mask-mode",
   ];
-  const _walkBake = (origNode, cloneNode) => {
+  const _walkBake = (origNode: SVGElement, cloneNode: SVGElement) => {
     if (origNode.nodeType !== 1) return;
     const ns = origNode.namespaceURI;
     if (ns === "http://www.w3.org/2000/svg" && origNode !== el) {
@@ -284,19 +309,19 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
       // should preserve the keyword so `_substCurrentColor` can resolve
       // it against the consumer's color later. Restore the source's
       // inline color so the live page state isn't disturbed.
-      const _usesCurrentColor = (camel) => {
-        const baseVal = ocs[camel];
+      const _usesCurrentColor = (camel: string) => {
+        const baseVal = ocs[camel as keyof CSSStyleDeclaration];
         if (baseVal !== ocs.color) return false;
         const savedColor = origNode.style.color;
         origNode.style.color = "rgb(1, 2, 3)";
         const probeCs = window.getComputedStyle(origNode);
-        const matches = probeCs[camel] === probeCs.color;
+        const matches = probeCs[camel as keyof CSSStyleDeclaration] === probeCs.color;
         origNode.style.color = savedColor;
         return matches;
       };
       for (const attr of _bakeSvgAttrs) {
         const camel = attr.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        const val = ocs[camel];
+        const val = ocs[camel as keyof CSSStyleDeclaration];
         // DM-524: see _hasConcreteAttr comment above. Skip the bake only
         // when the source attr value is a concrete literal — var() /
         // calc() / env() / attr() references resolve against the source
@@ -307,7 +332,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
           // the source rule uses it, so the consumer's color cascades
           // through the inlined symbol.
           const preserveCurrent = (attr === "fill" || attr === "stroke") && _usesCurrentColor(camel);
-          cloneNode.setAttribute(attr, preserveCurrent ? "currentColor" : val);
+          cloneNode.setAttribute(attr, preserveCurrent ? "currentColor" : String(val));
         }
       }
       for (const prop of _bakeSvgNativePaintProps) {
@@ -339,7 +364,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
         const gval = normalizeComputedSvgGeometry(gattr, ocs.getPropertyValue(gattr));
         const sourceVal = origNode.getAttribute(gattr);
         if (!shouldBakeSvgGeometry(sourceVal, gval, smilOwnsValue)) continue;
-        cloneNode.setAttribute(gattr, gval);
+        cloneNode.setAttribute(gattr, gval!);
       }
       const computedClipPath = ocs.getPropertyValue("clip-path").trim();
       if (computedClipPath !== "" && computedClipPath !== "none") {
@@ -388,7 +413,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
     const oChildren = origNode.children;
     const cChildren = cloneNode.children;
     const n = Math.min(oChildren.length, cChildren.length);
-    for (let i = 0; i < n; i++) _walkBake(oChildren[i], cChildren[i]);
+    for (let i = 0; i < n; i++) _walkBake(oChildren[i] as SVGElement, cChildren[i] as SVGElement);
   };
   _walkBake(el, clone);
   // DM-499: resolve <use href="#id"> fragment refs by inlining the
@@ -403,11 +428,11 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
   // <svg> is promoted to Chromium raster ownership (`_externalUseFailure`).
   const _svgNS = "http://www.w3.org/2000/svg";
   const _xlinkNS = "http://www.w3.org/1999/xlink";
-  var _externalUseFailure = null;
+  var _externalUseFailure: string | null = null;
   // Resolve an external reference to { target } (inline it), { missing } (the
   // document loaded but names no such element: Chromium paints nothing, so
   // the dangling <use> is already faithful) or { failure } (raster it).
-  const _externalUseTarget = (href) => {
+  const _externalUseTarget = (href: string): ExternalUseResult => {
     var url;
     try {
       url = new URL(href, document.baseURI);
@@ -443,7 +468,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
         failure: "the external element contains a nested <use>, which would resolve against the wrong document",
       };
     }
-    var scan = [found].concat(Array.prototype.slice.call(found.getElementsByTagName("*")));
+    var scan: Element[] = [found, ...Array.from(found.getElementsByTagName("*"))];
     for (var si = 0; si < scan.length; si++) {
       var attrs = scan[si].attributes;
       for (var ai2 = 0; ai2 < attrs.length; ai2++) {
@@ -457,7 +482,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
     }
     return { target: found, external: true };
   };
-  const _resolveUseRefs = (root, depth) => {
+  const _resolveUseRefs = (root: SVGElement, depth: number): void => {
     if (depth > 5) return; // cycle / depth guard
     var uses = root.querySelectorAll ? root.querySelectorAll("use") : [];
     for (var ui = 0; ui < uses.length; ui++) {
@@ -491,7 +516,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
           continue;
         }
         target = externalResult.target;
-        targetExternal = externalResult.external;
+        targetExternal = externalResult.external ?? false;
         targetId = target.getAttribute("id") || href;
       }
       if (target == null) continue;
@@ -551,7 +576,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
           // computed values (transform, fill, opacity, etc.) reflect the
           // animation's current frame at capture time. Walking with the
           // original DOM as source captures those values.
-          _walkBake(target.children[ci], clonedChild);
+          _walkBake(target.children[ci] as SVGElement, clonedChild as SVGElement);
         }
         // DM-778: thread the <use>'s own transform around the inlined
         // nested <svg>. Per SVG 2 §5.6 the use's `transform` attribute
@@ -585,7 +610,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
         if (composedTransform !== "") {
           replacement.setAttribute("transform", composedTransform);
         }
-        var clonedTarget = target.cloneNode(true);
+        var clonedTarget = target.cloneNode(true) as SVGElement;
         // Drop the id on the clone — keeping it would create a duplicate
         // id in the output document (the original lives in the hidden
         // defs SVG which won't be in our output, but safer to remove it
@@ -593,7 +618,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
         if (clonedTarget.removeAttribute) clonedTarget.removeAttribute("id");
         replacement.appendChild(clonedTarget);
         // DM-508: bake t=0 computed styles on the inlined target subtree.
-        if (!targetExternal) _walkBake(target, clonedTarget);
+        if (!targetExternal) _walkBake(target as SVGElement, clonedTarget);
         // When the target itself is an `<svg>` (the framer.com toolbar
         // pattern: `<use href="#svgID">` → `<svg viewBox="0 0 20 20"
         // id="svgID"><path .../></svg>` living in a hidden defs container
@@ -660,7 +685,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
         var av = useEl.getAttribute(_useAttrs[ai]);
         if (av != null && av !== "") replacement.setAttribute(_useAttrs[ai], av);
       }
-      useEl.parentNode.replaceChild(replacement, useEl);
+      useEl.parentNode?.replaceChild(replacement, useEl);
       // The replacement may itself contain <use> refs (chain). Recurse
       // with depth guard.
       _resolveUseRefs(replacement, depth + 1);
@@ -679,7 +704,7 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
     if (isSvgTransformAnimation(animation.localName, animation.getAttribute("attributeName"))) animation.remove();
   }
   const _sanitizeClonedTransformCss = () => {
-    for (const styleNode of Array.from(clone.querySelectorAll ? clone.querySelectorAll("style") : [])) {
+    for (const styleNode of Array.from(clone.querySelectorAll("style"))) {
       const cssText = styleNode.textContent || "";
       if (!/(?:transform|translate|rotate|scale|offset(?:-|\s*:))/i.test(cssText)) continue;
       // Constructable stylesheets give us Chromium's parser without ever
@@ -693,15 +718,17 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
       try {
         const sheet = new CSSStyleSheet();
         sheet.replaceSync(cssText);
-        const cleanRules = (rules) => {
-          for (const rule of Array.from(rules || [])) {
-            if (rule.style != null) {
-              for (const prop of Array.from(rule.style)) {
+        const cleanRules = (rules: CSSRuleList): void => {
+          for (const rule of Array.from(rules)) {
+            const styleRule = rule as CSSStyleRule;
+            if (styleRule.style != null) {
+              for (const prop of Array.from(styleRule.style)) {
                 const normalized = prop.toLowerCase().replace(/^-webkit-/, "");
-                if (_transformProperties.has(normalized)) rule.style.removeProperty(prop);
+                if (_transformProperties.has(normalized)) styleRule.style.removeProperty(prop);
               }
             }
-            if (rule.cssRules != null) cleanRules(rule.cssRules);
+            const groupingRule = rule as CSSGroupingRule;
+            if (groupingRule.cssRules != null) cleanRules(groupingRule.cssRules);
           }
         };
         cleanRules(sheet.cssRules);
@@ -759,13 +786,13 @@ export const captureInlineSvg = (el, cs, warn, sel, externalSvgDocuments) => {
   // injection at render time). Defense in depth — the renderer also
   // emits a wrapping <g color=...> for currentColor propagation.
   var _hostColor = cs.color;
-  var _substCurrentColor = (node) => {
+  var _substCurrentColor = (node: SVGElement): void => {
     if (node.nodeType !== 1) return;
     var fa = node.getAttribute && node.getAttribute("fill");
     if (fa != null && /^currentcolor$/i.test(fa)) node.setAttribute("fill", _hostColor);
     var sa = node.getAttribute && node.getAttribute("stroke");
     if (sa != null && /^currentcolor$/i.test(sa)) node.setAttribute("stroke", _hostColor);
-    for (var ci = 0; ci < node.children.length; ci++) _substCurrentColor(node.children[ci]);
+    for (var ci = 0; ci < node.children.length; ci++) _substCurrentColor(node.children[ci] as SVGElement);
   };
   _substCurrentColor(clone);
   if (_affineFreezeFailure != null) {

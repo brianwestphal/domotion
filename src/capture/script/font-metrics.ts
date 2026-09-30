@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Per-font baseline metric cache. fontkit's `font.ascent` (HHEA) does not
 // match where Chrome paints the baseline on macOS for the legacy MS-shipped
@@ -38,10 +37,10 @@
 import { captureFontFamilyStack, serializeCapturedFontFamilyStack } from "../../font-family-stack.js";
 
 export const createFontMetrics = () => {
-  const metricsCache = new Map();
-  const localFaceMap = new Map();
+  const metricsCache = new Map<string, { ascent: number; descent: number }>();
+  const localFaceMap = new Map<string, string>();
 
-  const probeWidthCS = (familyExpr, weight, style) => {
+  const probeWidthCS = (familyExpr: string, weight: string, style: string): number => {
     const span = document.createElement("span");
     span.style.cssText =
       "position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre";
@@ -64,7 +63,7 @@ export const createFontMetrics = () => {
     }
     for (const rule of Array.from(cssRules)) {
       if (rule.constructor.name !== "CSSFontFaceRule") continue;
-      const r = rule;
+      const r = rule as CSSFontFaceRule;
       const family = r.style
         .getPropertyValue("font-family")
         .trim()
@@ -76,7 +75,7 @@ export const createFontMetrics = () => {
       if (family === "" || /url\(/.test(src)) continue;
       const matches = src.match(/local\(\s*["']?[^"')]+?["']?\s*\)/g);
       if (matches == null) continue;
-      const locals = [];
+      const locals: string[] = [];
       for (const mm of matches) {
         const inner = /local\(\s*["']?([^"')]+?)["']?\s*\)/.exec(mm);
         if (inner != null) locals.push(inner[1].trim());
@@ -91,9 +90,9 @@ export const createFontMetrics = () => {
       // family-name probe hits the installed family. The alias rule's
       // weight/style descriptors are applied separately, so the probe
       // reaches the same face Chrome's local() lookup did.
-      const stripVariant = (n) =>
+      const stripVariant = (n: string) =>
         n.replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "").trim();
-      let resolved = null;
+      let resolved: string | null = null;
       const aliasW = probeWidthCS('"' + family + '"', weight, styleDesc);
       for (const cand of locals) {
         const candW = probeWidthCS('"' + stripVariant(cand) + '"', weight, styleDesc);
@@ -110,7 +109,7 @@ export const createFontMetrics = () => {
     }
   }
 
-  const substituteAliasedFamilies = (ff) => {
+  const substituteAliasedFamilies = (ff: string): string => {
     if (localFaceMap.size === 0) return ff;
     const stack = captureFontFamilyStack(ff);
     let changed = false;
@@ -118,12 +117,15 @@ export const createFontMetrics = () => {
       const local = localFaceMap.get(entry.name.toLowerCase());
       if (local == null) return entry;
       changed = true;
-      return { name: local, type: "family-name" };
+      return { name: local, type: "family-name" as const };
     });
     return changed ? serializeCapturedFontFamilyStack({ ...stack, entries }) : ff;
   };
 
-  const measureFontMetrics = (cs, fontSizeOverride) => {
+  const measureFontMetrics = (
+    cs: Pick<CSSStyleDeclaration, "fontStyle" | "fontWeight" | "fontSize" | "fontFamily">,
+    fontSizeOverride?: string,
+  ): { ascent: number; descent: number } => {
     const fs = cs.fontStyle || "normal";
     const fw = cs.fontWeight || "400";
     const fz = fontSizeOverride || cs.fontSize || "14px";
@@ -133,6 +135,7 @@ export const createFontMetrics = () => {
     if (v != null) return v;
     const c = document.createElement("canvas");
     const ctx = c.getContext("2d");
+    if (ctx == null) throw new Error("Canvas 2D context unavailable");
     ctx.font = fs + " " + fw + " " + fz + " " + ff;
     const m = ctx.measureText("Mxgp");
     v = { ascent: m.fontBoundingBoxAscent, descent: m.fontBoundingBoxDescent };
@@ -146,8 +149,11 @@ export const createFontMetrics = () => {
   // reproduce it for the legacy Apple faces (Helvetica, Times, Courier read 0 there and 0.15 em in
   // Chromium), so ask the browser: a hidden line-height:normal block's used height IS that value. Cached by
   // font, like the ascent/descent above.
-  const spacingCache = new Map();
-  const measureNormalLineSpacing = (cs, fontSizeOverride) => {
+  const spacingCache = new Map<string, number>();
+  const measureNormalLineSpacing = (
+    cs: Pick<CSSStyleDeclaration, "fontStyle" | "fontWeight" | "fontSize" | "fontFamily">,
+    fontSizeOverride?: string,
+  ): number => {
     const fs = cs.fontStyle || "normal";
     const fw = cs.fontWeight || "400";
     const fz = fontSizeOverride || cs.fontSize || "14px";

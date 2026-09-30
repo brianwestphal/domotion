@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Pseudo-element injection. Consumes the `pseudoSegments` array produced
 // by `walker/pseudo-content.ts` and:
@@ -59,9 +58,73 @@
 // from the result, and the in-place mutation of `textSegments` is
 // visible to the caller through the shared array reference.
 
+import type { CapturedElement, TextSegment } from "../../types.js";
+
+type PseudoBoxStyles = {
+  fontSize: number;
+  lineH: number;
+  padL: number;
+  padR: number;
+  padT: number;
+  padB: number;
+  borL: number;
+  borR: number;
+  borT: number;
+  borB: number;
+  measuredWidth?: number;
+  measuredHeight?: number;
+  backgroundColor?: string;
+  backgroundImage?: string;
+  borderRadius?: number;
+  borderWidth?: number;
+  borderColor?: string;
+  borderTopColor?: string;
+  borderRightColor?: string;
+  borderBottomColor?: string;
+  borderLeftColor?: string;
+  transform?: string;
+  transformOrigin?: string;
+  filter?: string;
+  opacity?: number;
+};
+type PseudoSegmentBase = {
+  isBefore: boolean;
+  seg: TextSegment;
+  isPositioned?: boolean;
+  boxStyles?: PseudoBoxStyles | null;
+  boxMarginLeft?: number;
+  boxMarginRight?: number;
+  boxBorderLeft?: number;
+  boxBorderRight?: number;
+  boxPaddingLeft?: number;
+  boxPaddingRight?: number;
+  filter?: string;
+  opacity?: number;
+  transform?: string;
+  transformOrigin?: string;
+};
+export type PseudoSegment = PseudoSegmentBase &
+  (
+    | { imageUrl: string; renderWidth: number; renderHeight: number }
+    | { imageUrl?: undefined; renderWidth?: undefined; renderHeight?: undefined }
+  );
+type InjectionState = {
+  text: string;
+  textLeft: number;
+  textTop: number;
+  textWidth: number;
+  textHeight: number;
+  fontAscent: number;
+};
+
 export const createPseudoInjectHandler = () => {
-  const injectPseudoSegments = (el, pseudoSegments, textSegments, state) => {
-    const pseudoImages = [];
+  const injectPseudoSegments = (
+    el: Element,
+    pseudoSegments: PseudoSegment[],
+    textSegments: TextSegment[],
+    state: InjectionState,
+  ) => {
+    const pseudoImages: NonNullable<CapturedElement["pseudoImages"]> = [];
     let { text, textLeft, textTop, textWidth, textHeight, fontAscent } = state;
 
     for (const p of pseudoSegments) {
@@ -106,7 +169,7 @@ export const createPseudoInjectHandler = () => {
         // (DM-497 badge pattern), the text content is inset further
         // so subtract the right-side outer-box advance from the anchor.
         const firstSeg = textSegments[0];
-        const bs = p.boxStyles || {};
+        const bs: Partial<PseudoBoxStyles> = p.boxStyles || {};
         const mRb = parseFloat(window.getComputedStyle(el, "::before").marginRight) || 0;
         // Flush the ::before just left of the host's first OWN text segment.
         const flushX = firstSeg.x - p.seg.width - (bs.padR || 0) - (bs.borR || 0) - mRb;
@@ -133,7 +196,7 @@ export const createPseudoInjectHandler = () => {
         // (DM-497), the text content is offset by margin-left +
         // border-left + padding-left from the parent's text right edge.
         const lastSeg = textSegments[textSegments.length - 1];
-        const bs = p.boxStyles || {};
+        const bs: Partial<PseudoBoxStyles> = p.boxStyles || {};
         const mLa = parseFloat(window.getComputedStyle(el, "::after").marginLeft) || 0;
         // DM-926: when the host is a flex container with a non-default
         // `justify-content` (e.g. `summary { display: flex;

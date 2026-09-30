@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-// page-context module is untyped (@ts-nocheck) but resolves cleanly here
 import { createCounterStyleResolver } from "./counter-style-resolver.js";
 
 // DM-1274: `counter()` / `counters()` with a BUILT-IN style argument (e.g.
@@ -32,13 +31,18 @@ describe("counter-style resolver: built-in styles in counter() context (DM-1274)
       counterStyles: {
         stepd: {
           system: "extends",
+          symbols: [],
+          additiveSymbols: [],
           extendsName: "decimal",
           prefix: "Step ",
           suffix: ":",
+          negPrefix: "-",
+          negSuffix: "",
           padLen: 2,
           padSym: "0",
           rangeLo: -Infinity,
           rangeHi: Infinity,
+          fallback: "decimal",
         },
       },
     });

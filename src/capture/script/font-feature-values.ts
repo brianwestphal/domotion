@@ -1,7 +1,29 @@
-// @ts-nocheck
-
 import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
 import { fuseFontFeatureValueRules, IMPLICIT_OUTER_LAYER_ORDER } from "../../font-feature-values-cascade.js";
+import type { FontFeatureValueCategory, FontFeatureValueTable } from "../../font-feature-values-cascade.js";
+
+interface LayerNode {
+  children: LayerNode[];
+  named: Map<string, LayerNode>;
+  order: number;
+}
+type FeatureValuesRule = CSSRule & {
+  fontFamily: string;
+  stylistic: Map<string, number[]>;
+} & Record<FontFeatureValueCategory, Map<string, number[]>>;
+type ExtendedRule = CSSRule &
+  Partial<{
+    nameList: string[];
+    name: string;
+    cssRules: CSSRuleList;
+    media: MediaList;
+    supportsText: string;
+    layerName: string;
+    styleSheet: CSSStyleSheet;
+    conditionText: string;
+    fontFamily: string;
+    stylistic: Map<string, number[]>;
+  }>;
 
 /**
  * Collect Blink's effective document-owned `@font-feature-values` storage.
@@ -14,18 +36,25 @@ import { fuseFontFeatureValueRules, IMPLICIT_OUTER_LAYER_ORDER } from "../../fon
  * TreeScopes, while `CSSFontSelector::GetFontData` consults only the document
  * resolver (`scoped_style_resolver.cc:355-386`, `css_font_selector.cc:192-220`).
  */
-export function collectFontFeatureValues(doc) {
-  const categories = ["annotation", "ornaments", "stylistic", "swash", "characterVariant", "styleset"];
+export function collectFontFeatureValues(doc: Document) {
+  const categories: FontFeatureValueCategory[] = [
+    "annotation",
+    "ornaments",
+    "stylistic",
+    "swash",
+    "characterVariant",
+    "styleset",
+  ];
   // Retain this shared-parser call at the collection boundary. Besides keeping
   // the capture bundle dependency live, it makes malformed/empty family lists
   // disappear exactly where the pure fusion helper will discard them.
-  const hasFamily = (css) => parseCssFontFamilyEntries(css).length > 0;
-  const makeLayer = () => ({ children: [], named: new Map(), order: -1 });
+  const hasFamily = (css: string) => parseCssFontFamilyEntries(css).length > 0;
+  const makeLayer = (): LayerNode => ({ children: [], named: new Map<string, LayerNode>(), order: -1 });
   const rootLayer = makeLayer();
-  const pending = [];
+  const pending: Array<{ fontFamily: string; layer: LayerNode; table: FontFeatureValueTable }> = [];
   const view = doc.defaultView || window;
 
-  const decodeIdent = (value) => {
+  const decodeIdent = (value: string): string => {
     let output = "";
     for (let index = 0; index < value.length;) {
       if (value[index] !== "\\") {
@@ -50,8 +79,8 @@ export function collectFontFeatureValues(doc) {
     }
     return output;
   };
-  const splitLayerName = (value) => {
-    const parts = [];
+  const splitLayerName = (value: string): string[] => {
+    const parts: string[] = [];
     let part = "";
     for (let index = 0; index < value.length; index++) {
       const char = value[index];
@@ -68,7 +97,7 @@ export function collectFontFeatureValues(doc) {
     if (part !== "") parts.push(decodeIdent(part));
     return parts;
   };
-  const addLayer = (parent, serializedName) => {
+  const addLayer = (parent: LayerNode, serializedName: string): LayerNode => {
     if (serializedName === "") {
       const anonymous = makeLayer();
       parent.children.push(anonymous);
@@ -86,26 +115,28 @@ export function collectFontFeatureValues(doc) {
     }
     return layer;
   };
-  const mediaMatches = (media) => media == null || media === "" || view.matchMedia(media).matches;
-  const supportsMatches = (condition) =>
+  const mediaMatches = (media: string | null | undefined): boolean =>
+    media == null || media === "" || view.matchMedia(media).matches;
+  const supportsMatches = (condition: string | null | undefined): boolean =>
     condition == null || condition === "" || (view.CSS != null && view.CSS.supports(condition));
 
-  const readFeatureRule = (rule, layer) => {
+  const readFeatureRule = (rule: FeatureValuesRule, layer: LayerNode): void => {
     if (typeof rule.fontFamily !== "string" || rule.stylistic == null || !hasFamily(rule.fontFamily)) return;
-    const table = {};
+    const table: FontFeatureValueTable = {};
     for (const category of categories) {
       const entries = Array.from(rule[category].entries());
       if (entries.length === 0) continue;
-      const aliases = {};
+      const aliases: Record<string, number[]> = {};
       for (const [name, values] of entries) aliases[name] = Array.from(values);
       table[category] = aliases;
     }
     pending.push({ fontFamily: rule.fontFamily, layer, table });
   };
 
-  const visitRules = (rules, parentLayer) => {
+  const visitRules = (rules: CSSRuleList | null | undefined, parentLayer: LayerNode): void => {
     if (rules == null) return;
-    for (const rule of Array.from(rules)) {
+    for (const cssRule of Array.from(rules)) {
+      const rule = cssRule as ExtendedRule;
       const kind = rule.constructor.name;
       if (kind === "CSSLayerStatementRule") {
         for (const name of Array.from(rule.nameList || [])) addLayer(parentLayer, name);
@@ -128,7 +159,7 @@ export function collectFontFeatureValues(doc) {
       if (kind === "CSSMediaRule" && !mediaMatches(rule.media?.mediaText || rule.conditionText)) continue;
       if (kind === "CSSSupportsRule" && !supportsMatches(rule.conditionText)) continue;
       if (typeof rule.fontFamily === "string" && rule.stylistic != null) {
-        readFeatureRule(rule, parentLayer);
+        readFeatureRule(rule as FeatureValuesRule, parentLayer);
       } else if (rule.cssRules != null) {
         // Blink threads @scope and @container ownership into style rules, but
         // FontFeatureValuesStorage itself is still document-global.
@@ -148,7 +179,7 @@ export function collectFontFeatureValues(doc) {
   }
 
   let nextOrder = 0;
-  const assignPostorder = (layer) => {
+  const assignPostorder = (layer: LayerNode): void => {
     for (const child of layer.children) assignPostorder(child);
     if (layer !== rootLayer) layer.order = nextOrder++;
   };

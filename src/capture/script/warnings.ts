@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Capture-side warning collection. `warn(sel, feature, detail)` records a
 // dedup'd entry for a feature domotion can't fully round-trip; the array is
@@ -6,15 +5,17 @@
 // `shortSelector(el)` builds a developer-friendly path string for the entry.
 // See SK-465 for the original spec.
 
+import type { CaptureWarning } from "../types.js";
+
 export const createWarnings = () => {
-  const warnings = [];
-  const seen = new Set();
+  const warnings: CaptureWarning[] = [];
+  const seen = new Set<string>();
 
   // Build a short CSS-selectorish path for an element. Not guaranteed unique;
   // just enough context for a developer to find it.
-  const shortSelector = (el) => {
-    const parts = [];
-    let cur = el;
+  const shortSelector = (el: Element): string => {
+    const parts: string[] = [];
+    let cur: Element | null = el;
     while (cur != null && cur.nodeType === 1 && cur !== document.documentElement && parts.length < 5) {
       let p = cur.tagName.toLowerCase();
       if (cur.id) {
@@ -32,7 +33,7 @@ export const createWarnings = () => {
     return parts.join(" > ");
   };
 
-  const warn = (sel, feature, detail) => {
+  const warn = (sel: string, feature: string, detail: string): void => {
     const k = feature + "|" + sel;
     if (seen.has(k)) return;
     seen.add(k);

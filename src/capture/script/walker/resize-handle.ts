@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Capture the facts Blink's PaintLayerScrollableArea / ScrollableAreaPainter
 // consume for the platform resizer. Geometry is deliberately computed through
@@ -12,6 +11,9 @@ import {
   blinkResizerThickness,
   blinkUsesCustomResizer,
 } from "../../../render/resize-handle.js";
+import type { createPseudoRules } from "../pseudo-rules.js";
+
+type PseudoStyle = ReturnType<ReturnType<typeof createPseudoRules>["resolvePseudo"]>;
 
 const _layoutReplacedTags = new Set([
   "img",
@@ -25,7 +27,7 @@ const _layoutReplacedTags = new Set([
   "select",
 ]);
 
-const _hasAxisScrollbar = (overflow, scrollExtent, clientExtent) => {
+const _hasAxisScrollbar = (overflow: string, scrollExtent: number, clientExtent: number): boolean => {
   if (overflow === "scroll") return true;
   return overflow === "auto" && scrollExtent > clientExtent;
 };
@@ -37,8 +39,15 @@ export const createResizeHandleHandler = ({
   themeThickness,
   scaleFromDIP,
   vp,
+}: {
+  resolvePseudo: (el: Element, kind: string) => PseudoStyle;
+  normColor: (color: string) => string;
+  effectiveZoomFor: (el: Element) => number;
+  themeThickness: number;
+  scaleFromDIP: number;
+  vp: { x: number; y: number };
 }) => {
-  const captureResizeHandle = (el, cs, tag, rect) => {
+  const captureResizeHandle = (el: HTMLElement, cs: CSSStyleDeclaration, tag: string, rect: DOMRect) => {
     const activation = {
       resize: cs.resize,
       overflowX: cs.overflowX,

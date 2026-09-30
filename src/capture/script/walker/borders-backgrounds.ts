@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Border + background + outline + box-shadow capture. The bulk of this is
 // cs.X passthrough (the renderer does the real work — emitting SVG strokes
@@ -50,6 +49,32 @@ import {
   mergeCollapsedBorderBox,
 } from "./collapsed-border.js";
 import { validateCollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
+import type { CollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
+import type { CapturedStyles } from "../../types.js";
+import type { CollapsedBorderSource, CollapsedBorderWritingMode } from "./collapsed-border.js";
+
+type BorderSide = "borderTopColor" | "borderRightColor" | "borderBottomColor" | "borderLeftColor";
+type RectEdges = Pick<DOMRect, "left" | "top" | "right" | "bottom" | "width" | "height">;
+type CaptionEdges = Pick<DOMRect, "left" | "top" | "right" | "bottom">;
+type PhysicalBorderSource = CollapsedBorderSource & { color: string };
+type PaintStyle = CSSStyleDeclaration & {
+  cornerTopLeftShape?: string;
+  cornerTopRightShape?: string;
+  cornerBottomRightShape?: string;
+  cornerBottomLeftShape?: string;
+  WebkitTextFillColor?: string;
+  WebkitTextStrokeWidth?: string;
+  WebkitTextStrokeColor?: string;
+  webkitBoxDecorationBreak?: string;
+};
+type BackgroundHost = HTMLElement & { type?: string; __domotionBackgroundImages?: CapturedStyles["backgroundImages"] };
+type PhysicalCollapsedRect = NonNullable<CapturedStyles["collapsedBorderRects"]>[number];
+type CollapsedTable = HTMLTableElement & {
+  __dmCollapsedBorderRects?: PhysicalCollapsedRect[] | null;
+  __dmCollapsedCells?: Set<HTMLTableCellElement>;
+  __dmCollapsedBorderFragmentRecord?:
+    CollapsedBorderFragmentRecord | (CollapsedBorderFragmentRecord & { consumedBy: string });
+};
 
 /** Computed border/outline lengths are serialized in pre-effective-zoom CSS
  * pixels, while captured DOMRects are already in painted coordinates. Blink's
@@ -58,7 +83,7 @@ import { validateCollapsedBorderFragmentRecord } from "../../collapsed-border-fr
  * StyleBuilderConverter::{ConvertBorderWidth,ConvertOutlineOffset} stores
  * zoomed integer lengths; longhands_custom.cc serializes them through
  * ZoomAdjustedPixelValue before getComputedStyle exposes them. */
-export const physicalComputedPaintLength = (value, effectiveZoom) => {
+export const physicalComputedPaintLength = (value: string, effectiveZoom: number): string => {
   if (effectiveZoom === 1) return value;
   const number = parseFloat(value);
   if (!Number.isFinite(number)) return value;
@@ -68,18 +93,19 @@ export const physicalComputedPaintLength = (value, effectiveZoom) => {
 /** Computed background sizes retain pre-zoom px lengths while their consumer
  * rect is physical. Percentages already use that rect; scale only px terms,
  * including px components inside calc(). */
-export const physicalComputedTileSize = (value, effectiveZoom) => {
+export const physicalComputedTileSize = (value: string, effectiveZoom: number): string => {
   if (effectiveZoom === 1) return value;
   return value.replace(
     /(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g,
-    (_match, number) => `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`,
+    (_match: string, number: string) => `${Math.round(parseFloat(number) * effectiveZoom * 1e6) / 1e6}px`,
   );
 };
 
-const scalePhysicalNumber = (value, effectiveZoom) => Math.round(value * effectiveZoom * 1e6) / 1e6;
+const scalePhysicalNumber = (value: number, effectiveZoom: number): number =>
+  Math.round(value * effectiveZoom * 1e6) / 1e6;
 
-const splitGradientArguments = (value) => {
-  const parts = [];
+const splitGradientArguments = (value: string): string[] => {
+  const parts: string[] = [];
   let start = 0;
   let depth = 0;
   let quote = "";
@@ -120,7 +146,7 @@ const splitGradientArguments = (value) => {
  * grammar-owned geometry slots here; numeric color-stop offsets remain
  * fractions and must never be zoomed.
  */
-export const physicalComputedLegacyGradient = (call, effectiveZoom) => {
+export const physicalComputedLegacyGradient = (call: string, effectiveZoom: number): string => {
   if (effectiveZoom === 1) return call;
   const match = /^-webkit-gradient\s*\(\s*(linear|radial)\s*,([\s\S]*)\)$/i.exec(call.trim());
   if (match == null) return call;
@@ -128,11 +154,11 @@ export const physicalComputedLegacyGradient = (call, effectiveZoom) => {
   const args = splitGradientArguments(match[2]);
   if (args.length < (radial ? 4 : 2)) return call;
   const number = /^([+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:e[+-]?\d+)?)$/i;
-  const point = (value) =>
+  const point = (value: string): string =>
     value
       .trim()
       .split(/\s+/)
-      .map((token) => {
+      .map((token: string) => {
         const parsed = number.exec(token);
         return parsed == null ? token : String(scalePhysicalNumber(Number(parsed[1]), effectiveZoom));
       })
@@ -155,10 +181,10 @@ export const physicalComputedLegacyGradient = (call, effectiveZoom) => {
  * only px tokens inside modern gradient functions and only geometry-owned
  * unitless numbers inside deprecated gradients; URL/data payloads and
  * unrelated background layers remain byte-identical. */
-export const physicalComputedGradientImage = (value, effectiveZoom) => {
+export const physicalComputedGradientImage = (value: string, effectiveZoom: number): string => {
   if (effectiveZoom === 1 || value == null || value === "" || value === "none") return value;
   const start = /(?:-webkit-gradient|\b(?:repeating-)?(?:linear|radial|conic)-gradient)\(/gi;
-  const isTopLevel = (end) => {
+  const isTopLevel = (end: number): boolean => {
     let depth = 0;
     let quote = "";
     let escaped = false;
@@ -227,7 +253,7 @@ export const physicalComputedGradientImage = (value, effectiveZoom) => {
       ? physicalComputedLegacyGradient(rawCall, effectiveZoom)
       : rawCall.replace(
           /(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g,
-          (_token, number) => `${scalePhysicalNumber(parseFloat(number), effectiveZoom)}px`,
+          (_token: string, number: string) => `${scalePhysicalNumber(parseFloat(number), effectiveZoom)}px`,
         );
     out += call;
     cursor = end;
@@ -241,11 +267,15 @@ export const physicalComputedGradientImage = (value, effectiveZoom) => {
  * records the table-box extent, then lays out bottom captions the same way.
  * DOMRects give us the fragment offsets and sizes; only the adjoining block
  * margin needs to be restored. */
-export const tableGridRectFromCaptions = (tableRect, writingMode, captions) => {
+export const tableGridRectFromCaptions = (
+  tableRect: RectEdges,
+  writingMode: string,
+  captions: Array<{ rect: CaptionEdges; side: "top" | "bottom"; marginBlockStart: number; marginBlockEnd: number }>,
+) => {
   const vertical = /^(?:vertical|sideways)-/.test(writingMode);
   const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
   const blockExtent = vertical ? tableRect.width : tableRect.height;
-  const logicalEdges = (rect) => {
+  const logicalEdges = (rect: CaptionEdges) => {
     if (!vertical) return { start: rect.top - tableRect.top, end: rect.bottom - tableRect.top };
     if (blockReverse) return { start: tableRect.right - rect.right, end: tableRect.right - rect.left };
     return { start: rect.left - tableRect.left, end: rect.right - tableRect.left };
@@ -294,14 +324,24 @@ export const createBordersBackgroundsHandler = ({
   shortSelector = () => "",
   vp = { x: 0, y: 0 },
   collapsedBorderFragmentRecordFor = () => undefined,
+}: {
+  normColor: (color: string, elementColor?: string) => string;
+  normGradientColors: (image: string, elementColor?: string) => string;
+  resolvePlaceholderShownBg: (el: Element) => string;
+  resolveCornerRadius: (radius: string, width: number, height: number, zoom?: number) => string;
+  effectiveZoomFor?: (el: Element) => number;
+  warn?: (selector: string, category: string, message: string) => void;
+  shortSelector?: (el: Element) => string;
+  vp?: { x: number; y: number };
+  collapsedBorderFragmentRecordFor?: (table: Element) => CollapsedBorderFragmentRecord | undefined;
 }) => {
-  const isUaColorBorder = (tag, el, cs, side) =>
+  const isUaColorBorder = (tag: string, el: BackgroundHost, cs: CSSStyleDeclaration, side: BorderSide): boolean =>
     tag === "input" && el.type === "color" && normColor(cs[side], cs.color).replace(/\s+/g, "") === "rgb(0,0,0)";
 
-  const tintedBorderColor = (tag, el, cs, side) =>
+  const tintedBorderColor = (tag: string, el: BackgroundHost, cs: CSSStyleDeclaration, side: BorderSide): string =>
     isUaColorBorder(tag, el, cs, side) ? "rgb(118,118,118)" : normColor(cs[side], cs.color);
 
-  const pseudoCreatesInflowFragment = (el, pseudo) => {
+  const pseudoCreatesInflowFragment = (el: Element, pseudo: string): boolean => {
     const styleWindow = el.ownerDocument?.defaultView ?? window;
     const pcs = styleWindow.getComputedStyle(el, pseudo);
     const content = pcs.content;
@@ -316,12 +356,12 @@ export const createBordersBackgroundsHandler = ({
     );
   };
 
-  const nodeCreatesInflowFragment = (node) => {
+  const nodeCreatesInflowFragment = (node: Node): boolean => {
     // Text contributes only when inline layout produced an actual fragment.
     // This distinguishes NBSP (a fragment) from collapsed ASCII whitespace
     // without encoding either character class in Domotion.
     if (node.nodeType === 3) {
-      const range = node.ownerDocument.createRange();
+      const range = node.ownerDocument!.createRange();
       range.selectNodeContents(node);
       const hasFragment = range.getClientRects().length > 0;
       if (range.detach) range.detach();
@@ -329,15 +369,15 @@ export const createBordersBackgroundsHandler = ({
     }
     if (node.nodeType !== 1) return false;
     const styleWindow = node.ownerDocument?.defaultView ?? window;
-    const ncs = styleWindow.getComputedStyle(node);
+    const ncs = styleWindow.getComputedStyle(node as Element);
     if (ncs.display === "none" || ncs.position === "absolute" || ncs.position === "fixed") return false;
     if (ncs.display !== "contents") return true;
-    if (pseudoCreatesInflowFragment(node, "::before")) return true;
+    if (pseudoCreatesInflowFragment(node as Element, "::before")) return true;
     for (const child of node.childNodes) if (nodeCreatesInflowFragment(child)) return true;
-    return pseudoCreatesInflowFragment(node, "::after");
+    return pseudoCreatesInflowFragment(node as Element, "::after");
   };
 
-  const tableCellHasInflowFragments = (cell) => {
+  const tableCellHasInflowFragments = (cell: Element): boolean => {
     if (pseudoCreatesInflowFragment(cell, "::before")) return true;
     for (const child of cell.childNodes) if (nodeCreatesInflowFragment(child)) return true;
     return pseudoCreatesInflowFragment(cell, "::after");
@@ -345,7 +385,7 @@ export const createBordersBackgroundsHandler = ({
 
   // `FinalizeTableCellLayout` checks whether the fragment builder has any
   // in-flow children. `empty-cells` is ignored for collapsed-border tables.
-  const isTableCellHiddenByEmptyCells = (el, cs, tag) =>
+  const isTableCellHiddenByEmptyCells = (el: Element, cs: CSSStyleDeclaration, tag: string): boolean =>
     (tag === "td" || tag === "th") &&
     cs.borderCollapse !== "collapse" &&
     cs.emptyCells === "hide" &&
@@ -356,11 +396,13 @@ export const createBordersBackgroundsHandler = ({
   // block (the DM-2654 fixture does this via a shared `.lab` rule); the
   // inherited computed `border-collapse: collapse` value then remains visible
   // through CSSOM even though it is inert for that ordinary block box.
-  const isCollapsedTableCell = (tag, cs) => (tag === "td" || tag === "th") && cs.display === "table-cell";
+  const isCollapsedTableCell = (tag: string, cs: CSSStyleDeclaration): boolean =>
+    (tag === "td" || tag === "th") && cs.display === "table-cell";
 
-  const resolveTableGridRect = (el, cs, tag, rect) => {
+  const resolveTableGridRect = (el: Element, cs: CSSStyleDeclaration, tag: string, rect: DOMRect) => {
     if (tag !== "table") return undefined;
-    const captions = [];
+    const captions: Array<{ rect: DOMRect; side: "top" | "bottom"; marginBlockStart: number; marginBlockEnd: number }> =
+      [];
     for (const child of el.children) {
       const styleWindow = child.ownerDocument?.defaultView ?? window;
       const ccs = styleWindow.getComputedStyle(child);
@@ -385,8 +427,9 @@ export const createBordersBackgroundsHandler = ({
     return { x: grid.x - vp.x, y: grid.y - vp.y, width: grid.width, height: grid.height };
   };
 
-  const computeFrostedBgFallback = (cs) => {
-    const bdf = cs.backdropFilter || cs.webkitBackdropFilter || "";
+  const computeFrostedBgFallback = (cs: CSSStyleDeclaration) => {
+    const bdf =
+      cs.backdropFilter || (cs as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter || "";
     if (bdf === "" || bdf === "none") return undefined;
     const bgCol = normColor(cs.backgroundColor, cs.color);
     // Parse alpha out of "rgba(r,g,b,a)" / "rgb(r,g,b)" / "rgb(r g b / a)".
@@ -409,7 +452,7 @@ export const createBordersBackgroundsHandler = ({
     return bodyA <= 0.1 ? "rgb(255,255,255)" : bodyBg;
   };
 
-  const computeBackgroundImages = (el, cs) => {
+  const computeBackgroundImages = (el: BackgroundHost, cs: CSSStyleDeclaration) => {
     const bgImage = cs.backgroundImage;
     if (bgImage == null || bgImage === "none" || bgImage === "") return undefined;
     const records = el && el.__domotionBackgroundImages;
@@ -417,7 +460,7 @@ export const createBordersBackgroundsHandler = ({
       warn(shortSelector(el), "background-image", "capture-time selected-image sizing record was unavailable");
       return undefined;
     }
-    const recordWarnings = [];
+    const recordWarnings: string[] = [];
     for (const record of records) {
       if (record == null || record.warning == null) continue;
       recordWarnings.push("layer " + record.layerIndex + ": " + record.warning);
@@ -431,7 +474,7 @@ export const createBordersBackgroundsHandler = ({
     return records;
   };
 
-  const computeBorderImageIntrinsic = (cs, dim) => {
+  const computeBorderImageIntrinsic = (cs: CSSStyleDeclaration, dim: "naturalWidth" | "naturalHeight") => {
     const url = extractCssUrl(cs.borderImageSource || "");
     if (url == null) return undefined;
     const img = new Image();
@@ -442,26 +485,33 @@ export const createBordersBackgroundsHandler = ({
   // Blink does not paint collapsed borders on individual table parts. Build
   // one table-owned logical edge graph, then cache its physical paint rects so
   // the table and every contributing descendant consume the same decision.
-  const resolveCollapsedTableRects = (table) => {
+  const resolveCollapsedTableRects = (table: CollapsedTable): PhysicalCollapsedRect[] | null => {
     if (table.__dmCollapsedBorderRects !== undefined) return table.__dmCollapsedBorderRects;
     const tableCs = getComputedStyle(table);
     if (tableCs.borderCollapse !== "collapse") return (table.__dmCollapsedBorderRects = null);
-    const writingMode = tableCs.writingMode || "horizontal-tb";
+    const writingMode = (tableCs.writingMode || "horizontal-tb") as CollapsedBorderWritingMode;
     const direction = tableCs.direction === "rtl" ? "rtl" : "ltr";
     const sectionEls = Array.from(table.children).filter(
       (x) => x.tagName === "THEAD" || x.tagName === "TBODY" || x.tagName === "TFOOT",
-    );
-    const directRows = Array.from(table.children).filter((x) => x.tagName === "TR");
-    const rowEntries = [];
+    ) as HTMLTableSectionElement[];
+    const directRows = Array.from(table.children).filter((x) => x.tagName === "TR") as HTMLTableRowElement[];
+    const rowEntries: Array<{
+      row: HTMLTableRowElement;
+      section: HTMLTableSectionElement | null;
+      sectionIndex: number;
+    }> = [];
     if (directRows.length) for (const row of directRows) rowEntries.push({ row, section: null, sectionIndex: -1 });
     for (let sectionIndex = 0; sectionIndex < sectionEls.length; sectionIndex++) {
-      for (const row of Array.from(sectionEls[sectionIndex].children).filter((x) => x.tagName === "TR"))
+      for (const row of Array.from(sectionEls[sectionIndex].children).filter(
+        (x) => x.tagName === "TR",
+      ) as HTMLTableRowElement[])
         rowEntries.push({ row, section: sectionEls[sectionIndex], sectionIndex });
     }
     if (!rowEntries.length) return (table.__dmCollapsedBorderRects = null);
-    const occupancy = [],
-      cells = [],
-      sections = new Map();
+    type CellMeta = { cell: HTMLTableCellElement; row: number; column: number; rowspan: number; colspan: number };
+    const occupancy: Array<Array<CellMeta | undefined>> = [],
+      cells: CellMeta[] = [],
+      sections = new Map<HTMLTableSectionElement, { start: number; count: number }>();
     let columns = 0;
     for (let r = 0; r < rowEntries.length; r++) {
       occupancy[r] ||= [];
@@ -474,12 +524,14 @@ export const createBordersBackgroundsHandler = ({
       let c = 0;
       for (const cell of Array.from(entry.row.children).filter(
         (x) => (x.tagName === "TD" || x.tagName === "TH") && getComputedStyle(x).display === "table-cell",
-      )) {
+      ) as HTMLTableCellElement[]) {
         while (occupancy[r][c] != null) c++;
         const colspan = Math.max(1, cell.colSpan || 1);
         let rowspan = Math.max(1, cell.rowSpan || 1);
         if (entry.section != null) {
-          const sectionRows = Array.from(entry.section.children).filter((x) => x.tagName === "TR");
+          const sectionRows = Array.from(entry.section.children).filter(
+            (x) => x.tagName === "TR",
+          ) as HTMLTableRowElement[];
           const localRow = sectionRows.indexOf(entry.row);
           rowspan = Math.min(rowspan, sectionRows.length - localRow);
         } else rowspan = Math.min(rowspan, rowEntries.length - r);
@@ -494,17 +546,20 @@ export const createBordersBackgroundsHandler = ({
       }
     }
     if (!columns) return (table.__dmCollapsedBorderRects = null);
-    const grid = createCollapsedBorderGrid(rowEntries.length, columns);
+    const grid = createCollapsedBorderGrid<PhysicalBorderSource>(rowEntries.length, columns);
     let boxOrder = 0;
-    const physicalBorders = (node, order) => {
+    const physicalBorders = (node: Element, order: number) => {
       const cs = getComputedStyle(node);
       const zoom = effectiveZoomFor(node);
-      const one = (side) => ({
-        side: side.toLowerCase(),
+      const one = (side: "Top" | "Right" | "Bottom" | "Left"): PhysicalBorderSource => ({
+        side: side.toLowerCase() as "top" | "right" | "bottom" | "left",
         order,
-        w: parseFloat(physicalComputedPaintLength(cs["border" + side + "Width"], zoom)) || 0,
-        style: collapsedBorderStyle(cs["border" + side + "Style"]),
-        color: normColor(cs["border" + side + "Color"], cs.color),
+        w:
+          parseFloat(
+            physicalComputedPaintLength((cs as unknown as Record<string, string>)["border" + side + "Width"], zoom),
+          ) || 0,
+        style: collapsedBorderStyle((cs as unknown as Record<string, string>)["border" + side + "Style"]),
+        color: normColor((cs as unknown as Record<string, string>)["border" + side + "Color"], cs.color),
       });
       return { top: one("Top"), right: one("Right"), bottom: one("Bottom"), left: one("Left") };
     };
@@ -542,24 +597,40 @@ export const createBordersBackgroundsHandler = ({
         writingMode,
         direction,
       );
-    const columnEntries = [];
+    const columnEntries: Array<{
+      col: HTMLTableColElement | null;
+      group: HTMLTableColElement | null;
+      start: number;
+      span: number;
+    }> = [];
     for (const child of Array.from(table.children)) {
       if (child.tagName === "COL") {
         columnEntries.push({
-          col: child,
+          col: child as HTMLTableColElement,
           group: null,
           start: columnEntries.length,
-          span: Math.max(1, child.span || 1),
+          span: Math.max(1, (child as HTMLTableColElement).span || 1),
         });
       } else if (child.tagName === "COLGROUP") {
         const start = columnEntries.reduce((n, item) => Math.max(n, item.start + item.span), 0);
         const cols = Array.from(child.children).filter((x) => x.tagName === "COL");
-        if (!cols.length) columnEntries.push({ col: null, group: child, start, span: Math.max(1, child.span || 1) });
+        if (!cols.length)
+          columnEntries.push({
+            col: null,
+            group: child as HTMLTableColElement,
+            start,
+            span: Math.max(1, (child as HTMLTableColElement).span || 1),
+          });
         else {
           let at = start;
           for (const col of cols) {
-            const span = Math.max(1, col.span || 1);
-            columnEntries.push({ col, group: child, start: at, span });
+            const span = Math.max(1, (col as HTMLTableColElement).span || 1);
+            columnEntries.push({
+              col: col as HTMLTableColElement,
+              group: child as HTMLTableColElement,
+              start: at,
+              span,
+            });
             at += span;
           }
         }
@@ -579,7 +650,7 @@ export const createBordersBackgroundsHandler = ({
           direction,
         );
     const groupOrder = ++boxOrder;
-    const groupsSeen = new Set();
+    const groupsSeen = new Set<HTMLTableColElement>();
     for (const entry of columnEntries)
       if (entry.group != null && !groupsSeen.has(entry.group)) {
         groupsSeen.add(entry.group);
@@ -609,7 +680,7 @@ export const createBordersBackgroundsHandler = ({
     );
 
     const tableRect = table.getBoundingClientRect();
-    const trackLines = (samples, fallbackEnd) => {
+    const trackLines = (samples: number[][], fallbackEnd: number): number[] => {
       const lines = samples.map((values) => {
         if (!values.length) return null;
         values.sort((a, b) => a - b);
@@ -622,9 +693,9 @@ export const createBordersBackgroundsHandler = ({
         if (lines[i] == null) {
           let hi = i + 1;
           while (hi < lines.length && lines[hi] == null) hi++;
-          lines[i] = lines[i - 1] + (lines[hi] - lines[i - 1]) / (hi - i + 1);
+          lines[i] = lines[i - 1]! + (lines[hi]! - lines[i - 1]!) / (hi - i + 1);
         }
-      return lines;
+      return lines as number[];
     };
     const tableFragments = Array.from(table.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
     if (tableFragments.length > 1) {
@@ -661,7 +732,7 @@ export const createBordersBackgroundsHandler = ({
       }
       const horizontal = writingMode === "horizontal-tb";
       const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
-      const physicalRects = [];
+      const physicalRects: PhysicalCollapsedRect[] = [];
       for (const fragment of record.tableFragments) {
         const fragmentIndex = fragment.fragmentIndex;
         const fragmentRect = {
@@ -701,7 +772,7 @@ export const createBordersBackgroundsHandler = ({
             width = rect.blockSize;
             height = rect.inlineSize;
           }
-          const snap = (start, size) => {
+          const snap = (start: number, size: number) => {
             const rounded = Math.round(start);
             return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) };
           };
@@ -728,8 +799,8 @@ export const createBordersBackgroundsHandler = ({
       };
       return physicalRects;
     }
-    const inlineSamples = Array.from({ length: columns + 1 }, () => []);
-    const blockSamples = Array.from({ length: rowEntries.length + 1 }, () => []);
+    const inlineSamples: number[][] = Array.from({ length: columns + 1 }, () => []);
+    const blockSamples: number[][] = Array.from({ length: rowEntries.length + 1 }, () => []);
     const horizontal = writingMode === "horizontal-tb";
     const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
     const inlineReverse = direction === "rtl";
@@ -771,7 +842,7 @@ export const createBordersBackgroundsHandler = ({
       trackLines(inlineSamples, inlineExtent),
       trackLines(blockSamples, blockExtent),
     );
-    const snap = (start, size) => {
+    const snap = (start: number, size: number) => {
       const rounded = Math.round(start);
       return { start: rounded, size: Math.max(0, Math.round(start + size) - rounded) };
     };
@@ -810,7 +881,7 @@ export const createBordersBackgroundsHandler = ({
   // column box borders don't paint as boxes — their contribution is resolved into
   // the cell edges above. Suppress them so we don't paint concentric structural
   // borders on top of the resolved cell borders.
-  const isCollapsedStructural = (tag, cs) =>
+  const isCollapsedStructural = (tag: string, cs: CSSStyleDeclaration): boolean =>
     cs.borderCollapse === "collapse" &&
     (tag === "table" ||
       tag === "tr" ||
@@ -820,7 +891,14 @@ export const createBordersBackgroundsHandler = ({
       tag === "colgroup" ||
       tag === "col");
 
-  const captureBordersBackgrounds = (el, cs, tag, rect, isPlaceholderCapture, effectiveZoom = 1) => {
+  const captureBordersBackgrounds = (
+    el: BackgroundHost,
+    cs: PaintStyle,
+    tag: string,
+    rect: DOMRect,
+    isPlaceholderCapture?: boolean,
+    effectiveZoom = 1,
+  ): Partial<CapturedStyles> => {
     const backgroundImages = computeBackgroundImages(el, cs);
     return {
       tableGridRect: resolveTableGridRect(el, cs, tag, rect),
@@ -864,15 +942,15 @@ export const createBordersBackgroundsHandler = ({
       // box border (folded into the cells). Placed AFTER the per-side width/style/
       // color fields above so it wins. Complex tables (no resolution) fall through.
       ...(function () {
-        let collapsedTable = null;
+        let collapsedTable: CollapsedTable | null = null;
         if (cs.borderCollapse === "collapse" && ((tag !== "td" && tag !== "th") || isCollapsedTableCell(tag, cs))) {
-          collapsedTable = tag === "table" ? el : el.closest && el.closest("table");
+          collapsedTable = tag === "table" ? (el as CollapsedTable) : (el.closest("table") as CollapsedTable | null);
         }
         const tableRects = collapsedTable != null ? resolveCollapsedTableRects(collapsedTable) : null;
         if (tableRects != null && tag === "table") {
           return {
             collapsedBorderRects: tableRects,
-            collapsedBorderFragmentRecord: collapsedTable.__dmCollapsedBorderFragmentRecord,
+            collapsedBorderFragmentRecord: collapsedTable!.__dmCollapsedBorderFragmentRecord,
             borderTopStyle: "none",
             borderRightStyle: "none",
             borderBottomStyle: "none",

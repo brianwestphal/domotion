@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Blink URL-background attachment ownership, captured while the DOM is live.
 // This module runs inside CAPTURE_SCRIPT. Keep it browser-only and dependency
@@ -17,6 +16,7 @@
 //   box's stitched size.
 
 import { isPaintedColor } from "../../../utils/transparent-background.js";
+import type { CapturedScrollbarSet } from "../../types.js";
 const TRANSFORM_WILL_CHANGE = new Set([
   "transform",
   "transform-style",
@@ -28,8 +28,8 @@ const TRANSFORM_WILL_CHANGE = new Set([
   "offset-position",
 ]);
 
-const splitLayers = (value) => {
-  const out = [];
+const splitLayers = (value: string): string[] => {
+  const out: string[] = [];
   let depth = 0;
   let quote = "";
   let escaped = false;
@@ -63,12 +63,12 @@ const splitLayers = (value) => {
   return out;
 };
 
-const hasAnyTransformWillChange = (style) => {
+const hasAnyTransformWillChange = (style: CSSStyleDeclaration): boolean => {
   if (style.willChange == null || style.willChange === "" || style.willChange === "auto") return false;
   return style.willChange.split(/[\s,]+/).some((token) => TRANSFORM_WILL_CHANGE.has(token.toLowerCase()));
 };
 
-const hasPaintLayerTransform = (style) => {
+const hasPaintLayerTransform = (style: CSSStyleDeclaration): boolean => {
   if (
     (style.transform != null && style.transform !== "" && style.transform !== "none") ||
     (style.translate != null && style.translate !== "" && style.translate !== "none") ||
@@ -80,7 +80,7 @@ const hasPaintLayerTransform = (style) => {
   return style.offsetPath != null && style.offsetPath !== "" && style.offsetPath !== "none";
 };
 
-const isVisibleCanvasBackground = (style) => {
+const isVisibleCanvasBackground = (style: CSSStyleDeclaration): boolean => {
   const image = style.backgroundImage;
   const color = style.backgroundColor;
   return (image != null && image !== "" && image !== "none") || isPaintedColor(color);
@@ -91,12 +91,17 @@ export const createBackgroundAttachmentHandler = ({
   transformRelatedBoxFor,
   effectiveZoomFor,
   scrollbarPropertyKey,
+}: {
+  vp: { x: number; y: number };
+  transformRelatedBoxFor: (el: Element) => boolean | undefined;
+  effectiveZoomFor: (el: Element) => number;
+  scrollbarPropertyKey: string;
 }) => {
-  const fixedToViewport = (el) => {
+  const fixedToViewport = (el: Element): boolean => {
     const doc = el.ownerDocument;
     const root = doc.documentElement;
     if (el === root) return true;
-    for (let current = el; current != null && current !== root; current = current.parentElement) {
+    for (let current: Element | null = el; current != null && current !== root; current = current.parentElement) {
       const style = (current.ownerDocument.defaultView || window).getComputedStyle(current);
       // LayoutObject::HasTransformRelatedProperty is false for non-applicable
       // LayoutInline objects. The live fixed-child probe supplies that fact;
@@ -107,14 +112,20 @@ export const createBackgroundAttachmentHandler = ({
     return true;
   };
 
-  const canvasOwner = (doc) => {
+  const canvasOwner = (doc: Document): Element | null => {
     const root = doc.documentElement;
     const body = doc.body;
     if (root != null && isVisibleCanvasBackground((doc.defaultView || window).getComputedStyle(root))) return root;
     return body;
   };
 
-  const overflowClip = (el, rect, border, scaleX, scaleY) => {
+  const overflowClip = (
+    el: Element,
+    rect: DOMRect,
+    border: { top: number; right: number; bottom: number; left: number },
+    scaleX: number,
+    scaleY: number,
+  ) => {
     let x = rect.left - vp.x + border.left;
     let y = rect.top - vp.y + border.top;
     let width = Math.max(0, rect.width - border.left - border.right);
@@ -125,11 +136,14 @@ export const createBackgroundAttachmentHandler = ({
     // marker record owns scrollbar existence/side/geometry; never infer a bar
     // merely from scroll range.
     const scrollbarSet =
-      typeof scrollbarPropertyKey === "string" && scrollbarPropertyKey !== "" ? el[scrollbarPropertyKey] : undefined;
+      typeof scrollbarPropertyKey === "string" && scrollbarPropertyKey !== ""
+        ? (el as unknown as Record<string, CapturedScrollbarSet | undefined>)[scrollbarPropertyKey]
+        : undefined;
     if (scrollbarSet != null && scrollbarSet.overlay === false) {
-      const vertical = scrollbarSet.vertical && scrollbarSet.vertical.frameRect;
+      const verticalScrollbar = scrollbarSet.vertical;
+      const vertical = verticalScrollbar?.frameRect;
       if (vertical != null) {
-        if (scrollbarSet.vertical.logicalSide === "left") {
+        if (verticalScrollbar?.logicalSide === "left") {
           const edge = vertical.x + vertical.width;
           const shrink = Math.max(0, edge - x);
           x += shrink;
@@ -152,7 +166,13 @@ export const createBackgroundAttachmentHandler = ({
     return { x, y, width, height };
   };
 
-  const captureBackgroundAttachment = (el, style, rect, scaleX = 1, scaleY = 1) => {
+  const captureBackgroundAttachment = (
+    el: Element,
+    style: CSSStyleDeclaration,
+    rect: DOMRect,
+    scaleX = 1,
+    scaleY = 1,
+  ) => {
     const attachments = splitLayers(style.backgroundAttachment || "scroll");
     const needsFixed = attachments.includes("fixed");
     const needsLocal = attachments.includes("local");

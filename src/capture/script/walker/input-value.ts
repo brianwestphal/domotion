@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Input / textarea value-as-text capture. When the host is a non-skipped
 // input or textarea, this handler shapes `el.value` (or the `placeholder`
@@ -76,16 +75,37 @@ const SKIP_VALUE_TYPES = new Set([
 
 const NOT_APPLIED = { applied: false };
 
+import type { CapturedElement, TextSegment } from "../../types.js";
+
+type ValueTextGeometry = {
+  source: "chromium-ua-shadow-text-quad-v1";
+  hostWidth: number;
+  hostHeight: number;
+  textTopOffset: number;
+};
+type TextLine = { text: string; xOffsets: number[]; top: number; bottom: number; left: number; right: number };
+
 export const createInputValueHandler = ({
   vp,
   normColor,
   measureFontMetrics,
   fontFamilyStackFor,
   valueTextGeometryKey,
+}: {
+  vp: { x: number; y: number };
+  normColor: (color: string) => string;
+  measureFontMetrics: (cs: CSSStyleDeclaration) => { ascent: number; descent: number };
+  fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => CapturedElement["placeholderFontFamilyStack"];
+  valueTextGeometryKey: string;
 }) => {
-  const captureInputValue = (el, cs, tag, rect) => {
+  const captureInputValue = (
+    el: HTMLInputElement | HTMLTextAreaElement,
+    cs: CSSStyleDeclaration,
+    tag: string,
+    rect: DOMRect,
+  ) => {
     if (tag !== "input" && tag !== "textarea") return NOT_APPLIED;
-    const inputType = tag === "input" ? el.type || "text" : "";
+    const inputType = tag === "input" ? (el as HTMLInputElement).type || "text" : "";
     if (SKIP_VALUE_TYPES.has(inputType)) return NOT_APPLIED;
 
     let isPlaceholderCapture = false;
@@ -189,7 +209,9 @@ export const createInputValueHandler = ({
     // pierced, same-frame text quad when the host dimensions prove there was no
     // scale/rotation between the retained quad and this neutral capture.
     const usedTextGeometry =
-      typeof valueTextGeometryKey === "string" && valueTextGeometryKey !== "" ? el[valueTextGeometryKey] : null;
+      typeof valueTextGeometryKey === "string" && valueTextGeometryKey !== ""
+        ? (el as unknown as Record<string, ValueTextGeometry | undefined>)[valueTextGeometryKey]
+        : null;
     if (
       tag === "input" &&
       usedTextGeometry?.source === "chromium-ua-shadow-text-quad-v1" &&
@@ -208,8 +230,8 @@ export const createInputValueHandler = ({
     // the FIRST line. Other text-handling fields still mirror the input
     // path; inputXOffsets stays `undefined` for textareas (per-line
     // xOffsets live inside `textSegments`).
-    let textSegments;
-    let inputXOffsets;
+    let textSegments: TextSegment[] | undefined;
+    let inputXOffsets: number[] | undefined;
     if (text.length > 0 && tag === "input") {
       const probe = document.createElement("span");
       probe.style.position = "absolute";
@@ -232,7 +254,7 @@ export const createInputValueHandler = ({
       if (probeNode != null) {
         const probeBox = probe.getBoundingClientRect();
         const probeOriginX = probeBox.left;
-        const xs = [];
+        const xs: number[] = [];
         let i = 0;
         while (i < text.length) {
           const code = text.charCodeAt(i);
@@ -332,8 +354,8 @@ export const createInputValueHandler = ({
         // Each line becomes a textSegment with its own xOffsets[] for the
         // chars in that line. Newline chars (\n) produce zero-width rects
         // at the prior line's end; skip them (they're not painted).
-        const lines = [];
-        let cur = null;
+        const lines: TextLine[] = [];
+        let cur: TextLine | null = null;
         for (let i = 0; i < text.length; i++) {
           const ch = text[i];
           // Skip the newline itself — it's a hard break, not a painted

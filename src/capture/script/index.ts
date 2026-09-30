@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Source for the in-page capture script. The orchestrator of the per-concern
 // factory modules under `src/capture/script/`. The build step at
@@ -57,7 +56,9 @@ import {
   captureTraversalPhase,
 } from "./walker/capture-phases.js";
 import { createLineClampHandler } from "./line-clamp.js";
-import { resolveElementCursor, extractCssUrl, isOutsideCaptureViewport } from "./utils.js";
+import { resolveElementCursor, isOutsideCaptureViewport } from "./utils.js";
+import type { CaptureScriptArgs, CapturedElement } from "../types.js";
+import type { ProjectivePaintNodeFact } from "../projective-owner.js";
 import { parseCrossOriginAllowlist } from "./cross-origin.js";
 import { selectProjectiveRasterOwnerIndexes } from "../projective-owner.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../backdrop-effect-space.js";
@@ -83,7 +84,21 @@ import {
 } from "./walker/element-rasters.js";
 import { createScrollMarkersHandler } from "./walker/scroll-markers.js";
 
-const captureDocumentTree = (args) => {
+type TextPaintRegistry = {
+  indexByElement?: WeakMap<Element, number>;
+  factsByElement?: Array<{ geometry?: CapturedElement["textPaintGeometry"] }>;
+  token: string;
+  indexByTextNode?: WeakMap<Node, number>;
+};
+type PseudoFragmentRegistry = {
+  indexByElement?: WeakMap<Element, number>;
+  factsByElement?: Array<CapturedElement["pseudoFragments"]>;
+};
+type CaptureWindow = Record<string, unknown>;
+type CollapsedFragmentLookup = NonNullable<
+  Parameters<typeof createBordersBackgroundsHandler>[0]["collapsedBorderFragmentRecordFor"]
+>;
+const captureDocumentTree = (args: CaptureScriptArgs) => {
   const sel = args.selector;
   const vp = args.viewport;
   // DM-1442: cross-origin <iframe> recursion allowlist (the parsed
@@ -96,9 +111,9 @@ const captureDocumentTree = (args) => {
   // repeated URL, stale allowlist, or sibling-frame index from authorizing the
   // wrong document during a multi-segment scroll capture.
   const _frameScrollKey = typeof args.frameScrollPropertyKey === "string" ? args.frameScrollPropertyKey : "";
-  const _svgReferenceScopes = new WeakMap();
+  const _svgReferenceScopes = new WeakMap<Node, number>();
   let _nextSvgReferenceScope = 0;
-  function _svgReferenceScope(el) {
+  function _svgReferenceScope(el: Element) {
     var root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
     var existing = _svgReferenceScopes.get(root);
     if (existing != null) return existing;
@@ -110,41 +125,47 @@ const captureDocumentTree = (args) => {
   // DM-2469: the Node/CDP affine probe retains live nodes in a private
   // per-frame registry. The synchronous walker consumes only immutable facts;
   // no author-visible attributes or source-order guesses are involved.
-  function _textPaintRegistryFor(el) {
+  function _textPaintRegistryFor(el: Element): TextPaintRegistry | undefined {
     if (typeof args.textPaintGeometryKey !== "string" || args.textPaintGeometryKey === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
-    return view != null ? view[args.textPaintGeometryKey] : undefined;
+    return view != null
+      ? ((view as unknown as CaptureWindow)[args.textPaintGeometryKey] as TextPaintRegistry | undefined)
+      : undefined;
   }
-  function _textPaintElementIndexFor(el) {
+  function _textPaintElementIndexFor(el: Element) {
     var registry = _textPaintRegistryFor(el);
     return registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
   }
-  function _textPaintFactFor(el) {
+  function _textPaintFactFor(el: Element) {
     var registry = _textPaintRegistryFor(el);
     var index = _textPaintElementIndexFor(el);
     return registry != null && index != null && registry.factsByElement != null
       ? registry.factsByElement[index]
       : undefined;
   }
-  function _textPaintSourceKeyFor(el) {
+  function _textPaintSourceKeyFor(el: Element) {
     var registry = _textPaintRegistryFor(el);
     var index = _textPaintElementIndexFor(el);
     return registry != null && index != null ? registry.token + ":" + index : undefined;
   }
-  function _textPaintSourceTextNodeIndexFor(node) {
+  function _textPaintSourceTextNodeIndexFor(node: Node) {
     var registry =
       node != null && node.ownerDocument != null
-        ? node.ownerDocument.defaultView?.[args.textPaintGeometryKey]
+        ? ((node.ownerDocument.defaultView as unknown as CaptureWindow | null)?.[args.textPaintGeometryKey ?? ""] as
+            TextPaintRegistry | undefined)
         : undefined;
     return registry != null && registry.indexByTextNode != null ? registry.indexByTextNode.get(node) : undefined;
   }
   // DM-2467: exact generated-content fragment records are installed by one
   // frame-scoped CDP prepass. Presence (including a terminal-raster record)
   // disables the legacy clone/probe path for that live host.
-  function _pseudoFragmentFactsFor(el) {
+  function _pseudoFragmentFactsFor(el: Element) {
     if (typeof args.pseudoFragmentKey !== "string" || args.pseudoFragmentKey === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
-    var registry = view != null ? view[args.pseudoFragmentKey] : undefined;
+    var registry =
+      view != null
+        ? ((view as unknown as CaptureWindow)[args.pseudoFragmentKey] as PseudoFragmentRegistry | undefined)
+        : undefined;
     var index = registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
     return registry != null && index != null && registry.factsByElement != null
       ? registry.factsByElement[index]
@@ -155,7 +176,9 @@ const captureDocumentTree = (args) => {
   // returns the handles captureInner / the orchestration tail call. Renamed
   // (e.g. `warnings: _warnings`) to keep captureInner's existing references
   // unchanged.
-  const { normColor, normGradientColors } = createColorNorm();
+  const { normColor: normalizeColor, normGradientColors: normalizeGradientColors } = createColorNorm();
+  const normColor = normalizeColor as (color: string, elementColor?: string) => string;
+  const normGradientColors = normalizeGradientColors as (image: string, elementColor?: string) => string;
   const { rasterCandidates, textNeedsRaster } = createEmojiDetect();
   const { markGetsDottedCircle } = createDottedCircleDetect();
   const {
@@ -166,7 +189,7 @@ const captureDocumentTree = (args) => {
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const { familyIsUADefault: _familyIsUADefault, pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored } =
     createFontFamilyDefault();
-  const _fontFamilyStackFor = (el, computedFontFamily, pseudo) => {
+  const _fontFamilyStackFor = (el: Element, computedFontFamily: string, pseudo?: string) => {
     // Generated/first-letter/placeholder styles inherit the host's
     // kStandardFamily unless they resolve to a distinct family. CSSOM exposes
     // only the concrete settings name, so join the pseudo back to the host's
@@ -180,8 +203,8 @@ const captureDocumentTree = (args) => {
   };
   const { resolveFontPalette: _resolveFontPalette, resolveShadowFontPalettes: _resolveShadowFontPalettes } =
     createFontPaletteResolver();
-  const _fontFeatureValuesByDocument = new WeakMap();
-  const _fontFeatureValuesFor = (doc) => {
+  const _fontFeatureValuesByDocument = new WeakMap<Document, ReturnType<typeof collectFontFeatureValues>>();
+  const _fontFeatureValuesFor = (doc: Document) => {
     let tables = _fontFeatureValuesByDocument.get(doc);
     if (tables == null) {
       tables = collectFontFeatureValues(doc);
@@ -190,7 +213,7 @@ const captureDocumentTree = (args) => {
     return tables;
   };
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules(
-    args.pseudoStylesByHost,
+    args.pseudoStylesByHost as Parameters<typeof createPseudoRules>[0],
     args.pseudoStylePropertyKey,
   );
   const { warn, shortSelector, warnings: _warnings } = createWarnings();
@@ -198,7 +221,7 @@ const captureDocumentTree = (args) => {
   // reads @counter-style rules from document.styleSheets); declared here so
   // the lists-counters and pseudo-content handlers close over the same
   // object reference via the shared counter-style resolver.
-  const _counterStyles = {};
+  const _counterStyles: Parameters<typeof createCounterStyleResolver>[0]["counterStyles"] = {};
   // DM-1443: the `@counter-style` collector, captured so it can be re-run
   // against a recursed iframe's own document (`_runCounterStylePrewalk(doc)`).
   const _runCounterStylePrewalk = createCounterStylePrewalk({ counterStyles: _counterStyles });
@@ -233,8 +256,13 @@ const captureDocumentTree = (args) => {
   // independent CSSOM and protocol geometry. Keep the live DOM correlation in
   // a private WeakMap; no author-visible id participates in ownership.
   const _collapsedBorderFragmentRegistry =
-    typeof args.collapsedBorderFragmentKey === "string" ? globalThis[args.collapsedBorderFragmentKey] : null;
-  const _collapsedBorderFragmentByTable = new WeakMap();
+    typeof args.collapsedBorderFragmentKey === "string"
+      ? ((globalThis as Record<string, unknown>)[args.collapsedBorderFragmentKey] as {
+          tables: Element[];
+          records: unknown[];
+        } | null)
+      : null;
+  const _collapsedBorderFragmentByTable = new WeakMap<Element, NonNullable<ReturnType<CollapsedFragmentLookup>>>();
   if (
     _collapsedBorderFragmentRegistry != null &&
     Array.isArray(_collapsedBorderFragmentRegistry.tables) &&
@@ -244,7 +272,7 @@ const captureDocumentTree = (args) => {
       const _cbfTable = _collapsedBorderFragmentRegistry.tables[_cbfi];
       const _cbfRecord = _collapsedBorderFragmentRegistry.records[_cbfi];
       if (_cbfTable != null && _cbfRecord != null) {
-        _collapsedBorderFragmentByTable.set(_cbfTable, _cbfRecord);
+        _collapsedBorderFragmentByTable.set(_cbfTable, _cbfRecord as NonNullable<ReturnType<CollapsedFragmentLookup>>);
       }
     }
   }
@@ -312,7 +340,7 @@ const captureDocumentTree = (args) => {
     vp,
   });
 
-  const capture = (el) => {
+  const capture = (el: Element): CapturedElement | null => {
     // Freeze the element's CSS transform for the duration of the capture
     // so getBoundingClientRect returns un-transformed coords; the renderer
     // re-applies the saved transform via an SVG group wrapper. See
@@ -323,9 +351,14 @@ const captureDocumentTree = (args) => {
     // though Chromium paints the frame's authored face.
     const styleWindow = el.ownerDocument?.defaultView ?? window;
     const cs = styleWindow.getComputedStyle(el);
-    return wrapWithFrozenTransform(el, cs, captureInner);
+    return wrapWithFrozenTransform(el as HTMLElement, cs, captureInner);
   };
-  const captureInner = (el, cs, frozenTransform, frozenTransformOrigin) => {
+  const captureInner = (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    frozenTransform?: string | null,
+    frozenTransformOrigin?: string | null,
+  ): CapturedElement | null => {
     const rect = el.getBoundingClientRect();
     const _textPaintFact = _textPaintFactFor(el);
     const _pseudoFragmentFacts = _pseudoFragmentFactsFor(el);
@@ -348,7 +381,7 @@ const captureDocumentTree = (args) => {
     transformSubtreeRaster = transformSubtreeRasterOwner({
       makeRaster: _makeTransformSubtreeRaster,
       ownsRasterBoundary: _ownsRasterBoundary,
-      textPaintFact: _textPaintFact,
+      textPaintFact: _textPaintFact as { surfaceReason?: string | null } | undefined,
       warn,
       selector: () => shortSelector(el),
     });
@@ -363,29 +396,29 @@ const captureDocumentTree = (args) => {
     // children) so the in-viewport descendants are reached. _fixedAncestors
     // is precomputed in the pre-pass below.
     const _geometryStyle = captureGeometryStylePhase({
-      el,
+      el: el as HTMLElement,
       cs,
       rect,
       vp,
       fixedAncestors: _fixedAncestors,
       transformInfluenced: _transformInfluenced,
       animInfluenced: _animInfluenced,
-      isOutsideCaptureViewport,
+      isOutsideCaptureViewport: (rect) => isOutsideCaptureViewport(rect, vp),
     });
     if (_geometryStyle == null) return null;
-    const {
-      outsideViewport,
-      bordersOnlyCell,
-      contentVisibilityHidden: _contentVisHidden,
-      zeroSized,
-      tag,
-    } = _geometryStyle;
+    const { bordersOnlyCell, contentVisibilityHidden: _contentVisHidden, tag } = _geometryStyle;
 
     // Emit warnings for features domotion can't fully round-trip. Keep
     // these short and actionable — consumers (CLI, tests, demo scripts) log
     // them so the fidelity gaps are self-documenting.
     const sel = shortSelector(el);
-    const _native = captureNativeControlState({ el, cs, tag, sel, _pseudoFragmentFacts });
+    const _native = captureNativeControlState({
+      el: el as Parameters<typeof captureNativeControlState>[0]["el"],
+      cs,
+      tag,
+      sel,
+      _pseudoFragmentFacts,
+    });
     warnBeforeMaskDiscovery(el, cs, sel);
     const {
       maskFragmentReferences: _maskFragmentReferences,
@@ -402,7 +435,7 @@ const captureDocumentTree = (args) => {
 
     const { imageSrc, imageIntrinsic, imageEffectiveZoom, imageBroken, imageAlt, brokenImageFallback } =
       captureImageElement({
-        el,
+        el: el as HTMLElement,
         tag,
         rect,
         vp,
@@ -415,9 +448,9 @@ const captureDocumentTree = (args) => {
     if (tag === "svg") {
       const externalSvgDocuments =
         typeof args.externalSvgUseKey === "string" && args.externalSvgUseKey !== ""
-          ? globalThis[args.externalSvgUseKey]
+          ? ((globalThis as Record<string, unknown>)[args.externalSvgUseKey] as Parameters<typeof captureInlineSvg>[4])
           : undefined;
-      const inlineSvgCapture = captureInlineSvg(el, cs, warn, sel, externalSvgDocuments);
+      const inlineSvgCapture = captureInlineSvg(el as SVGSVGElement, cs, warn, sel, externalSvgDocuments);
       svgContent = inlineSvgCapture.content;
       // Missing/singular CTMs and failed isolated-clone correlation are an
       // explicit vector boundary, never a request for cssTransformToSvg's six-
@@ -435,14 +468,14 @@ const captureDocumentTree = (args) => {
       capture,
     });
 
-    const _animId = el.dataset != null ? el.dataset.domotionAnim : undefined;
+    const _animId = (el as HTMLElement).dataset?.domotionAnim;
     // DM-900: author-supplied magic-move pairing key (`data-magic-key`). When
     // present on the same logical element across two animation frames, the
     // magic-move matcher force-pairs them ahead of its fingerprint heuristic.
-    const _magicKey = el.dataset != null ? el.dataset.magicKey : undefined;
+    const _magicKey = (el as HTMLElement).dataset?.magicKey;
 
     // <fieldset>+<legend> box adjustment (DM-1436: extracted to walker/fieldset-legend.ts).
-    const _fsBox = computeFieldsetLegendBox(el, tag, rect, vp);
+    const _fsBox = computeFieldsetLegendBox(el as HTMLElement, tag, rect, vp);
 
     const _captured = {
       tag,
@@ -452,7 +485,7 @@ const captureDocumentTree = (args) => {
       width: _fsBox.width,
       height: _fsBox.height,
       fieldsetLegendNotch: _fsBox.fieldsetLegendNotch,
-      resizeHandle: captureResizeHandle(el, cs, tag, rect),
+      resizeHandle: captureResizeHandle(el as HTMLElement, cs, tag, rect),
       // DM-2481: populated by the Node-side live Chromium marker probe.  The
       // serialized record is already in capture-viewport coordinates and may
       // be explicitly partial/unavailable; the renderer must never infer a
@@ -479,21 +512,20 @@ const captureDocumentTree = (args) => {
       // Omitted when it resolves to the default arrow (the common case) to keep
       // the tree lean — the overlay treats a missing value as `default`.
       cursor: (() => {
-        const _c = resolveElementCursor(el, cs);
+        const _c = resolveElementCursor(el as HTMLElement, cs);
         return _c === "default" ? undefined : _c;
       })(),
       styles: buildStyleRecord({
-        el,
+        el: el as HTMLElement,
         cs,
         tag,
         rect,
         frozenTransform,
         frozenTransformOrigin,
-        projectiveTransform,
         isPlaceholderCapture: _text.isPlaceholderCapture,
         ..._native,
         _capturedFontFamilyStack,
-      }),
+      }) as CapturedElement["styles"],
       projectiveTransform,
       projectiveHidden,
       projectiveFrameState,
@@ -574,7 +606,7 @@ const captureDocumentTree = (args) => {
         rect,
         cs,
         vp,
-        _projectiveNodeIndex,
+        _projectiveNodeIndex: _projectiveNodeIndex as unknown as Map<Element, number>,
         sel,
         tag,
         el,
@@ -588,7 +620,7 @@ const captureDocumentTree = (args) => {
         rect,
         vp,
         sel,
-        _projectiveNodeIndex,
+        _projectiveNodeIndex: _projectiveNodeIndex as unknown as Map<Element, number>,
         el,
       }),
       // DM-2171: backdrop-filter samples already-painted content behind this
@@ -601,7 +633,9 @@ const captureDocumentTree = (args) => {
         el,
         vp,
         sel,
-        _backdropEffectSpaceFor,
+        _backdropEffectSpaceFor: _backdropEffectSpaceFor as Parameters<
+          typeof captureBackdropFilterRaster
+        >[0]["_backdropEffectSpaceFor"],
         nextBackdropToken: () => "bf" + _backdropRasterSeq++,
       }),
       // DM-2415: a CSS URL filter containing feConvolveMatrix needs Blink's
@@ -617,7 +651,7 @@ const captureDocumentTree = (args) => {
               height: rect.height,
               token: urlFilterRasterToken,
             },
-    };
+    } as CapturedElement;
     return assembleCaptureResultPhase({
       captured: _captured,
       el,
@@ -627,15 +661,23 @@ const captureDocumentTree = (args) => {
       vp,
       bordersOnlyCell,
       detectInlineFragments,
-      iframeFrameAuthority: _iframeFrameAuthority,
-      captureIframeRecursion: _captureIframeRecursion,
+      iframeFrameAuthority: _iframeFrameAuthority as Parameters<
+        typeof assembleCaptureResultPhase
+      >[0]["iframeFrameAuthority"],
+      captureIframeRecursion: _captureIframeRecursion as Parameters<
+        typeof assembleCaptureResultPhase
+      >[0]["captureIframeRecursion"],
       handleReplacedElement,
-      captureScrollMarkerGroup: _captureScrollMarkerGroup,
-      captureScrollButtons: _captureScrollButtons,
+      captureScrollMarkerGroup: _captureScrollMarkerGroup as Parameters<
+        typeof assembleCaptureResultPhase
+      >[0]["captureScrollMarkerGroup"],
+      captureScrollButtons: _captureScrollButtons as Parameters<
+        typeof assembleCaptureResultPhase
+      >[0]["captureScrollButtons"],
     });
   };
 
-  const { _captureScrollMarkerGroup, _captureScrollButtons } = createScrollMarkersHandler({ capture, sel });
+  const { _captureScrollMarkerGroup, _captureScrollButtons } = createScrollMarkersHandler({ capture });
 
   const root = document.querySelector(sel);
   if (!root) return { tree: [], warnings: [] };
@@ -650,7 +692,7 @@ const captureDocumentTree = (args) => {
   // transparent containers. position:absolute is NOT included because absolute
   // elements are positioned relative to their containing block, so if their
   // CB ancestor's rect is offscreen, so is the absolute child.
-  const _fixedAncestors = new Set();
+  const _fixedAncestors = new Set<Element>();
   const _allEls = root.getElementsByTagName("*");
   for (let _i = 0; _i < _allEls.length; _i++) {
     const _el = _allEls[_i];
@@ -680,7 +722,7 @@ const captureDocumentTree = (args) => {
   // renderer never sees the slide at all. The renderer re-applies the
   // saved transform when drawing, so descendants captured here will be
   // painted at the correct post-transform position.
-  const _transformInfluenced = new Set();
+  const _transformInfluenced = new Set<Element>();
   for (let _ti = 0; _ti < _allEls.length; _ti++) {
     const _tel = _allEls[_ti];
     const _tt = getComputedStyle(_tel).transform;
@@ -713,7 +755,7 @@ const captureDocumentTree = (args) => {
   // its independent filter/contain state answer the transform question. Probe
   // only transform-related candidates, remove the zero-size host immediately,
   // and retain the boolean for perspective activation and fixed ownership.
-  const _transformRelatedBox = new WeakMap();
+  const _transformRelatedBox = new WeakMap<Element, boolean>();
   const _transformRelatedWillChange = new Set([
     "transform",
     "transform-style",
@@ -724,7 +766,7 @@ const captureDocumentTree = (args) => {
     "offset-path",
     "offset-position",
   ]);
-  const _hasTransformRelatedSignal = (_cs) => {
+  const _hasTransformRelatedSignal = (_cs: CSSStyleDeclaration) => {
     if (
       (_cs.transform != null && _cs.transform !== "" && _cs.transform !== "none") ||
       (_cs.translate != null && _cs.translate !== "" && _cs.translate !== "none") ||
@@ -756,15 +798,18 @@ const captureDocumentTree = (args) => {
   // temporarily freeze rotate/skew declarations. This source-owned record is
   // consumed by the Node screenshot pass; ordinary stacking, isolation,
   // overflow, positioning, and transforms do not become Backdrop Roots.
-  const _backdropEffectFacts = new WeakMap();
-  const _backdropFactsFor = (_element, _style) => ({
+  const _backdropEffectFacts = new WeakMap<Element, ReturnType<typeof _backdropFactsFor>>();
+  const _backdropFactsFor = (_element: Element, _style: CSSStyleDeclaration) => ({
     isDocumentRoot: _element === _element.ownerDocument.documentElement,
     opacity: _style.opacity || "1",
     filter: _style.filter || "none",
-    backdropFilter: _style.backdropFilter || _style.webkitBackdropFilter || "none",
+    backdropFilter:
+      _style.backdropFilter ||
+      (_style as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter ||
+      "none",
     clipPath: _style.clipPath || "none",
     maskImage: _style.maskImage || "none",
-    maskBorderSource: _style.maskBorderSource || "none",
+    maskBorderSource: (_style as CSSStyleDeclaration & { maskBorderSource?: string }).maskBorderSource || "none",
     mixBlendMode: _style.mixBlendMode || "normal",
     willChange: _style.willChange || "auto",
     transform: _style.transform || "none",
@@ -777,7 +822,7 @@ const captureDocumentTree = (args) => {
     const _styleWindow = _element.ownerDocument?.defaultView ?? window;
     _backdropEffectFacts.set(_element, _backdropFactsFor(_element, _styleWindow.getComputedStyle(_element)));
   }
-  const _backdropEffectSpaceFor = (_target) => {
+  const _backdropEffectSpaceFor = (_target: Element) => {
     const _ancestors = [];
     let _nearestRoot;
     let _ancestor = _target.parentElement;
@@ -860,14 +905,16 @@ const captureDocumentTree = (args) => {
   // or appended HTML child can change SVG layout.  SVG graphics children are
   // source-flattened affine and deliberately do not receive a general box
   // homography; outer SVG roots and HTML boxes may.
-  const _projectiveFacts = Array.isArray(args.projectiveFacts) ? args.projectiveFacts : [];
+  const _projectiveFacts = (
+    Array.isArray(args.projectiveFacts) ? args.projectiveFacts : []
+  ) as ProjectivePaintNodeFact[];
   const _projectiveDomNodes =
-    typeof args.projectiveKey === "string" && Array.isArray(globalThis[args.projectiveKey])
-      ? globalThis[args.projectiveKey]
+    typeof args.projectiveKey === "string" && Array.isArray((globalThis as Record<string, unknown>)[args.projectiveKey])
+      ? ((globalThis as Record<string, unknown>)[args.projectiveKey] as Element[])
       : [];
-  const _projectiveNodeIndex = new WeakMap();
-  const _projectedQuads = new WeakMap();
-  const _projectiveAbsH = new WeakMap();
+  const _projectiveNodeIndex = new WeakMap<Element, number>();
+  const _projectedQuads = new WeakMap<Element, Array<{ x: number; y: number }>>();
+  const _projectiveAbsH = new WeakMap<Element, number[]>();
   for (let _pi = 0; _pi < _projectiveFacts.length; _pi++) {
     const _fact = _projectiveFacts[_pi];
     const _pel = _projectiveDomNodes[_pi];
@@ -883,7 +930,7 @@ const captureDocumentTree = (args) => {
       { x: _values[6], y: _values[7] },
     ]);
   }
-  const _nonAffineProjectiveRoots = new Set();
+  const _nonAffineProjectiveRoots = new Set<Element>();
   for (const _ownerIndex of selectProjectiveRasterOwnerIndexes(_projectiveFacts)) {
     const _owner = _projectiveDomNodes[_ownerIndex];
     if (_owner != null) _nonAffineProjectiveRoots.add(_owner);
@@ -898,10 +945,11 @@ const captureDocumentTree = (args) => {
   // from the `outsideViewport` early-return; the post-capture, animation-aware
   // viewBox cull (`cullElementsOutsideViewBox`) then trims any that never
   // actually enter the viewport during the scene. Mirrors `_transformInfluenced`.
-  const _animInfluenced = new Set();
+  const _animInfluenced = new Set<Element>();
   for (let _ai = 0; _ai < _allEls.length; _ai++) {
     const _ael = _allEls[_ai];
-    if (_ael.dataset == null || _ael.dataset.domotionAnim == null || _ael.dataset.domotionAnim === "") continue;
+    if ((_ael as HTMLElement).dataset?.domotionAnim == null || (_ael as HTMLElement).dataset.domotionAnim === "")
+      continue;
     _animInfluenced.add(_ael);
     const _adescs = _ael.getElementsByTagName("*");
     for (let _aj = 0; _aj < _adescs.length; _aj++) _animInfluenced.add(_adescs[_aj]);
@@ -910,8 +958,8 @@ const captureDocumentTree = (args) => {
   // DM-2470: keep effective CSS zoom as a local layout/metric input. CSS
   // transforms never enter this map; authoritative textPaintGeometry owns
   // their complete signed affine mapping after shaping.
-  const _cumulativeZoom = new Map();
-  const _effectiveZoomFor = (el) => {
+  const _cumulativeZoom = new Map<Element, number>();
+  const _effectiveZoomFor = (el: Element | null): number => {
     if (el == null) return 1;
     const hit = _cumulativeZoom.get(el);
     if (hit != null) return hit;
@@ -924,7 +972,7 @@ const captureDocumentTree = (args) => {
   // Background attachment is a separate box-paint protocol. Its live physical
   // scroll geometry still needs pure scale magnitudes, so keep that conversion
   // narrowly named and owned here rather than sharing it with text.
-  const _backgroundAttachmentAxisScale = (_tt) => {
+  const _backgroundAttachmentAxisScale = (_tt: string): [number, number] => {
     if (_tt == null || _tt === "none" || _tt === "") return [1, 1];
     const _m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/.exec(_tt);
     let _sa = 1,
@@ -951,8 +999,8 @@ const captureDocumentTree = (args) => {
   // transforms are temporarily frozen and later re-applied by the SVG wrapper;
   // folding their matrix a/d terms into scroll offsets would apply that part
   // twice. Resolve the scale along the real DOM ancestry and cache the result.
-  const _backgroundAttachmentPaintScale = new WeakMap();
-  const _backgroundAttachmentPaintScaleFor = (el) => {
+  const _backgroundAttachmentPaintScale = new WeakMap<Element, [number, number]>();
+  const _backgroundAttachmentPaintScaleFor = (el: Element | null): [number, number] => {
     if (el == null) return [1, 1];
     const _hit = _backgroundAttachmentPaintScale.get(el);
     if (_hit != null) return _hit;
@@ -965,7 +1013,7 @@ const captureDocumentTree = (args) => {
       : _backgroundAttachmentAxisScale(_effectiveTransform);
     const _ownZoom = parseFloat(_style.zoom);
     const _zoom = Number.isFinite(_ownZoom) && _ownZoom > 0 ? _ownZoom : 1;
-    const _resolved = [_parent[0] * _ownScale[0] * _zoom, _parent[1] * _ownScale[1] * _zoom];
+    const _resolved: [number, number] = [_parent[0] * _ownScale[0] * _zoom, _parent[1] * _ownScale[1] * _zoom];
     _backgroundAttachmentPaintScale.set(el, _resolved);
     return _resolved;
   };
@@ -973,8 +1021,6 @@ const captureDocumentTree = (args) => {
   _counterPreWalk(root);
   const { _captureIframeRecursion, _iframeFrameAuthority, _iframeIsRecursable } = createIframeRecursionHandler({
     _counterPreWalk,
-    _counterSnapshot,
-    _counterStyles,
     _crossOriginAllow,
     _fixedAncestors,
     _frameScrollKey,
@@ -986,15 +1032,19 @@ const captureDocumentTree = (args) => {
   });
   const { warnBeforeMaskDiscovery, warnAfterMaskDiscovery } = createFidelityWarnings({
     warn,
-    _iframeIsRecursable,
-    _iframeFrameAuthority,
+    _iframeIsRecursable: _iframeIsRecursable as Parameters<typeof createFidelityWarnings>[0]["_iframeIsRecursable"],
+    _iframeFrameAuthority: _iframeFrameAuthority as Parameters<
+      typeof createFidelityWarnings
+    >[0]["_iframeFrameAuthority"],
     _frameScrollKey,
   });
   const { captureTextPhase } = createTextPhaseHandler({
-    capturePseudoContent,
+    capturePseudoContent: capturePseudoContent as Parameters<typeof createTextPhaseHandler>[0]["capturePseudoContent"],
     _counterSnapshot,
-    captureInputValue,
-    captureTextSegments,
+    captureInputValue: captureInputValue as Parameters<typeof createTextPhaseHandler>[0]["captureInputValue"],
+    captureTextSegments: captureTextSegments as unknown as Parameters<
+      typeof createTextPhaseHandler
+    >[0]["captureTextSegments"],
     injectPseudoSegments,
     _effectiveZoomFor,
     _measureFontMetrics,
@@ -1004,22 +1054,28 @@ const captureDocumentTree = (args) => {
     vp,
     warn,
     normColor,
-    captureTextSegments,
+    captureTextSegments: captureTextSegments as unknown as Parameters<
+      typeof createNativeControlsHandler
+    >[0]["captureTextSegments"],
     _effectiveZoomFor,
     _fontFamilyStackFor,
     _measureFontMetrics,
   });
   const buildStyleRecord = createStyleRecordBuilder({
-    captureFormControls,
+    captureFormControls: captureFormControls as Parameters<typeof createStyleRecordBuilder>[0]["captureFormControls"],
     threadFrozenTransform,
     _backgroundAttachmentPaintScaleFor,
     _effectiveZoomFor,
     _fontFeatureValuesFor,
     _resolveFontPalette,
     _resolveShadowFontPalettes,
-    _transformRelatedBox,
-    captureBackgroundAttachment,
-    captureBordersBackgrounds,
+    _transformRelatedBox: _transformRelatedBox as unknown as Map<Element, boolean>,
+    captureBackgroundAttachment: captureBackgroundAttachment as Parameters<
+      typeof createStyleRecordBuilder
+    >[0]["captureBackgroundAttachment"],
+    captureBordersBackgrounds: captureBordersBackgrounds as Parameters<
+      typeof createStyleRecordBuilder
+    >[0]["captureBordersBackgrounds"],
     computeMaskIntrinsic,
     isTableCellHiddenByEmptyCells,
     normColor,
@@ -1114,9 +1170,10 @@ const captureDocumentTree = (args) => {
       var _rootScrollbarOwner = document.scrollingElement;
       var _rootScrollbarRecord =
         _rootScrollbarOwner != null && typeof args.scrollbarPropertyKey === "string" && args.scrollbarPropertyKey !== ""
-          ? _rootScrollbarOwner[args.scrollbarPropertyKey]
+          ? (_rootScrollbarOwner as Element & Record<string, unknown>)[args.scrollbarPropertyKey]
           : undefined;
-      if (_rootScrollbarRecord != null) result[0].rootScrollbars = _rootScrollbarRecord;
+      if (_rootScrollbarRecord != null)
+        result[0].rootScrollbars = _rootScrollbarRecord as CapturedElement["rootScrollbars"];
       var _isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       result[0].styles.rootColorScheme = _isDark ? "dark" : "light";
       var _docCs = window.getComputedStyle(document.documentElement);
@@ -1134,4 +1191,4 @@ const captureDocumentTree = (args) => {
 };
 
 /** Serializable in-page capture entry point; orchestration lives above. */
-export const captureScript = (args) => captureDocumentTree(args);
+export const captureScript = (args: CaptureScriptArgs) => captureDocumentTree(args);

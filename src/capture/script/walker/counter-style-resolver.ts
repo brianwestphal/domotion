@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // DM-770 / DM-788: resolves a custom @counter-style name + 1-based index to
 // the marker symbol string per the CSS Counter Styles algorithms (cyclic,
@@ -20,7 +19,27 @@
 // Bundled into the page-context capture script via the index.ts orchestrator;
 // no runtime imports of its own.
 
-export const createCounterStyleResolver = ({ counterStyles }) => {
+export interface CounterStyleDefinition {
+  system: string;
+  symbols: string[];
+  additiveSymbols: Array<{ weight: number; sym: string }>;
+  prefix: string;
+  suffix: string;
+  negPrefix: string;
+  negSuffix: string;
+  padLen: number;
+  padSym: string;
+  rangeLo: number;
+  rangeHi: number;
+  fallback: string;
+  extendsName?: string;
+}
+
+export const createCounterStyleResolver = ({
+  counterStyles,
+}: {
+  counterStyles: Record<string, CounterStyleDefinition>;
+}) => {
   // Built-in counter-style names whose algorithm the render side already
   // covers inside `formatListMarker`. When an `extends` / `fallback` chain
   // bottoms out at one of these, return the formatted symbol so the caller
@@ -43,15 +62,15 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
 
   // Marker-context resolution (used by list-item ::marker). Returns the full
   // string with prefix + pad + value + suffix wrapping per the CSS spec.
-  const resolveCounterStyle = (name, n) => _resolve(name, n, 0, true);
+  const resolveCounterStyle = (name: string, n: number) => _resolve(name, n, 0, true);
   // Counter-function-context resolution (used by `counter()` / `counters()`
   // inside `content`). Per Chrome's paint, the function returns only the
   // pad-formatted value: prefix / suffix are NOT included. Matches DM-788
   // empirical probe.
-  const resolveCounterValue = (name, n) => _resolve(name, n, 0, false);
-  const isCustomCounterStyle = (name) => counterStyles[name] != null;
+  const resolveCounterValue = (name: string, n: number) => _resolve(name, n, 0, false);
+  const isCustomCounterStyle = (name: string) => counterStyles[name] != null;
 
-  const _resolve = (name, n, depth, wrap) => {
+  const _resolve = (name: string, n: number, depth: number, wrap: boolean): string | null => {
     if (depth > 16) return null; // fallback / extends loop guard
     if (BUILTINS.has(name)) return _formatBuiltin(name, n);
     const def = counterStyles[name];
@@ -74,7 +93,7 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
     }
     const negative = n < 0;
     const abs = Math.abs(n);
-    let core = null;
+    let core: string | null = null;
     switch (def.system) {
       case "cyclic":
         if (def.symbols.length === 0) break;
@@ -153,13 +172,13 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
     return wrap ? def.prefix + sign + padded + signTail + def.suffix : sign + padded + signTail;
   };
 
-  const _applyPad = (s, len, sym) => {
+  const _applyPad = (s: string, len: number, sym: string): string => {
     if (!len || !sym) return s;
     while ([...s].length < len) s = sym + s;
     return s;
   };
 
-  const _formatBuiltin = (type, n) => {
+  const _formatBuiltin = (type: string, n: number): string | null => {
     switch (type) {
       case "decimal":
         return String(n);
@@ -186,7 +205,7 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
         return String(n);
     }
   };
-  const _alphaMarker = (n, upper) => {
+  const _alphaMarker = (n: number, upper: boolean): string => {
     if (n <= 0) return String(n);
     const base = upper ? 65 : 97;
     let s = "";
@@ -198,7 +217,7 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
     }
     return s;
   };
-  const _greekMarker = (n) => {
+  const _greekMarker = (n: number): string => {
     if (n <= 0) return String(n);
     const greek = "αβγδεζηθικλμνξοπρστυφχψω";
     let s = "";
@@ -210,7 +229,7 @@ export const createCounterStyleResolver = ({ counterStyles }) => {
     }
     return s;
   };
-  const _romanMarker = (n) => {
+  const _romanMarker = (n: number): string => {
     if (n <= 0 || n >= 4000) return String(n);
     const vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
     const syms = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"];

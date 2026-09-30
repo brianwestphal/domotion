@@ -1,11 +1,66 @@
-// @ts-nocheck
 //
 // The text-bearing phase of an element's capture: ::before/::after generated content, input/textarea
 // value or text-node segments, pseudo-segment injection and per-segment computed-size metrics — extracted
 // from the capture script's `captureInner`. Part of the page-`evaluate`d CAPTURE_SCRIPT bundle — self-contained,
 // page globals only; stable services come through the factory argument.
 
-export const createTextPhaseHandler = (ctx) => {
+import type { CapturedElement, PseudoBox, TextSegment } from "../../types.js";
+import type { PseudoSegment } from "./pseudo-inject.js";
+
+type CaptureTextSegment = TextSegment & { fontDescent?: number };
+type TextLocals = {
+  text: string;
+  textLeft: number;
+  textTop: number;
+  textWidth: number;
+  textHeight: number;
+  fontAscent: number;
+};
+type InputCapture =
+  | { applied: false }
+  | ({
+      applied: true;
+      fontDescent: number;
+      inputXOffsets?: number[];
+      textSegments?: CaptureTextSegment[];
+      isPlaceholderCapture?: boolean;
+      placeholderColor?: string;
+      placeholderFontStyle?: string;
+      placeholderFontWeight?: string;
+      placeholderFontFamily?: string;
+      placeholderFontFamilyStack?: CapturedElement["placeholderFontFamilyStack"];
+    } & TextLocals);
+type TextCapture = { text: string; textSegments: CaptureTextSegment[]; lineClampTextFragments?: boolean } & (
+  | { textLeft?: undefined }
+  | {
+      textLeft: number;
+      textTop: number;
+      textWidth: number;
+      textHeight: number;
+      fontAscent: number;
+      fontDescent: number;
+    }
+);
+type PseudoCapture = { pseudoSegments: PseudoSegment[]; pseudoBoxes: PseudoBox[] };
+type InjectedCapture = TextLocals & { pseudoImages: CapturedElement["pseudoImages"] };
+
+export const createTextPhaseHandler = (ctx: {
+  capturePseudoContent: (el: Element, cs: CSSStyleDeclaration, rect: DOMRect, snapshot: unknown) => PseudoCapture;
+  _counterSnapshot: unknown;
+  captureInputValue: (el: Element, cs: CSSStyleDeclaration, tag: string, rect: DOMRect) => InputCapture;
+  captureTextSegments: (el: Element, cs: CSSStyleDeclaration) => TextCapture;
+  injectPseudoSegments: (
+    el: Element,
+    pseudoSegments: PseudoSegment[],
+    textSegments: CaptureTextSegment[],
+    state: TextLocals,
+  ) => InjectedCapture;
+  _effectiveZoomFor: (el: Element) => number;
+  _measureFontMetrics: (
+    style: Pick<CSSStyleDeclaration, "fontStyle" | "fontWeight" | "fontSize" | "fontFamily">,
+    fontSizeOverride?: string,
+  ) => { ascent: number; descent: number };
+}) => {
   const {
     capturePseudoContent,
     _counterSnapshot,
@@ -15,7 +70,21 @@ export const createTextPhaseHandler = (ctx) => {
     _effectiveZoomFor,
     _measureFontMetrics,
   } = ctx;
-  const captureTextPhase = ({ el, cs, tag, rect, _contentVisHidden, _pseudoFragmentFacts }) => {
+  const captureTextPhase = ({
+    el,
+    cs,
+    tag,
+    rect,
+    _contentVisHidden,
+    _pseudoFragmentFacts,
+  }: {
+    el: Element;
+    cs: CSSStyleDeclaration;
+    tag: string;
+    rect: DOMRect;
+    _contentVisHidden: boolean;
+    _pseudoFragmentFacts: unknown[] | null | undefined;
+  }) => {
     let isPlaceholderCapture;
     let text = "";
 
@@ -32,7 +101,7 @@ export const createTextPhaseHandler = (ctx) => {
     let placeholderFontFamily;
     let placeholderFontFamilyStack;
     let lineClampTextFragments = false;
-    const textSegments = [];
+    const textSegments: CaptureTextSegment[] = [];
     // ::before / ::after generated content — capture each matched pseudo as
     // a TextSegment (or image pseudo) positioned relative to the host's
     // padding box. The downstream text-segments assembler re-anchors

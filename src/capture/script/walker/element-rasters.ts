@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Named sub-records of the captured element record — scrollbars, native-control rasters, the
 // backdrop-filter raster and the computed-size font metrics — extracted from the capture script's
@@ -6,11 +5,27 @@
 // CAPTURE_SCRIPT bundle — self-contained, page globals only; every input is an explicit parameter.
 
 import { isWholeHostNativeAppearance } from "../../effective-appearance.js";
+import type { CaptureScriptArgs, CapturedElement, CapturedScrollbarSet } from "../../types.js";
 
-export const captureScrollbarRecord = ({ args, el, cs, warn, sel }) => {
+type ViewportOrigin = { x: number; y: number };
+type NativeDecorationPart = { kind: string; index: number; x: number; y: number; width: number; height: number };
+
+export const captureScrollbarRecord = ({
+  args,
+  el,
+  cs,
+  warn,
+  sel,
+}: {
+  args: CaptureScriptArgs;
+  el: Element;
+  cs: CSSStyleDeclaration;
+  warn: (selector: string, category: string, message: string) => void;
+  sel: string;
+}): CapturedScrollbarSet | undefined => {
   const _record =
     typeof args.scrollbarPropertyKey === "string" && args.scrollbarPropertyKey !== ""
-      ? el[args.scrollbarPropertyKey]
+      ? (el as unknown as Record<string, CapturedScrollbarSet | undefined>)[args.scrollbarPropertyKey]
       : undefined;
   if (
     _record == null &&
@@ -35,6 +50,16 @@ export const captureNativeControlRaster = ({
   sel,
   tag,
   el,
+}: {
+  _nativeControlTag: boolean;
+  rect: DOMRect;
+  _effectiveAppearance: string | null;
+  cs: CSSStyleDeclaration;
+  vp: ViewportOrigin;
+  _projectiveNodeIndex: Map<Element, number>;
+  sel: string;
+  tag: string;
+  el: Element;
 }) => {
   if (!_nativeControlTag || rect.width <= 0 || rect.height <= 0) return undefined;
   if (_effectiveAppearance != null && !isWholeHostNativeAppearance(_effectiveAppearance)) return undefined;
@@ -83,6 +108,16 @@ export const captureNativeControlDecorationRaster = ({
   _missingNativeDecorationKinds,
   _projectiveNodeIndex,
   el,
+}: {
+  _nativeDecorationKinds: string[];
+  rect: DOMRect;
+  _nativeDecorationParts: NativeDecorationPart[];
+  vp: ViewportOrigin;
+  _nativeDecorationUnavailableReason: string | undefined;
+  sel: string;
+  _missingNativeDecorationKinds: string[];
+  _projectiveNodeIndex: Map<Element, number>;
+  el: Element;
 }) => {
   if (_nativeDecorationKinds.length === 0 || rect.width <= 0 || rect.height <= 0) return undefined;
   const rasterExpand = 1;
@@ -136,8 +171,27 @@ export const captureNativeControlDecorationRaster = ({
   });
 };
 
-export const captureBackdropFilterRaster = ({ cs, rect, el, vp, sel, _backdropEffectSpaceFor, nextBackdropToken }) => {
-  const value = cs.backdropFilter || cs.webkitBackdropFilter || "";
+export const captureBackdropFilterRaster = ({
+  cs,
+  rect,
+  el,
+  vp,
+  sel,
+  _backdropEffectSpaceFor,
+  nextBackdropToken,
+}: {
+  cs: CSSStyleDeclaration;
+  rect: DOMRect;
+  el: Element;
+  vp: ViewportOrigin;
+  sel: string;
+  _backdropEffectSpaceFor: (
+    el: Element,
+  ) => NonNullable<NonNullable<CapturedElement["backdropFilterRaster"]>["effectSpace"]>;
+  nextBackdropToken: () => string;
+}) => {
+  const value =
+    cs.backdropFilter || (cs as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter || "";
   if (value === "" || value === "none" || rect.width <= 0 || rect.height <= 0) return undefined;
   const token = nextBackdropToken();
   el.setAttribute("data-domotion-backdrop-raster", token);
@@ -156,7 +210,21 @@ export const captureBackdropFilterRaster = ({ cs, rect, el, vp, sel, _backdropEf
  * A font metric re-measured at the element's COMPUTED size (logical CSS size x effective zoom).
  * `metric` is "ascent" or "descent"; `value` is the metric a pseudo/input walker already supplied.
  */
-export const computedSizeFontMetric = ({ metric, value, cs, el, _effectiveZoomFor, _measureFontMetrics }) => {
+export const computedSizeFontMetric = ({
+  metric,
+  value,
+  cs,
+  el,
+  _effectiveZoomFor,
+  _measureFontMetrics,
+}: {
+  metric: "ascent" | "descent";
+  value: number | null | undefined;
+  cs: CSSStyleDeclaration;
+  el: Element;
+  _effectiveZoomFor: (el: Element) => number;
+  _measureFontMetrics: (style: CSSStyleDeclaration, fontSizeOverride?: string) => { ascent: number; descent: number };
+}) => {
   if (value == null) return value;
   var _logical = parseFloat(cs.fontSize);
   var _zoom = _effectiveZoomFor(el);

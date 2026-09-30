@@ -1,12 +1,13 @@
-// @ts-nocheck
 //
 // Scroll-marker-group and scroll-button (::scroll-button) capture.
 // Extracted from the capture script's orchestrator (`captureDocumentTree`).
 // Part of the page-`evaluate`d CAPTURE_SCRIPT bundle — self-contained, page globals only;
 // everything the orchestrator owns is passed in through the factory argument.
 
-export const createScrollMarkersHandler = (ctx) => {
-  const { capture, sel } = ctx;
+import type { CapturedElement } from "../../types.js";
+
+export const createScrollMarkersHandler = (ctx: { capture: (el: Element) => CapturedElement | null }) => {
+  const { capture } = ctx;
   // DM-1177: A scroll container with `scroll-marker-group: after | before`
   // synthesizes an anonymous marker-group box, and each scrollable child whose
   // `::scroll-marker` has non-`none` content becomes a dot/pill flex item inside
@@ -19,10 +20,11 @@ export const createScrollMarkersHandler = (ctx) => {
   // scroller width), and walk it with the normal `capture()` so each marker is a
   // styled box (with centered text for pill labels). Chrome lays out the replica
   // identically to the real group, so the measured rects ARE Chrome's geometry.
-  function _captureScrollMarkerGroup(el, cs, rect) {
+  function _captureScrollMarkerGroup(el: Element, cs: CSSStyleDeclaration, rect: DOMRect) {
     var smg =
-      cs.scrollMarkerGroup != null && cs.scrollMarkerGroup !== ""
-        ? cs.scrollMarkerGroup
+      (cs as CSSStyleDeclaration & { scrollMarkerGroup?: string }).scrollMarkerGroup != null &&
+      (cs as CSSStyleDeclaration & { scrollMarkerGroup?: string }).scrollMarkerGroup !== ""
+        ? (cs as CSSStyleDeclaration & { scrollMarkerGroup?: string }).scrollMarkerGroup
         : cs.getPropertyValue
           ? cs.getPropertyValue("scroll-marker-group")
           : "";
@@ -167,13 +169,16 @@ export const createScrollMarkersHandler = (ctx) => {
   // `top:50%`/`left`/`right`/`transform` land exactly where Chrome paints the
   // real button — capture() measures that, so the rect IS Chrome's geometry.
   // Enabled/disabled comes from the captured scroll offset vs the scroll range.
-  function _scrollButtonAuthorRules(el) {
+  function _scrollButtonAuthorRules(el: Element): {
+    sides: Record<string, Record<string, string>>;
+    disabled: Record<string, string>;
+  } {
     // Per-direction author declarations + the merged `:disabled` declarations,
     // gathered from every stylesheet rule whose `::scroll-button(<dir>)`
     // selector matches `el`. `*` (universal direction) is folded in as a base.
-    var sides = {};
-    var disabled = {};
-    var star = {};
+    var sides: Record<string, Record<string, string>> = {};
+    var disabled: Record<string, string> = {};
+    var star: Record<string, string> = {};
     var sheets = el.ownerDocument.styleSheets;
     for (var s = 0; s < sheets.length; s++) {
       var rules;
@@ -184,7 +189,7 @@ export const createScrollMarkersHandler = (ctx) => {
       }
       if (!rules) continue;
       for (var r = 0; r < rules.length; r++) {
-        var rule = rules[r];
+        var rule = rules[r] as CSSStyleRule;
         var sel = rule.selectorText;
         if (!sel) continue;
         var at = sel.indexOf("::scroll-button(");
@@ -209,7 +214,7 @@ export const createScrollMarkersHandler = (ctx) => {
     // Fold the universal `*` declarations in as a lower-priority base per side.
     for (var k in sides) {
       if (!Object.prototype.hasOwnProperty.call(sides, k)) continue;
-      var merged = {};
+      var merged: Record<string, string> = {};
       for (var sp in star) if (Object.prototype.hasOwnProperty.call(star, sp)) merged[sp] = star[sp];
       for (var op in sides[k]) if (Object.prototype.hasOwnProperty.call(sides[k], op)) merged[op] = sides[k][op];
       sides[k] = merged;
@@ -217,7 +222,7 @@ export const createScrollMarkersHandler = (ctx) => {
     return { sides: sides, disabled: disabled };
   }
 
-  function _captureScrollButtons(el, cs, rect) {
+  function _captureScrollButtons(el: Element, cs: CSSStyleDeclaration, rect: DOMRect) {
     // Cheap gate: only elements that actually generate a scroll-button get the
     // CSSOM scan. A non-`none` `content` on the merged pseudo means buttons exist.
     var probe = window.getComputedStyle(el, "::scroll-button(left)").content;
@@ -229,7 +234,7 @@ export const createScrollMarkersHandler = (ctx) => {
     var doc = el.ownerDocument;
     var maxX = el.scrollWidth - el.clientWidth;
     var maxY = el.scrollHeight - el.clientHeight;
-    var nodes = [];
+    var nodes: CapturedElement[] = [];
     for (var dir in rules.sides) {
       if (!Object.prototype.hasOwnProperty.call(rules.sides, dir)) continue;
       var decls = rules.sides[dir];

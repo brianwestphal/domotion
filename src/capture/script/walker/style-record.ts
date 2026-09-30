@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // The per-element `styles` record, extracted from the capture script's `captureInner`.
 // Part of the page-`evaluate`d CAPTURE_SCRIPT bundle — self-contained, page globals only.
@@ -10,8 +9,74 @@ import {
   physicalComputedTileSize as physicalComputedCssPixelTerms,
 } from "./borders-backgrounds.js";
 import { extractCssUrl } from "../utils.js";
+import type { CapturedStyles } from "../../types.js";
+import type { FontFeatureValueTables } from "../../../font-feature-values-cascade.js";
 
-export const createStyleRecordBuilder = (ctx) => {
+type WebkitStyle = CSSStyleDeclaration & {
+  webkitBackdropFilter?: string;
+  webkitMask?: string;
+  webkitMaskImage?: string;
+  webkitMaskSize?: string;
+  webkitMaskPosition?: string;
+  webkitMaskRepeat?: string;
+  webkitMaskComposite?: string;
+  webkitMaskOrigin?: string;
+  webkitMaskClip?: string;
+  webkitMaskBoxImageSource?: string;
+  webkitMaskBoxImageSlice?: string;
+  webkitMaskBoxImageWidth?: string;
+  webkitMaskBoxImageOutset?: string;
+  webkitMaskBoxImageRepeat?: string;
+  webkitBoxReflect?: string;
+  fontVariantEmoji?: string;
+};
+
+type StyleRecordScope = {
+  el: HTMLElement;
+  cs: WebkitStyle;
+  tag: string;
+  rect: DOMRect;
+  frozenTransform?: string | null;
+  frozenTransformOrigin?: string | null;
+  isPlaceholderCapture?: boolean;
+  _effectiveAppearance?: string | null;
+  _selectDisplayTextGeometry?: CapturedStyles["selectDisplayTextGeometry"];
+  _capturedFontFamilyStack: NonNullable<CapturedStyles["fontFamilyStack"]>;
+  _fileSelectorCapture?: Partial<CapturedStyles>;
+};
+
+export const createStyleRecordBuilder = (ctx: {
+  _backgroundAttachmentPaintScaleFor: (el: Element) => [number, number];
+  captureFormControls: (el: HTMLElement, cs: CSSStyleDeclaration, tag: string) => Partial<CapturedStyles>;
+  threadFrozenTransform: (
+    cs: CSSStyleDeclaration,
+    frozenTransform?: string | null,
+    frozenTransformOrigin?: string | null,
+  ) => Partial<CapturedStyles>;
+  _effectiveZoomFor: (el: Element) => number;
+  _fontFeatureValuesFor: (doc: Document) => FontFeatureValueTables;
+  _resolveFontPalette: (el: Element, cs: CSSStyleDeclaration) => CapturedStyles["fontPaletteIdentity"];
+  _resolveShadowFontPalettes: (el: Element) => CapturedStyles["shadowFontPaletteIdentities"];
+  _transformRelatedBox: Map<Element, boolean>;
+  captureBackgroundAttachment: (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    rect: DOMRect,
+    scaleX: number,
+    scaleY: number,
+  ) => CapturedStyles["backgroundAttachmentGeometry"];
+  captureBordersBackgrounds: (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    tag: string,
+    rect: DOMRect,
+    placeholder: boolean | undefined,
+    zoom: number,
+  ) => Partial<CapturedStyles>;
+  computeMaskIntrinsic: (el: Element, cs: CSSStyleDeclaration) => CapturedStyles["maskIntrinsic"];
+  isTableCellHiddenByEmptyCells: (el: Element, cs: CSSStyleDeclaration, tag: string) => boolean;
+  normColor: (color: string) => string;
+}) => {
   const {
     _backgroundAttachmentPaintScaleFor,
     captureFormControls,
@@ -27,7 +92,7 @@ export const createStyleRecordBuilder = (ctx) => {
     isTableCellHiddenByEmptyCells,
     normColor,
   } = ctx;
-  return (scope) => {
+  return (scope: StyleRecordScope) => {
     const {
       el,
       cs,
@@ -35,7 +100,6 @@ export const createStyleRecordBuilder = (ctx) => {
       rect,
       frozenTransform,
       frozenTransformOrigin,
-      projectiveTransform,
       isPlaceholderCapture,
       _effectiveAppearance,
       _selectDisplayTextGeometry,
@@ -103,7 +167,7 @@ export const createStyleRecordBuilder = (ctx) => {
         var _maskImage = cs.maskImage || cs.webkitMaskImage || "";
         if (_maskImage === "" || _maskImage === "none") return undefined;
         var _zoom = _effectiveZoomFor(el);
-        var _physical = function (value) {
+        var _physical = function (value: string) {
           var _number = parseFloat(value || "0");
           return Number.isFinite(_number) ? _number * _zoom : 0;
         };
@@ -319,7 +383,7 @@ export const createStyleRecordBuilder = (ctx) => {
       // path renderer to route CJK Han fallback to the right PingFang
       // regional variant. (DM-394)
       lang: (function () {
-        var n = el;
+        var n: HTMLElement | null = el;
         while (n != null && n.nodeType === 1) {
           if (n.lang) return n.lang;
           n = n.parentElement;

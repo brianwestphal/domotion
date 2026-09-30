@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // `::before` / `::after` generated-content capture. Each matched pseudo's
 // content string is parsed and turned into a TextSegment (or image-pseudo)
@@ -57,8 +56,46 @@
 
 import { isPaintedColor } from "../../../utils/transparent-background.js";
 import { hasCssValue, sideWidths } from "../utils.js";
+import type { PseudoBox, TextSegment } from "../../types.js";
+import type { PseudoSegment } from "./pseudo-inject.js";
 
-export const pseudoCanvasFont = (pcs) =>
+type CounterEntry = { name: string; value: number };
+type CounterSnapshot<E> = {
+  get(
+    key: E,
+  ): CounterEntry[] | { element?: CounterEntry[]; [pseudo: string]: CounterEntry[] | null | undefined } | undefined;
+};
+type Viewport = { x: number; y: number };
+type PseudoServices = {
+  vp: Viewport;
+  normColor: (color: string) => string;
+  measureFontMetrics: (style: CSSStyleDeclaration) => { ascent: number; descent: number };
+  textNeedsRaster: (text: string) => boolean;
+  resolveCounterValue: (style: string, value: number) => string | null | undefined;
+  composeEffectiveTransform: (style: CSSStyleDeclaration) => string;
+  effectiveZoomFor?: (el: Element) => number;
+  physicalComputedCssPixelTerms?: (value: string, zoom: number) => string;
+  physicalComputedGradientImage?: (value: string, zoom: number) => string;
+  fontFamilyStackFor: (el: Element, family: string, pseudo: string) => TextSegment["fontFamilyStack"];
+  pseudoImageSizingKey?: string;
+};
+type EmptyBoxServices = {
+  effectiveZoomFor: (el: Element) => number;
+  physicalNumber: (el: Element, value: string) => number;
+  probePseudoStaticBoxRect: (el: Element, pseudo: string, style: CSSStyleDeclaration) => DOMRect;
+  probePseudoAbsoluteBoxRect: (el: Element, pseudo: string, style: CSSStyleDeclaration) => DOMRect;
+  vp: Viewport;
+  normColor: (color: string) => string;
+  physicalTransform: (el: Element, value: string) => string;
+  composeEffectiveTransform: (style: CSSStyleDeclaration) => string;
+  physicalFilter: (el: Element, value: string) => string | undefined;
+  physicalComputedCssPixelTerms: (value: string, zoom: number) => string;
+  physicalComputedGradientImage: (value: string, zoom: number) => string;
+};
+
+export const pseudoCanvasFont = (
+  pcs: Partial<Pick<CSSStyleDeclaration, "fontStyle" | "fontWeight" | "fontSize" | "fontFamily">>,
+) =>
   (pcs.fontStyle || "normal") +
   " " +
   (pcs.fontWeight || "normal") +
@@ -67,15 +104,19 @@ export const pseudoCanvasFont = (pcs) =>
   " " +
   (pcs.fontFamily || "sans-serif");
 
-export const physicalPseudoFilter = (el, value, effectiveZoomFor, physicalComputedCssPixelTerms) =>
-  value && value !== "none" ? physicalComputedCssPixelTerms(value, effectiveZoomFor(el)) : undefined;
+export const physicalPseudoFilter = <E>(
+  el: E,
+  value: string,
+  effectiveZoomFor: (el: E) => number,
+  physicalComputedCssPixelTerms: (value: string, zoom: number) => string,
+) => (value && value !== "none" ? physicalComputedCssPixelTerms(value, effectiveZoomFor(el)) : undefined);
 
-export const physicalPseudoNumber = (el, value, effectiveZoomFor) => {
+export const physicalPseudoNumber = <E>(el: E, value: string, effectiveZoomFor: (el: E) => number) => {
   const number = parseFloat(value);
   return Number.isFinite(number) ? number * effectiveZoomFor(el) : 0;
 };
 
-export const physicalPseudoTransform = (el, value, effectiveZoomFor) => {
+export const physicalPseudoTransform = <E>(el: E, value: string, effectiveZoomFor: (el: E) => number) => {
   const zoom = effectiveZoomFor(el);
   if (!value || value === "none" || zoom === 1) return value;
   const m2 = /^matrix\(([^)]+)\)$/.exec(value);
@@ -100,7 +141,7 @@ export const physicalPseudoTransform = (el, value, effectiveZoomFor) => {
   return value;
 };
 
-export const pickPseudoQuoteChar = (forEl, isOpen) => {
+export const pickPseudoQuoteChar = (forEl: Element, isOpen: boolean) => {
   let depth = 0;
   let parent = forEl.parentElement;
   while (parent != null) {
@@ -142,13 +183,20 @@ export const pickPseudoQuoteChar = (forEl, isOpen) => {
   return isOpen ? tokens[pairIndex * 2] : tokens[pairIndex * 2 + 1];
 };
 
-export const parsePseudoContentValue = ({
+export const parsePseudoContentValue = <E extends { getAttribute(name: string): string | null }>({
   content,
   el,
   counterSnapshot,
   pseudo,
   resolveCounterValue,
-  pickQuoteChar = pickPseudoQuoteChar,
+  pickQuoteChar = (element: E, isOpen: boolean) => pickPseudoQuoteChar(element as unknown as Element, isOpen),
+}: {
+  content: string;
+  el: E;
+  counterSnapshot: CounterSnapshot<E>;
+  pseudo: string;
+  resolveCounterValue?: (style: string, value: number) => string | null | undefined;
+  pickQuoteChar?: (el: E, isOpen: boolean) => string;
 }) => {
   let text = "";
   let imageUrl = "";
@@ -192,12 +240,12 @@ export const parsePseudoContentValue = ({
             : trimmed;
         });
       const style = plural ? args[2] : args[1];
-      const format = (value) => {
+      const format = (value: number) => {
         if (style == null || style === "" || resolveCounterValue == null) return String(value);
         return resolveCounterValue(style, value) ?? String(value);
       };
       const captured = counterSnapshot.get(el);
-      const snapshot = captured?.[pseudo] ?? captured?.element ?? captured ?? [];
+      const snapshot = Array.isArray(captured) ? captured : (captured?.[pseudo] ?? captured?.element ?? []);
       const matches = snapshot.filter((entry) => entry.name === args[0]).map((entry) => format(entry.value));
       text += plural ? (matches.length > 0 ? matches.join(args[1] ?? "") : format(0)) : (matches.at(-1) ?? format(0));
       index = close + 1;
@@ -230,14 +278,15 @@ export const captureEmptyPseudoBox = (
     physicalTransform,
     composeEffectiveTransform,
     physicalFilter,
+    physicalComputedCssPixelTerms,
     physicalComputedGradientImage,
-  },
-  el,
-  cs,
-  pseudo,
-  pcs,
-  rect,
-) => {
+  }: EmptyBoxServices,
+  el: Element,
+  cs: CSSStyleDeclaration,
+  pseudo: "::before" | "::after",
+  pcs: CSSStyleDeclaration,
+  rect: DOMRect,
+): PseudoBox | null => {
   const bgRaw = pcs.backgroundColor;
   const hasBg = isPaintedColor(bgRaw);
   // DM-767: capture background-image (linear-gradient / radial-gradient /
@@ -466,30 +515,29 @@ const buildPseudoContentHandler = ({
   resolveCounterValue,
   composeEffectiveTransform,
   effectiveZoomFor = () => 1,
-  physicalComputedCssPixelTerms = (value) => value,
-  physicalComputedGradientImage = (value) => value,
+  physicalComputedCssPixelTerms = (value: string, _zoom: number) => value,
+  physicalComputedGradientImage = (value: string, _zoom: number) => value,
   fontFamilyStackFor,
   pseudoImageSizingKey,
-}) => {
+}: PseudoServices) => {
   // CSSOM serializes filter lengths before effective zoom, while every box
   // captured below is already in physical viewport coordinates. Scale only
   // computed px terms once so blur/drop-shadow use the same coordinate space.
-  const physicalFilter = (el, value) =>
+  const physicalFilter = (el: Element, value: string) =>
     physicalPseudoFilter(el, value, effectiveZoomFor, physicalComputedCssPixelTerms);
-  const physicalNumber = (el, value) => physicalPseudoNumber(el, value, effectiveZoomFor);
-  const physicalTransform = (el, value) => physicalPseudoTransform(el, value, effectiveZoomFor);
+  const physicalNumber = (el: Element, value: string) => physicalPseudoNumber(el, value, effectiveZoomFor);
+  const physicalTransform = (el: Element, value: string) => physicalPseudoTransform(el, value, effectiveZoomFor);
   // DM-1271: canvas `measureText` advance for a glyph, in the pseudo's resolved
   // font. Unlike the off-screen <span> probe below, this reproduces Chrome's
   // MINIMUM emoji advance (~1.25× font-size — a 20px advance for a 16px emoji);
   // a span measures the bare glyph outline (~18.8px) and misses it. Used only to
   // size the color-emoji raster square, where the in-flow advance is what matters.
-  let _emojiAdvCv = null;
-  let _emojiAdvCtx = null;
-  const measureGlyphAdvance = (s, pcs) => {
+  let _emojiAdvCtx: CanvasRenderingContext2D | null = null;
+  const measureGlyphAdvance = (s: string, pcs: CSSStyleDeclaration) => {
     if (_emojiAdvCtx == null) {
-      _emojiAdvCv = document.createElement("canvas");
-      _emojiAdvCtx = _emojiAdvCv.getContext("2d");
+      _emojiAdvCtx = document.createElement("canvas").getContext("2d");
     }
+    if (_emojiAdvCtx == null) return 0;
     _emojiAdvCtx.font = pseudoCanvasFont(pcs);
     return _emojiAdvCtx.measureText(s).width;
   };
@@ -498,7 +546,7 @@ const buildPseudoContentHandler = ({
   // Blink lay out the generated content. Copying every computed property (not
   // a hand-picked font/box subset) preserves the resolved cascade, variables,
   // calc(), writing mode, font features, intrinsic sizing, and logical props.
-  const probeGeneratedPseudoLayout = (el, pseudo, text, pcs) => {
+  const probeGeneratedPseudoLayout = (el: Element, pseudo: string, text: string, pcs: CSSStyleDeclaration) => {
     const span = document.createElement("span");
     for (let i = 0; i < pcs.length; i++) {
       const name = pcs.item(i);
@@ -544,7 +592,7 @@ const buildPseudoContentHandler = ({
   // `getBoundingClientRect()`. Chrome lays out the sentinel exactly where the
   // pseudo would have gone, so we get the correct x/y without re-deriving
   // font metrics + vertical-align semantics ourselves.
-  const probePseudoStaticBoxRect = (el, pseudo, pcs) => {
+  const probePseudoStaticBoxRect = (el: Element, pseudo: string, pcs: CSSStyleDeclaration) => {
     const probe = document.createElement("span");
     probe.style.cssText = "pointer-events:none;visibility:hidden;box-sizing:content-box";
     probe.style.display = pcs.display;
@@ -584,7 +632,7 @@ const buildPseudoContentHandler = ({
   // positioned sentinel as a child of the host: it inherits the same containing
   // block the pseudo would have, and Chrome lays it out at the exact rect the
   // pseudo paints to. Read its `getBoundingClientRect` directly.
-  const probePseudoAbsoluteBoxRect = (el, pseudo, pcs) => {
+  const probePseudoAbsoluteBoxRect = (el: Element, pseudo: string, pcs: CSSStyleDeclaration) => {
     const probe = document.createElement("div");
     probe.style.cssText = "pointer-events:none;visibility:hidden;box-sizing:content-box;margin:0";
     probe.style.position = pcs.position;
@@ -631,7 +679,12 @@ const buildPseudoContentHandler = ({
   };
 
   const pickQuoteChar = pickPseudoQuoteChar;
-  const parsePseudoContent = (content, el, counterSnapshot, pseudo) =>
+  const parsePseudoContent = (
+    content: string,
+    el: Element,
+    counterSnapshot: CounterSnapshot<Element>,
+    pseudo: string,
+  ) =>
     parsePseudoContentValue({
       content,
       el,
@@ -648,7 +701,13 @@ const buildPseudoContentHandler = ({
   // + per-side border + background + the pseudo's own transform), or null when
   // it paints nothing visible. Closes over the handler's probe helpers + vp +
   // normColor. Extracted from capturePseudoContent (DM-1088).
-  const captureEmptyContentBox = (el, cs, pseudo, pcs, rect) =>
+  const captureEmptyContentBox = (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    pseudo: "::before" | "::after",
+    pcs: CSSStyleDeclaration,
+    rect: DOMRect,
+  ) =>
     captureEmptyPseudoBox(
       {
         effectiveZoomFor,
@@ -660,6 +719,7 @@ const buildPseudoContentHandler = ({
         physicalTransform,
         composeEffectiveTransform,
         physicalFilter,
+        physicalComputedCssPixelTerms,
         physicalComputedGradientImage,
       },
       el,
@@ -669,10 +729,15 @@ const buildPseudoContentHandler = ({
       rect,
     );
 
-  const capturePseudoContent = (el, cs, rect, counterSnapshot) => {
-    const pseudoSegments = [];
-    const pseudoBoxes = [];
-    for (const pseudo of ["::before", "::after"]) {
+  const capturePseudoContent = (
+    el: Element,
+    cs: CSSStyleDeclaration,
+    rect: DOMRect,
+    counterSnapshot: CounterSnapshot<Element>,
+  ) => {
+    const pseudoSegments: Array<PseudoSegment & { color?: string }> = [];
+    const pseudoBoxes: PseudoBox[] = [];
+    for (const pseudo of ["::before", "::after"] as const) {
       const pcs = window.getComputedStyle(el, pseudo);
       const content = pcs.content;
       if (content == null || content === "none" || content === "normal" || content === "") continue;
@@ -709,7 +774,10 @@ const buildPseudoContentHandler = ({
         const imageZoom = effectiveZoomFor(el);
         const primed =
           typeof pseudoImageSizingKey === "string" && pseudoImageSizingKey !== ""
-            ? el[pseudoImageSizingKey]?.[pseudo]
+            ? (
+                el as Element &
+                  Record<string, Record<string, { url: string; width: number; height: number }> | undefined>
+              )[pseudoImageSizingKey]?.[pseudo]
             : undefined;
         const primedMatches = primed != null && primed.url === imageUrl;
         const intrinsicW = ((primedMatches ? primed.width : probeImg.naturalWidth) || 0) * imageZoom;
@@ -722,7 +790,6 @@ const buildPseudoContentHandler = ({
         const renderH = intrinsicH > 0 ? intrinsicH : layoutH;
         const elTop = rect.top - vp.y + physicalNumber(el, cs.paddingTop) + physicalNumber(el, cs.borderTopWidth);
         const elLeft = rect.left - vp.x + physicalNumber(el, cs.paddingLeft) + physicalNumber(el, cs.borderLeftWidth);
-        const elFontSizeForImg = (parseFloat(pcs.fontSize) || 14) * imageZoom;
         const lineHImg = (parseFloat(pcs.lineHeight) || (parseFloat(pcs.fontSize) || 14) * 1.2) * imageZoom;
         // Vertically center the LAYOUT box in the line; the image paints
         // from this anchor at render dims (may overflow downward).
@@ -886,7 +953,7 @@ const buildPseudoContentHandler = ({
         }
       }
 
-      const pseudoSeg = {
+      const pseudoSeg: TextSegment = {
         text,
         x: xPos,
         y: yPos,
@@ -1044,7 +1111,7 @@ const buildPseudoContentHandler = ({
       // path emission, but a correct render trumps minor vector loss.)
       let allPua = text.length > 0;
       for (let _ci = 0; _ci < text.length;) {
-        const cp = text.codePointAt(_ci);
+        const cp = text.codePointAt(_ci)!;
         const inPua =
           (cp >= 0xe000 && cp <= 0xf8ff) || (cp >= 0xf0000 && cp <= 0xffffd) || (cp >= 0x100000 && cp <= 0x10fffd);
         if (!inPua) {
@@ -1121,4 +1188,4 @@ const buildPseudoContentHandler = ({
 };
 
 /** Construct pseudo-content capture with its browser-only dependencies explicit. */
-export const createPseudoContentHandler = (dependencies) => buildPseudoContentHandler(dependencies);
+export const createPseudoContentHandler = (dependencies: PseudoServices) => buildPseudoContentHandler(dependencies);

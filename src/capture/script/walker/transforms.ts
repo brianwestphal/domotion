@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // CSS transform freeze/restore handling.
 //
@@ -71,7 +70,7 @@
 // form `matrix(a, b, c, d, e, f)`; rotation/skew produces non-zero b or c.
 // matrix3d (12 values for the 4×4 matrix major-column layout) carries the
 // 2D submatrix in positions 0, 1, 4, 5 (= a, b, c, d in 2D form).
-export const transformHasRotationOrSkew = (transformStr) => {
+export const transformHasRotationOrSkew = (transformStr: string | null | undefined): boolean => {
   if (!transformStr || transformStr === "none") return false;
   const m2 = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)/.exec(transformStr);
   if (m2) {
@@ -107,7 +106,7 @@ export const transformHasRotationOrSkew = (transformStr) => {
 // renderer (which only parses matrix() / matrix3d()) picks them up
 // unchanged. Returns 'none' when all four properties are absent /
 // 'none', otherwise a `matrix(a, b, c, d, e, f)` string.
-export const composeEffectiveTransform = (cs) => {
+export const composeEffectiveTransform = (cs: CSSStyleDeclaration): string => {
   const t = cs.translate;
   const r = cs.rotate;
   const s = cs.scale;
@@ -125,7 +124,7 @@ export const composeEffectiveTransform = (cs) => {
   let m = new DOMMatrix();
   if (hasT) {
     // cs.translate is "<x> [<y>] [<z>]" in px / computed length.
-    const ts = t.split(/\s+/).map((v) => parseFloat(v));
+    const ts = t.split(/\s+/).map((v: string) => parseFloat(v));
     const tx = isFinite(ts[0]) ? ts[0] : 0;
     const ty = ts.length > 1 && isFinite(ts[1]) ? ts[1] : 0;
     const tz = ts.length > 2 && isFinite(ts[2]) ? ts[2] : 0;
@@ -150,7 +149,7 @@ export const composeEffectiveTransform = (cs) => {
     const ts = s
       .trim()
       .split(/\s+/)
-      .map((v) => parseFloat(v));
+      .map((v: string) => parseFloat(v));
     const sx = isFinite(ts[0]) ? ts[0] : 1;
     const sy = ts.length > 1 && isFinite(ts[1]) ? ts[1] : sx;
     const sz = ts.length > 2 && isFinite(ts[2]) ? ts[2] : 1;
@@ -173,7 +172,7 @@ export const composeEffectiveTransform = (cs) => {
   return `matrix3d(${m.m11}, ${m.m12}, ${m.m13}, ${m.m14}, ${m.m21}, ${m.m22}, ${m.m23}, ${m.m24}, ${m.m31}, ${m.m32}, ${m.m33}, ${m.m34}, ${m.m41}, ${m.m42}, ${m.m43}, ${m.m44})`;
 };
 
-const parseAngleToDeg = (a) => {
+const parseAngleToDeg = (a: string): number => {
   const m = /^([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)(deg|rad|grad|turn)?$/.exec(a);
   if (!m) return 0;
   const n = parseFloat(m[1]);
@@ -186,7 +185,16 @@ const parseAngleToDeg = (a) => {
 };
 
 export const createTransformsHandler = () => {
-  const wrapWithFrozenTransform = (el, cs, captureInner) => {
+  const wrapWithFrozenTransform = <T>(
+    el: HTMLElement,
+    cs: CSSStyleDeclaration,
+    captureInner: (
+      el: HTMLElement,
+      cs: CSSStyleDeclaration,
+      frozenTransform: string | null,
+      frozenTransformOrigin: string | null,
+    ) => T,
+  ): T => {
     // DM-587: for pure translate/scale transforms, do NOT clear — read the
     // rect as Chrome currently paints it (the new live-rect model). For
     // transforms that include rotation or skew, fall back to the older
@@ -247,7 +255,11 @@ export const createTransformsHandler = () => {
     return captureInner(el, cs, originalTransform, cs.transformOrigin);
   };
 
-  const threadFrozenTransform = (cs, frozenTransform, _frozenTransformOrigin) => ({
+  const threadFrozenTransform = (
+    cs: CSSStyleDeclaration,
+    frozenTransform: string | null | undefined,
+    _frozenTransformOrigin: string | null | undefined,
+  ) => ({
     // For elements with rotation/skew, record the ORIGINAL transform so the
     // renderer wraps a `<g transform=...>` around the (un-rotated) captured
     // rect. For pure translate/scale (or no transform), record `'none'` so

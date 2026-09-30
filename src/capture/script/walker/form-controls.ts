@@ -1,4 +1,3 @@
-// @ts-nocheck
 //
 // Form-control capture: per-element fields that the renderer reads to paint
 // inputs, progress bars, meters, selects, details/summary, and the host of
@@ -32,15 +31,36 @@
 //     input pseudos are, so they slot naturally next to them.
 
 import { TRANSPARENT_BLACK } from "../../../utils/transparent-background.js";
+import type { CapturedStyles, TextSegment } from "../../types.js";
+import type { createPseudoRules } from "../pseudo-rules.js";
+
+type PseudoStyle = ReturnType<ReturnType<typeof createPseudoRules>["resolvePseudo"]>;
+// The tag argument selects which of these native interfaces is live at runtime.
+type FormControlElement = HTMLElement &
+  Omit<HTMLInputElement, "type"> &
+  Omit<HTMLSelectElement, "type"> &
+  HTMLProgressElement &
+  HTMLMeterElement &
+  HTMLDetailsElement & { type: string };
 export const createFormControlsHandler = ({
   normColor,
   resolvePseudo,
   fontFamilyStackFor,
   effectiveZoomFor = () => 1,
   physicalComputedGradientImage = (value) => value,
+}: {
+  normColor: (value: string, elementColor?: string) => string;
+  resolvePseudo: (el: Element, kind: string) => PseudoStyle;
+  fontFamilyStackFor: (el: Element, fontFamily: string, pseudo?: string) => TextSegment["fontFamilyStack"];
+  effectiveZoomFor?: (el: Element) => number;
+  physicalComputedGradientImage?: (value: string, zoom: number) => string;
 }) => {
-  const captureFormControls = (el, cs, tag) => {
-    const gradientImage = (value) => physicalComputedGradientImage(value, effectiveZoomFor(el));
+  const captureFormControls = (
+    el: FormControlElement,
+    cs: CSSStyleDeclaration,
+    tag: string,
+  ): Partial<CapturedStyles> => {
+    const gradientImage = (value: string) => physicalComputedGradientImage(value, effectiveZoomFor(el));
     // DM-1115 / DM-1123: resolve the <summary> disclosure-marker state once.
     // `suppressed` → author hid the UA triangle (`list-style: none` or a
     // transparent `::marker`), so the renderer paints nothing. Otherwise the
@@ -67,7 +87,7 @@ export const createFormControlsHandler = ({
             };
           })()
         : null;
-    const out = {
+    const out: Partial<CapturedStyles> = {
       inputType: tag === "input" ? el.type || "text" : undefined,
       // CSS appearance / -webkit-appearance longhand for inputs. When 'none'
       // (the appearance:none custom-styled pattern) the renderer suppresses
@@ -123,7 +143,7 @@ export const createFormControlsHandler = ({
         tag === "details" && el.open
           ? (() => {
               const dc = window.getComputedStyle(el, "::details-content");
-              const isPaint = (c) =>
+              const isPaint = (c: string | null | undefined): boolean =>
                 c != null &&
                 c !== "" &&
                 c !== "transparent" &&
@@ -168,9 +188,12 @@ export const createFormControlsHandler = ({
       selectListboxOptions:
         tag === "select" && (el.size > 1 || el.multiple)
           ? (function () {
-              const list = [];
+              const list: NonNullable<CapturedStyles["selectListboxOptions"]> = [];
               const hostRect = el.getBoundingClientRect();
-              const row = (o, extra) => {
+              const row = (
+                o: Element & { selected?: boolean; disabled?: boolean },
+                extra: Partial<NonNullable<CapturedStyles["selectListboxOptions"]>[number]>,
+              ) => {
                 const ocs = window.getComputedStyle(o);
                 const or = o.getBoundingClientRect();
                 const canvas = document.createElement("canvas");
@@ -209,7 +232,9 @@ export const createFormControlsHandler = ({
               for (let ki = 0; ki < kids.length; ki++) {
                 const c = kids[ki];
                 if (c.tagName === "OPTGROUP") {
-                  list.push(row(c, { text: c.label || "", selected: false, isOptgroupLabel: true }));
+                  list.push(
+                    row(c, { text: (c as HTMLOptGroupElement).label || "", selected: false, isOptgroupLabel: true }),
+                  );
                   const og = c.children;
                   for (let gi = 0; gi < og.length; gi++) {
                     const o = og[gi];

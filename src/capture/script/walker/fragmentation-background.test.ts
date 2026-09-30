@@ -33,12 +33,12 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     const captured = capturedWithUrlBackground();
 
     detectInlineFragments(
-      el,
+      el as unknown as Element,
       {
         display: "inline",
         direction: "ltr",
         writingMode: "horizontal-tb",
-      },
+      } as CSSStyleDeclaration,
       { x: 5, y: 2 },
       captured,
     );
@@ -66,12 +66,12 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     const captured = capturedWithUrlBackground();
 
     detectInlineFragments(
-      el,
+      el as unknown as Element,
       {
         display: "inline",
         direction: "rtl",
         writingMode: "horizontal-tb",
-      },
+      } as CSSStyleDeclaration,
       { x: 0, y: 0 },
       captured,
     );
@@ -94,12 +94,12 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     const captured = capturedWithUrlBackground();
 
     detectInlineFragments(
-      el,
+      el as unknown as Element,
       {
         display: "inline",
         direction: "ltr",
         writingMode: "vertical-rl",
-      },
+      } as CSSStyleDeclaration,
       { x: 0, y: 0 },
       captured,
     );
@@ -122,12 +122,12 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     };
     const horizontalCapture = capturedWithUrlBackground();
     detectInlineFragments(
-      horizontal,
+      horizontal as unknown as Element,
       {
         display: "block",
         direction: "ltr",
         writingMode: "horizontal-tb",
-      },
+      } as CSSStyleDeclaration,
       { x: 0, y: 0 },
       horizontalCapture,
     );
@@ -145,12 +145,12 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     };
     const verticalCapture = capturedWithUrlBackground();
     detectInlineFragments(
-      vertical,
+      vertical as unknown as Element,
       {
         display: "block",
         direction: "ltr",
         writingMode: "vertical-rl",
-      },
+      } as CSSStyleDeclaration,
       { x: 0, y: 0 },
       verticalCapture,
     );
