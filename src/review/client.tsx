@@ -193,7 +193,7 @@ rebuildIssueText();
 const lightbox = document.getElementById("lightbox")!;
 const lightboxClose = document.getElementById("lightbox-close") as HTMLButtonElement;
 const lbImg = document.getElementById("lb-img") as HTMLImageElement;
-const lbOverlay = document.getElementById("lb-overlay") as unknown as SVGSVGElement;
+const lbOverlay = document.querySelector<SVGSVGElement>("#lb-overlay")!;
 let lbIndex = -1; // -1 == closed
 let lightboxReturnFocus: HTMLElement | null = null;
 const figureImgs = Array.from(card.querySelectorAll<HTMLImageElement>(".imgs figure img"));

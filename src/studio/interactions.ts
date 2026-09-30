@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Locator, Page } from "@playwright/test";
 import { z } from "zod";
 import { runActions, type AnimateAction } from "../cli/animate-orchestrator.js";
@@ -149,7 +150,6 @@ export async function resolveStudioSemanticTarget(
 }
 
 const MARKER_ATTRIBUTE = "data-domotion-studio-target";
-let markerCounter = 0;
 
 interface MarkedTarget {
   locator: Locator;
@@ -165,7 +165,7 @@ async function markTarget(
 ): Promise<MarkedTarget> {
   const locator = await resolveStudioSemanticTarget(page, target, path, eventId);
 
-  const marker = `dm-${Date.now().toString(36)}-${markerCounter++}`;
+  const marker = `dm-${randomUUID()}`;
   await locator.evaluate((element, value) => element.setAttribute("data-domotion-studio-target", value), marker);
   const selector = `[${MARKER_ATTRIBUTE}="${marker}"]`;
   return {

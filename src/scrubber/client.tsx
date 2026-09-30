@@ -17,6 +17,7 @@
  */
 
 import { signal, computed, effect, mount, delegate } from "kerfjs";
+import { postBlob, postJson } from "../utils/post-json.js";
 import { fitRectToAspect, constrainResizeToAspect } from "./crop.js";
 import {
   SCRUBBER_EMBED_CHANNEL,
@@ -106,6 +107,7 @@ a.dl{display:none}
 .rv-note{width:100%;min-height:46px;resize:vertical;background:#1c1f27;color:#e7e9ee;border:1px solid #333845;border-radius:6px;padding:6px 8px;font:inherit}
 .rv-status{font-size:12px;color:#8a90a0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rv-status.ok{color:#7fd88f}.rv-status.err{color:#ff8a8a}
+.operation-status{padding:6px 12px;color:#ff8a8a;font-size:13px}
 .region-layer{position:absolute;inset:0;z-index:7;display:none;touch-action:none;cursor:crosshair}
 .region-box{position:absolute;outline:2px solid #ff5b8a;background:rgba(255,91,138,.14);pointer-events:none}
 .region-box::after{content:"issue region";position:absolute;top:-18px;left:0;font-size:10px;color:#ff8fb0;font-weight:600;white-space:nowrap}
@@ -210,6 +212,7 @@ const panX = signal(0);
 const panY = signal(0);
 const exportMenuOpen = signal(false);
 const busy = signal(false);
+const operationStatus = signal("");
 const trackW = signal(0); // scrub track px width (for marker positioning)
 // DM-1104: crop. `cropMode` toggles the overlay; `cropRect` is the rect in the
 // SVG's user-space (viewBox) units, or null for "whole frame". `cropTick` is a
@@ -239,6 +242,11 @@ const drawingRect = signal<Rect | null>(null);
 const regionTick = signal(0);
 const attachFrame = signal(true);
 const ticketStatus = signal<{ kind: "" | "ok" | "err"; msg: string }>({ kind: "", msg: "" });
+
+const FRAME_STEP_MS = 1000 / 30;
+const COLLAPSED_PANEL_MAX_WIDTH = 640;
+const DEFAULT_SVG_SIZE = { w: 800, h: 600 };
+const DEFAULT_PLAYBACK_DURATION_MS = 1000;
 const savingTicket = signal(false);
 
 // non-reactive imperative state
@@ -375,7 +383,7 @@ function render() {
           </div>
         </div>
         <div class="row row2">
-          <details class="tool-panel" open={innerWidth > 640}>
+          <details class="tool-panel" open={innerWidth > COLLAPSED_PANEL_MAX_WIDTH}>
             <summary>Range</summary>
             <div class="grp">
               <button data-action="setin" disabled={!svgLoaded.value}>
@@ -412,7 +420,7 @@ function render() {
               </button>
             </div>
           </details>
-          <details class="tool-panel" open={innerWidth > 640}>
+          <details class="tool-panel" open={innerWidth > COLLAPSED_PANEL_MAX_WIDTH}>
             <summary>Crop</summary>
             <div class="grp">
               <button class="iconbtn" data-action="zoomout" title="zoom out" disabled={!svgLoaded.value}>
@@ -491,7 +499,7 @@ function render() {
           </div>
         </div>
         {reviewMode && (
-          <details class="tool-panel review-panel" open={innerWidth > 640}>
+          <details class="tool-panel review-panel" open={innerWidth > COLLAPSED_PANEL_MAX_WIDTH}>
             <summary>Review issue</summary>
             <div class="row review">
               <div class="grp" style="flex-wrap:wrap;width:100%">
@@ -560,6 +568,11 @@ function render() {
           </details>
         )}
       </div>
+      {operationStatus.value !== "" && (
+        <div class="operation-status" role="status" aria-live="polite">
+          {operationStatus.value}
+        </div>
+      )}
     </div>
   );
 }
@@ -958,6 +971,12 @@ function postEmbeddedEvent(event: ScrubberEmbedEvent): void {
   if (embeddedMode && window.parent !== window) window.parent.postMessage(event, location.origin);
 }
 
+function reportFailure(error: unknown, fallback: string, sourceKey = embeddedSourceKey ?? undefined): void {
+  const message = error instanceof Error ? error.message : fallback;
+  operationStatus.value = message;
+  postEmbeddedEvent({ channel: SCRUBBER_EMBED_CHANNEL, type: "error", sourceKey, message });
+}
+
 let statePostTimer: number | null = null;
 effect(() => {
   const state = embeddedViewState();
@@ -983,16 +1002,10 @@ async function loadSvg(
   tmp.innerHTML = text;
   const svg = tmp.querySelector("svg");
   if (svg == null) {
-    if (embeddedMode)
-      postEmbeddedEvent({
-        channel: SCRUBBER_EMBED_CHANNEL,
-        type: "error",
-        sourceKey: options.sourceKey,
-        message: "No <svg> element found in the preview artifact.",
-      });
-    else alert("No <svg> element found in the file.");
+    reportFailure(new Error("No <svg> element found in the file."), "Invalid SVG", options.sourceKey);
     return;
   }
+  operationStatus.value = "";
   // Loading is a transaction: the SVG can enter the host before its timing
   // request completes, but controls must not accept actions that the eventual
   // post-load reset would discard. This race is normally hidden by the fast
@@ -1003,7 +1016,7 @@ async function loadSvg(
   // Render the SVG at its natural size; zoom transforms the host.
   const n = (() => {
     const vb = svg.viewBox?.baseVal;
-    return vb && vb.width > 0 ? { w: vb.width, h: vb.height } : { w: 800, h: 600 };
+    return vb && vb.width > 0 ? { w: vb.width, h: vb.height } : DEFAULT_SVG_SIZE;
   })();
   svg.style.width = `${n.w}px`;
   svg.style.height = `${n.h}px`;
@@ -1013,17 +1026,12 @@ async function loadSvg(
   let dur = options.durationMs ?? 0;
   if (!(dur > 0)) {
     try {
-      const r = await fetch("/timing", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ svg: text }),
-      });
-      dur = ((await r.json()) as { durationMs: number | null }).durationMs ?? localDuration();
+      dur = (await postJson<{ durationMs: number | null }>("/timing", { svg: text })).durationMs ?? localDuration();
     } catch {
       dur = localDuration();
     }
   }
-  if (!(dur > 0)) dur = 1000;
+  if (!(dur > 0)) dur = DEFAULT_PLAYBACK_DURATION_MS;
   const restored = normalizeScrubberEmbedViewState(options.restoreState, dur);
   durationMs.value = dur;
   playhead.value = options.restoreState == null ? 0 : restored.playheadMs;
@@ -1095,17 +1103,19 @@ function activeCrop(): { x: number; y: number; w: number; h: number } | undefine
 }
 async function exportFrame(): Promise<void> {
   busy.value = true;
+  operationStatus.value = "";
   try {
     const { w, h } = svgPxSize();
-    const r = await fetch("/export-frame", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ svg: svgText, timeMs: playhead.value, width: w, height: h, crop: activeCrop() }),
+    const blob = await postBlob("/export-frame", {
+      svg: svgText,
+      timeMs: playhead.value,
+      width: w,
+      height: h,
+      crop: activeCrop(),
     });
-    if (!r.ok) throw new Error(`export failed (${r.status})`);
-    download(await r.blob(), `${svgName}-${Math.round(playhead.value)}ms.png`);
+    download(blob, `${svgName}-${Math.round(playhead.value)}ms.png`);
   } catch (err) {
-    alert(err instanceof Error ? err.message : "export failed");
+    reportFailure(err, "export failed");
   } finally {
     busy.value = false;
   }
@@ -1113,19 +1123,21 @@ async function exportFrame(): Promise<void> {
 async function exportTrim(): Promise<void> {
   const { s, e } = rangeSE();
   busy.value = true;
+  operationStatus.value = "";
   try {
-    const r = await fetch("/trim", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, periodMs: durationMs.value, crop: activeCrop() }),
+    const result = await postJson<{ svg: string }>("/trim", {
+      svg: svgText,
+      startMs: s,
+      endMs: e,
+      periodMs: durationMs.value,
+      crop: activeCrop(),
     });
-    if (!r.ok) throw new Error(`trim failed (${r.status})`);
     download(
-      new Blob([((await r.json()) as { svg: string }).svg], { type: "image/svg+xml" }),
+      new Blob([result.svg], { type: "image/svg+xml" }),
       `${svgName}-trim-${Math.round(s)}-${Math.round(e)}ms.svg`,
     );
   } catch (err) {
-    alert(err instanceof Error ? err.message : "trim failed");
+    reportFailure(err, "trim failed");
   } finally {
     busy.value = false;
   }
@@ -1134,24 +1146,19 @@ async function exportVideo(): Promise<void> {
   const { s, e } = rangeSE();
   const { w, h } = svgPxSize();
   busy.value = true;
+  operationStatus.value = "";
   try {
-    const r = await fetch("/export-range-video", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ svg: svgText, startMs: s, endMs: e, width: w, height: h, crop: activeCrop() }),
+    const blob = await postBlob("/export-range-video", {
+      svg: svgText,
+      startMs: s,
+      endMs: e,
+      width: w,
+      height: h,
+      crop: activeCrop(),
     });
-    if (!r.ok) {
-      let msg = `export failed (${r.status})`;
-      try {
-        msg = ((await r.json()) as { error?: string }).error ?? msg;
-      } catch {
-        /* non-JSON */
-      }
-      throw new Error(msg);
-    }
-    download(await r.blob(), `${svgName}-${Math.round(s)}-${Math.round(e)}ms.mp4`);
+    download(blob, `${svgName}-${Math.round(s)}-${Math.round(e)}ms.mp4`);
   } catch (err) {
-    alert(err instanceof Error ? err.message : "video export failed");
+    reportFailure(err, "video export failed");
   } finally {
     busy.value = false;
   }
@@ -1171,34 +1178,20 @@ async function saveTicket(): Promise<void> {
   savingTicket.value = true;
   ticketStatus.value = { kind: "", msg: "saving…" };
   try {
-    const r = await fetch("/ticket", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title,
-        note: noteEl?.value ?? "",
-        category: catEl?.value ?? "bug",
-        svgPath,
-        svgName,
-        frameTimeMs: playhead.value,
-        rangeStartMs: s,
-        rangeEndMs: e,
-        regions: regions.value,
-        // DM-1449: attach the current frame as a sibling PNG (server renders it).
-        attachFrame: attachFrame.value,
-        svg: attachFrame.value ? svgText : undefined,
-      }),
+    const { path, framePng } = await postJson<{ path: string; framePng?: string | null }>("/ticket", {
+      title,
+      note: noteEl?.value ?? "",
+      category: catEl?.value ?? "bug",
+      svgPath,
+      svgName,
+      frameTimeMs: playhead.value,
+      rangeStartMs: s,
+      rangeEndMs: e,
+      regions: regions.value,
+      // DM-1449: attach the current frame as a sibling PNG (server renders it).
+      attachFrame: attachFrame.value,
+      svg: attachFrame.value ? svgText : undefined,
     });
-    if (!r.ok) {
-      let msg = `save failed (${r.status})`;
-      try {
-        msg = ((await r.json()) as { error?: string }).error ?? msg;
-      } catch {
-        /* non-JSON */
-      }
-      throw new Error(msg);
-    }
-    const { path, framePng } = (await r.json()) as { path: string; framePng?: string | null };
     ticketStatus.value = { kind: "ok", msg: `✓ wrote ${path}${framePng ? ` (+ frame PNG)` : ""}` };
     // Reset for the next issue (keep the SVG / range / playhead as-is).
     if (titleEl) titleEl.value = "";
@@ -1230,8 +1223,8 @@ const stepFrame = (deltaMs: number): void => {
 
 const CLICK: Record<string, () => void> = {
   play: togglePlay,
-  "step-back": () => stepFrame(-1000 / 30),
-  "step-forward": () => stepFrame(1000 / 30),
+  "step-back": () => stepFrame(-FRAME_STEP_MS),
+  "step-forward": () => stepFrame(FRAME_STEP_MS),
   setin: () => {
     rangeStart.value = Math.min(playhead.value, rangeEnd.value);
   },
@@ -1437,9 +1430,9 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     togglePlay();
   } else if (e.code === "ArrowLeft") {
-    stepFrame(-(e.shiftKey ? 1 : 1000 / 30));
+    stepFrame(-(e.shiftKey ? 1 : FRAME_STEP_MS));
   } else if (e.code === "ArrowRight") {
-    stepFrame(e.shiftKey ? 1 : 1000 / 30);
+    stepFrame(e.shiftKey ? 1 : FRAME_STEP_MS);
   }
 });
 

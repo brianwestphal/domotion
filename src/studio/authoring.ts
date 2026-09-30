@@ -1,5 +1,6 @@
 import { assertHeadRevision } from "./stale-head.js";
 import type { StudioLayer, StudioProject, StudioReviewAnnotation, StudioScene } from "./project-schema.js";
+import { STUDIO_DEFAULT_SCENE_DURATION_MS } from "./defaults.js";
 
 export type StudioAuthoringCommand =
   | { kind: "scene.add"; afterSceneId?: string; scene?: StudioScene }
@@ -187,7 +188,7 @@ function defaultScene(project: StudioProject, id: (prefix: string) => string): S
     ...(beatId == null ? {} : { narrativeBeatIds: [beatId] }),
     render: {
       kind: "storyboard",
-      recipe: { template: "title-card", params: { title: "New scene" }, duration: 1600 },
+      recipe: { template: "title-card", params: { title: "New scene" }, duration: STUDIO_DEFAULT_SCENE_DURATION_MS },
     },
   };
 }

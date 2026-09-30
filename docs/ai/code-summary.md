@@ -83,6 +83,9 @@ loading the historical documentation corpus.
   Its real-interaction recorder redacts sensitive values inside the page,
   retains browser DOM/CSS/navigation evidence, and requires AI healing plus AI
   review before importing a normal editable semantic scene.
+  The recorder's installed browser payload and selector helper live in
+  `src/studio/page-script/`; Studio and Scrubber share checked-response POST
+  handling through `src/utils/post-json.ts`.
   Its detailed timeline projects every authored timing primitive onto the
   production scene clock and applies pointer, keyboard, undo/redo, and AI edits
   through one explicit revisioned command before seeking the embedded Scrubber.

@@ -64,6 +64,7 @@ interface ReviewTest {
     totalChangedArea?: number;
     maxRegionSeverity?: number;
     scatteredPixels?: number;
+    coveragePct?: number;
   }>;
   stageEvidence?: RelevantStageEvidence;
 }
@@ -226,7 +227,7 @@ const statsEl = document.getElementById("stats") as HTMLElement;
 const summaryEl = document.getElementById("suite-summary") as HTMLElement;
 const lb = document.getElementById("lightbox") as HTMLElement;
 const lbImg = document.getElementById("lb-img") as HTMLImageElement;
-const lbOverlay = document.getElementById("lb-overlay") as unknown as SVGSVGElement;
+const lbOverlay = document.querySelector<SVGSVGElement>("#lb-overlay")!;
 const showLiveSvgEl = document.getElementById("show-live-svg") as HTMLInputElement;
 
 // ── Signals ──
@@ -352,7 +353,7 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
   // available; fall back to worst diff% for legacy data.
   const haveRegions = chunks.some((c) => c.regionCount != null);
   const worstRegions = chunks.reduce((m, c) => Math.max(m, c.regionCount ?? 0), 0);
-  const worstCoverage = chunks.reduce((m, c: any) => Math.max(m, c.coveragePct ?? 0), 0);
+  const worstCoverage = chunks.reduce((m, c) => Math.max(m, c.coveragePct ?? 0), 0);
   const worstDiff = chunks.reduce((m, c) => Math.max(m, c.diffPct), 0);
   const summary = haveRegions
     ? `${chunks.length} chunks · worst ${worstRegions} region${worstRegions === 1 ? "" : "s"} · ${worstCoverage.toFixed(2)}%`
@@ -368,10 +369,9 @@ function ChunkStrip({ r }: { r: ReviewTest }) {
           const diff = `${IMG_BASE}/${r.suite}/${r.name}-diff${suffix}.png`;
           // Lead with regions/coverage % when available; legacy chunks
           // fall back to raw diff %.
-          const cAny = c as any;
           const chunkScore =
-            c.regionCount != null && cAny.coveragePct != null
-              ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"} · ${cAny.coveragePct.toFixed(2)}%`
+            c.regionCount != null && c.coveragePct != null
+              ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"} · ${c.coveragePct.toFixed(2)}%`
               : c.regionCount != null
                 ? `${c.regionCount} region${c.regionCount === 1 ? "" : "s"}`
                 : `${c.diffPct.toFixed(2)}%`;
@@ -568,10 +568,17 @@ function SuiteSummary() {
 // DM-1731: opt-in kerf dev diagnostics — `?kerfdev` turns on the 2.0
 // warnings (value-only re-renders that could be fully bound; stale bindings)
 // during development. Query-gated: production review sessions stay silent.
+declare global {
+  interface Window {
+    KERF_DEV?: boolean;
+    KERF_DEV_WARN_VALUE_ONLY_RERENDER?: boolean;
+    KERF_DEV_WARN_STALE_BINDING?: boolean;
+  }
+}
 if (location.search.includes("kerfdev")) {
-  (globalThis as unknown as Record<string, unknown>).KERF_DEV = true;
-  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_VALUE_ONLY_RERENDER = true;
-  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_STALE_BINDING = true;
+  window.KERF_DEV = true;
+  window.KERF_DEV_WARN_VALUE_ONLY_RERENDER = true;
+  window.KERF_DEV_WARN_STALE_BINDING = true;
 }
 
 // ── Mounts ──

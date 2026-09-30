@@ -2,6 +2,7 @@
 /** @jsxImportSource kerfjs */
 
 import { computed, delegate, mount, signal } from "kerfjs";
+import { postJson } from "../utils/post-json.js";
 import {
   SCRUBBER_EMBED_CHANNEL,
   isScrubberEmbedEvent,
@@ -11,6 +12,7 @@ import {
 } from "../scrubber/embed.js";
 import { applyStudioAuthoringCommand, studioContentRevisionId, type StudioAuthoringCommand } from "./authoring.js";
 import type { StudioProject, StudioScene } from "./project-schema.js";
+import { STUDIO_DEFAULT_SCENE_DURATION_MS, STUDIO_DEFAULT_TRANSITION_DURATION_MS } from "./defaults.js";
 import {
   buildStudioTimeline,
   moveStudioTimelineItems,
@@ -124,6 +126,11 @@ const timelineZoom = signal(1);
 const timelineSnapMs = signal(50);
 const timelineUndo = signal<StudioTimelineCommand[]>([]);
 const timelineRedo = signal<StudioTimelineCommand[]>([]);
+const MAX_UNDO_HISTORY = 50;
+const TIMELINE_BASE_PX_PER_MS = 0.08;
+const TIMELINE_MIN_WIDTH_PX = 900;
+const TIMELINE_END_PADDING_PX = 40;
+const TIMELINE_LABEL_WIDTH_PX = 150;
 
 const openAnnotations = computed(
   () => project.value?.review.annotations.filter((annotation) => annotation.status === "open").length ?? 0,
@@ -180,7 +187,11 @@ type SceneSourceKind = "template" | "url" | "file" | "svg" | "cast";
 function storyboardRecipe(scene: StudioScene): StoryboardRecipe {
   return scene.render.kind === "storyboard"
     ? scene.render.recipe
-    : { template: "title-card", params: { title: scene.title ?? "Scene" }, duration: scene.render.duration ?? 1600 };
+    : {
+        template: "title-card",
+        params: { title: scene.title ?? "Scene" },
+        duration: scene.render.duration ?? STUDIO_DEFAULT_SCENE_DURATION_MS,
+      };
 }
 
 function scenePresentation(
@@ -308,7 +319,7 @@ function applyAuthoring(command: StudioAuthoringCommand): void {
   if (current == null) return;
   try {
     const result = applyStudioAuthoringCommand(current, command);
-    undoStack.value = [...undoStack.value, result.undo.project].slice(-50);
+    undoStack.value = [...undoStack.value, result.undo.project].slice(-MAX_UNDO_HISTORY);
     project.value = result.project;
     dirty.value = true;
     generation.value = {
@@ -380,11 +391,11 @@ function semanticTargetLabel(event: NonNullable<StudioScene["tracks"]>[number]["
 }
 
 function timelineScale(): number {
-  return 0.08 * timelineZoom.value;
+  return TIMELINE_BASE_PX_PER_MS * timelineZoom.value;
 }
 
 function timelineWidth(durationMs: number): number {
-  return Math.max(900, Math.ceil(durationMs * timelineScale()) + 40);
+  return Math.max(TIMELINE_MIN_WIDTH_PX, Math.ceil(durationMs * timelineScale()) + TIMELINE_END_PADDING_PX);
 }
 
 function timelineItemTitle(item: StudioTimelineItem): string {
@@ -397,53 +408,7 @@ function render() {
     <>
       <style>{CSS}</style>
       <div class="app">
-        <aside class="rail">
-          <div class="brand">
-            <div class="mark">D</div>
-            <div>
-              <div class="eyebrow">Domotion</div>
-              <h1>Studio</h1>
-            </div>
-          </div>
-          <div class="field">
-            <span>Studio workspace</span>
-            <div class="workspace">{bootstrap.workspaceRoot}</div>
-          </div>
-          <label class="field">
-            <span>Project file</span>
-            <input data-field="project-path" value={projectPath.value} spellcheck="false" aria-label="Project file" />
-          </label>
-          {current == null && (
-            <label class="field">
-              <span>New project title</span>
-              <input data-field="new-title" value={newTitle.value} aria-label="New project title" />
-            </label>
-          )}
-          <div class="actions">
-            <button class="primary" data-action="create" disabled={busy.value}>
-              Create
-            </button>
-            <button data-action="open" disabled={busy.value}>
-              Open
-            </button>
-          </div>
-          {current != null && (
-            <div class="actions">
-              <button class="primary" data-action="save" disabled={busy.value || !dirty.value}>
-                Save
-              </button>
-              <button data-action="reopen" disabled={busy.value}>
-                Reopen
-              </button>
-              <button data-action="undo" disabled={busy.value || undoStack.value.length === 0}>
-                Undo
-              </button>
-            </div>
-          )}
-          <p class="rail-note">
-            Project JSON is the durable source. SVG and review video stay generated artifacts with revision provenance.
-          </p>
-        </aside>
+        <Rail current={current} />
         <main class="main">
           {message.value !== "" && (
             <div class={`notice ${messageKind.value}`} role="status" aria-live="polite">
@@ -480,403 +445,10 @@ function render() {
                   <span class="badge">Format v{current.version}</span>
                 </div>
               </header>
-              <div class="grid">
-                <section class="panel">
-                  <h3>Narrative</h3>
-                  <div class="formgrid">
-                    <label class="field wide">
-                      <span>Title</span>
-                      <input data-field="narrative-title" value={current.narrative.title} />
-                    </label>
-                    <label class="field wide">
-                      <span>Summary</span>
-                      <textarea data-field="narrative-summary">{current.narrative.summary ?? ""}</textarea>
-                    </label>
-                    <label class="field">
-                      <span>Objective</span>
-                      <textarea data-field="narrative-objective">{current.narrative.objective ?? ""}</textarea>
-                    </label>
-                    <label class="field">
-                      <span>Audience</span>
-                      <textarea data-field="narrative-audience">{current.narrative.audience ?? ""}</textarea>
-                    </label>
-                    <label class="field wide">
-                      <span>Tone</span>
-                      <input data-field="narrative-tone" value={current.narrative.tone ?? ""} />
-                    </label>
-                  </div>
-                </section>
-                <section class="panel">
-                  <h3>Generation & review</h3>
-                  <div class="metrics">
-                    <div class="metric">
-                      <strong>{current.scenes.length}</strong>
-                      <span>Scenes</span>
-                    </div>
-                    <div class="metric">
-                      <strong>{generation.value?.artifactCount ?? current.artifacts.length}</strong>
-                      <span>Artifacts</span>
-                    </div>
-                    <div class="metric">
-                      <strong>{openAnnotations.value}</strong>
-                      <span>Open notes</span>
-                    </div>
-                  </div>
-                  <div class="actions" style="margin-top:12px">
-                    <button
-                      class="primary"
-                      data-action="generate-story"
-                      disabled={busy.value || !bootstrap.generationAvailable}
-                    >
-                      Generate whole story
-                    </button>
-                  </div>
-                  <p class="help">
-                    {bootstrap.generationAvailable
-                      ? "Generation always runs required AI healing and AI review; ambiguity pauses for clarification."
-                      : "Connect an AI healing/review generation adapter to enable rendering."}
-                  </p>
-                </section>
-              </div>
-              <section class="panel">
-                <div class="section-head">
-                  <h3>Narrative beats</h3>
-                  <button data-action="beat-add">Add beat</button>
-                </div>
-                <div class="beat-list">
-                  {current.narrative.beats.map((beat) => (
-                    <article class="beat" data-beat-id={beat.id} data-key={beat.id}>
-                      <label class="field">
-                        <span>Beat title</span>
-                        <input data-field="beat-title" value={beat.title} aria-label={`Beat ${beat.id} title`} />
-                      </label>
-                      <label class="field">
-                        <span>Beat summary</span>
-                        <input
-                          data-field="beat-summary"
-                          value={beat.summary ?? ""}
-                          aria-label={`Beat ${beat.id} summary`}
-                        />
-                      </label>
-                      <button class="danger" data-action="beat-remove" disabled={current.narrative.beats.length === 1}>
-                        Remove
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              </section>
-              <section class="panel preview-panel">
-                <div class="section-head">
-                  <h3>Story scenes</h3>
-                  <button data-action="scene-add">Add scene</button>
-                </div>
-                <div class="scene-list">
-                  {current.scenes.map((scene, index) => (
-                    <article class="scene" data-scene-id={scene.id} data-key={scene.id}>
-                      <div class="scene-no">{index + 1}</div>
-                      <div class="scene-editor">
-                        <div class="scene-head">
-                          <label class="field">
-                            <span>Scene title</span>
-                            <input
-                              data-field="scene-title"
-                              value={scene.title ?? ""}
-                              aria-label={`Scene ${index + 1} title`}
-                            />
-                          </label>
-                          <span class={`badge scene-state ${isGenerated(scene.id) ? "good" : "warn"}`}>
-                            {isGenerated(scene.id) ? "Generated" : "Needs generation"}
-                          </span>
-                        </div>
-                        <div class="scene-controls">
-                          <label class="field span2">
-                            <span>Description</span>
-                            <textarea data-field="scene-description" aria-label={`Scene ${index + 1} description`}>
-                              {scene.description ?? ""}
-                            </textarea>
-                          </label>
-                          <label class="field span2">
-                            <span>Generation instructions</span>
-                            <textarea
-                              data-field="scene-generation"
-                              aria-label={`Scene ${index + 1} generation instructions`}
-                            >
-                              {scene.generationInstructions ?? ""}
-                            </textarea>
-                          </label>
-                          <label class="field">
-                            <span>Narrative beat</span>
-                            <select data-field="scene-beat" aria-label={`Scene ${index + 1} narrative beat`}>
-                              <option value="">Unassigned</option>
-                              {current.narrative.beats.map((beat) => (
-                                <option
-                                  value={beat.id}
-                                  data-key={beat.id}
-                                  selected={scene.narrativeBeatIds?.[0] === beat.id}
-                                >
-                                  {beat.title}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label class="field">
-                            <span>Source type</span>
-                            <select
-                              data-field="scene-source-kind"
-                              aria-label={`Scene ${index + 1} source type`}
-                              disabled={scene.render.kind === "composition"}
-                            >
-                              {scene.render.kind === "composition" ? (
-                                <option selected>composition</option>
-                              ) : (
-                                (["template", "url", "file", "svg", "cast"] as const).map((kind) => (
-                                  <option value={kind} selected={sourceKind(scene) === kind}>
-                                    {kind}
-                                  </option>
-                                ))
-                              )}
-                            </select>
-                          </label>
-                          <label class="field span2">
-                            <span>Source</span>
-                            <input
-                              data-field="scene-source-value"
-                              value={
-                                scene.render.kind === "composition"
-                                  ? `${scene.render.composition.layers.length} authored layers`
-                                  : sourceValue(scene)
-                              }
-                              aria-label={`Scene ${index + 1} source`}
-                              disabled={scene.render.kind === "composition"}
-                            />
-                          </label>
-                          {scene.render.kind === "storyboard" &&
-                            (sourceKind(scene) === "url" || sourceKind(scene) === "file") && (
-                              <label class="field">
-                                <span>Capture selector</span>
-                                <input
-                                  data-field="scene-selector"
-                                  value={storyboardRecipe(scene).capture?.selector ?? "body"}
-                                  aria-label={`Scene ${index + 1} capture selector`}
-                                />
-                              </label>
-                            )}
-                          <label class="field">
-                            <span>Duration (ms)</span>
-                            <input
-                              type="number"
-                              min="1"
-                              data-field="scene-duration"
-                              value={String(scenePresentation(scene).duration ?? "")}
-                              aria-label={`Scene ${index + 1} duration`}
-                            />
-                          </label>
-                          <label class="field">
-                            <span>Trim start (ms)</span>
-                            <input
-                              type="number"
-                              min="0"
-                              data-field="scene-trim-start"
-                              value={String(scenePresentation(scene).trimStart ?? "")}
-                              aria-label={`Scene ${index + 1} trim start`}
-                            />
-                          </label>
-                          <label class="field">
-                            <span>Trim end (ms)</span>
-                            <input
-                              type="number"
-                              min="1"
-                              data-field="scene-trim-end"
-                              value={String(scenePresentation(scene).trimEnd ?? "")}
-                              aria-label={`Scene ${index + 1} trim end`}
-                            />
-                          </label>
-                          <label class="field">
-                            <span>Fit</span>
-                            <select data-field="scene-fit" aria-label={`Scene ${index + 1} fit`}>
-                              {(["center", "contain", "cover"] as const).map((fit) => (
-                                <option value={fit} selected={(scenePresentation(scene).fit ?? "center") === fit}>
-                                  {fit}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label class="field">
-                            <span>Transition</span>
-                            <select data-field="scene-transition" aria-label={`Scene ${index + 1} transition`}>
-                              {(
-                                [
-                                  "cut",
-                                  "crossfade",
-                                  "push-left",
-                                  "push-right",
-                                  "push-up",
-                                  "push-down",
-                                  "wipe",
-                                  "iris",
-                                  "zoom-in",
-                                  "zoom-out",
-                                  "shine",
-                                ] as const
-                              ).map((transition) => (
-                                <option
-                                  value={transition}
-                                  selected={(scenePresentation(scene).transition?.type ?? "crossfade") === transition}
-                                >
-                                  {transition}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label class="field">
-                            <span>Transition duration (ms)</span>
-                            <input
-                              type="number"
-                              min="0"
-                              data-field="scene-transition-duration"
-                              value={String(scenePresentation(scene).transition?.duration ?? 300)}
-                              aria-label={`Scene ${index + 1} transition duration`}
-                            />
-                          </label>
-                          <label class="field">
-                            <span>Cinematic preset</span>
-                            <select data-field="scene-preset" aria-label={`Scene ${index + 1} cinematic preset`}>
-                              <option value="none" selected={cinematicPreset(scene) === "none"}>
-                                None
-                              </option>
-                              <option value="browser-chrome" selected={cinematicPreset(scene) === "browser-chrome"}>
-                                Browser chrome
-                              </option>
-                              <option value="device-frame" selected={cinematicPreset(scene) === "device-frame"}>
-                                Phone frame
-                              </option>
-                              <option value="zoom-pan" selected={cinematicPreset(scene) === "zoom-pan"}>
-                                Focus zoom
-                              </option>
-                              <option value="spotlight" selected={cinematicPreset(scene) === "spotlight"}>
-                                Spotlight
-                              </option>
-                              <option value="title-card" selected={cinematicPreset(scene) === "title-card"}>
-                                Title card
-                              </option>
-                              {cinematicPreset(scene) === "custom" && (
-                                <option value="custom" selected disabled>
-                                  Custom treatments
-                                </option>
-                              )}
-                            </select>
-                          </label>
-                        </div>
-                        <div class="scene-meta">
-                          <span class="badge">{sourceLabel(scene)}</span>
-                          <span class="badge">{durationLabel(scene)}</span>
-                        </div>
-                        {(scene.tracks?.some((track) => track.events.length > 0) ?? false) && (
-                          <div class="semantic-actions">
-                            {scene.tracks!.flatMap((track) =>
-                              track.events.map((event) => (
-                                <div
-                                  class="semantic-action"
-                                  data-track-id={track.id}
-                                  data-event-id={event.id}
-                                  data-key={`${track.id}:${event.id}`}
-                                >
-                                  <code>
-                                    {event.kind} · {semanticTargetLabel(event)}
-                                  </code>
-                                  <label class="field">
-                                    <span>Action timing (ms)</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      data-field="scene-action-at"
-                                      value={String(event.atMs)}
-                                      aria-label={`Action ${event.id} timing`}
-                                    />
-                                  </label>
-                                </div>
-                              )),
-                            )}
-                          </div>
-                        )}
-                        <div class="scene-id">{scene.id}</div>
-                        <div class="scene-actions">
-                          <button data-action="scene-up" disabled={index === 0}>
-                            Move up
-                          </button>
-                          <button data-action="scene-down" disabled={index === current.scenes.length - 1}>
-                            Move down
-                          </button>
-                          <button data-action="scene-duplicate">Duplicate</button>
-                          <button class="danger" data-action="scene-remove" disabled={current.scenes.length === 1}>
-                            Remove
-                          </button>
-                          <button
-                            class="primary"
-                            data-action="generate-scene"
-                            disabled={busy.value || !bootstrap.generationAvailable}
-                          >
-                            Regenerate scene
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-              <section class="panel preview-panel">
-                <h3>Scrubber preview</h3>
-                <div class="preview-toolbar">
-                  <button
-                    data-action="preview-story"
-                    class={previewSelection.value?.kind === "story" ? "primary" : ""}
-                    disabled={previewBusy.value || !hasStoryPreview()}
-                  >
-                    Whole story
-                  </button>
-                  {current.scenes.map((scene, index) => (
-                    <button
-                      data-action="preview-scene"
-                      data-preview-scene={scene.id}
-                      data-key={scene.id}
-                      class={
-                        previewSelection.value?.kind === "scene" && previewSelection.value.sceneId === scene.id
-                          ? "primary"
-                          : ""
-                      }
-                      disabled={previewBusy.value || !hasScenePreview(scene.id)}
-                    >
-                      Scene {index + 1}
-                    </button>
-                  ))}
-                  <span class="spacer"></span>
-                  <button data-action="preview-refresh" disabled={previewBusy.value || previewSelection.value == null}>
-                    {previewBusy.value ? "Refreshing…" : "Refresh preview"}
-                  </button>
-                </div>
-                {previewSelection.value == null ? (
-                  <div class="preview-empty">
-                    Choose a generated scene or whole-story artifact. Playback, seeking, frame steps, range inspection,
-                    zoom, and pan use the embedded SVG Scrubber.
-                  </div>
-                ) : (
-                  <>
-                    <iframe
-                      class="preview-frame"
-                      data-scrubber-frame
-                      data-morph-skip
-                      src="/scrubber"
-                      title="SVG Scrubber scene preview"
-                    ></iframe>
-                    {previewInfo.value != null && (
-                      <p class="preview-meta">
-                        {previewInfo.value.artifact.path} · {previewInfo.value.durationMs}ms · revision{" "}
-                        {previewInfo.value.artifact.sourceRevisionId}
-                      </p>
-                    )}
-                  </>
-                )}
-              </section>
+              <NarrativePanel current={current} />
+              <BeatsPanel current={current} />
+              <ScenesPanel current={current} />
+              <PreviewPanel current={current} />
               {(() => {
                 const timeline = buildStudioTimeline(current);
                 const scale = timelineScale();
@@ -942,7 +514,7 @@ function render() {
                       </button>
                     </div>
                     <div class="timeline-scroll">
-                      <div class="timeline-canvas" style={`width:${width + 150}px`}>
+                      <div class="timeline-canvas" style={`width:${width + TIMELINE_LABEL_WIDTH_PX}px`}>
                         <div class="timeline-ruler" style={`width:${width}px`} aria-hidden="true"></div>
                         {timeline.rows.map((track) => (
                           <div class="timeline-row" data-timeline-row={track.id} data-key={track.id}>
@@ -980,179 +552,631 @@ function render() {
                   </section>
                 );
               })()}
-              <section class="panel recording-panel">
-                <h3>Import a real interaction recording</h3>
-                <label class="field">
-                  <span>Redacted recording JSON</span>
-                  <textarea
-                    data-field="recording-json"
-                    aria-label="Recorded interaction JSON"
-                    placeholder="Paste a domotion-studio-interaction-recording document"
-                  >
-                    {recordingJson.value}
-                  </textarea>
-                </label>
-                <div class="actions" style="margin-top:10px">
-                  <button
-                    class="primary"
-                    data-action="import-recording"
-                    disabled={busy.value || !bootstrap.recordingImportAvailable}
-                  >
-                    Import as editable scene
-                  </button>
-                </div>
-                <p class="help">
-                  {bootstrap.recordingImportAvailable
-                    ? "AI healing simplifies raw input into semantic actions; AI review accepts it or asks a clarifying question. Redacted raw evidence remains attached to the imported scene."
-                    : "Connect AI healing and review adapters to enable recording import."}
-                </p>
-              </section>
-              <section class="panel review-panel">
-                <h3>Review annotations</h3>
-                <div class="review-compose">
-                  <div class="review-fields">
-                    <label class="field body">
-                      <span>New review note</span>
-                      <textarea data-field="annotation-new-body" aria-label="New review note">
-                        {annotationBody.value}
-                      </textarea>
-                    </label>
-                    <label class="field scene-select">
-                      <span>Scope</span>
-                      <select data-field="annotation-scene" aria-label="Annotation scope">
-                        <option value="" selected={annotationScene.value === ""}>
-                          Whole project
-                        </option>
-                        {current.scenes.map((scene) => (
-                          <option value={scene.id} data-key={scene.id} selected={annotationScene.value === scene.id}>
-                            {scene.title ?? scene.id}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Reviewer</span>
-                      <input
-                        data-field="annotation-author"
-                        value={annotationAuthor.value}
-                        aria-label="Annotation reviewer"
-                      />
-                    </label>
-                    <label class="field">
-                      <span>Start / point (ms)</span>
-                      <input
-                        data-field="annotation-start"
-                        value={annotationStartMs.value}
-                        inputMode="decimal"
-                        aria-label="Annotation start time"
-                      />
-                    </label>
-                    <label class="field">
-                      <span>End (ms, optional)</span>
-                      <input
-                        data-field="annotation-end"
-                        value={annotationEndMs.value}
-                        inputMode="decimal"
-                        aria-label="Annotation end time"
-                      />
-                    </label>
-                    <label class="field">
-                      <span>Region x</span>
-                      <input
-                        data-field="annotation-region-x"
-                        value={annotationRegionX.value}
-                        inputMode="decimal"
-                        aria-label="Annotation region x"
-                      />
-                    </label>
-                    <label class="field">
-                      <span>Region y</span>
-                      <input
-                        data-field="annotation-region-y"
-                        value={annotationRegionY.value}
-                        inputMode="decimal"
-                        aria-label="Annotation region y"
-                      />
-                    </label>
-                    <label class="field">
-                      <span>Region width</span>
-                      <input
-                        data-field="annotation-region-width"
-                        value={annotationRegionWidth.value}
-                        inputMode="decimal"
-                        aria-label="Annotation region width"
-                      />
-                    </label>
-                    <label class="field">
-                      <span>Region height</span>
-                      <input
-                        data-field="annotation-region-height"
-                        value={annotationRegionHeight.value}
-                        inputMode="decimal"
-                        aria-label="Annotation region height"
-                      />
-                    </label>
-                  </div>
-                  <div class="annotation-actions">
-                    <button data-action="annotation-create" disabled={busy.value || dirty.value}>
-                      Add annotation
-                    </button>
-                  </div>
-                  <p class="review-help">
-                    A note can be textual only; time and region grounding are optional. Save other project edits before
-                    changing review history.
-                  </p>
-                </div>
-                <div class="annotation-list">
-                  {current.review.annotations.length === 0 && <p class="empty-notes">No review annotations yet.</p>}
-                  {current.review.annotations.map((annotation) => (
-                    <article class="annotation" data-annotation-id={annotation.id} data-key={annotation.id}>
-                      <div class="annotation-head">
-                        <span class="annotation-author">
-                          {annotation.author.kind}
-                          {annotation.author.name == null ? "" : ` · ${annotation.author.name}`}
-                        </span>
-                        <span class={`badge ${annotation.status === "open" ? "warn" : "good"}`}>
-                          {annotation.status}
-                        </span>
-                      </div>
-                      <label class="field">
-                        <span>Comment</span>
-                        <textarea
-                          data-field="annotation-existing-body"
-                          aria-label={`Annotation ${annotation.id} comment`}
-                        >
-                          {annotation.body}
-                        </textarea>
-                      </label>
-                      <div class="annotation-target">{annotationTargetLabel(annotation.target)}</div>
-                      <div class="annotation-actions">
-                        <button
-                          data-action="annotation-save"
-                          disabled={busy.value || dirty.value || annotation.status !== "open"}
-                        >
-                          Save note
-                        </button>
-                        {annotation.status === "open" && (
-                          <button data-action="annotation-resolve" disabled={busy.value || dirty.value}>
-                            Resolve
-                          </button>
-                        )}
-                        {annotation.status === "resolved" && (
-                          <button data-action="annotation-reopen" disabled={busy.value || dirty.value}>
-                            Reopen note
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
+              <RecordingPanel />
+              <AnnotationsPanel current={current} />
             </>
           )}
         </main>
       </div>
     </>
+  );
+}
+
+function SceneEditor({ current, scene, index }: { current: StudioProject; scene: StudioScene; index: number }) {
+  return (
+    <div class="scene-editor">
+      <div class="scene-head">
+        <label class="field">
+          <span>Scene title</span>
+          <input data-field="scene-title" value={scene.title ?? ""} aria-label={`Scene ${index + 1} title`} />
+        </label>
+        <span class={`badge scene-state ${isGenerated(scene.id) ? "good" : "warn"}`}>
+          {isGenerated(scene.id) ? "Generated" : "Needs generation"}
+        </span>
+      </div>
+      <div class="scene-controls">
+        <label class="field span2">
+          <span>Description</span>
+          <textarea data-field="scene-description" aria-label={`Scene ${index + 1} description`}>
+            {scene.description ?? ""}
+          </textarea>
+        </label>
+        <label class="field span2">
+          <span>Generation instructions</span>
+          <textarea data-field="scene-generation" aria-label={`Scene ${index + 1} generation instructions`}>
+            {scene.generationInstructions ?? ""}
+          </textarea>
+        </label>
+        <label class="field">
+          <span>Narrative beat</span>
+          <select data-field="scene-beat" aria-label={`Scene ${index + 1} narrative beat`}>
+            <option value="">Unassigned</option>
+            {current.narrative.beats.map((beat) => (
+              <option value={beat.id} data-key={beat.id} selected={scene.narrativeBeatIds?.[0] === beat.id}>
+                {beat.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="field">
+          <span>Source type</span>
+          <select
+            data-field="scene-source-kind"
+            aria-label={`Scene ${index + 1} source type`}
+            disabled={scene.render.kind === "composition"}
+          >
+            {scene.render.kind === "composition" ? (
+              <option selected>composition</option>
+            ) : (
+              (["template", "url", "file", "svg", "cast"] as const).map((kind) => (
+                <option value={kind} selected={sourceKind(scene) === kind}>
+                  {kind}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+        <label class="field span2">
+          <span>Source</span>
+          <input
+            data-field="scene-source-value"
+            value={
+              scene.render.kind === "composition"
+                ? `${scene.render.composition.layers.length} authored layers`
+                : sourceValue(scene)
+            }
+            aria-label={`Scene ${index + 1} source`}
+            disabled={scene.render.kind === "composition"}
+          />
+        </label>
+        {scene.render.kind === "storyboard" && (sourceKind(scene) === "url" || sourceKind(scene) === "file") && (
+          <label class="field">
+            <span>Capture selector</span>
+            <input
+              data-field="scene-selector"
+              value={storyboardRecipe(scene).capture?.selector ?? "body"}
+              aria-label={`Scene ${index + 1} capture selector`}
+            />
+          </label>
+        )}
+        <label class="field">
+          <span>Duration (ms)</span>
+          <input
+            type="number"
+            min="1"
+            data-field="scene-duration"
+            value={String(scenePresentation(scene).duration ?? "")}
+            aria-label={`Scene ${index + 1} duration`}
+          />
+        </label>
+        <label class="field">
+          <span>Trim start (ms)</span>
+          <input
+            type="number"
+            min="0"
+            data-field="scene-trim-start"
+            value={String(scenePresentation(scene).trimStart ?? "")}
+            aria-label={`Scene ${index + 1} trim start`}
+          />
+        </label>
+        <label class="field">
+          <span>Trim end (ms)</span>
+          <input
+            type="number"
+            min="1"
+            data-field="scene-trim-end"
+            value={String(scenePresentation(scene).trimEnd ?? "")}
+            aria-label={`Scene ${index + 1} trim end`}
+          />
+        </label>
+        <label class="field">
+          <span>Fit</span>
+          <select data-field="scene-fit" aria-label={`Scene ${index + 1} fit`}>
+            {(["center", "contain", "cover"] as const).map((fit) => (
+              <option value={fit} selected={(scenePresentation(scene).fit ?? "center") === fit}>
+                {fit}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="field">
+          <span>Transition</span>
+          <select data-field="scene-transition" aria-label={`Scene ${index + 1} transition`}>
+            {(
+              [
+                "cut",
+                "crossfade",
+                "push-left",
+                "push-right",
+                "push-up",
+                "push-down",
+                "wipe",
+                "iris",
+                "zoom-in",
+                "zoom-out",
+                "shine",
+              ] as const
+            ).map((transition) => (
+              <option
+                value={transition}
+                selected={(scenePresentation(scene).transition?.type ?? "crossfade") === transition}
+              >
+                {transition}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="field">
+          <span>Transition duration (ms)</span>
+          <input
+            type="number"
+            min="0"
+            data-field="scene-transition-duration"
+            value={String(scenePresentation(scene).transition?.duration ?? STUDIO_DEFAULT_TRANSITION_DURATION_MS)}
+            aria-label={`Scene ${index + 1} transition duration`}
+          />
+        </label>
+        <label class="field">
+          <span>Cinematic preset</span>
+          <select data-field="scene-preset" aria-label={`Scene ${index + 1} cinematic preset`}>
+            <option value="none" selected={cinematicPreset(scene) === "none"}>
+              None
+            </option>
+            <option value="browser-chrome" selected={cinematicPreset(scene) === "browser-chrome"}>
+              Browser chrome
+            </option>
+            <option value="device-frame" selected={cinematicPreset(scene) === "device-frame"}>
+              Phone frame
+            </option>
+            <option value="zoom-pan" selected={cinematicPreset(scene) === "zoom-pan"}>
+              Focus zoom
+            </option>
+            <option value="spotlight" selected={cinematicPreset(scene) === "spotlight"}>
+              Spotlight
+            </option>
+            <option value="title-card" selected={cinematicPreset(scene) === "title-card"}>
+              Title card
+            </option>
+            {cinematicPreset(scene) === "custom" && (
+              <option value="custom" selected disabled>
+                Custom treatments
+              </option>
+            )}
+          </select>
+        </label>
+      </div>
+      <div class="scene-meta">
+        <span class="badge">{sourceLabel(scene)}</span>
+        <span class="badge">{durationLabel(scene)}</span>
+      </div>
+      {(scene.tracks?.some((track) => track.events.length > 0) ?? false) && (
+        <div class="semantic-actions">
+          {scene.tracks!.flatMap((track) =>
+            track.events.map((event) => (
+              <div
+                class="semantic-action"
+                data-track-id={track.id}
+                data-event-id={event.id}
+                data-key={`${track.id}:${event.id}`}
+              >
+                <code>
+                  {event.kind} · {semanticTargetLabel(event)}
+                </code>
+                <label class="field">
+                  <span>Action timing (ms)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    data-field="scene-action-at"
+                    value={String(event.atMs)}
+                    aria-label={`Action ${event.id} timing`}
+                  />
+                </label>
+              </div>
+            )),
+          )}
+        </div>
+      )}
+      <div class="scene-id">{scene.id}</div>
+      <div class="scene-actions">
+        <button data-action="scene-up" disabled={index === 0}>
+          Move up
+        </button>
+        <button data-action="scene-down" disabled={index === current.scenes.length - 1}>
+          Move down
+        </button>
+        <button data-action="scene-duplicate">Duplicate</button>
+        <button class="danger" data-action="scene-remove" disabled={current.scenes.length === 1}>
+          Remove
+        </button>
+        <button class="primary" data-action="generate-scene" disabled={busy.value || !bootstrap.generationAvailable}>
+          Regenerate scene
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Rail({ current }: { current: StudioProject | null }) {
+  return (
+    <aside class="rail">
+      <div class="brand">
+        <div class="mark">D</div>
+        <div>
+          <div class="eyebrow">Domotion</div>
+          <h1>Studio</h1>
+        </div>
+      </div>
+      <div class="field">
+        <span>Studio workspace</span>
+        <div class="workspace">{bootstrap.workspaceRoot}</div>
+      </div>
+      <label class="field">
+        <span>Project file</span>
+        <input data-field="project-path" value={projectPath.value} spellcheck="false" aria-label="Project file" />
+      </label>
+      {current == null && (
+        <label class="field">
+          <span>New project title</span>
+          <input data-field="new-title" value={newTitle.value} aria-label="New project title" />
+        </label>
+      )}
+      <div class="actions">
+        <button class="primary" data-action="create" disabled={busy.value}>
+          Create
+        </button>
+        <button data-action="open" disabled={busy.value}>
+          Open
+        </button>
+      </div>
+      {current != null && (
+        <div class="actions">
+          <button class="primary" data-action="save" disabled={busy.value || !dirty.value}>
+            Save
+          </button>
+          <button data-action="reopen" disabled={busy.value}>
+            Reopen
+          </button>
+          <button data-action="undo" disabled={busy.value || undoStack.value.length === 0}>
+            Undo
+          </button>
+        </div>
+      )}
+      <p class="rail-note">
+        Project JSON is the durable source. SVG and review video stay generated artifacts with revision provenance.
+      </p>
+    </aside>
+  );
+}
+
+function NarrativePanel({ current }: { current: StudioProject }) {
+  return (
+    <div class="grid">
+      <section class="panel">
+        <h3>Narrative</h3>
+        <div class="formgrid">
+          <label class="field wide">
+            <span>Title</span>
+            <input data-field="narrative-title" value={current.narrative.title} />
+          </label>
+          <label class="field wide">
+            <span>Summary</span>
+            <textarea data-field="narrative-summary">{current.narrative.summary ?? ""}</textarea>
+          </label>
+          <label class="field">
+            <span>Objective</span>
+            <textarea data-field="narrative-objective">{current.narrative.objective ?? ""}</textarea>
+          </label>
+          <label class="field">
+            <span>Audience</span>
+            <textarea data-field="narrative-audience">{current.narrative.audience ?? ""}</textarea>
+          </label>
+          <label class="field wide">
+            <span>Tone</span>
+            <input data-field="narrative-tone" value={current.narrative.tone ?? ""} />
+          </label>
+        </div>
+      </section>
+      <section class="panel">
+        <h3>Generation & review</h3>
+        <div class="metrics">
+          <div class="metric">
+            <strong>{current.scenes.length}</strong>
+            <span>Scenes</span>
+          </div>
+          <div class="metric">
+            <strong>{generation.value?.artifactCount ?? current.artifacts.length}</strong>
+            <span>Artifacts</span>
+          </div>
+          <div class="metric">
+            <strong>{openAnnotations.value}</strong>
+            <span>Open notes</span>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button class="primary" data-action="generate-story" disabled={busy.value || !bootstrap.generationAvailable}>
+            Generate whole story
+          </button>
+        </div>
+        <p class="help">
+          {bootstrap.generationAvailable
+            ? "Generation always runs required AI healing and AI review; ambiguity pauses for clarification."
+            : "Connect an AI healing/review generation adapter to enable rendering."}
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function BeatsPanel({ current }: { current: StudioProject }) {
+  return (
+    <section class="panel">
+      <div class="section-head">
+        <h3>Narrative beats</h3>
+        <button data-action="beat-add">Add beat</button>
+      </div>
+      <div class="beat-list">
+        {current.narrative.beats.map((beat) => (
+          <article class="beat" data-beat-id={beat.id} data-key={beat.id}>
+            <label class="field">
+              <span>Beat title</span>
+              <input data-field="beat-title" value={beat.title} aria-label={`Beat ${beat.id} title`} />
+            </label>
+            <label class="field">
+              <span>Beat summary</span>
+              <input data-field="beat-summary" value={beat.summary ?? ""} aria-label={`Beat ${beat.id} summary`} />
+            </label>
+            <button class="danger" data-action="beat-remove" disabled={current.narrative.beats.length === 1}>
+              Remove
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScenesPanel({ current }: { current: StudioProject }) {
+  return (
+    <section class="panel scenes-panel">
+      <div class="section-head">
+        <h3>Story scenes</h3>
+        <button data-action="scene-add">Add scene</button>
+      </div>
+      <div class="scene-list">
+        {current.scenes.map((scene, index) => (
+          <article class="scene" data-scene-id={scene.id} data-key={scene.id}>
+            <div class="scene-no">{index + 1}</div>
+            <SceneEditor current={current} scene={scene} index={index} />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PreviewPanel({ current }: { current: StudioProject }) {
+  return (
+    <section class="panel preview-panel">
+      <h3>Scrubber preview</h3>
+      <div class="preview-toolbar">
+        <button
+          data-action="preview-story"
+          class={previewSelection.value?.kind === "story" ? "primary" : ""}
+          disabled={previewBusy.value || !hasStoryPreview()}
+        >
+          Whole story
+        </button>
+        {current.scenes.map((scene, index) => (
+          <button
+            data-action="preview-scene"
+            data-preview-scene={scene.id}
+            data-key={scene.id}
+            class={
+              previewSelection.value?.kind === "scene" && previewSelection.value.sceneId === scene.id ? "primary" : ""
+            }
+            disabled={previewBusy.value || !hasScenePreview(scene.id)}
+          >
+            Scene {index + 1}
+          </button>
+        ))}
+        <span class="spacer"></span>
+        <button data-action="preview-refresh" disabled={previewBusy.value || previewSelection.value == null}>
+          {previewBusy.value ? "Refreshing…" : "Refresh preview"}
+        </button>
+      </div>
+      {previewSelection.value == null ? (
+        <div class="preview-empty">
+          Choose a generated scene or whole-story artifact. Playback, seeking, frame steps, range inspection, zoom, and
+          pan use the embedded SVG Scrubber.
+        </div>
+      ) : (
+        <>
+          <iframe
+            class="preview-frame"
+            data-scrubber-frame
+            data-morph-skip
+            src="/scrubber"
+            title="SVG Scrubber scene preview"
+          ></iframe>
+          {previewInfo.value != null && (
+            <p class="preview-meta">
+              {previewInfo.value.artifact.path} · {previewInfo.value.durationMs}ms · revision{" "}
+              {previewInfo.value.artifact.sourceRevisionId}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function RecordingPanel() {
+  return (
+    <section class="panel recording-panel">
+      <h3>Import a real interaction recording</h3>
+      <label class="field">
+        <span>Redacted recording JSON</span>
+        <textarea
+          data-field="recording-json"
+          aria-label="Recorded interaction JSON"
+          placeholder="Paste a domotion-studio-interaction-recording document"
+        >
+          {recordingJson.value}
+        </textarea>
+      </label>
+      <div class="actions" style="margin-top:10px">
+        <button
+          class="primary"
+          data-action="import-recording"
+          disabled={busy.value || !bootstrap.recordingImportAvailable}
+        >
+          Import as editable scene
+        </button>
+      </div>
+      <p class="help">
+        {bootstrap.recordingImportAvailable
+          ? "AI healing simplifies raw input into semantic actions; AI review accepts it or asks a clarifying question. Redacted raw evidence remains attached to the imported scene."
+          : "Connect AI healing and review adapters to enable recording import."}
+      </p>
+    </section>
+  );
+}
+
+function AnnotationsPanel({ current }: { current: StudioProject }) {
+  return (
+    <section class="panel review-panel">
+      <h3>Review annotations</h3>
+      <div class="review-compose">
+        <div class="review-fields">
+          <label class="field body">
+            <span>New review note</span>
+            <textarea data-field="annotation-new-body" aria-label="New review note">
+              {annotationBody.value}
+            </textarea>
+          </label>
+          <label class="field scene-select">
+            <span>Scope</span>
+            <select data-field="annotation-scene" aria-label="Annotation scope">
+              <option value="" selected={annotationScene.value === ""}>
+                Whole project
+              </option>
+              {current.scenes.map((scene) => (
+                <option value={scene.id} data-key={scene.id} selected={annotationScene.value === scene.id}>
+                  {scene.title ?? scene.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label class="field">
+            <span>Reviewer</span>
+            <input data-field="annotation-author" value={annotationAuthor.value} aria-label="Annotation reviewer" />
+          </label>
+          <label class="field">
+            <span>Start / point (ms)</span>
+            <input
+              data-field="annotation-start"
+              value={annotationStartMs.value}
+              inputMode="decimal"
+              aria-label="Annotation start time"
+            />
+          </label>
+          <label class="field">
+            <span>End (ms, optional)</span>
+            <input
+              data-field="annotation-end"
+              value={annotationEndMs.value}
+              inputMode="decimal"
+              aria-label="Annotation end time"
+            />
+          </label>
+          <label class="field">
+            <span>Region x</span>
+            <input
+              data-field="annotation-region-x"
+              value={annotationRegionX.value}
+              inputMode="decimal"
+              aria-label="Annotation region x"
+            />
+          </label>
+          <label class="field">
+            <span>Region y</span>
+            <input
+              data-field="annotation-region-y"
+              value={annotationRegionY.value}
+              inputMode="decimal"
+              aria-label="Annotation region y"
+            />
+          </label>
+          <label class="field">
+            <span>Region width</span>
+            <input
+              data-field="annotation-region-width"
+              value={annotationRegionWidth.value}
+              inputMode="decimal"
+              aria-label="Annotation region width"
+            />
+          </label>
+          <label class="field">
+            <span>Region height</span>
+            <input
+              data-field="annotation-region-height"
+              value={annotationRegionHeight.value}
+              inputMode="decimal"
+              aria-label="Annotation region height"
+            />
+          </label>
+        </div>
+        <div class="annotation-actions">
+          <button data-action="annotation-create" disabled={busy.value || dirty.value}>
+            Add annotation
+          </button>
+        </div>
+        <p class="review-help">
+          A note can be textual only; time and region grounding are optional. Save other project edits before changing
+          review history.
+        </p>
+      </div>
+      <div class="annotation-list">
+        {current.review.annotations.length === 0 && <p class="empty-notes">No review annotations yet.</p>}
+        {current.review.annotations.map((annotation) => (
+          <article class="annotation" data-annotation-id={annotation.id} data-key={annotation.id}>
+            <div class="annotation-head">
+              <span class="annotation-author">
+                {annotation.author.kind}
+                {annotation.author.name == null ? "" : ` · ${annotation.author.name}`}
+              </span>
+              <span class={`badge ${annotation.status === "open" ? "warn" : "good"}`}>{annotation.status}</span>
+            </div>
+            <label class="field">
+              <span>Comment</span>
+              <textarea data-field="annotation-existing-body" aria-label={`Annotation ${annotation.id} comment`}>
+                {annotation.body}
+              </textarea>
+            </label>
+            <div class="annotation-target">{annotationTargetLabel(annotation.target)}</div>
+            <div class="annotation-actions">
+              <button
+                data-action="annotation-save"
+                disabled={busy.value || dirty.value || annotation.status !== "open"}
+              >
+                Save note
+              </button>
+              {annotation.status === "open" && (
+                <button data-action="annotation-resolve" disabled={busy.value || dirty.value}>
+                  Resolve
+                </button>
+              )}
+              {annotation.status === "resolved" && (
+                <button data-action="annotation-reopen" disabled={busy.value || dirty.value}>
+                  Reopen note
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1213,13 +1237,7 @@ async function loadPreview(
   previewSelection.value = selection;
   previewBusy.value = true;
   try {
-    const response = await fetch("/api/preview", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path: projectPath.value, selection }),
-    });
-    const result = (await response.json()) as PreviewResponse & { error?: string };
-    if (!response.ok) throw result;
+    const result = await postJson<PreviewResponse>("/api/preview", { path: projectPath.value, selection });
     previewInfo.value = result;
     sendPreviewToScrubber(result, seekMs);
   } catch (error) {
@@ -1238,14 +1256,7 @@ function setFailure(error: unknown): void {
 }
 
 async function post(path: string, body: unknown): Promise<ProjectResponse> {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const result = (await response.json()) as ProjectResponse & { error?: string; issues?: StudioIssue[] };
-  if (!response.ok) throw result;
-  return result;
+  return postJson<ProjectResponse>(path, body);
 }
 
 function acceptLoaded(result: ProjectResponse, action: string, preserveTimelineHistory = false): void {
@@ -1831,7 +1842,10 @@ void delegate(app, "change", "[data-field]", (_event, target) => {
     applyAuthoring(updateScenePresentation(scene, { fit: control.value as StoryboardRecipe["fit"] }));
   } else if (field === "scene-transition") {
     const previous = scenePresentation(scene).transition;
-    const transition = { type: control.value, duration: previous?.duration ?? 300 } as StoryboardRecipe["transition"];
+    const transition = {
+      type: control.value,
+      duration: previous?.duration ?? STUDIO_DEFAULT_TRANSITION_DURATION_MS,
+    } as StoryboardRecipe["transition"];
     applyAuthoring(updateScenePresentation(scene, { transition }));
   } else if (field === "scene-transition-duration") {
     const duration = Number(control.value);
@@ -1880,13 +1894,17 @@ void delegate(app, "pointerdown", "[data-timeline-id]", (event, target) => {
   (target as HTMLElement).setPointerCapture?.(pointer.pointerId);
 });
 
-window.addEventListener("pointerup", (event) => {
+void delegate(app, "pointerup", "[data-timeline-id]", (event) => {
   if (timelineDrag == null) return;
   const drag = timelineDrag;
   timelineDrag = null;
-  const deltaMs = (event.clientX - drag.startX) / timelineScale();
+  const deltaMs = ((event as PointerEvent).clientX - drag.startX) / timelineScale();
   if (Math.abs(deltaMs) < 1) return;
   void run(() => applyTimeline(selectedTimelineCommand(drag.operation, deltaMs)));
+});
+
+void delegate(app, "pointercancel", "[data-timeline-id]", () => {
+  timelineDrag = null;
 });
 
 void delegate(app, "keydown", "[data-timeline-id]", (event) => {

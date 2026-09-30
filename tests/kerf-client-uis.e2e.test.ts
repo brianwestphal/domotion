@@ -321,4 +321,29 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       await page.close();
     }
   }, 180_000);
+
+  it("scrubber reports an export server error without a blocking dialog", async () => {
+    const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
+    const started = await startServer("src/cli/scrubber.ts", [svg, "--no-open"]);
+    expect(started, "scrubber failed to start").not.toBeNull();
+    servers.push(started!.proc);
+    const page = await browser!.newPage();
+    const dialogs: string[] = [];
+    page.on("dialog", (dialog) => {
+      dialogs.push(dialog.message());
+      void dialog.dismiss();
+    });
+    try {
+      await page.route("**/export-frame", (route) =>
+        route.fulfill({ status: 413, contentType: "text/html", body: "<html>Request too large</html>" }),
+      );
+      await page.goto(started!.url, { waitUntil: "networkidle" });
+      await page.locator('[data-action="exporttoggle"]').click();
+      await page.locator('[data-action="export-frame"]').click();
+      await expect.poll(() => page.locator(".operation-status").textContent()).toContain("Request failed (413)");
+      expect(dialogs).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 180_000);
 });

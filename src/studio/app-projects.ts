@@ -8,6 +8,7 @@ import {
   STUDIO_PROJECT_VERSION,
   type StudioProject,
 } from "./project-schema.js";
+import { STUDIO_DEFAULT_SCENE_DURATION_MS } from "./defaults.js";
 import { parseStudioProjectJson, serializeStudioProject, validateStudioProject } from "./project.js";
 
 export interface StudioPathApi {
@@ -116,7 +117,7 @@ export function createStudioProjectDocument(options: CreateStudioProjectOptions)
         narrativeBeatIds: [beatId],
         render: {
           kind: "storyboard",
-          recipe: { template: "title-card", params: { title }, duration: 1600 },
+          recipe: { template: "title-card", params: { title }, duration: STUDIO_DEFAULT_SCENE_DURATION_MS },
         },
       },
     ],
