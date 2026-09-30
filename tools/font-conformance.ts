@@ -368,7 +368,7 @@ export function harvestedCorpusIdentity(stacks: StackSpec[], platform: string = 
   return `harvested:v${HARVEST_IDENTITY_VERSION}:${h}`;
 }
 
-interface StackCorpus {
+export interface StackCorpus {
   /**
    * A digest of the stacks, NOT a timestamp. See `harvestedCorpusIdentity`.
    * Older corpus files carry an ISO timestamp here; both compare by equality,
@@ -1370,6 +1370,406 @@ export function parseArgs(argv: string[]): Options {
 // Main
 // ---------------------------------------------------------------------------
 
+/** The complete CSS signature is the unit of per-stack comparison. */
+export function stackKey(spec: StackSpec, defaultLang: string): string {
+  return (
+    `${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}` +
+    (spec.fontStretch != null && spec.fontStretch !== "100%" ? `/${spec.fontStretch}` : "") +
+    (spec.fontVariationSettings != null && spec.fontVariationSettings !== "normal"
+      ? `/${spec.fontVariationSettings}`
+      : "") +
+    (spec.fontFeatureSettings != null && spec.fontFeatureSettings !== "normal" ? `/${spec.fontFeatureSettings}` : "") +
+    (spec.fontVariantAlternates != null && spec.fontVariantAlternates !== "normal"
+      ? `/${spec.fontVariantAlternates}`
+      : "") +
+    (spec.fontVariantEmoji != null && spec.fontVariantEmoji !== "normal" ? `/${spec.fontVariantEmoji}` : "") +
+    ` lang=${spec.lang ?? defaultLang}`
+  );
+}
+
+export function oracleScopeKey(platform: NodeJS.Platform, lang: string): string {
+  return platform === "linux" ? lang : "shared";
+}
+
+export function shouldResetBatch(resetEvery: number, batchNo: number): boolean {
+  return resetEvery > 0 && batchNo > 0 && batchNo % resetEvery === 0;
+}
+
+/** Reuse one Chromium renderer per locale on Linux and one shared renderer elsewhere. */
+export class OracleRegistry<T extends { close(): Promise<void> }> {
+  private readonly entries = new Map<string, Promise<T>>();
+
+  constructor(
+    private readonly platform: NodeJS.Platform,
+    private readonly create: (lang: string) => Promise<T>,
+  ) {}
+
+  forLang(lang: string): Promise<T> {
+    const key = oracleScopeKey(this.platform, lang);
+    const hit = this.entries.get(key);
+    if (hit != null) return hit;
+    const pending = this.create(lang).catch((error: unknown) => {
+      this.entries.delete(key);
+      throw error;
+    });
+    this.entries.set(key, pending);
+    return pending;
+  }
+
+  async close(): Promise<void> {
+    try {
+      await Promise.all([...this.entries.values()].map(async (entry) => (await entry).close()));
+    } finally {
+      this.entries.clear();
+    }
+  }
+}
+
+/** Bounded row retention with exact counts and an ordered resolver digest. */
+export class SweepTally {
+  readonly counts: Record<Verdict, number> = {
+    "agree-exact": 0,
+    "agree-same-file": 0,
+    "agree-alias": 0,
+    "agree-tofu": 0,
+    "agree-not-painted": 0,
+    mismatch: 0,
+    "mismatch-we-paint": 0,
+    "mismatch-we-tofu": 0,
+  };
+  readonly mismatches: MismatchRow[] = [];
+  readonly pairCounts = new Map<string, number>();
+  readonly stackCounts = new Map<string, number>();
+  readonly chromeFaceTally = new Map<string, number>();
+  readonly classCounts = { "different-family": 0, "same-family-different-cut": 0 };
+  readonly stackPrimaries: Array<{
+    fontFamily: string;
+    fontSize: number;
+    fontWeight: number;
+    fontStyle: string;
+    chromePrimary: string | null;
+    ourPrimaryKey: string;
+  }> = [];
+  readonly resolverAnswerHash = createHash("sha256");
+  mismatchRowsSeen = 0;
+  allowlistedCount = 0;
+  skippedStacks = 0;
+  chromeMs = 0;
+  oursMs = 0;
+  peakRssMb = 0;
+  peakMemoEntries = 0;
+
+  constructor(
+    readonly maxRows: number,
+    readonly defaultLang: string,
+    readonly strictAlias: boolean,
+    readonly allowlist: CompiledAllowlist,
+  ) {}
+
+  record(spec: StackSpec, cp: number, chromeFaces: ChromeFace[], ours: OurFace): void {
+    const chrome = primaryChromeFace(chromeFaces);
+    if (chrome != null) {
+      const face = chrome.postScriptName ?? chrome.familyName;
+      this.chromeFaceTally.set(face, (this.chromeFaceTally.get(face) ?? 0) + 1);
+    }
+    this.resolverAnswerHash.update(
+      `${JSON.stringify([stackKey(spec, this.defaultLang), cp, ours.key, ours.postscriptName, ours.path, ours.covered])}\n`,
+    );
+    const verdict = verdictForCodepoint(cp, chrome, ours, this.strictAlias);
+    this.counts[verdict]++;
+    if (!verdict.startsWith("mismatch")) return;
+    if (allowlisted(this.allowlist, cp, spec.fontFamily)) {
+      this.allowlistedCount++;
+      this.counts[verdict]--;
+      return;
+    }
+    const chromeName = chrome?.postScriptName ?? chrome?.familyName ?? "(none)";
+    const ourName = ours.postscriptName ?? ours.key;
+    const cls = mismatchClass(chromeName, ourName);
+    this.mismatchRowsSeen++;
+    this.classCounts[cls]++;
+    const pair = `${chromeName} → ${ourName}`;
+    this.pairCounts.set(pair, (this.pairCounts.get(pair) ?? 0) + 1);
+    const key = stackKey(spec, this.defaultLang);
+    this.stackCounts.set(key, (this.stackCounts.get(key) ?? 0) + 1);
+    if (this.mismatches.length >= this.maxRows) return;
+    this.mismatches.push({
+      cp,
+      cpHex: `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`,
+      stack: spec.fontFamily,
+      fontSize: spec.fontSize,
+      fontWeight: spec.fontWeight,
+      fontStyle: spec.fontStyle,
+      lang: spec.lang ?? this.defaultLang,
+      verdict,
+      class: cls,
+      chrome: chromeName,
+      chromeFamily: chrome?.familyName ?? "(none)",
+      chromeAllFaces: chromeFaces
+        .map((face) => `${face.postScriptName ?? face.familyName}×${face.glyphCount}`)
+        .join("+"),
+      chromeFile: chrome != null ? chromeFaceFile(chrome) : null,
+      ourKey: ours.key,
+      ourPostscript: ours.postscriptName,
+      ourFile: ours.path,
+      ourCovered: ours.covered,
+    });
+  }
+}
+
+export interface FontConformanceReportInput {
+  opts: Options;
+  corpus: StackCorpus;
+  universeLength: number;
+  stackLength: number;
+  oracleIsolation: string;
+  resolverAnswerDigest: string;
+  tally: SweepTally;
+  wallMs: number;
+  generatedAt: string;
+  platform: NodeJS.Platform;
+  arch: string;
+  nodeVersion: string;
+  unicode: string | undefined;
+  icu: string | undefined;
+  chromiumVersion: string;
+  parityEnv: Record<string, unknown>;
+  rotationRevision: string | null;
+  rotationOrdinal: string | null;
+  rotationStackBucket: string | null;
+  host: ReturnType<typeof hostIdentity>;
+  fontInventory: ReturnType<typeof shardFontInventory>;
+}
+
+/** Compose a report from completed sweep evidence; no browser or filesystem access. */
+export function buildReport(input: FontConformanceReportInput) {
+  const {
+    opts,
+    corpus,
+    universeLength,
+    stackLength,
+    oracleIsolation,
+    resolverAnswerDigest,
+    tally,
+    wallMs,
+    generatedAt,
+    platform,
+    arch,
+    nodeVersion,
+    unicode,
+    icu,
+    chromiumVersion,
+    parityEnv,
+    rotationRevision,
+    rotationOrdinal,
+    rotationStackBucket,
+    host,
+    fontInventory,
+  } = input;
+  const {
+    counts,
+    mismatches,
+    pairCounts,
+    stackCounts,
+    chromeFaceTally,
+    classCounts,
+    stackPrimaries,
+    mismatchRowsSeen,
+    allowlistedCount,
+    skippedStacks,
+    chromeMs,
+    oursMs,
+    peakRssMb,
+    allowlist,
+  } = tally;
+  const comparisons = Object.values(counts).reduce((a, b) => a + b, 0) + allowlistedCount;
+  const mismatchTotal = counts.mismatch + counts["mismatch-we-paint"] + counts["mismatch-we-tofu"];
+  const topPairs = Array.from(pairCounts.entries()).sort((a, b) => b[1] - a[1]);
+  const topStacks = Array.from(stackCounts.entries()).sort((a, b) => b[1] - a[1]);
+
+  return {
+    meta: {
+      generatedAt: generatedAt,
+      platform: platform,
+      arch: arch,
+      node: nodeVersion,
+      unicode: unicode,
+      icu: icu,
+      // The build that produced every answer on the CHROME side, and the most
+      // load-bearing field in this block — Blink's font selection is what is
+      // being measured, so a different browser is a different oracle.
+      //
+      // It was missing until a `font-variant-emoji` divergence read as
+      // Windows-specific for a week and turned out to be a version
+      // difference: ©/™/‼/☺ move to the color font under the CSS property in
+      // 147.0.7727.15 and stay on the primary in 148.0.7778.96, measured on
+      // ONE host with the platform held constant. Nothing recorded here could
+      // have shown that, while `image`, `fontInventory` and `icu` all matched.
+      //
+      // Read from the launched browser, never inferred from the Playwright
+      // revision directory: the Windows VM launches a 148 build out of a
+      // folder named `chromium-1217`, which is where the confusion started.
+      chromium: chromiumVersion,
+      parityEnvironment: parityEnv,
+      rotationRevision: rotationRevision,
+      rotationOrdinal: rotationOrdinal,
+      rotationStackBucket: rotationStackBucket,
+      stacksFile: opts.stacksFile,
+      stackCorpusGeneratedAt: corpus.generatedAt,
+      stackCorpusPlatform: corpus.platform ?? null,
+      stackFilter: opts.stackFilter,
+      allowForeignCorpus: opts.allowForeignCorpus,
+      codepoints: universeLength,
+      stacks: stackLength - skippedStacks,
+      skippedStacks,
+      includePua: opts.includePua,
+      ranges: opts.ranges,
+      sampleByte: opts.sampleByte,
+      shard: opts.shard,
+      stackShard: opts.stackShard,
+      strictAlias: opts.strictAlias,
+      maxRows: opts.maxRows,
+      lang: opts.lang,
+      resetEvery: opts.resetEvery,
+      oracleIsolation,
+      resolverAnswerDigest,
+      // DM-1922. Attribution fields for an intermittent, Chrome-side flip of
+      // the `sans-serif` generic's primary, seen four times in real runs and
+      // never once in ~2,000 probe samples across 32 runner allocations. The
+      // detector catches it; nothing recorded where it happened.
+      //
+      // `host` and `fontInventory` are per-SHARD, deliberately. This workflow
+      // shards one stack per shard, so the flipping stack sweeps alone on one
+      // machine — a run-level record cannot name it, and cannot show two
+      // shards disagreeing about the font set.
+      host: host,
+      fontInventory: fontInventory,
+      stackPrimaries,
+      peakRssMb,
+      wallMs,
+      chromeMs,
+      oursMs,
+      comparisonsPerSecond: Math.round((comparisons / wallMs) * 1000),
+    },
+    summary: {
+      verdictStage: "face-selection",
+      comparisons,
+      ...counts,
+      allowlisted: allowlistedCount,
+      mismatchTotal,
+      mismatchDifferentFamily: classCounts["different-family"],
+      mismatchSameFamilyDifferentCut: classCounts["same-family-different-cut"],
+      /**
+       * How many DISTINCT (chrome face → our face) routes disagree. A single
+       * wrong primary turns every uncovered codepoint in a stack into a
+       * mismatch, so the raw count measures blast radius while this measures
+       * how many decisions are actually wrong.
+       */
+      distinctMismatchPairs: pairCounts.size,
+      verdict: mismatchTotal === 0 ? "exact-logical-agreement" : "logical-mismatch",
+    },
+    rowsRetained: mismatches.length,
+    rowsTruncated: mismatchRowsSeen - mismatches.length,
+    mismatchesByStack: topStacks.map(([stack, count]) => ({ stack, count })),
+    chromeFaces: Array.from(chromeFaceTally.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([face, count]) => ({ face, count })),
+    topMismatchPairs: topPairs.map(([pair, count]) => ({ pair, count })),
+    allowlist: allowlist.entries.map((e, i) => ({
+      cp: e.lo === e.hi ? `0x${e.lo.toString(16)}` : `0x${e.lo.toString(16)}-0x${e.hi.toString(16)}`,
+      stack: e.stack ?? null,
+      reason: e.reason,
+      hits: allowlist.hits[i],
+    })),
+    mismatches,
+  };
+}
+
+/** Format only completed report evidence; writing the summary stays with main. */
+export function formatSummary(
+  report: ReturnType<typeof buildReport>,
+  opts: Options,
+  corpus: StackCorpus,
+  tally: SweepTally,
+  universeLength: number,
+  stackLength: number,
+): string {
+  const {
+    counts,
+    mismatches,
+    pairCounts,
+    stackCounts,
+    chromeFaceTally,
+    classCounts,
+    mismatchRowsSeen,
+    allowlistedCount,
+    skippedStacks,
+    chromeMs,
+    oursMs,
+    peakRssMb,
+    peakMemoEntries,
+  } = tally;
+  const comparisons = report.summary.comparisons;
+  const mismatchTotal = report.summary.mismatchTotal;
+  const wallMs = report.meta.wallMs;
+  const topPairs = Array.from(pairCounts.entries()).sort((a, b) => b[1] - a[1]);
+  const topStacks = Array.from(stackCounts.entries()).sort((a, b) => b[1] - a[1]);
+  const lines: string[] = [];
+  const pct = (n: number): string => `${((n / Math.max(1, comparisons)) * 100).toFixed(3)}%`;
+  lines.push(`font-conformance — ${report.meta.platform} ${report.meta.arch}, Unicode ${report.meta.unicode}`);
+  lines.push(`corpus             ${opts.stacksFile} (extracted on ${corpus.platform ?? "?"})`);
+  lines.push(`chrome faces seen  ${chromeFaceTally.size}`);
+  lines.push(
+    `comparisons        ${comparisons.toLocaleString()}  (${universeLength.toLocaleString()} cps × ${stackLength - skippedStacks} stacks)`,
+  );
+  lines.push(
+    `wall               ${(wallMs / 1000).toFixed(1)}s  (chrome ${(chromeMs / 1000).toFixed(1)}s, ours ${(oursMs / 1000).toFixed(1)}s)`,
+  );
+  lines.push(`throughput         ${Math.round((comparisons / wallMs) * 1000).toLocaleString()} comparisons/s`);
+  lines.push(`peak rss           ${peakRssMb} MB  (memo reset every ${opts.resetEvery || "never"} batches)`);
+  // Retained, not transient. A figure near the batch size means the reset is
+  // reaching the per-codepoint memos; one near `codepoints × stacks` means it
+  // is not, and the run is on its way to the heap limit however healthy the
+  // peak RSS above looks.
+  lines.push(`peak fallback memo ${peakMemoEntries.toLocaleString()} entries  (batch ${opts.batch.toLocaleString()})`);
+  lines.push("");
+  lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
+  lines.push(`agree same-file    ${counts["agree-same-file"].toLocaleString()}  ${pct(counts["agree-same-file"])}`);
+  lines.push(`agree alias        ${counts["agree-alias"].toLocaleString()}  ${pct(counts["agree-alias"])}`);
+  lines.push(`agree tofu         ${counts["agree-tofu"].toLocaleString()}  ${pct(counts["agree-tofu"])}`);
+  lines.push(`agree not-painted  ${counts["agree-not-painted"].toLocaleString()}  ${pct(counts["agree-not-painted"])}`);
+  lines.push(`allowlisted        ${allowlistedCount.toLocaleString()}`);
+  lines.push("");
+  lines.push(`MISMATCH wrong face      ${counts.mismatch.toLocaleString()}  ${pct(counts.mismatch)}`);
+  lines.push(
+    `MISMATCH we paint, Chrome doesn't  ${counts["mismatch-we-paint"].toLocaleString()}  ${pct(counts["mismatch-we-paint"])}`,
+  );
+  lines.push(
+    `MISMATCH we tofu, Chrome paints    ${counts["mismatch-we-tofu"].toLocaleString()}  ${pct(counts["mismatch-we-tofu"])}`,
+  );
+  lines.push(`MISMATCH total     ${mismatchTotal.toLocaleString()}  ${pct(mismatchTotal)}`);
+  lines.push(`  of which different family       ${classCounts["different-family"].toLocaleString()}`);
+  lines.push(`  of which same family, other cut ${classCounts["same-family-different-cut"].toLocaleString()}`);
+  lines.push(`  distinct disagreeing routes     ${pairCounts.size.toLocaleString()}`);
+  lines.push(
+    `example rows in report.json     ${mismatches.length.toLocaleString()}` +
+      (mismatchRowsSeen > mismatches.length
+        ? ` (${(mismatchRowsSeen - mismatches.length).toLocaleString()} more not kept — raise --max-rows)`
+        : ""),
+  );
+  if (topStacks.length > 0) {
+    lines.push("");
+    lines.push("mismatches by stack:");
+    for (const [stack, count] of topStacks) lines.push(`  ${String(count).padStart(8)}  ${stack}`);
+  }
+  if (topPairs.length > 0) {
+    lines.push("");
+    lines.push("top disagreeing pairs (chrome → ours):");
+    for (const [pair, count] of topPairs.slice(0, 40)) lines.push(`  ${String(count).padStart(8)}  ${pair}`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 async function main(): Promise<number> {
   const opts = parseArgs(process.argv.slice(2));
   let browser: Browser | null = null;
@@ -1480,97 +1880,23 @@ async function main(): Promise<number> {
     // the same isolated question as Domotion. Other platforms retain the one-
     // process sweep they have always used.
     const oracleIsolation = process.platform === "linux" ? "renderer-per-locale" : "shared-renderer";
-    const oracles = new Map<string, ChromeOracle>();
-    const oracleFor = async (spec: StackSpec): Promise<ChromeOracle> => {
-      const lang = spec.lang ?? opts.lang;
-      const key = process.platform === "linux" ? lang : "shared";
-      const hit = oracles.get(key);
-      if (hit != null) return hit;
-      // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
-      // documents from different BrowserContexts in one renderer process, so
-      // each locale gets a distinct WebSandboxSupportLinux cache without the
-      // cost of keeping eight complete browser processes alive.
-      const oracle = await ChromeOracle.create(browser, opts.concurrency, lang);
-      oracles.set(key, oracle);
-      return oracle;
-    };
-    const counts: Record<Verdict, number> = {
-      "agree-exact": 0,
-      "agree-same-file": 0,
-      "agree-alias": 0,
-      "agree-tofu": 0,
-      "agree-not-painted": 0,
-      mismatch: 0,
-      "mismatch-we-paint": 0,
-      "mismatch-we-tofu": 0,
-    };
-    // Aggregates are accumulated INCREMENTALLY, and only `--max-rows` example
-    // rows are retained. A wrong primary face makes every uncovered codepoint
-    // in the stack a mismatch — one defect, ~200k rows — so keeping them all
-    // both exhausts memory mid-sweep and writes a report too large to be a
-    // useful CI artifact (a real run produced 224 MB before this cap). The
-    // COUNTS stay exact; only the per-row detail is sampled, and the report
-    // says so.
-    const mismatches: MismatchRow[] = [];
-    let mismatchRowsSeen = 0;
-    const pairCounts = new Map<string, number>();
-    const stackCounts = new Map<string, number>();
-    /**
-     * The per-stack tally's key.
-     *
-     * The whole spec, not just the family: the corpus holds three separate
-     * `system-ui, -apple-system, sans-serif` entries (13/400/normal,
-     * 13/400/italic, 20/700/normal) that resolve to different faces and can
-     * regress independently. Keying on the family alone collapses them into one
-     * number, where one stack getting worse and another getting better cancel
-     * out — and a baseline built on that key cannot see either.
-     */
-    const stackKey = (s: StackSpec): string =>
-      `${s.fontFamily} @${s.fontSize}/${s.fontWeight}/${s.fontStyle}` +
-      (s.fontStretch != null && s.fontStretch !== "100%" ? `/${s.fontStretch}` : "") +
-      (s.fontVariationSettings != null && s.fontVariationSettings !== "normal" ? `/${s.fontVariationSettings}` : "") +
-      (s.fontFeatureSettings != null && s.fontFeatureSettings !== "normal" ? `/${s.fontFeatureSettings}` : "") +
-      (s.fontVariantAlternates != null && s.fontVariantAlternates !== "normal" ? `/${s.fontVariantAlternates}` : "") +
-      (s.fontVariantEmoji != null && s.fontVariantEmoji !== "normal" ? `/${s.fontVariantEmoji}` : "") +
-      ` lang=${s.lang ?? opts.lang}`;
-    /**
-     * Every distinct face Chrome named during the sweep, with how often.
-     *
-     * This is the sweep's own record of the host's font inventory — the thing
-     * the answers actually depend on. A runner image that rotates its font set
-     * changes this list, which is what makes a stale per-platform baseline
-     * visible as a changed inventory rather than as an unexplained score move.
-     */
-    const chromeFaceTally = new Map<string, number>();
-    /** Per stack: the primary Chrome resolved, beside the key we resolved. */
-    const stackPrimaries: Array<{
-      fontFamily: string;
-      fontSize: number;
-      fontWeight: number;
-      fontStyle: string;
-      chromePrimary: string | null;
-      ourPrimaryKey: string;
-    }> = [];
-    const classCounts = { "different-family": 0, "same-family-different-cut": 0 };
-    // Independent fingerprint of OUR side of every comparison. Mismatch counts
-    // move when Chrome moves, so they cannot by themselves say whether the
-    // resolver under test changed. The ordered sweep makes this streaming hash
-    // deterministic without retaining every sampled answer in memory.
-    const resolverAnswerHash = createHash("sha256");
-    let allowlistedCount = 0;
-    let skippedStacks = 0;
-    let chromeMs = 0;
-    let oursMs = 0;
-    let peakRssMb = 0;
-    let peakMemoEntries = 0;
+    // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
+    // documents from different BrowserContexts in one renderer process, so
+    // each locale gets a distinct WebSandboxSupportLinux cache without the
+    // cost of keeping eight complete browser processes alive.
+    const activeBrowser = browser;
+    const oracles = new OracleRegistry(process.platform, (lang) =>
+      ChromeOracle.create(activeBrowser, opts.concurrency, lang),
+    );
+    const tally = new SweepTally(opts.maxRows, opts.lang, opts.strictAlias, allowlist);
     const t0 = Date.now();
 
     for (const [stackIndex, spec] of stacks.entries()) {
-      const oracle = await oracleFor(spec);
+      const oracle = await oracles.forLang(spec.lang ?? opts.lang);
       if (process.platform === "linux") selectCharacterFallbackRendererScope(spec.lang ?? opts.lang);
       let rs = prepareStack(spec, opts.lang);
       if (rs == null) {
-        skippedStacks++;
+        tally.skippedStacks++;
         process.stdout.write(`  SKIP (no resolvable primary): ${spec.fontFamily}\n`);
         continue;
       }
@@ -1583,7 +1909,7 @@ async function main(): Promise<number> {
       // it from the tally afterwards is what made the last occurrence
       // unattributable.
       const chromePrimary = await oracle.resolvedPrimary(spec);
-      stackPrimaries.push({
+      tally.stackPrimaries.push({
         fontFamily: spec.fontFamily,
         fontSize: spec.fontSize,
         fontWeight: spec.fontWeight,
@@ -1602,7 +1928,7 @@ async function main(): Promise<number> {
         // so dropping the caches while holding `rs` would keep the largest glyph
         // memo of all alive. Every cleared entry is a pure function of its key,
         // so this costs re-reads, never a different answer.
-        if (opts.resetEvery > 0 && batchNo > 0 && batchNo % opts.resetEvery === 0) {
+        if (shouldResetBatch(opts.resetEvery, batchNo)) {
           clearFontResolutionCaches();
           const again = prepareStack(spec, opts.lang);
           if (again == null) throw new Error(`stack stopped resolving after cache reset: ${spec.fontFamily}`);
@@ -1621,79 +1947,21 @@ async function main(): Promise<number> {
         // below, the same ask pattern Blink itself uses.
         const tc = Date.now();
         const faces = await oracle.facesFor(cps, spec);
-        chromeMs += Date.now() - tc;
+        tally.chromeMs += Date.now() - tc;
         const to = Date.now();
         for (let j = 0; j < cps.length; j++) {
           const cp = cps[j];
-          const chromeFaces = faces[j];
-          const chrome = primaryChromeFace(chromeFaces);
-          if (chrome != null) {
-            const cf = chrome.postScriptName ?? chrome.familyName;
-            chromeFaceTally.set(cf, (chromeFaceTally.get(cf) ?? 0) + 1);
-          }
-          // Same `lang` both sides: it goes on each probe cell (or inherits the
-          // CLI default from <html>)
-          // AND into `fallbackFontChain`, which routes Han by locale (zh-TW →
-          // PingFang TC, ja → Hiragino). Passing it to only one side would make
-          // `--lang ja` move Chrome's answer and not ours.
           const ours = ourFaceFor(cp, rs, spec.lang ?? opts.lang);
-          resolverAnswerHash.update(
-            `${JSON.stringify([stackKey(spec), cp, ours.key, ours.postscriptName, ours.path, ours.covered])}\n`,
-          );
-
-          // CDP names Chrome's selected face, including the `.notdef` face for
-          // uncovered characters. `verdictForCodepoint` also handles the one
-          // exception: default-ignorables that shaping makes invisible.
-          const verdict = verdictForCodepoint(cp, chrome, ours, opts.strictAlias);
-          counts[verdict]++;
-          if (verdict.startsWith("mismatch")) {
-            if (allowlisted(allowlist, cp, spec.fontFamily)) {
-              allowlistedCount++;
-              counts[verdict]--;
-            } else {
-              const chromeName = chrome?.postScriptName ?? chrome?.familyName ?? "(none)";
-              const ourName = ours.postscriptName ?? ours.key;
-              const cls = mismatchClass(chromeName, ourName);
-              mismatchRowsSeen++;
-              classCounts[cls]++;
-              const pair = `${chromeName} → ${ourName}`;
-              pairCounts.set(pair, (pairCounts.get(pair) ?? 0) + 1);
-              const sk = stackKey(spec);
-              stackCounts.set(sk, (stackCounts.get(sk) ?? 0) + 1);
-              if (mismatches.length < opts.maxRows) {
-                mismatches.push({
-                  cp,
-                  cpHex: `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`,
-                  stack: spec.fontFamily,
-                  fontSize: spec.fontSize,
-                  fontWeight: spec.fontWeight,
-                  fontStyle: spec.fontStyle,
-                  lang: spec.lang ?? opts.lang,
-                  verdict,
-                  class: cls,
-                  chrome: chromeName,
-                  chromeFamily: chrome?.familyName ?? "(none)",
-                  chromeAllFaces: chromeFaces
-                    .map((f) => `${f.postScriptName ?? f.familyName}×${f.glyphCount}`)
-                    .join("+"),
-                  chromeFile: chrome != null ? chromeFaceFile(chrome) : null,
-                  ourKey: ours.key,
-                  ourPostscript: ours.postscriptName,
-                  ourFile: ours.path,
-                  ourCovered: ours.covered,
-                });
-              }
-            }
-          }
+          tally.record(spec, cp, faces[j], ours);
         }
-        oursMs += Date.now() - to;
+        tally.oursMs += Date.now() - to;
         const done = Math.min(i + opts.batch, universe.length);
         // Report resident memory per batch. A sweep that OOMs reports a PREFIX
         // of the universe as though it were the answer (DM-1860), so the trend
         // here is what tells you a long run is actually bounded rather than
         // merely not dead yet.
         const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
-        if (rssMb > peakRssMb) peakRssMb = rssMb;
+        if (rssMb > tally.peakRssMb) tally.peakRssMb = rssMb;
         // …and the size of the per-codepoint fallback memos, which is the
         // quantity RSS could not answer. Resident size is dominated by transient
         // allocation and swings by hundreds of MB between batches, so a memo
@@ -1702,186 +1970,48 @@ async function main(): Promise<number> {
         // This number is retained state: bounded by the batch when the reset
         // reaches it, and monotonically rising when it does not.
         const memoEntries = glyphHelperCodepointMemoSize();
-        if (memoEntries > peakMemoEntries) peakMemoEntries = memoEntries;
+        if (memoEntries > tally.peakMemoEntries) tally.peakMemoEntries = memoEntries;
         process.stdout.write(
-          `    ${done}/${universe.length}  mismatches=${mismatchRowsSeen}  ` +
+          `    ${done}/${universe.length}  mismatches=${tally.mismatchRowsSeen}  ` +
             `rss=${rssMb}MB  memo=${memoEntries}  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
         );
       }
     }
-    for (const oracle of oracles.values()) await oracle.close();
+    await oracles.close();
 
     const wallMs = Date.now() - t0;
-    const comparisons = Object.values(counts).reduce((a, b) => a + b, 0) + allowlistedCount;
-    const mismatchTotal = counts.mismatch + counts["mismatch-we-paint"] + counts["mismatch-we-tofu"];
-    const resolverAnswerDigest = resolverAnswerHash.digest("hex");
-
-    // ---- report -------------------------------------------------------------
+    const resolverAnswerDigest = tally.resolverAnswerHash.digest("hex");
     mkdirSync(opts.outDir, { recursive: true });
-    const topPairs = Array.from(pairCounts.entries()).sort((a, b) => b[1] - a[1]);
-    const topStacks = Array.from(stackCounts.entries()).sort((a, b) => b[1] - a[1]);
-
-    const report = {
-      meta: {
-        generatedAt: new Date().toISOString(),
-        platform: process.platform,
-        arch: process.arch,
-        node: process.version,
-        unicode: process.versions.unicode,
-        icu: process.versions.icu,
-        // The build that produced every answer on the CHROME side, and the most
-        // load-bearing field in this block — Blink's font selection is what is
-        // being measured, so a different browser is a different oracle.
-        //
-        // It was missing until a `font-variant-emoji` divergence read as
-        // Windows-specific for a week and turned out to be a version
-        // difference: ©/™/‼/☺ move to the color font under the CSS property in
-        // 147.0.7727.15 and stay on the primary in 148.0.7778.96, measured on
-        // ONE host with the platform held constant. Nothing recorded here could
-        // have shown that, while `image`, `fontInventory` and `icu` all matched.
-        //
-        // Read from the launched browser, never inferred from the Playwright
-        // revision directory: the Windows VM launches a 148 build out of a
-        // folder named `chromium-1217`, which is where the confusion started.
-        chromium: browser.version(),
-        parityEnvironment: parityEnvironment(browser.version()),
-        rotationRevision: process.env.FONT_CONFORMANCE_REVISION ?? null,
-        rotationOrdinal: process.env.FONT_CONFORMANCE_ROTATION_ORDINAL ?? null,
-        rotationStackBucket: process.env.FONT_CONFORMANCE_STACK_BUCKET ?? null,
-        stacksFile: opts.stacksFile,
-        stackCorpusGeneratedAt: corpus.generatedAt,
-        stackCorpusPlatform: corpus.platform ?? null,
-        stackFilter: opts.stackFilter,
-        allowForeignCorpus: opts.allowForeignCorpus,
-        codepoints: universe.length,
-        stacks: stacks.length - skippedStacks,
-        skippedStacks,
-        includePua: opts.includePua,
-        ranges: opts.ranges,
-        sampleByte: opts.sampleByte,
-        shard: opts.shard,
-        stackShard: opts.stackShard,
-        strictAlias: opts.strictAlias,
-        maxRows: opts.maxRows,
-        lang: opts.lang,
-        resetEvery: opts.resetEvery,
-        oracleIsolation,
-        resolverAnswerDigest,
-        // DM-1922. Attribution fields for an intermittent, Chrome-side flip of
-        // the `sans-serif` generic's primary, seen four times in real runs and
-        // never once in ~2,000 probe samples across 32 runner allocations. The
-        // detector catches it; nothing recorded where it happened.
-        //
-        // `host` and `fontInventory` are per-SHARD, deliberately. This workflow
-        // shards one stack per shard, so the flipping stack sweeps alone on one
-        // machine — a run-level record cannot name it, and cannot show two
-        // shards disagreeing about the font set.
-        host: hostIdentity(),
-        fontInventory: shardFontInventory(),
-        stackPrimaries,
-        peakRssMb,
-        wallMs,
-        chromeMs,
-        oursMs,
-        comparisonsPerSecond: Math.round((comparisons / wallMs) * 1000),
-      },
-      summary: {
-        verdictStage: "face-selection",
-        comparisons,
-        ...counts,
-        allowlisted: allowlistedCount,
-        mismatchTotal,
-        mismatchDifferentFamily: classCounts["different-family"],
-        mismatchSameFamilyDifferentCut: classCounts["same-family-different-cut"],
-        /**
-         * How many DISTINCT (chrome face → our face) routes disagree. A single
-         * wrong primary turns every uncovered codepoint in a stack into a
-         * mismatch, so the raw count measures blast radius while this measures
-         * how many decisions are actually wrong.
-         */
-        distinctMismatchPairs: pairCounts.size,
-        verdict: mismatchTotal === 0 ? "exact-logical-agreement" : "logical-mismatch",
-      },
-      rowsRetained: mismatches.length,
-      rowsTruncated: mismatchRowsSeen - mismatches.length,
-      mismatchesByStack: topStacks.map(([stack, count]) => ({ stack, count })),
-      chromeFaces: Array.from(chromeFaceTally.entries())
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([face, count]) => ({ face, count })),
-      topMismatchPairs: topPairs.map(([pair, count]) => ({ pair, count })),
-      allowlist: allowlist.entries.map((e, i) => ({
-        cp: e.lo === e.hi ? `0x${e.lo.toString(16)}` : `0x${e.lo.toString(16)}-0x${e.hi.toString(16)}`,
-        stack: e.stack ?? null,
-        reason: e.reason,
-        hits: allowlist.hits[i],
-      })),
-      mismatches,
-    };
+    const report = buildReport({
+      opts,
+      corpus,
+      universeLength: universe.length,
+      stackLength: stacks.length,
+      oracleIsolation,
+      resolverAnswerDigest,
+      tally,
+      wallMs,
+      generatedAt: new Date().toISOString(),
+      platform: process.platform,
+      arch: process.arch,
+      nodeVersion: process.version,
+      unicode: process.versions.unicode,
+      icu: process.versions.icu,
+      chromiumVersion: browser.version(),
+      parityEnv: parityEnvironment(browser.version()),
+      rotationRevision: process.env.FONT_CONFORMANCE_REVISION ?? null,
+      rotationOrdinal: process.env.FONT_CONFORMANCE_ROTATION_ORDINAL ?? null,
+      rotationStackBucket: process.env.FONT_CONFORMANCE_STACK_BUCKET ?? null,
+      host: hostIdentity(),
+      fontInventory: shardFontInventory(),
+    });
     writeFileSync(join(opts.outDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-
-    const lines: string[] = [];
-    const pct = (n: number): string => `${((n / Math.max(1, comparisons)) * 100).toFixed(3)}%`;
-    lines.push(`font-conformance — ${process.platform} ${process.arch}, Unicode ${process.versions.unicode}`);
-    lines.push(`corpus             ${opts.stacksFile} (extracted on ${corpus.platform ?? "?"})`);
-    lines.push(`chrome faces seen  ${chromeFaceTally.size}`);
-    lines.push(
-      `comparisons        ${comparisons.toLocaleString()}  (${universe.length.toLocaleString()} cps × ${stacks.length - skippedStacks} stacks)`,
-    );
-    lines.push(
-      `wall               ${(wallMs / 1000).toFixed(1)}s  (chrome ${(chromeMs / 1000).toFixed(1)}s, ours ${(oursMs / 1000).toFixed(1)}s)`,
-    );
-    lines.push(`throughput         ${Math.round((comparisons / wallMs) * 1000).toLocaleString()} comparisons/s`);
-    lines.push(`peak rss           ${peakRssMb} MB  (memo reset every ${opts.resetEvery || "never"} batches)`);
-    // Retained, not transient. A figure near the batch size means the reset is
-    // reaching the per-codepoint memos; one near `codepoints × stacks` means it
-    // is not, and the run is on its way to the heap limit however healthy the
-    // peak RSS above looks.
-    lines.push(
-      `peak fallback memo ${peakMemoEntries.toLocaleString()} entries  (batch ${opts.batch.toLocaleString()})`,
-    );
-    lines.push("");
-    lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
-    lines.push(`agree same-file    ${counts["agree-same-file"].toLocaleString()}  ${pct(counts["agree-same-file"])}`);
-    lines.push(`agree alias        ${counts["agree-alias"].toLocaleString()}  ${pct(counts["agree-alias"])}`);
-    lines.push(`agree tofu         ${counts["agree-tofu"].toLocaleString()}  ${pct(counts["agree-tofu"])}`);
-    lines.push(
-      `agree not-painted  ${counts["agree-not-painted"].toLocaleString()}  ${pct(counts["agree-not-painted"])}`,
-    );
-    lines.push(`allowlisted        ${allowlistedCount.toLocaleString()}`);
-    lines.push("");
-    lines.push(`MISMATCH wrong face      ${counts.mismatch.toLocaleString()}  ${pct(counts.mismatch)}`);
-    lines.push(
-      `MISMATCH we paint, Chrome doesn't  ${counts["mismatch-we-paint"].toLocaleString()}  ${pct(counts["mismatch-we-paint"])}`,
-    );
-    lines.push(
-      `MISMATCH we tofu, Chrome paints    ${counts["mismatch-we-tofu"].toLocaleString()}  ${pct(counts["mismatch-we-tofu"])}`,
-    );
-    lines.push(`MISMATCH total     ${mismatchTotal.toLocaleString()}  ${pct(mismatchTotal)}`);
-    lines.push(`  of which different family       ${classCounts["different-family"].toLocaleString()}`);
-    lines.push(`  of which same family, other cut ${classCounts["same-family-different-cut"].toLocaleString()}`);
-    lines.push(`  distinct disagreeing routes     ${pairCounts.size.toLocaleString()}`);
-    lines.push(
-      `example rows in report.json     ${mismatches.length.toLocaleString()}` +
-        (mismatchRowsSeen > mismatches.length
-          ? ` (${(mismatchRowsSeen - mismatches.length).toLocaleString()} more not kept — raise --max-rows)`
-          : ""),
-    );
-    if (topStacks.length > 0) {
-      lines.push("");
-      lines.push("mismatches by stack:");
-      for (const [stack, count] of topStacks) lines.push(`  ${String(count).padStart(8)}  ${stack}`);
-    }
-    if (topPairs.length > 0) {
-      lines.push("");
-      lines.push("top disagreeing pairs (chrome → ours):");
-      for (const [pair, count] of topPairs.slice(0, 40)) lines.push(`  ${String(count).padStart(8)}  ${pair}`);
-    }
-    const text = `${lines.join("\n")}\n`;
+    const text = formatSummary(report, opts, corpus, tally, universe.length, stacks.length);
     writeFileSync(join(opts.outDir, "summary.txt"), text);
     process.stdout.write(`\n${text}`);
     process.stdout.write(`report → ${join(opts.outDir, "report.json")}\n`);
 
-    return mismatchTotal > 0 ? 1 : 0;
+    return report.summary.mismatchTotal > 0 ? 1 : 0;
   } finally {
     // Safe no-op when the early-exit paths returned before the sweep began.
     endCharacterFallbackDocument();

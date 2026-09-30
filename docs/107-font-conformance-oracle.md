@@ -704,6 +704,14 @@ Left alone, that ends the run: `--max-stacks 8 --no-pua` exhausted a default Nod
 
 So the sweep now calls `clearFontResolutionCaches()` every `--reset-every` batches (default: every batch) and rebuilds the stack, since the `ResolvedStack` owns the primary `FontInstance` and would otherwise keep the largest glyph memo of all alive. On the same run that used to die:
 
+The command keeps these boundaries explicit in `tools/font-conformance.ts`:
+`shouldResetBatch` decides the reset cadence, `OracleRegistry` reuses one
+Chromium context per locale on Linux and one shared context elsewhere, and
+`SweepTally` keeps exact counts while retaining only `--max-rows` examples.
+`buildReport` and `formatSummary` consume that completed tally. These seams
+have unit coverage for empty, repeated, allowlisted, and truncated sequences;
+the command still writes the same report and summary shapes.
+
 |                            | before              | after                  |
 | -------------------------- | ------------------- | ---------------------- |
 | resident at 32k codepoints | ~3.5 GB, then fatal | ~1.0 GB, still running |

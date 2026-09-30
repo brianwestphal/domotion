@@ -15,23 +15,31 @@ import { describe, expect, it } from "vitest";
 import { getFontSourceInfo, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
 import {
   allowlisted,
+  buildReport,
   buildUniverse,
   faceFor,
+  formatSummary,
   identifyFace,
   helperImplementationDigest,
   loadAllowlist,
   mismatchClass,
   needsIsolatedQuery,
+  oracleScopeKey,
+  OracleRegistry,
   parseArgs,
   prepareStack,
   primaryChromeFace,
   probePageHtml,
   slantForStyle,
+  shouldResetBatch,
+  stackKey,
   stacksFileFor,
+  SweepTally,
   verdictForCodepoint,
   type ChromeFace,
   type OurFace,
   type StackSpec,
+  type StackCorpus,
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
 
@@ -55,6 +63,109 @@ describe("helperImplementationDigest", () => {
 
 const ours = (o: Partial<OurFace>): OurFace => ({ key: "x", path: null, postscriptName: null, covered: true, ...o });
 const chrome = (o: Partial<ChromeFace>): ChromeFace => ({ familyName: "", glyphCount: 1, ...o });
+
+describe("sweep state transitions", () => {
+  const spec: StackSpec = { fontFamily: "sans-serif", fontSize: 13, fontWeight: 400, fontStyle: "normal" };
+
+  it("keys the full stack and its effective locale", () => {
+    expect(stackKey(spec, "en")).not.toBe(stackKey({ ...spec, fontWeight: 700 }, "en"));
+    expect(stackKey(spec, "en")).not.toBe(stackKey({ ...spec, lang: "ja" }, "en"));
+  });
+
+  it("retains bounded examples while counting an empty, mismatch, allowlisted, and refill sequence", () => {
+    const allowlist = { entries: [{ lo: 0x42, hi: 0x42, reason: "accepted test divergence" }], hits: [0] };
+    const tally = new SweepTally(1, "en", false, allowlist);
+    const wrong = ours({ key: "Other", postscriptName: "OtherFace" });
+    const faces = [chrome({ familyName: "ChromeFace", postScriptName: "ChromeFace" })];
+    expect(tally.mismatches).toEqual([]);
+    tally.record(spec, 0x41, faces, wrong);
+    tally.record(spec, 0x42, faces, wrong);
+    tally.record(spec, 0x43, faces, wrong);
+    expect(tally.counts.mismatch).toBe(2);
+    expect(tally.allowlistedCount).toBe(1);
+    expect(allowlist.hits).toEqual([1]);
+    expect(tally.mismatchRowsSeen).toBe(2);
+    expect(tally.mismatches.map((row) => row.cp)).toEqual([0x41]);
+    expect(tally.stackCounts.get(stackKey(spec, "en"))).toBe(2);
+    expect(tally.chromeFaceTally.get("ChromeFace")).toBe(3);
+    const digest = tally.resolverAnswerHash.digest("hex");
+    const unbounded = new SweepTally(3, "en", false, { entries: [], hits: [] });
+    for (const cp of [0x41, 0x42, 0x43]) unbounded.record(spec, cp, faces, wrong);
+    expect(unbounded.resolverAnswerHash.digest("hex")).toBe(digest);
+  });
+
+  it("resets on the requested batch cadence and scopes oracles by platform and locale", async () => {
+    expect([0, 1, 2, 3, 4].map((batch) => shouldResetBatch(2, batch))).toEqual([false, false, true, false, true]);
+    expect(shouldResetBatch(0, 20)).toBe(false);
+    expect(oracleScopeKey("linux", "ja")).not.toBe(oracleScopeKey("linux", "en"));
+    expect(oracleScopeKey("darwin", "ja")).toBe(oracleScopeKey("darwin", "en"));
+    const closed: string[] = [];
+    const linux = new OracleRegistry("linux", async (lang) => ({
+      lang,
+      close: async () => {
+        closed.push(lang);
+      },
+    }));
+    const en = await linux.forLang("en");
+    const ja = await linux.forLang("ja");
+    expect(await linux.forLang("en")).toBe(en);
+    expect(ja).not.toBe(en);
+    await linux.close();
+    expect(closed.sort()).toEqual(["en", "ja"]);
+    const shared = new OracleRegistry("darwin", async (lang) => ({ lang, close: async () => undefined }));
+    expect(await shared.forLang("en")).toBe(await shared.forLang("ja"));
+    await shared.close();
+    let attempts = 0;
+    const retry = new OracleRegistry("linux", async (lang) => {
+      if (attempts++ === 0) throw new Error("context setup failed");
+      return { lang, close: async () => undefined };
+    });
+    await expect(retry.forLang("ja")).rejects.toThrow("context setup failed");
+    expect((await retry.forLang("ja")).lang).toBe("ja");
+    await retry.close();
+  });
+
+  it("builds bounded report and readable summary from the same tally", () => {
+    const opts = parseArgs([]);
+    const corpus: StackCorpus = { generatedAt: "corpus-digest", platform: "darwin", sources: [], stacks: [spec] };
+    const tally = new SweepTally(0, "en", false, { entries: [], hits: [] });
+    tally.record(
+      spec,
+      0x41,
+      [chrome({ familyName: "ChromeFace", postScriptName: "ChromeFace" })],
+      ours({ key: "Other", postscriptName: "OtherFace" }),
+    );
+    const report = buildReport({
+      opts,
+      corpus,
+      universeLength: 1,
+      stackLength: 1,
+      oracleIsolation: "shared-renderer",
+      resolverAnswerDigest: tally.resolverAnswerHash.digest("hex"),
+      tally,
+      wallMs: 100,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      platform: "darwin",
+      arch: "arm64",
+      nodeVersion: "v22",
+      unicode: "16.0",
+      icu: "76",
+      chromiumVersion: "123",
+      parityEnv: {},
+      rotationRevision: null,
+      rotationOrdinal: null,
+      rotationStackBucket: null,
+      host: { name: "fixture", cpus: 1, arch: "arm64" },
+      fontInventory: null,
+    });
+    expect(report.summary.comparisons).toBe(1);
+    expect(report.summary.mismatchTotal).toBe(1);
+    expect(report.rowsRetained).toBe(0);
+    expect(report.rowsTruncated).toBe(1);
+    expect(report.meta.generatedAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(formatSummary(report, opts, corpus, tally, 1, 1)).toContain("MISMATCH total     1");
+  });
+});
 
 describe("oracle resolver question", () => {
   it("passes the raw CSS family stack used by Blink's standard-style retry", () => {
