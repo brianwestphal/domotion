@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  body {
+    margin: 0;
+    background: white;
+  }
+  .row {
+    width: 112px;
+    height: 28px;
+    margin: 24px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background: white;
+    color: rgb(192, 32, 32);
+    font:
+      20px/28px Arial,
+      sans-serif;
+  }
+  #block {
+    display: block;
+  }
+  #flex {
+    display: flex;
+  }
+  #grid {
+    display: grid;
+  }
+</style>
+<div id="block" class="row">abcdefghijklmno block source</div>
+<div id="flex" class="row">abcdefghijklmno flex source</div>
+<div id="grid" class="row">abcdefghijklmno grid source</div>

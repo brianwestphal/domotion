@@ -4038,7 +4038,8 @@
           "DM-2547",
           "DM-2668",
           "DM-J875TW",
-          "DM-VY5DHJ"
+          "DM-VY5DHJ",
+          "DM-JRB2H5"
         ],
         "code": [
           "src/capture/text-line-origin.test.ts",
@@ -5816,7 +5817,7 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ"],
+        "tickets": ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ", "DM-JRB2H5"],
         "code": [
           "src/capture/text-paint-geometry-cdp.ts",
           "src/capture/script/index.ts",

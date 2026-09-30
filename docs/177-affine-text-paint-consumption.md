@@ -5,7 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668", "DM-J875TW", "DM-VY5DHJ"]
+tickets:
+  ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668", "DM-J875TW", "DM-VY5DHJ", "DM-JRB2H5"]
 code:
   [
     "src/capture/text-line-origin.test.ts",
@@ -93,6 +94,9 @@ ordinary source text and its captured character positions are available. The
 renderer clips that full source and paints the measured marker. Transformed
 text and other ambiguous fragments retain the fail-closed Chromium surface.
 The default-capture HTML fixture checks SVG marker provenance and browser ink.
+The renderer only paints this marker for Blink block-container displays.
+Anonymous direct text inside flex and grid containers remains clipped without
+an invented marker; the capture fixture compares those rows with Chromium.
 
 Text-shadow copies retain the complete source text paint shape: fill, author
 stroke, and every applied decoration are recolored to the shadow color before

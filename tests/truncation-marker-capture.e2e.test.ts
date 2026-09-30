@@ -13,6 +13,10 @@ const WIDTH = 320;
 const HEIGHT = 140;
 const FULL_TEXT = "abcdefghijklmno pqrstuvwxyz";
 const HTML = readFileSync(new URL("./fixtures/truncation-marker.html", import.meta.url), "utf8");
+const ELIGIBILITY_HTML = readFileSync(
+  new URL("./fixtures/truncation-marker-eligibility.html", import.meta.url),
+  "utf8",
+);
 
 function findText(nodes: readonly CapturedElement[], value: string): CapturedElement | undefined {
   for (const node of nodes) {
@@ -70,6 +74,7 @@ describe("default-capture text-overflow marker", () => {
       expect(svg.match(/role="img" aria-label="…"/g)).toHaveLength(1);
       expect(svg).not.toContain("<image");
       await page.setContent(`<body style="margin:0">${svg}</body>`, { waitUntil: "load" });
+      await page.evaluate(() => document.fonts.ready);
       const actual = await page.screenshot();
       const chrome = await redMarkerBounds(expected);
       const rendered = await redMarkerBounds(actual);
@@ -80,6 +85,52 @@ describe("default-capture text-overflow marker", () => {
           Math.abs(rendered[key] - chrome[key]),
           `${key}: ${JSON.stringify({ chrome, rendered })}`,
         ).toBeLessThanOrEqual(4);
+      }
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("clips anonymous flex and grid text without inventing Chromium markers", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: 220 }, deviceScaleFactor: 2 });
+    try {
+      await page.setContent(ELIGIBILITY_HTML, { waitUntil: "load" });
+      const expected = await page.screenshot();
+      const { tree, warnings } = await captureElementTreeWithWarnings(page, "body", {
+        x: 0,
+        y: 0,
+        width: WIDTH,
+        height: 220,
+      });
+      expect(warnings).toEqual([]);
+      for (const display of ["block", "flex", "grid"]) {
+        const node = findText(tree, `abcdefghijklmno ${display} source`);
+        expect(node?.styles.display).toBe(display);
+        expect(node?.transformSubtreeRaster).toBeUndefined();
+      }
+      const svg = elementTreeToSvg(tree, WIDTH, 220);
+      expect(svg.match(/role="img" aria-label="…"/g)).toHaveLength(1);
+      expect(svg).not.toContain("<image");
+      await page.setContent(`<body style="margin:0">${svg}</body>`, { waitUntil: "load" });
+      await page.evaluate(() => document.fonts.ready);
+      const actual = await page.screenshot();
+      const before = await sharp(expected).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const after = await sharp(actual).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      for (const [name, top] of [
+        ["flex", 152],
+        ["grid", 256],
+      ] as const) {
+        let browserInk = 0;
+        let domotionInk = 0;
+        for (let y = top; y < top + 56; y++) {
+          for (let x = 48; x < 272; x++) {
+            const offset = (y * before.info.width + x) * before.info.channels;
+            if (before.data[offset] > before.data[offset + 1] * 1.8) browserInk++;
+            if (after.data[offset] > after.data[offset + 1] * 1.8) domotionInk++;
+          }
+        }
+        expect(browserInk, name).toBeGreaterThan(100);
+        expect(Math.abs(domotionInk - browserInk) / browserInk, name).toBeLessThan(0.15);
       }
     } finally {
       await page.close();

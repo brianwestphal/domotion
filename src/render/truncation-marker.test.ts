@@ -28,6 +28,7 @@ function element(overrides: Record<string, unknown> = {}, styles: Record<string,
     fontDescent: 4,
     textSegments: [{ text: "abcdefghijklmnopqrst", width: 200, xOffsets: X_OFFSETS }],
     styles: {
+      display: "block",
       textOverflow: "ellipsis",
       whiteSpace: "nowrap",
       overflowX: "hidden",
@@ -121,5 +122,14 @@ describe("paintTruncationMarker", () => {
       ],
     });
     expect(paint(wrapped)).toEqual([]);
+  });
+
+  it("requires a Blink block container rather than an anonymous flex or grid text item", () => {
+    for (const display of ["flex", "inline-flex", "grid", "inline-grid", "inline", "contents"]) {
+      expect(paint(element({}, { display })), display).toEqual([]);
+    }
+    for (const display of ["block", "flow-root", "list-item", "inline-block", "table-caption"]) {
+      expect(paint(element({}, { display })).length, display).toBeGreaterThan(0);
+    }
   });
 });

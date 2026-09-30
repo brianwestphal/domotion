@@ -1242,6 +1242,21 @@ function paintInsetBoxShadow(
 // read the full source text and clip with SVG, so the marker is otherwise
 // missing). Emits a background rect that erases the overflowing text plus the
 // marker glyph. Reads only el + textColor + indent; appends to no shared state.
+// Blink only assigns text-overflow to a block container: see
+// LayoutObject::ContainingBlockForTextOverflow and
+// ComputedStyle::IsDisplayBlockContainer (Chromium 7d859f27). Anonymous text
+// items inside flex and grid containers are clipped without a marker.
+const textOverflowBlockContainers = new Set([
+  "block",
+  "list-item",
+  "inline-block",
+  "flow-root",
+  "flow-root list-item",
+  "inline flow-root list-item",
+  "table-cell",
+  "table-caption",
+]);
+
 function paintTruncationMarker(
   el: CapturedElement,
   textColor: ReturnType<typeof parseColor>,
@@ -1283,6 +1298,7 @@ function paintTruncationMarker(
   // an ellipsis on a string that visually fits.
   const textFits = measuredTextW != null && measuredTextW <= contentBoxW + 0.5;
   const isTruncated =
+    textOverflowBlockContainers.has(el.styles.display ?? "") &&
     to != null &&
     to !== "" &&
     to !== "clip" &&

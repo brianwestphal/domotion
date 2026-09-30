@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ"]
+tickets: ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ", "DM-JRB2H5"]
 code:
   [
     "src/capture/text-paint-geometry-cdp.ts",
@@ -54,6 +54,7 @@ upstream source traces, corpora, and retained runs remain in the linked records.
    vertical orientation, and generated content.
    An untransformed single-line block container with a CSS overflow ellipsis
    retains its full source text and uses the text engine's measured marker;
+   flex and grid anonymous text remains clipped without that marker;
    ambiguous or transformed fragment geometry retains Chromium's raster surface.
 5. Logical agreement is exact. Native raster comparison is a later,
    fingerprinted platform gate and may not hide a face, shaping, placement, or
