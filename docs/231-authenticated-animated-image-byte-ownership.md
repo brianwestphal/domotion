@@ -540,12 +540,11 @@ production collectors.
 ## Implemented stock-CDP support adjudication
 
 The evidence-only stock-CDP adjudicator is
-`tools/animated-image-stock-cdp-support.ts`. It reopens the retained four-arm
-macOS/Linux adjudication by exact input-file identity and report self-hash,
-then publishes a 38-case supported/denied/unsupported matrix. The accepted
-interim matrix SHA-256 is
-`7c7f3087c909686030efb0760dfd399043d66587021a268b1c33735aae88e9a6`.
-Windows remains expressly withheld; this is not a three-platform verdict.
+`tools/animated-image-stock-cdp-support.ts`. It reopens the retained six-arm
+macOS/Linux/Windows adjudication by exact input-file identity and report
+self-hash, then publishes a 38-case supported/denied/unsupported matrix. The
+accepted three-platform matrix SHA-256 is
+`a2aac9de58fcfcf095a6c09e48e135ee98fe9b225debaa5833072a242404712a`.
 
 The smallest production-eligible network subset is same-origin HTTP(S)
 `<img>`, `<picture>`, and `<input type=image>` with a settled GIF, APNG, or
@@ -567,17 +566,20 @@ The retained `data:` and same-partition `blob:` positives ratify only ordinary
 HTML `<img>` owners: parse the selected data URL once and hash twice, or read
 the blob in its owning document realm and double-hash it. Cross-origin CORS
 success, memory/disk-cache and settled-304 responses, service-worker or
-CacheStorage responses, SVG images, CSS layers/items, generated pseudos, and
+CacheStorage responses, CSS `image-set()` items, generated pseudos, and
 closed-shadow pseudos remain unsupported by stock CDP in this increment.
-Their private-truth positives do not expose enough public ownership or
-authorization state to make them safe. CORS/no-CORS failures, active
-revalidation, multipart responses, candidate mutation, and stale-document
-controls remain explicit body-free denials.
+SVG `<image>` and ordinary CSS `url(...)` layer/item joins have the narrower
+public owner conditions in [doc 235](235-public-svg-css-animated-image-owner-joins.md).
+The excluded routes' private-truth positives do not expose enough public
+ownership or authorization state to make them safe. CORS/no-CORS failures,
+active revalidation, multipart responses, candidate mutation, and
+stale-document controls remain explicit body-free denials.
 
 The eligible retained positive cases are the stable HTML WebP and APNG rows,
-the settled same-origin redirect row, the stable HTML data/blob rows, and the
-stable input-image row. The existing private-truth schema already requires
-each retained public body to equal the private `ResourceBuffer` in transport,
+the settled same-origin redirect row, the stable HTML data/blob rows, the
+stable input-image row, the stable SVG image row, and the ordinary CSS URL
+background, border, and mask rows. The existing private-truth schema already
+requires each retained public body to equal the private `ResourceBuffer` in transport,
 decoded byte length, and SHA-256, and requires every denied or mutated row to
 retain no public body facts. DM-2585 may implement only this bounded subset;
 broader routes require new public evidence rather than a relaxed join.

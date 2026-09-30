@@ -12,13 +12,14 @@ aliases: ["docs/235-public-svg-css-animated-image-owner-joins.md", "doc-235"]
 
 # Public SVG and CSS animated-image owner joins
 
-Status: evidence-only macOS/Linux subset (DM-2591)
+Status: evidence-only macOS/Linux/Windows subset
 
-DM-2591 extends the stock-CDP support adjudication without changing production
-capture. The retained independent macOS and Linux proposal/validation reports
-remain the private owner/resource authority. This document states the smaller
-owner identity that public DOM/CSSOM plus the pre-navigation Network ledger can
-reconstruct without consuming Blink's private `Resource` pointer.
+The stock-CDP support adjudication covers all three platforms without changing
+production capture. The retained independent macOS, Linux, and Windows
+proposal/validation reports are the private owner/resource authority. This
+document states the smaller owner identity that public DOM/CSSOM plus the
+pre-navigation Network ledger can reconstruct without consuming Blink's
+private `Resource` pointer.
 
 An SVG `<image>` is eligible only when a unique selector/backend node remains
 connected in the same document and its `href.baseVal`, resolved URL, frame,
@@ -37,7 +38,12 @@ This does not authorize `image-set()`, generated content, pseudos, closed
 shadow identities, repeated URL candidates, cache/revalidation, service
 workers, cross-origin bodies, or URL-only fallback. Public CSSOM cannot expose
 the selected Blink `StyleImage` identity for those cases, so they remain
-body-free denials. The private owner/resource evidence has since been ratified on macOS/Linux/Windows (DM-2590, [doc 231](231-authenticated-animated-image-byte-ownership.md)) and the production workflow is three-platform ([doc 236](236-strict-static-frames-for-svg-css-images.md)), but the public-CDP support adjudicator (`tools/animated-image-stock-cdp-support.ts`) still reopens only the macOS/Linux four-arm adjudication and records `globalWindowsVerdict: "withheld"`. That is an interim boundary, not a Windows finding; rolling it forward to the six-artifact adjudication is tracked as a follow-up.
+body-free denials. The public-CDP support adjudicator reopens the exact
+six-artifact private adjudication and its report self-hash, then ratifies the
+bounded matrix on macOS/Linux/Windows. See
+[doc 231](231-authenticated-animated-image-byte-ownership.md) for the retained
+evidence and [doc 236](236-strict-static-frames-for-svg-css-images.md) for the
+three-platform production release workflow.
 
 The machine-readable authority is
 `ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET.publicOwnerJoin` and its exact

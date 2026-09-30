@@ -49,9 +49,10 @@ pipeline then serializes that static PNG, including the downstream resize and
 digest ownership rules in [doc 234](234-frozen-animated-image-downstream-ownership.md).
 
 The authority for this deliberately narrow production subset is the retained
-macOS/Linux/Windows private owner/resource evidence and public-CDP adjudication
-in [doc 235](235-public-svg-css-animated-image-owner-joins.md), together with
-the three-platform production artifact below. Live playback is unsupported, no
+six-artifact macOS/Linux/Windows private owner/resource evidence and the
+three-platform public-CDP adjudication in
+[doc 235](235-public-svg-css-animated-image-owner-joins.md), together with the
+three-platform production artifact below. Live playback is unsupported, no
 visual tolerance changes, and capture without the option remains unchanged.
 
 The optional `Animated-image macOS Linux Windows production release` workflow (`.github/workflows/animated-image-production-release.yml`; aggregated by `tools/animated-image-production-release-gate.ts` and its `-cli.ts`) retains
