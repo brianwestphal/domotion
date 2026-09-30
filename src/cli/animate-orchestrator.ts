@@ -87,6 +87,7 @@ import { transitionSchema } from "../animation/transition-schema.js";
 import { terminalThemeSpecSchema } from "../terminal/theme.js";
 import type { SafeInset } from "../templates/formats.js";
 import { buildTypeResampleAnimation, resolveTypeResampleSpec } from "./type-resample.js";
+import { buildCssPropertyResampleAnimation } from "./css-property-resample.js";
 import { buildJsRevealAnimation, resolveJsRevealSpec, MUTATION_DETECT_EVENTS } from "./mutation-detect.js";
 import { openAnimateCaptureSession } from "./animate-capture-session.js";
 import { captureAnimateFrame } from "./animate-frame-capture.js";
@@ -469,6 +470,13 @@ const typeResampleSchema = z.object({
   regionOnly: z.boolean().optional(),
 });
 
+const cssPropertyResampleSchema = z.object({
+  /** Capture the animated element and its descendants at each sampled time. */
+  selector: z.string().min(1),
+  /** Chromium samples the CSS timing function; the SVG holds sampled paints. Default 30. */
+  fps: z.number().positive().max(30).optional(),
+});
+
 // DM-1564 (docs/94 option 3): MutationObserver JS-change harness. `forceState`
 // captures a page's CSS `:hover`/`:focus` styling, but not feedback a page drives
 // with JAVASCRIPT — a class flip, an injected tooltip/menu, an aria change. This
@@ -785,6 +793,7 @@ const frameSchema = z.object({
    * with `scroll` / `cast` / `template` (all produce the frame's content).
    */
   typeResample: typeResampleSchema.optional(),
+  cssPropertyResample: cssPropertyResampleSchema.optional(),
   /**
    * DM-1564 (docs/94 option 3): detect JS-driven feedback. Dispatch a pointer
    * event on `selector`, observe the page's own DOM mutations (a class flip, an
@@ -1043,6 +1052,24 @@ export const animateConfigSchema = z
           message: "a frame cannot set both `typeResample` and `template`",
         });
       }
+      if (f.cssPropertyResample != null) {
+        const conflicts: Array<[string, unknown]> = [
+          ["scroll", f.scroll],
+          ["cast", f.cast],
+          ["template", f.template],
+          ["typeResample", f.typeResample],
+          ["jsReveal", f.jsReveal],
+          ["states", f.states],
+        ];
+        for (const [key, present] of conflicts) {
+          if (present != null)
+            ctx.addIssue({
+              code: "custom",
+              path: ["frames", i, "cssPropertyResample"],
+              message: `a frame cannot set both \`cssPropertyResample\` and \`${key}\``,
+            });
+        }
+      }
       // DM-1564: `jsReveal` also produces the frame's content (a nested
       // rest→after crossfade), so it can't coexist with the other
       // content-producing kinds. It drives the live page, so it's fine on a
@@ -1086,6 +1113,7 @@ export const animateConfigSchema = z
           ["template", f.template],
           ["typeResample", f.typeResample],
           ["jsReveal", f.jsReveal],
+          ["cssPropertyResample", f.cssPropertyResample],
         ];
         for (const [key, present] of conflicts) {
           if (present != null) {
@@ -1169,6 +1197,7 @@ export const animateConfigSchema = z
           ["typeResample", f.typeResample],
           ["jsReveal", f.jsReveal],
           ["states", f.states],
+          ["cssPropertyResample", f.cssPropertyResample],
         ];
         for (const [key, present] of conflicts) {
           if (present != null) {
@@ -1834,7 +1863,18 @@ async function buildLiveCapturedFrame(
   // already anchor-resolved per state and re-based onto this frame's timeline.
   // Appended AFTER the frame's own overlays below (frame-level paints first).
   let stateOverlays: OverlayInput[] | undefined;
-  if (fc.typeResample != null) {
+  if (fc.cssPropertyResample != null) {
+    const res = await buildCssPropertyResampleAnimation(page, fc.cssPropertyResample, {
+      width: cfg.width,
+      height: cfg.height,
+      durationMs: fc.duration,
+      framePrefix: `cp${i}_`,
+    });
+    svgContent = res.svgContent;
+    frameCullCss = "";
+    rootBg = res.rootBg;
+    embeddedAnimationPeriodMs = res.periodMs;
+  } else if (fc.typeResample != null) {
     // DM-1556 (docs/93 §2): drive the field one keystroke at a time, re-capturing
     // after each keystroke, and compose the captures into one nested animated SVG
     // that becomes this frame's content. No single captured tree (like a scroll /

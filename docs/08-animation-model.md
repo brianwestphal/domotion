@@ -32,6 +32,7 @@ tickets:
     "DM-899",
     "DM-900",
     "DM-901",
+    "DM-GA3VC1",
   ]
 code:
   [
@@ -44,6 +45,7 @@ code:
     "src/animation/svg-generator.ts",
     "src/animation/transition-schema.ts",
     "src/cli/animate-orchestrator.ts",
+    "src/cli/css-property-resample.ts",
     "src/cli/animate.ts",
     "src/utils/keyframe-pad.ts",
   ]
@@ -53,6 +55,12 @@ aliases: ["docs/08-animation-model.md", "doc-08"]
 # 08 — Animation model: transitions, overlays, intra-frame motion
 
 The animation pipeline composes multiple captured frames into a single SVG with CSS keyframe transitions between frames, optional per-frame overlays, and (with this doc's additions) intra-frame property animations and SVG overlays.
+
+`cssPropertyResample` is the browser-owned CSS animation path: a frame samples
+the active CSS animations and transitions under its selector with Chromium,
+then nests the captured paints on that frame's timeline. It is opt-in because
+each sample requires a full capture. Conic gradients and the supported
+sampling limits are described in [doc 28](28-conic-gradient.md).
 
 > **Runnable examples.** `examples/animate/` has one self-contained config per feature in this doc — crossfade, `cut` + typing overlay + intra-frame progress fill, `push-left`, a `scroll` block, and a `kind: "svg"` overlay — each with a committed golden SVG you can open. They double as a regression suite (`npm run demos:test:animate`). See `examples/animate/README.md`.
 

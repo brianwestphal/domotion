@@ -12,6 +12,8 @@ code:
     "src/render/conic-raster.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/gradients.ts",
+    "src/cli/css-property-resample.ts",
+    "src/cli/css-property-resample.e2e.test.ts",
   ]
 aliases: ["docs/28-conic-gradient.md", "doc-28"]
 ---
@@ -55,10 +57,20 @@ Rejected alternatives:
 - Color stops with all forms supported by linear/radial: `<color>`, `<color> <pct>`, `<color> <pct> <pct>` (range), `<color> <angle>`, hard stops (two stops at the same offset), `currentColor`, full `color()` / `color-mix()` / `oklch()` etc. (resolved through Chromium's serialized computed value, identical to the linear/radial path).
 - Multi-layer composition — conic-gradient as one of several `background-image` layers, alongside linear, radial, and `url(...)` images. Already wired: the layer-iterating loop at `src/render/element-tree-to-svg.ts` calls `buildBackgroundLayerDef` per layer; conic just adds a branch.
 
-**Out of scope (deferred):**
-
-- Conic animation via `@property --angle` + transitions (DM-GA3VC1). Domotion does not support CSS property animations across frames in general, and conic is no exception.
-- Per-frame conic re-rasterization in animated scenes (DM-GA3VC1). The renderer composes static frames; if two frames need different conic content, each frame's layer rasterizes independently — but no transition interpolation between conic instances.
+**Animation capture (DM-GA3VC1):** An `animate` frame can set
+`cssPropertyResample: { selector: "#art", fps: 30 }`. After that frame's page
+actions, Domotion pauses the selector's active CSS animations and transitions,
+seeks their browser timelines at regular intervals over the frame's `duration`,
+and captures each source-painted state. Chromium paints each sampled conic tile;
+the output nests the states as a timed cut sequence with the same total period.
+The last source state is captured at `duration - 1ms`. The CSS animation's
+original time and play state are restored after capture. This is an explicit
+sampling model, so intermediate paints are held between samples; it does not
+encode a continuous conic interpolation in SVG. It is limited to 30 samples
+per second and 120 captures per frame. An active CSS animation or transition
+must exist under the selector; a finished animation must be restarted by a
+frame action before sampling. The config field is exclusive with other nested
+content producers such as `typeResample`, `states`, and `scroll`.
 
 ## Architecture
 

@@ -133,6 +133,7 @@
         "src/animation/svg-generator.ts",
         "src/animation/transition-schema.ts",
         "src/cli/animate-orchestrator.ts",
+        "src/cli/css-property-resample.ts",
         "src/cli/animate.ts",
         "src/utils/keyframe-pad.ts"
       ],
@@ -444,7 +445,9 @@
         "src/render/advanced-gradient-raster.ts",
         "src/render/conic-raster.ts",
         "src/render/element-tree-to-svg.ts",
-        "src/render/gradients.ts"
+        "src/render/gradients.ts",
+        "src/cli/css-property-resample.ts",
+        "src/cli/css-property-resample.e2e.test.ts"
       ],
       "file": "28-conic-gradient.md"
     },

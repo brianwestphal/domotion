@@ -2212,6 +2212,23 @@
               "text"
             ]
           },
+          "cssPropertyResample": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fps": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 30
+              }
+            },
+            "required": [
+              "selector"
+            ]
+          },
           "jsReveal": {
             "type": "object",
             "properties": {

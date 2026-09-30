@@ -296,7 +296,8 @@
           "DM-898",
           "DM-899",
           "DM-900",
-          "DM-901"
+          "DM-901",
+          "DM-GA3VC1"
         ],
         "code": [
           "examples/animate/",
@@ -308,6 +309,7 @@
           "src/animation/svg-generator.ts",
           "src/animation/transition-schema.ts",
           "src/cli/animate-orchestrator.ts",
+          "src/cli/css-property-resample.ts",
           "src/cli/animate.ts",
           "src/utils/keyframe-pad.ts"
         ],
@@ -745,7 +747,9 @@
           "src/render/advanced-gradient-raster.ts",
           "src/render/conic-raster.ts",
           "src/render/element-tree-to-svg.ts",
-          "src/render/gradients.ts"
+          "src/render/gradients.ts",
+          "src/cli/css-property-resample.ts",
+          "src/cli/css-property-resample.e2e.test.ts"
         ],
         "aliases": ["docs/28-conic-gradient.md", "doc-28"]
       }
