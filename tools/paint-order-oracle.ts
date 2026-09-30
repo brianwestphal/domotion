@@ -11,7 +11,32 @@ import {
 } from "../src/render/stacking.js";
 import type { CapturedElement, CapturedStyles } from "../src/capture/types.js";
 
-type Row = { id: string; expected: unknown; actual: unknown; pass: boolean; source: string };
+export type Row = { id: string; expected: unknown; actual: unknown; pass: boolean; source: string };
+export type PaintOrderEvidence = { rows: Row[]; mutationMoved: boolean };
+
+export function comparePaintOrderEvidence(evidence: PaintOrderEvidence): {
+  failures: Row[];
+  passed: number;
+  exitCode: number;
+} {
+  const failures = evidence.rows.filter((row) => !row.pass);
+  return {
+    failures,
+    passed: evidence.rows.length - failures.length,
+    exitCode: failures.length > 0 || !evidence.mutationMoved ? 1 : 0,
+  };
+}
+
+export function formatPaintOrderReport(evidence: PaintOrderEvidence): string[] {
+  const comparison = comparePaintOrderEvidence(evidence);
+  return [
+    `paint-order oracle: ${comparison.passed}/${evidence.rows.length}; mutation control ${evidence.mutationMoved ? "moved" : "DID NOT MOVE"}`,
+    ...comparison.failures.map(
+      (failure) =>
+        `FAIL ${failure.id}: expected=${JSON.stringify(failure.expected)} actual=${JSON.stringify(failure.actual)}`,
+    ),
+  ];
+}
 const baseStyles = (): CapturedStyles =>
   ({
     position: "static",
@@ -45,7 +70,7 @@ const el = (id: string, styles: Partial<CapturedStyles> = {}, children: Captured
     children,
   }) as CapturedElement;
 
-export async function runPaintOrderOracle(): Promise<{ rows: Row[]; mutationMoved: boolean }> {
+export async function collectPaintOrderEvidence(): Promise<PaintOrderEvidence> {
   const rows: Row[] = [];
   const creators: Array<[string, Partial<CapturedStyles>, string | undefined, boolean]> = [
     ["positioned-z", { position: "relative", zIndex: "1" }, undefined, true],
@@ -366,19 +391,14 @@ export async function runPaintOrderOracle(): Promise<{ rows: Row[]; mutationMove
   return { rows, mutationMoved };
 }
 
+export const runPaintOrderOracle = collectPaintOrderEvidence;
+
 async function main(): Promise<void> {
-  const report = await runPaintOrderOracle();
-  const failures = report.rows.filter((row) => !row.pass);
+  const report = await collectPaintOrderEvidence();
   const jsonIndex = process.argv.indexOf("--json");
   if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null)
     writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
-  console.log(
-    `paint-order oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? "moved" : "DID NOT MOVE"}`,
-  );
-  for (const failure of failures)
-    console.log(
-      `FAIL ${failure.id}: expected=${JSON.stringify(failure.expected)} actual=${JSON.stringify(failure.actual)}`,
-    );
-  if (failures.length > 0 || !report.mutationMoved) process.exitCode = 1;
+  for (const line of formatPaintOrderReport(report)) console.log(line);
+  if (comparePaintOrderEvidence(report).exitCode !== 0) process.exitCode = 1;
 }
 if (import.meta.url === new URL(`file://${process.argv[1]}`).href) void main();

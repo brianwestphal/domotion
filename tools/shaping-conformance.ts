@@ -1295,6 +1295,243 @@ export function parseArgs(argv: string[]): Options {
   return o;
 }
 
+export function compareShapingResults(counts: Record<Verdict, number>, routes: ReadonlyMap<string, number>) {
+  const mismatchTotal = counts["mismatch-count"] + counts["mismatch-unrendered"];
+  return { mismatchTotal, distinctRoutes: routes.size, complete: mismatchTotal === 0 };
+}
+
+export function buildShapingReport(input: {
+  platform: string;
+  runs: number;
+  corpus: RunCorpus;
+  chromium: string;
+  tolerance: number;
+  wallMs: number;
+  counts: Record<Verdict, number>;
+  allowlisted: number;
+  routes: ReadonlyMap<string, number>;
+  featureValueRecords: Array<{ logicalRecord: ExactFeatureValueRecord | null }>;
+  defaultIgnorableRecords: unknown[];
+  rows: MismatchRow[];
+}) {
+  const comparison = compareShapingResults(input.counts, input.routes);
+  return {
+    meta: {
+      platform: input.platform,
+      runs: input.runs,
+      corpusRuns: input.corpus.runs.length,
+      chromium: input.chromium,
+      sources: input.corpus.sources,
+      splitWords: input.corpus.splitWords === true,
+      tolerance: input.tolerance,
+      wallMs: input.wallMs,
+    },
+    summary: {
+      ...input.counts,
+      mismatchTotal: comparison.mismatchTotal,
+      allowlisted: input.allowlisted,
+      distinctRoutes: comparison.distinctRoutes,
+      featureValueRuns: input.featureValueRecords.length,
+      exactFeatureValueRecords: input.featureValueRecords.filter((row) => row.logicalRecord != null).length,
+    },
+    featureValueRecords: input.featureValueRecords,
+    defaultIgnorableRecords: input.defaultIgnorableRecords,
+    topRoutes: [...input.routes.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 200)
+      .map(([route, count]) => ({ route, count })),
+    mismatches: input.rows,
+  };
+}
+
+async function collectShapingEvidence(browser: Browser, runs: RunSpec[], opts: Options, allow: ReadonlySet<string>) {
+  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const page = await ctx.newPage();
+
+  const counts: Record<Verdict, number> = {
+    "agree-exact": 0,
+    "agree-count": 0,
+    "agree-count-clustered": 0,
+    "mismatch-count": 0,
+    "mismatch-unrendered": 0,
+  };
+  const rows: MismatchRow[] = [];
+  const featureValueRecords: Array<{
+    text: string;
+    fontFamily: string;
+    fontVariantAlternates: string;
+    featureList: string[];
+    chromeFaces: string[];
+    chromeCustomFaces: boolean[];
+    logicalRecord: ExactFeatureValueRecord | null;
+  }> = [];
+  const defaultIgnorableRecords: Array<{
+    scalars: number[];
+    utf16Span: [number, number];
+    chromeGlyphs: number;
+    chromeFaces: string[];
+    logicalRuns: TextRunProvenanceDiagnostic[];
+  }> = [];
+  const routes = new Map<string, number>();
+  let allowlisted = 0;
+  const posDeltas: number[] = [];
+  const t0 = Date.now();
+
+  for (let i = 0; i < runs.length; i += opts.batch) {
+    const batch = runs.slice(i, i + opts.batch);
+    const chrome = await chromeShaping(page, batch);
+    for (let j = 0; j < batch.length; j++) {
+      const spec = batch[j];
+      const ours = ourShaping(spec);
+      assertStandaloneDefaultIgnorableFace(spec.text, ours.logicalRuns, chrome[j].faces);
+      const { verdict, maxDelta } = compareShaping(chrome[j], ours, opts.tolerance);
+      const scalars = [...spec.text].map((character) => character.codePointAt(0)!);
+      if (scalars.length > 0 && scalars.every(isHarfbuzzDefaultIgnorable)) {
+        defaultIgnorableRecords.push({
+          scalars,
+          utf16Span: [0, spec.text.length],
+          chromeGlyphs: chrome[j].glyphCount,
+          chromeFaces: chrome[j].faces,
+          logicalRuns: ours.logicalRuns,
+        });
+      }
+      if (spec.fontVariantAlternates != null && spec.fontVariantAlternates !== "normal") {
+        featureValueRecords.push({
+          text: spec.text,
+          fontFamily: spec.fontFamily,
+          fontVariantAlternates: spec.fontVariantAlternates,
+          featureList: ours.featureList ?? [],
+          chromeFaces: chrome[j].faces,
+          chromeCustomFaces: chrome[j].customFaces ?? [],
+          logicalRecord: ours.logicalRecord ?? null,
+        });
+      }
+      if (verdict.startsWith("mismatch") && allow.has(`${spec.text}\0${spec.fontFamily}`)) {
+        allowlisted++;
+        continue;
+      }
+      counts[verdict]++;
+      // `agree-count` is the tier a mark attached 3px wrong lands in (DM-1197's
+      // real defect), so it needs DETAIL, not just a tally — a tier you can
+      // only see the size of is a tier nobody will act on. Recorded alongside
+      // the hard mismatches, tagged by verdict so the two never blur.
+      if (verdict === "agree-count" && rows.length < 5000) {
+        rows.push({
+          text: spec.text,
+          fontFamily: spec.fontFamily,
+          fontSize: spec.fontSize,
+          fontWeight: spec.fontWeight,
+          fontStyle: spec.fontStyle,
+          verdict,
+          chromeGlyphs: chrome[j].glyphCount,
+          ourGlyphs: ours.glyphCount,
+          chromeFaces: chrome[j].faces,
+          chromeXs: chrome[j].xs,
+          ourXs: ours.xs,
+          maxDelta,
+        });
+        if (maxDelta != null) posDeltas.push(maxDelta);
+      }
+      if (verdict.startsWith("mismatch")) {
+        const route = `${chrome[j].faces.join("+") || "(none)"} ${chrome[j].glyphCount}g -> ours ${ours.glyphCount}g`;
+        routes.set(route, (routes.get(route) ?? 0) + 1);
+        if (rows.length < 5000) {
+          rows.push({
+            text: spec.text,
+            fontFamily: spec.fontFamily,
+            fontSize: spec.fontSize,
+            fontWeight: spec.fontWeight,
+            fontStyle: spec.fontStyle,
+            verdict,
+            chromeGlyphs: chrome[j].glyphCount,
+            ourGlyphs: ours.glyphCount,
+            chromeFaces: chrome[j].faces,
+            chromeXs: chrome[j].xs,
+            ourXs: ours.xs,
+            maxDelta,
+          });
+        }
+      }
+    }
+    // Bounded memory over a long sweep, same reason as the face oracle (DM-1860).
+    clearFontResolutionCaches();
+    process.stdout.write(
+      `    ${Math.min(i + opts.batch, runs.length)}/${runs.length}  ` +
+        `mismatches=${counts["mismatch-count"] + counts["mismatch-unrendered"]}  ` +
+        `rss=${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB\n`,
+    );
+  }
+  await ctx.close();
+  return { counts, rows, featureValueRecords, defaultIgnorableRecords, routes, allowlisted, posDeltas, t0 };
+}
+
+function formatShapingSummary(input: {
+  runs: RunSpec[];
+  corpus: RunCorpus;
+  opts: Options;
+  counts: Record<Verdict, number>;
+  routes: ReadonlyMap<string, number>;
+  featureValueRecords: Array<{ logicalRecord: ExactFeatureValueRecord | null }>;
+  posDeltas: number[];
+  allowlisted: number;
+  startedAt: number;
+  platform: string;
+  arch: string;
+}): string {
+  const { runs, corpus, opts, counts, routes, featureValueRecords, posDeltas, allowlisted, startedAt, platform, arch } =
+    input;
+  const total = runs.length;
+  const { mismatchTotal } = compareShapingResults(counts, routes);
+  const pct = (n: number): string => `${((n / Math.max(1, total)) * 100).toFixed(3)}%`;
+  const lines: string[] = [];
+  lines.push(`shaping-conformance — ${platform} ${arch}`);
+  lines.push(
+    `runs               ${total.toLocaleString()}  (corpus ${corpus.runs.length.toLocaleString()}, from ${corpus.sources.join(", ")})`,
+  );
+  // Which extraction produced the corpus. A `--split-words` corpus is a
+  // different population, not a bigger sample of the same one, so a summary
+  // that omits this invites comparing its tallies against the default's.
+  lines.push(
+    `node splitting     ${corpus.splitWords === true ? "EVERY node on whitespace (--split-words)" : "axis- / feature-bearing nodes only (default)"}`,
+  );
+  lines.push(`wall               ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
+  lines.push(`tolerance          ${opts.tolerance}px`);
+  lines.push(
+    `feature values     ${featureValueRecords.length.toLocaleString()} runs; ` +
+      `${featureValueRecords.filter((row) => row.logicalRecord != null).length.toLocaleString()} exact webfont records`,
+  );
+  lines.push("");
+  lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
+  lines.push(
+    `agree count-only   ${counts["agree-count"].toLocaleString()}  ${pct(counts["agree-count"])}   (same glyph count, comparable positions DIFFER)`,
+  );
+  lines.push(
+    `agree clustered    ${counts["agree-count-clustered"].toLocaleString()}  ${pct(counts["agree-count-clustered"])}   (same glyph count, positions NOT comparable — Chrome per-char vs our per-glyph)`,
+  );
+  lines.push(`allowlisted        ${allowlisted.toLocaleString()}`);
+  lines.push("");
+  lines.push(`MISMATCH count     ${counts["mismatch-count"].toLocaleString()}  ${pct(counts["mismatch-count"])}`);
+  lines.push(
+    `MISMATCH unrendered ${counts["mismatch-unrendered"].toLocaleString()}  ${pct(counts["mismatch-unrendered"])}`,
+  );
+  lines.push(`MISMATCH total     ${mismatchTotal.toLocaleString()}  ${pct(mismatchTotal)}`);
+  lines.push(`  distinct disagreeing routes  ${routes.size.toLocaleString()}`);
+  if (posDeltas.length > 0) {
+    const sorted = [...posDeltas].sort((a, b) => a - b);
+    const q = (f: number): string => sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))].toFixed(2);
+    lines.push("");
+    lines.push(`position deltas (the ${posDeltas.length} runs whose comparable positions differ, px):`);
+    lines.push(`  median ${q(0.5)}   p90 ${q(0.9)}   max ${sorted[sorted.length - 1].toFixed(2)}`);
+  }
+  lines.push("");
+  lines.push("top disagreeing routes:");
+  for (const [r, c] of [...routes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40)) {
+    lines.push(`  ${String(c).padStart(6)}  ${r}`);
+  }
+  const summary = lines.join("\n") + "\n";
+  return summary;
+}
+
 async function main(): Promise<number> {
   const opts = parseArgs(process.argv.slice(2));
   const browser = await chromium.launch();
@@ -1326,212 +1563,44 @@ async function main(): Promise<number> {
         )
       : new Set();
 
-    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-    const page = await ctx.newPage();
-
-    const counts: Record<Verdict, number> = {
-      "agree-exact": 0,
-      "agree-count": 0,
-      "agree-count-clustered": 0,
-      "mismatch-count": 0,
-      "mismatch-unrendered": 0,
-    };
-    const rows: MismatchRow[] = [];
-    const featureValueRecords: Array<{
-      text: string;
-      fontFamily: string;
-      fontVariantAlternates: string;
-      featureList: string[];
-      chromeFaces: string[];
-      chromeCustomFaces: boolean[];
-      logicalRecord: ExactFeatureValueRecord | null;
-    }> = [];
-    const defaultIgnorableRecords: Array<{
-      scalars: number[];
-      utf16Span: [number, number];
-      chromeGlyphs: number;
-      chromeFaces: string[];
-      logicalRuns: TextRunProvenanceDiagnostic[];
-    }> = [];
-    const routes = new Map<string, number>();
-    let allowlisted = 0;
-    const posDeltas: number[] = [];
-    const t0 = Date.now();
-
-    for (let i = 0; i < runs.length; i += opts.batch) {
-      const batch = runs.slice(i, i + opts.batch);
-      const chrome = await chromeShaping(page, batch);
-      for (let j = 0; j < batch.length; j++) {
-        const spec = batch[j];
-        const ours = ourShaping(spec);
-        assertStandaloneDefaultIgnorableFace(spec.text, ours.logicalRuns, chrome[j].faces);
-        const { verdict, maxDelta } = compareShaping(chrome[j], ours, opts.tolerance);
-        const scalars = [...spec.text].map((character) => character.codePointAt(0)!);
-        if (scalars.length > 0 && scalars.every(isHarfbuzzDefaultIgnorable)) {
-          defaultIgnorableRecords.push({
-            scalars,
-            utf16Span: [0, spec.text.length],
-            chromeGlyphs: chrome[j].glyphCount,
-            chromeFaces: chrome[j].faces,
-            logicalRuns: ours.logicalRuns,
-          });
-        }
-        if (spec.fontVariantAlternates != null && spec.fontVariantAlternates !== "normal") {
-          featureValueRecords.push({
-            text: spec.text,
-            fontFamily: spec.fontFamily,
-            fontVariantAlternates: spec.fontVariantAlternates,
-            featureList: ours.featureList ?? [],
-            chromeFaces: chrome[j].faces,
-            chromeCustomFaces: chrome[j].customFaces ?? [],
-            logicalRecord: ours.logicalRecord ?? null,
-          });
-        }
-        if (verdict.startsWith("mismatch") && allow.has(`${spec.text}\0${spec.fontFamily}`)) {
-          allowlisted++;
-          continue;
-        }
-        counts[verdict]++;
-        // `agree-count` is the tier a mark attached 3px wrong lands in (DM-1197's
-        // real defect), so it needs DETAIL, not just a tally — a tier you can
-        // only see the size of is a tier nobody will act on. Recorded alongside
-        // the hard mismatches, tagged by verdict so the two never blur.
-        if (verdict === "agree-count" && rows.length < 5000) {
-          rows.push({
-            text: spec.text,
-            fontFamily: spec.fontFamily,
-            fontSize: spec.fontSize,
-            fontWeight: spec.fontWeight,
-            fontStyle: spec.fontStyle,
-            verdict,
-            chromeGlyphs: chrome[j].glyphCount,
-            ourGlyphs: ours.glyphCount,
-            chromeFaces: chrome[j].faces,
-            chromeXs: chrome[j].xs,
-            ourXs: ours.xs,
-            maxDelta,
-          });
-          if (maxDelta != null) posDeltas.push(maxDelta);
-        }
-        if (verdict.startsWith("mismatch")) {
-          const route = `${chrome[j].faces.join("+") || "(none)"} ${chrome[j].glyphCount}g -> ours ${ours.glyphCount}g`;
-          routes.set(route, (routes.get(route) ?? 0) + 1);
-          if (rows.length < 5000) {
-            rows.push({
-              text: spec.text,
-              fontFamily: spec.fontFamily,
-              fontSize: spec.fontSize,
-              fontWeight: spec.fontWeight,
-              fontStyle: spec.fontStyle,
-              verdict,
-              chromeGlyphs: chrome[j].glyphCount,
-              ourGlyphs: ours.glyphCount,
-              chromeFaces: chrome[j].faces,
-              chromeXs: chrome[j].xs,
-              ourXs: ours.xs,
-              maxDelta,
-            });
-          }
-        }
-      }
-      // Bounded memory over a long sweep, same reason as the face oracle (DM-1860).
-      clearFontResolutionCaches();
-      process.stdout.write(
-        `    ${Math.min(i + opts.batch, runs.length)}/${runs.length}  ` +
-          `mismatches=${counts["mismatch-count"] + counts["mismatch-unrendered"]}  ` +
-          `rss=${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB\n`,
-      );
-    }
-    await ctx.close();
+    const { counts, rows, featureValueRecords, defaultIgnorableRecords, routes, allowlisted, posDeltas, t0 } =
+      await collectShapingEvidence(browser, runs, opts, allow);
 
     const total = runs.length;
-    const mismatchTotal = counts["mismatch-count"] + counts["mismatch-unrendered"];
-    const pct = (n: number): string => `${((n / Math.max(1, total)) * 100).toFixed(3)}%`;
-    const lines: string[] = [];
-    lines.push(`shaping-conformance — ${process.platform} ${process.arch}`);
-    lines.push(
-      `runs               ${total.toLocaleString()}  (corpus ${corpus.runs.length.toLocaleString()}, from ${corpus.sources.join(", ")})`,
-    );
-    // Which extraction produced the corpus. A `--split-words` corpus is a
-    // different population, not a bigger sample of the same one, so a summary
-    // that omits this invites comparing its tallies against the default's.
-    lines.push(
-      `node splitting     ${corpus.splitWords === true ? "EVERY node on whitespace (--split-words)" : "axis- / feature-bearing nodes only (default)"}`,
-    );
-    lines.push(`wall               ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    lines.push(`tolerance          ${opts.tolerance}px`);
-    lines.push(
-      `feature values     ${featureValueRecords.length.toLocaleString()} runs; ` +
-        `${featureValueRecords.filter((row) => row.logicalRecord != null).length.toLocaleString()} exact webfont records`,
-    );
-    lines.push("");
-    lines.push(`agree exact        ${counts["agree-exact"].toLocaleString()}  ${pct(counts["agree-exact"])}`);
-    lines.push(
-      `agree count-only   ${counts["agree-count"].toLocaleString()}  ${pct(counts["agree-count"])}   (same glyph count, comparable positions DIFFER)`,
-    );
-    lines.push(
-      `agree clustered    ${counts["agree-count-clustered"].toLocaleString()}  ${pct(counts["agree-count-clustered"])}   (same glyph count, positions NOT comparable — Chrome per-char vs our per-glyph)`,
-    );
-    lines.push(`allowlisted        ${allowlisted.toLocaleString()}`);
-    lines.push("");
-    lines.push(`MISMATCH count     ${counts["mismatch-count"].toLocaleString()}  ${pct(counts["mismatch-count"])}`);
-    lines.push(
-      `MISMATCH unrendered ${counts["mismatch-unrendered"].toLocaleString()}  ${pct(counts["mismatch-unrendered"])}`,
-    );
-    lines.push(`MISMATCH total     ${mismatchTotal.toLocaleString()}  ${pct(mismatchTotal)}`);
-    lines.push(`  distinct disagreeing routes  ${routes.size.toLocaleString()}`);
-    if (posDeltas.length > 0) {
-      const sorted = [...posDeltas].sort((a, b) => a - b);
-      const q = (f: number): string => sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))].toFixed(2);
-      lines.push("");
-      lines.push(`position deltas (the ${posDeltas.length} runs whose comparable positions differ, px):`);
-      lines.push(`  median ${q(0.5)}   p90 ${q(0.9)}   max ${sorted[sorted.length - 1].toFixed(2)}`);
-    }
-    lines.push("");
-    lines.push("top disagreeing routes:");
-    for (const [r, c] of [...routes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40)) {
-      lines.push(`  ${String(c).padStart(6)}  ${r}`);
-    }
-    const summary = lines.join("\n") + "\n";
+    const { mismatchTotal } = compareShapingResults(counts, routes);
+    const summary = formatShapingSummary({
+      runs,
+      corpus,
+      opts,
+      counts,
+      routes,
+      featureValueRecords,
+      posDeltas,
+      allowlisted,
+      startedAt: t0,
+      platform: process.platform,
+      arch: process.arch,
+    });
 
     mkdirSync(opts.outDir, { recursive: true });
     writeFileSync(join(opts.outDir, "summary.txt"), summary);
     writeFileSync(
       join(opts.outDir, "report.json"),
       `${JSON.stringify(
-        {
-          meta: {
-            platform: process.platform,
-            runs: total,
-            corpusRuns: corpus.runs.length,
-            // The build that produced Chrome's side of every comparison. Recorded
-            // for the same reason the face oracle records it (doc 107): Blink's
-            // behavior is what is being graded, so two runs under different
-            // browsers are two different oracles, and every other field here can
-            // match while that is true. Read from the launched binary — Playwright's
-            // declared revision is not a promise about what runs.
-            chromium: browser.version(),
-            sources: corpus.sources,
-            splitWords: corpus.splitWords === true,
-            tolerance: opts.tolerance,
-            wallMs: Date.now() - t0,
-          },
-          summary: {
-            ...counts,
-            mismatchTotal,
-            allowlisted,
-            distinctRoutes: routes.size,
-            featureValueRuns: featureValueRecords.length,
-            exactFeatureValueRecords: featureValueRecords.filter((row) => row.logicalRecord != null).length,
-          },
+        buildShapingReport({
+          platform: process.platform,
+          runs: total,
+          corpus,
+          chromium: browser.version(),
+          tolerance: opts.tolerance,
+          wallMs: Date.now() - t0,
+          counts,
+          allowlisted,
+          routes,
           featureValueRecords,
           defaultIgnorableRecords,
-          topRoutes: [...routes.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 200)
-            .map(([route, count]) => ({ route, count })),
-          mismatches: rows,
-        },
+          rows,
+        }),
         null,
         2,
       )}\n`,

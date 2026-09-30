@@ -1,5 +1,6 @@
 #!/usr/bin/env tsx
 import { writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import * as fk from "fontkit";
 import {
   segmentForShaping,
@@ -96,9 +97,70 @@ function glyphCodePoints(text: string, span: [number, number]): number[] {
   return [...text.slice(span[0], span[1])].map((character) => character.codePointAt(0)!);
 }
 
-async function main(): Promise<number> {
-  const outputAt = process.argv.indexOf("--json");
-  const output = outputAt >= 0 ? process.argv[outputAt + 1] : undefined;
+type MixedBidiEvidence = {
+  records: Array<Record<string, unknown>>;
+  wrongLevelDeltas: Array<Record<string, unknown>>;
+  wrongClusterDeltas: Array<Record<string, unknown>>;
+  wrongOriginDeltas: Array<Record<string, unknown>>;
+  baselinesAgree: boolean;
+};
+
+export function compareMixedBidiEvidence(evidence: MixedBidiEvidence) {
+  const { records, wrongLevelDeltas, wrongClusterDeltas, wrongOriginDeltas, baselinesAgree } = evidence;
+  const controls = {
+    exactLogicalRecords:
+      records.length === CASES.length &&
+      records.every((record) => {
+        const typed = record as {
+          sourceText: string;
+          levels: number[];
+          logicalRuns: Array<{ utf16Span: number[] }>;
+          fragments: Array<{ runs: unknown[] }>;
+        };
+        return (
+          typed.levels.length === typed.sourceText.length &&
+          typed.logicalRuns[0]?.utf16Span[0] === 0 &&
+          typed.logicalRuns.at(-1)?.utf16Span[1] === typed.sourceText.length &&
+          typed.fragments.every((fragment) => fragment.runs.length > 0)
+        );
+      }),
+    forwardReverseRows:
+      new Set(CASES.map((item) => item.order)).size === 2 && new Set(CASES.map((item) => item.direction)).size === 2,
+    wrongLevelMutation: new Set(wrongLevelDeltas.map((row) => row.case)).size === CASES.length,
+    wrongClusterMutation: new Set(wrongClusterDeltas.map((row) => row.case)).size === CASES.length,
+    wrongOriginMutation: new Set(wrongOriginDeltas.map((row) => row.case)).size === CASES.length,
+    baselineAgreement: baselinesAgree,
+    sourceRevisionsPinned: true,
+  };
+  return { controls, complete: Object.values(controls).every(Boolean) };
+}
+
+export function buildMixedBidiReport(evidence: MixedBidiEvidence) {
+  const { controls, complete } = compareMixedBidiEvidence(evidence);
+  return {
+    schemaVersion: 1,
+    stage: "mixed-script-bidi-logical-geometry",
+    verdict: complete ? "evidence-complete" : "verdict-withheld",
+    sourceAuthority: {
+      chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
+      harfbuzz: "4de187dd0a915d13c976fa8bd474c084229f3aab",
+      skia: "62efacd37737505732dbe3d8daa62abd679626a1",
+    },
+    environment: parityEnvironment({
+      corpusIdentity: "mixed-bidi-logical-v1",
+      sampleIdentity: CASES.map((item) => item.id).join(","),
+    }),
+    controls,
+    mutations: {
+      wrongLevel: evidence.wrongLevelDeltas,
+      wrongCluster: evidence.wrongClusterDeltas,
+      wrongOrigin: evidence.wrongOriginDeltas,
+    },
+    records: evidence.records,
+  };
+}
+
+async function collectMixedBidiEvidence(): Promise<MixedBidiEvidence> {
   const browser = await launchChromium({ args: ["--font-render-hinting=none"] });
   const records: Array<Record<string, unknown>> = [];
   const wrongLevelDeltas: Array<Record<string, unknown>> = [];
@@ -346,56 +408,7 @@ async function main(): Promise<number> {
       });
     }
 
-    const controls = {
-      exactLogicalRecords:
-        records.length === CASES.length &&
-        records.every((record) => {
-          const typed = record as {
-            sourceText: string;
-            levels: number[];
-            logicalRuns: Array<{ utf16Span: number[] }>;
-            fragments: Array<{ runs: unknown[] }>;
-          };
-          return (
-            typed.levels.length === typed.sourceText.length &&
-            typed.logicalRuns[0]?.utf16Span[0] === 0 &&
-            typed.logicalRuns.at(-1)?.utf16Span[1] === typed.sourceText.length &&
-            typed.fragments.every((fragment) => fragment.runs.length > 0)
-          );
-        }),
-      forwardReverseRows:
-        new Set(CASES.map((item) => item.order)).size === 2 && new Set(CASES.map((item) => item.direction)).size === 2,
-      wrongLevelMutation: new Set(wrongLevelDeltas.map((row) => row.case)).size === CASES.length,
-      wrongClusterMutation: new Set(wrongClusterDeltas.map((row) => row.case)).size === CASES.length,
-      wrongOriginMutation: new Set(wrongOriginDeltas.map((row) => row.case)).size === CASES.length,
-      baselineAgreement: baselinesAgree,
-      sourceRevisionsPinned: true,
-    };
-    const complete = Object.values(controls).every(Boolean);
-    const report = {
-      schemaVersion: 1,
-      stage: "mixed-script-bidi-logical-geometry",
-      verdict: complete ? "evidence-complete" : "verdict-withheld",
-      sourceAuthority: {
-        chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
-        harfbuzz: "4de187dd0a915d13c976fa8bd474c084229f3aab",
-        skia: "62efacd37737505732dbe3d8daa62abd679626a1",
-      },
-      environment: parityEnvironment({
-        corpusIdentity: "mixed-bidi-logical-v1",
-        sampleIdentity: CASES.map((item) => item.id).join(","),
-      }),
-      controls,
-      mutations: {
-        wrongLevel: wrongLevelDeltas,
-        wrongCluster: wrongClusterDeltas,
-        wrongOrigin: wrongOriginDeltas,
-      },
-      records,
-    };
-    if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
-    process.stdout.write(`mixed-bidi logical evidence: ${records.length} rows; controls ${JSON.stringify(controls)}\n`);
-    return complete ? 0 : 1;
+    return { records, wrongLevelDeltas, wrongClusterDeltas, wrongOriginDeltas, baselinesAgree };
   } finally {
     setTextRunProvenanceEnabled(false);
     setRenderTextMode("embedded-font");
@@ -403,11 +416,26 @@ async function main(): Promise<number> {
   }
 }
 
-main()
-  .then((code) => {
-    process.exitCode = code;
-  })
-  .catch((error: unknown) => {
-    console.error(error);
-    process.exitCode = 2;
-  });
+async function main(): Promise<number> {
+  const outputAt = process.argv.indexOf("--json");
+  const output = outputAt >= 0 ? process.argv[outputAt + 1] : undefined;
+  const evidence = await collectMixedBidiEvidence();
+  const report = buildMixedBidiReport(evidence);
+  const { controls, complete } = compareMixedBidiEvidence(evidence);
+  if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+  process.stdout.write(
+    `mixed-bidi logical evidence: ${evidence.records.length} rows; controls ${JSON.stringify(controls)}\n`,
+  );
+  return complete ? 0 : 1;
+}
+
+if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error: unknown) => {
+      console.error(error);
+      process.exitCode = 2;
+    });
+}

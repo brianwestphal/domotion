@@ -151,6 +151,11 @@ plus controlled-healing browser passes.
   source ownership, stage gates, activation, platform coverage, and gaps.
 - `tools/*oracle*`, `tools/*gate*`, and `.github/workflows/` produce and
   adjudicate exact logical, native, and visual evidence.
+- The renderer route, paint order, mixed bidi, shaping, and decoration oracles
+  separate collection from pure comparison and report construction. Their CLI
+  entry points retain browser ownership, exit codes, and existing JSON schemas;
+  `tests/oracle-phases.test.ts` covers the pure seams and
+  `tests/oracle-phases.e2e.test.ts` exercises a live Chromium paint order flow.
 - `tools/lib/conformance-args.ts` validates numeric flags and 1-based shard
   selection for conformance tools and the visual harness.
 - `scripts/install-windows-profile-fixture-fonts.ps1` installs the generated

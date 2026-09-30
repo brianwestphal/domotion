@@ -1337,37 +1337,69 @@ interface CaseResult {
   };
 }
 
-async function main(): Promise<number> {
-  const args = process.argv.slice(2);
-  const flag = (name: string) => args.includes(name);
-  const opt = (name: string): string | null => {
-    const i = args.indexOf(name);
-    return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+export function compareDecorationCase(
+  c: CaseSpec,
+  meas: PageMeasure,
+  chromeBars: MeasuredBar[],
+  svgBars: SvgBar[],
+  chromePaintDsf: number,
+): CaseResult {
+  const pred = predictCase(c, meas);
+  const notes = [...pred.notes];
+  if (meas.fragments !== 1) notes.push(`span has ${meas.fragments} fragments (expected 1)`);
+  const isExtent = c.style === "dashed" || c.style === "dotted" || c.style === "wavy";
+  const transcription =
+    c.style === "wavy" && chromePaintDsf === 1
+      ? compareBarCenters(pred.bars, chromeBars, TOL_TRANSCRIPTION, "rule", "chrome")
+      : compareBars(
+          pred.bars,
+          isExtent ? chromeBars : reconstructSnappedBars(chromeBars),
+          isExtent ? TOL_TRANSCRIPTION_EXTENT : TOL_TRANSCRIPTION,
+          "rule",
+          "chrome",
+        );
+  const svgGeometry = compareBars(pred.bars, svgBars, TOL_SVG_GEOMETRY, "rule", "svg");
+  let skipInk: LegResult | null = null;
+  if (c.skipInk || c.expectNoGaps || isExtent) {
+    const cSegs = chromeBars.length > 0 ? chromeBars[0].segments : [];
+    const sSegs: Array<[number, number]> =
+      svgBars.length > 0 ? svgBars[0].segments.map((s) => [s.x0, s.x1] as [number, number]) : [];
+    skipInk = c.expectNoGaps
+      ? {
+          ok: cSegs.length === 1 && sSegs.length === 1,
+          detail: [
+            `skip-ink:none control — chrome segments=${cSegs.length} svg segments=${sSegs.length} (both must be exactly 1: an uninterrupted bar)`,
+          ],
+        }
+      : compareSegments(cSegs, sSegs);
+  }
+  return {
+    id: c.id,
+    transcription,
+    svgGeometry,
+    skipInk,
+    notes,
+    data: { predicted: pred.bars, chrome: chromeBars, svg: svgBars },
   };
-  const only = opt("--only");
-  const jsonPath = opt("--json");
-  const keepDir = opt("--keep");
-  const requestedDsf = opt("--device-scale-factor");
-  // Default-armed since the decoration-geometry transcription landed
-  // (`--gate-svg-geometry` still accepted as a no-op for older invocations).
-  const gateSvgGeometry = !flag("--no-gate-svg-geometry");
-  const gateSkipInk = !flag("--no-gate-skip-ink");
-  const scalePlan = decorationOracleScalePlan(requestedDsf == null ? DSF : Number(requestedDsf));
-  const scalePlanErrors = decorationOracleScalePlanErrors(scalePlan);
-  if (scalePlanErrors.length > 0) {
-    for (const error of scalePlanErrors) console.error(`decoration-oracle: ${error}`);
-    return 2;
-  }
-  if (keepDir != null) mkdirSync(keepDir, { recursive: true });
+}
 
-  let cases = buildCases();
-  if (only != null) cases = cases.filter((c) => c.id.includes(only));
-  if (cases.length === 0) {
-    console.error(`no cases match --only ${only}`);
-    return 2;
-  }
+export function summarizeDecorationResults(results: CaseResult[], gateSkipInk: boolean, gateSvgGeometry: boolean) {
+  const failedTranscription = results.filter((r) => !r.transcription.ok);
+  const failedSkipInk = results.filter((r) => r.skipInk != null && !r.skipInk.ok);
+  const failedSvgGeometry = results.filter((r) => !r.svgGeometry.ok);
+  const skipInkCases = results.filter((r) => r.skipInk != null);
+  const gateFailed =
+    failedTranscription.length > 0 ||
+    (gateSkipInk && failedSkipInk.length > 0) ||
+    (gateSvgGeometry && failedSvgGeometry.length > 0);
+  return { failedTranscription, failedSkipInk, failedSvgGeometry, skipInkCases, gateFailed };
+}
 
-  const t0 = Date.now();
+async function collectDecorationResults(
+  cases: CaseSpec[],
+  scalePlan: DecorationOracleScalePlan,
+  keepDir: string | null,
+): Promise<{ results: CaseResult[]; chromiumVersion: string }> {
   let browser: Browser | null = null;
   let chromiumVersion = "unknown";
   const results: CaseResult[] = [];
@@ -1442,66 +1474,37 @@ async function main(): Promise<number> {
           scalePlan.chromePaint,
           isExtent ? "extent" : "profile",
         );
-        const pred = predictCase(c, meas);
         const winTop = clip.y,
           winBottom = clip.y + clip.height;
         const sBars = svgBarsInWindow(svgLines, { top: winTop, bottom: winBottom });
-
-        const notes = [...pred.notes];
-        if (meas.fragments !== 1) notes.push(`span has ${meas.fragments} fragments (expected 1)`);
-
-        const transcription =
-          c.style === "wavy" && scalePlan.chromePaint === 1
-            ? compareBarCenters(pred.bars, chromeBars, TOL_TRANSCRIPTION, "rule", "chrome")
-            : compareBars(
-                pred.bars,
-                isExtent ? chromeBars : reconstructSnappedBars(chromeBars),
-                isExtent ? TOL_TRANSCRIPTION_EXTENT : TOL_TRANSCRIPTION,
-                "rule",
-                "chrome",
-              );
-        const svgGeometry = compareBars(pred.bars, sBars, TOL_SVG_GEOMETRY, "rule", "svg");
-        let skipInk: LegResult | null = null;
         // Patterned styles grade painted segments even without skip-ink text:
         // every dash / dot IS a painted segment, so this leg is what grades
         // dash layout and — via the dash edges after a gap — phase
         // continuity across skip-ink gaps.
-        if (c.skipInk || c.expectNoGaps || isExtent) {
-          const cSegs = chromeBars.length > 0 ? chromeBars[0].segments : [];
-          const sSegs: Array<[number, number]> =
-            sBars.length > 0 ? sBars[0].segments.map((s) => [s.x0, s.x1] as [number, number]) : [];
-          if (c.expectNoGaps) {
-            skipInk = {
-              ok: cSegs.length === 1 && sSegs.length === 1,
-              detail: [
-                `skip-ink:none control — chrome segments=${cSegs.length} svg segments=${sSegs.length} (both must be exactly 1: an uninterrupted bar)`,
-              ],
-            };
-          } else {
-            skipInk = compareSegments(cSegs, sSegs);
-          }
-        }
-        results.push({
-          id: c.id,
-          transcription,
-          svgGeometry,
-          skipInk,
-          notes,
-          data: { predicted: pred.bars, chrome: chromeBars, svg: sBars },
-        });
+        results.push(compareDecorationCase(c, meas, chromeBars, sBars, scalePlan.chromePaint));
       }
     }
-  } catch (err) {
-    console.error("decoration-oracle: setup/measurement error:", err);
-    return 2;
   } finally {
     await browser?.close();
   }
 
+  return { results, chromiumVersion };
+}
+
+function reportDecorationResults(input: {
+  results: CaseResult[];
+  cases: CaseSpec[];
+  chromiumVersion: string;
+  scalePlan: DecorationOracleScalePlan;
+  jsonPath: string | null;
+  gateSkipInk: boolean;
+  gateSvgGeometry: boolean;
+  startedAt: number;
+}): number {
+  const { results, cases, chromiumVersion, scalePlan, jsonPath, gateSkipInk, gateSvgGeometry, startedAt } = input;
   // ── Report ──
-  const failedTranscription = results.filter((r) => !r.transcription.ok);
-  const failedSkipInk = results.filter((r) => r.skipInk != null && !r.skipInk.ok);
-  const failedSvgGeometry = results.filter((r) => !r.svgGeometry.ok);
+  const { failedTranscription, failedSkipInk, failedSvgGeometry, skipInkCases, gateFailed } =
+    summarizeDecorationResults(results, gateSkipInk, gateSvgGeometry);
   const printLeg = (title: string, failed: CaseResult[], leg: (r: CaseResult) => LegResult | null) => {
     console.log(`\n── ${title}: ${failed.length} failing ──`);
     for (const r of failed) {
@@ -1510,8 +1513,7 @@ async function main(): Promise<number> {
       for (const n of r.notes) console.log(`    note: ${n}`);
     }
   };
-  const skipInkCases = results.filter((r) => r.skipInk != null);
-  console.log(`decoration-oracle: ${results.length} cases in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  console.log(`decoration-oracle: ${results.length} cases in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
   console.log(
     `  transcription (chrome vs rule):   ${results.length - failedTranscription.length}/${results.length} pass  [gate: on]`,
   );
@@ -1572,11 +1574,59 @@ async function main(): Promise<number> {
     console.log(`json report: ${jsonPath}`);
   }
 
-  const gateFailed =
-    failedTranscription.length > 0 ||
-    (gateSkipInk && failedSkipInk.length > 0) ||
-    (gateSvgGeometry && failedSvgGeometry.length > 0);
   return gateFailed ? 1 : 0;
+}
+
+async function main(): Promise<number> {
+  const args = process.argv.slice(2);
+  const flag = (name: string) => args.includes(name);
+  const opt = (name: string): string | null => {
+    const i = args.indexOf(name);
+    return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
+  };
+  const only = opt("--only");
+  const jsonPath = opt("--json");
+  const keepDir = opt("--keep");
+  const requestedDsf = opt("--device-scale-factor");
+  // Default-armed since the decoration-geometry transcription landed
+  // (`--gate-svg-geometry` still accepted as a no-op for older invocations).
+  const gateSvgGeometry = !flag("--no-gate-svg-geometry");
+  const gateSkipInk = !flag("--no-gate-skip-ink");
+  const scalePlan = decorationOracleScalePlan(requestedDsf == null ? DSF : Number(requestedDsf));
+  const scalePlanErrors = decorationOracleScalePlanErrors(scalePlan);
+  if (scalePlanErrors.length > 0) {
+    for (const error of scalePlanErrors) console.error(`decoration-oracle: ${error}`);
+    return 2;
+  }
+  if (keepDir != null) mkdirSync(keepDir, { recursive: true });
+
+  let cases = buildCases();
+  if (only != null) cases = cases.filter((c) => c.id.includes(only));
+  if (cases.length === 0) {
+    console.error(`no cases match --only ${only}`);
+    return 2;
+  }
+
+  const t0 = Date.now();
+  let collected: Awaited<ReturnType<typeof collectDecorationResults>>;
+  try {
+    collected = await collectDecorationResults(cases, scalePlan, keepDir);
+  } catch (err) {
+    console.error("decoration-oracle: setup/measurement error:", err);
+    return 2;
+  }
+  const { results, chromiumVersion } = collected;
+
+  return reportDecorationResults({
+    results,
+    cases,
+    chromiumVersion,
+    scalePlan,
+    jsonPath,
+    gateSkipInk,
+    gateSvgGeometry,
+    startedAt: t0,
+  });
 }
 
 // Pure pieces exported for unit tests; `main` only runs when invoked as a CLI.
