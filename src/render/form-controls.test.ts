@@ -80,7 +80,7 @@ describe("author-styled listbox option rows (DM-2190)", () => {
         color: "rgb(0, 0, 0)",
         selectListboxOptions: [
           {
-            text: "Red",
+            text: 'Red "sale"',
             selected: true,
             disabled: false,
             x: 5,
@@ -104,6 +104,7 @@ describe("author-styled listbox option rows (DM-2190)", () => {
     expect(svg).toContain('<rect x="255" y="706.5" width="530" height="27.2" fill="rgb(238, 242, 255)"');
     expect(svg).toContain('<text x="263"');
     expect(svg).toContain('fill="rgb(49, 46, 129)"');
+    expect(svg).toContain("Red &quot;sale&quot;");
     expect(svg).not.toContain("rgb(180, 215, 255)");
   });
 });
@@ -481,6 +482,24 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
     const tiles = collectFormControlConicTiles(el);
     expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 200, h: 24 }); // track: el.width × barH
     expect(tiles).toContainEqual({ layer: "conic-gradient(green, yellow)", w: 140, h: 24 }); // value: el.width·0.7 × barH
+  });
+
+  it("omits fully transparent pseudo colors regardless of RGB channels", () => {
+    const el = {
+      tag: "progress",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 20,
+      children: [],
+      styles: {
+        progressValue: 0.5,
+        progressMax: 1,
+        progressBarBg: "rgba(200, 10, 20, 0)",
+        progressValueBg: "transparent",
+      },
+    } as unknown as CapturedElement;
+    expect(renderFormControl(el, "")).not.toContain("<rect");
   });
 
   it("surfaces <meter> bar + region-selected value conic at the shared-geom rects (DM-1254)", () => {

@@ -5,13 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668"]
+tickets: ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668", "DM-J875TW"]
 code:
   [
     "src/capture/text-line-origin.test.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/text-affine.test.ts",
     "src/render/text-affine.ts",
+    "src/render/text-paint.ts",
     "src/render/text-stroke-synthesis.test.ts",
     "tests/text-affine-render.e2e.test.ts",
     "tools/text-affine-baseline-protocol-oracle.ts",
@@ -27,6 +28,11 @@ zoom-adjusted local space, then painted through one complete signed affine
 matrix. The renderer no longer converts CSS transforms into font-size scalars,
 multiplies unsigned ancestor axes, or repairs the result with an SVG axis-ratio
 wrapper.
+
+`paintText` resolves the affine source once, then emits the text clip, shadow
+passes, and foreground or `background-clip:text` mask in paint order. Element
+effect, filter, and transform groups open before that text and its descendants;
+their closing order mirrors the openings.
 
 ## Source-owned model
 

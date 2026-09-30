@@ -173,7 +173,8 @@
           "SK-1223",
           "SK-1224",
           "SK-1225",
-          "SK-1226"
+          "SK-1226",
+          "DM-J875TW"
         ],
         "code": ["src/capture/pseudo-style-cdp.ts", "src/capture/script/", "src/render/form-controls.ts"],
         "aliases": ["docs/04-input-pseudos.md", "doc-04"]
@@ -4028,12 +4029,13 @@
         "status": "current",
         "owners": ["text-fonts", "paint-effects"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668"],
+        "tickets": ["DM-2467", "DM-2468", "DM-2469", "DM-2470", "DM-2546", "DM-2547", "DM-2668", "DM-J875TW"],
         "code": [
           "src/capture/text-line-origin.test.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/text-affine.test.ts",
           "src/render/text-affine.ts",
+          "src/render/text-paint.ts",
           "src/render/text-stroke-synthesis.test.ts",
           "tests/text-affine-render.e2e.test.ts",
           "tools/text-affine-baseline-protocol-oracle.ts"

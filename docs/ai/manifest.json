@@ -2917,6 +2917,7 @@
         "src/render/element-tree-to-svg.ts",
         "src/render/text-affine.test.ts",
         "src/render/text-affine.ts",
+        "src/render/text-paint.ts",
         "src/render/text-stroke-synthesis.test.ts",
         "tests/text-affine-render.e2e.test.ts",
         "tools/text-affine-baseline-protocol-oracle.ts"

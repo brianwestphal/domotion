@@ -19,12 +19,17 @@ tickets:
     "SK-1224",
     "SK-1225",
     "SK-1226",
+    "DM-J875TW",
   ]
 code: ["src/capture/pseudo-style-cdp.ts", "src/capture/script/", "src/render/form-controls.ts"]
 aliases: ["docs/04-input-pseudos.md", "doc-04"]
 ---
 
 # Domotion: custom-styled input pseudos
+
+Structural form-control text uses the shared SVG escaping path. Progress and
+meter pseudo fills are emitted only when their parsed color has visible alpha;
+the RGB channels of a fully transparent color do not make it a painted fill.
 
 Requirements for honoring author CSS on `<input>` shadow-DOM pseudos in Domotion. Origin: SK-1125 (follow-up from SK-1094). Today `src/render/form-controls.ts` synthesizes the UA-default chrome for `<input type="range">` (track + thumb), `<input type="checkbox">`, `<input type="radio">`, `<input type="color">`, etc. When an author overrides those pseudos with custom backgrounds, sizes, or shadows, our pipeline keeps painting the default look.
 

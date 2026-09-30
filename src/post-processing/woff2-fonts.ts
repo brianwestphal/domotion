@@ -15,8 +15,8 @@
 // so the same SVG in → the same SVG out (verified in the unit test + the
 // committed-demo zero-diff regeneration).
 
-// wawoff2 is a WASM module with no .d.ts; the runtime export is `{ compress, decompress }`.
-type Wawoff2 = { compress: (b: Uint8Array) => Promise<Uint8Array> };
+// wawoff2 is a WASM-backed CommonJS module; its local declaration describes
+// the compress/decompress exports used by this post-pass.
 
 // Matches `url(data:font/ttf;base64,X)` and the svgo-minified `url("…")` /
 // `url('…')` variants, plus any existing `format(...)` hint after it. Group 2 is
@@ -33,7 +33,7 @@ export async function compressEmbeddedFontsToWoff2(svg: string): Promise<string>
   const matches = [...svg.matchAll(TTF_DATA_URI)];
   if (matches.length === 0) return svg;
 
-  const wawoff = (await import("wawoff2" as string)) as unknown as Wawoff2;
+  const wawoff = await import("wawoff2");
   const cache = new Map<string, string>(); // ttf-base64 → woff2-base64
   for (const m of matches) {
     const ttfB64 = m[2];

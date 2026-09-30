@@ -2753,6 +2753,26 @@ function computeGroupWrapperAttrs(
   };
 }
 
+/** Open the effect, filter, and element groups in their paint order. */
+function openElementWrappers(
+  svgParts: string[],
+  indent: string,
+  el: CapturedElement,
+  filterCss: string,
+  wrappers: ReturnType<typeof computeGroupWrapperAttrs>,
+): number {
+  const { needsGroup, groupAttrs, needsFilterOuter, localizeReferenceFilter, outerBlendStyle } = wrappers;
+  const wrapperStart = svgParts.length;
+  if (outerBlendStyle !== "") svgParts.push(`${indent}<g style="${esc(outerBlendStyle)}">`);
+  if (needsFilterOuter) {
+    const localTransform = localizeReferenceFilter ? ` transform="translate(${r(el.x)} ${r(el.y)})"` : "";
+    svgParts.push(`${indent}<g${localTransform} style="${esc(`filter:${filterCss}`)}">`);
+    if (localizeReferenceFilter) svgParts.push(`${indent}<g transform="translate(${r(-el.x)} ${r(-el.y)})">`);
+  }
+  if (needsGroup) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
+  return wrapperStart;
+}
+
 /**
  * Atomic Chromium surfaces return before the ordinary element wrapper path,
  * but they still belong to the generated element's cull and animation
@@ -4307,27 +4327,13 @@ function renderElement(
   // viewport coordinate system the SVG draws in. Chrome resolves every
   // CSS transform function to a matrix in computed style, so we only
   // need to translate matrix() / matrix3d() into SVG syntax.
-  const {
-    needsGroup,
-    groupAttrs,
-    animClass,
-    needsFilterOuter,
-    localizeReferenceFilter,
-    outerBlendStyle,
-    hasTransform,
-  } = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  const wrappers = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  const { needsGroup, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform } = wrappers;
   const opened = needsGroup;
-  const wrapperStart = svgParts.length;
   // Blink's general Effect/blend node is outside its Filter node. Keep a
   // localized reference filter inside the blending group so it samples the
   // source backdrop rather than creating an isolated outer source.
-  if (outerBlendStyle !== "") svgParts.push(`${indent}<g style="${esc(outerBlendStyle)}">`);
-  if (needsFilterOuter) {
-    const localTransform = localizeReferenceFilter ? ` transform="translate(${r(el.x)} ${r(el.y)})"` : "";
-    svgParts.push(`${indent}<g${localTransform} style="${esc(`filter:${filterCss}`)}">`);
-    if (localizeReferenceFilter) svgParts.push(`${indent}<g transform="translate(${r(-el.x)} ${r(-el.y)})">`);
-  }
-  if (opened) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
+  const wrapperStart = openElementWrappers(svgParts, indent, el, filterCss, wrappers);
   // Everything painted until `closeWrappers()` (this element's own text AND its
   // whole subtree) is transformed content, where the baseline pixel-grid snap
   // must not apply — Skia rounds glyph y BEFORE the transform (in the local /
@@ -4548,10 +4554,6 @@ export function elementTreeToSvg(
     : render();
 }
 
-// Stacking-context analysis (establishesStackingContext / gatherStackingContextChildren / isOverflowOnlySC / isFlexOrGridContainerDisplay) moved to ./stacking.ts (DM-1305).
-
-// isFixedContainingBlock / sortChildrenByPaintOrder moved to ./stacking.ts (DM-1742 — the cursor hit-test reuses them for true paint-order hit-testing).
-
 /**
  * Turn a single background-image layer into an SVG <defs> entry. Returns
  * { def, stretchedImage? } where def is always a <pattern>/<linearGradient>/<radialGradient>
@@ -4737,12 +4739,6 @@ export function buildConicGradientDef(
   return `<pattern id="${id}" x="${r(patX)}" y="${r(patY)}" width="${tileWInt}" height="${tileHInt}" patternUnits="userSpaceOnUse"><image href="${dataUri}" width="${tileWInt}" height="${tileHInt}" preserveAspectRatio="none"/></pattern>`;
 }
 
-// buildImagePatternDef (url() background → <pattern>) moved to ./image-pattern.ts (DM-1305).
-
-// Gradient-def builders (buildLinearGradientDef / buildRadialGradientDef + stop parsing) moved to ./gradient-defs.ts (DM-1305).
-
-// Mask + fragment-def builders (buildMaskDef, buildMaskBorder9Slice, rewriteFragmentMaskDef, positionFragment*Def) moved to ./mask.ts (DM-1305/DM-2379).
-
 /**
  * Compose an element's CSS 2D transform into the SVG `<g transform>` value,
  * resolved around the transform-origin in viewport coords (SK-1134). Chrome
@@ -4761,8 +4757,6 @@ function svgTransformForElement(el: CapturedElement): string {
   const tOriginY = el.y + (Number.isFinite(parsedOY) ? parsedOY : el.height / 2);
   return cssTransformToSvg(el.styles.transform, tOriginX, tOriginY);
 }
-
-// translateClipPath (CSS clip-path basic-shape → SVG) moved to ./clip-path.ts (DM-1305).
 
 /**
  * Translate CSS object-fit + object-position to an SVG preserveAspectRatio

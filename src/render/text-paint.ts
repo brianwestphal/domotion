@@ -298,14 +298,280 @@ export function resolveTextFill(
   return { fillColor, textIsTransparent };
 }
 
-// Text + text-shadow rendering dispatch, extracted from renderElement (DM-1306,
-// DM-1315). Chooses single-line / multi-segment / multi-line / input rendering
-// (delegating the glyph work to text-renderer.ts), paints the element-level and
-// per-segment text-shadow layers beneath the text, and handles the
-// background-clip:text mask path. HIGH coupling: it mints many clip / filter /
-// gradient ids, so clipIdx is threaded in and the advanced value returned, and it
-// consumes the textBgClipFills collected by the background-image layer phase.
-// Returns { svg, defs, clipIdx } so the positional ids stay byte-identical.
+/** Mint the text clip before shadow and foreground ids to preserve paint order. */
+function emitTextClip(ctx: PaintCtx, el: CapturedElement): string {
+  const cid = ctx.nextClipId("ct");
+  // DM-1266: a form field's value text clips to the element's CONTENT box
+  // (inside border + padding), not the border box. Chrome paints an
+  // overflowing <input> value clipped at the content edge — a long value shows
+  // "…cu" with the next glyph cut at the content/padding boundary, ~border+
+  // padding px inside the right border. Clipping to the border box (the default
+  // here) let the overflowing glyph paint into the padding strip. Inset only
+  // HORIZONTALLY: the value is single-line and vertically centered, and our
+  // captured input baseline can sit a hair outside a padding-tight vertical
+  // box, so a vertical inset risks clipping text Chrome shows. Other elements
+  // keep the border-box text clip (it only applies when overflow != visible,
+  // where the padding-box children clip already bounds descendants).
+  let ctX = el.x,
+    ctW = el.width;
+  if (el.tag === "input" || el.tag === "textarea") {
+    const bl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
+    const br = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
+    const pl = parseFloat(el.styles.paddingLeft ?? "0") || 0;
+    const pr = parseFloat(el.styles.paddingRight ?? "0") || 0;
+    ctX = el.x + bl + pl;
+    ctW = Math.max(0, el.width - bl - br - pl - pr);
+  }
+  ctx.defsParts.push(
+    `<clipPath id="${cid}"><rect x="${r(ctX)}" y="${r(el.y)}" width="${r(ctW)}" height="${r(el.height)}" /></clipPath>`,
+  );
+
+  return cid;
+}
+
+/** Paint element and segment text shadows before the foreground text. */
+function emitTextShadows(
+  ctx: PaintCtx,
+  el: CapturedElement,
+  indent: string,
+  affineMatrix: ReturnType<typeof prepareAffineTextPaint>["residualMatrix"],
+  emit: Parameters<typeof renderOneText>[2],
+): void {
+  // text-shadow (SK-1113): render each shadow as a recolored copy of
+  // the same text, shifted by the shadows (x, y) and wrapped in a
+  // Gaussian-blur filter when blur > 0. Shadows paint UNDER the main
+  // text, with the FIRST listed shadow CLOSEST to the text — so emit
+  // in REVERSE order (deepest first). Each shadow uses a fake element
+  // with x/y shifted in place of the original; the renderers anchor
+  // off el.textLeft/el.textTop/segment.x/y so this is enough to move
+  // every glyph by the same delta.
+  const textShadows = parseBoxShadow(el.styles.textShadow ?? "none");
+  for (let si = textShadows.length - 1; si >= 0; si--) {
+    const sh = textShadows[si];
+    if (sh.inset) continue; // text-shadow has no inset; defensive
+    const shadowFillColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
+    const shifted: CapturedElement = {
+      ...shadowTextElement(el, shadowFillColor),
+      x: el.x + sh.x,
+      y: el.y + sh.y,
+      textLeft: el.textLeft != null ? el.textLeft + sh.x : undefined,
+      textTop: el.textTop != null ? el.textTop + sh.y : undefined,
+      // Pixel-baked raster overlays must not be stamped a second time.
+      textSegments: el.textSegments?.map((seg) => shadowTextSegment(seg, shadowFillColor, sh.x, sh.y)),
+    };
+    // Patterned text decorations derive their local clip ids from `clipId`.
+    // A shadow is a second rendering of the same run, so reusing the main
+    // text id produces duplicate SVG ids; the first (shifted) shadow clip can
+    // then clip the foreground decoration. The shadow does not use the
+    // element overflow clip, so a unique token is sufficient here.
+    const shadowClipId = ctx.nextClipId("tsd");
+    const body = renderOneText(
+      ctx,
+      { el: shifted, idPrefix: ctx.idPrefix, clipId: shadowClipId, fillColor: shadowFillColor, affineMatrix },
+      emit,
+    );
+    emitTextShadowPass(ctx, indent, body, sh.blur, shadowFillColor, "tsh");
+  }
+  // DM-993: per-segment text-shadow (DM-989 follow-up). When a styled
+  // segment carries its own `seg.textShadow` (the DM-989 ::first-letter
+  // pipeline captures this from the pseudo's computed text-shadow when
+  // it differs from the host's), emit a shadow copy of JUST that
+  // segment. Same shifted-and-recolored pattern as the element-level
+  // loop above, but rendered with `renderMultiSegmentText([oneSeg])`
+  // so only the target segment paints in shadow color — the rest of
+  // the body text stays unshadowed (Chrome's cascade for
+  // `::first-letter` overrides the parent's text-shadow only on the
+  // selection chars).
+  if (el.textSegments != null) {
+    for (let segIdx = 0; segIdx < el.textSegments.length; segIdx++) {
+      const seg = el.textSegments[segIdx];
+      if (seg.textShadow == null || seg.textShadow === "" || seg.textShadow === "none") continue;
+      const segShadows = parseBoxShadow(seg.textShadow);
+      for (let si = segShadows.length - 1; si >= 0; si--) {
+        const sh = segShadows[si];
+        if (sh.inset) continue;
+        const segShadowFill = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
+        // Pseudo backgrounds and borders paint separately from the glyph shadow.
+        const shiftedSeg = shadowTextSegment(seg, segShadowFill, sh.x, sh.y, true);
+        const shadowEl = shadowTextElement(el, segShadowFill);
+        const shadowClipId = ctx.nextClipId("tsd");
+        const segBody = wrapAffineTextPaint(
+          affineMatrix,
+          renderMultiSegmentText(
+            {
+              el: shadowEl,
+              idPrefix: ctx.idPrefix,
+              clipId: shadowClipId,
+              fillColor: segShadowFill,
+              emitPseudoBoxBgLayers: emit,
+            },
+            [shiftedSeg],
+          ),
+        );
+        emitTextShadowPass(ctx, indent, segBody, sh.blur, segShadowFill, "tssh");
+      }
+    }
+  }
+}
+
+/** Emit the foreground text or its background-clip:text mask and stroke passes. */
+function emitForegroundText(input: {
+  ctx: PaintCtx;
+  el: CapturedElement;
+  sourceEl: CapturedElement;
+  indent: string;
+  cid: string;
+  fillColor: string;
+  textIsTransparent: boolean;
+  affineMatrix: ReturnType<typeof prepareAffineTextPaint>["residualMatrix"];
+  emit: Parameters<typeof renderOneText>[2];
+  textBgClipFills: string[];
+  textBgClipFragmentFills: (string[] | null)[];
+  textBgClipFragmentRects: NonNullable<CapturedElement["inlineFragments"]> | null;
+}): void {
+  const {
+    ctx,
+    el,
+    sourceEl,
+    indent,
+    cid,
+    fillColor,
+    textIsTransparent,
+    affineMatrix,
+    emit,
+    textBgClipFills,
+    textBgClipFragmentFills,
+    textBgClipFragmentRects,
+  } = input;
+  // Whether the element's own text needs clipping: only when overflow
+  // is set on the element itself (overflow != visible on either axis).
+  // Default `overflow: visible` lets text spill past the box, matching
+  // Chrome (DM-305).
+  const tox = el.styles.overflowX;
+  const toy = el.styles.overflowY;
+  const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
+  const renderOpts = {
+    el,
+    idPrefix: ctx.idPrefix,
+    clipId: cid,
+    fillColor,
+    overflowClip: textOverflowClip,
+    affineMatrix,
+  };
+  const hasTextBgClip = textBgClipFills.some((s) => s != null);
+  if (hasTextBgClip) {
+    // DM-462: background-clip:text — the bg-image should fill the glyph
+    // shapes, not the headline element rect. We render the text glyphs
+    // INTO an SVG <mask> (with white fill so the mask reveals the bg
+    // through the glyph silhouettes) and paint a <rect fill=url(#bg)>
+    // through that mask. Couldn't use <clipPath> here because Chromium
+    // does not honor <use href=...> references inside <clipPath>
+    // (verified empirically) — and our text glyphs are emitted via
+    // <use> for dedup. Setting fill=url(#bg) directly on the text <g>
+    // was also wrong because userSpaceOnUse gradient coords get re-
+    // interpreted in the post-transform coord system of the inner
+    // scaled glyph group, compressing the gradient to ~6 px wide.
+    // The mask-with-rect approach keeps the gradient in document
+    // coordinates on a straight rect.
+    // Blink's PaintPhase::kTextClip keeps TextStrokeWidth and replaces all
+    // paint colors with an opaque color because the DstIn operation reads
+    // ALPHA, not luminance. Preserve that geometry here—including author
+    // stroke ink—and opt the SVG mask into alpha semantics. The old
+    // luminance mask made a black stroke disappear and consequently dropped
+    // the stroke from the mask, which diverged for transparent/semitransparent
+    // foreground strokes.
+    const maskFillEl: CapturedElement = {
+      ...el,
+      styles: {
+        ...el.styles,
+        color: "rgb(255,255,255)",
+        webkitTextFillColor: "rgb(255,255,255)",
+        webkitTextStrokeColor: "rgb(255,255,255)",
+      },
+    };
+    const maskBody = renderOneText(
+      ctx,
+      {
+        el: maskFillEl,
+        idPrefix: ctx.idPrefix,
+        clipId: cid,
+        fillColor: "rgb(255,255,255)",
+        overflowClip: textOverflowClip,
+        affineMatrix,
+      },
+      emit,
+    );
+    const mid = ctx.nextClipId("tbgm");
+    ctx.defsParts.push(
+      `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}" style="mask-type:alpha">${maskBody}</mask>`,
+    );
+    // Visible `-webkit-text-stroke` pass for gradient-filled (bg-clip:text)
+    // glyphs: render the SAME text with a fully transparent fill so only the
+    // stroke ink is emitted. The gradient is the element's BACKGROUND
+    // (clipped to the text ink); the stroke belongs to the text's foreground
+    // paint, which Chrome always draws on top of the background — and with a
+    // transparent text fill, `paint-order` has nothing to reorder (it only
+    // sequences the text's own fill vs stroke). So the stroke pass paints
+    // AFTER the masked gradient rects unconditionally.
+    const bgClipStrokeW = parseFloat(el.styles.webkitTextStrokeWidth ?? "0") || 0;
+    let bgClipStrokeBody = "";
+    if (bgClipStrokeW > 0) {
+      bgClipStrokeBody = renderOneText(
+        ctx,
+        {
+          el,
+          idPrefix: ctx.idPrefix,
+          clipId: cid,
+          fillColor: TRANSPARENT_BLACK,
+          overflowClip: textOverflowClip,
+          affineMatrix,
+        },
+        emit,
+      );
+    }
+    // Emit one masked rect per text-clipped layer, walking from BOTTOM
+    // (highest li) to TOP (li = 0) so the topmost CSS layer paints last.
+    // All rects share the same glyph mask; later rects paint over earlier
+    // ones inside the glyph silhouettes, matching Chrome's compositing of
+    // stacked `background-clip: text` layers (DM-696).
+    for (let li = textBgClipFills.length - 1; li >= 0; li--) {
+      const f = textBgClipFills[li];
+      if (f == null) continue;
+      // DM-1420: wrapped inline — paint one masked rect PER line fragment, each
+      // with its own per-fragment gradient (built over that fragment's box), so
+      // each line's glyphs sample their own fragment's gradient (matching how
+      // Chromium restarts an inline's bg-clip:text gradient per fragment).
+      // Block elements have no per-fragment fills and keep the single rect.
+      const fragFills = textBgClipFragmentFills[li];
+      if (fragFills != null && textBgClipFragmentRects != null) {
+        for (let fi = 0; fi < textBgClipFragmentRects.length; fi++) {
+          const fr = textBgClipFragmentRects[fi];
+          ctx.svgParts.push(
+            `${indent}<rect x="${r(fr.x)}" y="${r(fr.y)}" width="${r(fr.width)}" height="${r(fr.height)}" fill="${fragFills[fi] ?? f}" mask="url(#${mid})" />`,
+          );
+        }
+      } else {
+        ctx.svgParts.push(
+          `${indent}<rect x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}" fill="${f}" mask="url(#${mid})" />`,
+        );
+      }
+    }
+    if (bgClipStrokeBody !== "") {
+      ctx.svgParts.push(`${indent}${bgClipStrokeBody}`);
+    }
+    // background-clip affects the element background, not its foreground.
+    // With an opaque/semitransparent text fill Blink paints the normal text
+    // after the masked background. Transparent fill keeps the dedicated
+    // stroke-only pass above so no invisible duplicate is emitted.
+    if (!textIsTransparent) {
+      ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
+    }
+  } else {
+    ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
+  }
+}
+
+/** Resolve text fill, then paint clip, shadows, and foreground in that order. */
 export function paintText(
   ctx: PaintCtx,
   el: CapturedElement,
@@ -338,31 +604,7 @@ export function paintText(
       captureViewport,
       buildBackgroundLayerDef,
     );
-    const cid = ctx.nextClipId("ct");
-    // DM-1266: a form field's value text clips to the element's CONTENT box
-    // (inside border + padding), not the border box. Chrome paints an
-    // overflowing <input> value clipped at the content edge — a long value shows
-    // "…cu" with the next glyph cut at the content/padding boundary, ~border+
-    // padding px inside the right border. Clipping to the border box (the default
-    // here) let the overflowing glyph paint into the padding strip. Inset only
-    // HORIZONTALLY: the value is single-line and vertically centered, and our
-    // captured input baseline can sit a hair outside a padding-tight vertical
-    // box, so a vertical inset risks clipping text Chrome shows. Other elements
-    // keep the border-box text clip (it only applies when overflow != visible,
-    // where the padding-box children clip already bounds descendants).
-    let ctX = el.x,
-      ctW = el.width;
-    if (el.tag === "input" || el.tag === "textarea") {
-      const bl = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-      const br = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-      const pl = parseFloat(el.styles.paddingLeft ?? "0") || 0;
-      const pr = parseFloat(el.styles.paddingRight ?? "0") || 0;
-      ctX = el.x + bl + pl;
-      ctW = Math.max(0, el.width - bl - br - pl - pr);
-    }
-    ctx.defsParts.push(
-      `<clipPath id="${cid}"><rect x="${r(ctX)}" y="${r(el.y)}" width="${r(ctW)}" height="${r(el.height)}" /></clipPath>`,
-    );
+    const cid = emitTextClip(ctx, el);
 
     // SK-1128: writing-mode != horizontal-tb activates the same element-raster
     // path used for textareas (SK-1108) — screenshot stamped as <image>,
@@ -386,208 +628,22 @@ export function paintText(
         borderRadius?: number;
       }): string => buildPseudoBoxBgLayers(ctx, captureViewport, pb, buildBackgroundLayerDef);
 
-      // text-shadow (SK-1113): render each shadow as a recolored copy of
-      // the same text, shifted by the shadows (x, y) and wrapped in a
-      // Gaussian-blur filter when blur > 0. Shadows paint UNDER the main
-      // text, with the FIRST listed shadow CLOSEST to the text — so emit
-      // in REVERSE order (deepest first). Each shadow uses a fake element
-      // with x/y shifted in place of the original; the renderers anchor
-      // off el.textLeft/el.textTop/segment.x/y so this is enough to move
-      // every glyph by the same delta.
-      const textShadows = parseBoxShadow(el.styles.textShadow ?? "none");
-      for (let si = textShadows.length - 1; si >= 0; si--) {
-        const sh = textShadows[si];
-        if (sh.inset) continue; // text-shadow has no inset; defensive
-        const shadowFillColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
-        const shifted: CapturedElement = {
-          ...shadowTextElement(el, shadowFillColor),
-          x: el.x + sh.x,
-          y: el.y + sh.y,
-          textLeft: el.textLeft != null ? el.textLeft + sh.x : undefined,
-          textTop: el.textTop != null ? el.textTop + sh.y : undefined,
-          // Pixel-baked raster overlays must not be stamped a second time.
-          textSegments: el.textSegments?.map((seg) => shadowTextSegment(seg, shadowFillColor, sh.x, sh.y)),
-        };
-        // Patterned text decorations derive their local clip ids from `clipId`.
-        // A shadow is a second rendering of the same run, so reusing the main
-        // text id produces duplicate SVG ids; the first (shifted) shadow clip can
-        // then clip the foreground decoration. The shadow does not use the
-        // element overflow clip, so a unique token is sufficient here.
-        const shadowClipId = ctx.nextClipId("tsd");
-        const body = renderOneText(
-          ctx,
-          { el: shifted, idPrefix: ctx.idPrefix, clipId: shadowClipId, fillColor: shadowFillColor, affineMatrix },
-          emit,
-        );
-        emitTextShadowPass(ctx, indent, body, sh.blur, shadowFillColor, "tsh");
-      }
-      // DM-993: per-segment text-shadow (DM-989 follow-up). When a styled
-      // segment carries its own `seg.textShadow` (the DM-989 ::first-letter
-      // pipeline captures this from the pseudo's computed text-shadow when
-      // it differs from the host's), emit a shadow copy of JUST that
-      // segment. Same shifted-and-recolored pattern as the element-level
-      // loop above, but rendered with `renderMultiSegmentText([oneSeg])`
-      // so only the target segment paints in shadow color — the rest of
-      // the body text stays unshadowed (Chrome's cascade for
-      // `::first-letter` overrides the parent's text-shadow only on the
-      // selection chars).
-      if (el.textSegments != null) {
-        for (let segIdx = 0; segIdx < el.textSegments.length; segIdx++) {
-          const seg = el.textSegments[segIdx];
-          if (seg.textShadow == null || seg.textShadow === "" || seg.textShadow === "none") continue;
-          const segShadows = parseBoxShadow(seg.textShadow);
-          for (let si = segShadows.length - 1; si >= 0; si--) {
-            const sh = segShadows[si];
-            if (sh.inset) continue;
-            const segShadowFill = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
-            // Pseudo backgrounds and borders paint separately from the glyph shadow.
-            const shiftedSeg = shadowTextSegment(seg, segShadowFill, sh.x, sh.y, true);
-            const shadowEl = shadowTextElement(el, segShadowFill);
-            const shadowClipId = ctx.nextClipId("tsd");
-            const segBody = wrapAffineTextPaint(
-              affineMatrix,
-              renderMultiSegmentText(
-                {
-                  el: shadowEl,
-                  idPrefix: ctx.idPrefix,
-                  clipId: shadowClipId,
-                  fillColor: segShadowFill,
-                  emitPseudoBoxBgLayers: emit,
-                },
-                [shiftedSeg],
-              ),
-            );
-            emitTextShadowPass(ctx, indent, segBody, sh.blur, segShadowFill, "tssh");
-          }
-        }
-      }
+      emitTextShadows(ctx, el, indent, affineMatrix, emit);
 
-      // Whether the element's own text needs clipping: only when overflow
-      // is set on the element itself (overflow != visible on either axis).
-      // Default `overflow: visible` lets text spill past the box, matching
-      // Chrome (DM-305).
-      const tox = el.styles.overflowX;
-      const toy = el.styles.overflowY;
-      const textOverflowClip = (tox != null && tox !== "visible") || (toy != null && toy !== "visible");
-      const renderOpts = {
+      emitForegroundText({
+        ctx,
         el,
-        idPrefix: ctx.idPrefix,
-        clipId: cid,
+        sourceEl,
+        indent,
+        cid,
         fillColor,
-        overflowClip: textOverflowClip,
+        textIsTransparent,
         affineMatrix,
-      };
-      const hasTextBgClip = textBgClipFills.some((s) => s != null);
-      if (hasTextBgClip) {
-        // DM-462: background-clip:text — the bg-image should fill the glyph
-        // shapes, not the headline element rect. We render the text glyphs
-        // INTO an SVG <mask> (with white fill so the mask reveals the bg
-        // through the glyph silhouettes) and paint a <rect fill=url(#bg)>
-        // through that mask. Couldn't use <clipPath> here because Chromium
-        // does not honor <use href=...> references inside <clipPath>
-        // (verified empirically) — and our text glyphs are emitted via
-        // <use> for dedup. Setting fill=url(#bg) directly on the text <g>
-        // was also wrong because userSpaceOnUse gradient coords get re-
-        // interpreted in the post-transform coord system of the inner
-        // scaled glyph group, compressing the gradient to ~6 px wide.
-        // The mask-with-rect approach keeps the gradient in document
-        // coordinates on a straight rect.
-        // Blink's PaintPhase::kTextClip keeps TextStrokeWidth and replaces all
-        // paint colors with an opaque color because the DstIn operation reads
-        // ALPHA, not luminance. Preserve that geometry here—including author
-        // stroke ink—and opt the SVG mask into alpha semantics. The old
-        // luminance mask made a black stroke disappear and consequently dropped
-        // the stroke from the mask, which diverged for transparent/semitransparent
-        // foreground strokes.
-        const maskFillEl: CapturedElement = {
-          ...el,
-          styles: {
-            ...el.styles,
-            color: "rgb(255,255,255)",
-            webkitTextFillColor: "rgb(255,255,255)",
-            webkitTextStrokeColor: "rgb(255,255,255)",
-          },
-        };
-        const maskBody = renderOneText(
-          ctx,
-          {
-            el: maskFillEl,
-            idPrefix: ctx.idPrefix,
-            clipId: cid,
-            fillColor: "rgb(255,255,255)",
-            overflowClip: textOverflowClip,
-            affineMatrix,
-          },
-          emit,
-        );
-        const mid = ctx.nextClipId("tbgm");
-        ctx.defsParts.push(
-          `<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}" style="mask-type:alpha">${maskBody}</mask>`,
-        );
-        // Visible `-webkit-text-stroke` pass for gradient-filled (bg-clip:text)
-        // glyphs: render the SAME text with a fully transparent fill so only the
-        // stroke ink is emitted. The gradient is the element's BACKGROUND
-        // (clipped to the text ink); the stroke belongs to the text's foreground
-        // paint, which Chrome always draws on top of the background — and with a
-        // transparent text fill, `paint-order` has nothing to reorder (it only
-        // sequences the text's own fill vs stroke). So the stroke pass paints
-        // AFTER the masked gradient rects unconditionally.
-        const bgClipStrokeW = parseFloat(el.styles.webkitTextStrokeWidth ?? "0") || 0;
-        let bgClipStrokeBody = "";
-        if (bgClipStrokeW > 0) {
-          bgClipStrokeBody = renderOneText(
-            ctx,
-            {
-              el,
-              idPrefix: ctx.idPrefix,
-              clipId: cid,
-              fillColor: TRANSPARENT_BLACK,
-              overflowClip: textOverflowClip,
-              affineMatrix,
-            },
-            emit,
-          );
-        }
-        // Emit one masked rect per text-clipped layer, walking from BOTTOM
-        // (highest li) to TOP (li = 0) so the topmost CSS layer paints last.
-        // All rects share the same glyph mask; later rects paint over earlier
-        // ones inside the glyph silhouettes, matching Chrome's compositing of
-        // stacked `background-clip: text` layers (DM-696).
-        for (let li = textBgClipFills.length - 1; li >= 0; li--) {
-          const f = textBgClipFills[li];
-          if (f == null) continue;
-          // DM-1420: wrapped inline — paint one masked rect PER line fragment, each
-          // with its own per-fragment gradient (built over that fragment's box), so
-          // each line's glyphs sample their own fragment's gradient (matching how
-          // Chromium restarts an inline's bg-clip:text gradient per fragment).
-          // Block elements have no per-fragment fills and keep the single rect.
-          const fragFills = textBgClipFragmentFills[li];
-          if (fragFills != null && textBgClipFragmentRects != null) {
-            for (let fi = 0; fi < textBgClipFragmentRects.length; fi++) {
-              const fr = textBgClipFragmentRects[fi];
-              ctx.svgParts.push(
-                `${indent}<rect x="${r(fr.x)}" y="${r(fr.y)}" width="${r(fr.width)}" height="${r(fr.height)}" fill="${fragFills[fi] ?? f}" mask="url(#${mid})" />`,
-              );
-            }
-          } else {
-            ctx.svgParts.push(
-              `${indent}<rect x="${r(sourceEl.x)}" y="${r(sourceEl.y)}" width="${r(sourceEl.width)}" height="${r(sourceEl.height)}" fill="${f}" mask="url(#${mid})" />`,
-            );
-          }
-        }
-        if (bgClipStrokeBody !== "") {
-          ctx.svgParts.push(`${indent}${bgClipStrokeBody}`);
-        }
-        // background-clip affects the element background, not its foreground.
-        // With an opaque/semitransparent text fill Blink paints the normal text
-        // after the masked background. Transparent fill keeps the dedicated
-        // stroke-only pass above so no invisible duplicate is emitted.
-        if (!textIsTransparent) {
-          ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
-        }
-      } else {
-        ctx.svgParts.push(`${indent}${renderOneText(ctx, renderOpts, emit)}`);
-      }
+        emit,
+        textBgClipFills,
+        textBgClipFragmentFills,
+        textBgClipFragmentRects,
+      });
     }
   }
   return;

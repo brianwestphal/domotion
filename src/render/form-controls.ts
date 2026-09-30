@@ -773,11 +773,7 @@ function renderFileInput(el: CapturedElement, indent: string, defCtx?: DefCtx): 
 }
 
 function capturedPseudoColor(bg: string | undefined): string | null {
-  if (bg == null || bg === "" || bg === "transparent") return null;
-  // Detect transparent rgba(...) regardless of inner spacing.
-  const transparentRgba = /^rgba?\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$/i;
-  if (transparentRgba.test(bg)) return null;
-  return bg;
+  return isPaintedColor(bg) ? bg : null;
 }
 
 function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
@@ -882,7 +878,7 @@ function renderListbox(el: CapturedElement, indent: string): string {
     const fontWeight = o.fontWeight ?? "400";
     const fontStyleAttr = fontStyle !== "normal" ? ` font-style="${fontStyle}"` : "";
     const fontWeightAttr = fontWeight !== "normal" && fontWeight !== "400" ? ` font-weight="${fontWeight}"` : "";
-    const escaped = o.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+    const escaped = esc(o.text);
     parts.push(
       `${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(optionFontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" fill="${color}"${fontStyleAttr}${fontWeightAttr}>${escaped}</text>`,
     );
@@ -936,7 +932,7 @@ function renderSelectContent(el: CapturedElement, indent: string): string {
       measured?.y != null
         ? measured.y + measured.fontAscent
         : el.y + bwT + padT + Math.max(0, (contentH - ascent - descent) / 2) + ascent;
-    const escaped = display.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+    const escaped = esc(display);
     parts.push(
       `${indent}<text x="${r(tx)}" y="${r(ty)}" font-size="${r(fontSize)}" font-family="${fontFamily.replace(/"/g, "&quot;")}" font-weight="${el.styles.fontWeight ?? "400"}" fill="${color}">${escaped}</text>`,
     );
