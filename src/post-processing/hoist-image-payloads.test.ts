@@ -24,6 +24,13 @@ const img = (attrs: string): string => `<image href="${PAYLOAD}" ${attrs}/>`;
 const countPayloads = (svg: string, payload = PAYLOAD): number => svg.split(payload).length - 1;
 
 describe("hoistDuplicateImagePayloads", () => {
+  it("inserts defs after a root tag with a quoted angle bracket", () => {
+    const input = `<svg data-note="a > b">${img(`x="0" y="0" width="20" height="20"`)}${img(`x="30" y="0" width="20" height="20"`)}</svg>`;
+    const out = hoistDuplicateImagePayloads(input);
+    expect(out).toContain(`<svg data-note="a > b"><defs>`);
+    expect(countPayloads(out)).toBe(1);
+  });
+
   it("leaves a document with no repeated payload byte-identical", () => {
     const input = doc(img(`x="0" y="0" width="20" height="20"`) + `<rect width="5" height="5"/>`);
     expect(hoistDuplicateImagePayloads(input)).toBe(input);

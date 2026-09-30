@@ -8,9 +8,32 @@ import {
   getFlattenNestedSvg,
   setFlattenNestedSvg,
   withFlattenNestedSvg,
+  editSvgRootAttributes,
+  readSvgOpeningTag,
+  svgRootAttribute,
 } from "./svg-inline.js";
 import { elementTreeToSvg, elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
+
+describe("SVG root attribute editor", () => {
+  it("handles quoted angle brackets and preserves unrelated attributes and body", () => {
+    const source = `<svg data-note='a > b' width='24' height="24" viewBox="0 0 24 24"><path d="M0 0"/></svg>`;
+    expect(readSvgOpeningTag(source)?.raw).toBe(`<svg data-note='a > b' width='24' height="24" viewBox="0 0 24 24">`);
+    expect(svgRootAttribute(source, "viewBox")).toBe("0 0 24 24");
+    expect(editSvgRootAttributes(source, [], { width: "12", height: "12" })).toBe(
+      `<svg data-note='a > b' viewBox="0 0 24 24" width="12" height="12"><path d="M0 0"/></svg>`,
+    );
+  });
+
+  it("leaves malformed attribute syntax unchanged", () => {
+    const source = `<svg width="20" broken><path/></svg>`;
+    expect(editSvgRootAttributes(source, [], { width: "12" })).toBe(source);
+  });
+
+  it("keeps a self-closing root valid when setting attributes", () => {
+    expect(editSvgRootAttributes(`<svg width="20"/>`, [], { width: "12" })).toBe(`<svg width="12" />`);
+  });
+});
 
 const BASE_STYLES = {
   backgroundColor: "rgba(0, 0, 0, 0)",

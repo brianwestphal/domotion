@@ -7,6 +7,7 @@
  */
 
 import { renderWarn } from "./render-warn.js";
+import { editSvgOpeningTagAttributes, readSvgOpeningTag, svgOpeningTagAttribute } from "./svg-inline.js";
 import { r, esc } from "./format.js";
 import { embedOriginalDataUri, embedResizedDataUri } from "../capture/embed.js";
 import {
@@ -404,28 +405,16 @@ export function positionFragmentMaskDef(
   // Find the opening <mask …> tag (anchored at start of string, since
   // rewriteFragmentMaskDef preserves the outerHTML structure of the captured
   // <mask> element).
-  const openMatch = /^<mask\b([^>]*)>/i.exec(rewrittenOuterHTML);
-  if (openMatch == null) return rewrittenOuterHTML;
+  const openMatch = readSvgOpeningTag(rewrittenOuterHTML, "mask");
+  if (openMatch?.start !== 0) return rewrittenOuterHTML;
   const closeIdx = rewrittenOuterHTML.lastIndexOf("</mask>");
   if (closeIdx < 0) return rewrittenOuterHTML;
-  const inner = rewrittenOuterHTML.slice(openMatch[0].length, closeIdx);
+  const inner = rewrittenOuterHTML.slice(openMatch.end, closeIdx);
   // Strip existing mask coordinate attributes — source values have already
   // been captured as resolved facts and are materialized below. This keeps
   // percentages tied to the defining iframe/object bbox instead of letting the
   // generated root SVG reinterpret them against its own viewport.
-  let attrs = openMatch[1]
-    .replace(/\smaskUnits\s*=\s*"[^"]*"/gi, "")
-    .replace(/\smaskUnits\s*=\s*'[^']*'/gi, "")
-    .replace(/\smaskContentUnits\s*=\s*"[^"]*"/gi, "")
-    .replace(/\smaskContentUnits\s*=\s*'[^']*'/gi, "")
-    .replace(/\sx\s*=\s*"[^"]*"/gi, "")
-    .replace(/\sx\s*=\s*'[^']*'/gi, "")
-    .replace(/\sy\s*=\s*"[^"]*"/gi, "")
-    .replace(/\sy\s*=\s*'[^']*'/gi, "")
-    .replace(/\swidth\s*=\s*"[^"]*"/gi, "")
-    .replace(/\swidth\s*=\s*'[^']*'/gi, "")
-    .replace(/\sheight\s*=\s*"[^"]*"/gi, "")
-    .replace(/\sheight\s*=\s*'[^']*'/gi, "");
+  const removed = ["maskUnits", "maskContentUnits", "x", "y", "width", "height"];
 
   const resolvedRegion = resolveFragmentMaskRegion(elX, elY, elW, elH, options);
 
@@ -433,26 +422,28 @@ export function positionFragmentMaskDef(
   // computed mask-type; match-source retains the captured value. Normalize it
   // into inline style so author stylesheet rules from the source document are
   // not required in the generated SVG.
+  const set: Record<string, string> = {
+    maskUnits: "userSpaceOnUse",
+    x: r(resolvedRegion.x),
+    y: r(resolvedRegion.y),
+    width: r(resolvedRegion.width),
+    height: r(resolvedRegion.height),
+  };
   if (options.maskType != null) {
-    attrs = attrs.replace(/\smask-type\s*=\s*"[^"]*"/gi, "").replace(/\smask-type\s*=\s*'[^']*'/gi, "");
-    let style = "";
-    attrs = attrs.replace(/\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i, (_full, dq, sq) => {
-      style = dq ?? sq ?? "";
-      return "";
-    });
+    removed.push("mask-type");
+    let style = svgOpeningTagAttribute(rewrittenOuterHTML, "mask", "style") ?? "";
     style = style
       .replace(/(?:^|;)\s*mask-type\s*:[^;]*/gi, "")
       .replace(/^;+|;+$/g, "")
       .trim();
-    attrs += ` style="${esc(`${style}${style === "" ? "" : ";"}mask-type:${options.maskType}`)}"`;
+    set.style = `${style}${style === "" ? "" : ";"}mask-type:${options.maskType}`;
   }
-
-  attrs += ` maskUnits="userSpaceOnUse" x="${r(resolvedRegion.x)}" y="${r(resolvedRegion.y)}" width="${r(resolvedRegion.width)}" height="${r(resolvedRegion.height)}"`;
+  const open = editSvgOpeningTagAttributes(openMatch.raw, "mask", removed, set);
   const contentTransform =
     options.maskContentUnits === "objectBoundingBox"
       ? `translate(${r(elX)}, ${r(elY)}) scale(${r(elW)}, ${r(elH)})`
       : `translate(${r(elX)}, ${r(elY)})${(options.effectiveZoom ?? 1) === 1 ? "" : ` scale(${r(options.effectiveZoom ?? 1)})`}`;
-  return `<mask${attrs}><g transform="${contentTransform}">${inner}</g></mask>`;
+  return `${open}<g transform="${contentTransform}">${inner}</g></mask>`;
 }
 
 /**
@@ -471,17 +462,14 @@ export function positionFragmentClipPathDef(
   elY: number,
   effectiveZoom = 1,
 ): string {
-  const openMatch = /^<clipPath\b([^>]*)>/i.exec(rewrittenOuterHTML);
-  if (openMatch == null) return rewrittenOuterHTML;
+  const openMatch = readSvgOpeningTag(rewrittenOuterHTML, "clipPath");
+  if (openMatch?.start !== 0) return rewrittenOuterHTML;
   const translate = `translate(${r(elX)}, ${r(elY)})${effectiveZoom === 1 ? "" : ` scale(${r(effectiveZoom)})`}`;
-  let attrs = openMatch[1];
-  const existing = /\stransform\s*=\s*"([^"]*)"/i.exec(attrs) ?? /\stransform\s*=\s*'([^']*)'/i.exec(attrs);
-  if (existing != null) {
-    attrs = attrs.replace(existing[0], ` transform="${translate} ${existing[1]}"`);
-  } else {
-    attrs += ` transform="${translate}"`;
-  }
-  return `<clipPath${attrs}>${rewrittenOuterHTML.slice(openMatch[0].length)}`;
+  const existing = svgOpeningTagAttribute(openMatch.raw, "clipPath", "transform");
+  const open = editSvgOpeningTagAttributes(openMatch.raw, "clipPath", [], {
+    transform: existing != null ? `${translate} ${existing}` : translate,
+  });
+  return `${open}${rewrittenOuterHTML.slice(openMatch.end)}`;
 }
 
 /**
@@ -506,20 +494,15 @@ export function positionObjectBoundingBoxClipPathDef(
   elW: number,
   elH: number,
 ): string {
-  const openMatch = /^<clipPath\b([^>]*)>/i.exec(rewrittenOuterHTML);
-  if (openMatch == null) return rewrittenOuterHTML;
+  const openMatch = readSvgOpeningTag(rewrittenOuterHTML, "clipPath");
+  if (openMatch?.start !== 0) return rewrittenOuterHTML;
   const boxTransform = `translate(${r(elX)}, ${r(elY)}) scale(${r(elW)}, ${r(elH)})`;
-  let attrs = openMatch[1]
-    .replace(/\sclipPathUnits\s*=\s*"[^"]*"/gi, "")
-    .replace(/\sclipPathUnits\s*=\s*'[^']*'/gi, "");
-  const existing = /\stransform\s*=\s*"([^"]*)"/i.exec(attrs) ?? /\stransform\s*=\s*'([^']*)'/i.exec(attrs);
-  if (existing != null) {
-    attrs = attrs.replace(existing[0], ` transform="${existing[1]} ${boxTransform}"`);
-  } else {
-    attrs += ` transform="${boxTransform}"`;
-  }
-  attrs += ` clipPathUnits="userSpaceOnUse"`;
-  return `<clipPath${attrs}>${rewrittenOuterHTML.slice(openMatch[0].length)}`;
+  const existing = svgOpeningTagAttribute(openMatch.raw, "clipPath", "transform");
+  const open = editSvgOpeningTagAttributes(openMatch.raw, "clipPath", [], {
+    transform: existing != null ? `${existing} ${boxTransform}` : boxTransform,
+    clipPathUnits: "userSpaceOnUse",
+  });
+  return `${open}${rewrittenOuterHTML.slice(openMatch.end)}`;
 }
 
 /**
@@ -906,7 +889,153 @@ function resolveLayerTile(
   return { width, height: tokens.length > 1 ? axis(tokens[1], area.height, naturalHeight) : heightAuto(width) };
 }
 
-function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide: boolean } {
+type MaskLayerResult = { contents: string[]; forceHide: boolean };
+
+function buildMaskLayer(input: MaskLayerInput): MaskLayerResult {
+  if (/^(?:(?:repeating-)?(?:linear|radial)-gradient|-webkit-gradient)\(/i.test(input.layer)) {
+    return buildGradientMaskLayer(input);
+  }
+  const elementMatch = /^element\(\s*#([^)\s]+)\s*\)$/i.exec(input.layer);
+  if (elementMatch != null) return buildElementMaskLayer(input, elementMatch[1]);
+  const urlHref = parseCssUrl(input.layer);
+  if (urlHref != null) return buildUrlMaskLayer(input, urlHref);
+  return { contents: [], forceHide: false };
+}
+
+function buildGradientMaskLayer(input: MaskLayerInput): MaskLayerResult {
+  const { id, li, elX, elY, w, h, paintX, paintY, paintW, paintH, layer, layerSize, layerPos, layerRepeat } = input;
+  const contents: string[] = [];
+  // Resolve mask-size (defaults to 'auto' = full element box) and
+  // mask-position (defaults to 0% 0%) so gradient masks honor the same
+  // positioning model as url() masks. mask-size:80px+mask-position:25% 25%
+  // means the gradient is painted in an 80x80 patch positioned 25%/25% of
+  // the available space — not stretched to fill the whole element.
+  const sizeTok = layerSize.trim().split(/\s+/);
+  const gradientTile =
+    layerSize === "contain" || layerSize === "cover"
+      ? { width: w, height: h }
+      : resolveLayerTile(layerSize, { width: w, height: h }, w, h, () => h);
+  let gradW = gradientTile.width,
+    gradH = gradientTile.height;
+  if (gradW <= 0 || gradH <= 0) return { contents, forceHide: false };
+  const gradientOffset = resolveMaskPosition(layerPos, w - gradW, h - gradH);
+  let gx = elX + gradientOffset.x;
+  let gy = elY + gradientOffset.y;
+  const legacy = parseLegacyWebkitGradient(layer);
+  const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
+  const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
+  if (needsChromiumGradientRaster(layer)) {
+    const raster = advancedGradientTile(layer, gradW, gradH);
+    if (raster != null) {
+      const patId = `${id}p${li}`;
+      const patDef = buildImagePatternDef(patId, raster, elX, elY, w, h, layerSize, layerPos, layerRepeat, {
+        w: gradW,
+        h: gradH,
+      });
+      contents.push(
+        patDef,
+        `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="url(#${patId})" />`,
+      );
+      return { contents, forceHide: false };
+    }
+    renderWarn(
+      "mask-image",
+      `Chromium raster tile unavailable for advanced mask gradient; using best-effort SVG interpolation: ${layer}`,
+    );
+  }
+  let [repeatX, repeatY] = maskRepeatAxes(layerRepeat);
+  const widthAuto = layerSize === "auto" || layerSize === "" || sizeTok[0] === "auto";
+  const heightAuto = layerSize === "auto" || layerSize === "" || sizeTok.length < 2 || sizeTok[1] === "auto";
+  if (repeatX === "round") {
+    const oldW = gradW;
+    gradW = w / Math.max(1, Math.round(w / gradW));
+    if (heightAuto && repeatY !== "round") gradH *= gradW / oldW;
+  }
+  if (repeatY === "round") {
+    const oldH = gradH;
+    gradH = h / Math.max(1, Math.round(h / gradH));
+    if (widthAuto && repeatX !== "round") gradW *= gradH / oldH;
+  }
+  const axis = (
+    repeat: string,
+    areaStart: number,
+    areaSize: number,
+    tileStart: number,
+    tileSize: number,
+  ): { starts: number[] } => {
+    if (repeat === "no-repeat") return { starts: [tileStart] };
+    if (repeat === "space") {
+      const count = Math.floor(areaSize / tileSize);
+      if (count <= 1) return { starts: [tileStart] };
+      const gap = (areaSize - count * tileSize) / (count - 1);
+      return { starts: Array.from({ length: count }, (_, index) => areaStart + index * (tileSize + gap)) };
+    }
+    const first = tileStart + Math.floor((areaStart - tileStart) / tileSize) * tileSize;
+    const starts: number[] = [];
+    for (let value = first; value < areaStart + areaSize; value += tileSize) starts.push(value);
+    return { starts };
+  };
+  const xs = axis(repeatX, paintX, paintW, gx, gradW).starts;
+  const ys = axis(repeatY, paintY, paintH, gy, gradH).starts;
+  let tileIndex = 0;
+  for (const tileY of ys)
+    for (const tileX of xs) {
+      const gradId = `${id}g${li}${xs.length * ys.length > 1 ? `t${tileIndex++}` : ""}`;
+      const exactRect = { x: tileX, y: tileY, w: gradW, h: gradH };
+      const def =
+        legacy?.kind === "linear"
+          ? buildExactLinearGradientDef(legacy, gradId, exactRect)
+          : legacy?.kind === "radial"
+            ? buildExactRadialGradientDef(legacy, gradId, exactRect)
+            : linear != null
+              ? buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, tileX, tileY)
+              : radial != null
+                ? buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), tileX, tileY, gradW, gradH)
+                : "";
+      if (def === "") continue;
+      contents.push(
+        def,
+        `<rect x="${r(tileX)}" y="${r(tileY)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`,
+      );
+    }
+  return { contents, forceHide: false };
+}
+
+/** Paint an element() snapshot at its captured natural size. */
+function buildElementMaskLayer(input: MaskLayerInput, refId: string): MaskLayerResult {
+  const { elX, elY, w, h, layerSize, layerPos, elementRasters } = input;
+  const contents: string[] = [];
+  if (elementRasters == null) return { contents, forceHide: false };
+  const raster = elementRasters.get(refId);
+  if (raster == null || raster.dataUri == null) return { contents, forceHide: false };
+  const intrinsic = { w: raster.width, h: raster.height };
+  let fitted: MaskImageRect | null = null;
+  if (layerSize === "contain" || layerSize === "cover") {
+    fitted = resolveMaskContainCoverRect({ x: elX, y: elY, width: w, height: h }, intrinsic, layerSize, layerPos);
+    if (fitted == null) return { contents, forceHide: false };
+  }
+  const tile =
+    fitted ??
+    resolveLayerTile(
+      layerSize,
+      { width: w, height: h },
+      intrinsic.w,
+      intrinsic.h,
+      (width) => width * (intrinsic.h / intrinsic.w),
+    );
+  const imgW = tile.width,
+    imgH = tile.height;
+  const imageOffset = resolveMaskPosition(layerPos, w - imgW, h - imgH);
+  const ix = fitted?.x ?? elX + imageOffset.x;
+  const iy = fitted?.y ?? elY + imageOffset.y;
+  contents.push(
+    `<image href="${raster.dataUri}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`,
+  );
+  return { contents, forceHide: false };
+}
+
+/** Paint a URL mask as a direct tile or a repeating image pattern. */
+function buildUrlMaskLayer(input: MaskLayerInput, urlHref: string): MaskLayerResult {
   const {
     id,
     li,
@@ -918,246 +1047,103 @@ function buildMaskLayer(input: MaskLayerInput): { contents: string[]; forceHide:
     paintY,
     paintW,
     paintH,
-    layer,
     layerSize,
     layerPos,
     layerRepeat,
-    elementRasters,
     intrinsic: capturedIntrinsic,
   } = input;
   const contents: string[] = [];
-  const gradient = /^(?:(?:repeating-)?(?:linear|radial)-gradient|-webkit-gradient)\(/i.test(layer);
-  if (gradient) {
-    // Resolve mask-size (defaults to 'auto' = full element box) and
-    // mask-position (defaults to 0% 0%) so gradient masks honor the same
-    // positioning model as url() masks. mask-size:80px+mask-position:25% 25%
-    // means the gradient is painted in an 80x80 patch positioned 25%/25% of
-    // the available space — not stretched to fill the whole element.
-    const sizeTok = layerSize.trim().split(/\s+/);
-    const gradientTile =
-      layerSize === "contain" || layerSize === "cover"
-        ? { width: w, height: h }
-        : resolveLayerTile(layerSize, { width: w, height: h }, w, h, () => h);
-    let gradW = gradientTile.width,
-      gradH = gradientTile.height;
-    if (gradW <= 0 || gradH <= 0) return { contents, forceHide: false };
-    const gradientOffset = resolveMaskPosition(layerPos, w - gradW, h - gradH);
-    let gx = elX + gradientOffset.x;
-    let gy = elY + gradientOffset.y;
-    const legacy = parseLegacyWebkitGradient(layer);
-    const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
-    const radial = /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer);
-    if (needsChromiumGradientRaster(layer)) {
-      const raster = advancedGradientTile(layer, gradW, gradH);
-      if (raster != null) {
-        const patId = `${id}p${li}`;
-        const patDef = buildImagePatternDef(patId, raster, elX, elY, w, h, layerSize, layerPos, layerRepeat, {
-          w: gradW,
-          h: gradH,
-        });
+  // Chrome hides the element entirely for `mask-image: url(*.svg)` (the
+  // remote SVG case — DM SK-859/SK-860). The likely cause is mask-mode:
+  // match-source resolving to luminance for SVG sources and the common
+  // icon SVG (transparent background + colored shape) computing near-zero
+  // luminance, so the mask alpha is effectively zero. Reproducing that
+  // ourselves would need embedding an <image> inside the mask with
+  // mask-type sampling logic that matches Chrome's exact source-type
+  // resolution, complex and variable across renderer versions. User
+  // guidance on SK-859/SK-860: match Chrome by rendering nothing.
+  // Contribute no mask content for this layer — the element gets hidden
+  // wherever an SVG url() mask layer claims it, matching Chrome.
+  //
+  // EXCEPTION: data:image/svg+xml URIs containing a single icon path. The
+  // framer marketing site renders chevrons / icons by setting
+  // `background: white` + `mask-image: url("data:image/svg+xml,<svg><path
+  // stroke=...></svg>")` on a small <div>. mask-mode: alpha is explicit,
+  // so the path's painted stroke IS the mask. Falling through to the
+  // generic image-mask branch produces the correct alpha. The remote-SVG
+  // hide rule above doesn't fit the data:URI case — the data SVG is
+  // small, self-contained, and authored as a mask.
+  if (/\.svg(\?|#|$)/i.test(urlHref) && !/^data:image\/svg/i.test(urlHref)) {
+    return { contents, forceHide: true };
+  }
+  // For no-repeat mask images, emit the image DIRECTLY inside the mask —
+  // not wrapped in a pattern + filled rect. The pattern+rect path paints
+  // the rect opaque where the pattern is transparent, defeating alpha
+  // masking. Direct <image> makes the sources alpha channel propagate
+  // cleanly: opaque pixels = mask visible, transparent pixels = hidden.
+  const [urlRepeatX, urlRepeatY] = maskRepeatAxes(layerRepeat);
+  const isNoRepeat = urlRepeatX === "no-repeat" && urlRepeatY === "no-repeat";
+  if (isNoRepeat) {
+    // Resolve mask-size + mask-position to a concrete image rect.
+    let fitted: MaskImageRect | null = null;
+    if (layerSize === "contain" || layerSize === "cover") {
+      fitted =
+        capturedIntrinsic == null
+          ? null
+          : resolveMaskContainCoverRect(
+              { x: elX, y: elY, width: w, height: h },
+              capturedIntrinsic,
+              layerSize,
+              layerPos,
+            );
+      if (fitted == null) {
+        renderWarn(
+          "mask-image",
+          `mask-size:${layerSize} requires captured mask intrinsic dimensions; omitting inexact layer`,
+        );
         contents.push(
-          patDef,
-          `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="url(#${patId})" />`,
+          `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="transparent" />`,
         );
         return { contents, forceHide: false };
       }
-      renderWarn(
-        "mask-image",
-        `Chromium raster tile unavailable for advanced mask gradient; using best-effort SVG interpolation: ${layer}`,
-      );
     }
-    let [repeatX, repeatY] = maskRepeatAxes(layerRepeat);
-    const widthAuto = layerSize === "auto" || layerSize === "" || sizeTok[0] === "auto";
-    const heightAuto = layerSize === "auto" || layerSize === "" || sizeTok.length < 2 || sizeTok[1] === "auto";
-    if (repeatX === "round") {
-      const oldW = gradW;
-      gradW = w / Math.max(1, Math.round(w / gradW));
-      if (heightAuto && repeatY !== "round") gradH *= gradW / oldW;
-    }
-    if (repeatY === "round") {
-      const oldH = gradH;
-      gradH = h / Math.max(1, Math.round(h / gradH));
-      if (widthAuto && repeatX !== "round") gradW *= gradH / oldH;
-    }
-    const axis = (
-      repeat: string,
-      areaStart: number,
-      areaSize: number,
-      tileStart: number,
-      tileSize: number,
-    ): { starts: number[] } => {
-      if (repeat === "no-repeat") return { starts: [tileStart] };
-      if (repeat === "space") {
-        const count = Math.floor(areaSize / tileSize);
-        if (count <= 1) return { starts: [tileStart] };
-        const gap = (areaSize - count * tileSize) / (count - 1);
-        return { starts: Array.from({ length: count }, (_, index) => areaStart + index * (tileSize + gap)) };
-      }
-      const first = tileStart + Math.floor((areaStart - tileStart) / tileSize) * tileSize;
-      const starts: number[] = [];
-      for (let value = first; value < areaStart + areaSize; value += tileSize) starts.push(value);
-      return { starts };
-    };
-    const xs = axis(repeatX, paintX, paintW, gx, gradW).starts;
-    const ys = axis(repeatY, paintY, paintH, gy, gradH).starts;
-    let tileIndex = 0;
-    for (const tileY of ys)
-      for (const tileX of xs) {
-        const gradId = `${id}g${li}${xs.length * ys.length > 1 ? `t${tileIndex++}` : ""}`;
-        const exactRect = { x: tileX, y: tileY, w: gradW, h: gradH };
-        const def =
-          legacy?.kind === "linear"
-            ? buildExactLinearGradientDef(legacy, gradId, exactRect)
-            : legacy?.kind === "radial"
-              ? buildExactRadialGradientDef(legacy, gradId, exactRect)
-              : linear != null
-                ? buildLinearGradientDef(gradId, linear[1], /^repeating-/i.test(layer), gradW, gradH, tileX, tileY)
-                : radial != null
-                  ? buildRadialGradientDef(gradId, radial[1], /^repeating-/i.test(layer), tileX, tileY, gradW, gradH)
-                  : "";
-        if (def === "") continue;
-        contents.push(
-          def,
-          `<rect x="${r(tileX)}" y="${r(tileY)}" width="${r(gradW)}" height="${r(gradH)}" fill="url(#${gradId})" />`,
-        );
-      }
-    return { contents, forceHide: false };
-  }
-  // DM-494: `element(#id)` paint reference — emit the post-capture
-  // rasterized <image> directly into the <mask>. Position + size honor
-  // mask-position / mask-size on the consuming element; mask-size:auto
-  // uses the referenced element's painted box dimensions (the spec's
-  // "natural size" for element()).
-  const elementMatch = /^element\(\s*#([^)\s]+)\s*\)$/i.exec(layer);
-  if (elementMatch != null) {
-    if (elementRasters == null) return { contents, forceHide: false };
-    const refId = elementMatch[1];
-    const raster = elementRasters.get(refId);
-    if (raster == null || raster.dataUri == null) return { contents, forceHide: false };
-    const intrinsic = { w: raster.width, h: raster.height };
-    let fitted: MaskImageRect | null = null;
-    if (layerSize === "contain" || layerSize === "cover") {
-      fitted = resolveMaskContainCoverRect({ x: elX, y: elY, width: w, height: h }, intrinsic, layerSize, layerPos);
-      if (fitted == null) return { contents, forceHide: false };
-    }
-    const tile =
-      fitted ??
-      resolveLayerTile(
-        layerSize,
-        { width: w, height: h },
-        intrinsic.w,
-        intrinsic.h,
-        (width) => width * (intrinsic.h / intrinsic.w),
-      );
+    const tile = fitted ?? resolveLayerTile(layerSize, { width: w, height: h }, w, h, (width) => width);
     const imgW = tile.width,
       imgH = tile.height;
     const imageOffset = resolveMaskPosition(layerPos, w - imgW, h - imgH);
     const ix = fitted?.x ?? elX + imageOffset.x;
     const iy = fitted?.y ?? elY + imageOffset.y;
+    // SVG only samples the concrete Blink-owned tile rectangle; it must not
+    // perform a second contain/cover alignment decision (DM-2379).
     contents.push(
-      `<image href="${raster.dataUri}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`,
+      `<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`,
     );
-    return { contents, forceHide: false };
-  }
-  // Use parseCssUrl (which handles quoted/unquoted and data: URIs with
-  // embedded quotes) rather than a primitive `[^"')]+` regex that breaks on
-  // data: URIs whose contents contain `"` or `)` — common in mask-image
-  // values like `url("data:image/svg+xml,<svg display=\"block\" ...>...</svg>")`
-  // (DM-638 framer chevrons).
-  const urlHref = parseCssUrl(layer);
-  if (urlHref != null) {
-    // Chrome hides the element entirely for `mask-image: url(*.svg)` (the
-    // remote SVG case — DM SK-859/SK-860). The likely cause is mask-mode:
-    // match-source resolving to luminance for SVG sources and the common
-    // icon SVG (transparent background + colored shape) computing near-zero
-    // luminance, so the mask alpha is effectively zero. Reproducing that
-    // ourselves would need embedding an <image> inside the mask with
-    // mask-type sampling logic that matches Chrome's exact source-type
-    // resolution, complex and variable across renderer versions. User
-    // guidance on SK-859/SK-860: match Chrome by rendering nothing.
-    // Contribute no mask content for this layer — the element gets hidden
-    // wherever an SVG url() mask layer claims it, matching Chrome.
-    //
-    // EXCEPTION: data:image/svg+xml URIs containing a single icon path. The
-    // framer marketing site renders chevrons / icons by setting
-    // `background: white` + `mask-image: url("data:image/svg+xml,<svg><path
-    // stroke=...></svg>")` on a small <div>. mask-mode: alpha is explicit,
-    // so the path's painted stroke IS the mask. Falling through to the
-    // generic image-mask branch produces the correct alpha. The remote-SVG
-    // hide rule above doesn't fit the data:URI case — the data SVG is
-    // small, self-contained, and authored as a mask.
-    if (/\.svg(\?|#|$)/i.test(urlHref) && !/^data:image\/svg/i.test(urlHref)) {
-      return { contents, forceHide: true };
-    }
-    // For no-repeat mask images, emit the image DIRECTLY inside the mask —
-    // not wrapped in a pattern + filled rect. The pattern+rect path paints
-    // the rect opaque where the pattern is transparent, defeating alpha
-    // masking. Direct <image> makes the sources alpha channel propagate
-    // cleanly: opaque pixels = mask visible, transparent pixels = hidden.
-    const [urlRepeatX, urlRepeatY] = maskRepeatAxes(layerRepeat);
-    const isNoRepeat = urlRepeatX === "no-repeat" && urlRepeatY === "no-repeat";
-    if (isNoRepeat) {
-      // Resolve mask-size + mask-position to a concrete image rect.
-      let fitted: MaskImageRect | null = null;
-      if (layerSize === "contain" || layerSize === "cover") {
-        fitted =
-          capturedIntrinsic == null
-            ? null
-            : resolveMaskContainCoverRect(
-                { x: elX, y: elY, width: w, height: h },
-                capturedIntrinsic,
-                layerSize,
-                layerPos,
-              );
-        if (fitted == null) {
-          renderWarn(
-            "mask-image",
-            `mask-size:${layerSize} requires captured mask intrinsic dimensions; omitting inexact layer`,
-          );
-          contents.push(
-            `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="transparent" />`,
-          );
-          return { contents, forceHide: false };
-        }
-      }
-      const tile = fitted ?? resolveLayerTile(layerSize, { width: w, height: h }, w, h, (width) => width);
-      const imgW = tile.width,
-        imgH = tile.height;
-      const imageOffset = resolveMaskPosition(layerPos, w - imgW, h - imgH);
-      const ix = fitted?.x ?? elX + imageOffset.x;
-      const iy = fitted?.y ?? elY + imageOffset.y;
-      // SVG only samples the concrete Blink-owned tile rectangle; it must not
-      // perform a second contain/cover alignment decision (DM-2379).
-      contents.push(
-        `<image href="${esc(embedResizedDataUri(urlHref, imgW, imgH))}" x="${mr(ix)}" y="${mr(iy)}" width="${mr(imgW)}" height="${mr(imgH)}" preserveAspectRatio="none" />`,
-      );
-    } else {
-      // Repeating mask: fall back to pattern. Since mask-type=alpha, the
-      // pattern itself needs to be backed by an <image> that's clipped to
-      // the tile size so outside-tile pixels are transparent.
-      const patId = `${id}p${li}`;
-      const patDef = buildImagePatternDef(
-        patId,
-        urlHref,
-        elX,
-        elY,
-        w,
-        h,
-        layerSize,
-        layerPos,
-        layerRepeat,
-        capturedIntrinsic ?? null,
-        "scroll",
-        null,
-        null,
-        { x: paintX, y: paintY, width: paintW, height: paintH },
-      );
-      if (patDef === "") return { contents, forceHide: false };
-      contents.push(patDef);
-      contents.push(
-        `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="url(#${patId})" />`,
-      );
-    }
+  } else {
+    // Repeating mask: fall back to pattern. Since mask-type=alpha, the
+    // pattern itself needs to be backed by an <image> that's clipped to
+    // the tile size so outside-tile pixels are transparent.
+    const patId = `${id}p${li}`;
+    const patDef = buildImagePatternDef(
+      patId,
+      urlHref,
+      elX,
+      elY,
+      w,
+      h,
+      layerSize,
+      layerPos,
+      layerRepeat,
+      capturedIntrinsic ?? null,
+      "scroll",
+      null,
+      null,
+      { x: paintX, y: paintY, width: paintW, height: paintH },
+    );
+    if (patDef === "") return { contents, forceHide: false };
+    contents.push(patDef);
+    contents.push(
+      `<rect x="${r(paintX)}" y="${r(paintY)}" width="${r(paintW)}" height="${r(paintH)}" fill="url(#${patId})" />`,
+    );
   }
   return { contents, forceHide: false };
 }

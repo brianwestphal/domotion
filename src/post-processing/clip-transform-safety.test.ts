@@ -17,6 +17,11 @@ describe("findFillBoxInClipOrMask (DM-1529)", () => {
     expect(v[0]).toContain("<mask>");
   });
 
+  it("reads single-quoted attributes whose values contain an angle bracket", () => {
+    const svg = `<svg><mask id='m'><rect data-note='a > b' style='transform-box:fill-box'/></mask></svg>`;
+    expect(findFillBoxInClipOrMask(svg)).toEqual(["<mask> child has inline transform-box:fill-box"]);
+  });
+
   it("flags fill-box applied via a class rule inside a clipPath", () => {
     const svg =
       `<svg><style>.piv{transform-box: fill-box; transform-origin: center}</style>` +

@@ -6,6 +6,7 @@
 
 import { r, esc } from "./format.js";
 import { parseColor, type RGBA } from "./colors.js";
+import { editSvgRootAttributes, readSvgOpeningTag } from "./svg-inline.js";
 import type { CapturedElement } from "../capture/types.js";
 import { embedOriginalDataUri } from "../capture/embed.js";
 import { parseGradient, buildLinearGradientDef, buildRadialGradientDef } from "./gradients.js";
@@ -1186,11 +1187,8 @@ export function computeWedgeApexes(
  */
 export function injectSvgSize(svgHtml: string, w: number, h: number): string {
   if (w <= 0 || h <= 0) return svgHtml;
-  const m = /^(<svg\b)([^>]*)(>)/i.exec(svgHtml);
-  if (m == null) return svgHtml;
-  let attrs = m[2];
-  attrs = attrs.replace(/\s(?:width|height)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-  return `<svg${attrs} width="${r(w)}" height="${r(h)}">` + svgHtml.slice(m[0].length);
+  if (readSvgOpeningTag(svgHtml)?.start !== 0) return svgHtml;
+  return editSvgRootAttributes(svgHtml, [], { width: r(w), height: r(h) });
 }
 
 /**

@@ -24,6 +24,125 @@
 import { r } from "./format.js";
 import { computeViewportMatrix, parsePreserveAspectRatio, type ViewBox } from "./svg-viewport-matrix.js";
 
+export interface SvgOpeningTag {
+  start: number;
+  end: number;
+  name: string;
+  attributes: string;
+  raw: string;
+}
+
+/** Locate an opening tag without mistaking a quoted `>` for its end. */
+export function readSvgOpeningTag(markup: string, name = "svg", from = 0): SvgOpeningTag | null {
+  const matcher = new RegExp(`<${name}\\b`, "gi");
+  matcher.lastIndex = from;
+  const startMatch = matcher.exec(markup);
+  if (startMatch == null) return null;
+  const start = startMatch.index;
+  let quote: "'" | '"' | null = null;
+  for (let index = startMatch.index + startMatch[0].length; index < markup.length; index++) {
+    const ch = markup[index];
+    if (quote != null) {
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === ">") {
+      return {
+        start,
+        end: index + 1,
+        name,
+        attributes: markup.slice(startMatch.index + startMatch[0].length, index),
+        raw: markup.slice(start, index + 1),
+      };
+    }
+  }
+  return null;
+}
+
+export interface SvgAttributeToken {
+  name: string;
+  value: string;
+  start: number;
+  end: number;
+}
+
+/** Tokenize XML attributes; fail closed on malformed or unsupported syntax. */
+export function parseSvgAttributes(attributes: string): SvgAttributeToken[] | null {
+  const tokens: SvgAttributeToken[] = [];
+  let index = 0;
+  while (index < attributes.length) {
+    const start = index;
+    while (/\s/.test(attributes[index] ?? "")) index++;
+    if (index === attributes.length) break;
+    if (attributes.slice(index).trim() === "/") break;
+    const nameMatch = /^[A-Za-z_:][-A-Za-z0-9_:.]*/.exec(attributes.slice(index));
+    if (nameMatch == null || index === start) return null;
+    const name = nameMatch[0];
+    index += name.length;
+    while (/\s/.test(attributes[index] ?? "")) index++;
+    if (attributes[index++] !== "=") return null;
+    while (/\s/.test(attributes[index] ?? "")) index++;
+    const quote = attributes[index];
+    if (quote === '"' || quote === "'") {
+      index++;
+      const close = attributes.indexOf(quote, index);
+      if (close < 0) return null;
+      tokens.push({ name, value: attributes.slice(index, close), start, end: close + 1 });
+      index = close + 1;
+    } else {
+      const valueStart = index;
+      while (index < attributes.length && !/\s/.test(attributes[index])) index++;
+      if (index === valueStart) return null;
+      tokens.push({ name, value: attributes.slice(valueStart, index), start, end: index });
+    }
+  }
+  return tokens;
+}
+
+/** Read or edit only the root SVG's attributes, preserving untouched markup. */
+export function svgRootAttribute(markup: string, name: string): string | null {
+  return svgOpeningTagAttribute(markup, "svg", name);
+}
+
+export function svgOpeningTagAttribute(markup: string, tagName: string, name: string): string | null {
+  const root = readSvgOpeningTag(markup, tagName);
+  const tokens = root != null ? parseSvgAttributes(root.attributes) : null;
+  return tokens?.find((token) => token.name.toLowerCase() === name.toLowerCase())?.value ?? null;
+}
+
+export function editSvgRootAttributes(
+  markup: string,
+  remove: readonly string[],
+  set: Readonly<Record<string, string>> = {},
+): string {
+  return editSvgOpeningTagAttributes(markup, "svg", remove, set);
+}
+
+export function editSvgOpeningTagAttributes(
+  markup: string,
+  tagName: string,
+  remove: readonly string[],
+  set: Readonly<Record<string, string>> = {},
+): string {
+  const root = readSvgOpeningTag(markup, tagName);
+  if (root == null) return markup;
+  const selfClosing = /\/\s*$/.test(root.attributes);
+  const sourceAttrs = selfClosing ? root.attributes.replace(/\/\s*$/, "") : root.attributes;
+  const tokens = parseSvgAttributes(sourceAttrs);
+  if (tokens == null) return markup;
+  const removed = new Set([...remove, ...Object.keys(set)].map((name) => name.toLowerCase()));
+  let attrs = sourceAttrs;
+  for (const token of [...tokens].reverse()) {
+    if (removed.has(token.name.toLowerCase())) attrs = attrs.slice(0, token.start) + attrs.slice(token.end);
+  }
+  const appended = Object.entries(set)
+    .map(([name, value]) => ` ${name}="${value.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"`)
+    .join("");
+  return (
+    markup.slice(0, root.start) + `<${tagName}${attrs}${appended}${selfClosing ? " /" : ""}>` + markup.slice(root.end)
+  );
+}
+
 /**
  * Prefix every `id="…"`, `href="#…"`, `xlink:href="#…"`, and `url(#…)` in an
  * SVG fragment with `prefix` so its internal references stay self-consistent
@@ -132,13 +251,10 @@ export function prefixSvgClasses(svg: string, prefix: string): string {
 /** Read a numeric SVG length attribute (`width`/`height`), stripping a `px`
  *  unit suffix. Returns null for `%`, `em`, `auto`, missing, or non-finite. */
 function readLengthAttr(attrs: string, name: string): number | null {
-  const m = new RegExp(`\\b${name}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, "i").exec(attrs);
-  if (m == null) return null;
-  let v = m[1];
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-    v = v.slice(1, -1);
-  }
-  v = v.trim();
+  const v = parseSvgAttributes(attrs)
+    ?.find((token) => token.name.toLowerCase() === name.toLowerCase())
+    ?.value.trim();
+  if (v == null) return null;
   if (/%$/.test(v)) return null; // percentage widths have no absolute coordinate system
   const n = parseFloat(v);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -146,18 +262,22 @@ function readLengthAttr(attrs: string, name: string): number | null {
 
 /** Extract the root `<svg>`'s `viewBox` value (inner string), or null. */
 function extractViewBox(attrs: string): string | null {
-  const m = /\bviewBox\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
-  if (m == null) return null;
-  const vb = m[1].slice(1, -1).trim();
+  const vb = parseSvgAttributes(attrs)
+    ?.find((token) => token.name.toLowerCase() === "viewbox")
+    ?.value.trim();
+  if (vb == null) return null;
   return vb === "" ? null : vb;
 }
 
 /** Remove the given attributes (case-insensitive names) from a `<svg>` tag's
  *  attribute string, so the caller can re-declare them. */
 function stripAttrs(attrs: string, names: string[]): string {
+  const tokens = parseSvgAttributes(attrs);
+  if (tokens == null) return attrs;
+  const removed = new Set(names.map((name) => name.toLowerCase()));
   let out = attrs;
-  for (const name of names) {
-    out = out.replace(new RegExp(`\\s${name}\\s*=\\s*("[^"]*"|'[^']*'|[^\\s>]+)`, "gi"), "");
+  for (const token of [...tokens].reverse()) {
+    if (removed.has(token.name.toLowerCase())) out = out.slice(0, token.start) + out.slice(token.end);
   }
   return out;
 }
@@ -191,9 +311,9 @@ export interface InlineSvgPlacement {
  * any zoom.
  */
 export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | null {
-  const tag = /<svg\b([^>]*)>/i.exec(svgText);
+  const tag = readSvgOpeningTag(svgText);
   if (tag == null) return null;
-  let attrs = tag[1];
+  let attrs = tag.attributes;
 
   // Resolve a coordinate system: the SVG's own viewBox, else one synthesized
   // from its absolute width/height, else from the <img> intrinsic size.
@@ -214,7 +334,7 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
   // Namespace ids: the root tag's own attrs (a root `id`/`url(#…)` is rare but
   // legal) and the whole body (defs + references).
   let rootAttrs = prefixSvgIds(attrs, p.idPrefix).replace(/\s+$/, "");
-  let body = prefixSvgIds(svgText.slice(tag.index + tag[0].length), p.idPrefix);
+  let body = prefixSvgIds(svgText.slice(tag.end), p.idPrefix);
   // DM-1593: also namespace CSS class names — but ONLY when the SVG carries a
   // `<style>` block (the only way a class can affect rendering, so the common
   // presentation-attribute export stays byte-identical). Gated on the whole
@@ -357,10 +477,10 @@ export function isSvgSafeToFlatten(body: string): boolean {
  * source sets `overflow: visible`, since a `<g>` (unlike a viewport) does not clip.
  */
 export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | null {
-  const tag = /<svg\b([^>]*)>/i.exec(svgText);
+  const tag = readSvgOpeningTag(svgText);
   if (tag == null) return null;
-  const attrs = tag[1];
-  const rawBody = svgText.slice(tag.index + tag[0].length);
+  const attrs = tag.attributes;
+  const rawBody = svgText.slice(tag.end);
   // Drop a trailing `</svg>` (and anything after) so we emit only the children.
   const closeIdx = rawBody.toLowerCase().lastIndexOf("</svg>");
   const bodySource = closeIdx >= 0 ? rawBody.slice(0, closeIdx) : rawBody;

@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2379", "DM-2472", "DM-2494", "DM-2520", "DM-470", "DM-493", "DM-494", "DM-156VR5"]
+tickets: ["DM-2379", "DM-2472", "DM-2494", "DM-2520", "DM-470", "DM-493", "DM-494", "DM-156VR5", "DM-XEBRYE"]
 code:
   [
     "src/capture/script/walker/masks-clips.ts",
@@ -15,6 +15,7 @@ code:
     "src/render/mask-position.test.ts",
     "src/render/mask-position.ts",
     "src/render/mask.ts",
+    "src/render/svg-inline.ts",
     "tests/mask-position-contain-cover.e2e.test.ts",
     "tests/mask-url-repeat-geometry.e2e.test.ts",
   ]
@@ -59,6 +60,11 @@ and sequential composition. Gradient, `element()`, and `url()` layer builders
 share size token resolution while retaining each source's distinct `auto`
 height rule. A single supported layer uses one SVG mask, independent of its
 composite keyword.
+
+The gradient, `element()`, and `url()` paths have separate builders selected in
+layer order. Captured `<mask>` and `<clipPath>` opening attributes are read with
+the shared SVG tag editor, which handles quoted `>` characters and preserves
+unmodified attributes when applying the resolved region and transform.
 
 ## Also implemented (previously the ticket gap)
 

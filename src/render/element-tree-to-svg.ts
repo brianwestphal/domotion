@@ -113,6 +113,8 @@ import {
   isSvgSafeToFlatten,
   prefixSvgClasses,
   prefixSvgIds,
+  readSvgOpeningTag,
+  svgRootAttribute,
 } from "./svg-inline.js";
 import { computeViewportMatrix, parsePreserveAspectRatio } from "./svg-viewport-matrix.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
@@ -1097,24 +1099,22 @@ function flattenCapturedInlineSvg(
   place: { x: number; y: number; w: number; h: number },
   allocClip?: () => string,
 ): string | null {
-  const tag = /<svg\b([^>]*)>/i.exec(sized);
+  const tag = readSvgOpeningTag(sized);
   if (tag == null) return null;
-  const attrs = tag[1];
-  const vbMatch = /\bviewBox\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
-  if (vbMatch == null) return null; // no explicit coordinate system → keep nested
-  const nums = vbMatch[1]
-    .slice(1, -1)
+  const attrs = tag.attributes;
+  const viewBox = svgRootAttribute(sized, "viewBox");
+  if (viewBox == null) return null; // no explicit coordinate system → keep nested
+  const nums = viewBox
     .trim()
     .split(/[\s,]+/)
     .map(Number);
   if (nums.length !== 4 || !nums.every((n) => Number.isFinite(n)) || nums[2] <= 0 || nums[3] <= 0) return null;
-  const rawBody = sized.slice(tag.index + tag[0].length);
+  const rawBody = sized.slice(tag.end);
   const closeIdx = rawBody.toLowerCase().lastIndexOf("</svg>");
   const body = closeIdx >= 0 ? rawBody.slice(0, closeIdx) : rawBody;
   if (!isSvgSafeToFlatten(body)) return null;
 
-  const parMatch = /\bpreserveAspectRatio\s*=\s*("[^"]*"|'[^']*')/i.exec(attrs);
-  const par = parMatch != null ? parMatch[1].slice(1, -1) : "xMidYMid meet";
+  const par = svgRootAttribute(sized, "preserveAspectRatio") ?? "xMidYMid meet";
   const matrix = computeViewportMatrix(
     place,
     { minX: nums[0], minY: nums[1], width: nums[2], height: nums[3] },

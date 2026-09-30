@@ -480,6 +480,14 @@ describe("rewriteFragmentResourceGraph — transitive scoped SVG resources", () 
 });
 
 describe("objectBoundingBox clip-path materialization (DM-2362)", () => {
+  it("preserves quoted angle brackets while editing the clipPath root", () => {
+    const source = `<clipPath data-note='a > b' clipPathUnits='objectBoundingBox'><rect/></clipPath>`;
+    const out = positionObjectBoundingBoxClipPathDef(source, 5, 7, 40, 60);
+    expect(out).toContain(`data-note='a > b'`);
+    expect(out).toContain(`clipPathUnits="userSpaceOnUse"`);
+    expect(out).toContain(`<rect/>`);
+  });
+
   it("maps normalized geometry through the HTML consumer border box", () => {
     const out = positionObjectBoundingBoxClipPathDef(
       `<clipPath id="c" clipPathUnits="objectBoundingBox"><rect width=".5" height="1"/></clipPath>`,
@@ -517,6 +525,13 @@ describe("objectBoundingBox clip-path materialization (DM-2362)", () => {
 });
 
 describe("positionFragmentMaskDef — DM-493 per-element mask placement", () => {
+  it("preserves quoted angle brackets in unrelated mask attributes", () => {
+    const out = positionFragmentMaskDef(`<mask id='m' data-note='a > b'><rect/></mask>`, 3, 4, 20, 10);
+    expect(out).toContain(`data-note='a > b'`);
+    expect(out).toContain(`maskUnits="userSpaceOnUse"`);
+    expect(out).toContain(`<rect/>`);
+  });
+
   it("translates the mask content into the masked element's user-space", () => {
     // CSS mask-image positions the mask source at the masked element's
     // content-box origin. The captured <mask> has its content in its own

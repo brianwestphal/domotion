@@ -55,6 +55,8 @@
  * building a chain of indirection.
  */
 
+import { parseSvgAttributes, readSvgOpeningTag } from "../render/svg-inline.js";
+
 /** Attributes the `<defs>` `<image>` carries, so they must not be re-emitted on the `<use>`. */
 const DEF_ATTRS = new Set(["href", "width", "height", "preserveAspectRatio"]);
 
@@ -96,30 +98,29 @@ export interface HoistImagePayloadsOptions {
  * verbatim out of the captured page.
  */
 function parseAttrs(text: string): Array<{ name: string; value: string }> | null {
-  const attrs: Array<{ name: string; value: string }> = [];
-  const re = /\s*([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*"([^"]*)"/g;
-  let pos = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) != null) {
-    if (m.index !== pos) return null; // unparsed junk between attributes
-    attrs.push({ name: m[1], value: m[2] });
-    pos = m.index + m[0].length;
+  const tokens = parseSvgAttributes(text);
+  if (tokens == null) return null;
+  if (
+    tokens.some((token) => !/^\s+[A-Za-z_:][-A-Za-z0-9_:.]*\s*=\s*"[^"]*"$/.test(text.slice(token.start, token.end)))
+  ) {
+    return null;
   }
-  if (text.slice(pos).trim() !== "") return null; // trailing junk
-  return attrs;
+  return tokens.map(({ name, value }) => ({ name, value }));
 }
 
 /** Locate every `<image>` element in `svg`, skipping any whose markup we can't parse. */
 function findImages(svg: string): ParsedImage[] {
   const out: ParsedImage[] = [];
-  const re = /<image\b([^>]*)>/g;
+  const re = /<image\b/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(svg)) != null) {
-    let attrText = m[1];
+    const tag = readSvgOpeningTag(svg, "image", m.index);
+    if (tag?.start !== m.index) continue;
+    let attrText = tag.attributes;
     const selfClosing = attrText.trimEnd().endsWith("/");
     if (selfClosing) attrText = attrText.trimEnd().slice(0, -1);
     const attrs = parseAttrs(attrText);
-    let end = m.index + m[0].length;
+    let end = tag.end;
     let children = "";
     if (!selfClosing) {
       // `<image>` can't nest, so the next close tag is ours.
@@ -127,8 +128,8 @@ function findImages(svg: string): ParsedImage[] {
       if (close === -1) continue; // malformed; leave it alone
       children = svg.slice(end, close);
       end = close + "</image>".length;
-      re.lastIndex = end;
     }
+    re.lastIndex = end;
     if (attrs == null) continue;
     out.push({ start: m.index, end, attrs, children });
   }
@@ -266,9 +267,10 @@ export function hoistDuplicateImagePayloads(svg: string, opts: HoistImagePayload
     // Insert AFTER any leading `<title>` / `<desc>`: an accessible name has to
     // stay the root's first child, so a `<defs>` in front of it would silently
     // cost the document its name.
-    const head = /(<svg\b[^>]*>)((?:\s*<title>[\s\S]*?<\/title>|\s*<desc>[\s\S]*?<\/desc>)*)/.exec(out);
+    const head = readSvgOpeningTag(out);
     if (head == null) return svg; // no root <svg> to hang defs off; leave untouched
-    const at = head.index + head[0].length;
+    const labels = /^((?:\s*<title>[\s\S]*?<\/title>|\s*<desc>[\s\S]*?<\/desc>)*)/.exec(out.slice(head.end));
+    const at = head.end + (labels?.[0].length ?? 0);
     out = `${out.slice(0, at)}<defs>${newDefs.join("")}</defs>${out.slice(at)}`;
   }
   return out;

@@ -336,6 +336,7 @@
         "src/render/mask-position.test.ts",
         "src/render/mask-position.ts",
         "src/render/mask.ts",
+        "src/render/svg-inline.ts",
         "tests/mask-position-contain-cover.e2e.test.ts",
         "tests/mask-url-repeat-geometry.e2e.test.ts"
       ],

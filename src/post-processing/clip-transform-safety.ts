@@ -27,6 +27,8 @@
  * tests that want a violation to fail fast rather than warn. See docs/84.
  */
 
+import { parseSvgAttributes, readSvgOpeningTag } from "../render/svg-inline.js";
+
 /** Class names whose `<style>` rule sets `transform-box: fill-box`. */
 function fillBoxClasses(svg: string): Set<string> {
   const classes = new Set<string>();
@@ -49,11 +51,16 @@ export function findFillBoxInClipOrMask(svg: string): string[] {
   for (const block of svg.matchAll(/<(clipPath|mask)\b[^>]*>([\s\S]*?)<\/\1>/g)) {
     const tag = block[1];
     const inner = block[2];
-    if (/style="[^"]*transform-box\s*:\s*fill-box/.test(inner)) {
-      violations.push(`<${tag}> child has inline transform-box:fill-box`);
-    }
-    for (const cm of inner.matchAll(/class="([^"]*)"/g)) {
-      for (const cls of cm[1].split(/\s+/)) {
+    for (const opening of inner.matchAll(/<([A-Za-z][\w:-]*)\b/g)) {
+      const child = readSvgOpeningTag(inner, opening[1], opening.index);
+      const attrs = child != null ? parseSvgAttributes(child.attributes) : null;
+      if (attrs == null) continue;
+      const style = attrs.find((attr) => attr.name.toLowerCase() === "style")?.value;
+      if (style != null && /transform-box\s*:\s*fill-box/.test(style)) {
+        violations.push(`<${tag}> child has inline transform-box:fill-box`);
+      }
+      const classes = attrs.find((attr) => attr.name.toLowerCase() === "class")?.value;
+      for (const cls of classes?.split(/\s+/) ?? []) {
         if (fbClasses.has(cls)) violations.push(`<${tag}> child uses class ".${cls}" (transform-box:fill-box)`);
       }
     }
