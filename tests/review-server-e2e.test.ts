@@ -6,7 +6,7 @@
 // with a deliberately SLOW, failing `gh` on PATH and asserts the `/` route stays
 // fast (would be ≥5s if someone re-introduced the blocking fetch).
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -191,6 +191,33 @@ describe("review-server async loading (DM-1665)", () => {
     const html = await res.text();
     expect(res.status).toBe(200);
     expect(html).toContain('"sourceFetchNeeded":false');
+  });
+
+  it("reports malformed results instead of silently showing an empty or stale source", async () => {
+    const path = join(tmp, "local", "html-test-unicode", "results.json");
+    const original = readFileSync(path);
+    try {
+      writeFileSync(path, "{malformed");
+      const res = await fetch(`${BASE}/?source=local-macos`);
+      const body = (await res.json()) as { error?: string };
+      expect(res.status).toBe(500);
+      expect(body.error).toMatch(/Unexpected token|JSON/);
+    } finally {
+      writeFileSync(path, original);
+    }
+  });
+
+  it("reports malformed CI source metadata instead of treating it as absent", async () => {
+    const path = join(tmp, "review", "ci-macos", "html-test-unicode", ".ci-source.json");
+    writeFileSync(path, "{malformed");
+    try {
+      const res = await fetch(`${BASE}/img/ci-macos/html-test-unicode/nope-expected.png`);
+      const body = (await res.json()) as { error?: string };
+      expect(res.status).toBe(500);
+      expect(body.error).toMatch(/Malformed CI source metadata/);
+    } finally {
+      rmSync(path, { force: true });
+    }
   });
 
   it("integrates exact Linux face-index-1 evidence under the 1% floor ahead of global failures", async () => {

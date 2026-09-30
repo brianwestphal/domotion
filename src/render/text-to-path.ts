@@ -12,6 +12,7 @@ export {
   type RenderTextMode,
   restoreGeneration,
   setRenderTextMode,
+  withRenderTextMode,
   snapshotGeneration,
 } from "@domotion/text-engine/font-resolution";
 export {

@@ -67,6 +67,7 @@ import {
 import { classifyLinuxUnicodeFixtureEvidence } from "../src/review/linux-unicode-evidence.js";
 import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-builder.js";
 import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
+import { createReviewPrefetchState } from "./review-prefetch-state.js";
 import * as esbuild from "esbuild";
 
 // ── Paths ──
@@ -299,9 +300,14 @@ function loadManifest(activeSourceId: string): ReviewManifest {
     let generatedAt: string | undefined;
     let records: unknown[];
     if (m.isBareArray) {
-      records = Array.isArray(raw) ? raw : [];
+      if (!Array.isArray(raw)) throw new Error(`Malformed review results (expected an array): ${m.path}`);
+      records = raw;
     } else {
+      if (raw == null || typeof raw !== "object" || Array.isArray(raw))
+        throw new Error(`Malformed review results (expected an object): ${m.path}`);
       const wrapped = raw as { generatedAt?: string; platform?: string; results?: unknown[] };
+      if (wrapped.results != null && !Array.isArray(wrapped.results))
+        throw new Error(`Malformed review results (invalid results array): ${m.path}`);
       generatedAt = wrapped.generatedAt;
       // DM-1802: the platform that painted these artifacts, stamped at write time.
       if (typeof wrapped.platform === "string" && wrapped.platform !== "") manifestPlatform = wrapped.platform;
@@ -469,17 +475,15 @@ async function fetchImagesRepoFile(sha: string, fname: string): Promise<Buffer |
 function readCiSourceMeta(root: string, suite: SuiteName): CiSourceMeta | null {
   const p = resolve(suiteDir(root, suite), ".ci-source.json");
   if (!existsSync(p)) return null;
+  let m: Partial<CiSourceMeta>;
   try {
-    const m = JSON.parse(readFileSync(p, "utf8")) as Partial<CiSourceMeta>;
-    if (typeof m.runId === "string" && typeof m.os === "string") {
-      // DM-1741: preserve the images-repo commit sha — /img uses it to decide
-      // per-file CDN fetch vs the whole-shard artifact fallback.
-      return { runId: m.runId, os: m.os, suite: suite, sha: typeof m.sha === "string" ? m.sha : undefined };
-    }
-  } catch {
-    /* malformed — treat as no lazy source */
+    m = JSON.parse(readFileSync(p, "utf8")) as Partial<CiSourceMeta>;
+  } catch (cause) {
+    throw new Error(`Malformed CI source metadata: ${p}`, { cause });
   }
-  return null;
+  if (typeof m.runId !== "string" || typeof m.os !== "string") throw new Error(`Malformed CI source metadata: ${p}`);
+  // DM-1741: preserve the images-repo commit sha for per-file CDN fetches.
+  return { runId: m.runId, os: m.os, suite, sha: typeof m.sha === "string" ? m.sha : undefined };
 }
 
 /** DM-1741: cached PNGs are fixture-named with no run identity, so adopting a
@@ -500,13 +504,15 @@ function wipeCachedPngs(dest: string): void {
 function shardForFixture(root: string, suite: SuiteName, fixtureBase: string): number | null {
   const rp = resolve(suiteDir(root, suite), "results.json");
   if (!existsSync(rp)) return null;
+  let arr: Array<{ name?: string; shard?: number }>;
   try {
-    const arr = JSON.parse(readFileSync(rp, "utf8")) as Array<{ name?: string; shard?: number }>;
-    const hit = arr.find((r) => r.name === fixtureBase);
-    return typeof hit?.shard === "number" ? hit.shard : null;
-  } catch {
-    return null;
+    arr = JSON.parse(readFileSync(rp, "utf8")) as Array<{ name?: string; shard?: number }>;
+  } catch (cause) {
+    throw new Error(`Malformed review results: ${rp}`, { cause });
   }
+  if (!Array.isArray(arr)) throw new Error(`Malformed review results: ${rp}`);
+  const hit = arr.find((r) => r.name === fixtureBase);
+  return typeof hit?.shard === "number" ? hit.shard : null;
 }
 
 // Download one shard's artifact + cache its PNGs into the source dir. In-flight
@@ -623,11 +629,27 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
       fetchImagesRepoFile(sha, "stage-evidence.json"),
     ]);
     if (results != null) {
-      let runId = sha.slice(0, 12);
+      let parsedResults: unknown;
       try {
-        runId = String((JSON.parse(metaBuf?.toString("utf8") ?? "{}") as { runId?: string }).runId ?? runId);
-      } catch {
-        /* keep sha tag */
+        parsedResults = JSON.parse(results.toString("utf8"));
+      } catch (cause) {
+        throw new Error(`Malformed images-repo results.json at ${sha}`, { cause });
+      }
+      if (!Array.isArray(parsedResults)) throw new Error(`Malformed images-repo results.json at ${sha}`);
+      let runId = sha.slice(0, 12);
+      if (metaBuf != null) {
+        let parsedMeta: unknown;
+        try {
+          parsedMeta = JSON.parse(metaBuf.toString("utf8"));
+        } catch (cause) {
+          throw new Error(`Malformed images-repo meta.json at ${sha}`, { cause });
+        }
+        if (parsedMeta == null || typeof parsedMeta !== "object" || Array.isArray(parsedMeta))
+          throw new Error(`Malformed images-repo meta.json at ${sha}`);
+        const metaRunId = (parsedMeta as { runId?: unknown }).runId;
+        if (metaRunId != null && typeof metaRunId !== "string" && typeof metaRunId !== "number")
+          throw new Error(`Malformed images-repo meta.json at ${sha}`);
+        runId = String(metaRunId ?? runId);
       }
       if (existing != null && existing.sha !== sha) wipeCachedPngs(dest);
       mkdirSync(dest, { recursive: true });
@@ -700,7 +722,7 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
 // images pop in progressively instead of each first view paying minutes of
 // on-demand download. Once per (runId, suite) per process; the per-shard
 // inflight map keeps on-demand requests coalesced with this walk.
-const prefetchStarted = new Set<string>();
+const prefetchStarted = createReviewPrefetchState();
 function startShardPrefetch(sourceId: string): void {
   if (!sourceId.startsWith("ci-")) return;
   const root = sourceById(sourceId).root;
@@ -711,30 +733,37 @@ function startShardPrefetch(sourceId: string): void {
       if (meta.sha != null) continue; // DM-1741: images-repo — per-file fetches are fast, no bulk prefetch needed
       const key = `${meta.runId}:${meta.os}:${suite}`;
       if (prefetchStarted.has(key)) continue;
-      prefetchStarted.add(key);
       const rp = resolve(suiteDir(root, suite), "results.json");
       if (!existsSync(rp)) continue;
       let shards: number[] = [];
       try {
         const arr = JSON.parse(readFileSync(rp, "utf8")) as Array<{ shard?: number }>;
+        if (!Array.isArray(arr)) throw new Error("expected an array");
         shards = [...new Set(arr.map((r) => r.shard).filter((n): n is number => typeof n === "number"))].sort(
           (a, b) => a - b,
         );
-      } catch {
+      } catch (cause) {
+        console.warn(`  prefetch metadata malformed: ${rp}: ${cause instanceof Error ? cause.message : String(cause)}`);
         continue;
       }
       if (shards.length === 0) continue;
+      if (!prefetchStarted.begin(key)) continue;
       console.log(`  ↓ prefetching ${shards.length} ${meta.os} ${meta.suite} shard(s) in the background…`);
+      let failed = false;
       for (const shard of shards) {
         try {
           await fetchShard(root, suite, meta, shard);
         } catch (e) {
+          failed = true;
           console.warn(`  prefetch of shard ${shard} failed: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
-      console.log(`  ✓ ${meta.os} ${meta.suite} shards cached — images now serve instantly`);
+      if (failed) prefetchStarted.failed(key);
+      else console.log(`  ✓ ${meta.os} ${meta.suite} shards cached — images now serve instantly`);
     }
-  })();
+  })().catch((error) => {
+    console.warn(`  shard prefetch metadata error: ${error instanceof Error ? error.message : String(error)}`);
+  });
 }
 
 // Refresh a CI source's metadata (both suites) from the latest completed run.

@@ -1,7 +1,13 @@
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { defaultWorkerCount, detectCoreCount, lowerProcessPriority, resolveWorkerCount } from "./worker-pool.js";
+import {
+  defaultWorkerCount,
+  detectCoreCount,
+  lowerProcessPriority,
+  resolveWorkerCount,
+  runJobsInPool,
+} from "./worker-pool.js";
 
 const ORIGINAL_ARGV = process.argv;
 const ORIGINAL_ENV_WORKERS = process.env["DOMOTION_TEST_WORKERS"];
@@ -159,5 +165,60 @@ describe("lowerProcessPriority (DM-459 v2)", () => {
     lowerProcessPriority(10);
     const after = os.getPriority();
     expect(after).toBe(before);
+  });
+});
+
+describe("runJobsInPool failure transitions", () => {
+  it("propagates setup failure without running jobs or teardown", async () => {
+    const seen: string[] = [];
+    await expect(
+      runJobsInPool({
+        jobs: [1],
+        workers: 1,
+        setup: async () => {
+          seen.push("setup");
+          throw new Error("setup failed");
+        },
+        runJob: async () => {
+          seen.push("job");
+          return 1;
+        },
+        teardown: async () => {
+          seen.push("teardown");
+        },
+      }),
+    ).rejects.toThrow("setup failed");
+    expect(seen).toEqual(["setup"]);
+  });
+
+  it("tears down after job failure and propagates teardown failure", async () => {
+    const seen: string[] = [];
+    await expect(
+      runJobsInPool({
+        jobs: [1],
+        workers: 1,
+        setup: async () => "worker",
+        runJob: async () => {
+          seen.push("job");
+          throw new Error("job failed");
+        },
+        teardown: async () => {
+          seen.push("teardown");
+        },
+      }),
+    ).rejects.toThrow("job failed");
+    expect(seen).toEqual(["job", "teardown"]);
+
+    await expect(
+      runJobsInPool({
+        jobs: [1],
+        workers: 1,
+        setup: async () => "worker",
+        runJob: async () => 1,
+        teardown: async () => {
+          throw new Error("teardown failed");
+        },
+      }),
+    ).rejects.toThrow("teardown failed");
   });
 });

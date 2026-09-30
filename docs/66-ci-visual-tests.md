@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844"]
+tickets: ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844", "DM-9JP366"]
 code:
   [
     ".github/workflows/fast-visual-tests.yml",
@@ -23,6 +23,15 @@ code:
     "src/review/side-digest.ts",
     "tests/baselines/README.md",
     "tests/html-test-suite.tsx",
+    "tests/html-test/cache.ts",
+    "tests/html-test/compare-lock.ts",
+    "tests/html-test/evidence.ts",
+    "tests/html-test/index-html.tsx",
+    "tests/html-test/tables.ts",
+    "tests/html-test/worker-pages.ts",
+    "tests/harness-constants.ts",
+    "tests/feature-fixture-state.ts",
+    "tests/review-prefetch-state.ts",
     "tests/output/",
     "tests/runner.tsx",
     "tests/shard-completeness.test.ts",
@@ -296,6 +305,29 @@ This bit a `--font-render-hinting=none` experiment (the flag disables FreeType/D
 To measure an asymmetric capture flag you need an asymmetric harness: capture the expected paint **with** the flag but rasterize the candidate SVG in a **separate, unflagged** browser (the consumer's condition).
 
 **That mode now exists (DM-1790).** Set `DOMOTION_CAPTURE_FLAGS` to flag the capture browser only; the candidate SVG then rasterizes in a second, unflagged browser. Setting `DOMOTION_RASTER_FLAGS` to the same list reproduces the coupled behavior described above, deliberately. Neither set ⇒ one browser, exactly as before. Non-default runs print the configuration and record it beside their results, because the failure this guards against is a number measured under a flag nobody remembers setting. Full spec, including the expected-PNG cache-key trap and the Linux validation numbers: **`docs/105-asymmetric-harness-browsers.md`**.
+
+## HTML harness state and targeted text evidence
+
+`tests/html-test-suite.tsx` coordinates the run. Its fixture heights, skip and
+accepted-diff entries are exported from `tests/html-test/tables.ts`; a unit test
+checks every table key against the installed HTML and Unicode fixture checkouts.
+The expected-PNG cache in `tests/html-test/cache.ts` keys on source, viewport,
+browser version, capture code, font inventory, and capture flags. It preserves
+the earlier screenshot only for an exact key match. The shared compare-page
+lock releases after a failed comparison; worker page recovery reports a closed
+context as an error. Both behaviors have isolated transition tests.
+
+Set `HTML_TEST_TEXT_EVIDENCE=<fixture>:<hex-low>-<hex-high>` to collect a
+targeted Unicode text-run and source-cell evidence slice for one fixture, such
+as `HTML_TEST_TEXT_EVIDENCE=20000-2A6DF-cjk-unified-ideographs-extension-b.111:270ef-270f4`.
+That fixture is captured live rather than read from the expected-PNG cache, so
+its browser font records belong to the same run. The harness restores the
+previous provenance flag even if rendering throws.
+
+The review server treats a missing CI metadata/results file as an absent
+source. A present but malformed file is reported as an error, so an old source
+cannot be substituted silently. Background shard prefetches are deduplicated
+during a run and can retry after a failed fetch.
 
 ## Local sharding
 

@@ -94,6 +94,10 @@ loading the historical documentation corpus.
   to Glassbox's README hero asset.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
+- `tests/html-test-suite.tsx` coordinates the broad HTML fixture sweep;
+  `tests/html-test/` owns its cache, fixture tables, text evidence, compare
+  lock, worker page recovery, and index renderer. Shared page timeouts and
+  platform hinting floors live in `tests/harness-constants.ts`.
   `compare-pngs.ts` coordinates PNG diffing, while typed
   `compare-pngs.browser.ts` is bundled at build time for the canvas analysis;
   it imports the shared digest from `side-digest.ts`.

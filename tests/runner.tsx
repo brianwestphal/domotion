@@ -20,9 +20,11 @@ import { raw } from "kerfjs";
 import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
-import { clearGlyphDefs, clearWebfonts, setRenderTextMode } from "../src/render/text-to-path.js";
+import { withRenderTextMode } from "../src/render/text-to-path.js";
+import { resetFeatureFixtureState } from "./feature-fixture-state.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { comparePngs, passes, type DiffVerdict } from "../src/review/compare-pngs.js";
+import { HINTING_FLOOR_PCT, newHarnessPage } from "./harness-constants.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
 // Resolve against this script's dir so runs from any cwd write to the real
@@ -170,11 +172,9 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // each test so a webfont registered for fixture A doesn't leak into
   // fixture B. The `requestfinished` listener on `w.page` populates
   // `w.fontUrls` as the test's HTML loads.
-  clearWebfonts();
+  resetFeatureFixtureState(w.fontUrls);
   // DM-1338: reset the paths-mode glyph registry per fixture too, so fixture A's
   // <path id="gN"> defs don't accumulate into fixture B's emitted <defs>.
-  clearGlyphDefs();
-  w.fontUrls.clear();
   await w.page.goto(`file://${htmlPath}`);
   await w.page.evaluate(() => document.fonts.ready);
   await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width, height } });
@@ -199,8 +199,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // the live Chromium paint, and embedded `<text>` carries an inherent sub-
   // pixel-kerning drift (xOffsets aren't forwarded, to keep the glyph atlas
   // cacheable). Same convention the scroll composer documents for diffing.
-  setRenderTextMode("paths");
-  const svgContent = elementTreeToSvgInner(tree, width, height);
+  const svgContent = withRenderTextMode("paths", () => elementTreeToSvgInner(tree, width, height));
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);
 
@@ -246,7 +245,6 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // Windows at all (it is a FreeType/Skia flag; DirectWrite ignores it — a
   // probe returns byte-identical screenshots), so the win32 cap describes
   // exactly the same condition it always did.
-  const HINTING_FLOOR_PCT: Record<string, number> = { win32: 4.0, linux: 1.0 };
   const floorPct = HINTING_FLOOR_PCT[process.platform] ?? 0;
   let pass: boolean;
   if (floorPct > 0) {
@@ -337,8 +335,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
       const page = await context.newPage();
       // DM-479: 90 s instead of Playwright's 30 s default; covers slow
       // capture passes on heavier fixtures without paving over genuine hangs.
-      page.setDefaultTimeout(90_000);
-      page.setDefaultNavigationTimeout(90_000);
+      newHarnessPage(page);
       // DM-559: track every font URL the page fetches so cross-origin
       // webfonts are visible to `discoverAndRegisterWebfonts` (mirrors the
       // real-world suite's listener — same gap exists here for a fixture
@@ -354,8 +351,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
       // browser hosts it is immaterial — keep it on the capture browser.
       const compareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
       const comparePage = await compareContext.newPage();
-      comparePage.setDefaultTimeout(90_000);
-      comparePage.setDefaultNavigationTimeout(90_000);
+      newHarnessPage(comparePage);
       await comparePage.goto("about:blank");
       // Under the asymmetric mode the candidate SVG gets its own page in the
       // unflagged browser; otherwise it shares the capture page exactly as
@@ -365,8 +361,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
       if (browsers.asymmetric) {
         rasterContext = await browsers.raster.newContext({ viewport: { width: WIDTH, height: HEIGHT } });
         rasterPage = await rasterContext.newPage();
-        rasterPage.setDefaultTimeout(90_000);
-        rasterPage.setDefaultNavigationTimeout(90_000);
+        newHarnessPage(rasterPage);
         // Give the raster page a `file://` origin ONCE. `setContent` keeps the
         // page's current URL as the document's base, and the candidate markup
         // is `<img src="file://…/<name>.svg">` — from a fresh page's

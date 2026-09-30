@@ -1074,6 +1074,15 @@
         "src/review/side-digest.ts",
         "tests/baselines/README.md",
         "tests/html-test-suite.tsx",
+        "tests/html-test/cache.ts",
+        "tests/html-test/compare-lock.ts",
+        "tests/html-test/evidence.ts",
+        "tests/html-test/index-html.tsx",
+        "tests/html-test/tables.ts",
+        "tests/html-test/worker-pages.ts",
+        "tests/harness-constants.ts",
+        "tests/feature-fixture-state.ts",
+        "tests/review-prefetch-state.ts",
         "tests/output/",
         "tests/runner.tsx",
         "tests/shard-completeness.test.ts",
@@ -4144,6 +4153,22 @@
         "src/render/element-tree-to-svg.ts"
       ],
       "file": "262-text-engine-session-boundary.md"
+    },
+    {
+      "id": "requirements/nine-piece-image-paint",
+      "title": "263 — Shared nine-piece border and mask image paint",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["paint-effects"],
+      "platforms": [],
+      "code": [
+        "src/render/nine-piece.ts",
+        "src/render/nine-piece.test.ts",
+        "src/render/borders.ts",
+        "src/render/mask.ts",
+        "tests/features.ts"
+      ],
+      "file": "263-nine-piece-image-paint.md"
     },
     {
       "id": "handbook/animation-and-interaction",

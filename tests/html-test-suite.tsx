@@ -26,28 +26,22 @@
  * Usage: npx tsx tests/html-test-suite.tsx [--only 07-svg-shapes]
  */
 
-import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type BrowserContext, type Page } from "@playwright/test";
-import { raw } from "kerfjs";
 import {
   isGlyphHelperAvailable,
   profReset,
   profSnapshot,
   getEmbeddedFontBuildDiagnostics,
   resetGeneration,
-  getFixtureTextRunProvenance,
-  resetTextRunProvenance,
-  setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
-import {
-  launchHarnessBrowsers,
-  harnessBrowserNote,
-  captureFlagsCacheToken,
-  expectedCachePlatformDir,
-} from "./harness-browsers.js";
+import { createExpectedCache } from "./html-test/cache.js";
+import { createCompareLock } from "./html-test/compare-lock.js";
+import { parseTextEvidenceSelection, renderWithTextEvidence } from "./html-test/evidence.js";
+import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
@@ -57,7 +51,6 @@ import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { type EmbeddedFontBuildDiagnostic } from "../src/render/font-resolution.js";
 import { type FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
-import { shouldCollectLinuxUnicodeTextEvidence } from "../src/review/linux-unicode-evidence.js";
 import {
   comparePngs,
   MIN_REGION_AREA,
@@ -67,15 +60,15 @@ import {
   type DiffVerdict,
 } from "../src/review/compare-pngs.js";
 import { waitForSettled } from "../src/utils/wait-events.js";
+import { newHarnessPage } from "./harness-constants.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
+import { buildIndexHtml } from "./html-test/index-html.js";
+import { FIXTURE_HEIGHT_OVERRIDES, SKIP_TESTS, ACCEPTED_DIFFS, captureHeightFor } from "./html-test/tables.js";
+import { resetWorkerPages } from "./html-test/worker-pages.js";
 import { parseShardSpec, selectShard } from "./shard.js";
 import { walkHtmlFiles } from "./walk-html-files.js";
 // Untyped .mjs (same pattern as tests importing scripts/run-env.mjs); tsx
 // resolves it at runtime, and tests are outside the tsc include set.
-// @ts-ignore -- no type declarations for the .mjs tool
-import { inventoryDocument } from "../tools/font-inventory.mjs";
-// @ts-ignore -- no type declarations for the .mjs tool
-import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
@@ -116,99 +109,14 @@ const CAPTURE_DPR = Math.max(1, Math.floor(Number(process.env.CAPTURE_DPR) || 1)
 // so the review UI can inspect skipped artifacts; CI / batch sweeps that
 // don't read the review UI can save the per-fixture cost.
 const RENDER_SKIPPED = process.env.RENDER_SKIPPED !== "0" && !process.argv.includes("--no-render-skipped");
+const TEXT_EVIDENCE_SELECTION = parseTextEvidenceSelection(process.env.HTML_TEST_TEXT_EVIDENCE);
 
-// DM-1002: expected.png cache. The expected screenshot is deterministic
-// per (source HTML, viewport, Chromium version). When the cache hits we
-// skip the per-fixture page.screenshot + bodyBg evaluate, copying the
-// cached PNG into expectedPath and reading bodyBg from a sibling JSON
-// meta file. The cache lives under OUTPUT_DIR/.expected-cache/ and is
-// gitignored via the existing `tests/output/` rule.
-//
-// Cache key = sha256(htmlBytes + "|" + WIDTH + "x" + fixtureHeight + "|"
-// + Playwright version). Playwright pins a specific Chromium revision
-// per release, so the package version is a sufficient proxy for "the
-// Chromium that would produce this screenshot."
-// DM-1794: partitioned by the platform whose Chromium took the screenshots —
-// see `expectedCachePlatformDir`. Without it a Linux container run (which
-// mounts this tree read-write) poisons the cache a macOS run then reads.
-const EXPECTED_CACHE_DIR = resolve(OUTPUT_DIR, ".expected-cache", expectedCachePlatformDir());
-const PLAYWRIGHT_VERSION: string = readPlaywrightVersion() ?? "unknown";
-// DM-1013: fold the CAPTURE_SCRIPT bundle hash into the cache key so a
-// bundle rebuild (`npm run build:capture-script`) invalidates every
-// cached tree. Read once at module init.
-function _hashFileOrEmpty(path: string): string {
-  try {
-    return createHash("sha256").update(readFileSync(path)).digest("hex");
-  } catch {
-    return "missing";
-  }
-}
-const CAPTURE_SCRIPT_HASH = _hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/script.generated.ts"));
-// DM-1198: also fold the Node-side post-CAPTURE_SCRIPT tree mutators into the
-// key. `captureElementTreeWithWarnings` rasterizes bitmap glyphs (`emoji.ts`)
-// replaced / mask-source elements (`index.ts`), and decoded background natural
-// sizing (`background-image-sizing.ts`) and pseudo protocol ownership
-// (`pseudo-fragment-cdp.ts`) INTO the tree before it's cached, so a change to
-// those — e.g. the emoji advance-square or file-URL sizing fix —
-// must invalidate the cached tree too. The CAPTURE_SCRIPT bundle hash alone
-// doesn't cover them (they run in Node, not in-page), which silently masked
-// the emoji-size fix behind stale cached 16×16 rects until the cache was
-// cleared by hand.
-const CAPTURE_NODE_HASH = createHash("sha256")
-  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/emoji.ts")))
-  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/index.ts")))
-  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/background-image-sizing.ts")))
-  .update(_hashFileOrEmpty(resolve(PACKAGE_ROOT, "src/capture/pseudo-fragment-cdp.ts")))
-  .digest("hex");
-// DM-1790: and fold the CAPTURE browser's Chromium flags in too. The cached
-// artifact is a screenshot taken by that browser, so a capture-side flag
-// changes it while changing nothing else in the key — a flagged run would
-// otherwise reuse the unflagged PNG and report numbers for a condition it never
-// ran. Empty (and so key-neutral) unless `DOMOTION_CAPTURE_FLAGS` is set.
-// DM-1937: and the host's font-inventory digest. The cached artifact's glyphs
-// are a function of the INSTALLED FONT SET — Chrome's per-codepoint fallback
-// walks it — but the key didn't cover it, so an expected generated under one
-// inventory (before a webfont install, before an OS update) was still served
-// forever after. Locally the cache never expires on its own, which meant local
-// A/Bs were comparing fresh actuals against expecteds of unknown font vintage.
-const FONT_INVENTORY_DIGEST: string = (() => {
-  try {
-    return (inventoryDocument() as { digest: string }).digest;
-  } catch {
-    return "unknown";
-  }
-})();
-function expectedCacheKey(htmlBytes: Buffer, fixtureHeight: number): string {
-  return createHash("sha256")
-    .update(htmlBytes)
-    .update(
-      `|${WIDTH}x${fixtureHeight}@${CAPTURE_DPR}x|${PLAYWRIGHT_VERSION}|${CAPTURE_SCRIPT_HASH}|${CAPTURE_NODE_HASH}|${FONT_INVENTORY_DIGEST}${captureFlagsCacheToken()}`,
-    )
-    .digest("hex");
-}
-function expectedCachePngPath(key: string): string {
-  return resolve(EXPECTED_CACHE_DIR, `${key}.png`);
-}
-function expectedCacheMetaPath(key: string): string {
-  return resolve(EXPECTED_CACHE_DIR, `${key}.json`);
-}
-// DM-1013: cache the raw captured tree + warnings alongside expected.png
-// + bodyBg. On full cache hit, runOneHtmlTest skips the source goto,
-// screenshot, bodyBg evaluate, webfont discovery, AND captureElementTree
-// — the per-fixture bottleneck. The tree is captured BEFORE
-// embedRemoteImages and rasterizeConicGradients (those passes add
-// Buffer data in place; cache cleanly without it and re-run them on
-// cache load).
-interface ExpectedCacheMeta {
-  bodyBg: string;
-  tree?: unknown; // raw element tree from captureElementTreeWithWarnings
-  warnings?: Array<{ selector: string; feature: string; detail: string }>;
-}
-// Cache-hit / cache-miss counters (DM-1002 verification — reported at the
-// end of the run alongside the pass/fail summary so we can confirm the
-// cache is actually firing as expected).
-let _expectedCacheHits = 0;
-let _expectedCacheMisses = 0;
+const expectedCache = createExpectedCache({
+  outputDir: OUTPUT_DIR,
+  packageRoot: PACKAGE_ROOT,
+  width: WIDTH,
+  dpr: CAPTURE_DPR,
+});
 
 // DM-1029: per-step timing instrumentation for a single demo-test run. Opt-in
 // via `DEMO_TIMING=1` so it's zero-overhead in normal CI runs (the `mark()`
@@ -251,780 +159,6 @@ function makeStepTimer() {
   };
 }
 
-/**
- * Per-fixture capture-height overrides for html-test files whose content
- * exceeds the 1024 × 768 default viewport (DM-781). The 768 px default
- * truncated the bottom of fixtures whose content stack was longer than the
- * viewport (e.g. `19-deep-color-mix` at 856 px, `niche-text-box-trim` at
- * 1680 px, `32-real-world-blog-post` at 4216 px); the captured PNG missed
- * sections that the test was actually checking. Generated by a one-time
- * Playwright probe (DM-781) over every `external/html-test/**.html`
- * fixture; the value is `ceil((max element-bottom + 8) / 8) * 8` — i.e.
- * the lowest visible element's bottom edge rounded up to the next 8 px
- * with an 8 px safety buffer.
- *
- * Width is fixed at 1024 px; only height needs overriding. Add a new entry
- * here whenever a fixture grows past the existing height — re-run the
- * probe (see `tools/probe-html-test-heights.mjs`) and copy the row in.
- */
-const FIXTURE_HEIGHT_OVERRIDES: Record<string, number> = {
-  "02-deep-bidi-isolate": 1272,
-  "02-deep-line-breaking": 1064,
-  "02-text-entities": 824,
-  "02-text-symbols": 1752,
-  "03-lists-style-image-position": 896,
-  "03-lists-style-types": 1152,
-  "03-lists-ul-ol": 1240,
-  "04-deep-anonymous-boxes": 1056,
-  "04-deep-border-conflict": 1024,
-  "05-links-anchors": 1792,
-  "06-deep-color-scheme-forms": 1448,
-  "06-deep-field-sizing": 1248,
-  "06-deep-input-baseline": 1072,
-  "06-forms-input-types": 832,
-  "06-forms-style-buttons": 1160,
-  "06-forms-style-fieldset": 1632,
-  "06-forms-style-focus": 1184,
-  "06-forms-style-input-groups": 1144,
-  "06-forms-style-layouts": 2056,
-  "06-forms-style-progress-meter": 1128,
-  "06-forms-style-range": 880,
-  "06-forms-style-select": 1104,
-  "06-forms-style-text-inputs": 1296,
-  "06-forms-style-textarea": 2240,
-  "07-deep-image-rendering": 2568,
-  "07-deep-svg-markers-strokes": 2256,
-  "07-deep-svg-presentation-attrs": 1792,
-  "07-deep-svg-textpath-filters": 1712,
-  "07-deep-svg-use-href": 824,
-  "08-deep-details-accordion": 2304,
-  "08-deep-popover-backdrop": 1240,
-  "09-sectioning-landmarks": 784,
-  "10-deep-attr-quoting": 1256,
-  "10-deep-form-state-pseudos": 2432,
-  "10-deep-has-complex": 1848,
-  "10-deep-nth-of-type": 1960,
-  "10-sel-combinators": 880,
-  "10-sel-pseudo-logical": 896,
-  "10-sel-pseudo-structural": 832,
-  "10-sel-pseudo-ui-state": 912,
-  "11-box-units": 960,
-  "11-deep-box-sizing-mix": 1312,
-  "11-deep-content-visibility": 3136,
-  "11-deep-env-safe-area": 1104,
-  "11-deep-intrinsic-sizing": 1568,
-  "11-deep-margin-collapse-edges": 2336,
-  "11-deep-math-functions": 2744,
-  "11-deep-percent-resolution": 1248,
-  "11-deep-viewport-units": 4112,
-  "12-deep-display-contents": 920,
-  "12-deep-display-syntax": 984,
-  "13-deep-anchor-positioning": 1304,
-  "13-deep-containing-block": 2648,
-  "13-deep-cross-sc-z-index": 1456,
-  "13-deep-fixed-in-transform": 2416,
-  "13-deep-stacking-context-creators": 952,
-  "13-deep-sticky-condensing-header": 1896,
-  "13-deep-sticky-edges": 1376,
-  "13-deep-z-index-flex-grid": 1032,
-  "13-deep-z-index-negative": 1040,
-  "13-pos-fixed": 1576,
-  "13-pos-sticky": 1568,
-  "14-deep-float-bfc": 1320,
-  "14-deep-float-interactions": 1600,
-  "15-deep-flex-aspect-ratio": 1336,
-  "15-deep-flex-baseline": 1136,
-  "15-deep-flex-min-auto": 952,
-  "15-deep-flex-order-vs-z": 920,
-  "15-flex-alignment": 2400,
-  "15-flex-container": 1400,
-  "15-flex-items": 864,
-  "16-deep-grid-baseline": 1160,
-  "16-deep-grid-implicit": 1880,
-  "16-deep-grid-min-max-content": 1216,
-  "16-deep-subgrid-lines": 960,
-  "16-grid-alignment": 2088,
-  "16-grid-auto-flow": 816,
-  "16-grid-template": 824,
-  "17-bg-color-image": 1904,
-  "17-deep-bg-attachment-fixed": 1832,
-  "17-deep-bg-clip-text": 1104,
-  "17-deep-image-set": 1992,
-  "17-deep-sprite-icons": 840,
-  "18-deep-borders-mixed-sides": 1360,
-  "18-deep-decoration-clone": 1648,
-  "18-deep-radius-overflow": 1448,
-  "18-deep-shadow-stacking": 1440,
-  "19-deep-color-mix": 864,
-  "19-deep-color-spaces": 1344,
-  "19-deep-relative-color": 1032,
-  "20-deep-decoration-detail": 1040,
-  "20-deep-first-letter-line": 3680,
-  "20-deep-font-feature-values": 2664,
-  "20-deep-font-features": 1392,
-  "20-deep-font-palette": 1888,
-  "20-deep-hanging-punctuation": 2752,
-  "20-deep-line-box-baselines": 1144,
-  "20-deep-selection-highlight": 2032,
-  "20-deep-tab-size": 2184,
-  "20-deep-text-emphasis": 1576,
-  "20-deep-text-stroke": 2976,
-  "20-deep-text-underline-position": 2240,
-  "20-deep-vertical-align": 1264,
-  "20-deep-wavy-underline-descenders": 1400,
-  "20-deep-writing-mode-mixed": 2096,
-  "20-text-line-spacing": 1016,
-  "20-text-wrapping": 1608,
-  "20-writing-mode": 960,
-  "21-deep-anisotropic-scale": 1248,
-  "21-deep-transform-3d-preserve": 1224,
-  "21-deep-transform-box": 1336,
-  "21-deep-transform-origin": 1064,
-  "21-transform-2d": 1096,
-  "22-backdrop-filter": 840,
-  "22-blend-modes": 1984,
-  "22-deep-blend-groups": 2224,
-  "22-deep-filter-paint-bounds": 2048,
-  "22-deep-filter-stacking": 1512,
-  "22-deep-isolation": 1392,
-  "23-deep-clip-path-shapes": 1520,
-  "23-deep-mask-composite": 1440,
-  "23-deep-mask-fade-edges": 1752,
-  "24-counters": 1128,
-  "24-deep-counter-scope": 1360,
-  "24-deep-counter-style": 3200,
-  "24-deep-initial-letter": 1496,
-  "24-deep-pseudo-shapes": 872,
-  "25-deep-line-clamp": 1424,
-  "25-deep-overflow-auto-positioned": 1352,
-  "25-deep-overflow-clip": 1416,
-  "25-deep-scrollbar-style": 1568,
-  "25-overscroll": 2424,
-  "25-scroll-snap": 1376,
-  "26-deep-forced-colors": 1768,
-  "27-deep-page-margin-boxes": 1520,
-  "27-page": 1328,
-  "28-deep-container-types": 1184,
-  "28-deep-layer-import": 984,
-  "28-deep-nesting-complex": 1344,
-  "28-deep-scope": 1552,
-  "29-deep-layer-priority": 1296,
-  "29-deep-property-registration": 1184,
-  "29-deep-where-is-specificity": 1040,
-  "30-deep-resize-overflow": 1304,
-  "30-resize": 792,
-  "31-deep-inert-hidden": 1760,
-  "31-global-attrs": 784,
-  "32-real-world-blog-post": 4216,
-  "32-real-world-mobile-app-frame": 984,
-  "32-real-world-news-card": 1952,
-  "32-real-world-pricing-table": 1392,
-  "33-columns-basic": 1800,
-  "33-deep-columns-break": 2024,
-  "34-mathml-basic": 1784,
-  "34-mathml-layout": 1632,
-  "niche-align-content-block": 1992,
-  "niche-anchor-position-try": 2480,
-  "niche-command-invokers": 1296,
-  "niche-cross-fade-images": 2472,
-  "niche-css-function-rule": 1384,
-  "niche-if-function": 1144,
-  "niche-logical-clear-caption": 2304,
-  "niche-mask-border": 1792,
-  "niche-reading-flow": 1360,
-  "niche-scroll-markers": 1760,
-  "niche-scroll-state-queries": 1584,
-  "niche-select-customizable": 808,
-  "niche-shadow-dom-declarative": 1256,
-  "niche-style-queries": 1808,
-  "niche-svg-view-switch": 1944,
-  "niche-text-box-trim": 1680,
-  "niche-webkit-box-reflect": 1480,
-  "niche-zoom-text-rendering": 2112,
-
-  // Per-Unicode-block sweep fixtures (`../html-test/unicode/*.html`,
-  // surfaced via `npm run demos:test:unicode`). Names start with the
-  // hex codepoint range so they do not collide with the html-test
-  // entries above. Pre-chunked fixtures use a `.N` suffix on disk to
-  // keep each rendered page under ~1700 px (the user maintains the
-  // unicode checkout separately and splits giant codepoint grids by
-  // hand into N sequential pages). Regenerate this block via
-  // `node tools/probe-html-test-heights.mjs ../html-test/unicode`.
-  "0100-017F-latin-extended-a": 920,
-  "0180-024F-latin-extended-b": 1392,
-  "0300-036F-combining-diacritical-marks": 840,
-  "0370-03FF-greek-and-coptic": 1000,
-  "0400-04FF-cyrillic": 1704,
-  "0600-06FF-arabic": 1704,
-  "0900-097F-devanagari": 920,
-  "0D00-0D7F-malayalam": 920,
-  "0F00-0FFF-tibetan": 1464,
-  "1000-109F-myanmar": 1152,
-  "10080-100FF-linear-b-ideograms": 920,
-  "10600-1077F-linear-a.0": 1704,
-  "10C80-10CFF-old-hungarian": 840,
-  "1100-11FF-hangul-jamo": 1704,
-  "11000-1107F-brahmi": 840,
-  "1200-137F-ethiopic.0": 1704,
-  "12000-123FF-cuneiform.0": 1704,
-  "12000-123FF-cuneiform.1": 1704,
-  "12000-123FF-cuneiform.2": 1704,
-  "12000-123FF-cuneiform.3": 1000,
-  "12400-1247F-cuneiform-numbers-and-punctuation": 840,
-  "12480-1254F-early-dynastic-cuneiform": 1392,
-  "13000-1342F-egyptian-hieroglyphs.0": 1704,
-  "13000-1342F-egyptian-hieroglyphs.1": 1704,
-  "13000-1342F-egyptian-hieroglyphs.2": 1704,
-  "13000-1342F-egyptian-hieroglyphs.3": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.0": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.1": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.10": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.11": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.12": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.13": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.14": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.2": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.3": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.4": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.5": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.6": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.7": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.8": 1704,
-  "13460-143FF-egyptian-hieroglyphs-extended-a.9": 1704,
-  "1400-167F-unified-canadian-aboriginal-syllabics.0": 1704,
-  "1400-167F-unified-canadian-aboriginal-syllabics.1": 1704,
-  "1400-167F-unified-canadian-aboriginal-syllabics.2": 920,
-  "14400-1467F-anatolian-hieroglyphs.0": 1704,
-  "14400-1467F-anatolian-hieroglyphs.1": 1704,
-  "16800-16A3F-bamum-supplement.0": 1704,
-  "16800-16A3F-bamum-supplement.1": 1704,
-  "16B00-16B8F-pahawh-hmong": 920,
-  "16F00-16F9F-miao": 1080,
-  "17000-187FF-tangut.0": 1704,
-  "17000-187FF-tangut.1": 1704,
-  "17000-187FF-tangut.10": 1704,
-  "17000-187FF-tangut.11": 1704,
-  "17000-187FF-tangut.12": 1704,
-  "17000-187FF-tangut.13": 1704,
-  "17000-187FF-tangut.14": 1704,
-  "17000-187FF-tangut.15": 1704,
-  "17000-187FF-tangut.16": 1704,
-  "17000-187FF-tangut.17": 1704,
-  "17000-187FF-tangut.18": 1704,
-  "17000-187FF-tangut.19": 1704,
-  "17000-187FF-tangut.2": 1704,
-  "17000-187FF-tangut.20": 1704,
-  "17000-187FF-tangut.21": 1704,
-  "17000-187FF-tangut.22": 1704,
-  "17000-187FF-tangut.23": 1080,
-  "17000-187FF-tangut.3": 1704,
-  "17000-187FF-tangut.4": 1704,
-  "17000-187FF-tangut.5": 1704,
-  "17000-187FF-tangut.6": 1704,
-  "17000-187FF-tangut.7": 1704,
-  "17000-187FF-tangut.8": 1704,
-  "17000-187FF-tangut.9": 1704,
-  "1780-17FF-khmer": 840,
-  "1800-18AF-mongolian": 1152,
-  "18800-18AFF-tangut-components.0": 1704,
-  "18800-18AFF-tangut-components.1": 1704,
-  "18800-18AFF-tangut-components.2": 1704,
-  "18B00-18CFF-khitan-small-script.0": 1704,
-  "18B00-18CFF-khitan-small-script.1": 1464,
-  "1A20-1AAF-tai-tham": 920,
-  "1B00-1B7F-balinese": 920,
-  "1B000-1B0FF-kana-supplement": 1704,
-  "1B170-1B2FF-nushu.0": 1704,
-  "1B170-1B2FF-nushu.1": 1000,
-  "1BC00-1BC9F-duployan": 1000,
-  "1CC00-1CEBF-symbols-for-legacy-computing-supplement.0": 1704,
-  "1CC00-1CEBF-symbols-for-legacy-computing-supplement.1": 1704,
-  "1CC00-1CEBF-symbols-for-legacy-computing-supplement.2": 1152,
-  "1CF00-1CFCF-znamenny-musical-notation": 1312,
-  "1D00-1D7F-phonetic-extensions": 920,
-  "1D000-1D0FF-byzantine-musical-symbols": 1624,
-  "1D100-1D1FF-musical-symbols": 1544,
-  "1D400-1D7FF-mathematical-alphanumeric-symbols.0": 1704,
-  "1D400-1D7FF-mathematical-alphanumeric-symbols.1": 1704,
-  "1D400-1D7FF-mathematical-alphanumeric-symbols.2": 1704,
-  "1D400-1D7FF-mathematical-alphanumeric-symbols.3": 1464,
-  "1D800-1DAAF-sutton-signwriting.0": 1704,
-  "1D800-1DAAF-sutton-signwriting.1": 1704,
-  "1D800-1DAAF-sutton-signwriting.2": 1080,
-  "1E00-1EFF-latin-extended-additional": 1704,
-  "1E800-1E8DF-mende-kikakui": 1464,
-  "1EE00-1EEFF-arabic-mathematical-alphabetic-symbols": 1000,
-  "1F00-1FFF-greek-extended": 1544,
-  "1F100-1F1FF-enclosed-alphanumeric-supplement": 1392,
-  "1F300-1F5FF-miscellaneous-symbols-and-pictographs.0": 1704,
-  "1F300-1F5FF-miscellaneous-symbols-and-pictographs.1": 1704,
-  "1F300-1F5FF-miscellaneous-symbols-and-pictographs.2": 1704,
-  "1F680-1F6FF-transport-and-map-symbols": 920,
-  "1F700-1F77F-alchemical-symbols": 920,
-  "1F800-1F8FF-supplemental-arrows-c": 1152,
-  "1F900-1F9FF-supplemental-symbols-and-pictographs": 1704,
-  "1FA70-1FAFF-symbols-and-pictographs-extended-a": 840,
-  "1FB00-1FBFF-symbols-for-legacy-computing": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.0": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.1": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.10": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.100": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.101": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.102": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.103": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.104": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.105": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.106": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.107": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.108": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.109": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.11": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.110": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.111": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.112": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.113": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.114": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.115": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.116": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.117": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.118": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.119": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.12": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.120": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.121": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.122": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.123": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.124": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.125": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.126": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.127": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.128": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.129": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.13": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.130": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.131": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.132": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.133": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.134": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.135": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.136": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.137": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.138": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.139": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.14": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.140": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.141": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.142": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.143": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.144": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.145": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.146": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.147": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.148": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.149": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.15": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.150": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.151": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.152": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.153": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.154": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.155": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.156": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.157": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.158": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.159": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.16": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.160": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.161": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.162": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.163": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.17": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.18": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.19": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.2": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.20": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.21": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.22": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.23": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.24": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.25": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.26": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.27": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.28": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.29": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.3": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.30": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.31": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.32": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.33": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.34": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.35": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.36": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.37": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.38": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.39": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.4": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.40": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.41": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.42": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.43": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.44": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.45": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.46": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.47": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.48": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.49": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.5": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.50": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.51": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.52": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.53": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.54": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.55": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.56": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.57": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.58": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.59": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.6": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.60": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.61": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.62": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.63": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.64": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.65": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.66": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.67": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.68": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.69": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.7": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.70": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.71": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.72": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.73": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.74": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.75": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.76": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.77": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.78": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.79": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.8": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.80": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.81": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.82": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.83": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.84": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.85": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.86": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.87": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.88": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.89": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.9": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.90": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.91": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.92": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.93": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.94": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.95": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.96": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.97": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.98": 1704,
-  "20000-2A6DF-cjk-unified-ideographs-extension-b.99": 1704,
-  "2190-21FF-arrows": 840,
-  "2200-22FF-mathematical-operators": 1704,
-  "2300-23FF-miscellaneous-technical": 1704,
-  "2460-24FF-enclosed-alphanumerics": 1152,
-  "2500-257F-box-drawing": 920,
-  "2600-26FF-miscellaneous-symbols": 1704,
-  "2700-27BF-dingbats": 1312,
-  "2800-28FF-braille-patterns": 1704,
-  "2900-297F-supplemental-arrows-b": 920,
-  "2980-29FF-miscellaneous-mathematical-symbols-b": 920,
-  "2A00-2AFF-supplemental-mathematical-operators": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.0": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.1": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.10": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.11": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.12": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.13": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.14": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.15": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.2": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.3": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.4": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.5": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.6": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.7": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.8": 1704,
-  "2A700-2B73F-cjk-unified-ideographs-extension-c.9": 1704,
-  "2B00-2BFF-miscellaneous-symbols-and-arrows": 1720,
-  "2B740-2B81F-cjk-unified-ideographs-extension-d": 1544,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.0": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.1": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.10": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.11": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.12": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.13": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.14": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.15": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.16": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.17": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.18": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.19": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.2": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.20": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.21": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.3": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.4": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.5": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.6": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.7": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.8": 1704,
-  "2B820-2CEAF-cjk-unified-ideographs-extension-e.9": 1704,
-  "2C80-2CFF-coptic": 920,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.0": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.1": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.10": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.11": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.12": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.13": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.14": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.15": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.16": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.17": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.18": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.19": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.2": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.20": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.21": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.22": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.23": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.24": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.25": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.26": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.27": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.28": 1312,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.3": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.4": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.5": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.6": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.7": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.8": 1704,
-  "2CEB0-2EBEF-cjk-unified-ideographs-extension-f.9": 1704,
-  "2E80-2EFF-cjk-radicals-supplement": 840,
-  "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.0": 1704,
-  "2EBF0-2EE5F-cjk-unified-ideographs-extension-i.1": 1704,
-  "2F00-2FDF-kangxi-radicals": 1464,
-  "2F800-2FA1F-cjk-compatibility-ideographs-supplement.0": 1704,
-  "2F800-2FA1F-cjk-compatibility-ideographs-supplement.1": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.0": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.1": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.10": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.11": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.12": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.13": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.14": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.15": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.16": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.17": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.18": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.2": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.3": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.4": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.5": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.6": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.7": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.8": 1704,
-  "30000-3134F-cjk-unified-ideographs-extension-g.9": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.0": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.1": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.10": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.11": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.12": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.13": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.14": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.15": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.2": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.3": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.4": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.5": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.6": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.7": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.8": 1704,
-  "31350-323AF-cjk-unified-ideographs-extension-h.9": 1704,
-  "3200-32FF-enclosed-cjk-letters-and-months": 1720,
-  "3300-33FF-cjk-compatibility": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.0": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.1": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.10": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.11": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.12": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.13": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.14": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.15": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.16": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.17": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.18": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.19": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.2": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.20": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.21": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.22": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.23": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.24": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.3": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.4": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.5": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.6": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.7": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.8": 1704,
-  "3400-4DBF-cjk-unified-ideographs-extension-a.9": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.0": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.1": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.10": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.11": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.12": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.13": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.14": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.15": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.16": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.17": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.18": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.19": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.2": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.20": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.21": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.22": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.23": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.24": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.25": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.26": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.27": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.28": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.29": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.3": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.30": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.31": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.32": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.33": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.34": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.35": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.36": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.37": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.38": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.39": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.4": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.40": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.41": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.42": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.43": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.44": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.45": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.46": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.47": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.48": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.49": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.5": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.50": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.51": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.52": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.53": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.54": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.55": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.56": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.57": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.58": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.59": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.6": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.60": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.61": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.62": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.63": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.64": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.65": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.66": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.67": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.68": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.69": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.7": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.70": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.71": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.72": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.73": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.74": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.75": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.76": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.77": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.78": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.79": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.8": 1704,
-  "4E00-9FFF-cjk-unified-ideographs.80": 1312,
-  "4E00-9FFF-cjk-unified-ideographs.9": 1704,
-  "A000-A48F-yi-syllables.0": 1704,
-  "A000-A48F-yi-syllables.1": 1704,
-  "A000-A48F-yi-syllables.2": 1704,
-  "A000-A48F-yi-syllables.3": 1704,
-  "A000-A48F-yi-syllables.4": 920,
-  "A500-A63F-vai.0": 1704,
-  "A720-A7FF-latin-extended-d": 1392,
-  "AC00-D7AF-hangul-syllables.0": 1704,
-  "AC00-D7AF-hangul-syllables.1": 1704,
-  "AC00-D7AF-hangul-syllables.10": 1704,
-  "AC00-D7AF-hangul-syllables.11": 1704,
-  "AC00-D7AF-hangul-syllables.12": 1704,
-  "AC00-D7AF-hangul-syllables.13": 1704,
-  "AC00-D7AF-hangul-syllables.14": 1704,
-  "AC00-D7AF-hangul-syllables.15": 1704,
-  "AC00-D7AF-hangul-syllables.16": 1704,
-  "AC00-D7AF-hangul-syllables.17": 1704,
-  "AC00-D7AF-hangul-syllables.18": 1704,
-  "AC00-D7AF-hangul-syllables.19": 1704,
-  "AC00-D7AF-hangul-syllables.2": 1704,
-  "AC00-D7AF-hangul-syllables.20": 1704,
-  "AC00-D7AF-hangul-syllables.21": 1704,
-  "AC00-D7AF-hangul-syllables.22": 1704,
-  "AC00-D7AF-hangul-syllables.23": 1704,
-  "AC00-D7AF-hangul-syllables.24": 1704,
-  "AC00-D7AF-hangul-syllables.25": 1704,
-  "AC00-D7AF-hangul-syllables.26": 1704,
-  "AC00-D7AF-hangul-syllables.27": 1704,
-  "AC00-D7AF-hangul-syllables.28": 1704,
-  "AC00-D7AF-hangul-syllables.29": 1704,
-  "AC00-D7AF-hangul-syllables.3": 1704,
-  "AC00-D7AF-hangul-syllables.30": 1704,
-  "AC00-D7AF-hangul-syllables.31": 1704,
-  "AC00-D7AF-hangul-syllables.32": 1704,
-  "AC00-D7AF-hangul-syllables.33": 1704,
-  "AC00-D7AF-hangul-syllables.34": 1704,
-  "AC00-D7AF-hangul-syllables.35": 1704,
-  "AC00-D7AF-hangul-syllables.36": 1704,
-  "AC00-D7AF-hangul-syllables.37": 1704,
-  "AC00-D7AF-hangul-syllables.38": 1704,
-  "AC00-D7AF-hangul-syllables.39": 1704,
-  "AC00-D7AF-hangul-syllables.4": 1704,
-  "AC00-D7AF-hangul-syllables.40": 1704,
-  "AC00-D7AF-hangul-syllables.41": 1704,
-  "AC00-D7AF-hangul-syllables.42": 1704,
-  "AC00-D7AF-hangul-syllables.5": 1704,
-  "AC00-D7AF-hangul-syllables.6": 1704,
-  "AC00-D7AF-hangul-syllables.7": 1704,
-  "AC00-D7AF-hangul-syllables.8": 1704,
-  "AC00-D7AF-hangul-syllables.9": 1704,
-  "E0100-E01EF-variation-selectors-supplement": 1624,
-  "F900-FAFF-cjk-compatibility-ideographs.0": 1704,
-  "F900-FAFF-cjk-compatibility-ideographs.1": 1464,
-  "FB50-FDFF-arabic-presentation-forms-a.0": 1704,
-  "FB50-FDFF-arabic-presentation-forms-a.1": 1704,
-  "FB50-FDFF-arabic-presentation-forms-a.2": 840,
-  "FE70-FEFF-arabic-presentation-forms-b": 1000,
-  "FF00-FFEF-halfwidth-and-fullwidth-forms": 1544,
-};
-
-/** Effective capture height for a fixture: the override when one exists,
- *  otherwise the 768 px default. */
-function captureHeightFor(name: string): number {
-  return FIXTURE_HEIGHT_OVERRIDES[name] ?? HEIGHT;
-}
-
 /** Human-friendly compact wall-clock duration (e.g. `12s`, `4m32s`,
  *  `1h12m`). Used in the per-result progress indicator so the elapsed /
  *  ETA pair stays narrow next to the fixture name. */
@@ -1042,160 +176,7 @@ function formatDuration(ms: number): string {
 // runner via tests/compare-pngs.ts (DM-383). PASS_THRESHOLD_NON_AA_PIXELS,
 // TILE_PX, and SIGNIFICANT_PIXEL_DIST are imported above.
 
-/**
- * Tests intentionally deferred because the feature has no SVG equivalent or
- * requires a future refactor tracked by a dedicated ticket. Skipped tests
- * still render (so the artifacts exist for manual inspection) but don't count
- * against the pass/fail tally.
- */
-const SKIP_TESTS: Record<string, string> = {
-  "21-transform-3d": "CSS transforms deferred in SK-435 (layout-coord refactor needed)",
-  "21-deep-transform-3d-preserve":
-    "preserve-3d cube composition deferred in SK-435 (same territory as 21-transform-3d)",
-  "27-page": "@page rules are print-media only, not relevant to static screen capture",
-  // DM-725: `-webkit-box-reflect` paints a mirrored copy of the element box
-  // below / above / left / right of itself. SVG has no direct equivalent —
-  // would need a `<filter>` chain with feGaussianBlur + feImage or a
-  // duplicated subtree with transform-flip + opacity gradient. Author note
-  // says "skip for now".
-  "niche-webkit-box-reflect":
-    "DM-725: -webkit-box-reflect has no direct SVG equivalent; user-flagged for skip until we ship a duplicated-subtree + gradient-mask approach",
-};
-
-/**
- * Tests whose remaining diff vs Chrome is below the bar for a real fidelity
- * bug — typically text-antialiasing scatter, sub-pixel layout shifts, or
- * minor glyph-shape differences that the diff harness still picks up as
- * regions but a human reviewer has signed off as "looks correct". Entries
- * here count as PASS in the suite summary; the diff regions are still
- * recorded so a regression that breaks something NEW shows up in the
- * runner's region count. The value is a one-line justification — usually
- * the ticket id where the rendering was reviewed.
- */
-const ACCEPTED_DIFFS: Record<string, string> = {
-  // DM-1019: Supplemental Arrows-C (U+1F800–1F8FF) — the arrows render via the
-  // primary-`.notdef` / fallback chain; residual diff is glyph-shape /
-  // antialiasing scatter on arrow forms the macOS fallback fonts draw slightly
-  // differently from Chrome's painted output. Reviewed visually; accepted as a
-  // stable baseline per maintainer.
-  "1F800-1F8FF-supplemental-arrows-c":
-    "DM-1019: arrows render; residual diff is fallback arrow-glyph shape / antialiasing scatter — accepted baseline",
-  // DM-1027: lone combining diacritical marks (U+0300–036F) now capture +
-  // render (the zero-advance-width cells were being dropped by the capture's
-  // zero-sized-element filter; fixed so a zero-WIDTH element with inked text +
-  // non-zero height is kept). Expected vs actual are visually identical; the
-  // residual ~0.04% is antialiasing scatter on the thin 1–2px mark strokes.
-  "0300-036F-combining-diacritical-marks":
-    "DM-1027: marks now render at Chrome's positions; residual is sub-pixel antialiasing scatter on the thin marks — accepted baseline",
-  // DM-1039: writing-mode + mixed-scripts + tate-chu-yoko. All seven vertical
-  // blocks render structurally correct after DM-1024 (per-glyph baseline/ascent
-  // drift) and DM-1032 (tate-chu-yoko `text-combine-upright` digit cells, now
-  // zero-diff). The remaining ~0.13% / ~21 regions is text-rasterization scatter
-  // on the dense upright CJK ideographs: a per-cell ink-bbox probe (本/文/縦/書)
-  // showed expected and actual ink land at the SAME position (e.g. 本/縦 both
-  // trim to +3+2), so there is no baseline/centering offset to fix — the diff is
-  // uniform faint glyph-edge ghosting (Chrome's Skia raster vs our glyph
-  // outlines), the same antialiasing class the rest of the suite carries, just
-  // multiplied by the many stroke-edges of CJK so the region COUNT (not the area)
-  // trips the verdict. Reviewed visually + quantitatively; accepted baseline.
-  "20-deep-writing-mode-mixed":
-    "DM-1039: vertical writing-mode + tate-chu-yoko render correct (DM-1024 + DM-1032); ink positions match Chrome per-glyph, residual is CJK-glyph antialiasing scatter — accepted baseline",
-  // DM-1025: Misc Symbols (U+2600-26FF) — the dominant diff (zodiac signs + ☔
-  // etc. wrongly painted as color emoji) is fixed: renderer-owned fallback
-  // selects the declared Apple Symbols face first and inspects its actual glyph
-  // representation, so the monochrome outline remains vector-owned.
-  // Residual ~0.10% is minor per-symbol glyph-shape on a handful of cells
-  // (e.g. ☂ U+2602, the dice faces) where the macOS fallback font draws a
-  // slightly different monochrome glyph than Chrome — a per-codepoint routing
-  // nuance, not the emoji-presentation bug. Accepted as a stable baseline.
-  "2600-26FF-miscellaneous-symbols":
-    "DM-1025: emoji-vs-text presentation fixed (1.32% -> 0.10%); residual is minor monochrome glyph-shape on a few symbols — accepted baseline",
-  // DM-774: paint-order test renders the seven nested layers in the correct
-  // back-to-front order with correct colors / geometry; the residual diff is
-  // text antialiasing + arrow-glyph substitution in the header / caption
-  // paragraphs only. Reviewed visually; accepted as a stable baseline.
-  "13-deep-stacking-paint-order":
-    "DM-774: text antialiasing + arrow-glyph substitution only; geometry / paint order are correct",
-  // DM-771: <select> single-choice / optgroup / size=N listbox / multiple
-  // listbox all render with correct UA chrome (chevrons, item rows,
-  // selected-row highlight). Residual diff is text-baseline antialiasing
-  // scatter on the option rows + the closed-dropdown's chevron column.
-  // Reviewed visually; accepted.
-  "06-forms-select":
-    "DM-771: <select> UA chrome correct; residual diff is text-baseline antialiasing scatter on option rows",
-  // DM-772: overflow visible / hidden / scroll / auto / clip / x/y test —
-  // all six boxes paint their content with the correct clip behavior.
-  // Residual diff is text-baseline antialiasing scatter inside each box.
-  // Reviewed visually; accepted.
-  "25-overflow-values":
-    "DM-772: clip behavior correct on all six boxes; residual diff is text-baseline antialiasing scatter",
-  // DM-760: the original "text covered" issue (a gray rectangle obscuring
-  // the middle of the Pass-criteria paragraph) is fixed by the DM-721
-  // inline `box-decoration-break` work + DM-781 height override — the
-  // paragraph + inline `<code>` chips now wrap and paint correctly.
-  // Residual diff is text-baseline antialiasing on the paragraph + a
-  // sub-pixel padding shift on the wrapping `<code>:user-invalid</code>`
-  // span. Reviewed visually; accepted.
-  "10-deep-form-state-pseudos":
-    "DM-760: paragraph text + inline code chips render correctly; residual diff is antialiasing + sub-pixel wrap padding",
-  // DM-757: SVG markers + curve with directional marker + stroke
-  // dasharray / dashoffset / linecap / linejoin / miterlimit + paint-order
-  // + vector-effect: non-scaling-stroke + nested <svg> viewBox all render
-  // correctly to the eye. Residual diff is text-baseline antialiasing on
-  // the Pass-criteria paragraph and inline `<code>` annotations only.
-  // Reviewed visually; accepted.
-  "07-deep-svg-markers-strokes":
-    "DM-757: SVG marker / stroke / paint-order rendering correct; residual diff is text antialiasing on the caption paragraph",
-  // DM-763: @container scroll-state(snapped / stuck) styling test —
-  // sticky headers, snap-target highlights, and section colorations all
-  // render correctly. Residual diff is text antialiasing on labels.
-  "niche-scroll-state-queries":
-    "DM-763: scroll-state container queries render correctly; residual diff is text antialiasing",
-  // DM-748: Basic <table> with <caption> / <thead> / <tbody> / <tfoot> /
-  // <th scope=…>. All grid lines, header bolding, and column-scoped header
-  // emphasis paint correctly. Residual diff is text antialiasing inside
-  // the table cells.
-  "04-table-basic": "DM-748: <table> grid + caption + scope cells render correctly; residual diff is text antialiasing",
-  // DM-744: `font-stretch` keyword + percentage scale. SF Pro's stretch
-  // axis is driven correctly by the captured font-variation-settings; the
-  // Hamburgefontsiv samples render at the requested stretches. Residual
-  // diff is text antialiasing on the wide-axis variants.
-  "20-font-stretch":
-    "DM-744: font-stretch keyword / percentage map correctly; residual diff is text antialiasing on the variant samples",
-  // DM-743: <meta> tags page — purely informational; no visible boxes /
-  // shapes / images. Residual diff is text antialiasing on the descriptor
-  // labels and their values.
-  "01-structure-meta":
-    "DM-743: meta-tag fixture renders correctly; residual diff is text antialiasing on the descriptor labels",
-  // DM-742: `scrollbar-gutter: stable / both-edges` reserve-the-scrollbar
-  // pattern. The reserved-gutter padding shows on the static layout
-  // correctly (boxes with no overflow still reserve the scrollbar gutter,
-  // boxes with overflow paint content inside the gutter). Residual diff
-  // is text antialiasing inside the labeled boxes.
-  "25-scrollbar-gutter":
-    "DM-742: scrollbar-gutter reserve behavior correct; residual diff is text antialiasing inside the demo boxes",
-  // DM-735: font-family generics test — serif / sans-serif / monospace /
-  // cursive / fantasy / system-ui / ui-* / math / emoji / fangsong samples
-  // resolve to the right system font on macOS. Fallback stack chain ("DoesNotExist",
-  // Georgia, "Times New Roman", serif) demonstrates the chain falls through
-  // to Georgia / serif as expected. Residual diff is text antialiasing.
-  "20-font-family":
-    "DM-735: font-family generics + fallback chain resolve correctly; residual diff is text antialiasing",
-  // DM-734: line-height / letter-spacing / word-spacing keyword + length +
-  // percentage + unitless. Sample paragraphs render with correct spacing
-  // and the inline labels show the active value. Residual diff is text
-  // antialiasing on the labels and demonstrators.
-  "20-text-line-spacing":
-    "DM-734: line-height / letter-spacing / word-spacing values render correctly; residual diff is text antialiasing",
-  // DM-733: text-align (left / right / center / justify / start / end with
-  // RTL + last-line keywords) aligns correctly to spec; minor sub-pixel
-  // shifting on the justify variant + RTL start-as-right diff is below the
-  // bar for a fidelity bug. User-signed-off as a baseline.
-  "20-text-align":
-    "DM-733: text-align variants align correctly; residual diff is sub-pixel shifting on justify + RTL labels",
-};
-
-interface TestResult {
+export interface TestResult {
   name: string;
   category: string;
   /** Count of pixels that differ between expected and actual AND are not
@@ -1370,21 +351,6 @@ interface HtmlTestWorker {
   seq: number;
 }
 
-async function resetWorkerPages(worker: HtmlTestWorker): Promise<void> {
-  await worker.page.close().catch(() => undefined);
-  worker.page = await worker.context.newPage();
-  worker.page.setDefaultTimeout(90_000);
-  worker.page.setDefaultNavigationTimeout(90_000);
-  if (worker.rasterContext == null) {
-    worker.rasterPage = worker.page;
-    return;
-  }
-  await worker.rasterPage.close().catch(() => undefined);
-  worker.rasterPage = await worker.rasterContext.newPage();
-  worker.rasterPage.setDefaultTimeout(90_000);
-  worker.rasterPage.setDefaultNavigationTimeout(90_000);
-}
-
 // DM-1006: one comparePage shared across all workers. The N-workers-each-
 // owning-their-own-comparePage approach burned ~80 MB of Chromium memory
 // per worker for a resource that's idle most of the time (each comparePngs
@@ -1393,24 +359,8 @@ async function resetWorkerPages(worker: HtmlTestWorker): Promise<void> {
 // throughput stays within 10% of the prior parallel-compare setup since
 // the per-worker render work (the actual bottleneck) keeps running while
 // one worker holds the compare lock.
-let sharedComparePage: Page | null = null;
-let compareMutex: Promise<void> = Promise.resolve();
-async function withCompareLock<T>(fn: (page: Page) => Promise<T>): Promise<T> {
-  if (sharedComparePage == null) {
-    throw new Error("withCompareLock called before sharedComparePage was initialised");
-  }
-  const prev = compareMutex;
-  let release: () => void = () => {};
-  compareMutex = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await prev;
-  try {
-    return await fn(sharedComparePage);
-  } finally {
-    release();
-  }
-}
+const compareLock = createCompareLock<Page>();
+const withCompareLock = compareLock.withCompareLock;
 
 async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResult> {
   // DM-714: `file` is a relative path under HTML_TEST_DIR (e.g. `01-foo.html`
@@ -1540,33 +490,17 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // normal against it. The actual-render half still needs the SVG
     // navigation (no way around that — it's how we render the SVG).
     const srcBytes = readFileSync(srcPath);
-    const cacheKey = expectedCacheKey(srcBytes, fixtureHeight);
-    const cachedPng = expectedCachePngPath(cacheKey);
-    const cachedMeta = expectedCacheMetaPath(cacheKey);
+    const cacheKey = expectedCache.key(srcBytes, fixtureHeight);
     let cap: { tree: unknown[]; warnings: Array<{ selector: string; feature: string; detail: string }> } | null = null;
-    // Targeted descriptor evidence must come from this run's live browser;
-    // cached trees have neither per-cell Range geometry nor CDP face records.
-    const requiresLiveUnicodeEvidence = name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
-    if (!requiresLiveUnicodeEvidence && existsSync(cachedPng) && existsSync(cachedMeta)) {
-      try {
-        const meta = JSON.parse(readFileSync(cachedMeta, "utf-8")) as ExpectedCacheMeta;
-        if (meta.tree != null) {
-          copyFileSync(cachedPng, expectedPath);
-          bodyBg = meta.bodyBg;
-          cap = { tree: meta.tree as unknown[], warnings: meta.warnings ?? [] };
-          capWarnings = cap.warnings;
-          expectedFromCache = true;
-          _expectedCacheHits++;
-        } else {
-          // Old DM-1002 cache entry without tree — treat as miss so we
-          // re-capture and overwrite with the tree-bearing version.
-          _expectedCacheMisses++;
-        }
-      } catch {
-        _expectedCacheMisses++;
-      }
-    } else {
-      _expectedCacheMisses++;
+    // Targeted descriptor evidence must come from this run's live browser.
+    const requiresLiveUnicodeEvidence = TEXT_EVIDENCE_SELECTION?.fixture === name;
+    const meta = requiresLiveUnicodeEvidence ? null : expectedCache.read(cacheKey, expectedPath);
+    if (requiresLiveUnicodeEvidence) expectedCache.stats.misses++;
+    if (meta?.tree != null) {
+      bodyBg = meta.bodyBg;
+      cap = { tree: meta.tree as unknown[], warnings: meta.warnings ?? [] };
+      capWarnings = cap.warnings;
+      expectedFromCache = true;
     }
 
     timer.mark("cache-check");
@@ -1625,7 +559,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
         await session.send("CSS.enable");
         const { root } = await session.send("DOM.getDocument", { depth: 1 });
         const merged = new Map<string, number>();
-        const collectCellEvidence = name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
+        const collectCellEvidence = TEXT_EVIDENCE_SELECTION?.fixture === name;
         if (collectCellEvidence) sourceDiagnosticCells = [];
         for (let i = 0; i < Math.min(leafCount, PROBE_CAP); i++) {
           const { nodeId } = await session.send("DOM.querySelector", {
@@ -1708,18 +642,8 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       capWarnings = cap.warnings;
       timer.mark("capture-tree");
 
-      // Populate the cache for next time (DM-1002 + DM-1013). Best-effort
-      // — a cache write failure doesn't fail the test, the next run just
-      // re-renders. Write happens BEFORE embedRemoteImages /
-      // rasterizeConicGradients so the serialized tree stays small (those
-      // passes mutate cap.tree in place with Buffer / dataURI data).
-      try {
-        mkdirSync(EXPECTED_CACHE_DIR, { recursive: true });
-        copyFileSync(expectedPath, cachedPng);
-        writeFileSync(cachedMeta, JSON.stringify({ bodyBg, tree: cap.tree, warnings: cap.warnings }));
-      } catch {
-        /* ignore */
-      }
+      // Cache before later mutating passes so the serialized tree stays small.
+      expectedCache.write(cacheKey, expectedPath, { bodyBg, tree: cap.tree, warnings: cap.warnings });
       timer.mark("cache-write");
     }
     // DM-512: demos always emit self-contained SVGs.
@@ -1739,33 +663,13 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // is worker-cumulative and a workerSeq subtraction is required to guess
     // which subset belonged to this row.
     resetGeneration();
-    const collectTextEvidence =
-      (process.platform === "linux" && shouldCollectLinuxUnicodeTextEvidence(name)) ||
-      name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111";
-    if (collectTextEvidence) {
-      resetTextRunProvenance();
-      setTextRunProvenanceEnabled(true);
-    }
-    let svgContent: string;
-    try {
-      svgContent = elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight);
-      if (collectTextEvidence) {
-        textRunEvidence = getFixtureTextRunProvenance(name);
-        if (name === "20000-2A6DF-cjk-unified-ideographs-extension-b.111") {
-          textRunEvidence.runs = textRunEvidence.runs.filter((run) =>
-            [...run.sourceText].some((character) => {
-              const cp = character.codePointAt(0)!;
-              return cp >= 0x270ef && cp <= 0x270f4;
-            }),
-          );
-          textRunEvidence.runs.forEach((run, row) => {
-            run.row = row;
-          });
-        }
-      }
-    } finally {
-      if (collectTextEvidence) setTextRunProvenanceEnabled(false);
-    }
+    const textRender = renderWithTextEvidence(
+      name,
+      () => elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight),
+      TEXT_EVIDENCE_SELECTION,
+    );
+    const svgContent = textRender.result;
+    textRunEvidence = textRender.evidence;
     embeddedFontBuilds = getEmbeddedFontBuildDiagnostics();
     const renderProf = DEMO_TIMING ? profSnapshot() : {};
     const xlinkAttr = svgContent.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
@@ -2015,10 +919,10 @@ async function main(): Promise<void> {
   // Set up once here, torn down after the pool finishes; the per-call mutex
   // (`withCompareLock`) serializes access so workers don't race on it.
   const sharedCompareContext = await browser.newContext({ viewport: { width: WIDTH * 2, height: HEIGHT } });
-  sharedComparePage = await sharedCompareContext.newPage();
-  sharedComparePage.setDefaultTimeout(90_000);
-  sharedComparePage.setDefaultNavigationTimeout(90_000);
+  const sharedComparePage = await sharedCompareContext.newPage();
+  newHarnessPage(sharedComparePage);
   await sharedComparePage.goto("about:blank");
+  compareLock.setPage(sharedComparePage);
 
   // DM-1937: monotonically assigned worker ids so results can record execution
   // order per worker (`worker` / `workerSeq`).
@@ -2033,8 +937,7 @@ async function main(): Promise<void> {
       });
       const page = await context.newPage();
       // DM-479: 90 s instead of Playwright's 30 s default.
-      page.setDefaultTimeout(90_000);
-      page.setDefaultNavigationTimeout(90_000);
+      newHarnessPage(page);
       // DM-1790: under the asymmetric mode the candidate SVG gets its own page
       // in the unflagged browser; otherwise it shares the capture page exactly
       // as before, so the default path allocates no extra context.
@@ -2046,8 +949,7 @@ async function main(): Promise<void> {
           deviceScaleFactor: CAPTURE_DPR,
         });
         rasterPage = await rasterContext.newPage();
-        rasterPage.setDefaultTimeout(90_000);
-        rasterPage.setDefaultNavigationTimeout(90_000);
+        newHarnessPage(rasterPage);
       }
       return { context, page, rasterPage, rasterContext, id: nextWorkerId++, seq: 0 };
     },
@@ -2096,7 +998,7 @@ async function main(): Promise<void> {
   // DM-1006: tear down the shared compare context before closing the
   // browser so its resources are released cleanly.
   await sharedCompareContext.close();
-  sharedComparePage = null;
+  compareLock.setPage(null);
   await browsers.close();
 
   writeFileSync(resolve(OUTPUT_DIR, "results.json"), JSON.stringify(results, null, 2));
@@ -2154,11 +1056,11 @@ async function main(): Promise<void> {
   console.log(`\n${passed} passed, ${failed} failed, ${skipped} skipped out of ${results.length}`);
   // DM-1002 verification — expected.png cache hit/miss tally so we can
   // confirm the cache is actually firing across the run.
-  const totalCacheChecks = _expectedCacheHits + _expectedCacheMisses;
+  const totalCacheChecks = expectedCache.stats.hits + expectedCache.stats.misses;
   if (totalCacheChecks > 0) {
-    const hitPct = ((_expectedCacheHits / totalCacheChecks) * 100).toFixed(1);
+    const hitPct = ((expectedCache.stats.hits / totalCacheChecks) * 100).toFixed(1);
     console.log(
-      `Expected.png cache: ${_expectedCacheHits} hits / ${_expectedCacheMisses} misses (${hitPct}% hit rate)`,
+      `Expected.png cache: ${expectedCache.stats.hits} hits / ${expectedCache.stats.misses} misses (${hitPct}% hit rate)`,
     );
   }
   console.log(`\nArtifacts: ${OUTPUT_DIR}`);
@@ -2181,117 +1083,6 @@ async function main(): Promise<void> {
   }
 
   if (failed > 0) process.exitCode = 1;
-}
-
-const INDEX_CSS = `
-body{font:13px -apple-system,sans-serif;margin:16px;background:#f6f8fa}
-table{width:100%;border-collapse:collapse}
-th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e1e4e8;vertical-align:top}
-tr.pass{background:#f0fff4}
-tr.fail{background:#fff5f5}
-tr.skip{background:#f6f8fa;opacity:0.7}
-.name{font-family:monospace;font-size:12px}
-.status{font-weight:600}
-.tile{color:#6e7681;font-size:11px}
-.imgs img{width:180px;height:135px;object-fit:contain;background:#fff;border:1px solid #d0d7de;margin-right:4px}
-h1{margin:0 0 12px}
-.err{color:#cf222e;font-family:monospace;font-size:11px}
-.skip-note{color:#8b949e;font-size:11px;font-style:italic;margin-top:4px}
-.warn-list{font-size:11px;color:#6e7681;margin:4px 0 0 14px;padding:0}
-.warn-list li{margin:1px 0}
-.legend{font-size:12px;color:#6e7681;margin-bottom:8px}
-`;
-
-function ResultRow({ r }: { r: TestResult }) {
-  const status = r.skipped ? "SKIP" : r.pass ? "PASS" : "FAIL";
-  const cls = r.skipped ? "skip" : r.pass ? "pass" : "fail";
-  return (
-    <tr className={cls}>
-      <td className="name">{r.name}</td>
-      <td className="status">{status}</td>
-      <td className="diff">
-        <div>
-          <b>{`${r.verdict} · ${r.regionCount} region${r.regionCount === 1 ? "" : "s"}`}</b>
-        </div>
-        <div className="tile">{`${r.coveragePct.toFixed(2)}% of image`}</div>
-        <div className="tile">{`shifty ${r.shiftyRegionCount} · shifted ${r.shiftedPixels} · scatter ${r.scatteredPixels}`}</div>
-        <div className="tile">{`raw avg ${r.diffPct.toFixed(2)}% · non-AA ${r.nonAaPixels} px`}</div>
-      </td>
-      <td className="imgs">
-        <a href={`${r.name}-expected.png`}>
-          <img src={`${r.name}-expected.png`} />
-        </a>
-        <a href={`${r.name}-actual.png`}>
-          <img src={`${r.name}-actual.png`} />
-        </a>
-        <a href={`${r.name}-diff.png`}>
-          <img src={`${r.name}-diff.png`} />
-        </a>
-      </td>
-      <td className="err-cell">
-        {r.error != null ? <div className="err">{r.error}</div> : null}
-        {r.skipReason != null ? <div className="skip-note">{`skipped: ${r.skipReason}`}</div> : null}
-        {(r.warnings ?? []).length > 0 ? (
-          <ul className="warn-list">
-            {(r.warnings ?? []).map((w) => (
-              <li>
-                <b>{w.feature}</b>
-                {` · ${w.selector} — ${w.detail}`}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </td>
-    </tr>
-  );
-}
-
-function MetricsLegend() {
-  return (
-    <p className="legend">
-      {`Verdicts: clean (no regions) · trivial (≤2 regions, <0.05% coverage) · minor (≤5 regions, <0.5%) · moderate (≤15 regions, <2%) · major (everything past that). Pipeline (DM-715): neighborhood-tolerant shift filter → Yee AA filter → 3-px dilation + flood-fill → area + high-severity gates. "shifty" = font-substitution regions culled by the high-sev gate; "scatter" = sub-area components; "shifted" = pixels absorbed by neighborhood matching. Big shifty/shifted with low region count means the filters did real work. Magenta outlines on diff.png mark surviving regions; yellow box marks the worst tile.`}
-    </p>
-  );
-}
-
-function IndexLayout({ results }: { results: TestResult[] }) {
-  const passCount = results.filter((r) => r.pass).length;
-  const failCount = results.filter((r) => !r.pass && !r.skipped).length;
-  const skipCount = results.filter((r) => r.skipped).length;
-  return (
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>domotion html-test results</title>
-        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constant */}
-        <style>{raw(INDEX_CSS)}</style>
-      </head>
-      <body>
-        <h1>{`domotion vs html-test (${results.length} files; ${passCount} pass · ${failCount} fail · ${skipCount} skip)`}</h1>
-        <MetricsLegend />
-        <table>
-          <thead>
-            <tr>
-              <th>File</th>
-              <th>Status</th>
-              <th>Diff</th>
-              <th>Expected · Actual · Diff</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.map((r) => (
-              <ResultRow r={r} />
-            ))}
-          </tbody>
-        </table>
-      </body>
-    </html>
-  );
-}
-
-function buildIndexHtml(results: TestResult[]): string {
-  return `<!DOCTYPE html>${(<IndexLayout results={results} />).toString()}`;
 }
 
 void main();
