@@ -9,6 +9,7 @@
 
 import { r } from "./format.js";
 import { geometryBoxOutsets } from "./geometry-box.js";
+import { backgroundPositionOffsetPx } from "./image-pattern.js";
 import {
   insetCornerRadii,
   outsetCornerRadiiWithCorrection,
@@ -254,9 +255,9 @@ export function translateClipPath(value: string, x: number, y: number, w: number
     const mAt = /\bat\b/i.exec(inner);
     const radiusPart = (mAt != null ? inner.slice(0, mAt.index) : inner).trim();
     const atPart = mAt != null ? inner.slice(mAt.index + 2).trim() : "50% 50%";
-    const atTokens = atPart.split(/\s+/);
-    const cx = resolvePx(atTokens[0] ?? "50%", w);
-    const cy = resolvePx(atTokens[1] ?? "50%", h);
+    const center = backgroundPositionOffsetPx(atPart, w, h) ?? { x: w / 2, y: h / 2 };
+    const cx = center.x;
+    const cy = center.y;
     let radius: number;
     if (radiusPart === "" || /^closest-side$/i.test(radiusPart)) {
       // CSS default radius is closest-side (which for a centered circle equals
@@ -278,9 +279,9 @@ export function translateClipPath(value: string, x: number, y: number, w: number
     const mAt = /\bat\b/i.exec(inner);
     const radiiPart = (mAt != null ? inner.slice(0, mAt.index) : inner).trim();
     const atPart = mAt != null ? inner.slice(mAt.index + 2).trim() : "50% 50%";
-    const atTokens = atPart.split(/\s+/);
-    const cx = resolvePx(atTokens[0] ?? "50%", w);
-    const cy = resolvePx(atTokens[1] ?? "50%", h);
+    const center = backgroundPositionOffsetPx(atPart, w, h) ?? { x: w / 2, y: h / 2 };
+    const cx = center.x;
+    const cy = center.y;
     const resolveRadius = (tok: string, axis: "x" | "y"): number => {
       const t = tok.trim();
       if (/^closest-side$/i.test(t)) return axis === "x" ? Math.min(cx, w - cx) : Math.min(cy, h - cy);

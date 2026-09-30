@@ -10,6 +10,7 @@
 
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { cyclicBackgroundLayer } from "./image-pattern.js";
+import { parsePaintClipLayers } from "./paint-clip-layers.js";
 import type { MaskImageRect } from "./mask-position.js";
 import type { PhysicalEdges } from "./geometry-box.js";
 
@@ -99,7 +100,7 @@ export function resolveMaskOriginClipLayer(
   context: MaskOriginClipContext,
 ): ResolvedMaskLayerGeometry {
   const origins = splitTopLevelCommas(context.originCss);
-  const clips = splitTopLevelCommas(context.clipCss);
+  const clips = parsePaintClipLayers(context.clipCss);
   const origin = normalizeHtmlMaskBox(cyclicBackgroundLayer(origins, layerIndex, "border-box"), false);
   const clip = normalizeHtmlMaskBox(cyclicBackgroundLayer(clips, layerIndex, "border-box"), true);
   const positioningArea = resolveHtmlMaskReferenceBox(borderBox, origin, context.border, context.padding);

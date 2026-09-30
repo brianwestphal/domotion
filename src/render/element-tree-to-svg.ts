@@ -26,6 +26,7 @@ import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-contro
 import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, parseSameDocumentClipPathUrl } from "./clip-path.js";
 import { backgroundPositionOffsetPx, buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
+import { paintClipForLayer } from "./paint-clip-layers.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
@@ -696,8 +697,7 @@ function paintBackgroundColor(
 function backgroundColorClipsToText(el: CapturedElement): boolean {
   const image = el.styles.backgroundImage;
   const layerCount = image == null || image === "" || image === "none" ? 0 : splitTopLevelCommas(image).length;
-  const clips = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
-  return cyclicBackgroundLayer(clips, Math.max(0, layerCount - 1), "border-box").trim() === "text";
+  return paintClipForLayer(el.styles.backgroundClip, Math.max(0, layerCount - 1)) === "text";
 }
 
 // Rasterized-snapshot paint for replaced elements — <canvas> / <video> /

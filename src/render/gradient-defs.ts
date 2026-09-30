@@ -9,6 +9,7 @@
 import { colorStr, parseColor, type RGBA } from "./colors.js";
 import { stopFmt } from "./format.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
+import { backgroundPositionOffsetPx } from "./image-pattern.js";
 
 export interface GradientStop {
   color: RGBA;
@@ -305,32 +306,8 @@ function normalizeTransparentStops(stops: Array<{ pos: number; color: RGBA }>): 
  * horizontal / vertical keyword.
  */
 export function parseBgPositionPx(posCss: string): [number, number] {
-  const toks = posCss
-    .trim()
-    .split(/\s+/)
-    .filter((t) => t !== "");
-  if (toks.length === 0) return [0, 0];
-  const px = (t: string): number | null => {
-    const m = /^(-?\d+(?:\.\d+)?)px$/.exec(t);
-    return m != null ? parseFloat(m[1]) : null;
-  };
-  // Edge-offset form: keyword followed by an optional px length, per axis.
-  if (toks.some((t) => /^(left|right|top|bottom|center)$/i.test(t)) && toks.length > 2) {
-    let x = 0,
-      y = 0;
-    for (let i = 0; i < toks.length; i++) {
-      const kw = toks[i].toLowerCase();
-      const next = i + 1 < toks.length ? px(toks[i + 1]) : null;
-      if (kw === "right" && next != null)
-        x = -next; // offset from the right edge
-      else if (kw === "left" && next != null) x = next;
-      else if (kw === "bottom" && next != null)
-        y = -next; // offset from the bottom edge
-      else if (kw === "top" && next != null) y = next;
-    }
-    return [x, y];
-  }
-  return [px(toks[0]) ?? 0, toks.length > 1 ? (px(toks[1]) ?? 0) : 0];
+  const offset = backgroundPositionOffsetPx(posCss, 0, 0);
+  return offset == null ? [0, 0] : [offset.x, offset.y];
 }
 
 export function buildRadialGradientDef(

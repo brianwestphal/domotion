@@ -597,7 +597,18 @@
         "status": "current",
         "owners": ["paint-effects"],
         "platforms": [],
-        "tickets": ["DM-2379", "DM-2472", "DM-2494", "DM-2520", "DM-470", "DM-493", "DM-494", "DM-156VR5", "DM-XEBRYE"],
+        "tickets": [
+          "DM-2379",
+          "DM-2472",
+          "DM-2494",
+          "DM-2520",
+          "DM-470",
+          "DM-493",
+          "DM-494",
+          "DM-156VR5",
+          "DM-XEBRYE",
+          "DM-Y5HZ4Z"
+        ],
         "code": [
           "src/capture/script/walker/masks-clips.ts",
           "src/mask.test.ts",
@@ -606,6 +617,7 @@
           "src/render/mask-position.test.ts",
           "src/render/mask-position.ts",
           "src/render/mask.ts",
+          "src/render/paint-clip-layers.ts",
           "src/render/svg-inline.ts",
           "tests/mask-position-contain-cover.e2e.test.ts",
           "tests/mask-url-repeat-geometry.e2e.test.ts"
@@ -724,11 +736,12 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2477", "DM-258", "DM-260", "DM-512", "DM-526", "DM-542", "DM-FZ5734"],
+        "tickets": ["DM-2477", "DM-258", "DM-260", "DM-512", "DM-526", "DM-542", "DM-FZ5734", "DM-Y5HZ4Z"],
         "code": [
           "src/capture/embed-hidpi-scope.test.ts",
           "src/capture/embed.ts",
           "src/tree-ops/resize-embedded-images.test.ts",
+          "src/tree-ops/walk-captured-elements.ts",
           "tests/real-world.tsx"
         ],
         "aliases": ["docs/27-image-resize-on-embed.md", "doc-27"]
@@ -3734,7 +3747,7 @@
         "status": "current",
         "owners": ["images-media", "layout", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2365", "DM-2370", "DM-2477", "DM-2478", "DM-2479", "DM-2480", "DM-2668"],
+        "tickets": ["DM-2365", "DM-2370", "DM-2477", "DM-2478", "DM-2479", "DM-2480", "DM-2668", "DM-Y5HZ4Z"],
         "code": [
           ".github/workflows/url-background-geometry-parity.yml",
           "src/capture/background-image-sizing.ts",
@@ -3742,7 +3755,9 @@
           "src/capture/script/walker/background-attachment.ts",
           "src/capture/script/walker/fragmentation.ts",
           "src/render/background-attachment.ts",
-          "src/render/image-pattern.ts"
+          "src/render/image-pattern.ts",
+          "src/render/css-position-integration.test.ts",
+          "src/render/paint-clip-layers.ts"
         ],
         "aliases": ["docs/163-url-background-image-geometry-audit.md", "doc-163"]
       }

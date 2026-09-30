@@ -10,6 +10,7 @@
  */
 
 import type { Page } from "@playwright/test";
+import { walkCapturedElements } from "../tree-ops/walk-captured-elements.js";
 import type { CapturedElement } from "../capture/types.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { computeTileSize } from "./conic-raster.js";
@@ -52,26 +53,22 @@ export async function rasterizeAdvancedGradients(tree: CapturedElement[], page: 
     // helper-absent CPU conic fallback; overwrite it below with current pixels.
     tuples.set(key, { layer, width: w, height: h });
   };
-  const walk = (els: CapturedElement[]): void => {
-    for (const el of els) {
-      for (const [imageCss, sizeCss] of [
-        [el.styles.backgroundImage, el.styles.backgroundSize],
-        [el.styles.maskImage, el.styles.maskSize],
-      ] as const) {
-        if (imageCss == null || imageCss === "" || imageCss === "none") continue;
-        const layers = splitTopLevelCommas(imageCss);
-        const sizes = splitTopLevelCommas(sizeCss ?? "auto");
-        for (let index = 0; index < layers.length; index++) {
-          const layer = layers[index].trim();
-          const tile = computeTileSize(cyclicBackgroundLayer(sizes, index, "auto").trim(), el.width, el.height);
-          consider(layer, tile.w, tile.h);
-        }
+  walkCapturedElements(tree, (el) => {
+    for (const [imageCss, sizeCss] of [
+      [el.styles.backgroundImage, el.styles.backgroundSize],
+      [el.styles.maskImage, el.styles.maskSize],
+    ] as const) {
+      if (imageCss == null || imageCss === "" || imageCss === "none") continue;
+      const layers = splitTopLevelCommas(imageCss);
+      const sizes = splitTopLevelCommas(sizeCss ?? "auto");
+      for (let index = 0; index < layers.length; index++) {
+        const layer = layers[index].trim();
+        const tile = computeTileSize(cyclicBackgroundLayer(sizes, index, "auto").trim(), el.width, el.height);
+        consider(layer, tile.w, tile.h);
       }
-      for (const tile of collectFormControlConicTiles(el)) consider(tile.layer, tile.w, tile.h);
-      if (el.children.length > 0) walk(el.children);
     }
-  };
-  walk(tree);
+    for (const tile of collectFormControlConicTiles(el)) consider(tile.layer, tile.w, tile.h);
+  });
   if (tuples.size === 0) return;
 
   const scratch = await page.context().newPage();

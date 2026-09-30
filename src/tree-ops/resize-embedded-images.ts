@@ -18,6 +18,7 @@
 
 import { createHash } from "node:crypto";
 import sharp from "sharp";
+import { walkCapturedElements } from "./walk-captured-elements.js";
 import { _dataUriCache, _resizedDataUriCache } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import type { AnimatedImageStaticFrameRecord } from "../capture/animated-image-static-frame.js";
@@ -83,26 +84,22 @@ export async function resizeEmbeddedImages(
       consider(u, consumerW, consumerH);
     }
   };
-  const walk = (els: CapturedElement[]): void => {
-    for (const el of els) {
-      consider(el.imageSrc, el.width, el.height);
-      if (el.pseudoImages != null) {
-        for (const pi of el.pseudoImages) consider(pi.url, pi.width, pi.height);
-      }
-      collectFromCss(el.styles.backgroundImage, el.width, el.height);
-      collectFromCss(el.styles.maskImage, el.width, el.height);
-      // border-image renders to the full border box (== el.width × el.height
-      // in our captured rects, since x/y/width/height already cover the
-      // border box).
-      collectFromCss(el.styles.borderImageSource, el.width, el.height);
-      // list-style-image paints in an em-box at the element's font-size.
-      // Fall back to 16px if fontSize is missing or unparsable.
-      const fontPx = parseFloat(el.styles.fontSize ?? "16") || 16;
-      collectFromCss(el.styles.listStyleImage, fontPx, fontPx);
-      if (el.children.length > 0) walk(el.children);
+  walkCapturedElements(tree, (el) => {
+    consider(el.imageSrc, el.width, el.height);
+    if (el.pseudoImages != null) {
+      for (const pi of el.pseudoImages) consider(pi.url, pi.width, pi.height);
     }
-  };
-  walk(tree);
+    collectFromCss(el.styles.backgroundImage, el.width, el.height);
+    collectFromCss(el.styles.maskImage, el.width, el.height);
+    // border-image renders to the full border box (== el.width × el.height
+    // in our captured rects, since x/y/width/height already cover the
+    // border box).
+    collectFromCss(el.styles.borderImageSource, el.width, el.height);
+    // list-style-image paints in an em-box at the element's font-size.
+    // Fall back to 16px if fontSize is missing or unparsable.
+    const fontPx = parseFloat(el.styles.fontSize ?? "16") || 16;
+    collectFromCss(el.styles.listStyleImage, fontPx, fontPx);
+  });
   if (tuples.size === 0) return [];
   const provenanceByPng = new Map(
     (options.authenticatedAnimatedFrames ?? []).map((record) => [record.pngDataUrl, record] as const),

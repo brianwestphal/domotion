@@ -13,6 +13,7 @@
  */
 
 import sharp from "sharp";
+import { walkCapturedElements } from "../tree-ops/walk-captured-elements.js";
 import { renderWarn } from "./render-warn.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { _conicTileCache } from "./raster-tile-cache.js";
@@ -75,50 +76,46 @@ export async function rasterizeConicGradients(
     tuples.set(dedupeKey, { layerText, gradient, sizeKey, tileW: tw, tileH: th });
   };
 
-  const walk = (els: CapturedElement[]): void => {
-    for (const el of els) {
-      const bgImage = el.styles.backgroundImage;
-      if (bgImage != null && bgImage !== "" && bgImage !== "none" && /conic-gradient/i.test(bgImage)) {
-        const layers = splitTopLevelCommas(bgImage);
-        const sizes = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
+  walkCapturedElements(tree, (el) => {
+    const bgImage = el.styles.backgroundImage;
+    if (bgImage != null && bgImage !== "" && bgImage !== "none" && /conic-gradient/i.test(bgImage)) {
+      const layers = splitTopLevelCommas(bgImage);
+      const sizes = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
+      for (let li = 0; li < layers.length; li++) {
+        const layer = layers[li].trim();
+        if (!/^(?:repeating-)?conic-gradient\(/i.test(layer)) continue;
+        const sizeCss = cyclicBackgroundLayer(sizes, li, "auto").trim();
+        const tile = computeTileSize(sizeCss, el.width, el.height);
+        consider(layer, tile.w, tile.h);
+      }
+    }
+    // DM-1252: form-control pseudo backgrounds (slider thumb/track, …) carry
+    // their conic layers in dedicated captured fields, not `backgroundImage`,
+    // and paint at consumer-specific rects — collect + rasterize those too.
+    for (const t of collectFormControlConicTiles(el)) consider(t.layer, t.w, t.h);
+    // Generated pseudo boxes carry their own Blink-owned paint and geometry;
+    // they do not appear in the host element's `backgroundImage`. Collect
+    // each exact box-fragment tuple at the same local-border size consumed by
+    // `renderPseudoFragmentRecord`, so its conic layer cannot miss the cache.
+    for (const record of el.pseudoFragments ?? []) {
+      if (record.status !== "exact") continue;
+      const bgImage = record.paint.backgroundImage;
+      if (bgImage == null || bgImage === "" || bgImage === "none" || !/conic-gradient/i.test(bgImage)) continue;
+      const layers = splitTopLevelCommas(bgImage);
+      const sizes = splitTopLevelCommas(record.paint.backgroundSize || "auto");
+      for (const box of record.boxFragments) {
+        const rect = box.localBorderRect;
+        if (rect == null || !(rect.width > 0) || !(rect.height > 0)) continue;
         for (let li = 0; li < layers.length; li++) {
           const layer = layers[li].trim();
           if (!/^(?:repeating-)?conic-gradient\(/i.test(layer)) continue;
           const sizeCss = cyclicBackgroundLayer(sizes, li, "auto").trim();
-          const tile = computeTileSize(sizeCss, el.width, el.height);
+          const tile = computeTileSize(sizeCss, rect.width, rect.height);
           consider(layer, tile.w, tile.h);
         }
       }
-      // DM-1252: form-control pseudo backgrounds (slider thumb/track, …) carry
-      // their conic layers in dedicated captured fields, not `backgroundImage`,
-      // and paint at consumer-specific rects — collect + rasterize those too.
-      for (const t of collectFormControlConicTiles(el)) consider(t.layer, t.w, t.h);
-      // Generated pseudo boxes carry their own Blink-owned paint and geometry;
-      // they do not appear in the host element's `backgroundImage`. Collect
-      // each exact box-fragment tuple at the same local-border size consumed by
-      // `renderPseudoFragmentRecord`, so its conic layer cannot miss the cache.
-      for (const record of el.pseudoFragments ?? []) {
-        if (record.status !== "exact") continue;
-        const bgImage = record.paint.backgroundImage;
-        if (bgImage == null || bgImage === "" || bgImage === "none" || !/conic-gradient/i.test(bgImage)) continue;
-        const layers = splitTopLevelCommas(bgImage);
-        const sizes = splitTopLevelCommas(record.paint.backgroundSize || "auto");
-        for (const box of record.boxFragments) {
-          const rect = box.localBorderRect;
-          if (rect == null || !(rect.width > 0) || !(rect.height > 0)) continue;
-          for (let li = 0; li < layers.length; li++) {
-            const layer = layers[li].trim();
-            if (!/^(?:repeating-)?conic-gradient\(/i.test(layer)) continue;
-            const sizeCss = cyclicBackgroundLayer(sizes, li, "auto").trim();
-            const tile = computeTileSize(sizeCss, rect.width, rect.height);
-            consider(layer, tile.w, tile.h);
-          }
-        }
-      }
-      if (el.children.length > 0) walk(el.children);
     }
-  };
-  walk(tree);
+  });
   if (tuples.size === 0) return;
 
   const tasks = Array.from(tuples.values(), async ({ layerText, gradient, sizeKey, tileW, tileH }) => {

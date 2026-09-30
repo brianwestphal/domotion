@@ -336,6 +336,7 @@
         "src/render/mask-position.test.ts",
         "src/render/mask-position.ts",
         "src/render/mask.ts",
+        "src/render/paint-clip-layers.ts",
         "src/render/svg-inline.ts",
         "tests/mask-position-contain-cover.e2e.test.ts",
         "tests/mask-url-repeat-geometry.e2e.test.ts"
@@ -431,6 +432,7 @@
         "src/capture/embed-hidpi-scope.test.ts",
         "src/capture/embed.ts",
         "src/tree-ops/resize-embedded-images.test.ts",
+        "src/tree-ops/walk-captured-elements.ts",
         "tests/real-world.tsx"
       ],
       "file": "27-image-resize-on-embed.md"
@@ -2692,7 +2694,9 @@
         "src/capture/script/walker/background-attachment.ts",
         "src/capture/script/walker/fragmentation.ts",
         "src/render/background-attachment.ts",
-        "src/render/image-pattern.ts"
+        "src/render/image-pattern.ts",
+        "src/render/css-position-integration.test.ts",
+        "src/render/paint-clip-layers.ts"
       ],
       "file": "163-url-background-image-geometry-audit.md"
     },

@@ -10,6 +10,8 @@
  * the renderer must hand SVG the final x/y/width/height instead.
  */
 
+import { backgroundPositionOffsetPx, splitCssPositionComponents } from "./image-pattern.js";
+
 export interface MaskIntrinsicSize {
   w: number;
   h: number;
@@ -53,21 +55,7 @@ function snappedExtent(start: number, extent: number): number {
 
 /** Split computed CSS position components without breaking calc(...). */
 export function splitMaskPositionComponents(value: string): string[] {
-  const out: string[] = [];
-  let start = 0;
-  let depth = 0;
-  const input = value.trim();
-  for (let i = 0; i <= input.length; i++) {
-    const ch = input[i];
-    if (ch === "(") depth++;
-    else if (ch === ")") depth--;
-    if (i === input.length || (depth === 0 && ch != null && /\s/.test(ch))) {
-      if (i > start) out.push(input.slice(start, i));
-      while (i + 1 < input.length && /\s/.test(input[i + 1])) i++;
-      start = i + 1;
-    }
-  }
-  return out;
+  return splitCssPositionComponents(value);
 }
 
 /**
@@ -114,6 +102,14 @@ export function resolveMaskPositionAxis(component: string, freeSpace: number): n
 export function resolveMaskPosition(value: string, freeWidth: number, freeHeight: number): { x: number; y: number } {
   const components = splitMaskPositionComponents(value);
   if (components.length === 0) return { x: 0, y: 0 };
+
+  // Older captures can carry author edge-offset syntax; the shared CSS
+  // position parser handles its 3/4-token forms before the canonical two-axis
+  // computed longhand path below applies Blink's LayoutUnit rounding.
+  if (components.length > 2) {
+    const offset = backgroundPositionOffsetPx(value, freeWidth, freeHeight);
+    return offset == null ? { x: 0, y: 0 } : { x: toLayoutUnit(offset.x), y: toLayoutUnit(offset.y) };
+  }
 
   // getComputedStyle() always gives two canonical components. Keep keyword
   // handling for direct API/unit callers and old serialized captures.

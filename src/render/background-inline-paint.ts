@@ -16,6 +16,7 @@ import { parseColor, colorStr, sameColor, INVISIBLE_ALPHA } from "./colors.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { r } from "./format.js";
 import { cyclicBackgroundLayer } from "./image-pattern.js";
+import { parsePaintClipLayers } from "./paint-clip-layers.js";
 import type { PaintCtx, RenderState } from "./element-tree-to-svg.js";
 
 export type BackgroundLayerBuilder = (
@@ -74,7 +75,7 @@ export function paintBackgroundImageLayers(
     const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
     const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
     const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
-    const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+    const clipLayers = parsePaintClipLayers(el.styles.backgroundClip);
     const originLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
     const attachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");
     const selectedImageLayers = el.styles.backgroundImages ?? [];
@@ -217,7 +218,7 @@ export function paintBackgroundImageLayers(
   // the box-painted layers stay owned by `renderInlineFragments()`.
   if (useInlineFragments && bgImage != null && bgImage !== "none" && bgImage !== "") {
     const layers = imageLayers;
-    const clipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+    const clipLayers = parsePaintClipLayers(el.styles.backgroundClip);
     const sizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
     const posLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
     const repeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
@@ -814,7 +815,7 @@ export function renderInlineFragments(
   const bgSizeLayers = splitTopLevelCommas(el.styles.backgroundSize ?? "auto");
   const bgPosLayers = splitTopLevelCommas(el.styles.backgroundPosition ?? "0% 0%");
   const bgRepeatLayers = splitTopLevelCommas(el.styles.backgroundRepeat ?? "repeat");
-  const bgClipLayers = splitTopLevelCommas(el.styles.backgroundClip ?? "border-box");
+  const bgClipLayers = parsePaintClipLayers(el.styles.backgroundClip);
   const bgOriginLayers = splitTopLevelCommas(el.styles.backgroundOrigin ?? "padding-box");
   const bgBlendLayers = splitTopLevelCommas(el.styles.backgroundBlendMode ?? "normal");
   const bgAttachmentLayers = splitTopLevelCommas(el.styles.backgroundAttachment ?? "scroll");

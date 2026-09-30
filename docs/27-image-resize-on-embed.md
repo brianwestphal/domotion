@@ -5,12 +5,13 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2477", "DM-258", "DM-260", "DM-512", "DM-526", "DM-542", "DM-FZ5734"]
+tickets: ["DM-2477", "DM-258", "DM-260", "DM-512", "DM-526", "DM-542", "DM-FZ5734", "DM-Y5HZ4Z"]
 code:
   [
     "src/capture/embed-hidpi-scope.test.ts",
     "src/capture/embed.ts",
     "src/tree-ops/resize-embedded-images.test.ts",
+    "src/tree-ops/walk-captured-elements.ts",
     "tests/real-world.tsx",
   ]
 aliases: ["docs/27-image-resize-on-embed.md", "doc-27"]
@@ -33,6 +34,10 @@ A captured nytimes.com homepage with `selfContained: true` produces a ~1.5 MB SV
 ## DM-526 behavior (this doc)
 
 A new optional pre-pass — invoked alongside or after `embedRemoteImages` — walks the captured tree, computes the **render-rect target size** for every consumer of every inlined URL, downscales each image to that target, and writes the resized PNG bytes back into the data-URI cache.
+
+The resize pre-pass and the conic and advanced-gradient tile collectors use
+the same document-preorder element walk. Each collector still decides which
+paint fields and pseudo fragments contribute its own tiles.
 
 ### When the pass runs
 

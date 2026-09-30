@@ -148,7 +148,7 @@ function publicRect(rect: RawRect): BackgroundRect {
   };
 }
 
-function topLevelTokens(value: string): string[] {
+export function splitCssPositionComponents(value: string): string[] {
   const tokens: string[] = [];
   let current = "";
   let depth = 0;
@@ -217,7 +217,7 @@ function keywordLength(value: string): LengthPercentage | null {
 }
 
 function parsePosition(value: string): { x: AxisPosition; y: AxisPosition } | null {
-  const tokens = topLevelTokens(value.toLowerCase());
+  const tokens = splitCssPositionComponents(value.toLowerCase());
   const center = (): AxisPosition => ({ value: { percent: 50, px: 0 }, origin: "start" });
   const start = (): AxisPosition => ({ value: { percent: 0, px: 0 }, origin: "start" });
   const isHorizontal = (token: string): boolean => token === "left" || token === "right";
@@ -385,7 +385,7 @@ function resolveTileSize(
     return { width, height, autoX: false, autoY: false };
   }
 
-  const tokens = topLevelTokens(keyword);
+  const tokens = splitCssPositionComponents(keyword);
   const widthToken = tokens[0] ?? "auto";
   const heightToken = tokens[1] ?? "auto";
   if (tokens.length > 2) return null;

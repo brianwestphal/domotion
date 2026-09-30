@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["images-media", "layout", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2365", "DM-2370", "DM-2477", "DM-2478", "DM-2479", "DM-2480", "DM-2668"]
+tickets: ["DM-2365", "DM-2370", "DM-2477", "DM-2478", "DM-2479", "DM-2480", "DM-2668", "DM-Y5HZ4Z"]
 code:
   [
     ".github/workflows/url-background-geometry-parity.yml",
@@ -15,6 +15,8 @@ code:
     "src/capture/script/walker/fragmentation.ts",
     "src/render/background-attachment.ts",
     "src/render/image-pattern.ts",
+    "src/render/css-position-integration.test.ts",
+    "src/render/paint-clip-layers.ts",
   ]
 aliases: ["docs/163-url-background-image-geometry-audit.md", "doc-163"]
 ---
@@ -30,7 +32,10 @@ aliases: ["docs/163-url-background-image-geometry-audit.md", "doc-163"]
 **Release evidence:** `.github/workflows/url-background-geometry-parity.yml`
 
 Domotion turns each CSS `url()` background layer into an SVG
-`<pattern><image>`. DM-2477 captures the selected candidate and complete
+`<pattern><image>`. The CSS position token grammar and edge-offset resolver
+are shared with auto-sized gradients, mask positions from older captures,
+and clip-shape centers. Each painter retains its own reference box and
+rounding rule. DM-2477 captures the selected candidate and complete
 natural-sizing state before the synchronous tree walk. DM-2479 captures
 fixed/local/canvas positioning ownership and selects those inputs before tile
 construction. DM-2478 now carries snapped and unsnapped positioning areas
