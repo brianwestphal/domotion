@@ -15,6 +15,7 @@
  * everywhere it appears.
  */
 
+import * as fontkit from "fontkit";
 import { isGlyphHelperAvailable, linuxTargetStrikeGlyphs, type GlyphRasterRepresentation } from "./glyph-helper.js";
 export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // The SHARED attribute escaper. Two local copies used to live in this file and
@@ -47,6 +48,8 @@ export {
 import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import type { FontRequest } from "./font-request.js";
+import { readMathRadicalData } from "./open-type-math.js";
+import { selectMathRadicalShape, type MathRadicalGlyph } from "./math-radical-shape.js";
 
 const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
   "Arabic",
@@ -5355,8 +5358,8 @@ export function renderStretchyFenceGlyph(
  * Geometry follows Blink's MathML radical layout and painter (see the citations in the body): the glyph
  * is drawn at its natural size with its ink top on the bar, the bar sits `rule + extra_ascender` below
  * the content-box top and is pixel-snapped the way `MathMLPainter::PaintBar` snaps it. When the primary
- * font carries an OpenType MATH table that geometry needs MathConstants and glyph variants that are not
- * transcribed, so those fonts keep a fit to the captured box (`fitRadicalToCapturedBox`).
+ * font carries an OpenType MATH table, its radical constants and vertical glyph construction supply
+ * the rule, gap, extra ascender, and stretched shape.
  *
  * Returns null (caller falls back to the synthesized path) when the √ glyph can't be resolved or has no
  * outline.
@@ -5370,6 +5373,7 @@ export function renderRadicalGlyph(
   fill: string,
   /** Border + padding of the `<msqrt>` / `<mroot>` box on the sides that offset its content. */
   insets: { top: number; left: number; right: number } = { top: 0, left: 0, right: 0 },
+  geometry: { baseHeight?: number; baseTop?: number; baseRight?: number; displayStyle?: boolean } = {},
 ): string | null {
   if (height <= 0 || width <= 0) return null;
   const cp = 0x221a; // √ SQUARE ROOT
@@ -5423,7 +5427,44 @@ export function renderRadicalGlyph(
 
   const defId = ensureGlyphDef(useKey, weight, fontSize, slant, glyph.id, glyph.path.commands, stretch);
   const legacyMarkup = () => fitRadicalToCapturedBox(x, topY, height, width, bbox, defId, fill);
-  if (hasOpenTypeMathTable(font)) return legacyMarkup();
+  const mathFont = useKey === primaryFontKey ? readableMathFont(font) : null;
+  if (mathFont != null && hasOpenTypeMathTable(mathFont)) {
+    const data = readMathRadicalData(mathFont, glyph.id);
+    if (data == null) return legacyMarkup();
+    const scale = fontSize / font.unitsPerEm;
+    const rule = layoutUnit(Math.max(0, data.ruleThickness * scale));
+    const gap = layoutUnit(
+      Math.max(0, (geometry.displayStyle ? data.displayStyleVerticalGap : data.verticalGap) * scale),
+    );
+    const extra = layoutUnit(Math.max(0, data.extraAscender * scale));
+    const baseHeight = geometry.baseHeight ?? Math.max(0, height - insets.top - gap - rule - extra);
+    const targetUnits = (baseHeight + gap + rule) / scale;
+    // Use the live face's outline when it is helper-backed. Its MATH bytes may
+    // require reopening the file, but Chromium paints the selected native face.
+    const liveGlyph = (font as FontInstance & { getGlyph?: (id: number) => MathRadicalGlyph }).getGlyph;
+    const shape = selectMathRadicalShape(data, (id) => liveGlyph?.call(font, id) ?? mathFont.getGlyph(id), targetUnits);
+    if (shape == null) return legacyMarkup();
+    const originX = x + insets.left;
+    const barY = geometry.baseTop == null ? topY + insets.top + rule + extra : geometry.baseTop - gap;
+    const baselineY = barY + shape.bbox.maxY * scale;
+    const sStr = Number(scale.toFixed(5)).toString();
+    const negS = Number((-scale).toFixed(5)).toString();
+    const glyphMarkup = shape.glyphs
+      .map(({ glyph: part, offsetY }) => {
+        const id = ensureGlyphDef(useKey, weight, fontSize, slant, part.id, part.path.commands, stretch);
+        return `<g transform="translate(${r2(originX)},${r2(baselineY - offsetY * scale)}) scale(${sStr},${negS})" fill="${fill}"><use href="#${id}"/></g>`;
+      })
+      .join("");
+    const barLeft = snapToPixel(originX + shape.advanceWidth * scale);
+    const barRight = snapToPixel(geometry.baseRight ?? x + width - insets.right);
+    const barTop = snapToPixel(barY);
+    const barHeight = snapToPixel(barY + rule) - barTop;
+    const overbar =
+      barRight > barLeft && barHeight > 0
+        ? `<rect x="${barLeft}" y="${barTop - Math.trunc(barHeight / 2)}" width="${barRight - barLeft}" height="${barHeight}" fill="${fill}"/>`
+        : "";
+    return glyphMarkup + overbar;
+  }
 
   // A primary font WITHOUT a MATH table (the macOS `math` generic resolves to Times), transcribed from
   // Blink at rev 7d859f27 (2026-06-27). Every number below is derived; none is fitted to a raster.
@@ -5486,13 +5527,45 @@ function hasOpenTypeMathTable(font: unknown): boolean {
   return tables?.MATH != null;
 }
 
+type ReadableMathFont = {
+  directory?: { tables?: Record<string, unknown> };
+  stream?: { buffer?: Uint8Array };
+  getGlyph(id: number): MathRadicalGlyph;
+};
+
+// Key by the live instance: a resolver cache clear can drop that instance and
+// its reopened SFNT face together without another explicit invalidation path.
+const mathFontSourceCache = new WeakMap<FontInstance, ReadableMathFont>();
+
+function readableMathFont(font: FontInstance): ReadableMathFont | null {
+  const direct = font as FontInstance & Partial<ReadableMathFont>;
+  if (hasOpenTypeMathTable(direct) && direct.stream?.buffer != null && direct.getGlyph != null) {
+    return direct as ReadableMathFont;
+  }
+  const source = getFontSourceInfo(font);
+  if (source == null || source.faceIndex == null || !source.nameMatched) return null;
+  const cached = mathFontSourceCache.get(font);
+  if (cached != null) return cached;
+  let opened: ReadableMathFont | null = null;
+  try {
+    const file = fontkit.openSync(source.path);
+    const faces = (file as unknown as { fonts?: unknown[] }).fonts;
+    const face = (Array.isArray(faces) ? faces[source.faceIndex] : file) as ReadableMathFont | undefined;
+    const variable = face as ReadableMathFont & {
+      getVariation?: (axes: Record<string, number>) => ReadableMathFont | null;
+    };
+    const selected = source.variationAxes == null ? face : (variable.getVariation?.(source.variationAxes) ?? face);
+    if (selected != null && hasOpenTypeMathTable(selected)) opened = selected;
+  } catch {
+    // A source can disappear between resolution and rendering. The captured-box
+    // fallback below remains available when it cannot be reopened.
+  }
+  if (opened != null) mathFontSourceCache.set(font, opened);
+  return opened;
+}
+
 /**
- * The √ of a primary font that HAS an OpenType MATH table: fitted to the captured box.
- *
- * NO UPSTREAM RULE: those fonts take their rule thickness, gap and extra ascender from MathConstants and
- * pick a stretched variant or glyph assembly, none of which is transcribed yet. The two fractions below
- * were read off a rasterized fixture (top clearance ~7 % of the box, bottom ~2 %), so they encode a
- * rasterizer's antialiasing rather than Blink's radical geometry.
+ * Conservative fallback for a font whose MATH table or outlines cannot be read.
  */
 function fitRadicalToCapturedBox(
   x: number,

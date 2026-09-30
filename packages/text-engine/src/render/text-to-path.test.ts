@@ -2268,6 +2268,75 @@ describe("fallbackFontChain: CJK/Hangul combining tone marks U+302A–U+302F (DM
 });
 
 describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
+  it.skipIf(!existsSync("/System/Library/Fonts/Supplemental/STIXTwoMath.otf"))(
+    "matches Chromium's STIX Two Math display and compact bar rows, including 60px",
+    () => {
+      const cases = [
+        {
+          x: 430.515625,
+          y: 87.375,
+          width: 38.96875,
+          height: 27.8125,
+          size: 22,
+          baseTop: 94.296875,
+          baseHeight: 10.390625,
+          baseRight: 460.28125,
+          displayStyle: true,
+          barY: 91,
+          barHeight: 1,
+        },
+        {
+          x: 396.859375,
+          y: 298.9375,
+          width: 106.265625,
+          height: 75.890625,
+          size: 60,
+          baseTop: 317.875,
+          baseHeight: 28.375,
+          baseRight: 478.03125,
+          displayStyle: true,
+          barY: 306,
+          barHeight: 4,
+        },
+        {
+          x: 433.09375,
+          y: 390.828125,
+          width: 106.265625,
+          height: 75.890625,
+          size: 60,
+          baseTop: 404.671875,
+          baseHeight: 28.375,
+          baseRight: 514.265625,
+          displayStyle: false,
+          barY: 398,
+          barHeight: 4,
+        },
+      ];
+      for (const row of cases) {
+        clearGlyphDefs();
+        const out = renderRadicalGlyph(
+          row.x,
+          row.y,
+          row.height,
+          row.width,
+          { fontSize: row.size, fontFamily: "STIX Two Math", fontWeight: "400" },
+          "black",
+          undefined,
+          {
+            baseTop: row.baseTop,
+            baseHeight: row.baseHeight,
+            baseRight: row.baseRight,
+            displayStyle: row.displayStyle,
+          },
+        );
+        const bar = /<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/.exec(out ?? "");
+        expect(bar, `${row.size}px ${row.displayStyle ? "display" : "compact"}`).not.toBeNull();
+        expect({ y: Number(bar![2]), height: Number(bar![4]) }).toEqual({ y: row.barY, height: row.barHeight });
+        expect(Number(bar![1]) + Number(bar![3])).toBe(Math.floor(row.baseRight + 0.5));
+      }
+    },
+  );
+
   // The radical was a uniform-stroke synthesized path that couldn't match the
   // stroke-weight contrast of Chrome's painted √ glyph. renderRadicalGlyph
   // fits the actual U+221A glyph to the captured radical box and extends the

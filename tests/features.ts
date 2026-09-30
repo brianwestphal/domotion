@@ -1382,6 +1382,14 @@ export const tests: FeatureTest[] = [
     height: 260,
   },
   {
+    // OpenType MATH constants change the compact/display gap and the radical
+    // glyph grows from a ready-made variant to a repeated-piece assembly.
+    name: "mathml-radical-math-table-geometry",
+    html: `<div style="padding:16px;min-height:390px;box-sizing:border-box;background:#fff;color:#111"><style>math{font-family:'STIX Two Math',math,serif}</style><math display="block" style="font-size:22px"><msqrt><mi>x</mi></msqrt></math><math display="block" style="font-size:40px"><msqrt><mi>x</mi></msqrt></math><math style="font-size:30px"><msqrt><mi>x</mi></msqrt></math><math display="block" style="font-size:30px"><msqrt><mtable><mtr><mtd><mi>a</mi></mtd></mtr><mtr><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd></mtr><mtr><mtd><mi>d</mi></mtd></mtr><mtr><mtd><mi>e</mi></mtd></mtr></mtable></msqrt></math></div>`,
+    width: 360,
+    height: 390,
+  },
+  {
     // DM-2397: generated Chromium operator-dictionary coverage. The first
     // row includes vertical stretchy pairs absent from the former curated
     // fence set; the second keeps inline-axis stretchy arrows and large-op

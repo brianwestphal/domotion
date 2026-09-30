@@ -3573,6 +3573,7 @@ function ensureChildOverflowClipId(
 interface ElementPaintPhaseContext {
   state: RenderState;
   el: CapturedElement;
+  parentDisplayForEl?: string;
   depth: number;
   indent: string;
   paintBoxPhase: boolean;
@@ -4084,6 +4085,10 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
   // glyph; only the radical + overbar are synthesized here.
   if ((el.tag === "msqrt" || el.tag === "mroot") && el.children.length >= 1) {
     const radicand = el.children[0];
+    const baseChildren = el.tag === "msqrt" ? el.children : [radicand];
+    const baseTop = Math.min(...baseChildren.map((child) => child.y));
+    const baseBottom = Math.max(...baseChildren.map((child) => child.y + child.height));
+    const baseRight = Math.max(...baseChildren.map((child) => child.x + child.width));
     const strokeCol = el.styles.color ? esc(el.styles.color) : "rgb(0,0,0)";
     const radFontSize = parseFloat(el.styles.fontSize) || 16;
     const glyphRadical = renderRadicalGlyph(
@@ -4104,6 +4109,12 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
         top: (parseFloat(el.styles.borderTopWidth) || 0) + (parseFloat(el.styles.paddingTop) || 0),
         left: (parseFloat(el.styles.borderLeftWidth) || 0) + (parseFloat(el.styles.paddingLeft) || 0),
         right: (parseFloat(el.styles.borderRightWidth) || 0) + (parseFloat(el.styles.paddingRight) || 0),
+      },
+      {
+        baseTop,
+        baseHeight: baseBottom - baseTop,
+        baseRight,
+        displayStyle: context.parentDisplayForEl === "block math",
       },
     );
     if (glyphRadical != null) {
@@ -4390,6 +4401,7 @@ function renderElement(
   const elementPaintContext: ElementPaintPhaseContext = {
     state,
     el,
+    parentDisplayForEl,
     depth,
     indent,
     paintBoxPhase,
