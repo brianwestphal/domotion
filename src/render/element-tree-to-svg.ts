@@ -12,7 +12,7 @@ import { renderWarn } from "./render-warn.js";
 import { fontSizeOrDefault, LEGACY_MARKER_ASCENT_RATIO } from "./text-defaults.js";
 import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-background.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
-import { measureTruncationMarker, renderRadicalGlyph } from "./text-to-path.js";
+import { measureTruncationMarker, renderRadicalGlyph, renderTextAsPath } from "./text-to-path.js";
 import {
   getEmbeddedFontFaceCss,
   getGlyphDefs,
@@ -1331,7 +1331,6 @@ function paintTruncationMarker(
     // the author's text and a generic advance of half an em per character.
     const marker = measured?.text ?? customMarker ?? "…";
     const markerW = measured?.widthPx ?? marker.length * fontSizePx * 0.5;
-    const escMarker = marker.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     // Position the marker at Chrome's truncation point: just past the
     // right edge of the last char that fits with the marker after it.
     // xOffsets[i] is the captured viewport-x of char i's left edge, so
@@ -1371,8 +1370,18 @@ function paintTruncationMarker(
     out.push(
       `${indent}<rect x="${r(bgX)}" y="${r(bgY)}" width="${r(bgRightX - bgX)}" height="${r(bgH)}" fill="${bgCol}" />`,
     );
+    const markerAscent = el.markerFontAscent ?? el.fontAscent ?? fontSizePx * LEGACY_MARKER_ASCENT_RATIO;
     out.push(
-      `${indent}<text x="${r(markerLeftX)}" y="${r(ty)}" font-size="${r(fontSizePx)}" font-family="${esc(el.styles.fontFamily)}" fill="${fillCol}">${escMarker}</text>`,
+      `${indent}${renderTextAsPath(marker, markerLeftX, ty - markerAscent, {
+        fontSize: fontSizePx,
+        fontFamily: el.styles.fontFamily,
+        fontWeight: el.styles.fontWeight,
+        fontStyle: el.styles.fontStyle,
+        fontStretch: el.styles.fontStretch,
+        fill: fillCol,
+        targetWidth: markerW,
+        ascentOverride: markerAscent,
+      })}`,
     );
   }
   return out;

@@ -54,10 +54,13 @@ const paint = (el: CapturedElement) => paintMarker(el, { r: 0, g: 0, b: 0, a: 1 
 
 function parse(out: string[]) {
   const rect = /<rect x="(-?[\d.]+)" y="(-?[\d.]+)" width="(-?[\d.]+)" height="(-?[\d.]+)"/.exec(out[0] ?? "");
-  const text = /<text x="(-?[\d.]+)" y="(-?[\d.]+)"[^>]*>([^<]*)<\/text>/.exec(out[1] ?? "");
+  const text = /<text x="(-?[\d.]+)(?: [^"]*)?" y="(-?[\d.]+)"[^>]*font-family="([^"]+)"[^>]*>([^<]*)<\/text>/.exec(
+    out[1] ?? "",
+  );
+  const label = /aria-label="([^"]+)"/.exec(out[1] ?? "");
   return {
     rect: rect && { x: +rect[1], y: +rect[2], width: +rect[3], height: +rect[4] },
-    text: text && { x: +text[1], y: +text[2], content: text[3] },
+    text: text && { x: +text[1], y: +text[2], family: text[3], content: text[4], label: label?.[1] },
   };
 }
 
@@ -73,7 +76,10 @@ describe("paintTruncationMarker", () => {
     // Content right edge is 20 + 120 = 140; the largest edge <= 140 - width is the marker's left.
     const expectedLeft = [...X_OFFSETS].reverse().find((edge) => edge <= 140 - measured.widthPx)!;
     expect(text!.x).toBeCloseTo(expectedLeft, 2);
-    expect(text!.content).toBe(measured.text);
+    expect(text!.label).toBe(measured.text);
+    expect(text!.family).toMatch(/^dmf\d+$/);
+    expect(text!.content).not.toBe(measured.text); // the engine emits subset glyph codes
+    expect(text!.y).toBe(27); // captured textTop 12 + ascent 15
     // The band that erases the clipped text starts at the marker and runs to the box's right edge.
     expect(rect!.x).toBeCloseTo(expectedLeft, 2);
     expect(rect!.x + rect!.width).toBeCloseTo(140, 2);
@@ -96,7 +102,8 @@ describe("paintTruncationMarker", () => {
   it("uses the author's string as the marker and measures THAT string", () => {
     const measured = measureTruncationMarker("[..]", FONT)!;
     const { text } = parse(paint(element({}, { textOverflow: '"[..]"' })));
-    expect(text!.content).toBe("[..]");
+    expect(text!.label).toBe("[..]");
+    expect(text!.family).toMatch(/^dmf\d+$/);
     const expectedLeft = [...X_OFFSETS].reverse().find((edge) => edge <= 140 - measured.widthPx)!;
     expect(text!.x).toBeCloseTo(expectedLeft, 2);
   });
