@@ -6,8 +6,8 @@
  * constant or tolerance. */
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { chromium } from "@playwright/test";
 import sharp from "sharp";
+import { withBrowser } from "./lib/browser.js";
 
 type Side = "left" | "right";
 
@@ -142,86 +142,86 @@ function html(fontData: string): string {
 }
 
 export async function runVerticalDecorationBrowserOracle(): Promise<VerticalDecorationBrowserReport> {
-  const browser = await chromium.launch();
-  const rows: VerticalDecorationBrowserRow[] = [];
-  try {
-    for (const deviceScaleFactor of [1, 4] as const) {
-      const context = await browser.newContext({ viewport: { width: 1500, height: 260 }, deviceScaleFactor });
-      const page = await context.newPage();
-      try {
-        await page.setContent(
-          html(
-            readFileSync("packages/text-engine/assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf").toString(
-              "base64",
+  return await withBrowser(async (browser) => {
+    const rows: VerticalDecorationBrowserRow[] = [];
+    try {
+      for (const deviceScaleFactor of [1, 4] as const) {
+        const context = await browser.newContext({ viewport: { width: 1500, height: 260 }, deviceScaleFactor });
+        const page = await context.newPage();
+        try {
+          await page.setContent(
+            html(
+              readFileSync("packages/text-engine/assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf").toString(
+                "base64",
+              ),
             ),
-          ),
-          { waitUntil: "load" },
-        );
-        await page.evaluate(() => document.fonts.ready);
-        const rects = await page.evaluate(
-          (ids) =>
-            Object.fromEntries(
-              ids.map((id) => {
-                const rect = document.getElementById(id)!.getBoundingClientRect();
-                return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
-              }),
-            ),
-          PROBES.map((probe) => probe.id),
-        );
-        const png = await page.screenshot();
-        const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-        const pixels = decoded.data;
-        const stride = decoded.info.width * 4;
-        for (const probe of PROBES) {
-          const rect = rects[probe.id] as { x: number; y: number; width: number; height: number };
-          const minX = Math.max(0, Math.floor((rect.x - 30) * deviceScaleFactor));
-          const maxX = Math.min(decoded.info.width - 1, Math.ceil((rect.x + rect.width + 30) * deviceScaleFactor));
-          const minY = Math.max(0, Math.floor((rect.y - 4) * deviceScaleFactor));
-          const maxY = Math.min(decoded.info.height - 1, Math.ceil((rect.y + rect.height + 4) * deviceScaleFactor));
-          let count = 0;
-          let sumX = 0;
-          for (let py = minY; py <= maxY; py++) {
-            for (let px = minX; px <= maxX; px++) {
-              const at = py * stride + px * 4;
-              const red = pixels[at];
-              const green = pixels[at + 1];
-              const blue = pixels[at + 2];
-              if (red > 160 && red > green * 1.8 && red > blue * 1.8) {
-                count++;
-                sumX += (px + 0.5) / deviceScaleFactor;
+            { waitUntil: "load" },
+          );
+          await page.evaluate(() => document.fonts.ready);
+          const rects = await page.evaluate(
+            (ids) =>
+              Object.fromEntries(
+                ids.map((id) => {
+                  const rect = document.getElementById(id)!.getBoundingClientRect();
+                  return [id, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+                }),
+              ),
+            PROBES.map((probe) => probe.id),
+          );
+          const png = await page.screenshot();
+          const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+          const pixels = decoded.data;
+          const stride = decoded.info.width * 4;
+          for (const probe of PROBES) {
+            const rect = rects[probe.id] as { x: number; y: number; width: number; height: number };
+            const minX = Math.max(0, Math.floor((rect.x - 30) * deviceScaleFactor));
+            const maxX = Math.min(decoded.info.width - 1, Math.ceil((rect.x + rect.width + 30) * deviceScaleFactor));
+            const minY = Math.max(0, Math.floor((rect.y - 4) * deviceScaleFactor));
+            const maxY = Math.min(decoded.info.height - 1, Math.ceil((rect.y + rect.height + 4) * deviceScaleFactor));
+            let count = 0;
+            let sumX = 0;
+            for (let py = minY; py <= maxY; py++) {
+              for (let px = minX; px <= maxX; px++) {
+                const at = py * stride + px * 4;
+                const red = pixels[at];
+                const green = pixels[at + 1];
+                const blue = pixels[at + 2];
+                if (red > 160 && red > green * 1.8 && red > blue * 1.8) {
+                  count++;
+                  sumX += (px + 0.5) / deviceScaleFactor;
+                }
               }
             }
+            const rasterCentroidX = count > 0 ? sumX / count : Number.NaN;
+            const elementCenterX = rect.x + rect.width / 2;
+            const actualSide: Side = rasterCentroidX < elementCenterX ? "left" : "right";
+            rows.push({
+              id: probe.id,
+              deviceScaleFactor,
+              expectedSide: probe.expectedSide,
+              actualSide,
+              redPixelCount: count,
+              rasterCentroidX,
+              elementCenterX,
+              pass: count > 0 && actualSide === probe.expectedSide,
+            });
           }
-          const rasterCentroidX = count > 0 ? sumX / count : Number.NaN;
-          const elementCenterX = rect.x + rect.width / 2;
-          const actualSide: Side = rasterCentroidX < elementCenterX ? "left" : "right";
-          rows.push({
-            id: probe.id,
-            deviceScaleFactor,
-            expectedSide: probe.expectedSide,
-            actualSide,
-            redPixelCount: count,
-            rasterCentroidX,
-            elementCenterX,
-            pass: count > 0 && actualSide === probe.expectedSide,
-          });
+        } finally {
+          await context.close();
         }
-      } finally {
-        await context.close();
       }
+      const pass = rows.length === PROBES.length * 2 && rows.every((row) => row.pass);
+      return {
+        chromiumVersion: browser.version(),
+        deviceScaleFactors: [1, 4],
+        rows,
+        rasterPhase: "native-coverage-observation",
+        acceptanceRole: "categorical-source-authentication-only",
+        verdict: pass ? "browser-authenticates-source-sides" : "browser-side-authentication-failed",
+      };
+    } finally {
     }
-    const pass = rows.length === PROBES.length * 2 && rows.every((row) => row.pass);
-    return {
-      chromiumVersion: browser.version(),
-      deviceScaleFactors: [1, 4],
-      rows,
-      rasterPhase: "native-coverage-observation",
-      acceptanceRole: "categorical-source-authentication-only",
-      verdict: pass ? "browser-authenticates-source-sides" : "browser-side-authentication-failed",
-    };
-  } finally {
-    await browser.close();
-  }
+  });
 }
 
 async function main(): Promise<void> {

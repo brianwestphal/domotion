@@ -13,9 +13,8 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { mkdirSync, writeFileSync } from "node:fs";
-
-import { chromium, type CDPSession, type Page } from "playwright";
-
+import { type CDPSession, type Page } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 import type {
   CapturedElement,
   CapturedTextPaintAffine,
@@ -756,48 +755,50 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
   const render = await import("../src/render/element-tree-to-svg.js");
   const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const context = await browser.newContext({ viewport: { width: 900, height: 520 }, deviceScaleFactor: 1 });
-    try {
-      const source = await context.newPage();
-      const output = await context.newPage();
-      const userAgent = await source.evaluate(() => navigator.userAgent);
-      const rows: TextBaselineProtocolRow[] = [];
-      for (const test of TEXT_BASELINE_PROTOCOL_CASES) rows.push(await runCase(source, output, test, capture, render));
-      const mutations = evaluateTextBaselineMutations(rows);
-      const controls = {
-        everyRequestedRowPresent: rows.length === TEXT_BASELINE_PROTOCOL_CASES.length,
-        everyRowDiscriminatorActive: rows.every((row) => row.pass),
-        everyWrongPlaneMutationMoves:
-          mutations.length === REQUIRED_TEXT_BASELINE_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
-        noPixelOrScreenshotLeg: true,
-      };
-      const pass = Object.values(controls).every(Boolean);
-      return {
-        schemaVersion: 2,
-        generatedAt: new Date().toISOString(),
-        sourcePins: TEXT_BASELINE_PROTOCOL_SOURCE_PINS,
-        fingerprint: {
-          chromiumVersion: browser.version(),
-          playwrightVersion,
-          userAgent,
-          os: platform(),
-          osRelease: release(),
-          architecture: arch(),
-          node: process.version,
-        },
-        rows,
-        mutations,
-        controls,
-        verdict: pass ? "source-exact-line-origin" : "line-origin-gate-failure",
-      };
-    } finally {
-      await context.close();
-    }
-  } finally {
-    await browser.close();
-  }
+  return await withBrowser(
+    async (browser) => {
+      const context = await browser.newContext({ viewport: { width: 900, height: 520 }, deviceScaleFactor: 1 });
+      try {
+        const source = await context.newPage();
+        const output = await context.newPage();
+        const userAgent = await source.evaluate(() => navigator.userAgent);
+        const rows: TextBaselineProtocolRow[] = [];
+        for (const test of TEXT_BASELINE_PROTOCOL_CASES)
+          rows.push(await runCase(source, output, test, capture, render));
+        const mutations = evaluateTextBaselineMutations(rows);
+        const controls = {
+          everyRequestedRowPresent: rows.length === TEXT_BASELINE_PROTOCOL_CASES.length,
+          everyRowDiscriminatorActive: rows.every((row) => row.pass),
+          everyWrongPlaneMutationMoves:
+            mutations.length === REQUIRED_TEXT_BASELINE_MUTATIONS.length &&
+            mutations.every((mutation) => mutation.moved),
+          noPixelOrScreenshotLeg: true,
+        };
+        const pass = Object.values(controls).every(Boolean);
+        return {
+          schemaVersion: 2,
+          generatedAt: new Date().toISOString(),
+          sourcePins: TEXT_BASELINE_PROTOCOL_SOURCE_PINS,
+          fingerprint: {
+            chromiumVersion: browser.version(),
+            playwrightVersion,
+            userAgent,
+            os: platform(),
+            osRelease: release(),
+            architecture: arch(),
+            node: process.version,
+          },
+          rows,
+          mutations,
+          controls,
+          verdict: pass ? "source-exact-line-origin" : "line-origin-gate-failure",
+        };
+      } finally {
+        await context.close();
+      }
+    },
+    { headless: true },
+  );
 }
 
 async function main(): Promise<number> {

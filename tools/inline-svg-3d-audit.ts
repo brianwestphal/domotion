@@ -14,8 +14,9 @@ import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Page } from "playwright";
+import { type Page } from "playwright";
 import sharp from "sharp";
+import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -796,229 +797,243 @@ export async function runInlineSvg3dAudit(
   if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0)) {
     throw new Error("--dpr requires one or more positive finite numbers");
   }
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const rows: AuditRow[] = [];
-    let userAgent = "";
-    for (const deviceScaleFactor of deviceScaleFactors) {
-      const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
-      const page = await context.newPage();
-      const clonePage = await context.newPage();
-      const generatedPage = await context.newPage();
-      try {
-        if (userAgent === "") userAgent = await page.evaluate(() => navigator.userAgent);
-        for (const test of INLINE_SVG_3D_CASES) {
-          await page.setContent(htmlFor(test), { waitUntil: "load" });
-          await page.evaluate(
-            () =>
-              new Promise<void>((resolveFrame) =>
-                requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
-              ),
-          );
-          await page.evaluate(() => {
-            const state = { htmlUnderSvg: 0 };
-            const observer = new MutationObserver((records) => {
-              for (const record of records) {
-                if (!(record.target instanceof SVGElement)) continue;
-                for (const node of record.addedNodes) {
-                  if (node instanceof HTMLElement) state.htmlUnderSvg++;
+  return await withBrowser(
+    async (browser) => {
+      const rows: AuditRow[] = [];
+      let userAgent = "";
+      for (const deviceScaleFactor of deviceScaleFactors) {
+        const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
+        const page = await context.newPage();
+        const clonePage = await context.newPage();
+        const generatedPage = await context.newPage();
+        try {
+          if (userAgent === "") userAgent = await page.evaluate(() => navigator.userAgent);
+          for (const test of INLINE_SVG_3D_CASES) {
+            await page.setContent(htmlFor(test), { waitUntil: "load" });
+            await page.evaluate(
+              () =>
+                new Promise<void>((resolveFrame) =>
+                  requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+                ),
+            );
+            await page.evaluate(() => {
+              const state = { htmlUnderSvg: 0 };
+              const observer = new MutationObserver((records) => {
+                for (const record of records) {
+                  if (!(record.target instanceof SVGElement)) continue;
+                  for (const node of record.addedNodes) {
+                    if (node instanceof HTMLElement) state.htmlUnderSvg++;
+                  }
                 }
-              }
+              });
+              observer.observe(document, { childList: true, subtree: true });
+              (globalThis as typeof globalThis & { __dm2475MutationState?: typeof state }).__dm2475MutationState =
+                state;
+              (
+                globalThis as typeof globalThis & { __dm2475MutationObserver?: MutationObserver }
+              ).__dm2475MutationObserver = observer;
             });
-            observer.observe(document, { childList: true, subtree: true });
-            (globalThis as typeof globalThis & { __dm2475MutationState?: typeof state }).__dm2475MutationState = state;
-            (
-              globalThis as typeof globalThis & { __dm2475MutationObserver?: MutationObserver }
-            ).__dm2475MutationObserver = observer;
-          });
-          const sourcePng = await page.screenshot({ type: "png", omitBackground: true });
-          const source = await readFacts(page);
-          const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...VIEWPORT });
-          const sourceDomMutationCount = await page.evaluate(() => {
-            const scope = globalThis as typeof globalThis & {
-              __dm2475MutationState?: { htmlUnderSvg: number };
-              __dm2475MutationObserver?: MutationObserver;
-            };
-            scope.__dm2475MutationObserver?.disconnect();
-            const count = scope.__dm2475MutationState?.htmlUnderSvg ?? 0;
-            delete scope.__dm2475MutationObserver;
-            delete scope.__dm2475MutationState;
-            return count;
-          });
-          const inlineSvg = findInlineSvg(tree);
-          const raster = rasterFacts(tree);
-          const cloneResult = inlineSvg?.svgContent == null ? null : await readClone(clonePage, inlineSvg.svgContent);
-          const delta =
-            cloneResult == null ? Number.POSITIVE_INFINITY : matrixDelta(source.localCtm, cloneResult.facts.localCtm);
-          const transformRaster = raster.count > 0;
-          const logicalPass =
-            test.expectedRoute === "outer-raster"
-              ? raster.effective === 1
-              : test.expectedRoute === "promoted-inline-svg-raster"
-                ? raster.count === 1 && raster.effective === 1 && inlineSvg?.transformSubtreeRaster?.dataUri != null
-                : raster.count === 0 && delta <= MATRIX_EPSILON;
-          const generatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, {
-            hiDPIFactor: deviceScaleFactor,
-          });
-          await generatedPage.setContent(
-            `<style>html,body{margin:0;background:transparent}svg{display:block}</style>${generatedSvg}`,
-            { waitUntil: "load" },
-          );
-          await generatedPage.evaluate(
-            () =>
-              new Promise<void>((resolveFrame) =>
-                requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
-              ),
-          );
-          const generatedPng = await generatedPage.screenshot({ type: "png", omitBackground: true });
-          const pixels = await compareFinalPixels(sourcePng, generatedPng);
-          rows.push({
-            id: test.id,
-            deviceScaleFactor,
-            expectedRoute: test.expectedRoute,
-            source,
-            clone: cloneResult?.facts ?? null,
-            clonedTransformAttribute: cloneResult?.transformAttribute ?? null,
-            matrixDelta: delta,
-            quadAffineResidual: quadAffineResidual(source.quad),
-            transformRaster,
-            rasterOwnerCount: raster.count,
-            effectiveRasterOwnerCount: raster.effective,
-            rasterOwnerPaths: raster.paths,
-            capturedInlineSvg:
-              inlineSvg == null
-                ? null
-                : {
-                    storedTransform: inlineSvg.styles.transform ?? null,
-                    projectiveTransform: inlineSvg.projectiveTransform ?? null,
-                    ownsTransformRaster: inlineSvg.transformSubtreeRaster?.dataUri != null,
-                  },
-            pixels,
-            sourceDomMutationCount,
-            warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
-            logicalPass,
-            pass: logicalPass && pixels.pass && sourceDomMutationCount === 0,
-          });
+            const sourcePng = await page.screenshot({ type: "png", omitBackground: true });
+            const source = await readFacts(page);
+            const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", {
+              x: 0,
+              y: 0,
+              ...VIEWPORT,
+            });
+            const sourceDomMutationCount = await page.evaluate(() => {
+              const scope = globalThis as typeof globalThis & {
+                __dm2475MutationState?: { htmlUnderSvg: number };
+                __dm2475MutationObserver?: MutationObserver;
+              };
+              scope.__dm2475MutationObserver?.disconnect();
+              const count = scope.__dm2475MutationState?.htmlUnderSvg ?? 0;
+              delete scope.__dm2475MutationObserver;
+              delete scope.__dm2475MutationState;
+              return count;
+            });
+            const inlineSvg = findInlineSvg(tree);
+            const raster = rasterFacts(tree);
+            const cloneResult = inlineSvg?.svgContent == null ? null : await readClone(clonePage, inlineSvg.svgContent);
+            const delta =
+              cloneResult == null ? Number.POSITIVE_INFINITY : matrixDelta(source.localCtm, cloneResult.facts.localCtm);
+            const transformRaster = raster.count > 0;
+            const logicalPass =
+              test.expectedRoute === "outer-raster"
+                ? raster.effective === 1
+                : test.expectedRoute === "promoted-inline-svg-raster"
+                  ? raster.count === 1 && raster.effective === 1 && inlineSvg?.transformSubtreeRaster?.dataUri != null
+                  : raster.count === 0 && delta <= MATRIX_EPSILON;
+            const generatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, {
+              hiDPIFactor: deviceScaleFactor,
+            });
+            await generatedPage.setContent(
+              `<style>html,body{margin:0;background:transparent}svg{display:block}</style>${generatedSvg}`,
+              { waitUntil: "load" },
+            );
+            await generatedPage.evaluate(
+              () =>
+                new Promise<void>((resolveFrame) =>
+                  requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+                ),
+            );
+            const generatedPng = await generatedPage.screenshot({ type: "png", omitBackground: true });
+            const pixels = await compareFinalPixels(sourcePng, generatedPng);
+            rows.push({
+              id: test.id,
+              deviceScaleFactor,
+              expectedRoute: test.expectedRoute,
+              source,
+              clone: cloneResult?.facts ?? null,
+              clonedTransformAttribute: cloneResult?.transformAttribute ?? null,
+              matrixDelta: delta,
+              quadAffineResidual: quadAffineResidual(source.quad),
+              transformRaster,
+              rasterOwnerCount: raster.count,
+              effectiveRasterOwnerCount: raster.effective,
+              rasterOwnerPaths: raster.paths,
+              capturedInlineSvg:
+                inlineSvg == null
+                  ? null
+                  : {
+                      storedTransform: inlineSvg.styles.transform ?? null,
+                      projectiveTransform: inlineSvg.projectiveTransform ?? null,
+                      ownsTransformRaster: inlineSvg.transformSubtreeRaster?.dataUri != null,
+                    },
+              pixels,
+              sourceDomMutationCount,
+              warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
+              logicalPass,
+              pass: logicalPass && pixels.pass && sourceDomMutationCount === 0,
+            });
+          }
+        } finally {
+          await context.close();
         }
-      } finally {
-        await context.close();
       }
-    }
 
-    const mutationContext = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: deviceScaleFactors[0] });
-    const mutationPage = await mutationContext.newPage();
-    let unsafeMutations: Awaited<ReturnType<typeof measureUnsafeMatrixMutations>>;
-    let markerUsable: boolean;
-    try {
-      unsafeMutations = await measureUnsafeMatrixMutations(mutationPage);
-      markerUsable = await htmlMarkerCanMeasureSvgRoot(mutationPage);
-    } finally {
-      await mutationContext.close();
-    }
-    const mutations = buildMutationResults(rows, unsafeMutations, markerUsable);
-
-    const firstDpr = deviceScaleFactors[0];
-    const byId = new Map(rows.filter((row) => row.deviceScaleFactor === firstDpr).map((row) => [row.id, row]));
-    const referenceMatrices = [
-      byId.get("css-matrix-fill-box")?.source.localCtm,
-      byId.get("css-matrix-stroke-box")?.source.localCtm,
-      byId.get("css-matrix-view-box")?.source.localCtm,
-    ];
-    const referenceBoxesDistinct =
-      referenceMatrices.every((matrix) => matrix != null) &&
-      matrixDelta(referenceMatrices[0]!, referenceMatrices[1]!) > 1 &&
-      matrixDelta(referenceMatrices[1]!, referenceMatrices[2]!) > 1;
-    const controls = {
-      staticAttributeRoundTrips:
-        (byId.get("native-transform-attribute-negative")?.matrixDelta ?? Infinity) <= MATRIX_EPSILON,
-      referenceBoxesDistinct,
-      nonScalingStrokeUsesFillBox: matricesEqual(
-        byId.get("css-matrix-non-scaling-stroke"),
-        byId.get("css-matrix-fill-box"),
-      ),
-      contentBoxUsesFillBox: matricesEqual(byId.get("css-matrix-content-box-alias"), byId.get("css-matrix-fill-box")),
-      borderBoxUsesStrokeBox: matricesEqual(byId.get("css-matrix-border-box-alias"), byId.get("css-matrix-stroke-box")),
-      svgPerspectivePropertyIgnored: matricesEqual(
-        byId.get("svg-layer-perspective-ignored"),
-        byId.get("svg-layer-flat-control"),
-      ),
-      svgChildPreserve3dFlattens: matricesEqual(
-        byId.get("svg-layer-preserve3d-flattens"),
-        byId.get("svg-layer-grouping-opacity-flattens"),
-      ),
-      zOriginMovesBlinkAnswer: !matricesEqual(byId.get("css-rotate-y-z-origin"), byId.get("css-rotate-y-svg-flatten")),
-      everyVectorTransformIsValidSvgMatrix: rows
-        .filter((row) => row.expectedRoute === "clone-equivalent")
-        .every(
-          (row) =>
-            row.clonedTransformAttribute?.startsWith("matrix(") === true &&
-            !row.clonedTransformAttribute.includes("matrix3d"),
-        ),
-      everyOuterProjectiveRowHasOneOwner: rows
-        .filter((row) => row.expectedRoute === "outer-raster")
-        .every((row) => row.effectiveRasterOwnerCount === 1),
-      nestedForeignObjectOwnerIsPromoted:
-        byId.get("foreign-object-nested-projective-owner-promoted")?.capturedInlineSvg?.ownsTransformRaster === true,
-      inlineSvgProjectiveRootIsOwned:
-        byId.get("root-svg-own-projective-transform-raster")?.capturedInlineSvg?.ownsTransformRaster === true,
-      inertSvgPerspectiveStaysVector:
-        byId.get("root-svg-inert-perspective-vector")?.rasterOwnerCount === 0 &&
-        byId.get("svg-layer-perspective-ignored")?.rasterOwnerCount === 0,
-      everyScenarioHasEveryCase: deviceScaleFactors.every(
-        (dpr) => rows.filter((row) => row.deviceScaleFactor === dpr).length === INLINE_SVG_3D_CASES.length,
-      ),
-      everyFinalSvgPixelLegPasses: rows.every((row) => row.pixels.pass),
-      sourceDomWasNotPollutedByHtmlMarkers: rows.every((row) => row.sourceDomMutationCount === 0),
-      everyRequiredMutationMoves:
-        mutations.length === REQUIRED_INLINE_SVG_3D_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
-    };
-    const pass =
-      rows.every((row) => row.pass) &&
-      mutations.every((mutation) => mutation.moved) &&
-      Object.values(controls).every(Boolean);
-    const logicalPassed = rows.filter((row) => row.logicalPass).length;
-    const pixelsPassed = rows.filter((row) => row.pixels.pass).length;
-    const mutationsMoved = mutations.filter((mutation) => mutation.moved).length;
-    return {
-      schemaVersion: 1,
-      generatedAt: new Date().toISOString(),
-      sourceRevisions: SOURCE_REVISIONS,
-      fingerprint: {
-        chromiumVersion: browser.version(),
-        playwrightVersion,
-        userAgent,
-        os: platform(),
-        osRelease: release(),
-        architecture: arch(),
-        node: process.version,
+      const mutationContext = await browser.newContext({
         viewport: VIEWPORT,
-        deviceScaleFactors,
-        matrixEpsilon: MATRIX_EPSILON,
-        maxAlphaBoundDeltaPx: MAX_ALPHA_BOUND_DELTA_PX,
-        maxAlphaMismatchFraction: MAX_ALPHA_MISMATCH_FRACTION,
-        maxRgbaMeanError: MAX_RGBA_MEAN_ERROR,
-      },
-      corpus: {
-        cases: INLINE_SVG_3D_CASES.length,
-        routes: ["clone-equivalent", "outer-raster", "promoted-inline-svg-raster"],
-        mutationKinds: REQUIRED_INLINE_SVG_3D_MUTATIONS,
-      },
-      rows,
-      mutations,
-      controls,
-      summary: {
-        logicalPassed,
-        logicalFailed: rows.length - logicalPassed,
-        pixelsPassed,
-        pixelsFailed: rows.length - pixelsPassed,
-        mutationsMoved,
-        mutationsFailed: mutations.length - mutationsMoved,
-      },
-      verdict: pass ? "hard-two-leg-inline-svg-3d-parity" : "inline-svg-3d-parity-failure",
-    };
-  } finally {
-    await browser.close();
-  }
+        deviceScaleFactor: deviceScaleFactors[0],
+      });
+      const mutationPage = await mutationContext.newPage();
+      let unsafeMutations: Awaited<ReturnType<typeof measureUnsafeMatrixMutations>>;
+      let markerUsable: boolean;
+      try {
+        unsafeMutations = await measureUnsafeMatrixMutations(mutationPage);
+        markerUsable = await htmlMarkerCanMeasureSvgRoot(mutationPage);
+      } finally {
+        await mutationContext.close();
+      }
+      const mutations = buildMutationResults(rows, unsafeMutations, markerUsable);
+
+      const firstDpr = deviceScaleFactors[0];
+      const byId = new Map(rows.filter((row) => row.deviceScaleFactor === firstDpr).map((row) => [row.id, row]));
+      const referenceMatrices = [
+        byId.get("css-matrix-fill-box")?.source.localCtm,
+        byId.get("css-matrix-stroke-box")?.source.localCtm,
+        byId.get("css-matrix-view-box")?.source.localCtm,
+      ];
+      const referenceBoxesDistinct =
+        referenceMatrices.every((matrix) => matrix != null) &&
+        matrixDelta(referenceMatrices[0]!, referenceMatrices[1]!) > 1 &&
+        matrixDelta(referenceMatrices[1]!, referenceMatrices[2]!) > 1;
+      const controls = {
+        staticAttributeRoundTrips:
+          (byId.get("native-transform-attribute-negative")?.matrixDelta ?? Infinity) <= MATRIX_EPSILON,
+        referenceBoxesDistinct,
+        nonScalingStrokeUsesFillBox: matricesEqual(
+          byId.get("css-matrix-non-scaling-stroke"),
+          byId.get("css-matrix-fill-box"),
+        ),
+        contentBoxUsesFillBox: matricesEqual(byId.get("css-matrix-content-box-alias"), byId.get("css-matrix-fill-box")),
+        borderBoxUsesStrokeBox: matricesEqual(
+          byId.get("css-matrix-border-box-alias"),
+          byId.get("css-matrix-stroke-box"),
+        ),
+        svgPerspectivePropertyIgnored: matricesEqual(
+          byId.get("svg-layer-perspective-ignored"),
+          byId.get("svg-layer-flat-control"),
+        ),
+        svgChildPreserve3dFlattens: matricesEqual(
+          byId.get("svg-layer-preserve3d-flattens"),
+          byId.get("svg-layer-grouping-opacity-flattens"),
+        ),
+        zOriginMovesBlinkAnswer: !matricesEqual(
+          byId.get("css-rotate-y-z-origin"),
+          byId.get("css-rotate-y-svg-flatten"),
+        ),
+        everyVectorTransformIsValidSvgMatrix: rows
+          .filter((row) => row.expectedRoute === "clone-equivalent")
+          .every(
+            (row) =>
+              row.clonedTransformAttribute?.startsWith("matrix(") === true &&
+              !row.clonedTransformAttribute.includes("matrix3d"),
+          ),
+        everyOuterProjectiveRowHasOneOwner: rows
+          .filter((row) => row.expectedRoute === "outer-raster")
+          .every((row) => row.effectiveRasterOwnerCount === 1),
+        nestedForeignObjectOwnerIsPromoted:
+          byId.get("foreign-object-nested-projective-owner-promoted")?.capturedInlineSvg?.ownsTransformRaster === true,
+        inlineSvgProjectiveRootIsOwned:
+          byId.get("root-svg-own-projective-transform-raster")?.capturedInlineSvg?.ownsTransformRaster === true,
+        inertSvgPerspectiveStaysVector:
+          byId.get("root-svg-inert-perspective-vector")?.rasterOwnerCount === 0 &&
+          byId.get("svg-layer-perspective-ignored")?.rasterOwnerCount === 0,
+        everyScenarioHasEveryCase: deviceScaleFactors.every(
+          (dpr) => rows.filter((row) => row.deviceScaleFactor === dpr).length === INLINE_SVG_3D_CASES.length,
+        ),
+        everyFinalSvgPixelLegPasses: rows.every((row) => row.pixels.pass),
+        sourceDomWasNotPollutedByHtmlMarkers: rows.every((row) => row.sourceDomMutationCount === 0),
+        everyRequiredMutationMoves:
+          mutations.length === REQUIRED_INLINE_SVG_3D_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
+      };
+      const pass =
+        rows.every((row) => row.pass) &&
+        mutations.every((mutation) => mutation.moved) &&
+        Object.values(controls).every(Boolean);
+      const logicalPassed = rows.filter((row) => row.logicalPass).length;
+      const pixelsPassed = rows.filter((row) => row.pixels.pass).length;
+      const mutationsMoved = mutations.filter((mutation) => mutation.moved).length;
+      return {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        sourceRevisions: SOURCE_REVISIONS,
+        fingerprint: {
+          chromiumVersion: browser.version(),
+          playwrightVersion,
+          userAgent,
+          os: platform(),
+          osRelease: release(),
+          architecture: arch(),
+          node: process.version,
+          viewport: VIEWPORT,
+          deviceScaleFactors,
+          matrixEpsilon: MATRIX_EPSILON,
+          maxAlphaBoundDeltaPx: MAX_ALPHA_BOUND_DELTA_PX,
+          maxAlphaMismatchFraction: MAX_ALPHA_MISMATCH_FRACTION,
+          maxRgbaMeanError: MAX_RGBA_MEAN_ERROR,
+        },
+        corpus: {
+          cases: INLINE_SVG_3D_CASES.length,
+          routes: ["clone-equivalent", "outer-raster", "promoted-inline-svg-raster"],
+          mutationKinds: REQUIRED_INLINE_SVG_3D_MUTATIONS,
+        },
+        rows,
+        mutations,
+        controls,
+        summary: {
+          logicalPassed,
+          logicalFailed: rows.length - logicalPassed,
+          pixelsPassed,
+          pixelsFailed: rows.length - pixelsPassed,
+          mutationsMoved,
+          mutationsFailed: mutations.length - mutationsMoved,
+        },
+        verdict: pass ? "hard-two-leg-inline-svg-3d-parity" : "inline-svg-3d-parity-failure",
+      };
+    },
+    { headless: true },
+  );
 }
 
 async function main(): Promise<number> {

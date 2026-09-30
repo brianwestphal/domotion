@@ -33,8 +33,8 @@
 import { execFileSync } from "node:child_process";
 import { readdirSync, statSync, existsSync, writeFileSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
-import { chromium } from "@playwright/test";
 import * as fontkit from "fontkit";
+import { withBrowser } from "./lib/browser.js";
 
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 const FONT_DIRS = ["/System/Library/Fonts", "/Library/Fonts"];
@@ -146,44 +146,45 @@ async function main(): Promise<void> {
   }
 
   // Chrome's side: one node per case, read back over CDP.
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  const session = await page.context().newCDPSession(page);
-  await session.send("DOM.enable");
-  await session.send("CSS.enable");
-  await page.setContent(
-    `<body style="margin:0">${cases
-      .map(
-        (d, i) =>
-          `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`,
-      )
-      .join("")}</body>`,
-  );
-  await page.waitForLoadState("networkidle");
-  const { root } = await session.send("DOM.getDocument", { depth: -1 });
+  const { scored, agree, skipped, misses } = await withBrowser(async (browser) => {
+    const page = await browser.newPage();
+    const session = await page.context().newCDPSession(page);
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    await page.setContent(
+      `<body style="margin:0">${cases
+        .map(
+          (d, i) =>
+            `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`,
+        )
+        .join("")}</body>`,
+    );
+    await page.waitForLoadState("networkidle");
+    const { root } = await session.send("DOM.getDocument", { depth: -1 });
 
-  let scored = 0,
-    agree = 0,
-    skipped = 0;
-  const misses: Miss[] = [];
-  for (const [i, d] of cases.entries()) {
-    const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#p${i}` });
-    const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
-    // Sort by glyphCount: the array is NOT ordered by coverage, and reading
-    // fonts[0] has already produced a wrong answer in this area.
-    const chrome = fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0]?.postScriptName;
-    // A family with no coverage for the probe text (Arial Hebrew, Al Bayan and
-    // friends carry no Latin) sends Chrome out of the family entirely. That is
-    // a coverage artifact, not a style-matcher decision, so it is not scored.
-    if (!chrome || !d.names.has(chrome)) {
-      skipped++;
-      continue;
+    let scored = 0,
+      agree = 0,
+      skipped = 0;
+    const misses: Miss[] = [];
+    for (const [i, d] of cases.entries()) {
+      const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#p${i}` });
+      const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+      // Sort by glyphCount: the array is NOT ordered by coverage, and reading
+      // fonts[0] has already produced a wrong answer in this area.
+      const chrome = fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0]?.postScriptName;
+      // A family with no coverage for the probe text (Arial Hebrew, Al Bayan and
+      // friends carry no Latin) sends Chrome out of the family entirely. That is
+      // a coverage artifact, not a style-matcher decision, so it is not scored.
+      if (!chrome || !d.names.has(chrome)) {
+        skipped++;
+        continue;
+      }
+      scored++;
+      if (chrome === d.ours) agree++;
+      else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours });
     }
-    scored++;
-    if (chrome === d.ours) agree++;
-    else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours });
-  }
-  await browser.close();
+    return { scored, agree, skipped, misses };
+  });
 
   const familyCount = new Set(cases.map((c) => c.family)).size;
   const missFamilies = new Set(misses.map((m) => m.family));

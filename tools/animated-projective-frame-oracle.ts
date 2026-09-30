@@ -2,7 +2,8 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { chromium, type Page } from "playwright";
+import { type Page } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { seekAnimationsToFrame } from "../src/capture/animation-frame.js";
 import { projectiveQuadResidual, type ProjectivePaintQuad } from "../src/capture/projective-owner.js";
@@ -310,101 +311,102 @@ export async function runAnimatedProjectiveFrameOracle(
 ): Promise<AnimatedProjectiveOracleReport> {
   const dprs = options.dprs ?? [1, 2];
   const sampleTimesMs = options.sampleTimesMs ?? [...ANIMATED_PROJECTIVE_SAMPLE_TIMES_MS];
-  const browser = await chromium.launch({ headless: true });
-  const chromiumVersion = browser.version();
+  let chromiumVersion = "unknown";
   const rows: AnimatedProjectiveOracleRow[] = [];
   let mutations: AnimatedProjectiveMutationResult[] = [];
-  try {
-    for (const dpr of dprs) {
-      const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr });
-      const page = await context.newPage();
-      try {
-        await page.setContent(fixture(), { waitUntil: "domcontentloaded" });
-        for (const sampleTimeMs of sampleTimesMs) {
-          const settled = await seekAnimationsToFrame(page, sampleTimeMs, { strict: true, includeChildFrames: true });
-          const direct = await measureDirectNodes(page);
-          const captured = await captureElementTreeWithWarnings(
-            page,
-            "#stage",
-            { x: 0, y: 0, ...VIEWPORT },
-            { animationTimeMs: sampleTimeMs },
-          );
-          const elements = flatten(captured.tree);
-          const byAnimId = new Map(
-            elements.filter((element) => element.animId != null).map((element) => [element.animId!, element]),
-          );
-          const svg = elementTreeToSvgInner(
-            captured.tree,
-            VIEWPORT.width,
-            VIEWPORT.height,
-            `dm2359-${dpr}-${sampleTimeMs}-`,
-          );
-          const owners = elements.filter((element) => element.projectiveFrameState?.ownsRasterBoundary === true);
+  await withBrowser(
+    async (browser) => {
+      chromiumVersion = browser.version();
+      for (const dpr of dprs) {
+        const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr });
+        const page = await context.newPage();
+        try {
+          await page.setContent(fixture(), { waitUntil: "domcontentloaded" });
+          for (const sampleTimeMs of sampleTimesMs) {
+            const settled = await seekAnimationsToFrame(page, sampleTimeMs, { strict: true, includeChildFrames: true });
+            const direct = await measureDirectNodes(page);
+            const captured = await captureElementTreeWithWarnings(
+              page,
+              "#stage",
+              { x: 0, y: 0, ...VIEWPORT },
+              { animationTimeMs: sampleTimeMs },
+            );
+            const elements = flatten(captured.tree);
+            const byAnimId = new Map(
+              elements.filter((element) => element.animId != null).map((element) => [element.animId!, element]),
+            );
+            const svg = elementTreeToSvgInner(
+              captured.tree,
+              VIEWPORT.width,
+              VIEWPORT.height,
+              `dm2359-${dpr}-${sampleTimeMs}-`,
+            );
+            const owners = elements.filter((element) => element.projectiveFrameState?.ownsRasterBoundary === true);
 
-          for (const testCase of CASES) {
-            const planeId = `${testCase.id}-plane`;
-            const source = direct.get(planeId)!;
-            const ownerId = expectedOwnerId(testCase.id, direct);
-            const caseOwnerIds = new Set([`${testCase.id}-host`, planeId]);
-            if (testCase.id === "grouping") caseOwnerIds.add("grouping-middle");
-            const caseOwners = owners.filter((element) => element.animId != null && caseOwnerIds.has(element.animId));
-            const actualOwner = caseOwners.length === 1 ? caseOwners[0] : undefined;
-            const ownerMarkupExact =
-              ownerId == null
-                ? true
-                : new RegExp(`class="anim-${ownerId}"[^>]*>\\s*<image\\b`).test(svg) && !svg.includes("matrix3d(");
-            const expected: AnimatedProjectiveFrameExpectation = {
-              sampleTimeMs,
-              stateRequired: stateRequired(testCase.id, sampleTimeMs),
-              sourceQuad: source.quad,
-              sourceResidual: source.residual,
-              sourceComputed: source.computed,
-              animationCount: settled.animationCount,
-              ownerId,
-            };
-            const actual: AnimatedProjectiveFrameObservation = {
-              state: byAnimId.get(planeId)?.projectiveFrameState,
-              ownerId: actualOwner?.animId ?? null,
-              ownerCount: caseOwners.length,
-              rasterMaterialized: actualOwner?.transformSubtreeRaster?.dataUri != null,
-              noProjective2dApproximation: ownerMarkupExact,
-            };
-            const adjudication = adjudicateAnimatedProjectiveFrame(expected, actual);
-            const row: AnimatedProjectiveOracleRow = {
-              id: `${testCase.id}@${sampleTimeMs}ms@dpr${dpr}`,
-              family: testCase.family,
-              dpr,
-              sampleTimeMs,
-              expectedOwnerId: ownerId,
-              actualOwnerId: actual.ownerId,
-              sourceResidual: source.residual,
-              capturedResidual: actual.state?.residual ?? null,
-              sourceQuad: source.quad,
-              capturedQuad: actual.state?.contentQuad ?? null,
-              computedTransform: source.computed.transform,
-              fingerprint: fingerprint({
+            for (const testCase of CASES) {
+              const planeId = `${testCase.id}-plane`;
+              const source = direct.get(planeId)!;
+              const ownerId = expectedOwnerId(testCase.id, direct);
+              const caseOwnerIds = new Set([`${testCase.id}-host`, planeId]);
+              if (testCase.id === "grouping") caseOwnerIds.add("grouping-middle");
+              const caseOwners = owners.filter((element) => element.animId != null && caseOwnerIds.has(element.animId));
+              const actualOwner = caseOwners.length === 1 ? caseOwners[0] : undefined;
+              const ownerMarkupExact =
+                ownerId == null
+                  ? true
+                  : new RegExp(`class="anim-${ownerId}"[^>]*>\\s*<image\\b`).test(svg) && !svg.includes("matrix3d(");
+              const expected: AnimatedProjectiveFrameExpectation = {
+                sampleTimeMs,
+                stateRequired: stateRequired(testCase.id, sampleTimeMs),
+                sourceQuad: source.quad,
+                sourceResidual: source.residual,
+                sourceComputed: source.computed,
+                animationCount: settled.animationCount,
+                ownerId,
+              };
+              const actual: AnimatedProjectiveFrameObservation = {
+                state: byAnimId.get(planeId)?.projectiveFrameState,
+                ownerId: actualOwner?.animId ?? null,
+                ownerCount: caseOwners.length,
+                rasterMaterialized: actualOwner?.transformSubtreeRaster?.dataUri != null,
+                noProjective2dApproximation: ownerMarkupExact,
+              };
+              const adjudication = adjudicateAnimatedProjectiveFrame(expected, actual);
+              const row: AnimatedProjectiveOracleRow = {
+                id: `${testCase.id}@${sampleTimeMs}ms@dpr${dpr}`,
+                family: testCase.family,
                 dpr,
                 sampleTimeMs,
-                case: testCase.id,
-                quad: source.quad,
-                computed: source.computed,
-                ownerId,
-              }),
-              ...adjudication,
-            };
-            rows.push(row);
-            if (mutations.length === 0 && row.pass && ownerId != null && actual.state != null) {
-              mutations = runMutationControls(expected, actual);
+                expectedOwnerId: ownerId,
+                actualOwnerId: actual.ownerId,
+                sourceResidual: source.residual,
+                capturedResidual: actual.state?.residual ?? null,
+                sourceQuad: source.quad,
+                capturedQuad: actual.state?.contentQuad ?? null,
+                computedTransform: source.computed.transform,
+                fingerprint: fingerprint({
+                  dpr,
+                  sampleTimeMs,
+                  case: testCase.id,
+                  quad: source.quad,
+                  computed: source.computed,
+                  ownerId,
+                }),
+                ...adjudication,
+              };
+              rows.push(row);
+              if (mutations.length === 0 && row.pass && ownerId != null && actual.state != null) {
+                mutations = runMutationControls(expected, actual);
+              }
             }
           }
+        } finally {
+          await context.close();
         }
-      } finally {
-        await context.close();
       }
-    }
-  } finally {
-    await browser.close();
-  }
+    },
+    { headless: true },
+  );
   const pass =
     rows.length === dprs.length * sampleTimesMs.length * CASES.length &&
     rows.every((row) => row.pass) &&

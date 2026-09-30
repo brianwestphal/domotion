@@ -10,8 +10,9 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { chromium, type CDPSession, type ElementHandle, type Page } from "playwright";
+import { type CDPSession, type ElementHandle, type Page } from "playwright";
 import sharp from "sharp";
+import { withBrowser } from "./lib/browser.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import type {
@@ -1049,89 +1050,90 @@ export async function runTextTransformGeometryAudit(
   const require = createRequire(import.meta.url),
     playwrightVersion = readPlaywrightVersion() ?? "unknown",
     dprs = options.deviceScaleFactors ?? [1, 2];
-  const browser = await chromium.launch({ headless: true }),
-    rows: TextTransformAuditRow[] = [],
-    fonts = new Set<string>(),
-    faces = new Set<string>(),
-    fragments = new Map<string, CapturedTextPaintFragment>();
-  try {
-    const fingerprintPage = await browser.newPage({ viewport: VIEWPORT }),
-      userAgent = await fingerprintPage.evaluate(() => navigator.userAgent);
-    await fingerprintPage.close();
-    for (const dpr of dprs) {
-      const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr }),
-        source = await context.newPage(),
-        output = await context.newPage();
-      try {
-        for (const test of TEXT_TRANSFORM_CASES) {
-          const result = await runRow(source, output, test, dpr, capture, render, options.artifactDir);
-          rows.push(result.row);
-          result.fonts.forEach((font) => fonts.add(font));
-          result.faces.forEach((face) => faces.add(face));
-          if (result.mutationFragment != null) fragments.set(`${dpr}:${test.id}`, result.mutationFragment);
+  return await withBrowser(
+    async (browser) => {
+      const rows: TextTransformAuditRow[] = [],
+        fonts = new Set<string>(),
+        faces = new Set<string>(),
+        fragments = new Map<string, CapturedTextPaintFragment>();
+      const fingerprintPage = await browser.newPage({ viewport: VIEWPORT }),
+        userAgent = await fingerprintPage.evaluate(() => navigator.userAgent);
+      await fingerprintPage.close();
+      for (const dpr of dprs) {
+        const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: dpr }),
+          source = await context.newPage(),
+          output = await context.newPage();
+        try {
+          for (const test of TEXT_TRANSFORM_CASES) {
+            const result = await runRow(source, output, test, dpr, capture, render, options.artifactDir);
+            rows.push(result.row);
+            result.fonts.forEach((font) => fonts.add(font));
+            result.faces.forEach((face) => faces.add(face));
+            if (result.mutationFragment != null) fragments.set(`${dpr}:${test.id}`, result.mutationFragment);
+          }
+        } finally {
+          await context.close();
         }
-      } finally {
-        await context.close();
       }
-    }
-    const mutations = mutationResults(rows, fragments),
-      fixtureHashes = fixtureFingerprints();
-    const controls = {
-      everyDprHasEveryCase: dprs.every(
-        (dpr) => rows.filter((row) => row.deviceScaleFactor === dpr).length === TEXT_TRANSFORM_CASES.length,
-      ),
-      everyAffineRowUsesSourceExactRoute: rows
-        .filter((row) => row.expectedRoute !== "projective-raster")
-        .every((row) => row.logicalPass),
-      projectivePositiveOwnsOneSurface: rows
-        .filter((row) => row.expectedRoute === "projective-raster")
-        .every((row) => row.logicalPass),
-      everyPixelLegPasses: rows.every((row) => row.pixels.pass),
-      scalarVocabularyAbsent: rows.every((row) => !row.scalarVocabularyFound),
-      bothHtmlRunFixturesPresent: fixtureHashes.length === 2,
-      everyRequiredMutationMoves:
-        mutations.length === REQUIRED_TEXT_TRANSFORM_MUTATIONS.length && mutations.every((mutation) => mutation.moved),
-    };
-    const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean),
-      logicalPassed = rows.filter((row) => row.logicalPass).length,
-      pixelsPassed = rows.filter((row) => row.pixels.pass).length,
-      mutationsMoved = mutations.filter((mutation) => mutation.moved).length;
-    return {
-      schemaVersion: 1,
-      generatedAt: new Date().toISOString(),
-      sourceRevisions: SOURCE_REVISIONS,
-      fingerprint: {
-        chromiumVersion: browser.version(),
-        playwrightVersion,
-        userAgent,
-        os: platform(),
-        osRelease: release(),
-        architecture: arch(),
-        node: process.version,
-        viewport: VIEWPORT,
-        deviceScaleFactors: dprs,
-        requestedFontFamilies: [...fonts].sort(),
-        resolvedFontFaces: [...faces].sort(),
-        thresholds: TEXT_TRANSFORM_GATE_THRESHOLDS,
-      },
-      integrationFixtures: fixtureHashes,
-      corpus: { cases: TEXT_TRANSFORM_CASES.length, mutations: REQUIRED_TEXT_TRANSFORM_MUTATIONS },
-      rows,
-      mutations,
-      controls,
-      summary: {
-        logicalPassed,
-        logicalFailed: rows.length - logicalPassed,
-        pixelsPassed,
-        pixelsFailed: rows.length - pixelsPassed,
-        mutationsMoved,
-        mutationsFailed: mutations.length - mutationsMoved,
-      },
-      verdict: pass ? "hard-two-leg-transformed-text-parity" : "transformed-text-parity-failure",
-    };
-  } finally {
-    await browser.close();
-  }
+      const mutations = mutationResults(rows, fragments),
+        fixtureHashes = fixtureFingerprints();
+      const controls = {
+        everyDprHasEveryCase: dprs.every(
+          (dpr) => rows.filter((row) => row.deviceScaleFactor === dpr).length === TEXT_TRANSFORM_CASES.length,
+        ),
+        everyAffineRowUsesSourceExactRoute: rows
+          .filter((row) => row.expectedRoute !== "projective-raster")
+          .every((row) => row.logicalPass),
+        projectivePositiveOwnsOneSurface: rows
+          .filter((row) => row.expectedRoute === "projective-raster")
+          .every((row) => row.logicalPass),
+        everyPixelLegPasses: rows.every((row) => row.pixels.pass),
+        scalarVocabularyAbsent: rows.every((row) => !row.scalarVocabularyFound),
+        bothHtmlRunFixturesPresent: fixtureHashes.length === 2,
+        everyRequiredMutationMoves:
+          mutations.length === REQUIRED_TEXT_TRANSFORM_MUTATIONS.length &&
+          mutations.every((mutation) => mutation.moved),
+      };
+      const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean),
+        logicalPassed = rows.filter((row) => row.logicalPass).length,
+        pixelsPassed = rows.filter((row) => row.pixels.pass).length,
+        mutationsMoved = mutations.filter((mutation) => mutation.moved).length;
+      return {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        sourceRevisions: SOURCE_REVISIONS,
+        fingerprint: {
+          chromiumVersion: browser.version(),
+          playwrightVersion,
+          userAgent,
+          os: platform(),
+          osRelease: release(),
+          architecture: arch(),
+          node: process.version,
+          viewport: VIEWPORT,
+          deviceScaleFactors: dprs,
+          requestedFontFamilies: [...fonts].sort(),
+          resolvedFontFaces: [...faces].sort(),
+          thresholds: TEXT_TRANSFORM_GATE_THRESHOLDS,
+        },
+        integrationFixtures: fixtureHashes,
+        corpus: { cases: TEXT_TRANSFORM_CASES.length, mutations: REQUIRED_TEXT_TRANSFORM_MUTATIONS },
+        rows,
+        mutations,
+        controls,
+        summary: {
+          logicalPassed,
+          logicalFailed: rows.length - logicalPassed,
+          pixelsPassed,
+          pixelsFailed: rows.length - pixelsPassed,
+          mutationsMoved,
+          mutationsFailed: mutations.length - mutationsMoved,
+        },
+        verdict: pass ? "hard-two-leg-transformed-text-parity" : "transformed-text-parity-failure",
+      };
+    },
+    { headless: true },
+  );
 }
 
 async function main(): Promise<number> {

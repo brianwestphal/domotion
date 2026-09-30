@@ -10,10 +10,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-
-import { chromium, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -530,8 +529,7 @@ export async function runBlendFilterPixelStageOracle(
   dprs: number[] = [1, 2],
   artifactDir?: string,
 ): Promise<BlendFilterPixelStageReport> {
-  const browser = await chromium.launch({ headless: true });
-  const chromiumVersion = browser.version();
+  let chromiumVersion = "unknown";
   const rows: BlendFilterProbeRow[] = [];
   const boundaries: BlendFilterBoundaryRow[] = [];
   const structuralErrors: string[] = [];
@@ -539,148 +537,155 @@ export async function runBlendFilterPixelStageOracle(
   const fixture = blendFilterFixtureHtml();
   const expected = expectedPixels();
   let boundaryCaptured = false;
-  try {
-    for (const dpr of dprs) {
-      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });
-      const sourcePage = await context.newPage();
-      await sourcePage.setContent(fixture, { waitUntil: "load" });
-      await sourcePage.evaluate(
-        () =>
-          new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))),
-      );
-      const points = (await sourcePage.locator("[data-probe]").evaluateAll((elements) =>
-        Object.fromEntries(
-          elements.map((element) => {
-            const rect = element.getBoundingClientRect();
-            return [element.getAttribute("data-probe")!, [rect.left + rect.width / 2, rect.top + rect.height / 2]];
-          }),
-        ),
-      )) as Record<string, [number, number]>;
-      const sourcePng = Buffer.from(
-        await sourcePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT }, omitBackground: true }),
-      );
-      const captured = await captureElementTreeWithWarnings(sourcePage, "#stage", {
-        x: 0,
-        y: 0,
-        width: WIDTH,
-        height: HEIGHT,
-      });
-      warnings.push(
-        ...captured.warnings.map(
-          (warning) => `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`,
-        ),
-      );
-      const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
-
-      if (!boundaryCaptured) {
-        const byAnimId = new Map(
-          flatten(captured.tree)
-            .filter((element) => element.animId != null)
-            .map((element) => [element.animId!, element]),
-        );
-        const ownership = (id: string): "vector" | "chromium-raster" | "missing" => {
-          const element = byAnimId.get(id);
-          if (element == null) return "missing";
-          const raster =
-            element.backdropFilterRaster?.dataUri != null ||
-            element.urlFilterRaster?.dataUri != null ||
-            element.elementRaster?.dataUri != null ||
-            element.transformSubtreeRaster?.dataUri != null;
-          return raster ? "chromium-raster" : "vector";
-        };
-        for (const [id, expectedOwnership] of [
-          ["boundary-filter", "vector"],
-          ["boundary-blend", "vector"],
-          ["boundary-backdrop", "chromium-raster"],
-          ["boundary-convolve", "chromium-raster"],
-          ["boundary-url-color", "vector"],
-          ["boundary-native-convolve", "vector"],
-        ] as const) {
-          const actual = ownership(id);
-          boundaries.push({ id, expected: expectedOwnership, actual, pass: actual === expectedOwnership });
-        }
-        boundaryCaptured = true;
-      }
-
-      const mutated = {
-        "no-filter": svg.replace(/(?<!backdrop-)filter:[^;&\"]+/g, "filter:none"),
-        "no-blend": svg.replace(/mix-blend-mode:[^;&\"]+/g, "mix-blend-mode:normal"),
-        "no-isolation": svg.replace(/isolation:isolate/g, "isolation:auto"),
-      } as const;
-      const renderPage = await context.newPage();
-      const renderedPng = await screenshotSvg(renderPage, svg);
-      const mutationPngs = {
-        "no-filter": await screenshotSvg(renderPage, mutated["no-filter"]),
-        "no-blend": await screenshotSvg(renderPage, mutated["no-blend"]),
-        "no-isolation": await screenshotSvg(renderPage, mutated["no-isolation"]),
-      } as const;
-      const [sourceImage, renderedImage, noFilterImage, noBlendImage, noIsolationImage] = await Promise.all([
-        decode(sourcePng),
-        decode(renderedPng),
-        decode(mutationPngs["no-filter"]),
-        decode(mutationPngs["no-blend"]),
-        decode(mutationPngs["no-isolation"]),
-      ]);
-      const mutationImages = {
-        "no-filter": noFilterImage,
-        "no-blend": noBlendImage,
-        "no-isolation": noIsolationImage,
-      } as const;
-      const specs = probeSpecs(Object.keys(points));
-      for (const [id, point] of Object.entries(points)) {
-        if (id === "boundary.backdrop") continue;
-        const spec = specs.get(id);
-        if (spec == null) {
-          structuralErrors.push(`missing probe specification: ${id}`);
-          continue;
-        }
-        const sourcePixel = sample(sourceImage, point[0], point[1], dpr);
-        const renderedPixel = sample(renderedImage, point[0], point[1], dpr);
-        const mutationPixel = sample(mutationImages[spec.mutation], point[0], point[1], dpr);
-        const expectedPixel = expected.get(id) ?? null;
-        const modelError = expectedPixel == null ? null : maxDistance(sourcePixel, expectedPixel);
-        const renderedError = maxDistance(sourcePixel, renderedPixel);
-        // Measure activation against the candidate, not the source. A known
-        // candidate defect must not make an otherwise inert mutation look
-        // active merely because both differ from Chromium.
-        const mutationDistance = maxDistance(renderedPixel, mutationPixel);
-        const mutationPass =
-          spec.movement === "moved"
-            ? mutationDistance >= MUTATION_MIN_CHANNEL_DISTANCE
-            : mutationDistance <= STAGE_CHANNEL_TOLERANCE;
-        const basePass =
-          (modelError == null || modelError <= STAGE_CHANNEL_TOLERANCE) &&
-          renderedError <= STAGE_CHANNEL_TOLERANCE &&
-          mutationPass;
-        rows.push({
-          id,
-          dpr,
-          pointCss: point,
-          expected: expectedPixel,
-          source: sourcePixel,
-          rendered: renderedPixel,
-          mutation: mutationPixel,
-          sourceModelMaxChannelError: modelError,
-          renderedMaxChannelError: renderedError,
-          mutationMaxChannelDistance: mutationDistance,
-          mutationKind: spec.mutation,
-          mutationExpectation: spec.movement,
-          pass: basePass,
+  await withBrowser(
+    async (browser) => {
+      chromiumVersion = browser.version();
+      for (const dpr of dprs) {
+        const context = await browser.newContext({
+          viewport: { width: WIDTH, height: HEIGHT },
+          deviceScaleFactor: dpr,
         });
+        const sourcePage = await context.newPage();
+        await sourcePage.setContent(fixture, { waitUntil: "load" });
+        await sourcePage.evaluate(
+          () =>
+            new Promise<void>((resolveFrame) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame())),
+            ),
+        );
+        const points = (await sourcePage.locator("[data-probe]").evaluateAll((elements) =>
+          Object.fromEntries(
+            elements.map((element) => {
+              const rect = element.getBoundingClientRect();
+              return [element.getAttribute("data-probe")!, [rect.left + rect.width / 2, rect.top + rect.height / 2]];
+            }),
+          ),
+        )) as Record<string, [number, number]>;
+        const sourcePng = Buffer.from(
+          await sourcePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT }, omitBackground: true }),
+        );
+        const captured = await captureElementTreeWithWarnings(sourcePage, "#stage", {
+          x: 0,
+          y: 0,
+          width: WIDTH,
+          height: HEIGHT,
+        });
+        warnings.push(
+          ...captured.warnings.map(
+            (warning) => `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`,
+          ),
+        );
+        const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
+
+        if (!boundaryCaptured) {
+          const byAnimId = new Map(
+            flatten(captured.tree)
+              .filter((element) => element.animId != null)
+              .map((element) => [element.animId!, element]),
+          );
+          const ownership = (id: string): "vector" | "chromium-raster" | "missing" => {
+            const element = byAnimId.get(id);
+            if (element == null) return "missing";
+            const raster =
+              element.backdropFilterRaster?.dataUri != null ||
+              element.urlFilterRaster?.dataUri != null ||
+              element.elementRaster?.dataUri != null ||
+              element.transformSubtreeRaster?.dataUri != null;
+            return raster ? "chromium-raster" : "vector";
+          };
+          for (const [id, expectedOwnership] of [
+            ["boundary-filter", "vector"],
+            ["boundary-blend", "vector"],
+            ["boundary-backdrop", "chromium-raster"],
+            ["boundary-convolve", "chromium-raster"],
+            ["boundary-url-color", "vector"],
+            ["boundary-native-convolve", "vector"],
+          ] as const) {
+            const actual = ownership(id);
+            boundaries.push({ id, expected: expectedOwnership, actual, pass: actual === expectedOwnership });
+          }
+          boundaryCaptured = true;
+        }
+
+        const mutated = {
+          "no-filter": svg.replace(/(?<!backdrop-)filter:[^;&\"]+/g, "filter:none"),
+          "no-blend": svg.replace(/mix-blend-mode:[^;&\"]+/g, "mix-blend-mode:normal"),
+          "no-isolation": svg.replace(/isolation:isolate/g, "isolation:auto"),
+        } as const;
+        const renderPage = await context.newPage();
+        const renderedPng = await screenshotSvg(renderPage, svg);
+        const mutationPngs = {
+          "no-filter": await screenshotSvg(renderPage, mutated["no-filter"]),
+          "no-blend": await screenshotSvg(renderPage, mutated["no-blend"]),
+          "no-isolation": await screenshotSvg(renderPage, mutated["no-isolation"]),
+        } as const;
+        const [sourceImage, renderedImage, noFilterImage, noBlendImage, noIsolationImage] = await Promise.all([
+          decode(sourcePng),
+          decode(renderedPng),
+          decode(mutationPngs["no-filter"]),
+          decode(mutationPngs["no-blend"]),
+          decode(mutationPngs["no-isolation"]),
+        ]);
+        const mutationImages = {
+          "no-filter": noFilterImage,
+          "no-blend": noBlendImage,
+          "no-isolation": noIsolationImage,
+        } as const;
+        const specs = probeSpecs(Object.keys(points));
+        for (const [id, point] of Object.entries(points)) {
+          if (id === "boundary.backdrop") continue;
+          const spec = specs.get(id);
+          if (spec == null) {
+            structuralErrors.push(`missing probe specification: ${id}`);
+            continue;
+          }
+          const sourcePixel = sample(sourceImage, point[0], point[1], dpr);
+          const renderedPixel = sample(renderedImage, point[0], point[1], dpr);
+          const mutationPixel = sample(mutationImages[spec.mutation], point[0], point[1], dpr);
+          const expectedPixel = expected.get(id) ?? null;
+          const modelError = expectedPixel == null ? null : maxDistance(sourcePixel, expectedPixel);
+          const renderedError = maxDistance(sourcePixel, renderedPixel);
+          // Measure activation against the candidate, not the source. A known
+          // candidate defect must not make an otherwise inert mutation look
+          // active merely because both differ from Chromium.
+          const mutationDistance = maxDistance(renderedPixel, mutationPixel);
+          const mutationPass =
+            spec.movement === "moved"
+              ? mutationDistance >= MUTATION_MIN_CHANNEL_DISTANCE
+              : mutationDistance <= STAGE_CHANNEL_TOLERANCE;
+          const basePass =
+            (modelError == null || modelError <= STAGE_CHANNEL_TOLERANCE) &&
+            renderedError <= STAGE_CHANNEL_TOLERANCE &&
+            mutationPass;
+          rows.push({
+            id,
+            dpr,
+            pointCss: point,
+            expected: expectedPixel,
+            source: sourcePixel,
+            rendered: renderedPixel,
+            mutation: mutationPixel,
+            sourceModelMaxChannelError: modelError,
+            renderedMaxChannelError: renderedError,
+            mutationMaxChannelDistance: mutationDistance,
+            mutationKind: spec.mutation,
+            mutationExpectation: spec.movement,
+            pass: basePass,
+          });
+        }
+        if (artifactDir != null) {
+          mkdirSync(artifactDir, { recursive: true });
+          writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
+          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
+          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
+          for (const [kind, png] of Object.entries(mutationPngs))
+            writeFileSync(`${artifactDir}/${kind}-dpr${dpr}.png`, png);
+        }
+        await context.close();
       }
-      if (artifactDir != null) {
-        mkdirSync(artifactDir, { recursive: true });
-        writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
-        for (const [kind, png] of Object.entries(mutationPngs))
-          writeFileSync(`${artifactDir}/${kind}-dpr${dpr}.png`, png);
-      }
-      await context.close();
-    }
-  } finally {
-    await browser.close();
-  }
+    },
+    { headless: true },
+  );
   const failedRows = rows.filter((row) => !row.pass);
   const unexpectedFailures = [
     ...failedRows.map((row) => row.id),

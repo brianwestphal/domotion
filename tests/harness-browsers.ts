@@ -43,7 +43,8 @@
 
 import { readdirSync, statSync, type Dirent } from "node:fs";
 import { createHash } from "node:crypto";
-import { chromium, type Browser } from "@playwright/test";
+import type { Browser } from "@playwright/test";
+import { openOwnedBrowser } from "../tools/lib/browser.js";
 
 /** Parse a whitespace-separated flag list; `undefined`/blank ⇒ no flags. */
 function parseFlags(raw: string | undefined): string[] {
@@ -236,7 +237,8 @@ export interface HarnessBrowsers {
 export async function launchHarnessBrowsers(defaultLaunchFlags: string[] = []): Promise<HarnessBrowsers> {
   const { captureFlags, rasterFlags, asymmetric } = resolveHarnessFlags(process.env, defaultLaunchFlags);
 
-  const capture = await chromium.launch(captureFlags.length > 0 ? { args: captureFlags } : {});
+  const captureOwner = await openOwnedBrowser(captureFlags.length > 0 ? { args: captureFlags } : {});
+  const capture = captureOwner.browser;
   if (!asymmetric) {
     return {
       capture,
@@ -244,12 +246,17 @@ export async function launchHarnessBrowsers(defaultLaunchFlags: string[] = []): 
       asymmetric: false,
       captureFlags,
       rasterFlags,
-      close: async () => {
-        await capture.close();
-      },
+      close: captureOwner.close,
     };
   }
-  const raster = await chromium.launch(rasterFlags.length > 0 ? { args: rasterFlags } : {});
+  let rasterOwner: Awaited<ReturnType<typeof openOwnedBrowser>>;
+  try {
+    rasterOwner = await openOwnedBrowser(rasterFlags.length > 0 ? { args: rasterFlags } : {});
+  } catch (error) {
+    await captureOwner.close();
+    throw error;
+  }
+  const raster = rasterOwner.browser;
   return {
     capture,
     raster,
@@ -257,8 +264,11 @@ export async function launchHarnessBrowsers(defaultLaunchFlags: string[] = []): 
     captureFlags,
     rasterFlags,
     close: async () => {
-      await raster.close();
-      await capture.close();
+      try {
+        await rasterOwner.close();
+      } finally {
+        await captureOwner.close();
+      }
     },
   };
 }

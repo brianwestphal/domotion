@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 /** Same-machine system-ui family/cut assertion for DM-2087. */
-import { chromium } from "@playwright/test";
 import { clearFontResolutionCaches, resolveFont } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 
 if (process.platform !== "linux") process.exit(0);
@@ -14,8 +14,7 @@ const cases = [
   { weight: 400, style: "normal", stretch: "condensed" },
 ] as const;
 
-const browser = await chromium.launch();
-try {
+await withBrowser(async (browser) => {
   for (const fresh of [false, true]) {
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -49,6 +48,4 @@ try {
     }
     await context.close();
   }
-} finally {
-  await browser.close();
-}
+}, undefined);

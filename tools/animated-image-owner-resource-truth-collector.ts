@@ -12,6 +12,7 @@ import { arch, release } from "node:os";
 import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
 import { chromium, type CDPSession, type Page } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 
 import {
   ANIMATED_IMAGE_TRUTH_CHROMIUM_REVISION,
@@ -774,100 +775,101 @@ async function main(): Promise<void> {
     throw new Error("loaded library authority is duplicate or incomplete");
   }
 
-  const browser = await chromium.launch({
-    executablePath: options.browser,
-    headless: true,
-  });
-  const browserCdp = await browser.newBrowserCDPSession();
-  try {
-    const browserVersion = browser.version();
-    if (!browserVersion.endsWith(ANIMATED_IMAGE_TRUTH_BROWSER_VERSION) || !["arm64", "x64"].includes(arch())) {
-      throw new Error("launched browser version or architecture is not pinned");
-    }
-    const processId = await browserProcessId(browserCdp);
-    stage("browser process binary authentication");
-    await requireMappedFiles([options.browser], [processId]);
-    stage("browser context creation");
-    const context = await browser.newContext();
-    const browserContextId = randomUUID();
-    const rows: AnimatedImageTruthProbeRow[] = [];
-    const authenticatedRendererProcessIds = new Set<number>();
-    let loadedLibraryIdentities: AnimatedImageTruthBinaryIdentity[] = [];
-    try {
-      stage("page target creation");
-      const page = await context.newPage();
-      stage("page protocol initialization");
-      const cdp = await context.newCDPSession(page);
-      await cdp.send("DOM.enable");
-      await cdp.send("Network.enable", {
-        maxTotalBufferSize: ANIMATED_IMAGE_TRUTH_LIMITS.inspectorTotalBufferBytes,
-        maxResourceBufferSize: ANIMATED_IMAGE_TRUTH_LIMITS.inspectorResourceBufferBytes,
-        maxPostDataSize: 0,
-      });
-      for (const row of plan.rows) {
-        // Probe/case ids come from the sealed plan and contain no resource or
-        // body data, so they are safe diagnostics even for denied routes.
-        safeFailureStage = `probe ${row.probeId}/${row.caseId}`;
-        process.stderr.write(`animated-image truth collector entering ${safeFailureStage}\n`);
-        const collectedRow = await collectRow(page, cdp, browserCdp, row, authority.patchSha256);
-        const rendererProcessId = collectedRow.begin.oracle.rendererProcessId;
-        if (!authenticatedRendererProcessIds.has(rendererProcessId)) {
-          safeFailureStage = `probe ${row.probeId}/${row.caseId}: renderer binary authentication`;
-          process.stderr.write(`animated-image truth collector at ${safeFailureStage}\n`);
-          // Authenticate each renderer while the row's own liveness check is
-          // still current. Cross-origin navigation may retire historical
-          // renderers before a post-run sweep could inspect their mappings.
-          await requireMappedFiles([options.renderer, ...options.loadedLibraries], [rendererProcessId]);
-          authenticatedRendererProcessIds.add(rendererProcessId);
+  await withBrowser(
+    async (browser) => {
+      const browserCdp = await browser.newBrowserCDPSession();
+      try {
+        const browserVersion = browser.version();
+        if (!browserVersion.endsWith(ANIMATED_IMAGE_TRUTH_BROWSER_VERSION) || !["arm64", "x64"].includes(arch())) {
+          throw new Error("launched browser version or architecture is not pinned");
         }
-        rows.push(collectedRow);
-      }
-      stage("loaded library digest authentication");
-      loadedLibraryIdentities = await Promise.all(
-        options.loadedLibraries.map((path) => binaryIdentity(path, basename(path))),
-      );
-      await boundedTeardown(cdp.detach());
-    } finally {
-      await boundedTeardown(context.close());
-    }
+        const processId = await browserProcessId(browserCdp);
+        stage("browser process binary authentication");
+        await requireMappedFiles([options.browser], [processId]);
+        stage("browser context creation");
+        const context = await browser.newContext();
+        const browserContextId = randomUUID();
+        const rows: AnimatedImageTruthProbeRow[] = [];
+        const authenticatedRendererProcessIds = new Set<number>();
+        let loadedLibraryIdentities: AnimatedImageTruthBinaryIdentity[] = [];
+        try {
+          stage("page target creation");
+          const page = await context.newPage();
+          stage("page protocol initialization");
+          const cdp = await context.newCDPSession(page);
+          await cdp.send("DOM.enable");
+          await cdp.send("Network.enable", {
+            maxTotalBufferSize: ANIMATED_IMAGE_TRUTH_LIMITS.inspectorTotalBufferBytes,
+            maxResourceBufferSize: ANIMATED_IMAGE_TRUTH_LIMITS.inspectorResourceBufferBytes,
+            maxPostDataSize: 0,
+          });
+          for (const row of plan.rows) {
+            // Probe/case ids come from the sealed plan and contain no resource or
+            // body data, so they are safe diagnostics even for denied routes.
+            safeFailureStage = `probe ${row.probeId}/${row.caseId}`;
+            process.stderr.write(`animated-image truth collector entering ${safeFailureStage}\n`);
+            const collectedRow = await collectRow(page, cdp, browserCdp, row, authority.patchSha256);
+            const rendererProcessId = collectedRow.begin.oracle.rendererProcessId;
+            if (!authenticatedRendererProcessIds.has(rendererProcessId)) {
+              safeFailureStage = `probe ${row.probeId}/${row.caseId}: renderer binary authentication`;
+              process.stderr.write(`animated-image truth collector at ${safeFailureStage}\n`);
+              // Authenticate each renderer while the row's own liveness check is
+              // still current. Cross-origin navigation may retire historical
+              // renderers before a post-run sweep could inspect their mappings.
+              await requireMappedFiles([options.renderer, ...options.loadedLibraries], [rendererProcessId]);
+              authenticatedRendererProcessIds.add(rendererProcessId);
+            }
+            rows.push(collectedRow);
+          }
+          stage("loaded library digest authentication");
+          loadedLibraryIdentities = await Promise.all(
+            options.loadedLibraries.map((path) => binaryIdentity(path, basename(path))),
+          );
+          await boundedTeardown(cdp.detach());
+        } finally {
+          await boundedTeardown(context.close());
+        }
 
-    const report: AnimatedImageTruthRunReport = {
-      schemaVersion: 1,
-      ticket: "DM-2583",
-      stage: "animated-image-owner-resource-truth",
-      operatingSystem: options.operatingSystem,
-      architecture: arch() as AnimatedImageTruthRunReport["architecture"],
-      platformRelease: release(),
-      browserVersion,
-      evidenceRole: options.evidenceRole,
-      sourceRevision: authority.sourceRevision,
-      sourceManifestSha256: authority.sourceManifestSha256,
-      schemaSha256: ANIMATED_IMAGE_TRUTH_SCHEMA_SHA256,
-      patchSha256: authority.patchSha256,
-      buildInvocationId: options.buildInvocationId,
-      observationId: options.observationId,
-      browserProcessId: processId,
-      browserContextId,
-      explicitHeadless: true,
-      binaries: {
-        browser: await binaryIdentity(options.browser, basename(options.browser)),
-        renderer: await binaryIdentity(options.renderer, basename(options.renderer)),
-        loadedLibraries: loadedLibraryIdentities,
-      },
-      rows,
-      normalizedLogicalSha256: normalizedAnimatedImageTruthRowsSha256(rows),
-    };
-    stage("artifact serialization");
-    await writeFile(options.out, `${JSON.stringify(report, null, 2)}\n`, {
-      flag: "wx",
-    });
-  } finally {
-    try {
-      await boundedTeardown(browserCdp.detach());
-    } finally {
-      await boundedTeardown(browser.close());
-    }
-  }
+        const report: AnimatedImageTruthRunReport = {
+          schemaVersion: 1,
+          ticket: "DM-2583",
+          stage: "animated-image-owner-resource-truth",
+          operatingSystem: options.operatingSystem,
+          architecture: arch() as AnimatedImageTruthRunReport["architecture"],
+          platformRelease: release(),
+          browserVersion,
+          evidenceRole: options.evidenceRole,
+          sourceRevision: authority.sourceRevision,
+          sourceManifestSha256: authority.sourceManifestSha256,
+          schemaSha256: ANIMATED_IMAGE_TRUTH_SCHEMA_SHA256,
+          patchSha256: authority.patchSha256,
+          buildInvocationId: options.buildInvocationId,
+          observationId: options.observationId,
+          browserProcessId: processId,
+          browserContextId,
+          explicitHeadless: true,
+          binaries: {
+            browser: await binaryIdentity(options.browser, basename(options.browser)),
+            renderer: await binaryIdentity(options.renderer, basename(options.renderer)),
+            loadedLibraries: loadedLibraryIdentities,
+          },
+          rows,
+          normalizedLogicalSha256: normalizedAnimatedImageTruthRowsSha256(rows),
+        };
+        stage("artifact serialization");
+        await writeFile(options.out, `${JSON.stringify(report, null, 2)}\n`, {
+          flag: "wx",
+        });
+      } finally {
+        await boundedTeardown(browserCdp.detach());
+      }
+    },
+    { executablePath: options.browser, headless: true },
+    {
+      launch: (launchOptions) => chromium.launch(launchOptions),
+      closeTimeoutMs: TEARDOWN_TIMEOUT_MS,
+    },
+  );
 }
 
 main().catch(() => {

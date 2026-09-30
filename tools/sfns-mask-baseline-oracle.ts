@@ -21,7 +21,8 @@ import {
   setTextRunProvenanceEnabled,
   type TextRunProvenanceDiagnostic,
 } from "@domotion/text-engine/testing";
-import { captureElementTree, launchChromium } from "../src/capture/index.js";
+import { captureElementTree } from "../src/capture/index.js";
+import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { clearGlyphDefs, setRenderTextMode } from "../src/render/font-resolution.js";
@@ -545,327 +546,336 @@ execFileSync("swiftc", ["-O", swiftSource, "-o", nativeBinary], { stdio: "inheri
 
 // This diagnostic never needs a visible browser window. Keep it explicit so
 // local parity work cannot interrupt an operator's live browser session.
-const browser = await launchChromium({ headless: true });
-const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
-await context.route(`${BROWSER_FONT_ORIGIN}/**`, (route) =>
-  route.fulfill({
-    status: 200,
-    contentType: "font/ttf",
-    body: fontBytes,
-  }),
-);
-const page = await context.newPage();
-const lifecyclePage = await context.newPage();
-const rasterPage = await context.newPage();
-const comparePage = await context.newPage();
-const cdp = await context.newCDPSession(page);
-await cdp.send("DOM.enable");
-await cdp.send("CSS.enable");
-setRenderTextMode("paths");
-setTextRunProvenanceEnabled(true);
+await withBrowser(
+  async (browser) => {
+    const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
+    await context.route(`${BROWSER_FONT_ORIGIN}/**`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "font/ttf",
+        body: fontBytes,
+      }),
+    );
+    const page = await context.newPage();
+    const lifecyclePage = await context.newPage();
+    const rasterPage = await context.newPage();
+    const comparePage = await context.newPage();
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    setRenderTextMode("paths");
+    setTextRunProvenanceEnabled(true);
 
-const pending: PendingRow[] = [];
-try {
-  for (const scenario of scenarios) {
-    const primaryFontUrl = `${BROWSER_FONT_ORIGIN}/${scenario.id}-cold-a.ttf`;
-    await page.setContent(scenarioHtml(scenario, primaryFontUrl), { waitUntil: "load" });
-    await page.evaluate(() => document.fonts.ready);
-    const expectedPath = join(outputDirectory, `${scenario.id}-chromium.png`);
-    const chromiumColdA = await page.screenshot({
-      path: expectedPath,
-      clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT },
-    });
-    const chromiumWarmA = await page.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
+    const pending: PendingRow[] = [];
+    try {
+      for (const scenario of scenarios) {
+        const primaryFontUrl = `${BROWSER_FONT_ORIGIN}/${scenario.id}-cold-a.ttf`;
+        await page.setContent(scenarioHtml(scenario, primaryFontUrl), { waitUntil: "load" });
+        await page.evaluate(() => document.fonts.ready);
+        const expectedPath = join(outputDirectory, `${scenario.id}-chromium.png`);
+        const chromiumColdA = await page.screenshot({
+          path: expectedPath,
+          clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT },
+        });
+        const chromiumWarmA = await page.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
 
-    const secondFontUrl = `${BROWSER_FONT_ORIGIN}/${scenario.id}-cold-b.ttf`;
-    await lifecyclePage.setContent(scenarioHtml(scenario, secondFontUrl), { waitUntil: "load" });
-    await lifecyclePage.evaluate(() => document.fonts.ready);
-    const chromiumColdB = await lifecyclePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
-    const chromiumWarmB = await lifecyclePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
+        const secondFontUrl = `${BROWSER_FONT_ORIGIN}/${scenario.id}-cold-b.ttf`;
+        await lifecyclePage.setContent(scenarioHtml(scenario, secondFontUrl), { waitUntil: "load" });
+        await lifecyclePage.evaluate(() => document.fonts.ready);
+        const chromiumColdB = await lifecyclePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
+        const chromiumWarmB = await lifecyclePage.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } });
 
-    const cssom = await page.evaluate(() => {
-      const element = document.querySelector<HTMLElement>("#target")!;
-      const style = getComputedStyle(element);
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      const rangeRect = range.getBoundingClientRect();
-      let zoom = 1;
-      let transform = 1;
-      for (let node: Element | null = element; node != null; node = node.parentElement) {
-        const current = getComputedStyle(node);
-        const currentZoom = Number.parseFloat(current.zoom);
-        if (Number.isFinite(currentZoom) && currentZoom > 0) zoom *= currentZoom;
-        if (current.transform !== "none") {
-          const matrix = new DOMMatrix(current.transform);
-          transform *= Math.sqrt(Math.abs(matrix.a * matrix.d));
+        const cssom = await page.evaluate(() => {
+          const element = document.querySelector<HTMLElement>("#target")!;
+          const style = getComputedStyle(element);
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const rangeRect = range.getBoundingClientRect();
+          let zoom = 1;
+          let transform = 1;
+          for (let node: Element | null = element; node != null; node = node.parentElement) {
+            const current = getComputedStyle(node);
+            const currentZoom = Number.parseFloat(current.zoom);
+            if (Number.isFinite(currentZoom) && currentZoom > 0) zoom *= currentZoom;
+            if (current.transform !== "none") {
+              const matrix = new DOMMatrix(current.transform);
+              transform *= Math.sqrt(Math.abs(matrix.a * matrix.d));
+            }
+          }
+          const logicalSize = Number.parseFloat(style.fontSize);
+          const computedSize = logicalSize * zoom;
+          const paintSize = computedSize * transform;
+          const canvas = document.createElement("canvas").getContext("2d")!;
+          canvas.font = `${style.fontStyle} ${style.fontWeight} ${computedSize}px ${style.fontFamily}`;
+          const measured = canvas.measureText(element.textContent ?? "");
+          const chromiumAxes: Record<string, number> = {};
+          for (const match of style.fontVariationSettings.matchAll(/"([^"\n]{4})"\s+(-?(?:\d+(?:\.\d*)?|\.\d+))/g)) {
+            chromiumAxes[match[1]] = Number(match[2]);
+          }
+          return {
+            rangeTop: rangeRect.top,
+            logicalSize,
+            computedSize,
+            paintSize,
+            canvasAscent: measured.fontBoundingBoxAscent * transform,
+            canvasDescent: measured.fontBoundingBoxDescent * transform,
+            chromiumAxes,
+          };
+        });
+
+        const documentNode = await cdp.send("DOM.getDocument", { depth: -1 });
+        const targetDom = await cdp.send("DOM.querySelector", {
+          nodeId: documentNode.root.nodeId,
+          selector: "#target",
+        });
+        const platformFonts = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: targetDom.nodeId });
+        const chromiumPostscriptName = platformFonts.fonts[0]?.postScriptName ?? "";
+        const chromiumCustomFont = platformFonts.fonts[0]?.isCustomFont ?? false;
+        if (chromiumPostscriptName === "") throw new Error(`Chromium platform face missing for ${scenario.id}`);
+        if (!chromiumCustomFont) throw new Error(`Chromium did not paint routed SFNS bytes for ${scenario.id}`);
+
+        const capturedTree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+        const capturedTarget = findText(capturedTree);
+        const segment = capturedTarget.textSegments?.find((candidate) => candidate.text === TEXT);
+        const rawOrigins = segment?.xOffsets;
+        if (rawOrigins == null || rawOrigins.length !== TEXT.length) {
+          throw new Error(`captured origins missing for ${scenario.id}`);
         }
+        const quarterOrigins = rawOrigins.map(quantizeQuarter);
+        const routedTree = cloneTree(capturedTree);
+        const routedTarget = findText(routedTree);
+        routeDomotionSystemFace(routedTarget);
+        routeQuarterOrigins(routedTarget, quarterOrigins);
+
+        const coldSvgPath = join(outputDirectory, `${scenario.id}-domotion.svg`);
+        const coldA = await renderDomotion(routedTree, scenario.id, coldSvgPath, true);
+        const warmA = await renderDomotion(
+          routedTree,
+          scenario.id,
+          join(outputDirectory, `${scenario.id}-domotion-warm-a.svg`),
+          false,
+        );
+        const coldB = await renderDomotion(
+          routedTree,
+          scenario.id,
+          join(outputDirectory, `${scenario.id}-domotion-cold-b.svg`),
+          true,
+        );
+        const warmB = await renderDomotion(
+          routedTree,
+          scenario.id,
+          join(outputDirectory, `${scenario.id}-domotion-warm-b.svg`),
+          false,
+        );
+        const placement = svgPlacement(coldA.svg);
+        const coldPngPath = join(outputDirectory, `${scenario.id}-domotion.png`);
+        await rasterSvg(rasterPage, coldA.svg, coldPngPath);
+        pending.push({
+          scenario,
+          expectedPath,
+          target: routedTarget,
+          rawOrigins: [...rawOrigins],
+          quarterOrigins,
+          cssom: { ...cssom, chromiumAxes: cssom.chromiumAxes as Partial<SfnsAxes> },
+          chromiumPostscriptName,
+          chromiumCustomFont,
+          chromiumLifecycle: {
+            coldSha256: [sha256(chromiumColdA), sha256(chromiumColdB)],
+            warmSha256: [sha256(chromiumWarmA), sha256(chromiumWarmB)],
+          },
+          domotion: {
+            coldSvg: coldA.svg,
+            coldSha256: [sha256(coldA.svg), sha256(coldB.svg)],
+            warmSha256: [sha256(warmA.svg), sha256(warmB.svg)],
+            coldSvgPath,
+            coldPngPath,
+            provenance: coldA.provenance,
+            emittedOriginsRaw: placement.origins,
+            emittedBaseline: placement.baseline,
+            emittedScale: placement.scale,
+          },
+        });
       }
-      const logicalSize = Number.parseFloat(style.fontSize);
-      const computedSize = logicalSize * zoom;
-      const paintSize = computedSize * transform;
-      const canvas = document.createElement("canvas").getContext("2d")!;
-      canvas.font = `${style.fontStyle} ${style.fontWeight} ${computedSize}px ${style.fontFamily}`;
-      const measured = canvas.measureText(element.textContent ?? "");
-      const chromiumAxes: Record<string, number> = {};
-      for (const match of style.fontVariationSettings.matchAll(/"([^"\n]{4})"\s+(-?(?:\d+(?:\.\d*)?|\.\d+))/g)) {
-        chromiumAxes[match[1]] = Number(match[2]);
+
+      const nativeInputPath = join(outputDirectory, "native-input.json");
+      const nativeSamples = pending.map((row) => ({
+        id: row.scenario.id,
+        text: TEXT,
+        pointSize: row.cssom.paintSize,
+        width: WIDTH,
+        height: HEIGHT,
+        axes: row.scenario.axes,
+        glyphIds: row.domotion.provenance.glyphs.map((glyph) => glyph.id),
+        positions: row.quarterOrigins.map((x) => ({ x, baselineY: row.domotion.emittedBaseline })),
+      }));
+      writeFileSync(nativeInputPath, JSON.stringify({ fontPath: FONT_PATH, repeatCount: 1, samples: nativeSamples }));
+      const coldA = runNative(nativeBinary, nativeInputPath, join(outputDirectory, "native-cold-a"));
+      const coldB = runNative(nativeBinary, nativeInputPath, join(outputDirectory, "native-cold-b"));
+      writeFileSync(nativeInputPath, JSON.stringify({ fontPath: FONT_PATH, repeatCount: 2, samples: nativeSamples }));
+      const warm = runNative(nativeBinary, nativeInputPath, join(outputDirectory, "native-warm"));
+
+      const rows: SfnsOracleRow[] = [];
+      for (const item of pending) {
+        const native = nativeSample(coldA, 0, item.scenario.id);
+        const nativeB = nativeSample(coldB, 0, item.scenario.id);
+        const nativeWarmA = nativeSample(warm, 0, item.scenario.id);
+        const nativeWarmB = nativeSample(warm, 1, item.scenario.id);
+        const ctPathSvg = coreTextPathSvg(native);
+        const ctPathSvgPath = join(outputDirectory, `${item.scenario.id}-coretext-path.svg`);
+        const ctPathPngPath = join(outputDirectory, `${item.scenario.id}-coretext-path.png`);
+        writeFileSync(ctPathSvgPath, ctPathSvg);
+        await rasterSvg(rasterPage, ctPathSvg, ctPathPngPath);
+
+        const comparisons = {
+          chromiumVsNativeMask: await compareCoverage(comparePage, item.expectedPath, native.maskPath),
+          chromiumVsCoreTextPath: await compareCoverage(comparePage, item.expectedPath, ctPathPngPath),
+          chromiumVsDomotionPath: await compareCoverage(comparePage, item.expectedPath, item.domotion.coldPngPath),
+          nativeMaskVsCoreTextPath: await compareCoverage(comparePage, native.maskPath, ctPathPngPath),
+          coreTextPathVsDomotionPath: await compareCoverage(comparePage, ctPathPngPath, item.domotion.coldPngPath),
+        };
+        const selected = item.domotion.provenance.selected;
+        const sourceSha = selected.sourceFile?.sha256 ?? "";
+        const target = item.target;
+        const row: SfnsOracleRow = {
+          id: item.scenario.id,
+          mutation: item.scenario.mutation,
+          requestedAxes: item.scenario.axes,
+          chromiumAxes: item.cssom.chromiumAxes,
+          nativeAxes: native.actualAxes,
+          domotionAxes: selected.variationAxes ?? {},
+          nativeGlyphIds: native.suppliedGlyphIds,
+          nativeMappedGlyphIds: native.mappedGlyphIds,
+          domotionGlyphIds: item.domotion.provenance.glyphs.map((glyph) => glyph.id),
+          rawOrigins: item.rawOrigins,
+          quarterPixelOrigins: item.quarterOrigins,
+          nativeOrigins: native.positions.map((position) => position.x),
+          nativeBaselines: native.positions.map((position) => position.baselineY),
+          domotionOrigins: item.domotion.emittedOriginsRaw.map(quantizeQuarter),
+          domotionEmittedOriginsRaw: item.domotion.emittedOriginsRaw,
+          sizes: { logical: item.cssom.logicalSize, computed: item.cssom.computedSize, paint: item.cssom.paintSize },
+          sourceIdentity: {
+            chromiumPostscriptName: item.chromiumPostscriptName,
+            chromiumCustomFont: item.chromiumCustomFont,
+            chromiumSourceSha256: fontSha256,
+            nativePostscriptName: native.postscriptName,
+            domotionPostscriptName: selected.instantiatedPostscriptName ?? selected.postscriptName ?? "",
+            domotionSourcePath: selected.sourcePath ?? "",
+            domotionSourceSha256: sourceSha,
+          },
+          pathCommandCounts: {
+            native: native.glyphPaths.map((glyph) => glyph.commandCount),
+            domotion: item.domotion.provenance.glyphs.map((glyph) => glyph.sourceOutline?.commandCount ?? null),
+          },
+          designCommandDigests: {
+            native: designCommandDigest(
+              native.glyphPaths.filter((glyph) => glyph.designSvgPath !== "").map((glyph) => glyph.designSvgPath),
+            ),
+            domotion: designCommandDigest(domotionUsePaths(item.domotion.coldSvg)),
+          },
+          outlineDispositions: item.domotion.provenance.glyphs.map(
+            (glyph) => glyph.outlineDisposition ?? "missing-disposition",
+          ),
+          pathGeometry: comparePathGeometry(native, item.domotion.coldSvg, item.domotion.emittedScale),
+          baseline: {
+            rangeTop: item.cssom.rangeTop,
+            capturedTextTop: target.textTop ?? Number.NaN,
+            capturedAscent: target.fontAscent ?? Number.NaN,
+            capturedDescent: target.fontDescent ?? Number.NaN,
+            capturedBaseline: (target.textTop ?? Number.NaN) + (target.fontAscent ?? Number.NaN),
+            capturedBaselineQuarterPixel: quantizeQuarter(
+              (target.textTop ?? Number.NaN) + (target.fontAscent ?? Number.NaN),
+            ),
+            emittedBaseline: item.domotion.emittedBaseline,
+            browserCanvasAscent: item.cssom.canvasAscent,
+            browserCanvasDescent: item.cssom.canvasDescent,
+            nativeAscent: native.metrics.ascent,
+            nativeDescent: native.metrics.descent,
+            nativeLeading: native.metrics.leading,
+            nativeBoundingBox: native.metrics.boundingBox,
+          },
+          lifecycle: {
+            chromiumColdSha256: item.chromiumLifecycle.coldSha256,
+            chromiumWarmSha256: item.chromiumLifecycle.warmSha256,
+            nativeColdMaskSha256: [sha256(readFileSync(native.maskPath)), sha256(readFileSync(nativeB.maskPath))],
+            nativeColdPathSha256: [nativePathDigest(native), nativePathDigest(nativeB)],
+            nativeWarmMaskSha256: [
+              sha256(readFileSync(nativeWarmA.maskPath)),
+              sha256(readFileSync(nativeWarmB.maskPath)),
+            ],
+            nativeWarmPathSha256: [nativePathDigest(nativeWarmA), nativePathDigest(nativeWarmB)],
+            domotionColdSha256: item.domotion.coldSha256,
+            domotionWarmSha256: item.domotion.warmSha256,
+          },
+          comparisons,
+          stageDigests: {
+            chromium: sha256(readFileSync(item.expectedPath)),
+            nativeMask: sha256(readFileSync(native.maskPath)),
+            coreTextPath: nativePathDigest(native),
+            domotionPath: domotionPathDigest(item.domotion.coldSvg),
+          },
+          artifactPaths: {
+            chromiumPng: item.expectedPath,
+            nativeMaskPng: native.maskPath,
+            coreTextPathSvg: ctPathSvgPath,
+            coreTextPathPng: ctPathPngPath,
+            domotionPathSvg: item.domotion.coldSvgPath,
+            domotionPathPng: item.domotion.coldPngPath,
+          },
+        };
+        rows.push(row);
       }
-      return {
-        rangeTop: rangeRect.top,
-        logicalSize,
-        computedSize,
-        paintSize,
-        canvasAscent: measured.fontBoundingBoxAscent * transform,
-        canvasDescent: measured.fontBoundingBoxDescent * transform,
-        chromiumAxes,
+
+      const classifications = rows.map((row) => ({ id: row.id, ...classifySfnsOracleRow(row) }));
+      const base = rows.find((row) => row.id === "zoom-2")!;
+      const mutation = rows.find((row) => row.id === "opsz-26-mutation")!;
+      const mutationControlMoved =
+        base.stageDigests.chromium !== mutation.stageDigests.chromium &&
+        base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask &&
+        base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath &&
+        base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
+      const artifact: SfnsOracleArtifact = {
+        schemaVersion: 2,
+        authority: "diagnostic-only",
+        arm,
+        observationId: `${arm}:${process.pid}:${Date.now()}:${randomUUID()}`,
+        logicalDigest: "",
+        environment: {
+          platform: "darwin",
+          chromiumRevision: CHROMIUM_REVISION,
+          skiaRevision: SKIA_REVISION,
+          fontPath: FONT_PATH,
+          fontSha256,
+          deviceScaleFactor: 1,
+          chromiumVersion: await browser.version(),
+          osVersion: osVersion(),
+          arch: arch(),
+          helper: { available: true, path: helperPath, sha256: helperSha256 },
+        },
+        rows,
+        classifications,
+        mutationControlMoved,
       };
-    });
-
-    const documentNode = await cdp.send("DOM.getDocument", { depth: -1 });
-    const targetDom = await cdp.send("DOM.querySelector", { nodeId: documentNode.root.nodeId, selector: "#target" });
-    const platformFonts = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: targetDom.nodeId });
-    const chromiumPostscriptName = platformFonts.fonts[0]?.postScriptName ?? "";
-    const chromiumCustomFont = platformFonts.fonts[0]?.isCustomFont ?? false;
-    if (chromiumPostscriptName === "") throw new Error(`Chromium platform face missing for ${scenario.id}`);
-    if (!chromiumCustomFont) throw new Error(`Chromium did not paint routed SFNS bytes for ${scenario.id}`);
-
-    const capturedTree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
-    const capturedTarget = findText(capturedTree);
-    const segment = capturedTarget.textSegments?.find((candidate) => candidate.text === TEXT);
-    const rawOrigins = segment?.xOffsets;
-    if (rawOrigins == null || rawOrigins.length !== TEXT.length) {
-      throw new Error(`captured origins missing for ${scenario.id}`);
+      artifact.logicalDigest = sfnsOutlineLogicalDigest(artifact);
+      const errors = exactGateMode ? validateSfnsExactOutlineArtifact(artifact) : validateSfnsOracleArtifact(artifact);
+      const reportPath = join(outputDirectory, "report.json");
+      writeFileSync(reportPath, `${JSON.stringify(artifact, null, 2)}\n`);
+      console.log(`SFNS mask/baseline oracle: ${rows.length} rows; mutation moved=${mutationControlMoved}`);
+      for (const result of classifications) {
+        const row = rows.find((candidate) => candidate.id === result.id)!;
+        console.log(
+          `${result.id}: ${result.classification}; closest=${result.closestRepresentation}; baseline shifts mask/path/domotion=${result.baselineResidual.nativeMaskBestIntegerYOffset}/${result.baselineResidual.coreTextPathBestIntegerYOffset}/${result.baselineResidual.domotionPathBestIntegerYOffset}; CT-path↔Domotion changed=${row.comparisons.coreTextPathVsDomotionPath.changedPixels}; max path delta=${row.pathGeometry.maxPaintPixelDelta.toFixed(6)}px`,
+        );
+      }
+      console.log(`wrote ${reportPath}`);
+      if (errors.length > 0) {
+        console.error(`oracle integrity failure: ${errors.join(", ")}`);
+        process.exitCode = 1;
+      }
+    } finally {
+      setTextRunProvenanceEnabled(false);
+      setRenderTextMode("embedded-font");
+      await context.close();
     }
-    const quarterOrigins = rawOrigins.map(quantizeQuarter);
-    const routedTree = cloneTree(capturedTree);
-    const routedTarget = findText(routedTree);
-    routeDomotionSystemFace(routedTarget);
-    routeQuarterOrigins(routedTarget, quarterOrigins);
-
-    const coldSvgPath = join(outputDirectory, `${scenario.id}-domotion.svg`);
-    const coldA = await renderDomotion(routedTree, scenario.id, coldSvgPath, true);
-    const warmA = await renderDomotion(
-      routedTree,
-      scenario.id,
-      join(outputDirectory, `${scenario.id}-domotion-warm-a.svg`),
-      false,
-    );
-    const coldB = await renderDomotion(
-      routedTree,
-      scenario.id,
-      join(outputDirectory, `${scenario.id}-domotion-cold-b.svg`),
-      true,
-    );
-    const warmB = await renderDomotion(
-      routedTree,
-      scenario.id,
-      join(outputDirectory, `${scenario.id}-domotion-warm-b.svg`),
-      false,
-    );
-    const placement = svgPlacement(coldA.svg);
-    const coldPngPath = join(outputDirectory, `${scenario.id}-domotion.png`);
-    await rasterSvg(rasterPage, coldA.svg, coldPngPath);
-    pending.push({
-      scenario,
-      expectedPath,
-      target: routedTarget,
-      rawOrigins: [...rawOrigins],
-      quarterOrigins,
-      cssom: { ...cssom, chromiumAxes: cssom.chromiumAxes as Partial<SfnsAxes> },
-      chromiumPostscriptName,
-      chromiumCustomFont,
-      chromiumLifecycle: {
-        coldSha256: [sha256(chromiumColdA), sha256(chromiumColdB)],
-        warmSha256: [sha256(chromiumWarmA), sha256(chromiumWarmB)],
-      },
-      domotion: {
-        coldSvg: coldA.svg,
-        coldSha256: [sha256(coldA.svg), sha256(coldB.svg)],
-        warmSha256: [sha256(warmA.svg), sha256(warmB.svg)],
-        coldSvgPath,
-        coldPngPath,
-        provenance: coldA.provenance,
-        emittedOriginsRaw: placement.origins,
-        emittedBaseline: placement.baseline,
-        emittedScale: placement.scale,
-      },
-    });
-  }
-
-  const nativeInputPath = join(outputDirectory, "native-input.json");
-  const nativeSamples = pending.map((row) => ({
-    id: row.scenario.id,
-    text: TEXT,
-    pointSize: row.cssom.paintSize,
-    width: WIDTH,
-    height: HEIGHT,
-    axes: row.scenario.axes,
-    glyphIds: row.domotion.provenance.glyphs.map((glyph) => glyph.id),
-    positions: row.quarterOrigins.map((x) => ({ x, baselineY: row.domotion.emittedBaseline })),
-  }));
-  writeFileSync(nativeInputPath, JSON.stringify({ fontPath: FONT_PATH, repeatCount: 1, samples: nativeSamples }));
-  const coldA = runNative(nativeBinary, nativeInputPath, join(outputDirectory, "native-cold-a"));
-  const coldB = runNative(nativeBinary, nativeInputPath, join(outputDirectory, "native-cold-b"));
-  writeFileSync(nativeInputPath, JSON.stringify({ fontPath: FONT_PATH, repeatCount: 2, samples: nativeSamples }));
-  const warm = runNative(nativeBinary, nativeInputPath, join(outputDirectory, "native-warm"));
-
-  const rows: SfnsOracleRow[] = [];
-  for (const item of pending) {
-    const native = nativeSample(coldA, 0, item.scenario.id);
-    const nativeB = nativeSample(coldB, 0, item.scenario.id);
-    const nativeWarmA = nativeSample(warm, 0, item.scenario.id);
-    const nativeWarmB = nativeSample(warm, 1, item.scenario.id);
-    const ctPathSvg = coreTextPathSvg(native);
-    const ctPathSvgPath = join(outputDirectory, `${item.scenario.id}-coretext-path.svg`);
-    const ctPathPngPath = join(outputDirectory, `${item.scenario.id}-coretext-path.png`);
-    writeFileSync(ctPathSvgPath, ctPathSvg);
-    await rasterSvg(rasterPage, ctPathSvg, ctPathPngPath);
-
-    const comparisons = {
-      chromiumVsNativeMask: await compareCoverage(comparePage, item.expectedPath, native.maskPath),
-      chromiumVsCoreTextPath: await compareCoverage(comparePage, item.expectedPath, ctPathPngPath),
-      chromiumVsDomotionPath: await compareCoverage(comparePage, item.expectedPath, item.domotion.coldPngPath),
-      nativeMaskVsCoreTextPath: await compareCoverage(comparePage, native.maskPath, ctPathPngPath),
-      coreTextPathVsDomotionPath: await compareCoverage(comparePage, ctPathPngPath, item.domotion.coldPngPath),
-    };
-    const selected = item.domotion.provenance.selected;
-    const sourceSha = selected.sourceFile?.sha256 ?? "";
-    const target = item.target;
-    const row: SfnsOracleRow = {
-      id: item.scenario.id,
-      mutation: item.scenario.mutation,
-      requestedAxes: item.scenario.axes,
-      chromiumAxes: item.cssom.chromiumAxes,
-      nativeAxes: native.actualAxes,
-      domotionAxes: selected.variationAxes ?? {},
-      nativeGlyphIds: native.suppliedGlyphIds,
-      nativeMappedGlyphIds: native.mappedGlyphIds,
-      domotionGlyphIds: item.domotion.provenance.glyphs.map((glyph) => glyph.id),
-      rawOrigins: item.rawOrigins,
-      quarterPixelOrigins: item.quarterOrigins,
-      nativeOrigins: native.positions.map((position) => position.x),
-      nativeBaselines: native.positions.map((position) => position.baselineY),
-      domotionOrigins: item.domotion.emittedOriginsRaw.map(quantizeQuarter),
-      domotionEmittedOriginsRaw: item.domotion.emittedOriginsRaw,
-      sizes: { logical: item.cssom.logicalSize, computed: item.cssom.computedSize, paint: item.cssom.paintSize },
-      sourceIdentity: {
-        chromiumPostscriptName: item.chromiumPostscriptName,
-        chromiumCustomFont: item.chromiumCustomFont,
-        chromiumSourceSha256: fontSha256,
-        nativePostscriptName: native.postscriptName,
-        domotionPostscriptName: selected.instantiatedPostscriptName ?? selected.postscriptName ?? "",
-        domotionSourcePath: selected.sourcePath ?? "",
-        domotionSourceSha256: sourceSha,
-      },
-      pathCommandCounts: {
-        native: native.glyphPaths.map((glyph) => glyph.commandCount),
-        domotion: item.domotion.provenance.glyphs.map((glyph) => glyph.sourceOutline?.commandCount ?? null),
-      },
-      designCommandDigests: {
-        native: designCommandDigest(
-          native.glyphPaths.filter((glyph) => glyph.designSvgPath !== "").map((glyph) => glyph.designSvgPath),
-        ),
-        domotion: designCommandDigest(domotionUsePaths(item.domotion.coldSvg)),
-      },
-      outlineDispositions: item.domotion.provenance.glyphs.map(
-        (glyph) => glyph.outlineDisposition ?? "missing-disposition",
-      ),
-      pathGeometry: comparePathGeometry(native, item.domotion.coldSvg, item.domotion.emittedScale),
-      baseline: {
-        rangeTop: item.cssom.rangeTop,
-        capturedTextTop: target.textTop ?? Number.NaN,
-        capturedAscent: target.fontAscent ?? Number.NaN,
-        capturedDescent: target.fontDescent ?? Number.NaN,
-        capturedBaseline: (target.textTop ?? Number.NaN) + (target.fontAscent ?? Number.NaN),
-        capturedBaselineQuarterPixel: quantizeQuarter(
-          (target.textTop ?? Number.NaN) + (target.fontAscent ?? Number.NaN),
-        ),
-        emittedBaseline: item.domotion.emittedBaseline,
-        browserCanvasAscent: item.cssom.canvasAscent,
-        browserCanvasDescent: item.cssom.canvasDescent,
-        nativeAscent: native.metrics.ascent,
-        nativeDescent: native.metrics.descent,
-        nativeLeading: native.metrics.leading,
-        nativeBoundingBox: native.metrics.boundingBox,
-      },
-      lifecycle: {
-        chromiumColdSha256: item.chromiumLifecycle.coldSha256,
-        chromiumWarmSha256: item.chromiumLifecycle.warmSha256,
-        nativeColdMaskSha256: [sha256(readFileSync(native.maskPath)), sha256(readFileSync(nativeB.maskPath))],
-        nativeColdPathSha256: [nativePathDigest(native), nativePathDigest(nativeB)],
-        nativeWarmMaskSha256: [sha256(readFileSync(nativeWarmA.maskPath)), sha256(readFileSync(nativeWarmB.maskPath))],
-        nativeWarmPathSha256: [nativePathDigest(nativeWarmA), nativePathDigest(nativeWarmB)],
-        domotionColdSha256: item.domotion.coldSha256,
-        domotionWarmSha256: item.domotion.warmSha256,
-      },
-      comparisons,
-      stageDigests: {
-        chromium: sha256(readFileSync(item.expectedPath)),
-        nativeMask: sha256(readFileSync(native.maskPath)),
-        coreTextPath: nativePathDigest(native),
-        domotionPath: domotionPathDigest(item.domotion.coldSvg),
-      },
-      artifactPaths: {
-        chromiumPng: item.expectedPath,
-        nativeMaskPng: native.maskPath,
-        coreTextPathSvg: ctPathSvgPath,
-        coreTextPathPng: ctPathPngPath,
-        domotionPathSvg: item.domotion.coldSvgPath,
-        domotionPathPng: item.domotion.coldPngPath,
-      },
-    };
-    rows.push(row);
-  }
-
-  const classifications = rows.map((row) => ({ id: row.id, ...classifySfnsOracleRow(row) }));
-  const base = rows.find((row) => row.id === "zoom-2")!;
-  const mutation = rows.find((row) => row.id === "opsz-26-mutation")!;
-  const mutationControlMoved =
-    base.stageDigests.chromium !== mutation.stageDigests.chromium &&
-    base.stageDigests.nativeMask !== mutation.stageDigests.nativeMask &&
-    base.stageDigests.coreTextPath !== mutation.stageDigests.coreTextPath &&
-    base.stageDigests.domotionPath !== mutation.stageDigests.domotionPath;
-  const artifact: SfnsOracleArtifact = {
-    schemaVersion: 2,
-    authority: "diagnostic-only",
-    arm,
-    observationId: `${arm}:${process.pid}:${Date.now()}:${randomUUID()}`,
-    logicalDigest: "",
-    environment: {
-      platform: "darwin",
-      chromiumRevision: CHROMIUM_REVISION,
-      skiaRevision: SKIA_REVISION,
-      fontPath: FONT_PATH,
-      fontSha256,
-      deviceScaleFactor: 1,
-      chromiumVersion: await browser.version(),
-      osVersion: osVersion(),
-      arch: arch(),
-      helper: { available: true, path: helperPath, sha256: helperSha256 },
-    },
-    rows,
-    classifications,
-    mutationControlMoved,
-  };
-  artifact.logicalDigest = sfnsOutlineLogicalDigest(artifact);
-  const errors = exactGateMode ? validateSfnsExactOutlineArtifact(artifact) : validateSfnsOracleArtifact(artifact);
-  const reportPath = join(outputDirectory, "report.json");
-  writeFileSync(reportPath, `${JSON.stringify(artifact, null, 2)}\n`);
-  console.log(`SFNS mask/baseline oracle: ${rows.length} rows; mutation moved=${mutationControlMoved}`);
-  for (const result of classifications) {
-    const row = rows.find((candidate) => candidate.id === result.id)!;
-    console.log(
-      `${result.id}: ${result.classification}; closest=${result.closestRepresentation}; baseline shifts mask/path/domotion=${result.baselineResidual.nativeMaskBestIntegerYOffset}/${result.baselineResidual.coreTextPathBestIntegerYOffset}/${result.baselineResidual.domotionPathBestIntegerYOffset}; CT-path↔Domotion changed=${row.comparisons.coreTextPathVsDomotionPath.changedPixels}; max path delta=${row.pathGeometry.maxPaintPixelDelta.toFixed(6)}px`,
-    );
-  }
-  console.log(`wrote ${reportPath}`);
-  if (errors.length > 0) {
-    console.error(`oracle integrity failure: ${errors.join(", ")}`);
-    process.exitCode = 1;
-  }
-} finally {
-  setTextRunProvenanceEnabled(false);
-  setRenderTextMode("embedded-font");
-  await context.close();
-  await browser.close();
-}
+  },
+  { headless: true },
+);

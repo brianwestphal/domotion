@@ -34,7 +34,8 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { withBrowser } from "../tools/lib/browser.js";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
@@ -226,49 +227,49 @@ async function main(): Promise<void> {
     return;
   }
 
-  const browser = await chromium.launch();
+  const newResults = await withBrowser(async (browser) => {
+    // First-time HAR recording can't run concurrently for the same (site,
+    // viewport) — `routeFromHAR({ update: true })` writes the .har file, and
+    // two contexts hammering the same path corrupt it. Pre-record any
+    // missing HARs serially before opening the worker pool, then every
+    // pooled job is a pure replay (concurrent-safe). DM-454 / DM-456.
+    await ensureHarsRecorded(browser, jobs);
 
-  // First-time HAR recording can't run concurrently for the same (site,
-  // viewport) — `routeFromHAR({ update: true })` writes the .har file, and
-  // two contexts hammering the same path corrupt it. Pre-record any
-  // missing HARs serially before opening the worker pool, then every
-  // pooled job is a pure replay (concurrent-safe). DM-454 / DM-456.
-  await ensureHarsRecorded(browser, jobs);
+    const workerCount = resolveWorkerCount();
+    console.log(
+      `Running ${jobs.length} real-world capture jobs (${VIEWPORTS.length} viewports × ${MODES.length} modes × ${SITES.length} sites) with ${workerCount} workers...\n`,
+    );
 
-  const workerCount = resolveWorkerCount();
-  console.log(
-    `Running ${jobs.length} real-world capture jobs (${VIEWPORTS.length} viewports × ${MODES.length} modes × ${SITES.length} sites) with ${workerCount} workers...\n`,
-  );
+    const results = await runJobsInPool<PageJob, RealWorldWorker, Result>({
+      jobs,
+      workers: workerCount,
+      setup: async () => ({}),
+      runJob: async (job) => {
+        const compareContext = await browser.newContext({
+          viewport: { width: 1280 * 2, height: 800 },
+        });
+        const comparePage = await compareContext.newPage();
+        try {
+          await comparePage.goto("about:blank");
+          return await runJob(browser, comparePage, job, { resize: enableResize, hiDPI: resizeHiDPI });
+        } finally {
+          await compareContext.close().catch(() => {});
+        }
+      },
+      onResult: (result, job) => {
+        const status = result.skipped ? "- SKIP" : result.error != null ? "✗ ERROR" : result.pass ? "✓ PASS" : "✗ FAIL";
+        const note =
+          result.error != null
+            ? `  ERR: ${result.error}`
+            : result.skipped
+              ? `  (${result.skipReason ?? "skipped"})`
+              : ` ${result.verdict} · ${result.regionCount} region${result.regionCount === 1 ? "" : "s"} · ${result.coveragePct.toFixed(2)}% of image · ${result.width}×${result.height}`;
+        console.log(`  ${status}  ${job.test.padEnd(38)}${note}`);
+      },
+    });
 
-  const newResults = await runJobsInPool<PageJob, RealWorldWorker, Result>({
-    jobs,
-    workers: workerCount,
-    setup: async () => ({}),
-    runJob: async (job) => {
-      const compareContext = await browser.newContext({
-        viewport: { width: 1280 * 2, height: 800 },
-      });
-      const comparePage = await compareContext.newPage();
-      try {
-        await comparePage.goto("about:blank");
-        return await runJob(browser, comparePage, job, { resize: enableResize, hiDPI: resizeHiDPI });
-      } finally {
-        await compareContext.close().catch(() => {});
-      }
-    },
-    onResult: (result, job) => {
-      const status = result.skipped ? "- SKIP" : result.error != null ? "✗ ERROR" : result.pass ? "✓ PASS" : "✗ FAIL";
-      const note =
-        result.error != null
-          ? `  ERR: ${result.error}`
-          : result.skipped
-            ? `  (${result.skipReason ?? "skipped"})`
-            : ` ${result.verdict} · ${result.regionCount} region${result.regionCount === 1 ? "" : "s"} · ${result.coveragePct.toFixed(2)}% of image · ${result.width}×${result.height}`;
-      console.log(`  ${status}  ${job.test.padEnd(38)}${note}`);
-    },
+    return results;
   });
-
-  await browser.close();
 
   // Merge `newResults` into any existing manifest so partial runs (--only)
   // don't wipe out results from prior runs. Indexed by test name.

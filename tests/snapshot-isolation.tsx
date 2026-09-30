@@ -21,7 +21,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
+import { withBrowser } from "../tools/lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
 
@@ -73,9 +73,8 @@ async function main(): Promise<void> {
   const fixturePath = resolve(OUTPUT_DIR, "snapshot-isolation-fixture.html");
   writeFileSync(fixturePath, FIXTURE_HTML);
 
-  const browser = await chromium.launch();
   let failed = 0;
-  try {
+  await withBrowser(async (browser) => {
     const context = await browser.newContext({ viewport: { width: 400, height: 200 } });
     const page = await context.newPage();
     // DM-479: 90 s instead of Playwright's 30 s default.
@@ -161,9 +160,7 @@ async function main(): Promise<void> {
       }
     }
     await context.close();
-  } finally {
-    await browser.close();
-  }
+  });
 
   if (failed > 0) {
     console.error(`\n${failed} test(s) failed.`);

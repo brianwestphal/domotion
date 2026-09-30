@@ -12,7 +12,7 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 
 import { captureElementTree, type CapturedElement } from "../src/index.js";
 import {
@@ -20,7 +20,7 @@ import {
   type AuthenticatedCollapsedBorderFragmentRecord,
   type CollapsedBorderFragmentRecord,
 } from "../src/capture/collapsed-border-fragment-record.js";
-import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { withBrowser } from "./lib/browser.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
@@ -967,42 +967,41 @@ export function validateCollapsedBorderFragmentationCorpus(): string[] {
 export async function runCollapsedBorderFragmentationOracle(): Promise<CollapsedBorderFragmentationReport> {
   const corpusErrors = validateCollapsedBorderFragmentationCorpus();
   if (corpusErrors.length > 0) throw new Error(corpusErrors.join("; "));
-  let browser: Browser | null = null;
-  try {
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1100, height: 520 }, deviceScaleFactor: 1 });
-    const cases: CollapsedBorderFragmentCaseReport[] = [];
-    for (const fixture of fixtures) cases.push(await runFixture(page, fixture));
-    const print = await collectPrintGap(page);
-    const discriminators = buildCollapsedBorderFragmentDiscriminators(cases, print);
-    const mutations = buildCollapsedBorderFragmentMutations(cases, print);
-    const pass = Object.values(discriminators).every(Boolean) && mutations.every((mutation) => mutation.moved);
-    const packageJson = { version: readPlaywrightVersion() ?? "unknown" };
-    return {
-      schemaVersion: 3,
-      ticket: "DM-2558",
-      contract: "explicit-repeat-occurrences-source-logical-no-pixels",
-      generatedAt: new Date().toISOString(),
-      sourcePins: COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS,
-      environment: {
-        browserVersion: browser.version(),
-        playwrightVersion: packageJson.version,
-        node: process.version,
-        os: platform(),
-        osRelease: release(),
-        architecture: arch(),
-      },
-      cases,
-      print,
-      discriminators,
-      mutations,
-      currentProtocolExact: pass,
-      verdict: pass ? "screen-section-fragment-record-authenticated" : "screen-section-fragment-record-incomplete",
-      pass,
-    };
-  } finally {
-    await closeBrowserSafely(browser);
-  }
+  return await withBrowser(
+    async (browser) => {
+      const page = await browser.newPage({ viewport: { width: 1100, height: 520 }, deviceScaleFactor: 1 });
+      const cases: CollapsedBorderFragmentCaseReport[] = [];
+      for (const fixture of fixtures) cases.push(await runFixture(page, fixture));
+      const print = await collectPrintGap(page);
+      const discriminators = buildCollapsedBorderFragmentDiscriminators(cases, print);
+      const mutations = buildCollapsedBorderFragmentMutations(cases, print);
+      const pass = Object.values(discriminators).every(Boolean) && mutations.every((mutation) => mutation.moved);
+      const packageJson = { version: readPlaywrightVersion() ?? "unknown" };
+      return {
+        schemaVersion: 3,
+        ticket: "DM-2558",
+        contract: "explicit-repeat-occurrences-source-logical-no-pixels",
+        generatedAt: new Date().toISOString(),
+        sourcePins: COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS,
+        environment: {
+          browserVersion: browser.version(),
+          playwrightVersion: packageJson.version,
+          node: process.version,
+          os: platform(),
+          osRelease: release(),
+          architecture: arch(),
+        },
+        cases,
+        print,
+        discriminators,
+        mutations,
+        currentProtocolExact: pass,
+        verdict: pass ? "screen-section-fragment-record-authenticated" : "screen-section-fragment-record-incomplete",
+        pass,
+      };
+    },
+    { headless: true },
+  );
 }
 
 function parseJsonPath(args: string[]): string | null {

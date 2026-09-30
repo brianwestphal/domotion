@@ -62,8 +62,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { type Browser, type Page } from "@playwright/test";
 import { clearFontResolutionCaches, getFontSourceInfo } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { identifyFace, type ChromeFace, type OurFace } from "./font-conformance.js";
 import { compareShaping } from "./shaping-conformance.js";
 import { getFontInstance, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
@@ -422,8 +423,7 @@ async function main(argv: string[]): Promise<number> {
   clearFontResolutionCaches();
   registerWebfont(family, 400, "normal", fontBytesFromFixture(html));
 
-  const browser: Browser = await chromium.launch();
-  try {
+  return await withBrowser(async (browser) => {
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 600 } });
     const page = await ctx.newPage();
     const instances = await measureInstances(page, fixture);
@@ -530,9 +530,7 @@ async function main(argv: string[]): Promise<number> {
     for (const f of failures) lines.push(`  - ${f}`);
     process.stdout.write(`${lines.join("\n")}\n`);
     return ok ? 0 : 1;
-  } finally {
-    await browser.close();
-  }
+  }, undefined);
 }
 
 const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;

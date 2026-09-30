@@ -17,7 +17,8 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { chromium, type Browser, type BrowserContext, type CDPSession, type Frame, type Page } from "@playwright/test";
+import { type Browser, type BrowserContext, type CDPSession, type Frame, type Page } from "@playwright/test";
+import { withBrowser } from "./lib/browser.js";
 
 import { seekAnimationsToFrame } from "../src/capture/animation-frame.js";
 
@@ -1089,92 +1090,102 @@ export async function runTimelineSamplingOwnershipOracle(): Promise<TimelineSamp
   const corpusErrors = validateTimelineOwnershipCorpus();
   if (corpusErrors.length > 0) throw new Error(corpusErrors.join("\n"));
   const fixture = await startFixtureServer();
-  const browser = await chromium.launch({ headless: true, args: ["--site-per-process"] });
-  let identityContext: BrowserContext | null = null;
   try {
-    const url = `http://127.0.0.1:${fixture.port}/main`;
-    identityContext = await browser.newContext();
-    const identityPage = await identityContext.newPage();
-    const identityCdp = await identityContext.newCDPSession(identityPage);
-    const version = await identityCdp.send("Browser.getVersion");
-    await identityCdp.detach();
-    await identityContext.close();
-    identityContext = null;
+    return await withBrowser(
+      async (browser) => {
+        let identityContext: BrowserContext | null = null;
+        try {
+          const url = `http://127.0.0.1:${fixture.port}/main`;
+          identityContext = await browser.newContext();
+          const identityPage = await identityContext.newPage();
+          const identityCdp = await identityContext.newCDPSession(identityPage);
+          const version = await identityCdp.send("Browser.getVersion");
+          await identityCdp.detach();
+          await identityContext.close();
+          identityContext = null;
 
-    const native = await runNativeOwnership(browser, url);
-    const benignPreNavigation = await runPreNavigationClock(browser, url);
-    const preNavigationEscapes = await runPreNavigationClockEscapes(browser, url);
-    const lateNativeEscape = await runLateClockEscape(browser, url);
-    const clocks = {
-      benignPreNavigation,
-      preNavigationEscapes,
-      lateNativeEscape,
-      pass: benignPreNavigation.pass && preNavigationEscapes.pass && lateNativeEscape.pass,
-    };
-    const allFrames = native.frames;
-    const discriminators: Record<TimelineOwnershipDiscriminator, boolean> = {
-      "absolute-milliseconds-rejected": allFrames.every((frame) => frame.absoluteSeek.pass),
-      "transformed-scroller-does-not-retime-scroll-timeline": allFrames.every(
-        (frame) => frame.transformedScroller.pass,
-      ),
-      "projective-html-box-does-not-retime-view-timeline": allFrames.every((frame) => frame.projectiveHtmlSubject.pass),
-      "transformed-svg-subject-retimes-view-timeline": allFrames.every((frame) => frame.transformedSvgSubject.pass),
-      "percentage-hold-freezes-effect-not-source": allFrames.every((frame) => frame.heldEffects.pass),
-      "closed-shadow-progress-fails-before-mutation": native.captureBoundary.closedScopeRejected,
-      "document-and-open-shadow-progress-held":
-        native.captureBoundary.reachableProgressHeld && native.captureBoundary.rafMutatedDuringCaptureSettle,
-      "pre-navigation-clock-freezes-benign-main-and-oopif-raf": benignPreNavigation.pass,
-      "pre-navigation-clock-exposes-native-raf-escape": preNavigationEscapes.exposedNativeCallbacksAdvanced,
-      "pre-navigation-clock-does-not-own-worker-raf": preNavigationEscapes.workerCallbacksAdvanced,
-      "late-clock-cannot-own-saved-native-raf": lateNativeEscape.pass,
-    };
-    const playwrightPackage = require("playwright-core/package.json") as { version: string };
-    const playwrightPackagePath = require.resolve("playwright-core/package.json");
-    const playwrightRoot = dirname(playwrightPackagePath);
-    const clockServerPath = resolve(playwrightRoot, "lib/server/clock.js");
-    const clockInjectedPath = resolve(playwrightRoot, "lib/generated/clockSource.js");
-    const pass = native.pass && clocks.pass && Object.values(discriminators).every(Boolean);
-    return {
-      schemaVersion: 2,
-      ticket: "DM-2553",
-      contract: "source-exact-progress-timeline-ownership-no-pixels",
-      generatedAt: new Date().toISOString(),
-      sourcePins: TIMELINE_OWNERSHIP_SOURCE_PINS,
-      environment: {
-        browserProduct: version.product,
-        browserRevision: version.revision,
-        protocolVersion: version.protocolVersion,
-        playwrightVersion: playwrightPackage.version,
-        playwrightClockServerSha256: sha256(readFileSync(clockServerPath)),
-        playwrightClockInjectedSha256: sha256(readFileSync(clockInjectedPath)),
-        os: platform(),
-        osRelease: release(),
-        architecture: arch(),
-        node: process.version,
+          const native = await runNativeOwnership(browser, url);
+          const benignPreNavigation = await runPreNavigationClock(browser, url);
+          const preNavigationEscapes = await runPreNavigationClockEscapes(browser, url);
+          const lateNativeEscape = await runLateClockEscape(browser, url);
+          const clocks = {
+            benignPreNavigation,
+            preNavigationEscapes,
+            lateNativeEscape,
+            pass: benignPreNavigation.pass && preNavigationEscapes.pass && lateNativeEscape.pass,
+          };
+          const allFrames = native.frames;
+          const discriminators: Record<TimelineOwnershipDiscriminator, boolean> = {
+            "absolute-milliseconds-rejected": allFrames.every((frame) => frame.absoluteSeek.pass),
+            "transformed-scroller-does-not-retime-scroll-timeline": allFrames.every(
+              (frame) => frame.transformedScroller.pass,
+            ),
+            "projective-html-box-does-not-retime-view-timeline": allFrames.every(
+              (frame) => frame.projectiveHtmlSubject.pass,
+            ),
+            "transformed-svg-subject-retimes-view-timeline": allFrames.every(
+              (frame) => frame.transformedSvgSubject.pass,
+            ),
+            "percentage-hold-freezes-effect-not-source": allFrames.every((frame) => frame.heldEffects.pass),
+            "closed-shadow-progress-fails-before-mutation": native.captureBoundary.closedScopeRejected,
+            "document-and-open-shadow-progress-held":
+              native.captureBoundary.reachableProgressHeld && native.captureBoundary.rafMutatedDuringCaptureSettle,
+            "pre-navigation-clock-freezes-benign-main-and-oopif-raf": benignPreNavigation.pass,
+            "pre-navigation-clock-exposes-native-raf-escape": preNavigationEscapes.exposedNativeCallbacksAdvanced,
+            "pre-navigation-clock-does-not-own-worker-raf": preNavigationEscapes.workerCallbacksAdvanced,
+            "late-clock-cannot-own-saved-native-raf": lateNativeEscape.pass,
+          };
+          const playwrightPackage = require("playwright-core/package.json") as { version: string };
+          const playwrightPackagePath = require.resolve("playwright-core/package.json");
+          const playwrightRoot = dirname(playwrightPackagePath);
+          const clockServerPath = resolve(playwrightRoot, "lib/server/clock.js");
+          const clockInjectedPath = resolve(playwrightRoot, "lib/generated/clockSource.js");
+          const pass = native.pass && clocks.pass && Object.values(discriminators).every(Boolean);
+          return {
+            schemaVersion: 2,
+            ticket: "DM-2553",
+            contract: "source-exact-progress-timeline-ownership-no-pixels",
+            generatedAt: new Date().toISOString(),
+            sourcePins: TIMELINE_OWNERSHIP_SOURCE_PINS,
+            environment: {
+              browserProduct: version.product,
+              browserRevision: version.revision,
+              protocolVersion: version.protocolVersion,
+              playwrightVersion: playwrightPackage.version,
+              playwrightClockServerSha256: sha256(readFileSync(clockServerPath)),
+              playwrightClockInjectedSha256: sha256(readFileSync(clockInjectedPath)),
+              os: platform(),
+              osRelease: release(),
+              architecture: arch(),
+              node: process.version,
+            },
+            native,
+            clocks,
+            discriminators,
+            freezeableStates: [
+              "A resolved ScrollTimeline/ViewTimeline effect can be held at its exact CSS percentage after pause and compositor commit; the source timeline remains independently scroll-owned.",
+              "A benign main/OOPIF callback that uses the replaced global requestAnimationFrame function stops under a pre-navigation Playwright clock; this is a narrow observation, not an ownership boundary.",
+            ],
+            failClosedStates: [
+              "An animationTimeMs number has no defined conversion to a progress timeline percentage.",
+              "An inactive or unresolved progress timeline has no CSS percentage to hold and authenticate.",
+              "Document.getAnimations() proves only its requested TreeScope; an unenumerated open or closed shadow-root progress animation is not safe to ignore.",
+              "An SVG-child ViewTimeline subject has transform-sensitive mapped bounding-box size even though subject position ignores transforms; HTML/CSS-box transform invariance cannot be generalized to SVG.",
+              "A scroll/view source offset, range geometry, or compositor snapshot that drifts between prepasses is not frozen by holding only its effects.",
+              "Playwright exposes its saved native requestAnimationFrame function through page-visible __pwClock.builtins, so pre-navigation installation and a frozen fake performance clock are insufficient ownership proof.",
+              "Dedicated-worker requestAnimationFrame is outside BrowserContext init scripts and can continue posting mutations while page clocks are paused.",
+              "A late clock install cannot intercept a callback retaining the native requestAnimationFrame function.",
+              "Cross-target state without distinct main/OOPIF identities and authenticated target-local clock installation cannot be treated as one deterministic frame.",
+            ],
+            pass,
+          };
+        } finally {
+          await identityContext?.close().catch(() => undefined);
+        }
       },
-      native,
-      clocks,
-      discriminators,
-      freezeableStates: [
-        "A resolved ScrollTimeline/ViewTimeline effect can be held at its exact CSS percentage after pause and compositor commit; the source timeline remains independently scroll-owned.",
-        "A benign main/OOPIF callback that uses the replaced global requestAnimationFrame function stops under a pre-navigation Playwright clock; this is a narrow observation, not an ownership boundary.",
-      ],
-      failClosedStates: [
-        "An animationTimeMs number has no defined conversion to a progress timeline percentage.",
-        "An inactive or unresolved progress timeline has no CSS percentage to hold and authenticate.",
-        "Document.getAnimations() proves only its requested TreeScope; an unenumerated open or closed shadow-root progress animation is not safe to ignore.",
-        "An SVG-child ViewTimeline subject has transform-sensitive mapped bounding-box size even though subject position ignores transforms; HTML/CSS-box transform invariance cannot be generalized to SVG.",
-        "A scroll/view source offset, range geometry, or compositor snapshot that drifts between prepasses is not frozen by holding only its effects.",
-        "Playwright exposes its saved native requestAnimationFrame function through page-visible __pwClock.builtins, so pre-navigation installation and a frozen fake performance clock are insufficient ownership proof.",
-        "Dedicated-worker requestAnimationFrame is outside BrowserContext init scripts and can continue posting mutations while page clocks are paused.",
-        "A late clock install cannot intercept a callback retaining the native requestAnimationFrame function.",
-        "Cross-target state without distinct main/OOPIF identities and authenticated target-local clock installation cannot be treated as one deterministic frame.",
-      ],
-      pass,
-    };
+      { headless: true, args: ["--site-per-process"] },
+    );
   } finally {
-    await identityContext?.close().catch(() => undefined);
-    await browser.close().catch(() => undefined);
     await stopServer(fixture.server);
   }
 }

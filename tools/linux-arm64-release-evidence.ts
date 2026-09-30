@@ -13,8 +13,8 @@ import { arch as osArch, platform as osPlatform, release as osRelease } from "no
 import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { chromium } from "@playwright/test";
 import { assetNameFor, ICU_COMPANION_VERSION, resolveIcuCompanionTarget } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
 import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
@@ -412,13 +412,7 @@ function glibcVersion(): string | null {
 }
 
 async function captureEnvironment(assets: AcquisitionReport["assets"]): Promise<Record<string, unknown>> {
-  const browser = await chromium.launch();
-  let chromiumVersion: string;
-  try {
-    chromiumVersion = browser.version();
-  } finally {
-    await browser.close();
-  }
+  const chromiumVersion = await withBrowser(async (browser) => browser.version());
   return {
     runner: {
       name: process.env.RUNNER_NAME ?? null,

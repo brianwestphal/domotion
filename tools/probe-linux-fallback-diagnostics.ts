@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 /** DM-2086: pair Fontconfig construction diagnostics with Chrome-observable paint. */
-import { chromium } from "@playwright/test";
 import { resolveFcFallbackDiagnostic } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 
 const cases = [
   { cp: 0x0600, lang: "ko" },
@@ -10,8 +10,7 @@ const cases = [
   { cp: 0x2600, lang: "ja" },
 ];
 if (process.platform !== "linux") process.exit(0);
-const browser = await chromium.launch();
-try {
+await withBrowser(async (browser) => {
   const page = await browser.newPage();
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("DOM.enable");
@@ -29,6 +28,4 @@ try {
     rows.push({ ...c, chromium: fonts.filter((f) => f.glyphCount > 0), diagnostic });
   }
   console.log(JSON.stringify({ chromium: await browser.version(), rows }, null, 2));
-} finally {
-  await browser.close();
-}
+}, undefined);

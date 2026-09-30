@@ -15,9 +15,8 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { mkdirSync, writeFileSync } from "node:fs";
-
-import { chromium, type CDPSession, type Page } from "playwright";
-
+import { type CDPSession, type Page } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 import type {
   CapturedDomUtf16Span,
   CapturedElement,
@@ -595,70 +594,70 @@ export async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanRepor
   ]);
   const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
-  const browser = await chromium.launch({ headless: true, args: ["--font-render-hinting=none"] });
-  try {
-    const context = await browser.newContext({ viewport: { width: 960, height: 640 }, deviceScaleFactor: 1 });
-    try {
-      const page = await context.newPage();
-      const userAgent = await page.evaluate(() => navigator.userAgent);
-      const fontBytes = embeddedVariableFontBytes();
-      const fontBase64 = fontBytes.toString("base64");
-      const rows: TextFragmentSpanRow[] = [];
-      const mutationRows: TextFragmentSpanMutationResult[][] = [];
-      for (const test of TEXT_FRAGMENT_SPAN_CASES) {
-        const result = await runCase(page, test, fontBase64, fontBytes, capture, render, textPath, provenanceApi);
-        rows.push(result.row);
-        mutationRows.push(result.mutations);
-      }
-      const mutations = REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS.map((kind) => {
-        const results = mutationRows.map((row) => row.find((result) => result.kind === kind));
-        return {
-          kind,
-          rejected: results.every((result) => result?.rejected === true),
-          failureReason: results.map((result) => result?.failureReason ?? "missing mutation result").join(" | "),
-        };
-      });
-      const controls = {
-        everyRequestedRowPresent: rows.length === TEXT_FRAGMENT_SPAN_CASES.length,
-        everyLogicalRowPasses: rows.every((row) => row.pass),
-        ligatureClusterPreserved: rows.some((row) =>
-          row.captured.shapedRuns.some((run) =>
-            run.glyphs.some((glyph) => glyph.renderedUtf16Span[1] - glyph.renderedUtf16Span[0] > 1),
+  return await withBrowser(
+    async (browser) => {
+      const context = await browser.newContext({ viewport: { width: 960, height: 640 }, deviceScaleFactor: 1 });
+      try {
+        const page = await context.newPage();
+        const userAgent = await page.evaluate(() => navigator.userAgent);
+        const fontBytes = embeddedVariableFontBytes();
+        const fontBase64 = fontBytes.toString("base64");
+        const rows: TextFragmentSpanRow[] = [];
+        const mutationRows: TextFragmentSpanMutationResult[][] = [];
+        for (const test of TEXT_FRAGMENT_SPAN_CASES) {
+          const result = await runCase(page, test, fontBase64, fontBytes, capture, render, textPath, provenanceApi);
+          rows.push(result.row);
+          mutationRows.push(result.mutations);
+        }
+        const mutations = REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS.map((kind) => {
+          const results = mutationRows.map((row) => row.find((result) => result.kind === kind));
+          return {
+            kind,
+            rejected: results.every((result) => result?.rejected === true),
+            failureReason: results.map((result) => result?.failureReason ?? "missing mutation result").join(" | "),
+          };
+        });
+        const controls = {
+          everyRequestedRowPresent: rows.length === TEXT_FRAGMENT_SPAN_CASES.length,
+          everyLogicalRowPasses: rows.every((row) => row.pass),
+          ligatureClusterPreserved: rows.some((row) =>
+            row.captured.shapedRuns.some((run) =>
+              run.glyphs.some((glyph) => glyph.renderedUtf16Span[1] - glyph.renderedUtf16Span[0] > 1),
+            ),
           ),
-        ),
-        everyMutationRejected:
-          mutations.length === REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS.length &&
-          mutations.every((mutation) => mutation.rejected),
-        noPixelOrScreenshotLeg: true,
-      };
-      return {
-        schemaVersion: 1,
-        generatedAt: new Date().toISOString(),
-        sourcePins: TEXT_FRAGMENT_SPAN_SOURCE_PINS,
-        fingerprint: {
-          chromiumVersion: browser.version(),
-          playwrightVersion,
-          userAgent,
-          os: platform(),
-          osRelease: release(),
-          architecture: arch(),
-          node: process.version,
-        },
-        rows,
-        mutations,
-        controls,
-        verdict: Object.values(controls).every(Boolean)
-          ? "exact-fragment-span-agreement"
-          : "fragment-span-gate-failure",
-      };
-    } finally {
-      provenanceApi.setTextRunProvenanceEnabled(false);
-      textPath.setRenderTextMode("embedded-font");
-      await context.close();
-    }
-  } finally {
-    await browser.close();
-  }
+          everyMutationRejected:
+            mutations.length === REQUIRED_TEXT_FRAGMENT_SPAN_MUTATIONS.length &&
+            mutations.every((mutation) => mutation.rejected),
+          noPixelOrScreenshotLeg: true,
+        };
+        return {
+          schemaVersion: 1,
+          generatedAt: new Date().toISOString(),
+          sourcePins: TEXT_FRAGMENT_SPAN_SOURCE_PINS,
+          fingerprint: {
+            chromiumVersion: browser.version(),
+            playwrightVersion,
+            userAgent,
+            os: platform(),
+            osRelease: release(),
+            architecture: arch(),
+            node: process.version,
+          },
+          rows,
+          mutations,
+          controls,
+          verdict: Object.values(controls).every(Boolean)
+            ? "exact-fragment-span-agreement"
+            : "fragment-span-gate-failure",
+        };
+      } finally {
+        provenanceApi.setTextRunProvenanceEnabled(false);
+        textPath.setRenderTextMode("embedded-font");
+        await context.close();
+      }
+    },
+    { headless: true, args: ["--font-render-hinting=none"] },
+  );
 }
 
 async function main(): Promise<number> {

@@ -13,19 +13,13 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileSync } from "node:fs";
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type CDPSession,
-  type LaunchOptions,
-  type Page,
-} from "@playwright/test";
+import { type BrowserContext, type CDPSession, type LaunchOptions, type Page } from "@playwright/test";
 import {
   resolveSystemUiFontFace,
   type SystemUiFontFace,
   invalidateFontEnvironmentCaches,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
@@ -291,72 +285,74 @@ async function collectState(
   launchArgs: string[],
   rendererSystemFamily: string | null,
 ): Promise<{ state: StateReport; browserVersion: string }> {
-  let browser: Browser | null = null;
   let context: BrowserContext | null = null;
-  try {
-    browser = await chromium.launch({
+  return await withBrowser(
+    async (browser) => {
+      try {
+        context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: "en-US" });
+        const page = await context.newPage();
+        await page.setContent("<!doctype html><meta charset=utf-8><body>DM-2504</body>");
+        const cdp = await prepareCdp(context, page);
+        const first = await browserRows(page, cdp);
+        const second = await browserRows(page, cdp);
+
+        const candidate =
+          second.candidates.find(
+            (item) => normalizeFace(item.familyName) !== normalizeFace(second.rows[0].face.familyName),
+          ) ?? second.candidates[0];
+        if (candidate == null) throw new Error("no installed family for generic-map negative control");
+
+        const negativePage = await context.newPage();
+        const negativeCdp = await context.newCDPSession(negativePage);
+        await negativeCdp.send("Page.setFontFamilies", {
+          fontFamilies: { standard: candidate.familyName, sansSerif: candidate.familyName },
+        });
+        await negativePage.setContent("<!doctype html><meta charset=utf-8><body>DM-2504 negative control</body>");
+        await negativeCdp.send("DOM.enable");
+        await negativeCdp.send("CSS.enable");
+        const negative = await browserRows(negativePage, negativeCdp);
+
+        const genericMapNegativeControlStable = browserRowsStable(second.rows, negative.rows);
+        const rows: AgreementRow[] = second.rows.map(({ target, face }) => {
+          const domotion = resolveSystemUiFontFace(
+            {
+              size: target.size,
+              weight: target.weight,
+              italic: target.italic,
+              slant: target.italic ? 1 : 0,
+              stretch: target.stretch,
+            },
+            rendererSystemFamily ?? undefined,
+          );
+          const identity = logicalIdentity(face, domotion);
+          return { ...target, browser: face, domotion, identityKind: identity.kind, exact: identity.exact };
+        });
+        const exactRows = rows.filter((row) => row.exact).length;
+        const repeatedBrowserRowsStable = browserRowsStable(first.rows, second.rows);
+        await Promise.all([cdp.detach(), negativeCdp.detach()]);
+        return {
+          browserVersion: browser.version(),
+          state: {
+            id,
+            rendererSystemFamily,
+            rows,
+            repeatedBrowserRowsStable,
+            genericMapNegativeControlStable,
+            genericMapRequestedFamily: candidate.familyName,
+            candidateFamilies: [...new Set(second.candidates.map((item) => item.familyName))],
+            exactRows,
+            pass: repeatedBrowserRowsStable && genericMapNegativeControlStable && exactRows === rows.length,
+          },
+        };
+      } finally {
+        await context?.close().catch(() => {});
+      }
+    },
+    {
       ...mode.options,
       args: [...(mode.options.args ?? []), ...launchArgs],
-    });
-    context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: "en-US" });
-    const page = await context.newPage();
-    await page.setContent("<!doctype html><meta charset=utf-8><body>DM-2504</body>");
-    const cdp = await prepareCdp(context, page);
-    const first = await browserRows(page, cdp);
-    const second = await browserRows(page, cdp);
-
-    const candidate =
-      second.candidates.find(
-        (item) => normalizeFace(item.familyName) !== normalizeFace(second.rows[0].face.familyName),
-      ) ?? second.candidates[0];
-    if (candidate == null) throw new Error("no installed family for generic-map negative control");
-
-    const negativePage = await context.newPage();
-    const negativeCdp = await context.newCDPSession(negativePage);
-    await negativeCdp.send("Page.setFontFamilies", {
-      fontFamilies: { standard: candidate.familyName, sansSerif: candidate.familyName },
-    });
-    await negativePage.setContent("<!doctype html><meta charset=utf-8><body>DM-2504 negative control</body>");
-    await negativeCdp.send("DOM.enable");
-    await negativeCdp.send("CSS.enable");
-    const negative = await browserRows(negativePage, negativeCdp);
-
-    const genericMapNegativeControlStable = browserRowsStable(second.rows, negative.rows);
-    const rows: AgreementRow[] = second.rows.map(({ target, face }) => {
-      const domotion = resolveSystemUiFontFace(
-        {
-          size: target.size,
-          weight: target.weight,
-          italic: target.italic,
-          slant: target.italic ? 1 : 0,
-          stretch: target.stretch,
-        },
-        rendererSystemFamily ?? undefined,
-      );
-      const identity = logicalIdentity(face, domotion);
-      return { ...target, browser: face, domotion, identityKind: identity.kind, exact: identity.exact };
-    });
-    const exactRows = rows.filter((row) => row.exact).length;
-    const repeatedBrowserRowsStable = browserRowsStable(first.rows, second.rows);
-    await Promise.all([cdp.detach(), negativeCdp.detach()]);
-    return {
-      browserVersion: browser.version(),
-      state: {
-        id,
-        rendererSystemFamily,
-        rows,
-        repeatedBrowserRowsStable,
-        genericMapNegativeControlStable,
-        genericMapRequestedFamily: candidate.familyName,
-        candidateFamilies: [...new Set(second.candidates.map((item) => item.familyName))],
-        exactRows,
-        pass: repeatedBrowserRowsStable && genericMapNegativeControlStable && exactRows === rows.length,
-      },
-    };
-  } finally {
-    await context?.close().catch(() => {});
-    await browser?.close().catch(() => {});
-  }
+    },
+  );
 }
 
 function normalFace(state: StateReport): string {

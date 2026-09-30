@@ -17,7 +17,8 @@ import { release as osRelease } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
-import { chromium, type Page } from "playwright";
+import { type Page } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -820,226 +821,229 @@ export async function runUrlBackgroundGeometryAudit(
   ]);
   const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });
-    const generatedPage = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });
-    const rows: AuditRow[] = [];
-    for (const test of CASES) {
-      const activeLabels = test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8];
-      const activePalette = activeLabels.map((label) => PALETTE[label - 1].name);
-      const artifactPrefix = `dpr-${deviceScaleFactor}/${test.id}`;
-      const artifacts: EvidenceArtifact[] = [];
-      await page.setContent(htmlFor(test), { waitUntil: "load" });
-      await mutate(page, test.mutation);
-      const source = await readPaintFacts(page);
-      const sourcePng = await page.screenshot({ type: "png" });
-      const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...VIEWPORT });
-      const captured = findCapturedTarget(tree);
-      // This oracle adjudicates the vector URL-background route itself. A
-      // source-owned text fallback may atomically raster the same fragmented
-      // element when unrelated protocol text facts are unavailable; suppress
-      // that outer surface here so it cannot make a missing vector pattern
-      // appear pixel-perfect by replaying Chromium's source screenshot.
-      suppressAtomicRasterSurfaces(tree);
-      const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
-      await generatedPage.setContent(
-        `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
-        { waitUntil: "load" },
-      );
-      await generatedPage.evaluate(
-        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-      );
-      const generatedPng = await generatedPage.screenshot({ type: "png" });
-      for (const artifact of [
-        persistArtifact(artifactDir, `${artifactPrefix}/source.png`, "source-png", sourcePng),
-        persistArtifact(artifactDir, `${artifactPrefix}/generated.png`, "generated-png", generatedPng),
-        persistArtifact(artifactDir, `${artifactPrefix}/generated.svg`, "generated-svg", svg),
-      ])
-        if (artifact != null) artifacts.push(artifact);
-      const comparison = await comparePaint(sourcePng, generatedPng, activeLabels);
-      let restartMutation: AuditRow["restartMutation"];
-      const fixedToViewport =
-        source.backgroundAttachment === "fixed" &&
-        captured?.styles.backgroundAttachmentGeometry?.fixedToViewport === true;
-      if (source.boxDecorationBreak === "slice" && !fixedToViewport && captured?.inlineFragments != null) {
-        const savedGeometry = captured.inlineFragments.map((fragment) => ({
-          area: fragment.backgroundPositioningArea,
-          offset: fragment.backgroundOffsetInStitchedBox,
-        }));
-        for (const fragment of captured.inlineFragments) {
-          // Held-out negative: replace Blink's stitched imaginary box with
-          // the clone route's physical fragment box. A real continuation row
-          // must visibly reject this restart without relying on source labels.
-          fragment.backgroundPositioningArea = {
-            x: fragment.x,
-            y: fragment.y,
-            width: fragment.width,
-            height: fragment.height,
-          };
-          fragment.backgroundOffsetInStitchedBox = { x: 0, y: 0 };
-        }
-        const mutatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
+  return await withBrowser(
+    async (browser) => {
+      const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });
+      const generatedPage = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor });
+      const rows: AuditRow[] = [];
+      for (const test of CASES) {
+        const activeLabels = test.imageCss == null ? [1, 2, 3, 4] : [5, 6, 7, 8];
+        const activePalette = activeLabels.map((label) => PALETTE[label - 1].name);
+        const artifactPrefix = `dpr-${deviceScaleFactor}/${test.id}`;
+        const artifacts: EvidenceArtifact[] = [];
+        await page.setContent(htmlFor(test), { waitUntil: "load" });
+        await mutate(page, test.mutation);
+        const source = await readPaintFacts(page);
+        const sourcePng = await page.screenshot({ type: "png" });
+        const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, ...VIEWPORT });
+        const captured = findCapturedTarget(tree);
+        // This oracle adjudicates the vector URL-background route itself. A
+        // source-owned text fallback may atomically raster the same fragmented
+        // element when unrelated protocol text facts are unavailable; suppress
+        // that outer surface here so it cannot make a missing vector pattern
+        // appear pixel-perfect by replaying Chromium's source screenshot.
+        suppressAtomicRasterSurfaces(tree);
+        const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
         await generatedPage.setContent(
-          `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${mutatedSvg}`,
+          `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
           { waitUntil: "load" },
         );
         await generatedPage.evaluate(
           () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
         );
-        const mutatedPng = await generatedPage.screenshot({ type: "png" });
+        const generatedPng = await generatedPage.screenshot({ type: "png" });
         for (const artifact of [
-          persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.png`, "restart-mutation-png", mutatedPng),
-          persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.svg`, "restart-mutation-svg", mutatedSvg),
+          persistArtifact(artifactDir, `${artifactPrefix}/source.png`, "source-png", sourcePng),
+          persistArtifact(artifactDir, `${artifactPrefix}/generated.png`, "generated-png", generatedPng),
+          persistArtifact(artifactDir, `${artifactPrefix}/generated.svg`, "generated-svg", svg),
         ])
           if (artifact != null) artifacts.push(artifact);
-        const mutatedComparison = await comparePaint(sourcePng, mutatedPng, activeLabels);
-        restartMutation = {
-          patterns: parsePatternFacts(mutatedSvg),
-          comparison: mutatedComparison,
-          discriminated: restartMutationDiscriminated(mutatedComparison),
-        };
-        captured.inlineFragments.forEach((fragment, index) => {
-          fragment.backgroundPositioningArea = savedGeometry[index].area;
-          fragment.backgroundOffsetInStitchedBox = savedGeometry[index].offset;
+        const comparison = await comparePaint(sourcePng, generatedPng, activeLabels);
+        let restartMutation: AuditRow["restartMutation"];
+        const fixedToViewport =
+          source.backgroundAttachment === "fixed" &&
+          captured?.styles.backgroundAttachmentGeometry?.fixedToViewport === true;
+        if (source.boxDecorationBreak === "slice" && !fixedToViewport && captured?.inlineFragments != null) {
+          const savedGeometry = captured.inlineFragments.map((fragment) => ({
+            area: fragment.backgroundPositioningArea,
+            offset: fragment.backgroundOffsetInStitchedBox,
+          }));
+          for (const fragment of captured.inlineFragments) {
+            // Held-out negative: replace Blink's stitched imaginary box with
+            // the clone route's physical fragment box. A real continuation row
+            // must visibly reject this restart without relying on source labels.
+            fragment.backgroundPositioningArea = {
+              x: fragment.x,
+              y: fragment.y,
+              width: fragment.width,
+              height: fragment.height,
+            };
+            fragment.backgroundOffsetInStitchedBox = { x: 0, y: 0 };
+          }
+          const mutatedSvg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, {
+            hiDPIFactor: deviceScaleFactor,
+          });
+          await generatedPage.setContent(
+            `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${mutatedSvg}`,
+            { waitUntil: "load" },
+          );
+          await generatedPage.evaluate(
+            () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+          );
+          const mutatedPng = await generatedPage.screenshot({ type: "png" });
+          for (const artifact of [
+            persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.png`, "restart-mutation-png", mutatedPng),
+            persistArtifact(artifactDir, `${artifactPrefix}/restart-mutation.svg`, "restart-mutation-svg", mutatedSvg),
+          ])
+            if (artifact != null) artifacts.push(artifact);
+          const mutatedComparison = await comparePaint(sourcePng, mutatedPng, activeLabels);
+          restartMutation = {
+            patterns: parsePatternFacts(mutatedSvg),
+            comparison: mutatedComparison,
+            discriminated: restartMutationDiscriminated(mutatedComparison),
+          };
+          captured.inlineFragments.forEach((fragment, index) => {
+            fragment.backgroundPositioningArea = savedGeometry[index].area;
+            fragment.backgroundOffsetInStitchedBox = savedGeometry[index].offset;
+          });
+        }
+        const patterns = parsePatternFacts(svg);
+        const expectedPatternCount =
+          (test.imageCss == null ? 1 : 4) * Math.max(1, captured?.inlineFragments?.length ?? 1);
+        const warningMessages = warnings.map((warning) => `${warning.feature}: ${warning.detail}`);
+        const requiresRestartMutation =
+          source.boxDecorationBreak === "slice" && !fixedToViewport && (captured?.inlineFragments?.length ?? 0) > 1;
+        const blockers = adjudicateUrlBackgroundRow({
+          expectedRoute: test.expectedRoute,
+          comparison,
+          patterns,
+          expectedPatternCount,
+          activePalette,
+          warnings: warningMessages,
+          restartMutation,
+          requiresRestartMutation,
+        });
+        rows.push({
+          id: test.id,
+          axis: test.axis,
+          expectedRoute: test.expectedRoute,
+          source,
+          captured: capturedFacts(captured),
+          patterns,
+          expectedPatternCount,
+          activePalette,
+          comparison,
+          restartMutation,
+          warnings: warningMessages,
+          blockers,
+          artifacts,
+          pass: blockers.length === 0,
         });
       }
-      const patterns = parsePatternFacts(svg);
-      const expectedPatternCount =
-        (test.imageCss == null ? 1 : 4) * Math.max(1, captured?.inlineFragments?.length ?? 1);
-      const warningMessages = warnings.map((warning) => `${warning.feature}: ${warning.detail}`);
-      const requiresRestartMutation =
-        source.boxDecorationBreak === "slice" && !fixedToViewport && (captured?.inlineFragments?.length ?? 0) > 1;
-      const blockers = adjudicateUrlBackgroundRow({
-        expectedRoute: test.expectedRoute,
-        comparison,
-        patterns,
-        expectedPatternCount,
-        activePalette,
-        warnings: warningMessages,
-        restartMutation,
-        requiresRestartMutation,
-      });
-      rows.push({
-        id: test.id,
-        axis: test.axis,
-        expectedRoute: test.expectedRoute,
-        source,
-        captured: capturedFacts(captured),
-        patterns,
-        expectedPatternCount,
-        activePalette,
-        comparison,
-        restartMutation,
-        warnings: warningMessages,
-        blockers,
-        artifacts,
-        pass: blockers.length === 0,
-      });
-    }
 
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const sliceRows = rows.filter(
-      (row) => row.source.boxDecorationBreak === "slice" && (row.captured?.fragments?.length ?? 0) > 1,
-    );
-    const controls = {
-      paletteEvidenceComplete: rows.every((row) =>
-        row.activePalette.every(
-          (name) => row.comparison.sourceBounds[name] != null && row.comparison.generatedBounds[name] != null,
-        ),
-      ),
-      allRowsSourceEquivalent: rows.every((row) => row.pass),
-      noObservationalRoutes: rows.every(
-        (row) => row.expectedRoute === "source-equivalent" || row.expectedRoute === "source-geometry-equivalent",
-      ),
-      warningsEmpty: rows.every((row) => row.warnings.length === 0),
-      patternEvidenceComplete: rows.every(
-        (row) => row.patterns.length === row.expectedPatternCount && row.patterns.every(validPattern),
-      ),
-      independentInkBoundsExact: rows.every(
-        (row) => row.comparison.maxInkBoundDelta != null && row.comparison.maxInkBoundDelta <= 1,
-      ),
-      autoRatioRouteIsExact: byId.get("auto-width-from-explicit-height")?.pass === true,
-      // DM-2479 closed the old transformed-fixed ownership gap. Keep the
-      // discriminator independent by asserting its captured ownership facts
-      // in addition to the exact DM-2478 raster row.
-      attachmentOwnershipCaptured:
-        byId.get("fixed-viewport-control")?.captured?.attachmentFixedToViewport === true &&
-        byId.get("fixed-under-transform")?.captured?.attachmentFixedToViewport === false,
-      localAttachmentOffsetsCaptured:
-        byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetX ===
-          byId.get("local-nonzero-scroll")?.source.scrollLeft &&
-        byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetY ===
-          byId.get("local-nonzero-scroll")?.source.scrollTop,
-      sliceRowsAreSourceEquivalent:
-        sliceRows.length >= 2 && sliceRows.every((row) => row.expectedRoute === "source-equivalent" && row.pass),
-      sliceGeometryRecordsCaptured: sliceRows.every(
-        (row) =>
-          (row.captured?.fragments?.length ?? 0) > 1 &&
-          row.captured!.fragments!.every(
-            (fragment) => fragment.backgroundPositioningArea != null && fragment.backgroundOffsetInStitchedBox != null,
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const sliceRows = rows.filter(
+        (row) => row.source.boxDecorationBreak === "slice" && (row.captured?.fragments?.length ?? 0) > 1,
+      );
+      const controls = {
+        paletteEvidenceComplete: rows.every((row) =>
+          row.activePalette.every(
+            (name) => row.comparison.sourceBounds[name] != null && row.comparison.generatedBounds[name] != null,
           ),
-      ),
-      sliceRestartMutationsDiscriminated: sliceRows.every(
-        (row) => row.captured?.attachmentFixedToViewport === true || row.restartMutation?.discriminated === true,
-      ),
-      fragmentPatternsMaterialized: rows
-        .filter((row) => (row.captured?.fragments?.length ?? 0) > 1)
-        .every((row) => row.patterns.length === row.captured!.fragments!.length),
-      cyclicLayerRowHasFourImagePatterns: byId.get("cyclic-multiple-layer-lists")?.patterns.length === 4,
-    };
-    const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean);
-    const chromiumVersion = browser.version();
-    const environmentBase = {
-      chromiumVersion,
-      playwrightVersion,
-      platform: process.platform,
-      architecture: process.arch,
-      osRelease: osRelease(),
-      nodeVersion: process.version,
-      runnerOS: process.env.RUNNER_OS ?? null,
-      runnerImageOS: process.env.ImageOS ?? null,
-      runnerImageVersion: process.env.ImageVersion ?? null,
-      browserType: "chromium" as const,
-      headless: true as const,
-      viewport: VIEWPORT,
-      deviceScaleFactor,
-    };
-    const environment = {
-      fingerprint: sha256(JSON.stringify({ sourceRevisions: SOURCE_REVISIONS, ...environmentBase })),
-      ...environmentBase,
-    };
-    const blockers = [
-      ...rows.flatMap((row) => row.blockers.map((blocker) => `${row.id}: ${blocker}`)),
-      ...Object.entries(controls)
-        .filter(([, value]) => !value)
-        .map(([name]) => `control failed: ${name}`),
-    ];
-    return {
-      schemaVersion: 2,
-      sourceRevisions: SOURCE_REVISIONS,
-      chromiumVersion,
-      playwrightVersion,
-      platform: process.platform,
-      architecture: process.arch,
-      environment,
-      deviceScaleFactor,
-      thresholds: {
-        maxEquivalentLabelMismatch: MAX_EQUIVALENT_LABEL_MISMATCH,
-        maxEquivalentBoundDelta: MAX_EQUIVALENT_BOUND_DELTA,
-        maxGeometryLabelMismatch: MAX_GEOMETRY_LABEL_MISMATCH,
-        maxGeometryBoundDelta: MAX_GEOMETRY_BOUND_DELTA,
-        minRestartMutationLabelMismatch: MIN_RESTART_MUTATION_LABEL_MISMATCH,
-        minRestartMutationBoundDelta: MIN_RESTART_MUTATION_BOUND_DELTA,
-      },
-      rows,
-      controls,
-      blockers,
-      verdict: pass ? "source-equivalent" : "source-drift",
-    };
-  } finally {
-    await browser.close();
-  }
+        ),
+        allRowsSourceEquivalent: rows.every((row) => row.pass),
+        noObservationalRoutes: rows.every(
+          (row) => row.expectedRoute === "source-equivalent" || row.expectedRoute === "source-geometry-equivalent",
+        ),
+        warningsEmpty: rows.every((row) => row.warnings.length === 0),
+        patternEvidenceComplete: rows.every(
+          (row) => row.patterns.length === row.expectedPatternCount && row.patterns.every(validPattern),
+        ),
+        independentInkBoundsExact: rows.every(
+          (row) => row.comparison.maxInkBoundDelta != null && row.comparison.maxInkBoundDelta <= 1,
+        ),
+        autoRatioRouteIsExact: byId.get("auto-width-from-explicit-height")?.pass === true,
+        // DM-2479 closed the old transformed-fixed ownership gap. Keep the
+        // discriminator independent by asserting its captured ownership facts
+        // in addition to the exact DM-2478 raster row.
+        attachmentOwnershipCaptured:
+          byId.get("fixed-viewport-control")?.captured?.attachmentFixedToViewport === true &&
+          byId.get("fixed-under-transform")?.captured?.attachmentFixedToViewport === false,
+        localAttachmentOffsetsCaptured:
+          byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetX ===
+            byId.get("local-nonzero-scroll")?.source.scrollLeft &&
+          byId.get("local-nonzero-scroll")?.captured?.attachmentLocalOffsetY ===
+            byId.get("local-nonzero-scroll")?.source.scrollTop,
+        sliceRowsAreSourceEquivalent:
+          sliceRows.length >= 2 && sliceRows.every((row) => row.expectedRoute === "source-equivalent" && row.pass),
+        sliceGeometryRecordsCaptured: sliceRows.every(
+          (row) =>
+            (row.captured?.fragments?.length ?? 0) > 1 &&
+            row.captured!.fragments!.every(
+              (fragment) =>
+                fragment.backgroundPositioningArea != null && fragment.backgroundOffsetInStitchedBox != null,
+            ),
+        ),
+        sliceRestartMutationsDiscriminated: sliceRows.every(
+          (row) => row.captured?.attachmentFixedToViewport === true || row.restartMutation?.discriminated === true,
+        ),
+        fragmentPatternsMaterialized: rows
+          .filter((row) => (row.captured?.fragments?.length ?? 0) > 1)
+          .every((row) => row.patterns.length === row.captured!.fragments!.length),
+        cyclicLayerRowHasFourImagePatterns: byId.get("cyclic-multiple-layer-lists")?.patterns.length === 4,
+      };
+      const pass = rows.every((row) => row.pass) && Object.values(controls).every(Boolean);
+      const chromiumVersion = browser.version();
+      const environmentBase = {
+        chromiumVersion,
+        playwrightVersion,
+        platform: process.platform,
+        architecture: process.arch,
+        osRelease: osRelease(),
+        nodeVersion: process.version,
+        runnerOS: process.env.RUNNER_OS ?? null,
+        runnerImageOS: process.env.ImageOS ?? null,
+        runnerImageVersion: process.env.ImageVersion ?? null,
+        browserType: "chromium" as const,
+        headless: true as const,
+        viewport: VIEWPORT,
+        deviceScaleFactor,
+      };
+      const environment = {
+        fingerprint: sha256(JSON.stringify({ sourceRevisions: SOURCE_REVISIONS, ...environmentBase })),
+        ...environmentBase,
+      };
+      const blockers = [
+        ...rows.flatMap((row) => row.blockers.map((blocker) => `${row.id}: ${blocker}`)),
+        ...Object.entries(controls)
+          .filter(([, value]) => !value)
+          .map(([name]) => `control failed: ${name}`),
+      ];
+      return {
+        schemaVersion: 2,
+        sourceRevisions: SOURCE_REVISIONS,
+        chromiumVersion,
+        playwrightVersion,
+        platform: process.platform,
+        architecture: process.arch,
+        environment,
+        deviceScaleFactor,
+        thresholds: {
+          maxEquivalentLabelMismatch: MAX_EQUIVALENT_LABEL_MISMATCH,
+          maxEquivalentBoundDelta: MAX_EQUIVALENT_BOUND_DELTA,
+          maxGeometryLabelMismatch: MAX_GEOMETRY_LABEL_MISMATCH,
+          maxGeometryBoundDelta: MAX_GEOMETRY_BOUND_DELTA,
+          minRestartMutationLabelMismatch: MIN_RESTART_MUTATION_LABEL_MISMATCH,
+          minRestartMutationBoundDelta: MIN_RESTART_MUTATION_BOUND_DELTA,
+        },
+        rows,
+        controls,
+        blockers,
+        verdict: pass ? "source-equivalent" : "source-drift",
+      };
+    },
+    { headless: true },
+  );
 }
 
 const REQUIRED_DEVICE_SCALE_FACTORS = [1, 2] as const;

@@ -55,9 +55,9 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
-import { chromium } from "@playwright/test";
 import * as fontkit from "fontkit";
 import { win32FamilySuffixAdjustment } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,
@@ -243,56 +243,57 @@ async function main(): Promise<void> {
     WEIGHTS.map((css) => ({ family, css, ours: ours.get(family)!.get(css)! })),
   );
 
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  const session = await page.context().newCDPSession(page);
-  await session.send("DOM.enable");
-  await session.send("CSS.enable");
-  await page.setContent(
-    `<body style="margin:0">${cases
-      .map(
-        (d, i) =>
-          `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`,
-      )
-      .join("")}</body>`,
-  );
-  await page.waitForLoadState("networkidle");
-  const { root } = await session.send("DOM.getDocument", { depth: -1 });
+  const { scored, agree, skipped, rejectAgree, misses, chromiumVersion } = await withBrowser(async (browser) => {
+    const page = await browser.newPage();
+    const session = await page.context().newCDPSession(page);
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    await page.setContent(
+      `<body style="margin:0">${cases
+        .map(
+          (d, i) =>
+            `<div id="p${i}" style="font-family:'${d.family.replace(/'/g, "\\'")}';font-weight:${d.css};font-size:32px">Regate</div>`,
+        )
+        .join("")}</body>`,
+    );
+    await page.waitForLoadState("networkidle");
+    const { root } = await session.send("DOM.getDocument", { depth: -1 });
 
-  let scored = 0,
-    agree = 0,
-    skipped = 0,
-    rejectAgree = 0;
-  const misses: Miss[] = [];
-  for (const [i, d] of cases.entries()) {
-    const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#p${i}` });
-    const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
-    const chrome = fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0]?.postScriptName;
-    if (chrome == null || chrome === "") {
-      skipped++;
-      continue;
-    }
-    const requestedMembers = members.get(d.family) ?? new Set<string>();
-    if (!d.ours.found) {
+    let scored = 0,
+      agree = 0,
+      skipped = 0,
+      rejectAgree = 0;
+    const misses: Miss[] = [];
+    for (const [i, d] of cases.entries()) {
+      const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#p${i}` });
+      const { fonts } = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+      const chrome = fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0]?.postScriptName;
+      if (chrome == null || chrome === "") {
+        skipped++;
+        continue;
+      }
+      const requestedMembers = members.get(d.family) ?? new Set<string>();
+      if (!d.ours.found) {
+        scored++;
+        if (!requestedMembers.has(chrome)) {
+          agree++;
+          rejectAgree++;
+        } else misses.push({ family: d.family, css: d.css, chrome, ours: "(not installed per DirectWrite)" });
+        continue;
+      }
+      const matchedMembers =
+        d.ours.familyName != null ? (members.get(d.ours.familyName) ?? new Set<string>()) : new Set<string>();
+      if (!requestedMembers.has(chrome) && !matchedMembers.has(chrome)) {
+        skipped++;
+        continue;
+      }
       scored++;
-      if (!requestedMembers.has(chrome)) {
-        agree++;
-        rejectAgree++;
-      } else misses.push({ family: d.family, css: d.css, chrome, ours: "(not installed per DirectWrite)" });
-      continue;
+      if (chrome === d.ours.postscriptName) agree++;
+      else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours.postscriptName ?? "(none)" });
     }
-    const matchedMembers =
-      d.ours.familyName != null ? (members.get(d.ours.familyName) ?? new Set<string>()) : new Set<string>();
-    if (!requestedMembers.has(chrome) && !matchedMembers.has(chrome)) {
-      skipped++;
-      continue;
-    }
-    scored++;
-    if (chrome === d.ours.postscriptName) agree++;
-    else misses.push({ family: d.family, css: d.css, chrome, ours: d.ours.postscriptName ?? "(none)" });
-  }
-  const chromiumVersion = browser.version();
-  await browser.close();
+    const chromiumVersion = browser.version();
+    return { scored, agree, skipped, rejectAgree, misses, chromiumVersion };
+  });
 
   const env = runEnv(chromiumVersion);
   const report = {

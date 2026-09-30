@@ -22,6 +22,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
 import { chromium, webkit, firefox, type BrowserType } from "@playwright/test";
+import { withBrowser } from "./lib/browser.js";
 
 type BrowserName = "chromium" | "webkit" | "firefox";
 
@@ -123,17 +124,22 @@ ${svgText}
 <\/script>
 </body></html>`;
 
-  const browser = await browserType(opts.browser).launch({ headless: opts.headless });
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  const page = await ctx.newPage();
-  await page.setContent(html, { waitUntil: "load" });
-
-  const sampleMs = opts.warmupMs + opts.cycleMs * opts.cycles + 200;
-  await page.waitForTimeout(sampleMs);
-
-  const raw = (await page.evaluate(() => (window as unknown as { __perf: PerfBuffer }).__perf)) as PerfBuffer;
-  await ctx.close();
-  await browser.close();
+  const raw = await withBrowser(
+    async (browser) => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+      try {
+        const page = await ctx.newPage();
+        await page.setContent(html, { waitUntil: "load" });
+        const sampleMs = opts.warmupMs + opts.cycleMs * opts.cycles + 200;
+        await page.waitForTimeout(sampleMs);
+        return (await page.evaluate(() => (window as unknown as { __perf: PerfBuffer }).__perf)) as PerfBuffer;
+      } finally {
+        await ctx.close();
+      }
+    },
+    { headless: opts.headless },
+    { launch: (options) => browserType(opts.browser).launch(options) },
+  );
 
   const cycleStart = raw.start + opts.warmupMs;
   const cycleEnd = cycleStart + opts.cycleMs * opts.cycles;

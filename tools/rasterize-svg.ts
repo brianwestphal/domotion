@@ -1,6 +1,6 @@
 // Rasterize an SVG via Playwright to compare to the test runner output
 import { readFileSync, writeFileSync } from "node:fs";
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.js";
 
 const SVG_PATH = process.argv[2];
 const OUT_PATH = process.argv[3];
@@ -15,12 +15,12 @@ if (!SVG_PATH || !OUT_PATH) {
   const w = m ? parseInt(m[1]) : 1280;
   const h = m ? parseInt(m[2]) : 6000;
 
-  const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  await page.setContent(`<!doctype html><html><body style="margin:0;background:#fff">${svg}</body></html>`);
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: OUT_PATH, clip: { x: 0, y: 0, width: w, height: h } });
-  console.log("wrote", OUT_PATH);
-  await browser.close();
+  await withBrowser(async (browser) => {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    await page.setContent(`<!doctype html><html><body style="margin:0;background:#fff">${svg}</body></html>`);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: OUT_PATH, clip: { x: 0, y: 0, width: w, height: h } });
+    console.log("wrote", OUT_PATH);
+  });
 })();

@@ -13,11 +13,10 @@ import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
 import type { CDPSession, Page, Route } from "playwright";
 import sharp from "sharp";
-
-import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
+import { withBrowser } from "./lib/browser.js";
+import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type {
   CapturedBrokenImageFallback,
   CapturedBrokenImagePhysicalBox,
@@ -1685,8 +1684,7 @@ export async function runBrokenImageFallbackOracle(
   if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0))
     throw new Error("--dpr requires positive finite values");
   if (colorSchemes.length === 0) throw new Error("at least one color scheme is required");
-  const browser = await launchChromium();
-  try {
+  return await withBrowser(async (browser) => {
     const rows: BrokenImageGateRow[] = [];
     const direct = new Map<string, { sourcePng: Buffer; emittedPng: Buffer }>();
     const fonts = new Set<string>();
@@ -1803,9 +1801,7 @@ export async function runBrokenImageFallbackOracle(
       },
       verdict: pass ? "hard-broken-image-fallback-parity" : "broken-image-fallback-parity-failure",
     };
-  } finally {
-    await browser.close();
-  }
+  }, undefined);
 }
 
 function arg(name: string): string | undefined {

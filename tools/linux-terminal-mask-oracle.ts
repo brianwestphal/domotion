@@ -13,11 +13,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium } from "@playwright/test";
 import * as fontkitNs from "fontkit";
 import sharp from "sharp";
 import svg2ttf from "svg2ttf";
 import { hbSubsetRetainGids, injectPuaCmap } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 
 const fontkit = (fontkitNs as { default?: typeof fontkitNs }).default ?? fontkitNs;
@@ -709,151 +709,155 @@ export async function runLinuxTerminalMaskOracle(options: LinuxTerminalMaskOracl
   const artifactDir = resolve(options.artifactDir);
   mkdirSync(dirname(out), { recursive: true });
   mkdirSync(artifactDir, { recursive: true });
-  const browser = await chromium.launch({ headless: true });
-  const browserVersion = browser.version();
+  let browserVersion = "unknown";
   const screenshots = new Map<LinuxTerminalMaskVariantId, Buffer>();
-  try {
-    const page = await browser.newPage({
-      viewport: { width: 1536, height: LINUX_TERMINAL_MASK_CASES.length * CELL },
-      deviceScaleFactor: 1,
-    });
-    for (const variant of LINUX_TERMINAL_MASK_VARIANTS) {
-      await page.setContent(variantDocument(variant, faces, targetHintedFaces));
-      await page.evaluate(() => document.fonts.ready.then(() => undefined));
-      const bytes = await page.locator("svg").screenshot();
-      screenshots.set(variant.id, bytes);
-      writeFileSync(resolve(artifactDir, `${variant.id}.png`), bytes);
-    }
-    await page.close();
-  } finally {
-    await browser.close();
-  }
+  await withBrowser(
+    async (browser) => {
+      browserVersion = browser.version();
+      const page = await browser.newPage({
+        viewport: { width: 1536, height: LINUX_TERMINAL_MASK_CASES.length * CELL },
+        deviceScaleFactor: 1,
+      });
+      for (const variant of LINUX_TERMINAL_MASK_VARIANTS) {
+        await page.setContent(variantDocument(variant, faces, targetHintedFaces));
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        const bytes = await page.locator("svg").screenshot();
+        screenshots.set(variant.id, bytes);
+        writeFileSync(resolve(artifactDir, `${variant.id}.png`), bytes);
+      }
+      await page.close();
+    },
+    { headless: true },
+  );
 
   const native = screenshots.get("native-reference")!;
   const nativeDecoded = await decode(native);
   const results = [];
-  const compareBrowser = await chromium.launch({ headless: true });
-  const comparePage = await compareBrowser.newPage();
-  try {
-    for (const variant of LINUX_TERMINAL_MASK_VARIANTS) {
-      const bytes = screenshots.get(variant.id)!;
-      const path = resolve(artifactDir, `${variant.id}.png`);
-      if (variant.id === "native-reference") {
-        results.push({
-          id: variant.id,
-          embedded: false,
-          artifact: relative(dirname(out), path),
-          sha256: sha256(bytes),
-          exact: true,
-        });
-        continue;
-      }
-      const diffPath = resolve(artifactDir, `${variant.id}-diff.png`);
-      const global = await comparePngs(comparePage, resolve(artifactDir, "native-reference.png"), path, diffPath);
-      const actualDecoded = await decode(bytes);
-      const cases = [];
-      for (let row = 0; row < LINUX_TERMINAL_MASK_CASES.length; row++) {
-        const top = row * CELL;
-        const width = 16 * CELL;
-        const [expectedCrop, actualCrop] = await Promise.all([
-          sharp(nativeDecoded.data, {
-            raw: { width: nativeDecoded.width, height: nativeDecoded.height, channels: nativeDecoded.channels },
-          })
-            .extract({ left: 0, top, width, height: CELL })
-            .raw()
-            .toBuffer({ resolveWithObject: true }),
-          sharp(actualDecoded.data, {
-            raw: { width: actualDecoded.width, height: actualDecoded.height, channels: actualDecoded.channels },
-          })
-            .extract({ left: 0, top, width, height: CELL })
-            .raw()
-            .toBuffer({ resolveWithObject: true }),
-        ]);
-        cases.push({
-          id: LINUX_TERMINAL_MASK_CASES[row].id,
-          ...rawResidual(
-            {
-              data: expectedCrop.data,
-              width: expectedCrop.info.width,
-              height: expectedCrop.info.height,
-              channels: expectedCrop.info.channels,
+  await withBrowser(
+    async (compareBrowser) => {
+      const comparePage = await compareBrowser.newPage();
+      try {
+        for (const variant of LINUX_TERMINAL_MASK_VARIANTS) {
+          const bytes = screenshots.get(variant.id)!;
+          const path = resolve(artifactDir, `${variant.id}.png`);
+          if (variant.id === "native-reference") {
+            results.push({
+              id: variant.id,
+              embedded: false,
+              artifact: relative(dirname(out), path),
+              sha256: sha256(bytes),
+              exact: true,
+            });
+            continue;
+          }
+          const diffPath = resolve(artifactDir, `${variant.id}-diff.png`);
+          const global = await comparePngs(comparePage, resolve(artifactDir, "native-reference.png"), path, diffPath);
+          const actualDecoded = await decode(bytes);
+          const cases = [];
+          for (let row = 0; row < LINUX_TERMINAL_MASK_CASES.length; row++) {
+            const top = row * CELL;
+            const width = 16 * CELL;
+            const [expectedCrop, actualCrop] = await Promise.all([
+              sharp(nativeDecoded.data, {
+                raw: { width: nativeDecoded.width, height: nativeDecoded.height, channels: nativeDecoded.channels },
+              })
+                .extract({ left: 0, top, width, height: CELL })
+                .raw()
+                .toBuffer({ resolveWithObject: true }),
+              sharp(actualDecoded.data, {
+                raw: { width: actualDecoded.width, height: actualDecoded.height, channels: actualDecoded.channels },
+              })
+                .extract({ left: 0, top, width, height: CELL })
+                .raw()
+                .toBuffer({ resolveWithObject: true }),
+            ]);
+            cases.push({
+              id: LINUX_TERMINAL_MASK_CASES[row].id,
+              ...rawResidual(
+                {
+                  data: expectedCrop.data,
+                  width: expectedCrop.info.width,
+                  height: expectedCrop.info.height,
+                  channels: expectedCrop.info.channels,
+                },
+                {
+                  data: actualCrop.data,
+                  width: actualCrop.info.width,
+                  height: actualCrop.info.height,
+                  channels: actualCrop.info.channels,
+                },
+              ),
+              phases: await Promise.all(
+                PHASES.flatMap((phaseY, phaseYIndex) =>
+                  PHASES.map(async (phaseX, phaseXIndex) => {
+                    const left = (phaseYIndex * PHASES.length + phaseXIndex) * CELL;
+                    const [expectedCell, actualCell] = await Promise.all([
+                      sharp(expectedCrop.data, {
+                        raw: {
+                          width: expectedCrop.info.width,
+                          height: expectedCrop.info.height,
+                          channels: expectedCrop.info.channels,
+                        },
+                      })
+                        .extract({ left, top: 0, width: CELL, height: CELL })
+                        .raw()
+                        .toBuffer({ resolveWithObject: true }),
+                      sharp(actualCrop.data, {
+                        raw: {
+                          width: actualCrop.info.width,
+                          height: actualCrop.info.height,
+                          channels: actualCrop.info.channels,
+                        },
+                      })
+                        .extract({ left, top: 0, width: CELL, height: CELL })
+                        .raw()
+                        .toBuffer({ resolveWithObject: true }),
+                    ]);
+                    return {
+                      phaseX,
+                      phaseY,
+                      ...rawResidual(
+                        {
+                          data: expectedCell.data,
+                          width: expectedCell.info.width,
+                          height: expectedCell.info.height,
+                          channels: expectedCell.info.channels,
+                        },
+                        {
+                          data: actualCell.data,
+                          width: actualCell.info.width,
+                          height: actualCell.info.height,
+                          channels: actualCell.info.channels,
+                        },
+                      ),
+                    };
+                  }),
+                ),
+              ),
+            });
+          }
+          results.push({
+            id: variant.id,
+            embedded: true,
+            artifact: relative(dirname(out), path),
+            diffArtifact: relative(dirname(out), diffPath),
+            sha256: sha256(bytes),
+            global: {
+              diffPct: global.diffPct,
+              nonAaPixels: global.nonAaPixels,
+              sigPixelPct: global.sigPixelPct,
+              regionCount: global.regionCount,
+              totalChangedArea: global.totalChangedArea,
             },
-            {
-              data: actualCrop.data,
-              width: actualCrop.info.width,
-              height: actualCrop.info.height,
-              channels: actualCrop.info.channels,
-            },
-          ),
-          phases: await Promise.all(
-            PHASES.flatMap((phaseY, phaseYIndex) =>
-              PHASES.map(async (phaseX, phaseXIndex) => {
-                const left = (phaseYIndex * PHASES.length + phaseXIndex) * CELL;
-                const [expectedCell, actualCell] = await Promise.all([
-                  sharp(expectedCrop.data, {
-                    raw: {
-                      width: expectedCrop.info.width,
-                      height: expectedCrop.info.height,
-                      channels: expectedCrop.info.channels,
-                    },
-                  })
-                    .extract({ left, top: 0, width: CELL, height: CELL })
-                    .raw()
-                    .toBuffer({ resolveWithObject: true }),
-                  sharp(actualCrop.data, {
-                    raw: {
-                      width: actualCrop.info.width,
-                      height: actualCrop.info.height,
-                      channels: actualCrop.info.channels,
-                    },
-                  })
-                    .extract({ left, top: 0, width: CELL, height: CELL })
-                    .raw()
-                    .toBuffer({ resolveWithObject: true }),
-                ]);
-                return {
-                  phaseX,
-                  phaseY,
-                  ...rawResidual(
-                    {
-                      data: expectedCell.data,
-                      width: expectedCell.info.width,
-                      height: expectedCell.info.height,
-                      channels: expectedCell.info.channels,
-                    },
-                    {
-                      data: actualCell.data,
-                      width: actualCell.info.width,
-                      height: actualCell.info.height,
-                      channels: actualCell.info.channels,
-                    },
-                  ),
-                };
-              }),
-            ),
-          ),
-        });
+            cases,
+          });
+        }
+      } finally {
+        await comparePage.close();
       }
-      results.push({
-        id: variant.id,
-        embedded: true,
-        artifact: relative(dirname(out), path),
-        diffArtifact: relative(dirname(out), diffPath),
-        sha256: sha256(bytes),
-        global: {
-          diffPct: global.diffPct,
-          nonAaPixels: global.nonAaPixels,
-          sigPixelPct: global.sigPixelPct,
-          regionCount: global.regionCount,
-          totalChangedArea: global.totalChangedArea,
-        },
-        cases,
-      });
-    }
-  } finally {
-    await comparePage.close();
-    await compareBrowser.close();
-  }
+    },
+    { headless: true },
+  );
   const report = {
     schemaVersion: 1,
     authority: "diagnostic-oracle",

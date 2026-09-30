@@ -12,10 +12,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-
-import { chromium, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -491,7 +490,6 @@ export async function runMixedReferenceColorSpaceOracle(
 ): Promise<MixedReferenceColorSpaceReport> {
   const fixture = mixedReferenceColorSpaceFixtureHtml();
   const expected = expectedPixels();
-  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   let chromiumVersion = MIXED_COLOR_SPACE_NO_BROWSER_VERSION;
   const rows: MixedColorSpaceProbeRow[] = [];
   const mutationRows: MixedColorSpaceMutationRow[] = [];
@@ -501,181 +499,183 @@ export async function runMixedReferenceColorSpaceOracle(
   const computedFilterLists: Record<string, string> = {};
   let boundaryCaptured = false;
 
-  try {
-    for (const dpr of dprs) {
-      if (browser == null) {
-        browser = await chromium.launch({ headless: true });
+  if (dprs.length > 0)
+    await withBrowser(
+      async (browser) => {
         chromiumVersion = browser.version();
-      }
-      const context = await browser.newContext({
-        viewport: { width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
-        deviceScaleFactor: dpr,
-      });
-      const sourcePage = await context.newPage();
-      await sourcePage.setContent(fixture, { waitUntil: "load" });
-      await settle(sourcePage);
-      const points = (await sourcePage.locator("[data-probe]").evaluateAll((elements) =>
-        Object.fromEntries(
-          elements.map((element) => {
-            const rect = element.getBoundingClientRect();
-            return [element.getAttribute("data-probe")!, [rect.left + rect.width / 2, rect.top + rect.height / 2]];
-          }),
-        ),
-      )) as Record<string, [number, number]>;
-      if (dpr === dprs[0]) {
-        Object.assign(
-          computedFilterLists,
-          await sourcePage
-            .locator("[data-domotion-anim]")
-            .evaluateAll((elements) =>
-              Object.fromEntries(
-                elements.map((element) => [
-                  element.getAttribute("data-domotion-anim")!,
-                  getComputedStyle(element).filter,
-                ]),
-              ),
-            ),
-        );
-      }
-      const sourcePng = Buffer.from(
-        await sourcePage.screenshot({
-          clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
-          omitBackground: true,
-        }),
-      );
-      const captured = await captureElementTreeWithWarnings(sourcePage, "#stage", {
-        x: 0,
-        y: 0,
-        width: MIXED_COLOR_SPACE_WIDTH,
-        height: MIXED_COLOR_SPACE_HEIGHT,
-      });
-      warnings.push(
-        ...captured.warnings.map(
-          (warning) => `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`,
-        ),
-      );
-      const svg = elementTreeToSvg(captured.tree, MIXED_COLOR_SPACE_WIDTH, MIXED_COLOR_SPACE_HEIGHT);
-
-      if (!boundaryCaptured) {
-        const byAnimId = new Map(
-          flatten(captured.tree)
-            .filter((element) => element.animId != null)
-            .map((element) => [element.animId!, element]),
-        );
-        for (const id of [
-          "stage-linear-reference",
-          "stage-mixed",
-          "stage-explicit",
-          "blend-nonisolated",
-          "blend-isolated",
-          "blend-local-isolated",
-        ]) {
-          const actual = nativeOwnership(byAnimId.get(id));
-          boundaries.push({
-            id,
-            expected: "chromium-native-vector",
-            actual,
-            pass: actual === "chromium-native-vector",
+        for (const dpr of dprs) {
+          const context = await browser.newContext({
+            viewport: { width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
+            deviceScaleFactor: dpr,
           });
-        }
-        const definitions = captured.tree.flatMap((root) => root.filterDefs ?? []);
-        for (const [id, interpolation] of [
-          ["linear-matrix", "linearRGB"],
-          ["linear-identity", "linearRGB"],
-          ["srgb-identity", "sRGB"],
-        ] as const) {
-          const definition = definitions.find((candidate) => candidate.id === id);
-          if (definition == null) structuralErrors.push(`missing captured filter def: ${id}`);
-          else if (
-            !new RegExp(`color-interpolation-filters=[\"']${interpolation}[\"']`, "i").test(definition.outerHTML)
-          ) {
-            structuralErrors.push(`wrong captured interpolation space for ${id}`);
+          const sourcePage = await context.newPage();
+          await sourcePage.setContent(fixture, { waitUntil: "load" });
+          await settle(sourcePage);
+          const points = (await sourcePage.locator("[data-probe]").evaluateAll((elements) =>
+            Object.fromEntries(
+              elements.map((element) => {
+                const rect = element.getBoundingClientRect();
+                return [element.getAttribute("data-probe")!, [rect.left + rect.width / 2, rect.top + rect.height / 2]];
+              }),
+            ),
+          )) as Record<string, [number, number]>;
+          if (dpr === dprs[0]) {
+            Object.assign(
+              computedFilterLists,
+              await sourcePage
+                .locator("[data-domotion-anim]")
+                .evaluateAll((elements) =>
+                  Object.fromEntries(
+                    elements.map((element) => [
+                      element.getAttribute("data-domotion-anim")!,
+                      getComputedStyle(element).filter,
+                    ]),
+                  ),
+                ),
+            );
           }
-        }
-        boundaryCaptured = true;
-      }
+          const sourcePng = Buffer.from(
+            await sourcePage.screenshot({
+              clip: { x: 0, y: 0, width: MIXED_COLOR_SPACE_WIDTH, height: MIXED_COLOR_SPACE_HEIGHT },
+              omitBackground: true,
+            }),
+          );
+          const captured = await captureElementTreeWithWarnings(sourcePage, "#stage", {
+            x: 0,
+            y: 0,
+            width: MIXED_COLOR_SPACE_WIDTH,
+            height: MIXED_COLOR_SPACE_HEIGHT,
+          });
+          warnings.push(
+            ...captured.warnings.map(
+              (warning) => `DPR${dpr}:${typeof warning === "string" ? warning : JSON.stringify(warning)}`,
+            ),
+          );
+          const svg = elementTreeToSvg(captured.tree, MIXED_COLOR_SPACE_WIDTH, MIXED_COLOR_SPACE_HEIGHT);
 
-      const renderPage = await context.newPage();
-      const renderedPng = await screenshotSvg(renderPage, svg);
-      const [sourceImage, renderedImage] = await Promise.all([decode(sourcePng), decode(renderedPng)]);
-      for (const [id, point] of Object.entries(points)) {
-        const expectedPixel = expected.get(id);
-        if (expectedPixel == null) {
-          structuralErrors.push(`missing logical model for probe: ${id}`);
-          continue;
-        }
-        const sourcePixel = sample(sourceImage, point, dpr);
-        const renderedPixel = sample(renderedImage, point, dpr);
-        const modelError = maxDistance(sourcePixel, expectedPixel);
-        const renderedError = maxDistance(sourcePixel, renderedPixel);
-        rows.push({
-          id,
-          dpr,
-          pointCss: point,
-          expected: expectedPixel,
-          source: sourcePixel,
-          rendered: renderedPixel,
-          sourceModelMaxChannelError: modelError,
-          renderedMaxChannelError: renderedError,
-          pass: modelError <= STAGE_CHANNEL_TOLERANCE && renderedError <= STAGE_CHANNEL_TOLERANCE,
-        });
-      }
+          if (!boundaryCaptured) {
+            const byAnimId = new Map(
+              flatten(captured.tree)
+                .filter((element) => element.animId != null)
+                .map((element) => [element.animId!, element]),
+            );
+            for (const id of [
+              "stage-linear-reference",
+              "stage-mixed",
+              "stage-explicit",
+              "blend-nonisolated",
+              "blend-isolated",
+              "blend-local-isolated",
+            ]) {
+              const actual = nativeOwnership(byAnimId.get(id));
+              boundaries.push({
+                id,
+                expected: "chromium-native-vector",
+                actual,
+                pass: actual === "chromium-native-vector",
+              });
+            }
+            const definitions = captured.tree.flatMap((root) => root.filterDefs ?? []);
+            for (const [id, interpolation] of [
+              ["linear-matrix", "linearRGB"],
+              ["linear-identity", "linearRGB"],
+              ["srgb-identity", "sRGB"],
+            ] as const) {
+              const definition = definitions.find((candidate) => candidate.id === id);
+              if (definition == null) structuralErrors.push(`missing captured filter def: ${id}`);
+              else if (
+                !new RegExp(`color-interpolation-filters=[\"']${interpolation}[\"']`, "i").test(definition.outerHTML)
+              ) {
+                structuralErrors.push(`wrong captured interpolation space for ${id}`);
+              }
+            }
+            boundaryCaptured = true;
+          }
 
-      for (const mutation of MUTATIONS) {
-        const point = points[mutation.probe];
-        if (point == null) {
-          structuralErrors.push(`missing mutation probe: ${mutation.probe}`);
-          continue;
-        }
-        const sourceMutation = await sourceMutationPng(sourcePage, fixture, mutation.operation);
-        const mutatedTree = cloneTree(captured.tree);
-        const mutationError = applyTreeMutation(mutatedTree, mutation.operation);
-        if (mutationError != null) {
-          structuralErrors.push(mutationError);
-          continue;
-        }
-        const mutationSvg = elementTreeToSvg(mutatedTree, MIXED_COLOR_SPACE_WIDTH, MIXED_COLOR_SPACE_HEIGHT);
-        const renderedMutation = await screenshotSvg(renderPage, mutationSvg);
-        const [sourceMutationImage, renderedMutationImage] = await Promise.all([
-          decode(sourceMutation),
-          decode(renderedMutation),
-        ]);
-        const sourceDistance = maxDistance(sample(sourceImage, point, dpr), sample(sourceMutationImage, point, dpr));
-        const renderedDistance = maxDistance(
-          sample(renderedImage, point, dpr),
-          sample(renderedMutationImage, point, dpr),
-        );
-        const pass =
-          mutation.movement === "moved"
-            ? sourceDistance >= MUTATION_MIN_CHANNEL_DISTANCE && renderedDistance >= MUTATION_MIN_CHANNEL_DISTANCE
-            : sourceDistance <= STAGE_CHANNEL_TOLERANCE && renderedDistance <= STAGE_CHANNEL_TOLERANCE;
-        mutationRows.push({
-          id: mutation.id,
-          probe: mutation.probe,
-          dpr,
-          expectation: mutation.movement,
-          sourceMutationMaxChannelDistance: sourceDistance,
-          renderedMutationMaxChannelDistance: renderedDistance,
-          pass,
-        });
-        if (artifactDir != null) {
-          mkdirSync(artifactDir, { recursive: true });
-          writeFileSync(`${artifactDir}/${mutation.id}-source-dpr${dpr}.png`, sourceMutation);
-          writeFileSync(`${artifactDir}/${mutation.id}-rendered-dpr${dpr}.png`, renderedMutation);
-        }
-      }
+          const renderPage = await context.newPage();
+          const renderedPng = await screenshotSvg(renderPage, svg);
+          const [sourceImage, renderedImage] = await Promise.all([decode(sourcePng), decode(renderedPng)]);
+          for (const [id, point] of Object.entries(points)) {
+            const expectedPixel = expected.get(id);
+            if (expectedPixel == null) {
+              structuralErrors.push(`missing logical model for probe: ${id}`);
+              continue;
+            }
+            const sourcePixel = sample(sourceImage, point, dpr);
+            const renderedPixel = sample(renderedImage, point, dpr);
+            const modelError = maxDistance(sourcePixel, expectedPixel);
+            const renderedError = maxDistance(sourcePixel, renderedPixel);
+            rows.push({
+              id,
+              dpr,
+              pointCss: point,
+              expected: expectedPixel,
+              source: sourcePixel,
+              rendered: renderedPixel,
+              sourceModelMaxChannelError: modelError,
+              renderedMaxChannelError: renderedError,
+              pass: modelError <= STAGE_CHANNEL_TOLERANCE && renderedError <= STAGE_CHANNEL_TOLERANCE,
+            });
+          }
 
-      if (artifactDir != null) {
-        mkdirSync(artifactDir, { recursive: true });
-        writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
-      }
-      await context.close();
-    }
-  } finally {
-    await browser?.close();
-  }
+          for (const mutation of MUTATIONS) {
+            const point = points[mutation.probe];
+            if (point == null) {
+              structuralErrors.push(`missing mutation probe: ${mutation.probe}`);
+              continue;
+            }
+            const sourceMutation = await sourceMutationPng(sourcePage, fixture, mutation.operation);
+            const mutatedTree = cloneTree(captured.tree);
+            const mutationError = applyTreeMutation(mutatedTree, mutation.operation);
+            if (mutationError != null) {
+              structuralErrors.push(mutationError);
+              continue;
+            }
+            const mutationSvg = elementTreeToSvg(mutatedTree, MIXED_COLOR_SPACE_WIDTH, MIXED_COLOR_SPACE_HEIGHT);
+            const renderedMutation = await screenshotSvg(renderPage, mutationSvg);
+            const [sourceMutationImage, renderedMutationImage] = await Promise.all([
+              decode(sourceMutation),
+              decode(renderedMutation),
+            ]);
+            const sourceDistance = maxDistance(
+              sample(sourceImage, point, dpr),
+              sample(sourceMutationImage, point, dpr),
+            );
+            const renderedDistance = maxDistance(
+              sample(renderedImage, point, dpr),
+              sample(renderedMutationImage, point, dpr),
+            );
+            const pass =
+              mutation.movement === "moved"
+                ? sourceDistance >= MUTATION_MIN_CHANNEL_DISTANCE && renderedDistance >= MUTATION_MIN_CHANNEL_DISTANCE
+                : sourceDistance <= STAGE_CHANNEL_TOLERANCE && renderedDistance <= STAGE_CHANNEL_TOLERANCE;
+            mutationRows.push({
+              id: mutation.id,
+              probe: mutation.probe,
+              dpr,
+              expectation: mutation.movement,
+              sourceMutationMaxChannelDistance: sourceDistance,
+              renderedMutationMaxChannelDistance: renderedDistance,
+              pass,
+            });
+            if (artifactDir != null) {
+              mkdirSync(artifactDir, { recursive: true });
+              writeFileSync(`${artifactDir}/${mutation.id}-source-dpr${dpr}.png`, sourceMutation);
+              writeFileSync(`${artifactDir}/${mutation.id}-rendered-dpr${dpr}.png`, renderedMutation);
+            }
+          }
+
+          if (artifactDir != null) {
+            mkdirSync(artifactDir, { recursive: true });
+            writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
+            writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
+            writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
+          }
+          await context.close();
+        }
+      },
+      { headless: true },
+    );
 
   const pinnedTerminal = tracePinnedMixedPipeline().at(-1)!.straight;
   const explicitTerminal = traceExplicitSrgbBoundary().at(-1)!.straight;

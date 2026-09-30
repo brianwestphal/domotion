@@ -14,6 +14,7 @@ import {
   setTextRunProvenanceEnabled,
   getTextRunProvenance,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import {
   clearGlyphDefs,
   clearWebfonts,
@@ -613,84 +614,84 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
   mkdirSync(artifactDir, { recursive: true });
   const fixtures = loadPathsRasterFixtures(resolve(options.fontRoot));
   const byTechnology = new Map(fixtures.map((fixture) => [fixture.fixture.technology, fixture]));
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const browserCdp = await browser.newBrowserCDPSession();
-    const browserVersion = await browserCdp.send("Browser.getVersion");
-    await browserCdp.detach();
-    const executableSha256 = await sha256File(chromium.executablePath());
-    const identityHelperSha256 =
-      platform() === "win32"
-        ? await (async () => {
-            const helper = win32IdentityHelperPath();
-            if (!existsSync(helper)) throw new Error(`Windows DirectWrite identity helper is missing: ${helper}`);
-            return sha256File(helper);
-          })()
-        : undefined;
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
-    const fingerprint: PathsRasterRow["fingerprint"] = {
-      platform: platform() as PathsRasterRow["fingerprint"]["platform"],
-      osImage: process.env.ImageOS?.trim() || `${platform()}-${release()}`,
-      osImageVersion: process.env.ImageVersion?.trim() || "unavailable",
-      arch: arch(),
-      osRelease: release(),
-      chromium: browser.version(),
-      chromiumRevision: browserVersion.revision,
-      browserExecutableSha256: executableSha256,
-      ...(identityHelperSha256 == null ? {} : { nativeIdentityHelperSha256: identityHelperSha256 }),
-      skia: `browser-binary:${executableSha256}`,
-      harfbuzz: `browser-binary:${executableSha256}`,
-      oracleSkiaRevision: PATHS_NATIVE_RASTER_SKIA_SOURCE,
-      oracleHarfbuzzRevision: PATHS_NATIVE_RASTER_SOURCE.revision,
-      fontInventorySha256: pathsRasterFixtureInventorySha256(fixtures),
-      rendererSourceSha256: sourceInputsSha256(["src/render", "package-lock.json"]),
-      oracleSourceSha256: sourceInputsSha256([
-        "tools/paths-native-face-identity.ts",
-        "tools/paths-native-raster-collector.ts",
-        "tools/paths-native-raster-corpus.ts",
-        "tools/paths-native-raster-metrics.ts",
-        "tools/paths-native-raster-producer.ts",
-        "tools/paths-native-raster-aggregate.ts",
-        "tools/paths-native-raster-gate.ts",
-        ".github/workflows/paths-native-raster-floor.yml",
-      ]),
-      consumerRasterizer: `playwright-${PLAYWRIGHT_VERSION}/chromium-svg-headless`,
-      playwrightVersion: PLAYWRIGHT_VERSION,
-      nodeVersion: process.versions.node,
-      icuVersion: process.versions.icu ?? "unavailable",
-      sharpVersion: sharp.versions.sharp,
-      libvipsVersion: sharp.versions.vips,
-      metricAlgorithm: PATHS_NATIVE_RASTER_METRIC_ALGORITHM,
-      launchFlags: ["headless"],
-      locale,
-    };
-    if (!["darwin", "linux", "win32"].includes(fingerprint.platform))
-      throw new Error(`unsupported platform ${fingerprint.platform}`);
-    const cells = pathsNativeRasterMatrix().filter(
-      (cell) => options.dpr == null || cell.dimensions.deviceScaleFactor === options.dpr,
-    );
-    const rows: PathsRasterRow[] = [];
-    for (const cell of cells) {
-      const loaded = byTechnology.get(cell.fixture.technology);
-      if (loaded == null) throw new Error(`${cell.id}: fixture was not loaded`);
-      rows.push(
-        await collectCell(
-          browser,
-          loaded,
-          cell,
-          fingerprint,
-          observationRoot,
-          artifactDir,
-          options.runLabel ?? "proposal",
-        ),
+  return await withBrowser(
+    async (browser) => {
+      const browserCdp = await browser.newBrowserCDPSession();
+      const browserVersion = await browserCdp.send("Browser.getVersion");
+      await browserCdp.detach();
+      const executableSha256 = await sha256File(chromium.executablePath());
+      const identityHelperSha256 =
+        platform() === "win32"
+          ? await (async () => {
+              const helper = win32IdentityHelperPath();
+              if (!existsSync(helper)) throw new Error(`Windows DirectWrite identity helper is missing: ${helper}`);
+              return sha256File(helper);
+            })()
+          : undefined;
+      const locale = Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
+      const fingerprint: PathsRasterRow["fingerprint"] = {
+        platform: platform() as PathsRasterRow["fingerprint"]["platform"],
+        osImage: process.env.ImageOS?.trim() || `${platform()}-${release()}`,
+        osImageVersion: process.env.ImageVersion?.trim() || "unavailable",
+        arch: arch(),
+        osRelease: release(),
+        chromium: browser.version(),
+        chromiumRevision: browserVersion.revision,
+        browserExecutableSha256: executableSha256,
+        ...(identityHelperSha256 == null ? {} : { nativeIdentityHelperSha256: identityHelperSha256 }),
+        skia: `browser-binary:${executableSha256}`,
+        harfbuzz: `browser-binary:${executableSha256}`,
+        oracleSkiaRevision: PATHS_NATIVE_RASTER_SKIA_SOURCE,
+        oracleHarfbuzzRevision: PATHS_NATIVE_RASTER_SOURCE.revision,
+        fontInventorySha256: pathsRasterFixtureInventorySha256(fixtures),
+        rendererSourceSha256: sourceInputsSha256(["src/render", "package-lock.json"]),
+        oracleSourceSha256: sourceInputsSha256([
+          "tools/paths-native-face-identity.ts",
+          "tools/paths-native-raster-collector.ts",
+          "tools/paths-native-raster-corpus.ts",
+          "tools/paths-native-raster-metrics.ts",
+          "tools/paths-native-raster-producer.ts",
+          "tools/paths-native-raster-aggregate.ts",
+          "tools/paths-native-raster-gate.ts",
+          ".github/workflows/paths-native-raster-floor.yml",
+        ]),
+        consumerRasterizer: `playwright-${PLAYWRIGHT_VERSION}/chromium-svg-headless`,
+        playwrightVersion: PLAYWRIGHT_VERSION,
+        nodeVersion: process.versions.node,
+        icuVersion: process.versions.icu ?? "unavailable",
+        sharpVersion: sharp.versions.sharp,
+        libvipsVersion: sharp.versions.vips,
+        metricAlgorithm: PATHS_NATIVE_RASTER_METRIC_ALGORITHM,
+        launchFlags: ["headless"],
+        locale,
+      };
+      if (!["darwin", "linux", "win32"].includes(fingerprint.platform))
+        throw new Error(`unsupported platform ${fingerprint.platform}`);
+      const cells = pathsNativeRasterMatrix().filter(
+        (cell) => options.dpr == null || cell.dimensions.deviceScaleFactor === options.dpr,
       );
-      process.stdout.write(`${cell.id}: logical evidence and lossless pair collected\n`);
-    }
-    writeFileSync(out, JSON.stringify(rows, null, 2));
-    return rows;
-  } finally {
-    await browser.close();
-  }
+      const rows: PathsRasterRow[] = [];
+      for (const cell of cells) {
+        const loaded = byTechnology.get(cell.fixture.technology);
+        if (loaded == null) throw new Error(`${cell.id}: fixture was not loaded`);
+        rows.push(
+          await collectCell(
+            browser,
+            loaded,
+            cell,
+            fingerprint,
+            observationRoot,
+            artifactDir,
+            options.runLabel ?? "proposal",
+          ),
+        );
+        process.stdout.write(`${cell.id}: logical evidence and lossless pair collected\n`);
+      }
+      writeFileSync(out, JSON.stringify(rows, null, 2));
+      return rows;
+    },
+    { headless: true },
+  );
 }
 
 function cliArg(name: string): string | undefined {

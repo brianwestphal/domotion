@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 import {
   SFNS_TERMINAL_MASK_CONTROL_IDS,
   SFNS_TERMINAL_MASK_MANIFEST,
@@ -405,108 +406,107 @@ async function collectObservation(request: ObservationRequest): Promise<SfnsVali
   const directory = resolve(eventRoot, request.observationId);
   if (existsSync(directory)) throw new Error(`stale observation directory refused: ${directory}`);
   mkdirSync(directory, { recursive: false });
-  let browser: Browser | undefined;
-  try {
-    const launchArgs = chromiumLaunchArgs(request);
-    browser = await chromium.launch({
+  const launchArgs = chromiumLaunchArgs(request);
+  const browserFacts = await withBrowser(
+    async (browser) => {
+      const context = await browser.newContext({
+        viewport: { width: WIDTH, height: HEIGHT },
+        deviceScaleFactor: 1,
+      });
+      await context.route(`${FONT_ORIGIN}/**`, (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "font/ttf",
+          headers: { "Access-Control-Allow-Origin": "*" },
+          body: fontBytes,
+        }),
+      );
+      const page = await context.newPage();
+      await page.setContent(html(request), { waitUntil: "load" });
+      await page.evaluate(() => document.fonts.ready);
+      if (request.lifecycle === "warm") {
+        await page.screenshot({ type: "png" });
+        const config = scenarioCss(request);
+        await page.evaluate(
+          async ({ text, fontSize }) => {
+            const target = document.querySelector<HTMLElement>("#target")!;
+            target.style.fontFamily = "DM2575Evidence";
+            target.textContent = text;
+            await document.fonts.load(`700 ${fontSize}px "DM2575Evidence"`, text);
+            await document.fonts.ready;
+          },
+          { text: TEXT, fontSize: config.fontSize },
+        );
+      }
+      const screenshot = await page.screenshot({ type: "png" });
+      const facts = await collectBrowserFacts(page, browser, screenshot, launchArgs);
+      // A screenshot acknowledgement can precede a queued compositor raster.
+      // Keep the renderer alive until its atomic trace files have been stable and
+      // temporary-free for a full quiet window; any surviving .tmp remains fatal.
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolvePromise) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolvePromise()));
+          }),
+      );
+      await waitForTraceQuiescence(directory);
+      // Remove the authenticated SFNS page while its renderer is still alive,
+      // then drain any final invalidation raster before terminating the process.
+      // Closing a live painted page can otherwise kill a just-started atomic
+      // trace write even though the screenshot raster itself was quiescent.
+      await page.goto("about:blank", { waitUntil: "load" });
+      await waitForTraceQuiescence(directory);
+      await context.close();
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
+      return facts;
+    },
+    {
       executablePath: binaryPath,
       headless: true,
       env: exactEnvironment(request, directory),
       args: launchArgs,
-    });
-    const context = await browser.newContext({
-      viewport: { width: WIDTH, height: HEIGHT },
-      deviceScaleFactor: 1,
-    });
-    await context.route(`${FONT_ORIGIN}/**`, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "font/ttf",
-        headers: { "Access-Control-Allow-Origin": "*" },
-        body: fontBytes,
-      }),
-    );
-    const page = await context.newPage();
-    await page.setContent(html(request), { waitUntil: "load" });
-    await page.evaluate(() => document.fonts.ready);
-    if (request.lifecycle === "warm") {
-      await page.screenshot({ type: "png" });
-      const config = scenarioCss(request);
-      await page.evaluate(
-        async ({ text, fontSize }) => {
-          const target = document.querySelector<HTMLElement>("#target")!;
-          target.style.fontFamily = "DM2575Evidence";
-          target.textContent = text;
-          await document.fonts.load(`700 ${fontSize}px "DM2575Evidence"`, text);
-          await document.fonts.ready;
-        },
-        { text: TEXT, fontSize: config.fontSize },
-      );
+    },
+    { launch: (launchOptions) => chromium.launch(launchOptions) },
+  );
+  let events: SfnsHookEvent[];
+  try {
+    events = readEvents(directory);
+  } catch (error) {
+    if (probe) {
+      console.error(JSON.stringify({ observationId: request.observationId, browser: browserFacts }, null, 2));
     }
-    const screenshot = await page.screenshot({ type: "png" });
-    const browserFacts = await collectBrowserFacts(page, browser, screenshot, launchArgs);
-    // A screenshot acknowledgement can precede a queued compositor raster.
-    // Keep the renderer alive until its atomic trace files have been stable and
-    // temporary-free for a full quiet window; any surviving .tmp remains fatal.
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolvePromise) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolvePromise()));
-        }),
-    );
-    await waitForTraceQuiescence(directory);
-    // Remove the authenticated SFNS page while its renderer is still alive,
-    // then drain any final invalidation raster before terminating the process.
-    // Closing a live painted page can otherwise kill a just-started atomic
-    // trace write even though the screenshot raster itself was quiescent.
-    await page.goto("about:blank", { waitUntil: "load" });
-    await waitForTraceQuiescence(directory);
-    await context.close();
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
-    await browser.close();
-    browser = undefined;
-    let events: SfnsHookEvent[];
-    try {
-      events = readEvents(directory);
-    } catch (error) {
-      if (probe) {
-        console.error(JSON.stringify({ observationId: request.observationId, browser: browserFacts }, null, 2));
-      }
-      throw error;
-    }
-    const selection = selectEvidence(events);
-    const selectedMasks = selection.maskSequences.map((sequence) => {
-      const event = events.find((candidate) => candidate.sequence === sequence);
-      if (event == null) throw new Error(`selected mask event ${sequence} is absent`);
-      return event;
-    });
-    const manifestCase = sfnsTerminalMaskCase(request.caseId);
-    const observation: SfnsValidationObservation = {
-      observationId: request.observationId,
-      caseId: request.caseId,
-      kind: manifestCase.kind,
-      scenarioId: request.scenarioId,
-      lifecycle: request.lifecycle,
-      controlId: request.controlId,
-      ordinal: request.ordinal,
-      browser: browserFacts,
-      coordinateSpace: {
-        source: "skia-source-space-y-down",
-        device: "device-space-y-down",
-        coreTextRaw: "coretext-y-up",
-        normalized: "device-y-down",
-        mask: "glyph-device-space-y-down",
-      },
-      coreTextMetrics: collectCoreTextMetrics(selectedMasks, request),
-      events,
-      selection,
-      logicalDigest: "",
-    };
-    observation.logicalDigest = sfnsValidationObservationDigest(observation);
-    return observation;
-  } finally {
-    if (browser != null) await browser.close().catch(() => undefined);
+    throw error;
   }
+  const selection = selectEvidence(events);
+  const selectedMasks = selection.maskSequences.map((sequence) => {
+    const event = events.find((candidate) => candidate.sequence === sequence);
+    if (event == null) throw new Error(`selected mask event ${sequence} is absent`);
+    return event;
+  });
+  const manifestCase = sfnsTerminalMaskCase(request.caseId);
+  const observation: SfnsValidationObservation = {
+    observationId: request.observationId,
+    caseId: request.caseId,
+    kind: manifestCase.kind,
+    scenarioId: request.scenarioId,
+    lifecycle: request.lifecycle,
+    controlId: request.controlId,
+    ordinal: request.ordinal,
+    browser: browserFacts,
+    coordinateSpace: {
+      source: "skia-source-space-y-down",
+      device: "device-space-y-down",
+      coreTextRaw: "coretext-y-up",
+      normalized: "device-y-down",
+      mask: "glyph-device-space-y-down",
+    },
+    coreTextMetrics: collectCoreTextMetrics(selectedMasks, request),
+    events,
+    selection,
+    logicalDigest: "",
+  };
+  observation.logicalDigest = sfnsValidationObservationDigest(observation);
+  return observation;
 }
 
 function observationRequest(

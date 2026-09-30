@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { writeFileSync } from "node:fs";
-import { chromium } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 import {
   establishesStackingContext,
   gatherStackingContextChildren,
@@ -224,37 +224,37 @@ export async function collectPaintOrderEvidence(): Promise<PaintOrderEvidence> {
     source: "positioned descendant hoist to nearest real SC",
   });
 
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage({ viewport: { width: 600, height: 180 } });
-    await page.setContent(`<style>html,body{margin:0}.root{position:relative;width:120px;height:120px;display:inline-block;margin-right:20px}.layer{position:absolute;inset:10px}</style>
+  await withBrowser(
+    async (browser) => {
+      const page = await browser.newPage({ viewport: { width: 600, height: 180 } });
+      await page.setContent(`<style>html,body{margin:0}.root{position:relative;width:120px;height:120px;display:inline-block;margin-right:20px}.layer{position:absolute;inset:10px}</style>
       <div class=root id=plain><div id=pwrap><div class=layer id=pdeep style="z-index:999;background:red"></div></div><div class=layer id=psib style="z-index:2;background:blue"></div></div>
       <div class=root id=iso><div class=layer style="z-index:1;isolation:isolate"><div class=layer id=ideep style="z-index:999;background:red"></div></div><div class=layer id=isib style="z-index:2;background:blue"></div></div>
       <div class=root id=opacity><div class=layer style="z-index:1;opacity:.9"><div class=layer id=odeep style="z-index:999;background:red"></div></div><div class=layer id=osib style="z-index:2;background:blue"></div></div>`);
-    for (const [id, x, expected] of [
-      ["plain", 60, "pdeep"],
-      ["isolation", 200, "isib"],
-      ["opacity", 340, "osib"],
-    ] as const) {
-      const actual = await page.evaluate(
-        ({ x }) =>
-          document
-            .elementsFromPoint(x, 60)
-            .map((node) => node.id)
-            .find((value) => /(?:deep|sib)$/.test(value)),
-        { x },
-      );
-      rows.push({
-        id: `browser.${id}`,
-        expected,
-        actual,
-        pass: actual === expected,
-        source: "live Chromium hit-test paint stack",
-      });
-    }
+      for (const [id, x, expected] of [
+        ["plain", 60, "pdeep"],
+        ["isolation", 200, "isib"],
+        ["opacity", 340, "osib"],
+      ] as const) {
+        const actual = await page.evaluate(
+          ({ x }) =>
+            document
+              .elementsFromPoint(x, 60)
+              .map((node) => node.id)
+              .find((value) => /(?:deep|sib)$/.test(value)),
+          { x },
+        );
+        rows.push({
+          id: `browser.${id}`,
+          expected,
+          actual,
+          pass: actual === expected,
+          source: "live Chromium hit-test paint stack",
+        });
+      }
 
-    await page.setViewportSize({ width: 800, height: 500 });
-    await page.setContent(`<style>html,body{margin:0}.owner{position:absolute;width:80px;height:50px;border:3px solid;overflow:hidden}.pin{position:fixed;left:7px;top:9px;width:5px;height:5px}</style>
+      await page.setViewportSize({ width: 800, height: 500 });
+      await page.setContent(`<style>html,body{margin:0}.owner{position:absolute;width:80px;height:50px;border:3px solid;overflow:hidden}.pin{position:fixed;left:7px;top:9px;width:5px;height:5px}</style>
       <div class=owner id=perspective style="left:50px;top:40px;perspective:420px;perspective-origin:15% 70%"><i class=pin></i></div>
       <div class=owner id=none style="left:150px;top:100px;perspective:none;perspective-origin:15% 70%"><i class=pin></i></div>
       <div class=owner id=preserve style="left:250px;top:160px;transform-style:preserve-3d"><i class=pin></i></div>
@@ -263,129 +263,129 @@ export async function collectPaintOrderEvidence(): Promise<PaintOrderEvidence> {
       <div style="position:absolute;left:550px;top:340px;width:100px;height:60px;overflow:hidden"><span id=inline style="perspective:420px">inline<i class=pin></i></span></div>
       <div style="position:absolute;left:680px;top:340px;width:100px;height:40px"><span id=inlineStack style="position:relative;perspective:420px">x<i id=inlineDeep style="position:absolute;left:0;top:0;width:30px;height:30px;background:red;z-index:999"></i></span><b id=inlineCover style="position:absolute;left:0;top:0;width:30px;height:30px;background:blue;z-index:1"></b></div>
       <div style="position:absolute;left:680px;top:390px;width:100px;height:40px"><span id=staticInlineStack style="perspective:420px">x<i id=staticInlineDeep style="position:absolute;left:0;top:0;width:30px;height:30px;background:red;z-index:999"></i></span><b id=staticInlineCover style="position:absolute;left:0;top:0;width:30px;height:30px;background:blue;z-index:1"></b></div>`);
-    const actualFixedOwnership = await page.evaluate(() => {
-      const result: Array<Array<number | string>> = [];
-      for (const id of ["perspective", "none", "preserve", "hinted", "origin"]) {
-        const owner = document.getElementById(id)!;
-        const pin = owner.querySelector(".pin")!.getBoundingClientRect();
-        const style = getComputedStyle(owner);
-        result.push([
-          pin.left,
-          pin.top,
-          style.perspective,
-          style.perspectiveOrigin,
-          style.transformStyle,
-          style.willChange,
-        ]);
-      }
-      return result;
-    });
-    const expectedFixedOwnership = [
-      [60, 52, "420px", "12.8906px 39.1875px", "flat", "auto"],
-      [7, 9, "none", "12.8906px 39.1875px", "flat", "auto"],
-      [260, 172, "none", "43px 28px", "preserve-3d", "auto"],
-      [360, 232, "none", "43px 28px", "flat", "perspective"],
-      [7, 9, "none", "12.8906px 39.1875px", "flat", "auto"],
-    ];
-    rows.push({
-      id: "browser.perspective-fixed-ownership",
-      expected: expectedFixedOwnership,
-      actual: actualFixedOwnership,
-      pass: JSON.stringify(actualFixedOwnership) === JSON.stringify(expectedFixedOwnership),
-      source: "live Chromium fixed-position geometry + computed perspective/origin",
-    });
-    const inlineFixedPosition = await page.locator("#inline .pin").evaluate((node) => {
-      const rect = node.getBoundingClientRect();
-      return [rect.left, rect.top];
-    });
-    rows.push({
-      id: "browser.inline-perspective-does-not-own-fixed",
-      expected: [7, 9],
-      actual: inlineFixedPosition,
-      pass: JSON.stringify(inlineFixedPosition) === JSON.stringify([7, 9]),
-      source: "live Chromium non-box inline perspective control",
-    });
-    const inlineStackTop = await page.evaluate(() =>
-      document
-        .elementsFromPoint(690, 350)
-        .map((node) => node.id)
-        .find((id) => id === "inlineDeep" || id === "inlineCover"),
-    );
-    rows.push({
-      id: "browser.positioned-inline-perspective-stacks-without-fixed-ownership",
-      expected: "inlineCover",
-      actual: inlineStackTop,
-      pass: inlineStackTop === "inlineCover",
-      source: "live Chromium ComputedStyle stacking + LayoutInline paint-layer control",
-    });
-    const staticInlineStackTop = await page.evaluate(() =>
-      document
-        .elementsFromPoint(690, 400)
-        .map((node) => node.id)
-        .find((id) => id === "staticInlineDeep" || id === "staticInlineCover"),
-    );
-    rows.push({
-      id: "browser.static-inline-perspective-has-no-paint-layer",
-      expected: "staticInlineDeep",
-      actual: staticInlineStackTop,
-      pass: staticInlineStackTop === "staticInlineDeep",
-      source: "live Chromium LayoutInline::LayerTypeRequired negative control",
-    });
-    const willChangeOwnership = await page.evaluate(() => {
-      const values = [
-        "transform",
-        "transform-style",
-        "perspective",
-        "translate",
-        "rotate",
-        "scale",
-        "offset-path",
-        "offset-position",
-        "offset-distance",
-        "offset-rotate",
-        "transform-origin",
-        "perspective-origin",
-        "scroll-position",
-      ];
-      const owner = document.createElement("div");
-      owner.style.cssText = "position:absolute;left:50px;top:420px;width:50px;height:50px";
-      const pin = document.createElement("i");
-      pin.style.cssText = "position:fixed;left:7px;top:9px;width:5px;height:5px";
-      owner.append(pin);
-      document.body.append(owner);
-      const result = values.map((value) => {
-        owner.style.willChange = value;
-        const rect = pin.getBoundingClientRect();
-        return [value, rect.left, rect.top];
+      const actualFixedOwnership = await page.evaluate(() => {
+        const result: Array<Array<number | string>> = [];
+        for (const id of ["perspective", "none", "preserve", "hinted", "origin"]) {
+          const owner = document.getElementById(id)!;
+          const pin = owner.querySelector(".pin")!.getBoundingClientRect();
+          const style = getComputedStyle(owner);
+          result.push([
+            pin.left,
+            pin.top,
+            style.perspective,
+            style.perspectiveOrigin,
+            style.transformStyle,
+            style.willChange,
+          ]);
+        }
+        return result;
       });
-      owner.remove();
-      return result;
-    });
-    const expectedWillChangeOwnership = [
-      ...[
-        "transform",
-        "transform-style",
-        "perspective",
-        "translate",
-        "rotate",
-        "scale",
-        "offset-path",
-        "offset-position",
-      ].map((value) => [value, 57, 429]),
-      ...["offset-distance", "offset-rotate", "transform-origin", "perspective-origin", "scroll-position"].map(
-        (value) => [value, 7, 9],
-      ),
-    ];
-    rows.push({
-      id: "browser.will-change-transform-related-property-set",
-      expected: expectedWillChangeOwnership,
-      actual: willChangeOwnership,
-      pass: JSON.stringify(willChangeOwnership) === JSON.stringify(expectedWillChangeOwnership),
-      source: "live Chromium HasWillChangeAnyTransformProperty fixed-position geometry",
-    });
-  } finally {
-    await browser.close();
-  }
+      const expectedFixedOwnership = [
+        [60, 52, "420px", "12.8906px 39.1875px", "flat", "auto"],
+        [7, 9, "none", "12.8906px 39.1875px", "flat", "auto"],
+        [260, 172, "none", "43px 28px", "preserve-3d", "auto"],
+        [360, 232, "none", "43px 28px", "flat", "perspective"],
+        [7, 9, "none", "12.8906px 39.1875px", "flat", "auto"],
+      ];
+      rows.push({
+        id: "browser.perspective-fixed-ownership",
+        expected: expectedFixedOwnership,
+        actual: actualFixedOwnership,
+        pass: JSON.stringify(actualFixedOwnership) === JSON.stringify(expectedFixedOwnership),
+        source: "live Chromium fixed-position geometry + computed perspective/origin",
+      });
+      const inlineFixedPosition = await page.locator("#inline .pin").evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return [rect.left, rect.top];
+      });
+      rows.push({
+        id: "browser.inline-perspective-does-not-own-fixed",
+        expected: [7, 9],
+        actual: inlineFixedPosition,
+        pass: JSON.stringify(inlineFixedPosition) === JSON.stringify([7, 9]),
+        source: "live Chromium non-box inline perspective control",
+      });
+      const inlineStackTop = await page.evaluate(() =>
+        document
+          .elementsFromPoint(690, 350)
+          .map((node) => node.id)
+          .find((id) => id === "inlineDeep" || id === "inlineCover"),
+      );
+      rows.push({
+        id: "browser.positioned-inline-perspective-stacks-without-fixed-ownership",
+        expected: "inlineCover",
+        actual: inlineStackTop,
+        pass: inlineStackTop === "inlineCover",
+        source: "live Chromium ComputedStyle stacking + LayoutInline paint-layer control",
+      });
+      const staticInlineStackTop = await page.evaluate(() =>
+        document
+          .elementsFromPoint(690, 400)
+          .map((node) => node.id)
+          .find((id) => id === "staticInlineDeep" || id === "staticInlineCover"),
+      );
+      rows.push({
+        id: "browser.static-inline-perspective-has-no-paint-layer",
+        expected: "staticInlineDeep",
+        actual: staticInlineStackTop,
+        pass: staticInlineStackTop === "staticInlineDeep",
+        source: "live Chromium LayoutInline::LayerTypeRequired negative control",
+      });
+      const willChangeOwnership = await page.evaluate(() => {
+        const values = [
+          "transform",
+          "transform-style",
+          "perspective",
+          "translate",
+          "rotate",
+          "scale",
+          "offset-path",
+          "offset-position",
+          "offset-distance",
+          "offset-rotate",
+          "transform-origin",
+          "perspective-origin",
+          "scroll-position",
+        ];
+        const owner = document.createElement("div");
+        owner.style.cssText = "position:absolute;left:50px;top:420px;width:50px;height:50px";
+        const pin = document.createElement("i");
+        pin.style.cssText = "position:fixed;left:7px;top:9px;width:5px;height:5px";
+        owner.append(pin);
+        document.body.append(owner);
+        const result = values.map((value) => {
+          owner.style.willChange = value;
+          const rect = pin.getBoundingClientRect();
+          return [value, rect.left, rect.top];
+        });
+        owner.remove();
+        return result;
+      });
+      const expectedWillChangeOwnership = [
+        ...[
+          "transform",
+          "transform-style",
+          "perspective",
+          "translate",
+          "rotate",
+          "scale",
+          "offset-path",
+          "offset-position",
+        ].map((value) => [value, 57, 429]),
+        ...["offset-distance", "offset-rotate", "transform-origin", "perspective-origin", "scroll-position"].map(
+          (value) => [value, 7, 9],
+        ),
+      ];
+      rows.push({
+        id: "browser.will-change-transform-related-property-set",
+        expected: expectedWillChangeOwnership,
+        actual: willChangeOwnership,
+        pass: JSON.stringify(willChangeOwnership) === JSON.stringify(expectedWillChangeOwnership),
+        source: "live Chromium HasWillChangeAnyTransformProperty fixed-position geometry",
+      });
+    },
+    { headless: true },
+  );
   const mutationMoved =
     establishesStackingContext(el("mutation", { opacity: ".9" })) && !establishesStackingContext(el("mutation"));
   return { rows, mutationMoved };

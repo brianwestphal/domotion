@@ -7,7 +7,7 @@
  * No expected font name is embedded: the host CoreText inventory owns it.
  */
 import { spawnSync } from "node:child_process";
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { type Browser, type BrowserContext, type Page } from "@playwright/test";
 import {
   __resolveSystemFallbackKeyForCpForTest,
   clearCharacterFallbackRendererScopesForTest,
@@ -17,6 +17,7 @@ import {
   resolveFontSpec,
   withFontRendererSession,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 
 const EXT_A = 0x3400;
@@ -66,81 +67,82 @@ async function main(): Promise<void> {
   const disabledArm = process.argv.includes("--disabled-arm");
   if (process.platform !== "darwin") throw new Error("This oracle targets Chromium/CoreText on macOS");
   const rows: Row[] = [];
-  const isolatedBrowser = await chromium.launch({ headless: true });
-  try {
-    clearCharacterFallbackRendererScopesForTest();
-
-    const isolated = await freshContext(isolatedBrowser);
-    await isolated.page.setContent(`<span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`);
-    beginCharacterFallbackDocument();
-    const isolatedKey = domotionAsk(TARGET);
-    endCharacterFallbackDocument();
-    rows.push(row("fresh-renderer isolated target", await selectedPostScript(isolated.page, "#target"), isolatedKey));
-    await isolated.context.close();
-    await isolatedBrowser.close();
-
-    const browser = await chromium.launch({ headless: true });
-    const ordered = await freshContext(browser);
-    await ordered.page.setContent(
-      `<span id="seed" style="${CSS}">${String.fromCodePoint(...DENSE_EXT_A)}</span><span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`,
-    );
-    const rendererSession = createFontRendererSession();
-    const orderedKey = withFontRendererSession(rendererSession, () => {
+  clearCharacterFallbackRendererScopesForTest();
+  await withBrowser(
+    async (isolatedBrowser) => {
+      const isolated = await freshContext(isolatedBrowser);
+      await isolated.page.setContent(`<span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`);
       beginCharacterFallbackDocument();
-      try {
-        for (const cp of DENSE_EXT_A) domotionAsk(cp);
-        return domotionAsk(TARGET);
-      } finally {
-        endCharacterFallbackDocument();
-      }
-    });
-    rows.push(row("same-renderer ordered sequence", await selectedPostScript(ordered.page, "#target"), orderedKey));
+      const isolatedKey = domotionAsk(TARGET);
+      endCharacterFallbackDocument();
+      rows.push(row("fresh-renderer isolated target", await selectedPostScript(isolated.page, "#target"), isolatedKey));
+      await isolated.context.close();
+    },
+    { headless: true },
+  );
 
-    // setContent navigates the same Page. Re-select the explicit renderer id;
-    // production state must survive exactly this boundary.
-    await ordered.page.setContent(`<span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`);
-    const navigationKey = withFontRendererSession(rendererSession, () => {
-      beginCharacterFallbackDocument();
-      try {
-        return domotionAsk(TARGET);
-      } finally {
-        endCharacterFallbackDocument();
-      }
-    });
-    rows.push(row("same-renderer navigation", await selectedPostScript(ordered.page, "#target"), navigationKey));
-    await ordered.context.close();
-    await browser.close();
-
-    const activation = {
-      chromiumSequenceMoved: rows[0].chromiumPostScript !== rows[1].chromiumPostScript,
-      domotionSequenceMoved: rows[0].domotionKey !== rows[1].domotionKey,
-      domotionNavigationReused: rows[1].domotionKey === rows[2].domotionKey,
-    };
-    const enabledOkay =
-      activation.chromiumSequenceMoved && activation.domotionSequenceMoved && activation.domotionNavigationReused;
-    const disabledOkay =
-      activation.chromiumSequenceMoved && !activation.domotionSequenceMoved && activation.domotionNavigationReused;
-    if ((!disabledArm && !enabledOkay) || (disabledArm && !disabledOkay)) {
-      throw new Error(`Ideograph fallback-cache oracle mismatch: ${JSON.stringify({ rows, activation })}`);
-    }
-    const result: Record<string, unknown> = {
-      sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
-      platform: process.platform,
-      rows,
-      activation,
-    };
-    if (!disabledArm) {
-      const child = spawnSync(process.execPath, ["--import", "tsx", import.meta.filename, "--disabled-arm"], {
-        encoding: "utf8",
-        env: { ...process.env, DOMOTION_MAC_CHAR_FALLBACK_CACHE: "0" },
+  await withBrowser(
+    async (browser) => {
+      const ordered = await freshContext(browser);
+      await ordered.page.setContent(
+        `<span id="seed" style="${CSS}">${String.fromCodePoint(...DENSE_EXT_A)}</span><span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`,
+      );
+      const rendererSession = createFontRendererSession();
+      const orderedKey = withFontRendererSession(rendererSession, () => {
+        beginCharacterFallbackDocument();
+        try {
+          for (const cp of DENSE_EXT_A) domotionAsk(cp);
+          return domotionAsk(TARGET);
+        } finally {
+          endCharacterFallbackDocument();
+        }
       });
-      if (child.status !== 0) throw new Error(`Disabled cache arm failed:\n${child.stderr}`);
-      result.disabledArm = JSON.parse(child.stdout) as unknown;
-    }
-    console.log(JSON.stringify(result, null, 2));
-  } finally {
-    await isolatedBrowser.close().catch(() => {});
+      rows.push(row("same-renderer ordered sequence", await selectedPostScript(ordered.page, "#target"), orderedKey));
+
+      // setContent navigates the same Page. Re-select the explicit renderer id;
+      // production state must survive exactly this boundary.
+      await ordered.page.setContent(`<span id="target" style="${CSS}">${String.fromCodePoint(TARGET)}</span>`);
+      const navigationKey = withFontRendererSession(rendererSession, () => {
+        beginCharacterFallbackDocument();
+        try {
+          return domotionAsk(TARGET);
+        } finally {
+          endCharacterFallbackDocument();
+        }
+      });
+      rows.push(row("same-renderer navigation", await selectedPostScript(ordered.page, "#target"), navigationKey));
+      await ordered.context.close();
+    },
+    { headless: true },
+  );
+
+  const activation = {
+    chromiumSequenceMoved: rows[0].chromiumPostScript !== rows[1].chromiumPostScript,
+    domotionSequenceMoved: rows[0].domotionKey !== rows[1].domotionKey,
+    domotionNavigationReused: rows[1].domotionKey === rows[2].domotionKey,
+  };
+  const enabledOkay =
+    activation.chromiumSequenceMoved && activation.domotionSequenceMoved && activation.domotionNavigationReused;
+  const disabledOkay =
+    activation.chromiumSequenceMoved && !activation.domotionSequenceMoved && activation.domotionNavigationReused;
+  if ((!disabledArm && !enabledOkay) || (disabledArm && !disabledOkay)) {
+    throw new Error(`Ideograph fallback-cache oracle mismatch: ${JSON.stringify({ rows, activation })}`);
   }
+  const result: Record<string, unknown> = {
+    sourceRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
+    platform: process.platform,
+    rows,
+    activation,
+  };
+  if (!disabledArm) {
+    const child = spawnSync(process.execPath, ["--import", "tsx", import.meta.filename, "--disabled-arm"], {
+      encoding: "utf8",
+      env: { ...process.env, DOMOTION_MAC_CHAR_FALLBACK_CACHE: "0" },
+    });
+    if (child.status !== 0) throw new Error(`Disabled cache arm failed:\n${child.stderr}`);
+    result.disabledArm = JSON.parse(child.stdout) as unknown;
+  }
+  console.log(JSON.stringify(result, null, 2));
 }
 
 await main();

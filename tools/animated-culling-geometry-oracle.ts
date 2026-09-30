@@ -17,8 +17,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
+import { withBrowser } from "./lib/browser.js";
 import type { IntraFrameAnimation } from "../src/animation/animator.js";
 import { generateAnimatedSvg } from "../src/animation/animator.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -1425,56 +1426,56 @@ export async function runAnimatedCullingGeometryOracle(
   const scenarios = (options.dprs ?? [1, 2]).flatMap((dpr) =>
     (options.zooms ?? [1, 1.25]).map((zoom) => ({ dpr, zoom })),
   );
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const fingerprintPage = await browser.newPage();
-    const userAgent = await fingerprintPage.evaluate(() => navigator.userAgent);
-    await fingerprintPage.close();
-    const rows: CullingOracleRow[] = [];
-    const mutations: CullingMutationResult[] = [];
-    for (const scenario of scenarios) {
-      const result = await runScenario(browser, cases, controls, scenario);
-      rows.push(...result.rows);
-      mutations.push(...result.mutations);
-      const failed = result.rows.filter((row) => !row.pass).length;
-      const mutationFailures = result.mutations.filter((row) => !row.moved).length;
-      console.log(
-        `animated culling ${scenario.dpr}x zoom ${scenario.zoom}: ${result.rows.length - failed}/${result.rows.length} rows; ${result.mutations.length - mutationFailures}/${result.mutations.length} mutations moved`,
-      );
-    }
-    const failed = rows.filter((row) => !row.pass).length;
-    const mutationsFailed = mutations.filter((row) => !row.moved).length;
-    return {
-      schemaVersion: 1,
-      generatedAt: new Date().toISOString(),
-      fingerprint: {
-        browserVersion: browser.version(),
-        userAgent,
-        os: platform(),
-        osRelease: release(),
-        arch: arch(),
-        node: process.version,
-        viewport: { width: ORACLE_WIDTH, height: ORACLE_HEIGHT },
-        scenarios,
-      },
-      corpus: {
-        cases: cases.length,
-        families: [...new Set(cases.map((test) => test.family))],
-        activations: [...new Set(cases.map((test) => test.activation))],
-        mutationKinds: [...new Set(controls.map((control) => control.kind))],
-      },
-      rows,
-      mutations,
-      summary: {
-        passed: rows.length - failed,
-        failed,
-        mutationsMoved: mutations.length - mutationsFailed,
-        mutationsFailed,
-      },
-    };
-  } finally {
-    await browser.close();
-  }
+  return await withBrowser(
+    async (browser) => {
+      const fingerprintPage = await browser.newPage();
+      const userAgent = await fingerprintPage.evaluate(() => navigator.userAgent);
+      await fingerprintPage.close();
+      const rows: CullingOracleRow[] = [];
+      const mutations: CullingMutationResult[] = [];
+      for (const scenario of scenarios) {
+        const result = await runScenario(browser, cases, controls, scenario);
+        rows.push(...result.rows);
+        mutations.push(...result.mutations);
+        const failed = result.rows.filter((row) => !row.pass).length;
+        const mutationFailures = result.mutations.filter((row) => !row.moved).length;
+        console.log(
+          `animated culling ${scenario.dpr}x zoom ${scenario.zoom}: ${result.rows.length - failed}/${result.rows.length} rows; ${result.mutations.length - mutationFailures}/${result.mutations.length} mutations moved`,
+        );
+      }
+      const failed = rows.filter((row) => !row.pass).length;
+      const mutationsFailed = mutations.filter((row) => !row.moved).length;
+      return {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        fingerprint: {
+          browserVersion: browser.version(),
+          userAgent,
+          os: platform(),
+          osRelease: release(),
+          arch: arch(),
+          node: process.version,
+          viewport: { width: ORACLE_WIDTH, height: ORACLE_HEIGHT },
+          scenarios,
+        },
+        corpus: {
+          cases: cases.length,
+          families: [...new Set(cases.map((test) => test.family))],
+          activations: [...new Set(cases.map((test) => test.activation))],
+          mutationKinds: [...new Set(controls.map((control) => control.kind))],
+        },
+        rows,
+        mutations,
+        summary: {
+          passed: rows.length - failed,
+          failed,
+          mutationsMoved: mutations.length - mutationsFailed,
+          mutationsFailed,
+        },
+      };
+    },
+    { headless: true },
+  );
 }
 
 async function main(): Promise<void> {

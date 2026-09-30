@@ -28,13 +28,13 @@
  *
  * Exit code is always 0 — this reports, it does not gate.
  */
-import { chromium } from "@playwright/test";
 import {
   resolveFontKeyChain,
   resolveFontForCodepoint,
   resolveFontSpec,
   stackPrimaryIsSystemUi,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
 
 const P = (s: string): void => console.log(`FONTAGREE: ${s}`);
@@ -81,8 +81,7 @@ const CPS = (process.argv[3] ?? "04FA,04FB,04FC,1D00,1D80,20A0,2460,1E00,0180,A7
 
 const FONT_PX = 32;
 
-const browser = await chromium.launch();
-try {
+await withBrowser(async (browser) => {
   const ctx = await browser.newContext({ viewport: { width: 1000, height: 400 } });
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);
@@ -152,6 +151,4 @@ try {
   }
 
   P(`${agree}/${compared} agree (${CPS.length - compared} not painted by Chrome)`);
-} finally {
-  await browser.close();
-}
+}, undefined);

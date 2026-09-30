@@ -17,7 +17,8 @@ import { pathToFileURL } from "node:url";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
-import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
+import { captureElementTreeWithWarnings } from "../src/capture/index.js";
+import { withBrowser } from "./lib/browser.js";
 import {
   PROJECTIVE_QUAD_EPSILON,
   projectiveQuadResidual,
@@ -896,7 +897,6 @@ export async function runNestedProjectiveOwnershipAudit(
   } = {},
 ): Promise<NestedProjectiveAuditReport> {
   const dprs = options.dprs ?? [1, 2];
-  const browser = await launchChromium();
   const rows: NestedProjectiveAuditRow[] = [];
   const blockers: string[] = [];
   const productionGaps: string[] = [];
@@ -906,7 +906,7 @@ export async function runNestedProjectiveOwnershipAudit(
   const scrollOffsets: NestedProjectiveAuditReport["scrollOffsets"] = {};
   const profile = options.profile ?? "horizontal-ltr-static";
   const chromiumVersion = browser.version();
-  try {
+  await withBrowser(async (browser) => {
     for (const dpr of dprs) {
       const page = await browser.newPage({ viewport: NESTED_PROJECTIVE_VIEWPORT, deviceScaleFactor: dpr });
       const rendered = await browser.newPage({ viewport: NESTED_PROJECTIVE_VIEWPORT, deviceScaleFactor: dpr });
@@ -1110,9 +1110,7 @@ export async function runNestedProjectiveOwnershipAudit(
         await rendered.close();
       }
     }
-  } finally {
-    await browser.close();
-  }
+  });
 
   const mutations = mutationControls();
   const expectedRows = dprs.length * NESTED_PROJECTIVE_CASES.length;

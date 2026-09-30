@@ -24,6 +24,7 @@ import {
   setTextRunProvenanceEnabled,
   getTextRunProvenance,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import {
@@ -656,102 +657,102 @@ export async function collectLinuxMathmlGreekRaster(
   mkdirSync(artifactDir, { recursive: true });
   const fontconfig = isolatedFontconfig(fontBytes, fontSource, artifactDir);
   const bootSha = runnerBootIdSha256();
-  const browser = await chromium.launch({ headless: true, env: fontconfig.env });
-  try {
-    const browserCdp = await browser.newBrowserCDPSession(),
-      browserVersion = await browserCdp.send("Browser.getVersion");
-    await browserCdp.detach();
-    const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, locale: "en-US" });
-    const page = await context.newPage();
-    try {
-      const preterminal = await sourceEvidence(page, FREE_SANS_NOBLE_PACKAGE.fontPath, fontconfig, fontBytes);
-      const nativePng = await page.screenshot({ type: "png" });
-      const paths = actualPaths(preterminal, fontBytes);
-      const pathsPng = await screenshotMarkup(page, pathsSvg(paths.markup, paths.defs));
-      const hintingOff = await hintingOffArm(page, preterminal, subsets.unhinted);
-      const residual = await measurePathsRasterResidual(nativePng, pathsPng);
-      const hintingOffResidual = await measurePathsRasterResidual(nativePng, hintingOff.png);
-      const sourceFiles = [
-        "tools/linux-mathml-greek-raster-contract.ts",
-        "tools/linux-mathml-greek-raster-collector.ts",
-        "tools/linux-mathml-greek-raster-gate.ts",
-        "tools/paths-native-raster-metrics.ts",
-        ".github/workflows/linux-mathml-greek-raster-floor.yml",
-      ];
-      const executableSha256 = await sha256File(chromium.executablePath());
-      const row: LinuxMathmlGreekRasterRow = {
-        schemaVersion: 1,
-        id: LINUX_MATHML_GREEK_CELL.id,
-        runLabel: options.runLabel,
-        runProvenance: {
-          githubRunId: process.env.GITHUB_RUN_ID?.trim() || "local",
-          githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT?.trim() || "local",
-          githubJob: process.env.GITHUB_JOB?.trim() || "local",
-          runnerName: process.env.RUNNER_NAME?.trim() || `local-linux-${process.pid}`,
-          runnerBootIdSha256: bootSha,
-          workflowRef: process.env.GITHUB_WORKFLOW_REF?.trim() || "local",
-        },
-        cellSha256: linuxMathmlGreekCellSha256(),
-        fingerprint: {
-          platform: "linux",
-          osImage: process.env.ImageOS?.trim() || `linux-${release()}`,
-          osImageVersion: process.env.ImageVersion?.trim() || "unavailable",
-          arch: arch(),
-          osRelease: release(),
-          chromium: browser.version(),
-          chromiumRevision: browserVersion.revision,
-          browserExecutableSha256: executableSha256,
-          fontconfigVersion: fontconfig.version,
-          fontconfigConfigSha256: fontconfig.configSha256,
-          fontInventorySha256: fontconfig.inventorySha256,
-          rendererSourceSha256: sourceInputsSha256([
-            "src/capture/index.ts",
-            "src/capture/script.generated.ts",
-            "packages/text-engine/src/render/font-resolution.ts",
-            "packages/text-engine/src/render/hb-subset.ts",
-            "packages/text-engine/src/render/text-to-path.ts",
-            "packages/text-engine/src/render/text-run-provenance.ts",
-            "package-lock.json",
-          ]),
-          oracleSourceSha256: sourceInputsSha256(sourceFiles),
-          consumerRasterizer: `playwright-${PLAYWRIGHT_VERSION}/chromium-headless-linux`,
-          playwrightVersion: PLAYWRIGHT_VERSION,
-          nodeVersion: process.versions.node,
-          icuVersion: process.versions.icu ?? "unavailable",
-          sharpVersion: sharp.versions.sharp,
-          libvipsVersion: sharp.versions.vips,
-          metricAlgorithm: LINUX_MATHML_GREEK_CELL.metricAlgorithm,
-          launchFlags: ["headless", "isolated-fontconfig"],
-          locale: "en-US",
-        },
-        preterminal,
-        pathsLogical: paths.logical,
-        hintingControl: hintingOff.evidence,
-        nativeArtifact: artifact(observationRoot, artifactDir, `${LINUX_MATHML_GREEK_CELL.id}-native.png`, nativePng),
-        pathsArtifact: artifact(observationRoot, artifactDir, `${LINUX_MATHML_GREEK_CELL.id}-paths.png`, pathsPng),
-        hintingOffArtifact: artifact(
-          observationRoot,
-          artifactDir,
-          `${LINUX_MATHML_GREEK_CELL.id}-hinting-off.png`,
-          hintingOff.png,
-        ),
-        residual,
-        hintingOffResidual,
-        warnings: [],
-      };
-      writeFileSync(out, JSON.stringify([row], null, 2));
-      return [row];
-    } finally {
-      setTextRunProvenanceEnabled(false);
-      setRenderTextMode("embedded-font");
-      clearWebfonts();
-      clearGlyphDefs();
-      resetTextRunProvenance();
-      await context.close();
-    }
-  } finally {
-    await browser.close();
-  }
+  return await withBrowser(
+    async (browser) => {
+      const browserCdp = await browser.newBrowserCDPSession(),
+        browserVersion = await browserCdp.send("Browser.getVersion");
+      await browserCdp.detach();
+      const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, locale: "en-US" });
+      const page = await context.newPage();
+      try {
+        const preterminal = await sourceEvidence(page, FREE_SANS_NOBLE_PACKAGE.fontPath, fontconfig, fontBytes);
+        const nativePng = await page.screenshot({ type: "png" });
+        const paths = actualPaths(preterminal, fontBytes);
+        const pathsPng = await screenshotMarkup(page, pathsSvg(paths.markup, paths.defs));
+        const hintingOff = await hintingOffArm(page, preterminal, subsets.unhinted);
+        const residual = await measurePathsRasterResidual(nativePng, pathsPng);
+        const hintingOffResidual = await measurePathsRasterResidual(nativePng, hintingOff.png);
+        const sourceFiles = [
+          "tools/linux-mathml-greek-raster-contract.ts",
+          "tools/linux-mathml-greek-raster-collector.ts",
+          "tools/linux-mathml-greek-raster-gate.ts",
+          "tools/paths-native-raster-metrics.ts",
+          ".github/workflows/linux-mathml-greek-raster-floor.yml",
+        ];
+        const executableSha256 = await sha256File(chromium.executablePath());
+        const row: LinuxMathmlGreekRasterRow = {
+          schemaVersion: 1,
+          id: LINUX_MATHML_GREEK_CELL.id,
+          runLabel: options.runLabel,
+          runProvenance: {
+            githubRunId: process.env.GITHUB_RUN_ID?.trim() || "local",
+            githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT?.trim() || "local",
+            githubJob: process.env.GITHUB_JOB?.trim() || "local",
+            runnerName: process.env.RUNNER_NAME?.trim() || `local-linux-${process.pid}`,
+            runnerBootIdSha256: bootSha,
+            workflowRef: process.env.GITHUB_WORKFLOW_REF?.trim() || "local",
+          },
+          cellSha256: linuxMathmlGreekCellSha256(),
+          fingerprint: {
+            platform: "linux",
+            osImage: process.env.ImageOS?.trim() || `linux-${release()}`,
+            osImageVersion: process.env.ImageVersion?.trim() || "unavailable",
+            arch: arch(),
+            osRelease: release(),
+            chromium: browser.version(),
+            chromiumRevision: browserVersion.revision,
+            browserExecutableSha256: executableSha256,
+            fontconfigVersion: fontconfig.version,
+            fontconfigConfigSha256: fontconfig.configSha256,
+            fontInventorySha256: fontconfig.inventorySha256,
+            rendererSourceSha256: sourceInputsSha256([
+              "src/capture/index.ts",
+              "src/capture/script.generated.ts",
+              "packages/text-engine/src/render/font-resolution.ts",
+              "packages/text-engine/src/render/hb-subset.ts",
+              "packages/text-engine/src/render/text-to-path.ts",
+              "packages/text-engine/src/render/text-run-provenance.ts",
+              "package-lock.json",
+            ]),
+            oracleSourceSha256: sourceInputsSha256(sourceFiles),
+            consumerRasterizer: `playwright-${PLAYWRIGHT_VERSION}/chromium-headless-linux`,
+            playwrightVersion: PLAYWRIGHT_VERSION,
+            nodeVersion: process.versions.node,
+            icuVersion: process.versions.icu ?? "unavailable",
+            sharpVersion: sharp.versions.sharp,
+            libvipsVersion: sharp.versions.vips,
+            metricAlgorithm: LINUX_MATHML_GREEK_CELL.metricAlgorithm,
+            launchFlags: ["headless", "isolated-fontconfig"],
+            locale: "en-US",
+          },
+          preterminal,
+          pathsLogical: paths.logical,
+          hintingControl: hintingOff.evidence,
+          nativeArtifact: artifact(observationRoot, artifactDir, `${LINUX_MATHML_GREEK_CELL.id}-native.png`, nativePng),
+          pathsArtifact: artifact(observationRoot, artifactDir, `${LINUX_MATHML_GREEK_CELL.id}-paths.png`, pathsPng),
+          hintingOffArtifact: artifact(
+            observationRoot,
+            artifactDir,
+            `${LINUX_MATHML_GREEK_CELL.id}-hinting-off.png`,
+            hintingOff.png,
+          ),
+          residual,
+          hintingOffResidual,
+          warnings: [],
+        };
+        writeFileSync(out, JSON.stringify([row], null, 2));
+        return [row];
+      } finally {
+        setTextRunProvenanceEnabled(false);
+        setRenderTextMode("embedded-font");
+        clearWebfonts();
+        clearGlyphDefs();
+        resetTextRunProvenance();
+        await context.close();
+      }
+    },
+    { headless: true, env: fontconfig.env },
+  );
 }
 
 function arg(name: string): string | undefined {

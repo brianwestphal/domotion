@@ -6,11 +6,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
-import { chromium, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
-
+import { withBrowser } from "./lib/browser.js";
 import { runFontPaletteOwnershipAudit } from "./font-palette-ownership-audit.js";
 import { runFontPaletteDynamicGate, type FontPaletteDynamicGateReport } from "./font-palette-dynamic-gate.js";
 
@@ -162,87 +161,90 @@ async function paintedFace(page: Page): Promise<{ custom: boolean; count: number
 }
 
 async function paintRows(dpr: 1 | 2, facts: Colrv1SourceFacts, artifactDir?: string): Promise<Colrv1PaintRow[]> {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 180, height: 140 }, deviceScaleFactor: dpr });
-  const page = await context.newPage();
-  const font = readFileSync(resolve(COLRV1_FIXTURE)).toString("base64");
-  try {
-    await page.setContent(`<style>
+  return await withBrowser(
+    async (browser) => {
+      const context = await browser.newContext({ viewport: { width: 180, height: 140 }, deviceScaleFactor: dpr });
+      const page = await context.newPage();
+      const font = readFileSync(resolve(COLRV1_FIXTURE)).toString("base64");
+      try {
+        await page.setContent(`<style>
       @font-face{font-family:${FAMILY};src:url(data:font/ttf;base64,${font})}
       @font-palette-values --base1{font-family:${FAMILY};base-palette:1}
       @font-palette-values --override{font-family:${FAMILY};base-palette:0;override-colors:0 #ff00ff,4 #00ffff}
       @font-palette-values --wrong-family{font-family:OtherPaletteFace;base-palette:1}
       html,body{margin:0;background:transparent}#sample{font:120px/1 ${FAMILY};display:inline-block;width:130px;height:120px}
     </style><span id=sample>${String.fromCodePoint(COLRV1_CODEPOINT)}</span>`);
-    await page.evaluate(async (family) => {
-      await document.fonts.ready;
-      await document.fonts.load(`120px ${family}`);
-    }, FAMILY);
-    const result: Colrv1PaintRow[] = [];
-    for (const spec of cases) {
-      await page.locator("#sample").evaluate((element, value) => {
-        (element as HTMLElement).style.fontPalette = value;
-      }, spec.value);
-      const png = await page.locator("#sample").screenshot({ omitBackground: true, type: "png" });
-      const { data } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const min: [number, number, number] = [255, 255, 255];
-      const max: [number, number, number] = [0, 0, 0];
-      let opaque = 0;
-      for (let offset = 0; offset < data.length; offset += 4)
-        if (data[offset + 3] === 255) {
-          opaque += 1;
-          for (let channel = 0; channel < 3; channel += 1) {
-            min[channel] = Math.min(min[channel], data[offset + channel]);
-            max[channel] = Math.max(max[channel], data[offset + channel]);
+        await page.evaluate(async (family) => {
+          await document.fonts.ready;
+          await document.fonts.load(`120px ${family}`);
+        }, FAMILY);
+        const result: Colrv1PaintRow[] = [];
+        for (const spec of cases) {
+          await page.locator("#sample").evaluate((element, value) => {
+            (element as HTMLElement).style.fontPalette = value;
+          }, spec.value);
+          const png = await page.locator("#sample").screenshot({ omitBackground: true, type: "png" });
+          const { data } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+          const min: [number, number, number] = [255, 255, 255];
+          const max: [number, number, number] = [0, 0, 0];
+          let opaque = 0;
+          for (let offset = 0; offset < data.length; offset += 4)
+            if (data[offset + 3] === 255) {
+              opaque += 1;
+              for (let channel = 0; channel < 3; channel += 1) {
+                min[channel] = Math.min(min[channel], data[offset + channel]);
+                max[channel] = Math.max(max[channel], data[offset + channel]);
+              }
+            }
+          const face = await paintedFace(page);
+          const computedPalette = await page
+            .locator("#sample")
+            .evaluate((element) => getComputedStyle(element).fontPalette);
+          const expected = spec.id === "override" ? overrideEndpoints : facts.paletteEndpoints[spec.palette];
+          const row = adjudicateColrv1Row(
+            {
+              id: spec.id,
+              dpr,
+              computedPalette,
+              isCustomFont: face.custom,
+              paintedGlyphCount: face.count,
+              opaquePixelCount: opaque,
+              channelMin: min,
+              channelMax: max,
+              pngSha256: sha256(png),
+            },
+            expected,
+          );
+          if (computedPalette !== spec.value) {
+            row.pass = false;
+            row.blockers.push("computed-palette");
+          }
+          result.push(row);
+          if (artifactDir != null) writeFileSync(resolve(artifactDir, `colrv1-${spec.id}-dpr${dpr}.png`), png);
+        }
+        for (const row of result.filter((entry) => entry.id === "wrong-family" || entry.id === "missing")) {
+          const normal = result.find((entry) => entry.id === "normal")!;
+          if (row.pngSha256 !== normal.pngSha256) {
+            row.pass = false;
+            row.blockers.push("collapse-mismatch");
           }
         }
-      const face = await paintedFace(page);
-      const computedPalette = await page
-        .locator("#sample")
-        .evaluate((element) => getComputedStyle(element).fontPalette);
-      const expected = spec.id === "override" ? overrideEndpoints : facts.paletteEndpoints[spec.palette];
-      const row = adjudicateColrv1Row(
-        {
-          id: spec.id,
-          dpr,
-          computedPalette,
-          isCustomFont: face.custom,
-          paintedGlyphCount: face.count,
-          opaquePixelCount: opaque,
-          channelMin: min,
-          channelMax: max,
-          pngSha256: sha256(png),
-        },
-        expected,
-      );
-      if (computedPalette !== spec.value) {
-        row.pass = false;
-        row.blockers.push("computed-palette");
+        if (
+          new Set(result.filter((row) => ["normal", "base1", "override"].includes(row.id)).map((row) => row.pngSha256))
+            .size !== 3
+        ) {
+          for (const row of result) {
+            row.pass = false;
+            row.blockers.push("palette-mutation-inert");
+          }
+        }
+        return result;
+      } finally {
+        await context.close();
       }
-      result.push(row);
-      if (artifactDir != null) writeFileSync(resolve(artifactDir, `colrv1-${spec.id}-dpr${dpr}.png`), png);
-    }
-    for (const row of result.filter((entry) => entry.id === "wrong-family" || entry.id === "missing")) {
-      const normal = result.find((entry) => entry.id === "normal")!;
-      if (row.pngSha256 !== normal.pngSha256) {
-        row.pass = false;
-        row.blockers.push("collapse-mismatch");
-      }
-    }
-    if (
-      new Set(result.filter((row) => ["normal", "base1", "override"].includes(row.id)).map((row) => row.pngSha256))
-        .size !== 3
-    ) {
-      for (const row of result) {
-        row.pass = false;
-        row.blockers.push("palette-mutation-inert");
-      }
-    }
-    return result;
-  } finally {
-    await context.close();
-    await browser.close();
-  }
+    },
+    { headless: true },
+  );
 }
 
 export interface FontPalettePaintGateReport {

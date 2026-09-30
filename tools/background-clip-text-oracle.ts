@@ -5,10 +5,9 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
-
 import { chromium } from "@playwright/test";
 import sharp from "sharp";
-
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -232,102 +231,105 @@ export async function runBackgroundClipTextOracle(
   dprs: number[] = [1, 2],
   artifactDir?: string,
 ): Promise<BackgroundClipTextOracleReport> {
-  const browser = await chromium.launch({ headless: true });
   const rows: BackgroundClipTextOracleRow[] = [];
   let fontEvidence: Awaited<ReturnType<typeof paintedFonts>> = [];
-  try {
-    for (const dpr of dprs) {
-      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });
-      const source = await context.newPage();
-      await source.setContent(backgroundClipTextFixture(), { waitUntil: "load" });
-      await source.evaluate(async () => {
-        await document.fonts.ready;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      });
-      if (fontEvidence.length === 0) fontEvidence = await paintedFonts(source);
-      const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
-      const captured = await captureElementTreeWithWarnings(source, "#stage", {
-        x: 0,
-        y: 0,
-        width: WIDTH,
-        height: HEIGHT,
-      });
-      const flat = flatten(captured.tree);
-      const structuralErrors = removeTextRasterEscape(captured.tree);
-      const urlRecords = flat
-        .flatMap((element) => element.styles.backgroundImages ?? [])
-        .filter((record) => record != null);
-      const loadedUrlRecords = urlRecords.filter((record) => record?.loadState === "loaded");
-      if (loadedUrlRecords.length < 5)
-        structuralErrors.push(`expected >=5 loaded URL layer records, received ${loadedUrlRecords.length}`);
-      if (urlRecords.some((record) => record?.loadState !== "loaded" || record.naturalSizingState !== "resolved")) {
-        structuralErrors.push("URL selected candidate/natural sizing record was not exact");
-      }
-      const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
-      const alphaMasks = (svg.match(/mask-type:alpha/g) ?? []).length;
-      const vectorPatterns = (svg.match(/<pattern id="bg/g) ?? []).length;
-      if (alphaMasks < 6) structuralErrors.push(`expected >=6 alpha glyph masks, received ${alphaMasks}`);
-      if (vectorPatterns < 5) structuralErrors.push(`expected >=5 URL pattern defs, received ${vectorPatterns}`);
-      if (/<image[^>]+(?:elementRaster|transformSubtreeRaster)/.test(svg))
-        structuralErrors.push("text raster marker reached SVG");
-      if (!/fill="rgb\(36,\s*204,\s*112\)"[^>]+mask="url\(#tbgm/.test(svg))
-        structuralErrors.push("color-only masked fill missing");
-      if (!/fill="rgb\(255,\s*145,\s*0\)"[^>]+mask="url\(#tbgm/.test(svg))
-        structuralErrors.push("bottom-layer masked color missing");
-      if (!/clip-path=/.test(svg) || !/transform=/.test(svg))
-        structuralErrors.push("zoom/transform/clip ownership missing");
+  await withBrowser(
+    async (browser) => {
+      for (const dpr of dprs) {
+        const context = await browser.newContext({
+          viewport: { width: WIDTH, height: HEIGHT },
+          deviceScaleFactor: dpr,
+        });
+        const source = await context.newPage();
+        await source.setContent(backgroundClipTextFixture(), { waitUntil: "load" });
+        await source.evaluate(async () => {
+          await document.fonts.ready;
+          await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        });
+        if (fontEvidence.length === 0) fontEvidence = await paintedFonts(source);
+        const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
+        const captured = await captureElementTreeWithWarnings(source, "#stage", {
+          x: 0,
+          y: 0,
+          width: WIDTH,
+          height: HEIGHT,
+        });
+        const flat = flatten(captured.tree);
+        const structuralErrors = removeTextRasterEscape(captured.tree);
+        const urlRecords = flat
+          .flatMap((element) => element.styles.backgroundImages ?? [])
+          .filter((record) => record != null);
+        const loadedUrlRecords = urlRecords.filter((record) => record?.loadState === "loaded");
+        if (loadedUrlRecords.length < 5)
+          structuralErrors.push(`expected >=5 loaded URL layer records, received ${loadedUrlRecords.length}`);
+        if (urlRecords.some((record) => record?.loadState !== "loaded" || record.naturalSizingState !== "resolved")) {
+          structuralErrors.push("URL selected candidate/natural sizing record was not exact");
+        }
+        const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
+        const alphaMasks = (svg.match(/mask-type:alpha/g) ?? []).length;
+        const vectorPatterns = (svg.match(/<pattern id="bg/g) ?? []).length;
+        if (alphaMasks < 6) structuralErrors.push(`expected >=6 alpha glyph masks, received ${alphaMasks}`);
+        if (vectorPatterns < 5) structuralErrors.push(`expected >=5 URL pattern defs, received ${vectorPatterns}`);
+        if (/<image[^>]+(?:elementRaster|transformSubtreeRaster)/.test(svg))
+          structuralErrors.push("text raster marker reached SVG");
+        if (!/fill="rgb\(36,\s*204,\s*112\)"[^>]+mask="url\(#tbgm/.test(svg))
+          structuralErrors.push("color-only masked fill missing");
+        if (!/fill="rgb\(255,\s*145,\s*0\)"[^>]+mask="url\(#tbgm/.test(svg))
+          structuralErrors.push("bottom-layer masked color missing");
+        if (!/clip-path=/.test(svg) || !/transform=/.test(svg))
+          structuralErrors.push("zoom/transform/clip ownership missing");
 
-      const rendered = await context.newPage();
-      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, {
-        waitUntil: "load",
-      });
-      await rendered.evaluate(async () => {
-        await document.fonts.ready;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      });
-      const renderedPng = Buffer.from(
-        await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }),
-      );
-      if (artifactDir != null) {
-        mkdirSync(artifactDir, { recursive: true });
-        writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
+        const rendered = await context.newPage();
+        await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, {
+          waitUntil: "load",
+        });
+        await rendered.evaluate(async () => {
+          await document.fonts.ready;
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        });
+        const renderedPng = Buffer.from(
+          await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }),
+        );
+        if (artifactDir != null) {
+          mkdirSync(artifactDir, { recursive: true });
+          writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
+          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
+          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
+        }
+        const [sourceSignal, renderedSignal] = await Promise.all([signalEdges(sourcePng), signalEdges(renderedPng)]);
+        const forward = directedDistance(sourceSignal, renderedSignal);
+        const reverse = directedDistance(renderedSignal, sourceSignal);
+        const unmatchedSourceRatio = sourceSignal.count === 0 ? 1 : forward.misses / sourceSignal.count;
+        const unmatchedRenderedRatio = renderedSignal.count === 0 ? 1 : reverse.misses / renderedSignal.count;
+        const pixelRatio = sourceSignal.pixels === 0 ? 0 : renderedSignal.pixels / sourceSignal.pixels;
+        const pass =
+          structuralErrors.length === 0 &&
+          sourceSignal.count > 0 &&
+          renderedSignal.count > 0 &&
+          unmatchedSourceRatio <= 0.025 &&
+          unmatchedRenderedRatio <= 0.025 &&
+          pixelRatio >= 0.82 &&
+          pixelRatio <= 1.18;
+        rows.push({
+          dpr,
+          capturedUrlLayers: loadedUrlRecords.length,
+          alphaMasks,
+          vectorPatterns,
+          sourceSignalPixels: sourceSignal.pixels,
+          renderedSignalPixels: renderedSignal.pixels,
+          sourceEdges: sourceSignal.count,
+          renderedEdges: renderedSignal.count,
+          maxEdgeDistanceDevicePixels: Math.max(forward.max, reverse.max),
+          unmatchedSourceEdges: forward.misses,
+          unmatchedRenderedEdges: reverse.misses,
+          structuralErrors,
+          pass,
+        });
+        await context.close();
       }
-      const [sourceSignal, renderedSignal] = await Promise.all([signalEdges(sourcePng), signalEdges(renderedPng)]);
-      const forward = directedDistance(sourceSignal, renderedSignal);
-      const reverse = directedDistance(renderedSignal, sourceSignal);
-      const unmatchedSourceRatio = sourceSignal.count === 0 ? 1 : forward.misses / sourceSignal.count;
-      const unmatchedRenderedRatio = renderedSignal.count === 0 ? 1 : reverse.misses / renderedSignal.count;
-      const pixelRatio = sourceSignal.pixels === 0 ? 0 : renderedSignal.pixels / sourceSignal.pixels;
-      const pass =
-        structuralErrors.length === 0 &&
-        sourceSignal.count > 0 &&
-        renderedSignal.count > 0 &&
-        unmatchedSourceRatio <= 0.025 &&
-        unmatchedRenderedRatio <= 0.025 &&
-        pixelRatio >= 0.82 &&
-        pixelRatio <= 1.18;
-      rows.push({
-        dpr,
-        capturedUrlLayers: loadedUrlRecords.length,
-        alphaMasks,
-        vectorPatterns,
-        sourceSignalPixels: sourceSignal.pixels,
-        renderedSignalPixels: renderedSignal.pixels,
-        sourceEdges: sourceSignal.count,
-        renderedEdges: renderedSignal.count,
-        maxEdgeDistanceDevicePixels: Math.max(forward.max, reverse.max),
-        unmatchedSourceEdges: forward.misses,
-        unmatchedRenderedEdges: reverse.misses,
-        structuralErrors,
-        pass,
-      });
-      await context.close();
-    }
-  } finally {
-    await browser.close();
-  }
+    },
+    { headless: true },
+  );
   const executable = chromium.executablePath();
   const joinedSvgFacts = rows
     .map((row) => `${row.capturedUrlLayers}:${row.alphaMasks}:${row.vectorPatterns}`)

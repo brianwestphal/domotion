@@ -9,7 +9,8 @@ import {
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
-import { captureElementTree, launchChromium, type CapturedElement, type TextSegment } from "../src/index.js";
+import { captureElementTree, type CapturedElement, type TextSegment } from "../src/index.js";
+import { withBrowser } from "./lib/browser.js";
 import { bidiLevelsFor, type BidiParagraphContext } from "../src/render/script-segmentation.js";
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
 import { parityEnvironment } from "./parity-environment.js";
@@ -161,259 +162,263 @@ export function buildMixedBidiReport(evidence: MixedBidiEvidence) {
 }
 
 async function collectMixedBidiEvidence(): Promise<MixedBidiEvidence> {
-  const browser = await launchChromium({ args: ["--font-render-hinting=none"] });
-  const records: Array<Record<string, unknown>> = [];
-  const wrongLevelDeltas: Array<Record<string, unknown>> = [];
-  const wrongClusterDeltas: Array<Record<string, unknown>> = [];
-  const wrongOriginDeltas: Array<Record<string, unknown>> = [];
-  let baselinesAgree = true;
+  return await withBrowser(
+    async (browser) => {
+      const records: Array<Record<string, unknown>> = [];
+      const wrongLevelDeltas: Array<Record<string, unknown>> = [];
+      const wrongClusterDeltas: Array<Record<string, unknown>> = [];
+      const wrongOriginDeltas: Array<Record<string, unknown>> = [];
+      let baselinesAgree = true;
 
-  setRenderTextMode("paths");
-  setTextRunProvenanceEnabled(true);
-  try {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 120 }, deviceScaleFactor: 1 });
-    for (const item of CASES) {
-      await page.setContent(
-        `<!doctype html><style>
+      setRenderTextMode("paths");
+      setTextRunProvenanceEnabled(true);
+      try {
+        const page = await browser.newPage({ viewport: { width: 1200, height: 120 }, deviceScaleFactor: 1 });
+        for (const item of CASES) {
+          await page.setContent(
+            `<!doctype html><style>
         *{box-sizing:border-box}body{margin:0;background:#fff}
         .row{direction:${item.direction};unicode-bidi:normal;font:400 ${FONT_SIZE}px/44px ${FONT_FAMILY};letter-spacing:${LETTER_SPACING}px;white-space:pre;padding:8px 20px}
       </style><div class="row">${item.text}</div>`,
-        { waitUntil: "load" },
-      );
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 1200, height: 120 });
-      const node = findText(tree, item.text);
-      if (node == null) throw new Error(`${item.id}: row was not captured`);
-      const fragments = node.textSegments ?? [];
-      if (fragments.length === 0) throw new Error(`${item.id}: no captured text fragments`);
-      if (node.styles.direction !== item.direction) {
-        throw new Error(`${item.id}: captured direction ${node.styles.direction} != ${item.direction}`);
-      }
-      const context: BidiParagraphContext = {
-        direction: item.direction,
-        unicodeBidi: node.styles.unicodeBidi ?? "normal",
-      };
-      const levels = exactLevels(item.text, context);
-      const logicalRuns = segmentForShaping(item.text, levels).map((segment) => ({
-        utf16Span: [segment.start, segment.end],
-        text: item.text.slice(segment.start, segment.end),
-        level: levels[segment.start],
-        direction: segment.rtl ? "rtl" : "ltr",
-        script: segment.script,
-        sourcePriority: segment.sourcePriority,
-      }));
-      const wrongContext: BidiParagraphContext = {
-        direction: item.direction === "rtl" ? "ltr" : "rtl",
-        unicodeBidi: context.unicodeBidi,
-      };
-      const correctSignature = signature(item.text, context);
-      const mutatedSignature = signature(item.text, wrongContext);
-      if (correctSignature === mutatedSignature) throw new Error(`${item.id}: wrong-level mutation was inert`);
-      wrongLevelDeltas.push({
-        case: item.id,
-        mutation: "force-opposite-paragraph-level",
-        correctDirection: context.direction,
-        mutatedDirection: wrongContext.direction,
-        correctLevels: levels,
-        mutatedLevels: exactLevels(item.text, wrongContext),
-      });
-
-      const fragmentOffsets = sourceOffsets(item.text, fragments);
-      const shapedFragments: Array<Record<string, unknown>> = [];
-      for (let fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
-        const fragment = fragments[fragmentIndex];
-        const ascent = fragment.fontAscent ?? node.fontAscent ?? FONT_SIZE;
-        const rowOffset = fragmentOffsets[fragmentIndex];
-        const xOffsets = fragment.xOffsets;
-        if (xOffsets == null || xOffsets.length !== fragment.text.length) {
-          throw new Error(`${item.id}/${fragmentIndex}: incomplete captured UTF-16 origins`);
-        }
-        const relativeOffsets = xOffsets.map((value) => value - fragment.x);
-        const fragmentLevels = exactLevels(fragment.text, context);
-        const shapingItems = segmentForShaping(fragment.text, fragmentLevels);
-
-        clearEmbeddedFonts();
-        clearGlyphDefs();
-        resetTextRunProvenance();
-        const markup = renderTextAsPath(fragment.text, fragment.x, fragment.y, {
-          fontSize: FONT_SIZE,
-          fontFamily: FONT_FAMILY,
-          fontWeight: "400",
-          fill: "#000",
-          xOffsets: relativeOffsets,
-          ascentOverride: ascent,
-          bidiOverride: context,
-        });
-        if (markup.includes("data-domotion-text-boundary")) {
-          throw new Error(`${item.id}/${fragmentIndex}: renderer reached a source boundary`);
-        }
-        const provenance = getTextRunProvenance();
-        if (provenance.runs.length === 0) throw new Error(`${item.id}/${fragmentIndex}: no shaped runs`);
-        const emittedBaseline = Math.floor(fragment.y + ascent + 0.5);
-        const capturedBaseline = fragment.baseline ?? emittedBaseline;
-        baselinesAgree &&= Math.abs(capturedBaseline - emittedBaseline) <= 1e-6;
-        const shapedRuns: Array<Record<string, unknown>> = [];
-
-        for (const run of provenance.runs) {
-          if (run.shapeError != null || run.selected.sourcePath == null || run.glyphs.length === 0) {
-            throw new Error(
-              `${item.id}/${fragmentIndex}: incomplete shaping provenance (${run.shapeError ?? "missing source/glyph"})`,
-            );
-          }
-          const itemOwner = shapingItems.find(
-            (candidate) => candidate.start <= run.sourceSpan[0] && candidate.end >= run.sourceSpan[1],
+            { waitUntil: "load" },
           );
-          if (itemOwner == null) throw new Error(`${item.id}/${fragmentIndex}: shaped run crossed an item boundary`);
-          const upem = unitsPerEm(run.selected.sourcePath, run.selected.faceIndex);
-          const scale = run.request.fontSizePx / upem;
-          const physicalOrigin = Math.min(...relativeOffsets.slice(run.sourceSpan[0], run.sourceSpan[1]));
-          const logicalStartOrigin = relativeOffsets[run.sourceSpan[0]];
-          const absoluteSourceStart = rowOffset + run.sourceSpan[0];
-          const glyphInputs = run.glyphs.map((glyph) => ({
-            codePoints: glyphCodePoints(fragment.text, glyph.sourceSpan),
+          const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 1200, height: 120 });
+          const node = findText(tree, item.text);
+          if (node == null) throw new Error(`${item.id}: row was not captured`);
+          const fragments = node.textSegments ?? [];
+          if (fragments.length === 0) throw new Error(`${item.id}: no captured text fragments`);
+          if (node.styles.direction !== item.direction) {
+            throw new Error(`${item.id}: captured direction ${node.styles.direction} != ${item.direction}`);
+          }
+          const context: BidiParagraphContext = {
+            direction: item.direction,
+            unicodeBidi: node.styles.unicodeBidi ?? "normal",
+          };
+          const levels = exactLevels(item.text, context);
+          const logicalRuns = segmentForShaping(item.text, levels).map((segment) => ({
+            utf16Span: [segment.start, segment.end],
+            text: item.text.slice(segment.start, segment.end),
+            level: levels[segment.start],
+            direction: segment.rtl ? "rtl" : "ltr",
+            script: segment.script,
+            sourcePriority: segment.sourcePriority,
           }));
-          const positions = run.glyphs.map((glyph) => ({
-            xAdvance: glyph.xAdvance,
-            xOffset: glyph.xOffset,
-          }));
-          const clusters = run.glyphs.map((glyph) => glyph.cluster);
-          const cursiveSpacing = CURSIVE_SPACING_SCRIPTS.has(itemOwner.script);
-          let cursor = 0;
-          let previousCluster: number | undefined;
-          let clusterCursor = 0;
-          const helperPlacements = cursiveSpacing
-            ? positions.map((position) => {
-                const xFontUnits = cursor + position.xOffset;
-                cursor += position.xAdvance;
-                return { xFontUnits, rightCss: physicalOrigin + cursor * scale };
-              })
-            : positionShapedClusters(
-                run.emittedText,
-                run.emittedText,
-                glyphInputs,
-                positions,
-                clusters,
-                relativeOffsets,
-                run.sourceSpan[0],
-                scale,
-                physicalOrigin,
-                run.request.direction === "rtl",
-              );
-          cursor = 0;
-          const glyphs = run.glyphs.map((glyph, glyphIndex) => {
-            let independentOrigin: number;
-            if (cursiveSpacing) {
-              independentOrigin = fragment.x + physicalOrigin + (cursor + glyph.xOffset) * scale;
-              cursor += glyph.xAdvance;
-            } else {
-              if (glyph.cluster !== previousCluster) {
-                previousCluster = glyph.cluster;
-                clusterCursor = 0;
-              }
-              independentOrigin = xOffsets[glyph.sourceSpan[0]] + (clusterCursor + glyph.xOffset) * scale;
-              clusterCursor += glyph.xAdvance;
-            }
-            const emittedOrigin = fragment.x + physicalOrigin + helperPlacements[glyphIndex].xFontUnits * scale;
-            if (Math.abs(emittedOrigin - independentOrigin) > 1e-6) {
-              throw new Error(`${item.id}/${fragmentIndex}: emitted glyph origin diverged at gid ${glyph.id}`);
-            }
-            return {
-              gid: glyph.id,
-              cluster: absoluteSourceStart + glyph.cluster,
-              utf16Span: [rowOffset + glyph.sourceSpan[0], rowOffset + glyph.sourceSpan[1]],
-              advance: [glyph.xAdvance, glyph.yAdvance],
-              offset: [glyph.xOffset, glyph.yOffset],
-              capturedClusterOrigin: xOffsets[glyph.sourceSpan[0]],
-              emittedOrigin,
-              baseline: emittedBaseline,
-            };
+          const wrongContext: BidiParagraphContext = {
+            direction: item.direction === "rtl" ? "ltr" : "rtl",
+            unicodeBidi: context.unicodeBidi,
+          };
+          const correctSignature = signature(item.text, context);
+          const mutatedSignature = signature(item.text, wrongContext);
+          if (correctSignature === mutatedSignature) throw new Error(`${item.id}: wrong-level mutation was inert`);
+          wrongLevelDeltas.push({
+            case: item.id,
+            mutation: "force-opposite-paragraph-level",
+            correctDirection: context.direction,
+            mutatedDirection: wrongContext.direction,
+            correctLevels: levels,
+            mutatedLevels: exactLevels(item.text, wrongContext),
           });
 
-          const originDelta = logicalStartOrigin - physicalOrigin;
-          if (Math.abs(originDelta) > 1e-6) {
-            wrongOriginDeltas.push({
-              case: item.id,
-              utf16Span: [absoluteSourceStart, rowOffset + run.sourceSpan[1]],
-              script: itemOwner.script,
-              direction: run.request.direction,
-              mutation: "use-logical-start-as-physical-fragment-origin",
-              correctOrigin: fragment.x + physicalOrigin,
-              mutatedOrigin: fragment.x + logicalStartOrigin,
-              glyphShift: originDelta,
-            });
-          }
+          const fragmentOffsets = sourceOffsets(item.text, fragments);
+          const shapedFragments: Array<Record<string, unknown>> = [];
+          for (let fragmentIndex = 0; fragmentIndex < fragments.length; fragmentIndex++) {
+            const fragment = fragments[fragmentIndex];
+            const ascent = fragment.fontAscent ?? node.fontAscent ?? FONT_SIZE;
+            const rowOffset = fragmentOffsets[fragmentIndex];
+            const xOffsets = fragment.xOffsets;
+            if (xOffsets == null || xOffsets.length !== fragment.text.length) {
+              throw new Error(`${item.id}/${fragmentIndex}: incomplete captured UTF-16 origins`);
+            }
+            const relativeOffsets = xOffsets.map((value) => value - fragment.x);
+            const fragmentLevels = exactLevels(fragment.text, context);
+            const shapingItems = segmentForShaping(fragment.text, fragmentLevels);
 
-          if (!cursiveSpacing && new Set(clusters).size > 1) {
-            const mutatedClusters = clusters.map(() => clusters[0]);
-            const mutated = positionShapedClusters(
-              run.emittedText,
-              run.emittedText,
-              glyphInputs,
-              positions,
-              mutatedClusters,
-              relativeOffsets,
-              run.sourceSpan[0],
-              scale,
-              physicalOrigin,
-              run.request.direction === "rtl",
-            );
-            const deltas = mutated.map(
-              (placement, index) => (placement.xFontUnits - helperPlacements[index].xFontUnits) * scale,
-            );
-            const maxDelta = Math.max(...deltas.map(Math.abs));
-            if (maxDelta > 1e-6) {
-              wrongClusterDeltas.push({
-                case: item.id,
+            clearEmbeddedFonts();
+            clearGlyphDefs();
+            resetTextRunProvenance();
+            const markup = renderTextAsPath(fragment.text, fragment.x, fragment.y, {
+              fontSize: FONT_SIZE,
+              fontFamily: FONT_FAMILY,
+              fontWeight: "400",
+              fill: "#000",
+              xOffsets: relativeOffsets,
+              ascentOverride: ascent,
+              bidiOverride: context,
+            });
+            if (markup.includes("data-domotion-text-boundary")) {
+              throw new Error(`${item.id}/${fragmentIndex}: renderer reached a source boundary`);
+            }
+            const provenance = getTextRunProvenance();
+            if (provenance.runs.length === 0) throw new Error(`${item.id}/${fragmentIndex}: no shaped runs`);
+            const emittedBaseline = Math.floor(fragment.y + ascent + 0.5);
+            const capturedBaseline = fragment.baseline ?? emittedBaseline;
+            baselinesAgree &&= Math.abs(capturedBaseline - emittedBaseline) <= 1e-6;
+            const shapedRuns: Array<Record<string, unknown>> = [];
+
+            for (const run of provenance.runs) {
+              if (run.shapeError != null || run.selected.sourcePath == null || run.glyphs.length === 0) {
+                throw new Error(
+                  `${item.id}/${fragmentIndex}: incomplete shaping provenance (${run.shapeError ?? "missing source/glyph"})`,
+                );
+              }
+              const itemOwner = shapingItems.find(
+                (candidate) => candidate.start <= run.sourceSpan[0] && candidate.end >= run.sourceSpan[1],
+              );
+              if (itemOwner == null)
+                throw new Error(`${item.id}/${fragmentIndex}: shaped run crossed an item boundary`);
+              const upem = unitsPerEm(run.selected.sourcePath, run.selected.faceIndex);
+              const scale = run.request.fontSizePx / upem;
+              const physicalOrigin = Math.min(...relativeOffsets.slice(run.sourceSpan[0], run.sourceSpan[1]));
+              const logicalStartOrigin = relativeOffsets[run.sourceSpan[0]];
+              const absoluteSourceStart = rowOffset + run.sourceSpan[0];
+              const glyphInputs = run.glyphs.map((glyph) => ({
+                codePoints: glyphCodePoints(fragment.text, glyph.sourceSpan),
+              }));
+              const positions = run.glyphs.map((glyph) => ({
+                xAdvance: glyph.xAdvance,
+                xOffset: glyph.xOffset,
+              }));
+              const clusters = run.glyphs.map((glyph) => glyph.cluster);
+              const cursiveSpacing = CURSIVE_SPACING_SCRIPTS.has(itemOwner.script);
+              let cursor = 0;
+              let previousCluster: number | undefined;
+              let clusterCursor = 0;
+              const helperPlacements = cursiveSpacing
+                ? positions.map((position) => {
+                    const xFontUnits = cursor + position.xOffset;
+                    cursor += position.xAdvance;
+                    return { xFontUnits, rightCss: physicalOrigin + cursor * scale };
+                  })
+                : positionShapedClusters(
+                    run.emittedText,
+                    run.emittedText,
+                    glyphInputs,
+                    positions,
+                    clusters,
+                    relativeOffsets,
+                    run.sourceSpan[0],
+                    scale,
+                    physicalOrigin,
+                    run.request.direction === "rtl",
+                  );
+              cursor = 0;
+              const glyphs = run.glyphs.map((glyph, glyphIndex) => {
+                let independentOrigin: number;
+                if (cursiveSpacing) {
+                  independentOrigin = fragment.x + physicalOrigin + (cursor + glyph.xOffset) * scale;
+                  cursor += glyph.xAdvance;
+                } else {
+                  if (glyph.cluster !== previousCluster) {
+                    previousCluster = glyph.cluster;
+                    clusterCursor = 0;
+                  }
+                  independentOrigin = xOffsets[glyph.sourceSpan[0]] + (clusterCursor + glyph.xOffset) * scale;
+                  clusterCursor += glyph.xAdvance;
+                }
+                const emittedOrigin = fragment.x + physicalOrigin + helperPlacements[glyphIndex].xFontUnits * scale;
+                if (Math.abs(emittedOrigin - independentOrigin) > 1e-6) {
+                  throw new Error(`${item.id}/${fragmentIndex}: emitted glyph origin diverged at gid ${glyph.id}`);
+                }
+                return {
+                  gid: glyph.id,
+                  cluster: absoluteSourceStart + glyph.cluster,
+                  utf16Span: [rowOffset + glyph.sourceSpan[0], rowOffset + glyph.sourceSpan[1]],
+                  advance: [glyph.xAdvance, glyph.yAdvance],
+                  offset: [glyph.xOffset, glyph.yOffset],
+                  capturedClusterOrigin: xOffsets[glyph.sourceSpan[0]],
+                  emittedOrigin,
+                  baseline: emittedBaseline,
+                };
+              });
+
+              const originDelta = logicalStartOrigin - physicalOrigin;
+              if (Math.abs(originDelta) > 1e-6) {
+                wrongOriginDeltas.push({
+                  case: item.id,
+                  utf16Span: [absoluteSourceStart, rowOffset + run.sourceSpan[1]],
+                  script: itemOwner.script,
+                  direction: run.request.direction,
+                  mutation: "use-logical-start-as-physical-fragment-origin",
+                  correctOrigin: fragment.x + physicalOrigin,
+                  mutatedOrigin: fragment.x + logicalStartOrigin,
+                  glyphShift: originDelta,
+                });
+              }
+
+              if (!cursiveSpacing && new Set(clusters).size > 1) {
+                const mutatedClusters = clusters.map(() => clusters[0]);
+                const mutated = positionShapedClusters(
+                  run.emittedText,
+                  run.emittedText,
+                  glyphInputs,
+                  positions,
+                  mutatedClusters,
+                  relativeOffsets,
+                  run.sourceSpan[0],
+                  scale,
+                  physicalOrigin,
+                  run.request.direction === "rtl",
+                );
+                const deltas = mutated.map(
+                  (placement, index) => (placement.xFontUnits - helperPlacements[index].xFontUnits) * scale,
+                );
+                const maxDelta = Math.max(...deltas.map(Math.abs));
+                if (maxDelta > 1e-6) {
+                  wrongClusterDeltas.push({
+                    case: item.id,
+                    utf16Span: [absoluteSourceStart, rowOffset + run.sourceSpan[1]],
+                    script: itemOwner.script,
+                    direction: run.request.direction,
+                    mutation: "collapse-harfbuzz-clusters-to-first-cluster",
+                    originalClusters: clusters.map((cluster) => absoluteSourceStart + cluster),
+                    mutatedClusters: mutatedClusters.map((cluster) => absoluteSourceStart + cluster),
+                    glyphOriginDeltas: deltas,
+                  });
+                }
+              }
+
+              shapedRuns.push({
                 utf16Span: [absoluteSourceStart, rowOffset + run.sourceSpan[1]],
+                level: fragmentLevels[run.sourceSpan[0]],
                 script: itemOwner.script,
                 direction: run.request.direction,
-                mutation: "collapse-harfbuzz-clusters-to-first-cluster",
-                originalClusters: clusters.map((cluster) => absoluteSourceStart + cluster),
-                mutatedClusters: mutatedClusters.map((cluster) => absoluteSourceStart + cluster),
-                glyphOriginDeltas: deltas,
+                capturedPhysicalOrigin: fragment.x + physicalOrigin,
+                emittedBaseline,
+                selectedFace: run.selected,
+                fontSizePx: run.request.fontSizePx,
+                unitsPerEm: upem,
+                glyphs,
               });
             }
+            shapedFragments.push({
+              utf16Span: [rowOffset, rowOffset + fragment.text.length],
+              capturedBox: { x: fragment.x, y: fragment.y, width: fragment.width, height: fragment.height },
+              capturedAscent: ascent,
+              capturedBaseline,
+              emittedBaseline,
+              runs: shapedRuns,
+            });
           }
-
-          shapedRuns.push({
-            utf16Span: [absoluteSourceStart, rowOffset + run.sourceSpan[1]],
-            level: fragmentLevels[run.sourceSpan[0]],
-            script: itemOwner.script,
-            direction: run.request.direction,
-            capturedPhysicalOrigin: fragment.x + physicalOrigin,
-            emittedBaseline,
-            selectedFace: run.selected,
-            fontSizePx: run.request.fontSizePx,
-            unitsPerEm: upem,
-            glyphs,
+          records.push({
+            id: item.id,
+            order: item.order,
+            sourceText: item.text,
+            paragraph: context,
+            letterSpacingPx: LETTER_SPACING,
+            levels,
+            logicalRuns,
+            fragments: shapedFragments,
           });
         }
-        shapedFragments.push({
-          utf16Span: [rowOffset, rowOffset + fragment.text.length],
-          capturedBox: { x: fragment.x, y: fragment.y, width: fragment.width, height: fragment.height },
-          capturedAscent: ascent,
-          capturedBaseline,
-          emittedBaseline,
-          runs: shapedRuns,
-        });
-      }
-      records.push({
-        id: item.id,
-        order: item.order,
-        sourceText: item.text,
-        paragraph: context,
-        letterSpacingPx: LETTER_SPACING,
-        levels,
-        logicalRuns,
-        fragments: shapedFragments,
-      });
-    }
 
-    return { records, wrongLevelDeltas, wrongClusterDeltas, wrongOriginDeltas, baselinesAgree };
-  } finally {
-    setTextRunProvenanceEnabled(false);
-    setRenderTextMode("embedded-font");
-    await browser.close();
-  }
+        return { records, wrongLevelDeltas, wrongClusterDeltas, wrongOriginDeltas, baselinesAgree };
+      } finally {
+        setTextRunProvenanceEnabled(false);
+        setRenderTextMode("embedded-font");
+      }
+    },
+    { args: ["--font-render-hinting=none"] },
+  );
 }
 
 async function main(): Promise<number> {

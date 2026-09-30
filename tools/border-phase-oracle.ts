@@ -11,8 +11,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import sharp from "sharp";
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 
@@ -338,8 +339,7 @@ async function main(): Promise<number> {
       sourcePins: BORDER_PHASE_SOURCE_PINS,
     }),
   );
-  const browser = await chromium.launch();
-  try {
+  return await withBrowser(async (browser) => {
     const reports = [];
     for (const scenario of scenarios) {
       const baseHeight = TOP_PAD + Math.ceil(cases.length / 4) * ROW_HEIGHT + 20;
@@ -467,9 +467,7 @@ async function main(): Promise<number> {
     if (failedCount && reportOnly)
       console.log(`diagnostic mode: recorded ${failedCount} paint-profile residual(s) without gating`);
     return failedCount && !reportOnly ? 1 : 0;
-  } finally {
-    await browser.close();
-  }
+  }, undefined);
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href)

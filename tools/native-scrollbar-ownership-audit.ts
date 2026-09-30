@@ -15,6 +15,7 @@ import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { chromium, type Page } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement, CapturedNativeScrollbarRaster } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -1060,84 +1061,84 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   // Playwright normally adds `--hide-scrollbars`, which would turn every
   // screenshot into a false negative for the exact thing this probe audits.
-  const browser = await chromium.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
   const rows: AuditRow[] = [];
-  try {
-    for (const test of CASES) {
-      for (const deviceScaleFactor of options.deviceScaleFactors ?? test.dprs ?? [1]) {
-        for (const cssZoom of options.cssZooms ?? [test.id === "custom-zoom-125" ? 1.25 : 1]) {
-          const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
-          const generatedContext = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
-          const page = await context.newPage();
-          const generatedPage = await generatedContext.newPage();
-          try {
-            await page.setContent(htmlFor(test, cssZoom), { waitUntil: "load" });
-            await mutate(page, test.mutation);
-            const source = await browserFacts(page);
-            const sourcePng = await page.screenshot({ type: "png" });
-            const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", {
-              x: 0,
-              y: 0,
-              ...VIEWPORT,
-            });
-            const captured = capturedFacts(findCapturedScroller(tree));
-            const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
-            await generatedPage.setContent(
-              `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
-              { waitUntil: "load" },
-            );
-            await settle(generatedPage);
-            const generatedPng = await generatedPage.screenshot({ type: "png" });
-            const nativeOwnedPixelsExact =
-              test.expectedRoute === "native-raster"
-                ? await nativeOwnedPixelsMatchExactly(sourcePng, generatedPng, captured, deviceScaleFactor)
-                : null;
-            const artifacts: AuditRow["artifacts"] = [];
-            if (options.artifactDir != null) {
-              mkdirSync(options.artifactDir, { recursive: true });
-              for (const [role, bytes] of [
-                ["source", sourcePng],
-                ["generated", generatedPng],
-              ] as const) {
-                const filename = `${test.id}-dpr${deviceScaleFactor}-zoom${cssZoom}-${role}.png`;
-                const path = join(options.artifactDir, filename);
-                writeFileSync(path, bytes);
-                const metadata = await sharp(bytes).metadata();
-                artifacts.push({
-                  role,
-                  path: options.reportDir == null ? filename : relative(options.reportDir, path),
-                  sha256: sha256(bytes),
-                  pngWidth: metadata.width!,
-                  pngHeight: metadata.height!,
-                });
+  await withBrowser(
+    async (browser) => {
+      for (const test of CASES) {
+        for (const deviceScaleFactor of options.deviceScaleFactors ?? test.dprs ?? [1]) {
+          for (const cssZoom of options.cssZooms ?? [test.id === "custom-zoom-125" ? 1.25 : 1]) {
+            const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
+            const generatedContext = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor });
+            const page = await context.newPage();
+            const generatedPage = await generatedContext.newPage();
+            try {
+              await page.setContent(htmlFor(test, cssZoom), { waitUntil: "load" });
+              await mutate(page, test.mutation);
+              const source = await browserFacts(page);
+              const sourcePng = await page.screenshot({ type: "png" });
+              const { tree, warnings } = await captureElementTreeWithWarnings(page, "#scene", {
+                x: 0,
+                y: 0,
+                ...VIEWPORT,
+              });
+              const captured = capturedFacts(findCapturedScroller(tree));
+              const svg = elementTreeToSvg(tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: deviceScaleFactor });
+              await generatedPage.setContent(
+                `<!doctype html><style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;background:#fff;overflow:hidden}svg{display:block}</style>${svg}`,
+                { waitUntil: "load" },
+              );
+              await settle(generatedPage);
+              const generatedPng = await generatedPage.screenshot({ type: "png" });
+              const nativeOwnedPixelsExact =
+                test.expectedRoute === "native-raster"
+                  ? await nativeOwnedPixelsMatchExactly(sourcePng, generatedPng, captured, deviceScaleFactor)
+                  : null;
+              const artifacts: AuditRow["artifacts"] = [];
+              if (options.artifactDir != null) {
+                mkdirSync(options.artifactDir, { recursive: true });
+                for (const [role, bytes] of [
+                  ["source", sourcePng],
+                  ["generated", generatedPng],
+                ] as const) {
+                  const filename = `${test.id}-dpr${deviceScaleFactor}-zoom${cssZoom}-${role}.png`;
+                  const path = join(options.artifactDir, filename);
+                  writeFileSync(path, bytes);
+                  const metadata = await sharp(bytes).metadata();
+                  artifacts.push({
+                    role,
+                    path: options.reportDir == null ? filename : relative(options.reportDir, path),
+                    sha256: sha256(bytes),
+                    pngWidth: metadata.width!,
+                    pngHeight: metadata.height!,
+                  });
+                }
               }
+              const base = {
+                id: test.id,
+                axis: test.axis,
+                expectedRoute: test.expectedRoute,
+                deviceScaleFactor,
+                cssZoom,
+                source,
+                captured,
+                sourcePixels: await pixelFacts(sourcePng, source, deviceScaleFactor),
+                generatedPixels: await pixelFacts(generatedPng, source, deviceScaleFactor),
+                nativeOwnedPixelsExact,
+                generatedGenericThumbs: countGenericThumbs(svg),
+                artifacts,
+                warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
+              };
+              rows.push({ ...base, pass: rowPass(base) });
+            } finally {
+              await context.close();
+              await generatedContext.close();
             }
-            const base = {
-              id: test.id,
-              axis: test.axis,
-              expectedRoute: test.expectedRoute,
-              deviceScaleFactor,
-              cssZoom,
-              source,
-              captured,
-              sourcePixels: await pixelFacts(sourcePng, source, deviceScaleFactor),
-              generatedPixels: await pixelFacts(generatedPng, source, deviceScaleFactor),
-              nativeOwnedPixelsExact,
-              generatedGenericThumbs: countGenericThumbs(svg),
-              artifacts,
-              warnings: warnings.map((warning) => `${warning.feature}: ${warning.detail}`),
-            };
-            rows.push({ ...base, pass: rowPass(base) });
-          } finally {
-            await context.close();
-            await generatedContext.close();
           }
         }
       }
-    }
-  } finally {
-    await browser.close();
-  }
+    },
+    { headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] },
+  );
 
   const controls = ownershipControls(rows);
   const mutations = activeMutationControls(rows);

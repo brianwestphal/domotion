@@ -4,10 +4,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
-
-import { chromium } from "@playwright/test";
 import sharp from "sharp";
-
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -277,128 +275,133 @@ export async function runPseudoFragmentRenderOracle(
   dprs: number[] = [1, 2],
   artifactDir?: string,
 ): Promise<PseudoRenderOracleReport> {
-  const browser = await chromium.launch({ headless: true, args: ["--enable-blink-features=AppearanceBase"] });
   const rows: PseudoRenderOracleRow[] = [];
-  try {
-    for (const dpr of dprs) {
-      const context = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: dpr });
-      const source = await context.newPage();
-      await source.setContent(pseudoFragmentRenderFixture(), { waitUntil: "load" });
-      await source.evaluate(async () => {
-        (document.querySelector("#check-indeterminate") as HTMLInputElement).indeterminate = true;
-        await document.fonts.ready;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      });
-      const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
-      const captured = await captureElementTreeWithWarnings(source, "#stage", {
-        x: 0,
-        y: 0,
-        width: WIDTH,
-        height: HEIGHT,
-      });
-      const records = flatten(captured.tree).flatMap((element) => element.pseudoFragments ?? []);
-      const exact = records.filter((record) => record.status === "exact");
-      const terminal = records.filter((record) => record.status === "terminal-raster");
-      const structuralErrors = exact.flatMap((record, index) =>
-        pseudoFragmentRecordErrors(record).map((error) => `${index}:${error}`),
-      );
-      const checkables = flatten(captured.tree).filter(
-        (element) =>
-          element.animId?.startsWith("check-") ||
-          element.animId?.startsWith("base-") ||
-          element.animId === "native-auto",
-      );
-      for (const element of checkables) {
-        const identity = element.animId ?? "unknown";
-        if (identity === "native-auto") {
-          if (element.nativeControlRaster == null)
-            structuralErrors.push(`${identity}: native auto control lost Chromium raster ownership`);
-          if (checkablePseudoFactsOwnIndicator(element))
-            structuralErrors.push(`${identity}: auto control activated authored pseudo ownership`);
-          continue;
+  let chromiumVersion = "unknown";
+  await withBrowser(
+    async (browser) => {
+      chromiumVersion = browser.version();
+      for (const dpr of dprs) {
+        const context = await browser.newContext({
+          viewport: { width: WIDTH, height: HEIGHT },
+          deviceScaleFactor: dpr,
+        });
+        const source = await context.newPage();
+        await source.setContent(pseudoFragmentRenderFixture(), { waitUntil: "load" });
+        await source.evaluate(async () => {
+          (document.querySelector("#check-indeterminate") as HTMLInputElement).indeterminate = true;
+          await document.fonts.ready;
+          await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        });
+        const sourcePng = Buffer.from(await source.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }));
+        const captured = await captureElementTreeWithWarnings(source, "#stage", {
+          x: 0,
+          y: 0,
+          width: WIDTH,
+          height: HEIGHT,
+        });
+        const records = flatten(captured.tree).flatMap((element) => element.pseudoFragments ?? []);
+        const exact = records.filter((record) => record.status === "exact");
+        const terminal = records.filter((record) => record.status === "terminal-raster");
+        const structuralErrors = exact.flatMap((record, index) =>
+          pseudoFragmentRecordErrors(record).map((error) => `${index}:${error}`),
+        );
+        const checkables = flatten(captured.tree).filter(
+          (element) =>
+            element.animId?.startsWith("check-") ||
+            element.animId?.startsWith("base-") ||
+            element.animId === "native-auto",
+        );
+        for (const element of checkables) {
+          const identity = element.animId ?? "unknown";
+          if (identity === "native-auto") {
+            if (element.nativeControlRaster == null)
+              structuralErrors.push(`${identity}: native auto control lost Chromium raster ownership`);
+            if (checkablePseudoFactsOwnIndicator(element))
+              structuralErrors.push(`${identity}: auto control activated authored pseudo ownership`);
+            continue;
+          }
+          if (!checkablePseudoFactsOwnIndicator(element))
+            structuralErrors.push(`${identity}: authoritative pseudo facts did not suppress compatibility synthesis`);
+          if (renderFormControl(element, "") !== "")
+            structuralErrors.push(`${identity}: generic indicator synthesis remained active`);
         }
-        if (!checkablePseudoFactsOwnIndicator(element))
-          structuralErrors.push(`${identity}: authoritative pseudo facts did not suppress compatibility synthesis`);
-        if (renderFormControl(element, "") !== "")
-          structuralErrors.push(`${identity}: generic indicator synthesis remained active`);
+        const checkmarkRecords = records.filter((record) => record.pseudo === "::checkmark");
+        if (checkmarkRecords.length !== 3)
+          structuralErrors.push(`expected 3 ::checkmark records, received ${checkmarkRecords.length}`);
+        for (const identity of [
+          "check-before",
+          "check-after",
+          "check-gradient",
+          "check-indeterminate",
+          "check-disabled",
+          "check-switch",
+        ]) {
+          const element = checkables.find((candidate) => candidate.animId === identity);
+          if ((element?.pseudoFragments?.length ?? 0) === 0)
+            structuralErrors.push(`${identity}: generated pseudo record missing`);
+        }
+        const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
+        if (artifactDir != null) {
+          mkdirSync(artifactDir, { recursive: true });
+          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
+        }
+        const renderedRecords = (svg.match(/data-domotion-pseudo-source="blink-pseudo-fragment-v1"/g) ?? []).length;
+        const rendered = await context.newPage();
+        await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, {
+          waitUntil: "load",
+        });
+        await rendered.evaluate(async () => {
+          await document.fonts.ready;
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        });
+        const renderedPng = Buffer.from(
+          await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }),
+        );
+        if (artifactDir != null) {
+          mkdirSync(artifactDir, { recursive: true });
+          writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
+          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
+        }
+        const [sourceMask, renderedMask] = await Promise.all([targetEdges(sourcePng), targetEdges(renderedPng)]);
+        // Screenshot buffers are already in device-pixel coordinates at every
+        // deviceScaleFactor. Keep the acceptance disk at four DEVICE pixels;
+        // multiplying here would silently weaken DPR2 to an eight-pixel gate.
+        const radius = 4;
+        const forward = directedEdgeDistance(sourceMask, renderedMask, radius);
+        const reverse = directedEdgeDistance(renderedMask, sourceMask, radius);
+        const expectedRendered = records.filter(
+          (record: CapturedPseudoFragmentSet) => !pseudoFragmentIsUnpainted(record),
+        ).length;
+        rows.push({
+          dpr,
+          exactRecords: exact.length,
+          terminalRecords: terminal.length,
+          terminalReasons: terminal.map((record) => `${record.pseudo}:${record.reason ?? "unknown"}`),
+          renderedRecords,
+          sourceEdges: sourceMask.count,
+          renderedEdges: renderedMask.count,
+          maxEdgeDistanceDevicePixels: Math.max(forward.max, reverse.max),
+          unmatchedSourceEdges: forward.misses,
+          unmatchedRenderedEdges: reverse.misses,
+          structuralErrors,
+          pass:
+            structuralErrors.length === 0 &&
+            terminal.length === 0 &&
+            renderedRecords === expectedRendered &&
+            sourceMask.count > 0 &&
+            renderedMask.count > 0 &&
+            forward.misses === 0 &&
+            reverse.misses === 0 &&
+            Math.max(forward.max, reverse.max) <= radius,
+        });
+        await context.close();
       }
-      const checkmarkRecords = records.filter((record) => record.pseudo === "::checkmark");
-      if (checkmarkRecords.length !== 3)
-        structuralErrors.push(`expected 3 ::checkmark records, received ${checkmarkRecords.length}`);
-      for (const identity of [
-        "check-before",
-        "check-after",
-        "check-gradient",
-        "check-indeterminate",
-        "check-disabled",
-        "check-switch",
-      ]) {
-        const element = checkables.find((candidate) => candidate.animId === identity);
-        if ((element?.pseudoFragments?.length ?? 0) === 0)
-          structuralErrors.push(`${identity}: generated pseudo record missing`);
-      }
-      const svg = elementTreeToSvg(captured.tree, WIDTH, HEIGHT);
-      if (artifactDir != null) {
-        mkdirSync(artifactDir, { recursive: true });
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
-      }
-      const renderedRecords = (svg.match(/data-domotion-pseudo-source="blink-pseudo-fragment-v1"/g) ?? []).length;
-      const rendered = await context.newPage();
-      await rendered.setContent(`<!doctype html><style>html,body{margin:0;background:white}</style>${svg}`, {
-        waitUntil: "load",
-      });
-      await rendered.evaluate(async () => {
-        await document.fonts.ready;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      });
-      const renderedPng = Buffer.from(
-        await rendered.screenshot({ clip: { x: 0, y: 0, width: WIDTH, height: HEIGHT } }),
-      );
-      if (artifactDir != null) {
-        mkdirSync(artifactDir, { recursive: true });
-        writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, sourcePng);
-        writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
-      }
-      const [sourceMask, renderedMask] = await Promise.all([targetEdges(sourcePng), targetEdges(renderedPng)]);
-      // Screenshot buffers are already in device-pixel coordinates at every
-      // deviceScaleFactor. Keep the acceptance disk at four DEVICE pixels;
-      // multiplying here would silently weaken DPR2 to an eight-pixel gate.
-      const radius = 4;
-      const forward = directedEdgeDistance(sourceMask, renderedMask, radius);
-      const reverse = directedEdgeDistance(renderedMask, sourceMask, radius);
-      const expectedRendered = records.filter(
-        (record: CapturedPseudoFragmentSet) => !pseudoFragmentIsUnpainted(record),
-      ).length;
-      rows.push({
-        dpr,
-        exactRecords: exact.length,
-        terminalRecords: terminal.length,
-        terminalReasons: terminal.map((record) => `${record.pseudo}:${record.reason ?? "unknown"}`),
-        renderedRecords,
-        sourceEdges: sourceMask.count,
-        renderedEdges: renderedMask.count,
-        maxEdgeDistanceDevicePixels: Math.max(forward.max, reverse.max),
-        unmatchedSourceEdges: forward.misses,
-        unmatchedRenderedEdges: reverse.misses,
-        structuralErrors,
-        pass:
-          structuralErrors.length === 0 &&
-          terminal.length === 0 &&
-          renderedRecords === expectedRendered &&
-          sourceMask.count > 0 &&
-          renderedMask.count > 0 &&
-          forward.misses === 0 &&
-          reverse.misses === 0 &&
-          Math.max(forward.max, reverse.max) <= radius,
-      });
-      await context.close();
-    }
-  } finally {
-    await browser.close();
-  }
+    },
+    { headless: true, args: ["--enable-blink-features=AppearanceBase"] },
+  );
   return {
     schemaVersion: 1,
-    chromiumVersion: browser.version(),
+    chromiumVersion,
     platform: process.platform,
     architecture: process.arch,
     toleranceDevicePixels: 4,

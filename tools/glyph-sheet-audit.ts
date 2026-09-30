@@ -30,6 +30,7 @@ import { readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import sharp from "sharp";
+import { withBrowser } from "./lib/browser.js";
 import {
   extractCoverage,
   compareGlyphCoverage,
@@ -292,28 +293,29 @@ async function main(): Promise<void> {
   if (sheet) sheets = sheets.filter((s) => s === sheet);
   else if (only) sheets = sheets.filter((s) => s.includes(only));
 
-  const browser = await chromium.launch();
-  const results: SheetResult[] = [];
-  let done = 0;
-  for (const name of sheets) {
-    const expPath = join(resultsDir, `${name}-expected.png`);
-    const actPath = join(resultsDir, `${name}-actual.png`);
-    const fixture = join(fixturesDir, `${name}.html`);
-    if (!existsSync(actPath) || !existsSync(fixture)) continue;
-    try {
-      const r = await auditSheet(browser, name, fixture, expPath, actPath);
-      if (r) {
-        results.push(r);
-        const flag = r.layoutDrift ? " ⚠LAYOUT-DRIFT" : "";
-        process.stderr.write(
-          `[${++done}/${sheets.length}] ${name}: ${r.incorrect}/${r.cells} incorrect${r.errors ? `, ${r.errors} err` : ""}${flag}\n`,
-        );
+  const { results } = await withBrowser(async (browser) => {
+    const results: SheetResult[] = [];
+    let done = 0;
+    for (const name of sheets) {
+      const expPath = join(resultsDir, `${name}-expected.png`);
+      const actPath = join(resultsDir, `${name}-actual.png`);
+      const fixture = join(fixturesDir, `${name}.html`);
+      if (!existsSync(actPath) || !existsSync(fixture)) continue;
+      try {
+        const r = await auditSheet(browser, name, fixture, expPath, actPath);
+        if (r) {
+          results.push(r);
+          const flag = r.layoutDrift ? " ⚠LAYOUT-DRIFT" : "";
+          process.stderr.write(
+            `[${++done}/${sheets.length}] ${name}: ${r.incorrect}/${r.cells} incorrect${r.errors ? `, ${r.errors} err` : ""}${flag}\n`,
+          );
+        }
+      } catch (e) {
+        process.stderr.write(`[skip] ${name}: ${(e as Error).message}\n`);
       }
-    } catch (e) {
-      process.stderr.write(`[skip] ${name}: ${(e as Error).message}\n`);
     }
-  }
-  await browser.close();
+    return { results };
+  });
 
   writeFileSync(outPath, JSON.stringify(results, null, 1));
 

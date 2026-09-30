@@ -64,7 +64,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
+import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import {
   beginCharacterFallbackDocument,
@@ -77,6 +77,7 @@ import {
   splitTextIntoGlyphPathRuns,
   hbSubsetRetainGids,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { clearWebfonts, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
 // Reuse the per-codepoint oracle's face-identity reconciliation verbatim, so
 // "same face" means the same thing in both instruments.
@@ -505,39 +506,20 @@ async function main(): Promise<number> {
 
   const clusterFlag =
     process.env.DOMOTION_CLUSTER_FALLBACK === "0" ? "legacy-per-codepoint" : "shaped-cluster (default)";
-  const browser = await chromium.launch();
   const results: CellResult[] = [];
   beginCharacterFallbackDocument();
   try {
-    const chrome = await ChromeSide.create(browser);
-    for (const cell of cells) {
-      if (cell.knownSkipReason != null) {
-        results.push({
-          id: cell.id,
-          fontFamily: cell.fontFamily,
-          textHex: [...cell.text].map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase()}`).join(" "),
-          note: cell.note,
-          verdict: "skip",
-          skipReason: cell.knownSkipReason,
-          chromeFaces: [],
-          ourFaces: [],
-          ourRuns: [],
-          unmatchedChrome: [],
-          unmatchedOurs: [],
-        });
-        continue;
-      }
-      let subset: Buffer | null = null;
-      if (cell.webfont != null) {
-        subset = buildWebfontSubset(cell.webfont);
-        if (subset == null) {
+    await withBrowser(async (browser) => {
+      const chrome = await ChromeSide.create(browser);
+      for (const cell of cells) {
+        if (cell.knownSkipReason != null) {
           results.push({
             id: cell.id,
             fontFamily: cell.fontFamily,
             textHex: [...cell.text].map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase()}`).join(" "),
             note: cell.note,
             verdict: "skip",
-            skipReason: `webfont source unavailable: ${cell.webfont.sourcePath}`,
+            skipReason: cell.knownSkipReason,
             chromeFaces: [],
             ourFaces: [],
             ourRuns: [],
@@ -546,20 +528,39 @@ async function main(): Promise<number> {
           });
           continue;
         }
-        registerWebfont(cell.webfont.family, WEIGHT, "normal", subset);
+        let subset: Buffer | null = null;
+        if (cell.webfont != null) {
+          subset = buildWebfontSubset(cell.webfont);
+          if (subset == null) {
+            results.push({
+              id: cell.id,
+              fontFamily: cell.fontFamily,
+              textHex: [...cell.text].map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase()}`).join(" "),
+              note: cell.note,
+              verdict: "skip",
+              skipReason: `webfont source unavailable: ${cell.webfont.sourcePath}`,
+              chromeFaces: [],
+              ourFaces: [],
+              ourRuns: [],
+              unmatchedChrome: [],
+              unmatchedOurs: [],
+            });
+            continue;
+          }
+          registerWebfont(cell.webfont.family, WEIGHT, "normal", subset);
+        }
+        try {
+          const chromeFaces = await chrome.facesFor(cell, subset);
+          const ourRuns = ourRunsForCell(cell);
+          results.push(judgeCell(cell, chromeFaces, ourRuns));
+        } finally {
+          if (cell.webfont != null) clearWebfonts();
+        }
       }
-      try {
-        const chromeFaces = await chrome.facesFor(cell, subset);
-        const ourRuns = ourRunsForCell(cell);
-        results.push(judgeCell(cell, chromeFaces, ourRuns));
-      } finally {
-        if (cell.webfont != null) clearWebfonts();
-      }
-    }
-    await chrome.close();
+      await chrome.close();
+    });
   } finally {
     endCharacterFallbackDocument();
-    await browser.close();
   }
 
   const agreed = results.filter((r) => r.verdict === "agree").length;

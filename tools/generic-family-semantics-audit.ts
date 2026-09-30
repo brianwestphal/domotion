@@ -12,9 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
-import { chromium, type CDPSession, type Page } from "@playwright/test";
-
+import { type CDPSession, type Page } from "@playwright/test";
 import {
   __setWin32FamilyKeyResolverForTest,
   __skiaLastResortKeysForTest,
@@ -27,6 +25,7 @@ import {
   win32FallbackChain,
   type WinGenericFamily,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 
 export const GENERIC_FAMILY_SEMANTICS_SOURCE_PINS = {
@@ -851,43 +850,43 @@ async function collectOrder(
 export async function runGenericFamilySemanticsAudit(): Promise<GenericFamilySemanticsReport> {
   const target = gatePlatform(platform());
   const sourceFingerprints = collectGenericFamilySourceFingerprints();
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const context = await browser.newContext({ viewport: { width: 800, height: 960 } });
-    const orders: GenericFamilySemanticsOrder[] = [];
-    clearFontResolutionCaches();
-    __setWin32FamilyKeyResolverForTest((family) => `winfam:${family}`);
-    try {
-      for (const order of ["forward", "reverse"] as const) {
-        const page = await context.newPage();
-        try {
-          orders.push(await collectOrder(page, target, order));
-        } finally {
-          await page.close();
+  return await withBrowser(
+    async (browser) => {
+      const context = await browser.newContext({ viewport: { width: 800, height: 960 } });
+      const orders: GenericFamilySemanticsOrder[] = [];
+      clearFontResolutionCaches();
+      __setWin32FamilyKeyResolverForTest((family) => `winfam:${family}`);
+      try {
+        for (const order of ["forward", "reverse"] as const) {
+          const page = await context.newPage();
+          try {
+            orders.push(await collectOrder(page, target, order));
+          } finally {
+            await page.close();
+          }
         }
+      } finally {
+        __setWin32FamilyKeyResolverForTest(null);
+        await context.close();
       }
-    } finally {
-      __setWin32FamilyKeyResolverForTest(null);
-      await context.close();
-    }
-    const classification = classifyGenericFamilySemanticsEvidence(orders, sourceFingerprints.match);
-    return {
-      schemaVersion: 2,
-      sourcePins: GENERIC_FAMILY_SEMANTICS_SOURCE_PINS,
-      sourceFingerprints,
-      environment: {
-        platform: target,
-        architecture: arch(),
-        osRelease: release(),
-        nodeVersion: process.version,
-        chromiumVersion: browser.version(),
-      },
-      orders,
-      ...classification,
-    };
-  } finally {
-    await browser.close();
-  }
+      const classification = classifyGenericFamilySemanticsEvidence(orders, sourceFingerprints.match);
+      return {
+        schemaVersion: 2,
+        sourcePins: GENERIC_FAMILY_SEMANTICS_SOURCE_PINS,
+        sourceFingerprints,
+        environment: {
+          platform: target,
+          architecture: arch(),
+          osRelease: release(),
+          nodeVersion: process.version,
+          chromiumVersion: browser.version(),
+        },
+        orders,
+        ...classification,
+      };
+    },
+    { headless: true },
+  );
 }
 
 async function main(): Promise<void> {

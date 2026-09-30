@@ -24,14 +24,7 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeFileSync } from "node:fs";
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type CDPSession,
-  type LaunchOptions,
-  type Page,
-} from "@playwright/test";
+import { type BrowserContext, type CDPSession, type LaunchOptions, type Page } from "@playwright/test";
 import {
   getSessionGenericFamilyOverrides,
   resolveFont,
@@ -41,6 +34,7 @@ import {
   setSessionGenericFamilyOverrides,
   withSessionGenericFamilyOverrides,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import {
   ensureSessionGenericFamilyOverrides,
   genericFamilyReplayName,
@@ -556,111 +550,110 @@ function resolveAgainstCurrentGlobal(rows: BlinkPreferenceRow[]): number {
 }
 
 async function runMode(mode: LaunchMode): Promise<ModeReport> {
-  let browser: Browser | null = null;
   let context: BrowserContext | null = null;
   let mutationSession: CDPSession | null = null;
-  try {
-    browser = await chromium.launch(mode.options);
-    context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: "en-US" });
-    const browserCdp = await browser.newBrowserCDPSession();
-    const browserVersion = await browserCdp.send("Browser.getVersion");
-    await browserCdp.detach();
+  return await withBrowser(async (browser) => {
+    try {
+      context = await browser.newContext({ viewport: { width: 900, height: 700 }, locale: "en-US" });
+      const browserCdp = await browser.newBrowserCDPSession();
+      const browserVersion = await browserCdp.send("Browser.getVersion");
+      await browserCdp.detach();
 
-    const defaultPage = await context.newPage();
-    await defaultPage.setContent("<!doctype html><meta charset=utf-8><body>DM-2351 default</body>");
-    const defaultCdp = await context.newCDPSession(defaultPage);
-    await defaultCdp.send("DOM.enable");
-    await defaultCdp.send("CSS.enable");
-    const defaultState = await collectState(defaultPage, defaultCdp, "default", null);
+      const defaultPage = await context.newPage();
+      await defaultPage.setContent("<!doctype html><meta charset=utf-8><body>DM-2351 default</body>");
+      const defaultCdp = await context.newCDPSession(defaultPage);
+      await defaultCdp.send("DOM.enable");
+      await defaultCdp.send("CSS.enable");
+      const defaultState = await collectState(defaultPage, defaultCdp, "default", null);
 
-    const mutation = buildPreferenceMutation(defaultState.sourceRows);
-    const mutationPage = await context.newPage();
-    mutationSession = await context.newCDPSession(mutationPage);
-    await mutationSession.send("Page.setFontFamilies", {
-      fontFamilies: mutation.fontFamilies,
-      forScripts: mutation.forScripts,
-    });
-    await mutationPage.setContent("<!doctype html><meta charset=utf-8><body>DM-2351 mutation</body>");
-    const mutationCdp = await context.newCDPSession(mutationPage);
-    await mutationCdp.send("DOM.enable");
-    await mutationCdp.send("CSS.enable");
-    const mutationState = await collectState(mutationPage, mutationCdp, "mutation", mutation);
+      const mutation = buildPreferenceMutation(defaultState.sourceRows);
+      const mutationPage = await context.newPage();
+      mutationSession = await context.newCDPSession(mutationPage);
+      await mutationSession.send("Page.setFontFamilies", {
+        fontFamilies: mutation.fontFamilies,
+        forScripts: mutation.forScripts,
+      });
+      await mutationPage.setContent("<!doctype html><meta charset=utf-8><body>DM-2351 mutation</body>");
+      const mutationCdp = await context.newCDPSession(mutationPage);
+      await mutationCdp.send("DOM.enable");
+      await mutationCdp.send("CSS.enable");
+      const mutationState = await collectState(mutationPage, mutationCdp, "mutation", mutation);
 
-    const defaultMap = rowsByKey(defaultState.sourceRows);
-    const mutationMap = rowsByKey(mutationState.sourceRows);
-    const genericKeys = [...defaultMap].filter(([, row]) => isSettingsGeneric(row.generic)).map(([key]) => key);
-    const systemUiKeys = [...defaultMap].filter(([, row]) => row.generic === "system-ui").map(([key]) => key);
-    const quotedLiteralKeys = [...defaultMap].filter(([, row]) => row.generic === "quoted-serif").map(([key]) => key);
-    const mutatedGenericRows = genericKeys.filter(
-      (key) => normFace(face(defaultMap.get(key)!)) !== normFace(face(mutationMap.get(key)!)),
-    ).length;
-    const systemUiNegativeControlStable = systemUiKeys.every(
-      (key) => normFace(face(defaultMap.get(key)!)) === normFace(face(mutationMap.get(key)!)),
-    );
-    const quotedLiteralControlExact = mutationState.report.rows
-      .filter((row) => row.generic === "quoted-serif")
-      .every((row) => row.exact);
+      const defaultMap = rowsByKey(defaultState.sourceRows);
+      const mutationMap = rowsByKey(mutationState.sourceRows);
+      const genericKeys = [...defaultMap].filter(([, row]) => isSettingsGeneric(row.generic)).map(([key]) => key);
+      const systemUiKeys = [...defaultMap].filter(([, row]) => row.generic === "system-ui").map(([key]) => key);
+      const quotedLiteralKeys = [...defaultMap].filter(([, row]) => row.generic === "quoted-serif").map(([key]) => key);
+      const mutatedGenericRows = genericKeys.filter(
+        (key) => normFace(face(defaultMap.get(key)!)) !== normFace(face(mutationMap.get(key)!)),
+      ).length;
+      const systemUiNegativeControlStable = systemUiKeys.every(
+        (key) => normFace(face(defaultMap.get(key)!)) === normFace(face(mutationMap.get(key)!)),
+      );
+      const quotedLiteralControlExact = mutationState.report.rows
+        .filter((row) => row.generic === "quoted-serif")
+        .every((row) => row.exact);
 
-    // Deterministic discriminator for the retired ownership: if state B is
-    // installed process-globally, resolving A reads B. The scoped callback
-    // recovers A and restores B afterward. Production capture no longer calls
-    // this setter; captured trees carry A/B explicitly.
-    const prior = getSessionGenericFamilyOverrides();
-    const scopedRows = defaultState.sourceRows.filter((row) => isSettingsGeneric(row.generic));
-    setSessionGenericFamilyOverrides(mutationState.probe);
-    const contaminatedExact = resolveAgainstCurrentGlobal(scopedRows);
-    const scopedExact = withSessionGenericFamilyOverrides(defaultState.probe, () =>
-      resolveAgainstCurrentGlobal(scopedRows),
-    );
-    const restored = getSessionGenericFamilyOverrides() === mutationState.probe;
-    setSessionGenericFamilyOverrides(prior);
-    const legacyProcessGlobalContaminatedRows = scopedRows.length - contaminatedExact;
+      // Deterministic discriminator for the retired ownership: if state B is
+      // installed process-globally, resolving A reads B. The scoped callback
+      // recovers A and restores B afterward. Production capture no longer calls
+      // this setter; captured trees carry A/B explicitly.
+      const prior = getSessionGenericFamilyOverrides();
+      const scopedRows = defaultState.sourceRows.filter((row) => isSettingsGeneric(row.generic));
+      setSessionGenericFamilyOverrides(mutationState.probe);
+      const contaminatedExact = resolveAgainstCurrentGlobal(scopedRows);
+      const scopedExact = withSessionGenericFamilyOverrides(defaultState.probe, () =>
+        resolveAgainstCurrentGlobal(scopedRows),
+      );
+      const restored = getSessionGenericFamilyOverrides() === mutationState.probe;
+      setSessionGenericFamilyOverrides(prior);
+      const legacyProcessGlobalContaminatedRows = scopedRows.length - contaminatedExact;
 
-    const navigator = await mutationPage.evaluate(() => ({
-      userAgent: globalThis.navigator.userAgent,
-      language: globalThis.navigator.language,
-      languages: [...globalThis.navigator.languages],
-      platform: globalThis.navigator.platform,
-    }));
-    await Promise.all([defaultCdp.detach(), mutationCdp.detach()]);
-    const mutationTargetCount = Object.keys(mutation.expectedFaceByTarget).length;
-    const pass =
-      defaultState.report.pass &&
-      mutationState.report.pass &&
-      mutatedGenericRows === mutationTargetCount &&
-      systemUiNegativeControlStable &&
-      quotedLiteralControlExact &&
-      legacyProcessGlobalContaminatedRows > 0 &&
-      scopedExact === scopedRows.length &&
-      restored;
-    return {
-      id: mode.id,
-      engine: mode.engine,
-      headless: mode.headless,
-      browserVersion: browser.version(),
-      protocolVersion: browserVersion.protocolVersion,
-      product: browserVersion.product,
-      revision: browserVersion.revision,
-      userAgent: browserVersion.userAgent,
-      jsVersion: browserVersion.jsVersion,
-      navigator,
-      default: defaultState.report,
-      mutation: mutationState.report,
-      mutatedGenericRows,
-      systemUiNegativeControlRows: systemUiKeys.length,
-      systemUiNegativeControlStable,
-      quotedLiteralControlRows: quotedLiteralKeys.length,
-      quotedLiteralControlExact,
-      legacyProcessGlobalContaminatedRows,
-      capturedScopeRecoveredRows: scopedExact,
-      capturedScopeRestoredPriorGlobal: restored,
-      pass,
-    };
-  } finally {
-    await mutationSession?.detach().catch(() => {});
-    await context?.close().catch(() => {});
-    await browser?.close().catch(() => {});
-  }
+      const navigator = await mutationPage.evaluate(() => ({
+        userAgent: globalThis.navigator.userAgent,
+        language: globalThis.navigator.language,
+        languages: [...globalThis.navigator.languages],
+        platform: globalThis.navigator.platform,
+      }));
+      await Promise.all([defaultCdp.detach(), mutationCdp.detach()]);
+      const mutationTargetCount = Object.keys(mutation.expectedFaceByTarget).length;
+      const pass =
+        defaultState.report.pass &&
+        mutationState.report.pass &&
+        mutatedGenericRows === mutationTargetCount &&
+        systemUiNegativeControlStable &&
+        quotedLiteralControlExact &&
+        legacyProcessGlobalContaminatedRows > 0 &&
+        scopedExact === scopedRows.length &&
+        restored;
+      return {
+        id: mode.id,
+        engine: mode.engine,
+        headless: mode.headless,
+        browserVersion: browser.version(),
+        protocolVersion: browserVersion.protocolVersion,
+        product: browserVersion.product,
+        revision: browserVersion.revision,
+        userAgent: browserVersion.userAgent,
+        jsVersion: browserVersion.jsVersion,
+        navigator,
+        default: defaultState.report,
+        mutation: mutationState.report,
+        mutatedGenericRows,
+        systemUiNegativeControlRows: systemUiKeys.length,
+        systemUiNegativeControlStable,
+        quotedLiteralControlRows: quotedLiteralKeys.length,
+        quotedLiteralControlExact,
+        legacyProcessGlobalContaminatedRows,
+        capturedScopeRecoveredRows: scopedExact,
+        capturedScopeRestoredPriorGlobal: restored,
+        pass,
+      };
+    } finally {
+      await mutationSession?.detach().catch(() => {});
+      await context?.close().catch(() => {});
+    }
+  }, mode.options);
 }
 
 function revision(repo: string, ref = "HEAD"): string {

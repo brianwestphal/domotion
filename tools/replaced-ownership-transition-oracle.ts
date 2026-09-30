@@ -7,7 +7,8 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
 import sharp from "sharp";
-import { chromium, type Browser, type BrowserContext, type Page, type Route } from "playwright";
+import { type Browser, type BrowserContext, type Page, type Route } from "playwright";
+import { withBrowser } from "./lib/browser.js";
 
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CaptureWarning } from "../src/capture/types.js";
@@ -1001,32 +1002,30 @@ async function runWithBrowser(browser: Browser, deviceScaleFactor: number): Prom
 }
 
 export async function runReplacedOwnershipTransitionOracle(deviceScaleFactor = 1): Promise<ReplacedOwnershipRunReport> {
-  const browser = await chromium.launch({ headless: true, args: [...LAUNCH_ARGS] });
-  try {
-    return await runWithBrowser(browser, deviceScaleFactor);
-  } finally {
-    await browser.close();
-  }
+  return withBrowser((browser) => runWithBrowser(browser, deviceScaleFactor), {
+    headless: true,
+    args: [...LAUNCH_ARGS],
+  });
 }
 
 export async function runReplacedOwnershipGate(
   deviceScaleFactors: number[] = [1, 2],
 ): Promise<ReplacedOwnershipGateReport> {
   const normalized = [...new Set(deviceScaleFactors)].sort((a, b) => a - b);
-  const browser = await chromium.launch({ headless: true, args: [...LAUNCH_ARGS] });
-  try {
-    const runs: ReplacedOwnershipRunReport[] = [];
-    for (const dpr of normalized) runs.push(await runWithBrowser(browser, dpr));
-    return {
-      schemaVersion: 2,
-      generatedAt: new Date().toISOString(),
-      requiredDeviceScaleFactors: normalized,
-      runs,
-      verdict: runs.every((run) => run.adjudication.pass) ? "source-exact" : "source-drift",
-    };
-  } finally {
-    await browser.close();
-  }
+  return await withBrowser(
+    async (browser) => {
+      const runs: ReplacedOwnershipRunReport[] = [];
+      for (const dpr of normalized) runs.push(await runWithBrowser(browser, dpr));
+      return {
+        schemaVersion: 2,
+        generatedAt: new Date().toISOString(),
+        requiredDeviceScaleFactors: normalized,
+        runs,
+        verdict: runs.every((run) => run.adjudication.pass) ? "source-exact" : "source-drift",
+      };
+    },
+    { headless: true, args: [...LAUNCH_ARGS] },
+  );
 }
 
 async function main(): Promise<void> {

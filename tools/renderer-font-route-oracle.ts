@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser } from "playwright";
+import { type Browser } from "playwright";
 import bidiFactory from "bidi-js";
 import {
   getTextRunProvenance,
@@ -15,6 +15,7 @@ import {
   helperRouteLedgerEnvironment,
   segmentForShaping,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import {
   clearEmbeddedFonts,
   clearGlyphDefs,
@@ -475,20 +476,20 @@ async function main(): Promise<number> {
   );
   const domotion = collectDomotionRouteEvidence();
 
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const records = await collectChromiumRouteEvidence(browser, domotion, helperEnvironment);
-    const { controls, mechanisms } = compareRouteControls(records);
-    const complete = compareRouteEvidence(records, controls);
-    const report = buildRouteReport(records, helperEnvironment, mechanisms, controls, complete);
-    if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
-    console.log(
-      `renderer font-route evidence: ${records.length} cases; mechanisms ${mechanisms.join(", ")}; controls ${JSON.stringify(controls)}`,
-    );
-    return complete ? 0 : 1;
-  } finally {
-    await browser.close();
-  }
+  return await withBrowser(
+    async (browser) => {
+      const records = await collectChromiumRouteEvidence(browser, domotion, helperEnvironment);
+      const { controls, mechanisms } = compareRouteControls(records);
+      const complete = compareRouteEvidence(records, controls);
+      const report = buildRouteReport(records, helperEnvironment, mechanisms, controls, complete);
+      if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+      console.log(
+        `renderer font-route evidence: ${records.length} cases; mechanisms ${mechanisms.join(", ")}; controls ${JSON.stringify(controls)}`,
+      );
+      return complete ? 0 : 1;
+    },
+    { headless: true },
+  );
 }
 
 if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -17,7 +17,8 @@ import { pathToFileURL } from "node:url";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
-import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
+import { captureElementTreeWithWarnings } from "../src/capture/index.js";
+import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 
@@ -770,13 +771,13 @@ export async function runBackdropSourceSurfaceAudit(
   dprs: number[] = [1, 2],
   artifactDir?: string,
 ): Promise<BackdropSourceSurfaceReport> {
-  const browser = await launchChromium();
-  const chromiumVersion = browser.version();
+  let chromiumVersion = "unknown";
   const rows: BackdropAuditRow[] = [];
   const warnings: string[] = [];
   const backdropWarnings: string[] = [];
   const blockers: string[] = [];
-  try {
+  await withBrowser(async (browser) => {
+    chromiumVersion = browser.version();
     for (const dpr of dprs) {
       const context = await browser.newContext({ viewport: BACKDROP_VIEWPORT, deviceScaleFactor: dpr });
       const sourcePage = await context.newPage();
@@ -983,9 +984,7 @@ export async function runBackdropSourceSurfaceAudit(
         await context.close();
       }
     }
-  } finally {
-    await browser.close();
-  }
+  });
 
   for (const dpr of dprs) {
     const families = new Set(rows.filter((row) => row.dpr === dpr).map((row) => row.family));

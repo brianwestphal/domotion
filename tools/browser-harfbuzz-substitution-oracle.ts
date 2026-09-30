@@ -19,7 +19,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "
 import { platform } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { type Browser, type BrowserContext, type Page } from "playwright";
 import {
   harfbuzzShapeRun,
   registerHbBufferSource,
@@ -28,6 +28,7 @@ import {
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
@@ -842,8 +843,9 @@ export async function collectBrowserOwnership(
   fixtures: ReturnType<typeof loadSubstitutionFixtures>,
   browser?: Browser,
 ): Promise<{ cases: SubstitutionCaseEvidence[]; browserVersion: string }> {
-  const ownedBrowser = browser ?? (await chromium.launch({ headless: true }));
-  try {
+  const collect = async (
+    ownedBrowser: Browser,
+  ): Promise<{ cases: SubstitutionCaseEvidence[]; browserVersion: string }> => {
     const context = await ownedBrowser.newContext({
       viewport: { width: 1200, height: 800 },
       deviceScaleFactor: 1,
@@ -957,9 +959,8 @@ export async function collectBrowserOwnership(
     }
     await context.close();
     return { cases: joined, browserVersion: ownedBrowser.version() };
-  } finally {
-    if (browser == null) await ownedBrowser.close();
-  }
+  };
+  return browser == null ? withBrowser(collect, { headless: true }) : collect(browser);
 }
 
 export async function buildBrowserHarfBuzzSubstitutionReport(

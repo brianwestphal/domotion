@@ -3,7 +3,8 @@
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
+import { type Browser, type CDPSession, type Page } from "@playwright/test";
+import { withBrowser } from "./lib/browser.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
@@ -634,34 +635,34 @@ function mutationMatrix(rows: PseudoOracleRow[]): PseudoMutationResult[] {
 export async function runPseudoFragmentGeometryOracle(
   options: { deviceScaleFactors?: number[] } = {},
 ): Promise<PseudoFragmentOracleReport> {
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const deviceScaleFactors = options.deviceScaleFactors ?? [1, 2];
-    const rows = (await Promise.all(deviceScaleFactors.map((dpr) => collectDprRows(browser, dpr)))).flat();
-    const coveredStates = [...new Set(rows.filter((row) => row.pass).flatMap((row) => row.states))];
-    for (const dpr of deviceScaleFactors)
-      if (rows.some((row) => row.deviceScaleFactor === dpr && row.pass)) coveredStates.push(`DPR:${dpr}`);
-    const mutations = mutationMatrix(rows);
-    const allStatesCovered = requiredStates
-      .filter((state) => state !== "DPR:2" || deviceScaleFactors.includes(2))
-      .every((state) => coveredStates.includes(state));
-    const pass = rows.every((row) => row.pass) && mutations.every((item) => item.rejected) && allStatesCovered;
-    return {
-      schemaVersion: 1,
-      sourcePins: { chromium: CHROMIUM_REVISION, harfbuzz: HARFBUZZ_REVISION, skia: SKIA_REVISION },
-      chromiumVersion: browser.version(),
-      playwrightVersion,
-      platform: process.platform,
-      architecture: process.arch,
-      rows,
-      requiredStates: requiredStates.filter((state) => state !== "DPR:2" || deviceScaleFactors.includes(2)),
-      coveredStates,
-      mutations,
-      verdict: pass ? "source-exact" : "source-drift",
-    };
-  } finally {
-    await browser.close();
-  }
+  return await withBrowser(
+    async (browser) => {
+      const deviceScaleFactors = options.deviceScaleFactors ?? [1, 2];
+      const rows = (await Promise.all(deviceScaleFactors.map((dpr) => collectDprRows(browser, dpr)))).flat();
+      const coveredStates = [...new Set(rows.filter((row) => row.pass).flatMap((row) => row.states))];
+      for (const dpr of deviceScaleFactors)
+        if (rows.some((row) => row.deviceScaleFactor === dpr && row.pass)) coveredStates.push(`DPR:${dpr}`);
+      const mutations = mutationMatrix(rows);
+      const allStatesCovered = requiredStates
+        .filter((state) => state !== "DPR:2" || deviceScaleFactors.includes(2))
+        .every((state) => coveredStates.includes(state));
+      const pass = rows.every((row) => row.pass) && mutations.every((item) => item.rejected) && allStatesCovered;
+      return {
+        schemaVersion: 1,
+        sourcePins: { chromium: CHROMIUM_REVISION, harfbuzz: HARFBUZZ_REVISION, skia: SKIA_REVISION },
+        chromiumVersion: browser.version(),
+        playwrightVersion,
+        platform: process.platform,
+        architecture: process.arch,
+        rows,
+        requiredStates: requiredStates.filter((state) => state !== "DPR:2" || deviceScaleFactors.includes(2)),
+        coveredStates,
+        mutations,
+        verdict: pass ? "source-exact" : "source-drift",
+      };
+    },
+    { headless: true },
+  );
 }
 
 async function main(): Promise<number> {

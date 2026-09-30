@@ -29,7 +29,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchChromium } from "../src/capture/index.js";
+import { withBrowser } from "../tools/lib/browser.js";
 import { composeAnimateConfig, validateAnimateConfig } from "../src/cli/animate.js";
 import { animateGoldensEquivalent } from "./animate-golden-compare.js";
 
@@ -657,9 +657,8 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const browser = await launchChromium();
   let failed = 0;
-  try {
+  await withBrowser(async (browser) => {
     for (const ex of examples) {
       const configPath = resolve(EX_DIR, ex.name, `${ex.name}.json`);
       const goldenPath = resolve(EX_DIR, ex.name, `${ex.name}.svg`);
@@ -705,9 +704,7 @@ async function main(): Promise<void> {
         for (const p of problems) process.stdout.write(`    - ${p}\n`);
       }
     }
-  } finally {
-    await browser.close();
-  }
+  });
 
   if (update) {
     process.stdout.write(`\nGoldens updated.\n`);

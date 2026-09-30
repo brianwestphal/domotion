@@ -56,7 +56,8 @@
  * ---------------------------------------------------------------------------
  */
 import { hostname, cpus, release } from "node:os";
-import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
+import { type Browser, type CDPSession, type Page } from "@playwright/test";
+import { withBrowser } from "./lib/browser.js";
 import { inventoryDocument } from "./font-inventory.mjs";
 import { intFlag, parseShardSpec } from "./lib/conformance-args.js";
 
@@ -1960,7 +1961,6 @@ export async function sweepStack(
 
 async function main(): Promise<number> {
   const opts = parseArgs(process.argv.slice(2));
-  let browser: Browser | null = null;
   try {
     if (opts.extractStacks) {
       const dirs = opts.sources.filter((d) => existsSync(d));
@@ -1968,10 +1968,11 @@ async function main(): Promise<number> {
         process.stderr.write(`none of the fixture sources exist: ${opts.sources.join(", ")}\n`);
         return 2;
       }
-      browser = await chromium.launch();
-      const corpus = await extractStacks(browser, dirs, opts.stacksFile);
-      process.stdout.write(`wrote ${corpus.stacks.length} distinct stacks to ${opts.stacksFile}\n`);
-      return 0;
+      return await withBrowser(async (browser) => {
+        const corpus = await extractStacks(browser, dirs, opts.stacksFile);
+        process.stdout.write(`wrote ${corpus.stacks.length} distinct stacks to ${opts.stacksFile}\n`);
+        return 0;
+      });
     }
 
     const loaded = loadCorpus(opts);
@@ -1990,87 +1991,86 @@ async function main(): Promise<number> {
       );
       return 2;
     }
-    browser = await chromium.launch();
+    return await withBrowser(async (browser) => {
+      process.stdout.write(
+        `font-conformance: ${universe.length.toLocaleString()} codepoints × ${stacks.length} stacks ` +
+          `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
+      );
 
-    process.stdout.write(
-      `font-conformance: ${universe.length.toLocaleString()} codepoints × ${stacks.length} stacks ` +
-        `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
-    );
+      // One document scope for the macOS ideograph fallback cache, spanning the
+      // WHOLE sweep — because that is the scope Chrome's own cache has on the
+      // other side of the comparison: the oracle uses a single page (one renderer
+      // process) for every stack and batch, and Blink's character_fallback_cache_
+      // lives on that renderer's FontCache, surviving each `setContent`
+      // navigation. Both sides then see the identical ask sequence (stacks in
+      // corpus order, codepoints ascending), so the first-ideograph-under-a-key
+      // entries agree by construction. Deliberately NOT reset at the periodic
+      // `clearFontResolutionCaches()` memory trims — Chrome's cache is not
+      // dropped there either. Closed when the browser owner finishes.
+      beginCharacterFallbackDocument();
+      // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY
+      // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even
+      // though the browser-side miss path is locale-sensitive. Reusing one
+      // renderer across synthetic language arms therefore makes the first locale
+      // to ask for a character contaminate every later arm. Keep one Chromium
+      // renderer scope per locale on Linux so the authoritative per-locale oracle asks
+      // the same isolated question as Domotion. Other platforms retain the one-
+      // process sweep they have always used.
+      const oracleIsolation = process.platform === "linux" ? "renderer-per-locale" : "shared-renderer";
+      // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
+      // documents from different BrowserContexts in one renderer process, so
+      // each locale gets a distinct WebSandboxSupportLinux cache without the
+      // cost of keeping eight complete browser processes alive.
+      const activeBrowser = browser;
+      const oracles = new OracleRegistry(process.platform, (lang) =>
+        ChromeOracle.create(activeBrowser, opts.concurrency, lang),
+      );
+      const tally = new SweepTally(opts.maxRows, opts.lang, opts.strictAlias, allowlist);
+      const t0 = Date.now();
 
-    // One document scope for the macOS ideograph fallback cache, spanning the
-    // WHOLE sweep — because that is the scope Chrome's own cache has on the
-    // other side of the comparison: the oracle uses a single page (one renderer
-    // process) for every stack and batch, and Blink's character_fallback_cache_
-    // lives on that renderer's FontCache, surviving each `setContent`
-    // navigation. Both sides then see the identical ask sequence (stacks in
-    // corpus order, codepoints ascending), so the first-ideograph-under-a-key
-    // entries agree by construction. Deliberately NOT reset at the periodic
-    // `clearFontResolutionCaches()` memory trims — Chrome's cache is not
-    // dropped there either. Closed in the outer `finally` beside browser.close.
-    beginCharacterFallbackDocument();
-    // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY
-    // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even
-    // though the browser-side miss path is locale-sensitive. Reusing one
-    // renderer across synthetic language arms therefore makes the first locale
-    // to ask for a character contaminate every later arm. Keep one Chromium
-    // renderer scope per locale on Linux so the authoritative per-locale oracle asks
-    // the same isolated question as Domotion. Other platforms retain the one-
-    // process sweep they have always used.
-    const oracleIsolation = process.platform === "linux" ? "renderer-per-locale" : "shared-renderer";
-    // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
-    // documents from different BrowserContexts in one renderer process, so
-    // each locale gets a distinct WebSandboxSupportLinux cache without the
-    // cost of keeping eight complete browser processes alive.
-    const activeBrowser = browser;
-    const oracles = new OracleRegistry(process.platform, (lang) =>
-      ChromeOracle.create(activeBrowser, opts.concurrency, lang),
-    );
-    const tally = new SweepTally(opts.maxRows, opts.lang, opts.strictAlias, allowlist);
-    const t0 = Date.now();
+      for (const [stackIndex, spec] of stacks.entries()) {
+        const oracle = await oracles.forLang(spec.lang ?? opts.lang);
+        await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
+      }
+      await oracles.close();
 
-    for (const [stackIndex, spec] of stacks.entries()) {
-      const oracle = await oracles.forLang(spec.lang ?? opts.lang);
-      await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
-    }
-    await oracles.close();
+      const wallMs = Date.now() - t0;
+      const resolverAnswerDigest = tally.resolverAnswerHash.digest("hex");
+      mkdirSync(opts.outDir, { recursive: true });
+      const report = buildReport({
+        opts,
+        corpus,
+        universeLength: universe.length,
+        stackLength: stacks.length,
+        oracleIsolation,
+        resolverAnswerDigest,
+        tally,
+        wallMs,
+        generatedAt: new Date().toISOString(),
+        platform: process.platform,
+        arch: process.arch,
+        nodeVersion: process.version,
+        unicode: process.versions.unicode,
+        icu: process.versions.icu,
+        chromiumVersion: browser.version(),
+        parityEnv: parityEnvironment(browser.version()),
+        rotationRevision: process.env.FONT_CONFORMANCE_REVISION ?? null,
+        rotationOrdinal: process.env.FONT_CONFORMANCE_ROTATION_ORDINAL ?? null,
+        rotationStackBucket: process.env.FONT_CONFORMANCE_STACK_BUCKET ?? null,
+        host: hostIdentity(),
+        fontInventory: shardFontInventory(),
+      });
+      writeFileSync(join(opts.outDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+      const text = formatSummary(report, opts, corpus, tally, universe.length, stacks.length);
+      writeFileSync(join(opts.outDir, "summary.txt"), text);
+      process.stdout.write(`\n${text}`);
+      process.stdout.write(`report → ${join(opts.outDir, "report.json")}\n`);
 
-    const wallMs = Date.now() - t0;
-    const resolverAnswerDigest = tally.resolverAnswerHash.digest("hex");
-    mkdirSync(opts.outDir, { recursive: true });
-    const report = buildReport({
-      opts,
-      corpus,
-      universeLength: universe.length,
-      stackLength: stacks.length,
-      oracleIsolation,
-      resolverAnswerDigest,
-      tally,
-      wallMs,
-      generatedAt: new Date().toISOString(),
-      platform: process.platform,
-      arch: process.arch,
-      nodeVersion: process.version,
-      unicode: process.versions.unicode,
-      icu: process.versions.icu,
-      chromiumVersion: browser.version(),
-      parityEnv: parityEnvironment(browser.version()),
-      rotationRevision: process.env.FONT_CONFORMANCE_REVISION ?? null,
-      rotationOrdinal: process.env.FONT_CONFORMANCE_ROTATION_ORDINAL ?? null,
-      rotationStackBucket: process.env.FONT_CONFORMANCE_STACK_BUCKET ?? null,
-      host: hostIdentity(),
-      fontInventory: shardFontInventory(),
+      return report.summary.mismatchTotal > 0 ? 1 : 0;
     });
-    writeFileSync(join(opts.outDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-    const text = formatSummary(report, opts, corpus, tally, universe.length, stacks.length);
-    writeFileSync(join(opts.outDir, "summary.txt"), text);
-    process.stdout.write(`\n${text}`);
-    process.stdout.write(`report → ${join(opts.outDir, "report.json")}\n`);
-
-    return report.summary.mismatchTotal > 0 ? 1 : 0;
   } finally {
     // Safe no-op when the early-exit paths returned before the sweep began.
     endCharacterFallbackDocument();
-    await browser?.close();
   }
 }
 

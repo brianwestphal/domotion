@@ -11,11 +11,10 @@ import { createReadStream, mkdirSync, readFileSync, writeFileSync } from "node:f
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
-
+import { withBrowser } from "./lib/browser.js";
 import {
   attachWebfontTracker,
   captureElementTreeWithWarnings,
@@ -558,63 +557,66 @@ export async function runFontPaletteOwnershipAudit(
   if (artifactDir != null) mkdirSync(artifactDir, { recursive: true });
   const fixtureBytes = readFileSync(resolve(FONT_PALETTE_FIXTURE));
   const hosted = await fixtureServer(fixtureBytes);
-  const browser = await chromium.launch({ headless: true });
   try {
-    const dprs = options.dprs ?? [1, 2];
-    const native = (
-      await Promise.all(dprs.map((dpr) => nativeRows(browser, hosted.url, facts, dpr, artifactDir)))
-    ).flat();
-    // Production font registries/caches are process-global. Run the two order
-    // arms serially so the reverse-order mutation changes only DOM order, not
-    // an interleaved clear/register race between two captures.
-    const orders = [
-      await productionOrder(browser, hosted.url, ["base2", "base3"], artifactDir),
-      await productionOrder(browser, hosted.url, ["base3", "base2"], artifactDir),
-    ];
-    const verdict = classifyPaletteAudit(native, orders, dprs);
-    const browserCdp = await browser.newBrowserCDPSession();
-    const browserVersion = await browserCdp.send("Browser.getVersion");
-    await browserCdp.detach();
-    const report: FontPaletteAuditReport = {
-      schemaVersion: 1,
-      ticket: "DM-2350",
-      verdict,
-      sourcePins: FONT_PALETTE_SOURCE_PINS,
-      fixture: facts,
-      fingerprint: {
-        platform: platform(),
-        architecture: arch(),
-        osRelease: release(),
-        chromium: browser.version(),
-        chromiumRevision: browserVersion.revision,
-        browserExecutableSha256: await sha256File(chromium.executablePath()),
-        node: process.version,
-        sharp: sharp.versions.sharp,
-        libvips: sharp.versions.vips,
+    return await withBrowser(
+      async (browser) => {
+        const dprs = options.dprs ?? [1, 2];
+        const native = (
+          await Promise.all(dprs.map((dpr) => nativeRows(browser, hosted.url, facts, dpr, artifactDir)))
+        ).flat();
+        // Production font registries/caches are process-global. Run the two order
+        // arms serially so the reverse-order mutation changes only DOM order, not
+        // an interleaved clear/register race between two captures.
+        const orders = [
+          await productionOrder(browser, hosted.url, ["base2", "base3"], artifactDir),
+          await productionOrder(browser, hosted.url, ["base3", "base2"], artifactDir),
+        ];
+        const verdict = classifyPaletteAudit(native, orders, dprs);
+        const browserCdp = await browser.newBrowserCDPSession();
+        const browserVersion = await browserCdp.send("Browser.getVersion");
+        await browserCdp.detach();
+        const report: FontPaletteAuditReport = {
+          schemaVersion: 1,
+          ticket: "DM-2350",
+          verdict,
+          sourcePins: FONT_PALETTE_SOURCE_PINS,
+          fixture: facts,
+          fingerprint: {
+            platform: platform(),
+            architecture: arch(),
+            osRelease: release(),
+            chromium: browser.version(),
+            chromiumRevision: browserVersion.revision,
+            browserExecutableSha256: await sha256File(chromium.executablePath()),
+            node: process.version,
+            sharp: sharp.versions.sharp,
+            libvips: sharp.versions.vips,
+          },
+          nativeRows: native,
+          productionOrders: orders,
+          followUps:
+            verdict === "confirmed-palette-identity-gap"
+              ? [
+                  "DM-2509: capture resolved font-palette ownership and add palette/face/gid/representation to browser-raster cache identity.",
+                ]
+              : verdict === "source-exact"
+                ? ["DM-2510: promote this audit to a strict COLRv1/COLRv0 three-platform paint gate."]
+                : [],
+        };
+        if (artifactDir != null)
+          writeFileSync(
+            resolve(artifactDir, "font-palette-ownership-report.json"),
+            JSON.stringify(
+              { ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) },
+              null,
+              2,
+            ),
+          );
+        return report;
       },
-      nativeRows: native,
-      productionOrders: orders,
-      followUps:
-        verdict === "confirmed-palette-identity-gap"
-          ? [
-              "DM-2509: capture resolved font-palette ownership and add palette/face/gid/representation to browser-raster cache identity.",
-            ]
-          : verdict === "source-exact"
-            ? ["DM-2510: promote this audit to a strict COLRv1/COLRv0 three-platform paint gate."]
-            : [],
-    };
-    if (artifactDir != null)
-      writeFileSync(
-        resolve(artifactDir, "font-palette-ownership-report.json"),
-        JSON.stringify(
-          { ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) },
-          null,
-          2,
-        ),
-      );
-    return report;
+      { headless: true },
+    );
   } finally {
-    await browser.close();
     await new Promise<void>((resolveClose) => hosted.server.close(() => resolveClose()));
   }
 }

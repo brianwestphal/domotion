@@ -9,6 +9,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { chromium, type Page } from "@playwright/test";
+import { withBrowser } from "./lib/browser.js";
 import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
 import type { CapturedElement, TextSegment } from "../src/capture/types.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
@@ -218,76 +219,90 @@ function metamorphicDelta(
   return delta;
 }
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 900, height: 700 } });
-await page.setContent(
-  `<style>body{margin:0}.probe{margin:0;padding:0;border:0}</style>${fixtures.map((f) => `<div class="probe" lang="en" id="${f.id}" style="${f.css}">${f.html}</div>`).join("")}`,
-);
-const chromiumVersion = browser.version();
-const records = [];
-const expectedById = new Map<string, Geometry>();
-const capturedById = new Map<string, Geometry>();
-let mismatches = 0;
-for (const fixture of fixtures) {
-  const selector = `#${fixture.id}`;
-  const box = await page.locator(selector).evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    return { x: r.x, y: r.y };
-  });
-  const expected = await chromiumGeometry(page, selector, fixture.normalizeScale ?? 1);
-  const raw = (await page.evaluate(
-    `(${CAPTURE_SCRIPT})({selector:${JSON.stringify(selector)},viewport:{x:0,y:0,width:900,height:700},crossOriginFrames:""})`,
-  )) as {
-    tree: CapturedElement[];
-    warnings?: Array<{ feature?: string; detail?: string }>;
-  };
-  const actual = capturedGeometry(raw.tree, box, fixture.normalizeScale ?? 1);
-  expectedById.set(fixture.id, expected);
-  capturedById.set(fixture.id, actual);
-  const delta = geometryDelta(expected, actual);
-  const diagnosticExpected = fixture.axes.justification === "justify" || fixture.axes.justification === "justify-last";
-  const diagnosticObserved = raw.warnings?.some((warning) => warning.feature === "text-align:justify") === true;
-  const route = diagnosticExpected ? "diagnostic" : "logical";
-  const pass = diagnosticExpected ? diagnosticObserved : delta <= tolerance;
-  if (!pass) mismatches++;
-  records.push({
-    id: fixture.id,
-    axes: fixture.axes,
-    route,
-    diagnosticObserved,
-    expected,
-    actual,
-    maxAbsDeltaCssPx: delta,
-    pass,
-  });
-}
+const { chromiumVersion, records, mismatches, transitionControls, metamorphic, movementProven, metamorphicAgreement } =
+  await withBrowser(
+    async (browser) => {
+      const page = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 900, height: 700 } });
+      await page.setContent(
+        `<style>body{margin:0}.probe{margin:0;padding:0;border:0}</style>${fixtures.map((f) => `<div class="probe" lang="en" id="${f.id}" style="${f.css}">${f.html}</div>`).join("")}`,
+      );
+      const chromiumVersion = browser.version();
+      const records = [];
+      const expectedById = new Map<string, Geometry>();
+      const capturedById = new Map<string, Geometry>();
+      let mismatches = 0;
+      for (const fixture of fixtures) {
+        const selector = `#${fixture.id}`;
+        const box = await page.locator(selector).evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y };
+        });
+        const expected = await chromiumGeometry(page, selector, fixture.normalizeScale ?? 1);
+        const raw = (await page.evaluate(
+          `(${CAPTURE_SCRIPT})({selector:${JSON.stringify(selector)},viewport:{x:0,y:0,width:900,height:700},crossOriginFrames:""})`,
+        )) as {
+          tree: CapturedElement[];
+          warnings?: Array<{ feature?: string; detail?: string }>;
+        };
+        const actual = capturedGeometry(raw.tree, box, fixture.normalizeScale ?? 1);
+        expectedById.set(fixture.id, expected);
+        capturedById.set(fixture.id, actual);
+        const delta = geometryDelta(expected, actual);
+        const diagnosticExpected =
+          fixture.axes.justification === "justify" || fixture.axes.justification === "justify-last";
+        const diagnosticObserved = raw.warnings?.some((warning) => warning.feature === "text-align:justify") === true;
+        const route = diagnosticExpected ? "diagnostic" : "logical";
+        const pass = diagnosticExpected ? diagnosticObserved : delta <= tolerance;
+        if (!pass) mismatches++;
+        records.push({
+          id: fixture.id,
+          axes: fixture.axes,
+          route,
+          diagnosticObserved,
+          expected,
+          actual,
+          maxAbsDeltaCssPx: delta,
+          pass,
+        });
+      }
 
-const transitionControls = layoutAxes.map((axis) => {
-  const changed = records.filter((record) => record.axes[axis.id] !== defaults[axis.id]);
-  const moved = changed.filter((record) => signature(record.actual) !== signature(records[0].actual)).length;
-  // Paint-only axes are proved by the pixel stage; diagnostic axes are proved
-  // by the capture warning below. Neither may counterfeit a layout movement.
-  return {
-    axis: axis.id,
-    verdict: axis.verdict,
-    exercisedRows: changed.length,
-    movedRows: moved,
-    moved: axis.verdict === "logical" ? moved > 0 : true,
-  };
-});
-const baseMeta = capturedById.get("meta-plain")!;
-const baseMetaExpected = expectedById.get("meta-plain")!;
-const metamorphic = fixtures
-  .filter((f) => f.metamorphicGroup != null && f.id !== "meta-plain")
-  .map((fixture) => {
-    const actual = capturedById.get(fixture.id)!;
-    const expected = expectedById.get(fixture.id)!;
-    const delta = metamorphicDelta(baseMetaExpected, expected, baseMeta, actual);
-    return { id: fixture.id, group: fixture.metamorphicGroup, maxAbsDeltaCssPx: delta, pass: delta <= tolerance };
-  });
-const movementProven = !skipControl && transitionControls.every((control) => control.moved);
-const metamorphicAgreement = metamorphic.every((row) => row.pass);
-await browser.close();
+      const transitionControls = layoutAxes.map((axis) => {
+        const changed = records.filter((record) => record.axes[axis.id] !== defaults[axis.id]);
+        const moved = changed.filter((record) => signature(record.actual) !== signature(records[0].actual)).length;
+        // Paint-only axes are proved by the pixel stage; diagnostic axes are proved
+        // by the capture warning below. Neither may counterfeit a layout movement.
+        return {
+          axis: axis.id,
+          verdict: axis.verdict,
+          exercisedRows: changed.length,
+          movedRows: moved,
+          moved: axis.verdict === "logical" ? moved > 0 : true,
+        };
+      });
+      const baseMeta = capturedById.get("meta-plain")!;
+      const baseMetaExpected = expectedById.get("meta-plain")!;
+      const metamorphic = fixtures
+        .filter((f) => f.metamorphicGroup != null && f.id !== "meta-plain")
+        .map((fixture) => {
+          const actual = capturedById.get(fixture.id)!;
+          const expected = expectedById.get(fixture.id)!;
+          const delta = metamorphicDelta(baseMetaExpected, expected, baseMeta, actual);
+          return { id: fixture.id, group: fixture.metamorphicGroup, maxAbsDeltaCssPx: delta, pass: delta <= tolerance };
+        });
+      const movementProven = !skipControl && transitionControls.every((control) => control.moved);
+      const metamorphicAgreement = metamorphic.every((row) => row.pass);
+      return {
+        chromiumVersion,
+        records,
+        mismatches,
+        transitionControls,
+        metamorphic,
+        movementProven,
+        metamorphicAgreement,
+      };
+    },
+    { headless: true },
+  );
 
 const environment = parityEnvironment({
   chromium: chromiumVersion,

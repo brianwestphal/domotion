@@ -20,7 +20,8 @@
 import { writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/index.js";
+import { withBrowser } from "./lib/browser.js";
+import { captureElementTree, elementTreeToSvg } from "../src/index.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + "/..";
 const OUT = resolve(ROOT, "site/scripts/install-demo/nytimes-snapshot.svg");
@@ -35,8 +36,7 @@ const VIEWPORT_H = 844;
 const CAPTURE_H = 600;
 
 async function main(): Promise<void> {
-  const browser = await launchChromium();
-  try {
+  await withBrowser(async (browser) => {
     const ctx = await browser.newContext({
       viewport: { width: VIEWPORT_W, height: VIEWPORT_H },
       userAgent:
@@ -100,9 +100,7 @@ async function main(): Promise<void> {
 
     writeFileSync(OUT, svg);
     console.log(`Wrote ${OUT} (${(svg.length / 1024).toFixed(1)} KB, ${VIEWPORT_W}×${CAPTURE_H})`);
-  } finally {
-    await browser.close();
-  }
+  }, undefined);
 }
 
 void main();

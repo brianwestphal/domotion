@@ -145,8 +145,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { release as osRelease, type as osType } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Browser, type CDPSession, type Page } from "@playwright/test";
+import { chromium, type CDPSession, type Page } from "@playwright/test";
 import { resolveFont } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { setRenderTextMode } from "../src/render/font-resolution.js";
 
@@ -1400,12 +1401,9 @@ async function collectDecorationResults(
   scalePlan: DecorationOracleScalePlan,
   keepDir: string | null,
 ): Promise<{ results: CaseResult[]; chromiumVersion: string }> {
-  let browser: Browser | null = null;
-  let chromiumVersion = "unknown";
-  const results: CaseResult[] = [];
-  try {
-    browser = await chromium.launch();
-    chromiumVersion = browser.version();
+  return await withBrowser(async (browser) => {
+    const chromiumVersion = browser.version();
+    const results: CaseResult[] = [];
     const ctxHi = await browser.newContext({
       viewport: { width: PAGE_WIDTH, height: 800 },
       deviceScaleFactor: scalePlan.chromePaint,
@@ -1484,11 +1482,8 @@ async function collectDecorationResults(
         results.push(compareDecorationCase(c, meas, chromeBars, sBars, scalePlan.chromePaint));
       }
     }
-  } finally {
-    await browser?.close();
-  }
-
-  return { results, chromiumVersion };
+    return { results, chromiumVersion };
+  });
 }
 
 function reportDecorationResults(input: {

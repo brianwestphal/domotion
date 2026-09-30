@@ -15,7 +15,8 @@ import { pathToFileURL } from "node:url";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
-import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
+import { captureElementTreeWithWarnings } from "../src/capture/index.js";
+import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import {
@@ -285,136 +286,137 @@ export async function runPseudoBackdropSourceOracle(
   dprs: number[] = [1, 2],
   artifactDir?: string,
 ): Promise<PseudoBackdropOracleReport> {
-  const browser = await launchChromium({ args: ["--enable-blink-features=AppearanceBase"] });
   const rows: PseudoBackdropOracleRow[] = [];
   const warnings: string[] = [];
   const blockers: string[] = [];
-  try {
-    for (const dpr of dprs) {
-      const context = await browser.newContext({ viewport: PSEUDO_BACKDROP_VIEWPORT, deviceScaleFactor: dpr });
-      const sourcePage = await context.newPage();
-      const renderPage = await context.newPage();
-      try {
-        await sourcePage.setContent(pseudoBackdropFixtureHtml(), { waitUntil: "load" });
-        await sourcePage.evaluate(
-          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-        );
-        const source = Buffer.from(
-          await sourcePage.screenshot({
-            clip: { x: 0, y: 0, width: PSEUDO_BACKDROP_VIEWPORT.width, height: PSEUDO_BACKDROP_VIEWPORT.height },
-            omitBackground: true,
-            type: "png",
-          }),
-        );
-        const capture = await captureElementTreeWithWarnings(sourcePage, "#stage", {
-          x: 0,
-          y: 0,
-          width: PSEUDO_BACKDROP_VIEWPORT.width,
-          height: PSEUDO_BACKDROP_VIEWPORT.height,
-        });
-        warnings.push(...capture.warnings.map((warning) => `DPR${dpr}:${JSON.stringify(warning)}`));
-        const svg = elementTreeToSvg(capture.tree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
-        const underTree = structuredClone(capture.tree);
-        for (const record of pseudoRecords(underTree))
-          if (record.backdropFilterRaster != null) record.backdropFilterRaster.dataUri = undefined;
-        const underSvg = elementTreeToSvg(underTree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
-        const overTree = structuredClone(capture.tree);
-        await replaceWithFinalCrops(overTree, source, dpr);
-        const overSvg = elementTreeToSvg(overTree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
-        const rendered = await renderSvg(renderPage, svg);
-        const under = await renderSvg(renderPage, underSvg);
-        const over = await renderSvg(renderPage, overSvg);
-        const [sourceImage, renderedImage, underImage, overImage] = await Promise.all([
-          decode(source),
-          decode(rendered),
-          decode(under),
-          decode(over),
-        ]);
-
-        for (const spec of PSEUDO_BACKDROP_CASES) {
-          const host = byAnimId(capture.tree, spec.id);
-          const record = host?.pseudoFragments?.find((candidate) => candidate.pseudo === spec.pseudo);
-          const raster = record?.backdropFilterRaster;
-          const actualRasterOwners = raster?.dataUri == null ? 0 : 1;
-          const expectedRasterOwners = spec.active ? 1 : 0;
-          const actualSlot = record == null ? null : pseudoFragmentPaintSlot(record);
-          const rect = raster?.rect ?? record?.boxFragments[0]?.physicalRect ?? null;
-          const sourceVsRendered =
-            rect == null ? null : comparePseudoBackdropRegion(sourceImage, renderedImage, rect, dpr);
-          const underComparison =
-            rect == null ? null : comparePseudoBackdropRegion(renderedImage, underImage, rect, dpr);
-          const overComparison = rect == null ? null : comparePseudoBackdropRegion(renderedImage, overImage, rect, dpr);
-          const recordMarkup = record == null ? "" : renderPseudoFragmentRecord(record, { imageHref: (url) => url });
-          const rasterAt = raster?.dataUri == null ? -1 : recordMarkup.indexOf(raster.dataUri);
-          const backdropOwnerAt =
-            raster?.dataUri == null ? -1 : recordMarkup.lastIndexOf("data-domotion-pseudo-backdrop-owner", rasterAt);
-          const vectorAt =
-            backdropOwnerAt < 0 ? -1 : recordMarkup.indexOf("data-domotion-pseudo-vector-owner", rasterAt);
-          const findings: string[] = [];
-          if (record == null && spec.id !== "empty") findings.push("missing source-owned pseudo record");
-          if (actualSlot != null && actualSlot !== spec.slot)
-            findings.push(`slot ${actualSlot}, expected ${spec.slot}`);
-          if (actualRasterOwners !== expectedRasterOwners)
-            findings.push(`serialized ${actualRasterOwners}/${expectedRasterOwners} pseudo backdrop owners`);
-          if (host?.backdropFilterRaster != null) findings.push("backdrop was flattened onto the host");
-          if (
-            spec.active &&
-            sourceVsRendered != null &&
-            sourceVsRendered.meanAbsoluteChannelDelta > PSEUDO_BACKDROP_THRESHOLDS.sourceMeanAbsoluteChannelDelta
-          ) {
-            findings.push(
-              `source/render drift ${sourceVsRendered.changedFraction.toFixed(4)} changed, ${sourceVsRendered.meanAbsoluteChannelDelta.toFixed(3)} mean delta`,
-            );
-          }
-          if (spec.active && (underComparison == null || !mutationDiscriminates(underComparison)))
-            findings.push("under-capture mutation was inert");
-          if (spec.active && (overComparison == null || !mutationDiscriminates(overComparison)))
-            findings.push("final-composite over-capture mutation was inert");
-          if (spec.active && !(backdropOwnerAt >= 0 && vectorAt > rasterAt))
-            findings.push("pseudo vector did not follow its backdrop boundary");
-          rows.push({
-            id: spec.id,
-            pseudo: spec.pseudo,
-            dpr,
-            expectedSlot: spec.slot,
-            actualSlot,
-            expectedRasterOwners,
-            actualRasterOwners,
-            noHostWideRaster: host?.backdropFilterRaster == null,
-            sourceVsRendered,
-            underCapture: {
-              applicable: spec.active,
-              comparison: underComparison,
-              discriminated: spec.active && underComparison != null && mutationDiscriminates(underComparison),
-            },
-            overCapture: {
-              applicable: spec.active,
-              comparison: overComparison,
-              discriminated: spec.active && overComparison != null && mutationDiscriminates(overComparison),
-            },
-            rasterBeforeVector: spec.active ? backdropOwnerAt >= 0 && vectorAt > rasterAt : null,
-            findings,
-            pass: findings.length === 0,
+  await withBrowser(
+    async (browser) => {
+      for (const dpr of dprs) {
+        const context = await browser.newContext({ viewport: PSEUDO_BACKDROP_VIEWPORT, deviceScaleFactor: dpr });
+        const sourcePage = await context.newPage();
+        const renderPage = await context.newPage();
+        try {
+          await sourcePage.setContent(pseudoBackdropFixtureHtml(), { waitUntil: "load" });
+          await sourcePage.evaluate(
+            () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+          );
+          const source = Buffer.from(
+            await sourcePage.screenshot({
+              clip: { x: 0, y: 0, width: PSEUDO_BACKDROP_VIEWPORT.width, height: PSEUDO_BACKDROP_VIEWPORT.height },
+              omitBackground: true,
+              type: "png",
+            }),
+          );
+          const capture = await captureElementTreeWithWarnings(sourcePage, "#stage", {
+            x: 0,
+            y: 0,
+            width: PSEUDO_BACKDROP_VIEWPORT.width,
+            height: PSEUDO_BACKDROP_VIEWPORT.height,
           });
-        }
+          warnings.push(...capture.warnings.map((warning) => `DPR${dpr}:${JSON.stringify(warning)}`));
+          const svg = elementTreeToSvg(capture.tree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
+          const underTree = structuredClone(capture.tree);
+          for (const record of pseudoRecords(underTree))
+            if (record.backdropFilterRaster != null) record.backdropFilterRaster.dataUri = undefined;
+          const underSvg = elementTreeToSvg(underTree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
+          const overTree = structuredClone(capture.tree);
+          await replaceWithFinalCrops(overTree, source, dpr);
+          const overSvg = elementTreeToSvg(overTree, PSEUDO_BACKDROP_VIEWPORT.width, PSEUDO_BACKDROP_VIEWPORT.height);
+          const rendered = await renderSvg(renderPage, svg);
+          const under = await renderSvg(renderPage, underSvg);
+          const over = await renderSvg(renderPage, overSvg);
+          const [sourceImage, renderedImage, underImage, overImage] = await Promise.all([
+            decode(source),
+            decode(rendered),
+            decode(under),
+            decode(over),
+          ]);
 
-        if (artifactDir != null) {
-          mkdirSync(artifactDir, { recursive: true });
-          writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, source);
-          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, rendered);
-          writeFileSync(`${artifactDir}/under-capture-dpr${dpr}.png`, under);
-          writeFileSync(`${artifactDir}/over-capture-dpr${dpr}.png`, over);
-          writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
+          for (const spec of PSEUDO_BACKDROP_CASES) {
+            const host = byAnimId(capture.tree, spec.id);
+            const record = host?.pseudoFragments?.find((candidate) => candidate.pseudo === spec.pseudo);
+            const raster = record?.backdropFilterRaster;
+            const actualRasterOwners = raster?.dataUri == null ? 0 : 1;
+            const expectedRasterOwners = spec.active ? 1 : 0;
+            const actualSlot = record == null ? null : pseudoFragmentPaintSlot(record);
+            const rect = raster?.rect ?? record?.boxFragments[0]?.physicalRect ?? null;
+            const sourceVsRendered =
+              rect == null ? null : comparePseudoBackdropRegion(sourceImage, renderedImage, rect, dpr);
+            const underComparison =
+              rect == null ? null : comparePseudoBackdropRegion(renderedImage, underImage, rect, dpr);
+            const overComparison =
+              rect == null ? null : comparePseudoBackdropRegion(renderedImage, overImage, rect, dpr);
+            const recordMarkup = record == null ? "" : renderPseudoFragmentRecord(record, { imageHref: (url) => url });
+            const rasterAt = raster?.dataUri == null ? -1 : recordMarkup.indexOf(raster.dataUri);
+            const backdropOwnerAt =
+              raster?.dataUri == null ? -1 : recordMarkup.lastIndexOf("data-domotion-pseudo-backdrop-owner", rasterAt);
+            const vectorAt =
+              backdropOwnerAt < 0 ? -1 : recordMarkup.indexOf("data-domotion-pseudo-vector-owner", rasterAt);
+            const findings: string[] = [];
+            if (record == null && spec.id !== "empty") findings.push("missing source-owned pseudo record");
+            if (actualSlot != null && actualSlot !== spec.slot)
+              findings.push(`slot ${actualSlot}, expected ${spec.slot}`);
+            if (actualRasterOwners !== expectedRasterOwners)
+              findings.push(`serialized ${actualRasterOwners}/${expectedRasterOwners} pseudo backdrop owners`);
+            if (host?.backdropFilterRaster != null) findings.push("backdrop was flattened onto the host");
+            if (
+              spec.active &&
+              sourceVsRendered != null &&
+              sourceVsRendered.meanAbsoluteChannelDelta > PSEUDO_BACKDROP_THRESHOLDS.sourceMeanAbsoluteChannelDelta
+            ) {
+              findings.push(
+                `source/render drift ${sourceVsRendered.changedFraction.toFixed(4)} changed, ${sourceVsRendered.meanAbsoluteChannelDelta.toFixed(3)} mean delta`,
+              );
+            }
+            if (spec.active && (underComparison == null || !mutationDiscriminates(underComparison)))
+              findings.push("under-capture mutation was inert");
+            if (spec.active && (overComparison == null || !mutationDiscriminates(overComparison)))
+              findings.push("final-composite over-capture mutation was inert");
+            if (spec.active && !(backdropOwnerAt >= 0 && vectorAt > rasterAt))
+              findings.push("pseudo vector did not follow its backdrop boundary");
+            rows.push({
+              id: spec.id,
+              pseudo: spec.pseudo,
+              dpr,
+              expectedSlot: spec.slot,
+              actualSlot,
+              expectedRasterOwners,
+              actualRasterOwners,
+              noHostWideRaster: host?.backdropFilterRaster == null,
+              sourceVsRendered,
+              underCapture: {
+                applicable: spec.active,
+                comparison: underComparison,
+                discriminated: spec.active && underComparison != null && mutationDiscriminates(underComparison),
+              },
+              overCapture: {
+                applicable: spec.active,
+                comparison: overComparison,
+                discriminated: spec.active && overComparison != null && mutationDiscriminates(overComparison),
+              },
+              rasterBeforeVector: spec.active ? backdropOwnerAt >= 0 && vectorAt > rasterAt : null,
+              findings,
+              pass: findings.length === 0,
+            });
+          }
+
+          if (artifactDir != null) {
+            mkdirSync(artifactDir, { recursive: true });
+            writeFileSync(`${artifactDir}/source-dpr${dpr}.png`, source);
+            writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, rendered);
+            writeFileSync(`${artifactDir}/under-capture-dpr${dpr}.png`, under);
+            writeFileSync(`${artifactDir}/over-capture-dpr${dpr}.png`, over);
+            writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
+          }
+        } finally {
+          await renderPage.close();
+          await sourcePage.close();
+          await context.close();
         }
-      } finally {
-        await renderPage.close();
-        await sourcePage.close();
-        await context.close();
       }
-    }
-  } finally {
-    await browser.close();
-  }
+    },
+    { args: ["--enable-blink-features=AppearanceBase"] },
+  );
 
   for (const dpr of dprs) {
     const states = new Set(PSEUDO_BACKDROP_CASES.flatMap((spec) => spec.states));

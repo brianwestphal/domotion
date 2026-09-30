@@ -50,7 +50,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { chromium, type Browser } from "@playwright/test";
+import { type Browser } from "@playwright/test";
 import {
   clearFontResolutionCaches,
   harfbuzzGlyphQuery,
@@ -61,6 +61,7 @@ import {
   type TextRunProvenanceDiagnostic,
   isHarfbuzzDefaultIgnorable,
 } from "@domotion/text-engine/testing";
+import { withBrowser } from "./lib/browser.js";
 import { finiteFlag, intFlag } from "./lib/conformance-args.js";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { registerWebfont } from "../src/render/font-resolution.js";
@@ -1534,8 +1535,7 @@ function formatShapingSummary(input: {
 
 async function main(): Promise<number> {
   const opts = parseArgs(process.argv.slice(2));
-  const browser = await chromium.launch();
-  try {
+  return await withBrowser(async (browser) => {
     if (opts.extractRuns) {
       const dirs = opts.sources.filter((d) => existsSync(d));
       if (dirs.length === 0) {
@@ -1607,9 +1607,7 @@ async function main(): Promise<number> {
     );
     process.stdout.write(`\n${summary}\nreport → ${join(opts.outDir, "report.json")}\n`);
     return mismatchTotal === 0 ? 0 : 1;
-  } finally {
-    await browser.close();
-  }
+  }, undefined);
 }
 
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("shaping-conformance.ts")) {

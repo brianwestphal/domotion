@@ -9,10 +9,9 @@ import { createReadStream, mkdirSync, readFileSync, writeFileSync } from "node:f
 import { createServer, type Server } from "node:http";
 import { arch, platform, release } from "node:os";
 import { resolve } from "node:path";
-
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { withBrowser } from "./lib/browser.js";
 import {
   attachWebfontTracker,
   captureElementTreeWithWarnings,
@@ -617,66 +616,71 @@ export async function runFontPaletteDynamicGate(options: {
     readFileSync(resolve(FONT_PALETTE_FIXTURE)),
     readFileSync(resolve(options.colrv1Fixture)),
   );
-  const browser = await chromium.launch({ headless: true });
   try {
-    const dprs = options.dprs ?? [1, 2];
-    const colrv0Rows = (
-      await Promise.all(dprs.map((dpr) => nativeV0Rows(browser, hosted.v0Url, v0Facts, dpr, artifactDir)))
-    ).flat();
-    const colrv1Rows = (
-      await Promise.all(dprs.map((dpr) => nativeV1Rows(browser, hosted.v1Url, options.colrv1Source, dpr, artifactDir)))
-    ).flat();
-    const order = dynamicV0Cases(v0Facts).map((row) => row.id);
-    // Production registries are process-global, so every cache-control arm is
-    // serial. Reversing order must change only traversal order.
-    const productionOrders: DynamicProductionOrderEvidence[] = [];
-    for (const dpr of dprs) {
-      productionOrders.push(await productionOrder(browser, hosted.v0Url, order, dpr, artifactDir));
-      productionOrders.push(await productionOrder(browser, hosted.v0Url, [...order].reverse(), dpr, artifactDir));
-    }
-    const expectedV0 = dprs.length * dynamicV0Cases(v0Facts).length;
-    const expectedV1 = dprs.length * 3;
-    const expectedOrders = dprs.length * 2;
-    const complete =
-      colrv0Rows.length === expectedV0 &&
-      colrv1Rows.length === expectedV1 &&
-      productionOrders.length === expectedOrders;
-    const verdict =
-      complete &&
-      colrv0Rows.every((row) => row.pass) &&
-      colrv1Rows.every((row) => row.pass) &&
-      productionOrders.every((row) => row.pass)
-        ? "source-exact"
-        : "source-drift";
-    const cdp = await browser.newBrowserCDPSession();
-    const version = await cdp.send("Browser.getVersion");
-    await cdp.detach();
-    const report: FontPaletteDynamicGateReport = {
-      schemaVersion: 1,
-      ticket: "DM-2534",
-      verdict,
-      sourcePins: FONT_PALETTE_DYNAMIC_SOURCE_PINS,
-      fingerprint: {
-        platform: platform(),
-        architecture: arch(),
-        osRelease: release(),
-        chromium: browser.version(),
-        chromiumRevision: version.revision,
-        browserExecutableSha256: await sha256File(chromium.executablePath()),
-        node: process.version,
-        colrv0FixtureSha256: v0Facts.sha256,
-        colrv1FixtureSha256: options.colrv1Source.sha256,
-        dprs,
+    return await withBrowser(
+      async (browser) => {
+        const dprs = options.dprs ?? [1, 2];
+        const colrv0Rows = (
+          await Promise.all(dprs.map((dpr) => nativeV0Rows(browser, hosted.v0Url, v0Facts, dpr, artifactDir)))
+        ).flat();
+        const colrv1Rows = (
+          await Promise.all(
+            dprs.map((dpr) => nativeV1Rows(browser, hosted.v1Url, options.colrv1Source, dpr, artifactDir)),
+          )
+        ).flat();
+        const order = dynamicV0Cases(v0Facts).map((row) => row.id);
+        // Production registries are process-global, so every cache-control arm is
+        // serial. Reversing order must change only traversal order.
+        const productionOrders: DynamicProductionOrderEvidence[] = [];
+        for (const dpr of dprs) {
+          productionOrders.push(await productionOrder(browser, hosted.v0Url, order, dpr, artifactDir));
+          productionOrders.push(await productionOrder(browser, hosted.v0Url, [...order].reverse(), dpr, artifactDir));
+        }
+        const expectedV0 = dprs.length * dynamicV0Cases(v0Facts).length;
+        const expectedV1 = dprs.length * 3;
+        const expectedOrders = dprs.length * 2;
+        const complete =
+          colrv0Rows.length === expectedV0 &&
+          colrv1Rows.length === expectedV1 &&
+          productionOrders.length === expectedOrders;
+        const verdict =
+          complete &&
+          colrv0Rows.every((row) => row.pass) &&
+          colrv1Rows.every((row) => row.pass) &&
+          productionOrders.every((row) => row.pass)
+            ? "source-exact"
+            : "source-drift";
+        const cdp = await browser.newBrowserCDPSession();
+        const version = await cdp.send("Browser.getVersion");
+        await cdp.detach();
+        const report: FontPaletteDynamicGateReport = {
+          schemaVersion: 1,
+          ticket: "DM-2534",
+          verdict,
+          sourcePins: FONT_PALETTE_DYNAMIC_SOURCE_PINS,
+          fingerprint: {
+            platform: platform(),
+            architecture: arch(),
+            osRelease: release(),
+            chromium: browser.version(),
+            chromiumRevision: version.revision,
+            browserExecutableSha256: await sha256File(chromium.executablePath()),
+            node: process.version,
+            colrv0FixtureSha256: v0Facts.sha256,
+            colrv1FixtureSha256: options.colrv1Source.sha256,
+            dprs,
+          },
+          colrv0Rows,
+          colrv1Rows,
+          productionOrders,
+        };
+        if (artifactDir != null)
+          writeFileSync(resolve(artifactDir, "font-palette-dynamic-report.json"), JSON.stringify(report, null, 2));
+        return report;
       },
-      colrv0Rows,
-      colrv1Rows,
-      productionOrders,
-    };
-    if (artifactDir != null)
-      writeFileSync(resolve(artifactDir, "font-palette-dynamic-report.json"), JSON.stringify(report, null, 2));
-    return report;
+      { headless: true },
+    );
   } finally {
-    await browser.close();
     await new Promise<void>((resolveClose) => hosted.server.close(() => resolveClose()));
   }
 }

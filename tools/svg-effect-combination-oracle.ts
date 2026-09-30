@@ -5,8 +5,9 @@ import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { chromium, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import sharp from "sharp";
+import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -408,156 +409,159 @@ export async function runSvgEffectCombinationOracle(
   const capture = await import("../src/capture/index.js");
   const render = await import("../src/render/element-tree-to-svg.js");
   const dprs = options.deviceScaleFactors ?? [1, 2];
-  const browser = await chromium.launch({ headless: true });
   const rows: SvgEffectOracleRow[] = [];
   const mutations: SvgEffectMutationResult[] = [];
   const logicalMutations = logicalMutationEvidence();
   const structuralErrors: string[] = [];
-  try {
-    const fingerprintPage = await browser.newPage({ viewport: SVG_EFFECT_VIEWPORT });
-    const userAgent = await fingerprintPage.evaluate(() => navigator.userAgent);
-    await fingerprintPage.close();
-    let grammar = { bareUrlSupported: false, urlPlusGeometryBoxRejected: false };
+  return await withBrowser(
+    async (browser) => {
+      const fingerprintPage = await browser.newPage({ viewport: SVG_EFFECT_VIEWPORT });
+      const userAgent = await fingerprintPage.evaluate(() => navigator.userAgent);
+      await fingerprintPage.close();
+      let grammar = { bareUrlSupported: false, urlPlusGeometryBoxRejected: false };
 
-    for (const dpr of dprs) {
-      const context = await browser.newContext({ viewport: SVG_EFFECT_VIEWPORT, deviceScaleFactor: dpr });
-      const source = await context.newPage();
-      const output = await context.newPage();
-      try {
-        await source.setContent(buildSvgEffectCombinationHtml(), { waitUntil: "load" });
-        await settle(source);
-        if (dpr === dprs[0]) {
-          grammar = await source.evaluate(() => ({
-            bareUrlSupported: CSS.supports("clip-path", "url(#clip-0)"),
-            urlPlusGeometryBoxRejected: ["fill-box", "stroke-box", "view-box"].every(
-              (box) =>
-                !CSS.supports("clip-path", `url(#clip-0) ${box}`) && !CSS.supports("clip-path", `${box} url(#clip-0)`),
-            ),
-          }));
-        }
-        const sourcePng = await source.screenshot({ type: "png" });
-        const captured = await capture.captureElementTreeWithWarnings(source, "#stage", {
-          x: 0,
-          y: 0,
-          ...SVG_EFFECT_VIEWPORT,
-        });
-        const capturedByCase = capturedSvgByCase(captured.tree);
-        if (capturedByCase.size !== SVG_EFFECT_CASES.length)
-          structuralErrors.push(
-            `dpr${dpr}: expected ${SVG_EFFECT_CASES.length} inline SVG owners, received ${capturedByCase.size}`,
-          );
-        const rasterOwners = walk(captured.tree).filter(
-          (element) => element.elementRaster != null || element.transformSubtreeRaster != null,
-        );
-        const warnings = captured.warnings.map((warning) =>
-          typeof warning === "string" ? warning : JSON.stringify(warning),
-        );
-        const effectWarnings = warnings.filter((warning) =>
-          /inline-svg|gradient|clip|mask|marker|vector-effect/i.test(warning),
-        );
-        if (effectWarnings.length > 0)
-          structuralErrors.push(`dpr${dpr}: relevant warnings: ${effectWarnings.join(" | ")}`);
-
-        const svg = render.elementTreeToSvg(captured.tree, SVG_EFFECT_VIEWPORT.width, SVG_EFFECT_VIEWPORT.height, {
-          hiDPIFactor: dpr,
-        });
-        const expectedProjectiveOwners = SVG_EFFECT_CASES.filter(
-          (test) => test.values.transform === "projective",
-        ).length;
-        const emittedImageOwners = (svg.match(/<image\b/g) ?? []).length;
-        if (emittedImageOwners !== expectedProjectiveOwners) {
-          structuralErrors.push(
-            `dpr${dpr}: expected ${expectedProjectiveOwners} projective image owners, received ${emittedImageOwners}`,
-          );
-        }
-        await output.setContent(
-          `<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`,
-          { waitUntil: "load" },
-        );
-        await settle(output);
-        const generatedPng = await output.screenshot({ type: "png" });
-        const [sourcePixels, generatedPixels] = await Promise.all([decodeRgb(sourcePng), decodeRgb(generatedPng)]);
-        if (sourcePixels.width !== generatedPixels.width || sourcePixels.height !== generatedPixels.height) {
-          throw new Error(`pixel dimensions differ at DPR ${dpr}`);
-        }
-        for (const test of SVG_EFFECT_CASES) {
-          const markup = capturedByCase.get(test.id);
-          const matchingOwners = rasterOwners.filter((owner) =>
-            owner.svgContent?.includes(`data-effect-case="${test.id}"`),
-          );
-          const expectsProjective = test.values.transform === "projective";
-          const rowErrors = caseStructuralErrors(test.id, markup);
-          if (matchingOwners.length !== (expectsProjective ? 1 : 0))
-            rowErrors.push(`expected ${expectsProjective ? 1 : 0} projective owner, received ${matchingOwners.length}`);
-          const pixels = compareTile(sourcePixels, generatedPixels, test.ordinal, dpr);
-          const logical = logicalEvidence(test.id, markup ?? "", matchingOwners.length === 1);
-          rowErrors.push(...validateLogicalEvidence(test, logical));
-          rows.push({
-            id: test.id,
-            deviceScaleFactor: dpr,
-            structuralErrors: rowErrors,
-            logical,
-            pixels,
-            pass: rowErrors.length === 0 && pixels.pass,
+      for (const dpr of dprs) {
+        const context = await browser.newContext({ viewport: SVG_EFFECT_VIEWPORT, deviceScaleFactor: dpr });
+        const source = await context.newPage();
+        const output = await context.newPage();
+        try {
+          await source.setContent(buildSvgEffectCombinationHtml(), { waitUntil: "load" });
+          await settle(source);
+          if (dpr === dprs[0]) {
+            grammar = await source.evaluate(() => ({
+              bareUrlSupported: CSS.supports("clip-path", "url(#clip-0)"),
+              urlPlusGeometryBoxRejected: ["fill-box", "stroke-box", "view-box"].every(
+                (box) =>
+                  !CSS.supports("clip-path", `url(#clip-0) ${box}`) &&
+                  !CSS.supports("clip-path", `${box} url(#clip-0)`),
+              ),
+            }));
+          }
+          const sourcePng = await source.screenshot({ type: "png" });
+          const captured = await capture.captureElementTreeWithWarnings(source, "#stage", {
+            x: 0,
+            y: 0,
+            ...SVG_EFFECT_VIEWPORT,
           });
-        }
+          const capturedByCase = capturedSvgByCase(captured.tree);
+          if (capturedByCase.size !== SVG_EFFECT_CASES.length)
+            structuralErrors.push(
+              `dpr${dpr}: expected ${SVG_EFFECT_CASES.length} inline SVG owners, received ${capturedByCase.size}`,
+            );
+          const rasterOwners = walk(captured.tree).filter(
+            (element) => element.elementRaster != null || element.transformSubtreeRaster != null,
+          );
+          const warnings = captured.warnings.map((warning) =>
+            typeof warning === "string" ? warning : JSON.stringify(warning),
+          );
+          const effectWarnings = warnings.filter((warning) =>
+            /inline-svg|gradient|clip|mask|marker|vector-effect/i.test(warning),
+          );
+          if (effectWarnings.length > 0)
+            structuralErrors.push(`dpr${dpr}: relevant warnings: ${effectWarnings.join(" | ")}`);
 
-        for (const mutation of [
-          { id: "strip-marker-properties" as const, properties: ["marker-start", "marker-mid", "marker-end"] },
-          { id: "strip-vector-effect" as const, properties: ["vector-effect"] },
-          { id: "strip-color-interpolation" as const, properties: ["color-interpolation"] },
-        ]) {
-          const mutationPng = await mutationScreenshot(output, svg, mutation.properties);
-          mutations.push(mutationDelta(generatedPixels, await decodeRgb(mutationPng), mutation.id, dpr));
+          const svg = render.elementTreeToSvg(captured.tree, SVG_EFFECT_VIEWPORT.width, SVG_EFFECT_VIEWPORT.height, {
+            hiDPIFactor: dpr,
+          });
+          const expectedProjectiveOwners = SVG_EFFECT_CASES.filter(
+            (test) => test.values.transform === "projective",
+          ).length;
+          const emittedImageOwners = (svg.match(/<image\b/g) ?? []).length;
+          if (emittedImageOwners !== expectedProjectiveOwners) {
+            structuralErrors.push(
+              `dpr${dpr}: expected ${expectedProjectiveOwners} projective image owners, received ${emittedImageOwners}`,
+            );
+          }
+          await output.setContent(
+            `<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}svg{display:block}</style>${svg}`,
+            { waitUntil: "load" },
+          );
+          await settle(output);
+          const generatedPng = await output.screenshot({ type: "png" });
+          const [sourcePixels, generatedPixels] = await Promise.all([decodeRgb(sourcePng), decodeRgb(generatedPng)]);
+          if (sourcePixels.width !== generatedPixels.width || sourcePixels.height !== generatedPixels.height) {
+            throw new Error(`pixel dimensions differ at DPR ${dpr}`);
+          }
+          for (const test of SVG_EFFECT_CASES) {
+            const markup = capturedByCase.get(test.id);
+            const matchingOwners = rasterOwners.filter((owner) =>
+              owner.svgContent?.includes(`data-effect-case="${test.id}"`),
+            );
+            const expectsProjective = test.values.transform === "projective";
+            const rowErrors = caseStructuralErrors(test.id, markup);
+            if (matchingOwners.length !== (expectsProjective ? 1 : 0))
+              rowErrors.push(
+                `expected ${expectsProjective ? 1 : 0} projective owner, received ${matchingOwners.length}`,
+              );
+            const pixels = compareTile(sourcePixels, generatedPixels, test.ordinal, dpr);
+            const logical = logicalEvidence(test.id, markup ?? "", matchingOwners.length === 1);
+            rowErrors.push(...validateLogicalEvidence(test, logical));
+            rows.push({
+              id: test.id,
+              deviceScaleFactor: dpr,
+              structuralErrors: rowErrors,
+              logical,
+              pixels,
+              pass: rowErrors.length === 0 && pixels.pass,
+            });
+          }
+
+          for (const mutation of [
+            { id: "strip-marker-properties" as const, properties: ["marker-start", "marker-mid", "marker-end"] },
+            { id: "strip-vector-effect" as const, properties: ["vector-effect"] },
+            { id: "strip-color-interpolation" as const, properties: ["color-interpolation"] },
+          ]) {
+            const mutationPng = await mutationScreenshot(output, svg, mutation.properties);
+            mutations.push(mutationDelta(generatedPixels, await decodeRgb(mutationPng), mutation.id, dpr));
+          }
+        } finally {
+          await context.close();
         }
-      } finally {
-        await context.close();
       }
-    }
 
-    if (!grammar.bareUrlSupported) structuralErrors.push("Chromium rejected the bare URL clip control");
-    if (!grammar.urlPlusGeometryBoxRejected)
-      structuralErrors.push("Chromium accepted a URL-plus-geometry-box negative control");
-    const coverage = svgEffectPairCoverage(SVG_EFFECT_CASES);
-    const higherOrder = svgEffectHigherOrderCoverage(SVG_EFFECT_CASES);
-    const pass =
-      structuralErrors.length === 0 &&
-      logicalMutations.every((mutation) => mutation.rejected) &&
-      rows.every((row) => row.pass) &&
-      mutations.every((mutation) => mutation.moved);
-    return {
-      schemaVersion: 2,
-      generatedAt: new Date().toISOString(),
-      sourceRevision: SVG_EFFECT_SOURCE_REVISION,
-      sourceDecisions: SVG_EFFECT_SOURCE_DECISIONS,
-      fingerprint: {
-        chromiumVersion: browser.version(),
-        playwrightVersion,
-        userAgent,
-        os: platform(),
-        osRelease: release(),
-        architecture: arch(),
-        node: process.version,
-        viewport: SVG_EFFECT_VIEWPORT,
-        deviceScaleFactors: dprs,
-        thresholds: SVG_EFFECT_PIXEL_THRESHOLDS,
-      },
-      corpus: {
-        cases: SVG_EFFECT_CASES.length,
-        expectedPairs: coverage.expectedPairs,
-        coveredPairs: coverage.coveredPairs,
-        ...higherOrder,
-      },
-      grammar,
-      rows,
-      mutations,
-      logicalMutations,
-      structuralErrors,
-      verdict: pass ? "source-exact-native-svg-delegation" : "svg-effect-combination-drift",
-    };
-  } finally {
-    await browser.close();
-  }
+      if (!grammar.bareUrlSupported) structuralErrors.push("Chromium rejected the bare URL clip control");
+      if (!grammar.urlPlusGeometryBoxRejected)
+        structuralErrors.push("Chromium accepted a URL-plus-geometry-box negative control");
+      const coverage = svgEffectPairCoverage(SVG_EFFECT_CASES);
+      const higherOrder = svgEffectHigherOrderCoverage(SVG_EFFECT_CASES);
+      const pass =
+        structuralErrors.length === 0 &&
+        logicalMutations.every((mutation) => mutation.rejected) &&
+        rows.every((row) => row.pass) &&
+        mutations.every((mutation) => mutation.moved);
+      return {
+        schemaVersion: 2,
+        generatedAt: new Date().toISOString(),
+        sourceRevision: SVG_EFFECT_SOURCE_REVISION,
+        sourceDecisions: SVG_EFFECT_SOURCE_DECISIONS,
+        fingerprint: {
+          chromiumVersion: browser.version(),
+          playwrightVersion,
+          userAgent,
+          os: platform(),
+          osRelease: release(),
+          architecture: arch(),
+          node: process.version,
+          viewport: SVG_EFFECT_VIEWPORT,
+          deviceScaleFactors: dprs,
+          thresholds: SVG_EFFECT_PIXEL_THRESHOLDS,
+        },
+        corpus: {
+          cases: SVG_EFFECT_CASES.length,
+          expectedPairs: coverage.expectedPairs,
+          coveredPairs: coverage.coveredPairs,
+          ...higherOrder,
+        },
+        grammar,
+        rows,
+        mutations,
+        logicalMutations,
+        structuralErrors,
+        verdict: pass ? "source-exact-native-svg-delegation" : "svg-effect-combination-drift",
+      };
+    },
+    { headless: true },
+  );
 }
 
 async function main(): Promise<number> {

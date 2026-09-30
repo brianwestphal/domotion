@@ -31,6 +31,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Page } from "@playwright/test";
+import { withBrowser } from "./lib/browser.js";
 import { compareGlyphPngs, DEFAULT_THRESHOLDS, type GlyphCompareResult } from "../src/review/glyph-compare.js";
 
 const OUT_DIR = "tests/output/glyph-compare-calibration";
@@ -259,15 +260,16 @@ async function main(): Promise<void> {
   }
 
   console.log(`rendering ${cells.size} cells across ${configs.size} configs (DPR 2)…`);
-  const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: 1100, height: 140 }, deviceScaleFactor: 2 });
-  const page = await ctx.newPage();
-  const files = new Map<string, string>();
-  for (const { cfg, chars } of configs.values()) {
-    const rendered = await renderConfig(page, cfg, [...chars]);
-    for (const [id, f] of rendered) files.set(id, f);
-  }
-  await browser.close();
+  const { files } = await withBrowser(async (browser) => {
+    const ctx = await browser.newContext({ viewport: { width: 1100, height: 140 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    const files = new Map<string, string>();
+    for (const { cfg, chars } of configs.values()) {
+      const rendered = await renderConfig(page, cfg, [...chars]);
+      for (const [id, f] of rendered) files.set(id, f);
+    }
+    return { files };
+  });
 
   console.log(`scoring ${pairs.length} pairs…`);
   interface Scored extends PairSpec {
