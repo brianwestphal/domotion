@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507"]
+tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2"]
 code:
   [
     ".github/workflows/font-conformance-synthetic.yml",
@@ -53,6 +53,12 @@ a pixel score can never excuse a different face or glyph sequence.
 Domotion's font goal is guaranteed parity with Chromium's font-selection mechanism: for any codepoint, in any CSS font stack, we must resolve the face Chromium actually paints with. A visual-regression suite cannot establish that. Fixtures sample, and a wrong-font bug survives comfortably in the codepoints no fixture happens to cover — which is how several of them survived.
 
 `tools/font-conformance.ts` is the instrument that replaces sampling with enumeration. It asks Chrome and Domotion the same question about every assigned Unicode codepoint, crossed with every font stack the fixture corpus actually uses, and fails on any disagreement.
+
+The command loads and checks the corpus before launching Chromium, filters and
+shards stacks and codepoints separately, then sweeps each selected stack in
+corpus order. A stack's locale selects its Chromium renderer scope on Linux;
+resolver cache resets happen between batches at the requested cadence. The
+report records the selected universe and the answers in that same order.
 
 - **Chrome's answer** — CDP `CSS.getPlatformFontsForNode` over a one-codepoint cell. This is the face the engine reports having painted with, not a guess inferred from pixels. Two earlier attempts to identify a face from rendered crops (a hand-rolled shape matcher, and `tools/compare-glyphs.ts` on upscaled 1× captures) both failed their controls; asking the browser is strictly better.
 - **Our answer** — `resolveFontForCodepoint` against the same stack's key chain, at the same size, weight and style, materialized through the same call the renderer makes (`res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`), so the face reported is the concrete **cut** the renderer would load and not the family's base entry.

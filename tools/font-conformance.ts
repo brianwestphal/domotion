@@ -1395,6 +1395,75 @@ export function shouldResetBatch(resetEvery: number, batchNo: number): boolean {
   return resetEvery > 0 && batchNo > 0 && batchNo % resetEvery === 0;
 }
 
+/** Read and validate a corpus before opening a browser. */
+export function loadCorpus(
+  opts: Pick<Options, "stacksFile" | "allowForeignCorpus">,
+  platform: NodeJS.Platform = process.platform,
+): { corpus: StackCorpus | null; message: string | null; warning: string | null } {
+  if (!existsSync(opts.stacksFile)) {
+    return {
+      corpus: null,
+      message:
+        `no stack corpus at ${opts.stacksFile} — run with --extract-stacks first ` +
+        `(the corpus is per-platform; see --allow-foreign-corpus)\n`,
+      warning: null,
+    };
+  }
+  const corpus = JSON.parse(readFileSync(opts.stacksFile, "utf-8")) as StackCorpus;
+  if (corpus.platform !== platform && corpus.platform !== PORTABLE_CORPUS_PLATFORM) {
+    const what = corpus.platform ?? "(unrecorded)";
+    if (!opts.allowForeignCorpus) {
+      return {
+        corpus: null,
+        message:
+          `stack corpus ${opts.stacksFile} was extracted on ${what}, this host is ${platform}.\n` +
+          `A corpus is not portable: the computed font-family of an element that declares none is\n` +
+          `Chrome's per-platform default-font preference (macOS "Times" vs Linux "Times New Roman"),\n` +
+          `so sweeping it here would ask about stacks no page on this platform renders.\n` +
+          `Re-extract with --extract-stacks, or pass --allow-foreign-corpus to sweep it anyway.\n`,
+        warning: null,
+      };
+    }
+    return {
+      corpus,
+      message: null,
+      warning: `WARNING: sweeping a ${what} corpus on ${platform} (--allow-foreign-corpus)\n`,
+    };
+  }
+  return { corpus, message: null, warning: null };
+}
+
+/** Apply the two independent stride shards after filtering the full corpus. */
+export function selectStacksAndUniverse(
+  corpus: StackCorpus,
+  opts: Options,
+): {
+  stacks: StackSpec[];
+  universe: number[];
+} {
+  let stacks = corpus.stacks;
+  if (opts.stackFilter != null) {
+    const needle = opts.stackFilter.toLocaleLowerCase("en-US");
+    stacks = stacks.filter((s) => JSON.stringify(s).toLocaleLowerCase("en-US").includes(needle));
+    if (stacks.length === 0) throw new Error(`--stack-filter matched no stacks: ${opts.stackFilter}`);
+  }
+  if (opts.maxStacks != null) stacks = stacks.slice(0, opts.maxStacks);
+  if (opts.stackShard != null) {
+    const [i, n] = opts.stackShard;
+    stacks = stacks.filter((_, idx) => idx % n === i - 1);
+  }
+  let universe = buildUniverse({
+    includePua: opts.includePua,
+    ranges: opts.ranges,
+    sampleByte: opts.sampleByte,
+  });
+  if (opts.shard != null) {
+    const [i, n] = opts.shard;
+    universe = universe.filter((_, idx) => idx % n === i - 1);
+  }
+  return { stacks, universe };
+}
+
 /** Reuse one Chromium renderer per locale on Linux and one shared renderer elsewhere. */
 export class OracleRegistry<T extends { close(): Promise<void> }> {
   private readonly entries = new Map<string, Promise<T>>();
@@ -1770,6 +1839,125 @@ export function formatSummary(
   return `${lines.join("\n")}\n`;
 }
 
+/** Sweep one CSS stack, preserving its resolver reset and locale scope. */
+export interface SweepOperations {
+  platform: NodeJS.Platform;
+  selectScope: typeof selectCharacterFallbackRendererScope;
+  prepare: typeof prepareStack;
+  reset: typeof clearFontResolutionCaches;
+  faceFor: typeof ourFaceFor;
+  memoSize: typeof glyphHelperCodepointMemoSize;
+  rssMb: () => number;
+  write: (message: string) => void;
+}
+
+const sweepOperations: SweepOperations = {
+  platform: process.platform,
+  selectScope: selectCharacterFallbackRendererScope,
+  prepare: prepareStack,
+  reset: clearFontResolutionCaches,
+  faceFor: ourFaceFor,
+  memoSize: glyphHelperCodepointMemoSize,
+  rssMb: () => Math.round(process.memoryUsage().rss / 1024 / 1024),
+  write: (message) => process.stdout.write(message),
+};
+
+export async function sweepStack(
+  spec: StackSpec,
+  stackIndex: number,
+  stackCount: number,
+  universe: number[],
+  opts: Options,
+  oracle: Pick<ChromeOracle, "resolvedPrimary" | "facesFor">,
+  tally: SweepTally,
+  t0: number,
+  operations: SweepOperations = sweepOperations,
+): Promise<void> {
+  if (operations.platform === "linux") operations.selectScope(spec.lang ?? opts.lang);
+  let rs = operations.prepare(spec, opts.lang);
+  if (rs == null) {
+    tally.skippedStacks++;
+    operations.write(`  SKIP (no resolvable primary): ${spec.fontFamily}\n`);
+    return;
+  }
+  operations.write(
+    `  stack ${stackIndex + 1}/${stackCount}: ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}` +
+      ` lang=${spec.lang ?? opts.lang} → chain [${rs.chain.join(", ")}]\n`,
+  );
+  // Ask Chrome for this stack's primary before sweeping it, and record it.
+  // See `resolvedPrimary` — this is the quantity that flips, and inferring
+  // it from the tally afterwards is what made the last occurrence
+  // unattributable.
+  const chromePrimary = await oracle.resolvedPrimary(spec);
+  tally.stackPrimaries.push({
+    fontFamily: spec.fontFamily,
+    fontSize: spec.fontSize,
+    fontWeight: spec.fontWeight,
+    fontStyle: spec.fontStyle,
+    chromePrimary,
+    ourPrimaryKey: rs.primaryKey,
+  });
+  operations.write(`    chrome primary: ${chromePrimary ?? "(none)"}   ours: ${rs.primaryKey}\n`);
+  let batchNo = 0;
+  for (let i = 0; i < universe.length; i += opts.batch) {
+    // Bound memory (DM-1860). The font-resolution memos are unbounded in the
+    // codepoint universe, and each retained fontkit `Font` holds a memoized
+    // `Glyph` for every codepoint probed through it — so a full sweep OOMed
+    // partway and reported its prefix as the answer. Rebuilding the stack is
+    // part of the reset, not an extra: `rs` owns the primary `FontInstance`,
+    // so dropping the caches while holding `rs` would keep the largest glyph
+    // memo of all alive. Every cleared entry is a pure function of its key,
+    // so this costs re-reads, never a different answer.
+    if (shouldResetBatch(opts.resetEvery, batchNo)) {
+      operations.reset();
+      const again = operations.prepare(spec, opts.lang);
+      if (again == null) throw new Error(`stack stopped resolving after cache reset: ${spec.fontFamily}`);
+      rs = again;
+    }
+    batchNo++;
+    const cps = universe.slice(i, i + opts.batch);
+    // A DOMOTION_FC_WARM-gated batch pre-warm of the platform fallback
+    // helper sat here (DM-1889) and was deleted (DM-1893). It was blamed
+    // for moving macOS answers between runs, but the movement decomposed
+    // entirely as CHROME's answers flipping among CJK cousin faces — the
+    // oracle's own run-to-run instability, which the `chromeFaceCounts`
+    // baseline comparison now detects. With the persistent helper channel
+    // on every platform the batch saved ~0.05 ms/codepoint on macOS, so it
+    // was deleted rather than re-validated: our side resolves per codepoint
+    // below, the same ask pattern Blink itself uses.
+    const tc = Date.now();
+    const faces = await oracle.facesFor(cps, spec);
+    tally.chromeMs += Date.now() - tc;
+    const to = Date.now();
+    for (let j = 0; j < cps.length; j++) {
+      const cp = cps[j];
+      const ours = operations.faceFor(cp, rs, spec.lang ?? opts.lang);
+      tally.record(spec, cp, faces[j], ours);
+    }
+    tally.oursMs += Date.now() - to;
+    const done = Math.min(i + opts.batch, universe.length);
+    // Report resident memory per batch. A sweep that OOMs reports a PREFIX
+    // of the universe as though it were the answer (DM-1860), so the trend
+    // here is what tells you a long run is actually bounded rather than
+    // merely not dead yet.
+    const rssMb = operations.rssMb();
+    if (rssMb > tally.peakRssMb) tally.peakRssMb = rssMb;
+    // …and the size of the per-codepoint fallback memos, which is the
+    // quantity RSS could not answer. Resident size is dominated by transient
+    // allocation and swings by hundreds of MB between batches, so a memo
+    // growing without bound hid inside the noise for four stacks and only
+    // became visible on CI, two hours and eight stacks later, as an OOM.
+    // This number is retained state: bounded by the batch when the reset
+    // reaches it, and monotonically rising when it does not.
+    const memoEntries = operations.memoSize();
+    if (memoEntries > tally.peakMemoEntries) tally.peakMemoEntries = memoEntries;
+    operations.write(
+      `    ${done}/${universe.length}  mismatches=${tally.mismatchRowsSeen}  ` +
+        `rss=${rssMb}MB  memo=${memoEntries}  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
+    );
+  }
+}
+
 async function main(): Promise<number> {
   const opts = parseArgs(process.argv.slice(2));
   let browser: Browser | null = null;
@@ -1786,66 +1974,15 @@ async function main(): Promise<number> {
       return 0;
     }
 
-    if (!existsSync(opts.stacksFile)) {
-      process.stderr.write(
-        `no stack corpus at ${opts.stacksFile} — run with --extract-stacks first ` +
-          `(the corpus is per-platform; see --allow-foreign-corpus)\n`,
-      );
+    const loaded = loadCorpus(opts);
+    if (loaded.message != null) {
+      process.stderr.write(loaded.message);
       return 2;
     }
-    const corpus = JSON.parse(readFileSync(opts.stacksFile, "utf-8")) as StackCorpus;
-    // A corpus from another platform describes stacks this platform's Chrome
-    // never computes, so a sweep over it measures the wrong question rather
-    // than measuring badly. Refuse by default; the escape hatch is explicit and
-    // is recorded in the report's `meta`.
-    // A corpus that declares itself PORTABLE is exempt, and the exemption is
-    // narrow by construction. The guard exists because a HARVESTED corpus
-    // records computed style, and one computed value — the default font-family
-    // — is a per-platform preference. A rule-derived corpus (see
-    // `tools/font-conformance-synthetic-stacks.ts`) contains only literal CSS
-    // keywords, written the same on every platform; what each keyword resolves
-    // to differs per platform, which is the question it asks rather than a
-    // reason it cannot be asked. Only the generator writes this marker.
-    if (corpus.platform !== process.platform && corpus.platform !== PORTABLE_CORPUS_PLATFORM) {
-      const what = corpus.platform ?? "(unrecorded)";
-      if (!opts.allowForeignCorpus) {
-        process.stderr.write(
-          `stack corpus ${opts.stacksFile} was extracted on ${what}, this host is ${process.platform}.\n` +
-            `A corpus is not portable: the computed font-family of an element that declares none is\n` +
-            `Chrome's per-platform default-font preference (macOS "Times" vs Linux "Times New Roman"),\n` +
-            `so sweeping it here would ask about stacks no page on this platform renders.\n` +
-            `Re-extract with --extract-stacks, or pass --allow-foreign-corpus to sweep it anyway.\n`,
-        );
-        return 2;
-      }
-      process.stderr.write(`WARNING: sweeping a ${what} corpus on ${process.platform} (--allow-foreign-corpus)\n`);
-    }
-    let stacks = corpus.stacks;
-    if (opts.stackFilter != null) {
-      const needle = opts.stackFilter.toLocaleLowerCase("en-US");
-      stacks = stacks.filter((s) => JSON.stringify(s).toLocaleLowerCase("en-US").includes(needle));
-      if (stacks.length === 0) throw new Error(`--stack-filter matched no stacks: ${opts.stackFilter}`);
-    }
-    if (opts.maxStacks != null) stacks = stacks.slice(0, opts.maxStacks);
-    // Two independent stride shards. `--stack-shard` splits the corpus across
-    // CI runners (the cheap axis: each runner reuses one warm resolver cache
-    // per stack); `--shard` splits the codepoint universe within a stack.
-    if (opts.stackShard != null) {
-      const [i, n] = opts.stackShard;
-      stacks = stacks.filter((_, idx) => idx % n === i - 1);
-    }
-
+    if (loaded.warning != null) process.stderr.write(loaded.warning);
+    const corpus = loaded.corpus!;
+    const { stacks, universe } = selectStacksAndUniverse(corpus, opts);
     const allowlist = loadAllowlist(opts.allowlistFile);
-
-    let universe = buildUniverse({
-      includePua: opts.includePua,
-      ranges: opts.ranges,
-      sampleByte: opts.sampleByte,
-    });
-    if (opts.shard != null) {
-      const [i, n] = opts.shard;
-      universe = universe.filter((_, idx) => idx % n === i - 1);
-    }
 
     if (stacks.length === 0 || universe.length === 0) {
       process.stderr.write(
@@ -1893,89 +2030,7 @@ async function main(): Promise<number> {
 
     for (const [stackIndex, spec] of stacks.entries()) {
       const oracle = await oracles.forLang(spec.lang ?? opts.lang);
-      if (process.platform === "linux") selectCharacterFallbackRendererScope(spec.lang ?? opts.lang);
-      let rs = prepareStack(spec, opts.lang);
-      if (rs == null) {
-        tally.skippedStacks++;
-        process.stdout.write(`  SKIP (no resolvable primary): ${spec.fontFamily}\n`);
-        continue;
-      }
-      process.stdout.write(
-        `  stack ${stackIndex + 1}/${stacks.length}: ${spec.fontFamily} @${spec.fontSize}px/${spec.fontWeight}/${spec.fontStyle}` +
-          ` lang=${spec.lang ?? opts.lang} → chain [${rs.chain.join(", ")}]\n`,
-      );
-      // Ask Chrome for this stack's primary before sweeping it, and record it.
-      // See `resolvedPrimary` — this is the quantity that flips, and inferring
-      // it from the tally afterwards is what made the last occurrence
-      // unattributable.
-      const chromePrimary = await oracle.resolvedPrimary(spec);
-      tally.stackPrimaries.push({
-        fontFamily: spec.fontFamily,
-        fontSize: spec.fontSize,
-        fontWeight: spec.fontWeight,
-        fontStyle: spec.fontStyle,
-        chromePrimary,
-        ourPrimaryKey: rs.primaryKey,
-      });
-      process.stdout.write(`    chrome primary: ${chromePrimary ?? "(none)"}   ours: ${rs.primaryKey}\n`);
-      let batchNo = 0;
-      for (let i = 0; i < universe.length; i += opts.batch) {
-        // Bound memory (DM-1860). The font-resolution memos are unbounded in the
-        // codepoint universe, and each retained fontkit `Font` holds a memoized
-        // `Glyph` for every codepoint probed through it — so a full sweep OOMed
-        // partway and reported its prefix as the answer. Rebuilding the stack is
-        // part of the reset, not an extra: `rs` owns the primary `FontInstance`,
-        // so dropping the caches while holding `rs` would keep the largest glyph
-        // memo of all alive. Every cleared entry is a pure function of its key,
-        // so this costs re-reads, never a different answer.
-        if (shouldResetBatch(opts.resetEvery, batchNo)) {
-          clearFontResolutionCaches();
-          const again = prepareStack(spec, opts.lang);
-          if (again == null) throw new Error(`stack stopped resolving after cache reset: ${spec.fontFamily}`);
-          rs = again;
-        }
-        batchNo++;
-        const cps = universe.slice(i, i + opts.batch);
-        // A DOMOTION_FC_WARM-gated batch pre-warm of the platform fallback
-        // helper sat here (DM-1889) and was deleted (DM-1893). It was blamed
-        // for moving macOS answers between runs, but the movement decomposed
-        // entirely as CHROME's answers flipping among CJK cousin faces — the
-        // oracle's own run-to-run instability, which the `chromeFaceCounts`
-        // baseline comparison now detects. With the persistent helper channel
-        // on every platform the batch saved ~0.05 ms/codepoint on macOS, so it
-        // was deleted rather than re-validated: our side resolves per codepoint
-        // below, the same ask pattern Blink itself uses.
-        const tc = Date.now();
-        const faces = await oracle.facesFor(cps, spec);
-        tally.chromeMs += Date.now() - tc;
-        const to = Date.now();
-        for (let j = 0; j < cps.length; j++) {
-          const cp = cps[j];
-          const ours = ourFaceFor(cp, rs, spec.lang ?? opts.lang);
-          tally.record(spec, cp, faces[j], ours);
-        }
-        tally.oursMs += Date.now() - to;
-        const done = Math.min(i + opts.batch, universe.length);
-        // Report resident memory per batch. A sweep that OOMs reports a PREFIX
-        // of the universe as though it were the answer (DM-1860), so the trend
-        // here is what tells you a long run is actually bounded rather than
-        // merely not dead yet.
-        const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
-        if (rssMb > tally.peakRssMb) tally.peakRssMb = rssMb;
-        // …and the size of the per-codepoint fallback memos, which is the
-        // quantity RSS could not answer. Resident size is dominated by transient
-        // allocation and swings by hundreds of MB between batches, so a memo
-        // growing without bound hid inside the noise for four stacks and only
-        // became visible on CI, two hours and eight stacks later, as an OOM.
-        // This number is retained state: bounded by the batch when the reset
-        // reaches it, and monotonically rising when it does not.
-        const memoEntries = glyphHelperCodepointMemoSize();
-        if (memoEntries > tally.peakMemoEntries) tally.peakMemoEntries = memoEntries;
-        process.stdout.write(
-          `    ${done}/${universe.length}  mismatches=${tally.mismatchRowsSeen}  ` +
-            `rss=${rssMb}MB  memo=${memoEntries}  (${((Date.now() - t0) / 1000).toFixed(0)}s)\n`,
-        );
-      }
+      await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
     }
     await oracles.close();
 

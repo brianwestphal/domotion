@@ -2598,7 +2598,7 @@
         "status": "current",
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507"],
+        "tickets": ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2"],
         "code": [
           ".github/workflows/font-conformance-synthetic.yml",
           ".github/workflows/font-conformance.yml",

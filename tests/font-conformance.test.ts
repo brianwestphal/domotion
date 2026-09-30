@@ -21,6 +21,7 @@ import {
   formatSummary,
   identifyFace,
   helperImplementationDigest,
+  loadCorpus,
   loadAllowlist,
   mismatchClass,
   needsIsolatedQuery,
@@ -32,14 +33,17 @@ import {
   probePageHtml,
   slantForStyle,
   shouldResetBatch,
+  selectStacksAndUniverse,
   stackKey,
   stacksFileFor,
+  sweepStack,
   SweepTally,
   verdictForCodepoint,
   type ChromeFace,
   type OurFace,
   type StackSpec,
   type StackCorpus,
+  type SweepOperations,
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
 
@@ -58,6 +62,91 @@ describe("helperImplementationDigest", () => {
 
     writeFileSync(join(helper, "src", "main.cpp"), "int main() { return 1; }\n");
     expect(helperImplementationDigest("win32", root)).not.toBe(first);
+  });
+});
+
+describe("font conformance command selection", () => {
+  const stacks: StackSpec[] = ["A", "B", "C", "D"].map((fontFamily) => ({
+    fontFamily,
+    fontSize: 16,
+    fontWeight: 400,
+    fontStyle: "normal",
+  }));
+
+  it("guards foreign harvested corpora while accepting portable and explicitly foreign corpora", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "domotion-font-corpus-")), "stacks.json");
+    const opts = { stacksFile: file, allowForeignCorpus: false };
+    expect(loadCorpus(opts, "darwin").message).toContain("no stack corpus");
+    writeFileSync(file, JSON.stringify({ generatedAt: "test", platform: "linux", sources: [], stacks }));
+    expect(loadCorpus(opts, "darwin").message).toContain("not portable");
+    expect(loadCorpus({ ...opts, allowForeignCorpus: true }, "darwin").warning).toContain("WARNING");
+    writeFileSync(file, JSON.stringify({ generatedAt: "test", platform: "any", sources: [], stacks }));
+    expect(loadCorpus(opts, "darwin").corpus?.stacks).toHaveLength(4);
+  });
+
+  it("filters before stack sharding and strides the selected codepoint universe", () => {
+    const corpus: StackCorpus = { generatedAt: "test", platform: "any", sources: [], stacks };
+    const opts = parseArgs(["--range", "0041-0048", "--stack-shard", "2/2", "--shard", "2/2"]);
+    expect(selectStacksAndUniverse(corpus, opts).stacks.map((stack) => stack.fontFamily)).toEqual(["B", "D"]);
+    expect(selectStacksAndUniverse(corpus, opts).universe).toEqual([0x42, 0x44, 0x46, 0x48]);
+    opts.stackFilter = "C";
+    expect(selectStacksAndUniverse(corpus, opts).stacks).toEqual([]);
+    opts.stackFilter = "absent";
+    expect(() => selectStacksAndUniverse(corpus, opts)).toThrow("matched no stacks");
+  });
+});
+
+describe("sweepStack orchestration", () => {
+  it("keeps Linux locale scope, batch reset cadence, and answer order", async () => {
+    const events: string[] = [];
+    const spec: StackSpec = { fontFamily: "A", fontSize: 16, fontWeight: 400, fontStyle: "normal", lang: "ja" };
+    const opts = parseArgs(["--range", "0041-0043", "--batch", "1", "--reset-every", "2"]);
+    const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
+    const operations: SweepOperations = {
+      platform: "linux",
+      selectScope: (lang) => {
+        events.push(`scope:${lang}`);
+      },
+      prepare: (() => {
+        events.push("prepare");
+        return { chain: ["A"], primaryKey: "A" };
+      }) as SweepOperations["prepare"],
+      reset: () => {
+        events.push("reset");
+      },
+      faceFor: ((cp: number) => {
+        events.push(`ours:${cp}`);
+        return ours({ key: "Arial", postscriptName: "Arial" });
+      }) as SweepOperations["faceFor"],
+      memoSize: () => 3,
+      rssMb: () => 9,
+      write: () => {},
+    };
+    const oracle = {
+      resolvedPrimary: async () => "Arial",
+      facesFor: async (cps: number[]) => {
+        events.push(`chrome:${cps.join(",")}`);
+        return cps.map(() => [chrome({ familyName: "Arial", postScriptName: "Arial" })]);
+      },
+    };
+    await sweepStack(spec, 0, 1, [0x41, 0x42, 0x43], opts, oracle, tally, Date.now(), operations);
+    expect(events).toEqual([
+      "scope:ja",
+      "prepare",
+      "chrome:65",
+      "ours:65",
+      "chrome:66",
+      "ours:66",
+      "reset",
+      "prepare",
+      "chrome:67",
+      "ours:67",
+    ]);
+    expect(tally.stackPrimaries[0].chromePrimary).toBe("Arial");
+    expect(tally.peakMemoEntries).toBe(3);
+    expect(tally.peakRssMb).toBe(9);
+    expect(tally.mismatchRowsSeen).toBe(0);
+    expect(Object.values(tally.counts).reduce((sum, count) => sum + count, 0)).toBe(3);
   });
 });
 
