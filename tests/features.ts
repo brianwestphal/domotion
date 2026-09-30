@@ -724,6 +724,20 @@ export const tests: FeatureTest[] = [
     height: 110,
   },
   {
+    // DM-6VCX1C: a control pseudo and a border image must use the same
+    // hinted, box-aware gradient rules as a normal background.
+    name: "gradient-hint-range-track",
+    html: `<style>input.hinted{appearance:none;width:300px;height:32px;margin:20px}input.hinted::-webkit-slider-runnable-track{height:16px;background:linear-gradient(to top right,transparent 0%,20%,#ef4444 100%);border-radius:8px}input.hinted::-webkit-slider-thumb{appearance:none;width:20px;height:20px;margin-top:-2px;border-radius:50%;background:#111827}</style><input class="hinted" type="range" value="45">`,
+    width: 350,
+    height: 80,
+  },
+  {
+    name: "gradient-hint-border-image",
+    html: `<div style="padding:20px;background:#fff"><div style="width:300px;height:80px;border:16px solid transparent;border-image-source:linear-gradient(to top right,transparent 0%,20%,#ef4444 100%);border-image-slice:1"></div></div>`,
+    width: 380,
+    height: 150,
+  },
+  {
     name: "gradient-radial",
     html: `<div style="padding: 12px; display: flex; gap: 8px;">
       <div style="width: 80px; height: 80px; background: radial-gradient(#dc2626, #58a6ff);"></div>

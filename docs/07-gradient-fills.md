@@ -7,6 +7,7 @@ owners: ["paint-effects"]
 platforms: []
 tickets:
   [
+    "DM-6VCX1C",
     "DM-1242",
     "DM-1243",
     "DM-2194",
@@ -95,7 +96,7 @@ The capture layer needs the **declared gradient text**, not a reduced color, so 
 
 ## Render changes
 
-> **Two gradient modules.** There are two parser/emitter modules with distinct callers: `src/render/gradients.ts` builds gradient defs for **form-control pseudos** (`parseGradient` + `buildLinearGradientDef` / `buildRadialGradientDef` + `gradientCacheKey`, consumed by `form-controls.ts`), while `src/render/gradient-defs.ts` builds the element-background (and mask) gradient defs (`buildLinearGradientDef(id, args, …)` / `buildRadialGradientDef`, consumed by the background renderer and `mask.ts`). They share the `userSpaceOnUse` convention but are not the same code.
+> **Shared modern gradient builder.** `src/render/gradient-defs.ts` resolves modern linear and radial stops and emits SVG defs for backgrounds, masks, form controls, and border images. `src/render/gradients.ts` retains the typed gradient description and cache key used by controls and borders, then passes the original modern CSS arguments and painted box to the shared builder. Deprecated `-webkit-gradient()` and conic gradients retain their separate geometry and raster paths. The shared path applies color hints, transparent-stop colors, and box-dependent corner directions consistently across callers.
 
 The renderer parses the gradient text and emits SVG. The work fans out into three pieces:
 

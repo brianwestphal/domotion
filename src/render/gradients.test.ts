@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildLinearGradientDef,
   buildRadialGradientDef,
+  gradientCacheKey,
   parseConicGradient,
   parseGradient,
   parseLegacyWebkitGradient,
@@ -225,8 +226,8 @@ describe("radial gradient percentage ellipse sizing (DM-2649)", () => {
 
   it("supports mixed length/percentage ellipse axes", () => {
     const g = parseRadialGradient("radial-gradient(120px 80% at center, red, blue)")!;
-    expect(buildRadialGradientDef(g, "mixed", { x: 0, y: 0, w: 300, h: 200 })).toContain(
-      'r="120" gradientTransform="translate(150 100) scale(1 1.333)',
+    expect(buildRadialGradientDef(g, "mixed", { x: 0, y: 0, w: 300, h: 200 })).toBe(
+      buildBackgroundRadialGradientDef("mixed", "120px 80% at center, red, blue", false, 0, 0, 300, 200),
     );
   });
 
@@ -395,6 +396,20 @@ describe("background gradient magic corners (DM-2297)", () => {
 });
 
 describe("buildLinearGradientDef: repeating domains", () => {
+  it("uses the background parser for hinted corner gradients on non-square paint boxes", () => {
+    const args = "to top right, transparent 0%, 20%, rgb(255, 0, 0) 100%";
+    const parsed = parseLinearGradient(`linear-gradient(${args})`)!;
+    expect(parsed).not.toBeNull();
+    const rect = { x: 7, y: 11, w: 300, h: 80 };
+    const control = buildLinearGradientDef(parsed, "shared", rect);
+    const background = buildBackgroundLinearGradientDef("shared", args, false, rect.w, rect.h, rect.x, rect.y);
+    expect(control).toBe(background);
+    expect((control.match(/<stop /g) ?? []).length).toBe(11);
+    expect(control).toContain('stop-color="rgba(255,0,0,0)"');
+    expect(control).not.toContain('x1="7"');
+    expect(gradientCacheKey(parsed, rect)).toContain("20%");
+  });
+
   it("moves the vector to one calc-resolved period and uses native repeat", () => {
     // A 100px-wide rect with a repeating-linear-gradient running 90deg means
     // the gradient line length L=100. Period 10% = 10px → 10 tiles.
@@ -408,7 +423,7 @@ describe("buildLinearGradientDef: repeating domains", () => {
     expect(svg).toContain('x1="0"');
     expect(svg).toContain('x2="10"');
     expect(svg).toContain('spreadMethod="repeat"');
-    expect(svg).toContain('stop-color="rgb(148, 163, 184)"');
+    expect(svg).toContain('stop-color="rgb(148,163,184)"');
     // First and last offsets at the ends of the gradient line.
     expect(svg).toContain('offset="0"');
     expect(svg).toContain('offset="1"');
@@ -429,7 +444,7 @@ describe("buildLinearGradientDef: repeating domains", () => {
       { x: 0, y: 0, w: 100, h: 10 },
     );
     expect(solid).not.toContain("spreadMethod");
-    expect((solid.match(/stop-color="blue"/g) ?? []).length).toBe(2);
+    expect((solid.match(/stop-color="rgb\(0,0,255\)"/g) ?? []).length).toBe(2);
   });
 
   it("defaults omitted repeat endpoints before moving the vector", () => {

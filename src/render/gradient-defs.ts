@@ -703,6 +703,12 @@ export function parseGradientStops(tokens: string[], gradientLength: number = 0)
     if (stops[k].pos < stops[k - 1].pos) stops[k].pos = stops[k - 1].pos;
   }
 
+  // Resolve CSS `transparent` against its neighboring color before expanding
+  // hints. Otherwise the synthesized hint stops interpolate through black,
+  // and normalizing only the final stop list cannot recover their RGB values.
+  const transparentResolved = normalizeTransparentStops(stops);
+  for (let k = 0; k < stops.length; k++) stops[k].color = transparentResolved[k].color;
+
   // Blink replaces every interpolation hint with exactly nine ordinary stops
   // (`ReplaceColorHintsWithColorStops`, css_gradient_value.cc:266-399,
   // Chromium rev 7d859f27). Mirror its deliberately asymmetric placement:

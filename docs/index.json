@@ -235,6 +235,7 @@
         "owners": ["paint-effects"],
         "platforms": [],
         "tickets": [
+          "DM-6VCX1C",
           "DM-1242",
           "DM-1243",
           "DM-2194",

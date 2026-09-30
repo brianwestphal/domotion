@@ -14,6 +14,11 @@
  */
 
 import { splitTopLevelCommas } from "./css-tokens.js";
+import {
+  buildLinearGradientDef as buildSharedLinearGradientDef,
+  buildRadialGradientDef as buildSharedRadialGradientDef,
+  parseGradientStops,
+} from "./gradient-defs.js";
 
 export interface LinearStop {
   /** Resolved CSS color (Chromium serializes to rgb()/rgba() form). */
@@ -43,6 +48,8 @@ export interface LinearGradient {
   /** Resolved angle in CSS degrees (0 = to top, 90 = to right, 180 = to bottom, 270 = to left). */
   angleDeg: number;
   stops: LinearStop[];
+  /** Modern CSS arguments retained for the shared, box-aware gradient builder. */
+  sourceArgs?: string;
   /** True when the source was `repeating-linear-gradient(...)`. The stop list spans one tile period; the emitter clones it across the full gradient line (DM-275). */
   repeating?: boolean;
   /** Explicit legacy -webkit-gradient endpoints, resolved against the physical paint box. */
@@ -65,6 +72,8 @@ export interface RadialGradient {
   /** Center position of the gradient (default: center of the painted rect). */
   position: { x: PosValue; y: PosValue };
   stops: LinearStop[];
+  /** Modern CSS arguments retained for the shared, box-aware gradient builder. */
+  sourceArgs?: string;
   /** True when the source was `repeating-radial-gradient(...)` (DM-275). */
   repeating?: boolean;
   /**
@@ -345,15 +354,19 @@ export function parseLinearGradient(text: string | undefined | null): LinearGrad
 
   const stops: LinearStop[] = [];
   for (let i = stopsStart; i < tokens.length; i++) {
+    if (/^-?[\d.]+%$/.test(tokens[i])) continue; // CSS interpolation hint, resolved by gradient-defs.
     const parsed = parseStopToken(tokens[i]);
     if (parsed.length === 0) return null;
     for (const s of parsed) stops.push(s);
   }
   if (stops.length < 2) return null;
+  if (parseGradientStops(tokens.slice(stopsStart), 1).length < 2) return null;
 
   // Don't auto-distribute here — px positions need the rect's gradient line
   // length to resolve, which isn't known until buildLinearGradientDef.
-  return repeating ? { kind: "linear", angleDeg, stops, repeating: true } : { kind: "linear", angleDeg, stops };
+  return repeating
+    ? { kind: "linear", angleDeg, stops, repeating: true, sourceArgs: inner }
+    : { kind: "linear", angleDeg, stops, sourceArgs: inner };
 }
 
 /**
@@ -376,6 +389,17 @@ export function buildLinearGradientDef(
   id: string,
   rect: { x: number; y: number; w: number; h: number },
 ): string {
+  if (gradient.sourceArgs != null) {
+    return buildSharedLinearGradientDef(
+      id,
+      gradient.sourceArgs,
+      gradient.repeating === true,
+      rect.w,
+      rect.h,
+      rect.x,
+      rect.y,
+    );
+  }
   let { x1, y1, x2, y2 } =
     gradient.legacyEndpoints != null
       ? computeLegacyUserSpaceLine(gradient.legacyEndpoints, rect)
@@ -467,7 +491,7 @@ export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w
   const rep = g.repeating === true ? "r" : "n";
   if (g.kind === "linear") {
     const legacy = g.legacyEndpoints == null ? "" : `|legacy:${JSON.stringify(g.legacyEndpoints)}`;
-    return `L|${rep}|${num(g.angleDeg)}${legacy}|${rectKey}|${stopsKey}`;
+    return `L|${rep}|${num(g.angleDeg)}${legacy}|${rectKey}|${g.sourceArgs ?? stopsKey}`;
   }
   if (g.kind === "conic") {
     const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
@@ -482,7 +506,7 @@ export function gradientCacheKey(g: AnyGradient, rect: { x: number; y: number; w
         : `a:${posKey1(g.size.x)}/${posKey1(g.size.y)}`;
   const posKey = `${posKey1(g.position.x)},${posKey1(g.position.y)}`;
   const legacy = g.legacyCircles == null ? "" : `|legacy:${JSON.stringify(g.legacyCircles)}`;
-  return `R|${rep}|${g.shape}|${sizeKey}|${posKey}${legacy}|${rectKey}|${stopsKey}`;
+  return `R|${rep}|${g.shape}|${sizeKey}|${posKey}${legacy}|${rectKey}|${g.sourceArgs ?? stopsKey}`;
 }
 
 function posKey1(p: PosValue): string {
@@ -535,15 +559,17 @@ export function parseRadialGradient(text: string | undefined | null): RadialGrad
 
   const stops: LinearStop[] = [];
   for (let i = stopsStart; i < tokens.length; i++) {
+    if (/^-?[\d.]+%$/.test(tokens[i])) continue; // CSS interpolation hint, resolved by gradient-defs.
     const parsed = parseStopToken(tokens[i]);
     if (parsed.length === 0) return null;
     for (const s of parsed) stops.push(s);
   }
   if (stops.length < 2) return null;
+  if (parseGradientStops(tokens.slice(stopsStart), 1).length < 2) return null;
 
   return repeating
-    ? { kind: "radial", shape, size, position, stops, repeating: true }
-    : { kind: "radial", shape, size, position, stops };
+    ? { kind: "radial", shape, size, position, stops, repeating: true, sourceArgs: m[2].trim() }
+    : { kind: "radial", shape, size, position, stops, sourceArgs: m[2].trim() };
 }
 
 /**
@@ -716,6 +742,17 @@ export function buildRadialGradientDef(
   id: string,
   rect: { x: number; y: number; w: number; h: number },
 ): string {
+  if (gradient.sourceArgs != null) {
+    return buildSharedRadialGradientDef(
+      id,
+      gradient.sourceArgs,
+      gradient.repeating === true,
+      rect.x,
+      rect.y,
+      rect.w,
+      rect.h,
+    );
+  }
   if (gradient.legacyCircles != null) {
     const geometry = computeLegacyRadialGeometry(gradient.legacyCircles, rect);
     // SVG requires `fr <= r`, whereas Blink/Skia's two-point conical shader
