@@ -29,7 +29,7 @@ mkdir -p "$OUT_DIR"
 # Built as an array, never as a single string: an unquoted string expansion does
 # not word-split in every shell this runs under, and a quoted one becomes one
 # argument containing spaces. Both silently disarm the flags.
-args=(--stack-shard "${SHARD}/${TOTAL}" --out "$OUT_DIR")
+args=(--stack-shard "${SHARD}/${TOTAL}")
 # DM-1887: the second axis. Omitted entirely when CP_TOTAL is 1 or unset, so the
 # report's `meta.shard` stays null and a stack-only run is byte-identical to what
 # this script produced before — the merge keys its codepoint accounting off that
@@ -59,25 +59,54 @@ esac
 [ "${NO_PUA:-false}" = "true" ] && args+=(--no-pua)
 [ "${STRICT_ALIAS:-false}" = "true" ] && args+=(--strict-alias)
 
-echo "font-conformance shard ${SHARD}/${TOTAL}: npx tsx tools/font-conformance.ts ${args[*]}"
-
 node scripts/record-runner-image.mjs "$OUT_DIR/runner-image.txt"
 node tools/font-inventory.mjs "$OUT_DIR/font-inventory.json"
-
-set +e
-npx tsx tools/font-conformance.ts "${args[@]}"
-code=$?
-set -e
 
 # Exit 1 means "mismatches found" and must NOT cancel the sibling shards — the
 # aggregate re-derives the verdict from the merged reports. Anything else means
 # the shard DIED (a full sweep can exhaust the heap partway through). A dead
 # shard writes no report.json, and a merge over the survivors alone would read
-# as a smaller mismatch total — so a blanket `|| true` here can turn a red run
-# green by losing data. Allow only the two exit codes the tool defines.
-if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+# as a smaller mismatch total. On macOS only, a diagnosed donor flip may have
+# interrupted a measured batch. Discard that entire process/browser/renderer
+# attempt and start a fresh sweep. A partial attempt never supplies a report.
+max_attempts=1
+case "${RUNNER_OS:-$(uname -s)}" in
+  macOS|Darwin) max_attempts=3 ;;
+esac
+for ((attempt=1; attempt<=max_attempts; attempt++)); do
+  attempt_out="$OUT_DIR"
+  if [ "$max_attempts" -gt 1 ]; then
+    attempt_out="$OUT_DIR/attempt-$attempt"
+    mkdir -p "$attempt_out"
+  fi
+  attempt_args=("${args[@]}" --out "$attempt_out")
+  echo "font-conformance shard ${SHARD}/${TOTAL} attempt ${attempt}/${max_attempts}: npx tsx tools/font-conformance.ts ${attempt_args[*]}"
+  set +e
+  npx tsx tools/font-conformance.ts "${attempt_args[@]}"
+  code=$?
+  set -e
+
+  if [ "$code" -eq 0 ] || [ "$code" -eq 1 ]; then
+    if [ ! -f "$attempt_out/report.json" ]; then
+      echo "::error::conformance shard ${SHARD} exited $code without report.json"
+      exit 2
+    fi
+    if [ "$max_attempts" -gt 1 ]; then
+      mv "$attempt_out/report.json" "$OUT_DIR/report.json"
+      mv "$attempt_out/summary.txt" "$OUT_DIR/summary.txt"
+      printf '{"attempts":%d,"maxAttempts":%d,"accepted":true}\n' "$attempt" "$max_attempts" > "$OUT_DIR/oracle-attempts.json"
+    fi
+    echo "shard exited $code (0 = full agreement, 1 = mismatches found)"
+    exit 0
+  fi
+
+  if [ "$max_attempts" -gt 1 ] && [ "$code" -eq 2 ] && [ -f "$attempt_out/oracle-drift.json" ] && [ "$attempt" -lt "$max_attempts" ]; then
+    echo "::warning::macOS oracle drift aborted attempt $attempt; discarding its partial sweep and restarting in a fresh process"
+    continue
+  fi
+  if [ "$max_attempts" -gt 1 ]; then
+    printf '{"attempts":%d,"maxAttempts":%d,"accepted":false}\n' "$attempt" "$max_attempts" > "$OUT_DIR/oracle-attempts.json"
+  fi
   echo "::error::conformance shard ${SHARD} died with exit $code (not a mismatch exit) — its report is missing, so the aggregate would under-count"
   exit "$code"
-fi
-echo "shard exited $code (0 = full agreement, 1 = mismatches found)"
-exit 0
+done
