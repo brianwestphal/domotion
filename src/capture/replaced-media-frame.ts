@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import { privateCaptureKey } from "./private-key.js";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
 import type { StableAnimationFrameState } from "./animation-frame.js";
 import type { StableCaptureRafState } from "./raf-clock.js";
 import type { CapturedElement } from "./types.js";
@@ -216,10 +217,10 @@ export async function prepareReplacedMediaFrameTransaction(
       }, stateKey)
       .catch(() => undefined);
   };
-  await page.evaluate("globalThis.__name ||= (target => target)");
   let documentIdentity: string;
   try {
-    documentIdentity = await page.evaluate(
+    documentIdentity = await evaluateInFrame(
+      page,
       async ({ key, rootSelector, rect, requestedSeconds, protocol }) => {
         type VideoFrameMetadataLike = {
           mediaTime: number;
@@ -397,7 +398,8 @@ export async function prepareReplacedMediaFrameTransaction(
   let disposed = false;
 
   const readBoundFacts = async (): Promise<BrowserOwnerFact[]> =>
-    page.evaluate(
+    evaluateInFrame(
+      page,
       ({ key, protocol }) => {
         type VideoEpoch = { mediaTime: number; presentedFrames: number; width: number; height: number };
         type Entry = {
@@ -500,7 +502,8 @@ export async function prepareReplacedMediaFrameTransaction(
       if (new Set(owners.map((owner) => owner.rid)).size !== owners.length) {
         throw new Error("replaced-media transaction received duplicate owner ids");
       }
-      await page.evaluate(
+      await evaluateInFrame(
+        page,
         ({ key, owners }) => {
           type Entry = {
             element: Element;

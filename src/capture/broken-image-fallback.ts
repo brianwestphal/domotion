@@ -7,6 +7,7 @@
  * to the light-DOM image record produced by the synchronous capture bundle.
  */
 import type { CDPSession, Page } from "@playwright/test";
+import { withCdpSession } from "./cdp-lifecycle.js";
 import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type {
   BrokenImageFallbackDisposition,
@@ -492,184 +493,184 @@ export async function captureBrokenImageFallbackFacts(
     return;
   }
 
-  let session: CDPSession | undefined;
   try {
-    session = await page.context().newCDPSession(page);
-    await Promise.all([
-      session.send("DOM.enable"),
-      session.send("Runtime.enable"),
-      session.send("CSS.enable"),
-      session.send("Accessibility.enable"),
-    ]);
-    // CDP requires a frontend document to exist before backend UA-shadow ids
-    // can be pushed for computed-style/font queries.
-    await session.send("DOM.getDocument", { depth: 0, pierce: true });
-    for (const target of targets) {
-      const sourceNodeIndex = target.probe.sourceNodeIndex;
-      if (sourceNodeIndex == null) {
-        warningFor(target.element, target.probe, warnings, "image source-node correlation missing");
-        continue;
-      }
-      let objectId: string | undefined;
-      try {
-        const evaluated = await session.send("Runtime.evaluate", {
-          expression: `globalThis[${JSON.stringify(sourceNodeKey)}]?.[${sourceNodeIndex}]`,
-          returnByValue: false,
-          silent: true,
-        });
-        objectId = evaluated.result.objectId;
-        if (objectId == null) throw new Error("image source node detached");
-        const described = await session.send("DOM.describeNode", {
-          objectId,
-          depth: -1,
-          pierce: true,
-        });
-        const host = described.node as unknown as CdpNode;
-        const shadow = (host.shadowRoots ?? []).find((root) => root.shadowRootType === "user-agent") ?? null;
-        const hostBox =
-          (await readBox(session, host.backendNodeId, viewport)) ??
-          (target.probe.hostRect != null ? boxFromRect(target.probe.hostRect) : null);
-        const accessibility = await readAccessibility(session, host.backendNodeId);
-        if (shadow == null) {
-          const disposition = classifyBrokenImageDisposition({ source: target.probe.source, uaShadowPresent: false });
-          target.element.brokenImageFallback = {
+    await withCdpSession(page, async (session) => {
+      await Promise.all([
+        session.send("DOM.enable"),
+        session.send("Runtime.enable"),
+        session.send("CSS.enable"),
+        session.send("Accessibility.enable"),
+      ]);
+      // CDP requires a frontend document to exist before backend UA-shadow ids
+      // can be pushed for computed-style/font queries.
+      await session.send("DOM.getDocument", { depth: 0, pierce: true });
+      for (const target of targets) {
+        const sourceNodeIndex = target.probe.sourceNodeIndex;
+        if (sourceNodeIndex == null) {
+          warningFor(target.element, target.probe, warnings, "image source-node correlation missing");
+          continue;
+        }
+        let objectId: string | undefined;
+        try {
+          const evaluated = await session.send("Runtime.evaluate", {
+            expression: `globalThis[${JSON.stringify(sourceNodeKey)}]?.[${sourceNodeIndex}]`,
+            returnByValue: false,
+            silent: true,
+          });
+          objectId = evaluated.result.objectId;
+          if (objectId == null) throw new Error("image source node detached");
+          const described = await session.send("DOM.describeNode", {
+            objectId,
+            depth: -1,
+            pierce: true,
+          });
+          const host = described.node as unknown as CdpNode;
+          const shadow = (host.shadowRoots ?? []).find((root) => root.shadowRootType === "user-agent") ?? null;
+          const hostBox =
+            (await readBox(session, host.backendNodeId, viewport)) ??
+            (target.probe.hostRect != null ? boxFromRect(target.probe.hostRect) : null);
+          const accessibility = await readAccessibility(session, host.backendNodeId);
+          if (shadow == null) {
+            const disposition = classifyBrokenImageDisposition({ source: target.probe.source, uaShadowPresent: false });
+            target.element.brokenImageFallback = {
+              schemaVersion: 1,
+              authority: "chromium-ua-shadow-v1",
+              disposition,
+              captureStatus: "exact",
+              paintOwnership: "none",
+              loadState: loadState(target.probe.source),
+              source: target.probe.source,
+              hostBox,
+              accessibility,
+            };
+            continue;
+          }
+
+          const containerNode = childById(shadow, "alttext-container");
+          const iconNode = childById(shadow, "alttext-image");
+          const textHostNode = childById(shadow, "alttext");
+          if (containerNode == null || iconNode == null || textHostNode == null) {
+            throw new Error("pierced UA fallback tree was missing a required owner");
+          }
+          const [containerStyle, iconStyle, containerBox, iconBox] = await Promise.all([
+            computedStyle(session, containerNode),
+            computedStyle(session, iconNode),
+            readBox(session, containerNode.backendNodeId, viewport),
+            readBox(session, iconNode.backendNodeId, viewport),
+          ]);
+          const iconVisible =
+            iconStyle.display !== "none" && iconBox != null && iconBox.rect.width > 0 && iconBox.rect.height > 0;
+          const disposition = classifyBrokenImageDisposition({
+            source: target.probe.source,
+            uaShadowPresent: true,
+            containerDisplay: containerStyle.display,
+            iconVisible,
+          });
+
+          let text: CapturedBrokenImageFallback["text"] | undefined;
+          const textNode = textDescendant(textHostNode);
+          if (target.probe.source.resolvedText !== "") {
+            if (textNode == null) throw new Error("resolved alternative text had no pierced Text node");
+            const [probe, quads, resolvedFonts] = await Promise.all([
+              readTextProbe(session, textNode, viewport),
+              readTextQuads(session, textNode, viewport),
+              readPlatformFonts(session, textHostNode),
+            ]);
+            if (probe.text !== target.probe.source.resolvedText) {
+              throw new Error("pierced alternative text disagreed with HTMLImageElement::AltText");
+            }
+            text = {
+              value: probe.text,
+              box: textBounds(probe.codepoints),
+              quads,
+              codepoints: probe.codepoints,
+              segments: buildTextSegments(probe),
+              style: probe.style,
+              fontMetrics: probe.metrics,
+              resolvedFonts,
+            };
+          }
+
+          const border = {
+            top: numberStyle(containerStyle, "border-top-width"),
+            right: numberStyle(containerStyle, "border-right-width"),
+            bottom: numberStyle(containerStyle, "border-bottom-width"),
+            left: numberStyle(containerStyle, "border-left-width"),
+            topStyle: containerStyle["border-top-style"] ?? "none",
+            rightStyle: containerStyle["border-right-style"] ?? "none",
+            bottomStyle: containerStyle["border-bottom-style"] ?? "none",
+            leftStyle: containerStyle["border-left-style"] ?? "none",
+            topColor: containerStyle["border-top-color"] ?? TRANSPARENT_BLACK,
+            rightColor: containerStyle["border-right-color"] ?? TRANSPARENT_BLACK,
+            bottomColor: containerStyle["border-bottom-color"] ?? TRANSPARENT_BLACK,
+            leftColor: containerStyle["border-left-color"] ?? TRANSPARENT_BLACK,
+          };
+          const padding = {
+            top: numberStyle(containerStyle, "padding-top"),
+            right: numberStyle(containerStyle, "padding-right"),
+            bottom: numberStyle(containerStyle, "padding-bottom"),
+            left: numberStyle(containerStyle, "padding-left"),
+          };
+          const iconRaster = iconVisible
+            ? await captureBrokenImageIconRaster(page, session, {
+                sourceNodeKey,
+                sourceNodeIndex,
+                iconBackendNodeId: iconNode.backendNodeId,
+                iconRect: iconBox!.rect,
+                viewport,
+              })
+            : undefined;
+          const record: CapturedBrokenImageFallback = {
             schemaVersion: 1,
             authority: "chromium-ua-shadow-v1",
             disposition,
             captureStatus: "exact",
-            paintOwnership: "none",
+            paintOwnership: iconVisible || text != null ? "hybrid-icon-raster-vector-text" : "none",
             loadState: loadState(target.probe.source),
             source: target.probe.source,
             hostBox,
+            container: {
+              box: containerBox,
+              display: containerStyle.display ?? "",
+              float: containerStyle.float ?? "none",
+              overflowX: containerStyle["overflow-x"] ?? "visible",
+              overflowY: containerStyle["overflow-y"] ?? "visible",
+              overflowClip:
+                /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-x"] ?? "") ||
+                /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-y"] ?? "")
+                  ? (containerBox?.padding ?? null)
+                  : null,
+              direction: containerStyle.direction ?? "ltr",
+              writingMode: containerStyle["writing-mode"] ?? "horizontal-tb",
+              effectiveZoom: target.probe.effectiveZoom ?? (numberStyle(containerStyle, "zoom") || 1),
+              border,
+              padding,
+            },
+            icon: {
+              box: iconBox,
+              display: iconStyle.display ?? "none",
+              float: iconStyle.float ?? "none",
+              visible: iconVisible,
+              cssWidth: numberStyle(iconStyle, "width"),
+              cssHeight: numberStyle(iconStyle, "height"),
+              devicePixelRatio: await page.evaluate(() => devicePixelRatio),
+              resourceScale: await page.evaluate(() => (devicePixelRatio >= 2 ? (2 as const) : (1 as const))),
+              raster: iconRaster,
+            },
+            text,
             accessibility,
           };
-          continue;
-        }
-
-        const containerNode = childById(shadow, "alttext-container");
-        const iconNode = childById(shadow, "alttext-image");
-        const textHostNode = childById(shadow, "alttext");
-        if (containerNode == null || iconNode == null || textHostNode == null) {
-          throw new Error("pierced UA fallback tree was missing a required owner");
-        }
-        const [containerStyle, iconStyle, containerBox, iconBox] = await Promise.all([
-          computedStyle(session, containerNode),
-          computedStyle(session, iconNode),
-          readBox(session, containerNode.backendNodeId, viewport),
-          readBox(session, iconNode.backendNodeId, viewport),
-        ]);
-        const iconVisible =
-          iconStyle.display !== "none" && iconBox != null && iconBox.rect.width > 0 && iconBox.rect.height > 0;
-        const disposition = classifyBrokenImageDisposition({
-          source: target.probe.source,
-          uaShadowPresent: true,
-          containerDisplay: containerStyle.display,
-          iconVisible,
-        });
-
-        let text: CapturedBrokenImageFallback["text"] | undefined;
-        const textNode = textDescendant(textHostNode);
-        if (target.probe.source.resolvedText !== "") {
-          if (textNode == null) throw new Error("resolved alternative text had no pierced Text node");
-          const [probe, quads, resolvedFonts] = await Promise.all([
-            readTextProbe(session, textNode, viewport),
-            readTextQuads(session, textNode, viewport),
-            readPlatformFonts(session, textHostNode),
-          ]);
-          if (probe.text !== target.probe.source.resolvedText) {
-            throw new Error("pierced alternative text disagreed with HTMLImageElement::AltText");
+          if ("unavailableReason" in accessibility) {
+            throw new Error(`accessibility semantics unavailable: ${accessibility.unavailableReason}`);
           }
-          text = {
-            value: probe.text,
-            box: textBounds(probe.codepoints),
-            quads,
-            codepoints: probe.codepoints,
-            segments: buildTextSegments(probe),
-            style: probe.style,
-            fontMetrics: probe.metrics,
-            resolvedFonts,
-          };
+          target.element.brokenImageFallback = record;
+        } catch (error) {
+          warningFor(target.element, target.probe, warnings, error instanceof Error ? error.message : String(error));
+        } finally {
+          if (objectId != null) await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
         }
-
-        const border = {
-          top: numberStyle(containerStyle, "border-top-width"),
-          right: numberStyle(containerStyle, "border-right-width"),
-          bottom: numberStyle(containerStyle, "border-bottom-width"),
-          left: numberStyle(containerStyle, "border-left-width"),
-          topStyle: containerStyle["border-top-style"] ?? "none",
-          rightStyle: containerStyle["border-right-style"] ?? "none",
-          bottomStyle: containerStyle["border-bottom-style"] ?? "none",
-          leftStyle: containerStyle["border-left-style"] ?? "none",
-          topColor: containerStyle["border-top-color"] ?? TRANSPARENT_BLACK,
-          rightColor: containerStyle["border-right-color"] ?? TRANSPARENT_BLACK,
-          bottomColor: containerStyle["border-bottom-color"] ?? TRANSPARENT_BLACK,
-          leftColor: containerStyle["border-left-color"] ?? TRANSPARENT_BLACK,
-        };
-        const padding = {
-          top: numberStyle(containerStyle, "padding-top"),
-          right: numberStyle(containerStyle, "padding-right"),
-          bottom: numberStyle(containerStyle, "padding-bottom"),
-          left: numberStyle(containerStyle, "padding-left"),
-        };
-        const iconRaster = iconVisible
-          ? await captureBrokenImageIconRaster(page, session, {
-              sourceNodeKey,
-              sourceNodeIndex,
-              iconBackendNodeId: iconNode.backendNodeId,
-              iconRect: iconBox!.rect,
-              viewport,
-            })
-          : undefined;
-        const record: CapturedBrokenImageFallback = {
-          schemaVersion: 1,
-          authority: "chromium-ua-shadow-v1",
-          disposition,
-          captureStatus: "exact",
-          paintOwnership: iconVisible || text != null ? "hybrid-icon-raster-vector-text" : "none",
-          loadState: loadState(target.probe.source),
-          source: target.probe.source,
-          hostBox,
-          container: {
-            box: containerBox,
-            display: containerStyle.display ?? "",
-            float: containerStyle.float ?? "none",
-            overflowX: containerStyle["overflow-x"] ?? "visible",
-            overflowY: containerStyle["overflow-y"] ?? "visible",
-            overflowClip:
-              /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-x"] ?? "") ||
-              /^(?:hidden|clip|scroll|auto)$/.test(containerStyle["overflow-y"] ?? "")
-                ? (containerBox?.padding ?? null)
-                : null,
-            direction: containerStyle.direction ?? "ltr",
-            writingMode: containerStyle["writing-mode"] ?? "horizontal-tb",
-            effectiveZoom: target.probe.effectiveZoom ?? (numberStyle(containerStyle, "zoom") || 1),
-            border,
-            padding,
-          },
-          icon: {
-            box: iconBox,
-            display: iconStyle.display ?? "none",
-            float: iconStyle.float ?? "none",
-            visible: iconVisible,
-            cssWidth: numberStyle(iconStyle, "width"),
-            cssHeight: numberStyle(iconStyle, "height"),
-            devicePixelRatio: await page.evaluate(() => devicePixelRatio),
-            resourceScale: await page.evaluate(() => (devicePixelRatio >= 2 ? (2 as const) : (1 as const))),
-            raster: iconRaster,
-          },
-          text,
-          accessibility,
-        };
-        if ("unavailableReason" in accessibility) {
-          throw new Error(`accessibility semantics unavailable: ${accessibility.unavailableReason}`);
-        }
-        target.element.brokenImageFallback = record;
-      } catch (error) {
-        warningFor(target.element, target.probe, warnings, error instanceof Error ? error.message : String(error));
-      } finally {
-        if (objectId != null) await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
       }
-    }
+    });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     for (const target of targets) {
@@ -677,7 +678,5 @@ export async function captureBrokenImageFallbackFacts(
         warningFor(target.element, target.probe, warnings, reason);
       }
     }
-  } finally {
-    await session?.detach().catch(() => undefined);
   }
 }

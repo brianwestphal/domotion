@@ -10,6 +10,7 @@
  */
 
 import type { CDPSession, Page } from "@playwright/test";
+import { withCdpSession } from "./cdp-lifecycle.js";
 
 import type { CapturedElement, CaptureWarning } from "./types.js";
 
@@ -203,70 +204,70 @@ export async function captureSummaryMarkerGeometry(
     return;
   }
 
-  let session: CDPSession | undefined;
   try {
-    session = await page.context().newCDPSession(page);
-    await Promise.all([session.send("DOM.enable"), session.send("Runtime.enable")]);
-    await session.send("DOM.getDocument", { depth: -1, pierce: true });
-    const snapshot = (await session.send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [],
-      includeDOMRects: true,
-      includePaintOrder: true,
-    })) as unknown as SnapshotResult;
-    for (const candidate of candidates) {
-      const index = candidate._summaryMarkerSourceNodeIndex!;
-      delete candidate._summaryMarkerSourceNodeIndex;
-      const style = await markerStyle(page, sourceNodeKey, index);
-      if (style == null) {
-        warnings.push({
-          selector: "summary",
-          feature: FEATURE,
-          detail: "computed ::marker style/font facts unavailable; disclosure paint omitted",
-        });
-        continue;
+    await withCdpSession(page, async (session) => {
+      await Promise.all([session.send("DOM.enable"), session.send("Runtime.enable")]);
+      await session.send("DOM.getDocument", { depth: -1, pierce: true });
+      const snapshot = (await session.send("DOMSnapshot.captureSnapshot", {
+        computedStyles: [],
+        includeDOMRects: true,
+        includePaintOrder: true,
+      })) as unknown as SnapshotResult;
+      for (const candidate of candidates) {
+        const index = candidate._summaryMarkerSourceNodeIndex!;
+        delete candidate._summaryMarkerSourceNodeIndex;
+        const style = await markerStyle(page, sourceNodeKey, index);
+        if (style == null) {
+          warnings.push({
+            selector: "summary",
+            feature: FEATURE,
+            detail: "computed ::marker style/font facts unavailable; disclosure paint omitted",
+          });
+          continue;
+        }
+        if (style.suppressed) continue;
+        if (style.transformed) {
+          warnings.push({
+            selector: "summary",
+            feature: FEATURE,
+            detail:
+              "marker has a transformed ancestor; untransformed source quad unavailable and disclosure paint omitted",
+          });
+          continue;
+        }
+        let objectId: string | undefined;
+        try {
+          const resolved = await resolveMarkerNode(session, sourceNodeKey, index);
+          objectId = resolved.objectId;
+          if (resolved.marker == null) throw new Error("Chromium marker pseudo node missing");
+          const quads = await session.send("DOM.getContentQuads", { backendNodeId: resolved.marker.backendNodeId });
+          const contentRect = quads.quads.length === 1 ? axisAlignedRect(quads.quads[0], viewport) : null;
+          if (contentRect == null) throw new Error("Chromium marker did not expose one axis-aligned content quad");
+          const fragmentRect = markerPaintFragmentRect(snapshot, resolved.marker.backendNodeId, viewport);
+          if (fragmentRect == null) throw new Error("Chromium marker did not expose one authoritative paint fragment");
+          candidate.summaryMarkerGeometry = {
+            source: "blink-list-marker-v1",
+            fragmentRect,
+            fontAscent: style.fontAscent,
+            specifiedFontSize: style.fontSize,
+            effectiveZoom: style.effectiveZoom,
+            color: style.color,
+            listStyleType: style.listStyleType,
+            listStylePosition: style.listStylePosition === "inside" ? "inside" : "outside",
+            writingMode: style.writingMode,
+            direction: style.direction === "rtl" ? "rtl" : "ltr",
+          };
+        } catch (error) {
+          warnings.push({
+            selector: "summary",
+            feature: FEATURE,
+            detail: `${error instanceof Error ? error.message : String(error)}; disclosure paint omitted`,
+          });
+        } finally {
+          if (objectId != null) await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
+        }
       }
-      if (style.suppressed) continue;
-      if (style.transformed) {
-        warnings.push({
-          selector: "summary",
-          feature: FEATURE,
-          detail:
-            "marker has a transformed ancestor; untransformed source quad unavailable and disclosure paint omitted",
-        });
-        continue;
-      }
-      let objectId: string | undefined;
-      try {
-        const resolved = await resolveMarkerNode(session, sourceNodeKey, index);
-        objectId = resolved.objectId;
-        if (resolved.marker == null) throw new Error("Chromium marker pseudo node missing");
-        const quads = await session.send("DOM.getContentQuads", { backendNodeId: resolved.marker.backendNodeId });
-        const contentRect = quads.quads.length === 1 ? axisAlignedRect(quads.quads[0], viewport) : null;
-        if (contentRect == null) throw new Error("Chromium marker did not expose one axis-aligned content quad");
-        const fragmentRect = markerPaintFragmentRect(snapshot, resolved.marker.backendNodeId, viewport);
-        if (fragmentRect == null) throw new Error("Chromium marker did not expose one authoritative paint fragment");
-        candidate.summaryMarkerGeometry = {
-          source: "blink-list-marker-v1",
-          fragmentRect,
-          fontAscent: style.fontAscent,
-          specifiedFontSize: style.fontSize,
-          effectiveZoom: style.effectiveZoom,
-          color: style.color,
-          listStyleType: style.listStyleType,
-          listStylePosition: style.listStylePosition === "inside" ? "inside" : "outside",
-          writingMode: style.writingMode,
-          direction: style.direction === "rtl" ? "rtl" : "ltr",
-        };
-      } catch (error) {
-        warnings.push({
-          selector: "summary",
-          feature: FEATURE,
-          detail: `${error instanceof Error ? error.message : String(error)}; disclosure paint omitted`,
-        });
-      } finally {
-        if (objectId != null) await session.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
-      }
-    }
+    });
   } catch (error) {
     for (const candidate of candidates) {
       delete candidate._summaryMarkerSourceNodeIndex;
@@ -276,7 +277,5 @@ export async function captureSummaryMarkerGeometry(
         detail: `Chromium marker protocol unavailable (${error instanceof Error ? error.message : String(error)}); disclosure paint omitted`,
       });
     }
-  } finally {
-    await session?.detach().catch(() => undefined);
   }
 }

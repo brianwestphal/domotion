@@ -7,7 +7,9 @@
  */
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
-import { privateCaptureKey } from "./private-key.js";
+import { withCdpSession } from "./cdp-lifecycle.js";
+import { createPageRegistry } from "./page-registry.js";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
 import {
   buildCollapsedBorderFragmentRecord,
   canonicalCollapsedBorderLayoutUnit,
@@ -110,27 +112,6 @@ function normalizeDirection(value: string): CollapsedBorderFragmentDirection {
   return value === "rtl" ? "rtl" : "ltr";
 }
 
-async function installEvaluateNameShim(frames: readonly Frame[]): Promise<Frame[]> {
-  const installed: Frame[] = [];
-  for (const frame of frames) {
-    const didInstall = await frame
-      .evaluate(
-        `(() => {
-      if (typeof globalThis.__name === "function") return false;
-      globalThis.__name = function(value) { return value; };
-      return true;
-    })()`,
-      )
-      .catch(() => false);
-    if (didInstall) installed.push(frame);
-  }
-  return installed;
-}
-
-async function removeEvaluateNameShim(frames: readonly Frame[]): Promise<void> {
-  await Promise.all(frames.map((frame) => frame.evaluate(`delete globalThis.__name`).catch(() => undefined)));
-}
-
 async function setupFrame(
   frame: Frame,
   selector: string,
@@ -139,7 +120,8 @@ async function setupFrame(
   top: boolean,
 ): Promise<PreparedFrame | null> {
   try {
-    const raw = await frame.evaluate(
+    const raw = await evaluateInFrame(
+      frame,
       ({ selector, key, token, top }) => {
         const root = top ? document.querySelector(selector) : document.documentElement;
         if (root == null) return { tables: [], nodeCount: 0 };
@@ -331,50 +313,49 @@ async function setupFrame(
 async function mutateTransforms(frames: readonly PreparedFrame[], key: string, neutral: boolean): Promise<boolean> {
   const results = await Promise.all(
     frames.map(({ frame }) =>
-      frame
-        .evaluate(
-          ({ key, neutral }) => {
-            const registry = (
-              globalThis as typeof globalThis &
-                Record<
-                  string,
-                  {
-                    transformOwners: HTMLElement[];
-                    snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null }> | null;
-                  }
-                >
-            )[key];
-            if (registry == null) return false;
-            if (neutral) {
-              registry.snapshots = [];
-              for (const owner of registry.transformOwners) {
-                registry.snapshots.push({ owner, styleAttribute: owner.getAttribute("style") });
-                owner.style.setProperty("transform", "matrix(1, 0, 0, 1, 0, 0)", "important");
-                owner.style.setProperty("translate", "none", "important");
-                owner.style.setProperty("rotate", "none", "important");
-                owner.style.setProperty("scale", "none", "important");
-                owner.style.setProperty("perspective", "none", "important");
-                owner.style.setProperty("transform-style", "flat", "important");
-              }
-            } else {
-              for (const snapshot of registry.snapshots ?? []) {
-                if (snapshot.styleAttribute == null) {
-                  snapshot.owner.style.cssText = "";
-                  const styleAttribute = snapshot.owner.getAttributeNode("style");
-                  if (styleAttribute != null) snapshot.owner.removeAttributeNode(styleAttribute);
-                } else snapshot.owner.setAttribute("style", snapshot.styleAttribute);
-              }
-              const exact = (registry.snapshots ?? []).every(
-                ({ owner, styleAttribute }) => owner.getAttribute("style") === styleAttribute,
-              );
-              registry.snapshots = null;
-              return exact;
+      evaluateInFrame(
+        frame,
+        ({ key, neutral }) => {
+          const registry = (
+            globalThis as typeof globalThis &
+              Record<
+                string,
+                {
+                  transformOwners: HTMLElement[];
+                  snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null }> | null;
+                }
+              >
+          )[key];
+          if (registry == null) return false;
+          if (neutral) {
+            registry.snapshots = [];
+            for (const owner of registry.transformOwners) {
+              registry.snapshots.push({ owner, styleAttribute: owner.getAttribute("style") });
+              owner.style.setProperty("transform", "matrix(1, 0, 0, 1, 0, 0)", "important");
+              owner.style.setProperty("translate", "none", "important");
+              owner.style.setProperty("rotate", "none", "important");
+              owner.style.setProperty("scale", "none", "important");
+              owner.style.setProperty("perspective", "none", "important");
+              owner.style.setProperty("transform-style", "flat", "important");
             }
-            return true;
-          },
-          { key, neutral },
-        )
-        .catch(() => false),
+          } else {
+            for (const snapshot of registry.snapshots ?? []) {
+              if (snapshot.styleAttribute == null) {
+                snapshot.owner.style.cssText = "";
+                const styleAttribute = snapshot.owner.getAttributeNode("style");
+                if (styleAttribute != null) snapshot.owner.removeAttributeNode(styleAttribute);
+              } else snapshot.owner.setAttribute("style", snapshot.styleAttribute);
+            }
+            const exact = (registry.snapshots ?? []).every(
+              ({ owner, styleAttribute }) => owner.getAttribute("style") === styleAttribute,
+            );
+            registry.snapshots = null;
+            return exact;
+          }
+          return true;
+        },
+        { key, neutral },
+      ).catch(() => false),
     ),
   );
   return results.every((result) => result === true);
@@ -383,14 +364,13 @@ async function mutateTransforms(frames: readonly PreparedFrame[], key: string, n
 async function settleFrames(frames: readonly PreparedFrame[]): Promise<void> {
   await Promise.all(
     frames.map(({ frame }) =>
-      frame
-        .evaluate(
-          () =>
-            new Promise<void>((resolve) => {
-              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-            }),
-        )
-        .catch(() => undefined),
+      evaluateInFrame(
+        frame,
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }),
+      ).catch(() => undefined),
     ),
   );
 }
@@ -463,8 +443,9 @@ export async function measureCssom(
   const result: CssomMap = new Map();
   await Promise.all(
     frames.map(async ({ frame, token }) => {
-      const rows = await frame
-        .evaluate((registryKey) => {
+      const rows = await evaluateInFrame(
+        frame,
+        (registryKey) => {
           const registry = (globalThis as typeof globalThis & Record<string, { nodes: Element[] }>)[registryKey];
           if (registry == null) return [];
           return registry.nodes.map((node) =>
@@ -475,11 +456,12 @@ export async function measureCssom(
               height: rect.height,
             })).filter((rect) => rect.width > 0 && rect.height > 0),
           );
-        }, key)
-        .catch((error: unknown) => {
-          onFrameFailure(error);
-          return [] as CollapsedBorderPhysicalRect[][];
-        });
+        },
+        key,
+      ).catch((error: unknown) => {
+        onFrameFailure(error);
+        return [] as CollapsedBorderPhysicalRect[][];
+      });
       for (let nodeIndex = 0; nodeIndex < rows.length; nodeIndex++) {
         result.set(`${token}:${nodeIndex}`, rows[nodeIndex]);
       }
@@ -503,261 +485,259 @@ export async function measureRepeatOccurrences(
   const result: RepeatMap = new Map();
   await Promise.all(
     frames.map(async (prepared) => {
-      const measured = await prepared.frame
-        .evaluate(
-          ({ key, tables }) => {
-            type Rect = { x: number; y: number; width: number; height: number };
-            const registry = (globalThis as typeof globalThis & Record<string, { nodes: Element[] }>)[key];
-            if (registry == null) return { tables: [], scrollRestoredExactly: false };
-            const nativeElementsFromPoint = Document.prototype.elementsFromPoint;
-            const intrinsicHitTest =
-              document.elementsFromPoint === nativeElementsFromPoint &&
-              Function.prototype.toString.call(nativeElementsFromPoint).includes("[native code]");
-            const nativeScrollTo = window.scrollTo;
-            const intrinsicScroll =
-              typeof nativeScrollTo === "function" &&
-              Function.prototype.toString.call(nativeScrollTo).includes("[native code]");
-            const scrollInstant = nativeScrollTo as unknown as (options: {
-              left: number;
-              top: number;
-              behavior: "instant";
-            }) => void;
-            const savedScrollX = window.scrollX;
-            const savedScrollY = window.scrollY;
-            const rects = (element: Element): Rect[] =>
-              Array.from(element.getClientRects(), (rect) => ({
-                x: rect.x,
-                y: rect.y,
-                width: rect.width,
-                height: rect.height,
-              })).filter((rect) => rect.width > 0 && rect.height > 0);
-            const token = (rect: Rect): string => `${rect.x}|${rect.y}|${rect.width}|${rect.height}`;
-            const overlap = (left: Rect, right: Rect): number =>
-              Math.max(0, Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x)) *
-              Math.max(0, Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y));
-            const fragmentFor = (rect: Rect, fragments: Rect[]): number => {
-              let best = -1;
-              let bestArea = 0;
-              let tied = false;
-              for (let index = 0; index < fragments.length; index++) {
-                const area = overlap(rect, fragments[index]);
-                if (area > bestArea) {
-                  best = index;
-                  bestArea = area;
-                  tied = false;
-                } else if (area > 0 && area === bestArea) tied = true;
-              }
-              return bestArea > 0 && !tied ? best : -1;
+      const measured = await evaluateInFrame(
+        prepared.frame,
+        ({ key, tables }) => {
+          type Rect = { x: number; y: number; width: number; height: number };
+          const registry = (globalThis as typeof globalThis & Record<string, { nodes: Element[] }>)[key];
+          if (registry == null) return { tables: [], scrollRestoredExactly: false };
+          const nativeElementsFromPoint = Document.prototype.elementsFromPoint;
+          const intrinsicHitTest =
+            document.elementsFromPoint === nativeElementsFromPoint &&
+            Function.prototype.toString.call(nativeElementsFromPoint).includes("[native code]");
+          const nativeScrollTo = window.scrollTo;
+          const intrinsicScroll =
+            typeof nativeScrollTo === "function" &&
+            Function.prototype.toString.call(nativeScrollTo).includes("[native code]");
+          const scrollInstant = nativeScrollTo as unknown as (options: {
+            left: number;
+            top: number;
+            behavior: "instant";
+          }) => void;
+          const savedScrollX = window.scrollX;
+          const savedScrollY = window.scrollY;
+          const rects = (element: Element): Rect[] =>
+            Array.from(element.getClientRects(), (rect) => ({
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+            })).filter((rect) => rect.width > 0 && rect.height > 0);
+          const token = (rect: Rect): string => `${rect.x}|${rect.y}|${rect.width}|${rect.height}`;
+          const overlap = (left: Rect, right: Rect): number =>
+            Math.max(0, Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x)) *
+            Math.max(0, Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y));
+          const fragmentFor = (rect: Rect, fragments: Rect[]): number => {
+            let best = -1;
+            let bestArea = 0;
+            let tied = false;
+            for (let index = 0; index < fragments.length; index++) {
+              const area = overlap(rect, fragments[index]);
+              if (area > bestArea) {
+                best = index;
+                bestArea = area;
+                tied = false;
+              } else if (area > 0 && area === bestArea) tied = true;
+            }
+            return bestArea > 0 && !tied ? best : -1;
+          };
+          const logicalRect = (rect: Rect, owner: Rect, writingMode: string, direction: string) => {
+            const horizontal = writingMode === "horizontal-tb";
+            const inlineReverse = direction === "rtl";
+            const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
+            const right = rect.x + rect.width;
+            const bottom = rect.y + rect.height;
+            const ownerRight = owner.x + owner.width;
+            const ownerBottom = owner.y + owner.height;
+            return {
+              inlineStart: horizontal
+                ? inlineReverse
+                  ? ownerRight - right
+                  : rect.x - owner.x
+                : inlineReverse
+                  ? ownerBottom - bottom
+                  : rect.y - owner.y,
+              inlineEnd: horizontal
+                ? inlineReverse
+                  ? ownerRight - rect.x
+                  : right - owner.x
+                : inlineReverse
+                  ? ownerBottom - rect.y
+                  : bottom - owner.y,
+              blockStart: horizontal ? rect.y - owner.y : blockReverse ? ownerRight - right : rect.x - owner.x,
+              blockEnd: horizontal ? bottom - owner.y : blockReverse ? ownerRight - rect.x : right - owner.x,
             };
-            const logicalRect = (rect: Rect, owner: Rect, writingMode: string, direction: string) => {
-              const horizontal = writingMode === "horizontal-tb";
-              const inlineReverse = direction === "rtl";
-              const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
-              const right = rect.x + rect.width;
-              const bottom = rect.y + rect.height;
-              const ownerRight = owner.x + owner.width;
-              const ownerBottom = owner.y + owner.height;
+          };
+          const physicalRect = (
+            logical: { inlineStart: number; inlineEnd: number; blockStart: number; blockEnd: number },
+            owner: Rect,
+            writingMode: string,
+            direction: string,
+          ): Rect => {
+            const horizontal = writingMode === "horizontal-tb";
+            const inlineReverse = direction === "rtl";
+            const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
+            if (horizontal)
               return {
-                inlineStart: horizontal
-                  ? inlineReverse
-                    ? ownerRight - right
-                    : rect.x - owner.x
-                  : inlineReverse
-                    ? ownerBottom - bottom
-                    : rect.y - owner.y,
-                inlineEnd: horizontal
-                  ? inlineReverse
-                    ? ownerRight - rect.x
-                    : right - owner.x
-                  : inlineReverse
-                    ? ownerBottom - rect.y
-                    : bottom - owner.y,
-                blockStart: horizontal ? rect.y - owner.y : blockReverse ? ownerRight - right : rect.x - owner.x,
-                blockEnd: horizontal ? bottom - owner.y : blockReverse ? ownerRight - rect.x : right - owner.x,
+                x: inlineReverse ? owner.x + owner.width - logical.inlineEnd : owner.x + logical.inlineStart,
+                y: owner.y + logical.blockStart,
+                width: logical.inlineEnd - logical.inlineStart,
+                height: logical.blockEnd - logical.blockStart,
               };
+            return {
+              x: blockReverse ? owner.x + owner.width - logical.blockEnd : owner.x + logical.blockStart,
+              y: inlineReverse ? owner.y + owner.height - logical.inlineEnd : owner.y + logical.inlineStart,
+              width: logical.blockEnd - logical.blockStart,
+              height: logical.inlineEnd - logical.inlineStart,
             };
-            const physicalRect = (
-              logical: { inlineStart: number; inlineEnd: number; blockStart: number; blockEnd: number },
-              owner: Rect,
-              writingMode: string,
-              direction: string,
-            ): Rect => {
-              const horizontal = writingMode === "horizontal-tb";
-              const inlineReverse = direction === "rtl";
-              const blockReverse = writingMode === "vertical-rl" || writingMode === "sideways-rl";
-              if (horizontal)
-                return {
-                  x: inlineReverse ? owner.x + owner.width - logical.inlineEnd : owner.x + logical.inlineStart,
-                  y: owner.y + logical.blockStart,
-                  width: logical.inlineEnd - logical.inlineStart,
-                  height: logical.blockEnd - logical.blockStart,
-                };
-              return {
-                x: blockReverse ? owner.x + owner.width - logical.blockEnd : owner.x + logical.blockStart,
-                y: inlineReverse ? owner.y + owner.height - logical.inlineEnd : owner.y + logical.inlineStart,
-                width: logical.blockEnd - logical.blockStart,
-                height: logical.inlineEnd - logical.inlineStart,
-              };
-            };
-            const blockSize = (rect: Rect, writingMode: string): number =>
-              writingMode === "horizontal-tb" ? rect.height : rect.width;
-            const occurrenceRect = (
-              prototype: Rect,
-              prototypeTable: Rect,
-              targetTable: Rect,
-              kind: CollapsedBorderRepeatKind,
-              writingMode: string,
-              direction: string,
-            ): Rect => {
-              const logical = logicalRect(prototype, prototypeTable, writingMode, direction);
-              const extent = logical.blockEnd - logical.blockStart;
-              if (kind === "footer") {
-                const endInset = blockSize(prototypeTable, writingMode) - logical.blockEnd;
-                logical.blockEnd = blockSize(targetTable, writingMode) - endInset;
-                logical.blockStart = logical.blockEnd - extent;
-              }
-              return physicalRect(logical, targetTable, writingMode, direction);
-            };
-            const hit = (point: { x: number; y: number }, source: Element): boolean => {
-              if (!intrinsicHitTest || !intrinsicScroll) return false;
-              const desiredX = savedScrollX + point.x - document.documentElement.clientWidth / 2;
-              const desiredY = savedScrollY + point.y - document.documentElement.clientHeight / 2;
-              scrollInstant.call(window, { left: desiredX, top: desiredY, behavior: "instant" });
-              const x = point.x - (window.scrollX - savedScrollX);
-              const y = point.y - (window.scrollY - savedScrollY);
-              const witnessed =
-                x >= 0 &&
-                x < document.documentElement.clientWidth &&
-                y >= 0 &&
-                y < document.documentElement.clientHeight &&
-                nativeElementsFromPoint.call(document, x, y).includes(source);
-              scrollInstant.call(window, { left: savedScrollX, top: savedScrollY, behavior: "instant" });
-              return witnessed;
-            };
+          };
+          const blockSize = (rect: Rect, writingMode: string): number =>
+            writingMode === "horizontal-tb" ? rect.height : rect.width;
+          const occurrenceRect = (
+            prototype: Rect,
+            prototypeTable: Rect,
+            targetTable: Rect,
+            kind: CollapsedBorderRepeatKind,
+            writingMode: string,
+            direction: string,
+          ): Rect => {
+            const logical = logicalRect(prototype, prototypeTable, writingMode, direction);
+            const extent = logical.blockEnd - logical.blockStart;
+            if (kind === "footer") {
+              const endInset = blockSize(prototypeTable, writingMode) - logical.blockEnd;
+              logical.blockEnd = blockSize(targetTable, writingMode) - endInset;
+              logical.blockStart = logical.blockEnd - extent;
+            }
+            return physicalRect(logical, targetTable, writingMode, direction);
+          };
+          const hit = (point: { x: number; y: number }, source: Element): boolean => {
+            if (!intrinsicHitTest || !intrinsicScroll) return false;
+            const desiredX = savedScrollX + point.x - document.documentElement.clientWidth / 2;
+            const desiredY = savedScrollY + point.y - document.documentElement.clientHeight / 2;
+            scrollInstant.call(window, { left: desiredX, top: desiredY, behavior: "instant" });
+            const x = point.x - (window.scrollX - savedScrollX);
+            const y = point.y - (window.scrollY - savedScrollY);
+            const witnessed =
+              x >= 0 &&
+              x < document.documentElement.clientWidth &&
+              y >= 0 &&
+              y < document.documentElement.clientHeight &&
+              nativeElementsFromPoint.call(document, x, y).includes(source);
+            scrollInstant.call(window, { left: savedScrollX, top: savedScrollY, behavior: "instant" });
+            return witnessed;
+          };
 
-            const reports = tables.map((table) => {
-              const tableNode = registry.nodes[table.nodeIndex];
-              const tableRects = tableNode == null ? [] : rects(tableNode);
-              const repeats: CollapsedBorderRepeatSectionEvidence[] = [];
-              for (const section of table.sections) {
-                if (section.repeatKind == null) continue;
-                const sectionNode = registry.nodes[section.nodeIndex];
-                if (sectionNode == null) continue;
-                const aliases = rects(sectionNode);
-                if (aliases.length <= 1 || aliases.some((rect) => token(rect) !== token(aliases[0]))) continue;
-                const prototype = aliases[0];
-                const prototypeFragmentIndex = fragmentFor(prototype, tableRects);
-                const expectedCells = table.cells.filter(
-                  (cell) =>
-                    cell.globalRowIndex >= section.globalStartRowIndex &&
-                    cell.globalRowIndex < section.globalStartRowIndex + section.globalRowCount,
+          const reports = tables.map((table) => {
+            const tableNode = registry.nodes[table.nodeIndex];
+            const tableRects = tableNode == null ? [] : rects(tableNode);
+            const repeats: CollapsedBorderRepeatSectionEvidence[] = [];
+            for (const section of table.sections) {
+              if (section.repeatKind == null) continue;
+              const sectionNode = registry.nodes[section.nodeIndex];
+              if (sectionNode == null) continue;
+              const aliases = rects(sectionNode);
+              if (aliases.length <= 1 || aliases.some((rect) => token(rect) !== token(aliases[0]))) continue;
+              const prototype = aliases[0];
+              const prototypeFragmentIndex = fragmentFor(prototype, tableRects);
+              const expectedCells = table.cells.filter(
+                (cell) =>
+                  cell.globalRowIndex >= section.globalStartRowIndex &&
+                  cell.globalRowIndex < section.globalStartRowIndex + section.globalRowCount,
+              );
+              const sourceRows = table.rows.filter((row) => row.sectionSourceIndex === section.sourceIndex);
+              const exactAliasSet = (nodeIndex: number): boolean => {
+                const node = registry.nodes[nodeIndex];
+                if (node == null) return false;
+                const nodeAliases = rects(node);
+                return (
+                  nodeAliases.length === aliases.length &&
+                  nodeAliases.length > 0 &&
+                  nodeAliases.every((rect) => token(rect) === token(nodeAliases[0]))
                 );
-                const sourceRows = table.rows.filter((row) => row.sectionSourceIndex === section.sourceIndex);
-                const exactAliasSet = (nodeIndex: number): boolean => {
-                  const node = registry.nodes[nodeIndex];
-                  if (node == null) return false;
-                  const nodeAliases = rects(node);
-                  return (
-                    nodeAliases.length === aliases.length &&
-                    nodeAliases.length > 0 &&
-                    nodeAliases.every((rect) => token(rect) === token(nodeAliases[0]))
+              };
+              const noBreakInside =
+                sourceRows.length > 0 &&
+                expectedCells.length > 0 &&
+                sourceRows.every((row) => exactAliasSet(row.nodeIndex)) &&
+                expectedCells.every((cell) => exactAliasSet(cell.nodeIndex));
+              const occurrences: CollapsedBorderRepeatSectionEvidence["occurrences"] = [];
+              if (prototypeFragmentIndex >= 0 && expectedCells.length > 0) {
+                for (let fragmentIndex = 0; fragmentIndex < tableRects.length; fragmentIndex++) {
+                  const targetSection = occurrenceRect(
+                    prototype,
+                    tableRects[prototypeFragmentIndex],
+                    tableRects[fragmentIndex],
+                    section.repeatKind,
+                    table.writingMode,
+                    table.direction,
                   );
-                };
-                const noBreakInside =
-                  sourceRows.length > 0 &&
-                  expectedCells.length > 0 &&
-                  sourceRows.every((row) => exactAliasSet(row.nodeIndex)) &&
-                  expectedCells.every((cell) => exactAliasSet(cell.nodeIndex));
-                const occurrences: CollapsedBorderRepeatSectionEvidence["occurrences"] = [];
-                if (prototypeFragmentIndex >= 0 && expectedCells.length > 0) {
-                  for (let fragmentIndex = 0; fragmentIndex < tableRects.length; fragmentIndex++) {
-                    const targetSection = occurrenceRect(
-                      prototype,
-                      tableRects[prototypeFragmentIndex],
-                      tableRects[fragmentIndex],
-                      section.repeatKind,
-                      table.writingMode,
-                      table.direction,
-                    );
-                    const witnessed: number[] = [];
-                    for (const cell of expectedCells) {
-                      const cellNode = registry.nodes[cell.nodeIndex];
-                      const prototypeCell = cellNode == null ? undefined : rects(cellNode)[0];
-                      if (prototypeCell == null) continue;
-                      const cellInSection = logicalRect(prototypeCell, prototype, table.writingMode, table.direction);
-                      const targetCell = physicalRect(cellInSection, targetSection, table.writingMode, table.direction);
-                      if (
-                        hit(
-                          {
-                            x: targetCell.x + targetCell.width / 2,
-                            y: targetCell.y + targetCell.height / 2,
-                          },
-                          cellNode,
-                        )
-                      )
-                        witnessed.push(cell.sourceIndex);
-                    }
-                    const expected = expectedCells.map((cell) => cell.sourceIndex);
+                  const witnessed: number[] = [];
+                  for (const cell of expectedCells) {
+                    const cellNode = registry.nodes[cell.nodeIndex];
+                    const prototypeCell = cellNode == null ? undefined : rects(cellNode)[0];
+                    if (prototypeCell == null) continue;
+                    const cellInSection = logicalRect(prototypeCell, prototype, table.writingMode, table.direction);
+                    const targetCell = physicalRect(cellInSection, targetSection, table.writingMode, table.direction);
                     if (
-                      witnessed.length === expected.length &&
-                      witnessed.every((sourceIndex, index) => sourceIndex === expected[index])
-                    ) {
-                      occurrences.push({
-                        occurrenceIndex: occurrences.length,
-                        fragmentIndex,
-                        physicalRect: targetSection,
-                        expectedCellSourceIndices: expected,
-                        witnessedCellSourceIndices: witnessed,
-                        hitTest: "Document.elementsFromPoint-intrinsic-source-cell-membership",
-                      });
-                    }
+                      hit(
+                        {
+                          x: targetCell.x + targetCell.width / 2,
+                          y: targetCell.y + targetCell.height / 2,
+                        },
+                        cellNode,
+                      )
+                    )
+                      witnessed.push(cell.sourceIndex);
+                  }
+                  const expected = expectedCells.map((cell) => cell.sourceIndex);
+                  if (
+                    witnessed.length === expected.length &&
+                    witnessed.every((sourceIndex, index) => sourceIndex === expected[index])
+                  ) {
+                    occurrences.push({
+                      occurrenceIndex: occurrences.length,
+                      fragmentIndex,
+                      physicalRect: targetSection,
+                      expectedCellSourceIndices: expected,
+                      witnessedCellSourceIndices: witnessed,
+                      hitTest: "Document.elementsFromPoint-intrinsic-source-cell-membership",
+                    });
                   }
                 }
-                const sectionBlockSize = blockSize(prototype, table.writingMode);
-                const knownFragmentainerBlockSize =
-                  table.fragmentainerBlockSize != null && table.fragmentainerBlockSize > 0;
-                repeats.push({
-                  sectionSourceIndex: section.sourceIndex,
-                  repeatKind: section.repeatKind,
-                  eligibility: {
-                    fragmentationType: "column",
-                    fragmentainerBlockSize: table.fragmentainerBlockSize ?? 0,
-                    sectionBlockSize,
-                    knownFragmentainerBlockSize,
-                    atMostQuarterFragmentainer:
-                      knownFragmentainerBlockSize && sectionBlockSize * 4 <= table.fragmentainerBlockSize!,
-                    applicableBreakInsideAvoid:
-                      section.breakInside === "avoid" || section.breakInside === "avoid-column",
-                    noBreakInside,
-                    noLateStart: occurrences[0]?.fragmentIndex === prototypeFragmentIndex,
-                    outsideNestedRepeatableContent: table.outsideNestedRepeatableContent,
-                    layoutSideEffectsEnabled: true,
-                  },
-                  occurrences,
-                });
               }
-              return { tableIndex: table.tableIndex, repeats };
-            });
-            if (intrinsicScroll)
-              scrollInstant.call(window, {
-                left: savedScrollX,
-                top: savedScrollY,
-                behavior: "instant",
+              const sectionBlockSize = blockSize(prototype, table.writingMode);
+              const knownFragmentainerBlockSize =
+                table.fragmentainerBlockSize != null && table.fragmentainerBlockSize > 0;
+              repeats.push({
+                sectionSourceIndex: section.sourceIndex,
+                repeatKind: section.repeatKind,
+                eligibility: {
+                  fragmentationType: "column",
+                  fragmentainerBlockSize: table.fragmentainerBlockSize ?? 0,
+                  sectionBlockSize,
+                  knownFragmentainerBlockSize,
+                  atMostQuarterFragmentainer:
+                    knownFragmentainerBlockSize && sectionBlockSize * 4 <= table.fragmentainerBlockSize!,
+                  applicableBreakInsideAvoid: section.breakInside === "avoid" || section.breakInside === "avoid-column",
+                  noBreakInside,
+                  noLateStart: occurrences[0]?.fragmentIndex === prototypeFragmentIndex,
+                  outsideNestedRepeatableContent: table.outsideNestedRepeatableContent,
+                  layoutSideEffectsEnabled: true,
+                },
+                occurrences,
               });
-            return {
-              tables: reports,
-              scrollRestoredExactly: window.scrollX === savedScrollX && window.scrollY === savedScrollY,
-            };
-          },
-          { key, tables: prepared.tables },
-        )
-        .catch((error: unknown) => {
-          onFrameFailure(error);
+            }
+            return { tableIndex: table.tableIndex, repeats };
+          });
+          if (intrinsicScroll)
+            scrollInstant.call(window, {
+              left: savedScrollX,
+              top: savedScrollY,
+              behavior: "instant",
+            });
           return {
-            tables: [] as Array<{ tableIndex: number; repeats: CollapsedBorderRepeatSectionEvidence[] }>,
-            scrollRestoredExactly: false,
+            tables: reports,
+            scrollRestoredExactly: window.scrollX === savedScrollX && window.scrollY === savedScrollY,
           };
-        });
+        },
+        { key, tables: prepared.tables },
+      ).catch((error: unknown) => {
+        onFrameFailure(error);
+        return {
+          tables: [] as Array<{ tableIndex: number; repeats: CollapsedBorderRepeatSectionEvidence[] }>,
+          scrollRestoredExactly: false,
+        };
+      });
       for (const table of measured.tables) {
         result.set(`${prepared.token}:${table.tableIndex}`, {
           repeatSections: table.repeats,
@@ -835,13 +815,20 @@ export async function prepareCollapsedBorderFragmentRecords(
   page: Page,
   selector: string,
 ): Promise<CollapsedBorderFragmentProbe> {
-  const key = privateCaptureKey("CollapsedBorderFragments");
-  const shimmedFrames = await installEvaluateNameShim(page.frames());
+  const registry = createPageRegistry<unknown>(page, "CollapsedBorderFragments");
+  const key = registry.key;
   const prepared = (
     await Promise.all(
       page.frames().map((frame, index) => setupFrame(frame, selector, key, `f${index}`, frame === page.mainFrame())),
     )
   ).filter((frame): frame is PreparedFrame => frame != null);
+  await Promise.all(
+    prepared.map(({ frame }) =>
+      registry
+        .tag(frame, (probeKey) => (globalThis as typeof globalThis & Record<string, unknown>)[probeKey], key)
+        .catch(() => undefined),
+    ),
+  );
   const warnings: CaptureWarning[] = [];
   const frameFailure =
     (probe: string): FrameProbeFailure =>
@@ -855,83 +842,81 @@ export async function prepareCollapsedBorderFragmentRecords(
           effect: "its collapsed-border section evidence is incomplete",
         }),
       );
-  let session: CDPSession | undefined;
-  let playbackRate: number | undefined;
-  let neutral = false;
   try {
     if (prepared.every((frame) => frame.tables.length === 0)) {
       return {
         key,
         warnings,
-        dispose: async () => {
-          await removeEvaluateNameShim(shimmedFrames);
-          await Promise.all(
-            prepared.map(({ frame }) =>
-              frame
-                .evaluate((probeKey) => {
-                  delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
-                }, key)
-                .catch(() => undefined),
-            ),
-          );
-        },
+        dispose: () => registry.dispose(),
       };
     }
-    session = await page.context().newCDPSession(page);
-    const contexts = await defaultRuntimeContexts(session, key);
-    try {
-      await session.send("Animation.enable");
-      playbackRate = (await session.send("Animation.getPlaybackRate")).playbackRate;
-      await session.send("Animation.setPlaybackRate", { playbackRate: 0 });
-    } catch {
-      playbackRate = undefined;
-    }
-    const live = await measureProtocol(session, key, prepared, contexts);
-    await mutateTransforms(prepared, key, true);
-    neutral = true;
-    await settleFrames(prepared);
-    const [cssom, protocol] = await Promise.all([
-      measureCssom(prepared, key, frameFailure("CSSOM rect")),
-      measureProtocol(session, key, prepared, contexts),
-    ]);
-    const repeats = await measureRepeatOccurrences(prepared, key, frameFailure("repeated-section occurrence"));
-    const stylesRestoredExactly = await mutateTransforms(prepared, key, false);
-    neutral = false;
-    await settleFrames(prepared);
-    const restored = await measureProtocol(session, key, prepared, contexts);
-
-    await Promise.all(
-      prepared.map(async (frame) => {
-        const records = frame.tables.map((table) => {
-          const repeat = repeats.get(`${frame.token}:${table.tableIndex}`);
-          const restoredExactly =
-            stylesRestoredExactly &&
-            repeat?.scrollRestoredExactly !== false &&
-            sourceRestoredExactly(frame, live, restored);
-          return buildRecord(frame, table, cssom, protocol, restoredExactly, repeat?.repeatSections ?? []);
-        });
-        for (let index = 0; index < records.length; index++) {
-          const record = records[index];
-          if (record.status === "unavailable") {
-            warnings.push({
-              selector: frame.tables[index].selector,
-              feature: FEATURE,
-              detail: `authoritative physical section-fragment record unavailable: ${record.reason}; collapsed-border vector ownership withheld`,
-              status: "partial",
-            });
-          }
+    await withCdpSession(page, async (session) => {
+      let playbackRate: number | undefined;
+      let neutral = false;
+      try {
+        const contexts = await defaultRuntimeContexts(session, key);
+        try {
+          await session.send("Animation.enable");
+          playbackRate = (await session.send("Animation.getPlaybackRate")).playbackRate;
+          await session.send("Animation.setPlaybackRate", { playbackRate: 0 });
+        } catch {
+          playbackRate = undefined;
         }
-        await frame.frame.evaluate(
-          ({ key, records }) => {
-            const registry = (
-              globalThis as typeof globalThis & Record<string, { records: CollapsedBorderFragmentRecord[] }>
-            )[key];
-            if (registry != null) registry.records = records;
-          },
-          { key, records },
+        const live = await measureProtocol(session, key, prepared, contexts);
+        await mutateTransforms(prepared, key, true);
+        neutral = true;
+        await settleFrames(prepared);
+        const [cssom, protocol] = await Promise.all([
+          measureCssom(prepared, key, frameFailure("CSSOM rect")),
+          measureProtocol(session, key, prepared, contexts),
+        ]);
+        const repeats = await measureRepeatOccurrences(prepared, key, frameFailure("repeated-section occurrence"));
+        const stylesRestoredExactly = await mutateTransforms(prepared, key, false);
+        neutral = false;
+        await settleFrames(prepared);
+        const restored = await measureProtocol(session, key, prepared, contexts);
+
+        await Promise.all(
+          prepared.map(async (frame) => {
+            const records = frame.tables.map((table) => {
+              const repeat = repeats.get(`${frame.token}:${table.tableIndex}`);
+              const restoredExactly =
+                stylesRestoredExactly &&
+                repeat?.scrollRestoredExactly !== false &&
+                sourceRestoredExactly(frame, live, restored);
+              return buildRecord(frame, table, cssom, protocol, restoredExactly, repeat?.repeatSections ?? []);
+            });
+            for (let index = 0; index < records.length; index++) {
+              const record = records[index];
+              if (record.status === "unavailable") {
+                warnings.push({
+                  selector: frame.tables[index].selector,
+                  feature: FEATURE,
+                  detail: `authoritative physical section-fragment record unavailable: ${record.reason}; collapsed-border vector ownership withheld`,
+                  status: "partial",
+                });
+              }
+            }
+            await evaluateInFrame(
+              frame.frame,
+              ({ key, records }) => {
+                const registry = (
+                  globalThis as typeof globalThis & Record<string, { records: CollapsedBorderFragmentRecord[] }>
+                )[key];
+                if (registry != null) registry.records = records;
+              },
+              { key, records },
+            );
+          }),
         );
-      }),
-    );
+      } finally {
+        if (neutral) await mutateTransforms(prepared, key, false).catch(() => undefined);
+        if (playbackRate != null) {
+          await session.send("Animation.setPlaybackRate", { playbackRate }).catch(() => undefined);
+        }
+        await session.send("Animation.disable").catch(() => undefined);
+      }
+    });
   } catch (error) {
     warnings.push({
       selector,
@@ -939,28 +924,10 @@ export async function prepareCollapsedBorderFragmentRecords(
       detail: `authoritative physical section-fragment probe failed closed: ${error instanceof Error ? error.message : String(error)}`,
       status: "partial",
     });
-  } finally {
-    if (neutral) await mutateTransforms(prepared, key, false).catch(() => undefined);
-    if (session != null && playbackRate != null) {
-      await session.send("Animation.setPlaybackRate", { playbackRate }).catch(() => undefined);
-    }
-    await session?.send("Animation.disable").catch(() => undefined);
-    await session?.detach().catch(() => undefined);
-    await removeEvaluateNameShim(shimmedFrames);
   }
   return {
     key,
     warnings,
-    dispose: async () => {
-      await Promise.all(
-        prepared.map(({ frame }) =>
-          frame
-            .evaluate((probeKey) => {
-              delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
-            }, key)
-            .catch(() => undefined),
-        ),
-      );
-    },
+    dispose: () => registry.dispose(),
   };
 }

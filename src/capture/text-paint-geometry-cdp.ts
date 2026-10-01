@@ -1,7 +1,9 @@
 /** Chromium protocol prepass for exact affine text-fragment geometry (DM-2469). */
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
-import { privateCaptureKey } from "./private-key.js";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
+import { withCdpSession } from "./cdp-lifecycle.js";
+import { createPageRegistry } from "./page-registry.js";
 import type { CapturedElement, CapturedTextPaintQuad, CaptureWarning } from "./types.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { buildCapturedTextPaintGeometry, type ProtocolTextNodeGeometry } from "./text-fragment-geometry.js";
@@ -90,7 +92,8 @@ async function setupFrameRegistry(
   token: string,
 ): Promise<PreparedFrame | null> {
   try {
-    const prepared = await frame.evaluate(
+    const prepared = await evaluateInFrame(
+      frame,
       ({ selector, key, token, isTop }) => {
         const root = isTop ? document.querySelector(selector) : document.documentElement;
         if (root == null) return { rows: [], hasTransformOwners: false };
@@ -228,7 +231,8 @@ async function setupFrameRegistry(
 async function mutateFrames(frames: readonly PreparedFrame[], key: string, neutral: boolean): Promise<void> {
   await Promise.all(
     frames.map(async ({ frame }) => {
-      await frame.evaluate(
+      await evaluateInFrame(
+        frame,
         ({ key, neutral }) => {
           const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
           if (registry == null) return;
@@ -271,14 +275,13 @@ async function settleFrames(frames: readonly PreparedFrame[]): Promise<void> {
         // detaching the Frame, leaving Runtime.callFunctionOn pending forever.
         // The mutation is synchronous; this wait is only a best-effort compositor
         // settle, so cap it rather than wedging the entire fixture/worker.
-        const settle = frame
-          .evaluate(
-            () =>
-              new Promise<void>((resolve) => {
-                requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-              }),
-          )
-          .catch(() => undefined);
+        const settle = evaluateInFrame(
+          frame,
+          () =>
+            new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            }),
+        ).catch(() => undefined);
         await Promise.race([settle, new Promise<void>((resolve) => setTimeout(resolve, 1_000))]);
       }),
   );
@@ -391,117 +394,105 @@ export async function measureRangeFragments(
   const output = new Map<string, RangeMeasurement>();
   await Promise.all(
     frames.map(async ({ frame, token }) => {
-      // `node --import tsx` annotates nested functions in the serialized
-      // Playwright callback with `__name`. Install its no-op helper only for the
-      // duration of this probe; compiled library and Vitest paths never need it.
-      const installedTsxNameHelper = (await frame
-        .evaluate(
-          "!Object.prototype.hasOwnProperty.call(globalThis, '__name') && (globalThis.__name = (target) => target, true)",
-        )
-        .catch(() => false)) as boolean;
-      const rows = await frame
-        .evaluate(
-          ({ key }) => {
-            const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
-            if (registry == null) return [];
-            const rect = (value: DOMRect): { x: number; y: number; width: number; height: number } => ({
-              x: value.x,
-              y: value.y,
-              width: value.width,
-              height: value.height,
-            });
-            const tokenFor = (value: { x: number; y: number; width: number; height: number }): string =>
-              `${value.x}|${value.y}|${value.width}|${value.height}`;
-            const rectsFor = (
-              node: Text,
-              start: number,
-              end: number,
-            ): Array<{ x: number; y: number; width: number; height: number }> => {
-              const range = document.createRange();
-              range.setStart(node, start);
-              range.setEnd(node, end);
-              return Array.from(range.getClientRects(), rect);
-            };
-            return registry.textRows.map((row: { textNode: Text }) => {
-              try {
-                const node = row.textNode;
-                const textLength = node.data.length;
-                const full = rectsFor(node, 0, textLength);
-                if (full.length === 0)
-                  return { fragments: [], failureReason: "Range exposed no full text FragmentItems" };
-                const fullTokens = full.map(tokenFor);
-                const prefixCounts: Array<Map<string, number>> = [];
-                const suffixCounts: Array<Map<string, number>> = [];
-                const countsFor = (
-                  values: Array<{ x: number; y: number; width: number; height: number }>,
-                ): Map<string, number> => {
-                  const counts = new Map<string, number>();
-                  for (const value of values) {
-                    const token = tokenFor(value);
-                    counts.set(token, (counts.get(token) ?? 0) + 1);
-                  }
-                  return counts;
-                };
-                for (let offset = 0; offset <= textLength; offset++) {
-                  prefixCounts.push(countsFor(rectsFor(node, 0, offset)));
-                  suffixCounts.push(countsFor(rectsFor(node, offset, textLength)));
+      const rows = await evaluateInFrame(
+        frame,
+        ({ key }) => {
+          const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+          if (registry == null) return [];
+          const rect = (value: DOMRect): { x: number; y: number; width: number; height: number } => ({
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+          });
+          const tokenFor = (value: { x: number; y: number; width: number; height: number }): string =>
+            `${value.x}|${value.y}|${value.width}|${value.height}`;
+          const rectsFor = (
+            node: Text,
+            start: number,
+            end: number,
+          ): Array<{ x: number; y: number; width: number; height: number }> => {
+            const range = document.createRange();
+            range.setStart(node, start);
+            range.setEnd(node, end);
+            return Array.from(range.getClientRects(), rect);
+          };
+          return registry.textRows.map((row: { textNode: Text }) => {
+            try {
+              const node = row.textNode;
+              const textLength = node.data.length;
+              const full = rectsFor(node, 0, textLength);
+              if (full.length === 0)
+                return { fragments: [], failureReason: "Range exposed no full text FragmentItems" };
+              const fullTokens = full.map(tokenFor);
+              const prefixCounts: Array<Map<string, number>> = [];
+              const suffixCounts: Array<Map<string, number>> = [];
+              const countsFor = (
+                values: Array<{ x: number; y: number; width: number; height: number }>,
+              ): Map<string, number> => {
+                const counts = new Map<string, number>();
+                for (const value of values) {
+                  const token = tokenFor(value);
+                  counts.set(token, (counts.get(token) ?? 0) + 1);
                 }
-                const fragments: BlinkRangeFragmentProbe[] = [];
-                for (let physicalFragmentIndex = 0; physicalFragmentIndex < full.length; physicalFragmentIndex++) {
-                  const token = fullTokens[physicalFragmentIndex];
-                  const forwardRank = fullTokens
-                    .slice(0, physicalFragmentIndex + 1)
-                    .filter((candidate) => candidate === token).length;
-                  const reverseRank = fullTokens
-                    .slice(physicalFragmentIndex)
-                    .filter((candidate) => candidate === token).length;
-                  const end = prefixCounts.findIndex((counts) => (counts.get(token) ?? 0) >= forwardRank);
-                  let start = -1;
-                  for (let offset = textLength; offset >= 0; offset--) {
-                    if ((suffixCounts[offset].get(token) ?? 0) >= reverseRank) {
-                      start = offset;
-                      break;
-                    }
-                  }
-                  if (start < 0 || end <= start) {
-                    return {
-                      fragments: [],
-                      failureReason: "Range could not isolate an exact FragmentItem UTF-16 interval",
-                    };
-                  }
-                  const isolated = rectsFor(node, start, end);
-                  if (isolated.length !== 1 || tokenFor(isolated[0]) !== token) {
-                    return {
-                      fragments: [],
-                      failureReason: "isolated DOM UTF-16 interval does not reproduce one full FragmentItem",
-                    };
-                  }
-                  fragments.push({
-                    physicalFragmentIndex,
-                    domUtf16Span: [start, end],
-                    neutralRangeRect: full[physicalFragmentIndex],
-                  });
-                }
-                return { fragments };
-              } catch (error) {
-                return {
-                  fragments: [],
-                  failureReason: `Range FragmentItem probe failed: ${error instanceof Error ? error.message : String(error)}`,
-                };
+                return counts;
+              };
+              for (let offset = 0; offset <= textLength; offset++) {
+                prefixCounts.push(countsFor(rectsFor(node, 0, offset)));
+                suffixCounts.push(countsFor(rectsFor(node, offset, textLength)));
               }
-            });
-          },
-          { key },
-        )
-        .catch((error: unknown) => {
-          // A whole-frame failure drops every measured row, which downstream reads as
-          // "no correlation" per element. Report it once so it is not mistaken for that.
-          onFrameFailure(error);
-          return [] as RangeMeasurement[];
-        });
-      if (installedTsxNameHelper) {
-        await frame.evaluate("delete globalThis.__name").catch(() => undefined);
-      }
+              const fragments: BlinkRangeFragmentProbe[] = [];
+              for (let physicalFragmentIndex = 0; physicalFragmentIndex < full.length; physicalFragmentIndex++) {
+                const token = fullTokens[physicalFragmentIndex];
+                const forwardRank = fullTokens
+                  .slice(0, physicalFragmentIndex + 1)
+                  .filter((candidate) => candidate === token).length;
+                const reverseRank = fullTokens
+                  .slice(physicalFragmentIndex)
+                  .filter((candidate) => candidate === token).length;
+                const end = prefixCounts.findIndex((counts) => (counts.get(token) ?? 0) >= forwardRank);
+                let start = -1;
+                for (let offset = textLength; offset >= 0; offset--) {
+                  if ((suffixCounts[offset].get(token) ?? 0) >= reverseRank) {
+                    start = offset;
+                    break;
+                  }
+                }
+                if (start < 0 || end <= start) {
+                  return {
+                    fragments: [],
+                    failureReason: "Range could not isolate an exact FragmentItem UTF-16 interval",
+                  };
+                }
+                const isolated = rectsFor(node, start, end);
+                if (isolated.length !== 1 || tokenFor(isolated[0]) !== token) {
+                  return {
+                    fragments: [],
+                    failureReason: "isolated DOM UTF-16 interval does not reproduce one full FragmentItem",
+                  };
+                }
+                fragments.push({
+                  physicalFragmentIndex,
+                  domUtf16Span: [start, end],
+                  neutralRangeRect: full[physicalFragmentIndex],
+                });
+              }
+              return { fragments };
+            } catch (error) {
+              return {
+                fragments: [],
+                failureReason: `Range FragmentItem probe failed: ${error instanceof Error ? error.message : String(error)}`,
+              };
+            }
+          });
+        },
+        { key },
+      ).catch((error: unknown) => {
+        // A whole-frame failure drops every measured row, which downstream reads as
+        // "no correlation" per element. Report it once so it is not mistaken for that.
+        onFrameFailure(error);
+        return [] as RangeMeasurement[];
+      });
       for (let index = 0; index < rows.length; index++) {
         output.set(`${token}:${index}`, rows[index] as RangeMeasurement);
       }
@@ -621,80 +612,97 @@ export async function prepareTextPaintGeometry(
   viewport: { x: number; y: number; width: number; height: number },
   captureNeutralTree: (key: string) => Promise<{ tree: CapturedElement[] }>,
 ): Promise<TextPaintGeometryProbe> {
-  const key = privateCaptureKey("TextPaintGeometry");
+  const registry = createPageRegistry<unknown>(page, "TextPaintGeometry");
+  const key = registry.key;
   const prepared = (
     await Promise.all(page.frames().map((frame, index) => setupFrameRegistry(frame, selector, key, `f${index}`)))
   ).filter((frame): frame is PreparedFrame => frame != null);
+  await Promise.all(
+    prepared.map(({ frame }) =>
+      registry
+        .tag(frame, (probeKey) => (globalThis as typeof globalThis & Record<string, unknown>)[probeKey], key)
+        .catch(() => undefined),
+    ),
+  );
   const warnings: CaptureWarning[] = [];
-  let session: CDPSession | undefined;
   let playbackRate: number | undefined;
   let neutral = false;
   try {
-    session = await page.context().newCDPSession(page);
-    const contexts = await defaultRuntimeContexts(session, key);
-    try {
-      await session.send("Animation.enable");
-      playbackRate = (await session.send("Animation.getPlaybackRate")).playbackRate;
-      await session.send("Animation.setPlaybackRate", { playbackRate: 0 });
-    } catch {
-      playbackRate = undefined;
-    }
-    const live = await measureTextPaintRows(session, key, prepared, contexts, viewport);
-    await mutateFrames(prepared, key, true);
-    neutral = true;
-    await settleFrames(prepared);
-    const [neutralQuads, neutralRangeFragments] = await Promise.all([
-      measureTextPaintRows(session, key, prepared, contexts, viewport),
-      measureRangeFragments(prepared, key, (cause) =>
-        warnings.push(
-          probeFailureWarning({
-            selector,
-            feature: "transform",
-            probe: "Range FragmentItem probe for a frame",
-            cause,
-            effect: "its text elements take the legacy text path",
-          }),
-        ),
-      ),
-    ]);
-    const neutralResult = await captureNeutralTree(key);
-    await mutateFrames(prepared, key, false);
-    neutral = false;
-    await settleFrames(prepared);
-    const restored = await measureTextPaintRows(session, key, prepared, contexts, viewport);
-
-    const measured: MeasuredRow[] = [];
-    for (const frame of prepared) {
-      for (const row of frame.rows) {
-        const measurementKey = `${frame.token}:${row.sourceTextNodeIndex}`;
-        const paintQuads = live.get(measurementKey) ?? [];
-        const localQuads = neutralQuads.get(measurementKey) ?? [];
-        const rangeMeasurement = neutralRangeFragments.get(measurementKey);
-        const rangeFragments = rangeMeasurement?.fragments ?? [];
-        const restoredQuads = restored.get(measurementKey) ?? [];
-        let failureReason: string | undefined = rangeMeasurement?.failureReason;
-        if (paintQuads.length === 0 || localQuads.length === 0) {
-          failureReason = "DOM.getContentQuads unavailable for text node";
-        } else if (rangeFragments.length === 0) {
-          failureReason ??= "Range FragmentItem source spans unavailable for text node";
-        } else if (quadSetDistance(paintQuads, restoredQuads) > RESTORE_EPSILON) {
-          failureReason = "text transform probe did not restore the source frame exactly";
+    await withCdpSession(page, async (session) => {
+      try {
+        const contexts = await defaultRuntimeContexts(session, key);
+        try {
+          await session.send("Animation.enable");
+          playbackRate = (await session.send("Animation.getPlaybackRate")).playbackRate;
+          await session.send("Animation.setPlaybackRate", { playbackRate: 0 });
+        } catch {
+          playbackRate = undefined;
         }
-        measured.push({ ...row, neutralQuads: localQuads, paintQuads, rangeFragments, failureReason });
+        const live = await measureTextPaintRows(session, key, prepared, contexts, viewport);
+        await mutateFrames(prepared, key, true);
+        neutral = true;
+        await settleFrames(prepared);
+        const [neutralQuads, neutralRangeFragments] = await Promise.all([
+          measureTextPaintRows(session, key, prepared, contexts, viewport),
+          measureRangeFragments(prepared, key, (cause) =>
+            warnings.push(
+              probeFailureWarning({
+                selector,
+                feature: "transform",
+                probe: "Range FragmentItem probe for a frame",
+                cause,
+                effect: "its text elements take the legacy text path",
+              }),
+            ),
+          ),
+        ]);
+        const neutralResult = await captureNeutralTree(key);
+        await mutateFrames(prepared, key, false);
+        neutral = false;
+        await settleFrames(prepared);
+        const restored = await measureTextPaintRows(session, key, prepared, contexts, viewport);
+
+        const measured: MeasuredRow[] = [];
+        for (const frame of prepared) {
+          for (const row of frame.rows) {
+            const measurementKey = `${frame.token}:${row.sourceTextNodeIndex}`;
+            const paintQuads = live.get(measurementKey) ?? [];
+            const localQuads = neutralQuads.get(measurementKey) ?? [];
+            const rangeMeasurement = neutralRangeFragments.get(measurementKey);
+            const rangeFragments = rangeMeasurement?.fragments ?? [];
+            const restoredQuads = restored.get(measurementKey) ?? [];
+            let failureReason: string | undefined = rangeMeasurement?.failureReason;
+            if (paintQuads.length === 0 || localQuads.length === 0) {
+              failureReason = "DOM.getContentQuads unavailable for text node";
+            } else if (rangeFragments.length === 0) {
+              failureReason ??= "Range FragmentItem source spans unavailable for text node";
+            } else if (quadSetDistance(paintQuads, restoredQuads) > RESTORE_EPSILON) {
+              failureReason = "text transform probe did not restore the source frame exactly";
+            }
+            measured.push({ ...row, neutralQuads: localQuads, paintQuads, rangeFragments, failureReason });
+          }
+        }
+        const byFrame = factsByFrame(prepared, measured, neutralResult.tree as ProbeTreeElement[]);
+        await Promise.all(
+          prepared.map(({ frame, token }) =>
+            evaluateInFrame(
+              frame,
+              ({ key, facts }) => {
+                const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+                if (registry != null) registry.factsByElement = facts;
+              },
+              { key, facts: byFrame.get(token) ?? {} },
+            ),
+          ),
+        );
+      } finally {
+        if (neutral) await mutateFrames(prepared, key, false).catch(() => undefined);
+        if (playbackRate != null) {
+          await session.send("Animation.setPlaybackRate", { playbackRate }).catch(() => undefined);
+        }
+        await session.send("Animation.disable").catch(() => undefined);
       }
-    }
-    const byFrame = factsByFrame(prepared, measured, neutralResult.tree as ProbeTreeElement[]);
-    await Promise.all(
-      prepared.map(({ frame, token }) =>
-        frame.evaluate(
-          ({ key, facts }) => {
-            const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
-            if (registry != null) registry.factsByElement = facts;
-          },
-          { key, facts: byFrame.get(token) ?? {} },
-        ),
-      ),
-    );
+    });
   } catch (error) {
     warnings.push({
       selector,
@@ -709,24 +717,16 @@ export async function prepareTextPaintGeometry(
           const ownerIndex = row.surfaceOwnerKey.slice(row.surfaceOwnerKey.indexOf(":") + 1);
           facts[ownerIndex] = { surfaceReason: "authoritative affine text-fragment probe unavailable" };
         }
-        return frame
-          .evaluate(
-            ({ key, facts }) => {
-              const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
-              if (registry != null) registry.factsByElement = facts;
-            },
-            { key, facts },
-          )
-          .catch(() => undefined);
+        return evaluateInFrame(
+          frame,
+          ({ key, facts }) => {
+            const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+            if (registry != null) registry.factsByElement = facts;
+          },
+          { key, facts },
+        ).catch(() => undefined);
       }),
     );
-  } finally {
-    if (neutral) await mutateFrames(prepared, key, false).catch(() => undefined);
-    if (session != null && playbackRate != null) {
-      await session.send("Animation.setPlaybackRate", { playbackRate }).catch(() => undefined);
-    }
-    await session?.send("Animation.disable").catch(() => undefined);
-    await session?.detach().catch(() => undefined);
   }
 
   return {
@@ -742,16 +742,6 @@ export async function prepareTextPaintGeometry(
         await settleFrames(prepared);
       }
     },
-    dispose: async () => {
-      await Promise.all(
-        prepared.map(({ frame }) =>
-          frame
-            .evaluate((probeKey) => {
-              delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
-            }, key)
-            .catch(() => undefined),
-        ),
-      );
-    },
+    dispose: () => registry.dispose(),
   };
 }

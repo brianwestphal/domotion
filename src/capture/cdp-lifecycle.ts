@@ -7,6 +7,8 @@
  * on a page the caller reuses. These helpers make both impossible.
  */
 
+import type { CDPSession, Frame, Page } from "@playwright/test";
+
 /** Anything with an async teardown (a prepass, a probe, a frame transaction). */
 export interface AsyncDisposable {
   dispose(): Promise<void>;
@@ -24,6 +26,26 @@ export async function disposeAll(...disposables: ReadonlyArray<AsyncDisposable |
   if (failures.length === 0) return;
   if (failures.length === 1) throw failures[0];
   throw new AggregateError(failures, `${failures.length} capture disposers failed`);
+}
+
+/** Prepare independent capture resources together, disposing successful ones if any fail. */
+export async function runPrepasses<const T extends readonly { prepare(): Promise<AsyncDisposable> }[]>(
+  entries: T,
+): Promise<{ [K in keyof T]: Awaited<ReturnType<T[K]["prepare"]>> }> {
+  const results = await Promise.allSettled(entries.map((entry) => entry.prepare()));
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure?.status === "rejected") {
+    const prepared = results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+    try {
+      await disposeAll(...prepared);
+    } catch (cleanupError) {
+      throw new AggregateError([failure.reason, cleanupError], "capture prepass preparation and cleanup failed");
+    }
+    throw failure.reason;
+  }
+  return results.map((result) => (result as PromiseFulfilledResult<AsyncDisposable>).value) as {
+    [K in keyof T]: Awaited<ReturnType<T[K]["prepare"]>>;
+  };
 }
 
 /** Minimal shape of a Playwright `CDPSession` this module needs. */
@@ -46,5 +68,28 @@ export async function detachQuietly(session: DetachableSession | null | undefine
  * served by the parent's, so callers fall back to the page session (or skip).
  */
 export function isSameProcessFrameError(error: unknown): boolean {
-  return /part of the parent frame's session/i.test(String(error));
+  return /part of the parent frame's session|does not have a separate CDP session/i.test(String(error));
+}
+
+/** Own one CDP session for the duration of an operation. */
+export async function withCdpSession<Result>(
+  target: Page | Frame,
+  work: (session: CDPSession) => Promise<Result>,
+  options: { sameProcessFrame?: () => Promise<Result> | Result } = {},
+): Promise<Result> {
+  const page = "page" in target ? target.page() : target;
+  let session: CDPSession;
+  try {
+    session = await page.context().newCDPSession(target);
+  } catch (error) {
+    if (target !== page && isSameProcessFrameError(error) && options.sameProcessFrame != null) {
+      return await options.sameProcessFrame();
+    }
+    throw error;
+  }
+  try {
+    return await work(session);
+  } finally {
+    await detachQuietly(session);
+  }
 }

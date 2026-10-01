@@ -11,7 +11,7 @@
 
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-import { privateCaptureKey } from "./private-key.js";
+import { createPageRegistry } from "./page-registry.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import {
   cropNativeControlRgba,
@@ -171,7 +171,8 @@ export async function rasterizeNativeControlDecorations(
       warn(options.warnings, active[index], "overlapping partial decoration owners cannot share one isolation atlas");
   }
 
-  const restoreKey = privateCaptureKey("DecorationRestore");
+  const restoreRegistry = createPageRegistry<unknown>(page, "DecorationRestore");
+  const restoreKey = restoreRegistry.key;
   let facts: IsolationFact[] = active.map(() => ({ connected: false, fingerprintMatches: false }));
   let isolated: Awaited<ReturnType<typeof takeIsolationFrame>> = null;
   const isolationRows = active.map(({ element, raster }) => ({
@@ -187,6 +188,7 @@ export async function rasterizeNativeControlDecorations(
     },
   }));
   try {
+    await restoreRegistry.tag(page, () => ({ entries: [], activeElement: document.activeElement }));
     facts = await page.evaluate(
       ({ sourceNodeKey, decorationNodeKey, restoreKey, rows }) => {
         type RestoreEntry =
@@ -199,8 +201,9 @@ export async function rasterizeNativeControlDecorations(
         };
         const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
         const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;
-        const restore: RestoreEntry[] = [];
-        const initialActiveElement = document.activeElement;
+        const restoreState = pageGlobal[restoreKey] as RestoreState;
+        const restore = restoreState.entries;
+        const initialActiveElement = restoreState.activeElement;
         const interactionStates = rows.map((row) => {
           const host = row.index == null ? null : (sourceNodes?.[row.index] ?? null);
           return host instanceof HTMLElement
@@ -211,10 +214,6 @@ export async function rasterizeNativeControlDecorations(
               }
             : null;
         });
-        pageGlobal[restoreKey] = {
-          entries: restore,
-          activeElement: initialActiveElement,
-        } satisfies RestoreState;
         // Object methods survive Playwright's function serialization in both
         // compiled and direct-TSX callers. Locally named functions gain an
         // esbuild `__name(...)` call under TSX, but that helper does not exist in
@@ -565,7 +564,6 @@ export async function rasterizeNativeControlDecorations(
           if (state != null && document.activeElement !== state.activeElement) {
             failures.push("document active element changed during isolation");
           }
-          delete pageGlobal[key];
           return failures.length === 0 ? { ok: true } : { ok: false, reason: failures.join("; ") };
         },
         {
@@ -580,6 +578,7 @@ export async function rasterizeNativeControlDecorations(
         reason:
           error instanceof Error ? `restore verification failed: ${error.message}` : "restore verification failed",
       }));
+    await restoreRegistry.dispose();
     if (!restored.ok) {
       facts = facts.map((fact) => ({
         ...fact,

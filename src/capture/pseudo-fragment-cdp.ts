@@ -10,7 +10,10 @@
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import sharp from "sharp";
-import { privateCaptureKey } from "./private-key.js";
+import { withCdpSession } from "./cdp-lifecycle.js";
+import { createPageRegistry } from "./page-registry.js";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
+declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").browserImageNaturalSize;
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { planPseudoBackdropIsolation, type PseudoBackdropSnapshotNode } from "./pseudo-backdrop-isolation.js";
 import {
@@ -104,34 +107,6 @@ export interface PseudoFragmentProbe {
 
 const FEATURE = "generated-pseudo-fragment-geometry";
 
-/**
- * tsx/esbuild's keep-names transform inserts a free `__name` call inside a
- * function serialized by Playwright. Browser globals do not normally carry
- * that helper. Install the identity helper only for this prepass and remove it
- * afterward; Vitest's transform does not need it, while the shipped `tsx`
- * oracle/CLI route does.
- */
-async function installEvaluateNameShim(frames: readonly Frame[]): Promise<Frame[]> {
-  const installed: Frame[] = [];
-  for (const frame of frames) {
-    const didInstall = await frame
-      .evaluate(
-        `(() => {
-      if (typeof globalThis.__name === "function") return false;
-      globalThis.__name = function(value) { return value; };
-      return true;
-    })()`,
-      )
-      .catch(() => false);
-    if (didInstall) installed.push(frame);
-  }
-  return installed;
-}
-
-async function removeEvaluateNameShim(frames: readonly Frame[]): Promise<void> {
-  await Promise.all(frames.map((frame) => frame.evaluate(`delete globalThis.__name`).catch(() => undefined)));
-}
-
 function normalizeWritingMode(value: string): WritingMode {
   if (value === "vertical-rl" || value === "vertical-lr" || value === "sideways-rl" || value === "sideways-lr")
     return value;
@@ -174,7 +149,8 @@ async function setupFrame(
   top: boolean,
 ): Promise<PreparedFrame | null> {
   try {
-    const raw = await frame.evaluate(
+    const raw = await evaluateInFrame(
+      frame,
       async ({ selector, key, token, top }) => {
         const root = top ? document.querySelector(selector) : document.documentElement;
         if (root == null) return [];
@@ -218,19 +194,7 @@ async function setupFrame(
         function imageNaturalSize(url: string): Promise<{ width: number; height: number } | null> {
           const hit = imageSizeCache.get(url);
           if (hit != null) return hit;
-          const pending = (async () => {
-            const image = new Image();
-            image.src = url;
-            if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
-              await Promise.race([
-                image.decode().catch(() => undefined),
-                new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-              ]);
-            }
-            return image.naturalWidth > 0 && image.naturalHeight > 0
-              ? { width: image.naturalWidth, height: image.naturalHeight }
-              : null;
-          })();
+          const pending = browserImageNaturalSize(url);
           imageSizeCache.set(url, pending);
           return pending;
         }
@@ -618,7 +582,8 @@ async function installPseudoBackdropStyles(
         .map((candidate) => ({ elementIndex: candidate.elementIndex, pseudo: candidate.pseudo }));
       const ownsTarget = target.frame === frame;
       if (!ownsTarget && hidden.length === 0) return Promise.resolve();
-      return frame.evaluate(
+      return evaluateInFrame(
+        frame,
         ({ key, styleId, cleanupKey, marker, ownsTarget, targetIndex, targetPseudo, hidden, neutralContent }) => {
           const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
             | {
@@ -715,22 +680,21 @@ async function installPseudoBackdropStyles(
     dispose: async () => {
       await Promise.all(
         prepared.map(({ frame }) =>
-          frame
-            .evaluate(
-              ({ key, styleId, cleanupKey }) => {
-                const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
-                  | {
-                      [name: string]: unknown;
-                    }
-                  | undefined;
-                const touched = registry?.[cleanupKey] as Array<{ element: Element; attribute: string }> | undefined;
-                for (const row of touched ?? []) row.element.removeAttribute(row.attribute);
-                if (registry != null) delete registry[cleanupKey];
-                document.getElementById(styleId)?.remove();
-              },
-              { key, styleId, cleanupKey },
-            )
-            .catch(() => undefined),
+          evaluateInFrame(
+            frame,
+            ({ key, styleId, cleanupKey }) => {
+              const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
+                | {
+                    [name: string]: unknown;
+                  }
+                | undefined;
+              const touched = registry?.[cleanupKey] as Array<{ element: Element; attribute: string }> | undefined;
+              for (const row of touched ?? []) row.element.removeAttribute(row.attribute);
+              if (registry != null) delete registry[cleanupKey];
+              document.getElementById(styleId)?.remove();
+            },
+            { key, styleId, cleanupKey },
+          ).catch(() => undefined),
         ),
       );
     },
@@ -821,7 +785,8 @@ async function capturePseudoBackdropBoundary(
   let restores: VisibilityRestore[] = [];
   try {
     restores = await hideBackdropLaterNodes(session, ordinaryBackendNodeIds);
-    await page.evaluate(
+    await evaluateInFrame(
+      page,
       () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
     );
     const clip = clipRectForScreenshot(rasterRect, viewport);
@@ -847,9 +812,9 @@ async function capturePseudoBackdropBoundary(
   } finally {
     await restoreBackdropLaterNodes(session, restores);
     await styles.dispose();
-    await page
-      .evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
-      .catch(() => undefined);
+    await evaluateInFrame(page, () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))).catch(
+      () => undefined,
+    );
   }
 }
 
@@ -865,46 +830,45 @@ export async function addShapedAdvances(
       : row.textBoxes.map((box) => row.text!.slice(box.startUtf16, box.startUtf16 + box.lengthUtf16)),
   );
   if (strings.length === 0) return rows;
-  const advances = await candidate.frame
-    .evaluate(
-      ({ key, elementIndex, pseudo, strings }) => {
-        const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
-          { elements?: Element[] } | undefined;
-        const host = registry?.elements?.[elementIndex];
-        if (host == null) return [];
-        const style = getComputedStyle(host, `::${pseudo}`);
-        let zoom = 1;
-        for (let owner: Element | null = host; owner != null; owner = owner.parentElement) {
-          const own = Number.parseFloat(getComputedStyle(owner).zoom);
-          if (Number.isFinite(own) && own > 0) zoom *= own;
-        }
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        if (context == null) return [];
-        context.font = `${style.fontStyle} ${style.fontWeight} ${Number.parseFloat(style.fontSize) * zoom}px ${style.fontFamily}`;
-        context.direction = style.direction === "rtl" ? "rtl" : "ltr";
-        const spacing = context as unknown as {
-          fontStretch?: string;
-          fontKerning?: string;
-          fontVariantCaps?: string;
-          letterSpacing?: string;
-          wordSpacing?: string;
-        };
-        if ("fontStretch" in spacing) spacing.fontStretch = style.fontStretch;
-        if ("fontKerning" in spacing) spacing.fontKerning = style.fontKerning;
-        if ("fontVariantCaps" in spacing) spacing.fontVariantCaps = style.fontVariant;
-        if ("letterSpacing" in spacing && style.letterSpacing !== "normal")
-          spacing.letterSpacing = `${Number.parseFloat(style.letterSpacing) * zoom}px`;
-        if ("wordSpacing" in spacing && style.wordSpacing !== "normal")
-          spacing.wordSpacing = `${Number.parseFloat(style.wordSpacing) * zoom}px`;
-        return strings.map((text) => context.measureText(text).width);
-      },
-      { key, elementIndex: candidate.elementIndex, pseudo: candidate.pseudo, strings },
-    )
-    .catch((error: unknown) => {
-      onFailure(error);
-      return [] as number[];
-    });
+  const advances = await evaluateInFrame(
+    candidate.frame,
+    ({ key, elementIndex, pseudo, strings }) => {
+      const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
+        { elements?: Element[] } | undefined;
+      const host = registry?.elements?.[elementIndex];
+      if (host == null) return [];
+      const style = getComputedStyle(host, `::${pseudo}`);
+      let zoom = 1;
+      for (let owner: Element | null = host; owner != null; owner = owner.parentElement) {
+        const own = Number.parseFloat(getComputedStyle(owner).zoom);
+        if (Number.isFinite(own) && own > 0) zoom *= own;
+      }
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (context == null) return [];
+      context.font = `${style.fontStyle} ${style.fontWeight} ${Number.parseFloat(style.fontSize) * zoom}px ${style.fontFamily}`;
+      context.direction = style.direction === "rtl" ? "rtl" : "ltr";
+      const spacing = context as unknown as {
+        fontStretch?: string;
+        fontKerning?: string;
+        fontVariantCaps?: string;
+        letterSpacing?: string;
+        wordSpacing?: string;
+      };
+      if ("fontStretch" in spacing) spacing.fontStretch = style.fontStretch;
+      if ("fontKerning" in spacing) spacing.fontKerning = style.fontKerning;
+      if ("fontVariantCaps" in spacing) spacing.fontVariantCaps = style.fontVariant;
+      if ("letterSpacing" in spacing && style.letterSpacing !== "normal")
+        spacing.letterSpacing = `${Number.parseFloat(style.letterSpacing) * zoom}px`;
+      if ("wordSpacing" in spacing && style.wordSpacing !== "normal")
+        spacing.wordSpacing = `${Number.parseFloat(style.wordSpacing) * zoom}px`;
+      return strings.map((text) => context.measureText(text).width);
+    },
+    { key, elementIndex: candidate.elementIndex, pseudo: candidate.pseudo, strings },
+  ).catch((error: unknown) => {
+    onFailure(error);
+    return [] as number[];
+  });
   let cursor = 0;
   return rows.map((row) => ({
     ...row,
@@ -1023,7 +987,8 @@ async function isolatePseudoSurface(
   try {
     await Promise.all(
       prepared.map(({ frame }) =>
-        frame.evaluate(
+        evaluateInFrame(
+          frame,
           ({ styleId, marker, active, key, elementIndex, pseudo, textOnly }) => {
             const style = document.createElement("style");
             style.id = styleId;
@@ -1062,7 +1027,8 @@ async function isolatePseudoSurface(
       }, marker);
       await handle.dispose();
     }
-    await page.evaluate(
+    await evaluateInFrame(
+      page,
       () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
     );
     const png = Buffer.from(
@@ -1077,22 +1043,21 @@ async function isolatePseudoSurface(
   } finally {
     await Promise.all(
       prepared.map(({ frame }) =>
-        frame
-          .evaluate(
-            ({ styleId, marker }) => {
-              document.getElementById(styleId)?.remove();
-              for (const element of document.querySelectorAll(
-                `[data-domotion-pseudo-ancestor="${marker}"],[data-domotion-pseudo-target="${marker}"]`,
-              )) {
-                if (element.getAttribute("data-domotion-pseudo-ancestor") === marker)
-                  element.removeAttribute("data-domotion-pseudo-ancestor");
-                if (element.getAttribute("data-domotion-pseudo-target") === marker)
-                  element.removeAttribute("data-domotion-pseudo-target");
-              }
-            },
-            { styleId, marker },
-          )
-          .catch(() => undefined),
+        evaluateInFrame(
+          frame,
+          ({ styleId, marker }) => {
+            document.getElementById(styleId)?.remove();
+            for (const element of document.querySelectorAll(
+              `[data-domotion-pseudo-ancestor="${marker}"],[data-domotion-pseudo-target="${marker}"]`,
+            )) {
+              if (element.getAttribute("data-domotion-pseudo-ancestor") === marker)
+                element.removeAttribute("data-domotion-pseudo-ancestor");
+              if (element.getAttribute("data-domotion-pseudo-target") === marker)
+                element.removeAttribute("data-domotion-pseudo-target");
+            }
+          },
+          { styleId, marker },
+        ).catch(() => undefined),
       ),
     );
   }
@@ -1131,7 +1096,8 @@ async function installFacts(
 ): Promise<void> {
   await Promise.all(
     prepared.map(({ frame, token }) =>
-      frame.evaluate(
+      evaluateInFrame(
+        frame,
         ({ key, facts }) => {
           const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
             | {
@@ -1177,14 +1143,21 @@ export async function preparePseudoFragmentGeometry(
   selector: string,
   viewport: { x: number; y: number; width: number; height: number },
 ): Promise<PseudoFragmentProbe> {
-  const key = privateCaptureKey("PseudoFragments");
+  const registry = createPageRegistry<unknown>(page, "PseudoFragments");
+  const key = registry.key;
   const initialFrames = page.frames();
-  const nameShimFrames = await installEvaluateNameShim(initialFrames);
   const prepared = (
     await Promise.all(
       initialFrames.map((frame, index) => setupFrame(frame, selector, key, `f${index}`, frame === page.mainFrame())),
     )
   ).filter((row): row is PreparedFrame => row != null);
+  await Promise.all(
+    prepared.map(({ frame }) =>
+      registry
+        .tag(frame, (probeKey) => (globalThis as typeof globalThis & Record<string, unknown>)[probeKey], key)
+        .catch(() => undefined),
+    ),
+  );
   const candidates = prepared.flatMap((row) => row.candidates);
   const warnings: CaptureWarning[] = [];
   const facts = new Map<string, Record<number, CapturedPseudoFragmentSet[]>>();
@@ -1205,178 +1178,192 @@ export async function preparePseudoFragmentGeometry(
       return { rect: { x: 0, y: 0, width: 0, height: 0 }, isolated: true as const };
     });
   for (const frame of prepared) facts.set(frame.token, {});
-  let session: CDPSession | undefined;
-  let playbackRate: number | undefined;
   try {
-    session = await page.context().newCDPSession(page);
-    const contexts = await runtimeContexts(session, key);
-    // Populate stable frontend node ids so CSS.getPlatformFontsForNode can
-    // report the exact faces selected for anonymous pseudo text.
-    await session.send("DOM.getDocument", { depth: -1, pierce: true });
-    await resolvePseudoNodes(session, key, prepared, contexts);
-    try {
-      await session.send("Animation.enable");
-      playbackRate = (await session.send("Animation.getPlaybackRate")).playbackRate;
-      await session.send("Animation.setPlaybackRate", { playbackRate: 0 });
-    } catch {
-      playbackRate = undefined;
-    }
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-    const snapshot = (await session.send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [],
-      includePaintOrder: true,
-      includeDOMRects: true,
-    })) as unknown as SnapshotResult;
-    for (const candidate of candidates) {
-      if (candidate.backendNodeId == null) {
-        const reason = "computed generated content had no correlatable Chromium pseudo backend node";
-        const terminalRaster = await isolate(candidate);
-        const frameFacts = facts.get(candidate.token)!;
-        (frameFacts[candidate.elementIndex] ??= []).push({
-          source: "blink-pseudo-fragment-v1",
-          pseudo: `::${candidate.pseudo}`,
-          status: "terminal-raster",
-          reason,
-          writingMode: candidate.style.writingMode,
-          direction: candidate.style.direction === "rtl" ? "rtl" : "ltr",
-          boxDecorationBreak: candidate.style.boxDecorationBreak === "clone" ? "clone" : "slice",
-          edges: { border: candidate.style.border, padding: candidate.style.padding, margin: candidate.style.margin },
-          contentItems: [],
-          boxFragments: [],
-          fragments: [],
-          typography: candidate.style.typography,
-          paint: candidate.style.paint,
-          terminalRaster,
-        });
-        warnings.push({
-          selector: candidate.selector,
-          feature: FEATURE,
-          detail: `${reason}; retained one isolated Chromium-painted pseudo surface`,
-        });
-        continue;
-      }
-      let rows = snapshotRows(snapshot, candidate.backendNodeId);
-      rows = await addShapedAdvances(candidate, rows, key, (cause) =>
-        warnings.push(
-          probeFailureWarning({
-            selector: candidate.selector,
-            feature: FEATURE,
-            probe: "shaped-advance probe",
-            cause,
-            effect: "text advances for this pseudo are unavailable",
-          }),
-        ),
-      );
-      const quads = await session
-        .send("DOM.getContentQuads", { backendNodeId: candidate.backendNodeId })
-        .then((result) => result.quads.map((value) => quad(value, viewport)))
-        .catch((cause: unknown) => {
-          warnings.push(
-            probeFailureWarning({
-              selector: candidate.selector,
-              feature: FEATURE,
-              probe: "DOM.getContentQuads",
-              cause,
-              effect: "physical pseudo quads are unavailable",
-            }),
-          );
-          return [] as Quad[];
-        });
-      const decoded = decodePseudoFragmentProtocol({
-        hostCorrelationId: candidate.correlationId,
-        pseudo: candidate.pseudo,
-        layoutRows: rows,
-        contentQuads: quads,
-        style: protocolStyle(candidate.style),
-      });
-      let record: CapturedPseudoFragmentSet;
-      if (decoded.status === "exact" || decoded.status === "unpainted") {
-        record = exactRecord(candidate, decoded);
-      } else {
-        const reason = decoded.reason ?? decoded.status;
-        const terminalRaster = await isolate(candidate);
-        record = {
-          source: "blink-pseudo-fragment-v1",
-          pseudo: `::${candidate.pseudo}`,
-          status: "terminal-raster",
-          reason,
-          writingMode: candidate.style.writingMode,
-          direction: candidate.style.direction === "rtl" ? "rtl" : "ltr",
-          boxDecorationBreak: candidate.style.boxDecorationBreak === "clone" ? "clone" : "slice",
-          edges: { border: candidate.style.border, padding: candidate.style.padding, margin: candidate.style.margin },
-          contentItems: [],
-          boxFragments: [],
-          fragments: [],
-          typography: candidate.style.typography,
-          paint: candidate.style.paint,
-          terminalRaster,
-        };
-        warnings.push({
-          selector: candidate.selector,
-          feature: FEATURE,
-          detail: `authoritative Chromium pseudo geometry unavailable (${reason}); retained one isolated Chromium-painted pseudo surface`,
-        });
-      }
-      if (record.status === "exact" && generatedImageNeedsIntrinsicSurface(candidate)) {
-        const reason = "generated URL image intrinsic paint exceeds its pseudo layout slot";
-        const terminalRaster = await isolate(candidate);
-        record = {
-          ...record,
-          status: "terminal-raster",
-          reason,
-          contentItems: [],
-          boxFragments: [],
-          fragments: [],
-          terminalRaster,
-        };
-      }
-      if (record.status === "exact") {
-        const representations = pseudoBitmapRepresentations(record);
-        if (representations.length > 0) {
-          try {
-            const raster = await isolatePseudoSurface(page, prepared, candidate, key, viewport, true);
-            record.bitmapTextRaster = {
-              ...raster,
-              source: "chromium-selected-bitmap-pseudo-text",
-              representations,
-            };
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : String(error);
+    await withCdpSession(page, async (session) => {
+      let playbackRate: number | undefined;
+      try {
+        const contexts = await runtimeContexts(session, key);
+        // Populate stable frontend node ids so CSS.getPlatformFontsForNode can
+        // report the exact faces selected for anonymous pseudo text.
+        await session.send("DOM.getDocument", { depth: -1, pierce: true });
+        await resolvePseudoNodes(session, key, prepared, contexts);
+        try {
+          await session.send("Animation.enable");
+          playbackRate = (await session.send("Animation.getPlaybackRate")).playbackRate;
+          await session.send("Animation.setPlaybackRate", { playbackRate: 0 });
+        } catch {
+          playbackRate = undefined;
+        }
+        await evaluateInFrame(page, () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+        const snapshot = (await session.send("DOMSnapshot.captureSnapshot", {
+          computedStyles: [],
+          includePaintOrder: true,
+          includeDOMRects: true,
+        })) as unknown as SnapshotResult;
+        for (const candidate of candidates) {
+          if (candidate.backendNodeId == null) {
+            const reason = "computed generated content had no correlatable Chromium pseudo backend node";
+            const terminalRaster = await isolate(candidate);
+            const frameFacts = facts.get(candidate.token)!;
+            (frameFacts[candidate.elementIndex] ??= []).push({
+              source: "blink-pseudo-fragment-v1",
+              pseudo: `::${candidate.pseudo}`,
+              status: "terminal-raster",
+              reason,
+              writingMode: candidate.style.writingMode,
+              direction: candidate.style.direction === "rtl" ? "rtl" : "ltr",
+              boxDecorationBreak: candidate.style.boxDecorationBreak === "clone" ? "clone" : "slice",
+              edges: {
+                border: candidate.style.border,
+                padding: candidate.style.padding,
+                margin: candidate.style.margin,
+              },
+              contentItems: [],
+              boxFragments: [],
+              fragments: [],
+              typography: candidate.style.typography,
+              paint: candidate.style.paint,
+              terminalRaster,
+            });
             warnings.push({
               selector: candidate.selector,
-              feature: "generated-pseudo-bitmap-text",
-              status: "unavailable",
-              detail: `unavailable: selected bitmap pseudo text could not be isolated (${reason}); retained source-owned outline-capable text only`,
+              feature: FEATURE,
+              detail: `${reason}; retained one isolated Chromium-painted pseudo surface`,
+            });
+            continue;
+          }
+          let rows = snapshotRows(snapshot, candidate.backendNodeId);
+          rows = await addShapedAdvances(candidate, rows, key, (cause) =>
+            warnings.push(
+              probeFailureWarning({
+                selector: candidate.selector,
+                feature: FEATURE,
+                probe: "shaped-advance probe",
+                cause,
+                effect: "text advances for this pseudo are unavailable",
+              }),
+            ),
+          );
+          const quads = await session
+            .send("DOM.getContentQuads", { backendNodeId: candidate.backendNodeId })
+            .then((result) => result.quads.map((value) => quad(value, viewport)))
+            .catch((cause: unknown) => {
+              warnings.push(
+                probeFailureWarning({
+                  selector: candidate.selector,
+                  feature: FEATURE,
+                  probe: "DOM.getContentQuads",
+                  cause,
+                  effect: "physical pseudo quads are unavailable",
+                }),
+              );
+              return [] as Quad[];
+            });
+          const decoded = decodePseudoFragmentProtocol({
+            hostCorrelationId: candidate.correlationId,
+            pseudo: candidate.pseudo,
+            layoutRows: rows,
+            contentQuads: quads,
+            style: protocolStyle(candidate.style),
+          });
+          let record: CapturedPseudoFragmentSet;
+          if (decoded.status === "exact" || decoded.status === "unpainted") {
+            record = exactRecord(candidate, decoded);
+          } else {
+            const reason = decoded.reason ?? decoded.status;
+            const terminalRaster = await isolate(candidate);
+            record = {
+              source: "blink-pseudo-fragment-v1",
+              pseudo: `::${candidate.pseudo}`,
+              status: "terminal-raster",
+              reason,
+              writingMode: candidate.style.writingMode,
+              direction: candidate.style.direction === "rtl" ? "rtl" : "ltr",
+              boxDecorationBreak: candidate.style.boxDecorationBreak === "clone" ? "clone" : "slice",
+              edges: {
+                border: candidate.style.border,
+                padding: candidate.style.padding,
+                margin: candidate.style.margin,
+              },
+              contentItems: [],
+              boxFragments: [],
+              fragments: [],
+              typography: candidate.style.typography,
+              paint: candidate.style.paint,
+              terminalRaster,
+            };
+            warnings.push({
+              selector: candidate.selector,
+              feature: FEATURE,
+              detail: `authoritative Chromium pseudo geometry unavailable (${reason}); retained one isolated Chromium-painted pseudo surface`,
             });
           }
+          if (record.status === "exact" && generatedImageNeedsIntrinsicSurface(candidate)) {
+            const reason = "generated URL image intrinsic paint exceeds its pseudo layout slot";
+            const terminalRaster = await isolate(candidate);
+            record = {
+              ...record,
+              status: "terminal-raster",
+              reason,
+              contentItems: [],
+              boxFragments: [],
+              fragments: [],
+              terminalRaster,
+            };
+          }
+          if (record.status === "exact") {
+            const representations = pseudoBitmapRepresentations(record);
+            if (representations.length > 0) {
+              try {
+                const raster = await isolatePseudoSurface(page, prepared, candidate, key, viewport, true);
+                record.bitmapTextRaster = {
+                  ...raster,
+                  source: "chromium-selected-bitmap-pseudo-text",
+                  representations,
+                };
+              } catch (error) {
+                const reason = error instanceof Error ? error.message : String(error);
+                warnings.push({
+                  selector: candidate.selector,
+                  feature: "generated-pseudo-bitmap-text",
+                  status: "unavailable",
+                  detail: `unavailable: selected bitmap pseudo text could not be isolated (${reason}); retained source-owned outline-capable text only`,
+                });
+              }
+            }
+          }
+          if (activeBackdropFilter(candidate) && pseudoOwnsVisiblePaint(record)) {
+            try {
+              record.backdropFilterRaster = await capturePseudoBackdropBoundary(
+                page,
+                session,
+                snapshot,
+                prepared,
+                candidates,
+                candidate,
+                record,
+                key,
+                viewport,
+              );
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : String(error);
+              warnings.push({
+                selector: candidate.selector,
+                feature: "generated-pseudo-backdrop-filter",
+                status: "unavailable",
+                detail: `unavailable: Chromium pseudo backdrop boundary could not be isolated (${reason}); retained source-owned pseudo vectors without a sampled backdrop`,
+              });
+            }
+          }
+          const frameFacts = facts.get(candidate.token)!;
+          (frameFacts[candidate.elementIndex] ??= []).push(record);
         }
+      } finally {
+        if (playbackRate != null)
+          await session.send("Animation.setPlaybackRate", { playbackRate }).catch(() => undefined);
+        await session.send("Animation.disable").catch(() => undefined);
       }
-      if (activeBackdropFilter(candidate) && pseudoOwnsVisiblePaint(record)) {
-        try {
-          record.backdropFilterRaster = await capturePseudoBackdropBoundary(
-            page,
-            session,
-            snapshot,
-            prepared,
-            candidates,
-            candidate,
-            record,
-            key,
-            viewport,
-          );
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : String(error);
-          warnings.push({
-            selector: candidate.selector,
-            feature: "generated-pseudo-backdrop-filter",
-            status: "unavailable",
-            detail: `unavailable: Chromium pseudo backdrop boundary could not be isolated (${reason}); retained source-owned pseudo vectors without a sampled backdrop`,
-          });
-        }
-      }
-      const frameFacts = facts.get(candidate.token)!;
-      (frameFacts[candidate.elementIndex] ??= []).push(record);
-    }
+    });
   } catch (error) {
     for (const candidate of candidates) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -1404,27 +1391,11 @@ export async function preparePseudoFragmentGeometry(
         detail: `Chromium pseudo protocol prepass failed closed (${reason}); retained one isolated Chromium-painted pseudo surface`,
       });
     }
-  } finally {
-    if (session != null && playbackRate != null)
-      await session.send("Animation.setPlaybackRate", { playbackRate }).catch(() => undefined);
-    await session?.send("Animation.disable").catch(() => undefined);
-    await session?.detach().catch(() => undefined);
   }
   await installFacts(prepared, key, facts);
-  await removeEvaluateNameShim(nameShimFrames);
   return {
     key,
     warnings,
-    dispose: async () => {
-      await Promise.all(
-        prepared.map(({ frame }) =>
-          frame
-            .evaluate((probeKey) => {
-              delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
-            }, key)
-            .catch(() => undefined),
-        ),
-      );
-    },
+    dispose: () => registry.dispose(),
   };
 }

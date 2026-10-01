@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import type { CDPSession, Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
+import { withCdpSession } from "./cdp-lifecycle.js";
 import type { CapturedElement, CapturedFontPaletteIdentity, CaptureWarning, TextSegment } from "./types.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { backdropLayerMapping, type BackdropQuad } from "./backdrop-layer-space.js";
@@ -814,127 +815,139 @@ export async function rasterizeBackdropFilters(
     }
   };
   try {
-    cdp = await page.context().newCDPSession(page);
-    const snap = await cdp.send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [],
-      includePaintOrder: true,
-      includeDOMRects: true,
-    });
-    const doc = snap.documents?.[0];
-    const strings: string[] = snap.strings ?? [];
-    const paintByNode = new Map<
-      number,
-      { bounds: [number, number, number, number]; paintOrder: number; layoutOrder: number }
-    >();
-    for (let i = 0; i < (doc?.layout?.nodeIndex?.length ?? 0); i++) {
-      const nodeIndex = doc.layout.nodeIndex[i] as number;
-      const bounds = doc.layout.bounds[i] as [number, number, number, number];
-      const paintOrder = doc.layout.paintOrders?.[i] as number | undefined;
-      if (paintOrder != null && !paintByNode.has(nodeIndex))
-        paintByNode.set(nodeIndex, { bounds, paintOrder, layoutOrder: i });
-    }
-    const attributesByNode = new Map<number, number[]>();
-    // The protocol's `NodeTreeSnapshot.attributes` is one string-index list per node.
-    const rareAttributes = doc?.nodes?.attributes;
-    if (rareAttributes != null) {
-      for (let i = 0; i < rareAttributes.length; i++) attributesByNode.set(i, rareAttributes[i]);
-    }
-    const nodes: SnapshotNode[] = (doc?.nodes?.backendNodeId ?? []).map((backendNodeId: number, i: number) => {
-      const attrIndexes = attributesByNode.get(i) ?? [];
-      const attributes = attrIndexes.map((idx) => strings[idx]);
-      const layout = paintByNode.get(i);
-      return {
-        backendNodeId,
-        parentIndex: doc.nodes.parentIndex?.[i] ?? -1,
-        attributes,
-        bounds: layout?.bounds,
-        paintOrder: layout?.paintOrder,
-        layoutOrder: layout?.layoutOrder,
-      };
-    });
-
-    for (const target of remainingTargets) {
-      // Tokenless rasters were already reported and dropped above ("missing-token").
-      const token = target.raster.token;
-      if (token == null) continue;
-      const plan = planBackdropIsolation(nodes, token, {
-        includeTargetDescendants: target.atomicTargetFilter,
-      });
-      if (plan == null) {
-        if ((await captureCrop(target)).captured) {
-          appendBackdropRasterWarning(warnings, target.selector, {
-            status: "partial",
-            reason: "planner-miss",
-            fallback: "unisolated Chromium page crop",
-          });
-        }
-        continue;
-      }
-      const restores: Array<{ objectId: string; value: string; priority: string }> = [];
-      let unresolvedNodeCount = 0;
+    await withCdpSession(page, async (session) => {
+      cdp = session;
       try {
-        for (const backendNodeId of plan.hideBackendNodeIds) {
-          try {
-            const resolved = (await cdp.send("DOM.resolveNode", { backendNodeId })) as any;
-            const objectId = resolved.object?.objectId as string | undefined;
-            if (objectId == null) {
-              unresolvedNodeCount++;
-              continue;
-            }
-            const changed = (await cdp.send("Runtime.callFunctionOn", {
-              objectId,
-              functionDeclaration:
-                "function(){const v=this.style.getPropertyValue('visibility');const p=this.style.getPropertyPriority('visibility');this.style.setProperty('visibility','hidden','important');return {v,p};}",
-              returnByValue: true,
-            })) as any;
-            restores.push({
-              objectId,
-              value: changed.result?.value?.v ?? "",
-              priority: changed.result?.value?.p ?? "",
-            });
-          } catch {
-            // The crop is still useful, but it contains paint that the exact
-            // isolation plan said must be absent. Report that partial state.
-            unresolvedNodeCount++;
-          }
+        const snap = await cdp.send("DOMSnapshot.captureSnapshot", {
+          computedStyles: [],
+          includePaintOrder: true,
+          includeDOMRects: true,
+        });
+        const doc = snap.documents?.[0];
+        const strings: string[] = snap.strings ?? [];
+        const paintByNode = new Map<
+          number,
+          { bounds: [number, number, number, number]; paintOrder: number; layoutOrder: number }
+        >();
+        for (let i = 0; i < (doc?.layout?.nodeIndex?.length ?? 0); i++) {
+          const nodeIndex = doc.layout.nodeIndex[i] as number;
+          const bounds = doc.layout.bounds[i] as [number, number, number, number];
+          const paintOrder = doc.layout.paintOrders?.[i] as number | undefined;
+          if (paintOrder != null && !paintByNode.has(nodeIndex))
+            paintByNode.set(nodeIndex, { bounds, paintOrder, layoutOrder: i });
         }
-        const captured = await captureCrop(target, plan.targetBackendNodeId);
-        if (captured.captured) {
-          appendBackdropRasterWarning(
-            warnings,
-            target.selector,
-            unresolvedNodeCount === 0
-              ? captured.effectSpaceExact
-                ? { status: "exact" }
-                : {
-                    status: "partial",
-                    reason: "effect-space-unavailable",
-                    fallback: "isolated final-effect-space Chromium crop",
-                  }
-              : {
-                  status: "partial",
-                  reason: "node-resolution-partial",
-                  fallback: "partially isolated Chromium crop",
-                  unresolvedNodeCount,
-                },
-          );
+        const attributesByNode = new Map<number, number[]>();
+        // The protocol's `NodeTreeSnapshot.attributes` is one string-index list per node.
+        const rareAttributes = doc?.nodes?.attributes;
+        if (rareAttributes != null) {
+          for (let i = 0; i < rareAttributes.length; i++) attributesByNode.set(i, rareAttributes[i]);
+        }
+        const nodes: SnapshotNode[] = (doc?.nodes?.backendNodeId ?? []).map((backendNodeId: number, i: number) => {
+          const attrIndexes = attributesByNode.get(i) ?? [];
+          const attributes = attrIndexes.map((idx) => strings[idx]);
+          const layout = paintByNode.get(i);
+          return {
+            backendNodeId,
+            parentIndex: doc.nodes.parentIndex?.[i] ?? -1,
+            attributes,
+            bounds: layout?.bounds,
+            paintOrder: layout?.paintOrder,
+            layoutOrder: layout?.layoutOrder,
+          };
+        });
+
+        for (const target of remainingTargets) {
+          // Tokenless rasters were already reported and dropped above ("missing-token").
+          const token = target.raster.token;
+          if (token == null) continue;
+          const plan = planBackdropIsolation(nodes, token, {
+            includeTargetDescendants: target.atomicTargetFilter,
+          });
+          if (plan == null) {
+            if ((await captureCrop(target)).captured) {
+              appendBackdropRasterWarning(warnings, target.selector, {
+                status: "partial",
+                reason: "planner-miss",
+                fallback: "unisolated Chromium page crop",
+              });
+            }
+            continue;
+          }
+          const restores: Array<{ objectId: string; value: string; priority: string }> = [];
+          let unresolvedNodeCount = 0;
+          try {
+            for (const backendNodeId of plan.hideBackendNodeIds) {
+              try {
+                const resolved = (await cdp.send("DOM.resolveNode", { backendNodeId })) as any;
+                const objectId = resolved.object?.objectId as string | undefined;
+                if (objectId == null) {
+                  unresolvedNodeCount++;
+                  continue;
+                }
+                const changed = (await cdp.send("Runtime.callFunctionOn", {
+                  objectId,
+                  functionDeclaration: function (this: HTMLElement) {
+                    const value = this.style.getPropertyValue("visibility");
+                    const priority = this.style.getPropertyPriority("visibility");
+                    this.style.setProperty("visibility", "hidden", "important");
+                    return { v: value, p: priority };
+                  }.toString(),
+                  returnByValue: true,
+                })) as any;
+                restores.push({
+                  objectId,
+                  value: changed.result?.value?.v ?? "",
+                  priority: changed.result?.value?.p ?? "",
+                });
+              } catch {
+                // The crop is still useful, but it contains paint that the exact
+                // isolation plan said must be absent. Report that partial state.
+                unresolvedNodeCount++;
+              }
+            }
+            const captured = await captureCrop(target, plan.targetBackendNodeId);
+            if (captured.captured) {
+              appendBackdropRasterWarning(
+                warnings,
+                target.selector,
+                unresolvedNodeCount === 0
+                  ? captured.effectSpaceExact
+                    ? { status: "exact" }
+                    : {
+                        status: "partial",
+                        reason: "effect-space-unavailable",
+                        fallback: "isolated final-effect-space Chromium crop",
+                      }
+                  : {
+                      status: "partial",
+                      reason: "node-resolution-partial",
+                      fallback: "partially isolated Chromium crop",
+                      unresolvedNodeCount,
+                    },
+              );
+            }
+          } finally {
+            for (let i = restores.length - 1; i >= 0; i--) {
+              const restore = restores[i];
+              try {
+                await cdp.send("Runtime.callFunctionOn", {
+                  objectId: restore.objectId,
+                  functionDeclaration: function (this: HTMLElement, value: string, priority: string) {
+                    if (value === "") this.style.removeProperty("visibility");
+                    else this.style.setProperty("visibility", value, priority);
+                  }.toString(),
+                  arguments: [{ value: restore.value }, { value: restore.priority }],
+                });
+              } catch {
+                /* page teardown */
+              }
+            }
+          }
         }
       } finally {
-        for (let i = restores.length - 1; i >= 0; i--) {
-          const restore = restores[i];
-          try {
-            await cdp.send("Runtime.callFunctionOn", {
-              objectId: restore.objectId,
-              functionDeclaration:
-                "function(v,p){if(v==='')this.style.removeProperty('visibility');else this.style.setProperty('visibility',v,p);}",
-              arguments: [{ value: restore.value }, { value: restore.priority }],
-            });
-          } catch {
-            /* page teardown */
-          }
-        }
+        cdp = undefined;
       }
-    }
+    });
   } catch {
     // DOMSnapshot is Chromium-only and mapping can fail for pseudo/fragments.
     // Fall back to the original full-page crop for every unresolved target.
@@ -948,7 +961,6 @@ export async function rasterizeBackdropFilters(
       }
     }
   } finally {
-    await cdp?.detach().catch(() => undefined);
     await page
       .evaluate(() => {
         for (const el of document.querySelectorAll("[data-domotion-backdrop-raster]"))

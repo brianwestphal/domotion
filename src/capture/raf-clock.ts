@@ -1,6 +1,7 @@
 import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
-import { isSameProcessFrameError } from "./cdp-lifecycle.js";
+import { withCdpSession } from "./cdp-lifecycle.js";
 import { privateCaptureKey } from "./private-key.js";
+import { browserCallbackExpression } from "./evaluate-in-frame.js";
 
 export const CAPTURE_RAF_CLOCK_PROTOCOL = "domotion-capture-raf-clock-v1" as const;
 
@@ -157,7 +158,10 @@ async function targetId(session: CDPSession): Promise<string> {
 
 async function commitRendering(session: CDPSession): Promise<void> {
   await session.send("Runtime.evaluate", {
-    expression: "document.documentElement?.getBoundingClientRect(); getComputedStyle(document.documentElement).display",
+    expression: browserCallbackExpression(() => {
+      document.documentElement?.getBoundingClientRect();
+      return getComputedStyle(document.documentElement).display;
+    }),
     awaitPromise: true,
     returnByValue: true,
   });
@@ -171,14 +175,7 @@ async function sampleFrame(
   requestedTimeMs: number,
   maxCallbacks: number,
 ): Promise<CaptureRafTargetState> {
-  let session: CDPSession;
-  try {
-    session = await page.context().newCDPSession(frame);
-  } catch (error) {
-    if (!isSameProcessFrameError(error)) throw error;
-    session = await page.context().newCDPSession(page);
-  }
-  try {
+  const sample = async (session: CDPSession): Promise<CaptureRafTargetState> => {
     const result = await frame.evaluate(
       ({ key, timeMs, bound }) => {
         const control = (globalThis as typeof globalThis & Record<string, unknown>)[key];
@@ -202,9 +199,8 @@ async function sampleFrame(
       frameIdentity: frame === page.mainFrame() ? "main" : frame.url(),
       frameUrl: frame.url(),
     };
-  } finally {
-    await session.detach().catch(() => undefined);
-  }
+  };
+  return withCdpSession(frame, sample, { sameProcessFrame: () => withCdpSession(page, sample) });
 }
 
 export async function sampleCaptureRafClock(

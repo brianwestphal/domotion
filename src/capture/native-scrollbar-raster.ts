@@ -15,7 +15,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-import { detachQuietly } from "./cdp-lifecycle.js";
+import { withCdpSession } from "./cdp-lifecycle.js";
 import type {
   CapturedNativeScrollbarRaster,
   CapturedScrollbarPlatformFingerprint,
@@ -103,13 +103,10 @@ export async function captureNativeScrollbarFingerprint(page: Page): Promise<Cap
   }
   let launchArguments: string[] = [];
   try {
-    const session = await page.context().newCDPSession(page);
-    try {
+    await withCdpSession(page, async (session) => {
       const commandLine = (await session.send("Browser.getBrowserCommandLine")) as { arguments?: string[] };
       launchArguments = commandLine.arguments ?? [];
-    } finally {
-      await detachQuietly(session);
-    }
+    });
   } catch {
     // The raster remains usable, but the all-platform release gate rejects an
     // unknown launch fingerprint rather than substituting another host.

@@ -18,6 +18,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { Frame, Page } from "@playwright/test";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
 import type { CapturedBackgroundImage } from "./types.js";
 
 const SUPPORTED_IMAGE_MIME_TYPES = new Set([
@@ -103,30 +104,6 @@ async function locallyObservedImage(url: string | null): Promise<{ kind: "bitmap
   } catch {
     return null;
   }
-}
-
-/**
- * tsx/esbuild's keep-names transform can leave `__name(...)` calls inside a
- * callback's serialized source. Playwright evaluates that source in the page,
- * where the module-scoped helper does not exist. Wrap the callback in a local
- * equivalent so CLI audits and built consumers execute the identical prepass
- * without leaving a helper on the inspected page's global object.
- */
-function evaluateFrameFunction<Result>(frame: Frame, callback: () => Result | Promise<Result>): Promise<Result>;
-function evaluateFrameFunction<Argument, Result>(
-  frame: Frame,
-  callback: (argument: Argument) => Result | Promise<Result>,
-  argument: Argument,
-): Promise<Result>;
-function evaluateFrameFunction<Argument, Result>(
-  frame: Frame,
-  callback: ((argument: Argument) => Result | Promise<Result>) | (() => Result | Promise<Result>),
-  argument?: Argument,
-): Promise<Result> {
-  const serializedArgument = arguments.length >= 3 ? JSON.stringify(argument) : "";
-  const invocation = arguments.length >= 3 ? `(${serializedArgument})` : "()";
-  const expression = `((__name) => (${callback.toString()})${invocation})(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; })`;
-  return frame.evaluate(expression) as Promise<Result>;
 }
 
 /** Split a CSS comma-list without splitting nested image functions or strings. */
@@ -313,7 +290,7 @@ export function selectBackgroundCandidate(
 }
 
 async function collectBackgroundTargets(frame: Frame): Promise<CollectedBackgroundTarget[]> {
-  return evaluateFrameFunction(frame, () => {
+  return evaluateInFrame(frame, () => {
     const host = globalThis as unknown as {
       __domotionBackgroundImageTargets?: Element[];
     };
@@ -367,7 +344,7 @@ async function hydrateBackgroundTargets(
   targets: PreparedBackgroundTarget[],
   timeoutMs: number,
 ): Promise<void> {
-  await evaluateFrameFunction(
+  await evaluateInFrame(
     frame,
     async ({ prepared, timeout }) => {
       type RawSizing = {
@@ -705,7 +682,7 @@ export async function primeBackgroundImageSizing(
       await Promise.all(
         frames.map(async (frame) => {
           try {
-            await evaluateFrameFunction(frame, () => {
+            await evaluateInFrame(frame, () => {
               const host = globalThis as unknown as {
                 __domotionBackgroundImageTargets?: Element[];
               };

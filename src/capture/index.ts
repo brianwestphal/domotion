@@ -15,14 +15,15 @@ import {
   chromium,
   type Browser,
   type BrowserContext,
-  type CDPSession,
   type ElementHandle,
   type LaunchOptions,
   type Page,
 } from "@playwright/test";
 import { primeExternalSvgUseDocuments } from "./external-svg-use.js";
-import { privateCaptureKey } from "./private-key.js";
-import { disposeAll } from "./cdp-lifecycle.js";
+import { createPageRegistry } from "./page-registry.js";
+import { browserCallbackExpression, evaluateInFrame } from "./evaluate-in-frame.js";
+declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").browserImageNaturalSize;
+import { disposeAll, runPrepasses, withCdpSession } from "./cdp-lifecycle.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
@@ -289,28 +290,22 @@ export function crossOriginFramesLaunchArgs(value: string | undefined | null): s
 export async function injectBrandVariables(context: BrowserContext, brand: Brand): Promise<void> {
   const props = brandCustomProperties(brand);
   if (props.length === 0) return;
-  await context.addInitScript((pairs: Array<[string, string]>) => {
-    // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
-    // stack traces; that helper isn't in the init-script's serialized scope, so
-    // without this polyfill a named inner function throws "__name is not defined"
-    // at construction and the whole init script silently no-ops (same footgun the
-    // capture-script's discovery loop documents). Polyfill it before we use one.
-    if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
-      (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
-    }
-    const apply = (): void => {
-      const root = document.documentElement;
-      if (root == null) return;
-      for (const [name, value] of pairs) root.style.setProperty(name, value);
-    };
-    // The init script runs at document-start, where `documentElement` is often
-    // still null (before the parser creates <html>) AND is replaced once the
-    // real document is parsed — so an apply here alone doesn't survive. Apply
-    // now (harmless if null) AND re-apply on DOMContentLoaded, which fires after
-    // <html> exists and well before the capture reads `getComputedStyle`.
-    apply();
-    document.addEventListener("DOMContentLoaded", apply, { once: true });
-  }, props);
+  await context.addInitScript({
+    content: browserCallbackExpression((pairs: Array<[string, string]>) => {
+      const apply = (): void => {
+        const root = document.documentElement;
+        if (root == null) return;
+        for (const [name, value] of pairs) root.style.setProperty(name, value);
+      };
+      // The init script runs at document-start, where `documentElement` is often
+      // still null (before the parser creates <html>) AND is replaced once the
+      // real document is parsed — so an apply here alone doesn't survive. Apply
+      // now (harmless if null) AND re-apply on DOMContentLoaded, which fires after
+      // <html> exists and well before the capture reads `getComputedStyle`.
+      apply();
+      document.addEventListener("DOMContentLoaded", apply, { once: true });
+    }, props),
+  });
 }
 
 export class DemoRecorder {
@@ -765,16 +760,7 @@ export async function discoverAndRegisterWebfonts(
   // Pass 1 names match CSS exactly (good when authors rename a face);
   // pass 2 catches fonts that pass 1 missed and uses the font's internal
   // name (good for Google Fonts which keep names in sync).
-  const fromPage = await page.evaluate(() => {
-    // tsx/esbuild wraps named arrow consts in `__name(fn, "name")` for nicer
-    // stack traces. That helper isn't injected into page.evaluate's
-    // serialized scope, so we polyfill it here. Without this, our local
-    // helpers below throw "__name is not defined" at construction time.
-    if (typeof (window as any).__name === "undefined") {
-      (window as any).__name = function (fn: any) {
-        return fn;
-      };
-    }
+  const fromPage = await evaluateInFrame(page, () => {
     interface FaceRule {
       kind: "font-face";
       family: string;
@@ -1325,7 +1311,14 @@ async function measureProjectivePaintQuads(
   viewport: { x: number; y: number; width: number; height: number },
   includeComputedFrameState: boolean,
 ): Promise<ProjectivePaintProbe> {
-  const key = privateCaptureKey("ProjectivePaintNodes");
+  const registry = createPageRegistry<Element[]>(page, "ProjectivePaintNodes");
+  const key = registry.key;
+  try {
+    await registry.tag(page, () => []);
+  } catch (error) {
+    await registry.dispose();
+    throw error;
+  }
   interface PreparedNode {
     parent: number | null;
     influenced: boolean;
@@ -1339,7 +1332,8 @@ async function measureProjectivePaintQuads(
     preserve3dLayoutApplicable: boolean;
   }
 
-  const prepared = await page.evaluate(
+  const prepared = await evaluateInFrame(
+    page,
     ({ sel, key, includeComputed }): Promise<PreparedNode[]> | PreparedNode[] => {
       const root = document.querySelector(sel);
       if (root == null) {
@@ -1525,66 +1519,67 @@ async function measureProjectivePaintQuads(
       return result;
     },
     { sel: selector, key, includeComputed: includeComputedFrameState },
-  );
+  ).catch(async (error: unknown) => {
+    await registry.dispose();
+    throw error;
+  });
 
   const quadByIndex = new Map<number, { quad: ProjectivePaintQuad | null; borderQuad: ProjectivePaintQuad | null }>();
-  let cdp: CDPSession | undefined;
   try {
-    cdp = await page.context().newCDPSession(page);
-    await Promise.all([cdp.send("DOM.enable"), cdp.send("Runtime.enable")]);
-    for (let index = 0; index < prepared.length; index++) {
-      if (!prepared[index].measure) continue;
-      let objectId: string | undefined;
-      try {
-        const evaluated = await cdp.send("Runtime.evaluate", {
-          expression: `globalThis[${JSON.stringify(key)}]?.[${index}]`,
-          returnByValue: false,
-          silent: true,
-        });
-        objectId = evaluated.result.objectId;
-        if (objectId == null) throw new Error("projective paint node detached");
-        const described = await cdp.send("DOM.describeNode", { objectId });
-        const backendNodeId = described.node.backendNodeId;
-        const content = await cdp.send("DOM.getContentQuads", { backendNodeId });
-        const contentQuad =
-          content.quads.length === 1 && content.quads[0].length === 8 && content.quads[0].every(Number.isFinite)
-            ? (content.quads[0] as unknown as ProjectivePaintQuad)
-            : null;
-        let borderQuad: ProjectivePaintQuad | null = null;
+    await withCdpSession(page, async (cdp) => {
+      await Promise.all([cdp.send("DOM.enable"), cdp.send("Runtime.enable")]);
+      for (let index = 0; index < prepared.length; index++) {
+        if (!prepared[index].measure) continue;
+        let objectId: string | undefined;
         try {
-          const box = await cdp.send("DOM.getBoxModel", { backendNodeId });
-          const border = box.model.border;
-          if (border.length === 8 && border.every(Number.isFinite)) {
-            borderQuad = border as unknown as ProjectivePaintQuad;
+          const evaluated = await cdp.send("Runtime.evaluate", {
+            expression: `globalThis[${JSON.stringify(key)}]?.[${index}]`,
+            returnByValue: false,
+            silent: true,
+          });
+          objectId = evaluated.result.objectId;
+          if (objectId == null) throw new Error("projective paint node detached");
+          const described = await cdp.send("DOM.describeNode", { objectId });
+          const backendNodeId = described.node.backendNodeId;
+          const content = await cdp.send("DOM.getContentQuads", { backendNodeId });
+          const contentQuad =
+            content.quads.length === 1 && content.quads[0].length === 8 && content.quads[0].every(Number.isFinite)
+              ? (content.quads[0] as unknown as ProjectivePaintQuad)
+              : null;
+          let borderQuad: ProjectivePaintQuad | null = null;
+          try {
+            const box = await cdp.send("DOM.getBoxModel", { backendNodeId });
+            const border = box.model.border;
+            if (border.length === 8 && border.every(Number.isFinite)) {
+              borderQuad = border as unknown as ProjectivePaintQuad;
+            }
+          } catch {
+            /* SVG graphics nodes need not expose a CSS box model. */
           }
+          const localize = (quad: ProjectivePaintQuad | null): ProjectivePaintQuad | null =>
+            quad == null
+              ? null
+              : [
+                  quad[0] - viewport.x,
+                  quad[1] - viewport.y,
+                  quad[2] - viewport.x,
+                  quad[3] - viewport.y,
+                  quad[4] - viewport.x,
+                  quad[5] - viewport.y,
+                  quad[6] - viewport.x,
+                  quad[7] - viewport.y,
+                ];
+          quadByIndex.set(index, { quad: localize(contentQuad), borderQuad: localize(borderQuad) });
         } catch {
-          /* SVG graphics nodes need not expose a CSS box model. */
+          quadByIndex.set(index, { quad: null, borderQuad: null });
+        } finally {
+          if (objectId != null) await cdp.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
         }
-        const localize = (quad: ProjectivePaintQuad | null): ProjectivePaintQuad | null =>
-          quad == null
-            ? null
-            : [
-                quad[0] - viewport.x,
-                quad[1] - viewport.y,
-                quad[2] - viewport.x,
-                quad[3] - viewport.y,
-                quad[4] - viewport.x,
-                quad[5] - viewport.y,
-                quad[6] - viewport.x,
-                quad[7] - viewport.y,
-              ];
-        quadByIndex.set(index, { quad: localize(contentQuad), borderQuad: localize(borderQuad) });
-      } catch {
-        quadByIndex.set(index, { quad: null, borderQuad: null });
-      } finally {
-        if (objectId != null) await cdp.send("Runtime.releaseObject", { objectId }).catch(() => undefined);
       }
-    }
+    });
   } catch {
     // Missing CDP is an explicit unknown. Measured planes below become
     // non-affine so capture crosses the conservative Chromium surface boundary.
-  } finally {
-    await cdp?.detach().catch(() => undefined);
   }
 
   const facts: ProjectivePaintNodeFact[] = prepared.map((node, index) => {
@@ -1609,13 +1604,7 @@ async function measureProjectivePaintQuads(
   return {
     key,
     facts,
-    dispose: async () => {
-      await page
-        .evaluate((probeKey) => {
-          delete (globalThis as typeof globalThis & Record<string, unknown>)[probeKey];
-        }, key)
-        .catch(() => undefined);
-    },
+    dispose: () => registry.dispose(),
   };
 }
 
@@ -1642,7 +1631,8 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
   const runProbe = async (probePage: Page): Promise<BlinkPlatformResizerMetrics> => {
     const token = `domotion-resizer-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const probeSize = 64;
-    const position = await probePage.evaluate(
+    const position = await evaluateInFrame(
+      probePage,
       ({ token, probeSize }) => {
         const style = document.createElement("style");
         style.dataset.domotionResizerProbe = token;
@@ -1697,11 +1687,13 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
         scaleFromDIP: Number.isFinite(position.scaleFromDIP) && position.scaleFromDIP > 0 ? position.scaleFromDIP : 1,
       };
     } finally {
-      await probePage
-        .evaluate((token) => {
+      await evaluateInFrame(
+        probePage,
+        (token) => {
           document.querySelectorAll(`[data-domotion-resizer-probe="${token}"]`).forEach((node) => node.remove());
-        }, token)
-        .catch(() => {});
+        },
+        token,
+      ).catch(() => {});
     }
   };
   const pending = (async (): Promise<BlinkPlatformResizerMetrics> => {
@@ -1838,71 +1830,58 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
   dispose(): Promise<void>;
 }> {
   const frames = page.frames();
-  const propertyKey = privateCaptureKey("PseudoImageIntrinsic");
+  const registry = createPageRegistry<Element[]>(page, "PseudoImageIntrinsic");
+  const propertyKey = registry.key;
   await Promise.all(
     frames.map(async (frame) => {
       try {
-        await frame.evaluate(async (key) => {
-          type PseudoImageIntrinsic = { url: string; width: number; height: number };
-          type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>>;
-          const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
-          for (const prior of host.__domotionPseudoImageIntrinsicTargets ?? []) {
-            try {
-              delete (prior as unknown as Record<string, unknown>)[key];
-            } catch {}
-          }
-          const targets: Element[] = [];
-          host.__domotionPseudoImageIntrinsicTargets = targets;
-          const cssUrl = (content: string): string | null => {
-            const match = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)/i.exec(content);
-            const raw = match?.[1] ?? match?.[2] ?? match?.[3];
-            if (raw == null) return null;
-            try {
-              return new URL(raw.replace(/\\(.)/g, "$1"), document.baseURI).href;
-            } catch {
-              return null;
-            }
-          };
-          const cache = new Map<string, Promise<PseudoImageIntrinsic | null>>();
-          const dimensions = (url: string): Promise<PseudoImageIntrinsic | null> => {
-            const hit = cache.get(url);
-            if (hit != null) return hit;
-            const pending = (async () => {
-              const image = new Image();
-              image.src = url;
-              if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
-                await Promise.race([
-                  image.decode().catch(() => undefined),
-                  new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-                ]);
+        await registry.tag(frame, () => []);
+        await evaluateInFrame(
+          frame,
+          async (key) => {
+            type PseudoImageIntrinsic = { url: string; width: number; height: number };
+            type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>>;
+            const targets = (globalThis as unknown as Record<string, Element[]>)[key];
+            const cssUrl = (content: string): string | null => {
+              const match = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)/i.exec(content);
+              const raw = match?.[1] ?? match?.[2] ?? match?.[3];
+              if (raw == null) return null;
+              try {
+                return new URL(raw.replace(/\\(.)/g, "$1"), document.baseURI).href;
+              } catch {
+                return null;
               }
-              return image.naturalWidth > 0 && image.naturalHeight > 0
-                ? { url, width: image.naturalWidth, height: image.naturalHeight }
-                : null;
-            })();
-            cache.set(url, pending);
-            return pending;
-          };
-          const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
-          await Promise.all(
-            elements.map(async (element) => {
-              const records: PseudoImageRecords = {};
-              await Promise.all(
-                (["::before", "::after"] as const).map(async (pseudo) => {
-                  const content = getComputedStyle(element, pseudo).content;
-                  if (content == null || content === "none" || content === "normal") return;
-                  const url = cssUrl(content);
-                  if (url == null) return;
-                  const intrinsic = await dimensions(url);
-                  if (intrinsic != null) records[pseudo] = intrinsic;
-                }),
-              );
-              if (records["::before"] == null && records["::after"] == null) return;
-              Object.defineProperty(element, key, { configurable: true, value: records });
-              targets.push(element);
-            }),
-          );
-        }, propertyKey);
+            };
+            const cache = new Map<string, Promise<PseudoImageIntrinsic | null>>();
+            const dimensions = (url: string): Promise<PseudoImageIntrinsic | null> => {
+              const hit = cache.get(url);
+              if (hit != null) return hit;
+              const pending = browserImageNaturalSize(url).then((size) => (size == null ? null : { url, ...size }));
+              cache.set(url, pending);
+              return pending;
+            };
+            const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
+            await Promise.all(
+              elements.map(async (element) => {
+                const records: PseudoImageRecords = {};
+                await Promise.all(
+                  (["::before", "::after"] as const).map(async (pseudo) => {
+                    const content = getComputedStyle(element, pseudo).content;
+                    if (content == null || content === "none" || content === "normal") return;
+                    const url = cssUrl(content);
+                    if (url == null) return;
+                    const intrinsic = await dimensions(url);
+                    if (intrinsic != null) records[pseudo] = intrinsic;
+                  }),
+                );
+                if (records["::before"] == null && records["::after"] == null) return;
+                Object.defineProperty(element, key, { configurable: true, value: records });
+                targets.push(element);
+              }),
+            );
+          },
+          propertyKey,
+        );
       } catch {
         // Detached/cross-origin frames are already handled as raster boundaries.
       }
@@ -1914,18 +1893,22 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
       await Promise.all(
         frames.map(async (frame) => {
           try {
-            await frame.evaluate((key) => {
-              const host = globalThis as unknown as { __domotionPseudoImageIntrinsicTargets?: Element[] };
-              for (const target of host.__domotionPseudoImageIntrinsicTargets ?? []) {
-                try {
-                  delete (target as unknown as Record<string, unknown>)[key];
-                } catch {}
-              }
-              delete host.__domotionPseudoImageIntrinsicTargets;
-            }, propertyKey);
+            await evaluateInFrame(
+              frame,
+              (key) => {
+                const targets = (globalThis as unknown as Record<string, Element[]>)[key];
+                for (const target of targets ?? []) {
+                  try {
+                    delete (target as unknown as Record<string, unknown>)[key];
+                  } catch {}
+                }
+              },
+              propertyKey,
+            );
           } catch {}
         }),
       );
+      await registry.dispose();
     },
   };
 }
@@ -1939,114 +1922,115 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
  */
 async function primeMaskImageIntrinsics(page: Page): Promise<{ dispose(): Promise<void> }> {
   const frames = page.frames();
+  const registry = createPageRegistry<Element[]>(page, "MaskIntrinsicTargets");
   await Promise.all(
     frames.map(async (frame) => {
       try {
-        await frame.evaluate(async () => {
-          const host = globalThis as unknown as {
-            __domotionMaskIntrinsicTargets?: Element[];
-          };
-          for (const prior of host.__domotionMaskIntrinsicTargets ?? []) {
-            try {
-              delete (prior as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic;
-            } catch {}
-          }
-          const targets: Element[] = [];
-          host.__domotionMaskIntrinsicTargets = targets;
+        await registry.tag(frame, () => []);
+        await evaluateInFrame(
+          frame,
+          async (registryKey) => {
+            const targets = (globalThis as unknown as Record<string, Element[]>)[registryKey];
 
-          const splitLayers = (value: string): string[] => {
-            const out: string[] = [];
-            let depth = 0;
-            let start = 0;
-            for (let i = 0; i < value.length; i++) {
-              const ch = value[i];
-              if (ch === "(") depth++;
-              else if (ch === ")") depth--;
-              else if (ch === "," && depth === 0) {
-                out.push(value.slice(start, i));
-                start = i + 1;
-              }
-            }
-            out.push(value.slice(start));
-            return out;
-          };
-          const cssUrl = (layer: string): string | null => {
-            const match = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)\s*$/i.exec(layer);
-            const raw = match?.[1] ?? match?.[2] ?? match?.[3];
-            return raw == null ? null : raw.replace(/\\(.)/g, "$1");
-          };
-          const cache = new Map<string, Promise<{ w: number; h: number; ratio: number } | null>>();
-          const dimensions = (url: string): Promise<{ w: number; h: number; ratio: number } | null> => {
-            const hit = cache.get(url);
-            if (hit != null) return hit;
-            const pending = (async () => {
-              const image = new Image();
-              image.src = url;
-              if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
-                await Promise.race([
-                  image.decode().catch(() => undefined),
-                  new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-                ]);
-              }
-              if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
-              let ratio = image.naturalWidth / image.naturalHeight;
-              // HTMLImageElement naturalWidth/Height are integers. That loses a
-              // fractional SVG viewBox ratio (e.g. 3/7 reports 64x150). Ask the
-              // same Chromium image layout for a large-width auto-height box so
-              // the aspect survives at LayoutUnit precision.
-              try {
-                image.style.cssText =
-                  "all:initial;position:fixed;left:-100000px;top:0;display:block;width:4096px;height:auto;max-width:none;max-height:none;visibility:hidden;pointer-events:none";
-                (document.body || document.documentElement).appendChild(image);
-                const measured = getComputedStyle(image);
-                const measuredWidth = Number.parseFloat(measured.width);
-                const measuredHeight = Number.parseFloat(measured.height);
-                if (
-                  measuredWidth > 0 &&
-                  measuredHeight > 0 &&
-                  Number.isFinite(measuredWidth) &&
-                  Number.isFinite(measuredHeight)
-                ) {
-                  ratio = measuredWidth / measuredHeight;
+            const splitLayers = (value: string): string[] => {
+              const out: string[] = [];
+              let depth = 0;
+              let start = 0;
+              for (let i = 0; i < value.length; i++) {
+                const ch = value[i];
+                if (ch === "(") depth++;
+                else if (ch === ")") depth--;
+                else if (ch === "," && depth === 0) {
+                  out.push(value.slice(start, i));
+                  start = i + 1;
                 }
-              } finally {
-                image.remove();
               }
-              return { w: image.naturalWidth, h: image.naturalHeight, ratio };
-            })();
-            cache.set(url, pending);
-            return pending;
-          };
+              out.push(value.slice(start));
+              return out;
+            };
+            const cssUrl = (layer: string): string | null => {
+              const match = /^\s*url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)\s*$/i.exec(layer);
+              const raw = match?.[1] ?? match?.[2] ?? match?.[3];
+              return raw == null ? null : raw.replace(/\\(.)/g, "$1");
+            };
+            const cache = new Map<string, Promise<{ w: number; h: number; ratio: number } | null>>();
+            const dimensions = (url: string): Promise<{ w: number; h: number; ratio: number } | null> => {
+              const hit = cache.get(url);
+              if (hit != null) return hit;
+              const pending = (async () => {
+                const image = new Image();
+                image.src = url;
+                if (!(image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)) {
+                  await Promise.race([
+                    image.decode().catch(() => undefined),
+                    new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+                  ]);
+                }
+                if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return null;
+                let ratio = image.naturalWidth / image.naturalHeight;
+                // HTMLImageElement naturalWidth/Height are integers. That loses a
+                // fractional SVG viewBox ratio (e.g. 3/7 reports 64x150). Ask the
+                // same Chromium image layout for a large-width auto-height box so
+                // the aspect survives at LayoutUnit precision.
+                try {
+                  image.style.cssText =
+                    "all:initial;position:fixed;left:-100000px;top:0;display:block;width:4096px;height:auto;max-width:none;max-height:none;visibility:hidden;pointer-events:none";
+                  (document.body || document.documentElement).appendChild(image);
+                  const measured = getComputedStyle(image);
+                  const measuredWidth = Number.parseFloat(measured.width);
+                  const measuredHeight = Number.parseFloat(measured.height);
+                  if (
+                    measuredWidth > 0 &&
+                    measuredHeight > 0 &&
+                    Number.isFinite(measuredWidth) &&
+                    Number.isFinite(measuredHeight)
+                  ) {
+                    ratio = measuredWidth / measuredHeight;
+                  }
+                } finally {
+                  image.remove();
+                }
+                return { w: image.naturalWidth, h: image.naturalHeight, ratio };
+              })();
+              cache.set(url, pending);
+              return pending;
+            };
 
-          const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
-          await Promise.all(
-            elements.map(async (element) => {
-              const style = getComputedStyle(element);
-              const maskImage =
-                style.maskImage || (style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage || "";
-              if (maskImage === "" || maskImage === "none") return;
-              const sizes = splitLayers(
-                style.maskSize || (style as CSSStyleDeclaration & { webkitMaskSize?: string }).webkitMaskSize || "auto",
-              );
-              const resolved = await Promise.all(
-                splitLayers(maskImage).map(async (layer, index) => {
-                  // The DM-2379 route activates only for contain/cover. Explicit and
-                  // auto sizing retain their established geometry and must not add a
-                  // decoder wait merely because the element happens to have a mask.
-                  const size = (sizes[index % sizes.length] ?? "auto").trim().toLowerCase();
-                  if (size !== "contain" && size !== "cover") return null;
-                  const url = cssUrl(layer);
-                  return url == null ? null : dimensions(url);
-                }),
-              );
-              Object.defineProperty(element, "__domotionMaskIntrinsic", {
-                configurable: true,
-                value: resolved,
-              });
-              targets.push(element);
-            }),
-          );
-        });
+            const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
+            await Promise.all(
+              elements.map(async (element) => {
+                const style = getComputedStyle(element);
+                const maskImage =
+                  style.maskImage ||
+                  (style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage ||
+                  "";
+                if (maskImage === "" || maskImage === "none") return;
+                const sizes = splitLayers(
+                  style.maskSize ||
+                    (style as CSSStyleDeclaration & { webkitMaskSize?: string }).webkitMaskSize ||
+                    "auto",
+                );
+                const resolved = await Promise.all(
+                  splitLayers(maskImage).map(async (layer, index) => {
+                    // The DM-2379 route activates only for contain/cover. Explicit and
+                    // auto sizing retain their established geometry and must not add a
+                    // decoder wait merely because the element happens to have a mask.
+                    const size = (sizes[index % sizes.length] ?? "auto").trim().toLowerCase();
+                    if (size !== "contain" && size !== "cover") return null;
+                    const url = cssUrl(layer);
+                    return url == null ? null : dimensions(url);
+                  }),
+                );
+                Object.defineProperty(element, "__domotionMaskIntrinsic", {
+                  configurable: true,
+                  value: resolved,
+                });
+                targets.push(element);
+              }),
+            );
+          },
+          registry.key,
+        );
       } catch {
         // Detached/cross-origin frames are already handled as raster boundaries.
       }
@@ -2058,20 +2042,22 @@ async function primeMaskImageIntrinsics(page: Page): Promise<{ dispose(): Promis
       await Promise.all(
         frames.map(async (frame) => {
           try {
-            await frame.evaluate(() => {
-              const host = globalThis as unknown as {
-                __domotionMaskIntrinsicTargets?: Element[];
-              };
-              for (const target of host.__domotionMaskIntrinsicTargets ?? []) {
-                try {
-                  delete (target as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic;
-                } catch {}
-              }
-              delete host.__domotionMaskIntrinsicTargets;
-            });
+            await evaluateInFrame(
+              frame,
+              (registryKey) => {
+                const targets = (globalThis as unknown as Record<string, Element[]>)[registryKey];
+                for (const target of targets ?? []) {
+                  try {
+                    delete (target as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic;
+                  } catch {}
+                }
+              },
+              registry.key,
+            );
           } catch {}
         }),
       );
+      await registry.dispose();
     },
   };
 }
@@ -2243,19 +2229,18 @@ async function captureElementTreeWithWarningsInternal(
     await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
     await reverifyAnimationFrame();
 
-    const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime, externalSvgUsePrime] = await Promise.all([
-      primeMaskImageIntrinsics(page),
-      primeBackgroundImageSizing(page),
-      primePseudoImageIntrinsics(page),
-      primeExternalSvgUseDocuments(page),
-    ]);
+    const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime, externalSvgUsePrime] = await runPrepasses([
+      { prepare: () => primeMaskImageIntrinsics(page) },
+      { prepare: () => primeBackgroundImageSizing(page) },
+      { prepare: () => primePseudoImageIntrinsics(page) },
+      { prepare: () => primeExternalSvgUseDocuments(page) },
+    ] as const);
     const frameScrollCapture = await prepareFrameScrollCapture(page, opts?.crossOriginFrames).catch(async (error) => {
-      await Promise.all([
-        maskIntrinsicPrime.dispose().catch(() => undefined),
-        backgroundImagePrime.dispose().catch(() => undefined),
-        pseudoImagePrime.dispose().catch(() => undefined),
-        externalSvgUsePrime.dispose().catch(() => undefined),
-      ]);
+      try {
+        await disposeAll(maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime, externalSvgUsePrime);
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], "frame scroll preparation and cleanup failed");
+      }
       throw error;
     });
     await reverifyAnimationFrame();
@@ -2467,7 +2452,7 @@ async function captureElementTreeWithWarningsInternal(
  * warning and the element paints unclipped / unmasked — the prior baseline.
  */
 async function inlineExternalSvgRefs(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+  await evaluateInFrame(page, async () => {
     // External form: a non-empty, non-`#`-only path before the fragment.
     // `url("#id")` (same-document) has nothing before the `#` → skipped.
     const EXT = /url\(\s*["']?([^"')#]+)#([^"')\s]+)["']?\s*\)/i;
@@ -2579,24 +2564,22 @@ export async function rasterizeProjectiveSurfaces(
   }
 
   const restoreVisibility = async (): Promise<void> => {
-    await page
-      .evaluate(() => {
-        const host = globalThis as typeof globalThis & {
-          __domotionProjectiveVisibilityRestore?: Array<{
-            element: Element;
-            property: string;
-            value: string;
-            priority: string;
-          }>;
-        };
-        for (const item of host.__domotionProjectiveVisibilityRestore ?? []) {
-          const html = item.element as HTMLElement;
-          if (item.value === "") html.style.removeProperty(item.property);
-          else html.style.setProperty(item.property, item.value, item.priority);
-        }
-        delete host.__domotionProjectiveVisibilityRestore;
-      })
-      .catch(() => undefined);
+    await evaluateInFrame(page, () => {
+      const host = globalThis as typeof globalThis & {
+        __domotionProjectiveVisibilityRestore?: Array<{
+          element: Element;
+          property: string;
+          value: string;
+          priority: string;
+        }>;
+      };
+      for (const item of host.__domotionProjectiveVisibilityRestore ?? []) {
+        const html = item.element as HTMLElement;
+        if (item.value === "") html.style.removeProperty(item.property);
+        else html.style.setProperty(item.property, item.value, item.priority);
+      }
+      delete host.__domotionProjectiveVisibilityRestore;
+    }).catch(() => undefined);
   };
 
   for (const target of targets) {
@@ -2605,7 +2588,8 @@ export async function rasterizeProjectiveSurfaces(
       throw new Error("projective raster owner is missing its Chromium source-node correlation");
     }
     try {
-      const prepared = await page.evaluate(
+      const prepared = await evaluateInFrame(
+        page,
         ({ index, sourceNodeKey }) => {
           const host = globalThis as typeof globalThis & {
             __domotionProjectiveVisibilityRestore?: Array<{
@@ -2797,15 +2781,19 @@ export async function rasterizeUrlFilterSurfaces(
   try {
     styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
     for (const target of targets) {
-      const found = await page.evaluate((token) => {
-        document
-          .querySelectorAll("[data-domotion-snapshot-target]")
-          .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
-        const el = document.querySelector(`[data-domotion-url-filter-raster="${token}"]`);
-        if (el == null) return false;
-        el.setAttribute("data-domotion-snapshot-target", "");
-        return true;
-      }, target.token);
+      const found = await evaluateInFrame(
+        page,
+        (token) => {
+          document
+            .querySelectorAll("[data-domotion-snapshot-target]")
+            .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+          const el = document.querySelector(`[data-domotion-url-filter-raster="${token}"]`);
+          if (el == null) return false;
+          el.setAttribute("data-domotion-snapshot-target", "");
+          return true;
+        },
+        target.token,
+      );
       if (!found) continue;
       try {
         const shot = await page.screenshot({
@@ -2851,7 +2839,7 @@ export async function rasterizeUrlFilterSurfaces(
     }
   } finally {
     try {
-      await page.evaluate(() => {
+      await evaluateInFrame(page, () => {
         document
           .querySelectorAll("[data-domotion-snapshot-target]")
           .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
@@ -3069,7 +3057,8 @@ export async function calibrateBaselines(
   // (notably `__name` for class metadata). Plain function expressions and
   // var/let work; arrow functions are also fine, but explicit `function`
   // declarations avoid edge-cases in the transpiler output.
-  const adjustments = await page.evaluate(
+  const adjustments = await evaluateInFrame(
+    page,
     async function (args: { b64: string; items: typeof items; tuning: typeof CALIBRATE_TUNING }) {
       var img = new Image();
       img.src = args.b64;

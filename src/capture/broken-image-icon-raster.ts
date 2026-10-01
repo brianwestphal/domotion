@@ -11,8 +11,15 @@
 import { createHash } from "node:crypto";
 import type { CDPSession, Page } from "@playwright/test";
 import sharp from "sharp";
-import { privateCaptureKey } from "./private-key.js";
+import { createPageRegistry } from "./page-registry.js";
 import { planNativeControlClip, type NativeControlViewport } from "./native-control-raster.js";
+
+type RestoreEntry = {
+  element: Element & { style: CSSStyleDeclaration };
+  property: string;
+  value: string;
+  priority: string;
+};
 
 export interface CapturedBrokenImageIconRaster {
   source: "chromium-isolated-ua-shadow-icon-v1";
@@ -36,20 +43,12 @@ async function restoreLightDom(page: Page, restoreKey: string): Promise<void> {
   await page
     .evaluate((key) => {
       const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
-      const entries = pageGlobal[key] as
-        | Array<{
-            element: Element & { style: CSSStyleDeclaration };
-            property: string;
-            value: string;
-            priority: string;
-          }>
-        | undefined;
+      const entries = pageGlobal[key] as RestoreEntry[] | undefined;
       for (let index = (entries?.length ?? 0) - 1; index >= 0; index--) {
         const entry = entries![index];
         if (entry.value === "" && entry.priority === "") entry.element.style.removeProperty(entry.property);
         else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
       }
-      delete pageGlobal[key];
     }, restoreKey)
     .catch(() => undefined);
 }
@@ -63,23 +62,19 @@ export async function captureBrokenImageIconRaster(
   const plan = planNativeControlClip(options.iconRect, options.viewport);
   if (plan == null) throw new Error("visible broken-image icon is outside the capture viewport");
 
-  const restoreKey = privateCaptureKey("BrokenIconRestore");
+  const restoreRegistry = createPageRegistry<RestoreEntry[]>(page, "BrokenIconRestore");
+  const restoreKey = restoreRegistry.key;
   let iconObjectId: string | undefined;
   let uaRestore: unknown;
   try {
+    await restoreRegistry.tag(page, () => []);
     const prepared = await page.evaluate(
       ({ sourceNodeKey, sourceNodeIndex, restoreKey }) => {
         const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
         const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;
         const host = sourceNodes?.[sourceNodeIndex];
         if (!(host instanceof HTMLElement) || !host.isConnected) return false;
-        const entries: Array<{
-          element: Element & { style: CSSStyleDeclaration };
-          property: string;
-          value: string;
-          priority: string;
-        }> = [];
-        pageGlobal[restoreKey] = entries;
+        const entries = pageGlobal[restoreKey] as RestoreEntry[];
 
         for (const element of Array.from(document.querySelectorAll("*"))) {
           const styled = element as Element & { style: CSSStyleDeclaration };
@@ -235,5 +230,6 @@ export async function captureBrokenImageIconRaster(
       await session.send("Runtime.releaseObject", { objectId: iconObjectId }).catch(() => undefined);
     }
     await restoreLightDom(page, restoreKey);
+    await restoreRegistry.dispose();
   }
 }

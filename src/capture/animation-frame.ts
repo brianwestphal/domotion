@@ -1,5 +1,6 @@
 import type { Frame, Page } from "@playwright/test";
-import { detachQuietly, isSameProcessFrameError } from "./cdp-lifecycle.js";
+import { withCdpSession } from "./cdp-lifecycle.js";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
 
 export interface StableAnimationDocumentState {
   url: string;
@@ -56,34 +57,30 @@ export interface SeekAnimationsToFrameOptions {
 
 const CURRENT_TIME_EPSILON_MS = 0.02;
 
-async function closedShadowRootCount(page: Page, frame: Frame): Promise<number> {
-  let session;
-  try {
-    session = await page.context().newCDPSession(frame);
-  } catch (error) {
-    // Same-process child documents are included in the main target's flattened
-    // snapshot and intentionally have no independent CDP session.
-    if (isSameProcessFrameError(error)) return 0;
-    throw error;
-  }
-  try {
-    const snapshot = await session.send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [],
-      includeDOMRects: false,
-      includePaintOrder: false,
-    });
-    let count = 0;
-    for (const document of snapshot.documents) {
-      const rare = document.nodes.shadowRootType;
-      if (rare == null) continue;
-      for (const value of rare.value) {
-        if (snapshot.strings[value] === "closed") count++;
+async function closedShadowRootCount(frame: Frame): Promise<number> {
+  return withCdpSession(
+    frame,
+    async (session) => {
+      const snapshot = await session.send("DOMSnapshot.captureSnapshot", {
+        computedStyles: [],
+        includeDOMRects: false,
+        includePaintOrder: false,
+      });
+      let count = 0;
+      for (const document of snapshot.documents) {
+        const rare = document.nodes.shadowRootType;
+        if (rare == null) continue;
+        for (const value of rare.value) {
+          if (snapshot.strings[value] === "closed") count++;
+        }
       }
-    }
-    return count;
-  } finally {
-    await detachQuietly(session);
-  }
+      return count;
+    },
+    {
+      // Same-process children are included in the main target's flattened snapshot.
+      sameProcessFrame: () => 0,
+    },
+  );
 }
 
 async function seekDocumentFrame(
@@ -91,11 +88,8 @@ async function seekDocumentFrame(
   timeMs: number,
   settleWithAnimationFrame: boolean,
 ): Promise<StableAnimationDocumentState> {
-  // `tsx` keeps nested browser-function names via an esbuild `__name` helper,
-  // while Playwright serializes only this callback. Production bundles inline
-  // the helper; source-run logical oracles need the equivalent target binding.
-  await frame.evaluate("globalThis.__name ||= (target => target)");
-  return frame.evaluate(
+  return evaluateInFrame(
+    frame,
     async ({ requestedTimeMs, epsilonMs, settleWithAnimationFrame }) => {
       type ProgressTime = { value: number; unit: string; toString(): string };
       type AnimationScope = Document | (ShadowRoot & { getAnimations(): Animation[] });
@@ -405,7 +399,7 @@ export async function seekAnimationsToFrame(
   const documents = await Promise.all(
     frames.map(async (frame) => {
       try {
-        const closedRoots = await closedShadowRootCount(page, frame);
+        const closedRoots = await closedShadowRootCount(frame);
         if (closedRoots > 0) {
           return {
             url: frame.url(),

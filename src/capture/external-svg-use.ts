@@ -13,7 +13,7 @@
  */
 import type { Page } from "@playwright/test";
 import type { AsyncDisposable } from "./cdp-lifecycle.js";
-import { privateCaptureKey } from "./private-key.js";
+import { createPageRegistry } from "./page-registry.js";
 
 /** How long one external document may take before it is recorded as failed. */
 export const EXTERNAL_SVG_FETCH_TIMEOUT_MS = 5000;
@@ -24,17 +24,19 @@ export interface ExternalSvgUsePrime extends AsyncDisposable {
 }
 
 export async function primeExternalSvgUseDocuments(page: Page): Promise<ExternalSvgUsePrime> {
-  const registryKey = privateCaptureKey("ExternalSvgUse");
+  type Entry = { document: Document | null; failure?: string };
+  const registry = createPageRegistry<Map<string, Entry>>(page, "ExternalSvgUse");
+  const registryKey = registry.key;
   const frames = page.frames();
   await Promise.all(
     frames.map(async (frame) => {
       try {
-        await frame.evaluate(
-          async ({ key, timeoutMs }) => {
+        await registry.tag(
+          frame,
+          async (timeoutMs) => {
             const XLINK = "http://www.w3.org/1999/xlink";
             type Entry = { document: Document | null; failure?: string };
             const registry = new Map<string, Entry>();
-            (globalThis as unknown as Record<string, unknown>)[key] = registry;
             const here = new URL(document.URL);
             here.hash = "";
             const wanted = new Set<string>();
@@ -92,8 +94,9 @@ export async function primeExternalSvgUseDocuments(page: Page): Promise<External
                 }
               }),
             );
+            return registry;
           },
-          { key: registryKey, timeoutMs: EXTERNAL_SVG_FETCH_TIMEOUT_MS },
+          EXTERNAL_SVG_FETCH_TIMEOUT_MS,
         );
       } catch {
         /* a frame that cannot run the prepass (detached, cross-process) simply has no registry */
@@ -102,16 +105,6 @@ export async function primeExternalSvgUseDocuments(page: Page): Promise<External
   );
   return {
     registryKey,
-    async dispose() {
-      await Promise.all(
-        page.frames().map((frame) =>
-          frame
-            .evaluate((key) => {
-              delete (globalThis as unknown as Record<string, unknown>)[key];
-            }, registryKey)
-            .catch(() => undefined),
-        ),
-      );
-    },
+    dispose: () => registry.dispose(),
   };
 }

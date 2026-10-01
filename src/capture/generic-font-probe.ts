@@ -42,6 +42,7 @@
 // explicitly disabled.
 
 import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
+import { isSameProcessFrameError } from "./cdp-lifecycle.js";
 import type { CapturedSessionGenericFamilies } from "./types.js";
 import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
 
@@ -430,7 +431,7 @@ async function probeFrameGenericFamilies(frame: Frame): Promise<SessionGenericFa
   } catch (error) {
     // A local child frame shares its parent's renderer target. Only OOPIFs
     // expose a separate Inspector session and can carry divergent Settings.
-    if (error instanceof Error && error.message.includes("does not have a separate CDP session")) return null;
+    if (isSameProcessFrameError(error)) return null;
     throw error;
   }
   try {

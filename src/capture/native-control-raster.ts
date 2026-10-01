@@ -28,7 +28,7 @@
 
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-import { privateCaptureKey } from "./private-key.js";
+import { createPageRegistry } from "./page-registry.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 
 export interface NativeControlViewport {
@@ -331,7 +331,14 @@ export async function rasterizeNativeControlSurfaces(
   // atomic fallback; never take one screenshot per control.
   if (sourceFrame == null) sourceFrame = await takeAtomicFrame(page, viewport);
 
-  const restoreKey = privateCaptureKey("NativeControlRestore");
+  type RestoreEntry = {
+    element: HTMLElement;
+    property: string;
+    value: string;
+    priority: string;
+  };
+  const restoreRegistry = createPageRegistry<RestoreEntry[]>(page, "NativeControlRestore");
+  const restoreKey = restoreRegistry.key;
   let isolationFacts: IsolationFact[] = targets.map(() => ({
     connected: false,
     sourceOccluded: false,
@@ -341,6 +348,7 @@ export async function rasterizeNativeControlSurfaces(
   let isolationFailure: string | undefined;
   try {
     if (options.sourceNodeKey != null) {
+      await restoreRegistry.tag(page, () => []);
       isolationFacts = await page.evaluate(
         ({ sourceNodeKey, restoreKey, rows }) => {
           type RestoreEntry = {
@@ -427,8 +435,7 @@ export async function rasterizeNativeControlSurfaces(
             return { connected: true, sourceOccluded, overlapsNativeOwner };
           });
 
-          const restore: RestoreEntry[] = [];
-          host[restoreKey] = restore;
+          const restore = host[restoreKey] as RestoreEntry[];
           for (const element of elements) {
             let retained = false;
             for (const target of targetSet) {
@@ -507,9 +514,9 @@ export async function rasterizeNativeControlSurfaces(
           if (entry.value === "") entry.element.style.removeProperty(entry.property);
           else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
         }
-        delete host[restoreKey];
       }, restoreKey)
       .catch(() => undefined);
+    await restoreRegistry.dispose();
   }
 
   try {

@@ -5662,6 +5662,25 @@
       }
     },
     {
+      "file": "265-capture-boundary-lifecycle.md",
+      "metadata": {
+        "id": "requirements/capture-boundary-lifecycle",
+        "title": "Capture boundary lifetime",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["capture"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-WS5R8D"],
+        "code": [
+          "src/capture/page-registry.ts",
+          "src/capture/evaluate-in-frame.ts",
+          "src/capture/cdp-lifecycle.ts",
+          "src/capture/index.ts"
+        ],
+        "aliases": ["docs/265-capture-boundary-lifecycle.md", "doc-265"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6108,6 +6127,7 @@
     "262": ["requirements/text-engine-session-boundary"],
     "263": ["requirements/nine-piece-image-paint"],
     "264": ["requirements/opentype-math-radical-geometry"],
+    "265": ["requirements/capture-boundary-lifecycle"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

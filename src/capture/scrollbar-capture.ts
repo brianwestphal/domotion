@@ -28,7 +28,9 @@
 import { randomUUID } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import sharp from "sharp";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { privateCaptureKey } from "./private-key.js";
+import { createPageRegistry } from "./page-registry.js";
 import type { ResolvedPseudoStyleCapture } from "./pseudo-style-cdp.js";
 import {
   analyzeNativeOverlayInk,
@@ -142,26 +144,6 @@ interface NativeOverlayFrames {
   source: NativeScrollbarFrame | null;
   underlay: NativeScrollbarFrame | null;
   restored: NativeScrollbarFrame | null;
-}
-
-/**
- * Evaluate the discovery callback with esbuild's keep-names helper scoped to
- * this one expression. Source-run `tsx` producers retain free `__name(...)`
- * calls inside the serialized callback, but that module helper does not exist
- * in the inspected frame. A lexical binding avoids installing or deleting a
- * page global, so every readable frame keeps its own authored global state.
- */
-function evaluateScrollbarDiscovery<Argument, Result>(
-  frame: Frame,
-  callback: (argument: Argument) => Result | Promise<Result>,
-  argument: Argument,
-): Promise<Result> {
-  const serializedArgument = JSON.stringify(argument);
-  if (serializedArgument == null) {
-    return Promise.reject(new Error("scrollbar discovery argument is not JSON-serializable"));
-  }
-  const expression = `((__name, argument) => (${callback.toString()})(argument))(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; }, ${serializedArgument})`;
-  return frame.evaluate(expression) as Promise<Result>;
 }
 
 function squaredDistance(a: readonly number[], b: readonly number[]): number {
@@ -884,16 +866,19 @@ async function captureNativeOverlayFrames(
   if (frameIndexes.every(({ indexes }) => indexes.length === 0) || source == null) {
     return { source, underlay: null, restored: null };
   }
-  const restoreKey = privateCaptureKey("ScrollbarWidthRestore");
+  type RestoreEntry = { element: HTMLElement; value: string; priority: string };
+  const restoreRegistry = createPageRegistry<RestoreEntry[]>(page, "ScrollbarWidthRestore");
+  const restoreKey = restoreRegistry.key;
   let underlay: NativeScrollbarFrame | null = null;
   try {
+    await Promise.all(frameIndexes.map(({ frame }) => restoreRegistry.tag(frame, () => [])));
     await Promise.all(
       frameIndexes.map(({ frame, indexes }) =>
         frame.evaluate(
           ({ nodesKey, indexes, restoreKey }) => {
             const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
             const nodes = pageGlobal[nodesKey] as Element[] | undefined;
-            const restore: Array<{ element: HTMLElement; value: string; priority: string }> = [];
+            const restore = pageGlobal[restoreKey] as RestoreEntry[];
             for (const index of indexes) {
               const element = nodes?.[index];
               if (!(element instanceof HTMLElement) || !element.isConnected) continue;
@@ -904,7 +889,6 @@ async function captureNativeOverlayFrames(
               });
               element.style.setProperty("scrollbar-width", "none", "important");
             }
-            pageGlobal[restoreKey] = restore;
             void document.documentElement.getBoundingClientRect();
           },
           { nodesKey, indexes, restoreKey },
@@ -939,12 +923,12 @@ async function captureNativeOverlayFrames(
               if (entry.value === "") entry.element.style.removeProperty("scrollbar-width");
               else entry.element.style.setProperty("scrollbar-width", entry.value, entry.priority);
             }
-            delete pageGlobal[restoreKey];
             void document.documentElement.getBoundingClientRect();
           }, restoreKey)
           .catch(() => undefined),
       ),
     );
+    await restoreRegistry.dispose();
   }
   await Promise.all(
     frameIndexes.map(({ frame }) =>
@@ -1004,7 +988,7 @@ export async function prepareCapturedScrollbarSets(
   try {
     const discovered = await Promise.all(
       frameTargets.map(async (target) => {
-        const local = await evaluateScrollbarDiscovery(
+        const local = await evaluateInFrame(
           target.frame,
           ({ selector, viewport, nodesKey, pseudoKey, frameMeta, top }) => {
             const root = top ? document.querySelector(selector) : document.documentElement;

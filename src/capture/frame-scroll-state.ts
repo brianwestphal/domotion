@@ -18,6 +18,8 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import type { CDPSession, Frame, Page } from "@playwright/test";
+import { withCdpSession } from "./cdp-lifecycle.js";
+import { createPageRegistry } from "./page-registry.js";
 
 import { frameHostAllowed, parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { errorMessage } from "./probe-failure.js";
@@ -453,30 +455,29 @@ async function cdpFrameIds(
   identityFailures: Map<string, string>;
 }> {
   const identityFailures = new Map<string, string>();
-  const session = await page.context().newCDPSession(page);
-  let byToken: Map<string, string>;
-  let parents: Map<string, string | null>;
-  try {
-    await session.send("Page.enable");
-    byToken = await collectDefaultContextTokens(session, propertyKey);
-    const tree = (await session.send("Page.getFrameTree")) as unknown as { frameTree: ProtocolFrameTree };
-    parents = flattenProtocolFrameTree(tree.frameTree);
-    // Page.getFrameTree only contains the local-frame subtree of this target.
-    // Site-isolated children are separate `iframe` targets; Chromium publishes
-    // their exact target id (also the OOPIF's FrameId) and parent FrameId in
-    // TargetInfo, so merge those protocol-owned edges into the same graph.
-    const targets = (await session.send("Target.getTargets")) as unknown as {
-      targetInfos: ProtocolTargetInfo[];
-    };
-    for (const target of targets.targetInfos) {
-      if (target.type === "iframe" && target.parentFrameId != null) {
-        parents.set(target.targetId, target.parentFrameId);
+  const { byToken, parents } = await withCdpSession(page, async (session) => {
+    try {
+      await session.send("Page.enable");
+      const byToken = await collectDefaultContextTokens(session, propertyKey);
+      const tree = (await session.send("Page.getFrameTree")) as unknown as { frameTree: ProtocolFrameTree };
+      const parents = flattenProtocolFrameTree(tree.frameTree);
+      // Page.getFrameTree only contains the local-frame subtree of this target.
+      // Site-isolated children are separate `iframe` targets; Chromium publishes
+      // their exact target id (also the OOPIF's FrameId) and parent FrameId in
+      // TargetInfo, so merge those protocol-owned edges into the same graph.
+      const targets = (await session.send("Target.getTargets")) as unknown as {
+        targetInfos: ProtocolTargetInfo[];
+      };
+      for (const target of targets.targetInfos) {
+        if (target.type === "iframe" && target.parentFrameId != null) {
+          parents.set(target.targetId, target.parentFrameId);
+        }
       }
+      return { byToken, parents };
+    } finally {
+      await session.send("Runtime.disable").catch(() => undefined);
     }
-  } finally {
-    await session.send("Runtime.disable").catch(() => undefined);
-    await session.detach().catch(() => undefined);
-  }
+  });
 
   // A CDP session on the top Page does not receive Runtime contexts owned by a
   // site-isolated OOPIF target. Playwright can attach a session to the Frame
@@ -486,22 +487,27 @@ async function cdpFrameIds(
   const unresolved = setups.filter(({ token }) => !byToken.has(token));
   const oopifMaps = await Promise.all(
     unresolved.map(async ({ frame, token }) => {
-      const frameSession = await page
-        .context()
-        .newCDPSession(frame)
-        .catch((error: unknown) => {
-          identityFailures.set(token, `attaching a CDP session to the frame failed: ${errorMessage(error)}`);
-          return null;
-        });
-      if (frameSession == null) return new Map<string, string>();
       try {
-        return await collectDefaultContextTokens(frameSession, propertyKey);
+        return await withCdpSession(
+          frame,
+          async (frameSession) => {
+            try {
+              return await collectDefaultContextTokens(frameSession, propertyKey);
+            } catch (error) {
+              identityFailures.set(
+                token,
+                `reading the frame's default execution context failed: ${errorMessage(error)}`,
+              );
+              return new Map<string, string>();
+            } finally {
+              await frameSession.send("Runtime.disable").catch(() => undefined);
+            }
+          },
+          { sameProcessFrame: () => new Map<string, string>() },
+        );
       } catch (error) {
-        identityFailures.set(token, `reading the frame's default execution context failed: ${errorMessage(error)}`);
+        identityFailures.set(token, `attaching a CDP session to the frame failed: ${errorMessage(error)}`);
         return new Map<string, string>();
-      } finally {
-        await frameSession.send("Runtime.disable").catch(() => undefined);
-        await frameSession.detach().catch(() => undefined);
       }
     }),
   );
@@ -702,7 +708,8 @@ export async function prepareFrameScrollCapture(
   rawAllowlist: string | undefined,
 ): Promise<PreparedFrameScrollCapture> {
   const captureId = randomUUID();
-  const propertyKey = `__domotionFrameScroll_${captureId.replaceAll("-", "")}`;
+  const registry = createPageRegistry<unknown>(page, "FrameScroll");
+  const propertyKey = registry.key;
   const initialFrames = page.frames();
   const setups = (
     await Promise.all(
@@ -711,19 +718,18 @@ export async function prepareFrameScrollCapture(
       ),
     )
   ).filter((entry): entry is FrameSetup => entry != null);
+  await Promise.all(
+    setups.map(({ frame }) =>
+      registry
+        .tag(frame, (key) => (globalThis as typeof globalThis & Record<string, unknown>)[key], propertyKey)
+        .catch(() => undefined),
+    ),
+  );
   let cdpIdentity: Awaited<ReturnType<typeof cdpFrameIds>>;
   try {
     cdpIdentity = await cdpFrameIds(page, propertyKey, setups);
   } catch (error) {
-    await Promise.all(
-      setups.map(({ frame }) =>
-        frame
-          .evaluate((key) => {
-            delete (globalThis as typeof globalThis & Record<string, unknown>)[key];
-          }, propertyKey)
-          .catch(() => undefined),
-      ),
-    );
+    await registry.dispose();
     throw error;
   }
   const { byToken, parents: protocolParents, identityFailures } = cdpIdentity;
@@ -1046,13 +1052,9 @@ export async function prepareFrameScrollCapture(
     warnings,
     snapshot,
     dispose: async () => {
+      await registry.dispose();
       await Promise.all(
         initialFrames.map(async (frame) => {
-          await frame
-            .evaluate((key) => {
-              delete (globalThis as typeof globalThis & Record<string, unknown>)[key];
-            }, propertyKey)
-            .catch(() => undefined);
           if (frame === page.mainFrame()) return;
           const owner = await frame.frameElement().catch(() => null);
           if (owner == null) return;

@@ -90,16 +90,12 @@ describe("bounded text paint CDP measurement (DM-2680)", () => {
 describe("Range FragmentItem probe whole-frame failure", () => {
   it("reports a failed frame once and keeps the other frames' rows", async () => {
     const frameThatFails = {
-      // The first call is the tsx `__name` helper install (a string); the second is the probe.
-      evaluate: vi.fn(async (work: unknown) => {
-        if (typeof work === "string") return false;
+      evaluate: vi.fn(async () => {
         throw new Error("Execution context was destroyed");
       }),
     };
     const frameThatWorks = {
-      evaluate: vi.fn(async (work: unknown) =>
-        typeof work === "string" ? false : [{ fragments: [], failureReason: "measured" }],
-      ),
+      evaluate: vi.fn(async () => [{ fragments: [], failureReason: "measured" }]),
     };
     const frames = [
       { frame: frameThatFails, token: "f0", rows: [], hasTransformOwners: false },
@@ -117,7 +113,7 @@ describe("Range FragmentItem probe whole-frame failure", () => {
   it("stays silent when every frame is measured", async () => {
     const frames = [
       {
-        frame: { evaluate: async (work: unknown) => (typeof work === "string" ? false : []) },
+        frame: { evaluate: async () => [] },
         token: "f0",
         rows: [],
         hasTransformOwners: false,

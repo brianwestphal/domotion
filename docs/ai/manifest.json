@@ -4204,6 +4204,21 @@
       "file": "264-opentype-math-radical-geometry.md"
     },
     {
+      "id": "requirements/capture-boundary-lifecycle",
+      "title": "Capture boundary lifetime",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["capture"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        "src/capture/page-registry.ts",
+        "src/capture/evaluate-in-frame.ts",
+        "src/capture/cdp-lifecycle.ts",
+        "src/capture/index.ts"
+      ],
+      "file": "265-capture-boundary-lifecycle.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

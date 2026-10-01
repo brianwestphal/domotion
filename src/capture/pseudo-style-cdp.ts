@@ -25,6 +25,7 @@
 
 import type { CDPSession, Page } from "@playwright/test";
 import { privateCaptureKey } from "./private-key.js";
+import { browserCallbackExpression } from "./evaluate-in-frame.js";
 import {
   authorControlStyleFactsFromMatchedStyles,
   effectiveAppearanceForControl,
@@ -385,26 +386,29 @@ function scrollbarPseudoEntries(matched: unknown): Array<{ kind: ControlPseudoKi
 
 async function collectResizableRemoteObjects(session: CDPSession, objectGroup: string): Promise<string[]> {
   const evaluated = await session.send("Runtime.evaluate", {
-    expression: `(() => {
-      const result = [];
-      const seen = new Set();
-      const walk = (root) => {
+    expression: browserCallbackExpression(() => {
+      const result: Element[] = [];
+      const seen = new Set<Document | Element | ShadowRoot>();
+      const walk = (root: Document | Element | ShadowRoot) => {
         if (root == null || seen.has(root)) return;
         seen.add(root);
-        const elements = root.querySelectorAll ? root.querySelectorAll('*') : [];
+        const elements = root.querySelectorAll("*");
         for (const element of elements) {
           try {
-            if (getComputedStyle(element).resize !== 'none') result.push(element);
-          } catch (_error) {}
+            if (getComputedStyle(element).resize !== "none") result.push(element);
+          } catch {}
           if (element.shadowRoot != null) walk(element.shadowRoot);
-          if (element.tagName === 'IFRAME') {
-            try { if (element.contentDocument != null) walk(element.contentDocument); } catch (_error) {}
+          if (element.tagName === "IFRAME") {
+            try {
+              if (element instanceof HTMLIFrameElement && element.contentDocument != null)
+                walk(element.contentDocument);
+            } catch {}
           }
         }
       };
       walk(document);
       return result;
-    })()`,
+    }),
     objectGroup,
     returnByValue: false,
   });
@@ -420,38 +424,44 @@ async function collectResizableRemoteObjects(session: CDPSession, objectGroup: s
 
 async function collectScrollbarRemoteObjects(session: CDPSession, objectGroup: string): Promise<string[]> {
   const evaluated = await session.send("Runtime.evaluate", {
-    expression: `(() => {
-      const result = [];
-      const seen = new Set();
-      const walk = (root) => {
+    expression: browserCallbackExpression(() => {
+      const result: Element[] = [];
+      const seen = new Set<Document | Element | ShadowRoot>();
+      const walk = (root: Document | Element | ShadowRoot) => {
         if (root == null || seen.has(root)) return;
         seen.add(root);
-        const elements = [];
+        const elements: Element[] = [];
         if (root instanceof Element) elements.push(root);
-        if (root.querySelectorAll) elements.push(...root.querySelectorAll('*'));
+        elements.push(...root.querySelectorAll("*"));
         for (const element of elements) {
           try {
             const style = getComputedStyle(element);
             const rootScroller = element === document.scrollingElement;
-            const rootRange = rootScroller && (
-              (style.overflowX !== 'hidden' && style.overflowX !== 'clip' && element.scrollWidth > element.clientWidth)
-              || (style.overflowY !== 'hidden' && style.overflowY !== 'clip' && element.scrollHeight > element.clientHeight)
-              || style.scrollbarGutter !== 'auto'
-            );
-            const candidate = ['auto', 'scroll'].includes(style.overflowX)
-              || ['auto', 'scroll'].includes(style.overflowY)
-              || rootRange;
+            const rootRange =
+              rootScroller &&
+              ((style.overflowX !== "hidden" &&
+                style.overflowX !== "clip" &&
+                element.scrollWidth > element.clientWidth) ||
+                (style.overflowY !== "hidden" &&
+                  style.overflowY !== "clip" &&
+                  element.scrollHeight > element.clientHeight) ||
+                style.scrollbarGutter !== "auto");
+            const candidate =
+              ["auto", "scroll"].includes(style.overflowX) || ["auto", "scroll"].includes(style.overflowY) || rootRange;
             if (candidate) result.push(element);
-          } catch (_error) {}
+          } catch {}
           if (element.shadowRoot != null) walk(element.shadowRoot);
-          if (element.tagName === 'IFRAME') {
-            try { if (element.contentDocument != null) walk(element.contentDocument); } catch (_error) {}
+          if (element.tagName === "IFRAME") {
+            try {
+              if (element instanceof HTMLIFrameElement && element.contentDocument != null)
+                walk(element.contentDocument);
+            } catch {}
           }
         }
       };
       walk(document.documentElement);
       return result;
-    })()`,
+    }),
     objectGroup,
     returnByValue: false,
   });
