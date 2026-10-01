@@ -42,6 +42,16 @@ describeBrowser("DM-2619 multilingual message shaping", () => {
         body { margin: 0; font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif; }
         #message { font-size: 13px; line-height: 1.45; }
       </style><div id="message" dir="rtl" lang="ar">يظهر الآن بشكل صحيح.</div>`);
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("DOM.enable");
+      await cdp.send("CSS.enable");
+      const { root } = await cdp.send("DOM.getDocument");
+      const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#message" });
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+      await cdp.detach();
+      const painted = fonts.filter((font) => font.glyphCount > 0).sort((a, b) => b.glyphCount - a.glyphCount);
+      expect(painted.length).toBeGreaterThan(0);
+      expect(painted[0].glyphCount).toBeGreaterThan(painted[1]?.glyphCount ?? 0);
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 600, height: 180 });
       resetGeneration();
       resetTextRunProvenance();
@@ -53,21 +63,22 @@ describeBrowser("DM-2619 multilingual message shaping", () => {
       const run = evidence.runs.find((candidate) => candidate.emittedText === "يظهر");
       expect(run).toBeDefined();
       expect(run!.request).toMatchObject({ script: "Arab", direction: "rtl", fontSizePx: 13 });
-      expect(run!.selected).toMatchObject({ postscriptName: "GeezaPro", shapesWithHarfbuzz: true });
-      expect(run!.glyphs.map((glyph) => glyph.cluster)).toEqual([3, 2, 1, 0]);
+      expect(run!.selected).toMatchObject({ postscriptName: painted[0].postScriptName, shapesWithHarfbuzz: true });
+      const baseGlyphIndices = run!.glyphs.flatMap((glyph, index) => (glyph.xAdvance > 0 ? [index] : []));
+      expect(baseGlyphIndices.map((index) => run!.glyphs[index].cluster)).toEqual([3, 2, 1, 0]);
 
       const group = /<g role="img" aria-label="يظهر الآن بشكل صحيح\.">(.*?)<\/g>/s.exec(svg)?.[1];
       expect(group).toBeDefined();
       const firstXList = /<text x="([^"]+)"/.exec(group!)?.[1].split(/\s+/).map(Number);
       expect(firstXList).toHaveLength(run!.glyphs.length);
 
-      // The exact em size is font-version-owned. The invariant is that every
-      // emitted pen delta is one common scale times the preceding shaped
-      // advance. Per-character Range anchors produce visibly different ratios
-      // (and tear the joins) even when the selected face/glyph IDs are right.
-      const advanceScales = firstXList!
-        .slice(1)
-        .map((x, index) => (x - firstXList![index]) / run!.glyphs[index].xAdvance);
+      // The exact em size and mark count are font-version-owned. For base
+      // glyphs, each emitted pen delta must use one common scale times the
+      // preceding shaped advance. Zero-advance marks carry their own offsets.
+      const advanceScales = baseGlyphIndices.slice(1).map((index, position) => {
+        const previous = baseGlyphIndices[position];
+        return (firstXList![index] - firstXList![previous]) / run!.glyphs[previous].xAdvance;
+      });
       expect(Math.max(...advanceScales) - Math.min(...advanceScales)).toBeLessThan(0.0001);
     } finally {
       setTextRunProvenanceEnabled(false);

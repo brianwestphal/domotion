@@ -34,6 +34,12 @@ This prevents embedded PUA glyphs from being torn apart by source-character
 rectangle anchors while leaving captured post-spacing anchors intact for
 non-cursive scripts.
 
+The macOS Arabic message browser test checks the emitted word against the
+dominant face in Chromium's node-level paint report. The system may choose a
+hidden `.SFArabic` face or Geeza Pro for the same CSS stack; the test requires
+the renderer to follow Chromium's native choice and still preserve connected
+glyph advances.
+
 `DOMOTION_CLUSTER_FALLBACK=0` remains a diagnostic A/B for fallback assignment, but no longer restores another shaper: the legacy assignment path is also wrapped with HarfBuzz before emission. Proxies are memoized by concrete face, axes, ptem, outline provider, and features so run identity is stable.
 
 ## Unsupported and declined cases
