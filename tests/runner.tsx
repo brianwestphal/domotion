@@ -23,7 +23,7 @@ import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { withRenderTextMode } from "../src/render/text-to-path.js";
 import { resetFeatureFixtureState } from "./feature-fixture-state.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
-import { comparePngs, passes, type DiffVerdict } from "../src/review/compare-pngs.js";
+import { comparePngs, passes, type CompareResult, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { HINTING_FLOOR_PCT, newHarnessPage } from "./harness-constants.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 
@@ -64,6 +64,13 @@ export interface FeatureTest {
    * Typical relaxed value: 0.5 (% avg diff). Use sparingly.
    */
   relaxedDiffPct?: number;
+  /**
+   * Explicit fixture-specific ceiling on changed image area. Overrides the
+   * platform hinting floor when a caller needs to test the runner's failure
+   * path with a real browser comparison. Negative values deliberately make
+   * every comparison fail, including pixel-identical ones.
+   */
+  maxCoveragePct?: number;
   /**
    * DM-855: extra CSS appended to the wrapper page's `body` rule, letting a
    * fixture exercise root/`<body>`-level styling (e.g. a gradient background on
@@ -139,6 +146,14 @@ export interface FeatureSuiteRun {
 
 export function countFeatureFailures(results: ReadonlyArray<Pick<SuiteResult, "pass">>): number {
   return results.filter((result) => !result.pass).length;
+}
+
+export function featurePasses(test: FeatureTest, cmp: CompareResult, platform: string): boolean {
+  if (test.maxCoveragePct != null) return cmp.coveragePct <= test.maxCoveragePct;
+  const floorPct = HINTING_FLOOR_PCT[platform] ?? 0;
+  if (floorPct > 0) return cmp.coveragePct <= Math.max(floorPct, test.relaxedDiffPct ?? 0);
+  if (test.relaxedDiffPct != null) return cmp.diffPct <= test.relaxedDiffPct && cmp.sigPixelPct === 0;
+  return passes(cmp);
 }
 
 interface RunnerWorker {
@@ -254,15 +269,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // Windows at all (it is a FreeType/Skia flag; DirectWrite ignores it — a
   // probe returns byte-identical screenshots), so the win32 cap describes
   // exactly the same condition it always did.
-  const floorPct = HINTING_FLOOR_PCT[process.platform] ?? 0;
-  let pass: boolean;
-  if (floorPct > 0) {
-    pass = cmp.coveragePct <= Math.max(floorPct, test.relaxedDiffPct ?? 0);
-  } else if (test.relaxedDiffPct != null) {
-    pass = cmp.diffPct <= test.relaxedDiffPct && cmp.sigPixelPct === 0;
-  } else {
-    pass = passes(cmp);
-  }
+  const pass = featurePasses(test, cmp, process.platform);
 
   return {
     name: test.name,

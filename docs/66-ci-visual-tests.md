@@ -60,6 +60,10 @@ The feature fixture harness returns `{ results, failed }` from
 `runFeatureTests`. Importers can inspect failed regions without terminating
 their process; the `features`, `showcase`, and `composed-parity` command entry
 points set exit code 1 when `failed > 0`.
+Fixtures may set `maxCoveragePct` to an explicit changed-area ceiling that
+overrides the Linux/Windows hinting floor. This lets the browser-driven return
+contract exercise a real comparison and a deliberate failure on every platform;
+ordinary fixtures retain the platform floor.
 
 The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual suites run locally as a _deliberately throttled background job_ (`tests/worker-pool.ts`: `min(8, cores/4)` workers at macOS BACKGROUND QoS), so a full unicode sweep takes ~1h. The suites are embarrassingly parallel and the fixture repo (`github.com/brianwestphal/html-test`) is **public**, so GitHub-hosted runners are free here. `.github/workflows/visual-tests.yml` fans the suite out across many runners; a single dispatch turns ~1h into a few minutes, off your machine.
 
