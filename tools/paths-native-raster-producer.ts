@@ -1,11 +1,17 @@
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 
 import { assertCompletePathsRasterMatrix, assertPathsRasterRowDeclaration } from "./paths-native-raster-corpus.js";
-import { pathsRasterRowSchema, type PathsRasterRow } from "./paths-native-raster-gate.js";
+import {
+  pathsRasterRowSchema,
+  pathsRasterRowsDataSchema,
+  readPathsRasterRows,
+  type PathsRasterRow,
+} from "./paths-native-raster-gate.js";
 import { decodePathsRasterPng, measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
+import { writeReport } from "./lib/report.js";
 
 function artifactFile(root: string, rowId: string, role: "nativeArtifact" | "pathsArtifact", path: string): string {
   if (isAbsolute(path)) throw new Error(`${rowId}: ${role}.path must be relative to the observation bundle`);
@@ -77,10 +83,19 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   });
   const observations = resolve(requiredFlag(values, "--observations"));
   const out = requiredFlag(values, "--out");
-  const rows = await producePathsRasterRows(JSON.parse(readFileSync(observations, "utf8")), dirname(observations), {
-    requireComplete: values["allow-partial"] !== true,
-  });
-  writeFileSync(out, JSON.stringify(rows, null, 2));
+  const rows = await producePathsRasterRows(
+    readPathsRasterRows(observations, "paths-native-raster-collector"),
+    dirname(observations),
+    {
+      requireComplete: values["allow-partial"] !== true,
+    },
+  );
+  writeReport(
+    out,
+    "paths-native-raster-producer",
+    pathsRasterRowsDataSchema.parse({ outcome: rows.length === 0 ? "skip" : "pass", rows }),
+    { schemaVersion: 1 },
+  );
   console.log(`Produced ${rows.length} lossless, fingerprinted paths/native raster rows.`);
 }
 

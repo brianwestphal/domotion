@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -82,5 +82,10 @@ describe("M–Z tool CLI boundaries", () => {
     writeFileSync(rows, "[]");
     writeFileSync(envelopes, JSON.stringify({ schemaVersion: 2, ratified: false, envelopes: [] }));
     expect(adjudicatePathsRaster(["--rows", rows, "--envelopes", envelopes, "--out", out])).toBe(1);
+    expect(JSON.parse(readFileSync(out, "utf8"))).toMatchObject({
+      schemaVersion: 1,
+      tool: "paths-native-raster-gate",
+      data: { outcome: "fail", pass: false, rows: [] },
+    });
   });
 });

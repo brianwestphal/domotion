@@ -1,10 +1,36 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { writeReport } from "../tools/lib/report.js";
 import {
   adjudicatePathsRasterRows,
   dimensionsKey,
   fingerprintSha256,
+  readPathsRasterRows,
   type PathsRasterRow,
 } from "../tools/paths-native-raster-gate.js";
+
+describe("paths/native raster report boundaries", () => {
+  it.each(["paths-native-raster-collector", "paths-native-raster-producer"] as const)(
+    "validates flat and versioned %s rows and rejects future versions",
+    (tool) => {
+      const dir = mkdtempSync(join(tmpdir(), "domotion-paths-raster-report-"));
+      const path = join(dir, "rows.json");
+      const rows = [row()];
+      writeFileSync(path, JSON.stringify(rows));
+      expect(readPathsRasterRows(path, tool)).toEqual(rows);
+      writeReport(path, tool, { outcome: "pass", rows }, { schemaVersion: 1 });
+      expect(readPathsRasterRows(path, tool)).toEqual(rows);
+      writeReport(path, tool, { outcome: "pass", rows }, { schemaVersion: 2 });
+      expect(() => readPathsRasterRows(path, tool)).toThrow();
+      writeReport(path, "other-tool", { outcome: "pass", rows }, { schemaVersion: 1 });
+      expect(() => readPathsRasterRows(path, tool)).toThrow();
+      writeFileSync(path, JSON.stringify([{ id: "incomplete" }]));
+      expect(() => readPathsRasterRows(path, tool)).toThrow();
+    },
+  );
+});
 
 const sha = (c: string) => c.repeat(64);
 function row(): PathsRasterRow {

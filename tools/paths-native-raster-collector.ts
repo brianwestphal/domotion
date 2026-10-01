@@ -38,7 +38,8 @@ import {
   type LoadedPathsRasterFixture,
   type PathsRasterMatrixCell,
 } from "./paths-native-raster-corpus.js";
-import type { PathsRasterRow } from "./paths-native-raster-gate.js";
+import { pathsRasterRowsDataSchema, type PathsRasterRow } from "./paths-native-raster-gate.js";
+import { writeReport } from "./lib/report.js";
 import { measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -687,7 +688,15 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
         );
         process.stdout.write(`${cell.id}: logical evidence and lossless pair collected\n`);
       }
-      writeFileSync(out, JSON.stringify(rows, null, 2));
+      writeReport(
+        out,
+        "paths-native-raster-collector",
+        pathsRasterRowsDataSchema.parse({ outcome: rows.length === 0 ? "skip" : "pass", rows }),
+        {
+          schemaVersion: 1,
+          env: { platform: fingerprint.platform, arch: fingerprint.arch, chromium: fingerprint.chromium },
+        },
+      );
       return rows;
     },
     { headless: true },

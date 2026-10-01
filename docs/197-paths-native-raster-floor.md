@@ -114,6 +114,8 @@ deltas, symmetric edge Hausdorff distance in device pixels, an exact integer
 total channel delta, and its normalized severity projection. These are independent
 per-cell quantities, not a global image percentage.
 
+Collector and producer row bundles and gate and aggregate verdict files use a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. `data.outcome` is `pass`, `fail`, or `skip` for the row bundle and gate result. The producer, gate, and aggregate validate their upstream row bundles with the complete row schema, accept validated flat legacy arrays, and reject unknown report versions or tools. The ratified `tools/paths-native-raster-envelopes.json` file retains its separate schema version 2 review contract.
+
 `.github/workflows/paths-native-raster-floor.yml` checks out the pinned font
 files directly, runs separate proposal and validation jobs/browser processes for
 all 348 cells on macOS, Linux, and Windows, preserves all lossless PNGs, and
@@ -123,10 +125,16 @@ producer JSON. Missing platform/run artifacts, a non-homogeneous fingerprint,
 or any incomplete 348-row matrix fails closed; no external observation bundle
 is accepted.
 
-The committed `tools/paths-native-raster-envelopes.json` is ratified from
-GitHub Actions run `32621780121`. It lists the exact fingerprint/canonical cell
+The committed `tools/paths-native-raster-envelopes.json` is re-ratified from
+GitHub Actions runs `36809165709`, `36808241984`, and `36810724407`, after
+the report-envelope migration changed the oracle source fingerprint. The first
+provided complete macOS, Linux, and Windows proposal/validation pairs. The
+other runs provided independent Windows and Linux pairs for the other runner
+image revisions active during the rollout. Each pair used independent runners with the same
+complete environment fingerprint. The manifest lists the exact
+fingerprint/canonical cell
 hash, all four proposal and validation native/path role hashes, the proposal
-maxima, reviewer, and UTC review time for 1,044 platform/cell identities. Same-
+maxima, reviewer, and UTC review time for 1,740 platform/cell identities. Same-
 role hashes may be byte-identical across independent runners (reproducibility);
 native and paths hashes must differ within each run. The envelope maxima equal
 the authenticated proposal residual, and
@@ -136,14 +144,18 @@ an already-reviewed envelope in place. A logical mismatch,
 warning, inert pair, missing artifact, or unreviewed hash is never an envelope
 candidate. Existing scalar visual-harness caps remain unchanged.
 
-The reviewed matrix contains 2,088 rows: 348 proposal plus 348 independent
-validation rows on each of macOS, Linux, and Windows at DPR1/2. All rows have
+The reviewed evidence contains 3,480 rows: 348 proposal plus 348 independent
+validation rows on macOS and on each of two Linux and two Windows runner image
+revisions, at DPR1/2. All rows have
 exact logical identity, zero warnings, active non-identical raster arms, and
 validation residuals no greater than their proposal values. Representative
 worst-residual native/path pairs were visually reviewed as aligned glyph
 geometry with terminal antialiasing/hinting differences only.
-The subsequent unchanged-source workflow run `32622211663` passed all six
-native producers and the aggregate against the committed manifest.
+The first aggregate from run `36809165709` correctly withheld all 2,088 rows
+against the superseded source fingerprints. Reauthentication of its retained
+PNG artifacts against the re-ratified manifest passed the complete aggregate
+locally; separate Windows-image and Linux-image pair reaggregations also
+passed.
 
 Source boundary: authenticated sfnt cmap/HVAR/outline tables own this corpus's
 substitution-free glyph IDs, clusters, advances, and outlines; renderer
