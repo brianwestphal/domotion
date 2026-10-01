@@ -6,7 +6,12 @@ status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["windows"]
 tickets: []
-code: ["packages/text-engine/src/render/win-font-fallback.ts"]
+code:
+  [
+    "packages/text-engine/src/render/win-font-fallback.ts",
+    "tools/unicode-font-route-trace.ts",
+    "tools/unicode-font-route-report.ts",
+  ]
 aliases: ["docs/125-windows-unicode-font-route-trace.md", "doc-125"]
 ---
 
@@ -45,6 +50,12 @@ and the same DirectWrite helper as rendering; it does not introduce block or
 codepoint overrides. A trace is emitted only for a focused (`only` non-empty)
 Unicode dispatch so broad sweeps do not pay a second per-cell browser/native
 probe across every block.
+
+The JSON file is a version 1 `unicode-font-route-trace` report envelope with a
+`pass` outcome and the original version 2 cell artifact in `data`. The reader
+also accepts flat version 2 artifacts retained by earlier runs. It rejects
+unknown versions and malformed cells. The command's `FONTROUTE wrote …` stdout
+line and native-Windows requirement are unchanged.
 
 ## Upstream correspondence
 

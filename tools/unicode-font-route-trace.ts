@@ -7,7 +7,7 @@
  * Domotion's declared-family → hardcoded candidate → MapCharacters → final
  * renderer key/gid path. Run only on native Windows after building the helper.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   getFontSourceInfo,
@@ -27,6 +27,7 @@ import { withBrowser } from "./lib/browser.js";
 import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
 import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 import { flag, isMain, parseCommand, runMain } from "./lib/cli.js";
+import { writeUnicodeFontRouteReport } from "./unicode-font-route-report.js";
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
   const { values, positionals } = parseCommand(argv, { out: { type: "string" } });
@@ -355,13 +356,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     return results;
   });
   const artifact = {
-    schemaVersion: 2,
+    schemaVersion: 2 as const,
     generatedAt: new Date().toISOString(),
-    platform: process.platform,
+    platform: "win32" as const,
     fixture: fixturePath,
     cells: results,
   };
-  writeFileSync(outPath, JSON.stringify(artifact, null, 2));
+  writeUnicodeFontRouteReport(outPath, artifact);
   process.stdout.write(`FONTROUTE wrote ${results.length} cells to ${outPath}\n`);
 }
 

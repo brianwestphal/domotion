@@ -163,6 +163,9 @@ plus controlled-healing browser passes.
   SFNS outline and terminal-mask evidence. The SFNS domain schemas retain their
   own v2/v3 digests; the terminal adjudicator seals raw input file bytes before
   reading either flat historical reports or current envelopes.
+- `tools/unicode-font-route-report.ts` validates Windows Unicode font-route
+  trace envelopes and explicit flat v2 artifacts; the native-only probe keeps
+  its stdout contract in `tools/unicode-font-route-trace.ts`.
 - The renderer route, paint order, mixed bidi, shaping, and decoration oracles
   separate collection from pure comparison and report construction. Their CLI
   entry points retain browser ownership, exit codes, and existing JSON schemas;
