@@ -23,6 +23,8 @@
  * which consults the helper where one exists.)
  */
 import { describe, expect, it } from "vitest";
+import { darwinSystemUiPlatformCacheWarm, setDarwinSystemUiPlatformCacheWarm } from "./font-instance.js";
+import { withHostPlatform } from "./host-platform.js";
 import {
   resolveFont,
   resolveFontForCodepoint,
@@ -99,7 +101,32 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
     expect(stackPrimaryIsSystemUi('"system-ui"')).toBe(true);
     expect(stackPrimaryIsSystemUi("  System-UI , sans-serif")).toBe(false);
     expect(stackPrimaryIsSystemUi("blinkmacsystemfont")).toBe(false);
-    expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
+  });
+
+  it("changes a quoted case-variant to the UI cascade only after Darwin system-ui cache warming", () => {
+    const wasWarm = darwinSystemUiPlatformCacheWarm;
+    try {
+      withHostPlatform("darwin", () => {
+        setDarwinSystemUiPlatformCacheWarm(false);
+        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
+        expect(resolveFontKey('"System-ui", Menlo')).toBe("menlo");
+
+        // A preceding canonical UI lookup warms the same platform cache that
+        // the real browser uses across stacks in one renderer scope.
+        expect(resolveFontKey("system-ui")).toBe("sf-pro");
+        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(true);
+        expect(resolveFontKey('"System-ui", Menlo')).toBe("sf-pro");
+
+        setDarwinSystemUiPlatformCacheWarm(false);
+        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
+      });
+      withHostPlatform("linux", () => {
+        setDarwinSystemUiPlatformCacheWarm(true);
+        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
+      });
+    } finally {
+      setDarwinSystemUiPlatformCacheWarm(wasWarm);
+    }
   });
 
   it("is false for an absent or empty stack rather than throwing", () => {
