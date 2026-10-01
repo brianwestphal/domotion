@@ -173,7 +173,7 @@ import {
   endCharacterFallbackDocument,
   type FontInstance,
   getFontSourceInfo,
-  opticalCutOpszFor,
+  resolveFont,
   resolveFontForCodepoint,
   resolveFontKeyChain,
   resolveFontSpec,
@@ -750,19 +750,21 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
   const chain = resolveFontKeyChain(spec.fontFamily, lang);
   const primaryKey = resolveFontKey(spec.fontFamily, lang);
   const slant = slantForStyle(spec.fontStyle);
-  // Mirror `resolveFont`'s opsz pin for an explicitly-named macOS optical cut,
-  // so the instance we probe is the one the renderer would actually use.
-  const cutOpsz = opticalCutOpszFor(spec.fontFamily, lang);
-  // The author's own axis settings win over the opsz pin for any axis they name,
-  // matching the renderer: `font-variation-settings` is the last word in CSS.
-  const authorAxes = parseVariationSettings(spec.fontVariationSettings);
-  const merged: Record<string, number> = {
-    ...(cutOpsz != null ? { opsz: cutOpsz } : {}),
-    ...(authorAxes ?? {}),
-  };
-  const variations = Object.keys(merged).length > 0 ? merged : undefined;
   const stretch = stretchPercent(spec.fontStretch);
-  const primary = getFontInstance(primaryKey, spec.fontWeight, spec.fontSize, slant, variations, stretch);
+  // The renderer opens its primary through `resolveFont`, which retains the
+  // winning family's route (notably `system-ui` versus an explicitly named SF
+  // family), applies named optical-cut pins, and lets author axes win. Opening
+  // only `primaryKey` loses that provenance and omits the CSS `wght` axis on
+  // macOS system-ui, making the oracle compare a different font instance.
+  const primary = resolveFont(
+    spec.fontFamily,
+    spec.fontWeight,
+    spec.fontSize,
+    slant,
+    parseVariationSettings(spec.fontVariationSettings) ?? undefined,
+    stretch,
+    lang,
+  );
   if (primary == null) return null;
   const rs: ResolvedStack = {
     spec,

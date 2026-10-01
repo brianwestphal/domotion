@@ -8,6 +8,7 @@ import {
   isGlyphHelperAvailable,
   resolveFaceTraitBold,
   resolveFaceTraitItalic,
+  resolveSystemUiFontFace,
   type GlyphRasterRepresentation,
 } from "./glyph-helper.js";
 import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback } from "./harfbuzz-shaper.js";
@@ -1295,6 +1296,23 @@ function instantiateResolvedFont(
       wdthStretch,
       darwinDeclaredAxisPath ? { faceAxes: fontkitFaceAxes, cssWghtPin: false } : undefined,
     );
+    // Fontkit keeps SFNS.ttf's default `.SFNS-Regular` PostScript name after
+    // `getVariation`, even when the CSS system-ui route has instanced its wght
+    // axis at 700. Blink first builds that face through MatchSystemUIFont, and
+    // CoreText names the resulting 700 cut `.SFNS-Bold` (other intermediate
+    // weights may have coordinate-bearing clone names). Ask the already-ported
+    // native route for the identity; keep the fontkit instance and its outlines
+    // unchanged. An explicit author variation is applied later in Blink and is
+    // not represented by this native UI query, so leave that case unclassified.
+    if (
+      isDarwinSystemUiAxisKey(effectiveKey, systemUiPrimary) &&
+      (variationSettings == null || Object.keys(variationSettings).length === 0)
+    ) {
+      const uiFace = resolveSystemUiFontFace({ weight, slant, stretch, size: fontSize });
+      if (uiFace?.postscriptName != null && uiFace.postscriptName !== instance.postscriptName) {
+        instance.instantiatedPostscriptName = uiFace.postscriptName;
+      }
+    }
     // A declared variable-family cut can be a named instance in a single file.
     // fontkit returns the base master's PostScript name from getVariation(),
     // but Blink/CoreText retain the matched instance identity. The requested
