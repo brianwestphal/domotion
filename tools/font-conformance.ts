@@ -966,17 +966,18 @@ const SET_CONTENT_TIMEOUT_MS = 120_000;
 const ORACLE_CONTROL_CODEPOINT = String.fromCodePoint(0x10ffff);
 const ORACLE_CONTROL_FAMILIES = ["serif", "sans-serif", "monospace", "cursive", "fantasy", "math"] as const;
 
-export async function probeOracleControlSignature(page: Page, cdp: CDPSession): Promise<string[]> {
+export async function probeOracleControlSignature(page: Page, cdp: CDPSession, lang = "en"): Promise<string[]> {
   // Keep the measured document and its renderer state intact. setContent here
   // would introduce an extra navigation between every two sweep batches.
   await page.evaluate(
-    ({ families, codepoint }) => {
+    ({ families, codepoint, lang }) => {
       const container = document.createElement("div");
       container.id = "font-conformance-oracle-controls";
       container.style.cssText = "position:absolute;left:0;top:0;pointer-events:none";
       for (const family of families) {
         const cell = document.createElement("span");
         cell.className = "font-conformance-oracle-control";
+        cell.lang = lang;
         cell.style.cssText = `display:inline-block;font:normal 400 16px ${family}`;
         cell.textContent = codepoint;
         container.append(cell);
@@ -984,7 +985,7 @@ export async function probeOracleControlSignature(page: Page, cdp: CDPSession): 
       (document.body ?? document.documentElement).append(container);
       container.getBoundingClientRect();
     },
-    { families: [...ORACLE_CONTROL_FAMILIES], codepoint: ORACLE_CONTROL_CODEPOINT },
+    { families: [...ORACLE_CONTROL_FAMILIES], codepoint: ORACLE_CONTROL_CODEPOINT, lang },
   );
   try {
     const { root } = await cdp.send("DOM.getDocument");
@@ -1126,7 +1127,7 @@ class ChromeOracle {
   }
 
   async assertStable(at: string): Promise<void> {
-    this.stability.observe(await probeOracleControlSignature(this.page, this.cdp), at);
+    this.stability.observe(await probeOracleControlSignature(this.page, this.cdp, this.lang), at);
   }
 
   async close(): Promise<void> {

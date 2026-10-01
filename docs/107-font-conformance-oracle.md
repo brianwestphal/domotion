@@ -71,7 +71,8 @@ The oracle checks its own browser Page before each stack and after every batch. 
 of CSS generics paints U+10FFFF, a noncharacter that retains each generic's
 `.notdef` donor without entering the assigned-codepoint fallback cache. The
 control spans are appended to and removed from the measured Page without
-replacing its document between batches. A
+replacing its document between batches. Each span carries the oracle locale
+explicitly, including the first probe before the first measured document exists. A
 change in those configured donor faces aborts with harness exit code `2` and writes
 `oracle-drift.json` with the stack, batch, expected faces, and observed faces.
 The partial sweep is not a valid conformance report. This catches mid-session generic
