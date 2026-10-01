@@ -135,6 +135,7 @@ import {
   glyphHelperCodepointMemoSize,
   resolveInstalledFont,
   isHarfbuzzDefaultIgnorable,
+  queryIcuCodepoints,
 } from "@domotion/text-engine/testing";
 
 // ---------------------------------------------------------------------------
@@ -1832,6 +1833,7 @@ export interface SweepOperations {
   prepare: typeof prepareStack;
   reset: typeof clearFontResolutionCaches;
   faceFor: typeof ourFaceFor;
+  primeCodepoints: (codepoints: readonly number[]) => void;
   memoSize: typeof glyphHelperCodepointMemoSize;
   rssMb: () => number;
   write: (message: string) => void;
@@ -1843,6 +1845,13 @@ const sweepOperations: SweepOperations = {
   prepare: prepareStack,
   reset: clearFontResolutionCaches,
   faceFor: ourFaceFor,
+  // A low-byte sample touches one codepoint in each 256-codepoint ICU page.
+  // Scalar queries would expand and evict entire pages, then repeat that work
+  // for every stack. Fetch the exact batch once so native classification keeps
+  // its answers while the per-codepoint walk reads a bounded memo.
+  primeCodepoints: (codepoints) => {
+    queryIcuCodepoints(codepoints);
+  },
   memoSize: glyphHelperCodepointMemoSize,
   rssMb: () => Math.round(process.memoryUsage().rss / 1024 / 1024),
   write: (message) => process.stdout.write(message),
@@ -1915,6 +1924,7 @@ export async function sweepStack(
     const faces = await oracle.facesFor(cps, spec);
     tally.chromeMs += Date.now() - tc;
     const to = Date.now();
+    operations.primeCodepoints(cps);
     for (let j = 0; j < cps.length; j++) {
       const cp = cps[j];
       const ours = operations.faceFor(cp, rs, spec.lang ?? opts.lang);
