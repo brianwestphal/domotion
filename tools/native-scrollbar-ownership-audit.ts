@@ -16,6 +16,11 @@ import sharp from "sharp";
 import { chromium, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
+import {
+  NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION,
+  NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+} from "./native-scrollbar-release-gate.js";
 import type { CapturedElement, CapturedNativeScrollbarRaster } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -1236,8 +1241,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     provenance,
   });
   if (jsonPath != null) {
-    mkdirSync(resolve(jsonPath, ".."), { recursive: true });
-    writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
+    writeReport(
+      jsonPath,
+      NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+      {
+        ...report,
+        outcome: report.verdict === "authoritative-capture-and-source-owned-paint-exact" ? "pass" : "fail",
+      },
+      { schemaVersion: NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION, env: report.host },
+    );
   }
   console.log(
     `native scrollbar ownership audit: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`,

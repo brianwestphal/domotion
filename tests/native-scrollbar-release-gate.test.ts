@@ -1,6 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
+import { describe, expect, it, vi } from "vitest";
+import { readReportData, writeReport } from "../tools/lib/report.js";
+import {
+  checkNativeScrollbarRelease,
+  readNativeScrollbarAuditReport,
+} from "../tools/check-native-scrollbar-release.js";
 import {
   adjudicateNativeScrollbarReports,
   SCROLLBAR_GATE_DPRS,
@@ -9,6 +17,10 @@ import {
   SCROLLBAR_GATE_SOURCE_REVISIONS,
   SCROLLBAR_GATE_ZOOMS,
   type NativeScrollbarAuditReport,
+  NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION,
+  NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+  nativeScrollbarAuditEnvelopeDataSchema,
+  nativeScrollbarAuditLegacyDataSchema,
 } from "../tools/native-scrollbar-release-gate.js";
 import { scrollbarAuditSceneGeometry } from "../tools/native-scrollbar-ownership-audit.js";
 
@@ -106,6 +118,115 @@ function complete(): NativeScrollbarAuditReport[] {
 }
 
 describe("native scrollbar six-role release adjudicator", () => {
+  it("reads envelope and reviewed flat v2 reports, preserving domain hashes", () => {
+    const dir = mkdtempSync(join(tmpdir(), "native-scrollbar-envelope-"));
+    const flat = report("darwin", "proposal");
+    const legacyPath = join(dir, "legacy.json");
+    const envelopePath = join(dir, "envelope.json");
+    writeFileSync(legacyPath, JSON.stringify(flat));
+    writeReport(
+      envelopePath,
+      NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+      { ...flat, outcome: "pass" },
+      {
+        schemaVersion: NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION,
+        env: flat.host,
+      },
+    );
+    expect(readNativeScrollbarAuditReport(legacyPath)).toEqual(flat);
+    expect(readNativeScrollbarAuditReport(envelopePath)).toEqual(flat);
+    expect(
+      readReportData(envelopePath, nativeScrollbarAuditEnvelopeDataSchema, {
+        tool: NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+        schemaVersion: 1,
+        legacySchema: nativeScrollbarAuditLegacyDataSchema,
+        legacySchemaVersion: 2,
+      }).outcome,
+    ).toBe("pass");
+    writeReport(
+      envelopePath,
+      NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+      { ...flat, outcome: "fail" },
+      {
+        schemaVersion: 1,
+        env: flat.host,
+      },
+    );
+    expect(() => readNativeScrollbarAuditReport(envelopePath)).toThrow(/not release evidence/);
+    const unknownEnvelope = { ...JSON.parse(readFileSync(envelopePath, "utf8")), schemaVersion: 3 };
+    writeFileSync(envelopePath, JSON.stringify(unknownEnvelope));
+    expect(() => readNativeScrollbarAuditReport(envelopePath)).toThrow();
+    writeFileSync(legacyPath, JSON.stringify({ ...flat, schemaVersion: 3 }));
+    expect(() => readNativeScrollbarAuditReport(legacyPath)).toThrow(/unsupported legacy/);
+  });
+
+  it("resolves nested report-relative PNG paths and rejects escapes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "native-scrollbar-nested-"));
+    const reportDir = join(dir, "nested", "proposal");
+    const stripDir = join(reportDir, "strips");
+    mkdirSync(stripDir, { recursive: true });
+    const png = await sharp({ create: { width: 2, height: 2, channels: 4, background: "red" } })
+      .png()
+      .toBuffer();
+    const evidence = report("darwin", "proposal");
+    evidence.rows = [evidence.rows[0]];
+    for (const artifact of evidence.rows[0].artifacts) {
+      artifact.path = `strips\\${artifact.role}.png`;
+      artifact.sha256 = createHash("sha256").update(png).digest("hex");
+      artifact.pngWidth = 2;
+      artifact.pngHeight = 2;
+      writeFileSync(join(stripDir, `${artifact.role}.png`), png);
+    }
+    evidence.rowSetSha256 = hash(evidence.rows);
+    evidence.logicalRowsSha256 = hash(
+      evidence.rows.map(({ id, axis, expectedRoute, deviceScaleFactor, cssZoom, captured }) => ({
+        id,
+        axis,
+        expectedRoute,
+        deviceScaleFactor,
+        cssZoom,
+        captured,
+      })),
+    );
+    evidence.artifactSetSha256 = hash(
+      evidence.rows.flatMap((row) =>
+        row.artifacts.map((artifact) => ({ row: `${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}`, ...artifact })),
+      ),
+    );
+    const reportPath = join(reportDir, "report.json");
+    const save = () =>
+      writeReport(
+        reportPath,
+        NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+        { ...evidence, outcome: "pass" },
+        {
+          schemaVersion: 1,
+          env: evidence.host,
+        },
+      );
+    save();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      expect(await checkNativeScrollbarRelease(["--reports", dir, "--report-only"])).toBe(0);
+      expect(log.mock.calls.flat().join("\n")).not.toMatch(/strip artifact|path escapes/);
+      log.mockClear();
+      evidence.rows[0].artifacts[0].path = "..\\outside.png";
+      evidence.rowSetSha256 = hash(evidence.rows);
+      evidence.artifactSetSha256 = hash(
+        evidence.rows.flatMap((row) =>
+          row.artifacts.map((artifact) => ({
+            row: `${row.id}@${row.deviceScaleFactor}x/z${row.cssZoom}`,
+            ...artifact,
+          })),
+        ),
+      );
+      save();
+      expect(await checkNativeScrollbarRelease(["--reports", dir, "--report-only"])).toBe(0);
+      expect(log.mock.calls.flat().join("\n")).toMatch(/artifact path escapes its report directory/);
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("labels artifact integrity failures from the schema-v2 host identity", () => {
     const source = readFileSync("tools/check-native-scrollbar-release.ts", "utf8");
     expect(source).toContain("parsed.data.host.platform");

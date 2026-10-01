@@ -5,11 +5,12 @@ kind: "contract"
 status: "partial"
 owners: ["layout", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2481", "DM-2484"]
+tickets: ["DM-2481", "DM-2484", "DM-49WRZZ"]
 code:
   [
     ".github/workflows/native-scrollbar-parity.yml",
     "tools/check-native-scrollbar-release.ts",
+    "tools/native-scrollbar-ownership-audit.ts",
     "tools/native-scrollbar-release-gate.ts",
   ]
 aliases: ["docs/173-native-scrollbar-release-gate.md", "doc-173"]
@@ -54,7 +55,12 @@ that checkout, `62efacd37737505732dbe3d8daa62abd679626a1`:
 
 ## Evidence schema
 
-`tools/native-scrollbar-release-gate.ts` defines schema version 2. Independent
+`tools/native-scrollbar-release-gate.ts` defines the unchanged domain schema
+version 2. The audit CLI writes that record inside a version 1 tool report
+envelope with a normalized `data.outcome`; it leaves the row, logical-row, and
+artifact-manifest hashes and report-relative PNG paths in the domain record.
+The release checker accepts this envelope and previously reviewed flat v2
+reports, and rejects unknown versions before adjudication. Independent
 proposal and validation reports are required from each of native macOS, Linux,
 and Windows. Every report must
 retain:

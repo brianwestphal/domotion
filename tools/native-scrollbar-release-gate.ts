@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { outcomeSchema } from "./lib/report.js";
+
+export const NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL = "native-scrollbar-ownership-audit";
+export const NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION = 1;
 
 export const SCROLLBAR_GATE_SOURCE_REVISIONS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -96,6 +100,17 @@ export const nativeScrollbarAuditReportSchema = z
   .strict();
 export type NativeScrollbarAuditReport = z.infer<typeof nativeScrollbarAuditReportSchema>;
 export type NativeScrollbarAuditRow = NativeScrollbarAuditReport["rows"][number];
+/** Preserve raw row key order: the domain hashes authenticate JSON as emitted. */
+export const nativeScrollbarAuditEnvelopeDataSchema = z.custom<
+  NativeScrollbarAuditReport & { outcome: z.infer<typeof outcomeSchema> }
+>((input) => {
+  if (input == null || typeof input !== "object" || Array.isArray(input)) return false;
+  const { outcome, ...domain } = input as Record<string, unknown>;
+  return outcomeSchema.safeParse(outcome).success && nativeScrollbarAuditReportSchema.safeParse(domain).success;
+});
+export const nativeScrollbarAuditLegacyDataSchema = z
+  .custom<NativeScrollbarAuditReport>((input) => nativeScrollbarAuditReportSchema.safeParse(input).success)
+  .transform((report) => ({ ...report, outcome: "pass" as const }));
 export interface NativeScrollbarRasterEnvelope {
   id: string;
   reviewed: true;

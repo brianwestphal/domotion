@@ -3,11 +3,28 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, extname, relative, resolve } from "node:path";
 import sharp from "sharp";
 import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import { readReportData } from "./lib/report.js";
 import {
   adjudicateNativeScrollbarReports,
+  NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION,
+  NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+  nativeScrollbarAuditEnvelopeDataSchema,
+  nativeScrollbarAuditLegacyDataSchema,
   nativeScrollbarAuditReportSchema,
+  type NativeScrollbarAuditReport,
   type NativeScrollbarRasterEnvelope,
 } from "./native-scrollbar-release-gate.js";
+
+export function readNativeScrollbarAuditReport(path: string): NativeScrollbarAuditReport {
+  const { outcome, ...report } = readReportData(path, nativeScrollbarAuditEnvelopeDataSchema, {
+    tool: NATIVE_SCROLLBAR_AUDIT_REPORT_TOOL,
+    schemaVersion: NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION,
+    legacySchema: nativeScrollbarAuditLegacyDataSchema,
+    legacySchemaVersion: 2,
+  });
+  if (outcome !== "pass") throw new Error(`native scrollbar audit outcome ${outcome} is not release evidence`);
+  return report;
+}
 
 async function jsonFiles(path: string): Promise<string[]> {
   const entries = await readdir(path, { withFileTypes: true });
@@ -65,9 +82,7 @@ export async function checkNativeScrollbarRelease(argv: string[]): Promise<numbe
   });
   const reportsDir = requiredFlag(args, "reports");
   const reportPaths = (await jsonFiles(resolve(reportsDir))).sort();
-  const reports = await Promise.all(
-    reportPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown),
-  );
+  const reports = reportPaths.map(readNativeScrollbarAuditReport);
   const integrity = (await Promise.all(reportPaths.map((path, index) => verifyArtifacts(path, reports[index])))).flat();
   const envelopesPath = flag(args, "envelopes");
   const envelopes =
