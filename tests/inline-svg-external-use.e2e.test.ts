@@ -23,6 +23,8 @@ const FILES: Record<string, string> = {
   "/gradient.svg": `<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><symbol id="s" viewBox="0 0 10 10"><rect fill="url(#g)" width="10" height="10"/></symbol></svg>`,
   "/styled-gradient.svg": `<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:url(#g)}</style><defs><linearGradient id="g"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><symbol id="s" viewBox="0 0 10 10"><rect class="a" width="10" height="10"/></symbol></svg>`,
   "/nested.svg": `<svg xmlns="http://www.w3.org/2000/svg"><symbol id="inner" viewBox="0 0 10 10"><rect width="10" height="10"/></symbol><symbol id="s" viewBox="0 0 10 10"><use href="#inner"/></symbol></svg>`,
+  "/outer-cross.svg": `<svg xmlns="http://www.w3.org/2000/svg"><symbol id="s" viewBox="0 0 10 10"><use href="parts/inner.svg#piece"/></symbol></svg>`,
+  "/parts/inner.svg": `<svg xmlns="http://www.w3.org/2000/svg"><g id="piece"><rect width="10" height="10" fill="rgb(200,30,60)"/></g></svg>`,
   "/malformed.svg": `<svg xmlns="http://www.w3.org/2000/svg"><symbol id="s"></svg>`,
 };
 
@@ -88,17 +90,20 @@ function walk(nodes: CapturedElement[]): CapturedElement[] {
   return nodes.flatMap((node) => [node, ...walk(node.children ?? [])]);
 }
 
-async function capture(html: string, viewport = { width: 200, height: 100 }) {
+async function capture(html: string, viewport = { width: 200, height: 100 }, waitForNetworkIdle = true) {
   const context = await env!.browser.newContext({ viewport });
   const page = await context.newPage();
   await page.route(`${origin}/page.html`, (route) => route.fulfill({ contentType: "text/html", body: html }));
-  await page.goto(`${origin}/page.html`);
-  await page.waitForLoadState("networkidle");
+  await page.goto(`${origin}/page.html`, {
+    waitUntil: waitForNetworkIdle ? "load" : "domcontentloaded",
+    timeout: 5000,
+  });
+  if (waitForNetworkIdle) await page.waitForLoadState("networkidle");
   const requestsBeforeCapture = requests.length;
   const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport }, {});
   const captureRequests = requests.slice(requestsBeforeCapture);
   const svgs = walk(captured.tree).filter((node) => node.tag === "svg");
-  const screenshot = await page.screenshot();
+  const screenshot = await page.screenshot({ timeout: 5000 });
   await context.close();
   return { captured, svgs, screenshot, viewport, captureRequests };
 }
@@ -243,6 +248,36 @@ describeBrowser("external-file <use> references", () => {
     expect(svgs[2].svgContent).toContain("<rect");
     expect(svgs[2].svgContent).not.toContain("<use");
   });
+
+  it("prefetches and inlines a nested cross-file use against the sprite's own URL", async () => {
+    const { svgs, captured, screenshot, captureRequests, viewport } = await capture(
+      `<body style="margin:0;background:white"><svg width="40" height="40"><use href="/outer-cross.svg#s" width="40" height="40"/></svg></body>`,
+      { width: 120, height: 80 },
+      false,
+    );
+    expect(captureRequests).toContain("/outer-cross.svg");
+    expect(captureRequests).toContain("/parts/inner.svg");
+    expect(svgWarnings(captured)).toEqual([]);
+    expect(svgs[0].transformSubtreeRaster).toBeUndefined();
+    expect(svgs[0].svgContent).toContain("<rect");
+    expect(svgs[0].svgContent).not.toContain("<use");
+    const { data, info } = await sharp(screenshot).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    expect(Array.from(data.subarray((20 * info.width + 20) * 3, (20 * info.width + 20) * 3 + 3))).toEqual([
+      200, 30, 60,
+    ]);
+    const emitted = elementTreeToSvg(captured.tree, viewport.width, viewport.height, {});
+    const context = await env!.browser.newContext({ viewport });
+    const page = await context.newPage();
+    await page.setContent(`<body style="margin:0">${emitted}</body>`);
+    const output = await sharp(await page.screenshot({ timeout: 5000 }))
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    await context.close();
+    expect(
+      Array.from(output.data.subarray((20 * output.info.width + 20) * 3, (20 * output.info.width + 20) * 3 + 3)),
+    ).toEqual([200, 30, 60]);
+  }, 20_000);
 
   it("copies resources referenced by the sprite's own stylesheet", async () => {
     const { svgs, captured } = await capture(
