@@ -1,10 +1,9 @@
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { platform, release, arch } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { platformFontKeys, shapingFaceFor } from "@domotion/text-engine/testing";
+// @ts-ignore -- shared runtime module has no declaration file
+import { captureRunEnv } from "../scripts/run-env.mjs";
 
 type SourceAuthority = "chromium" | "harfbuzz" | "skia" | "icu";
 
@@ -45,50 +44,49 @@ function revision(repo: string, ref: string, environmentKey: string, authority: 
   }
 }
 
-function fontInventoryDigest(): string {
-  const rows = platformFontKeys()
-    .map((key) => {
-      const f = shapingFaceFor(key, 400, 16, 0);
-      return f == null ? `${key}:missing` : `${key}:${f.path}#${f.faceIndex}:${JSON.stringify(f.axes)}`;
-    })
-    .sort();
-  return createHash("sha256").update(rows.join("\n")).digest("hex");
-}
-
 export function parityEnvironment(input: {
-  chromium: string;
-  launchFlags: string[];
-  deviceScaleFactor: number;
-  zoom: number;
-  writingMode: string;
-  direction: string;
+  chromium?: string;
+  launchFlags?: string[];
+  deviceScaleFactor?: number;
+  zoom?: number;
+  writingMode?: string;
+  direction?: string;
   corpusIdentity: string;
   sampleIdentity: string;
 }): Record<string, unknown> {
+  const runEnv = captureRunEnv({ chromium: input.chromium ?? null, corpusIdentity: input.corpusIdentity });
   return {
-    chromium: { version: input.chromium, launchFlags: input.launchFlags },
-    host: { os: platform(), release: release(), architecture: arch() },
-    fonts: { inventoryDigest: fontInventoryDigest(), genericPreferences: "platform-session-resolver" },
-    locale: { process: Intl.DateTimeFormat().resolvedOptions().locale, languages: process.env.LANG ?? "unset" },
+    ...runEnv,
+    launchFlags: input.launchFlags ?? [],
+    locale: {
+      process: Intl.DateTimeFormat().resolvedOptions().locale,
+      languages: process.env.LANG ?? "unset",
+    },
+    fonts: {
+      inventoryDigest: runEnv.fontInventory?.digest ?? null,
+      genericPreferences: "platform-session-resolver",
+    },
     helper: {
       implementation: `${process.platform}-glyph-helper`,
       buildRecipe: "repository-native-helper",
       disabled: process.env.DOMOTION_DISABLE_HELPER === "1",
     },
     runtimes: {
-      node: process.version,
+      node: runEnv.node,
       icu: process.versions.icu,
       unicode: process.versions.unicode,
+    },
+    sourceRevisions: {
       chromiumSource: revision("external/chromium", "HEAD", "DOMOTION_CHROMIUM_REVISION", "chromium"),
       harfbuzzSource: revision("external/harfbuzz", "HEAD", "DOMOTION_HARFBUZZ_REVISION", "harfbuzz"),
       skiaPinned: revision("external/skia", "62efacd3", "DOMOTION_SKIA_REVISION", "skia"),
       icuSource: revision("external/chromium/third_party/icu", "HEAD", "DOMOTION_ICU_SOURCE_REVISION", "icu"),
     },
     viewport: {
-      deviceScaleFactor: input.deviceScaleFactor,
-      zoom: input.zoom,
-      writingMode: input.writingMode,
-      direction: input.direction,
+      deviceScaleFactor: input.deviceScaleFactor ?? 1,
+      zoom: input.zoom ?? 1,
+      writingMode: input.writingMode ?? "horizontal-tb",
+      direction: input.direction ?? "ltr",
     },
     corpus: {
       identity: input.corpusIdentity,

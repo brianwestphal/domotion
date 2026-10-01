@@ -1,12 +1,14 @@
 {
   "meta": {
+    "complete": true,
     "suite": "font-conformance",
     "os": "linux",
     "image": "playwright-v1.59.1-noble-x64",
-    "capturedAt": "2026-08-05T22:50:11.666Z",
+    "capturedAt": "2026-10-01T04:11:00.158Z",
     "platform": "linux",
     "arch": "x64",
     "node": "v24.14.1",
+    "chromium": "147.0.7727.15",
     "unicode": "17.0",
     "icu": "78.2",
     "corpus": {
@@ -19,82 +21,151 @@
       "stacks": 6,
       "includePua": true,
       "ranges": null,
+      "sampleByte": null,
+      "stackShardTotal": 6,
+      "codepointShardTotal": 1,
       "strictAlias": false,
-      "lang": "en"
+      "stackFilter": null,
+      "lang": "en",
+      "oracleIsolation": "renderer-per-locale"
     },
     "fontInventory": {
       "digest": "859c8492fef24534",
       "count": 29,
       "source": "fc-list : family"
     },
+    "parityEnvironment": {
+      "image": "playwright-v1.59.1-noble-x64",
+      "imageVersion": null,
+      "osRelease": "6.17.0-1022-azure",
+      "chromium": "147.0.7727.15",
+      "platform": "linux",
+      "arch": "x64",
+      "node": "v24.14.1",
+      "corpusIdentity": "font-conformance",
+      "fontInventory": {
+        "digest": "859c8492fef24534",
+        "count": 29,
+        "entries": [
+          "Bitstream Charter",
+          "Courier 10 Pitch",
+          "FreeMono",
+          "FreeSans",
+          "FreeSerif",
+          "IPA Pゴシック",
+          "IPAGothic",
+          "IPAPGothic",
+          "IPAゴシック",
+          "Liberation Mono",
+          "Liberation Sans",
+          "Liberation Serif",
+          "Loma",
+          "Noto Color Emoji",
+          "Unifont",
+          "Unifont CSUR",
+          "Unifont Sample",
+          "Unifont Upper",
+          "Unifont\\-JP",
+          "WenQuanYi Zen Hei",
+          "WenQuanYi Zen Hei Mono",
+          "WenQuanYi Zen Hei Sharp",
+          "䥐䅐䝯瑨楣",
+          "文泉驛正黑",
+          "文泉驛等寬正黑",
+          "文泉驛點陣正黑",
+          "文泉驿正黑",
+          "文泉驿点阵正黑",
+          "文泉驿等宽正黑"
+        ]
+      },
+      "launchFlags": [],
+      "locale": {
+        "process": "en-US",
+        "languages": "C.UTF-8"
+      },
+      "fonts": {
+        "inventoryDigest": "859c8492fef24534",
+        "genericPreferences": "platform-session-resolver"
+      },
+      "helper": {
+        "implementation": "linux-glyph-helper",
+        "buildRecipe": "repository-native-helper",
+        "disabled": false,
+        "systemFallbackEnabled": true,
+        "version": "0e081fefb886cca369441ececaf11d18b2fd60b700ef6d1af382e357db319e4f"
+      },
+      "runtimes": {
+        "node": "v24.14.1",
+        "icu": "78.2",
+        "unicode": "17.0"
+      },
+      "sourceRevisions": {
+        "chromiumSource": "unavailable",
+        "harfbuzzSource": "unavailable",
+        "skiaPinned": "unavailable",
+        "icuSource": "unavailable"
+      },
+      "viewport": {
+        "deviceScaleFactor": 1,
+        "zoom": 1,
+        "writingMode": "horizontal-tb",
+        "direction": "ltr"
+      },
+      "corpus": {
+        "identity": "font-conformance",
+        "sample": "tools/font-conformance-stacks.linux.json:all",
+        "cacheIsolation": "new-process/new-document",
+        "resources": "inline-or-host-inventory"
+      }
+    },
+    "rotationRevision": null,
+    "rotationOrdinal": null,
+    "rotationStackBucket": null,
     "shardsExpected": 6,
     "shardsMerged": 6,
     "missingShards": [],
     "envConflicts": [],
-    "complete": true,
-    "commit": "5ec2789215e83dedbaa701af2b32cc9ef78456b8"
+    "commit": "69a3ded0"
   },
   "summary": {
+    "mismatchTotal": 174,
     "comparisons": 1783614,
-    "agree-exact": 448826,
+    "agree-exact": 450518,
     "agree-same-file": 0,
     "agree-alias": 0,
     "agree-tofu": 1330546,
-    "agree-not-painted": 0,
-    "mismatch": 4187,
+    "agree-not-painted": 2376,
+    "mismatch": 132,
     "mismatch-we-paint": 0,
-    "mismatch-we-tofu": 55,
+    "mismatch-we-tofu": 42,
     "allowlisted": 0,
-    "mismatchTotal": 4242,
-    "mismatchDifferentFamily": 4242,
+    "mismatchDifferentFamily": 174,
     "mismatchSameFamilyDifferentCut": 0,
-    "distinctMismatchPairs": 36
+    "distinctMismatchPairs": 14
   },
   "byStack": {
-    "\"Times New Roman\" @16/400/normal": 398,
-    "Menlo, Consolas, \"DejaVu Sans Mono\", monospace @17/400/normal": 2099,
-    "system-ui, -apple-system, sans-serif @20/700/normal": 446,
-    "system-ui, -apple-system, sans-serif @13/400/normal": 446,
-    "system-ui, -apple-system, sans-serif @13/400/italic": 454,
-    "sans-serif @32/700/normal": 399
+    "\"Times New Roman\" @16/400/normal lang=en": 11,
+    "Menlo, Consolas, \"DejaVu Sans Mono\", monospace @17/400/normal lang=en": 38,
+    "system-ui, -apple-system, sans-serif @20/700/normal lang=en": 38,
+    "system-ui, -apple-system, sans-serif @13/400/normal lang=en": 38,
+    "system-ui, -apple-system, sans-serif @13/400/italic lang=en": 38,
+    "sans-serif @32/700/normal lang=en": 11
   },
   "byPair": {
-    "LiberationSerif → UnifontUpper": 337,
-    "LiberationSerif → FreeSans": 1400,
-    "LiberationSerif → FreeSerif": 157,
     "UnifontUpper → LiberationSerif": 7,
-    "LiberationSerif → Unifont": 6,
-    "NotoColorEmoji → UnifontUpper": 30,
-    "NotoColorEmoji → FreeSans": 18,
-    "NotoColorEmoji → Unifont": 6,
-    "WenQuanYiZenHeiMono → UnifontUpper": 337,
-    "LiberationSerif → IPAGothic": 118,
-    "WenQuanYiZenHeiMono → FreeSans": 60,
-    "LiberationSerif → Loma": 17,
-    "WenQuanYiZenHeiMono → FreeSerif": 10,
-    "WenQuanYiZenHeiMono → Loma": 8,
+    "LiberationSerif → FreeSans": 4,
+    "WenQuanYiZenHeiMono → LiberationSerif": 21,
     "UnifontUpper → WenQuanYiZenHeiMono": 7,
-    "WenQuanYiZenHeiMono → Unifont": 6,
-    "WenQuanYiZenHeiMono → LiberationMono": 6,
-    "WenQuanYiZenHeiMono → IPAGothic": 2,
-    "LiberationSerif → WenQuanYiZenHeiMono": 1,
-    "WenQuanYiZenHei → UnifontUpper": 1011,
-    "WenQuanYiZenHei → LiberationSans-Bold": 47,
-    "WenQuanYiZenHei → FreeSans": 87,
-    "WenQuanYiZenHei → FreeSerif": 30,
+    "WenQuanYiZenHeiMono → FreeSans": 6,
+    "WenQuanYiZenHeiMono → Unifont": 4,
+    "WenQuanYiZenHei → LiberationSans-Bold": 21,
     "UnifontUpper → WenQuanYiZenHei": 21,
-    "WenQuanYiZenHei → Unifont": 18,
-    "LiberationSerif-Bold → WenQuanYiZenHei": 1,
-    "WenQuanYiZenHei → LiberationSans": 47,
-    "LiberationSerif → WenQuanYiZenHei": 1,
-    "WenQuanYiZenHei → LiberationSans-Italic": 47,
-    "LiberationSerif-Italic → WenQuanYiZenHei": 9,
-    "LiberationSans-Bold → UnifontUpper": 337,
-    "LiberationSans-Bold → FreeSans": 29,
-    "LiberationSans-Bold → FreeSerif": 10,
+    "WenQuanYiZenHei → FreeSans": 18,
+    "WenQuanYiZenHei → Unifont": 12,
+    "WenQuanYiZenHei → LiberationSans": 21,
+    "WenQuanYiZenHei → LiberationSans-Italic": 21,
     "UnifontUpper → LiberationSans-Bold": 7,
-    "LiberationSans-Bold → Unifont": 6,
-    "LiberationSerif-Bold → LiberationSans-Bold": 1
+    "LiberationSans-Bold → FreeSans": 4
   },
   "chromeFaces": [
     "FreeMono",
@@ -136,5 +207,13 @@
     "LiberationSans-Italic": 1664,
     "LiberationSerif-Italic": 9
   },
-  "stackPrimaries": []
+  "stackPrimaries": [],
+  "resolverAnswerDigests": {
+    "stack-1/6:codepoint-0/1": "f91ae691c14003b191da718b60e7fb9b979e776849e0997499d2655e15d61d29",
+    "stack-2/6:codepoint-0/1": "b5ff8708a232a4bea960919007ba6f8c50d5163dd8fe7482ec8ee3a5ff0f8f78",
+    "stack-3/6:codepoint-0/1": "aefeff318996750f4d4ac8b4112fb6d35d1272422089624eea6cae2beca23115",
+    "stack-4/6:codepoint-0/1": "ea9c9d41d66bf0ef642133b826a1f2e3da009f95b84a24938b402297cd30c2a6",
+    "stack-5/6:codepoint-0/1": "fbc76b0b4a74357a5e93e0af671ae7979c5dd75d059cfa000560c60cd388b315",
+    "stack-6/6:codepoint-0/1": "ce52d996c1f1693c589a1958ba2ad6874a4df2cf301d01cdf4f05466d3e22476"
+  }
 }

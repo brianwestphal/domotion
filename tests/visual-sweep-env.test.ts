@@ -27,7 +27,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { computeRunEnv, envComparability, mergeShardEnvs, playwrightVersion } from "../scripts/run-env.mjs";
+import {
+  captureRunEnv,
+  computeRunEnv,
+  envComparability,
+  mergeShardEnvs,
+  playwrightVersion,
+} from "../scripts/run-env.mjs";
 
 /** The two real macOS runner environments, as observed in the two CI runs. */
 const MACOS_26_4 = computeRunEnv({
@@ -50,6 +56,11 @@ const MACOS_26_5 = computeRunEnv({
 });
 
 describe("computeRunEnv", () => {
+  it("uses an already observed browser without a second launch", () => {
+    const env = captureRunEnv({ chromium: "observed-148", corpusIdentity: "font-conformance", withInventory: false });
+    expect(env).not.toBeInstanceOf(Promise);
+    expect(env).toMatchObject({ chromium: "observed-148", corpusIdentity: "font-conformance" });
+  });
   it("normalizes absent and blank fields to null rather than empty strings", () => {
     // A blank string would compare unequal to a missing one and produce a
     // spurious "environment changed" banner, training readers to ignore it.
