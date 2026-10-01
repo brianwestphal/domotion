@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { getFontSourceInfo, resolveFont, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
 import {
   allowlisted,
+  assertSupplementaryPuaOracleFace,
   buildReport,
   buildUniverse,
   faceFor,
@@ -66,6 +67,63 @@ describe("OracleStabilityGuard", () => {
       expect((error as OracleDriftError).at).toBe("stack 31 batch 1");
     }
     expect(() => guard.observe(["serif=Times-Roman"])).toThrow(/oracle font settings changed/);
+  });
+});
+
+describe("supplementary PUA oracle face sentinel", () => {
+  const spec: StackSpec = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
+  const tofu: OurFace = { key: "sysfb:Helvetica", path: null, postscriptName: "Helvetica-Bold", covered: false };
+  const helvetica: ChromeFace[] = [{ familyName: "Helvetica", postScriptName: "Helvetica-Bold", glyphCount: 1 }];
+  const arial: ChromeFace[] = [{ familyName: "Arial", postScriptName: "Arial-BoldMT", glyphCount: 1 }];
+
+  it("detects the observed flip even when the first supplementary PUA answer has changed", () => {
+    expect(() =>
+      assertSupplementaryPuaOracleFace(spec, 0x100000, arial, tofu, "Helvetica-Bold", "batch 1", "darwin", () => false),
+    ).toThrow(/supplementary PUA face diverged.*Helvetica-Bold.*Arial-BoldMT/);
+    try {
+      assertSupplementaryPuaOracleFace(spec, 0x10130c, arial, tofu, "Helvetica-Bold", "batch 2", "darwin", () => false);
+    } catch (error) {
+      expect(error).toBeInstanceOf(OracleDriftError);
+      expect((error as OracleDriftError).kind).toBe("supplementary-pua");
+      expect((error as OracleDriftError).codepoint).toBe(0x10130c);
+    }
+  });
+
+  it("keeps the stable route and unrelated coverage in the report", () => {
+    assertSupplementaryPuaOracleFace(spec, 0xf0000, helvetica, tofu, "Helvetica-Bold", "batch 1", "darwin");
+    assertSupplementaryPuaOracleFace(spec, 0x10fffd, helvetica, tofu, "Helvetica-Bold", "batch 2", "darwin");
+    assertSupplementaryPuaOracleFace(
+      spec,
+      0x100000,
+      arial,
+      { ...tofu, covered: true },
+      "Helvetica-Bold",
+      "covered",
+      "darwin",
+    );
+    assertSupplementaryPuaOracleFace(spec, 0x100000, arial, tofu, "Helvetica-Bold", "other OS", "win32");
+    assertSupplementaryPuaOracleFace(
+      { ...spec, fontWeight: 400 },
+      0x100000,
+      arial,
+      tofu,
+      "Helvetica-Bold",
+      "other stack",
+      "darwin",
+    );
+    assertSupplementaryPuaOracleFace(spec, 0xeffff, arial, tofu, "Helvetica-Bold", "outside", "darwin");
+    assertSupplementaryPuaOracleFace(spec, 0x10fffe, arial, tofu, "Helvetica-Bold", "outside", "darwin");
+    assertSupplementaryPuaOracleFace(spec, 0x100000, arial, tofu, "Helvetica-Bold", "real glyph", "darwin", () => true);
+    assertSupplementaryPuaOracleFace(
+      spec,
+      0x100000,
+      arial,
+      tofu,
+      "Helvetica-Bold",
+      "unknown file",
+      "darwin",
+      () => null,
+    );
   });
 });
 
@@ -253,6 +311,45 @@ describe("sweepStack orchestration", () => {
       sweepStack(spec, 0, 1, [0x41, 0x42, 0x43], opts, oracle, tally, Date.now(), operations),
     ).rejects.toBeInstanceOf(OracleDriftError);
     expect(events).toEqual(["chrome:65", "ours:65", "chrome:66"]);
+    expect(Object.values(tally.counts).reduce((sum, count) => sum + count, 0)).toBe(1);
+  });
+
+  it("rejects the first changed PUA batch without adding browser asks or recording it", async () => {
+    const events: string[] = [];
+    const spec: StackSpec = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
+    const opts = parseArgs(["--range", "0041-0041", "--batch", "1"]);
+    const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
+    const operations: SweepOperations = {
+      platform: "darwin",
+      selectScope: () => {},
+      prepare: (() => ({ chain: ["sysfb:Helvetica"], primaryKey: "sysfb:Helvetica" })) as SweepOperations["prepare"],
+      reset: () => {},
+      primeCodepoints: () => {},
+      chromeFaceCoversCodepoint: () => false,
+      faceFor: ((cp: number) => ({
+        key: "sysfb:Helvetica",
+        path: null,
+        postscriptName: "Helvetica-Bold",
+        covered: cp === 0x41,
+      })) as SweepOperations["faceFor"],
+      memoSize: () => 0,
+      rssMb: () => 0,
+      write: () => {},
+    };
+    const oracle = {
+      resolvedPrimary: async () => "Helvetica-Bold",
+      facesFor: async (cps: number[]) => {
+        events.push(`chrome:${cps[0].toString(16)}`);
+        return [[chrome({ postScriptName: cps[0] === 0x41 ? "Helvetica-Bold" : "Arial-BoldMT" })]];
+      },
+    };
+    await expect(
+      sweepStack(spec, 0, 1, [0x41, 0x100000], opts, oracle, tally, Date.now(), operations),
+    ).rejects.toMatchObject({
+      kind: "supplementary-pua",
+      codepoint: 0x100000,
+    });
+    expect(events).toEqual(["chrome:41", "chrome:100000"]);
     expect(Object.values(tally.counts).reduce((sum, count) => sum + count, 0)).toBe(1);
   });
 });
