@@ -126,6 +126,27 @@ describe("the live session generic-family probe", () => {
     }
   });
 
+  it("records the configured locale generic primary when a script glyph paints through fallback", async () => {
+    const page = await context!.newPage();
+    const families = await defaultCommonFamilyNames(context!, page);
+    const session = await context!.newCDPSession(page);
+    try {
+      await session.send("Page.setFontFamilies", {
+        fontFamilies: { fantasy: families.serif },
+        forScripts: [{ script: "hang", fontFamilies: { fantasy: families.serif } }],
+      });
+      const result = await probePageGenericFamilies(page);
+      expect(result).not.toBeNull();
+      // The configured serif may lack Hangul glyphs. A probe using `한` would
+      // report its painted fallback as the fantasy preference; U+10FFFF asks
+      // for the configured primary's `.notdef` under the same Hangul locale.
+      expect(result!.byScript.get("HANGUL")!.get("fantasy")).toBe(result!.common.get("serif"));
+    } finally {
+      await session.detach();
+      await page.close();
+    }
+  });
+
   it("is isolated from hostile author-important universal font rules", async () => {
     const page = await context!.newPage();
     await page.setContent("<!doctype html><body>clean</body>");

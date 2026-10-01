@@ -2637,7 +2637,17 @@
         "status": "current",
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-EBRC7F", "DM-KK5BP2", "DM-QD903D"],
+        "tickets": [
+          "DM-1858",
+          "DM-1905",
+          "DM-2350",
+          "DM-2422",
+          "DM-2507",
+          "DM-EBRC7F",
+          "DM-KK5BP2",
+          "DM-N78DX3",
+          "DM-QD903D"
+        ],
         "code": [
           ".github/workflows/font-conformance-synthetic.yml",
           ".github/workflows/font-conformance.yml",
@@ -4462,7 +4472,7 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS"],
+        "tickets": ["DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3"],
         "code": [
           ".github/workflows/generic-family-preference-parity.yml",
           "src/capture/generic-font-probe.ts",
@@ -4470,6 +4480,7 @@
           "tools/generic-family-preference-oracle.ts",
           "tools/generic-profile-target-oracle.ts",
           "src/capture/generic-font-probe.test.ts",
+          "tests/generic-font-probe.e2e.test.ts",
           "packages/text-engine/src/render/synchronous-scope.ts",
           "packages/text-engine/src/render/synchronous-scope.test.ts"
         ],

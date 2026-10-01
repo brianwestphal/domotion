@@ -50,37 +50,27 @@ import { localeToScriptCodeForFontSelection } from "../render/generic-script-fam
  *  list. `standard` is the implicit final family and therefore also owns the
  *  `.notdef` donor when every declared candidate is exhausted. */
 const PROBED_GENERICS = ["standard", "serif", "sans-serif", "monospace", "cursive", "fantasy", "math"] as const;
-const SCRIPT_PROBE_TEXT: Readonly<Record<string, string>> = {
-  KATAKANA_OR_HIRAGANA: "日",
-  HANGUL: "한",
-  SIMPLIFIED_HAN: "汉",
-  TRADITIONAL_HAN: "漢",
-  CYRILLIC: "Я",
-  ARABIC: "ا",
-  GREEK: "Ω",
-  LATIN: "A",
-  HEBREW: "א",
-  DEVANAGARI: "अ",
-  THAI: "ก",
-  GEORGIAN: "ა",
-};
-const scriptProbeText = (lang: string): string => SCRIPT_PROBE_TEXT[localeToScriptCodeForFontSelection(lang)] ?? "A";
+// FontDescription::GetScript() comes from the element's locale, not the glyph's
+// script. A script letter can fall back to another face and make that painted
+// fallback look like the configured generic family. An uncovered noncharacter
+// asks Blink for the locale's initial family through its `.notdef` donor.
+const PRIMARY_FAMILY_PROBE_TEXT = String.fromCodePoint(0x10ffff);
 const SCRIPT_PROBES = [
-  { lang: "ja", text: "日" },
-  { lang: "ko", text: "한" },
-  { lang: "zh-Hans", text: "汉" },
-  { lang: "zh-Hant", text: "漢" },
-  { lang: "ru", text: "Я" },
-  { lang: "ar", text: "ا" },
-  { lang: "el", text: "Ω" },
+  { lang: "ja" },
+  { lang: "ko" },
+  { lang: "zh-Hans" },
+  { lang: "zh-Hant" },
+  { lang: "ru" },
+  { lang: "ar" },
+  { lang: "el" },
   // Full Chrome profile preferences are not limited to Playwright's four
   // macOS/seven Windows table entries. These three are standing controls for
   // ordinary Latin plus two settings scripts absent from Playwright's table;
   // every additional language actually present in the captured page is added
   // dynamically below.
-  { lang: "en", text: "A" },
-  { lang: "he", text: "א" },
-  { lang: "hi", text: "अ" },
+  { lang: "en" },
+  { lang: "he" },
+  { lang: "hi" },
 ] as const;
 const SCRIPT_PROBED_GENERICS = PROBED_GENERICS;
 
@@ -191,10 +181,7 @@ export function genericFamilyProbeTargets(additionalLanguages: readonly string[]
     lang: null,
     script: null,
   }));
-  const scriptedInputs = [
-    ...SCRIPT_PROBES,
-    ...additionalLanguages.map((lang) => ({ lang, text: scriptProbeText(lang) })),
-  ]
+  const scriptedInputs = [...SCRIPT_PROBES, ...additionalLanguages.map((lang) => ({ lang }))]
     .filter(({ lang }) => lang.trim() !== "")
     .filter(
       (entry, index, entries) =>
@@ -203,11 +190,11 @@ export function genericFamilyProbeTargets(additionalLanguages: readonly string[]
             localeToScriptCodeForFontSelection(candidate.lang) === localeToScriptCodeForFontSelection(entry.lang),
         ) === index,
     );
-  const scripted = scriptedInputs.flatMap(({ lang, text }, scriptIndex) =>
+  const scripted = scriptedInputs.flatMap(({ lang }, scriptIndex) =>
     SCRIPT_PROBED_GENERICS.map((generic, genericIndex) => ({
       id: `gs${scriptIndex}-${genericIndex}`,
       generic,
-      text,
+      text: PRIMARY_FAMILY_PROBE_TEXT,
       lang,
       script: localeToScriptCodeForFontSelection(lang),
     })),

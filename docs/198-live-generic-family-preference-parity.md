@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS"]
+tickets: ["DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3"]
 code:
   [
     ".github/workflows/generic-family-preference-parity.yml",
@@ -14,6 +14,7 @@ code:
     "tools/generic-family-preference-oracle.ts",
     "tools/generic-profile-target-oracle.ts",
     "src/capture/generic-font-probe.test.ts",
+    "tests/generic-font-probe.e2e.test.ts",
     "packages/text-engine/src/render/synchronous-scope.ts",
     "packages/text-engine/src/render/synchronous-scope.test.ts",
   ]
@@ -104,6 +105,21 @@ crosses shadow hosts, and consults `Document::ContentLanguage()` last
 (`external/chromium/third_party/blink/renderer/core/dom/element.cc`, revision
 `7d859f271c`). Reachable child-frame DOM language attributes remain an
 additional control; this does not claim target-divergent OOPIF Settings.
+
+For each scripted row, the probe now asks CDP about the selected face for
+`U+10FFFF`, an uncovered noncharacter. Blink derives the generic settings
+script from the row's `-webkit-locale`, so the sentinel still asks the intended
+script's preference while selecting that family's `.notdef` face. A script
+letter asks a different question: when the configured family lacks that glyph,
+CDP reports the fallback face that painted it. Treating that fallback as the
+configured family changed every later codepoint's primary. On Windows, the
+old Korean `fantasy` probe recorded Malgun Gothic from `한`, while Chrome's
+primary for the same locale and uncovered codepoints was Impact; one sampled
+stack then produced 602 false `mismatch-we-tofu` rows. A controlled Chromium
+test also reproduced the error with Hangul `fantasy` explicitly configured to
+Times New Roman: `한` painted through Apple SD Gothic Neo, while the sentinel
+reported Times New Roman. The probe keeps the existing Page-owned map contract;
+only the source of each scripted primary changes.
 
 Each scripted row restores a quoted author-important `-webkit-locale` after
 its hostile-style `all: initial` reset. This mirrors
