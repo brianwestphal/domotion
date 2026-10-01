@@ -1641,7 +1641,17 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844", "DM-9JP366"],
+        "tickets": [
+          "DM-1216",
+          "DM-1217",
+          "DM-1660",
+          "DM-1661",
+          "DM-1665",
+          "DM-1790",
+          "DM-1844",
+          "DM-EBRC7F",
+          "DM-9JP366"
+        ],
         "code": [
           ".github/workflows/fast-visual-tests.yml",
           ".github/workflows/visual-tests.yml",
@@ -2627,7 +2637,17 @@
         "status": "current",
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D"],
+        "tickets": [
+          "DM-1858",
+          "DM-1905",
+          "DM-2350",
+          "DM-2422",
+          "DM-2507",
+          "DM-EBRC7F",
+          "DM-KK5BP2",
+          "DM-N78DX3",
+          "DM-QD903D"
+        ],
         "code": [
           ".github/workflows/font-conformance-synthetic.yml",
           ".github/workflows/font-conformance.yml",
@@ -2718,7 +2738,7 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": [],
+        "tickets": ["DM-EBRC7F"],
         "code": [
           ".github/workflows/test-linux.yml",
           "packages/text-engine/src/render/font-resolution.ts",
@@ -2726,6 +2746,7 @@
           "tests/baselines/family-match-linux.json",
           "tests/family-match-baseline.test.ts",
           "tools/family-match-baseline.ts",
+          "tools/family-match-environment.ts",
           "tools/family-match-conformance-linux.ts",
           "tools/font-conformance-stacks.linux.json",
           "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp"
@@ -2742,13 +2763,14 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": [],
+        "tickets": ["DM-EBRC7F"],
         "code": [
           ".github/workflows/windows-fidelity.yml",
           "packages/text-engine/src/render/font-resolution.ts",
           "packages/text-engine/src/render/win32-family-suffix.ts",
           "tests/baselines/family-match-windows.json",
           "tools/family-match-baseline.ts",
+          "tools/family-match-environment.ts",
           "tools/family-match-conformance-win32.ts"
         ],
         "aliases": ["docs/111-family-match-conformance-windows.md", "doc-111"]
@@ -2979,15 +3001,17 @@
         "status": "current",
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": [],
+        "tickets": ["DM-EBRC7F"],
         "code": [
           ".github/workflows/font-conformance-synthetic.yml",
           "scripts/ci-font-conformance-shard.sh",
+          "scripts/run-env.mjs",
           "tests/font-conformance.test.ts",
           "tools/cluster-conformance.ts",
           "tools/font-conformance.ts",
           "tools/layout-stage-oracle.ts",
           "tools/paths-native-raster-gate.ts",
+          "tools/parity-environment.ts",
           "src/review/linux-unicode-evidence.ts"
         ],
         "aliases": ["docs/120-same-machine-text-parity-contract.md", "doc-120"]

@@ -324,7 +324,7 @@ export function playwrightVersion() {
 }
 
 /** Gather the real environment on this machine. */
-export async function captureRunEnv({ withInventory = true } = {}) {
+export function captureRunEnv({ withInventory = true, chromium, corpusIdentity } = {}) {
   let osRelease = null;
   let pwVersion = null;
   if (process.env.ImageOS == null || process.env.ImageOS.trim() === "") {
@@ -359,19 +359,24 @@ export async function captureRunEnv({ withInventory = true } = {}) {
       /* leave null */
     }
   }
-  return computeRunEnv({
-    image,
-    chromium: await launchedChromiumVersion(),
-    // GitHub host runners expose the image BUILD id here. This is the field
-    // whose absence let two different macOS images read as the same runner.
-    imageVersion: process.env.ImageVersion,
-    osRelease: osReleaseVersion(),
-    platform: osPlatform(),
-    arch: osArch(),
-    node: process.version,
-    corpusIdentity: process.env.HTML_TEST_CORPUS_IDENTITY,
-    fontInventory,
-  });
+  const record = (browserVersion) =>
+    computeRunEnv({
+      image,
+      chromium: browserVersion,
+      // GitHub host runners expose the image BUILD id here. This is the field
+      // whose absence let two different macOS images read as the same runner.
+      imageVersion: process.env.ImageVersion,
+      osRelease: osReleaseVersion(),
+      platform: osPlatform(),
+      arch: osArch(),
+      node: process.version,
+      corpusIdentity: corpusIdentity ?? process.env.HTML_TEST_CORPUS_IDENTITY,
+      fontInventory,
+    });
+  // A caller that already owns the browser must record its observed build,
+  // without launching a second process. The no-override sweep path remains
+  // asynchronous and measures the launched browser itself.
+  return chromium === undefined ? launchedChromiumVersion().then(record) : record(chromium);
 }
 
 async function main() {

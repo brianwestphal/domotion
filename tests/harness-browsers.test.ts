@@ -183,7 +183,7 @@ describe("harness capture/raster browser flags (DM-1790)", () => {
 
       it("stays a single path segment", () => {
         withFingerprint(undefined, () => {
-          expect(expectedCachePlatformDir("linux")).toMatch(/^linux-[0-9a-f]{8}$/);
+          expect(expectedCachePlatformDir("linux")).toMatch(/^linux-[0-9a-f]{16}$/);
         });
       });
     });

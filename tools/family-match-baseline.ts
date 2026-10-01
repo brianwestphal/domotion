@@ -59,8 +59,8 @@ interface BaselineSetFile {
  * inventory tracks the OS build.
  */
 export const FAMILY_MATCH_ENV_KEYS = {
-  linux: ["platform", "arch", "chromium", "image", "fcVersion", "fontDigest"],
-  win32: ["platform", "arch", "chromium", "osBuild", "fontDigest"],
+  linux: ["platform", "arch", "chromium", "image", "imageVersion", "osRelease", "fcVersion", "fontDigest"],
+  win32: ["platform", "arch", "chromium", "imageVersion", "osRelease", "fontDigest"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** All recorded baselines in the file — [] when the file does not exist. */
@@ -86,6 +86,9 @@ export function readBaselineSet(file: string): FamilyMatchReport[] {
  * drops `fontDigest`, say — the right fix is at the recorder, not here.
  */
 function envMatches(a: Record<string, unknown>, b: Record<string, unknown>, keys: readonly string[]): boolean {
+  // A producer migration changes the meaning of existing digest fields.
+  // Unknown old records cannot be judged under the new producer contract.
+  if (a.envContract !== b.envContract) return false;
   return keys.every((k) => a[k] == null || b[k] == null || a[k] === b[k]);
 }
 

@@ -44,12 +44,13 @@ describe("parity environment source provenance", () => {
       corpusIdentity: "test",
       sampleIdentity: "test-row",
     });
-    expect(environment.runtimes).toMatchObject({
+    expect(environment.sourceRevisions).toMatchObject({
       chromiumSource: "chromium-pin",
       harfbuzzSource: "harfbuzz-pin",
       skiaPinned: "skia-pin",
       icuSource: "icu-pin",
     });
-    expect(fingerprintComplete(environment)).toBe(true);
+    expect(environment).toMatchObject({ chromium: "package-pinned", platform: process.platform });
+    expect(fingerprintComplete(environment.sourceRevisions)).toBe(true);
   });
 });
