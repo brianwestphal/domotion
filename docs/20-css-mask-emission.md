@@ -5,7 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2379", "DM-2472", "DM-2494", "DM-2520", "DM-470", "DM-493", "DM-494", "DM-156VR5", "DM-XEBRYE", "DM-Y5HZ4Z"]
+tickets:
+  ["DM-2379", "DM-2472", "DM-2494", "DM-2520", "DM-470", "DM-493", "DM-494", "DM-156VR5", "DM-XEBRYE", "DM-Y5HZ4Z"]
 code:
   [
     "src/capture/script/walker/masks-clips.ts",
