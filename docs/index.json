@@ -3326,7 +3326,7 @@
         "status": "current",
         "owners": ["product-tooling"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": [2625],
+        "tickets": [2625, "DM-CFSHAD"],
         "code": [
           "src/review/stage-evidence.ts",
           "tools/collect-stage-evidence.ts",
@@ -3334,6 +3334,8 @@
           "src/review/linux-unicode-evidence.ts",
           "tests/review-server.tsx",
           "tools/linux-unicode-mutation-matrix.ts",
+          "tools/linux-unicode-mutation-report.ts",
+          "tests/linux-unicode-mutation-report.test.ts",
           "tools/semantic-coverage.json"
         ],
         "aliases": ["docs/140-demo-review-stage-evidence.md", "doc-140"]

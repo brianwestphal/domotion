@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["product-tooling"]
 platforms: ["macos", "linux", "windows"]
-tickets: [2625]
+tickets: [2625, "DM-CFSHAD"]
 code:
   [
     "src/review/stage-evidence.ts",
@@ -14,6 +14,8 @@ code:
     "src/review/linux-unicode-evidence.ts",
     "tests/review-server.tsx",
     "tools/linux-unicode-mutation-matrix.ts",
+    "tools/linux-unicode-mutation-report.ts",
+    "tests/linux-unicode-mutation-report.test.ts",
     "tools/semantic-coverage.json",
   ]
 aliases: ["docs/140-demo-review-stage-evidence.md", "doc-140"]
@@ -90,6 +92,11 @@ moves face selection and whose hint-off arm removes hint tables and changes the
 raster without changing face/gid/cluster/metrics/source-outline evidence. A
 logical change is reported as `logical-mismatch` and fails adjudication; pixel
 percentages cannot override it.
+The matrix and candidate feed use separate version 1 report envelopes. The
+matrix has `pass` or `fail` outcome from its errors; the candidate feed has
+`skip` because it is informational rather than an independent gate. Readers
+accept their prior raw version 1 forms and reject unknown versions. Per-fixture
+mutation evidence in the baseline arm keeps its existing format and identity.
 
 Related: [Chromium parity verification program](129-chromium-parity-verification-program.md),
 [semantic coverage inventory](136-semantic-coverage-inventory.md), and

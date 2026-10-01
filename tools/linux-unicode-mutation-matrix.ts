@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-builder.js";
 import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import {
@@ -22,7 +23,7 @@ function readRows(directory: string): Map<string, ResultRow> {
   return new Map(rows.map((row) => [row.name, row]));
 }
 
-function main(args: string[]): number {
+export function main(args: string[]): number {
   const flags = parseFlags(args, {
     "print-fixtures": { type: "boolean" },
     baseline: { type: "string" },
@@ -139,18 +140,22 @@ function main(args: string[]): number {
       },
       errors,
     };
-    writeFileSync(resolve(outputDir, "linux-unicode-mutation-matrix.json"), JSON.stringify(report, null, 2));
-    writeFileSync(
+    writeReport(
+      resolve(outputDir, "linux-unicode-mutation-matrix.json"),
+      "linux-unicode-mutation-matrix",
+      { ...report, outcome: errors.length === 0 ? "pass" : "fail" },
+      { schemaVersion: 1, generatedAt: report.generatedAt, env: { platform: process.platform } },
+    );
+    writeReport(
       resolve(outputDir, "dm-2352-raster-floor-candidates.json"),
-      JSON.stringify(
-        {
-          schemaVersion: 1,
-          source: "linux-unicode-mutation-matrix.json",
-          fixtures: fixtures.filter((row) => row.verdict === "raster-floor-candidate").map((row) => row.fixture),
-        },
-        null,
-        2,
-      ),
+      "linux-unicode-raster-candidates",
+      {
+        schemaVersion: 1,
+        source: "linux-unicode-mutation-matrix.json",
+        fixtures: fixtures.filter((row) => row.verdict === "raster-floor-candidate").map((row) => row.fixture),
+        outcome: "skip",
+      },
+      { schemaVersion: 1, generatedAt: report.generatedAt, env: { platform: process.platform } },
     );
     for (const row of fixtures) {
       writeFileSync(resolve(baselineDir, `${row.fixture}-mutation-evidence.json`), JSON.stringify(row, null, 2));

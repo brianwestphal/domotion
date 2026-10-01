@@ -2358,6 +2358,8 @@
         "src/review/linux-unicode-evidence.ts",
         "tests/review-server.tsx",
         "tools/linux-unicode-mutation-matrix.ts",
+        "tools/linux-unicode-mutation-report.ts",
+        "tests/linux-unicode-mutation-report.test.ts",
         "tools/semantic-coverage.json"
       ],
       "file": "140-demo-review-stage-evidence.md"
