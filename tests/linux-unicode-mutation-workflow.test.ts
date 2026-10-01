@@ -10,6 +10,7 @@ describe("Linux Unicode three-arm evidence workflow (DM-2438)", () => {
     expect(workflow).toContain(
       "mv packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths /tmp/domotion-glyph-paths",
     );
+    expect(workflow).toMatch(/Fontconfig helper-off arm[\s\S]*?DOMOTION_DISABLE_HELPER: ["']1["']/);
     expect(workflow).toMatch(/Hinted-subset-off arm[\s\S]*?DOMOTION_HINTED_SUBSET: ["']0["']/);
     expect(workflow.match(/bash scripts\/ci-run-shard\.sh unicode/g)).toHaveLength(3);
   });

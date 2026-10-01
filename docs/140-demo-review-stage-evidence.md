@@ -85,7 +85,9 @@ census, and no unexpected U+25CC gid in the remaining Vedic cells.
 The manually dispatched `linux-unicode-mutation-evidence.yml` workflow runs
 that closed 24-row corpus in one pinned Linux container under three conditions:
 production baseline, the fontconfig helper removed, and hinted subsetting
-disabled. `tools/linux-unicode-mutation-matrix.ts` writes a complete matrix and
+disabled. The helper-off arm also sets `DOMOTION_DISABLE_HELPER=1`: removing the
+in-tree binary alone can select an automatically acquired cached helper and leave
+the control inert. `tools/linux-unicode-mutation-matrix.ts` writes a complete matrix and
 a sidecar beside every baseline fixture. It emits the logically exact
 `dm-2352-raster-floor-candidates.json` feed only from rows whose helper-off arm
 moves face selection and whose hint-off arm removes hint tables and changes the

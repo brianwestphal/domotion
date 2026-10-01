@@ -37,6 +37,7 @@ jobs:
         continue-on-error: true
         env:
           HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/fontconfig-helper-off
+          DOMOTION_DISABLE_HELPER: "1"
           DOMOTION_NO_NICE: "1"
           DOMOTION_TEST_WORKERS: "1"
         run: |
