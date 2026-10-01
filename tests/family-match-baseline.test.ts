@@ -58,6 +58,13 @@ describe("family-match baseline sets", () => {
     expect(selectBaseline(entries, { ...ARM, fontDigest: "cccc" }, KEYS)).toBeNull();
   });
 
+  it("refuses a baseline recorded by the old fingerprint producer", () => {
+    const old = report(ARM);
+    const migrated = { ...ARM, envContract: "capture-run-env/1" };
+    expect(selectBaseline([old], migrated, KEYS)).toBeNull();
+    expect(selectBaseline([report(migrated)], ARM, KEYS)).toBeNull();
+  });
+
   it("treats a fingerprint field ABSENT on either side as cannot-tell, not as a difference", () => {
     // This is what lets a new field join the fingerprint without disarming every
     // committed baseline until someone re-seeds. `chromium` was added after
@@ -134,7 +141,7 @@ const COMMITTED = [
   { os: "windows", file: "family-match-windows.json", keys: FAMILY_MATCH_ENV_KEYS.win32 },
 ] as const;
 
-describe.each(COMMITTED)("committed $os family-match baseline", ({ file, keys }) => {
+describe.each(COMMITTED)("committed $os family-match baseline", ({ os, file, keys }) => {
   const entries = readBaselineSet(resolve("tests", "baselines", file));
 
   it("records at least the local arm64 and the x64 CI environment", () => {
@@ -163,25 +170,19 @@ describe.each(COMMITTED)("committed $os family-match baseline", ({ file, keys })
   });
 
   it("carries the fingerprint fields its comparator selects on", () => {
-    // A recorded entry missing a key it is SELECTED on is only comparable
-    // because `envMatches` treats an absent field as cannot-tell. That is a
-    // deliberate escape hatch for adding a field, not a licence to leave
-    // fingerprints incomplete — so everything except the named exemption is
-    // required here.
-    //
-    // `chromium` joined the fingerprint after these files were recorded. The
-    // measured reason it belongs there: `font-variant-emoji: emoji` moves
-    // U+00A9 to the color font in Chromium 147 and leaves it on the primary in
-    // 148, platform held constant — so two runs under different browsers are
-    // two different oracles. Until each environment is re-seeded, its entry
-    // lacks the field and the browser axis is simply not being checked for it.
-    //
-    // REMOVE THE EXEMPTION once every committed entry carries `chromium`; the
-    // loop below then pins the whole fingerprint again.
-    const AWAITING_RESEED = new Set(["chromium"]);
+    // Older records remain for historical evidence. Their contract cannot
+    // match a new run, so fields introduced by capture-run-env/1 may be absent.
+    // Every new record must carry the fields the comparator selects on.
+    const LEGACY_OPTIONAL = new Set(["chromium", "imageVersion", "osRelease"]);
+    const migrated = entries.filter((entry) => entry.meta.env.envContract === "capture-run-env/1");
+    expect(migrated.some((entry) => entry.meta.env.arch === "x64")).toBe(true);
+    if (os === "linux") expect(migrated.some((entry) => entry.meta.env.arch === "arm64")).toBe(true);
     for (const entry of entries) {
       for (const key of keys) {
-        if (AWAITING_RESEED.has(key) && entry.meta.env[key] === undefined) continue;
+        // Older records remain historical evidence, but envMatches refuses to
+        // select them for a capture-run-env/1 report. Every new record must
+        // carry the complete set of fields its comparator uses.
+        if (entry.meta.env.envContract == null && LEGACY_OPTIONAL.has(key)) continue;
         expect(entry.meta.env[key], `${entry.meta.env.arch}: ${key}`).toBeDefined();
       }
     }

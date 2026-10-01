@@ -50,6 +50,62 @@
         "misses": 0
       },
       "misses": []
+    },
+    {
+      "meta": {
+        "suite": "family-match",
+        "os": "windows",
+        "capturedAt": "2026-10-01T03:53:56.144Z",
+        "env": {
+          "envContract": "capture-run-env/1",
+          "platform": "win32",
+          "arch": "x64",
+          "chromium": "147.0.7727.15",
+          "osRelease": "10.0.26100",
+          "imageVersion": "20260922.246.2",
+          "fontCount": 147,
+          "fontDigest": "c379b2deaaab30c2"
+        },
+        "weights": [100, 200, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900]
+      },
+      "summary": {
+        "families": 44,
+        "cases": 528,
+        "scored": 516,
+        "agree": 516,
+        "rejectAgree": 24,
+        "skipped": 12,
+        "misses": 0
+      },
+      "misses": []
+    },
+    {
+      "meta": {
+        "suite": "family-match",
+        "os": "windows",
+        "capturedAt": "2026-10-01T04:15:54.760Z",
+        "env": {
+          "envContract": "capture-run-env/1",
+          "platform": "win32",
+          "arch": "x64",
+          "chromium": "147.0.7727.15",
+          "osRelease": "10.0.26100",
+          "imageVersion": "20260925.250.1",
+          "fontCount": 147,
+          "fontDigest": "c379b2deaaab30c2"
+        },
+        "weights": [100, 200, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900]
+      },
+      "summary": {
+        "families": 44,
+        "cases": 528,
+        "scored": 516,
+        "agree": 516,
+        "rejectAgree": 24,
+        "skipped": 12,
+        "misses": 0
+      },
+      "misses": []
     }
   ]
 }

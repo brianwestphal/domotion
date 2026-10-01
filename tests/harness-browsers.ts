@@ -41,10 +41,10 @@
  * single-browser path is what every committed baseline was measured under.
  */
 
-import { readdirSync, statSync, type Dirent } from "node:fs";
-import { createHash } from "node:crypto";
 import type { Browser } from "@playwright/test";
 import { openOwnedBrowser } from "../tools/lib/browser.js";
+// @ts-ignore -- shared inventory module has no declaration file
+import { inventoryDocument } from "../tools/font-inventory.mjs";
 
 /** Parse a whitespace-separated flag list; `undefined`/blank ⇒ no flags. */
 function parseFlags(raw: string | undefined): string[] {
@@ -126,49 +126,12 @@ export function resolveHarnessFlags(
  * `DOMOTION_FONT_FINGERPRINT` overrides it, for reproducibility across machines
  * that are known-equivalent (or to force a partition apart deliberately).
  */
-const FONT_DIRS = [
-  "/usr/share/fonts",
-  "/usr/local/share/fonts",
-  `${process.env.HOME ?? ""}/.fonts`,
-  `${process.env.HOME ?? ""}/.local/share/fonts`,
-];
-const FONT_EXT = /\.(ttf|otf|ttc|otc|pfb|pfa|pcf|bdf)(\.gz)?$/i;
-
 let _fontDigest: string | null = null;
 function linuxFontDigest(): string {
   if (_fontDigest != null) return _fontDigest;
   const override = process.env.DOMOTION_FONT_FINGERPRINT;
   if (override != null && override.trim() !== "") return (_fontDigest = override.trim());
-  const entries: string[] = [];
-  const walk = (dir: string, depth: number): void => {
-    if (depth > 6) return;
-    let items: Dirent[];
-    try {
-      items = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const it of items) {
-      const full = `${dir}/${it.name}`;
-      if (it.isDirectory()) {
-        walk(full, depth + 1);
-        continue;
-      }
-      if (!FONT_EXT.test(it.name)) continue;
-      let size = 0;
-      try {
-        size = statSync(full).size;
-      } catch {
-        /* raced or unreadable — path alone still counts */
-      }
-      entries.push(`${full}:${size}`);
-    }
-  };
-  for (const d of FONT_DIRS) if (d !== "/.fonts" && d !== "/.local/share/fonts") walk(d, 0);
-  entries.sort();
-  // Short digest: this names a directory, and 8 hex chars is ample to separate
-  // the handful of environments any one checkout ever sees.
-  return (_fontDigest = createHash("sha256").update(entries.join("\n")).digest("hex").slice(0, 8));
+  return (_fontDigest = inventoryDocument().digest);
 }
 
 /** Test-only: clear the memoized font digest. */
