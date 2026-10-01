@@ -2645,6 +2645,7 @@
           "tests/font-conformance-extraction.e2e.test.ts",
           "tests/font-conformance-synthetic-stacks.test.ts",
           "tests/font-conformance.test.ts",
+          "tests/font-conformance-oracle-stability.e2e.test.ts",
           "tests/system-ui-bold-conformance.e2e.test.ts",
           "tests/conformance-args.test.ts",
           "tests/harvested-corpus-identity.test.ts",
