@@ -2153,7 +2153,11 @@
       "status": "current",
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["windows"],
-      "code": ["packages/text-engine/src/render/win-font-fallback.ts"],
+      "code": [
+        "packages/text-engine/src/render/win-font-fallback.ts",
+        "tools/unicode-font-route-trace.ts",
+        "tools/unicode-font-route-report.ts"
+      ],
       "file": "125-windows-unicode-font-route-trace.md"
     },
     {

@@ -3069,7 +3069,11 @@
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["windows"],
         "tickets": [],
-        "code": ["packages/text-engine/src/render/win-font-fallback.ts"],
+        "code": [
+          "packages/text-engine/src/render/win-font-fallback.ts",
+          "tools/unicode-font-route-trace.ts",
+          "tools/unicode-font-route-report.ts"
+        ],
         "aliases": ["docs/125-windows-unicode-font-route-trace.md", "doc-125"]
       }
     },
