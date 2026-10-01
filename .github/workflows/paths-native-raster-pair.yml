@@ -1,0 +1,61 @@
+name: Paths/native raster pair existing evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_run_ids:
+        description: Comma-separated native-raster collection run IDs with the same source inputs
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  pair-and-adjudicate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Download sealed producer artifacts from requested runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_RUN_IDS: ${{ inputs.evidence_run_ids }}
+        run: |
+          IFS=',' read -ra run_ids <<< "$EVIDENCE_RUN_IDS"
+          for run_id in "${run_ids[@]}"; do
+            if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
+              echo "Invalid native-raster run ID: $run_id" >&2
+              exit 1
+            fi
+            gh run download "$run_id" \
+              --pattern 'paths-native-raster-*-*' \
+              --dir "candidate-runs/$run_id"
+          done
+      - name: Select exact-fingerprint independent runner pairs
+        run: >-
+          npx tsx tools/paths-native-raster-pair.ts
+          --candidates candidate-runs
+          --envelopes tools/paths-native-raster-envelopes.json
+          --out paired-artifacts
+          --selection paths-native-raster-selection.json
+      - name: Run unchanged strict logical and raster gate
+        run: >-
+          npm run fonts:paths-raster:aggregate --
+          --artifacts paired-artifacts
+          --envelopes tools/paths-native-raster-envelopes.json
+          --out paths-native-raster-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paths-native-raster-paired-gate
+          path: |
+            paths-native-raster-selection.json
+            paths-native-raster-report.json
+          if-no-files-found: warn

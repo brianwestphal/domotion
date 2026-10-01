@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { main as aggregate } from "../tools/paths-native-raster-aggregate.js";
 
 const workflow = readFileSync(".github/workflows/paths-native-raster-floor.yml", "utf8");
+const pairingWorkflow = readFileSync(".github/workflows/paths-native-raster-pair.yml", "utf8");
 const collector = readFileSync("tools/paths-native-raster-collector.ts", "utf8");
 const producer = readFileSync("tools/paths-native-raster-producer.ts", "utf8");
 describe("paths/native raster workflow", () => {
@@ -41,6 +42,16 @@ describe("paths/native raster workflow", () => {
     expect(workflow).toMatch(/adjudicate:\n\s+needs: produce/);
     expect(workflow).toContain("tools/paths-native-raster-envelopes.json");
     expect(workflow).toContain("fonts:paths-raster:aggregate");
+  });
+  it("reuses sealed same-source artifacts without changing fingerprinted collection inputs", () => {
+    expect(pairingWorkflow).toContain("evidence_run_ids:");
+    expect(pairingWorkflow).toContain("gh run download");
+    expect(pairingWorkflow).toContain("tools/paths-native-raster-pair.ts");
+    expect(pairingWorkflow).toContain("paths-native-raster-envelopes.json");
+    expect(pairingWorkflow).toContain("fonts:paths-raster:aggregate");
+    expect(pairingWorkflow).toContain("paths-native-raster-selection.json");
+    expect(collector).not.toContain('".github/workflows/paths-native-raster-pair.yml"');
+    expect(collector).not.toContain('"tools/paths-native-raster-pair.ts"');
   });
   it("reads versioned producer artifacts before checking the complete platform matrix", async () => {
     const root = mkdtempSync(join(tmpdir(), "domotion-raster-aggregate-"));
