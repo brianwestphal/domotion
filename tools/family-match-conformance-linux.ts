@@ -54,12 +54,12 @@
  * mismatch (refused to judge).
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeFamilyMatchTransientReport } from "./family-match-transient-report.js";
+import { familyMatchEnvironment } from "./family-match-environment.js";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,
@@ -109,39 +109,6 @@ function installedFamilies(): Map<string, Set<string>> {
     if (ps != null && ps !== "") out.get(family)!.add(ps);
   }
   return out;
-}
-
-/** Environment fingerprint — the fields across which comparison is invalid. */
-function runEnv(chromium_: string): Record<string, string | number> {
-  let image = "unknown";
-  try {
-    image = readFileSync("/etc/os-release", "utf8").match(/PRETTY_NAME="([^"]+)"/)?.[1] ?? "unknown";
-  } catch {
-    /* not linux or unreadable */
-  }
-  // fontconfig prints its version banner on STDERR, so fold the streams.
-  const fcVersion = (() => {
-    try {
-      return execFileSync("sh", ["-c", "fc-list --version 2>&1"], { encoding: "utf8" }).trim();
-    } catch {
-      return "unknown";
-    }
-  })();
-  const inventory = sh("fc-list", ["--format", "%{family[0]}|%{postscriptname}|%{file}|%{index}\n", ":"])
-    .split("\n")
-    .sort()
-    .join("\n");
-  return {
-    platform: process.platform,
-    arch: process.arch,
-    // The browser that produced Chrome's side of every comparison. See
-    // FAMILY_MATCH_ENV_KEYS for why it is part of the fingerprint.
-    chromium: chromium_,
-    image,
-    fcVersion,
-    fontCount: inventory === "" ? 0 : inventory.split("\n").length,
-    fontDigest: createHash("sha256").update(inventory).digest("hex").slice(0, 16),
-  };
 }
 
 /** Family names the fixture corpus declares (derived, not authored). */
@@ -307,7 +274,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     return { scored, agree, skipped, rejectAgree, misses, chromiumVersion };
   });
 
-  const env = runEnv(chromiumVersion);
+  const env = familyMatchEnvironment(chromiumVersion);
   const report = {
     meta: { suite: "family-match", os: "linux", capturedAt: new Date().toISOString(), env, weights: WEIGHTS },
     summary: {

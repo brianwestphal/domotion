@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844", "DM-9JP366"]
+tickets: ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844", "DM-EBRC7F", "DM-9JP366"]
 code:
   [
     ".github/workflows/fast-visual-tests.yml",
@@ -254,6 +254,12 @@ Two things made this invisible for months:
 - **A single run's shards can straddle the rotation**, so a merged `results-<os>.json` is not necessarily one measurement. Capturing such a run as a baseline bakes the mix in.
 
 Both are now guarded. `scripts/run-env.mjs` records `ImageVersion`, `os.release()` and a digest of the installed font set per shard; `scripts/merge-shard-results.mjs` folds them, and when shards disagree it says so in the Step Summary, names the odd shard, and leaves the conflicting field `null` in `run-env-<os>.json` rather than adopting the majority value (`--strict-env` makes that a hard failure). `scripts/diff-against-baseline.mjs` compares this run's record against the baseline's `meta.env` and leads the report with an environment-drift banner _above_ the counts, because it changes what those counts mean. A baseline written before this existed reports "predates environment recording" rather than a false all-clear.
+
+The Linux expected-PNG cache partition uses the same
+`inventoryDocument().digest` as this record. It replaces the older directory
+walk's eight-character digest; preexisting cache directories are simply no
+longer selected, so a screenshot recorded under a different font inventory
+cannot be reused by this harness.
 
 This mirrors the guard the font-conformance oracle already had (`comparability()` in `scripts/diff-font-conformance-baseline.mjs`, doc 107), which refuses to judge across a change in runner image, font inventory, ICU version or slice. The visual sweep simply never had one.
 

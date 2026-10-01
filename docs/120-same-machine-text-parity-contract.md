@@ -5,16 +5,18 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: []
+tickets: ["DM-EBRC7F"]
 code:
   [
     ".github/workflows/font-conformance-synthetic.yml",
     "scripts/ci-font-conformance-shard.sh",
+    "scripts/run-env.mjs",
     "tests/font-conformance.test.ts",
     "tools/cluster-conformance.ts",
     "tools/font-conformance.ts",
     "tools/layout-stage-oracle.ts",
     "tools/paths-native-raster-gate.ts",
+    "tools/parity-environment.ts",
     "src/review/linux-unicode-evidence.ts",
   ]
 aliases: ["docs/120-same-machine-text-parity-contract.md", "doc-120"]
@@ -88,6 +90,11 @@ boundary rather than an unsupported verdict. Silent approximation remains a
 failure.
 
 ## Environment fingerprint
+
+`captureRunEnv` owns the shared browser, runner, runtime, and font-inventory
+fields. Parity reports add their audited source revisions and sample context to
+that record. Callers with a running browser pass its observed version, so the
+fingerprint does not launch a second browser or infer a version from a package.
 
 A comparable report records, and a baseline gate refuses comparison when any
 applicable value changes:
