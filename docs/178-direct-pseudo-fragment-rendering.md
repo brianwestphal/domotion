@@ -5,13 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2459", "DM-2468", "DM-2488"]
+tickets: ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP"]
 code:
   [
     ".github/workflows/pseudo-fragment-render-parity.yml",
     "src/render/pseudo-fragments.ts",
     "tests/pseudo-fragment-render-oracle.e2e.test.ts",
+    "tests/pseudo-fragment-render-report.test.ts",
     "tools/pseudo-fragment-render-oracle.ts",
+    "tools/pseudo-fragment-render-report.ts",
   ]
 aliases: ["docs/178-direct-pseudo-fragment-rendering.md", "doc-178"]
 ---
@@ -97,6 +99,10 @@ exact pseudo descendants.
 `tools/pseudo-fragment-render-oracle.ts` captures one adversarial live Chromium
 page, renders the resulting tree to SVG, rasterizes that SVG in a second
 Chromium page, and compares the colored pseudo-paint edge sets in device space.
+When `--json` is set, the retained report uses a version 1 envelope with a
+normalized `pass` or `fail` outcome while preserving the oracle's full domain
+report in `data`. The reader accepts legacy version 1 raw reports and rejects
+unknown versions. Without `--json`, stdout keeps the original raw report.
 The acceptance disk is exactly four device pixels at both DPR 1 and DPR 2; it
 is deliberately not multiplied by DPR. Exact record count, terminal record
 count/reasons, emitted source-marker count, structural validation errors, both

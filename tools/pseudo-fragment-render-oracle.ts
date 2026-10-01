@@ -2,10 +2,11 @@
 /** DM-2468 live Chromium-vs-SVG generated-pseudo paint oracle. */
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
+import { pseudoFragmentRenderOutcome } from "./pseudo-fragment-render-report.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -413,13 +414,22 @@ export async function runPseudoFragmentRenderOracle(
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   const values = parseFlags(argv, { json: { type: "string" }, "artifact-dir": { type: "string" } });
-  const output = flag(values, "--json");
-  const artifactDir = flag(values, "--artifact-dir") ?? undefined;
+  const outputFlag = flag(values, "--json");
+  const artifactFlag = flag(values, "--artifact-dir");
+  const output = typeof outputFlag === "string" ? outputFlag : null;
+  const artifactDir = typeof artifactFlag === "string" ? artifactFlag : undefined;
   const report = await runPseudoFragmentRenderOracle(undefined, artifactDir);
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (output != null) {
-    mkdirSync(dirname(output), { recursive: true });
-    writeFileSync(output, json);
+    writeReport(
+      output,
+      "pseudo-fragment-render-oracle",
+      { ...report, outcome: pseudoFragmentRenderOutcome(report) },
+      {
+        schemaVersion: 1,
+        env: { platform: report.platform, architecture: report.architecture, chromium: report.chromiumVersion },
+      },
+    );
   } else process.stdout.write(json);
   return report.verdict === "source-exact" ? 0 : 1;
 }

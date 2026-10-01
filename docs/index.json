@@ -2697,7 +2697,11 @@
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": [],
-        "code": ["packages/text-engine/src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"],
+        "code": [
+          "packages/text-engine/src/render/text-to-path.test.ts",
+          "tools/family-match-conformance.ts",
+          "tools/family-match-transient-report.ts"
+        ],
         "aliases": ["docs/109-family-match-conformance.md", "doc-109"]
       }
     },
@@ -4080,12 +4084,14 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2459", "DM-2468", "DM-2488"],
+        "tickets": ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP"],
         "code": [
           ".github/workflows/pseudo-fragment-render-parity.yml",
           "src/render/pseudo-fragments.ts",
           "tests/pseudo-fragment-render-oracle.e2e.test.ts",
-          "tools/pseudo-fragment-render-oracle.ts"
+          "tests/pseudo-fragment-render-report.test.ts",
+          "tools/pseudo-fragment-render-oracle.ts",
+          "tools/pseudo-fragment-render-report.ts"
         ],
         "aliases": ["docs/178-direct-pseudo-fragment-rendering.md", "doc-178"]
       }
