@@ -6,6 +6,8 @@ import {
   isSvgTransformAnimation,
   isUnresolvedSvgCssExpression,
   normalizeComputedSvgGeometry,
+  scopeExternalSvgSelector,
+  scopeExternalSvgSelectorList,
   shouldBakeSvgGeometry,
   shouldStripPromotedViewportDimension,
 } from "./inline-svg-decisions.js";
@@ -47,5 +49,14 @@ describe("inline SVG capture decisions", () => {
     expect(shouldStripPromotedViewportDimension(null, "0")).toBe(true);
     expect(shouldStripPromotedViewportDimension("0", "0")).toBe(false);
     expect(shouldStripPromotedViewportDimension("var(--w)", "0.0")).toBe(true);
+  });
+
+  it("scopes sprite selectors while preserving root-SVG ancestry", () => {
+    expect(scopeExternalSvgSelector(".a", "copy-1")).toBe("#copy-1 .a");
+    expect(scopeExternalSvgSelector("svg .a", "copy-1")).toBe("svg #copy-1 .a");
+    expect(scopeExternalSvgSelector("rect:hover", "copy-1")).toBe("#copy-1 rect:hover");
+    expect(scopeExternalSvgSelectorList(':is(.a,.b), [data-label="x,y"]', "copy-1")).toBe(
+      '#copy-1 :is(.a,.b), #copy-1 [data-label="x,y"]',
+    );
   });
 });

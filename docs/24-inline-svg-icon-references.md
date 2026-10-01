@@ -5,7 +5,7 @@ kind: "reference"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54"]
+tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE"]
 code:
   [
     "src/capture/script/walker/inline-svg.ts",
@@ -60,9 +60,9 @@ When the resolved subtree contains an active CSS animation (`getAnimations({subt
 
 ### External-file references (`<use href="sprite.svg#icon">`)
 
-The capture script is synchronous and cannot fetch, so a prepass (`src/capture/external-svg-use.ts`, run in every frame before the walk) collects the distinct external documents the page's `<use>` elements name, fetches each same-origin one once with `fetch()`, parses it as an SVG document, and stashes it on the window under a private key (`CaptureScriptArgs.externalSvgUseKey`). The page registry owns that key and clears each tagged frame after capture; the fetched `Document` objects remain live in Chromium throughout the walk. The walker resolves the reference against that document and inlines the target exactly like a same-document one: `<symbol>` as a nested `<svg viewBox>`, anything else as `<g transform>`, `currentColor` resolved against the host, the `<use>`'s own attributes carried over. An external document's nodes are not rendered, so there is no computed style to bake; their presentation attributes travel with the clone.
+The capture script is synchronous and cannot fetch, so a prepass (`src/capture/external-svg-use.ts`, run in every frame before the walk) collects the distinct external documents the page's `<use>` elements name, fetches each same-origin one once with `fetch()`, parses it as an SVG document, and stashes it on the window under a private key (`CaptureScriptArgs.externalSvgUseKey`). The page registry owns that key and clears each tagged frame after capture; the fetched `Document` objects remain live in Chromium throughout the walk. The walker resolves the reference against that document and inlines the target exactly like a same-document one: `<symbol>` as a nested `<svg viewBox>`, anything else as `<g transform>`, `currentColor` resolved against the host, the `<use>`'s own attributes carried over. External stylesheet rules are scoped to that copy; fragment resources are copied into its defs with collision-free ids, and same-file nested uses resolve against the original external document.
 
-What is refused, with an `inline-svg` warning and Chromium raster ownership of the host `<svg>` ([raster fallback E8](reference/raster-image-fallback-cases.md)): a document that fails to load or parse, a cross-origin or non-http(s) URL (Chromium does not paint those, and no request is made), a document with a `<style>` element (its cascade is not applied to the copy), a target that references a fragment resource in its own document (`url(#…)`) or contains a nested `<use>`, and a reference with no fragment id. A document that loads but lacks the named element only warns: Chromium paints nothing, so the dangling `<use>` is faithful.
+What is refused, with an `inline-svg` warning and Chromium raster ownership of the host `<svg>` ([raster fallback E8](reference/raster-image-fallback-cases.md)): a document that fails to load or parse, a cross-origin or non-http(s) URL (Chromium does not paint those, and no request is made), stylesheet rules outside the scoped style/media/supports subset, a nested reference to another file that was not prefetched, a use chain past the recursion limit, and a reference with no fragment id. A document that loads but lacks the named element only warns: Chromium paints nothing, so the dangling `<use>` is faithful.
 
 Hidden-defs SVGs (`<svg style="position:absolute;width:0;height:0">` containing `<symbol>` definitions) capture as 0×0 elements; the renderer skips emission of their content so they don't paint visibly in the output.
 

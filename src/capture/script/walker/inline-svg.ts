@@ -22,6 +22,7 @@ import {
   isConcreteSvgAttributeValue,
   isSvgTransformAnimation,
   normalizeComputedSvgGeometry,
+  scopeExternalSvgSelectorList,
   shouldBakeSvgGeometry,
   shouldStripPromotedViewportDimension,
 } from "./inline-svg-decisions.js";
@@ -45,7 +46,7 @@ type ExternalSvgEntry = { document?: Document; failure?: string };
 type ExternalUseResult =
   | { failure: string; missing?: never; target?: never; external?: never }
   | { missing: true; failure?: never; target?: never; external?: never }
-  | { target: Element; external: boolean; failure?: never; missing?: never };
+  | { target: Element; external: boolean; documentUrl?: string; failure?: never; missing?: never };
 
 export const captureInlineSvg = (
   el: SVGSVGElement,
@@ -429,6 +430,8 @@ export const captureInlineSvg = (
   const _svgNS = "http://www.w3.org/2000/svg";
   const _xlinkNS = "http://www.w3.org/1999/xlink";
   var _externalUseFailure: string | null = null;
+  var _externalCopyIndex = 0;
+  const _externalHostIndex = Array.prototype.indexOf.call(document.querySelectorAll("svg"), el) as number;
   // Resolve an external reference to { target } (inline it), { missing } (the
   // document loaded but names no such element: Chromium paints nothing, so
   // the dangling <use> is already faithful) or { failure } (raster it).
@@ -458,32 +461,108 @@ export const captureInlineSvg = (
     if (found == null) return { missing: true };
     if (found.namespaceURI !== _svgNS) return { missing: true };
     if (sameDocument) return { target: found, external: false };
-    // A copy detached from its document loses that document's cascade and
-    // fragment scope. Refuse what would silently paint differently.
-    if (entry.document.getElementsByTagNameNS(_svgNS, "style").length > 0) {
-      return { failure: "the external document carries a <style> element, which is not applied to the inlined copy" };
+    return { target: found, external: true, documentUrl: url.href };
+  };
+  const _externalResources = (source: Element, destination: SVGElement): void => {
+    const sourceDocument = source.ownerDocument;
+    const discovered = new Set<string>();
+    const defs = document.createElementNS(_svgNS, "defs");
+    const discover = (value: string): void => {
+      for (const match of value.matchAll(/url\(\s*['"]?#([^)'"\s]+)['"]?\s*\)/g)) {
+        const id = match[1];
+        if (discovered.has(id)) continue;
+        discovered.add(id);
+        const resource = sourceDocument.getElementById(id);
+        if (resource == null || resource.namespaceURI !== _svgNS) continue;
+        defs.appendChild(resource.cloneNode(true));
+        scan(resource);
+      }
+    };
+    const scan = (root: Element): void => {
+      for (const node of [root, ...Array.from(root.getElementsByTagName("*"))]) {
+        const values = Array.from(node.attributes).map((attr) => attr.value);
+        if (node.localName === "style") values.push(node.textContent || "");
+        for (const value of values) discover(value);
+      }
+    };
+    scan(source);
+    for (const style of Array.from(sourceDocument.getElementsByTagNameNS(_svgNS, "style")))
+      discover(style.textContent || "");
+    if (defs.childNodes.length > 0) destination.insertBefore(defs, destination.firstChild);
+  };
+  const _namespaceExternalCopy = (root: SVGElement, prefix: string): void => {
+    const ids = new Set<string>();
+    for (const node of [root, ...Array.from(root.getElementsByTagName("*"))]) {
+      const id = node.getAttribute("id");
+      if (id != null) ids.add(id);
     }
-    if (found.querySelector("use") != null || found.localName === "use") {
-      return {
-        failure: "the external element contains a nested <use>, which would resolve against the wrong document",
-      };
-    }
-    var scan: Element[] = [found, ...Array.from(found.getElementsByTagName("*"))];
-    for (var si = 0; si < scan.length; si++) {
-      var attrs = scan[si].attributes;
-      for (var ai2 = 0; ai2 < attrs.length; ai2++) {
-        if (/url\(\s*['"]?#/.test(attrs[ai2].value)) {
-          return {
-            failure:
-              "the external element references a fragment resource (gradient, clip path, mask or filter) in its own document",
-          };
-        }
+    const mapped = (id: string) => (ids.has(id) ? prefix + id : id);
+    for (const node of [root, ...Array.from(root.getElementsByTagName("*"))]) {
+      const id = node.getAttribute("id");
+      if (id != null) node.setAttribute("id", mapped(id));
+      for (const attr of Array.from(node.attributes)) {
+        if (attr.name === "id") continue;
+        let value = attr.value.replace(
+          /url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/g,
+          (_all, quote, ref) => `url(${quote}#${mapped(ref)}${quote})`,
+        );
+        if ((attr.name === "href" || attr.name === "xlink:href") && value.startsWith("#"))
+          value = `#${mapped(value.slice(1))}`;
+        if (value !== attr.value) node.setAttribute(attr.name, value);
+      }
+      if (node.localName === "style") {
+        node.textContent = (node.textContent || "")
+          .replace(/url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/g, (_all, quote, ref) => `url(${quote}#${mapped(ref)}${quote})`)
+          .replace(
+            /([^{}]*)(\{[^{}]*\})/g,
+            (_rule, selectors, body) =>
+              selectors.replace(/#([\w:.-]+)/g, (_all: string, ref: string) => `#${mapped(ref)}`) + body,
+          );
       }
     }
-    return { target: found, external: true };
+  };
+  const _scopeExternalCss = (css: string, scopeId: string): string | null => {
+    try {
+      if (/@import\b/i.test(css)) return null;
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(css);
+      if (css.trim() !== "" && sheet.cssRules.length === 0) return null;
+      const serialize = (rules: CSSRuleList): string | null => {
+        const parts: string[] = [];
+        for (const rule of Array.from(rules)) {
+          if (rule.type === CSSRule.STYLE_RULE) {
+            const styleRule = rule as CSSStyleRule;
+            parts.push(
+              `${scopeExternalSvgSelectorList(styleRule.selectorText, scopeId)} { ${styleRule.style.cssText} }`,
+            );
+          } else if (rule.type === CSSRule.MEDIA_RULE || rule.type === CSSRule.SUPPORTS_RULE) {
+            const group = rule as CSSGroupingRule;
+            const nested = serialize(group.cssRules);
+            if (nested == null) return null;
+            parts.push(`${rule.cssText.slice(0, rule.cssText.indexOf("{"))}{ ${nested} }`);
+          } else {
+            return null;
+          }
+        }
+        return parts.join("\n");
+      };
+      return serialize(sheet.cssRules);
+    } catch {
+      return null;
+    }
   };
   const _resolveUseRefs = (root: SVGElement, depth: number): void => {
-    if (depth > 5) return; // cycle / depth guard
+    if (depth > 5) {
+      if (root.querySelector("use") != null) {
+        _externalUseFailure = _externalUseFailure || "external <use> chain exceeded the depth limit";
+        warn(
+          sel,
+          "inline-svg",
+          "external <use> chain exceeded the depth limit; promoted the outer inline SVG to Chromium raster ownership",
+        );
+      }
+      return;
+    }
     var uses = root.querySelectorAll ? root.querySelectorAll("use") : [];
     for (var ui = 0; ui < uses.length; ui++) {
       var useEl = uses[ui];
@@ -492,6 +571,7 @@ export const captureInlineSvg = (
       if (href === "") continue;
       var target;
       var targetExternal = false;
+      var targetDocumentUrl = "";
       var targetId;
       if (href.charAt(0) === "#") {
         targetId = href.slice(1);
@@ -517,6 +597,7 @@ export const captureInlineSvg = (
         }
         target = externalResult.target;
         targetExternal = externalResult.external ?? false;
+        targetDocumentUrl = externalResult.documentUrl ?? "";
         targetId = target.getAttribute("id") || href;
       }
       if (target == null) continue;
@@ -685,10 +766,51 @@ export const captureInlineSvg = (
         var av = useEl.getAttribute(_useAttrs[ai]);
         if (av != null && av !== "") replacement.setAttribute(_useAttrs[ai], av);
       }
+      if (targetExternal) {
+        const scopeId = `domotion-external-use-${_externalHostIndex}-${_externalCopyIndex++}`;
+        const scopedContent = document.createElementNS(_svgNS, "g");
+        scopedContent.setAttribute("id", scopeId);
+        while (replacement.firstChild != null) scopedContent.appendChild(replacement.firstChild);
+        replacement.appendChild(scopedContent);
+        _externalResources(target, replacement);
+        const rules = Array.from(target.ownerDocument.getElementsByTagNameNS(_svgNS, "style"))
+          .map((style) => style.textContent || "")
+          .filter(Boolean);
+        if (rules.length > 0) {
+          const style = document.createElementNS(_svgNS, "style");
+          const scoped = _scopeExternalCss(rules.join("\n"), scopeId);
+          if (scoped == null) {
+            _externalUseFailure = _externalUseFailure || "external sprite stylesheet could not be scoped";
+            warn(
+              sel,
+              "inline-svg",
+              "external sprite stylesheet could not be scoped; promoted the outer inline SVG to Chromium raster ownership",
+            );
+          }
+          style.textContent = scoped;
+          replacement.insertBefore(style, replacement.firstChild);
+        }
+        for (const nested of Array.from(replacement.querySelectorAll("use"))) {
+          const ref = nested.getAttribute("href") ?? nested.getAttributeNS(_xlinkNS, "href") ?? "";
+          if (ref === "") continue;
+          try {
+            nested.setAttribute("href", new URL(ref, targetDocumentUrl).href);
+          } catch {
+            _externalUseFailure = _externalUseFailure || "invalid nested external <use> reference";
+            warn(
+              sel,
+              "inline-svg",
+              "invalid nested external <use> reference; promoted the outer inline SVG to Chromium raster ownership",
+            );
+          }
+        }
+      }
       useEl.parentNode?.replaceChild(replacement, useEl);
       // The replacement may itself contain <use> refs (chain). Recurse
       // with depth guard.
       _resolveUseRefs(replacement, depth + 1);
+      if (targetExternal)
+        _namespaceExternalCopy(replacement, `domotion-ext-${_externalHostIndex}-${_externalCopyIndex++}-`);
     }
   };
   _resolveUseRefs(clone, 0);

@@ -56,6 +56,35 @@ export const composeUseTransform = (transform: string | null | undefined, x: num
   return (String(transform || "") + " " + translate).trim();
 };
 
+/** Constrain one sprite selector to its copied subtree without changing SVG-root matching. */
+export const scopeExternalSvgSelector = (selector: string, scopeId: string): string => {
+  const trimmed = selector.trim();
+  return /^svg(?=\s|\.|#|\[|:|$)/i.test(trimmed)
+    ? trimmed.replace(/^svg/i, `svg #${scopeId}`)
+    : `#${scopeId} ${trimmed}`;
+};
+
+export const scopeExternalSvgSelectorList = (selectors: string, scopeId: string): string => {
+  const parts: string[] = [];
+  let start = 0;
+  let depth = 0;
+  let quote = "";
+  for (let i = 0; i < selectors.length; i++) {
+    const char = selectors[i];
+    if (quote) {
+      if (char === quote && selectors[i - 1] !== "\\") quote = "";
+    } else if (char === '"' || char === "'") quote = char;
+    else if (char === "(" || char === "[") depth++;
+    else if (char === ")" || char === "]") depth--;
+    else if (char === "," && depth === 0) {
+      parts.push(scopeExternalSvgSelector(selectors.slice(start, i), scopeId));
+      start = i + 1;
+    }
+  }
+  parts.push(scopeExternalSvgSelector(selectors.slice(start), scopeId));
+  return parts.join(", ");
+};
+
 export const shouldStripPromotedViewportDimension = (
   sourceValue: string | null | undefined,
   clonedValue: string | null | undefined,

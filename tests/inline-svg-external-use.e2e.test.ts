@@ -9,9 +9,8 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 /**
  * `<use href="sprite.svg#icon">` names an element in ANOTHER file. The capture script is synchronous, so
  * a prepass fetches each same-origin document first and the script inlines the target from it, exactly as
- * it does for a same-document `#id`. What cannot be inlined faithfully (a document that needs its own
- * stylesheet, a fragment resource such as a gradient, a nested <use>, a fetch that fails) is refused with
- * a warning and the host <svg> is handed to Chromium's raster, so the icon still appears as painted.
+ * it does for a same-document `#id`. Styles, resource defs, and nested uses travel with the vector copy;
+ * failed fetches and malformed documents retain Chromium raster ownership.
  */
 const SPRITE = `<svg xmlns="http://www.w3.org/2000/svg">
   <symbol id="check" viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" fill="currentColor"/></symbol>
@@ -20,7 +19,9 @@ const SPRITE = `<svg xmlns="http://www.w3.org/2000/svg">
 const FILES: Record<string, string> = {
   "/sprite.svg": SPRITE,
   "/styled.svg": `<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:red}</style><symbol id="s" viewBox="0 0 10 10"><rect class="a" width="10" height="10"/></symbol></svg>`,
+  "/styled-blue.svg": `<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:blue}</style><symbol id="s" viewBox="0 0 10 10"><rect class="a" width="10" height="10"/></symbol></svg>`,
   "/gradient.svg": `<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><symbol id="s" viewBox="0 0 10 10"><rect fill="url(#g)" width="10" height="10"/></symbol></svg>`,
+  "/styled-gradient.svg": `<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:url(#g)}</style><defs><linearGradient id="g"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><symbol id="s" viewBox="0 0 10 10"><rect class="a" width="10" height="10"/></symbol></svg>`,
   "/nested.svg": `<svg xmlns="http://www.w3.org/2000/svg"><symbol id="inner" viewBox="0 0 10 10"><rect width="10" height="10"/></symbol><symbol id="s" viewBox="0 0 10 10"><use href="#inner"/></symbol></svg>`,
   "/malformed.svg": `<svg xmlns="http://www.w3.org/2000/svg"><symbol id="s"></svg>`,
 };
@@ -170,9 +171,6 @@ describeBrowser("external-file <use> references", () => {
   it.each([
     ["a 404", "/missing.svg#x", /HTTP 404/],
     ["malformed SVG", "/malformed.svg#s", /not well-formed/],
-    ["a <style> element", "/styled.svg#s", /<style>/],
-    ["a gradient reference", "/gradient.svg#s", /fragment resource/],
-    ["a nested <use>", "/nested.svg#s", /nested <use>/],
     ["no fragment id", "/sprite.svg", /names no element id/],
   ])("hands the host <svg> to Chromium's raster, with a warning, for %s", async (_label, href, reason) => {
     const { svgs, captured } = await capture(`<body><svg width="16" height="16"><use href="${href}"/></svg></body>`);
@@ -182,13 +180,15 @@ describeBrowser("external-file <use> references", () => {
     expect(svgs[0].transformSubtreeRaster).toBeDefined();
   });
 
-  it("emits Chromium's own pixels for a refused sprite that Chromium does paint", async () => {
+  it("inlines sprite styles as scoped vector rules with Chromium's red paint", async () => {
     const { captured, screenshot, viewport } = await capture(
       `<body style="margin:0;background:#fff"><svg width="40" height="40" style="display:block"><use href="/styled.svg#s" width="40" height="40"/></svg></body>`,
     );
     const svg = elementTreeToSvg(captured.tree, viewport.width, viewport.height, {});
-    expect(svg).toContain("<image");
+    expect(svg).toContain("domotion-external-use");
+    expect(svg).toContain("<rect");
     expect(svg).not.toContain("<use");
+    expect(svgWarnings(captured)).toEqual([]);
     // Chromium painted the sprite's red square (its <style> applied); the raster carries it.
     const context = await env!.browser.newContext({ viewport });
     const page = await context.newPage();
@@ -202,6 +202,57 @@ describeBrowser("external-file <use> references", () => {
     };
     expect(await probe(screenshot)).toEqual([255, 0, 0]);
     expect(await probe(rendered)).toEqual([255, 0, 0]);
+  });
+
+  it("keeps same-named sprite classes isolated across two inlined documents", async () => {
+    const viewport = { width: 120, height: 80 };
+    const { captured } = await capture(
+      `<body style="margin:0;background:#fff"><svg width="40" height="40"><use href="/styled.svg#s" width="40" height="40"/></svg><svg width="40" height="40"><use href="/styled-blue.svg#s" width="40" height="40"/></svg></body>`,
+      viewport,
+    );
+    const svg = elementTreeToSvg(captured.tree, viewport.width, viewport.height, {});
+    const context = await env!.browser.newContext({ viewport });
+    const page = await context.newPage();
+    await page.setContent(`<body style="margin:0">${svg}</body>`);
+    const { data, info } = await sharp(await page.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    await context.close();
+    const at = (x: number) => Array.from(data.subarray((20 * info.width + x) * 3, (20 * info.width + x) * 3 + 3));
+    expect(at(20)).toEqual([255, 0, 0]);
+    expect(at(60)).toEqual([0, 0, 255]);
+  });
+
+  it("copies referenced gradient defs under distinct ids and resolves nested external uses", async () => {
+    const { svgs, captured } = await capture(
+      `<body><svg width="16" height="16"><use href="/gradient.svg#s"/></svg><svg width="16" height="16"><use href="/gradient.svg#s"/></svg><svg width="16" height="16"><use href="/nested.svg#s"/></svg></body>`,
+    );
+    expect(svgWarnings(captured)).toEqual([]);
+    for (const svg of svgs) expect(svg.transformSubtreeRaster).toBeUndefined();
+    const first = svgs[0].svgContent ?? "";
+    const second = svgs[1].svgContent ?? "";
+    expect(first).toContain("<linearGradient");
+    expect(first).toMatch(/fill="url\(#domotion-ext-[^)]*g\)"/);
+    expect(first).not.toContain("<use");
+    const firstGradientId = first.match(/<linearGradient id="([^"]+)"/)?.[1];
+    const secondGradientId = second.match(/<linearGradient id="([^"]+)"/)?.[1];
+    expect(firstGradientId).toBeTruthy();
+    expect(secondGradientId).toBeTruthy();
+    expect(secondGradientId).not.toBe(firstGradientId);
+    expect(svgs[2].svgContent).toContain("<rect");
+    expect(svgs[2].svgContent).not.toContain("<use");
+  });
+
+  it("copies resources referenced by the sprite's own stylesheet", async () => {
+    const { svgs, captured } = await capture(
+      `<body><svg width="20" height="20"><use href="/styled-gradient.svg#s"/></svg></body>`,
+    );
+    expect(svgWarnings(captured)).toEqual([]);
+    expect(svgs[0].transformSubtreeRaster).toBeUndefined();
+    const content = svgs[0].svgContent ?? "";
+    expect(content).toContain("<linearGradient");
+    expect(content).toMatch(/fill:\s*url\("?#domotion-ext-[^)]*g"?\)/);
   });
 
   it("refuses a cross-origin document without requesting it (Chromium never paints one)", async () => {
