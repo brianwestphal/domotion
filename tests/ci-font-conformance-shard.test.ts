@@ -17,8 +17,8 @@
  * command line it echoes is the assertion surface. A test that re-implemented
  * the case statement in TypeScript would pass against a broken script.
  */
-import { execFileSync } from "node:child_process";
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -34,17 +34,31 @@ beforeAll(() => {
   // echoed command line can be read.
   for (const name of ["npx", "node"]) {
     const p = join(stubDir, name);
-    writeFileSync(p, "#!/bin/sh\nexit 0\n");
+    writeFileSync(
+      p,
+      name === "npx"
+        ? '#!/bin/sh\nwhile [ "$#" -gt 0 ]; do if [ "$1" = "--out" ]; then out="$2"; break; fi; shift; done\nmkdir -p "$out"\nprintf "{}\\n" > "$out/report.json"\nprintf "ok\\n" > "$out/summary.txt"\nexit 0\n'
+        : "#!/bin/sh\nexit 0\n",
+    );
     chmodSync(p, 0o755);
   }
 });
 
 /** Run the script and return the command line it says it will run. */
 function argsFor(env: Record<string, string>): string {
+  const outDir = mkdtempSync(join(tmpdir(), "fc-shard-out-"));
   const out = execFileSync("bash", [SCRIPT], {
     cwd: ROOT,
     encoding: "utf-8",
-    env: { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ""}`, SHARD: "1", TOTAL: "6", ...env },
+    env: {
+      ...process.env,
+      PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+      SHARD: "1",
+      TOTAL: "6",
+      OUT_DIR: outDir,
+      RUNNER_OS: "Linux",
+      ...env,
+    },
   });
   const line = out.split("\n").find((l) => l.includes("npx tsx tools/font-conformance.ts"));
   expect(line, `the script must announce its command line:\n${out}`).toBeDefined();
@@ -93,5 +107,73 @@ describe("the conformance shard script passes exactly the flags it was asked for
     expect(argsFor({ SAMPLE_BYTE: "00" })).toContain("--sample-byte 00");
     expect(argsFor({ SAMPLE_BYTE: "AF" })).toContain("--sample-byte AF");
     expect(argsFor({ SAMPLE_BYTE: "all" })).not.toContain("--sample-byte");
+  });
+});
+
+describe("the macOS shard restarts only diagnosed oracle drift", () => {
+  function runStub(mode: "once" | "always" | "nondrift", runnerOS = "macOS") {
+    const dir = mkdtempSync(join(tmpdir(), "fc-shard-retry-"));
+    const outDir = join(dir, "out");
+    const npx = join(dir, "npx");
+    const node = join(dir, "node");
+    writeFileSync(node, "#!/bin/sh\nexit 0\n");
+    writeFileSync(
+      npx,
+      '#!/bin/sh\nout=""\nwhile [ "$#" -gt 0 ]; do if [ "$1" = "--out" ]; then out="$2"; break; fi; shift; done\ncount=0\n[ -f "$STATE_FILE" ] && count=$(cat "$STATE_FILE")\ncount=$((count + 1))\nprintf "%s\\n" "$count" > "$STATE_FILE"\nmkdir -p "$out"\nif [ "$STUB_MODE" = "nondrift" ] || [ "$STUB_MODE" = "always" ] || [ "$count" -eq 1 ]; then\n  [ "$STUB_MODE" = "nondrift" ] || printf "{}\\n" > "$out/oracle-drift.json"\n  exit 2\nfi\nprintf "{}\\n" > "$out/report.json"\nprintf "ok\\n" > "$out/summary.txt"\nexit 1\n',
+    );
+    chmodSync(npx, 0o755);
+    chmodSync(node, 0o755);
+    const result = spawnSync("bash", [SCRIPT], {
+      cwd: ROOT,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH ?? ""}`,
+        SHARD: "1",
+        TOTAL: "1",
+        OUT_DIR: outDir,
+        RUNNER_OS: runnerOS,
+        STATE_FILE: join(dir, "count"),
+        STUB_MODE: mode,
+      },
+    });
+    return { result, dir, outDir, count: Number(readFileSync(join(dir, "count"), "utf8")) };
+  }
+
+  it("discards a partial process and accepts only the complete second attempt", () => {
+    const { result, outDir, count } = runStub("once");
+    expect(result.status).toBe(0);
+    expect(count).toBe(2);
+    expect(existsSync(join(outDir, "attempt-1/oracle-drift.json"))).toBe(true);
+    expect(existsSync(join(outDir, "attempt-1/report.json"))).toBe(false);
+    expect(existsSync(join(outDir, "report.json"))).toBe(true);
+    expect(JSON.parse(readFileSync(join(outDir, "oracle-attempts.json"), "utf8"))).toEqual({
+      attempts: 2,
+      maxAttempts: 3,
+      accepted: true,
+    });
+  });
+
+  it("does not restart an unrelated tool failure", () => {
+    const { result, outDir, count } = runStub("nondrift");
+    expect(result.status).toBe(2);
+    expect(count).toBe(1);
+    expect(existsSync(join(outDir, "report.json"))).toBe(false);
+  });
+
+  it("stops after three drifted attempts without publishing a report", () => {
+    const { result, outDir, count } = runStub("always");
+    expect(result.status).toBe(2);
+    expect(count).toBe(3);
+    expect(existsSync(join(outDir, "attempt-3/oracle-drift.json"))).toBe(true);
+    expect(existsSync(join(outDir, "report.json"))).toBe(false);
+    expect(JSON.parse(readFileSync(join(outDir, "oracle-attempts.json"), "utf8")).accepted).toBe(false);
+  });
+
+  it.each(["Linux", "Windows"])("keeps %s on the single-attempt path", (runnerOS) => {
+    const { result, outDir, count } = runStub("once", runnerOS);
+    expect(result.status).toBe(2);
+    expect(count).toBe(1);
+    expect(existsSync(join(outDir, "oracle-attempts.json"))).toBe(false);
   });
 });

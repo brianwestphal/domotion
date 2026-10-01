@@ -434,6 +434,9 @@ describe("sweep state transitions", () => {
       universeLength: 1,
       stackLength: 1,
       oracleIsolation: "shared-renderer",
+      oraclePreferenceRepairs: [
+        { at: "before batch 2", expected: ["serif=Times-Roman"], actual: ["serif=TimesNewRomanPSMT"] },
+      ],
       resolverAnswerDigest: tally.resolverAnswerHash.digest("hex"),
       tally,
       wallMs: 100,
@@ -456,6 +459,10 @@ describe("sweep state transitions", () => {
     expect(report.rowsRetained).toBe(0);
     expect(report.rowsTruncated).toBe(1);
     expect(report.meta.generatedAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(report.meta.oraclePreferenceRepairs).toEqual({
+      count: 1,
+      events: [{ at: "before batch 2", expected: ["serif=Times-Roman"], actual: ["serif=TimesNewRomanPSMT"] }],
+    });
     expect(formatSummary(report, opts, corpus, tally, 1, 1)).toContain("MISMATCH total     1");
   });
 });
