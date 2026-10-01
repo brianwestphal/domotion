@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1811", "DM-1844", "DM-1852", "DM-1854", "DM-1859", "DM-1868", "DM-X8V6RN", "DM-R91M61"]
+tickets: ["DM-1811", "DM-1844", "DM-1852", "DM-1854", "DM-1859", "DM-1868", "DM-X8V6RN", "DM-R91M61", "DM-SYSJJH"]
 code:
   [
     "packages/text-engine/src/render/harfbuzz-shaper.ts",
@@ -68,6 +68,7 @@ Two per-platform details of these procedures, both now transcribed:
 - **macOS substitutes a CTFont-less primary from a Times base** (`GetSubstituteFont`, `mac/font_cache_mac.mm:137-147`): FreeType-backed webfonts and some color fonts have no `ct_font`, and Blink asks `CTFontCreateForString` from `CTFontCreateWithName("Times")` for them. `fallbackBaseFor` mirrors this with a `Times-Roman` base for webfont / local-alias registry keys (the no-spec arm).
 - **A macOS substitute is an exact face, not a new declared-family request.** The same `sysfb:<PostScript name>` can first be opened as a Chinese `serif` primary and later returned by `CTFontCreateForString` for an unrelated `cursive` run. The primary route runs Blink's family style matcher at its CSS weight; the substitute route keeps CoreText's already selected cut. A prior `serif lang=zh-Hans` run registered `STSongti-SC-Regular` for declared-family matching, then a `cursive` weight-800 U+1800 fallback reopened that key as `STSongti-SC-Black` even though Chrome painted Regular. The renderer now gives a colliding substitute a separate exact-face key before opening and shaping it. The 17-stack real-browser transition in `tests/font-conformance-fallback-key-collision.e2e.test.ts` pins the behavior.
 - **The macOS system UI fallback cascade follows the warmed primary.** A fresh quoted case variant `"System-ui", Menlo` resolves to Menlo. After an earlier canonical `system-ui` request, Chromium's platform-font cache resolves that same quoted declaration to `.SFNS-Regular`; its U+3000 fallback is the private `.PingFangUITextSC-Regular` cut. The renderer already mirrored the warmed primary but treated its fallback as a named SFNS file and opened public `PingFangSC-Regular`. `stackPrimaryIsSystemUi` now carries the Darwin warm-cache state into the fallback-base request. A two-stack, same-page browser test pins the cold-to-warm route (`tests/font-conformance-warmed-system-ui.e2e.test.ts`).
+- **Private-use codepoints stop before SF Pro substitution.** Blink's no-system-fallback rule applies to the standalone SF Pro OTF shortcut as well as the later CoreText/table stages. On a Mac with `/Library/Fonts/SF-Pro-Text-Regular.otf`, a `system-ui` run at U+100000 previously selected that OTF while Chromium retained its `.SFNS-Regular` primary `.notdef`. The guard now leaves uncovered PUA on the primary; an author-declared `SF Pro Text` still paints its own PUA glyph. The host-gated real-browser regression is `tests/font-conformance-sf-pro-pua.e2e.test.ts`. The separate U+2469 enclosed-alphanumeric OTF preemption is tracked in `DM-GPT363`.
 
 ## 3. Our implementation, mapped
 

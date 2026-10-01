@@ -5270,6 +5270,23 @@ describe("codePoints aliasing — the audited sites (DM-1849)", () => {
     }
   });
 
+  it.runIf(process.platform === "darwin")(
+    "keeps system-ui Plane 16 PUA on its primary even when standalone SF Pro Text is installed",
+    () => {
+      if (resolveInstalledFont("SF Pro Text")?.postscriptName !== "SFProText-Regular") return;
+      for (const cp of [0x100000, 0x100100]) {
+        const ui = __resolveFontForCodepointForTest(cp, "system-ui", 400, 16);
+        expect(ui?.key, `U+${cp.toString(16)} system-ui key`).toBe(resolveFontKey("system-ui"));
+        expect(ui?.covered, `U+${cp.toString(16)} system-ui coverage`).toBe(false);
+        // An explicitly declared OTF is still allowed to paint its own PUA
+        // glyph. Blink's gate applies to system substitution, not primaries.
+        const named = __resolveFontForCodepointForTest(cp, "SF Pro Text", 400, 16);
+        expect(named?.key, `U+${cp.toString(16)} named key`).toBe("sysfb:SFProText-Regular");
+        expect(named?.covered, `U+${cp.toString(16)} named coverage`).toBe(true);
+      }
+    },
+  );
+
   // The other side of the same rule, so the gate can't be "fixed" by disabling
   // fallback wholesale: U+F8FF is private-use AND macOS Helvetica has a real
   // glyph for it (the Apple logo). Blink skips only the SYSTEM-fallback stage;

@@ -294,16 +294,23 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     return cover(primaryFontKey, null, " ");
   }
 
+  // Private-use and noncharacter codepoints may be painted by a declared
+  // family, but Blink never asks for a system substitute for them. Compute the
+  // gate before the SF Pro OTF shortcut, which is also a substitute route.
+  const noSystemFallback = isPrivateUseCodepoint(cp) || isNonCharacterCodepoint(cp);
+
   // DM-1659: SF Pro Text/Display and the system font resolve to SFNS (matching
   // Chrome's PAINTED glyph shapes — see matchFamilyNameToKey). But SFNS lacks a
   // few glyphs the standalone `/Library/Fonts/SF-Pro-*.otf` carries (the two-digit
   // enclosed alphanumerics U+2469–2473 / U+24EB–24F4, Enclosed-CJK circled 21–50).
-  // For those, Chrome's CoreText cascades from SFNS to the standalone OTF (which it
-  // still reports as "SF Pro Text"). Mirror that per-codepoint: an sf-pro run whose
+  // Earlier Chromium/CoreText measurements cascaded from SFNS to the standalone
+  // OTF (reported as "SF Pro Text") for those. The current developer-host
+  // U+2469 route instead reaches a private Hiragino UI face; DM-GPT363 tracks
+  // that separate non-PUA preemption. For now, an sf-pro run whose
   // codepoint SFNS doesn't cover falls to the standalone OTF BEFORE the declared
   // chain — else it hits a LATER author family (Arial Unicode MS's full-em circled
   // numbers, a visibly larger glyph than Chrome's condensed SF Pro one, DM-1127).
-  if (primaryFontKey === "sf-pro" || primaryFontKey === "sf-pro-italic") {
+  if (!noSystemFallback && (primaryFontKey === "sf-pro" || primaryFontKey === "sf-pro-italic")) {
     const otfKey = sfProCoverageOtfKey();
     if (otfKey != null) {
       const otf = getFontInstance(otfKey, weight, fontSize, slant);
@@ -609,7 +616,6 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // `SFCompact-Regular` for U+100000 (Apple keeps SF Symbols in plane 16) and
   // our chain tail answered LastResort for U+E000 / U+F0000, whose glyph is
   // 35.20px wide against Helvetica's 20.28px `.notdef` at 32px.
-  const noSystemFallback = isPrivateUseCodepoint(cp) || isNonCharacterCodepoint(cp);
   if (noSystemFallback) {
     _stageStats.noSystemFallback++;
     // A null platform-fallback answer advances the iterator to its explicit
