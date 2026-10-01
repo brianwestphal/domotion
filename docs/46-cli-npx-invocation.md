@@ -99,7 +99,12 @@ build` removes it before compiling, then checks that every emitted `.js` and
   still performs a clean build for release tarballs. Git-source installs fetch
   dev dependencies and run the generators and TypeScript compiler on the
   consumer's machine, so they take longer than registry installs. npm's Git
-  install path drops the private bundled workspace even though `npm pack` of
+  staging can run the root `prepare` after the workspace `prepare` with a
+  reduced Windows `PATH`. Git `prepare` runs the same ordered build stages
+  directly through the active Node executable, including the installed
+  TypeScript and TSX modules. This avoids nested npm script shells, which can
+  lose `node` and `.bin` command lookup during staging. The Git install path
+  drops the private bundled workspace even though `npm pack` of
   the same Git ref retains it. During npm's temporary Git staging, `prepare`
   places a built copy under `assets/git-install/`. The package's `postinstall`
   step places it in `node_modules/@domotion/text-engine`. Registry installs run
