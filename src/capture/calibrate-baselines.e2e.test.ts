@@ -23,7 +23,7 @@ function walk(nodes: CapturedElement[], visit: (el: CapturedElement) => void): v
 }
 
 describeBrowser("calibrateBaselines (ink-scan ascent back-solve)", () => {
-  it("writes a plausible sub-pixel ascent onto text-bearing elements and leaves textless ones alone", async () => {
+  it("replaces an invalid text ascent with a plausible measured value and leaves textless elements alone", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 320, height: 120 } });
     try {
       await page.setContent(
@@ -32,7 +32,13 @@ describeBrowser("calibrateBaselines (ink-scan ascent back-solve)", () => {
       const viewport = { x: 0, y: 0, width: 320, height: 120 };
       const tree = await captureElementTree(page, "body", viewport);
       const before = new Map<CapturedElement, number | undefined>();
-      walk(tree, (el) => before.set(el, el.fontAscent));
+      walk(tree, (el) => {
+        // Linux can already capture the exact calibrated ascent (29px for
+        // this fixture). Seed an invalid value so the assertion proves the
+        // ink scan writes a measurement rather than merely observing equality.
+        if (el.text != null && el.text !== "" && el.textWidth != null && el.textWidth > 0) el.fontAscent = 0;
+        before.set(el, el.fontAscent);
+      });
       const png = await page.screenshot({ clip: viewport, type: "png" });
 
       await calibrateBaselines(page, tree, png);
@@ -49,6 +55,10 @@ describeBrowser("calibrateBaselines (ink-scan ascent back-solve)", () => {
         if (el.text == null || el.text === "") expect(el.fontAscent).toBe(before.get(el));
       });
       expect(calibrated).toBeGreaterThan(0);
+      const once = new Map<CapturedElement, number | undefined>();
+      walk(tree, (el) => once.set(el, el.fontAscent));
+      await calibrateBaselines(page, tree, png);
+      walk(tree, (el) => expect(el.fontAscent).toBe(once.get(el)));
     } finally {
       await page.close();
     }
