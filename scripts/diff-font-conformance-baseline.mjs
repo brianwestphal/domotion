@@ -62,6 +62,7 @@ export function parseBaselineArgs(args, env = process.env) {
     baselinePath: get("--baseline"),
     label: get("--label", "font-conformance"),
     commit: get("--commit", env.GITHUB_SHA ?? ""),
+    oracleReview: get("--oracle-review"),
   };
 }
 
@@ -241,6 +242,29 @@ export function oracleMovement(runFaces, baseCounts) {
   return { comparable: true, total, moved };
 }
 
+/** A changed Chrome answer distribution must be reviewed before a baseline is replaced. */
+export function baselineUpdateReview(run, previous, reason) {
+  if (previous == null) return { movement: null, blocker: null };
+  const movement = oracleMovement(run.chromeFaces, previous.chromeFaceCounts);
+  if (!movement.comparable) {
+    return {
+      movement,
+      blocker: reason?.trim()
+        ? null
+        : "The existing baseline lacks Chrome face counts; pass --oracle-review with an evidence-based reason.",
+    };
+  }
+  if (movement.total === 0) return { movement, blocker: null };
+  if (reason == null || reason.trim() === "") {
+    return {
+      movement,
+      blocker:
+        "Chrome's answer distribution changed; pass --oracle-review with the evidence-based reason after investigation.",
+    };
+  }
+  return { movement, blocker: null };
+}
+
 export function formatRunHeader(run, label) {
   const md = [`## ${label}`, ""];
 
@@ -265,7 +289,9 @@ export function formatRunHeader(run, label) {
 }
 
 function main() {
-  const { strict, update, resultsPath, baselinePath, label, commit } = parseBaselineArgs(process.argv.slice(2));
+  const { strict, update, resultsPath, baselinePath, label, commit, oracleReview } = parseBaselineArgs(
+    process.argv.slice(2),
+  );
   if (resultsPath == null) {
     process.stderr.write("--results is required\n");
     process.exit(2);
@@ -311,7 +337,30 @@ function main() {
       emit(md);
       process.exit(1); // always fatal: this is a request to record something known-wrong
     }
-    writeFileSync(baselinePath, `${JSON.stringify(baselineFrom(run, commit), null, 2)}\n`);
+    const previous = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, "utf8")) : null;
+    const review = baselineUpdateReview(run, previous, oracleReview);
+    if (review.blocker != null) {
+      md.push(`> **REFUSING to replace the baseline.** ${review.blocker}`, "");
+      if (review.movement?.comparable) {
+        md.push(
+          ...review.movement.moved
+            .slice(0, 10)
+            .map((m) => `> - \`${m.face}\` ${m.delta >= 0 ? "+" : ""}${m.delta.toLocaleString()}`),
+          "",
+        );
+      }
+      emit(md);
+      process.exit(1);
+    }
+    const next = baselineFrom(run, commit);
+    if (previous != null && (review.movement?.total > 0 || !review.movement?.comparable)) {
+      next.meta.oracleMovementReview = {
+        reason: oracleReview.trim(),
+        priorCommit: previous.meta?.commit ?? null,
+        absoluteFaceDelta: review.movement.comparable ? review.movement.total : null,
+      };
+    }
+    writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`);
     md.push(`Baseline written to \`${baselinePath}\`.`, "");
     emit(md);
     return;

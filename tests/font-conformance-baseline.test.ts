@@ -26,6 +26,7 @@ import {
 } from "../scripts/merge-font-conformance-shards.mjs";
 import {
   baselineFrom,
+  baselineUpdateReview,
   compareAgainstBaseline,
   comparability,
   formatRunHeader,
@@ -159,6 +160,60 @@ describe("baseline command seams", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("refuses to replace a baseline after Chrome flips faces until the movement is reviewed", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-font-oracle-review-"));
+    try {
+      const resultPath = join(dir, "result.json");
+      const baselinePath = join(dir, "baseline.json");
+      const old = {
+        meta: { complete: true, commit: "old" },
+        summary: { comparisons: 1754796, mismatchTotal: 222395 },
+        chromeFaceCounts: { "Helvetica-Bold": 222883, "Arial-BoldMT": 110 },
+      };
+      const run = {
+        meta: { complete: true },
+        summary: { comparisons: 1754796, mismatchTotal: 283053 },
+        chromeFaces: { "Helvetica-Bold": 162225, "Arial-BoldMT": 60768 },
+      };
+      writeFileSync(resultPath, JSON.stringify(run));
+      writeFileSync(baselinePath, JSON.stringify(old));
+      const args = [
+        "scripts/diff-font-conformance-baseline.mjs",
+        "--results",
+        resultPath,
+        "--baseline",
+        baselinePath,
+        "--update-baseline",
+      ];
+      expect(() => execFileSync(process.execPath, args, { encoding: "utf8", stdio: "pipe" })).toThrow();
+      expect(JSON.parse(readFileSync(baselinePath, "utf8"))).toEqual(old);
+      expect(baselineUpdateReview(run, old, null).movement?.moved).toEqual([
+        { face: "Helvetica-Bold", delta: -60658 },
+        { face: "Arial-BoldMT", delta: 60658 },
+      ]);
+      const output = execFileSync(
+        process.execPath,
+        [...args, "--oracle-review", "independent runner evidence confirmed the new oracle"],
+        { encoding: "utf8" },
+      );
+      expect(output).toContain("Baseline written");
+      expect(JSON.parse(readFileSync(baselinePath, "utf8")).meta.oracleMovementReview).toEqual({
+        reason: "independent runner evidence confirmed the new oracle",
+        priorCommit: "old",
+        absoluteFaceDelta: 121316,
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows unchanged Chrome counts and requires review for an unmeasurable legacy baseline", () => {
+    const run = { chromeFaces: { A: 1 } };
+    expect(baselineUpdateReview(run, { chromeFaceCounts: { A: 1 } }, null).blocker).toBeNull();
+    expect(baselineUpdateReview(run, {}, null).blocker).toMatch(/lacks Chrome face counts/);
+    expect(baselineUpdateReview(run, {}, "reviewed old report").blocker).toBeNull();
   });
 });
 
