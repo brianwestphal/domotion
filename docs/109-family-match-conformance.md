@@ -6,7 +6,12 @@ status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets: []
-code: ["packages/text-engine/src/render/text-to-path.test.ts", "tools/family-match-conformance.ts"]
+code:
+  [
+    "packages/text-engine/src/render/text-to-path.test.ts",
+    "tools/family-match-conformance.ts",
+    "tools/family-match-transient-report.ts",
+  ]
 aliases: ["docs/109-family-match-conformance.md", "doc-109"]
 ---
 
@@ -156,3 +161,20 @@ exist: doc 110 (Linux — the fontconfig `matchFamilyName` transcription,
 `GetFirstMatchingFont` call plus Blink's family-name suffix layer,
 `npm run fonts:family-match:win32`), each with its own committed,
 environment-fingerprinted baseline.
+
+## Transient report files
+
+The macOS, Linux, and Windows oracles write their transient JSON results to
+`tests/output/family-match-conformance{,-linux,-windows}.json`, respectively.
+`--json` still prints the original flat result to stdout. `--json-path <path>`
+selects a report file elsewhere, creating nested parent directories as needed.
+Each file now uses the [version 1 tool report envelope](267-tool-report-envelope.md)
+with its original result under `data` and a normalized `data.outcome`.
+
+The macOS outcome is `pass` when its misses fit `--allow`, and `fail` otherwise.
+Linux and Windows report `pass` for no new regressions against the matching
+environment baseline, `fail` for new regressions, and `skip` for baseline
+recording, an absent baseline, or an unmatched environment. Exit codes and
+console summaries retain their earlier meanings. The committed
+environment-keyed baseline sets under `tests/baselines/` remain in their own
+flat format; they are not transient report files.

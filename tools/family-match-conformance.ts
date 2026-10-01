@@ -19,6 +19,7 @@
  * Usage:
  *   npm run fonts:family-match            # summary + miss list, exit 1 on regression
  *   npm run fonts:family-match -- --json  # machine-readable report
+ *   npm run fonts:family-match -- --json-path out/nested/report.json
  *   npm run fonts:family-match -- --allow 12   # tolerate up to N misses
  *
  * macOS only: it scores the macOS helper's `familyMatch` query, which is a
@@ -31,11 +32,12 @@
  * own oracles.
  */
 import { execFileSync } from "node:child_process";
-import { readdirSync, statSync, existsSync, writeFileSync } from "node:fs";
+import { readdirSync, statSync, existsSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import * as fontkit from "fontkit";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeFamilyMatchTransientReport } from "./family-match-transient-report.js";
 
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 const FONT_DIRS = ["/System/Library/Fonts", "/Library/Fonts"];
@@ -102,8 +104,14 @@ function installedFamilies(): string[] {
 }
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
-  const values = parseFlags(argv, { json: { type: "boolean" }, allow: { type: "string" } });
+  const values = parseFlags(argv, {
+    json: { type: "boolean" },
+    "json-path": { type: "string" },
+    allow: { type: "string" },
+  });
   const asJson = values.json === true;
+  const jsonPath = values["json-path"] == null ? "tests/output/family-match-conformance.json" : values["json-path"];
+  if (jsonPath === "") throw new Error("--json-path requires a path");
   const allow = values.allow == null ? 0 : Number(values.allow);
   if (!Number.isSafeInteger(allow) || allow < 0) throw new Error("--allow requires a nonnegative integer");
 
@@ -197,9 +205,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     console.log(`families with a miss: ${missFamilies.size}\n`);
     for (const m of misses) console.log(`  ${m.family}@${m.css}: chrome=${m.chrome} ours=${m.ours}`);
   }
-  writeFileSync(
-    "tests/output/family-match-conformance.json",
-    JSON.stringify({ scored, agree, skipped, misses }, null, 2),
+  writeFamilyMatchTransientReport(
+    jsonPath,
+    "family-match-conformance",
+    { scored, agree, skipped, misses },
+    misses.length > allow ? "fail" : "pass",
+    { platform: process.platform, architecture: process.arch },
   );
 
   if (misses.length > allow) {

@@ -46,6 +46,7 @@
  * Usage (Windows only — e.g. on the Parallels VM):
  *   npx tsx tools/family-match-conformance-win32.ts                # compare vs baseline
  *   npx tsx tools/family-match-conformance-win32.ts --json
+ *   npx tsx tools/family-match-conformance-win32.ts --json-path out/nested/report.json
  *   npx tsx tools/family-match-conformance-win32.ts --write-baseline
  *
  * Exit codes: 0 ok / 1 regression vs baseline / 2 cannot run / 3 environment
@@ -53,12 +54,13 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import * as fontkit from "fontkit";
 import { win32FamilySuffixAdjustment } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeFamilyMatchTransientReport } from "./family-match-transient-report.js";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,
@@ -217,9 +219,18 @@ function ourAnswers(families: string[]): Map<string, Map<number, OurAnswer>> {
 }
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
-  const values = parseFlags(argv, { json: { type: "boolean" }, "write-baseline": { type: "boolean" } });
+  const values = parseFlags(argv, {
+    json: { type: "boolean" },
+    "json-path": { type: "string" },
+    "write-baseline": { type: "boolean" },
+  });
   const asJson = values.json === true;
   const writeBaseline = values["write-baseline"] === true;
+  const jsonPath =
+    values["json-path"] == null
+      ? resolve("tests", "output", "family-match-conformance-windows.json")
+      : resolve(values["json-path"]);
+  if (values["json-path"] === "") throw new Error("--json-path requires a path");
 
   if (process.platform !== "win32") {
     console.error("family-match conformance (win32) must run on Windows (it scores the DirectWrite matcher).");
@@ -311,8 +322,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     misses,
   };
 
-  mkdirSync(resolve("tests", "output"), { recursive: true });
-  writeFileSync(resolve("tests", "output", "family-match-conformance-windows.json"), JSON.stringify(report, null, 2));
+  const saveReport = (outcome: "pass" | "fail" | "skip"): void =>
+    writeFamilyMatchTransientReport(jsonPath, "family-match-conformance-win32", report, outcome, env);
 
   if (asJson) console.log(JSON.stringify(report, null, 2));
   else {
@@ -326,6 +337,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   if (writeBaseline) {
     mkdirSync(resolve("tests", "baselines"), { recursive: true });
     const { replaced, total } = writeBaselineSet(BASELINE, report, ENV_KEYS);
+    saveReport("skip");
     console.log(
       `baseline ${replaced ? "replaced" : "recorded"} for this environment: ${BASELINE} (${total} environment(s) in the set)`,
     );
@@ -334,11 +346,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 
   const entries = readBaselineSet(BASELINE);
   if (entries.length === 0) {
+    saveReport("skip");
     console.log("no committed baseline yet (tests/baselines/family-match-windows.json) — advisory run only.");
     return;
   }
   const baseline = selectBaseline(entries, env, ENV_KEYS);
   if (baseline == null) {
+    saveReport("skip");
     console.error("REFUSING TO JUDGE: no recorded baseline matches this environment.");
     console.error(`this run: ${ENV_KEYS.map((k) => `${k}=${String(env[k])}`).join(" ")}`);
     for (const line of describeRecordedEnvs(entries, ENV_KEYS)) console.error(`recorded:  ${line}`);
@@ -350,10 +364,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const baselineMissKeys = new Set(baseline.misses.map((m) => `${m.family}@${m.css}`));
   const regressions = misses.filter((m) => !baselineMissKeys.has(`${m.family}@${m.css}`));
   if (regressions.length > 0) {
+    saveReport("fail");
     console.error(`\n${regressions.length} regression(s) vs baseline:`);
     for (const m of regressions) console.error(`  ${m.family}@${m.css}: chrome=${m.chrome} ours=${m.ours}`);
     process.exit(1);
   }
+  saveReport("pass");
   console.log(`no regressions vs baseline (baseline misses: ${baseline.misses.length}, this run: ${misses.length}).`);
 }
 
