@@ -9,7 +9,7 @@ import { createReadStream, mkdirSync, readFileSync, writeFileSync } from "node:f
 import { createServer, type Server } from "node:http";
 import { arch, platform, release } from "node:os";
 import { resolve } from "node:path";
-import { type Browser, type Page } from "@playwright/test";
+import { chromium, type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { writeReport } from "./lib/report.js";

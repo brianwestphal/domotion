@@ -10,7 +10,7 @@ import { createServer, type Server } from "node:http";
 import { createReadStream, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { type Browser, type Page } from "@playwright/test";
+import { chromium, type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";

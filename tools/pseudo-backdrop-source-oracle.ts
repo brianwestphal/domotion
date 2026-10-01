@@ -290,7 +290,7 @@ export async function runPseudoBackdropSourceOracle(
   const rows: PseudoBackdropOracleRow[] = [];
   const warnings: string[] = [];
   const blockers: string[] = [];
-  await withBrowser(
+  const chromiumVersion = await withBrowser(
     async (browser) => {
       for (const dpr of dprs) {
         const context = await browser.newContext({ viewport: PSEUDO_BACKDROP_VIEWPORT, deviceScaleFactor: dpr });
@@ -415,6 +415,7 @@ export async function runPseudoBackdropSourceOracle(
           await context.close();
         }
       }
+      return browser.version();
     },
     { args: ["--enable-blink-features=AppearanceBase"] },
   );
@@ -429,7 +430,7 @@ export async function runPseudoBackdropSourceOracle(
   return {
     schemaVersion: 1,
     sourcePins: PSEUDO_BACKDROP_SOURCE_PINS,
-    producer: { chromiumVersion: browser.version(), platform: process.platform, architecture: process.arch },
+    producer: { chromiumVersion, platform: process.platform, architecture: process.arch },
     requiredStates: PSEUDO_BACKDROP_REQUIRED_STATES,
     thresholds: PSEUDO_BACKDROP_THRESHOLDS,
     rows,
