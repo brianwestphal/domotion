@@ -166,6 +166,9 @@ plus controlled-healing browser passes.
   `tests/oracle-phases.e2e.test.ts` exercises a live Chromium paint order flow.
 - `tools/lib/conformance-args.ts` validates numeric flags and 1-based shard
   selection for conformance tools and the visual harness.
+- `tools/lib/browser.ts` owns TypeScript tool browsers, while
+  `tools/lib/browser.mjs` gives plain-Node probes the same callback and
+  idempotent cleanup pattern. See `docs/tool-browser-lifecycle.md`.
 - `scripts/install-windows-profile-fixture-fonts.ps1` installs the generated
   Devanagari comparison faces used by the native Windows profile/target gate.
 - `scripts/materialize-source-authorities.mjs` reconstructs the source subset

@@ -1,4 +1,4 @@
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 import { writeFileSync } from "node:fs";
 import { CURSOR_CATEGORIES, cursorGlyphSvg } from "../src/animation/cursor-glyphs.js";
 
@@ -36,13 +36,13 @@ const html = `<!doctype html><meta charset="utf8"><body style="margin:0;font-fam
 </style>
 ${cats}
 </body>`;
-const browser = await chromium.launch();
-const page = await browser.newContext({ deviceScaleFactor: 2 }).then((c) => c.newPage());
-await page.setViewportSize({ width: 980, height: 1400 });
-await page.setContent(html);
-const h = await page.evaluate(() => document.body.scrollHeight);
-await page.setViewportSize({ width: 980, height: h + 20 });
-const out = "tests/output/cursor-glyphs-catalog.png";
-writeFileSync(out, await page.screenshot({ fullPage: true }));
-console.log("wrote", out, h);
-await browser.close();
+await withBrowser(async (browser) => {
+  const page = await browser.newContext({ deviceScaleFactor: 2 }).then((c) => c.newPage());
+  await page.setViewportSize({ width: 980, height: 1400 });
+  await page.setContent(html);
+  const h = await page.evaluate(() => document.body.scrollHeight);
+  await page.setViewportSize({ width: 980, height: h + 20 });
+  const out = "tests/output/cursor-glyphs-catalog.png";
+  writeFileSync(out, await page.screenshot({ fullPage: true }));
+  console.log("wrote", out, h);
+});

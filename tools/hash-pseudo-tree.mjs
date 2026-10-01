@@ -3,7 +3,7 @@
 // an empty-content decorative box) — exercises parsePseudoContent + the
 // empty-content branch.
 import { createHash } from "node:crypto";
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
 const html = `<!doctype html><meta charset=utf8><style>
 @counter-style prefixed { system: numeric; symbols: "0" "1" "2" "3" "4" "5" "6" "7" "8" "9"; prefix: "Step "; suffix: ": "; pad: 2 "0"; }
@@ -19,10 +19,10 @@ q::before { content: open-quote; } q::after { content: close-quote; }
 <p><q>quoted text</q></p>
 <span class=ico>hairline</span><div class=sep>section</div>
 </body>`;
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 400, height: 360 }, deviceScaleFactor: 1 });
-const page = await ctx.newPage();
-await page.setContent(html, { waitUntil: "networkidle" });
-const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 360 });
-console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
-await browser.close();
+await withBrowser(async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 400, height: 360 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  await page.setContent(html, { waitUntil: "networkidle" });
+  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 360 });
+  console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
+});

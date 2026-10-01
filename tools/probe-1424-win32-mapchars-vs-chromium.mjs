@@ -29,7 +29,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
-import { chromium } from "@playwright/test";
+import { openOwnedBrowser } from "./lib/browser.mjs";
 
 const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "\\\\Mac\\Home\\Documents\\html-test\\unicode");
 const OUT_PATH = process.env.OUT ?? "\\\\Mac\\Home\\Documents\\domotion\\tools\\scratch\\win32-calib.json";
@@ -50,17 +50,15 @@ const files = readdirSync(UNICODE_DIR)
 
 const rows = []; // { block, cp, hex, ch, chromium:[fam...] }
 
-let browser = null,
+let owner = null,
   ctx = null,
   page = null,
   cdp = null;
 async function fresh() {
-  if (browser) {
-    try {
-      await browser.close();
-    } catch {}
-  }
-  browser = await chromium.launch({ executablePath: EXEC_PATH });
+  if (owner) await owner.close();
+  owner = null;
+  owner = await openOwnedBrowser({ executablePath: EXEC_PATH });
+  const browser = owner.browser;
   ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
   page = await ctx.newPage();
   cdp = await ctx.newCDPSession(page);
@@ -129,11 +127,7 @@ try {
     if (n % 100 === 0) console.error(`...${n}/${files.length} fixtures, ${rows.length} cps`);
   }
 } finally {
-  if (browser) {
-    try {
-      await browser.close();
-    } catch {}
-  }
+  if (owner) await owner.close();
 
   // --- Phase 2: one batched MapCharacters query for every unique cp ----------
   const uniqueCps = [...new Set(rows.map((r) => r.cp))];

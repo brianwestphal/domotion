@@ -2,7 +2,7 @@
 // background/border) and an `initial-letter` drop-cap — exercises
 // buildFirstLetterSegment incl. the cap-height equalisation path.
 import { createHash } from "node:crypto";
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
 const html = `<!doctype html><meta charset=utf8><style>
 p { font: 20px/1.4 serif; width: 360px; }
@@ -14,10 +14,10 @@ p { font: 20px/1.4 serif; width: 360px; }
 <p class=drop>Drop cap paragraph spanning a few lines so the initial-letter sizing matters here.</p>
 <p class=b>Green italic first letter here.</p>
 </body>`;
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 420, height: 360 }, deviceScaleFactor: 1 });
-const page = await ctx.newPage();
-await page.setContent(html, { waitUntil: "networkidle" });
-const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 420, height: 360 });
-console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
-await browser.close();
+await withBrowser(async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 420, height: 360 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  await page.setContent(html, { waitUntil: "networkidle" });
+  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 420, height: 360 });
+  console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
+});

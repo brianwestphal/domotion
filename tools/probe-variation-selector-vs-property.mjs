@@ -28,7 +28,7 @@
 // does not (`plain` answers Segoe UI Symbol), the property and the selector
 // agree. On macOS Helvetica likewise covers U+00A9 and the property still moves
 // it, so the rule is "primary covers it AND Windows", not coverage alone.
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 
 // Both halves of the emoji set, because the property's two directions are
 // answered by different codepoints: text-presentation-default ones are where
@@ -70,63 +70,66 @@ const COLUMNS = [
 // Chromium versions, which turns a version difference into what reads as a
 // platform difference. Measured: this Mac's default launch reported 147 while
 // the Windows VM's reported 148, both from `chromium-1217`.
-const browser = await chromium.launch(
+await withBrowser(
+  async (browser) => {
+    const page = await browser.newPage();
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+
+    const cells = [];
+    for (const [cp] of CPS) {
+      for (const col of COLUMNS) cells.push({ cp, col });
+    }
+    await page.setContent(
+      `<!doctype html><meta charset="utf-8"><style>span{font-family:${STACK};font-size:${SIZE}px}</style>` +
+        cells
+          .map(
+            (c, i) =>
+              `<div><span id="c${i}" style="${c.col.css}">${String.fromCodePoint(c.cp)}${c.col.suffix}</span></div>`,
+          )
+          .join(""),
+      { waitUntil: "load" },
+    );
+
+    const { root } = await cdp.send("DOM.getDocument");
+    const faces = [];
+    for (let i = 0; i < cells.length; i++) {
+      const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#c${i}` });
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+      // Highest glyph count, same rule the conformance oracle uses — the protocol
+      // array's order is not a documented ranking.
+      let best = null;
+      for (const f of fonts) if (best == null || f.glyphCount > best.glyphCount) best = f;
+      faces.push(best == null ? "(none)" : best.familyName);
+    }
+
+    const at = (cpIdx, colLabel) => faces[cpIdx * COLUMNS.length + COLUMNS.findIndex((c) => c.label === colLabel)];
+
+    // The browser version is part of the answer, not decoration. Chrome's VS-aware
+    // fallback (`SystemFallbackEmojiVSSupport`) shipped at a particular milestone,
+    // so two hosts running different Chromium builds are two different oracles —
+    // and a per-platform divergence measured across a version gap would look
+    // exactly like a platform difference.
+    console.log(`platform=${process.platform}  chromium=${browser.version()}  stack=${STACK}  ${SIZE}px`);
+    console.log(["codepoint".padEnd(9), ...COLUMNS.map((c) => c.label.padEnd(16))].join("") + "verdict");
+    let divergent = 0;
+    for (const [i, [cp, name, kind]] of CPS.entries()) {
+      const row = COLUMNS.map((c) => at(i, c.label));
+      const textDiv = at(i, "+VS15") !== at(i, "fve:text");
+      const emojiDiv = at(i, "+VS16") !== at(i, "fve:emoji");
+      if (textDiv || emojiDiv) divergent++;
+      const verdict =
+        [textDiv ? "TEXT-DIVERGES" : "", emojiDiv ? "EMOJI-DIVERGES" : ""].filter(Boolean).join(" ") || "agree";
+      console.log(
+        `U+${cp.toString(16).toUpperCase().padStart(4, "0")}   ` +
+          row.map((f) => f.slice(0, 15).padEnd(16)).join("") +
+          `${verdict}   (${name}, ${kind})`,
+      );
+    }
+    console.log(
+      `\n${divergent} of ${CPS.length} codepoints diverge between the CSS property and its explicit selector.`,
+    );
+  },
   process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {},
 );
-const page = await browser.newPage();
-const cdp = await page.context().newCDPSession(page);
-await cdp.send("DOM.enable");
-await cdp.send("CSS.enable");
-
-const cells = [];
-for (const [cp] of CPS) {
-  for (const col of COLUMNS) cells.push({ cp, col });
-}
-await page.setContent(
-  `<!doctype html><meta charset="utf-8"><style>span{font-family:${STACK};font-size:${SIZE}px}</style>` +
-    cells
-      .map(
-        (c, i) =>
-          `<div><span id="c${i}" style="${c.col.css}">${String.fromCodePoint(c.cp)}${c.col.suffix}</span></div>`,
-      )
-      .join(""),
-  { waitUntil: "load" },
-);
-
-const { root } = await cdp.send("DOM.getDocument");
-const faces = [];
-for (let i = 0; i < cells.length; i++) {
-  const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#c${i}` });
-  const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-  // Highest glyph count, same rule the conformance oracle uses — the protocol
-  // array's order is not a documented ranking.
-  let best = null;
-  for (const f of fonts) if (best == null || f.glyphCount > best.glyphCount) best = f;
-  faces.push(best == null ? "(none)" : best.familyName);
-}
-
-const at = (cpIdx, colLabel) => faces[cpIdx * COLUMNS.length + COLUMNS.findIndex((c) => c.label === colLabel)];
-
-// The browser version is part of the answer, not decoration. Chrome's VS-aware
-// fallback (`SystemFallbackEmojiVSSupport`) shipped at a particular milestone,
-// so two hosts running different Chromium builds are two different oracles —
-// and a per-platform divergence measured across a version gap would look
-// exactly like a platform difference.
-console.log(`platform=${process.platform}  chromium=${browser.version()}  stack=${STACK}  ${SIZE}px`);
-console.log(["codepoint".padEnd(9), ...COLUMNS.map((c) => c.label.padEnd(16))].join("") + "verdict");
-let divergent = 0;
-for (const [i, [cp, name, kind]] of CPS.entries()) {
-  const row = COLUMNS.map((c) => at(i, c.label));
-  const textDiv = at(i, "+VS15") !== at(i, "fve:text");
-  const emojiDiv = at(i, "+VS16") !== at(i, "fve:emoji");
-  if (textDiv || emojiDiv) divergent++;
-  const verdict =
-    [textDiv ? "TEXT-DIVERGES" : "", emojiDiv ? "EMOJI-DIVERGES" : ""].filter(Boolean).join(" ") || "agree";
-  console.log(
-    `U+${cp.toString(16).toUpperCase().padStart(4, "0")}   ` +
-      row.map((f) => f.slice(0, 15).padEnd(16)).join("") +
-      `${verdict}   (${name}, ${kind})`,
-  );
-}
-console.log(`\n${divergent} of ${CPS.length} codepoints diverge between the CSS property and its explicit selector.`);
-await browser.close();

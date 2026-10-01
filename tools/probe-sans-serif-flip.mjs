@@ -38,7 +38,7 @@
 //
 // Diagnostic only: renders nothing, gates nothing, writes no baseline. Every
 // line is prefixed `SANSFLIP` so it is greppable out of a job log.
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 
 const N = Number(process.env.LAUNCHES ?? process.argv[2] ?? 20);
 const SETTLE_MS = Number(process.env.SETTLE_MS ?? 750);
@@ -83,16 +83,14 @@ async function facesFor(ctx) {
 
 const rows = [];
 for (let i = 0; i < N; i++) {
-  const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
-  // First ask: a fresh context, queried as soon as the content is set — the same
-  // shape the oracle and the visual harness use.
-  const first = await facesFor(ctx);
-  // Second ask: same browser process, a new page, after a settle. Any difference
-  // between these two columns is a timing effect rather than a process one.
-  await new Promise((r) => setTimeout(r, SETTLE_MS));
-  const second = await facesFor(ctx);
-  await browser.close();
+  const { first, second } = await withBrowser(async (browser) => {
+    const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
+    // Ask immediately, then from a fresh page in the same process after settling.
+    const first = await facesFor(ctx);
+    await new Promise((r) => setTimeout(r, SETTLE_MS));
+    const second = await facesFor(ctx);
+    return { first, second };
+  });
   rows.push({ i, first, second });
   const flag = PROBES.some((p) => first[p.id] !== second[p.id]) ? "  <- first/second DIFFER" : "";
   console.log(
@@ -146,11 +144,11 @@ if (CONCURRENT > 0) {
   console.log(`SANSFLIP === ${CONCURRENT} browsers launched SIMULTANEOUSLY ===`);
   const results = await Promise.all(
     Array.from({ length: CONCURRENT }, async (_, k) => {
-      const browser = await chromium.launch();
-      const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
-      const faces = await facesFor(ctx);
-      await browser.close();
-      return { k, faces };
+      return await withBrowser(async (browser) => {
+        const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
+        const faces = await facesFor(ctx);
+        return { k, faces };
+      });
     }),
   );
   results.sort((a, b) => a.k - b.k);

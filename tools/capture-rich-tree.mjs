@@ -3,7 +3,7 @@
 // filter, blend) so elementTreeToSvg output can be hashed before/after an
 // extraction. Writes the tree JSON to /tmp for the hash probe.
 import { writeFileSync } from "node:fs";
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
 const html = `<!doctype html><meta charset=utf8><body style="margin:0">
 <div style="position:relative;width:400px;height:300px;background:#eee;padding:20px">
@@ -18,11 +18,11 @@ const html = `<!doctype html><meta charset=utf8><body style="margin:0">
   <svg width=0 height=0><mask id=fragmask><rect x=0 y=0 width=40 height=40 fill=white/><circle cx=20 cy=20 r=10 fill=black/></mask></svg>
   <div style="width:70px;height:70px;background:#74c;mask-image:url(#fragmask);-webkit-mask-image:url(#fragmask)"></div>
 </div></body>`;
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
-const page = await ctx.newPage();
-await page.setContent(html, { waitUntil: "networkidle" });
-const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 600 });
-writeFileSync("/tmp/claude/dm1085-tree.json", JSON.stringify(tree));
-console.log("captured tree elements:", Array.isArray(tree) ? tree.length : "?");
-await browser.close();
+await withBrowser(async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  await page.setContent(html, { waitUntil: "networkidle" });
+  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 600 });
+  writeFileSync("/tmp/claude/dm1085-tree.json", JSON.stringify(tree));
+  console.log("captured tree elements:", Array.isArray(tree) ? tree.length : "?");
+});

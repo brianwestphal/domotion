@@ -1,38 +1,39 @@
-import { chromium } from "@playwright/test";
 import * as fontkit from "fontkit";
+import { withBrowser } from "./lib/browser.mjs";
 
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
-const page = await ctx.newPage();
-const cps = [];
-for (let cp = 0x1d400; cp <= 0x1d7ff; cp++) cps.push(cp);
-await page.setContent(`<!doctype html><meta charset=utf-8><body style="margin:0;font:48px serif"></body>`);
-await page.waitForLoadState("networkidle");
-const result = await page.evaluate((cps) => {
-  const cnv = document.createElement("canvas");
-  cnv.width = 64;
-  cnv.height = 64;
-  const g = cnv.getContext("2d", { willReadFrequently: true });
-  const out = [];
-  for (const cp of cps) {
-    g.clearRect(0, 0, 64, 64);
-    g.fillStyle = "#000";
-    g.font = "48px serif";
-    g.textBaseline = "top";
-    g.fillText(String.fromCodePoint(cp), 2, 2);
-    const d = g.getImageData(0, 0, 64, 64).data;
-    let ink = 0,
-      hash = 0;
-    for (let i = 0; i < d.length; i += 4)
-      if (d[i + 3] > 32) {
-        ink++;
-        hash = (hash * 31 + ((i >> 2) | d[i + 3])) | 0;
-      }
-    out.push({ ink, hash });
-  }
-  return out;
-}, cps);
-await browser.close();
+const { result, cps } = await withBrowser(async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  const cps = [];
+  for (let cp = 0x1d400; cp <= 0x1d7ff; cp++) cps.push(cp);
+  await page.setContent(`<!doctype html><meta charset=utf-8><body style="margin:0;font:48px serif"></body>`);
+  await page.waitForLoadState("networkidle");
+  const result = await page.evaluate((cps) => {
+    const cnv = document.createElement("canvas");
+    cnv.width = 64;
+    cnv.height = 64;
+    const g = cnv.getContext("2d", { willReadFrequently: true });
+    const out = [];
+    for (const cp of cps) {
+      g.clearRect(0, 0, 64, 64);
+      g.fillStyle = "#000";
+      g.font = "48px serif";
+      g.textBaseline = "top";
+      g.fillText(String.fromCodePoint(cp), 2, 2);
+      const d = g.getImageData(0, 0, 64, 64).data;
+      let ink = 0,
+        hash = 0;
+      for (let i = 0; i < d.length; i += 4)
+        if (d[i + 3] > 32) {
+          ink++;
+          hash = (hash * 31 + ((i >> 2) | d[i + 3])) | 0;
+        }
+      out.push({ ink, hash });
+    }
+    return out;
+  }, cps);
+  return { result, cps };
+});
 const byHash = new Map();
 for (const r of result) {
   const k = `${r.ink}:${r.hash}`;

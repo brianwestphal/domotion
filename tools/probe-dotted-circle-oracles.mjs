@@ -36,7 +36,7 @@
  * Every candidate must be computable from page APIs alone, because the real
  * probe runs inside CAPTURE_SCRIPT with no CDP available.
  */
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 
 /** The blocks that regressed under the DOM oracle, plus the one that motivated
  *  the change and two controls that were already correct. */
@@ -67,109 +67,110 @@ for (const [, lo, hi] of BLOCKS) {
   }
 }
 
-const browser = await chromium.launch();
-const page = await browser.newPage();
-const cdp = await page.context().newCDPSession(page);
-await cdp.send("DOM.enable");
-await cdp.send("CSS.enable");
+const { rows } = await withBrowser(async (browser) => {
+  const page = await browser.newPage();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("DOM.enable");
+  await cdp.send("CSS.enable");
 
-await page.setContent(`<!doctype html><html lang="en"><body style="margin:0;font:16px ${STACK}">
+  await page.setContent(`<!doctype html><html lang="en"><body style="margin:0;font:16px ${STACK}">
   <div id="cells"></div><div id="probe" style="position:absolute;left:-99999px;visibility:hidden;white-space:pre"></div>
 </body></html>`);
 
-await page.evaluate(
-  ({ cps, stack }) => {
-    const host = document.getElementById("cells");
-    for (const cp of cps) {
-      const s = document.createElement("span");
-      s.id = "c" + cp.toString(16);
-      s.style.font = `32px ${stack}`;
-      s.textContent = String.fromCodePoint(cp);
-      host.appendChild(s);
-      host.appendChild(document.createElement("br"));
-    }
-  },
-  { cps: codepoints, stack: STACK },
-);
+  await page.evaluate(
+    ({ cps, stack }) => {
+      const host = document.getElementById("cells");
+      for (const cp of cps) {
+        const s = document.createElement("span");
+        s.id = "c" + cp.toString(16);
+        s.style.font = `32px ${stack}`;
+        s.textContent = String.fromCodePoint(cp);
+        host.appendChild(s);
+        host.appendChild(document.createElement("br"));
+      }
+    },
+    { cps: codepoints, stack: STACK },
+  );
 
-// All candidates, evaluated with page APIs only — the constraint the real probe
-// lives under.
-const verdicts = await page.evaluate(
-  ({ cps, stack }) => {
-    const cv = document.createElement("canvas");
-    cv.width = 96;
-    cv.height = 64;
-    const ctx = cv.getContext("2d", { willReadFrequently: true });
-    const ink = (s) => {
-      ctx.clearRect(0, 0, 96, 64);
-      ctx.fillStyle = "#000";
-      ctx.textBaseline = "middle";
-      ctx.font = "32px " + stack;
-      ctx.fillText(s, 40, 32);
-      const d = ctx.getImageData(0, 0, 96, 64).data;
-      let cnt = 0,
-        minx = 1e9,
-        maxx = -1;
-      for (let y = 0; y < 64; y++)
-        for (let x = 0; x < 96; x++) {
-          if (d[(y * 96 + x) * 4 + 3] > 20) {
-            cnt++;
-            if (x < minx) minx = x;
-            if (x > maxx) maxx = x;
+  // All candidates, evaluated with page APIs only — the constraint the real probe
+  // lives under.
+  const verdicts = await page.evaluate(
+    ({ cps, stack }) => {
+      const cv = document.createElement("canvas");
+      cv.width = 96;
+      cv.height = 64;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      const ink = (s) => {
+        ctx.clearRect(0, 0, 96, 64);
+        ctx.fillStyle = "#000";
+        ctx.textBaseline = "middle";
+        ctx.font = "32px " + stack;
+        ctx.fillText(s, 40, 32);
+        const d = ctx.getImageData(0, 0, 96, 64).data;
+        let cnt = 0,
+          minx = 1e9,
+          maxx = -1;
+        for (let y = 0; y < 64; y++)
+          for (let x = 0; x < 96; x++) {
+            if (d[(y * 96 + x) * 4 + 3] > 20) {
+              cnt++;
+              if (x < minx) minx = x;
+              if (x > maxx) maxx = x;
+            }
           }
-        }
-      return { cnt, w: cnt > 0 ? maxx - minx + 1 : 0 };
-    };
-    const el = document.getElementById("probe");
-    const domW = (s) => {
-      el.style.font = `32px ${stack}`;
-      el.textContent = s;
-      return el.getBoundingClientRect().width;
-    };
-
-    const circleW = domW("◌");
-    const out = {};
-    for (const cp of cps) {
-      const ch = String.fromCodePoint(cp);
-      const bi = ink(ch),
-        ci = ink("◌" + ch);
-      const ratio = ci.cnt > 0 ? bi.cnt / ci.cnt : 0;
-      const bw = domW(ch),
-        cw = domW("◌" + ch);
-      out[cp] = {
-        // A: today's canvas ink comparison.
-        canvas: bi.cnt > 20 && ratio > 0.9 && ci.w <= bi.w * 1.25,
-        // C: the same bare-vs-combined question asked of DOM layout.
-        dom: bw > 0 && cw > 0 && Math.abs(cw - bw) / cw < 0.05,
-        // D: does the bare mark's ADVANCE match U+25CC's own? If Chrome inserted
-        // the circle, the cluster is ◌+mark and the mark contributes no advance,
-        // so the bare width tracks the circle's. A lone tofu's advance does not.
-        // A different signal from C, so it should not share C's blind spot.
-        circleAdv: circleW > 0 && bw > 0 && Math.abs(bw - circleW) / circleW < 0.05,
-        raw: { bareInk: bi.cnt, combInk: ci.cnt, bareW: bw, combW: cw, circleW },
+        return { cnt, w: cnt > 0 ? maxx - minx + 1 : 0 };
       };
-    }
-    return out;
-  },
-  { cps: codepoints, stack: STACK },
-);
+      const el = document.getElementById("probe");
+      const domW = (s) => {
+        el.style.font = `32px ${stack}`;
+        el.textContent = s;
+        return el.getBoundingClientRect().width;
+      };
 
-const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
-const rows = [];
-for (const cp of codepoints) {
-  const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#c" + cp.toString(16) });
-  const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-  const used = (fonts ?? []).filter((f) => f.glyphCount > 0);
-  const glyphs = used.reduce((n, f) => n + f.glyphCount, 0);
-  rows.push({
-    cp,
-    glyphs,
-    families: used.map((f) => `${f.familyName}x${f.glyphCount}`).join("+"),
-    truth: glyphs >= 2,
-    ...verdicts[cp],
-  });
-}
-await browser.close();
+      const circleW = domW("◌");
+      const out = {};
+      for (const cp of cps) {
+        const ch = String.fromCodePoint(cp);
+        const bi = ink(ch),
+          ci = ink("◌" + ch);
+        const ratio = ci.cnt > 0 ? bi.cnt / ci.cnt : 0;
+        const bw = domW(ch),
+          cw = domW("◌" + ch);
+        out[cp] = {
+          // A: today's canvas ink comparison.
+          canvas: bi.cnt > 20 && ratio > 0.9 && ci.w <= bi.w * 1.25,
+          // C: the same bare-vs-combined question asked of DOM layout.
+          dom: bw > 0 && cw > 0 && Math.abs(cw - bw) / cw < 0.05,
+          // D: does the bare mark's ADVANCE match U+25CC's own? If Chrome inserted
+          // the circle, the cluster is ◌+mark and the mark contributes no advance,
+          // so the bare width tracks the circle's. A lone tofu's advance does not.
+          // A different signal from C, so it should not share C's blind spot.
+          circleAdv: circleW > 0 && bw > 0 && Math.abs(bw - circleW) / circleW < 0.05,
+          raw: { bareInk: bi.cnt, combInk: ci.cnt, bareW: bw, combW: cw, circleW },
+        };
+      }
+      return out;
+    },
+    { cps: codepoints, stack: STACK },
+  );
+
+  const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
+  const rows = [];
+  for (const cp of codepoints) {
+    const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#c" + cp.toString(16) });
+    const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+    const used = (fonts ?? []).filter((f) => f.glyphCount > 0);
+    const glyphs = used.reduce((n, f) => n + f.glyphCount, 0);
+    rows.push({
+      cp,
+      glyphs,
+      families: used.map((f) => `${f.familyName}x${f.glyphCount}`).join("+"),
+      truth: glyphs >= 2,
+      ...verdicts[cp],
+    });
+  }
+  return { rows };
+});
 
 const block = (cp) => BLOCKS.find(([, lo, hi]) => cp >= lo && cp <= hi)?.[0] ?? "?";
 const ORACLES = ["canvas", "dom", "circleAdv"];

@@ -18,7 +18,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
-import { chromium } from "@playwright/test";
+import { openOwnedBrowser } from "./lib/browser.mjs";
 
 const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "/unicode");
 const OUT_PATH = process.env.OUT ?? "/out/probe-1416.json";
@@ -47,17 +47,15 @@ function fc(pattern) {
 
 const rows = []; // { block, cp, hex, ch, chromium:[fam...], fcBare, fcSans, fcLang }
 
-let browser = null,
+let owner = null,
   ctx = null,
   page = null,
   cdp = null;
 async function fresh() {
-  if (browser) {
-    try {
-      await browser.close();
-    } catch {}
-  }
-  browser = await chromium.launch();
+  if (owner) await owner.close();
+  owner = null;
+  owner = await openOwnedBrowser();
+  const browser = owner.browser;
   ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
   page = await ctx.newPage();
   cdp = await ctx.newCDPSession(page);
@@ -144,11 +142,7 @@ try {
     if (n % 100 === 0) console.error(`...${n}/${files.length} fixtures, ${rows.length} cps`);
   }
 } finally {
-  if (browser) {
-    try {
-      await browser.close();
-    } catch {}
-  }
+  if (owner) await owner.close();
 
   const diverge = [];
   for (const r of rows) {

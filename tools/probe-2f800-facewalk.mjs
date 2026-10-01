@@ -16,8 +16,8 @@
 //    [Hiragino Sans JP, Arial Unicode MS, Apple Symbols]; for each face test
 //    glyphForCodePoint(cp) (literal) then glyphForCodePoint(decomp) where decomp
 //    is the canonical NFD/NFC singleton. First face to cover wins.
-import { chromium } from "@playwright/test";
 import * as fontkit from "fontkit";
+import { withBrowser } from "./lib/browser.mjs";
 
 // Fixture's effective INSTALLED stack for the default `x>g` cells, in CSS order.
 // (Apple Color Emoji / Noto Sans / Noto Serif from the stack are color-emoji or
@@ -69,43 +69,44 @@ function firstCovering(list, cp) {
 const cps = [];
 for (let cp = 0x2f800; cp <= 0x2fa1d; cp++) cps.push(cp);
 
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 200, height: 200 }, deviceScaleFactor: 1 });
-const page = await ctx.newPage();
-await page.setContent(`<!doctype html><meta charset=utf-8><body></body>`);
-await page.waitForLoadState("networkidle");
+const { chrome } = await withBrowser(async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 200, height: 200 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  await page.setContent(`<!doctype html><meta charset=utf-8><body></body>`);
+  await page.waitForLoadState("networkidle");
 
-// Chrome paint signature per cp, using the fixture's actual default stack.
-const stackCss = `"Hiragino Sans","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
-const chrome = await page.evaluate(
-  ({ cps, stackCss }) => {
-    const cnv = document.createElement("canvas");
-    cnv.width = 64;
-    cnv.height = 64;
-    const g = cnv.getContext("2d", { willReadFrequently: true });
-    function sig(str) {
-      g.clearRect(0, 0, 64, 64);
-      g.fillStyle = "#000";
-      g.font = `32px ${stackCss}`;
-      g.textBaseline = "top";
-      g.fillText(str, 2, 2);
-      const d = g.getImageData(0, 0, 64, 64).data;
-      let ink = 0,
-        hash = 0;
-      for (let i = 0; i < d.length; i += 4)
-        if (d[i + 3] > 32) {
-          ink++;
-          hash = (hash * 31 + (i >> 2)) | 0;
-        }
-      return ink + ":" + hash;
-    }
-    const out = {};
-    for (const cp of cps) out[cp] = sig(String.fromCodePoint(cp));
-    return out;
-  },
-  { cps, stackCss },
-);
-await browser.close();
+  // Chrome paint signature per cp, using the fixture's actual default stack.
+  const stackCss = `"Hiragino Sans","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
+  const chrome = await page.evaluate(
+    ({ cps, stackCss }) => {
+      const cnv = document.createElement("canvas");
+      cnv.width = 64;
+      cnv.height = 64;
+      const g = cnv.getContext("2d", { willReadFrequently: true });
+      function sig(str) {
+        g.clearRect(0, 0, 64, 64);
+        g.fillStyle = "#000";
+        g.font = `32px ${stackCss}`;
+        g.textBaseline = "top";
+        g.fillText(str, 2, 2);
+        const d = g.getImageData(0, 0, 64, 64).data;
+        let ink = 0,
+          hash = 0;
+        for (let i = 0; i < d.length; i += 4)
+          if (d[i + 3] > 32) {
+            ink++;
+            hash = (hash * 31 + (i >> 2)) | 0;
+          }
+        return ink + ":" + hash;
+      }
+      const out = {};
+      for (const cp of cps) out[cp] = sig(String.fromCodePoint(cp));
+      return out;
+    },
+    { cps, stackCss },
+  );
+  return { chrome };
+});
 
 // Dominant identical signature = the tofu placeholder.
 const counts = new Map();

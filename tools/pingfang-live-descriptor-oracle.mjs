@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 import {
   PINGFANG_DESCRIPTOR_CODEPOINTS as cps,
   validatePingFangDescriptorArtifact,
@@ -15,36 +15,43 @@ const runSwift = (repeats) =>
 const cold = [runSwift(1), runSwift(1), runSwift(1)];
 const warm = runSwift(3);
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage();
-await page.setContent(
-  cps
-    .map((cp) => `<span data-cp="${cp}" style="font:32px STHeitiSC-Light">${String.fromCodePoint(cp)}</span>`)
-    .join(""),
+const { browserRows, chromiumVersion } = await withBrowser(
+  async (browser) => {
+    const page = await browser.newPage();
+    await page.setContent(
+      cps
+        .map((cp) => `<span data-cp="${cp}" style="font:32px STHeitiSC-Light">${String.fromCodePoint(cp)}</span>`)
+        .join(""),
+    );
+    const session = await page.context().newCDPSession(page);
+    await session.send("DOM.enable");
+    await session.send("CSS.enable");
+    const browserRows = [];
+    for (const cp of cps) {
+      const node = page.locator(`[data-cp="${cp}"]`);
+      const width = await node.evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return range.getBoundingClientRect().width;
+      });
+      const { root } = await session.send("DOM.getDocument");
+      const { nodeId } = await session.send("DOM.querySelector", {
+        nodeId: root.nodeId,
+        selector: `[data-cp="${cp}"]`,
+      });
+      const fonts = await session.send("CSS.getPlatformFontsForNode", { nodeId });
+      browserRows.push({
+        codepoint: cp,
+        hex: `U+${cp.toString(16).toUpperCase()}`,
+        rangeWidth: width,
+        platformFonts: fonts.fonts,
+      });
+    }
+    const chromiumVersion = await browser.version();
+    return { browserRows, chromiumVersion };
+  },
+  { headless: true },
 );
-const session = await page.context().newCDPSession(page);
-await session.send("DOM.enable");
-await session.send("CSS.enable");
-const browserRows = [];
-for (const cp of cps) {
-  const node = page.locator(`[data-cp="${cp}"]`);
-  const width = await node.evaluate((el) => {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    return range.getBoundingClientRect().width;
-  });
-  const { root } = await session.send("DOM.getDocument");
-  const { nodeId } = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: `[data-cp="${cp}"]` });
-  const fonts = await session.send("CSS.getPlatformFontsForNode", { nodeId });
-  browserRows.push({
-    codepoint: cp,
-    hex: `U+${cp.toString(16).toUpperCase()}`,
-    rangeWidth: width,
-    platformFonts: fonts.fonts,
-  });
-}
-const chromiumVersion = await browser.version();
-await browser.close();
 const command = (cmd, args = []) => {
   try {
     return execFileSync(cmd, args, { encoding: "utf8" }).trim();

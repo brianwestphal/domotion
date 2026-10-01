@@ -1,7 +1,7 @@
 // DM-1086 byte oracle: capture a tree with @counter-style custom markers (which
 // exercise the counter-style pre-walk + resolver) and hash it.
 import { createHash } from "node:crypto";
-import { chromium } from "@playwright/test";
+import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
 const html = `<!doctype html><meta charset=utf8><style>
 @counter-style circled { system: fixed; symbols: "①" "②" "③" "④"; suffix: " "; }
@@ -13,10 +13,10 @@ ol.a { list-style-type: circled; } ol.b { list-style-type: myroman; } ol.c { lis
 <ol class=b><li>seven</li><li>fourteen</li></ol>
 <ol class=c><li>x</li><li>y</li></ol>
 </body>`;
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 400, height: 400 }, deviceScaleFactor: 1 });
-const page = await ctx.newPage();
-await page.setContent(html, { waitUntil: "networkidle" });
-const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 400 });
-console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
-await browser.close();
+await withBrowser(async (browser) => {
+  const ctx = await browser.newContext({ viewport: { width: 400, height: 400 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  await page.setContent(html, { waitUntil: "networkidle" });
+  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 400 });
+  console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
+});
