@@ -13,6 +13,7 @@ import { type CDPSession, type ElementHandle, type Page } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import type {
@@ -1148,8 +1149,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const artifactDir = artifact == null ? undefined : resolve(artifact);
   const report = await runTextTransformGeometryAudit({ deviceScaleFactors: dprs, artifactDir });
   const reportPath = resolve(flag(values, "--json", `tests/output/text-transform-parity-${platform()}.json`)!);
-  mkdirSync(dirname(reportPath), { recursive: true });
-  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  writeReport(
+    reportPath,
+    "text-transform-geometry-audit",
+    { ...report, outcome: report.verdict === "hard-two-leg-transformed-text-parity" ? "pass" : "fail" },
+    { schemaVersion: 1, generatedAt: report.generatedAt, env: report.fingerprint },
+  );
   console.log(
     `transformed-text gate: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`,
   );

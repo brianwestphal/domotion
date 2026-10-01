@@ -19,6 +19,7 @@ import sharp from "sharp";
 import { type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -1102,8 +1103,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const report = await runUrlBackgroundGeometryGate(parsedDprs, artifactDir);
   const json = flag(values, "--json");
   if (json != null) {
-    mkdirSync(dirname(json), { recursive: true });
-    writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
+    writeReport(
+      json,
+      "url-background-geometry-audit",
+      { ...report, outcome: report.verdict === "pass" ? "pass" : "fail" },
+      { schemaVersion: 1, env: { platform: process.platform, architecture: process.arch } },
+    );
   }
   for (const run of report.runs) {
     const failures = run.rows.filter((row) => !row.pass);

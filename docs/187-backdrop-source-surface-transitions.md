@@ -12,6 +12,8 @@ aliases: ["docs/187-backdrop-source-surface-transitions.md", "doc-187"]
 
 # 187 — Backdrop-filter source-surface transitions
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. The earlier schema-v2 investigation and strict verdicts remain in `data`; `data.outcome` is `error` for incomplete evidence, `pass` for strict source agreement, and `fail` for measured production gaps. Stdout retains the flat result.
+
 The audit CLI accepts `--dpr`, `--json`, `--artifact-dir`, and `--strict`.
 Unknown options and missing values fail before browser work; importing the
 module does not start an audit.

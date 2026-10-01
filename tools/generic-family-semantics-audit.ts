@@ -26,6 +26,7 @@ import {
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 
 export const GENERIC_FAMILY_SEMANTICS_SOURCE_PINS = {
@@ -895,8 +896,15 @@ async function main(args: string[]): Promise<number> {
   if (flags.json !== undefined) {
     const target = flags.json as string;
     if (target == null || target === "") throw new Error("--json requires a path");
-    mkdirSync(dirname(resolve(target)), { recursive: true });
-    writeFileSync(resolve(target), `${JSON.stringify(report, null, 2)}\n`);
+    writeReport(
+      resolve(target),
+      "generic-family-semantics-audit",
+      {
+        ...report,
+        outcome: report.verdict === "source-exact" ? "pass" : report.verdict === "invalid-evidence" ? "error" : "fail",
+      },
+      { schemaVersion: 1, env: report.environment },
+    );
   }
   console.log(JSON.stringify(report, null, 2));
   return report.verdict === "source-exact" ? 0 : 1;

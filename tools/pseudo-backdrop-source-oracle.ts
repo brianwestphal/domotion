@@ -17,6 +17,7 @@ import sharp from "sharp";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import {
@@ -457,8 +458,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const report = await runPseudoBackdropSourceOracle(dprs, artifactDir);
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (jsonPath != null) {
-    mkdirSync(dirname(jsonPath), { recursive: true });
-    writeFileSync(jsonPath, body);
+    writeReport(
+      jsonPath,
+      "pseudo-backdrop-source-oracle",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1, env: { platform: process.platform, architecture: process.arch } },
+    );
   }
   process.stdout.write(body);
   return report.verdict === "source-exact" ? 0 : 1;

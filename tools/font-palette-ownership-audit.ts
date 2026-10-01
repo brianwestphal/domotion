@@ -15,6 +15,7 @@ import * as fontkit from "fontkit";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import {
   attachWebfontTracker,
   captureElementTreeWithWarnings,
@@ -628,8 +629,22 @@ async function main(argv: string[]): Promise<number> {
   const report = await runFontPaletteOwnershipAudit({ ...(typeof artifactDir === "string" ? { artifactDir } : {}) });
   const serializable = { ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) };
   if (typeof json === "string") {
-    mkdirSync(dirname(resolve(json)), { recursive: true });
-    writeFileSync(resolve(json), JSON.stringify(serializable, null, 2));
+    writeReport(
+      resolve(json),
+      "font-palette-ownership-audit",
+      {
+        ...serializable,
+        outcome:
+          report.verdict === "source-exact"
+            ? "pass"
+            : report.verdict === "invalid-evidence"
+              ? "error"
+              : report.verdict === "inconclusive"
+                ? "skip"
+                : "fail",
+      },
+      { schemaVersion: 1, env: report.fingerprint },
+    );
   }
   console.log(
     JSON.stringify(

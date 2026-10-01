@@ -12,6 +12,8 @@ aliases: ["docs/206-generic-family-semantic-ownership.md", "doc-206"]
 
 # Exact generic-family semantic ownership gate
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. Its earlier schema-v2 evidence and verdict remain in `data`, alongside normalized `outcome`; stdout retains the flat report.
+
 ## Verdict
 
 Blink stores family-list entries and descriptor-wide `GenericFamily`

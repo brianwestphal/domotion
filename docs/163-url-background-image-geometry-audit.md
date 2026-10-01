@@ -23,6 +23,8 @@ aliases: ["docs/163-url-background-image-geometry-audit.md", "doc-163"]
 
 # URL background image geometry audit
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. The earlier schema-v1 release verdict and per-run evidence remain in `data`, alongside normalized `outcome`; the CLI's text summary stays unchanged.
+
 **Status:** selected-image capture, exact tile/attachment/fragment geometry, and the hard all-platform release gate are implemented
 
 **Ticket:** DM-2370 / DM-2477 / DM-2478 / DM-2479 / DM-2365 / DM-2480

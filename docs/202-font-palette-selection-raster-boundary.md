@@ -22,6 +22,8 @@ aliases: ["docs/202-font-palette-selection-raster-boundary.md", "doc-202"]
 
 # Font-palette selection and native paint gate
 
+The ownership audit's `--json` artifact uses a version 1 `{schemaVersion, tool, generatedAt, env, data}` envelope. Its earlier schema-v1 evidence and verdict remain in `data`; normalized `outcome` distinguishes pass, fail, invalid evidence, and inconclusive evidence. The CLI's stdout summary stays unchanged.
+
 The paint gate writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 The ownership audit and paint gate CLIs accept `--json` and `--artifact-dir`.

@@ -12,6 +12,8 @@ aliases: ["docs/185-blend-filter-pixel-stage-oracle.md", "doc-185"]
 
 # 185 — Blend-mode and filter-kernel pixel-stage oracle
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. The earlier schema-v2 result and its `source-exact`/`unexpected-drift` verdict remain in `data`, alongside normalized `outcome`; stdout retains the flat result.
+
 The oracle CLI accepts `--dpr`, `--json`, and `--artifact-dir`. Unknown options
 and missing values fail before browser work; importing the module does not
 start a run.

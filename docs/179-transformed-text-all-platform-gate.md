@@ -12,6 +12,8 @@ aliases: ["docs/179-transformed-text-all-platform-gate.md", "doc-179"]
 
 # Transformed-text all-platform parity gate
 
+The audit JSON file uses a version 1 `{schemaVersion, tool, generatedAt, env, data}` envelope. Its earlier schema-v1 evidence and verdict remain in `data`, alongside normalized `outcome`; the CLI's text summary stays unchanged.
+
 DM-2471 turns the transformed-text discriminator from doc 159 into a hard,
 two-leg release gate for the source-owned capture and renderer model in docs
 159 and 177. The gate runs the same corpus and fixed thresholds on macOS,

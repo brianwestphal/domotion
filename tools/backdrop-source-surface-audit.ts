@@ -15,6 +15,7 @@ import { dirname } from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -1067,8 +1068,15 @@ async function main(argv: string[]): Promise<number> {
   const report = await runBackdropSourceSurfaceAudit(dprs, typeof artifactDir === "string" ? artifactDir : undefined);
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (typeof jsonPath === "string") {
-    mkdirSync(dirname(jsonPath), { recursive: true });
-    writeFileSync(jsonPath, body);
+    writeReport(
+      jsonPath,
+      "backdrop-source-surface-audit",
+      {
+        ...report,
+        outcome: report.verdict === "incomplete" ? "error" : report.strictVerdict === "source-exact" ? "pass" : "fail",
+      },
+      { schemaVersion: 1, env: { platform: process.platform, architecture: process.arch } },
+    );
   }
   process.stdout.write(body);
   return report.verdict !== "investigation-complete" || (strict && report.strictVerdict !== "source-exact") ? 1 : 0;

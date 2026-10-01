@@ -26,6 +26,8 @@ aliases: ["docs/162-inline-svg-3d-transform-audit.md", "doc-162"]
 
 # Cloned inline-SVG 3D transform audit
 
+The audit JSON file uses a version 1 `{schemaVersion, tool, generatedAt, env, data}` envelope. Its earlier schema-v1 evidence and verdict remain in `data`, alongside normalized `outcome`; the CLI's text summary stays unchanged.
+
 **Status:** SVG-child affine freezing, opaque-clone projective promotion, and
 the hard all-platform two-leg parity gate shipped; smallest nested HTML
 projective-context selection is known partial (DM-2356)

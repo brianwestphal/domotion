@@ -12,6 +12,8 @@ aliases: ["docs/193-generated-pseudo-backdrop-source-ownership.md", "doc-193"]
 
 # Generated-pseudo backdrop source ownership
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. The earlier schema-v1 evidence and verdict remain in `data`, alongside normalized `outcome`; stdout retains the flat result.
+
 **Status:** source-owned production boundary and native release gate (DM-2488)
 
 ## Problem

@@ -16,6 +16,7 @@ import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -793,8 +794,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const report = await runMixedReferenceColorSpaceOracle(dprs, artifactDir);
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (jsonPath != null) {
-    mkdirSync(dirname(jsonPath), { recursive: true });
-    writeFileSync(jsonPath, body);
+    writeReport(
+      jsonPath,
+      "mixed-reference-color-space-oracle",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1, env: report.producer },
+    );
   }
   process.stdout.write(body);
   return report.verdict === "unexpected-drift" ? 1 : 0;

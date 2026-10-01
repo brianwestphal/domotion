@@ -13,6 +13,8 @@ aliases: ["docs/218-mixed-reference-color-space-ownership.md", "doc-218"]
 
 # 218 — Mixed reference-filter color-space ownership
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. The earlier schema-v1 evidence and verdict remain in `data`, alongside normalized `outcome`; stdout retains the flat result.
+
 **Status:** Source-exact and promoted. DM-2548 landed the source-proven
 localized filter-inside-blend wrapper order without changing a tolerance.
 DM-2549 then promoted the matrix to an entirely strict native release gate;

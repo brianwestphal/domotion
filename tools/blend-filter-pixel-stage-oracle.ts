@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -729,8 +730,12 @@ async function main(argv: string[]): Promise<number> {
   const report = await runBlendFilterPixelStageOracle(dprs, typeof artifactDir === "string" ? artifactDir : undefined);
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (typeof jsonPath === "string") {
-    mkdirSync(dirname(jsonPath), { recursive: true });
-    writeFileSync(jsonPath, body);
+    writeReport(
+      jsonPath,
+      "blend-filter-pixel-stage-oracle",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1, env: report.producer },
+    );
   }
   process.stdout.write(body);
   return report.verdict === "source-exact" ? 0 : 1;

@@ -12,6 +12,8 @@ aliases: ["docs/201-emoji-presentation-item-ownership.md", "doc-201"]
 
 # Emoji presentation shaping-item ownership and closure
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report envelope. Its earlier schema-v2 evidence and verdict remain in `data`; `data.outcome` is `skip` on hosts where native closure is inapplicable. Stdout retains the flat report.
+
 DM-2502 investigated the sole significant HTML residual in native Linux arm64
 run `32611751700`; DM-2507 closes the resulting production ownership defect.
 Neither ticket changes a pixel tolerance. The source, logical discriminator,

@@ -17,6 +17,7 @@ import { type Page } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -1046,8 +1047,12 @@ async function main(args: string[]): Promise<number> {
   const reportPath = resolve(
     typeof flags.json === "string" ? flags.json : `tests/output/inline-svg-3d-gate-${platform()}.json`,
   );
-  mkdirSync(dirname(reportPath), { recursive: true });
-  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  writeReport(
+    reportPath,
+    "inline-svg-3d-audit",
+    { ...report, outcome: report.verdict === "hard-two-leg-inline-svg-3d-parity" ? "pass" : "fail" },
+    { schemaVersion: 1, generatedAt: report.generatedAt, env: report.fingerprint },
+  );
   const failures = report.rows.filter((row) => !row.pass);
   console.log(`inline SVG 3D gate: ${report.rows.length - failures.length}/${report.rows.length}; ${report.verdict}`);
   for (const row of report.rows) {

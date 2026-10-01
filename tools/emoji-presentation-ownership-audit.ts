@@ -34,6 +34,7 @@ import { resolveFontKey, type FontVariantEmojiOverride } from "../src/render/fon
 import { bidiLevelsFor } from "../src/render/script-segmentation.js";
 import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 
 export { sourcePriorityItems } from "@domotion/text-engine/testing";
 
@@ -343,8 +344,20 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const json = flag(values, "--json");
   if (json != null) {
     const output = resolve(json);
-    mkdirSync(dirname(output), { recursive: true });
-    writeFileSync(output, formatted);
+    writeReport(
+      output,
+      "emoji-presentation-ownership-audit",
+      {
+        ...report,
+        outcome:
+          report.verdict === "resolved-symbols-item-boundary"
+            ? "pass"
+            : report.verdict === "source-boundary-resolved-native-inapplicable"
+              ? "skip"
+              : "fail",
+      },
+      { schemaVersion: 1, env: report.environment },
+    );
   }
   process.stdout.write(formatted);
   return report.verdict === "discriminator-failed" ? 1 : 0;
