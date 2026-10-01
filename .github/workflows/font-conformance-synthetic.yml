@@ -243,6 +243,7 @@ jobs:
           fi
           npm run test:e2e -- tests/variable-axis-oracle-pair.e2e.test.ts
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: font-conformance-synthetic-macos-shard-${{ matrix.shard }}
           path: tests/output/font-conformance/
@@ -299,6 +300,7 @@ jobs:
           fi
           npm run test:e2e -- tests/variable-axis-oracle-pair.e2e.test.ts
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: font-conformance-synthetic-linux-shard-${{ matrix.shard }}
           path: tests/output/font-conformance/
@@ -350,6 +352,7 @@ jobs:
           fi
           npm run test:e2e -- tests/variable-axis-oracle-pair.e2e.test.ts
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: font-conformance-synthetic-windows-shard-${{ matrix.shard }}
           path: tests/output/font-conformance/

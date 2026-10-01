@@ -24,6 +24,7 @@ code:
     "tests/font-conformance-extraction.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
     "tests/font-conformance.test.ts",
+    "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/system-ui-bold-conformance.e2e.test.ts",
     "tests/conformance-args.test.ts",
     "tests/harvested-corpus-identity.test.ts",
@@ -65,6 +66,24 @@ report records the selected universe and the answers in that same order.
 
 - **Chrome's answer** — CDP `CSS.getPlatformFontsForNode` over a one-codepoint cell. This is the face the engine reports having painted with, not a guess inferred from pixels. Two earlier attempts to identify a face from rendered crops (a hand-rolled shape matcher, and `tools/compare-glyphs.ts` on upscaled 1× captures) both failed their controls; asking the browser is strictly better.
 - **Our answer** — the primary is opened through the renderer's `resolveFont` route, then `resolveFontForCodepoint` walks the same stack's key chain at the same size, weight, and style. A fallback is materialized as `res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`, so the reported face is the concrete **cut** the renderer would load. The primary cannot be reopened from its key alone: on macOS `system-ui` and a named SF family share `sf-pro`, but only the `system-ui` route applies the CSS `wght` axis. The native CoreText UI query supplies the resulting face identity when fontkit's variation instance retains its default `.SFNS-Regular` name. This keeps the bold `system-ui` oracle aligned with Chromium's `.SFNS-Bold` instead of manufacturing a mismatch for every codepoint whose run uses that face.
+
+The oracle checks its own browser Page before each stack and after every batch. A fixed set
+of CSS generics paints U+10FFFF, a noncharacter that retains each generic's
+`.notdef` donor without entering the assigned-codepoint fallback cache. The
+control spans are appended to and removed from the measured Page without
+replacing its document between batches. Each span carries the oracle locale
+explicitly, including the first probe before the first measured document exists. A
+change in those configured donor faces aborts with harness exit code `2` and writes
+`oracle-drift.json` with the stack, batch, expected faces, and observed faces.
+The partial sweep is not a valid conformance report. This catches mid-session generic
+font-settings changes that a single `A` primary probe misses. It does not prove
+detection of a change confined to assigned-codepoint fallback cache entries,
+including the Plane 16 PUA Arial/Helvetica face shift tracked by `DM-MKJ5Q9`.
+On the same synthetic 351-stack,
+1,162-codepoint macOS slice, runs `36812487731` and `36819546100` produced
+214,311 and 27,519 mismatches while their resolver-answer digests were
+identical. The browser's generic control faces must remain stable before
+interpreting either mismatch count or recording a baseline.
 
 `tools/chrome-font-agreement.ts` is the single-shot diagnostic sibling: it prints `FONTAGREE:` lines into a CI log for a handful of codepoints and never gates. This is the exhaustive, gateable one.
 Its optional positional operands are the CSS font stack and a comma-separated
