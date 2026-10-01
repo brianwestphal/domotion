@@ -2270,6 +2270,34 @@ describe("fallbackFontChain: CJK/Hangul combining tone marks U+302A–U+302F (DM
 
 describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
   it.skipIf(!existsSync("/System/Library/Fonts/Supplemental/STIXTwoMath.otf"))(
+    "embeds a selected single radical glyph for text rasterization without an external font",
+    () => {
+      clearEmbeddedFonts();
+      clearGlyphDefs();
+      const out = renderRadicalGlyph(
+        126.859375,
+        298.9375,
+        75.890625,
+        106.265625,
+        { fontSize: 60, fontFamily: "STIX Two Math", fontWeight: "400" },
+        "black",
+        undefined,
+        {
+          baseTop: 317.875,
+          baseHeight: 28.375,
+          baseRight: 208.03125,
+          displayStyle: true,
+        },
+      );
+      expect(out).toContain("<text ");
+      expect(out).toContain('font-family="dmf0"');
+      expect(out).toContain("<rect ");
+      expect(getEmbeddedFontFaceCss()).toMatch(/@font-face[^]*data:font\/ttf;base64,/);
+      clearEmbeddedFonts();
+    },
+  );
+
+  it.skipIf(!existsSync("/System/Library/Fonts/Supplemental/STIXTwoMath.otf"))(
     "matches Chromium's STIX Two Math display and compact bar rows, including 60px",
     () => {
       const cases = [

@@ -5449,7 +5449,30 @@ export function renderRadicalGlyph(
     const baselineY = barY + shape.bbox.maxY * scale;
     const sStr = Number(scale.toFixed(5)).toString();
     const negS = Number((-scale).toFixed(5)).toString();
-    const glyphMarkup = shape.glyphs
+    // Blink paints a one-glyph radical through DrawText. SVG path rasterization
+    // differs at sharp joins even when the outline and placement are identical
+    // (STIX Two Math's 60px hook is one example). The existing embedded-font
+    // builder can preserve the selected glyph as self-contained SVG text,
+    // letting the consumer's text rasterizer paint that same outline. Keep
+    // assemblies on paths: their part stacking has no one-glyph text analogue.
+    let glyphMarkup: string | null = null;
+    if (shape.glyphs.length === 1 && weight === 400 && slant === 0 && stretch === 100) {
+      const part = shape.glyphs[0].glyph;
+      const source = getFontSourceInfo(font);
+      const placement = trackGlyphInEmbedFont(
+        `math-radical|${useKey}|${source?.path ?? ""}#${source?.faceIndex ?? ""}|${source?.postscriptName ?? ""}|${JSON.stringify(source?.variationAxes ?? {})}|${fontSize}|${part.id}`,
+        font.unitsPerEm,
+        font.ascent,
+        font.descent,
+        part.id,
+        part.path.commands,
+        part.advanceWidth,
+      );
+      if (placement != null) {
+        glyphMarkup = `<text x="${r2(originX)}" y="${r2(baselineY)}" font-family="${placement.cssFamily}" font-size="${fontSize}" fill="${fill}">${String.fromCodePoint(placement.puaCodepoint)}</text>`;
+      }
+    }
+    glyphMarkup ??= shape.glyphs
       .map(({ glyph: part, offsetY }) => {
         const id = ensureGlyphDef(useKey, weight, fontSize, slant, part.id, part.path.commands, stretch);
         return `<g transform="translate(${r2(originX)},${r2(baselineY - offsetY * scale)}) scale(${sStr},${negS})" fill="${fill}"><use href="#${id}"/></g>`;
