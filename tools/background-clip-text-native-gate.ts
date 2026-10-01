@@ -1,10 +1,39 @@
 #!/usr/bin/env tsx
 /** DM-2530 strict Linux/Windows background-clip:text evidence aggregator. */
-import { readFileSync } from "node:fs";
+import { z } from "zod";
 import { isMain, parseCommand, runMain } from "./lib/cli.js";
-import type { BackgroundClipTextOracleReport } from "./background-clip-text-oracle.js";
+import { outcomeSchema, readReportData } from "./lib/report.js";
 
-export function adjudicateBackgroundClipTextNativeReports(reports: BackgroundClipTextOracleReport[]): string[] {
+const legacyDataSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    platform: z.string(),
+    verdict: z.enum(["source-exact", "source-drift"]),
+    chromiumExecutableSha256: z.string(),
+    rows: z.array(z.object({ dpr: z.number(), pass: z.boolean() }).passthrough()),
+    logicalControls: z.record(z.string(), z.boolean()),
+    paintedFonts: z.array(z.unknown()),
+  })
+  .passthrough();
+const reportDataSchema = legacyDataSchema
+  .extend({ outcome: outcomeSchema })
+  .refine((report) => report.outcome === (report.verdict === "source-exact" ? "pass" : "fail"), {
+    message: "background clip outcome disagrees with verdict",
+  });
+
+export function readBackgroundClipTextNativeReport(path: string): z.infer<typeof reportDataSchema> {
+  return readReportData(path, reportDataSchema, {
+    tool: "background-clip-text-oracle",
+    schemaVersion: 1,
+    legacySchema: legacyDataSchema.transform((report) => ({
+      ...report,
+      outcome: report.verdict === "source-exact" ? ("pass" as const) : ("fail" as const),
+    })),
+    legacySchemaVersion: 2,
+  });
+}
+
+export function adjudicateBackgroundClipTextNativeReports(reports: z.infer<typeof reportDataSchema>[]): string[] {
   const errors: string[] = [];
   const expected = new Set<NodeJS.Platform>(["linux", "win32"]);
   if (reports.length !== 2) errors.push(`expected 2 native reports, received ${reports.length}`);
@@ -28,7 +57,7 @@ export function adjudicateBackgroundClipTextNativeReports(reports: BackgroundCli
 
 export function checkBackgroundClipTextNative(argv: string[]): number {
   const { positionals: paths } = parseCommand(argv, {});
-  const reports = paths.map((path) => JSON.parse(readFileSync(path, "utf8")) as BackgroundClipTextOracleReport);
+  const reports = paths.map(readBackgroundClipTextNativeReport);
   const errors = adjudicateBackgroundClipTextNativeReports(reports);
   process.stdout.write(
     `${JSON.stringify({ schemaVersion: 1, reports: reports.length, errors, verdict: errors.length === 0 ? "source-exact" : "source-drift" }, null, 2)}\n`,

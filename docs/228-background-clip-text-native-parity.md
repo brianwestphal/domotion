@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "paint-effects", "platform-release", "product-tooling"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2530"]
+tickets: ["DM-2530", "DM-31KJ0F"]
 code:
   [
     ".github/workflows/background-clip-text-native-parity.yml",
@@ -41,3 +41,9 @@ raster boundary. DM-2530 adds no platform envelope and changes no tolerance.
 DPR 1 and 2 reports on native Linux and Windows runners, retains lossless PNG,
 SVG and JSON artifacts, and aggregates only when both authenticated reports are
 `source-exact`.
+
+Each `--json` report uses the version 1 [tool report envelope](267-tool-report-envelope.md)
+with the existing version 2 oracle record inside `data` and a normalized
+`data.outcome`. The native gate validates the envelope before adjudication,
+accepts explicitly validated flat version 2 reports during migration, and
+rejects unknown versions. CLI stdout retains the original flat record.

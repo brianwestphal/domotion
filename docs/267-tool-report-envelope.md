@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["tools"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-AP6BPA", "DM-N6XJRS"]
+tickets: ["DM-AP6BPA", "DM-N6XJRS", "DM-31KJ0F", "DM-49WRZZ", "DM-XCR4NJ"]
 code: ["tools/lib/report.ts", "tools/conformance-report-schemas.ts"]
 aliases: ["docs/267-tool-report-envelope.md", "doc-267"]
 ---
@@ -23,3 +23,7 @@ The animated culling geometry, timeline sampling ownership, text affine baseline
 The animated projective frame, vertical orientation, broken image fallback, and Linux terminal mask oracles write the same envelope for their JSON artifacts. The vertical orientation command keeps its existing stdout shape. The border phase ratifier accepts its earlier flat version 2 oracle report during transition and validates the new envelope before adjudication.
 
 Browser HarfBuzz substitution and Linux MathML Greek raster reports use versioned envelopes for both produced rows and aggregate decisions. Their aggregate readers validate the envelope and accept only an explicitly described legacy row shape. The dynamic font palette gate writes its artifact report in the envelope; its in-memory paint-gate consumer keeps the typed report value.
+
+The background clip text oracle also writes an envelope at schema version 1. Its native Linux/Windows gate reads and validates the envelope, accepts only the former flat version 2 report as legacy input, and retains its existing stdout verdict format.
+
+The native scrollbar ownership audit and projective owner release producer write version 1 envelopes around their existing version 2 domain records. Their release checkers validate the outer envelope and inner domain schema before reading relative artifacts; only explicit flat version 2 legacy reports are accepted. The nested projective audit also writes an envelope around its prior version 1 record. Artifact paths, content hashes, and CLI stdout formats remain unchanged.

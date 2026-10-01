@@ -688,7 +688,7 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": [],
-        "tickets": ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54"],
+        "tickets": ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE"],
         "code": [
           "src/capture/script/walker/inline-svg.ts",
           "src/capture/external-svg-use.ts",
@@ -3953,10 +3953,11 @@
         "status": "partial",
         "owners": ["layout", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2481", "DM-2484"],
+        "tickets": ["DM-2481", "DM-2484", "DM-49WRZZ"],
         "code": [
           ".github/workflows/native-scrollbar-parity.yml",
           "tools/check-native-scrollbar-release.ts",
+          "tools/native-scrollbar-ownership-audit.ts",
           "tools/native-scrollbar-release-gate.ts"
         ],
         "aliases": ["docs/173-native-scrollbar-release-gate.md", "doc-173"]
@@ -4999,7 +5000,7 @@
         "status": "current",
         "owners": ["text-fonts", "paint-effects", "platform-release", "product-tooling"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2530"],
+        "tickets": ["DM-2530", "DM-31KJ0F"],
         "code": [
           ".github/workflows/background-clip-text-native-parity.yml",
           "tools/background-clip-text-native-gate.ts",
@@ -5709,7 +5710,7 @@
         "status": "current",
         "owners": ["tools"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-AP6BPA", "DM-N6XJRS"],
+        "tickets": ["DM-AP6BPA", "DM-N6XJRS", "DM-31KJ0F", "DM-49WRZZ", "DM-XCR4NJ"],
         "code": ["tools/lib/report.ts", "tools/conformance-report-schemas.ts"],
         "aliases": ["docs/267-tool-report-envelope.md", "doc-267"]
       }

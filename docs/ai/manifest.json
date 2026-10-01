@@ -2855,6 +2855,7 @@
       "code": [
         ".github/workflows/native-scrollbar-parity.yml",
         "tools/check-native-scrollbar-release.ts",
+        "tools/native-scrollbar-ownership-audit.ts",
         "tools/native-scrollbar-release-gate.ts"
       ],
       "file": "173-native-scrollbar-release-gate.md"

@@ -3,10 +3,10 @@
 
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { chromium } from "@playwright/test";
 import sharp from "sharp";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -233,8 +233,10 @@ export async function runBackgroundClipTextOracle(
 ): Promise<BackgroundClipTextOracleReport> {
   const rows: BackgroundClipTextOracleRow[] = [];
   let fontEvidence: Awaited<ReturnType<typeof paintedFonts>> = [];
+  let chromiumVersion = "";
   await withBrowser(
     async (browser) => {
+      chromiumVersion = browser.version();
       for (const dpr of dprs) {
         const context = await browser.newContext({
           viewport: { width: WIDTH, height: HEIGHT },
@@ -355,7 +357,7 @@ export async function runBackgroundClipTextOracle(
   const logicalExact = Object.values(logicalControls).every(Boolean);
   return {
     schemaVersion: 2,
-    chromiumVersion: browser.version(),
+    chromiumVersion,
     chromiumExecutable: executable,
     chromiumExecutableSha256: sha256File(executable),
     platform: process.platform,
@@ -383,8 +385,15 @@ async function main(argv: string[]): Promise<number> {
   const report = await runBackgroundClipTextOracle(dprs, typeof artifactDir === "string" ? artifactDir : undefined);
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (typeof jsonPath === "string") {
-    mkdirSync(dirname(jsonPath), { recursive: true });
-    writeFileSync(jsonPath, body);
+    writeReport(
+      jsonPath,
+      "background-clip-text-oracle",
+      {
+        ...report,
+        outcome: report.verdict === "source-exact" ? "pass" : "fail",
+      },
+      { schemaVersion: 1, env: { platform: process.platform, architecture: process.arch } },
+    );
   }
   process.stdout.write(body);
   return report.verdict === "source-exact" ? 0 : 1;

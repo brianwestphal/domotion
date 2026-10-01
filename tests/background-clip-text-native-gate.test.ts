@@ -1,8 +1,15 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { adjudicateBackgroundClipTextNativeReports } from "../tools/background-clip-text-native-gate.js";
+import {
+  adjudicateBackgroundClipTextNativeReports,
+  readBackgroundClipTextNativeReport,
+} from "../tools/background-clip-text-native-gate.js";
 import type { BackgroundClipTextOracleReport } from "../tools/background-clip-text-oracle.js";
+import { writeReport } from "../tools/lib/report.js";
 
-function report(platform: "linux" | "win32"): BackgroundClipTextOracleReport {
+function report(platform: "linux" | "win32"): BackgroundClipTextOracleReport & { outcome: "pass" } {
   return {
     schemaVersion: 2,
     chromiumVersion: "147",
@@ -48,6 +55,7 @@ function report(platform: "linux" | "win32"): BackgroundClipTextOracleReport {
       pass: true,
     })),
     verdict: "source-exact",
+    outcome: "pass",
   };
 }
 
@@ -62,5 +70,35 @@ describe("DM-2530 native background-clip:text aggregator", () => {
     expect(adjudicateBackgroundClipTextNativeReports([report("linux"), report("linux")])).toContain(
       "unexpected or duplicate platform linux",
     );
+  });
+
+  it("reads nested envelope and explicit legacy v2, rejecting an unknown version before adjudication", () => {
+    const dir = mkdtempSync(join(tmpdir(), "background-clip-report-"));
+    try {
+      const currentPath = join(dir, "nested", "report.json");
+      const legacyPath = join(dir, "legacy.json");
+      writeReport(currentPath, "background-clip-text-oracle", report("linux"), { schemaVersion: 1 });
+      expect(JSON.parse(readFileSync(currentPath, "utf8")).data.outcome).toBe("pass");
+      writeFileSync(legacyPath, JSON.stringify({ ...report("win32"), outcome: undefined }));
+      expect(
+        adjudicateBackgroundClipTextNativeReports([
+          readBackgroundClipTextNativeReport(currentPath),
+          readBackgroundClipTextNativeReport(legacyPath),
+        ]),
+      ).toEqual([]);
+      writeFileSync(legacyPath, JSON.stringify({ ...report("win32"), schemaVersion: 3 }));
+      expect(() => readBackgroundClipTextNativeReport(legacyPath)).toThrow(/unsupported legacy/);
+      writeReport(currentPath, "background-clip-text-oracle", report("linux"), { schemaVersion: 2 });
+      expect(() => readBackgroundClipTextNativeReport(currentPath)).toThrow();
+      writeReport(
+        currentPath,
+        "background-clip-text-oracle",
+        { ...report("linux"), outcome: "fail" },
+        { schemaVersion: 1 },
+      );
+      expect(() => readBackgroundClipTextNativeReport(currentPath)).toThrow(/outcome disagrees/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
