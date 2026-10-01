@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "DM-WED9K9", "SK-1090", "SK-1104", "SK-1123"]
+tickets: ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "DM-WED9K9", "DM-X7MAQ8", "SK-1090", "SK-1104", "SK-1123"]
 code:
   [
     "src/capture/script/walker/text-segments.ts",
@@ -176,7 +176,12 @@ glyph origins; only the selected feature's intra-glyph offset is added.
 The capture records the computed `text-spacing-trim` value. `space-all`
 disables the default `chws` feature and the HanKerning ink shift; `trim-start`
 allows an opening glyph at the start of a captured line to use `halt`.
-`space-first` wrapped-line starts and Blink's conditional wrapped-line end
-request need an explicit capture signal distinguishing a wrap from an authored
-fragment boundary; that remains tracked as a separate line-edge task
-(`DM-X7MAQ8`). A segment end by itself is not treated as a trim request.
+The capture labels each line start as a paragraph start, soft wrap, or authored
+fragment. `space-first` and `trim-start` request opening-glyph `halt` only at a
+soft wrap; `trim-start` also requests it at a paragraph start. A hard source
+newline or an authored inline fragment is not a soft wrap. A segment end by
+itself is not a trim request. For a closing glyph at a soft-wrapped line end,
+the renderer compares the browser's Range advance with the selected face's
+`halt` advance and applies its ink offset only when they agree. This follows
+Blink's conditional line-end re-shape without trimming an unmodified closing
+glyph that happens to precede a wrap or a closing glyph at paragraph end.

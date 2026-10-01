@@ -80,6 +80,10 @@ export interface CapturedBackdropCompositeRaster {
 
 export interface TextSegment {
   text: string;
+  /** Blink line-start ownership; an authored fragment is not a paragraph or soft wrap. */
+  hanKerningLineStart?: "paragraph" | "wrapped" | "fragment";
+  /** Range advance of a closing glyph at a soft-wrapped line end, in CSS px. */
+  hanKerningWrappedEndAdvance?: number;
   /** Original DOM text covered by this segment before text-transform. */
   sourceText?: string;
   /** Exact authored-node ownership used by FragmentItem span splitting. */

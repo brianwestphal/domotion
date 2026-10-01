@@ -31,6 +31,8 @@ type MappingChar = {
 };
 type TextLine = {
   chars: TextChar[];
+  hanKerningLineStart?: TextSegment["hanKerningLineStart"];
+  hanKerningWrappedEndAdvance?: number;
   top: number;
   bottom: number;
   left: number;
@@ -1129,6 +1131,28 @@ const buildTextSegmentsHandler = ({
       lines.length = 0;
       for (const fl of fragmentedLines) lines.push(fl);
 
+      // The visual fragments above can share one line. Only a change in Range
+      // top within this authored text node proves a line break; source newlines
+      // under preserving white-space policies are hard breaks, not soft wraps.
+      const preservesNewlines = /^(?:pre|pre-wrap|pre-line|break-spaces)$/.test(cs.whiteSpace);
+      let previousLineEnd: TextLine | null = null;
+      for (const line of lines) {
+        if (previousLineEnd == null) {
+          line.hanKerningLineStart =
+            textSegments.length === 0 && !cs.display.startsWith("inline") ? "paragraph" : "fragment";
+        } else if (Math.abs(line.top - previousLineEnd.top) > 1) {
+          const previousChar = previousLineEnd.chars[previousLineEnd.chars.length - 1];
+          const firstChar = line.chars[0];
+          const gap = sourceRaw.slice(previousChar.sourceEnd, firstChar.sourceStart);
+          const hardBreak = preservesNewlines && /[\r\n]/.test(gap);
+          line.hanKerningLineStart = hardBreak ? "fragment" : "wrapped";
+          if (!hardBreak) {
+            previousLineEnd.hanKerningWrappedEndAdvance = previousChar.right - previousChar.left;
+          }
+        }
+        previousLineEnd = line;
+      }
+
       // Build text + xOffsets per line, preserving logical order.
       for (const ln of lines) {
         ln.text = ln.chars.map((c) => c.ch).join("");
@@ -1267,6 +1291,8 @@ const buildTextSegmentsHandler = ({
         }
         textSegments.push({
           text: visualText,
+          hanKerningLineStart: line.hanKerningLineStart ?? "fragment",
+          hanKerningWrappedEndAdvance: line.hanKerningWrappedEndAdvance,
           sourceText: line.sourceText,
           sourceMapping: sourceMappingForChars(line.chars, "ordinary"),
           x: line.left - vp.x,

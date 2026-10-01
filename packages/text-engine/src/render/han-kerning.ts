@@ -5,6 +5,11 @@ import { icuCodepointProperties } from "./icu-helper.js";
 import { glyphInkXRange, haltInfoFor } from "./shaping-route.js";
 
 export type HanCharType = "other" | "open" | "close" | "middle" | "open-narrow" | "close-narrow";
+export interface HanKerningLineEdges {
+  lineStart?: "paragraph" | "wrapped" | "fragment";
+  wrappedEndAdvanceCss?: number;
+  fontSize: number;
+}
 type InkGlyph = Parameters<typeof glyphInkXRange>[0] & { id: number; advanceWidth?: number };
 
 /** `CharTypeFromBounds` in Blink's `han_kerning.cc:55-80`. */
@@ -96,7 +101,13 @@ export function hanCharType(font: FontInstance, cp: number): HanCharType {
 }
 
 /** `HanKerning::ShouldKern` and `ShouldKernLast`, including their precedence. */
-export function hanShouldTrimAt(font: FontInstance, text: string, index: number, textSpacingTrim = "normal"): boolean {
+export function hanShouldTrimAt(
+  font: FontInstance,
+  text: string,
+  index: number,
+  textSpacingTrim = "normal",
+  lineStart: HanKerningLineEdges["lineStart"] = "paragraph",
+): boolean {
   if (textSpacingTrim === "space-all") return false;
   const cp = text.codePointAt(index);
   if (cp == null) return false;
@@ -112,7 +123,11 @@ export function hanShouldTrimAt(font: FontInstance, text: string, index: number,
     if (nextType === "close" || nextType === "middle" || nextType === "close-narrow") return true;
   }
   if (type !== "open") return false;
-  if (prev == null) return textSpacingTrim === "trim-start";
+  if (prev == null) {
+    return lineStart === "paragraph"
+      ? textSpacingTrim === "trim-start"
+      : lineStart === "wrapped" && (textSpacingTrim === "space-first" || textSpacingTrim === "trim-start");
+  }
   const previousType = hanCharType(font, prev);
   return (
     previousType === "open" || previousType === "middle" || previousType === "close" || previousType === "open-narrow"
@@ -127,9 +142,23 @@ export function hanTrimInkShift(
   text: string,
   index: number,
   textSpacingTrim = "normal",
+  edges?: HanKerningLineEdges,
 ): number {
   const cp = text.codePointAt(index);
-  if (cp == null || glyph.id === 0 || !hanShouldTrimAt(font, text, index, textSpacingTrim)) return 0;
+  if (cp == null || glyph.id === 0 || textSpacingTrim === "space-all") return 0;
+  const adjacentOrStart = hanShouldTrimAt(font, text, index, textSpacingTrim, edges?.lineStart);
+  const wrappedEnd =
+    edges?.wrappedEndAdvanceCss != null &&
+    index + (cp > 0xffff ? 2 : 1) === text.length &&
+    hanCharType(font, cp) === "close";
+  if (!adjacentOrStart && !wrappedEnd) return 0;
   const halt = haltInfoFor(font, fontKey, cp);
-  return halt.halved ? halt.xOffset : 0;
+  if (!halt.halved) return 0;
+  if (adjacentOrStart) return halt.xOffset;
+  // Blink requests `han_kerning_end` only if the closing glyph fits the
+  // candidate line after re-shaping. The captured Range advance tells us
+  // whether that request actually selected the face's `halt` form; merely
+  // ending before a soft wrap does not.
+  const haltedCss = (halt.alternateAdvance ?? 0) * (edges!.fontSize / font.unitsPerEm);
+  return Math.abs(edges!.wrappedEndAdvanceCss! - haltedCss) <= 0.125 ? halt.xOffset : 0;
 }

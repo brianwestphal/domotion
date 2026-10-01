@@ -4665,6 +4665,10 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
     expect(hanShouldTrimAt(font, "文」　", 1)).toBe(true);
     expect(hanShouldTrimAt(font, "（「", 1, "space-all")).toBe(false);
     expect(hanShouldTrimAt(font, "「文", 0, "trim-start")).toBe(true);
+    expect(hanShouldTrimAt(font, "「文", 0, "space-first", "wrapped")).toBe(true);
+    expect(hanShouldTrimAt(font, "「文", 0, "space-first", "paragraph")).toBe(false);
+    expect(hanShouldTrimAt(font, "「文", 0, "trim-start", "fragment")).toBe(false);
+    expect(hanShouldTrimAt(font, "「文", 0, "normal", "wrapped")).toBe(false);
   });
 
   it("asks the selected face for halt without a codepoint pre-filter", () => {
@@ -4693,7 +4697,27 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
       xOffset: 0,
       yOffset: 220,
       feature: "vhal",
+      alternateAdvance: 500,
     });
+  });
+
+  it("applies line-end halt only when the wrapped closing Range advance matches the selected face", () => {
+    const font = fakeFont(-500);
+    const edges = { lineStart: "paragraph" as const, wrappedEndAdvanceCss: 8, fontSize: 16 };
+    expect(cjkTrimShiftFontUnits(font, "wrapped-close", glyph, "文」", 1, "normal", edges)).toBe(-500);
+    expect(
+      cjkTrimShiftFontUnits(font, "untrimmed-close", glyph, "文」", 1, "normal", {
+        ...edges,
+        wrappedEndAdvanceCss: 16,
+      }),
+    ).toBe(0);
+    expect(
+      cjkTrimShiftFontUnits(font, "paragraph-close", glyph, "文」", 1, "normal", {
+        lineStart: "paragraph",
+        fontSize: 16,
+      }),
+    ).toBe(0);
+    expect(cjkTrimShiftFontUnits(font, "space-all-close", glyph, "文」", 1, "space-all", edges)).toBe(0);
   });
 
   it("follows a face with partial halt coverage instead of punctuation identity", () => {

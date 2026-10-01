@@ -2310,6 +2310,8 @@ export function renderMultiLineText(opts: RenderTextOpts): string {
           fontWeight: segFontWeight,
           fill: segColor,
           xOffsets: segXOffsets,
+          hanKerningLineStart: seg.hanKerningLineStart ?? "fragment",
+          hanKerningWrappedEndAdvance: seg.hanKerningWrappedEndAdvance,
           fontStyle: typography.fontStyle,
           ascentOverride: segAscent,
           features: segFeatures,

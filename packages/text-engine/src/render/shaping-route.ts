@@ -133,6 +133,7 @@ export interface AlternateHalfWidthInfo {
   xOffset: number;
   yOffset: number;
   feature: "halt" | "vhal";
+  alternateAdvance?: number;
 }
 
 const HALT_INFO_CACHE = new WeakMap<FontInstance, Map<string, AlternateHalfWidthInfo>>();
@@ -169,6 +170,7 @@ export function haltInfoFor(
           xOffset: halt.positions[0].xOffset,
           yOffset: halt.positions[0].yOffset,
           feature,
+          alternateAdvance: hAdv,
         };
       }
     }

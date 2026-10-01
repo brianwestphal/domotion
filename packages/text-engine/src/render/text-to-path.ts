@@ -50,7 +50,7 @@ import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import type { FontRequest } from "./font-request.js";
 import { readMathRadicalData } from "./open-type-math.js";
 import { selectMathRadicalShape, type MathRadicalGlyph } from "./math-radical-shape.js";
-import { hanTrimInkShift } from "./han-kerning.js";
+import { hanTrimInkShift, type HanKerningLineEdges } from "./han-kerning.js";
 
 const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
   "Arabic",
@@ -911,6 +911,7 @@ function renderTextPathRuns(
   paint?: TextRunPaintOptions,
   fallbackRequest?: { rawSlope: number; orientation: number },
   textSpacingTrim?: string,
+  hanKerningEdges?: HanKerningLineEdges,
 ): TextPathResult | null {
   const ownership = createTextPathOwnership();
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
@@ -1097,6 +1098,7 @@ function renderTextPathRuns(
       paintPathGroup,
       ownership,
       textSpacingTrim,
+      hanKerningEdges,
     );
   }
 
@@ -1233,7 +1235,15 @@ function renderTextPathRuns(
             // DM-1184: shift trimmed fullwidth-punctuation ink (see
             // cjkTrimShiftFontUnits / the embedded-font path for the rationale).
             if (layout.glyphs.length === 1) {
-              const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, layout.glyphs[0], text, i, textSpacingTrim);
+              const shiftFU = cjkTrimShiftFontUnits(
+                run.font,
+                run.fontKey,
+                layout.glyphs[0],
+                text,
+                i,
+                textSpacingTrim,
+                hanKerningEdges,
+              );
               if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
             }
             groups.push(
@@ -1486,7 +1496,15 @@ function renderTextPathRuns(
               const sourceCp = text.codePointAt(sourceIndex);
               const ownsOneScalar = sourceCp != null && sourceEnd - sourceIndex === (sourceCp > 0xffff ? 2 : 1);
               const trimShiftFU = ownsOneScalar
-                ? cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, text, sourceIndex, textSpacingTrim)
+                ? cjkTrimShiftFontUnits(
+                    run.font,
+                    run.fontKey,
+                    glyph,
+                    text,
+                    sourceIndex,
+                    textSpacingTrim,
+                    hanKerningEdges,
+                  )
                 : 0;
               const tx = placements[gi].xFontUnits + trimShiftFU;
               const ty = -pos.yOffset;
@@ -1590,6 +1608,7 @@ export function textToPathMarkup(
   paint?: TextRunPaintOptions,
   fallbackRequest?: { rawSlope: number; orientation: number },
   textSpacingTrim?: string,
+  hanKerningEdges?: HanKerningLineEdges,
 ): TextPathResult | null {
   return renderTextPathRuns(
     text,
@@ -1609,6 +1628,7 @@ export function textToPathMarkup(
     paint,
     fallbackRequest,
     textSpacingTrim,
+    hanKerningEdges,
   );
 }
 
@@ -1640,8 +1660,9 @@ export function cjkTrimShiftFontUnits(
   text: string,
   sourceIndex: number,
   textSpacingTrim?: string,
+  hanKerningEdges?: HanKerningLineEdges,
 ): number {
-  return hanTrimInkShift(font, fontKey, glyph, text, sourceIndex, textSpacingTrim);
+  return hanTrimInkShift(font, fontKey, glyph, text, sourceIndex, textSpacingTrim, hanKerningEdges);
 }
 
 /**
@@ -1805,6 +1826,7 @@ function singleFontMarkup(
   paintPathGroup?: (font: FontInstance, groupScale: number, transform: string, body: string) => string,
   ownership: TextPathOwnership = createTextPathOwnership(),
   textSpacingTrim?: string,
+  hanKerningEdges?: HanKerningLineEdges,
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
   const run =
@@ -1933,7 +1955,7 @@ function singleFontMarkup(
         // dividing by `scale`. pos.xOffset (the font's per-glyph subpixel
         // offset, in font units) is added in font-unit space.
         tx = xOffsets![i] / scale + pos.xOffset;
-        tx += cjkTrimShiftFontUnits(font, fontKey, glyph, text, sourceCursor, textSpacingTrim);
+        tx += cjkTrimShiftFontUnits(font, fontKey, glyph, text, sourceCursor, textSpacingTrim, hanKerningEdges);
       } else {
         tx = (x + pos.xOffset) * xScale;
       }
@@ -3032,6 +3054,7 @@ function renderEmbeddedGlyphRuns(
   fallbackRequest?: { rawSlope: number; orientation: number },
   authoredTextRendering?: string,
   textSpacingTrim?: string,
+  hanKerningEdges?: HanKerningLineEdges,
 ): EmbeddedTextAttempt {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
@@ -3660,7 +3683,15 @@ function renderEmbeddedGlyphRuns(
           // aliased by a shared Glyph the way `codePoints` can.
           const cpCl = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
           if (cpCl != null && xOffsets?.[wholeTextIdx] != null)
-            trimShiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, text, wholeTextIdx, textSpacingTrim);
+            trimShiftFU = cjkTrimShiftFontUnits(
+              run.font,
+              run.fontKey,
+              glyph,
+              text,
+              wholeTextIdx,
+              textSpacingTrim,
+              hanKerningEdges,
+            );
           xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset + trimShiftFU) * runScale;
           yCss = -pos.yOffset * runScale;
           clusterCursorFU += pos.xAdvance;
@@ -3692,7 +3723,15 @@ function renderEmbeddedGlyphRuns(
           // DM-1849: source first, as above.
           const cp0 = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
           if (cp0 != null) {
-            const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, text, wholeTextIdx, textSpacingTrim);
+            const shiftFU = cjkTrimShiftFontUnits(
+              run.font,
+              run.fontKey,
+              glyph,
+              text,
+              wholeTextIdx,
+              textSpacingTrim,
+              hanKerningEdges,
+            );
             if (shiftFU !== 0) xCss = xCss + shiftFU * runScale;
           }
         } else {
@@ -3973,6 +4012,7 @@ function renderTextAsEmbedded(
   fallbackRequest?: { rawSlope: number; orientation: number },
   authoredTextRendering?: string,
   textSpacingTrim?: string,
+  hanKerningEdges?: HanKerningLineEdges,
 ): EmbeddedTextAttempt {
   return renderEmbeddedGlyphRuns(
     text,
@@ -3999,6 +4039,7 @@ function renderTextAsEmbedded(
     fallbackRequest,
     authoredTextRendering,
     textSpacingTrim,
+    hanKerningEdges,
   );
 }
 
@@ -4314,6 +4355,9 @@ export interface RenderTextOptions extends TextFontOptions {
   textRendering?: string;
   /** Computed CSS Text 4 punctuation-spacing policy. */
   textSpacingTrim?: string;
+  /** Browser-owned line edge signals for HanKerning start/end re-shapes. */
+  hanKerningLineStart?: HanKerningLineEdges["lineStart"];
+  hanKerningWrappedEndAdvance?: number;
 }
 
 export type SourceOwnedTextBoundaryReason =
@@ -4377,7 +4421,14 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
     fontOrientation = 0,
     textRendering,
     textSpacingTrim,
+    hanKerningLineStart,
+    hanKerningWrappedEndAdvance,
   } = options;
+  const hanKerningEdges: HanKerningLineEdges = {
+    lineStart: hanKerningLineStart,
+    wrappedEndAdvanceCss: hanKerningWrappedEndAdvance,
+    fontSize,
+  };
   const fontWeight = String(options.fontWeight);
   let { xOffsets } = options;
   const weight = cssWeightOf(options.fontWeight);
@@ -4468,6 +4519,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
       fallbackRequest,
       textRendering,
       textSpacingTrim,
+      hanKerningEdges,
     );
     if (embedded.markup != null) {
       recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
@@ -4516,6 +4568,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
       runPaint,
       fallbackRequest,
       textSpacingTrim,
+      hanKerningEdges,
     );
   } catch {
     const reason = "path-layout-failed" as const;

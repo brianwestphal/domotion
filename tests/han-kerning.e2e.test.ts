@@ -81,4 +81,66 @@ describeBrowser("Han kerning through live CSS capture and path rendering (DM-WED
       await page.close();
     }
   });
+
+  it("owns soft-wrap starts and qualifying close ends without trimming a paragraph end", async () => {
+    const page = await browser!.newPage({ viewport: { width: 400, height: 300 } });
+    const previousMode = getRenderTextMode();
+    try {
+      await page.setContent(`
+        <style>body{margin:0}div{font:16px/1 Hiragino Sans;overflow-wrap:anywhere}</style>
+        <div id="wrap-space-first" data-domotion-anim="wrap-space-first" lang="ja" style="width:24px;text-spacing-trim:space-first">あ「い</div>
+        <div id="wrap-normal" data-domotion-anim="wrap-normal" lang="ja" style="width:32px;text-spacing-trim:normal">あ「い</div>
+        <div id="close-halt" data-domotion-anim="close-halt" lang="ja" style="width:24px;text-spacing-trim:normal">あ）い</div>
+        <div id="close-full" data-domotion-anim="close-full" lang="ja" style="width:32px;text-spacing-trim:normal">あ）い</div>
+        <div id="paragraph-end" data-domotion-anim="paragraph-end" lang="ja" style="width:48px;text-spacing-trim:normal">あ）</div>
+        <div id="hard-break" data-domotion-anim="hard-break" lang="ja" style="white-space:pre-line;text-spacing-trim:space-first">あ\n「い</div>
+      `);
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 300 });
+      const parts = (id: string) => {
+        const node = findByAnimId(tree, id);
+        expect(node, id).not.toBeNull();
+        return node!.textSegments!;
+      };
+      const spaceFirst = parts("wrap-space-first");
+      const normal = parts("wrap-normal");
+      expect(spaceFirst.map((part) => part.text)).toEqual(["あ", "「い"]);
+      expect(normal.map((part) => part.text)).toEqual(["あ", "「い"]);
+      expect(spaceFirst[0].hanKerningLineStart).toBe("paragraph");
+      expect(spaceFirst[1].hanKerningLineStart).toBe("wrapped");
+      expect(normal[1].hanKerningLineStart).toBe("wrapped");
+
+      setRenderTextMode("paths");
+      for (const [segment, policy, expected] of [
+        [spaceFirst[1], "space-first", -500],
+        [normal[1], "normal", 0],
+      ] as const) {
+        const offsets = segment.xOffsets!.map((x) => x - segment.xOffsets![0]);
+        const svg = renderTextAsPath(segment.text, 0, 0, {
+          fontFamily: "Hiragino Sans",
+          fontSize: 16,
+          fontWeight: "400",
+          fill: "#000",
+          xOffsets: offsets,
+          textSpacingTrim: policy,
+          hanKerningLineStart: segment.hanKerningLineStart,
+          lang: "ja",
+        });
+        const firstX = Number(svg.match(/<use\b[^>]*\bx="([^"]+)"/)?.[1]);
+        expect(firstX, policy).toBe(expected);
+      }
+
+      expect(parts("close-halt").map((part) => part.text)).toEqual(["あ）", "い"]);
+      expect(parts("close-halt")[0].hanKerningWrappedEndAdvance).toBe(8);
+      expect(parts("close-full").map((part) => part.text)).toEqual(["あ）", "い"]);
+      expect(parts("close-full")[0].hanKerningWrappedEndAdvance).toBe(16);
+      expect(parts("paragraph-end")).toHaveLength(1);
+      expect(parts("paragraph-end")[0].hanKerningWrappedEndAdvance).toBeUndefined();
+      expect(parts("hard-break").map((part) => part.text)).toEqual(["あ", "「い"]);
+      expect(parts("hard-break")[1].hanKerningLineStart).toBe("fragment");
+      expect(parts("hard-break")[0].hanKerningWrappedEndAdvance).toBeUndefined();
+    } finally {
+      setRenderTextMode(previousMode);
+      await page.close();
+    }
+  });
 });
