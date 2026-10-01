@@ -1377,6 +1377,8 @@ export interface CapturedStyles {
   /** Computed CSS font-optical-sizing. Optional for backward-compatible trees. */
   fontOpticalSizing?: string;
   fontFeatureSettings: string;
+  /** Computed CSS Text 4 punctuation spacing (`normal` if unsupported). */
+  textSpacingTrim?: string;
   /** Computed font-variant-alternates syntax. */
   fontVariantAlternates?: string;
   /** Effective Blink-fused @font-feature-values aliases, keyed by normalized family name. */

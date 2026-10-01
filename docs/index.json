@@ -107,10 +107,14 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "SK-1090", "SK-1104", "SK-1123"],
+        "tickets": ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "DM-WED9K9", "SK-1090", "SK-1104", "SK-1123"],
         "code": [
           "src/capture/script/walker/text-segments.ts",
+          "src/capture/script/walker/style-record.ts",
           "packages/text-engine/src/render/text-to-path.ts",
+          "packages/text-engine/src/render/han-kerning.ts",
+          "packages/text-engine/src/render/shaping-route.ts",
+          "src/render/text.ts",
           "src/render/vertical-text.test.ts",
           "src/render/vertical-text.ts"
         ],
@@ -5885,7 +5889,7 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ", "DM-JRB2H5"],
+        "tickets": ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ", "DM-JRB2H5", "DM-WED9K9"],
         "code": [
           "src/capture/text-paint-geometry-cdp.ts",
           "src/capture/script/index.ts",
@@ -5899,6 +5903,7 @@
           "packages/text-engine/src/render/linux-target-strike.ts",
           "src/render/real-text-layer.ts",
           "packages/text-engine/src/render/text-to-path.ts",
+          "packages/text-engine/src/render/han-kerning.ts",
           "packages/text-engine/src/render/text-engine.ts",
           "src/render/text.ts",
           "tests/feature-coverage.ts",

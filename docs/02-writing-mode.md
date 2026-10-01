@@ -5,11 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "SK-1090", "SK-1104", "SK-1123"]
+tickets: ["DM-1184", "DM-2193", "DM-2514", "DM-K6YQBK", "DM-WED9K9", "SK-1090", "SK-1104", "SK-1123"]
 code:
   [
     "src/capture/script/walker/text-segments.ts",
+    "src/capture/script/walker/style-record.ts",
     "packages/text-engine/src/render/text-to-path.ts",
+    "packages/text-engine/src/render/han-kerning.ts",
+    "packages/text-engine/src/render/shaping-route.ts",
+    "src/render/text.ts",
     "src/render/vertical-text.test.ts",
     "src/render/vertical-text.ts",
   ]
@@ -159,16 +163,20 @@ an opening bracket's right-half ink at the trimmed (leftward) pen pushes it
 ~0.5em too far right — it lands on the next glyph (the visible "`「` overlaps
 `」`" bug in `20-deep-hanging-punctuation`).
 
-The fix asks the selected face for its actual `halt` (or vertical `vhal`)
-shaping result and borrows the returned GPOS offset only when the same glyph is
-genuinely narrowed. There is no Unicode punctuation/range gate: punctuation,
-ideographs, kana, Latin, and fullwidth forms are all decided by face evidence.
-`cjkTrimShiftFontUnits` (`packages/text-engine/src/render/text-to-path.ts`) additionally requires the
-captured advance to be about half the untrimmed advance, so ordinary glyphs and
-untrimmed `（ ）` remain untouched. If native helpers are unavailable, the
-already-observed narrowed advance plus selected-glyph ink geometry is the
-bounded fallback. Applied in the embedded-font path
-(CoreText cluster + fontkit branches) and the paths-mode per-char branch. The
-captured pen is the glyph ORIGIN; the halt xOffset is an intra-glyph ink nudge —
-applying it is not a double-shift. Still open: line-leading and `」「` adjacent-
-bracket contextual cases that trim on a different side.
+The renderer follows Blink's `HanKerning` decision at revision `7d859f271c`:
+fixed Unicode punctuation classes plus selected-face bounds for dot, colon,
+semicolon, and quote classes; the `ShouldKern` and `ShouldKernLast` adjacent-pair
+rules; and the face's actual `halt` GPOS offset when the rule selects a glyph.
+`CharTypeFromBounds` compares glyph ink with half its advance, including its
+shaped offset. The selected face may reduce the advance by any amount; the
+previous 0.75 captured-advance and 0.6 `halt`-narrowing cutoffs are gone. This
+applies in both embedded-font and paths mode. Captured pen positions remain the
+glyph origins; only the selected feature's intra-glyph offset is added.
+
+The capture records the computed `text-spacing-trim` value. `space-all`
+disables the default `chws` feature and the HanKerning ink shift; `trim-start`
+allows an opening glyph at the start of a captured line to use `halt`.
+`space-first` wrapped-line starts and Blink's conditional wrapped-line end
+request need an explicit capture signal distinguishing a wrap from an authored
+fragment boundary; that remains tracked as a separate line-edge task
+(`DM-X7MAQ8`). A segment end by itself is not treated as a trim request.

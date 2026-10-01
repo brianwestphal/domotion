@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import * as fontkit from "fontkit";
 import * as fontkit2 from "fontkit";
+import { hanCharTypeFromBounds, hanShouldTrimAt } from "./han-kerning.js";
 import {
   blinkSuppressesInterLetterSpacing,
   cjkTrimShiftFontUnits,
@@ -4647,6 +4648,25 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
   }
   const glyph = { id: 7, advanceWidth: 1000, path: { commands: [] } };
 
+  it("classifies glyph ink using Blink's half-advance bounds", () => {
+    expect(hanCharTypeFromBounds(1000, 500, 950)).toBe("open");
+    expect(hanCharTypeFromBounds(1000, 20, 500)).toBe("close");
+    expect(hanCharTypeFromBounds(1000, 250, 700)).toBe("middle");
+    expect(hanCharTypeFromBounds(1000, 100, 900)).toBe("other");
+  });
+
+  it("selects Blink's adjacent pairs without inventing a line-end request", () => {
+    const font = fakeFont(-500);
+    expect(hanShouldTrimAt(font, "（「字", 1)).toBe(true);
+    expect(hanShouldTrimAt(font, "」「", 1)).toBe(true);
+    expect(hanShouldTrimAt(font, "文「字", 1)).toBe(false);
+    expect(hanShouldTrimAt(font, "（文", 0)).toBe(false);
+    expect(hanShouldTrimAt(font, "文」", 1)).toBe(false);
+    expect(hanShouldTrimAt(font, "文」　", 1)).toBe(true);
+    expect(hanShouldTrimAt(font, "（「", 1, "space-all")).toBe(false);
+    expect(hanShouldTrimAt(font, "「文", 0, "trim-start")).toBe(true);
+  });
+
   it("asks the selected face for halt without a codepoint pre-filter", () => {
     for (const cp of [0x300c, 0xff08, 0x3042, 0x6587, 0x0041, 0xff21]) {
       expect(haltInfoFor(fakeFont(-500), `halt-${cp}`, cp)).toMatchObject({
@@ -4695,20 +4715,43 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
     });
   });
 
+  it("accepts the face's real halt reduction even when it is smaller than half an em", () => {
+    const font = {
+      unitsPerEm: 1000,
+      layout(_text: string, features?: string[]) {
+        const halt = features?.includes("halt") === true;
+        return {
+          glyphs: [{ id: 7, path: { commands: [] }, advanceWidth: 1000 }],
+          positions: [{ xAdvance: halt ? 800 : 1000, yAdvance: 0, xOffset: halt ? -200 : 0, yOffset: 0 }],
+        };
+      },
+    } as unknown as Parameters<typeof haltInfoFor>[0];
+    expect(haltInfoFor(font, "halt-small-reduction", 0x300c)).toMatchObject({ halved: true, xOffset: -200 });
+    expect(cjkTrimShiftFontUnits(font, "halt-small-reduction", glyph, "（「", 1)).toBe(-200);
+  });
+
+  it("keeps halt evidence on its selected face across repeated same-key queries", () => {
+    const left = fakeFont(-500);
+    const right = fakeFont(-125);
+    expect(haltInfoFor(left, "shared-family-key", 0x300c).xOffset).toBe(-500);
+    expect(haltInfoFor(right, "shared-family-key", 0x300c).xOffset).toBe(-125);
+    expect(haltInfoFor(left, "shared-family-key", 0x300c).xOffset).toBe(-500);
+  });
+
   it("shifts a TRIMMED opening bracket left by the halt xOffset", () => {
     // fontSize 16, em 1000 → scale 0.016; full advance = 16px, trimmed = 8px.
-    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300c, 8, 16, 0.016);
+    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, "（「字", 1);
     expect(shift).toBe(-500); // font units: opening ink moves left half an em
   });
 
   it("leaves a TRIMMED closing bracket unshifted (its ink is already left-aligned)", () => {
-    const shift = cjkTrimShiftFontUnits(fakeFont(0), "k-close", glyph, 0x300d, 8, 16, 0.016);
+    const shift = cjkTrimShiftFontUnits(fakeFont(0), "k-close", glyph, "文」」", 1);
     expect(shift).toBe(0);
   });
 
   it("does NOT shift an UNTRIMMED opening bracket (full-em captured advance)", () => {
     // capturedAdv 16 ≈ full advance → not trimmed → no shift even for opening.
-    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open2", glyph, 0xff08, 16, 16, 0.016);
+    const shift = cjkTrimShiftFontUnits(fakeFont(-500), "k-open2", glyph, "（文", 0);
     expect(shift).toBe(0);
   });
 
@@ -4733,7 +4776,7 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
         ],
       },
     };
-    const shift = cjkTrimShiftFontUnits(noHaltFont, "k-nohalt", openingGlyph, 0x300c, 8, 16, 0.016);
+    const shift = cjkTrimShiftFontUnits(noHaltFont, "k-nohalt", openingGlyph, "（「字", 1);
     expect(shift).toBe(0);
   });
 
@@ -4748,10 +4791,10 @@ describe("text-spacing-trim: fullwidth-punctuation ink shift (DM-1184)", () => {
   // 20-deep-hanging-punctuation: the remaining diff is glyph-AA, not position.)
   it("handles the 」「 adjacent-bracket boundary per-glyph (DM-1223)", () => {
     // `」` stays full-width (Chrome doesn't trim a closing bracket here) → no shift.
-    expect(cjkTrimShiftFontUnits(fakeFont(0), "j-close", glyph, 0x300d, 16, 16, 0.016)).toBe(0);
+    expect(cjkTrimShiftFontUnits(fakeFont(0), "j-close", glyph, "」「", 0)).toBe(0);
     // The immediately-following `「` is trimmed to half regardless of the `」`
     // before it → the same left halt shift as in `（「`.
-    expect(cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, 0x300c, 8, 16, 0.016)).toBe(-500);
+    expect(cjkTrimShiftFontUnits(fakeFont(-500), "k-open", glyph, "」「", 1)).toBe(-500);
   });
 });
 

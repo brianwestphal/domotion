@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ", "DM-JRB2H5"]
+tickets: ["DM-1775", "DM-2596", "DM-2643", "DM-VY5DHJ", "DM-JRB2H5", "DM-WED9K9"]
 code:
   [
     "src/capture/text-paint-geometry-cdp.ts",
@@ -20,6 +20,7 @@ code:
     "packages/text-engine/src/render/linux-target-strike.ts",
     "src/render/real-text-layer.ts",
     "packages/text-engine/src/render/text-to-path.ts",
+    "packages/text-engine/src/render/han-kerning.ts",
     "packages/text-engine/src/render/text-engine.ts",
     "src/render/text.ts",
     "tests/feature-coverage.ts",
@@ -83,6 +84,7 @@ upstream source traces, corpora, and retained runs remain in the linked records.
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Family and generic selection | [Font family chain](../03-font-family-chain.md), [system resolver](../80-cross-platform-system-fallback-resolver.md), [generic semantics](../206-generic-family-semantic-ownership.md) | `packages/text-engine/src/render/font-resolution.ts`, `src/capture/script/index.ts`, `tests/font-family-stack-capture.e2e.test.ts`                                                                                    |
 | Shaping and clusters         | [Production shaping](../115-production-harfbuzz-shaping.md), [browser substitution streams](../220-browser-harfbuzz-substitution-streams.md)                                           | `src/render/text.ts`, `tools/unified-shaping-oracle.ts`, `tools/browser-harfbuzz-substitution-oracle.ts`                                                                                                              |
+| Punctuation spacing          | [Writing-mode and text-spacing-trim](../02-writing-mode.md)                                                                                                                            | `packages/text-engine/src/render/han-kerning.ts`, `packages/text-engine/src/render/shaping-route.ts`, `packages/text-engine/src/render/text-to-path.test.ts`, `external/html-test/20-deep-hanging-punctuation.html`   |
 | Layout and bidi              | [Layout parity](../116-layout-stage-parity.md), [bidi ownership](../214-mixed-script-bidi-logical-geometry.md)                                                                         | `src/capture/script/walker/text-segments.ts`, `tools/layout-stage-oracle.ts`, `tools/mixed-bidi-logical-oracle.ts`                                                                                                    |
 | Native outlines              | [Glyph extraction](../16-coretext-glyph-extraction.md), [Linux](../45-linux-glyph-extraction.md), [Windows](../41-windows-glyph-extraction.md)                                         | `packages/text-engine/src/render/glyph-helper-{transport,protocol,outline,font}.ts`, `packages/text-engine/src/render/linux-target-strike.ts`, native helpers, `packages/text-engine/src/render/glyph-helper.test.ts` |
 | Paint and decoration         | [Text decoration](../207-cross-platform-decoration-geometry.md), [background clip](../18-background-clip-text.md)                                                                      | `src/render/text.ts`, `packages/text-engine/src/render/text-to-path.ts`, `src/render/decoration-fragment-ownership.ts`, decoration oracle tests                                                                       |

@@ -603,6 +603,7 @@ describe("resolveChwsFeature (DM-2048, font_features.cc:197-228)", () => {
     // — a disabled (0-value) halt/palt does not veto the default chws.
     expect(resolveChwsFeature(["-halt"])).toEqual(["chws"]);
     expect(resolveChwsFeature(["-palt"])).toEqual(["chws"]);
+    expect(resolveChwsFeature(undefined, "space-all")).toBeUndefined();
   });
 });
 

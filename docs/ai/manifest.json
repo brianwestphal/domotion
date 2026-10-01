@@ -44,7 +44,11 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/script/walker/text-segments.ts",
+        "src/capture/script/walker/style-record.ts",
         "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/han-kerning.ts",
+        "packages/text-engine/src/render/shaping-route.ts",
+        "src/render/text.ts",
         "src/render/vertical-text.test.ts",
         "src/render/vertical-text.ts"
       ],
@@ -4398,6 +4402,7 @@
         "packages/text-engine/src/render/linux-target-strike.ts",
         "src/render/real-text-layer.ts",
         "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/han-kerning.ts",
         "packages/text-engine/src/render/text-engine.ts",
         "src/render/text.ts",
         "tests/feature-coverage.ts",

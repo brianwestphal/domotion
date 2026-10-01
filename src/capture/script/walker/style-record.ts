@@ -325,6 +325,7 @@ export const createStyleRecordBuilder = (ctx: {
       fontVariationSettings: cs.fontVariationSettings,
       fontOpticalSizing: cs.fontOpticalSizing,
       fontFeatureSettings: cs.fontFeatureSettings,
+      textSpacingTrim: cs.getPropertyValue("text-spacing-trim") || "normal",
       fontVariantAlternates: cs.fontVariantAlternates,
       // The alias table is document-global but only alternate-bearing nodes
       // can consume it; omit it from the common element shape to avoid

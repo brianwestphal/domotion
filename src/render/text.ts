@@ -1563,10 +1563,8 @@ export function resolveFontVariantFeatures(
   return out.length > 0 ? out : undefined;
 }
 
-// DM-2048: `chws` is enabled by default whenever `text-spacing-trim: normal`
-// makes `ShouldTrimAdjacent` true (`text_spacing_trim.h:23-25`, rev
-// 7d859f27) — Domotion never captures a non-`normal` `text-spacing-trim`, so
-// this is unconditional. Blink appends the default AFTER walking the
+// `chws` is enabled by default whenever `ShouldTrimAdjacent` is true
+// (`text_spacing_trim.h:23-25`, rev 7d859f27). Blink appends the default AFTER walking the
 // author's `font-feature-settings`, and skips it when the author's list
 // already carries `chws` (any value) or a non-zero `halt`/`palt`
 // (`platform/fonts/shaping/font_features.cc:197-228`, rev 7d859f27). A
@@ -1575,7 +1573,11 @@ export function resolveFontVariantFeatures(
 // raster-image-fallback-cases.md` E6 / SK-1128), so only the horizontal tag
 // is reachable here. `chws` is GPOS-only and enable-only, so fontkit can
 // carry it without a HarfBuzz reroute.
-export function resolveChwsFeature(ffsFeatures: string[] | undefined): string[] | undefined {
+export function resolveChwsFeature(
+  ffsFeatures: string[] | undefined,
+  textSpacingTrim = "normal",
+): string[] | undefined {
+  if (textSpacingTrim === "space-all") return undefined;
   if (ffsFeatures != null) {
     for (const f of ffsFeatures) {
       const enabled = !f.startsWith("-");
@@ -1725,7 +1727,7 @@ function resolveSegmentFeatures(
       ),
       ffs,
     ),
-    resolveChwsFeature(ffs),
+    resolveChwsFeature(ffs, el.styles.textSpacingTrim),
   );
 }
 
@@ -1829,6 +1831,7 @@ function buildPathOptions(
     fontVariantEmoji: fontVariantEmojiOf(el.styles),
     fontSynthesis: fontSynthesisOf(el.styles),
     textRendering: el.styles.textRendering,
+    textSpacingTrim: el.styles.textSpacingTrim,
     ...options,
   };
 }

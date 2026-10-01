@@ -135,7 +135,7 @@ export interface AlternateHalfWidthInfo {
   feature: "halt" | "vhal";
 }
 
-const HALT_INFO_CACHE = new Map<string, AlternateHalfWidthInfo>();
+const HALT_INFO_CACHE = new WeakMap<FontInstance, Map<string, AlternateHalfWidthInfo>>();
 
 export function haltInfoFor(
   font: FontInstance,
@@ -144,27 +144,26 @@ export function haltInfoFor(
   orientation: "horizontal" | "vertical" = "horizontal",
 ): AlternateHalfWidthInfo {
   const feature = orientation === "vertical" ? "vhal" : "halt";
+  // The run's HarfBuzz wrapper may bind `chws` and ignore a subsequent
+  // one-glyph `halt` argument. Query the same selected face without the bound
+  // contextual feature; Blink applies `halt` to its base SimpleFontData.
+  const shapingFont = font.shapesWithHarfbuzz === true ? hbShapingBaseOf(font) : font;
   const key = `${fontKey}|${cp}|${feature}`;
-  const hit = HALT_INFO_CACHE.get(key);
+  let cache = HALT_INFO_CACHE.get(shapingFont);
+  const hit = cache?.get(key);
   if (hit !== undefined) return hit;
   let info: AlternateHalfWidthInfo = { halved: false, xOffset: 0, yOffset: 0, feature };
   try {
     const ch = String.fromCodePoint(cp);
-    const def = font.layout(ch);
-    const halt = font.layout(ch, [feature]);
+    const def = shapingFont.layout(ch);
+    const halt = shapingFont.layout(ch, [feature]);
     if (def.positions.length === 1 && halt.positions.length === 1 && def.glyphs[0]?.id === halt.glyphs[0]?.id) {
       const dAdv = Math.abs(orientation === "vertical" ? def.positions[0].yAdvance : def.positions[0].xAdvance);
       const hAdv = Math.abs(orientation === "vertical" ? halt.positions[0].yAdvance : halt.positions[0].xAdvance);
-      // The selected feature must genuinely narrow this glyph
-      // while keeping the SAME outline (pure GPOS) — otherwise it isn't the
-      // fullwidth-punctuation trim case and we leave the glyph alone.
-      // Deliberate detection, not a port: Blink applies `halt` / `vhal` to the ranges its `HanKerning`
-      // pass selects (`platform/fonts/shaping/han_kerning.cc:330-337`, rev 7d859f27) and takes the
-      // resulting advance, so it never asks whether the form is "narrow enough". This asks it here
-      // because the caller reaches this only for glyphs the capture says were trimmed, and a `halt` that
-      // barely moves the advance is a different adjustment (e.g. a proportional tweak). 0.6 is not a
-      // Blink constant.
-      if (hAdv > 0 && dAdv > 0 && hAdv <= dAdv * 0.6) {
+      // The HanKerning caller selects the feature range from character classes
+      // and adjacency. Any genuine advance reduction is the font's `halt` form;
+      // Blink does not impose a fractional narrowing threshold (rev 7d859f27).
+      if (hAdv > 0 && dAdv > 0 && hAdv < dAdv) {
         info = {
           halved: true,
           xOffset: halt.positions[0].xOffset,
@@ -176,7 +175,11 @@ export function haltInfoFor(
   } catch {
     /* leave default (not halt-able) */
   }
-  HALT_INFO_CACHE.set(key, info);
+  if (cache == null) {
+    cache = new Map();
+    HALT_INFO_CACHE.set(shapingFont, cache);
+  }
+  cache.set(key, info);
   return info;
 }
 

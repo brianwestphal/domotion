@@ -50,6 +50,7 @@ import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import type { FontRequest } from "./font-request.js";
 import { readMathRadicalData } from "./open-type-math.js";
 import { selectMathRadicalShape, type MathRadicalGlyph } from "./math-radical-shape.js";
+import { hanTrimInkShift } from "./han-kerning.js";
 
 const BLINK_CURSIVE_SPACING_SCRIPTS = new Set([
   "Arabic",
@@ -112,9 +113,7 @@ import {
   FontVariantEmojiOverride,
   getFontInstance,
   getFontSourceInfo,
-  glyphInkXRange,
   glyphPathIntercepts,
-  haltInfoFor,
   mergeGaps,
   opticalCutOpszFor,
   pickWebfontVariantForCodepoint,
@@ -911,6 +910,7 @@ function renderTextPathRuns(
    */
   paint?: TextRunPaintOptions,
   fallbackRequest?: { rawSlope: number; orientation: number },
+  textSpacingTrim?: string,
 ): TextPathResult | null {
   const ownership = createTextPathOwnership();
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
@@ -1096,6 +1096,7 @@ function renderTextPathRuns(
       stretch,
       paintPathGroup,
       ownership,
+      textSpacingTrim,
     );
   }
 
@@ -1231,16 +1232,8 @@ function renderTextPathRuns(
             let cssX = Number(xOffsets[i].toFixed(3));
             // DM-1184: shift trimmed fullwidth-punctuation ink (see
             // cjkTrimShiftFontUnits / the embedded-font path for the rationale).
-            if (nextI < xOffsets.length && layout.glyphs.length === 1) {
-              const shiftFU = cjkTrimShiftFontUnits(
-                run.font,
-                run.fontKey,
-                layout.glyphs[0],
-                cp,
-                xOffsets[nextI] - xOffsets[i],
-                fontSize,
-                runScale,
-              );
+            if (layout.glyphs.length === 1) {
+              const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, layout.glyphs[0], text, i, textSpacingTrim);
               if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
             }
             groups.push(
@@ -1488,7 +1481,14 @@ function renderTextPathRuns(
                 );
             if (glyphCmds.length > 0) {
               const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
-              const tx = placements[gi].xFontUnits;
+              const sourceIndex = run.startIdx + seg.start + glyphSourceSpans[gi][0];
+              const sourceEnd = run.startIdx + seg.start + glyphSourceSpans[gi][1];
+              const sourceCp = text.codePointAt(sourceIndex);
+              const ownsOneScalar = sourceCp != null && sourceEnd - sourceIndex === (sourceCp > 0xffff ? 2 : 1);
+              const trimShiftFU = ownsOneScalar
+                ? cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, text, sourceIndex, textSpacingTrim)
+                : 0;
+              const tx = placements[gi].xFontUnits + trimShiftFU;
               const ty = -pos.yOffset;
               uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
             }
@@ -1589,6 +1589,7 @@ export function textToPathMarkup(
   fontSynthesis?: FontSynthesisAllowance,
   paint?: TextRunPaintOptions,
   fallbackRequest?: { rawSlope: number; orientation: number },
+  textSpacingTrim?: string,
 ): TextPathResult | null {
   return renderTextPathRuns(
     text,
@@ -1607,13 +1608,13 @@ export function textToPathMarkup(
     fontSynthesis,
     paint,
     fallbackRequest,
+    textSpacingTrim,
   );
 }
 
 /** Original single-font path (unchanged behavior — preserves xOffsets / targetWidth). */
-// DM-1184/DM-2396: CSS `text-spacing-trim` can select a font's half-width
-// alternate. Activation is derived from the selected face's actual `halt`
-// shaping result, never from a Unicode range or punctuation classification.
+// CSS `text-spacing-trim` selects a font's half-width alternate using Blink's
+// HanKerning character classes and adjacent-pair rules (han-kerning.ts).
 // Chrome's already-trimmed pen positions ARE captured (and we anchor each glyph
 // at them), but the glyph OUTLINE is still the full-width one, whose ink sits in
 // only one half of the em box. For OPENING punctuation (（「) the ink is in the
@@ -1625,11 +1626,8 @@ export function textToPathMarkup(
 // only its xOffset to nudge the ink at the already-trimmed anchor; the advance
 // is irrelevant because placement uses the captured pen, not a re-shaped one.
 
-// The font-unit x-shift that repositions a glyph whose captured advance proves
-// it was trimmed, so the full-width outline lands where Chrome painted the
-// half-width form. Prefers the selected face's own `halt` GPOS xOffset;
-// falls back to ink geometry (ink in the RIGHT half of the em box ⇒ opening ⇒
-// shift left by the trimmed amount) when the font instance can't apply `halt`.
+// The captured xOffsets supply pen positions. HanKerning selects the glyph's
+// feature range; the selected face supplies its actual GPOS ink offset.
 export function cjkTrimShiftFontUnits(
   font: FontInstance,
   fontKey: string,
@@ -1639,28 +1637,11 @@ export function cjkTrimShiftFontUnits(
     path?: { commands: Array<{ command: string; args: number[] }> };
     codePoints?: number[];
   },
-  cp: number,
-  capturedAdvCss: number,
-  fontSize: number,
-  scale: number,
+  text: string,
+  sourceIndex: number,
+  textSpacingTrim?: string,
 ): number {
-  void fontSize;
-  const emFU = font.unitsPerEm;
-  const fullAdvCss = (glyph.advanceWidth != null && glyph.advanceWidth > 0 ? glyph.advanceWidth : emFU) * scale;
-  if (!(capturedAdvCss > 0 && fullAdvCss > 0 && capturedAdvCss < fullAdvCss * 0.75)) return 0;
-  const halt = haltInfoFor(font, fontKey, cp);
-  if (halt.halved) return halt.xOffset;
-  if (isGlyphHelperAvailable() && isIcuHelperAvailable()) return 0;
-  // Helper-absent fallback: the already-observed half-width advance plus the
-  // selected glyph's ink geometry is the evidence. Do not pre-filter by a
-  // Unicode range; fonts may expose `halt` for any scalar, and an ordinary
-  // CJK/Latin/fullwidth glyph without the shaping delta remains untouched.
-  const ink = glyphInkXRange(glyph);
-  if (ink == null) return 0;
-  const inkCenter = (ink.min + ink.max) / 2;
-  if (inkCenter <= emFU * 0.5) return 0; // closing punctuation — already aligned
-  const trimFU = (fullAdvCss - capturedAdvCss) / scale; // amount Chrome removed
-  return -trimFU;
+  return hanTrimInkShift(font, fontKey, glyph, text, sourceIndex, textSpacingTrim);
 }
 
 /**
@@ -1823,6 +1804,7 @@ function singleFontMarkup(
   /** Lower the source outline stream through the run's ordered paint stages. */
   paintPathGroup?: (font: FontInstance, groupScale: number, transform: string, body: string) => string,
   ownership: TextPathOwnership = createTextPathOwnership(),
+  textSpacingTrim?: string,
 ): TextPathResult {
   const scale = fontSize / font.unitsPerEm;
   const run =
@@ -1951,27 +1933,7 @@ function singleFontMarkup(
         // dividing by `scale`. pos.xOffset (the font's per-glyph subpixel
         // offset, in font units) is added in font-unit space.
         tx = xOffsets![i] / scale + pos.xOffset;
-        // DM-1184: when Chrome trimmed this fullwidth-punctuation glyph under
-        // `text-spacing-trim` — detectable as a captured advance ~half the full
-        // em — shift its ink by the font's `halt` xOffset so the full-width
-        // outline lands where Chrome painted the half-width form (see
-        // haltInfoFor). Gated on the captured advance actually being trimmed so
-        // an untrimmed （ ） is left untouched.
-        const cp0 = glyph.codePoints != null && glyph.codePoints.length > 0 ? glyph.codePoints[0] : undefined;
-        if (cp0 != null && i + 1 < xOffsets!.length) {
-          const fullAdv = pos.xAdvance * scale; // full em advance, CSS px
-          const capturedAdv = xOffsets![i + 1] - xOffsets![i]; // what Chrome used, CSS px
-          // Deliberate detection, not a port. Blink decides the trim per glyph in `HanKerning`
-          // (`platform/fonts/shaping/han_kerning.cc`: a CharType from the glyph bounds, then a `halt` /
-          // `vhal` feature range for the glyphs it trims, `:330-337`, rev 7d859f27), and the result is
-          // the captured advance — that IS Blink's answer. 0.75 only separates a trimmed advance (the
-          // `halt` form, about half the em) from an untrimmed one; it is not a Blink constant. Porting
-          // the CharType decision would replace the threshold outright.
-          if (fullAdv > 0 && capturedAdv > 0 && capturedAdv < fullAdv * 0.75) {
-            const halt = haltInfoFor(font, fontKey, cp0);
-            if (halt.halved) tx += halt.xOffset; // font units
-          }
-        }
+        tx += cjkTrimShiftFontUnits(font, fontKey, glyph, text, sourceCursor, textSpacingTrim);
       } else {
         tx = (x + pos.xOffset) * xScale;
       }
@@ -3069,6 +3031,7 @@ function renderEmbeddedGlyphRuns(
   bidiOverride?: BidiParagraphContext,
   fallbackRequest?: { rawSlope: number; orientation: number },
   authoredTextRendering?: string,
+  textSpacingTrim?: string,
 ): EmbeddedTextAttempt {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
@@ -3696,20 +3659,8 @@ function renderEmbeddedGlyphRuns(
           // char, which is exactly what the trim logic wants, and it cannot be
           // aliased by a shared Glyph the way `codePoints` can.
           const cpCl = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
-          if (cpCl != null && xOffsets != null) {
-            const nextCharIdx = wholeTextIdx + (cpCl > 0xffff ? 2 : 1);
-            if (xOffsets[wholeTextIdx] != null && xOffsets[nextCharIdx] != null) {
-              trimShiftFU = cjkTrimShiftFontUnits(
-                run.font,
-                run.fontKey,
-                glyph,
-                cpCl,
-                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx],
-                fontSize,
-                runScale,
-              );
-            }
-          }
+          if (cpCl != null && xOffsets?.[wholeTextIdx] != null)
+            trimShiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, text, wholeTextIdx, textSpacingTrim);
           xCss = clusterAnchorCss + (clusterCursorFU + pos.xOffset + trimShiftFU) * runScale;
           yCss = -pos.yOffset * runScale;
           clusterCursorFU += pos.xAdvance;
@@ -3741,19 +3692,8 @@ function renderEmbeddedGlyphRuns(
           // DM-1849: source first, as above.
           const cp0 = text.codePointAt(wholeTextIdx) ?? glyph.codePoints?.[0];
           if (cp0 != null) {
-            const nextCharIdx = wholeTextIdx + (cp0 > 0xffff ? 2 : 1);
-            if (xOffsets[nextCharIdx] != null) {
-              const shiftFU = cjkTrimShiftFontUnits(
-                run.font,
-                run.fontKey,
-                glyph,
-                cp0,
-                xOffsets[nextCharIdx] - xOffsets[wholeTextIdx],
-                fontSize,
-                runScale,
-              );
-              if (shiftFU !== 0) xCss = xCss + shiftFU * runScale;
-            }
+            const shiftFU = cjkTrimShiftFontUnits(run.font, run.fontKey, glyph, text, wholeTextIdx, textSpacingTrim);
+            if (shiftFU !== 0) xCss = xCss + shiftFU * runScale;
           }
         } else {
           // Cursor sits in font units; convert to CSS using the run's scale.
@@ -4032,6 +3972,7 @@ function renderTextAsEmbedded(
   bidiOverride?: BidiParagraphContext,
   fallbackRequest?: { rawSlope: number; orientation: number },
   authoredTextRendering?: string,
+  textSpacingTrim?: string,
 ): EmbeddedTextAttempt {
   return renderEmbeddedGlyphRuns(
     text,
@@ -4057,6 +3998,7 @@ function renderTextAsEmbedded(
     bidiOverride,
     fallbackRequest,
     authoredTextRendering,
+    textSpacingTrim,
   );
 }
 
@@ -4370,6 +4312,8 @@ export interface RenderTextOptions extends TextFontOptions {
   bidiOverride?: BidiParagraphContext;
   /** Captured CSS `text-rendering`; the Linux terminal correction owns only `auto`. */
   textRendering?: string;
+  /** Computed CSS Text 4 punctuation-spacing policy. */
+  textSpacingTrim?: string;
 }
 
 export type SourceOwnedTextBoundaryReason =
@@ -4432,6 +4376,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
     fontSynthesis,
     fontOrientation = 0,
     textRendering,
+    textSpacingTrim,
   } = options;
   const fontWeight = String(options.fontWeight);
   let { xOffsets } = options;
@@ -4522,6 +4467,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
       bidiOverride,
       fallbackRequest,
       textRendering,
+      textSpacingTrim,
     );
     if (embedded.markup != null) {
       recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
@@ -4569,6 +4515,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
       fontSynthesis,
       runPaint,
       fallbackRequest,
+      textSpacingTrim,
     );
   } catch {
     const reason = "path-layout-failed" as const;
