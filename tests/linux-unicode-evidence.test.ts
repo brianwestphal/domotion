@@ -3,10 +3,13 @@ import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-bu
 import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import {
   LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
+  LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES,
   LINUX_UNICODE_THIN_OUTLINE_CONTROLS,
   LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE,
   LINUX_VEDIC_DOTTED_CIRCLE_RECORDS,
   compareLinuxUnicodeMutations,
+  classifyLinuxUnicodeFixtureEvidence,
+  hasLinuxUnicodeFaceMutationEvidence,
   shouldCollectLinuxUnicodeTextEvidence,
   validateFixtureTextEvidence,
   validateLinuxVedicDottedCircleEvidence,
@@ -95,6 +98,57 @@ describe("row-scoped Linux Unicode evidence", () => {
       ]),
     );
     expect(LINUX_UNICODE_THIN_OUTLINE_CONTROLS).toEqual([0x0964, 0x0965]);
+  });
+
+  it("admits only the 14 rows with measured face-selection mutations", () => {
+    expect(LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES).toHaveLength(14);
+    expect(new Set(LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES).size).toBe(14);
+    expect(
+      LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES.every((fixture) =>
+        LINUX_UNICODE_RASTER_FLOOR_FIXTURES.includes(fixture),
+      ),
+    ).toBe(true);
+    const withheld = LINUX_UNICODE_RASTER_FLOOR_FIXTURES.filter(
+      (fixture) => !hasLinuxUnicodeFaceMutationEvidence(fixture),
+    );
+    expect(withheld).toEqual([
+      "0080-00FF-latin-1-supplement",
+      "0100-017F-latin-extended-a",
+      "02B0-02FF-spacing-modifier-letters",
+      "0870-089F-arabic-extended-b",
+      "0900-097F-devanagari",
+      "0D00-0D7F-malayalam",
+      "1E00-1EFF-latin-extended-additional",
+      "1F00-1FFF-greek-extended",
+      "A720-A7FF-latin-extended-d",
+      "FB50-FDFF-arabic-presentation-forms-a.2",
+    ]);
+    for (const fixture of LINUX_UNICODE_RASTER_FLOOR_FIXTURES) {
+      const textRunEvidence = evidence();
+      textRunEvidence.fixture = fixture;
+      textRunEvidence.runs[0].fixture = fixture;
+      const hintedBuild = build("hb-subset", ["prep"]);
+      if (fixture === "4E00-9FFF-cjk-unified-ideographs.30") {
+        textRunEvidence.runs[0].selected = {
+          ...textRunEvidence.runs[0].selected,
+          fontKey: "sysfb:WenQuanYiZenHeiMono",
+          postscriptName: "WenQuanYiZenHeiMono",
+          sourcePath: "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+          faceIndex: 1,
+        };
+        hintedBuild.sourcePath = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc";
+        hintedBuild.faceIndex = 1;
+      }
+      const result = classifyLinuxUnicodeFixtureEvidence({
+        platform: "linux",
+        suite: "html-test-unicode",
+        fixture,
+        diffPct: 0.5,
+        textRunEvidence,
+        embeddedFontBuilds: [hintedBuild],
+      });
+      expect(result != null, fixture).toBe(hasLinuxUnicodeFaceMutationEvidence(fixture));
+    }
   });
 
   it("keeps structural Vedic evidence separate and pins all exact affected streams", () => {

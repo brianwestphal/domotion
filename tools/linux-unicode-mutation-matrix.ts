@@ -7,6 +7,7 @@ import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance
 import {
   LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
   compareLinuxUnicodeMutations,
+  hasLinuxUnicodeFaceMutationEvidence,
   validateFixtureTextEvidence,
 } from "../src/review/linux-unicode-evidence.js";
 
@@ -92,8 +93,12 @@ export function main(args: string[]): number {
         baseline.actualSha256,
         hintOff.actualSha256,
       );
-      if (verdict.selectedFaceRowsMoved === 0)
-        errors.push(`${fixture}: fontconfig-helper-off mutation did not move a selected-face row`);
+      if (hasLinuxUnicodeFaceMutationEvidence(fixture)) {
+        if (verdict.selectedFaceRowsMoved === 0)
+          errors.push(`${fixture}: expected fontconfig-helper-off mutation did not move a selected-face row`);
+      } else if (verdict.selectedFaceRowsMoved > 0) {
+        errors.push(`${fixture}: newly moved selected-face row requires corpus re-ratification`);
+      }
       if (!verdict.hintedLogicalRowsExact)
         errors.push(`${fixture}: hinted-subset-off changed logical evidence (logical-mismatch)`);
       if (verdict.hintedBuilderRowsMoved === 0)
@@ -133,7 +138,9 @@ export function main(args: string[]): number {
       fixtures,
       summary: {
         total: fixtures.length,
-        rasterFloorCandidates: fixtures.filter((row) => row.verdict === "raster-floor-candidate").length,
+        rasterFloorCandidates: fixtures.filter(
+          (row) => row.verdict === "raster-floor-candidate" && hasLinuxUnicodeFaceMutationEvidence(row.fixture),
+        ).length,
         logicalMismatches: fixtures.filter((row) => row.verdict === "logical-mismatch").length,
         mutationInert: fixtures.filter((row) => row.verdict === "mutation-inert").length,
         incomplete: fixtures.filter((row) => row.verdict === "incomplete").length,
@@ -152,7 +159,9 @@ export function main(args: string[]): number {
       {
         schemaVersion: 1,
         source: "linux-unicode-mutation-matrix.json",
-        fixtures: fixtures.filter((row) => row.verdict === "raster-floor-candidate").map((row) => row.fixture),
+        fixtures: fixtures
+          .filter((row) => row.verdict === "raster-floor-candidate" && hasLinuxUnicodeFaceMutationEvidence(row.fixture))
+          .map((row) => row.fixture),
         outcome: "skip",
       },
       { schemaVersion: 1, generatedAt: report.generatedAt, env: { platform: process.platform } },

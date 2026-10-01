@@ -244,7 +244,7 @@ export interface TestResult {
   /** Per-entry builder provenance for the embedded fonts in this exact SVG. */
   embeddedFontBuilds?: EmbeddedFontBuildDiagnostic[];
   /** Fixture-scoped production face → glyph → outline evidence for the pinned
-   * Linux Unicode raster-floor corpus and structural Vedic row. */
+   * Linux Unicode evidence corpus and structural Vedic row. */
   textRunEvidence?: FixtureTextRunProvenance;
   /** Bounded source-browser and emitted-target facts for Unicode cells whose
    * descriptor identity cannot be reconstructed after a hosted runner expires. */

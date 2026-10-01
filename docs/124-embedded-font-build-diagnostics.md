@@ -58,8 +58,9 @@ reset; all four outputs must have one SHA-256 identity.
 
 The HTML/unicode harness resets the complete generation state before every
 fixture. Diagnostics are therefore fixture-scoped; `workerSeq` subtraction is
-neither required nor valid. For the pinned 24-row Linux Unicode raster-floor
-corpus and its separately adjudicated structural Vedic Extensions row,
+neither required nor valid. For the pinned 24-row Linux Unicode evidence
+corpus (14 raster-floor candidates and ten unclassified rows) and its separately
+adjudicated structural Vedic Extensions row,
 `textRunEvidence` additionally persists the fixture on every production run,
 UTF-16 and code-point spans, selected physical face, glyph id/cluster,
 advance/offset, source-outline digest, and final representation.

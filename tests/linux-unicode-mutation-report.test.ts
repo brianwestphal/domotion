@@ -8,11 +8,107 @@ import {
   readLinuxUnicodeMutationMatrix,
   readLinuxUnicodeRasterCandidates,
 } from "../tools/linux-unicode-mutation-report.js";
+import {
+  LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
+  hasLinuxUnicodeFaceMutationEvidence,
+} from "../src/review/linux-unicode-evidence.js";
 
 const dir = mkdtempSync(join(tmpdir(), "linux-unicode-mutation-report-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("Linux Unicode mutation reports", () => {
+  it("admits 14 active rows and retains ten unclassified sidecars through the real CLI", () => {
+    const arms = ["baseline", "helper-off", "hint-off"].map((name) => join(dir, "validated", name));
+    for (const arm of arms) mkdirSync(arm, { recursive: true });
+    const rows = LINUX_UNICODE_RASTER_FLOOR_FIXTURES.map((fixture) => ({
+      fixture,
+      run: {
+        fixture,
+        row: 0,
+        sourceSpan: [0, 1],
+        sourceCodepointSpan: [0, 1],
+        selected: { fontKey: "base", postscriptName: "Base", sourcePath: "/base.ttf", faceIndex: 0 },
+        glyphs: [{ id: 1, cluster: 0, xAdvance: 1, yAdvance: 0, xOffset: 0, yOffset: 0 }],
+      },
+    }));
+    for (const [armIndex, arm] of arms.entries()) {
+      writeFileSync(
+        join(arm, "results.json"),
+        JSON.stringify(
+          rows.map(({ fixture, run }) => ({
+            name: fixture,
+            actualSha256: armIndex === 2 ? "unhinted" : "hinted",
+            textRunEvidence: {
+              fixture,
+              runs: [
+                {
+                  ...run,
+                  selected:
+                    armIndex === 1 && hasLinuxUnicodeFaceMutationEvidence(fixture)
+                      ? { ...run.selected, fontKey: "fallback", postscriptName: "Fallback" }
+                      : run.selected,
+                },
+              ],
+            },
+            embeddedFontBuilds: [
+              {
+                instanceKey: fixture,
+                selectedBuilder: armIndex === 2 ? "svg2ttf" : "hb-subset",
+                retainedHintTableTags: armIndex === 2 ? [] : ["prep"],
+              },
+            ],
+          })),
+        ),
+      );
+    }
+    const out = join(dir, "validated", "reports");
+    expect(main(["--baseline", arms[0], "--helper-off", arms[1], "--hint-off", arms[2], "--out", out])).toBe(0);
+    const matrix = readLinuxUnicodeMutationMatrix(join(out, "linux-unicode-mutation-matrix.json"));
+    const candidates = readLinuxUnicodeRasterCandidates(join(out, "dm-2352-raster-floor-candidates.json"));
+    expect(matrix).toMatchObject({
+      outcome: "pass",
+      summary: { rasterFloorCandidates: 14, mutationInert: 10 },
+      errors: [],
+    });
+    expect(candidates.fixtures).toHaveLength(14);
+    expect(matrix.fixtures).toHaveLength(24);
+    expect(
+      readFileSync(join(arms[0], `${LINUX_UNICODE_RASTER_FLOOR_FIXTURES[0]}-mutation-evidence.json`), "utf8"),
+    ).toContain('"verdict": "mutation-inert"');
+
+    const helperPath = join(arms[1], "results.json");
+    const helperRows = JSON.parse(readFileSync(helperPath, "utf8")) as Array<{
+      name: string;
+      textRunEvidence: { runs: Array<{ selected: Record<string, unknown> }> };
+    }>;
+    helperRows.find((row) => row.name === "0180-024F-latin-extended-b")!.textRunEvidence.runs[0].selected = {
+      fontKey: "base",
+      postscriptName: "Base",
+      sourcePath: "/base.ttf",
+      faceIndex: 0,
+    };
+    helperRows.find((row) => row.name === "0080-00FF-latin-1-supplement")!.textRunEvidence.runs[0].selected = {
+      fontKey: "fallback",
+      postscriptName: "Fallback",
+      sourcePath: "/base.ttf",
+      faceIndex: 0,
+    };
+    writeFileSync(helperPath, JSON.stringify(helperRows));
+    expect(main(["--baseline", arms[0], "--helper-off", arms[1], "--hint-off", arms[2], "--out", out])).toBe(1);
+    const drift = readLinuxUnicodeMutationMatrix(join(out, "linux-unicode-mutation-matrix.json"));
+    expect(drift.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("0180-024F-latin-extended-b: expected fontconfig-helper-off mutation did not move"),
+        expect.stringContaining(
+          "0080-00FF-latin-1-supplement: newly moved selected-face row requires corpus re-ratification",
+        ),
+      ]),
+    );
+    expect(readLinuxUnicodeRasterCandidates(join(out, "dm-2352-raster-floor-candidates.json")).fixtures).not.toContain(
+      "0080-00FF-latin-1-supplement",
+    );
+  });
+
   it("writes nested versioned reports through the real CLI when arms are incomplete", () => {
     const arms = ["baseline", "helper-off", "hint-off"].map((name) => join(dir, name));
     for (const arm of arms) {

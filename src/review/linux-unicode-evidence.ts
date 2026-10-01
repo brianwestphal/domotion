@@ -33,8 +33,33 @@ export const LINUX_UNICODE_RASTER_FLOOR_FIXTURES = [
 export type LinuxUnicodeRasterFloorFixture = (typeof LINUX_UNICODE_RASTER_FLOOR_FIXTURES)[number];
 const FIXTURES = new Set<string>(LINUX_UNICODE_RASTER_FLOOR_FIXTURES);
 
-/** The structural Vedic row is adjudicated separately from the 24 accepted
- * native-raster-floor rows, but uses the same fixture-scoped production
+/** Run 36809436632 proved a selected-face mutation for these 14 rows. The
+ * other ten remain in the evidence corpus but have no face-selection control,
+ * so their pixel residual cannot supersede the broader logical reports. */
+export const LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES = [
+  "0180-024F-latin-extended-b",
+  "0400-04FF-cyrillic",
+  "1D00-1D7F-phonetic-extensions",
+  "1D80-1DBF-phonetic-extensions-supplement",
+  "20A0-20CF-currency-symbols",
+  "2150-218F-number-forms",
+  "3400-4DBF-cjk-unified-ideographs-extension-a.25",
+  "3400-4DBF-cjk-unified-ideographs-extension-a.9",
+  "4E00-9FFF-cjk-unified-ideographs.15",
+  "4E00-9FFF-cjk-unified-ideographs.30",
+  "4E00-9FFF-cjk-unified-ideographs.62",
+  "4E00-9FFF-cjk-unified-ideographs.78",
+  "AC00-D7AF-hangul-syllables.1",
+  "AC00-D7AF-hangul-syllables.32",
+] as const satisfies readonly LinuxUnicodeRasterFloorFixture[];
+const FACE_MUTATION_VALIDATED_FIXTURES = new Set<string>(LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES);
+
+export function hasLinuxUnicodeFaceMutationEvidence(fixture: string): boolean {
+  return FACE_MUTATION_VALIDATED_FIXTURES.has(fixture);
+}
+
+/** The structural Vedic row is adjudicated separately from the 24-row
+ * evidence inventory, but uses the same fixture-scoped production
  * provenance transport. */
 export const LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE = "1CD0-1CFF-vedic-extensions" as const;
 
@@ -376,8 +401,8 @@ const CJK_30_FIXTURE = "4E00-9FFF-cjk-unified-ideographs.30";
 const CJK_30_MONO_FONT_KEY = "sysfb:WenQuanYiZenHeiMono";
 
 /**
- * Turn the closed, mutation-validated Linux Unicode corpus into evidence the
- * review tool can apply to one current fixture. The corpus membership records
+ * Turn the mutation-validated Linux Unicode rows into evidence the
+ * review tool can apply to one current fixture. Validated membership records
  * that both helper-off and hint-off arms moved; the current artifact must still
  * prove exact logical provenance, active hinted subset construction, and the
  * bounded Linux raster floor before it may supersede suite-global reports.
@@ -391,7 +416,7 @@ export function classifyLinuxUnicodeFixtureEvidence(args: {
   embeddedFontBuilds?: EmbeddedFontBuildDiagnostic[];
 }): FixtureScopedStageEvidence | undefined {
   if (args.platform !== "linux" || args.suite !== "html-test-unicode") return undefined;
-  if (!isLinuxUnicodeRasterFloorFixture(args.fixture) || args.diffPct > 1) return undefined;
+  if (!hasLinuxUnicodeFaceMutationEvidence(args.fixture) || args.diffPct > 1) return undefined;
   if (args.textRunEvidence == null || validateFixtureTextEvidence(args.fixture, args.textRunEvidence).length > 0)
     return undefined;
   const builds = args.embeddedFontBuilds ?? [];
