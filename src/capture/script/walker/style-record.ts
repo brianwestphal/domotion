@@ -285,6 +285,9 @@ export const createStyleRecordBuilder = (ctx: {
       textOverflow: cs.textOverflow,
       whiteSpace: cs.whiteSpace,
       textTransform: cs.textTransform,
+      // MathML layout inherits math-style through rows, fractions, and scripts;
+      // the radical's own computed value selects its OpenType MATH gap.
+      mathStyle: el.namespaceURI === "http://www.w3.org/1998/Math/MathML" ? cs.mathStyle : undefined,
       color: normColor(cs.color),
       // DM-2470: font metrics live in Blink's pre-transform plane. Effective
       // CSS zoom is layout-local and is crossed here exactly once; the later

@@ -2,6 +2,13 @@ import { emitGaussianBlurFilter } from "./gaussian-blur.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 const UNBOUNDED_CLIP_EXTENT = 100000;
 
+/** Older captured trees lack mathStyle and keep their original parent-display inference. */
+export function radicalUsesDisplayStyle(mathStyle: string | undefined, parentDisplay: string | undefined): boolean {
+  if (mathStyle === "normal") return true;
+  if (mathStyle === "compact") return false;
+  return parentDisplay === "block math";
+}
+
 /**
  * DOM-to-SVG Converter
  *
@@ -4114,7 +4121,7 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
         baseTop,
         baseHeight: baseBottom - baseTop,
         baseRight,
-        displayStyle: context.parentDisplayForEl === "block math",
+        displayStyle: radicalUsesDisplayStyle(el.styles.mathStyle, context.parentDisplayForEl),
       },
     );
     if (glyphRadical != null) {

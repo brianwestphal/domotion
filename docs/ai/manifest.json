@@ -4199,6 +4199,8 @@
         "packages/text-engine/src/render/open-type-math.ts",
         "packages/text-engine/src/render/math-radical-shape.ts",
         "packages/text-engine/src/render/text-to-path.ts",
+        "src/capture/script/walker/style-record.ts",
+        "src/capture/types.ts",
         "src/render/element-tree-to-svg.ts"
       ],
       "file": "264-opentype-math-radical-geometry.md"

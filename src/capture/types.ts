@@ -1352,6 +1352,8 @@ export interface CapturedStyles {
   /** Computed CSS text-transform. MathML's UA `math-auto` value is a shaping
    * input even though it does not appear in the source text. */
   textTransform?: string;
+  /** Computed inherited CSS math-style on MathML elements (`normal` or `compact`). */
+  mathStyle?: string;
   color: string;
   fontSize: string;
   /** CSSOM/specified size before effective zoom or transforms. */

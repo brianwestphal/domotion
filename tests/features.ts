@@ -1390,6 +1390,14 @@ export const tests: FeatureTest[] = [
     height: 390,
   },
   {
+    // The radical's computed math-style survives row inheritance, fraction
+    // compaction, and an authored override of the surrounding math context.
+    name: "mathml-radical-inherited-math-style",
+    html: `<div style="padding:16px;background:#fff;color:#111"><style>math{font-family:'STIX Two Math',math,serif;font-size:22px}</style><math display="block"><mrow><msqrt><mi>x</mi></msqrt></mrow></math><math display="block"><mfrac><mrow><msqrt><mi>x</mi></msqrt></mrow><mi>y</mi></mfrac></math><math display="block"><mrow style="math-style:compact"><msqrt><mi>x</mi></msqrt></mrow></math><math><mrow style="math-style:normal"><msqrt><mi>x</mi></msqrt></mrow></math></div>`,
+    width: 420,
+    height: 200,
+  },
+  {
     // DM-2397: generated Chromium operator-dictionary coverage. The first
     // row includes vertical stretchy pairs absent from the former curated
     // fence set; the second keeps inline-axis stretchy arrows and large-op

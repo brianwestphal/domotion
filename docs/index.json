@@ -5651,11 +5651,13 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-WGF8AE"],
+        "tickets": ["DM-WGF8AE", "DM-XZZ0MS"],
         "code": [
           "packages/text-engine/src/render/open-type-math.ts",
           "packages/text-engine/src/render/math-radical-shape.ts",
           "packages/text-engine/src/render/text-to-path.ts",
+          "src/capture/script/walker/style-record.ts",
+          "src/capture/types.ts",
           "src/render/element-tree-to-svg.ts"
         ],
         "aliases": ["docs/264-opentype-math-radical-geometry.md", "doc-264"]
