@@ -118,6 +118,9 @@ describe("sweepStack orchestration", () => {
         events.push(`ours:${cp}`);
         return ours({ key: "Arial", postscriptName: "Arial" });
       }) as SweepOperations["faceFor"],
+      primeCodepoints: (cps) => {
+        events.push(`icu:${cps.join(",")}`);
+      },
       memoSize: () => 3,
       rssMb: () => 9,
       write: () => {},
@@ -134,12 +137,15 @@ describe("sweepStack orchestration", () => {
       "scope:ja",
       "prepare",
       "chrome:65",
+      "icu:65",
       "ours:65",
       "chrome:66",
+      "icu:66",
       "ours:66",
       "reset",
       "prepare",
       "chrome:67",
+      "icu:67",
       "ours:67",
     ]);
     expect(tally.stackPrimaries[0].chromePrimary).toBe("Arial");
@@ -147,6 +153,42 @@ describe("sweepStack orchestration", () => {
     expect(tally.peakRssMb).toBe(9);
     expect(tally.mismatchRowsSeen).toBe(0);
     expect(Object.values(tally.counts).reduce((sum, count) => sum + count, 0)).toBe(3);
+  });
+
+  it("primes one sparse low-byte batch before any scalar resolution", async () => {
+    const codepoints = Array.from({ length: 20 }, (_, i) => (i + 1) << 8);
+    const events: string[] = [];
+    const spec: StackSpec = { fontFamily: "A", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
+    const opts = parseArgs(["--sample-byte", "00", "--batch", "20"]);
+    const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
+    const operations: SweepOperations = {
+      platform: "darwin",
+      selectScope: () => {},
+      prepare: (() => ({ chain: ["A"], primaryKey: "A" })) as SweepOperations["prepare"],
+      reset: () => {},
+      primeCodepoints: (cps) => events.push(`icu:${cps.join(",")}`),
+      faceFor: ((cp: number) => {
+        events.push(`ours:${cp}`);
+        return ours({ key: "Arial", postscriptName: "Arial" });
+      }) as SweepOperations["faceFor"],
+      memoSize: () => 0,
+      rssMb: () => 0,
+      write: () => {},
+    };
+    const oracle = {
+      resolvedPrimary: async () => "Arial",
+      facesFor: async (cps: number[]) => {
+        events.push(`chrome:${cps.join(",")}`);
+        return cps.map(() => [chrome({ familyName: "Arial", postScriptName: "Arial" })]);
+      },
+    };
+    await sweepStack(spec, 0, 1, codepoints, opts, oracle, tally, Date.now(), operations);
+    expect(events).toEqual([
+      `chrome:${codepoints.join(",")}`,
+      `icu:${codepoints.join(",")}`,
+      ...codepoints.map((cp) => `ours:${cp}`),
+    ]);
+    expect(tally.mismatchRowsSeen).toBe(0);
   });
 });
 
