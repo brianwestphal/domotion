@@ -12,6 +12,7 @@ import { _systemFallbackResolutionEnabled, setSystemFallbackResolutionEnabled } 
 import { resolveEffectiveCutKey } from "./font-instance.js";
 import { resolveFontSpec } from "./font-spec.js";
 import { getFontInstance } from "./font-instance.js";
+import { darwinSystemUiPlatformCacheWarm } from "./font-instance.js";
 import { getFontSourceInfo } from "./font-instance.js";
 import { splitFontFamilyNames } from "./font-instance.js";
 import { declaredFamilyForKey, matchFamilyNameToKey } from "./family-match.js";
@@ -425,6 +426,14 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
     // matching. The intercept is case-sensitive but applies to a quoted
     // `"system-ui"` too; `canonicalSystemUiName` preserves that distinction.
     if (entry.canonicalSystemUiName || entry.lookupName === "BlinkMacSystemFont") return true;
+
+    // A prior system-ui lookup populates Blink's Darwin platform-font cache.
+    // After that, a case-variant literal such as `"System-ui"` resolves to the
+    // cached UI font even though it did not enter the canonical-name branch.
+    // Its fallback still walks the UI font's private cascade. The family
+    // matcher mirrors the warmed primary; carry the same state into the
+    // fallback-base signal rather than reopening plain SFNS.ttf by path.
+    if (hostPlatform() === "darwin" && darwinSystemUiPlatformCacheWarm && entry.name === "system-ui") return true;
 
     // Mirror the same nomination walk `resolveFont` / `resolveFontKey` use.
     // An unavailable name is not the primary merely because it appears first
