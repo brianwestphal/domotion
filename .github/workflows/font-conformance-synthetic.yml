@@ -75,6 +75,16 @@ on:
         description: "Write this run back as the synthetic baseline instead of gating on it (artifact only — commit it by hand)"
         type: boolean
         default: false
+      cohort_run_ids:
+        description: "Optional completed run IDs, comma-separated, to repair a split Windows image cohort at the same source commit and synthetic slice"
+        default: ""
+      cohort_rotation_ordinal:
+        description: "When pairing synthetic runs, pin the first run's rotation ordinal so sample and report identity stay equal"
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
 
 env:
   NODE_VERSION: "22.21.0"
@@ -103,11 +113,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: m
+        env:
+          COHORT_ROTATION_ORDINAL: ${{ inputs.cohort_rotation_ordinal }}
+          COHORT_RUN_IDS: ${{ inputs.cohort_run_ids }}
         run: |
           requested="${{ inputs.shards }}"
           sample="${{ inputs.sample_byte }}"
+          anchor="$COHORT_ROTATION_ORDINAL"
+          if [ -n "$anchor" ] && [[ ! "$anchor" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::cohort_rotation_ordinal must be a positive run ordinal"
+            exit 2
+          fi
+          if [ -n "$COHORT_RUN_IDS" ] && [ -z "$anchor" ]; then
+            echo "::error::cohort_rotation_ordinal is required when pairing synthetic runs"
+            exit 2
+          fi
           if [ "$sample" = auto ]; then
-            rotation=$(node tools/font-conformance-rotation.mjs "$GITHUB_SHA" "$GITHUB_RUN_NUMBER")
+            rotation=$(node tools/font-conformance-rotation.mjs "$GITHUB_SHA" "${anchor:-$GITHUB_RUN_NUMBER}")
             sample=$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.sampleByte)' "$rotation")
             stack_bucket=$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.stackBucket)' "$rotation")
           else
@@ -310,7 +332,7 @@ jobs:
           RANGE: ${{ inputs.range }}
           SAMPLE_BYTE: ${{ needs.setup.outputs.sample_byte }}
           FONT_CONFORMANCE_REVISION: ${{ github.sha }}
-          FONT_CONFORMANCE_ROTATION_ORDINAL: ${{ github.run_number }}
+          FONT_CONFORMANCE_ROTATION_ORDINAL: ${{ inputs.cohort_rotation_ordinal != '' && inputs.cohort_rotation_ordinal || github.run_number }}
           FONT_CONFORMANCE_STACK_BUCKET: ${{ needs.setup.outputs.stack_bucket }}
           MAX_STACKS: ${{ inputs.max_stacks }}
           STACK_FILTER: ${{ inputs.stack_filter }}
@@ -347,9 +369,36 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}" }
       - run: npm ci
       - uses: actions/download-artifact@v4
+        if: matrix.os != 'windows'
         with:
           path: shards
           pattern: "font-conformance-synthetic-${{ matrix.os }}-shard-*"
+      - uses: actions/download-artifact@v4
+        if: matrix.os == 'windows'
+        with:
+          path: cohort-candidates/run-${{ github.run_id }}
+          pattern: "font-conformance-synthetic-windows-shard-*"
+      - name: Authenticate prior Windows shard runs
+        if: matrix.os == 'windows'
+        run: bash scripts/ci-collect-font-cohort.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COHORT_RUN_IDS: ${{ inputs.cohort_run_ids }}
+          WORKFLOW_PATH: .github/workflows/font-conformance-synthetic.yml
+          ARTIFACT_PATTERN: font-conformance-synthetic-windows-shard-*
+      - name: Select complete Windows runner-image cohort
+        if: matrix.os == 'windows'
+        run: >
+          node scripts/select-font-conformance-cohort.mjs
+          --candidates cohort-candidates
+          --source-sha "${{ github.sha }}"
+          --workflow-path .github/workflows/font-conformance-synthetic.yml
+          --os windows
+          --stack-total "${{ matrix.expected }}"
+          --cp-total "${{ inputs.cp_total }}"
+          --cp-index "${{ inputs.cp_shard }}"
+          --out shards
+          --manifest cohort-manifest.json
       - name: Merge shard reports
         run: |
           node scripts/merge-font-conformance-shards.mjs \
@@ -394,6 +443,7 @@ jobs:
           name: font-conformance-synthetic-${{ matrix.os }}-merged
           path: |
             merged.json
+            cohort-manifest.json
             tests/baselines/font-conformance-synthetic-${{ matrix.os }}.json
             tests/baselines/font-conformance-synthetic-${{ matrix.os }}-*.json
           retention-days: 30

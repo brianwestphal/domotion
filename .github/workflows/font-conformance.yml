@@ -61,6 +61,13 @@ on:
         description: "Write this run back as the platform baseline instead of gating on it (artifact only — commit it by hand)"
         type: boolean
         default: false
+      cohort_run_ids:
+        description: "Optional completed run IDs, comma-separated, to repair a split Windows image cohort at the same source commit and sweep slice"
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
 
 env:
   NODE_VERSION: "22.21.0"
@@ -254,9 +261,36 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}" }
       - run: npm ci
       - uses: actions/download-artifact@v4
+        if: matrix.os != 'windows'
         with:
           path: shards
           pattern: "font-conformance-${{ matrix.os }}-shard-*"
+      - uses: actions/download-artifact@v4
+        if: matrix.os == 'windows'
+        with:
+          path: cohort-candidates/run-${{ github.run_id }}
+          pattern: "font-conformance-windows-shard-*"
+      - name: Authenticate prior Windows shard runs
+        if: matrix.os == 'windows'
+        run: bash scripts/ci-collect-font-cohort.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COHORT_RUN_IDS: ${{ inputs.cohort_run_ids }}
+          WORKFLOW_PATH: .github/workflows/font-conformance.yml
+          ARTIFACT_PATTERN: font-conformance-windows-shard-*
+      - name: Select complete Windows runner-image cohort
+        if: matrix.os == 'windows'
+        run: >
+          node scripts/select-font-conformance-cohort.mjs
+          --candidates cohort-candidates
+          --source-sha "${{ github.sha }}"
+          --workflow-path .github/workflows/font-conformance.yml
+          --os windows
+          --stack-total "${{ inputs.shards }}"
+          --cp-total "${{ inputs.cp_shards }}"
+          --cp-index all
+          --out shards
+          --manifest cohort-manifest.json
       - name: Merge shard reports
         run: |
           node scripts/merge-font-conformance-shards.mjs \
@@ -281,5 +315,6 @@ jobs:
           name: font-conformance-${{ matrix.os }}-merged
           path: |
             merged.json
+            cohort-manifest.json
             tests/baselines/font-conformance-${{ matrix.os }}.json
           retention-days: 30

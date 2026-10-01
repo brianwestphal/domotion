@@ -5,14 +5,16 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2"]
+tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-QD903D"]
 code:
   [
     ".github/workflows/font-conformance-synthetic.yml",
     ".github/workflows/font-conformance.yml",
     "scripts/ci-font-conformance-shard.sh",
+    "scripts/ci-collect-font-cohort.sh",
     "scripts/diff-font-conformance-baseline.mjs",
     "scripts/merge-font-conformance-shards.mjs",
+    "scripts/select-font-conformance-cohort.mjs",
     "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
     "tests/baselines/README.md",
@@ -702,6 +704,10 @@ Three consequences, and the second is the load-bearing one:
 - `--update-baseline` hard-refuses (exit 1, nothing written). Enshrining a blend poisons every later comparison, invisibly.
 
 `icu` is the sharpest field here: it decides which codepoints exist at all, so a split means the merged totals are quoted against two different denominators.
+
+**Windows image rollout recovery.** Both full and synthetic workflows accept `cohort_run_ids`, a comma-separated list of completed runs to pair with the current run. The aggregate job authenticates each run through the GitHub Actions API: it must have the current source commit and the same workflow path. The selector then requires a recorded exact runner `imageVersion`, complete browser/runtime/corpus/parity and font identities, and every requested stack × codepoint shard cell. It selects one same-environment cohort and uploads `cohort-manifest.json` naming the run and artifact chosen for each cell. Duplicate cells cannot fill a missing cell; different image versions, synthetic low-byte samples, rotation ordinals, corpus identities, or shard denominators cannot be combined. The ordinary strict merge and baseline comparator still judge the selected reports. This recovery path depends on the complete runner-image revision recorded by the unified environment producer (DM-EBRC7F); older artifacts without it are ineligible.
+
+For example, a six-shard Windows run split by an image rollout can be rerun on the same source commit and slice, then dispatched with `-f cohort_run_ids=<first-run-id>,<second-run-id>` until one complete image cohort exists. Synthetic runs also pin `-f cohort_rotation_ordinal=<first-run-number>` on every recovery dispatch. That ordinal controls the automatic sample bucket and is recorded in each Windows shard, so a matching explicit `sample_byte` alone cannot accidentally pair reports with different rotation identities. The selector refuses unmatched samples, rotation ordinals and stack slices. This process preserves the original shard topology and records the source of every selected shard rather than synthesizing a new run identity.
 
 #### `chromium` — the field that was missing, and what it cost
 
