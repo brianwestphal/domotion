@@ -25,7 +25,7 @@ import { sfProCoverageOtfKey } from "./shaping-route.js";
 import { getFontInstance } from "./font-instance.js";
 import { pickWebfontVariantForCodepoint } from "./webfont-registry.js";
 import { _systemFallbackResolutionEnabled } from "./font-spec.js";
-import { resolveSystemFallbackKeyForRequest } from "./system-fallback-resolver.js";
+import { exactDarwinFallbackKey, resolveSystemFallbackKeyForRequest } from "./system-fallback-resolver.js";
 import { _sysfbCoverage } from "./system-fallback-resolver.js";
 import { fallbackFontChain } from "./fallback-chain.js";
 import { fallbackFamilyCutKey } from "./system-fallback-resolver.js";
@@ -502,8 +502,9 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   const liveFallback = (): FontResolution | null => {
     if (!_systemFallbackResolutionEnabled) return null;
     _stageStats.liveAsked++;
-    const sysKey = resolveSystemFallbackKeyForRequest(request);
-    if (sysKey == null) return null;
+    const nominatedKey = resolveSystemFallbackKeyForRequest(request);
+    if (nominatedKey == null) return null;
+    const sysKey = exactDarwinFallbackKey(nominatedKey);
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;
     // DM-1986: coverage is the CMAP question — see `fontCoversCp`. The id test
@@ -515,7 +516,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     // cost is gone wherever the binary reports it. `??` rather than a default:
     // an older helper omits the field, and treating "absent" as "not covered"
     // would silently discard every live answer.
-    if (_sysfbCoverage.get(`${sysKey}|${cp}`) ?? fontCoversCp(sf, cp)) {
+    if (_sysfbCoverage.get(`${nominatedKey}|${cp}`) ?? fontCoversCp(sf, cp)) {
       _stageStats.liveAnswered++;
       return cover(sysKey, null);
     }

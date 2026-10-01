@@ -14,7 +14,7 @@ import { resolveFontSpec } from "./font-spec.js";
 import { getFontInstance } from "./font-instance.js";
 import { getFontSourceInfo } from "./font-instance.js";
 import { splitFontFamilyNames } from "./font-instance.js";
-import { matchFamilyNameToKey } from "./family-match.js";
+import { declaredFamilyForKey, matchFamilyNameToKey } from "./family-match.js";
 import type { FontVariantEmojiOverride } from "./emoji-presentation.js";
 import { isEmojiCharCp } from "./emoji-presentation.js";
 import { declaredFamilyHeadIdentity } from "./fallback-chain.js";
@@ -45,6 +45,31 @@ export function setSystemFallbackResolution(on: boolean): void {
 /** Read the current process-global toggle (so callers can save/restore it). */
 export function getSystemFallbackResolution(): boolean {
   return _systemFallbackResolutionEnabled;
+}
+
+/** A CoreText substitute is an already-selected face, whereas a declared
+ * family key is a request to run the CSS style matcher. Both historically used
+ * `sysfb:<PostScript name>`, so a prior declared primary could make a later
+ * fallback to that same face silently reopen a different cut. Give only that
+ * collision an exact-face key; other platform keys and fallback answers keep
+ * their existing identity. */
+export function exactDarwinFallbackKey(key: string): string {
+  if (hostPlatform() !== "darwin" || !key.startsWith("sysfb:") || !declaredFamilyForKey.has(key)) return key;
+  const spec = resolveFontSpec(key);
+  if (spec == null || spec.path === "" || spec.postscriptName == null) return key;
+  const exactKey = `sysfb:exact:${spec.postscriptName}`;
+  registerDynamicSystemFont(
+    exactKey,
+    spec.path,
+    spec.postscriptName,
+    spec.extractor,
+    spec.resolvedAxes,
+    spec.ctAxes,
+    spec.linuxFallbackIsBold,
+    spec.linuxFallbackIsItalic,
+    spec.faceIndex,
+  );
+  return exactKey;
 }
 
 /**
