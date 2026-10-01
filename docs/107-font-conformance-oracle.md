@@ -24,6 +24,7 @@ code:
     "tests/font-conformance-extraction.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
     "tests/font-conformance.test.ts",
+    "tests/system-ui-bold-conformance.e2e.test.ts",
     "tests/conformance-args.test.ts",
     "tests/harvested-corpus-identity.test.ts",
     "tests/variable-axis-fixture.test.ts",
@@ -63,7 +64,7 @@ resolver cache resets happen between batches at the requested cadence. The
 report records the selected universe and the answers in that same order.
 
 - **Chrome's answer** — CDP `CSS.getPlatformFontsForNode` over a one-codepoint cell. This is the face the engine reports having painted with, not a guess inferred from pixels. Two earlier attempts to identify a face from rendered crops (a hand-rolled shape matcher, and `tools/compare-glyphs.ts` on upscaled 1× captures) both failed their controls; asking the browser is strictly better.
-- **Our answer** — `resolveFontForCodepoint` against the same stack's key chain, at the same size, weight and style, materialized through the same call the renderer makes (`res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`), so the face reported is the concrete **cut** the renderer would load and not the family's base entry.
+- **Our answer** — the primary is opened through the renderer's `resolveFont` route, then `resolveFontForCodepoint` walks the same stack's key chain at the same size, weight, and style. A fallback is materialized as `res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`, so the reported face is the concrete **cut** the renderer would load. The primary cannot be reopened from its key alone: on macOS `system-ui` and a named SF family share `sf-pro`, but only the `system-ui` route applies the CSS `wght` axis. The native CoreText UI query supplies the resulting face identity when fontkit's variation instance retains its default `.SFNS-Regular` name. This keeps the bold `system-ui` oracle aligned with Chromium's `.SFNS-Bold` instead of manufacturing a mismatch for every codepoint whose run uses that face.
 
 `tools/chrome-font-agreement.ts` is the single-shot diagnostic sibling: it prints `FONTAGREE:` lines into a CI log for a handful of codepoints and never gates. This is the exhaustive, gateable one.
 Its optional positional operands are the CSS font stack and a comma-separated

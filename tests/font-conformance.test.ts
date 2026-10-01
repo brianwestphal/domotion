@@ -12,7 +12,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getFontSourceInfo, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
+import { getFontSourceInfo, resolveFont, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
 import {
   allowlisted,
   buildReport,
@@ -738,6 +738,31 @@ describe("faceFor reports the cut the renderer would load", () => {
     const differentInstances = light.primary !== bold.primary;
     if (differentInstances && light.primary.postscriptName !== bold.primary.postscriptName) {
       expect(lightFace.postscriptName).not.toBe(boldFace.postscriptName);
+    }
+  });
+
+  it("opens system-ui through the renderer's primary route on every platform", () => {
+    const family = "system-ui, -apple-system, sans-serif";
+    const at400 = prepareStack(stack({ fontFamily: family, fontWeight: 400, fontSize: 20 }));
+    const at700 = prepareStack(stack({ fontFamily: family, fontWeight: 700, fontSize: 20 }));
+    expect(at400).not.toBeNull();
+    expect(at700).not.toBeNull();
+    for (const [weight, run] of [
+      [400, at400],
+      [700, at700],
+    ] as const) {
+      const rendered = resolveFont(family, weight, 20);
+      const axes = (font: typeof rendered) =>
+        (font as typeof font & { _appliedVariationAxes?: Record<string, number> })?._appliedVariationAxes;
+      expect(axes(run!.primary)).toEqual(axes(rendered));
+      expect(faceFor(run!, run!.primaryKey, true, null).postscriptName).toBe(
+        rendered?.instantiatedPostscriptName ?? rendered?.postscriptName,
+      );
+      if (process.platform === "darwin") expect(axes(run!.primary)?.wght).toBe(weight);
+    }
+    if (process.platform === "darwin") {
+      expect(faceFor(at400!, at400!.primaryKey, true, null).postscriptName).toBe(".SFNS-Regular");
+      expect(faceFor(at700!, at700!.primaryKey, true, null).postscriptName).toBe(".SFNS-Bold");
     }
   });
 
