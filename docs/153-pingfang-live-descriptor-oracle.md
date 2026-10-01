@@ -5,8 +5,14 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos"]
-tickets: []
-code: [".github/workflows/pingfang-live-descriptor.yml", "tools/pingfang-live-descriptor-schema.mjs"]
+tickets: ["DM-DEV8XJ"]
+code:
+  [
+    ".github/workflows/pingfang-live-descriptor.yml",
+    "tools/pingfang-live-descriptor-oracle.mjs",
+    "tools/pingfang-live-descriptor-report.mjs",
+    "tools/pingfang-live-descriptor-schema.mjs",
+  ]
 aliases: ["docs/153-pingfang-live-descriptor-oracle.md", "doc-153"]
 ---
 
@@ -16,7 +22,7 @@ The diagnostic workflow `.github/workflows/pingfang-live-descriptor.yml` capture
 
 The native arm asks `CTFontCreateForString` from `STHeitiSC-Light` for U+270F0 and U+270F4 plus adjacent uncovered controls. Three fresh Swift processes and three repeated queries in one warm process record the complete returned CTFont descriptor, URL and TTC identity, matrix, units-per-em, variation axes/current values, glyph id, bounds, and advance. Each answer is reopened by canonical PostScript name, display name, and a descriptor carrying explicit CoreText weight 0 (CSS weight 400) so provenance and weight materialization can be separated.
 
-The same JSON artifact records Chromium Range widths and `CSS.getPlatformFontsForNode` rows for each scalar. Environment identity includes `sw_vers`, Darwin release, architecture, Playwright Chromium version, source commit, and a SHA-256 digest of `system_profiler SPFontsDataType -json`. `tools/pingfang-live-descriptor-schema.mjs` fails the job if an arm or identity field is absent; the workflow uploads the JSON as diagnostic evidence, not a baseline or release gate.
+The same JSON artifact records Chromium Range widths and `CSS.getPlatformFontsForNode` rows for each scalar. Environment identity includes `sw_vers`, Darwin release, architecture, Playwright Chromium version, source commit, and a SHA-256 digest of `system_profiler SPFontsDataType -json`. `tools/pingfang-live-descriptor-schema.mjs` fails the job if an arm or identity field is absent. The uploaded file now uses a version 1 report envelope with `outcome: pass` and the complete validated domain evidence in `data`; its reader also accepts the prior raw version 1 artifact and rejects unknown versions. The workflow uploads this as diagnostic evidence, not a baseline or release gate.
 
 Run locally on macOS with `PINGFANG_DESCRIPTOR_OUTPUT=pingfang-live-descriptor.json node tools/pingfang-live-descriptor-oracle.mjs`.
 

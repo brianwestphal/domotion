@@ -1,9 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   PINGFANG_DESCRIPTOR_ARMS,
   PINGFANG_DESCRIPTOR_CODEPOINTS,
   validatePingFangDescriptorArtifact,
 } from "../tools/pingfang-live-descriptor-schema.mjs";
+import {
+  readPingFangDescriptorReport,
+  writePingFangDescriptorReport,
+} from "../tools/pingfang-live-descriptor-report.mjs";
+
+const dir = mkdtempSync(join(tmpdir(), "pingfang-descriptor-report-"));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const processRecord = (iterations = 1) => ({
   samples: Array.from({ length: iterations }, (_, iteration) => ({
@@ -55,5 +65,31 @@ describe("PingFang live descriptor artifact schema", () => {
     artifact.environment.fontInventoryDigest = "";
     artifact.browserRows = [];
     expect(() => validatePingFangDescriptorArtifact(artifact)).toThrow(/fontInventoryDigest[\s\S]*browser row count/);
+  });
+
+  it("writes a nested versioned report and reads its complete domain evidence", () => {
+    const path = join(dir, "nested", "report.json");
+    const envelope = writePingFangDescriptorReport(path, valid());
+    expect(envelope.schemaVersion).toBe(1);
+    expect(envelope.data.outcome).toBe("pass");
+    expect(readPingFangDescriptorReport(path)).toEqual({ ...valid(), outcome: "pass" });
+  });
+
+  it("reads validated legacy evidence and rejects unknown versions", () => {
+    const path = join(dir, "legacy.json");
+    writeFileSync(path, JSON.stringify(valid()));
+    expect(readPingFangDescriptorReport(path).outcome).toBe("pass");
+    writeFileSync(path, JSON.stringify({ ...valid(), schemaVersion: 2 }));
+    expect(() => readPingFangDescriptorReport(path)).toThrow("unsupported legacy");
+    const envelope = writePingFangDescriptorReport(path, valid());
+    writeFileSync(path, JSON.stringify({ ...envelope, schemaVersion: 2 }));
+    expect(() => readPingFangDescriptorReport(path)).toThrow();
+  });
+
+  it("rejects a report whose retained domain evidence lost an arm", () => {
+    const path = join(dir, "incomplete.json");
+    const artifact = valid();
+    artifact.coldProcesses[0].samples[0].arms.pop();
+    expect(() => writePingFangDescriptorReport(path, artifact)).toThrow("explicit-wght-400");
   });
 });

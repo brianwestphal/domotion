@@ -2539,7 +2539,12 @@
       "status": "current",
       "owners": ["platform-release"],
       "platforms": ["macos"],
-      "code": [".github/workflows/pingfang-live-descriptor.yml", "tools/pingfang-live-descriptor-schema.mjs"],
+      "code": [
+        ".github/workflows/pingfang-live-descriptor.yml",
+        "tools/pingfang-live-descriptor-oracle.mjs",
+        "tools/pingfang-live-descriptor-report.mjs",
+        "tools/pingfang-live-descriptor-schema.mjs"
+      ],
       "file": "153-pingfang-live-descriptor-oracle.md"
     },
     {

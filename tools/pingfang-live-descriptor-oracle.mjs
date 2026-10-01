@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import { withBrowser } from "./lib/browser.mjs";
 import {
@@ -8,6 +8,7 @@ import {
   validatePingFangDescriptorArtifact,
 } from "./pingfang-live-descriptor-schema.mjs";
 import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
+import { writePingFangDescriptorReport } from "./pingfang-live-descriptor-report.mjs";
 
 async function main(argv) {
   const { positionals } = parseCommand(argv, {});
@@ -83,7 +84,7 @@ async function main(argv) {
     };
     validatePingFangDescriptorArtifact(artifact);
     const output = process.env.PINGFANG_DESCRIPTOR_OUTPUT ?? "pingfang-live-descriptor.json";
-    writeFileSync(output, JSON.stringify(artifact, null, 2) + "\n");
+    writePingFangDescriptorReport(output, artifact);
     console.log(`PINGFANG-DESCRIPTOR ${output} ${readFileSync(output).length} bytes`);
     return 0;
   } catch (error) {

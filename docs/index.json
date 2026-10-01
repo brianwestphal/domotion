@@ -3570,8 +3570,13 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos"],
-        "tickets": [],
-        "code": [".github/workflows/pingfang-live-descriptor.yml", "tools/pingfang-live-descriptor-schema.mjs"],
+        "tickets": ["DM-DEV8XJ"],
+        "code": [
+          ".github/workflows/pingfang-live-descriptor.yml",
+          "tools/pingfang-live-descriptor-oracle.mjs",
+          "tools/pingfang-live-descriptor-report.mjs",
+          "tools/pingfang-live-descriptor-schema.mjs"
+        ],
         "aliases": ["docs/153-pingfang-live-descriptor-oracle.md", "doc-153"]
       }
     },
