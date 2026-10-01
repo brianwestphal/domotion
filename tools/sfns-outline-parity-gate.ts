@@ -8,12 +8,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { validateSfnsProposalValidation, type SfnsOracleArtifact } from "./sfns-mask-baseline-schema.js";
 import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import { parseSfnsOutlineArtifact } from "./sfns-mask-report.js";
 
 export function main(argv: string[] = process.argv.slice(2)): void {
   const values = parseFlags(argv, { proposal: { type: "string" }, validation: { type: "string" } });
   function readArtifact(flag: "--proposal" | "--validation"): SfnsOracleArtifact {
     const path = requiredFlag(values, flag);
-    return JSON.parse(readFileSync(resolve(path), "utf8")) as SfnsOracleArtifact;
+    return parseSfnsOutlineArtifact(readFileSync(resolve(path)));
   }
 
   const proposal = readArtifact("--proposal");

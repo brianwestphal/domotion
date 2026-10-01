@@ -24,6 +24,7 @@ import {
 import { captureElementTree } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeSfnsOutlineReport } from "./sfns-mask-report.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { clearGlyphDefs, setRenderTextMode } from "../src/render/font-resolution.js";
@@ -859,7 +860,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
           ? validateSfnsExactOutlineArtifact(artifact)
           : validateSfnsOracleArtifact(artifact);
         const reportPath = join(outputDirectory, "report.json");
-        writeFileSync(reportPath, `${JSON.stringify(artifact, null, 2)}\n`);
+        writeSfnsOutlineReport(reportPath, artifact, errors.length === 0);
         console.log(`SFNS mask/baseline oracle: ${rows.length} rows; mutation moved=${mutationControlMoved}`);
         for (const result of classifications) {
           const row = rows.find((candidate) => candidate.id === result.id)!;

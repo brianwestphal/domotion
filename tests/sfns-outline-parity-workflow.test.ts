@@ -20,7 +20,8 @@ describe("SFNS exact outline workflow (DM-2567)", () => {
   });
 
   it("launches only an explicit headless browser and applies an exact equality gate", () => {
-    expect(collector).toContain("launchChromium({ headless: true })");
+    expect(collector).toContain("withBrowser(");
+    expect(collector).toContain("{ headless: true }");
     expect(collector).not.toMatch(/headless:\s*false/);
     expect(workflow).toContain("fonts:sfns-outline:adjudicate");
     expect(workflow).toContain("--proposal evidence/proposal/report.json");

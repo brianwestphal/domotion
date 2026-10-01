@@ -2,9 +2,10 @@
 /** Collect 26 isolated native observations from the source-owned manifest. */
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeSfnsSkiaProposal } from "./sfns-mask-report.js";
 import {
   SFNS_TERMINAL_MASK_CONTROL_IDS,
   SFNS_TERMINAL_MASK_MANIFEST,
@@ -216,7 +217,7 @@ const errors = validateSfnsPinnedSkiaProposal(artifact);
 if (errors.length > 0) {
   throw new Error(`proposal artifact failed validation:\n${errors.join("\n")}`);
 }
-writeFileSync(outputPath, `${JSON.stringify(artifact, null, 2)}\n`);
+writeSfnsSkiaProposal(outputPath, artifact);
 console.log(JSON.stringify({
   output: outputPath,
   artifactDigest: artifact.artifactDigest,

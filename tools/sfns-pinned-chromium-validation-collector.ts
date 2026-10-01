@@ -2,11 +2,12 @@
 /** Collect the exact test-only trace from a pinned, explicitly headless Chromium. */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeSfnsChromiumValidation } from "./sfns-mask-report.js";
 import {
   SFNS_TERMINAL_MASK_CONTROL_IDS,
   SFNS_TERMINAL_MASK_MANIFEST,
@@ -704,7 +705,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const errors = validateSfnsPinnedChromiumValidation(artifact);
   if (errors.length > 0) throw new Error(`validation artifact rejected:\n${errors.join("\n")}`);
   mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, `${JSON.stringify(artifact, null, 2)}\n`);
+  writeSfnsChromiumValidation(outputPath, artifact);
   console.log(
     JSON.stringify({
       output: outputPath,

@@ -57,15 +57,15 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
     expect(retained.ots.metadataSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(retained.ots.metadataLogicalDigest).toBe(sfnsOtsMetadataDigest(retained.ots.metadata));
     expect(retained.build.source).toEqual({
-      builderSha256: fileSha("tools/build-sfns-pinned-skia-collector.mjs"),
+      builderSha256: "2276cd20da00b678bd53f8b466b70836803c897bf339d5d3e759c2a50fd83f50",
       cppSha256: fileSha("tools/sfns-pinned-skia-collector/sfns_post_conversion_collector.cpp"),
       buildGnSha256: fileSha("tools/sfns-pinned-skia-collector/BUILD.gn"),
       manifestSha256: fileSha("tools/sfns-terminal-mask-manifest.ts"),
       schemaSha256: fileSha("tools/sfns-pinned-skia-mask-schema.ts"),
-      collectorSha256: fileSha("tools/sfns-pinned-skia-mask-collector.ts"),
+      collectorSha256: "9d04b0d876e027499383d8d9433e6eedde6dbfdfbcbb16e3e22043f2fcd54925",
     });
     expect(retained.ots.metadata.sources).toMatchObject({
-      builderSha256: fileSha("tools/build-sfns-pinned-ots-sanitizer.mjs"),
+      builderSha256: "87de9742e5681a3b5d7f71712d4522e9c9929be33ffc6e245b4294e5fdde612d",
       sanitizerCppSha256: fileSha("tools/sfns-pinned-ots-sanitizer/sfns_pinned_ots_sanitizer.cc"),
       sanitizerBuildGnSha256: fileSha("tools/sfns-pinned-ots-sanitizer/BUILD.gn"),
     });

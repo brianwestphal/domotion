@@ -594,6 +594,31 @@ cross-arm differences and reach zero exact mismatches before readiness can
 change. This recollection changes no production renderer source, route, or
 visual tolerance.
 
+DM-NZRF7G moves the SFNS outline oracle, pinned Skia proposal, pinned
+Chromium validation, and terminal adjudicator outputs into version 1
+`tools/lib/report.ts` envelopes. Their inner domain versions remain v2 for
+collectors and v3 for the terminal report; the domain digests continue to cover
+only the inner evidence. The readers accept explicit flat v2/v3 historical
+files and reject unknown versions, wrong tools, or contradictory outcomes.
+The terminal adjudicator hashes the entire persisted proposal and validation
+files before unwrapping, preserving raw-byte input identity.
+
+The three reratified envelope files are retained under
+`.pr-notes/artifacts/dm-nzrf7g-sfns-*.json` and attached to Hot Sheet ticket
+`DM-NZRF7G`. Their proposal and validation file SHA-256 values are
+`608fe70d9438095a195c34019ccb746a5eed5a13555a0e00441aa528e83483a4`
+and `c14addf7659338037b438064aad9c4f2623ef8bb89449f54265f70335248c019`.
+The inner artifact digests remain
+`0b84c3eac49fc805566b32f81cd3f52fea8343d713c36ed186ed4db23c015b0c`
+and `55197a4575ea78723de7e173a60e8e7ab991f055a4e4da204ad976c37e04bd8b`.
+The new terminal report has file SHA-256
+`9fa404c6e9d1d019283867a9edf2756ba1b71a34b3515c4dee5bc4a6b5720497`
+and inner sealed digest
+`ebbc3645382ec4562f87d12329fb4f9d91a845abdd80750f41f5a2718609e6d6`.
+It remains **not ready**, with zero input-integrity errors and the same 498
+exact mismatches. No new browser or native collection was needed to establish
+those unchanged logical facts.
+
 ### Production outline route (closed by DM-2567)
 
 The pre-DM-2567 route returned fontkit's non-empty SFNS outline before asking

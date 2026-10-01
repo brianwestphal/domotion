@@ -159,6 +159,10 @@ plus controlled-healing browser passes.
   source ownership, stage gates, activation, platform coverage, and gaps.
 - `tools/*oracle*`, `tools/*gate*`, and `.github/workflows/` produce and
   adjudicate exact logical, native, and visual evidence.
+- `tools/sfns-mask-report.ts` validates the versioned persistence boundary for
+  SFNS outline and terminal-mask evidence. The SFNS domain schemas retain their
+  own v2/v3 digests; the terminal adjudicator seals raw input file bytes before
+  reading either flat historical reports or current envelopes.
 - The renderer route, paint order, mixed bidi, shaping, and decoration oracles
   separate collection from pure comparison and report construction. Their CLI
   entry points retain browser ownership, exit codes, and existing JSON schemas;

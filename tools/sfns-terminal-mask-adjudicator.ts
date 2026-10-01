@@ -19,9 +19,15 @@
  * every other record byte and every mask byte remains exact.
  */
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import {
+  parseSfnsChromiumValidation,
+  parseSfnsSkiaProposal,
+  parseSfnsTerminalReport,
+  writeSfnsTerminalReport,
+} from "./sfns-mask-report.js";
 import {
   SFNS_CONTROL_IDS,
   SFNS_PINNED_SCENARIOS,
@@ -519,12 +525,20 @@ function compareObservation(
   };
 }
 
-function reportDigest(
+export function sfnsTerminalReportDigest(
   report: Omit<SfnsTerminalMaskAdjudicationReport, "reportDigest"> | SfnsTerminalMaskAdjudicationReport,
 ): string {
   const { reportDigest: ignored, ...payload } = report as SfnsTerminalMaskAdjudicationReport;
   void ignored;
   return hashJson(payload);
+}
+
+export function readSfnsTerminalMaskReport(path: string): SfnsTerminalMaskAdjudicationReport {
+  const report = parseSfnsTerminalReport(readFileSync(resolve(path)));
+  if (sfnsTerminalReportDigest(report) !== report.reportDigest) {
+    throw new Error("SFNS terminal-mask report digest mismatch");
+  }
+  return report;
 }
 
 function defaultIdentity(label: string, artifact: unknown): InputFileIdentity {
@@ -689,14 +703,14 @@ export function adjudicateSfnsTerminalMasks(
     mismatches,
     ready: inputIntegrityErrors.length === 0 && mismatches.length === 0,
   };
-  return { ...payload, reportDigest: reportDigest(payload) };
+  return { ...payload, reportDigest: sfnsTerminalReportDigest(payload) };
 }
 
-function readArtifact<T>(path: string): { artifact: T; file: InputFileIdentity } {
+function readArtifact<T>(path: string, parse: (bytes: Uint8Array) => T): { artifact: T; file: InputFileIdentity } {
   const absolutePath = resolve(path);
   const bytes = readFileSync(absolutePath);
   return {
-    artifact: JSON.parse(bytes.toString("utf8")) as T,
+    artifact: parse(bytes),
     file: { path, sha256: shaBytes(bytes) },
   };
 }
@@ -710,12 +724,12 @@ export function runCli(argv: string[] = process.argv.slice(2)): number {
   });
   const proposalPath = requiredFlag(values, "--proposal");
   const validationPath = requiredFlag(values, "--validation");
-  const proposal = readArtifact<SfnsPinnedSkiaProposalArtifact>(proposalPath);
-  const validation = readArtifact<SfnsPinnedChromiumValidationArtifact>(validationPath);
+  const proposal = readArtifact(proposalPath, parseSfnsSkiaProposal);
+  const validation = readArtifact(validationPath, parseSfnsChromiumValidation);
   const report = adjudicateSfnsTerminalMasks(proposal.artifact, validation.artifact, proposal.file, validation.file);
   const reportPath = flag(values, "--report");
   if (reportPath != null) {
-    writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
+    writeSfnsTerminalReport(resolve(reportPath), report);
   }
   const summary =
     `SFNS terminal-mask adjudication: ${report.ready ? "READY" : "NOT READY"}; ` +
