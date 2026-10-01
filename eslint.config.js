@@ -24,8 +24,10 @@ export default [
       "src/capture/script.generated.ts",
       // Native-helper CMake build dirs (git-ignored, but ESLint flat config
       // doesn't read nested .gitignore). They hold compiler artifacts like
-      // `compiler_depend.ts` that aren't real TypeScript.
+      // `compiler_depend.ts` that aren't real TypeScript. Cover both the old
+      // root tools location and the current text-engine workspace.
       "tools/**/build/**",
+      "packages/text-engine/tools/**/build/**",
 
       // Everything below is git-ignored but was NOT ESLint-ignored, and ESLint
       // flat config does not read .gitignore. That gap made `npm run lint` a
