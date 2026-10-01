@@ -56,6 +56,7 @@
  * ---------------------------------------------------------------------------
  */
 import { hostname, cpus, release } from "node:os";
+import { createRequire } from "node:module";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import { withBrowser } from "./lib/browser.js";
@@ -160,9 +161,9 @@ function parityEnvironment(chromiumVersion: string): Record<string, unknown> {
     layout: { deviceScaleFactor: 1, zoom: 1, writingMode: "horizontal-tb", direction: "ltr" },
   };
 }
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
 import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
 import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
@@ -885,9 +886,8 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
  * Batching: each page holds `batch` cells; the whole batch's node ids come back
  * in ONE `DOM.querySelectorAll`, and the per-cell `CSS.getPlatformFontsForNode`
  * calls are pipelined `concurrency`-at-a-time over the CDP session rather than
- * awaited serially. Measured on an M1 Pro: ~11k codepoints/s end to end
- * (`setContent` dominates, which is why the cells are `inline-block` — a page
- * of block-level cells lays out several times slower).
+ * awaited serially. A page of block-level cells lays out several times slower
+ * than these `inline-block` cells.
  *
  * Each cell is its own inline-block, which establishes its own block formatting
  * context. That is what keeps the answers honest: shaping cannot cross the
@@ -906,14 +906,23 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
  * never asked.
  */
 export function probePageHtml(cps: number[], spec: StackSpec, lang: string): string {
-  const stackLang = spec.lang ?? lang;
-  const cells = cps.map((cp) => `<i class=c lang="${stackLang}">&#x${cp.toString(16)};</i>`).join("");
+  return (
+    `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style id="oracle-probe-style">` +
+    probePageCss(spec) +
+    `</style></head><body><div id=w>${probeCellsHtml(cps, spec.lang ?? lang)}</div></body></html>`
+  );
+}
+
+function probeCellsHtml(cps: number[], lang: string): string {
+  return cps.map((cp) => `<i class=c lang="${lang}">&#x${cp.toString(16)};</i>`).join("");
+}
+
+function probePageCss(spec: StackSpec): string {
   // The computed `font-family` is already valid CSS and goes into a <style>
   // element, not an attribute — so it is embedded verbatim. Rewriting its
   // quotes would corrupt any family name that legitimately contains one.
   const family = spec.fontFamily;
   return (
-    `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>` +
     `body{margin:0}` +
     `#w{display:flex;flex-wrap:wrap;font-family:${family};font-size:${spec.fontSize}px;` +
     `font-weight:${spec.fontWeight};font-style:${spec.fontStyle};` +
@@ -951,14 +960,13 @@ export function probePageHtml(cps: number[], spec: StackSpec, lang: string): str
     // `font-style:inherit` undoes the UA italic on `<i>` — the cell must be
     // rendered in the style the corpus entry declares, not in the tag's.
     `.c{display:inline-block;width:${spec.fontSize + 8}px;height:${spec.fontSize + 8}px;` +
-    `overflow:hidden;font-style:inherit;white-space:pre}` +
-    `</style></head><body><div id=w>${cells}</div></body></html>`
+    `overflow:hidden;font-style:inherit;white-space:pre}`
   );
 }
 
 /** See `layOutBatch`. Generous rather than tuned — it exists to distinguish a
  *  slow layout from a hung one, and only the second reading should fail a run. */
-const SET_CONTENT_TIMEOUT_MS = 120_000;
+const PROBE_LAYOUT_TIMEOUT_MS = 120_000;
 
 /** A noncharacter forces Blink to report the generic's `.notdef` donor,
  * without asking the platform fallback cache about an assigned codepoint.
@@ -1005,6 +1013,41 @@ export async function probeOracleControlSignature(page: Page, cdp: CDPSession, l
     });
   } finally {
     await page.evaluate(() => document.getElementById("font-conformance-oracle-controls")?.remove());
+  }
+}
+
+interface PlaywrightFontFamilies {
+  fontFamilies: Record<string, string>;
+  forScripts?: Array<{ script: string; fontFamilies: Record<string, string> }>;
+}
+
+let playwrightMacFontFamilies: PlaywrightFontFamilies | null = null;
+
+function configuredPlaywrightMacFontFamilies(): PlaywrightFontFamilies {
+  if (playwrightMacFontFamilies != null) return playwrightMacFontFamilies;
+  // Read the exact table used by this installed Playwright version. Copying
+  // family names here would quietly diverge when Playwright changes its
+  // Common or script-specific preferences in a later dependency update.
+  const require = createRequire(import.meta.url);
+  const playwrightRoot = dirname(require.resolve("playwright-core/package.json"));
+  const internal = require(join(playwrightRoot, "lib/server/chromium/defaultFontFamilies.js")) as {
+    platformToFontFamilies: { mac?: PlaywrightFontFamilies };
+  };
+  const families = internal.platformToFontFamilies.mac;
+  if (families == null) throw new Error("oracle: installed Playwright has no macOS font preference table");
+  playwrightMacFontFamilies = families;
+  return families;
+}
+
+/** Reassert the exact headless Page preference table through a one-use agent.
+ * InspectorPageAgent rejects a second `Page.setFontFamilies` on one session;
+ * detaching this fresh session retains Settings on the measured Page. */
+export async function reassertPlaywrightMacFontFamilies(page: Page): Promise<void> {
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send("Page.setFontFamilies", configuredPlaywrightMacFontFamilies());
+  } finally {
+    await session.detach();
   }
 }
 
@@ -1103,13 +1146,21 @@ export function assertSupplementaryPuaOracleFace(
   }
 }
 
-class ChromeOracle {
+export class ChromeOracle {
   private readonly stability = new OracleStabilityGuard();
+  private readonly preferenceRepairs: Array<{ at: string; expected: string[]; actual: string[] }> = [];
+  private readonly maxPreferenceRepairs = 3;
+  private probeCss: string | null = null;
+  private documentMarker: string | null = null;
+  private initialDocumentTimeOrigin: number | null = null;
+  private initialLoaderId: string | null = null;
   constructor(
     private readonly page: Page,
     private readonly cdp: CDPSession,
     private readonly concurrency: number,
     private readonly lang: string,
+    private readonly reuseDocument = process.platform === "darwin",
+    private readonly preferenceReplay: ((page: Page) => Promise<void>) | null = null,
   ) {}
 
   static async create(browser: Browser, concurrency: number, lang: string): Promise<ChromeOracle> {
@@ -1127,7 +1178,14 @@ class ChromeOracle {
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("DOM.enable");
     await cdp.send("CSS.enable");
-    return new ChromeOracle(page, cdp, concurrency, lang);
+    return new ChromeOracle(
+      page,
+      cdp,
+      concurrency,
+      lang,
+      process.platform === "darwin",
+      process.platform === "darwin" ? reassertPlaywrightMacFontFamilies : null,
+    );
   }
 
   /**
@@ -1149,34 +1207,74 @@ class ChromeOracle {
    */
   async resolvedPrimary(spec: StackSpec): Promise<string | null> {
     const faces = await this.facesFor([0x41], spec);
+    if (this.preferenceReplay != null) {
+      await this.assertStable(
+        `after primary ${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}`,
+      );
+    }
     const f = primaryChromeFace(faces[0] ?? []);
     return f == null ? null : (f.postScriptName ?? f.familyName);
   }
 
-  /**
-   * Lay out one batch's probe page, with a raised budget and exactly one retry.
-   *
-   * `setContent`'s 30-second default is a limit on how long Blink may take to
-   * lay out 8,000 inline-block cells whose codepoints drag in fonts from all
-   * over the host — on a loaded runner that is a plausible amount of work, not
-   * evidence of a hang. One shard of the full-corpus macOS sweep died on exactly
-   * this, 47 minutes into a job whose surviving siblings ran for two hours.
-   *
-   * The retry is bounded at one and re-throws on the second failure. It must
-   * never degrade into skipping the batch: a skipped batch would leave a hole in
-   * a sweep that reports a codepoint count, and the count would still look right.
-   */
+  /** Keep one document, renderer and font-setting authority for the sweep.
+   * `setContent` on every batch rewrote the document thousands of times; on
+   * native macOS full slices the six generic donors sometimes changed from
+   * Playwright's Page settings to Blink constructor defaults mid-stack. Replace
+   * only the measured cells and change the CSS when the stack changes. The
+   * sequence of font questions stays stack order then ascending codepoint.
+   * One bounded retry handles an overloaded 8,000-cell layout. */
   private async layOutBatch(cps: number[], spec: StackSpec): Promise<void> {
-    const html = probePageHtml(cps, spec, this.lang);
+    const css = probePageCss(spec);
+    const firstBatch = this.probeCss == null;
+    const render = async () => {
+      if (firstBatch || !this.reuseDocument) {
+        await this.page.setContent(probePageHtml(cps, spec, this.lang), { timeout: PROBE_LAYOUT_TIMEOUT_MS });
+        if (this.reuseDocument && firstBatch) {
+          this.documentMarker = randomUUID();
+          this.initialDocumentTimeOrigin = await this.page.evaluate((marker) => {
+            (window as typeof window & { domotionOracleDocumentMarker?: string }).domotionOracleDocumentMarker = marker;
+            return performance.timeOrigin;
+          }, this.documentMarker);
+          const { frameTree } = await this.cdp.send("Page.getFrameTree");
+          this.initialLoaderId = frameTree.frame.loaderId;
+        }
+      } else {
+        await this.page.locator("#w").evaluate(
+          (wrapper, { cells, css, changeCss }) => {
+            // Remove the old cells before changing styles so they cannot cause
+            // an extra font query under the next stack's CSS.
+            wrapper.replaceChildren();
+            if (changeCss) {
+              const style = document.getElementById("oracle-probe-style");
+              if (style == null) throw new Error("oracle: missing probe style");
+              style.textContent = css;
+            }
+            wrapper.innerHTML = cells;
+            wrapper.getBoundingClientRect();
+          },
+          { cells: probeCellsHtml(cps, spec.lang ?? this.lang), css, changeCss: css !== this.probeCss },
+          { timeout: PROBE_LAYOUT_TIMEOUT_MS },
+        );
+      }
+    };
     try {
-      await this.page.setContent(html, { timeout: SET_CONTENT_TIMEOUT_MS });
+      await render();
     } catch (e) {
-      process.stdout.write(`    (setContent slow — retrying this batch once: ${(e as Error).message})\n`);
-      await this.page.setContent(html, { timeout: SET_CONTENT_TIMEOUT_MS });
+      process.stdout.write(`    (oracle layout slow — retrying this batch once: ${(e as Error).message})\n`);
+      await render();
     }
+    this.probeCss = css;
   }
 
   async facesFor(cps: number[], spec: StackSpec): Promise<ChromeFace[][]> {
+    if (this.preferenceReplay != null) {
+      await this.prepareMeasurement(
+        `before macOS Page preference replay ${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}` +
+          ` U+${(cps[0] ?? 0).toString(16).toUpperCase().padStart(6, "0")}`,
+      );
+      await this.preferenceReplay(this.page);
+      await this.assertStable("after macOS Page preference replay");
+    }
     await this.layOutBatch(cps, spec);
     const { root } = await this.cdp.send("DOM.getDocument");
     const { nodeIds } = await this.cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
@@ -1194,6 +1292,74 @@ class ChromeOracle {
 
   async assertStable(at: string): Promise<void> {
     this.stability.observe(await probeOracleControlSignature(this.page, this.cdp, this.lang), at);
+  }
+
+  /** Restore an idle-interval macOS Page setting reset before asking the next
+   * measured question. A flip during a batch still fails the strict post-batch
+   * check, and an unrecoverable or repeatedly resetting Page still aborts. */
+  async prepareMeasurement(at: string): Promise<void> {
+    try {
+      await this.assertStable(at);
+    } catch (error) {
+      if (
+        !(error instanceof OracleDriftError) ||
+        error.kind !== "generic-control" ||
+        this.preferenceReplay == null ||
+        this.preferenceRepairs.length >= this.maxPreferenceRepairs
+      ) {
+        throw error;
+      }
+      if (this.documentMarker != null) {
+        const identity = await this.page.evaluate(() => ({
+          marker: (window as typeof window & { domotionOracleDocumentMarker?: string }).domotionOracleDocumentMarker,
+          timeOrigin: performance.timeOrigin,
+        }));
+        const { frameTree } = await this.cdp.send("Page.getFrameTree");
+        if (
+          identity.marker !== this.documentMarker ||
+          identity.timeOrigin !== this.initialDocumentTimeOrigin ||
+          frameTree.frame.loaderId !== this.initialLoaderId
+        ) {
+          throw error;
+        }
+      }
+      try {
+        await this.preferenceReplay(this.page);
+      } catch {
+        // Preserve the diagnosed donor change and its artifact if CDP cannot
+        // restore the Page; the failed replay cannot validate any report.
+        throw error;
+      }
+      await this.assertStable(`after macOS Page preference repair at ${at}`);
+      this.preferenceRepairs.push({ at, expected: [...error.expected], actual: [...error.actual] });
+    }
+  }
+
+  preferenceRepairEvents(): ReadonlyArray<{ at: string; expected: string[]; actual: string[] }> {
+    return this.preferenceRepairs;
+  }
+
+  /** Abort-only inspection: never called while a report could still pass. */
+  async diagnoseDrift(): Promise<Record<string, unknown>> {
+    const document = await this.page.evaluate(() => ({
+      marker:
+        (window as typeof window & { domotionOracleDocumentMarker?: string }).domotionOracleDocumentMarker ?? null,
+      timeOrigin: performance.timeOrigin,
+    }));
+    const { frameTree } = await this.cdp.send("Page.getFrameTree");
+    const beforeReplay = await probeOracleControlSignature(this.page, this.cdp, this.lang);
+    await reassertPlaywrightMacFontFamilies(this.page);
+    const afterReplay = await probeOracleControlSignature(this.page, this.cdp, this.lang);
+    return {
+      expectedDocumentMarker: this.documentMarker,
+      actualDocumentMarker: document.marker,
+      expectedTimeOrigin: this.initialDocumentTimeOrigin,
+      actualTimeOrigin: document.timeOrigin,
+      expectedLoaderId: this.initialLoaderId,
+      actualLoaderId: frameTree.frame.loaderId,
+      beforeReplay,
+      afterReplay,
+    };
   }
 
   async close(): Promise<void> {
@@ -1776,6 +1942,7 @@ export interface FontConformanceReportInput {
   universeLength: number;
   stackLength: number;
   oracleIsolation: string;
+  oraclePreferenceRepairs?: ReadonlyArray<{ at: string; expected: string[]; actual: string[] }>;
   resolverAnswerDigest: string;
   tally: SweepTally;
   wallMs: number;
@@ -1802,6 +1969,7 @@ export function buildReport(input: FontConformanceReportInput) {
     universeLength,
     stackLength,
     oracleIsolation,
+    oraclePreferenceRepairs,
     resolverAnswerDigest,
     tally,
     wallMs,
@@ -1885,6 +2053,9 @@ export function buildReport(input: FontConformanceReportInput) {
       lang: opts.lang,
       resetEvery: opts.resetEvery,
       oracleIsolation,
+      ...(oraclePreferenceRepairs == null
+        ? {}
+        : { oraclePreferenceRepairs: { count: oraclePreferenceRepairs.length, events: oraclePreferenceRepairs } }),
       resolverAnswerDigest,
       // DM-1922. Attribution fields for an intermittent, Chrome-side flip of
       // the `sans-serif` generic's primary, seen four times in real runs and
@@ -2209,8 +2380,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       // WHOLE sweep — because that is the scope Chrome's own cache has on the
       // other side of the comparison: the oracle uses a single page (one renderer
       // process) for every stack and batch, and Blink's character_fallback_cache_
-      // lives on that renderer's FontCache, surviving each `setContent`
-      // navigation. Both sides then see the identical ask sequence (stacks in
+      // lives on that renderer's FontCache. On macOS the one measured document
+      // also persists as its cells are replaced. Both sides see the ask sequence (stacks in
       // corpus order, codepoints ascending), so the first-ideograph-under-a-key
       // entries agree by construction. Deliberately NOT reset at the periodic
       // `clearFontResolutionCaches()` memory trims — Chrome's cache is not
@@ -2224,7 +2395,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       // renderer scope per locale on Linux so the authoritative per-locale oracle asks
       // the same isolated question as Domotion. Other platforms retain the one-
       // process sweep they have always used.
-      const oracleIsolation = process.platform === "linux" ? "renderer-per-locale" : "shared-renderer";
+      const oracleIsolation =
+        process.platform === "linux"
+          ? "renderer-per-locale"
+          : process.platform === "darwin"
+            ? "shared-renderer-single-document-repaired-prefs"
+            : "shared-renderer";
       // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
       // documents from different BrowserContexts in one renderer process, so
       // each locale gets a distinct WebSandboxSupportLinux cache without the
@@ -2235,15 +2411,25 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       );
       const tally = new SweepTally(opts.maxRows, opts.lang, opts.strictAlias, allowlist);
       const t0 = Date.now();
+      let measuredOracle: ChromeOracle | null = null;
 
       try {
         for (const [stackIndex, spec] of stacks.entries()) {
           const oracle = await oracles.forLang(spec.lang ?? opts.lang);
-          await oracle.assertStable(`before stack ${stackIndex + 1}/${stacks.length}`);
+          measuredOracle = oracle;
+          await oracle.prepareMeasurement(`before stack ${stackIndex + 1}/${stacks.length}`);
           await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
         }
       } catch (error) {
         if (error instanceof OracleDriftError) {
+          let diagnostic: Record<string, unknown> | { error: string } | null = null;
+          if (process.platform === "darwin" && measuredOracle != null) {
+            try {
+              diagnostic = await measuredOracle.diagnoseDrift();
+            } catch (diagnosticError) {
+              diagnostic = { error: (diagnosticError as Error).message };
+            }
+          }
           mkdirSync(opts.outDir, { recursive: true });
           writeFileSync(
             join(opts.outDir, "oracle-drift.json"),
@@ -2255,6 +2441,11 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
                 expected: error.expected,
                 actual: error.actual,
                 comparisonsBeforeDrift: Object.values(tally.counts).reduce((a, b) => a + b, 0),
+                preferenceRepairs: {
+                  count: measuredOracle?.preferenceRepairEvents().length ?? 0,
+                  events: measuredOracle?.preferenceRepairEvents() ?? [],
+                },
+                diagnostic,
                 note: "Partial sweep invalid; no conformance report was written.",
               },
               null,
@@ -2275,6 +2466,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         universeLength: universe.length,
         stackLength: stacks.length,
         oracleIsolation,
+        oraclePreferenceRepairs: process.platform === "darwin" ? measuredOracle?.preferenceRepairEvents() : undefined,
         resolverAnswerDigest,
         tally,
         wallMs,

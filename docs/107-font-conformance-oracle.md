@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D"]
+tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D", "DM-V75PWJ"]
 code:
   [
     ".github/workflows/font-conformance-synthetic.yml",
@@ -22,6 +22,8 @@ code:
     "tests/font-conformance-baseline.test.ts",
     "tests/font-conformance-cli.test.ts",
     "tests/font-conformance-extraction.e2e.test.ts",
+    "tests/font-conformance-document-lifecycle.test.ts",
+    "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
     "tests/font-conformance.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
@@ -68,16 +70,30 @@ report records the selected universe and the answers in that same order.
 - **Chrome's answer** — CDP `CSS.getPlatformFontsForNode` over a one-codepoint cell. This is the face the engine reports having painted with, not a guess inferred from pixels. Two earlier attempts to identify a face from rendered crops (a hand-rolled shape matcher, and `tools/compare-glyphs.ts` on upscaled 1× captures) both failed their controls; asking the browser is strictly better.
 - **Our answer** — the primary is opened through the renderer's `resolveFont` route, then `resolveFontForCodepoint` walks the same stack's key chain at the same size, weight, and style. A fallback is materialized as `res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`, so the reported face is the concrete **cut** the renderer would load. The primary cannot be reopened from its key alone: on macOS `system-ui` and a named SF family share `sf-pro`, but only the `system-ui` route applies the CSS `wght` axis. The native CoreText UI query supplies the resulting face identity when fontkit's variation instance retains its default `.SFNS-Regular` name. This keeps the bold `system-ui` oracle aligned with Chromium's `.SFNS-Bold` instead of manufacturing a mismatch for every codepoint whose run uses that face.
 
-The oracle checks its own browser Page before each stack and after every batch. A fixed set
+The oracle checks its own browser Page before each stack, before each macOS
+batch, and after every batch. A fixed set
 of CSS generics paints U+10FFFF, a noncharacter that retains each generic's
 `.notdef` donor without entering the assigned-codepoint fallback cache. The
 control spans are appended to and removed from the measured Page without
 replacing its document between batches. Each span carries the oracle locale
 explicitly, including the first probe before the first measured document exists. A
-change in those configured donor faces aborts with harness exit code `2` and writes
+change during a measured batch aborts with harness exit code `2` and writes
 `oracle-drift.json` with the stack, batch, expected faces, and observed faces.
-The partial sweep is not a valid conformance report. This catches mid-session generic
-font-settings changes that a single `A` primary probe misses. For the measured macOS
+On macOS, a donor change discovered before the next measured question may be
+restored by reapplying the exact installed Playwright font preferences, up to
+three times in one sweep, only while the measured document marker, time origin,
+and frame loader ID remain unchanged. The six donors must match again before measurement;
+otherwise the sweep aborts. Successful reports record each repair and its
+observed donor vector in `meta.oraclePreferenceRepairs`. A repair never reuses a
+partially measured batch. The partial sweep after any abort is not a valid
+conformance report. On macOS, an abort-only
+diagnostic in that artifact compares a persistent `window` marker, document
+time origin, and frame loader ID with their initial values, then records the
+donor signature after reapplying Playwright's exact settings through a fresh
+CDP session. This diagnostic runs only after the sweep is already invalid and
+never resumes measurement.
+The guard catches mid-session generic font-settings changes that a single `A`
+primary probe misses. For the measured macOS
 `sans-serif @32px/700/normal` route, the sweep also checks each naturally queried,
 Domotion-uncovered supplementary PUA codepoint against that stack's already recorded
 Chrome primary. The browser-reported face must also resolve to a readable font
@@ -362,7 +378,9 @@ Correctness constraints, all of which cost throughput and all of which are load-
 - **`white-space: pre` on the cell.** Without it a cell holding U+0020 collapses to nothing, Chrome paints no glyph, and the oracle reports a mismatch that exists only because of how the probe page was written.
 - **Batched, pipelined CDP.** Each page holds `--batch` cells; all node ids come back from one `DOM.querySelectorAll`, and `CSS.getPlatformFontsForNode` is issued `--concurrency`-at-a-time rather than awaited serially.
 - **Cell font faces read as Chrome reports them, not as Chrome ranks them.** Blink accumulates platform-font usage into a hash map before serializing it, so the protocol array's order is not a documented ranking; the oracle takes the entry with the highest glyph count. A one-codepoint cell normally has exactly one entry, and the full list is preserved in `chromeAllFaces` when it does not.
-- **On macOS, the sweep is ONE document scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText — and the oracle's single probe page (one renderer, surviving every `setContent`) carries that cache across all batches and stacks. So the Domotion side opens one matching `beginCharacterFallbackDocument()` scope spanning the whole sweep, and both sides ask in the identical (stack, ascending-codepoint) order; the periodic memory reset (`--reset-every`) deliberately does NOT clear it, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
+- **On macOS, the sweep is ONE document scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText. The oracle creates one measured document, then replaces only its codepoint cells and changes its style when the stack changes. Its renderer, Page font settings, and document persist across every batch and stack. The Domotion side opens one matching `beginCharacterFallbackDocument()` scope spanning the whole sweep, and both sides ask in the identical (stack, ascending-codepoint) order; the periodic memory reset (`--reset-every`) deliberately does NOT clear it, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
+
+  The prior macOS protocol called `setContent` for every batch. On one image and source, three native full-slice shards changed all six `.notdef` generic donor faces partway through the run from Playwright's Page settings to Blink constructor defaults. Keeping one measured document and proactively replaying preferences before each batch did not prevent the switch. A native abort after 224,000 comparisons retained the same document marker, time origin, and loader ID; replaying the exact installed Playwright font table on that same Page restored all six donors. The oracle therefore checks the donor signature before each next measurement, repairs an idle-interval reset at most three times, and verifies the six donors before asking the next codepoint. It still checks after every measured batch and aborts if the Page changed during that batch. Chromium rejects a second `Page.setFontFamilies` on one session, so each replay uses a fresh one-use CDP session. A real Chromium test verifies that a deliberate defaults-to-Playwright restoration preserves the documented first-ideograph cached face. Successful reports identify this protocol as `oracleIsolation: "shared-renderer-single-document-repaired-prefs"` and record repair count and events. Older macOS baselines are intentionally incomparable. Linux and Windows retain their existing `setContent` path and isolation metadata. Both generic-donor and supplementary-PUA sentinels remain required; a supplementary-PUA flip still aborts.
 
 ## How to read the output
 
@@ -816,7 +834,7 @@ Two things follow, and the second is the more useful one:
 
   Answer-neutral, checked rather than asserted: the two runs' report bodies are **identical** — same 48,745 comparisons, same 12,136 exact agreements, same 10 mismatch rows, same four routes.
 
-The `setContent` failure was the same class of problem — a 30-second default treated as a correctness limit on how long Blink may take to lay out 8,000 cells that drag in fonts from all over the host. It now runs on a 120-second budget with exactly one retry, and re-throws on the second failure; a batch is never skipped, because a hole in a sweep that still reports a codepoint count reads as a complete answer.
+The `setContent` failure was the same class of problem — a 30-second default treated as a correctness limit on how long Blink may take to lay out 8,000 cells that drag in fonts from all over the host. The first document write and every subsequent macOS cell replacement now use a 120-second budget with exactly one retry. Linux and Windows retain the 120-second `setContent` budget. A second failure aborts; a batch is never skipped, because a hole in a sweep that still reports a codepoint count reads as a complete answer.
 
 ### The CI gate must not pass by losing data
 
