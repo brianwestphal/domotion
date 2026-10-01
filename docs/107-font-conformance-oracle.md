@@ -25,6 +25,7 @@ code:
     "tests/font-conformance-synthetic-stacks.test.ts",
     "tests/font-conformance.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
+    "tests/font-conformance-pua-sentinel.e2e.test.ts",
     "tests/system-ui-bold-conformance.e2e.test.ts",
     "tests/conformance-args.test.ts",
     "tests/harvested-corpus-identity.test.ts",
@@ -76,9 +77,20 @@ explicitly, including the first probe before the first measured document exists.
 change in those configured donor faces aborts with harness exit code `2` and writes
 `oracle-drift.json` with the stack, batch, expected faces, and observed faces.
 The partial sweep is not a valid conformance report. This catches mid-session generic
-font-settings changes that a single `A` primary probe misses. It does not prove
-detection of a change confined to assigned-codepoint fallback cache entries,
-including the Plane 16 PUA Arial/Helvetica face shift tracked by `DM-MKJ5Q9`.
+font-settings changes that a single `A` primary probe misses. For the measured macOS
+`sans-serif @32px/700/normal` route, the sweep also checks each naturally queried,
+Domotion-uncovered supplementary PUA codepoint against that stack's already recorded
+Chrome primary. The browser-reported face must also resolve to a readable font
+file whose cmap lacks that codepoint: a genuine PUA glyph remains a conformance
+mismatch, and an unidentifiable cut remains unclassified. A confirmed donor
+divergence aborts with `oracle-drift.json` containing
+`kind: "supplementary-pua"`, the first codepoint, stack, batch, and both faces. This
+adds no browser queries and preserves the natural assigned-codepoint ask order. It
+catches the `Helvetica-Bold` to `Arial-BoldMT` shift even when the first PUA cell
+has already changed, as happened in a same-source, same-image rerun of `DM-AS3PCH`.
+The check is confined to the verified macOS route because another stack may
+intentionally paint a different PUA face; a divergence on this route remains a
+conservative invalidation to investigate, not a renderer mismatch to ratify.
 On the same synthetic 351-stack,
 1,162-codepoint macOS slice, runs `36812487731` and `36819546100` produced
 214,311 and 27,519 mismatches while their resolver-answer digests were
