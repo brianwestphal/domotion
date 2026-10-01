@@ -8,9 +8,18 @@ See [`docs/16-coretext-glyph-extraction.md`](../../docs/16-coretext-glyph-extrac
 
 ```bash
 ./build.sh
+# For an arm64 or x86_64 CI runner that needs only its native slice:
+./build.sh --arch "$(uname -m)"
 ```
 
 Produces a universal arm64 + x86_64 binary at `./domotion-glyph-paths`. Requires the Swift toolchain (Xcode CLI tools or full Xcode).
+The `--arch` form produces the requested single-architecture binary at the
+same path. The script discovers SwiftPM's output directory with
+`swift build --show-bin-path` after each build, so it works with both older
+`.build/<triple>/release` and current `.build/out/Products/Release` layouts.
+For universal builds, it stages each slice before building the next because
+some SwiftPM versions reuse one output path. CI workflows call this script
+instead of copying from a hardcoded `.build` directory.
 
 The binary is **not committed to git** — it is published as a GitHub release asset (`domotion-glyph-paths-darwin-universal`) and downloaded on demand by the Domotion runtime (DM-393). For local development, build it once and Domotion's helper-resolution logic will find the cached path.
 

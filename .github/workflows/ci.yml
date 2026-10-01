@@ -50,9 +50,7 @@ jobs:
       - name: Build the macOS glyph helper
         run: |
           SWIFT_ARCH="$(uname -m)"
-          swift build -c release --arch "$SWIFT_ARCH" --package-path packages/text-engine/tools/macos-glyph-extractor
-          cp "packages/text-engine/tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths" \
-             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+          bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch "$SWIFT_ARCH"
       - run: npm test
       # The @domotion/text-engine workspace declares its own lane (build, its
       # unit suite, and the helper transport lane that counts spawns to prove
@@ -185,13 +183,9 @@ jobs:
       # this helper, the built binary is gitignored, so a fresh checkout has
       # none and resolution silently drops to the static chain. That is exactly
       # how the Linux fidelity gate spent months grading a path the mechanism
-      # was not in (DM-1972). arm64 only — the runners are arm64 and `build.sh`
-      # would otherwise also build x86_64 for the universal release binary.
+      # was not in (DM-1972). arm64 only — the runners are arm64.
       - name: Build the macOS glyph helper (CoreText fallback resolver)
-        run: |
-          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
-          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
-             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+        run: bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch arm64
       - name: Run feature visual-regression suite
         # Absolute pass/fail is ADVISORY (`|| true`), exactly as on Linux: the
         # gate is the baseline diff below, which fails only on regressions vs

@@ -151,14 +151,12 @@ jobs:
         # locally. Reproduced by disabling the helper on a Mac: 0400-04FF-cyrillic
         # goes from clean (0 regions) to major (142 regions).
         #
-        # arm64 only — `build.sh` also builds x86_64 for the universal release
-        # binary, which CI does not need (the runners are arm64) and which
-        # doubles the build for nothing.
+        # arm64 only — the universal release build also makes an x86_64 slice,
+        # which CI does not need (the runners are arm64) and which doubles the
+        # build for nothing.
       - name: Build the macOS glyph helper (CoreText fallback resolver)
         run: |
-          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
-          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
-             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+          bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch arm64
           packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths --help >/dev/null 2>&1 || true
           echo "helper built: $(file packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths)"
         # Runs AFTER the helper build so it describes the environment the shard

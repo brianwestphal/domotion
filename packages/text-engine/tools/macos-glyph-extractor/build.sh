@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build the universal arm64 + x86_64 macOS binary for `domotion-glyph-paths`.
-# Output: ./domotion-glyph-paths (universal Mach-O).
+# Build `domotion-glyph-paths` for macOS. The default is a universal arm64 +
+# x86_64 Mach-O; `--arch arm64|x86_64` builds one architecture for CI.
 #
 # Codesigning + notarization happen in CI (DM-391), driven by these env vars:
 #   APPLE_DEVELOPER_ID="Developer ID Application: <name> (<team-id>)"
@@ -13,16 +13,41 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-swift build -c release --arch arm64
-swift build -c release --arch x86_64
+ARCH="${2:-}"
+if [[ $# -ne 0 && ( $# -ne 2 || "$1" != "--arch" || ( "$ARCH" != "arm64" && "$ARCH" != "x86_64" ) ) ]]; then
+    echo "usage: $0 [--arch arm64|x86_64]" >&2
+    exit 2
+fi
 
-ARM64_BIN=".build/arm64-apple-macosx/release/DomotionGlyphPaths"
-X86_64_BIN=".build/x86_64-apple-macosx/release/DomotionGlyphPaths"
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/domotion-glyph-paths.XXXXXX")"
+trap 'rm -rf "$STAGING"' EXIT
 
-lipo -create \
-    -output domotion-glyph-paths \
-    "$ARM64_BIN" \
-    "$X86_64_BIN"
+build_arch() {
+    local arch="$1"
+    local bin_dir
+    swift build -c release --arch "$arch"
+    # SwiftPM has emitted both .build/<triple>/release and
+    # .build/out/Products/Release. Ask the active toolchain, then stage the
+    # result before another architecture build can overwrite a shared path.
+    bin_dir="$(swift build -c release --arch "$arch" --show-bin-path)"
+    if [[ ! -f "$bin_dir/DomotionGlyphPaths" ]]; then
+        echo "SwiftPM did not produce DomotionGlyphPaths in $bin_dir" >&2
+        exit 1
+    fi
+    cp "$bin_dir/DomotionGlyphPaths" "$STAGING/$arch"
+}
+
+if [[ -n "$ARCH" ]]; then
+    build_arch "$ARCH"
+    cp "$STAGING/$ARCH" domotion-glyph-paths
+else
+    build_arch arm64
+    build_arch x86_64
+    lipo -create \
+        -output domotion-glyph-paths \
+        "$STAGING/arm64" \
+        "$STAGING/x86_64"
+fi
 
 if [[ -n "${APPLE_DEVELOPER_ID:-}" ]]; then
     codesign --force --options runtime --timestamp \

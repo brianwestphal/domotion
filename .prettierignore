@@ -35,6 +35,7 @@ tools/sfns-terminal-mask-manifest.ts
 .claude/worktrees/
 .gemini/
 **/build/
+**/.build/
 AGENTS.md
 CLAUDE.md
 GEMINI.md

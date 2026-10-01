@@ -208,9 +208,7 @@ jobs:
         # cannot ask CoreText and silently drops to the static chain.
       - name: Build the macOS glyph helper (CoreText fallback resolver)
         run: |
-          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
-          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
-             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+          bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch arm64
       # The corpus is gitignored on purpose: it is a pure function of the rule,
       # and a committed copy is a copy someone can hand-edit. Regenerating is
       # deterministic — its identity string is a digest of the rule's output, not

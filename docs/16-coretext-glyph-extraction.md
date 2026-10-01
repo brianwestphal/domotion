@@ -103,7 +103,7 @@ These are the answers to the open-questions block on DM-385 — locked in, the r
 
 - **Name**: `domotion-glyph-paths`.
 - **Source location**: `packages/text-engine/tools/macos-glyph-extractor/` (Swift Package). Not committed as a binary.
-- **Build**: `packages/text-engine/tools/macos-glyph-extractor/build.sh` produces a universal arm64 + x86_64 binary using `swift build -c release` per arch and `lipo -create` to fuse them.
+- **Build**: `packages/text-engine/tools/macos-glyph-extractor/build.sh` produces a universal arm64 + x86_64 binary using `swift build -c release` per arch and `lipo -create` to fuse them. It asks SwiftPM for each output directory with `--show-bin-path` and stages each slice before the next build, which supports both `.build/<triple>/release` and `.build/out/Products/Release`. CI can pass `--arch arm64` or `--arch x86_64` to build only the runner's native slice at the same `domotion-glyph-paths` path.
 - **Codesigning**: signed (hardened runtime) and notarized in the GitHub Actions release workflow with the project's Apple Developer ID.
 - **Distribution**: published as a GitHub release asset (e.g. `domotion-glyph-paths-darwin-universal-vX.Y.Z`). The Domotion package fetches the binary into the user-cache directory (`~/Library/Caches/domotion/<version>/bin/`) on first need and reuses the cached copy thereafter.
 - **Size**: ~few hundred KB; downloaded once per Domotion version, not per project.

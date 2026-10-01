@@ -128,9 +128,7 @@ jobs:
         # answers a DIFFERENT question than the one this workflow reports on.
       - name: Build the macOS glyph helper (CoreText fallback resolver)
         run: |
-          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
-          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths \
-             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+          bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch arm64
           echo "helper built: $(file packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths)"
       - name: Font env probe (diagnostic — grep FONTPROBE in this step's log)
         run: npx tsx tools/font-env-probe.mjs

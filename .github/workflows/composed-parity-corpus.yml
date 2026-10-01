@@ -71,8 +71,7 @@ jobs:
       - name: Build CoreText helper
         if: runner.os == 'macOS'
         run: |
-          swift build -c release --arch arm64 --package-path packages/text-engine/tools/macos-glyph-extractor
-          cp packages/text-engine/tools/macos-glyph-extractor/.build/arm64-apple-macosx/release/DomotionGlyphPaths packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+          bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch arm64
       - name: Build fontconfig helper
         if: runner.os == 'Linux'
         run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh

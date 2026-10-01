@@ -73,9 +73,7 @@ jobs:
       - name: Build the macOS glyph helper
         run: |
           SWIFT_ARCH="$(uname -m)"
-          swift build -c release --arch "$SWIFT_ARCH" --package-path packages/text-engine/tools/macos-glyph-extractor
-          cp "packages/text-engine/tools/macos-glyph-extractor/.build/${SWIFT_ARCH}-apple-macosx/release/DomotionGlyphPaths" \
-             packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths
+          bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch "$SWIFT_ARCH"
       - run: npm test
 
   typecheck:
