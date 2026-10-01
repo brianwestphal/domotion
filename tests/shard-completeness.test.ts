@@ -15,7 +15,7 @@
  * fixture names present in BOTH runs. The two "newly passing" fixtures were not
  * passing; they were absent.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -35,6 +35,13 @@ function shardDir(root: string, os: string, shard: number, fixtures: string[]) {
   return d;
 }
 
+/** A successful zero-fixture shard has results.json: [] but may have no run-env. */
+function emptyShardDir(root: string, os: string, shard: number) {
+  const d = join(root, `results-${os}-shard${shard}`);
+  mkdirSync(d, { recursive: true });
+  writeFileSync(join(d, "results.json"), "[]\n");
+}
+
 function runMerge(root: string, expectArg?: string) {
   const args = [SCRIPT, "--input", root, "--out", root, "--summary", join(root, "summary.md")];
   if (expectArg != null) args.push("--expect", expectArg);
@@ -51,6 +58,32 @@ function runMerge(root: string, expectArg?: string) {
 }
 
 describe("shard completeness", () => {
+  it("the real filtered harness emits [] only for a successful empty stride", () => {
+    const root = mkdtempSync(join(tmpdir(), "shardc-"));
+    const fixtures = join(root, "fixtures");
+    mkdirSync(fixtures);
+    for (const i of [1, 2, 3]) writeFileSync(join(fixtures, `fx-${i}.html`), `<p>${i}</p>`);
+    const output = join(root, "empty-output");
+    const run = (only: string) =>
+      spawnSync(process.execPath, ["--import", "tsx", "tests/html-test-suite.tsx", "--only", only], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: { ...process.env, HTML_TEST_DIR: fixtures, HTML_TEST_OUTPUT_DIR: output, HTML_TEST_SHARD: "4/5" },
+      });
+    const empty = run("fx-");
+    expect(empty.status, empty.stderr).toBe(0);
+    expect(JSON.parse(readFileSync(join(output, "results.json"), "utf8"))).toEqual([]);
+
+    const invalidOutput = join(root, "invalid-output");
+    const invalid = spawnSync(process.execPath, ["--import", "tsx", "tests/html-test-suite.tsx", "--only", "absent"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env, HTML_TEST_DIR: fixtures, HTML_TEST_OUTPUT_DIR: invalidOutput, HTML_TEST_SHARD: "4/5" },
+    });
+    expect(invalid.status).toBe(2);
+    expect(existsSync(join(invalidOutput, "results.json"))).toBe(false);
+  });
+
   it("FAILS the merge when a shard is missing, instead of reporting the survivors", () => {
     const root = mkdtempSync(join(tmpdir(), "shardc-"));
     for (const i of [1, 2, 3, 4]) shardDir(root, "macos", i, [`fx-${i}a`, `fx-${i}b`]);
@@ -78,6 +111,41 @@ describe("shard completeness", () => {
     expect(c.complete).toBe(true);
     expect(c.missingShards).toEqual([]);
     expect(c.observedShards).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("counts successful empty filtered shards without inventing fixture rows", () => {
+    const root = mkdtempSync(join(tmpdir(), "shardc-"));
+    for (const i of [1, 2, 3]) shardDir(root, "macos", i, [`fx-${i}`]);
+    emptyShardDir(root, "macos", 4);
+    emptyShardDir(root, "macos", 5);
+    const { code, summary } = runMerge(root, "macos=5");
+    expect(code).toBe(0);
+    expect(summary).toContain("3 passed, 0 failed, 0 skipped");
+    const c = JSON.parse(readFileSync(join(root, "shard-completeness-macos.json"), "utf-8"));
+    expect(c).toMatchObject({ complete: true, fixtures: 3, observedShards: [1, 2, 3, 4, 5], missingShards: [] });
+  });
+
+  it("still rejects a missing shard next to a successful empty one", () => {
+    const root = mkdtempSync(join(tmpdir(), "shardc-"));
+    for (const i of [1, 2, 3]) shardDir(root, "macos", i, [`fx-${i}`]);
+    emptyShardDir(root, "macos", 4);
+    const { code } = runMerge(root, "macos=5");
+    expect(code).not.toBe(0);
+    const c = JSON.parse(readFileSync(join(root, "shard-completeness-macos.json"), "utf-8"));
+    expect(c).toMatchObject({ complete: false, observedShards: [1, 2, 3, 4], missingShards: [5] });
+  });
+
+  it("does not count an invalid results file as a completion signal", () => {
+    const root = mkdtempSync(join(tmpdir(), "shardc-"));
+    for (const i of [1, 2, 3]) shardDir(root, "macos", i, [`fx-${i}`]);
+    emptyShardDir(root, "macos", 4);
+    const invalid = join(root, "results-macos-shard5");
+    mkdirSync(invalid);
+    writeFileSync(join(invalid, "results.json"), "{}\n");
+    const { code } = runMerge(root, "macos=5");
+    expect(code).not.toBe(0);
+    const c = JSON.parse(readFileSync(join(root, "shard-completeness-macos.json"), "utf-8"));
+    expect(c).toMatchObject({ complete: false, missingShards: [5] });
   });
 
   it("catches the loudest-but-quietest case: an OS dispatched that produced NOTHING", () => {

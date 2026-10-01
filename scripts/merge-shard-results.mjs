@@ -111,6 +111,7 @@ function envBesideResults(resultsPath) {
 // defensive against a re-run / double download).
 const byOs = new Map();
 const envsByOs = new Map();
+const completedShardsByOs = new Map();
 const stageEvidenceByOs = new Map();
 for (const f of files) {
   const os = osFromPath(f);
@@ -123,6 +124,10 @@ for (const f of files) {
   }
   if (!Array.isArray(arr)) continue;
   const shard = shardFromPath(f);
+  if (shard != null) {
+    if (!completedShardsByOs.has(os)) completedShardsByOs.set(os, new Set());
+    completedShardsByOs.get(os).add(shard);
+  }
   const stageEvidencePath = join(dirname(f), "stage-evidence.json");
   if (shard === 1 && existsSync(stageEvidencePath) && !stageEvidenceByOs.has(os))
     stageEvidenceByOs.set(os, stageEvidencePath);
@@ -234,14 +239,7 @@ for (const os of [...byOs.keys()].sort()) {
   //
   // `--expect` is how the caller states the matrix size. Absent (a local run,
   // or a single unsharded run) the check is skipped rather than guessed at.
-  const observed = [...new Set((envsByOs.get(os) ?? []).map((e) => e.shard).filter((s) => s != null))].sort(
-    (a, b) => a - b,
-  );
-  const shardsSeen = new Set(
-    (byOs.get(os) ? [...byOs.get(os).values()] : []).map((r) => r.shard).filter((s) => s != null),
-  );
-  for (const s of shardsSeen) observed.includes(s) || observed.push(s);
-  observed.sort((a, b) => a - b);
+  const observed = [...(completedShardsByOs.get(os) ?? [])].sort((a, b) => a - b);
   const expected = expectByOs.get(os) ?? null;
   const missing =
     expected == null ? [] : Array.from({ length: expected }, (_, i) => i + 1).filter((s) => !observed.includes(s));

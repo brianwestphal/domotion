@@ -116,6 +116,13 @@ rather than reporting an empty success — the previous behavior let a mistyped 
 five "successful" shards with no work and a confusing `no results.json found under shard-artifacts` failure in
 the aggregate step several minutes later.
 
+A valid filter can match fewer fixtures than the selected shard count. Those
+zero-fixture strides succeed and write `results.json` as `[]` into their shard
+artifacts. The merge counts each valid results file as a completed shard, even
+when it has no rows or run-environment record; it still rejects a missing or
+invalid results file. This lets a three-fixture `--only` run use the normal
+five-shard matrix without presenting shards 4 and 5 as failed jobs.
+
 **`--ref <branch>` is not enough on its own**: the dispatcher resolves the ref from the CURRENT branch and refuses
 unless `origin/<branch>` equals local `HEAD`. To sweep another commit, check it out in a worktree
 (`git worktree add /tmp/wt <branch>`) and run the dispatcher from there.

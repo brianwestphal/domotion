@@ -71,6 +71,19 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     expect(job).toContain("needs.setup.outputs.windows_total");
   });
 
+  it("uploads each shard output even when a filtered stride has zero fixtures", () => {
+    for (const name of ["test-macos", "test-linux", "test-windows"]) {
+      const job = jobs[name];
+      const run = job.indexOf("run: bash scripts/ci-run-shard.sh");
+      const upload = job.indexOf("uses: actions/upload-artifact@v4", run);
+      expect(run, `${name} must run the shard harness`).toBeGreaterThanOrEqual(0);
+      expect(upload, `${name} must upload its shard output`).toBeGreaterThan(run);
+      expect(job.slice(upload, upload + 350)).toContain("if: always()");
+      expect(job.slice(upload, upload + 350)).toContain("tests/output/");
+    }
+    expect(jobs.aggregate).toContain("--expect macos=");
+  });
+
   it("the macOS sweep job builds the CoreText helper before running the suite", () => {
     const job = jobs["test-macos"];
     expect(job, "test-macos job must exist").toBeDefined();

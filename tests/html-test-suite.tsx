@@ -857,6 +857,10 @@ async function main(): Promise<void> {
       process.exitCode = 2;
       return;
     }
+    // A valid filter can select fewer fixtures than the matrix has shards.
+    // The empty array is this shard's completion signal; without a results
+    // artifact the aggregate cannot tell it apart from a failed shard.
+    writeFileSync(resolve(OUTPUT_DIR, "results.json"), "[]\n");
     console.log(msg);
     return;
   }
