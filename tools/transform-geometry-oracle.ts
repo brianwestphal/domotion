@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
-import { writeFileSync } from "node:fs";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { withBrowser } from "./lib/browser.js";
 import { cssTransformToSvg } from "../src/render/transforms.js";
 import { boxReflectionTransform, parseBoxReflection } from "../src/render/element-tree-to-svg.js";
@@ -164,7 +164,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const report = await runTransformGeometryOracle();
   const failures = report.rows.filter((row) => !row.pass);
   const json = flag(values, "--json");
-  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
+  if (json != null)
+    writeReport(
+      json,
+      "transform-geometry-oracle",
+      { ...report, outcome: failures.length || !report.mutationMoved ? "fail" : "pass" },
+      { schemaVersion: 1 },
+    );
   console.log(
     `transform geometry oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? "moved" : "DID NOT MOVE"}`,
   );

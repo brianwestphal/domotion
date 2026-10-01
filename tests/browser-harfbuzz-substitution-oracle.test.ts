@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 
@@ -9,7 +12,10 @@ import {
   buildBrowserHarfBuzzSubstitutionReport,
   buildLogicalSubstitutionEvidence,
   loadSubstitutionFixtures,
+  readBrowserSubstitutionReport,
   validateSubstitutionArtifacts,
+  writeBrowserSubstitutionAggregate,
+  writeBrowserSubstitutionReport,
   type BrowserHarfBuzzSubstitutionReport,
 } from "../tools/browser-harfbuzz-substitution-oracle.js";
 
@@ -51,6 +57,40 @@ function nodePlatformForOs(os: string): string {
 }
 
 describe("browser HarfBuzz substitution-stream oracle", () => {
+  it("round-trips nested versioned files and validates legacy per-run artifacts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-harfbuzz-report-"));
+    try {
+      const report = await buildBrowserHarfBuzzSubstitutionReport({ includeBrowser: false });
+      const path = join(dir, "nested", "run.json");
+      writeBrowserSubstitutionReport(path, report);
+      const raw = JSON.parse(readFileSync(path, "utf8"));
+      expect(raw).toMatchObject({ schemaVersion: 1, tool: "browser-harfbuzz-substitution-oracle" });
+      expect(raw.data.outcome).toBe(report.verdict === "exact-logical-agreement" ? "pass" : "fail");
+      expect(raw.env).toMatchObject(report.runner);
+      expect(readBrowserSubstitutionReport(path).logicalSha256).toBe(report.logicalSha256);
+      const failedPath = join(dir, "nested", "failed.json");
+      writeBrowserSubstitutionReport(failedPath, { ...report, verdict: "verdict-withheld" });
+      expect(JSON.parse(readFileSync(failedPath, "utf8")).data.outcome).toBe("fail");
+
+      const legacy = join(dir, "legacy.json");
+      writeFileSync(legacy, JSON.stringify(report));
+      expect(readBrowserSubstitutionReport(legacy).logicalSha256).toBe(report.logicalSha256);
+      writeFileSync(legacy, JSON.stringify({ ...report, schemaVersion: 2 }));
+      expect(() => readBrowserSubstitutionReport(legacy)).toThrow(/unsupported legacy/);
+      writeFileSync(legacy, JSON.stringify({ ...raw, tool: "another-tool" }));
+      expect(() => readBrowserSubstitutionReport(legacy)).toThrow();
+
+      const aggregate = validateSubstitutionArtifacts([]);
+      const aggregatePath = join(dir, "nested", "aggregate", "report.json");
+      writeBrowserSubstitutionAggregate(aggregatePath, aggregate);
+      expect(JSON.parse(readFileSync(aggregatePath, "utf8"))).toMatchObject({
+        tool: "browser-harfbuzz-substitution-aggregate",
+        data: { outcome: "fail", verdict: "verdict-withheld" },
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it("pins portable OpenType fixtures with the required source tables", () => {
     const fixtures = loadSubstitutionFixtures();
     expect(Object.fromEntries(Object.entries(fixtures).map(([id, fixture]) => [id, fixture.evidence.sha256]))).toEqual({

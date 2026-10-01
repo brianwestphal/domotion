@@ -3,9 +3,29 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
+import { z } from "zod";
 import type { StageEvidenceManifest, StageEvidenceReport, StageEvidenceRule } from "../src/review/stage-evidence.js";
 import type { SemanticCoverageInventory } from "./semantic-coverage.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { outcomeSchema, reportEnvelopeSchema } from "./lib/report.js";
+
+const stageDataSchema = z
+  .object({
+    outcome: outcomeSchema,
+    rows: z.array(z.object({ pass: z.boolean().optional() }).passthrough()).optional(),
+    records: z.array(z.unknown()).optional(),
+    failures: z.array(z.unknown()).optional(),
+    pass: z.boolean().optional(),
+    verdict: z.string().optional(),
+    mismatches: z.number().optional(),
+    pairs: z.number().optional(),
+    evidenceOracle: z.string().optional(),
+    evidencePassed: z.boolean().optional(),
+  })
+  .passthrough();
+const legacyStageDataSchema = stageDataSchema.omit({ outcome: true }).extend({
+  schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+});
 
 interface ParityArea {
   id: string;
@@ -28,17 +48,12 @@ function summarizeReport(area: ParityArea, reportsDir: string): StageEvidenceRep
   if (!existsSync(path))
     return { area: area.id, oracle: area.oracle, status: "missing", note: "No stage report was attached by this run." };
   try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as {
-      rows?: Array<{ pass?: boolean }>;
-      records?: unknown[];
-      failures?: unknown[];
-      pass?: boolean;
-      verdict?: string;
-      mismatches?: number;
-      pairs?: number;
-      evidenceOracle?: string;
-      evidencePassed?: boolean;
-    };
+    const tool = area.id === "font-selection" ? "collect-stage-evidence" : basename(area.oracle, ".ts");
+    const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+    const enveloped = raw != null && typeof raw === "object" && ("tool" in raw || "data" in raw);
+    const value = enveloped
+      ? reportEnvelopeSchema(stageDataSchema, { tool, schemaVersion: 1 }).parse(raw).data
+      : legacyStageDataSchema.parse(raw);
     const rows = Array.isArray(value.rows) ? value.rows : undefined;
     const totalRows = rows?.length ?? value.records?.length ?? value.pairs;
     const passedRows =
@@ -53,7 +68,9 @@ function summarizeReport(area: ParityArea, reportsDir: string): StageEvidenceRep
       value.verdict === "evidence-complete" ||
       (totalRows != null && totalRows > 0 && passedRows === totalRows && (value.mismatches ?? 0) === 0) ||
       (Array.isArray(value.failures) && value.failures.length === 0);
-    const passed = value.evidencePassed ?? inferredPass;
+    const passed = enveloped
+      ? "outcome" in value && value.outcome === "pass" && value.evidencePassed !== false
+      : (value.evidencePassed ?? inferredPass);
     return {
       area: area.id,
       oracle: value.evidenceOracle ?? area.oracle,

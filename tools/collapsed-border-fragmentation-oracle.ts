@@ -7,7 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,7 @@ import {
 } from "../src/capture/collapsed-border-fragment-record.js";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
@@ -1010,10 +1011,13 @@ async function main(argv: string[]): Promise<number> {
   const json = flag(args, "json");
   const jsonPath = typeof json === "string" ? json : null;
   const report = await runCollapsedBorderFragmentationOracle();
-  if (jsonPath != null) {
-    mkdirSync(dirname(resolve(jsonPath)), { recursive: true });
-    writeFileSync(resolve(jsonPath), `${JSON.stringify(report, null, 2)}\n`);
-  }
+  if (jsonPath != null)
+    writeReport(
+      resolve(jsonPath),
+      "collapsed-border-fragmentation-oracle",
+      { ...report, outcome: report.verdict === "screen-section-fragment-record-authenticated" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   console.log(
     `collapsed border fragmentation: ${Object.values(report.discriminators).filter(Boolean).length}/${REQUIRED_COLLAPSED_BORDER_FRAGMENT_DISCRIMINATORS.length}; ${report.verdict}`,
   );

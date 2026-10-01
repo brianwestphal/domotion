@@ -5,12 +5,14 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux"]
-tickets: ["DM-2353", "DM-2501", "DM-2507"]
+tickets: ["DM-2353", "DM-2501", "DM-2507", "DM-N6XJRS"]
 code: [".github/workflows/emoji-presentation-ownership-audit.yml", ".github/workflows/linux-arm64-release-parity.yml"]
 aliases: ["docs/196-linux-arm64-release-parity.md", "doc-196"]
 ---
 
 # Linux arm64 published-helper and parity gate
+
+The release consumer validates the [versioned report envelopes](267-tool-report-envelope.md) for shaping, paint geometry, browser paint geometry, font selection, and decoration evidence. It accepts only their explicitly described legacy forms and rejects unknown tool or schema versions before judging parity.
 
 DM-2353 closes a release-validation blind spot: building an arm64 helper on an
 arm64 producer proves that the source compiles, but it does not prove that a

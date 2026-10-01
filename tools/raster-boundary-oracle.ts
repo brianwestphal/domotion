@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
-import { writeFileSync } from "node:fs";
 import { type Browser } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -291,7 +291,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const report = await runRasterBoundaryOracle();
   const failures = report.rows.filter((row) => !row.pass);
   const json = flag(values, "--json");
-  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
+  if (json != null)
+    writeReport(
+      json,
+      "raster-boundary-oracle",
+      { ...report, outcome: failures.length || !report.mutationMoved ? "fail" : "pass" },
+      { schemaVersion: 1 },
+    );
   console.log(
     `raster boundary oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? "moved" : "DID NOT MOVE"}`,
   );

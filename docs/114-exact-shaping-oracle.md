@@ -38,6 +38,8 @@ No numeric tolerance is applied. The oracle compares logical integers emitted by
 
 Schema v3 emits `exact-logical-agreement`, `logical-mismatch`, or `verdict-withheld` independently of pixels. Every host record carries the complete parity fingerprint from doc 120: Chromium/flags, OS/architecture, font-inventory digest, locale/preferences, helper route/build recipe, Node/ICU/Unicode and source revisions, viewport inputs, and corpus/sample/cache identity. The report preserves aggregate `controlHits`/`missedControls` and additionally separates host hits from the source-owned applicability rows described in doc 199. Missing fixtures, applicable-but-inert inputs, and unexpected logical mutations are distinct fail-closed states. `--skip-negative-control` is a test seam that must produce `verdict-withheld` and a failing exit status.
 
+The JSON output now wraps that evidence in a version 1 `{schemaVersion, tool, generatedAt, env, data}` envelope. `data.outcome` is `pass` for exact agreement, `fail` for a logical mismatch, and `error` when the verdict is withheld. The unified shaping gate reads both this format and validated flat schema v3 reports; it rejects unknown versions and tools.
+
 ## Profiles
 
 ```sh

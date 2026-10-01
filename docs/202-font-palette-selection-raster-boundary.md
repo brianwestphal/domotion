@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2350", "DM-2403", "DM-2507", "DM-2509", "DM-2510", "DM-2534"]
+tickets: ["DM-2350", "DM-2403", "DM-2507", "DM-2509", "DM-2510", "DM-2534", "DM-N6XJRS"]
 code:
   [
     ".github/workflows/font-palette-ownership-audit.yml",
@@ -21,6 +21,8 @@ aliases: ["docs/202-font-palette-selection-raster-boundary.md", "doc-202"]
 ---
 
 # Font-palette selection and native paint gate
+
+The paint gate writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 The ownership audit and paint gate CLIs accept `--json` and `--artifact-dir`.
 Both reject unknown options and missing values before browser work; importing
@@ -228,6 +230,10 @@ dynamic COLRv1 rows, and 4/4 production order controls pass. The same dynamic
 gate is part of `.github/workflows/font-palette-ownership-audit.yml` on macOS,
 Linux, and Windows. Browser launches are explicit headless launches. There is
 no image-score target, adjustable threshold, or cross-run pixel fitting.
+
+When an artifact directory is requested, its dynamic-gate JSON file uses the
+versioned tool-report envelope. The source fingerprint is copied to `env`, and
+`data` retains the detailed rows and verdict plus normalized `outcome`.
 
 ## Maintenance rule
 

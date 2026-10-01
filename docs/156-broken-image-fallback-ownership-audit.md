@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["images-media", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2463", "DM-2464", "DM-2465"]
+tickets: ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS"]
 code:
   [
     "src/capture/broken-image-fallback.ts",
@@ -18,6 +18,8 @@ aliases: ["docs/156-broken-image-fallback-ownership-audit.md", "doc-156"]
 ---
 
 # 156 — Chromium broken-image fallback ownership audit
+
+The oracle writes a [versioned report envelope](267-tool-report-envelope.md) for its JSON file.
 
 The oracle accepts `--dpr`, `--scheme`, `--json`, and `--artifacts`;
 unknown options or missing values fail before browser work.

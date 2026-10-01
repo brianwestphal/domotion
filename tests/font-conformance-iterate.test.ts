@@ -12,10 +12,35 @@
  * first chunk with a finding, refuse without a baseline, treat a dead chunk as
  * no-verdict) lives in `main()` and is exercised by running it.
  */
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { newRoutes, routesOf } from "../scripts/font-conformance-iterate.mjs";
+import { newRoutes, newRoutesFromReport, routesOf } from "../scripts/font-conformance-iterate.mjs";
 
 describe("font-conformance iterate: what counts as a new route (DM-1888)", () => {
+  it("validates legacy and current chunk reports before comparing routes", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "domotion-font-iterate-")), "report.json");
+    const data = {
+      meta: { platform: "darwin", arch: "arm64", chromium: "test" },
+      summary: { mismatchTotal: 1, comparisons: 1 },
+      topMismatchPairs: [{ pair: "new → route", count: 1 }],
+    };
+    const baseline = { byPair: { "old → route": 1 } };
+    writeFileSync(path, JSON.stringify(data));
+    expect(newRoutesFromReport(path, baseline)).toEqual(["new → route"]);
+    const envelope = { schemaVersion: 1, tool: "font-conformance", data: { ...data, outcome: "fail" } };
+    writeFileSync(path, JSON.stringify(envelope));
+    expect(newRoutesFromReport(path, baseline)).toEqual(["new → route"]);
+    writeFileSync(path, JSON.stringify({ ...envelope, schemaVersion: 2 }));
+    expect(() => newRoutesFromReport(path, baseline)).toThrow();
+    writeFileSync(path, JSON.stringify({ ...envelope, tool: "other-tool" }));
+    expect(() => newRoutesFromReport(path, baseline)).toThrow();
+    writeFileSync(path, JSON.stringify({ topMismatchPairs: [{ pair: "new → route" }] }));
+    expect(() => newRoutesFromReport(path, baseline)).toThrow();
+    writeFileSync(path, JSON.stringify({ ...data, topMismatchPairs: undefined }));
+    expect(() => newRoutesFromReport(path, baseline)).toThrow();
+  });
   it("reads routes from a merged baseline and from a raw chunk report alike", () => {
     // A merged baseline keys them in `byPair`; a shard report lists them in
     // `topMismatchPairs`. Both shapes must be comparable or the driver would

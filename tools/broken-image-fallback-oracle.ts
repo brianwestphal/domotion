@@ -16,6 +16,7 @@ import type { CDPSession, Page, Route } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type {
   CapturedBrokenImageFallback,
@@ -1820,8 +1821,12 @@ async function main(argv: string[]): Promise<number> {
   );
   const artifactRoot = resolve(String(flag(args, "artifacts", resolve(dirname(reportPath), "artifacts"))));
   const report = await runBrokenImageFallbackOracle({ deviceScaleFactors: dprs, colorSchemes: schemes, artifactRoot });
-  mkdirSync(dirname(reportPath), { recursive: true });
-  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  writeReport(
+    reportPath,
+    "broken-image-fallback-oracle",
+    { ...report, outcome: report.verdict === "hard-broken-image-fallback-parity" ? "pass" : "fail" },
+    { schemaVersion: 1 },
+  );
   console.log(
     `broken-image fallback gate: ${report.summary.rowsPassed}/${report.rows.length} rows, ${report.summary.mutationsMoved}/${report.mutations.length} mutations; ${report.verdict}`,
   );

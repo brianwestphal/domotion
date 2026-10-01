@@ -30,6 +30,12 @@ corpus digest and one byte-identical logical-stream digest, producing
 `proposal-validation-agreement`. Rasterization remains explicitly `not-started`
 at that aggregate boundary.
 
+Per-run and aggregate JSON artifacts use the versioned tool-report envelope
+with normalized `data.outcome`; the source-owned logical records remain in
+`data`. The aggregate validates current envelopes and legacy schema-version-1
+per-run artifacts before comparing proposal and validation evidence. Nested
+`--json` destinations are created automatically.
+
 ## Pinned source ownership
 
 The source audit uses Chromium

@@ -26,6 +26,29 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { z } from "zod";
+
+const mergedDataSchema = z
+  .object({
+    meta: z.object({ complete: z.boolean() }).passthrough(),
+    summary: z.object({ mismatchTotal: z.number().nonnegative() }).passthrough(),
+  })
+  .passthrough();
+
+/** Validate a current merged envelope or a committed legacy result. */
+export function readMergedFontReport(path) {
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  if (raw != null && typeof raw === "object" && "schemaVersion" in raw) {
+    return z
+      .object({
+        schemaVersion: z.literal(1),
+        tool: z.literal("merge-font-conformance-shards"),
+        data: mergedDataSchema.extend({ outcome: z.enum(["pass", "fail", "skip", "error"]) }),
+      })
+      .parse(raw).data;
+  }
+  return mergedDataSchema.parse(raw);
+}
 
 export function parseBaselineArgs(args, env = process.env) {
   const get = (flag, dflt = null) => {
@@ -247,7 +270,7 @@ function main() {
     process.stderr.write("--results is required\n");
     process.exit(2);
   }
-  const run = JSON.parse(readFileSync(resultsPath, "utf8"));
+  const run = readMergedFontReport(resultsPath);
   const md = formatRunHeader(run, label);
 
   // An incomplete merge is not a score. Say so before anything is compared.

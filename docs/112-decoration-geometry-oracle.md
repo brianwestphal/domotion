@@ -232,6 +232,8 @@ npx tsx tools/decoration-oracle.ts --no-gate-svg-geometry # demote the R-vs-S ga
 npx tsx tools/decoration-oracle.ts --no-gate-skip-ink    # demote the skip-ink gate to informational
 ```
 
+`--json` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report, creating parent directories as needed. The existing per-case `results`, environment, tolerances, and gate settings are in `data`, with normalized `outcome` (`pass` or `fail`). The Linux arm64 release reader accepts validated older flat reports and rejects unknown envelope versions.
+
 Exit codes: `0` all armed gates pass · `1` an armed gate failed · `2` setup
 error. Failures print a per-case geometry report (predicted vs measured top /
 height / segment edges, with deltas).

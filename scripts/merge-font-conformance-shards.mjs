@@ -18,9 +18,33 @@
 // belongs to `scripts/diff-font-conformance-baseline.mjs`, which compares the
 // merged document against the platform's own committed baseline.
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { z } from "zod";
+
+const shardDataSchema = z
+  .object({
+    meta: z.object({ platform: z.string(), arch: z.string(), chromium: z.string() }).passthrough(),
+    summary: z.object({ mismatchTotal: z.number().nonnegative(), comparisons: z.number().nonnegative() }).passthrough(),
+  })
+  .passthrough();
+
+/** Accept committed legacy shards, but reject unknown or mismatched envelopes. */
+export function readFontShardReport(path) {
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  if (raw != null && typeof raw === "object" && "schemaVersion" in raw) {
+    const envelope = z
+      .object({
+        schemaVersion: z.literal(1),
+        tool: z.literal("font-conformance"),
+        data: shardDataSchema.extend({ outcome: z.enum(["pass", "fail", "skip", "error"]) }),
+      })
+      .parse(raw);
+    return envelope.data;
+  }
+  return shardDataSchema.parse(raw);
+}
 
 /**
  * Fold shard reports into one document.
@@ -302,7 +326,7 @@ function main() {
     const f = join(dir, name, "report.json");
     return {
       name,
-      report: existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null,
+      report: existsSync(f) ? readFontShardReport(f) : null,
       env: {
         image: readShardFile(name, "runner-image.txt")?.trim() || null,
         fontInventory: inventoryOf(readShardFile(name, "font-inventory.json")),
@@ -320,7 +344,17 @@ function main() {
   const imageId = image ?? withReport.find((s) => s.env.image != null)?.env.image ?? null;
 
   const doc = mergeShards(shards, { os, expected, image: imageId, fontInventory });
-  writeFileSync(out, `${JSON.stringify(doc, null, 2)}\n`);
+  const outcome =
+    !doc.meta.complete || doc.meta.envConflicts.length > 0 ? "error" : doc.summary.mismatchTotal > 0 ? "fail" : "pass";
+  const envelope = {
+    schemaVersion: 1,
+    tool: "merge-font-conformance-shards",
+    generatedAt: doc.meta.capturedAt,
+    env: { os, image: imageId },
+    data: { ...doc, outcome },
+  };
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, `${JSON.stringify(envelope, null, 2)}\n`);
   process.stderr.write(
     `merged ${doc.meta.shardsMerged}/${doc.meta.shardsExpected} shard reports → ${out}` +
       `${doc.meta.complete ? "" : ` (INCOMPLETE: missing ${doc.meta.missingShards.join(", ") || "shard artifacts"})`}\n`,

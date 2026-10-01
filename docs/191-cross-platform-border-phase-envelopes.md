@@ -5,12 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2355"]
+tickets: ["DM-2355", "DM-N6XJRS"]
 code: [".github/workflows/border-phase-oracle.yml", "tools/border-phase-oracle.ts", "tools/border-phase-ratifier.ts"]
 aliases: ["docs/191-cross-platform-border-phase-envelopes.md", "doc-191"]
 ---
 
 # Cross-platform border phase envelopes
+
+The oracle and ratifier write the [versioned tool report envelope](267-tool-report-envelope.md) for `--json` destinations. The ratifier validates an oracle envelope before using it and temporarily accepts the flat version 2 oracle report; unknown versions fail. Baseline and run-environment inputs keep their independent formats.
 
 The oracle accepts `--json`, `--keep`, `--dsf`, `--zoom`, and `--report-only`;
 unknown options or missing values fail before capture starts.

@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["layout", "platform-release"]
 platforms: ["macos", "linux"]
-tickets: ["DM-2382", "DM-2383", "DM-2466", "DM-2467", "DM-2468", "DM-2633"]
+tickets: ["DM-2382", "DM-2383", "DM-2466", "DM-2467", "DM-2468", "DM-2633", "DM-N6XJRS"]
 code:
   [
     ".github/workflows/pseudo-fragment-render-parity.yml",
@@ -28,6 +28,8 @@ aliases: ["docs/157-pseudo-generated-fragment-geometry-audit.md", "doc-157"]
 ---
 
 # 157 — Generated pseudo fragment and baseline geometry audit
+
+The geometry oracle writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 **Ticket:** DM-2383  
 **Status:** DM-2466 structural oracle, DM-2467 source-owned capture, and DM-2468 direct rendering/native paint gate are complete (docs 175/176/178)

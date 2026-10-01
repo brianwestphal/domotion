@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 /** Live Chromium validation for the source-transcribed paint geometry oracle. */
-import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { blinkCornerLine } from "./paint-geometry-oracle.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -306,7 +306,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const report = await runBrowserPaintOracle();
   const failures = report.probes.filter((probe) => !probe.pass);
   const json = flag(values, "--json");
-  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
+  if (json != null)
+    writeReport(
+      json,
+      "paint-geometry-browser-oracle",
+      { ...report, outcome: failures.length ? "fail" : "pass" },
+      { schemaVersion: 1 },
+    );
   console.log(
     `paint geometry browser oracle: ${report.probes.length - failures.length}/${report.probes.length}; ${report.chromiumVersion}; source ${report.sourceRevision}`,
   );

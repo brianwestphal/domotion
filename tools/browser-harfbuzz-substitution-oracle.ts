@@ -15,10 +15,11 @@
  * Raster output and tolerance grading are deliberately absent.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { platform } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { type Browser, type BrowserContext, type Page } from "playwright";
+import { z } from "zod";
 import {
   harfbuzzShapeRun,
   registerHbBufferSource,
@@ -29,6 +30,7 @@ import {
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { outcomeSchema, readReportData, writeReport } from "./lib/report.js";
 import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
@@ -242,6 +244,54 @@ export interface SubstitutionAggregateReport {
   rasterization: "not-started";
   verdict: "proposal-validation-agreement" | "verdict-withheld";
   failures: string[];
+}
+
+const browserSubstitutionLegacySchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    stage: z.literal("browser-harfbuzz-substitution-streams"),
+    evidence: z.enum(["proposal", "validation"]),
+    runner: z.object({ os: z.string(), browserVersion: z.string().nullable() }).passthrough(),
+    sourceAuthority: z.object({ chromium: z.string(), harfbuzz: z.string(), skia: z.string() }),
+    fixtures: z.array(z.object({ id: z.string(), sha256: z.string() }).passthrough()),
+    cases: z.array(z.object({ id: z.string() }).passthrough()),
+    mutations: z.array(z.object({ id: z.string(), rejected: z.boolean() }).passthrough()),
+    mutationCoverage: z.object({ complete: z.boolean(), required: z.array(z.string()), rejected: z.array(z.string()) }),
+    corpusSha256: z.string(),
+    logicalSha256: z.string(),
+    verdict: z.enum(["exact-logical-agreement", "verdict-withheld"]),
+  })
+  .passthrough();
+const browserSubstitutionDataSchema = browserSubstitutionLegacySchema.extend({ outcome: outcomeSchema });
+
+export function readBrowserSubstitutionReport(path: string): BrowserHarfBuzzSubstitutionReport {
+  return readReportData(path, browserSubstitutionDataSchema, {
+    tool: "browser-harfbuzz-substitution-oracle",
+    schemaVersion: 1,
+    legacySchemaVersion: 1,
+    legacySchema: browserSubstitutionLegacySchema.transform((report) => ({
+      ...report,
+      outcome: report.verdict === "exact-logical-agreement" ? ("pass" as const) : ("fail" as const),
+    })),
+  }) as unknown as BrowserHarfBuzzSubstitutionReport;
+}
+
+export function writeBrowserSubstitutionReport(path: string, report: BrowserHarfBuzzSubstitutionReport): void {
+  writeReport(
+    path,
+    "browser-harfbuzz-substitution-oracle",
+    { ...report, outcome: report.verdict === "exact-logical-agreement" ? "pass" : "fail" },
+    { schemaVersion: 1, env: report.runner },
+  );
+}
+
+export function writeBrowserSubstitutionAggregate(path: string, report: SubstitutionAggregateReport): void {
+  writeReport(
+    path,
+    "browser-harfbuzz-substitution-aggregate",
+    { ...report, outcome: report.verdict === "proposal-validation-agreement" ? "pass" : "fail" },
+    { schemaVersion: 1, env: { operatingSystems: report.required.operatingSystems } },
+  );
 }
 
 export const SUBSTITUTION_CASES: readonly SubstitutionCaseSpec[] = [
@@ -1228,13 +1278,9 @@ async function main(argv: string[]): Promise<number> {
   const json = flag(args, "json");
   const output = typeof json === "string" ? json : undefined;
   if (aggregateInput != null) {
-    const reports = artifactJsonPaths(resolve(aggregateInput)).map(
-      (path) => JSON.parse(readFileSync(path, "utf8")) as BrowserHarfBuzzSubstitutionReport,
-    );
+    const reports = artifactJsonPaths(resolve(aggregateInput)).map(readBrowserSubstitutionReport);
     const aggregate = validateSubstitutionArtifacts(reports);
-    if (output != null) {
-      writeFileSync(resolve(output), JSON.stringify(aggregate, null, 2));
-    }
+    if (output != null) writeBrowserSubstitutionAggregate(resolve(output), aggregate);
     console.log(`DM-2532 aggregate: ${aggregate.verdict}; artifacts=${aggregate.artifactKeys.length}`);
     if (aggregate.failures.length > 0) console.error(aggregate.failures.join("\n"));
     return aggregate.verdict === "proposal-validation-agreement" ? 0 : 1;
@@ -1246,11 +1292,7 @@ async function main(argv: string[]): Promise<number> {
     includeBrowser: flag(args, "logic-only", false) !== true,
   });
   if (output != null) {
-    const target = resolve(output);
-    if (!existsSync(dirname(target))) {
-      throw new Error(`output directory does not exist: ${dirname(target)}`);
-    }
-    writeFileSync(target, JSON.stringify(report, null, 2));
+    writeBrowserSubstitutionReport(resolve(output), report);
   }
   console.log(
     `DM-2532 ${evidence}: ${report.verdict}; cases=${report.cases.length}; hostile mutations=${report.mutationCoverage.rejected.length}`,

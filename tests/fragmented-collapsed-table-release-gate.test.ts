@@ -1,10 +1,14 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   adjudicateFragmentedCollapsedTableRelease,
   FRAGMENTED_TABLE_PLATFORMS,
+  readFragmentedReleaseReport,
 } from "../tools/fragmented-collapsed-table-release-gate.js";
+import { writeReport } from "../tools/lib/report.js";
 
 const screen = (os: string) => ({
   schemaVersion: 3,
@@ -29,6 +33,27 @@ const ink = (platform: string) => ({
 });
 
 describe("fragmented collapsed-table release gate", () => {
+  it("reads versioned and legacy artifacts but rejects unknown versions and tools", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fragmented-release-"));
+    const screenPath = join(dir, "screen-logical.json");
+    const inkPath = join(dir, "final-ink.json");
+    writeReport(
+      screenPath,
+      "collapsed-border-fragmentation-oracle",
+      { ...screen("darwin"), outcome: "pass" },
+      { schemaVersion: 1 },
+    );
+    writeReport(inkPath, "border-phase-ratifier", { ...ink("darwin"), outcome: "pass" }, { schemaVersion: 1 });
+    expect(readFragmentedReleaseReport(screenPath, "screen-logical.json")).toMatchObject(screen("darwin"));
+    expect(readFragmentedReleaseReport(inkPath, "final-ink.json")).toMatchObject(ink("darwin"));
+    writeFileSync(inkPath, JSON.stringify(ink("darwin")));
+    expect(readFragmentedReleaseReport(inkPath, "final-ink.json")).toMatchObject(ink("darwin"));
+    writeFileSync(inkPath, JSON.stringify({ ...ink("darwin"), schemaVersion: 99 }));
+    expect(() => readFragmentedReleaseReport(inkPath, "final-ink.json")).toThrow();
+    writeReport(inkPath, "wrong-tool", { ...ink("darwin"), outcome: "pass" }, { schemaVersion: 1 });
+    expect(() => readFragmentedReleaseReport(inkPath, "final-ink.json")).toThrow();
+  });
+
   it("requires all independent screen-logical and final-ink legs", () => {
     const result = adjudicateFragmentedCollapsedTableRelease(
       FRAGMENTED_TABLE_PLATFORMS.map(screen),

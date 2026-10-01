@@ -7,7 +7,9 @@
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { z } from "zod";
 import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import { outcomeSchema, reportEnvelopeSchema } from "./lib/report.js";
 
 export const FRAGMENTED_TABLE_PLATFORMS = ["darwin", "linux", "win32"] as const;
 const SCREEN_DISCRIMINATORS = 21;
@@ -115,14 +117,35 @@ export function adjudicateFragmentedCollapsedTableRelease(
   };
 }
 
-function findReports(root: string, name: string): unknown[] {
+const screenSchema = z.object({ schemaVersion: z.literal(3), environment: z.object({ os: z.string() }) }).passthrough();
+const inkSchema = z.object({ schemaVersion: z.literal(1), platform: z.string() }).passthrough();
+
+export function readFragmentedReleaseReport(path: string, name: "screen-logical.json" | "final-ink.json"): unknown {
+  const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const enveloped = raw != null && typeof raw === "object" && ("tool" in raw || "data" in raw);
+  if (name === "screen-logical.json") {
+    return enveloped
+      ? reportEnvelopeSchema(screenSchema.extend({ outcome: outcomeSchema }), {
+          tool: "collapsed-border-fragmentation-oracle",
+          schemaVersion: 1,
+        }).parse(raw).data
+      : screenSchema.parse(raw);
+  }
+  return enveloped
+    ? reportEnvelopeSchema(inkSchema.extend({ outcome: outcomeSchema }), {
+        tool: "border-phase-ratifier",
+        schemaVersion: 1,
+      }).parse(raw).data
+    : inkSchema.parse(raw);
+}
+
+function findReports(root: string, name: "screen-logical.json" | "final-ink.json"): unknown[] {
   const found: unknown[] = [];
   const visit = (path: string): void => {
     for (const entry of readdirSync(path, { withFileTypes: true })) {
       const child = join(path, entry.name);
       if (entry.isDirectory()) visit(child);
-      else if (entry.isFile() && basename(child) === name)
-        found.push(JSON.parse(readFileSync(child, "utf8")) as unknown);
+      else if (entry.isFile() && basename(child) === name) found.push(readFragmentedReleaseReport(child, name));
     }
   };
   visit(root);

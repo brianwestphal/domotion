@@ -18,6 +18,7 @@ import svg2ttf from "svg2ttf";
 import { hbSubsetRetainGids, injectPuaCmap } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 
 const fontkit = (fontkitNs as { default?: typeof fontkitNs }).default ?? fontkitNs;
@@ -901,7 +902,12 @@ export async function runLinuxTerminalMaskOracle(options: LinuxTerminalMaskOracl
     ),
     results,
   };
-  writeFileSync(out, JSON.stringify(report, null, 2));
+  writeReport(
+    out,
+    "linux-terminal-mask-oracle",
+    { ...report, outcome: validateLinuxTerminalMaskResults(results).length > 0 ? "fail" : "pass" },
+    { schemaVersion: 1 },
+  );
   return report;
 }
 

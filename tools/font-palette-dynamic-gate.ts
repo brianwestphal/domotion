@@ -12,6 +12,7 @@ import { resolve } from "node:path";
 import { type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { writeReport } from "./lib/report.js";
 import {
   attachWebfontTracker,
   captureElementTreeWithWarnings,
@@ -603,6 +604,15 @@ export interface FontPaletteDynamicGateReport {
   productionOrders: DynamicProductionOrderEvidence[];
 }
 
+export function writeFontPaletteDynamicReport(path: string, report: FontPaletteDynamicGateReport): void {
+  writeReport(
+    path,
+    "font-palette-dynamic-gate",
+    { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+    { schemaVersion: 1, env: report.fingerprint },
+  );
+}
+
 export async function runFontPaletteDynamicGate(options: {
   colrv1Source: Colrv1SourceFacts;
   colrv1Fixture: string;
@@ -675,7 +685,7 @@ export async function runFontPaletteDynamicGate(options: {
           productionOrders,
         };
         if (artifactDir != null)
-          writeFileSync(resolve(artifactDir, "font-palette-dynamic-report.json"), JSON.stringify(report, null, 2));
+          writeFontPaletteDynamicReport(resolve(artifactDir, "font-palette-dynamic-report.json"), report);
         return report;
       },
       { headless: true },

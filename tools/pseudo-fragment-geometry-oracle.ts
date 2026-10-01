@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 /** Live Chromium structural oracle for generated ::before/::after fragments. */
-import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
@@ -669,7 +669,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runPseudoFragmentGeometryOracle();
   const json = flag(values, "--json");
-  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
+  if (json != null)
+    writeReport(
+      json,
+      "pseudo-fragment-geometry-oracle",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   const passed = report.rows.filter((row) => row.pass).length;
   const rejected = report.mutations.filter((mutation) => mutation.rejected).length;
   console.log(

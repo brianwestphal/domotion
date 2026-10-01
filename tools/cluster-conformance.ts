@@ -77,6 +77,8 @@ import {
   hbSubsetRetainGids,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { clusterConformanceDataSchema } from "./conformance-report-schemas.js";
+import { writeReport } from "./lib/report.js";
 import { flag, isMain, parseFlags } from "./lib/cli.js";
 import { clearWebfonts, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
 // Reuse the per-codepoint oracle's face-identity reconciliation verbatim, so
@@ -510,8 +512,10 @@ async function main(argv: string[]): Promise<number> {
     process.env.DOMOTION_CLUSTER_FALLBACK === "0" ? "legacy-per-codepoint" : "shaped-cluster (default)";
   const results: CellResult[] = [];
   beginCharacterFallbackDocument();
+  let chromiumVersion = "unknown";
   try {
     await withBrowser(async (browser) => {
+      chromiumVersion = browser.version();
       const chrome = await ChromeSide.create(browser);
       for (const cell of cells) {
         if (cell.knownSkipReason != null) {
@@ -580,7 +584,7 @@ async function main(argv: string[]): Promise<number> {
       platform: process.platform,
       arch: process.arch,
       node: process.version,
-      chromium: browser.version(),
+      chromium: chromiumVersion,
       clusterFallback: clusterFlag,
       cells: results.length,
       agreed,
@@ -589,10 +593,18 @@ async function main(argv: string[]): Promise<number> {
     },
     results,
   };
-  writeFileSync(join(opts.outDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+  const reportData = clusterConformanceDataSchema.parse({
+    ...report,
+    outcome: mismatched > 0 ? "fail" : agreed === 0 ? "skip" : "pass",
+  });
+  writeReport(join(opts.outDir, "report.json"), "cluster-conformance", reportData, {
+    schemaVersion: 1,
+    generatedAt: report.meta.generatedAt,
+    env: { platform: process.platform, arch: process.arch, chromium: chromiumVersion },
+  });
 
   const lines: string[] = [];
-  lines.push(`cluster-conformance — ${process.platform} ${process.arch}, ${browser.version()}`);
+  lines.push(`cluster-conformance — ${process.platform} ${process.arch}, ${chromiumVersion}`);
   lines.push(
     `mechanism          ${clusterFlag}  (DOMOTION_CLUSTER_FALLBACK=${process.env.DOMOTION_CLUSTER_FALLBACK ?? "unset"})`,
   );

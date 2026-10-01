@@ -1,10 +1,9 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { seekAnimationsToFrame } from "../src/capture/animation-frame.js";
 import { projectiveQuadResidual, type ProjectivePaintQuad } from "../src/capture/projective-owner.js";
@@ -447,10 +446,13 @@ async function main(argv: string[]): Promise<number> {
     ]),
   });
   const json = flag(args, "json");
-  if (typeof json === "string") {
-    mkdirSync(dirname(json), { recursive: true });
-    writeFileSync(json, JSON.stringify(report, null, 2));
-  }
+  if (typeof json === "string")
+    writeReport(
+      json,
+      "animated-projective-frame-oracle",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   const passed = report.rows.filter((row) => row.pass).length;
   console.log(
     `animated projective frame oracle: ${passed}/${report.rows.length}; mutations ${report.mutations.filter((m) => m.killed).length}/${report.mutations.length}; ${report.verdict}`,

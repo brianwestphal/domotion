@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["layout", "platform-release"]
 platforms: []
-tickets: []
+tickets: ["DM-N6XJRS"]
 code:
   [
     "src/capture/script/index.ts",
@@ -17,6 +17,8 @@ aliases: ["docs/131-transform-geometry-oracle.md", "doc-131"]
 ---
 
 # 131 — Transform, projection, and reflection geometry oracle
+
+The command writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 `npm run transform:geometry-oracle` is the live-Chromium decision gate for
 transform geometry. It generates adversarial boxes rather than relying on demo

@@ -37,7 +37,8 @@ describe("Blink FragmentItem UTF-16 span logical oracle", () => {
 
   it("is explicitly headless and contains no screenshot or visual-tolerance leg", () => {
     const source = readFileSync("tools/text-fragment-span-oracle.ts", "utf8");
-    expect(source).toMatch(/chromium\.launch\(\{ headless: true,/);
+    expect(source).toMatch(/withBrowser\(/);
+    expect(source).toMatch(/\{ headless: true, args: \["--font-render-hinting=none"\] \}/);
     expect(source).not.toMatch(/\.screenshot\s*\(/);
     expect(source).not.toMatch(/pixelmatch|visualTolerance|visualThreshold/);
   });

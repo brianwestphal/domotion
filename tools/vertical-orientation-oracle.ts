@@ -9,8 +9,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   ICU_BINARY,
   isIcuHelperAvailable,
@@ -18,6 +18,7 @@ import {
   type IcuCodepointProperties,
 } from "@domotion/text-engine/testing";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import {
   GRAPHEME_EXTEND_RANGES,
   MIXED_VERTICAL_UPRIGHT_RANGES,
@@ -369,11 +370,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     requireSource: values["require-source"] === true,
   });
   const output = flag(values, "--json");
-  if (output != null) {
-    const path = resolve(output);
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
-  }
+  if (output != null)
+    writeReport(
+      resolve(output),
+      "vertical-orientation-oracle",
+      { ...report, outcome: report.verdict === "exact-logical-match" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   return report.verdict === "exact-logical-match" ? 0 : 1;
 }

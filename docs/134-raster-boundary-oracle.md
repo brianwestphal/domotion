@@ -5,12 +5,14 @@ kind: "evidence"
 status: "current"
 owners: ["images-media", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2463", "DM-2465"]
+tickets: ["DM-2463", "DM-2465", "DM-N6XJRS"]
 code: ["tools/raster-boundary-oracle.ts", "docs/reference/raster-image-fallback-cases.md", ".github/workflows/ci.yml"]
 aliases: ["docs/134-raster-boundary-oracle.md", "doc-134"]
 ---
 
 # 134 — Raster-fallback activation and vector-boundary oracle
+
+The command writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 `npm run raster:boundary-oracle` proves that raster paint is activated only at
 an inventoried SVG representation boundary, and that the paired representable

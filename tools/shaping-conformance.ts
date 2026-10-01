@@ -63,6 +63,8 @@ import {
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
+import { shapingConformanceDataSchema } from "./conformance-report-schemas.js";
 import { finiteFlag, intFlag } from "./lib/conformance-args.js";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { registerWebfont } from "../src/render/font-resolution.js";
@@ -1569,27 +1571,28 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
 
     mkdirSync(opts.outDir, { recursive: true });
     writeFileSync(join(opts.outDir, "summary.txt"), summary);
-    writeFileSync(
-      join(opts.outDir, "report.json"),
-      `${JSON.stringify(
-        buildShapingReport({
-          platform: process.platform,
-          runs: total,
-          corpus,
-          chromium: browser.version(),
-          tolerance: opts.tolerance,
-          wallMs: Date.now() - t0,
-          counts,
-          allowlisted,
-          routes,
-          featureValueRecords,
-          defaultIgnorableRecords,
-          rows,
-        }),
-        null,
-        2,
-      )}\n`,
-    );
+    const report = buildShapingReport({
+      platform: process.platform,
+      runs: total,
+      corpus,
+      chromium: browser.version(),
+      tolerance: opts.tolerance,
+      wallMs: Date.now() - t0,
+      counts,
+      allowlisted,
+      routes,
+      featureValueRecords,
+      defaultIgnorableRecords,
+      rows,
+    });
+    const reportData = shapingConformanceDataSchema.parse({
+      ...report,
+      outcome: total === 0 ? "skip" : mismatchTotal === 0 ? "pass" : "fail",
+    });
+    writeReport(join(opts.outDir, "report.json"), "shaping-conformance", reportData, {
+      schemaVersion: 1,
+      env: { platform: process.platform, arch: process.arch, chromium: browser.version() },
+    });
     process.stdout.write(`\n${summary}\nreport → ${join(opts.outDir, "report.json")}\n`);
     return mismatchTotal === 0 ? 0 : 1;
   }, undefined);

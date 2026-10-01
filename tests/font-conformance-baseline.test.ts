@@ -18,7 +18,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { environmentConflicts, mergeShards, sliceOf } from "../scripts/merge-font-conformance-shards.mjs";
+import {
+  environmentConflicts,
+  mergeShards,
+  readFontShardReport,
+  sliceOf,
+} from "../scripts/merge-font-conformance-shards.mjs";
 import {
   baselineFrom,
   compareAgainstBaseline,
@@ -27,10 +32,39 @@ import {
   oracleMovement,
   parseBaselineArgs,
   resolverAnswersMatch,
+  readMergedFontReport,
   stackDelta,
 } from "../scripts/diff-font-conformance-baseline.mjs";
 
 describe("baseline command seams", () => {
+  it("reads legacy and versioned reports, rejecting unknown versions and tools", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-font-report-seams-"));
+    const shardPath = join(dir, "shard.json");
+    const mergedPath = join(dir, "merged.json");
+    const shard = {
+      meta: { platform: "linux", arch: "x64", chromium: "test" },
+      summary: { mismatchTotal: 0, comparisons: 1 },
+    };
+    const merged = { meta: { complete: true }, summary: { mismatchTotal: 0 } };
+    writeFileSync(shardPath, JSON.stringify(shard));
+    writeFileSync(mergedPath, JSON.stringify(merged));
+    expect(readFontShardReport(shardPath).summary.mismatchTotal).toBe(0);
+    expect(readMergedFontReport(mergedPath).meta.complete).toBe(true);
+
+    const envelope = (tool: string, data: unknown) => ({
+      schemaVersion: 1,
+      tool,
+      data: { ...(data as object), outcome: "pass" },
+    });
+    writeFileSync(shardPath, JSON.stringify(envelope("font-conformance", shard)));
+    writeFileSync(mergedPath, JSON.stringify(envelope("merge-font-conformance-shards", merged)));
+    expect(readFontShardReport(shardPath).outcome).toBe("pass");
+    expect(readMergedFontReport(mergedPath).outcome).toBe("pass");
+    writeFileSync(shardPath, JSON.stringify({ ...envelope("font-conformance", shard), schemaVersion: 2 }));
+    expect(() => readFontShardReport(shardPath)).toThrow();
+    writeFileSync(mergedPath, JSON.stringify(envelope("wrong-tool", merged)));
+    expect(() => readMergedFontReport(mergedPath)).toThrow();
+  });
   it("parses flags and builds a deterministic baseline projection", () => {
     expect(parseBaselineArgs(["--results", "run.json", "--strict"], { GITHUB_SHA: "abc" })).toMatchObject({
       resultsPath: "run.json",

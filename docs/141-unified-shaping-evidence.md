@@ -33,6 +33,8 @@ representative face-and-run pair. Each record contains:
   level; and
 - the complete parity environment fingerprint.
 
+The report uses a version 1 `{schemaVersion, tool, generatedAt, env, data}` envelope with a normalized `data.outcome`. Its exact-shaping input reader validates the current envelope and flat schema v3 artifacts, rejecting unknown versions and malformed records before the browser join.
+
 This is a joined evidence record, not a claim that CDP exposes glyph IDs. At the
 pinned Chromium revision, `ShapeResultRun` owns `HarfBuzzRunGlyphData` and its
 offset collection, but the public `CSS.getPlatformFontsForNode` surface exposes

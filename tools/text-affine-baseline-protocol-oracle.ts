@@ -11,10 +11,10 @@
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { mkdirSync, writeFileSync } from "node:fs";
 import { type CDPSession, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import type {
   CapturedElement,
   CapturedTextPaintAffine,
@@ -801,12 +801,20 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
   );
 }
 
+export function writeTextAffineBaselineReport(path: string, report: TextBaselineProtocolReport): void {
+  writeReport(
+    path,
+    "text-affine-baseline-protocol-oracle",
+    { ...report, outcome: report.verdict === "source-exact-line-origin" ? "pass" : "fail" },
+    { schemaVersion: 1, generatedAt: report.generatedAt, env: report.fingerprint },
+  );
+}
+
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runTextAffineBaselineProtocolOracle();
   const path = resolve(flag(values, "--json", `tests/output/text-affine-baseline-protocol-${platform()}.json`)!);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
+  writeTextAffineBaselineReport(path, report);
   console.log(
     `text affine baseline protocol: ${report.rows.filter((row) => row.pass).length}/${report.rows.length}; ${report.verdict}`,
   );

@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
-import { writeFileSync } from "node:fs";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import {
   establishesStackingContext,
   gatherStackingContextChildren,
@@ -398,7 +398,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const values = parseFlags(argv, { json: { type: "string" } });
   const report = await collectPaintOrderEvidence();
   const json = flag(values, "--json");
-  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
+  if (json != null)
+    writeReport(
+      json,
+      "paint-order-oracle",
+      { ...report, outcome: comparePaintOrderEvidence(report).exitCode ? "fail" : "pass" },
+      { schemaVersion: 1 },
+    );
   for (const line of formatPaintOrderReport(report)) console.log(line);
   if (comparePaintOrderEvidence(report).exitCode !== 0) process.exitCode = 1;
 }

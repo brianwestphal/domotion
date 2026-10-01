@@ -12,7 +12,6 @@ import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync } from "node:fs";
 import { type BrowserContext, type CDPSession, type LaunchOptions, type Page } from "@playwright/test";
 import {
   resolveSystemUiFontFace,
@@ -21,6 +20,7 @@ import {
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
@@ -648,7 +648,16 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
   const report = await runSystemUiPreferenceRouteOracle(args);
   const out = flag(values, "--json");
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  if (out != null && out !== "") writeFileSync(resolve(out), json);
+  if (out != null && out !== "")
+    writeReport(
+      resolve(out),
+      "system-ui-preference-route-oracle",
+      {
+        ...report,
+        outcome: report.verdict === "unavailable" ? "skip" : report.verdict === "source-exact" ? "pass" : "fail",
+      },
+      { schemaVersion: 1 },
+    );
   process.stdout.write(json);
   return report.verdict === "source-exact" ? 0 : 1;
 }

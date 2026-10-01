@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   BORDER_PHASE_SOURCE_PINS,
@@ -9,10 +12,32 @@ import {
 import {
   adjudicateBorderPhaseReport,
   artifactSetFingerprint,
+  readBorderPhaseOracleReport,
   type BorderPhaseEnvelope,
   type BorderPhaseReport,
   type RunEnvironment,
 } from "../tools/border-phase-ratifier.js";
+import { writeReport } from "../tools/lib/report.js";
+
+const reportDirs: string[] = [];
+afterEach(() => {
+  for (const dir of reportDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+it("reads the legacy border-phase report and rejects unknown envelope versions", () => {
+  const dir = mkdtempSync(join(tmpdir(), "domotion-border-report-"));
+  reportDirs.push(dir);
+  const path = join(dir, "nested", "report.json");
+  const data = fixture().report;
+  writeReport(path, "border-phase-oracle", { ...data, outcome: "pass" }, { schemaVersion: 1 });
+  expect(readBorderPhaseOracleReport(path).corpusFingerprint).toBe("fixture-corpus");
+  writeReport(path, "border-phase-oracle", { ...data, outcome: "pass" }, { schemaVersion: 3 });
+  expect(() => readBorderPhaseOracleReport(path)).toThrow();
+  writeFileSync(path, JSON.stringify(data));
+  expect(readBorderPhaseOracleReport(path).scenarios).toHaveLength(9);
+  writeFileSync(path, JSON.stringify({ ...data, schemaVersion: 4 }));
+  expect(() => readBorderPhaseOracleReport(path)).toThrow();
+});
 
 const fingerprint: RunEnvironment = {
   image: "macos26-arm64",

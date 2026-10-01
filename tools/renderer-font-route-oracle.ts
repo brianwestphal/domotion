@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { type Browser } from "playwright";
 import bidiFactory from "bidi-js";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import {
   clearEmbeddedFonts,
   clearGlyphDefs,
@@ -482,7 +483,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       const { controls, mechanisms } = compareRouteControls(records);
       const complete = compareRouteEvidence(records, controls);
       const report = buildRouteReport(records, helperEnvironment, mechanisms, controls, complete);
-      if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+      if (output != null)
+        writeReport(
+          output,
+          "renderer-font-route-oracle",
+          { ...report, outcome: complete ? "pass" : "fail" },
+          { schemaVersion: 1 },
+        );
       console.log(
         `renderer font-route evidence: ${records.length} cases; mechanisms ${mechanisms.join(", ")}; controls ${JSON.stringify(controls)}`,
       );

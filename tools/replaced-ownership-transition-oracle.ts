@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { createRequire } from "node:module";
 
@@ -9,6 +8,7 @@ import sharp from "sharp";
 import { type Browser, type BrowserContext, type Page, type Route } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CaptureWarning } from "../src/capture/types.js";
@@ -1041,7 +1041,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const report = await runReplacedOwnershipGate(dprs);
   const json = flag(values, "--json");
   if (json != null) {
-    writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
+    writeReport(
+      json,
+      "replaced-ownership-transition-oracle",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   }
   for (const run of report.runs) {
     console.log(

@@ -4231,6 +4231,16 @@
       "file": "266-tool-command-boundary.md"
     },
     {
+      "id": "requirements/tool-report-envelope",
+      "title": "Tool report envelope",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["tools"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": ["tools/lib/report.ts", "tools/conformance-report-schemas.ts"],
+      "file": "267-tool-report-envelope.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

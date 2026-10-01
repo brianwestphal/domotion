@@ -15,8 +15,8 @@ export {
   type ReplacedOwnershipRunReport,
 } from "./replaced-ownership-transition-oracle.js";
 
-import { writeFileSync } from "node:fs";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { runReplacedOwnershipGate } from "./replaced-ownership-transition-oracle.js";
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
@@ -32,7 +32,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const report = await runReplacedOwnershipGate(dprs);
   const json = flag(values, "--json");
   if (json != null) {
-    writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
+    writeReport(
+      json,
+      "replaced-geometry-oracle",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   }
   for (const run of report.runs) {
     console.log(

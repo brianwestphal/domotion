@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 /** Live capture→SVG oracle for the generated DM-2358 effect corpus. */
-import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { createRequire } from "node:module";
 import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -564,6 +564,15 @@ export async function runSvgEffectCombinationOracle(
   );
 }
 
+export function writeSvgEffectCombinationReport(path: string, report: SvgEffectCombinationReport): void {
+  writeReport(
+    path,
+    "svg-effect-combination-oracle",
+    { ...report, outcome: report.verdict === "source-exact-native-svg-delegation" ? "pass" : "fail" },
+    { schemaVersion: 1, generatedAt: report.generatedAt, env: report.fingerprint },
+  );
+}
+
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   const values = parseFlags(argv, { dpr: { type: "string" }, json: { type: "string" } });
   const dpr = flag(values, "--dpr");
@@ -572,8 +581,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const json = flag(values, "--json");
   if (json != null) {
     const output = resolve(json);
-    mkdirSync(dirname(output), { recursive: true });
-    writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
+    writeSvgEffectCombinationReport(output, report);
   }
   const passed = report.rows.filter((row) => row.pass).length;
   console.log(

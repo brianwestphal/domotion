@@ -147,6 +147,8 @@ import { join } from "node:path";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
 import { resolveFont } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { decorationDataSchema } from "./conformance-report-schemas.js";
+import { writeReport } from "./lib/report.js";
 import { flag as flagValue, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { setRenderTextMode } from "../src/render/font-resolution.js";
@@ -1529,43 +1531,41 @@ function reportDecorationResults(input: {
     );
   }
   if (jsonPath != null) {
-    writeFileSync(
-      jsonPath,
-      JSON.stringify(
-        {
-          generatedAt: new Date().toISOString(),
-          platform: process.platform,
-          architecture: process.arch,
-          chromiumVersion,
-          environment: {
-            schema: "decoration-environment-v1",
-            osType: osType(),
-            osRelease: osRelease(),
-            node: process.version,
-            icu: process.versions.icu ?? "unknown",
-            playwrightChromiumExecutableSha256: createHash("sha256")
-              .update(readFileSync(chromium.executablePath()))
-              .digest("hex"),
-            corpusSha256: decorationCorpusSha256(cases),
-          },
-          coordinateOwnership: {
-            source: "blink-physical-text-fragment-same-dpr-v1",
-            chromePaintDeviceScaleFactor: scalePlan.chromePaint,
-            domotionCaptureDeviceScaleFactor: scalePlan.domotionCapture,
-          },
-          tolerances: {
-            transcription: TOL_TRANSCRIPTION,
-            svgGeometry: TOL_SVG_GEOMETRY,
-            gapEdge: TOL_GAP_EDGE,
-            minSegmentWidth: MIN_SEGMENT_WIDTH,
-          },
-          gates: { transcription: true, skipInk: gateSkipInk, svgGeometry: gateSvgGeometry },
-          results,
-        },
-        null,
-        2,
-      ),
-    );
+    const reportData = decorationDataSchema.parse({
+      outcome: gateFailed ? "fail" : "pass",
+      generatedAt: new Date().toISOString(),
+      platform: process.platform,
+      architecture: process.arch,
+      chromiumVersion,
+      environment: {
+        schema: "decoration-environment-v1",
+        osType: osType(),
+        osRelease: osRelease(),
+        node: process.version,
+        icu: process.versions.icu ?? "unknown",
+        playwrightChromiumExecutableSha256: createHash("sha256")
+          .update(readFileSync(chromium.executablePath()))
+          .digest("hex"),
+        corpusSha256: decorationCorpusSha256(cases),
+      },
+      coordinateOwnership: {
+        source: "blink-physical-text-fragment-same-dpr-v1",
+        chromePaintDeviceScaleFactor: scalePlan.chromePaint,
+        domotionCaptureDeviceScaleFactor: scalePlan.domotionCapture,
+      },
+      tolerances: {
+        transcription: TOL_TRANSCRIPTION,
+        svgGeometry: TOL_SVG_GEOMETRY,
+        gapEdge: TOL_GAP_EDGE,
+        minSegmentWidth: MIN_SEGMENT_WIDTH,
+      },
+      gates: { transcription: true, skipInk: gateSkipInk, svgGeometry: gateSvgGeometry },
+      results,
+    });
+    writeReport(jsonPath, "decoration-oracle", reportData, {
+      schemaVersion: 1,
+      env: { platform: process.platform, architecture: process.arch, chromiumVersion },
+    });
     console.log(`json report: ${jsonPath}`);
   }
 

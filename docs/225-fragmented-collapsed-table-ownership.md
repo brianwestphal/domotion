@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2557", "DM-2558", "DM-2560", "DM-48MFKS"]
+tickets: ["DM-2557", "DM-2558", "DM-2560", "DM-48MFKS", "DM-N6XJRS"]
 code:
   [
     ".github/workflows/fragmented-collapsed-table-release.yml",
@@ -21,6 +21,8 @@ aliases: ["docs/225-fragmented-collapsed-table-ownership.md", "doc-225"]
 ---
 
 # Fragmented collapsed-table ownership
+
+The fragmentation oracle writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 The fragmentation oracle accepts `--json` and validates options before
 browser work.
@@ -95,6 +97,10 @@ reviewed native border-phase envelope across DPR 1/2/4 and zoom
 and refuses promotion if any platform, mutation, logical verdict, native
 scenario, or artifact-set identity is absent. Exact terminal ink cannot excuse
 an incomplete screen-fragment record.
+The gate reads the versioned `screen-logical.json` and `final-ink.json`
+envelopes from their respective producers, and accepts retained flat reports
+at their documented inner schema versions. Unknown versions and mismatched
+producer identities fail validation before release adjudication.
 
 Authenticated paged capture and its patched-Chromium transport were removed by
 DM-48MFKS. They are intentionally outside this screen-fragment contract.

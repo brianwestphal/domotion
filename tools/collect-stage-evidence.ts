@@ -1,8 +1,56 @@
 #!/usr/bin/env tsx
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { z } from "zod";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { outcomeSchema, reportEnvelopeSchema, writeReport } from "./lib/report.js";
+
+const oracleDataSchema = z.object({ outcome: outcomeSchema }).passthrough();
+const unifiedCompositeSchema = oracleDataSchema.extend({
+  evidencePassed: z.boolean(),
+  pairs: z.number().int().nonnegative(),
+  records: z.array(z.unknown()),
+});
+const rendererCompositeSchema = oracleDataSchema.extend({ evidencePassed: z.boolean() });
+
+export function annotateStageReport(path: string, toolPath: string, exitedSuccessfully: boolean) {
+  const tool = basename(toolPath, ".ts");
+  const report = reportEnvelopeSchema(oracleDataSchema, { tool, schemaVersion: 1 }).parse(
+    JSON.parse(readFileSync(path, "utf8")),
+  );
+  const data = {
+    ...report.data,
+    evidenceOracle: toolPath,
+    evidencePassed: exitedSuccessfully && report.data.outcome === "pass",
+  };
+  writeFileSync(path, `${JSON.stringify({ ...report, data }, null, 2)}\n`);
+  return data;
+}
+
+export function writeFontSelectionComposite(out: string): void {
+  const unified = reportEnvelopeSchema(unifiedCompositeSchema, {
+    tool: "unified-shaping-oracle",
+    schemaVersion: 1,
+  }).parse(JSON.parse(readFileSync(resolve(out, "shaping-clusters-glyphs.json"), "utf8"))).data;
+  const renderer = reportEnvelopeSchema(rendererCompositeSchema, {
+    tool: "renderer-font-route-oracle",
+    schemaVersion: 1,
+  }).parse(JSON.parse(readFileSync(resolve(out, "renderer-font-route.json"), "utf8"))).data;
+  writeReport(
+    resolve(out, "font-selection.json"),
+    "collect-stage-evidence",
+    {
+      outcome: unified.evidencePassed && renderer.evidencePassed ? "pass" : "fail",
+      evidenceOracle: "tools/unified-shaping-oracle.ts + tools/renderer-font-route-oracle.ts",
+      evidencePassed: unified.evidencePassed && renderer.evidencePassed,
+      pairs: unified.pairs,
+      records: unified.records,
+      rendererRoute: renderer,
+    },
+    { schemaVersion: 1 },
+  );
+}
 
 export function collectStageEvidence(argv: string[]): number {
   const values = parseFlags(argv, { out: { type: "string" } });
@@ -42,11 +90,7 @@ export function collectStageEvidence(argv: string[]): number {
         `[stage evidence] ${area} exited ${result.status ?? "without a status"}; retaining any report it wrote`,
       );
     try {
-      const report = JSON.parse(readFileSync(target, "utf8")) as Record<string, unknown>;
-      writeFileSync(
-        target,
-        JSON.stringify({ ...report, evidenceOracle: tool, evidencePassed: result.status === 0 }, null, 2),
-      );
+      annotateStageReport(target, tool, result.status === 0);
     } catch {
       /* explicit missing status in the manifest */
     }
@@ -56,28 +100,7 @@ export function collectStageEvidence(argv: string[]): number {
   // report and the production-funnel route ledger. Keep the raw child reports in
   // the composite so review never loses which boundary failed.
   try {
-    const unified = JSON.parse(readFileSync(resolve(out, "shaping-clusters-glyphs.json"), "utf8")) as Record<
-      string,
-      unknown
-    >;
-    const renderer = JSON.parse(readFileSync(resolve(out, "renderer-font-route.json"), "utf8")) as Record<
-      string,
-      unknown
-    >;
-    writeFileSync(
-      resolve(out, "font-selection.json"),
-      JSON.stringify(
-        {
-          evidenceOracle: "tools/unified-shaping-oracle.ts + tools/renderer-font-route-oracle.ts",
-          evidencePassed: unified.evidencePassed === true && renderer.evidencePassed === true,
-          pairs: unified.pairs,
-          records: unified.records,
-          rendererRoute: renderer,
-        },
-        null,
-        2,
-      ),
-    );
+    writeFontSelectionComposite(out);
   } catch {
     /* explicit missing status in the manifest */
   }

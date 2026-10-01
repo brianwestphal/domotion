@@ -6,8 +6,8 @@
  * production builders is the Domotion leg. Pixel integration remains a later
  * stage because Skia and SVG rasterization cannot establish logical geometry.
  */
-import { writeFileSync } from "node:fs";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import {
   buildLinearGradientDef,
   buildRadialGradientDef,
@@ -1761,7 +1761,13 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     ...result,
   };
   const json = flag(values, "--json");
-  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
+  if (json != null)
+    writeReport(
+      json,
+      "paint-geometry-oracle",
+      { ...report, outcome: failures.length || !result.movementProven ? "fail" : "pass" },
+      { schemaVersion: 1 },
+    );
   console.log(
     `paint geometry oracle: ${result.rows.length - failures.length}/${result.rows.length} exact; activation control ${result.movementProven ? "moved" : "DID NOT MOVE"}`,
   );

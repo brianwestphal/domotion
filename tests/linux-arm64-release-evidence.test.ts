@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,10 +8,42 @@ import {
   decorationEvidenceErrors,
   parseElfIdentity,
   pinnedGlyphProtocolForRelease,
+  readPaintBrowserReleaseReport,
+  readPaintGeometryReleaseReport,
   REQUIRED_OUTCOMES,
   sourceFingerprintErrors,
   stableFingerprint,
 } from "../tools/linux-arm64-release-evidence.js";
+import { writeReport } from "../tools/lib/report.js";
+
+it("validates paint source and browser reports across envelope and legacy shapes", () => {
+  const dir = mkdtempSync(join(tmpdir(), "domotion-linux-release-"));
+  try {
+    const sourcePath = join(dir, "source.json");
+    const browserPath = join(dir, "browser.json");
+    const source = { schemaVersion: 1, verdict: "exact-logical-agreement", movementProven: true, rows: [{}] };
+    const browser = {
+      verdict: "browser-validates-source-rules",
+      platform: "linux",
+      architecture: "arm64",
+      probes: [{}],
+    };
+    writeReport(sourcePath, "paint-geometry-oracle", { ...source, outcome: "pass" }, { schemaVersion: 1 });
+    writeReport(browserPath, "paint-geometry-browser-oracle", { ...browser, outcome: "pass" }, { schemaVersion: 1 });
+    expect(readPaintGeometryReleaseReport(sourcePath).outcome).toBe("pass");
+    expect(readPaintBrowserReleaseReport(browserPath).outcome).toBe("pass");
+    writeFileSync(sourcePath, JSON.stringify(source));
+    writeFileSync(browserPath, JSON.stringify(browser));
+    expect(readPaintGeometryReleaseReport(sourcePath).outcome).toBe("pass");
+    expect(readPaintBrowserReleaseReport(browserPath).outcome).toBe("pass");
+    writeFileSync(sourcePath, JSON.stringify({ ...source, schemaVersion: 4 }));
+    expect(() => readPaintGeometryReleaseReport(sourcePath)).toThrow();
+    writeReport(browserPath, "wrong-tool", { ...browser, outcome: "pass" }, { schemaVersion: 1 });
+    expect(() => readPaintBrowserReleaseReport(browserPath)).toThrow();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 function elf(machine: number, elfClass = 2, endian = 1): Buffer {
   const bytes = Buffer.alloc(64);

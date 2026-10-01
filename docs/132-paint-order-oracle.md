@@ -5,12 +5,14 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: []
-tickets: []
+tickets: ["DM-N6XJRS"]
 code: ["tools/paint-order-oracle.ts", "tools/parity-program.json"]
 aliases: ["docs/132-paint-order-oracle.md", "doc-132"]
 ---
 
 # 132 — Compositing and paint-order transition oracle
+
+The command writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 `npm run paint:order-oracle` gates the classification and containment decisions
 behind Domotion's stacking-context renderer. It combines generated structural

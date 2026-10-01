@@ -25,6 +25,7 @@ aliases: ["docs/113-cluster-granularity-fallback.md", "doc-113"]
 
 The cluster conformance CLI accepts `--only`, `--out`, and `--help` (`-h`).
 Unknown options and missing values fail before browser work.
+`cluster-conformance.ts` writes a version 1 `{schemaVersion, tool, generatedAt, env, data}` report under `--out`; `data` contains the existing cell results and a normalized `outcome` (`pass`, `fail`, or `skip`). Readers accept validated flat legacy reports and reject unknown envelope versions.
 
 Status: **SHIPPED, default-on** for BOTH run splitters — the embedded-font
 pipeline and the glyph-path emitter. `packages/text-engine/src/render/cluster-fallback.ts` replaces

@@ -12,9 +12,13 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { arch as osArch, platform as osPlatform, release as osRelease } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { z } from "zod";
 import { assetNameFor, ICU_COMPANION_VERSION, resolveIcuCompanionTarget } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { readDecorationReport, readFontConformanceReport } from "./conformance-report-schemas.js";
+import { readExactShapingReport } from "./exact-shaping-report-schema.js";
 import { isMain, parseCommand, requiredFlag, runMain } from "./lib/cli.js";
+import { outcomeSchema, readReportData } from "./lib/report.js";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
 import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
@@ -608,6 +612,48 @@ function readJson(relative: string, root: string): unknown {
   return JSON.parse(readFileSync(path.join(root, relative), "utf8"));
 }
 
+const paintGeometryLegacySchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    verdict: z.string(),
+    movementProven: z.boolean(),
+    rows: z.array(z.unknown()),
+  })
+  .passthrough();
+const paintGeometryDataSchema = paintGeometryLegacySchema.extend({ outcome: outcomeSchema });
+const paintBrowserLegacySchema = z
+  .object({
+    verdict: z.string(),
+    platform: z.string(),
+    architecture: z.string(),
+    probes: z.array(z.unknown()),
+  })
+  .passthrough();
+const paintBrowserDataSchema = paintBrowserLegacySchema.extend({ outcome: outcomeSchema });
+
+export function readPaintGeometryReleaseReport(path: string) {
+  return readReportData(path, paintGeometryDataSchema, {
+    tool: "paint-geometry-oracle",
+    schemaVersion: 1,
+    legacySchema: paintGeometryLegacySchema.transform((data) => ({
+      ...data,
+      outcome: data.verdict === "exact-logical-agreement" ? ("pass" as const) : ("fail" as const),
+    })),
+    legacySchemaVersion: 1,
+  });
+}
+
+export function readPaintBrowserReleaseReport(path: string) {
+  return readReportData(path, paintBrowserDataSchema, {
+    tool: "paint-geometry-browser-oracle",
+    schemaVersion: 1,
+    legacySchema: paintBrowserLegacySchema.transform((data) => ({
+      ...data,
+      outcome: data.verdict === "browser-validates-source-rules" ? ("pass" as const) : ("fail" as const),
+    })),
+  });
+}
+
 interface DecorationEvidenceReport {
   platform?: string;
   architecture?: string;
@@ -666,21 +712,15 @@ export function decorationEvidenceErrors(decoration: DecorationEvidenceReport): 
 
 function semanticArtifactErrors(root: string): string[] {
   const errors: string[] = [];
-  const font = readJson("font-selection/report.json", root) as {
-    summary?: { verdict?: string; mismatchTotal?: number };
-  };
+  const font = readFontConformanceReport(path.join(root, "font-selection/report.json"));
   if (font.summary?.verdict !== "exact-logical-agreement" || font.summary.mismatchTotal !== 0)
     errors.push("font selection report is not exact logical agreement");
-  const shaping = readJson("shaping.json", root) as { verdict?: string; movementProven?: boolean; pairs?: number };
+  const shaping = readExactShapingReport(path.join(root, "shaping.json"));
   if (shaping.verdict !== "exact-logical-agreement" || shaping.movementProven !== true || !(Number(shaping.pairs) > 0))
     errors.push("shaping report is not exact and sensitivity-proven");
-  const decoration = readJson("decoration.json", root) as DecorationEvidenceReport;
+  const decoration = readDecorationReport(path.join(root, "decoration.json")) as DecorationEvidenceReport;
   errors.push(...decorationEvidenceErrors(decoration));
-  const paint = readJson("paint-geometry.json", root) as {
-    verdict?: string;
-    movementProven?: boolean;
-    rows?: unknown[];
-  };
+  const paint = readPaintGeometryReleaseReport(path.join(root, "paint-geometry.json"));
   if (
     paint.verdict !== "exact-logical-agreement" ||
     paint.movementProven !== true ||
@@ -688,12 +728,7 @@ function semanticArtifactErrors(root: string): string[] {
     paint.rows.length < 100
   )
     errors.push("paint source geometry report is not the full exact corpus");
-  const paintBrowser = readJson("paint-browser.json", root) as {
-    verdict?: string;
-    architecture?: string;
-    platform?: string;
-    probes?: unknown[];
-  };
+  const paintBrowser = readPaintBrowserReleaseReport(path.join(root, "paint-browser.json"));
   if (
     paintBrowser.verdict !== "browser-validates-source-rules" ||
     paintBrowser.platform !== "linux" ||

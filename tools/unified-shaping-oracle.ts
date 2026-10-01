@@ -7,12 +7,14 @@
  * the faces that reached paint plus DOM geometry. This joins those observations
  * in one record without claiming that CDP supplied glyph ids.
  */
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
+import { readExactShapingReport } from "./exact-shaping-report-schema.js";
 
 export interface ExactRecord {
   environment: Record<string, unknown>;
@@ -48,16 +50,6 @@ export interface ExactRecord {
     flags: number;
     unsafeToBreak: boolean;
   }>;
-}
-
-interface ExactReport {
-  schemaVersion: number;
-  verdict: string;
-  completeEnvironment: boolean;
-  movementProven: boolean;
-  pairs: number;
-  controlHits: Record<string, number>;
-  records: ExactRecord[];
 }
 
 export interface PaintedOrigin {
@@ -136,7 +128,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     shell: process.platform === "win32",
   });
   try {
-    const exact = JSON.parse(readFileSync(exactPath, "utf8")) as ExactReport;
+    const exact = readExactShapingReport(exactPath);
     return await withBrowser(
       async (browser) => {
         const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
@@ -349,7 +341,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           pairs: records.length,
           records,
         };
-        if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+        if (output != null)
+          writeReport(
+            output,
+            "unified-shaping-oracle",
+            { ...report, outcome: report.verdict === "evidence-complete" ? "pass" : "fail" },
+            { schemaVersion: 1 },
+          );
         console.log(`unified shaping evidence: ${records.length} records; controls ${JSON.stringify(report.controls)}`);
         return report.verdict === "evidence-complete" ? 0 : 1;
       },

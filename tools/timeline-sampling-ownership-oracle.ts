@@ -10,7 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { type Browser, type BrowserContext, type CDPSession, type Frame, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 
 import { seekAnimationsToFrame } from "../src/capture/animation-frame.js";
 
@@ -1191,14 +1192,22 @@ export async function runTimelineSamplingOwnershipOracle(): Promise<TimelineSamp
   }
 }
 
+export function writeTimelineSamplingReport(path: string, report: TimelineSamplingOwnershipReport): void {
+  writeReport(
+    path,
+    "timeline-sampling-ownership-oracle",
+    { ...report, outcome: report.pass ? "pass" : "fail" },
+    { schemaVersion: 1, generatedAt: report.generatedAt, env: report.environment },
+  );
+}
+
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runTimelineSamplingOwnershipOracle();
   const output = flag(values, "--json");
   if (output) {
     const absolute = resolve(ROOT, output);
-    mkdirSync(dirname(absolute), { recursive: true });
-    writeFileSync(absolute, `${JSON.stringify(report, null, 2)}\n`);
+    writeTimelineSamplingReport(absolute, report);
   }
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   return report.pass ? 0 : 1;

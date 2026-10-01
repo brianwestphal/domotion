@@ -1,9 +1,10 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { z } from "zod";
 import { isMain, parseCommand, runMain } from "./lib/cli.js";
+import { outcomeSchema, readReportData, writeReport } from "./lib/report.js";
 
 import {
   FREE_SANS_NOBLE_PACKAGE,
@@ -150,6 +151,31 @@ export const linuxMathmlGreekRasterRowSchema = z
 
 export type LinuxMathmlGreekRasterRow = z.infer<typeof linuxMathmlGreekRasterRowSchema>;
 export type LinuxMathmlGreekResidual = z.infer<typeof residualSchema>;
+
+const authenticatedRowsDataSchema = z.object({
+  outcome: outcomeSchema,
+  rows: z.array(linuxMathmlGreekRasterRowSchema),
+});
+
+export function readAuthenticatedLinuxMathmlGreekRows(path: string): LinuxMathmlGreekRasterRow[] {
+  return readReportData(path, authenticatedRowsDataSchema, {
+    tool: "linux-mathml-greek-raster-rows",
+    schemaVersion: 1,
+    legacySchema: z.array(linuxMathmlGreekRasterRowSchema).transform((rows) => ({
+      outcome: rows.length > 0 ? ("pass" as const) : ("skip" as const),
+      rows,
+    })),
+  }).rows;
+}
+
+export function writeAuthenticatedLinuxMathmlGreekRows(path: string, rows: LinuxMathmlGreekRasterRow[]): void {
+  writeReport(
+    path,
+    "linux-mathml-greek-raster-rows",
+    { outcome: rows.length > 0 ? "pass" : "skip", rows },
+    { schemaVersion: 1, env: rows[0]?.fingerprint ?? {} },
+  );
+}
 
 const maximaSchema = residualSchema.pick({
   changedPixels: true,
@@ -313,6 +339,18 @@ export interface LinuxMathmlGreekReport {
   candidateEnvelope?: Omit<LinuxMathmlGreekEnvelopeFile["entries"][number], "reviewer" | "reviewedAt">;
 }
 
+export function writeLinuxMathmlGreekReport(path: string, report: LinuxMathmlGreekReport): void {
+  writeReport(
+    path,
+    "linux-mathml-greek-raster-gate",
+    {
+      ...report,
+      outcome: report.pass ? "pass" : report.verdict === "logical-exact-unratified" ? "skip" : "fail",
+    },
+    { schemaVersion: 1, env: { cellSha256: report.candidateEnvelope?.cellSha256 ?? null } },
+  );
+}
+
 export function adjudicateLinuxMathmlGreekRows(rawRows: unknown, rawEnvelopes: unknown): LinuxMathmlGreekReport {
   const parsed = z.array(linuxMathmlGreekRasterRowSchema).safeParse(rawRows);
   const envelopes = linuxMathmlGreekEnvelopeFileSchema.safeParse(rawEnvelopes);
@@ -431,7 +469,7 @@ async function main(argv: string[]): Promise<number> {
       JSON.parse(readFileSync(observations, "utf8")),
       dirname(resolve(observations)),
     );
-    writeFileSync(out, JSON.stringify(rows, null, 2));
+    writeAuthenticatedLinuxMathmlGreekRows(out, rows);
     console.log(`Authenticated ${rows.length} Linux MathML Greek raster row(s).`);
     return 0;
   }
@@ -451,11 +489,14 @@ async function main(argv: string[]): Promise<number> {
     for (const file of files) {
       const absolute = resolve(root, file);
       rows.push(
-        ...(await reauthenticateLinuxMathmlGreekRows(JSON.parse(readFileSync(absolute, "utf8")), dirname(absolute))),
+        ...(await reauthenticateLinuxMathmlGreekRows(
+          readAuthenticatedLinuxMathmlGreekRows(absolute),
+          dirname(absolute),
+        )),
       );
     }
     const report = adjudicateLinuxMathmlGreekRows(rows, JSON.parse(readFileSync(envelopePath, "utf8")));
-    writeFileSync(out, JSON.stringify(report, null, 2));
+    writeLinuxMathmlGreekReport(out, report);
     console.log(JSON.stringify(report, null, 2));
     return !report.pass && !(values["allow-unratified"] === true && report.eligibleForRatification) ? 1 : 0;
   }

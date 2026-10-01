@@ -14,6 +14,7 @@ import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 
@@ -464,8 +465,14 @@ async function main(argv: string[]): Promise<number> {
       },
       scenarios: reports,
     };
-    if (jsonPath) writeFileSync(jsonPath, JSON.stringify(report, null, 2));
     const failedCount = reports.reduce((count, entry) => count + entry.paintResiduals.failed.length, 0);
+    if (jsonPath)
+      writeReport(
+        jsonPath,
+        "border-phase-oracle",
+        { ...report, outcome: failedCount ? "fail" : "pass" },
+        { schemaVersion: 1 },
+      );
     if (failedCount && reportOnly)
       console.log(`diagnostic mode: recorded ${failedCount} paint-profile residual(s) without gating`);
     return failedCount && !reportOnly ? 1 : 0;

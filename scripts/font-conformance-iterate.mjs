@@ -57,6 +57,8 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
+import { readFontShardReport } from "./merge-font-conformance-shards.mjs";
 
 /** Routes (`chrome → ours` pairs) a report or baseline recorded. */
 export function routesOf(doc) {
@@ -75,6 +77,15 @@ export function routesOf(doc) {
 export function newRoutes(chunk, baseline) {
   const known = routesOf(baseline);
   return [...routesOf(chunk)].filter((r) => !known.has(r)).sort();
+}
+
+/** Validate either a flat legacy shard or the current report envelope before comparing routes. */
+export function newRoutesFromReport(path, baseline) {
+  const report = z
+    .object({ topMismatchPairs: z.array(z.object({ pair: z.string().min(1) }).passthrough()) })
+    .passthrough()
+    .parse(readFontShardReport(path));
+  return newRoutes(report, baseline);
 }
 
 function main() {
@@ -139,8 +150,15 @@ function main() {
       process.stderr.write(`\nchunk ${k}/${chunks} wrote no report — no verdict\n`);
       return 2;
     }
-    const report = JSON.parse(readFileSync(reportPath, "utf8"));
-    const found = newRoutes(report, baseline);
+    let found;
+    try {
+      found = newRoutesFromReport(reportPath, baseline);
+    } catch (error) {
+      process.stderr.write(
+        `\nchunk ${k}/${chunks} wrote an invalid report: ${error instanceof Error ? error.message : String(error)} — no verdict\n`,
+      );
+      return 2;
+    }
 
     process.stdout.write(`  chunk ${k}/${chunks}  ${secs}s  ${found.length} new route(s)\n`);
     if (found.length > 0) {

@@ -7,10 +7,10 @@
  * actual record. Blink source anchor: chromium 7d859f27, core/layout/inline and
  * platform/fonts/shaping. Capture representation boundary: docs 116 and 120.
  */
-import { writeFileSync } from "node:fs";
 import { chromium, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
 import type { CapturedElement, TextSegment } from "../src/capture/types.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
@@ -352,7 +352,16 @@ async function main(args: string[]): Promise<number> {
     records,
     rasterization: { status: "out-of-scope", reason: "Skia versus consumer SVG rasterizer" },
   };
-  if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+  if (output != null)
+    writeReport(
+      output,
+      "layout-stage-oracle",
+      {
+        ...report,
+        outcome: mismatches > 0 || !metamorphicAgreement || !completeEnvironment || !movementProven ? "fail" : "pass",
+      },
+      { schemaVersion: 1 },
+    );
   console.log(
     `Layout stage oracle: ${records.length} capture rows, ${metamorphic.length} metamorphic rows, ${mismatches} logical mismatches`,
   );

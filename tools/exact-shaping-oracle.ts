@@ -7,7 +7,7 @@
  * every logical output field, and prove the comparison is sensitive with
  * deliberately wrong controls. See docs/114-exact-shaping-oracle.md.
  */
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import {
   harfbuzzShapeRun,
   harfbuzzGlyphQuery,
@@ -25,6 +25,8 @@ import {
   runApplicableShapingControls,
 } from "./exact-shaping-control-fixtures.js";
 import { fingerprintComplete, parityEnvironment } from "./parity-environment.js";
+import { exactShapingDataSchema } from "./exact-shaping-report-schema.js";
+import { writeReport } from "./lib/report.js";
 
 interface OracleGlyph {
   id: number;
@@ -334,7 +336,18 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     failedControls: applicableControls.failedControls,
     records,
   };
-  if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+  if (output != null) {
+    const { schemaVersion: _legacySchemaVersion, ...legacyData } = report;
+    writeReport(
+      output,
+      "exact-shaping-oracle",
+      exactShapingDataSchema.parse({
+        ...legacyData,
+        outcome: verdict === "exact-logical-agreement" ? "pass" : verdict === "logical-mismatch" ? "fail" : "error",
+      }),
+      { schemaVersion: 1, env: { platform: process.platform, architecture: process.arch, harfbuzz: versionString() } },
+    );
+  }
   console.log(
     `Exact shaping oracle: ${pairs} face×sample pairs; controls ${JSON.stringify(controlHits)}; portable ${JSON.stringify(applicableControls.controlHits)}`,
   );

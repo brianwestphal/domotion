@@ -7,9 +7,11 @@
  * for that logical ownership.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import { outcomeSchema, reportEnvelopeSchema, writeReport } from "./lib/report.js";
 import {
   BORDER_PHASE_SOURCE_PINS,
   borderPhaseGeometryStatus,
@@ -61,6 +63,60 @@ export interface BorderPhaseReport {
     casesPerScenario: number;
   };
   scenarios: ScenarioReport[];
+}
+
+const borderPhaseLegacySchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    sourcePins: z.record(z.string(), z.string()),
+    corpusFingerprint: z.string(),
+    meta: z
+      .object({
+        platform: z.string(),
+        arch: z.string(),
+        osRelease: z.string(),
+        node: z.string(),
+        browserVersion: z.string(),
+        scenarios: z.number().int().nonnegative(),
+        casesPerScenario: z.number().int().nonnegative(),
+      })
+      .passthrough(),
+    scenarios: z.array(
+      z
+        .object({
+          scenario: z.object({ id: z.string(), dsf: z.number(), zoom: z.number() }),
+          geometry: z.object({ htmlSnapFits: z.array(z.unknown()), svgSnapFits: z.array(z.unknown()) }),
+          geometryOwnership: z.object({
+            ratifiedRows: z.number().int().nonnegative(),
+            unratifiedRows: z.number().int().nonnegative(),
+            unratifiedFamilies: z.array(z.string()),
+          }),
+          ratifiedPaintResiduals: z.object({
+            worstEdge: z.number(),
+            worstRmse: z.number(),
+            failed: z.array(z.string()),
+          }),
+          artifacts: z.object({
+            htmlPngSha256: z.string(),
+            svgSha256: z.string(),
+            svgPngSha256: z.string(),
+          }),
+          rows: z.array(z.object({ id: z.string() }).passthrough()),
+        })
+        .passthrough(),
+    ),
+  })
+  .passthrough();
+const borderPhaseEnvelopeSchema = reportEnvelopeSchema(borderPhaseLegacySchema.extend({ outcome: outcomeSchema }), {
+  tool: "border-phase-oracle",
+  schemaVersion: 1,
+});
+
+export function readBorderPhaseOracleReport(path: string): BorderPhaseReport {
+  const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+  const envelope = raw != null && typeof raw === "object" && ("tool" in raw || "data" in raw);
+  const data = envelope ? borderPhaseEnvelopeSchema.parse(raw).data : borderPhaseLegacySchema.parse(raw);
+  return data as unknown as BorderPhaseReport;
 }
 
 interface RunnerFingerprint {
@@ -360,12 +416,18 @@ function main(argv: string[]): number {
   const runEnvPath = requiredFlag(args, "run-env");
   const artifactDir = requiredFlag(args, "artifact-dir");
   const jsonPath = flag(args, "json");
-  const report = JSON.parse(readFileSync(reportPath, "utf8")) as BorderPhaseReport;
+  const report = readBorderPhaseOracleReport(reportPath);
   const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as BorderPhaseEnvelope;
   const runEnvironment = JSON.parse(readFileSync(runEnvPath, "utf8")) as RunEnvironment;
   const result = adjudicateBorderPhaseReport(report, baseline, runEnvironment, artifactDir);
   const output = `${JSON.stringify(result, null, 2)}\n`;
-  if (typeof jsonPath === "string") writeFileSync(jsonPath, output);
+  if (typeof jsonPath === "string")
+    writeReport(
+      jsonPath,
+      "border-phase-ratifier",
+      { ...result, outcome: result.verdict === "ratified-source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   process.stdout.write(output);
   return result.verdict === "ratified-source-exact" ? 0 : 1;
 }

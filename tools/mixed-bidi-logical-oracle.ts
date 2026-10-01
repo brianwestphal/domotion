@@ -1,5 +1,4 @@
 #!/usr/bin/env tsx
-import { writeFileSync } from "node:fs";
 import * as fk from "fontkit";
 import {
   segmentForShaping,
@@ -14,6 +13,7 @@ import { bidiLevelsFor, type BidiParagraphContext } from "../src/render/script-s
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
 import { parityEnvironment } from "./parity-environment.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 
 const fontkit = (fk as { default?: typeof fk }).default ?? fk;
 const FORWARD = "L שָׁלוֹם 123 مَرْحَبًا R";
@@ -427,7 +427,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const evidence = await collectMixedBidiEvidence();
   const report = buildMixedBidiReport(evidence);
   const { controls, complete } = compareMixedBidiEvidence(evidence);
-  if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+  if (output != null)
+    writeReport(
+      output,
+      "mixed-bidi-logical-oracle",
+      { ...report, outcome: complete ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   process.stdout.write(
     `mixed-bidi logical evidence: ${evidence.records.length} rows; controls ${JSON.stringify(controls)}\n`,
   );

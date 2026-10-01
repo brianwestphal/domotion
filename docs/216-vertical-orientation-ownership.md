@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2525"]
+tickets: ["DM-2525", "DM-N6XJRS"]
 code:
   [
     ".github/workflows/vertical-orientation-parity.yml",
@@ -19,6 +19,8 @@ aliases: ["docs/216-vertical-orientation-ownership.md", "doc-216"]
 ---
 
 # Blink-owned vertical orientation and text-combine ownership
+
+The oracle writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output while retaining its existing stdout report.
 
 Status: implemented for DM-2525.
 

@@ -13,13 +13,13 @@
  *   npm run culling:animated-geometry-oracle -- --dpr 1,2 --zoom 1,1.25
  *     --json tests/output/animated-culling-geometry-darwin.json
  */
-import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import type { IntraFrameAnimation } from "../src/animation/animator.js";
 import { generateAnimatedSvg } from "../src/animation/animator.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -1473,14 +1473,25 @@ export async function runAnimatedCullingGeometryOracle(
   );
 }
 
+export function writeAnimatedCullingReport(path: string, report: AnimatedCullingOracleReport): void {
+  writeReport(
+    path,
+    "animated-culling-geometry-oracle",
+    {
+      ...report,
+      outcome: report.summary.failed > 0 || report.summary.mutationsFailed > 0 ? "fail" : "pass",
+    },
+    { schemaVersion: 1, generatedAt: report.generatedAt, env: report.fingerprint },
+  );
+}
+
 async function main(argv: string[]): Promise<number> {
   const args = parseFlags(argv, { dpr: { type: "string" }, zoom: { type: "string" }, json: { type: "string" } });
   const dprs = parsePositiveList(String(flag(args, "dpr", "1,2")), "--dpr");
   const zooms = parsePositiveList(String(flag(args, "zoom", "1,1.25")), "--zoom");
   const report = await runAnimatedCullingGeometryOracle({ dprs, zooms });
   const jsonPath = resolve(String(flag(args, "json", `tests/output/animated-culling-geometry-${platform()}.json`)));
-  mkdirSync(dirname(jsonPath), { recursive: true });
-  writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
+  writeAnimatedCullingReport(jsonPath, report);
   console.log(
     `animated culling oracle: ${report.summary.passed}/${report.rows.length} rows; ${report.summary.mutationsMoved}/${report.mutations.length} mutations; report ${jsonPath}`,
   );

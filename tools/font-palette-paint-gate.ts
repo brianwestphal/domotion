@@ -4,12 +4,13 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import { runFontPaletteOwnershipAudit } from "./font-palette-ownership-audit.js";
 import { runFontPaletteDynamicGate, type FontPaletteDynamicGateReport } from "./font-palette-dynamic-gate.js";
 
@@ -299,10 +300,13 @@ async function main(argv: string[]): Promise<number> {
   const json = flag(args, "json");
   const artifactDir = flag(args, "artifact-dir");
   const report = await runFontPalettePaintGate({ ...(typeof artifactDir === "string" ? { artifactDir } : {}) });
-  if (typeof json === "string") {
-    mkdirSync(dirname(resolve(json)), { recursive: true });
-    writeFileSync(resolve(json), JSON.stringify(report, null, 2));
-  }
+  if (typeof json === "string")
+    writeReport(
+      resolve(json),
+      "font-palette-paint-gate",
+      { ...report, outcome: report.verdict === "source-exact" ? "pass" : "fail" },
+      { schemaVersion: 1 },
+    );
   console.log(
     JSON.stringify(
       {

@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "layout", "platform-release"]
 platforms: []
-tickets: ["DM-2358", "DM-2528"]
+tickets: ["DM-2358", "DM-2528", "DM-N6XJRS"]
 code:
   [
     "tools/paint-geometry-oracle.ts",
@@ -18,6 +18,8 @@ aliases: ["docs/130-paint-geometry-oracle.md", "doc-130"]
 ---
 
 # 130 — Gradient, mask, clip, and resizer geometry oracle
+
+Both paint geometry commands write a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 `npm run paint:geometry-oracle` is the first decision-level gate for CSS paint
 geometry that previously had only visual-regression coverage. It compares a

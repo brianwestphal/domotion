@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -13,7 +13,10 @@ import {
 import {
   adjudicateLinuxMathmlGreekRows,
   linuxMathmlGreekFingerprintSha256,
+  readAuthenticatedLinuxMathmlGreekRows,
   reauthenticateLinuxMathmlGreekRows,
+  writeAuthenticatedLinuxMathmlGreekRows,
+  writeLinuxMathmlGreekReport,
   type LinuxMathmlGreekRasterRow,
 } from "../tools/linux-mathml-greek-raster-gate.js";
 import { measurePathsRasterResidual } from "../tools/paths-native-raster-metrics.js";
@@ -130,6 +133,36 @@ async function exactRow(
 }
 
 describe("DM-2512 Linux MathML Greek logical-first gate", () => {
+  it("writes nested row and gate envelopes while accepting authenticated legacy rows", async () => {
+    const { root, row } = await exactRow("proposal", "a");
+    const path = join(root, "nested", "rows.json");
+    writeAuthenticatedLinuxMathmlGreekRows(path, [row]);
+    const saved = JSON.parse(readFileSync(path, "utf8"));
+    expect(saved).toMatchObject({
+      schemaVersion: 1,
+      tool: "linux-mathml-greek-raster-rows",
+      data: { outcome: "pass" },
+    });
+    expect(readAuthenticatedLinuxMathmlGreekRows(path)).toEqual([row]);
+    const legacy = join(root, "legacy.json");
+    writeFileSync(legacy, JSON.stringify([row]));
+    expect(readAuthenticatedLinuxMathmlGreekRows(legacy)).toEqual([row]);
+    writeFileSync(legacy, JSON.stringify({ ...saved, schemaVersion: 2 }));
+    expect(() => readAuthenticatedLinuxMathmlGreekRows(legacy)).toThrow();
+
+    const reportPath = join(root, "another", "gate.json");
+    writeLinuxMathmlGreekReport(reportPath, {
+      schemaVersion: 1,
+      pass: false,
+      eligibleForRatification: true,
+      verdict: "logical-exact-unratified",
+      problems: [],
+    });
+    expect(JSON.parse(readFileSync(reportPath, "utf8"))).toMatchObject({
+      tool: "linux-mathml-greek-raster-gate",
+      data: { outcome: "skip", verdict: "logical-exact-unratified" },
+    });
+  });
   it("reauthenticates PNG bytes, dimensions, residuals, and the exact logical seam", async () => {
     const { root, row } = await exactRow("proposal", "a");
     await expect(reauthenticateLinuxMathmlGreekRows([row], root)).resolves.toHaveLength(1);

@@ -42,8 +42,9 @@
 // transcription of Blink's own hardcoded per-script table, which Chrome really
 // does consult first. There the "static" row is parity, not interposition. The
 // no-counterpart-in-Blink claim is a macOS/Linux one.
-import { readFileSync } from "node:fs";
+import { z } from "zod";
 import { isMain, parseCommand, runMain, shardFlag } from "./lib/cli.mjs";
+import { readFontConformanceReport } from "./conformance-report-schemas.js";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 import { buildUniverse } from "./font-conformance.js";
 import {
@@ -52,6 +53,34 @@ import {
   resolveFontKeyChain,
   resolveFontForCodepoint,
 } from "@domotion/text-engine/testing";
+
+const attributionReportSchema = z
+  .object({
+    meta: z
+      .object({
+        stackPrimaries: z
+          .array(
+            z
+              .object({
+                fontFamily: z.string().min(1),
+                fontSize: z.number().positive(),
+                fontWeight: z.number().positive(),
+                fontStyle: z.string(),
+              })
+              .passthrough(),
+          )
+          .min(1),
+      })
+      .passthrough(),
+    mismatches: z.array(
+      z.object({ cp: z.number().int().nonnegative(), ourKey: z.string(), stack: z.string() }).passthrough(),
+    ),
+  })
+  .passthrough();
+
+export function readAttributionReport(path: string) {
+  return attributionReportSchema.parse(readFontConformanceReport(path));
+}
 
 // `--family "<stack>"` sweeps a stack directly (distribution only, no Chrome
 // column); otherwise the first positional is a conformance report and the
@@ -65,16 +94,7 @@ async function main(argv: string[]) {
     console.error('usage: stage-attribution.mts <report.json> [shard] | --family "<stack>" [shard]');
     return 2;
   }
-  const report =
-    reportPath == null
-      ? { meta: {}, mismatches: [] }
-      : (JSON.parse(readFileSync(reportPath, "utf-8")) as {
-          meta: {
-            slice?: { codepoints?: number };
-            stackPrimaries?: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string }>;
-          };
-          mismatches: Array<{ cp: number; ourKey: string; stack: string }>;
-        });
+  const report = reportPath == null ? { meta: {}, mismatches: [] } : readAttributionReport(reportPath);
 
   const spec = report.meta.stackPrimaries?.[0];
   const fontFamily = familyOverride ?? spec?.fontFamily;

@@ -86,6 +86,11 @@ reopens every lossless PNG, verifies dimensions and SHA-256, and recomputes the
 same device-pixel edge/ink/channel residual used by the main floor. There is no
 global percentage score and no changed scalar threshold.
 
+The authenticated rows artifact and aggregate gate report use the versioned
+tool-report envelope (`schemaVersion`, `tool`, `generatedAt`, `env`, `data`) with
+normalized `data.outcome`. The aggregate reads and validates both current
+envelopes and legacy row arrays before reopening their PNG evidence.
+
 The workflow runs proposal and validation on separate `ubuntu-24.04` machines
 and records a hashed Linux boot identity to prove they are independent. An
 unreviewed but exact pair produces `logical-exact-unratified` plus a candidate

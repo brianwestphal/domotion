@@ -23,7 +23,6 @@ import { execFileSync } from "node:child_process";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync } from "node:fs";
 import { type BrowserContext, type CDPSession, type LaunchOptions, type Page } from "@playwright/test";
 import {
   getSessionGenericFamilyOverrides,
@@ -36,6 +35,7 @@ import {
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 import {
   ensureSessionGenericFamilyOverrides,
   genericFamilyReplayName,
@@ -771,7 +771,16 @@ async function main(args: string[]): Promise<number> {
   const report = await runGenericFamilyPreferenceOracle(args);
   const out = flags.json as string | undefined;
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  if (out != null && out !== "") writeFileSync(resolve(out), json);
+  if (out != null && out !== "")
+    writeReport(
+      resolve(out),
+      "generic-family-preference-oracle",
+      {
+        ...report,
+        outcome: report.verdict === "unavailable" ? "skip" : report.verdict === "source-exact" ? "pass" : "fail",
+      },
+      { schemaVersion: 1 },
+    );
   process.stdout.write(json);
   return report.verdict === "source-exact" ? 0 : 1;
 }

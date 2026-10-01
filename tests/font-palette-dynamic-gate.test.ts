@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,12 +8,39 @@ import {
   adjudicateDynamicProductionOrder,
   adjudicateDynamicV0Row,
   adjudicateDynamicV1Row,
+  writeFontPaletteDynamicReport,
   type DynamicProductionOrderEvidence,
 } from "../tools/font-palette-dynamic-gate.js";
 
 const hash = (value: string): string => value.repeat(64);
 
 describe("dynamic font-palette logical gate", () => {
+  it("writes nested versioned dynamic reports with normalized outcomes", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-dynamic-palette-"));
+    try {
+      for (const verdict of ["source-exact", "source-drift"] as const) {
+        const path = join(dir, verdict, "nested", "report.json");
+        writeFontPaletteDynamicReport(path, {
+          schemaVersion: 1,
+          ticket: "DM-2534",
+          verdict,
+          sourcePins: FONT_PALETTE_DYNAMIC_SOURCE_PINS,
+          fingerprint: { platform: "darwin", chromium: "fixture" },
+          colrv0Rows: [],
+          colrv1Rows: [],
+          productionOrders: [],
+        });
+        expect(JSON.parse(readFileSync(path, "utf8"))).toMatchObject({
+          schemaVersion: 1,
+          tool: "font-palette-dynamic-gate",
+          env: { platform: "darwin", chromium: "fixture" },
+          data: { outcome: verdict === "source-exact" ? "pass" : "fail", verdict },
+        });
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it("pins Blink's animation, recursive mix, paint, and shadow-scope decisions", () => {
     expect(FONT_PALETTE_DYNAMIC_SOURCE_PINS).toEqual(
       expect.objectContaining({

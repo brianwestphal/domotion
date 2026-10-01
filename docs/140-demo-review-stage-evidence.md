@@ -42,6 +42,12 @@ declared options are validated before it creates the directory or launches an
 oracle. Importing the collector module does not start collection.
 The manifest builder accepts `--out`, `--reports`, and `--env` and validates
 these before reading input files; importing it does not build a manifest.
+The collector validates each oracle's versioned JSON envelope, records its exit
+status inside `data`, and writes the combined font-selection evidence as its
+own envelope. The builder reads `data.outcome` and collector status, while
+accepting older flat reports with supported schema versions. An unknown
+version or tool identity fails that area's evidence instead of counting it as
+passed.
 
 The review UI displays the applicable semantic transitions, evidence scope,
 and report status on each fixture card. Suite-global reports apply to every

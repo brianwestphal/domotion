@@ -5,12 +5,14 @@ kind: "reference"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2351", "DM-2504"]
+tickets: ["DM-2351", "DM-2504", "DM-N6XJRS"]
 code: [".github/workflows/system-ui-preference-route.yml", "packages/text-engine/src/render/glyph-helper.ts"]
 aliases: ["docs/211-platform-system-ui-preference-route.md", "doc-211"]
 ---
 
 # Platform-owned `system-ui` preference route
+
+The oracle writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output. Its `outcome` is `skip` when the required preference mode is unavailable.
 
 **Status:** shipped logical oracle (DM-2504).
 **Gate:** `npm run fonts:system-ui-preferences`.

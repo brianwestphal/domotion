@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { platform } from "node:os";
 import { parityEnvironment } from "./parity-environment.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { readShapingConformanceReport } from "./conformance-report-schemas.js";
 
 export interface CorpusRun {
   text: string;
@@ -120,10 +121,8 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     { stdio: "inherit", shell: platform() === "win32" },
   );
   const reportPath = resolve(shardDir, "report.json");
-  const report = existsSync(reportPath)
-    ? (JSON.parse(readFileSync(reportPath, "utf8")) as { mismatches?: Array<Record<string, unknown>> })
-    : null;
-  const reductions = reduceMismatches(report?.mismatches ?? []);
+  const report = existsSync(reportPath) ? readShapingConformanceReport(reportPath) : null;
+  const reductions = reduceMismatches((report?.mismatches ?? []) as Array<Record<string, unknown>>);
   writeFileSync(resolve(shardDir, "mismatch-reductions.json"), `${JSON.stringify(reductions, null, 2)}\n`);
   writeFileSync(
     manifestPath,

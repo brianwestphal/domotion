@@ -59,6 +59,8 @@ import { hostname, cpus, release } from "node:os";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
+import { fontConformanceDataSchema } from "./conformance-report-schemas.js";
 import { inventoryDocument } from "./font-inventory.mjs";
 import { intFlag, parseShardSpec } from "./lib/conformance-args.js";
 
@@ -1247,29 +1249,35 @@ export interface Options {
 }
 
 export function parseArgs(argv: string[]): Options {
-  parseFlags(argv, {
-    stacks: { type: "string" },
-    "extract-stacks": { type: "boolean" },
-    source: { type: "string" },
-    range: { type: "string", multiple: true },
-    "sample-byte": { type: "string" },
-    "no-pua": { type: "boolean" },
-    shard: { type: "string" },
-    "stack-shard": { type: "string" },
-    batch: { type: "string" },
-    concurrency: { type: "string" },
-    out: { type: "string" },
-    allowlist: { type: "string" },
-    "strict-alias": { type: "boolean" },
-    "max-stacks": { type: "string" },
-    "stack-filter": { type: "string" },
-    "max-rows": { type: "string" },
-    "reset-every": { type: "string" },
-    "allow-foreign-corpus": { type: "boolean" },
-    lang: { type: "string" },
-    h: { type: "boolean" },
-    help: { type: "boolean" },
-  });
+  try {
+    parseFlags(argv, {
+      stacks: { type: "string" },
+      "extract-stacks": { type: "boolean" },
+      source: { type: "string" },
+      range: { type: "string", multiple: true },
+      "sample-byte": { type: "string" },
+      "no-pua": { type: "boolean" },
+      shard: { type: "string" },
+      "stack-shard": { type: "string" },
+      batch: { type: "string" },
+      concurrency: { type: "string" },
+      out: { type: "string" },
+      allowlist: { type: "string" },
+      "strict-alias": { type: "boolean" },
+      "max-stacks": { type: "string" },
+      "stack-filter": { type: "string" },
+      "max-rows": { type: "string" },
+      "reset-every": { type: "string" },
+      "allow-foreign-corpus": { type: "boolean" },
+      lang: { type: "string" },
+      h: { type: "boolean" },
+      help: { type: "boolean" },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Unknown option"))
+      throw new Error(`unknown option${error.message.slice("Unknown option".length)}`);
+    throw error;
+  }
   const o: Options = {
     stacksFile: DEFAULT_STACKS_FILE,
     extractStacks: false,
@@ -2083,7 +2091,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         host: hostIdentity(),
         fontInventory: shardFontInventory(),
       });
-      writeFileSync(join(opts.outDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+      const reportData = fontConformanceDataSchema.parse({
+        ...report,
+        outcome: report.summary.comparisons === 0 ? "skip" : report.summary.mismatchTotal === 0 ? "pass" : "fail",
+      });
+      writeReport(join(opts.outDir, "report.json"), "font-conformance", reportData, {
+        schemaVersion: 1,
+        generatedAt: report.meta.generatedAt,
+        env: report.meta.parityEnvironment,
+      });
       const text = formatSummary(report, opts, corpus, tally, universe.length, stacks.length);
       writeFileSync(join(opts.outDir, "summary.txt"), text);
       process.stdout.write(`\n${text}`);

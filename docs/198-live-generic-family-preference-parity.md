@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2351", "DM-2637", "DM-2668"]
+tickets: ["DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS"]
 code:
   [
     ".github/workflows/generic-family-preference-parity.yml",
@@ -21,6 +21,8 @@ aliases: ["docs/198-live-generic-family-preference-parity.md", "doc-198"]
 ---
 
 # Live generic-family preference parity
+
+The oracle writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output. Its `outcome` is `skip` when the required browser mode is unavailable.
 
 DM-2351 establishes which component owns the concrete face behind CSS generic
 families and closes a real cross-page state race. This is a logical face gate:

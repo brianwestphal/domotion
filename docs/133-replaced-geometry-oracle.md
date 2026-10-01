@@ -5,12 +5,14 @@ kind: "evidence"
 status: "current"
 owners: ["images-media", "layout", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2364", "DM-2380"]
+tickets: ["DM-2364", "DM-2380", "DM-N6XJRS"]
 code: [".github/workflows/replaced-ownership-transitions.yml", "tools/replaced-ownership-transition-gate.ts"]
 aliases: ["docs/133-replaced-geometry-oracle.md", "doc-133"]
 ---
 
 # 133 — Replaced elements, controls, and generated-content ownership gate
+
+The focused oracle writes a [versioned report envelope](267-tool-report-envelope.md) for `--json` output.
 
 `npm run replaced:geometry-oracle` is the focused DPR-1 live-Chromium gate.
 `npm run replaced:ownership-gate` is its hard DPR-1/2 release form. DM-2364
