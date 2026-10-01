@@ -5,6 +5,8 @@ import { FONT_PALETTE_CASES, runFontPaletteOwnershipAudit } from "../tools/font-
 describe("font-palette production raster identity", () => {
   it("preserves both palettes in forward and reverse capture order", async () => {
     const report = await runFontPaletteOwnershipAudit({ dprs: [1] });
+    expect(report.fingerprint.chromium).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+    expect(report.fingerprint.browserExecutableSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(report.verdict).toBe("source-exact");
     expect(report.nativeRows).toHaveLength(FONT_PALETTE_CASES.length);
     expect(report.nativeRows.every((row) => row.pass)).toBe(true);

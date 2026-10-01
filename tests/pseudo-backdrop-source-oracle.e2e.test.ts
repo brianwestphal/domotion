@@ -9,6 +9,7 @@ import {
 describe("DM-2488 generated-pseudo backdrop source oracle", () => {
   it("owns every DPR1 pseudo boundary and rejects both destructive mutations", async () => {
     const report = await runPseudoBackdropSourceOracle([1]);
+    expect(report.producer.chromiumVersion).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
     expect(report.requiredStates).toEqual(PSEUDO_BACKDROP_REQUIRED_STATES);
     expect(report.rows).toHaveLength(PSEUDO_BACKDROP_CASES.length);
     expect(report.blockers).toEqual([]);

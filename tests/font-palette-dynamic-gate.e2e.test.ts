@@ -10,6 +10,8 @@ describe("dynamic font-palette production ownership", () => {
       colrv1Fixture: COLRV1_FIXTURE,
       dprs: [1],
     });
+    expect(report.fingerprint.chromium).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+    expect(report.fingerprint.browserExecutableSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(report.verdict).toBe("source-exact");
     expect(report.colrv0Rows).toHaveLength(6);
     expect(report.colrv1Rows).toHaveLength(3);
