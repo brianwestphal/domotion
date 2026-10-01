@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D"]
+tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D", "DM-V75PWJ"]
 code:
   [
     ".github/workflows/font-conformance-synthetic.yml",
@@ -22,6 +22,8 @@ code:
     "tests/font-conformance-baseline.test.ts",
     "tests/font-conformance-cli.test.ts",
     "tests/font-conformance-extraction.e2e.test.ts",
+    "tests/font-conformance-document-lifecycle.test.ts",
+    "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
     "tests/font-conformance.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
@@ -362,7 +364,9 @@ Correctness constraints, all of which cost throughput and all of which are load-
 - **`white-space: pre` on the cell.** Without it a cell holding U+0020 collapses to nothing, Chrome paints no glyph, and the oracle reports a mismatch that exists only because of how the probe page was written.
 - **Batched, pipelined CDP.** Each page holds `--batch` cells; all node ids come back from one `DOM.querySelectorAll`, and `CSS.getPlatformFontsForNode` is issued `--concurrency`-at-a-time rather than awaited serially.
 - **Cell font faces read as Chrome reports them, not as Chrome ranks them.** Blink accumulates platform-font usage into a hash map before serializing it, so the protocol array's order is not a documented ranking; the oracle takes the entry with the highest glyph count. A one-codepoint cell normally has exactly one entry, and the full list is preserved in `chromeAllFaces` when it does not.
-- **On macOS, the sweep is ONE document scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText — and the oracle's single probe page (one renderer, surviving every `setContent`) carries that cache across all batches and stacks. So the Domotion side opens one matching `beginCharacterFallbackDocument()` scope spanning the whole sweep, and both sides ask in the identical (stack, ascending-codepoint) order; the periodic memory reset (`--reset-every`) deliberately does NOT clear it, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
+- **On macOS, the sweep is ONE document scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText. The oracle creates one measured document, then replaces only its codepoint cells and changes its style when the stack changes. Its renderer, Page font settings, and document persist across every batch and stack. The Domotion side opens one matching `beginCharacterFallbackDocument()` scope spanning the whole sweep, and both sides ask in the identical (stack, ascending-codepoint) order; the periodic memory reset (`--reset-every`) deliberately does NOT clear it, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
+
+  The prior macOS protocol called `setContent` for every batch. On one image and source, three native full-slice shards changed all six `.notdef` generic donor faces partway through the run from Playwright's Page settings to Blink constructor defaults. Their drift artifacts record the first affected batch and prevent a mixed-state report. Replacing cells in the existing document avoids repeated document rewrites while retaining the same natural codepoint ask order. Reports identify this protocol as `oracleIsolation: "shared-renderer-single-document"`; older macOS `"shared-renderer"` baselines are intentionally incomparable. Linux and Windows retain their existing `setContent` path and isolation metadata. Both generic-donor and supplementary-PUA sentinels remain required; a detected flip still aborts rather than becoming a baseline.
 
 ## How to read the output
 
@@ -816,7 +820,7 @@ Two things follow, and the second is the more useful one:
 
   Answer-neutral, checked rather than asserted: the two runs' report bodies are **identical** — same 48,745 comparisons, same 12,136 exact agreements, same 10 mismatch rows, same four routes.
 
-The `setContent` failure was the same class of problem — a 30-second default treated as a correctness limit on how long Blink may take to lay out 8,000 cells that drag in fonts from all over the host. It now runs on a 120-second budget with exactly one retry, and re-throws on the second failure; a batch is never skipped, because a hole in a sweep that still reports a codepoint count reads as a complete answer.
+The `setContent` failure was the same class of problem — a 30-second default treated as a correctness limit on how long Blink may take to lay out 8,000 cells that drag in fonts from all over the host. The first document write and every subsequent macOS cell replacement now use a 120-second budget with exactly one retry. Linux and Windows retain the 120-second `setContent` budget. A second failure aborts; a batch is never skipped, because a hole in a sweep that still reports a codepoint count reads as a complete answer.
 
 ### The CI gate must not pass by losing data
 

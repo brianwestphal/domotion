@@ -2627,7 +2627,17 @@
         "status": "current",
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D"],
+        "tickets": [
+          "DM-1858",
+          "DM-1905",
+          "DM-2350",
+          "DM-2422",
+          "DM-2507",
+          "DM-KK5BP2",
+          "DM-N78DX3",
+          "DM-QD903D",
+          "DM-V75PWJ"
+        ],
         "code": [
           ".github/workflows/font-conformance-synthetic.yml",
           ".github/workflows/font-conformance.yml",
@@ -2643,6 +2653,8 @@
           "tests/font-conformance-baseline.test.ts",
           "tests/font-conformance-cli.test.ts",
           "tests/font-conformance-extraction.e2e.test.ts",
+          "tests/font-conformance-document-lifecycle.test.ts",
+          "tests/font-conformance-oracle-stability.e2e.test.ts",
           "tests/font-conformance-synthetic-stacks.test.ts",
           "tests/font-conformance.test.ts",
           "tests/font-conformance-oracle-stability.e2e.test.ts",
