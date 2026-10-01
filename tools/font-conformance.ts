@@ -57,6 +57,7 @@
  */
 import { hostname, cpus, release } from "node:os";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
+import * as fontkit from "fontkit";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
@@ -1029,11 +1030,76 @@ export class OracleDriftError extends Error {
     readonly at: string,
     readonly expected: readonly string[],
     readonly actual: readonly string[],
+    readonly kind: "generic-control" | "supplementary-pua" = "generic-control",
+    readonly codepoint: number | null = null,
   ) {
     super(
-      `oracle font settings changed during sweep at ${at}: ` +
+      (kind === "supplementary-pua"
+        ? `oracle supplementary PUA face diverged from the stack primary at ${at}: `
+        : `oracle font settings changed during sweep at ${at}: `) +
         `expected [${expected.join(", ")}], got [${actual.join(", ")}]`,
     );
+  }
+}
+
+/** Resolve the browser-reported cut and ask its own cmap whether the PUA
+ * codepoint is a real glyph. A covered PUA belongs in conformance scoring;
+ * an unreadable or ambiguous file also stays a mismatch rather than being
+ * mislabeled as instability. */
+const chromeCoverageFontCache = new Map<string, ReturnType<typeof fontkit.openSync> | null>();
+
+function chromeFaceCoversCodepoint(face: ChromeFace, cp: number): boolean | null {
+  const path = chromeFaceFile(face);
+  if (path == null) return null;
+  try {
+    let opened = chromeCoverageFontCache.get(path);
+    if (opened === undefined) {
+      try {
+        opened = fontkit.openSync(path);
+      } catch {
+        opened = null;
+      }
+      chromeCoverageFontCache.set(path, opened);
+    }
+    if (opened == null) return null;
+    if (norm(opened.postscriptName ?? "") !== norm(face.postScriptName ?? face.familyName)) return null;
+    return opened.hasGlyphForCodePoint(cp);
+  } catch {
+    return null;
+  }
+}
+
+/** The fixed-image macOS sans-serif/32/700 route that flipped from Helvetica
+ * to Arial in the middle of Plane 16 PUA. Restricting the check to this route
+ * avoids treating a different stack's intentional PUA font as oracle drift. */
+export function assertSupplementaryPuaOracleFace(
+  spec: StackSpec,
+  cp: number,
+  faces: ChromeFace[],
+  ours: OurFace,
+  chromePrimary: string | null,
+  at: string,
+  platform: NodeJS.Platform = process.platform,
+  coversCodepoint: (face: ChromeFace, cp: number) => boolean | null = chromeFaceCoversCodepoint,
+): void {
+  if (
+    platform !== "darwin" ||
+    spec.fontFamily.trim().toLowerCase() !== "sans-serif" ||
+    spec.fontSize !== 32 ||
+    spec.fontWeight !== 700 ||
+    spec.fontStyle !== "normal" ||
+    cp < 0xf0000 ||
+    cp > 0x10fffd ||
+    ours.covered ||
+    chromePrimary == null
+  ) {
+    return;
+  }
+  const face = primaryChromeFace(faces);
+  if (face == null) return;
+  const actual = face.postScriptName ?? face.familyName;
+  if (actual !== chromePrimary && coversCodepoint(face, cp) === false) {
+    throw new OracleDriftError(at, [chromePrimary], [actual], "supplementary-pua", cp);
   }
 }
 
@@ -1965,6 +2031,7 @@ export interface SweepOperations {
   reset: typeof clearFontResolutionCaches;
   faceFor: typeof ourFaceFor;
   primeCodepoints: (codepoints: readonly number[]) => void;
+  chromeFaceCoversCodepoint?: (face: ChromeFace, cp: number) => boolean | null;
   memoSize: typeof glyphHelperCodepointMemoSize;
   rssMb: () => number;
   write: (message: string) => void;
@@ -2063,6 +2130,17 @@ export async function sweepStack(
     for (let j = 0; j < cps.length; j++) {
       const cp = cps[j];
       const ours = operations.faceFor(cp, rs, spec.lang ?? opts.lang);
+      assertSupplementaryPuaOracleFace(
+        spec,
+        cp,
+        faces[j],
+        ours,
+        chromePrimary,
+        `stack ${stackIndex + 1}/${stackCount} ${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}` +
+          ` batch ${batchNo} U+${cp.toString(16).toUpperCase().padStart(6, "0")}`,
+        operations.platform,
+        operations.chromeFaceCoversCodepoint,
+      );
       tally.record(spec, cp, faces[j], ours);
     }
     tally.oursMs += Date.now() - to;
@@ -2171,7 +2249,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
             join(opts.outDir, "oracle-drift.json"),
             JSON.stringify(
               {
+                kind: error.kind,
                 at: error.at,
+                codepoint: error.codepoint,
                 expected: error.expected,
                 actual: error.actual,
                 comparisonsBeforeDrift: Object.values(tally.counts).reduce((a, b) => a + b, 0),
