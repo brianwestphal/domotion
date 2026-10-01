@@ -44,6 +44,11 @@ on:
   # NOTE: removing the required-check status is a branch-protection setting in
   # the repo's GitHub settings and cannot be done from this file.
   workflow_dispatch:
+    inputs:
+      arm64_family_match:
+        description: "Record a hosted Windows 11 Arm64 family-match candidate only"
+        type: boolean
+        default: false
 
 env:
   # Match the Release workflow's pin (Node 22.22.x ships a broken bundled npm).
@@ -51,6 +56,7 @@ env:
 
 jobs:
   font-width-probe:
+    if: ${{ !inputs.arm64_family_match }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +76,7 @@ jobs:
           if-no-files-found: error
 
   regression:
+    if: ${{ !inputs.arm64_family_match }}
     # DM-1405: distinct check-run name (see test-linux.yml) so this Windows gate
     # is a separately-required status check from the Linux one.
     name: Windows fidelity regression
@@ -119,6 +126,7 @@ jobs:
           if-no-files-found: error
 
   decoration-geometry:
+    if: ${{ !inputs.arm64_family_match }}
     name: Windows decoration geometry
     runs-on: windows-latest
     steps:
@@ -175,6 +183,7 @@ jobs:
   # the job. Numbers from this runner say nothing about desktop Windows 11 —
   # each environment is judged only against itself.
   family-match:
+    if: ${{ !inputs.arm64_family_match }}
     name: Windows family-match conformance
     runs-on: windows-latest
     steps:
@@ -211,12 +220,49 @@ jobs:
             family-match-windows.baseline-candidate.json
           if-no-files-found: ignore
 
+  # This desktop Arm64 runner is a distinct environment from the developer's
+  # Parallels VM. Keep its candidate separate until its fingerprint and scores
+  # have been reviewed; never overwrite or relabel the VM entry in CI.
+  family-match-arm64-hosted:
+    if: ${{ inputs.arm64_family_match }}
+    name: Windows 11 Arm64 hosted family-match candidate
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Build the DirectWrite helper
+        shell: pwsh
+        run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
+      - name: Record a hosted Arm64 baseline candidate
+        shell: pwsh
+        run: |
+          npx tsx tools/family-match-conformance-win32.ts --write-baseline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item tests/baselines/family-match-windows.json family-match-windows-arm64-hosted.candidate.json
+          node scripts/record-runner-image.mjs family-match-windows-arm64-hosted.runner.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload hosted Arm64 candidate and environment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: family-match-windows-arm64-hosted
+          path: |
+            tests/output/family-match-conformance-windows.json
+            family-match-windows-arm64-hosted.candidate.json
+            family-match-windows-arm64-hosted.runner.txt
+          if-no-files-found: ignore
+
   # Compile the DirectWrite glyph extractor and run its parity test against the
   # real Windows font stack. This is the release-independent validation path for
   # the win32 helper (the release-helpers.yml job builds + uploads the asset; this
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
+    if: ${{ !inputs.arm64_family_match }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -253,6 +299,7 @@ jobs:
   # committed table on real desktop Windows 11 (run `tools/probe-983-sweep.mjs`
   # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
   font-routing-sweep:
+    if: ${{ !inputs.arm64_family_match }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -280,6 +327,7 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
+    if: ${{ !inputs.arm64_family_match }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
