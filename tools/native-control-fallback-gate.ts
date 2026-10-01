@@ -15,6 +15,7 @@ import { dirname, resolve } from "node:path";
 
 import type { CapturedElement } from "../src/capture/types.js";
 import { formControlRenderRoute, renderFormControl, type FormControlRenderRoute } from "../src/render/form-controls.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -210,8 +211,11 @@ export function runNativeControlFallbackGate(): { ok: boolean; errors: string[];
   return { ok: errors.length === 0, errors, routeRows: FORM_CONTROL_ROUTE_ROWS.length };
 }
 
-if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+export function main(argv: string[] = process.argv.slice(2)): number {
+  parseFlags(argv, {});
   const report = runNativeControlFallbackGate();
   console.log(JSON.stringify(report, null, 2));
-  if (!report.ok) process.exitCode = 1;
+  return report.ok ? 0 : 1;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main());

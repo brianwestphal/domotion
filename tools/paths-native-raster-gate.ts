@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { z } from "zod";
+import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 import { assessPathsNativeFaceIdentity, pathsRasterCssFamily } from "./paths-native-face-identity.js";
 
 const finite = z.number().finite();
@@ -383,17 +384,22 @@ export function adjudicatePathsRasterRows(
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const arg = (name: string): string => {
-    const i = process.argv.indexOf(name);
-    if (i < 0 || process.argv[i + 1] == null) throw new Error(`missing ${name}`);
-    return process.argv[i + 1];
-  };
+export function main(argv: string[] = process.argv.slice(2)): number {
+  const values = parseFlags(argv, {
+    rows: { type: "string" },
+    envelopes: { type: "string" },
+    out: { type: "string" },
+  });
+  const rows = requiredFlag(values, "--rows");
+  const envelopes = requiredFlag(values, "--envelopes");
+  const out = requiredFlag(values, "--out");
   const report = adjudicatePathsRasterRows(
-    JSON.parse(readFileSync(arg("--rows"), "utf8")),
-    JSON.parse(readFileSync(arg("--envelopes"), "utf8")),
+    JSON.parse(readFileSync(rows, "utf8")),
+    JSON.parse(readFileSync(envelopes, "utf8")),
   );
-  writeFileSync(arg("--out"), JSON.stringify({ schemaVersion: 1, ...report }, null, 2));
+  writeFileSync(out, JSON.stringify({ schemaVersion: 1, ...report }, null, 2));
   console.log(`Paths/native raster gate: ${report.rows.length} rows; ${report.pass ? "PASS" : "WITHHELD"}`);
-  if (!report.pass) process.exitCode = 1;
+  return report.pass ? 0 : 1;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main());

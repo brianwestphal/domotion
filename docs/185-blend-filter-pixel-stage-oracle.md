@@ -12,6 +12,10 @@ aliases: ["docs/185-blend-filter-pixel-stage-oracle.md", "doc-185"]
 
 # 185 — Blend-mode and filter-kernel pixel-stage oracle
 
+The oracle CLI accepts `--dpr`, `--json`, and `--artifact-dir`. Unknown options
+and missing values fail before browser work; importing the module does not
+start a run.
+
 **Status:** Source-stage oracle and computed-alpha correction shipped.
 
 **Source pins:** Chromium

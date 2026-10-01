@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { seekAnimationsToFrame } from "../src/capture/animation-frame.js";
 import { projectiveQuadResidual, type ProjectivePaintQuad } from "../src/capture/projective-owner.js";
@@ -426,25 +427,29 @@ export async function runAnimatedProjectiveFrameOracle(
   };
 }
 
-function parseNumberList(flag: string, fallback: number[]): number[] {
-  const index = process.argv.indexOf(flag);
-  if (index < 0 || process.argv[index + 1] == null) return fallback;
-  const values = process.argv[index + 1].split(",").map(Number);
+function parseNumberList(raw: string | null, name: string, fallback: number[]): number[] {
+  if (raw == null) return fallback;
+  const values = raw.split(",").map(Number);
   if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) {
-    throw new Error(`${flag} requires a comma-separated list of finite non-negative numbers`);
+    throw new Error(`${name} requires a comma-separated list of finite non-negative numbers`);
   }
   return values;
 }
 
-async function main(): Promise<void> {
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, { dpr: { type: "string" }, times: { type: "string" }, json: { type: "string" } });
+  const dpr = flag(args, "dpr");
+  const times = flag(args, "times");
   const report = await runAnimatedProjectiveFrameOracle({
-    dprs: parseNumberList("--dpr", [1, 2]),
-    sampleTimesMs: parseNumberList("--times", [...ANIMATED_PROJECTIVE_SAMPLE_TIMES_MS]),
+    dprs: parseNumberList(typeof dpr === "string" ? dpr : null, "--dpr", [1, 2]),
+    sampleTimesMs: parseNumberList(typeof times === "string" ? times : null, "--times", [
+      ...ANIMATED_PROJECTIVE_SAMPLE_TIMES_MS,
+    ]),
   });
-  const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
-    mkdirSync(dirname(process.argv[jsonIndex + 1]), { recursive: true });
-    writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
+  const json = flag(args, "json");
+  if (typeof json === "string") {
+    mkdirSync(dirname(json), { recursive: true });
+    writeFileSync(json, JSON.stringify(report, null, 2));
   }
   const passed = report.rows.filter((row) => row.pass).length;
   console.log(
@@ -458,7 +463,7 @@ async function main(): Promise<void> {
         .join(", ")}`,
     );
   }
-  if (report.verdict !== "source-exact") process.exitCode = 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (import.meta.url === new URL(`file://${process.argv[1]}`).href) void main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

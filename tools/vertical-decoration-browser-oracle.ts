@@ -5,9 +5,9 @@
  * centroids are reported as raster-phase observations and never feed a source
  * constant or tolerance. */
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 
 type Side = "left" | "right";
 
@@ -224,10 +224,11 @@ export async function runVerticalDecorationBrowserOracle(): Promise<VerticalDeco
   });
 }
 
-async function main(): Promise<void> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  parseFlags(argv, {});
   const report = await runVerticalDecorationBrowserOracle();
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (report.verdict !== "browser-authenticates-source-sides") process.exitCode = 1;
+  return report.verdict === "browser-authenticates-source-sides" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) void main();
+if (isMain(import.meta.url)) await runMain(() => main());

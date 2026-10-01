@@ -21,6 +21,7 @@
  * (unusable input: blank / too small / unreadable).
  */
 import { compareGlyphPngs, type GlyphCompareResult } from "../src/review/glyph-compare.js";
+import { flag, isMain, parseCommand, runMain } from "./lib/cli.js";
 
 function parseRect(s: string): { x: number; y: number; w: number; h: number } {
   const parts = s.split(",").map((p) => Number(p.trim()));
@@ -31,32 +32,29 @@ function parseRect(s: string): { x: number; y: number; w: number; h: number } {
 }
 
 function usage(): never {
-  console.error("usage: compare-glyphs.ts <expected.png> <actual.png> [--rect-a x,y,w,h] [--rect-b x,y,w,h] [--json]");
-  process.exit(2);
+  throw new Error(
+    "usage: compare-glyphs.ts <expected.png> <actual.png> [--rect-a x,y,w,h] [--rect-b x,y,w,h] [--json]",
+  );
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const files: string[] = [];
-  let rectA: { x: number; y: number; w: number; h: number } | undefined;
-  let rectB: { x: number; y: number; w: number; h: number } | undefined;
-  let json = false;
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === "--rect-a") rectA = parseRect(args[++i] ?? usage());
-    else if (a === "--rect-b") rectB = parseRect(args[++i] ?? usage());
-    else if (a === "--json") json = true;
-    else if (a.startsWith("--")) usage();
-    else files.push(a);
-  }
+export async function compareGlyphs(argv: string[]): Promise<number> {
+  const { values, positionals: files } = parseCommand(argv, {
+    "rect-a": { type: "string" },
+    "rect-b": { type: "string" },
+    json: { type: "boolean" },
+  });
+  const rectAValue = flag(values, "rect-a");
+  const rectBValue = flag(values, "rect-b");
+  const rectA = typeof rectAValue === "string" ? parseRect(rectAValue) : undefined;
+  const rectB = typeof rectBValue === "string" ? parseRect(rectBValue) : undefined;
+  const json = flag(values, "json", false) === true;
   if (files.length !== 2) usage();
 
   let result: GlyphCompareResult;
   try {
     result = await compareGlyphPngs(files[0], files[1], { rectA, rectB });
   } catch (err) {
-    console.error(`error: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(2);
+    throw new Error(`error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   if (json) {
@@ -77,7 +75,7 @@ async function main(): Promise<void> {
         ` · zoning ${m.zoningL2.toFixed(4)}`,
     );
   }
-  process.exit(result.verdict === "match" ? 0 : 1);
+  return result.verdict === "match" ? 0 : 1;
 }
 
-void main();
+if (isMain(import.meta.url)) await runMain(() => compareGlyphs(process.argv.slice(2)));

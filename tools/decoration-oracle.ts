@@ -144,10 +144,10 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { release as osRelease, type as osType } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { chromium, type CDPSession, type Page } from "@playwright/test";
 import { resolveFont } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag as flagValue, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { setRenderTextMode } from "../src/render/font-resolution.js";
 
@@ -1572,13 +1572,18 @@ function reportDecorationResults(input: {
   return gateFailed ? 1 : 0;
 }
 
-async function main(): Promise<number> {
-  const args = process.argv.slice(2);
-  const flag = (name: string) => args.includes(name);
-  const opt = (name: string): string | null => {
-    const i = args.indexOf(name);
-    return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
-  };
+export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(args, {
+    only: { type: "string" },
+    json: { type: "string" },
+    keep: { type: "string" },
+    "device-scale-factor": { type: "string" },
+    "gate-svg-geometry": { type: "boolean" },
+    "no-gate-svg-geometry": { type: "boolean" },
+    "no-gate-skip-ink": { type: "boolean" },
+  });
+  const flag = (name: string) => values[name.slice(2)] === true;
+  const opt = (name: string): string | null => flagValue(values, name);
   const only = opt("--only");
   const jsonPath = opt("--json");
   const keepDir = opt("--keep");
@@ -1642,6 +1647,4 @@ export {
 };
 export type { CaseSpec, PageMeasure, Bar, Prediction, SvgBar, LegResult, ParsedDecoLine, ParsedSvgDecorations };
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

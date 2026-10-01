@@ -10,6 +10,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { intFlag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 
 import {
   ANIMATED_IMAGE_TRUTH_CASES,
@@ -60,28 +61,19 @@ interface PlanRow {
   exerciseDeniedInspectorBody?: boolean;
 }
 
-function parseCli(): CliOptions {
-  const values = new Map<string, string>();
-  for (let index = 2; index < process.argv.length; index += 2) {
-    const flag = process.argv[index];
-    const value = process.argv[index + 1];
-    if (!flag?.startsWith("--") || value == null) {
-      throw new Error("invalid fixture-server arguments");
-    }
-    values.set(flag.slice(2), value);
-  }
-  const required = (name: string): string => {
-    const value = values.get(name);
-    if (!value) throw new Error(`--${name} is required`);
-    return value;
-  };
-  const port = Number(required("port"));
+export function parseCli(argv: string[]): CliOptions {
+  const values = parseFlags(argv, {
+    "chromium-root": { type: "string" },
+    "plan-out": { type: "string" },
+    port: { type: "string" },
+  });
+  const port = intFlag(values, "port", 1024);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) {
     throw new Error("fixture port is invalid");
   }
   return {
-    chromiumRoot: resolve(required("chromium-root")),
-    planOut: resolve(required("plan-out")),
+    chromiumRoot: resolve(requiredFlag(values, "chromium-root")),
+    planOut: resolve(requiredFlag(values, "plan-out")),
     port,
   };
 }
@@ -653,8 +645,8 @@ function buildPlan(port: number): { schemaVersion: 1; ticket: "DM-2583"; rows: P
   };
 }
 
-async function main(): Promise<void> {
-  const options = parseCli();
+async function main(argv: string[]): Promise<number> {
+  const options = parseCli(argv);
   const fixtures = await loadFixtureBytes(options.chromiumRoot);
   let redirectVariant = "a";
   let slowRequestCount = 0;
@@ -772,9 +764,7 @@ async function main(): Promise<void> {
   };
   process.once("SIGINT", close);
   process.once("SIGTERM", close);
+  return 0;
 }
 
-main().catch(() => {
-  process.stderr.write("DM-2583 fixture server failed closed\n");
-  process.exitCode = 1;
-});
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 import {
   BORDER_PHASE_SOURCE_PINS,
   borderPhaseGeometryStatus,
@@ -347,36 +347,27 @@ export function adjudicateBorderPhaseReport(
   };
 }
 
-function option(args: string[], name: string, fallback = ""): string {
-  const index = args.indexOf(name);
-  return index >= 0 && args[index + 1] != null ? args[index + 1] : fallback;
-}
-
-function main(): number {
-  const args = process.argv.slice(2);
-  const reportPath = option(args, "--report");
-  const baselinePath = option(args, "--baseline", "tests/baselines/border-phase-envelopes.json");
-  const runEnvPath = option(args, "--run-env");
-  const artifactDir = option(args, "--artifact-dir");
-  const jsonPath = option(args, "--json");
-  if (!reportPath) throw new Error("--report is required");
-  if (!runEnvPath) throw new Error("--run-env is required");
-  if (!artifactDir) throw new Error("--artifact-dir is required");
+function main(argv: string[]): number {
+  const args = parseFlags(argv, {
+    report: { type: "string" },
+    baseline: { type: "string" },
+    "run-env": { type: "string" },
+    "artifact-dir": { type: "string" },
+    json: { type: "string" },
+  });
+  const reportPath = requiredFlag(args, "report");
+  const baselinePath = String(flag(args, "baseline", "tests/baselines/border-phase-envelopes.json"));
+  const runEnvPath = requiredFlag(args, "run-env");
+  const artifactDir = requiredFlag(args, "artifact-dir");
+  const jsonPath = flag(args, "json");
   const report = JSON.parse(readFileSync(reportPath, "utf8")) as BorderPhaseReport;
   const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as BorderPhaseEnvelope;
   const runEnvironment = JSON.parse(readFileSync(runEnvPath, "utf8")) as RunEnvironment;
   const result = adjudicateBorderPhaseReport(report, baseline, runEnvironment, artifactDir);
   const output = `${JSON.stringify(result, null, 2)}\n`;
-  if (jsonPath) writeFileSync(jsonPath, output);
+  if (typeof jsonPath === "string") writeFileSync(jsonPath, output);
   process.stdout.write(output);
   return result.verdict === "ratified-source-exact" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try {
-    process.exitCode = main();
-  } catch (error: unknown) {
-    console.error(error);
-    process.exitCode = 2;
-  }
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 /** DM-2530 strict Linux/Windows background-clip:text evidence aggregator. */
 import { readFileSync } from "node:fs";
+import { isMain, parseCommand, runMain } from "./lib/cli.js";
 import type { BackgroundClipTextOracleReport } from "./background-clip-text-oracle.js";
 
 export function adjudicateBackgroundClipTextNativeReports(reports: BackgroundClipTextOracleReport[]): string[] {
@@ -25,14 +26,14 @@ export function adjudicateBackgroundClipTextNativeReports(reports: BackgroundCli
   return errors;
 }
 
-function main(): void {
-  const paths = process.argv.slice(2);
+export function checkBackgroundClipTextNative(argv: string[]): number {
+  const { positionals: paths } = parseCommand(argv, {});
   const reports = paths.map((path) => JSON.parse(readFileSync(path, "utf8")) as BackgroundClipTextOracleReport);
   const errors = adjudicateBackgroundClipTextNativeReports(reports);
   process.stdout.write(
     `${JSON.stringify({ schemaVersion: 1, reports: reports.length, errors, verdict: errors.length === 0 ? "source-exact" : "source-drift" }, null, 2)}\n`,
   );
-  if (errors.length > 0) process.exitCode = 1;
+  return errors.length > 0 ? 1 : 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isMain(import.meta.url)) await runMain(() => checkBackgroundClipTextNative(process.argv.slice(2)));

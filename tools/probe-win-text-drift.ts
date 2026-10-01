@@ -12,6 +12,7 @@
 // Run on the Windows runner via `npx tsx tools/probe-win-text-drift.ts`.
 
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTree } from "../src/index.js";
 import type { CapturedElement } from "../src/index.js";
 
@@ -38,7 +39,8 @@ function collectSegments(nodes: CapturedElement[], out: CapturedElement[]): void
   }
 }
 
-async function main(): Promise<void> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  parseFlags(argv, {});
   await withBrowser(async (browser) => {
     const page = await browser.newPage();
     await page.setViewportSize({ width: WIDTH, height: HEIGHT });
@@ -164,7 +166,4 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (isMain(import.meta.url)) await runMain(() => main());

@@ -17,6 +17,9 @@ aliases: ["docs/228-background-clip-text-native-parity.md"]
 
 # 228 — Native `background-clip:text` parity
 
+The native gate accepts report paths as positional operands. It rejects unknown
+options before reading reports; importing the module does not run adjudication.
+
 DM-2530 promotes the vector-only `background-clip:text` oracle (`npm run background:clip-text-oracle`, `tools/background-clip-text-oracle.ts`; the native gate is `tools/background-clip-text-native-gate.ts`) from a local
 macOS discriminator to an authenticated Linux and Windows gate. The browser is
 always launched headlessly.

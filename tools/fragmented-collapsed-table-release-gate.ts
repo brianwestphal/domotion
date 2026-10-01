@@ -7,7 +7,7 @@
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 
 export const FRAGMENTED_TABLE_PLATFORMS = ["darwin", "linux", "win32"] as const;
 const SCREEN_DISCRIMINATORS = 21;
@@ -129,18 +129,15 @@ function findReports(root: string, name: string): unknown[] {
   return found;
 }
 
-function option(args: string[], name: string): string {
-  const index = args.indexOf(name);
-  return index >= 0 ? (args[index + 1] ?? "") : "";
-}
-
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const root = resolve(option(process.argv.slice(2), "--reports"));
-  if (!option(process.argv.slice(2), "--reports")) throw new Error("--reports is required");
+function main(argv: string[]): number {
+  const args = parseFlags(argv, { reports: { type: "string" } });
+  const root = resolve(requiredFlag(args, "reports"));
   const result = adjudicateFragmentedCollapsedTableRelease(
     findReports(root, "screen-logical.json"),
     findReports(root, "final-ink.json"),
   );
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  if (!result.ready) process.exitCode = 1;
+  return result.ready ? 0 : 1;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

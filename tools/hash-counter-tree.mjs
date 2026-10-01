@@ -3,7 +3,13 @@
 import { createHash } from "node:crypto";
 import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-const html = `<!doctype html><meta charset=utf8><style>
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
+
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const html = `<!doctype html><meta charset=utf8><style>
 @counter-style circled { system: fixed; symbols: "①" "②" "③" "④"; suffix: " "; }
 @counter-style myroman { system: additive; additive-symbols: 10 "X", 9 "IX", 5 "V", 4 "IV", 1 "I"; }
 @counter-style dashed { system: cyclic; symbols: "–"; suffix: " "; negative: "(" ")"; pad: 2 "0"; range: 1 5; }
@@ -13,10 +19,18 @@ ol.a { list-style-type: circled; } ol.b { list-style-type: myroman; } ol.c { lis
 <ol class=b><li>seven</li><li>fourteen</li></ol>
 <ol class=c><li>x</li><li>y</li></ol>
 </body>`;
-await withBrowser(async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 400, height: 400 }, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  await page.setContent(html, { waitUntil: "networkidle" });
-  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 400 });
-  console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
-});
+    await withBrowser(async (browser) => {
+      const ctx = await browser.newContext({ viewport: { width: 400, height: 400 }, deviceScaleFactor: 1 });
+      const page = await ctx.newPage();
+      await page.setContent(html, { waitUntil: "networkidle" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 400 });
+      console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
+    });
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

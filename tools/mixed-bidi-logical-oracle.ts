@@ -1,6 +1,5 @@
 #!/usr/bin/env tsx
 import { writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import * as fk from "fontkit";
 import {
   segmentForShaping,
@@ -14,6 +13,7 @@ import { withBrowser } from "./lib/browser.js";
 import { bidiLevelsFor, type BidiParagraphContext } from "../src/render/script-segmentation.js";
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
 import { parityEnvironment } from "./parity-environment.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 const fontkit = (fk as { default?: typeof fk }).default ?? fk;
 const FORWARD = "L שָׁלוֹם 123 مَرْحَبًا R";
@@ -421,9 +421,9 @@ async function collectMixedBidiEvidence(): Promise<MixedBidiEvidence> {
   );
 }
 
-async function main(): Promise<number> {
-  const outputAt = process.argv.indexOf("--json");
-  const output = outputAt >= 0 ? process.argv[outputAt + 1] : undefined;
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
+  const output = flag(values, "--json");
   const evidence = await collectMixedBidiEvidence();
   const report = buildMixedBidiReport(evidence);
   const { controls, complete } = compareMixedBidiEvidence(evidence);
@@ -434,13 +434,4 @@ async function main(): Promise<number> {
   return complete ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main()
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 2;
-    });
-}
+if (isMain(import.meta.url)) await runMain(() => main());

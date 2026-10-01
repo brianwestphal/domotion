@@ -20,6 +20,9 @@ aliases: ["docs/236-strict-static-frames-for-svg-css-images.md", "doc-236"]
 
 # Strict static frames for SVG and CSS images
 
+The live replaced-media ownership audit accepts no CLI options and validates
+that before launching Chromium. Importing it does not start the audit.
+
 Status: shipped three-platform subset; strict macOS/Linux/Windows production workflow
 
 The opt-in `animatedImageFrames` request accepts a `slot` in addition to its

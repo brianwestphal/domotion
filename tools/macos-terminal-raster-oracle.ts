@@ -1,3 +1,5 @@
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
+
 /**
  * Evidence-only macOS terminal-raster classifier (DM-2431).
  *
@@ -127,7 +129,8 @@ export function classifyTerminalRaster(record: TerminalRasterRecord) {
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function main(argv: string[] = process.argv.slice(2)): number {
+  parseFlags(argv, {});
   const records = [...POSITIVE_RECORDS, ...ZERO_DIFF_CONTROLS];
   const results = records.map((record) => ({
     id: record.id,
@@ -142,5 +145,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       2,
     ),
   );
-  if (failures.length > 0) process.exitCode = 1;
+  return failures.length > 0 ? 1 : 0;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main());

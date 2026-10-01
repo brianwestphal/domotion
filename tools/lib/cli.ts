@@ -4,6 +4,7 @@ export {
   EXIT_MISMATCH,
   EXIT_ERROR,
   parseFlags,
+  parseCommand,
   flag,
   requiredFlag,
   intFlag,

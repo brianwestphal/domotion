@@ -19,6 +19,10 @@ aliases: ["docs/31-region-feedback.md", "doc-31"]
 
 # Region-scoped feedback in the demos-review tool
 
+`tools/crop-regions.ts` validates `--ticket` (`-t`), `--id`, and
+`--output-root` before loading a ticket. Unknown options and missing values
+fail before any crop is written.
+
 End-to-end contract for an extension of Domotion's local visual-regression review tool (`npm run demos:review` → `tests/review-server.tsx`) that lets the user point at specific rectangular regions of an `expected` / `actual` / `diff` PNG triplet, persist those regions in a newly filed Hot Sheet ticket, and crop the source images for a later iteration.
 
 Tracked in DM-570.

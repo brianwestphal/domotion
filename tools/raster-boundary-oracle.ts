@@ -2,6 +2,7 @@
 import { writeFileSync } from "node:fs";
 import { type Browser } from "playwright";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -285,12 +286,12 @@ export async function runRasterBoundaryOracle(): Promise<{ rows: Row[]; mutation
   return { rows, mutationMoved: positive === true && negative === false };
 }
 
-async function main(): Promise<void> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runRasterBoundaryOracle();
   const failures = report.rows.filter((row) => !row.pass);
-  const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null)
-    writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
+  const json = flag(values, "--json");
+  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
   console.log(
     `raster boundary oracle: ${report.rows.length - failures.length}/${report.rows.length}; mutation control ${report.mutationMoved ? "moved" : "DID NOT MOVE"}`,
   );
@@ -300,4 +301,4 @@ async function main(): Promise<void> {
     );
   if (failures.length > 0 || !report.mutationMoved) process.exitCode = 1;
 }
-if (import.meta.url === new URL(`file://${process.argv[1]}`).href) void main();
+if (isMain(import.meta.url)) await runMain(() => main());

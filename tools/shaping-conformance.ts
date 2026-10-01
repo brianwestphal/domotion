@@ -62,6 +62,7 @@ import {
   isHarfbuzzDefaultIgnorable,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { finiteFlag, intFlag } from "./lib/conformance-args.js";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { registerWebfont } from "../src/render/font-resolution.js";
@@ -1231,6 +1232,19 @@ export interface Options {
 }
 
 export function parseArgs(argv: string[]): Options {
+  const values = parseFlags(argv, {
+    runs: { type: "string" },
+    "extract-runs": { type: "boolean" },
+    source: { type: "string" },
+    "max-runs": { type: "string" },
+    "split-words": { type: "boolean" },
+    tolerance: { type: "string" },
+    allowlist: { type: "string" },
+    out: { type: "string" },
+    batch: { type: "string" },
+    h: { type: "boolean" },
+    help: { type: "boolean" },
+  });
   const o: Options = {
     runsFile: DEFAULT_RUNS_FILE,
     extractRuns: false,
@@ -1247,52 +1261,19 @@ export function parseArgs(argv: string[]): Options {
     outDir: "tests/output/shaping-conformance",
     batch: 200,
   };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    const next = (): string => {
-      const v = argv[++i];
-      if (v == null) throw new Error(`missing value for ${a}`);
-      return v;
-    };
-    switch (a) {
-      case "--runs":
-        o.runsFile = next();
-        break;
-      case "--extract-runs":
-        o.extractRuns = true;
-        break;
-      case "--source":
-        o.sources = next()
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        break;
-      case "--max-runs":
-        o.maxRuns = intFlag(a, next());
-        break;
-      case "--split-words":
-        o.splitWords = true;
-        break;
-      case "--tolerance":
-        o.tolerance = finiteFlag(a, next());
-        break;
-      case "--allowlist":
-        o.allowlistFile = next();
-        break;
-      case "--out":
-        o.outDir = next();
-        break;
-      case "--batch":
-        o.batch = intFlag(a, next());
-        break;
-      case "-h":
-      case "--help":
-        process.stdout.write(readFileSync(new URL(import.meta.url), "utf-8").split("*/")[0] + "*/\n");
-        process.exit(0);
-      default:
-        throw new Error(`unknown option ${a}`);
-    }
-  }
+  if (values.runs != null) o.runsFile = values.runs;
+  o.extractRuns = values["extract-runs"] === true;
+  if (values.source != null)
+    o.sources = values.source
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  if (values["max-runs"] != null) o.maxRuns = intFlag("--max-runs", values["max-runs"]);
+  o.splitWords = values["split-words"] === true;
+  if (values.tolerance != null) o.tolerance = finiteFlag("--tolerance", values.tolerance);
+  if (values.allowlist != null) o.allowlistFile = values.allowlist;
+  if (values.out != null) o.outDir = values.out;
+  if (values.batch != null) o.batch = intFlag("--batch", values.batch);
   return o;
 }
 
@@ -1533,8 +1514,12 @@ function formatShapingSummary(input: {
   return summary;
 }
 
-async function main(): Promise<number> {
-  const opts = parseArgs(process.argv.slice(2));
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const opts = parseArgs(argv);
+  if (argv.includes("--help") || argv.includes("-h")) {
+    process.stdout.write(readFileSync(new URL(import.meta.url), "utf-8").split("*/")[0] + "*/\n");
+    return 0;
+  }
   return await withBrowser(async (browser) => {
     if (opts.extractRuns) {
       const dirs = opts.sources.filter((d) => existsSync(d));
@@ -1610,13 +1595,4 @@ async function main(): Promise<number> {
   }, undefined);
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("shaping-conformance.ts")) {
-  main()
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((e) => {
-      process.stderr.write(`shaping-conformance failed: ${(e as Error).stack ?? String(e)}\n`);
-      process.exitCode = 2;
-    });
-}
+if (isMain(import.meta.url)) await runMain(() => main());

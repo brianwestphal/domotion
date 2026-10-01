@@ -35,6 +35,7 @@ import {
   withSessionGenericFamilyOverrides,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   ensureSessionGenericFamilyOverrides,
   genericFamilyReplayName,
@@ -48,6 +49,12 @@ import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.m
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const require = createRequire(import.meta.url);
+const CLI_OPTIONS = {
+  modes: { type: "string" },
+  json: { type: "string" },
+  "allow-headed-browser": { type: "boolean" },
+  "allow-missing-full-chrome": { type: "boolean" },
+} as const;
 
 type SettingsGenericName = "standard" | "serif" | "sans-serif" | "monospace" | "cursive" | "fantasy" | "math";
 type GenericName = SettingsGenericName | "system-ui" | "quoted-serif";
@@ -685,8 +692,9 @@ function fontInventory(): GenericFamilyPreferenceReport["environment"]["fontInve
 }
 
 function selectedModes(args: string[]): LaunchMode[] {
-  const value = args.find((arg) => arg.startsWith("--modes="))?.slice("--modes=".length);
-  const allowHeaded = args.includes("--allow-headed-browser");
+  const flags = parseFlags(args, CLI_OPTIONS);
+  const value = flags.modes as string | undefined;
+  const allowHeaded = flags["allow-headed-browser"] === true;
   if (value == null || value === "") return allowHeaded ? MODES : MODES.filter((mode) => mode.headless);
   const ids = new Set(value.split(","));
   const selected = MODES.filter((mode) => ids.has(mode.id));
@@ -703,11 +711,10 @@ export function selectedLaunchModeIds(args: string[]): LaunchMode["id"][] {
   return selectedModes(args).map((mode) => mode.id);
 }
 
-export async function runGenericFamilyPreferenceOracle(
-  args: string[] = process.argv.slice(2),
-): Promise<GenericFamilyPreferenceReport> {
+export async function runGenericFamilyPreferenceOracle(args: string[] = []): Promise<GenericFamilyPreferenceReport> {
+  const flags = parseFlags(args, CLI_OPTIONS);
   const modes = selectedModes(args);
-  const allowMissingFullChrome = args.includes("--allow-missing-full-chrome");
+  const allowMissingFullChrome = flags["allow-missing-full-chrome"] === true;
   const reports: Array<ModeReport | UnavailableMode> = [];
   for (const mode of modes) {
     process.stderr.write(`[DM-2351] ${mode.id}\n`);
@@ -759,17 +766,14 @@ export async function runGenericFamilyPreferenceOracle(
   };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+async function main(args: string[]): Promise<number> {
+  const flags = parseFlags(args, CLI_OPTIONS);
   const report = await runGenericFamilyPreferenceOracle(args);
-  const outIndex = args.indexOf("--json");
-  const out = outIndex >= 0 ? args[outIndex + 1] : undefined;
+  const out = flags.json as string | undefined;
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (out != null && out !== "") writeFileSync(resolve(out), json);
   process.stdout.write(json);
-  process.exitCode = report.verdict === "source-exact" ? 0 : 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  void main();
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

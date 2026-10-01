@@ -11,10 +11,10 @@
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { type CDPSession, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import type {
   CapturedElement,
   CapturedTextPaintAffine,
@@ -801,14 +801,10 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
   );
 }
 
-async function main(): Promise<number> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runTextAffineBaselineProtocolOracle();
-  const jsonIndex = process.argv.indexOf("--json");
-  const path = resolve(
-    jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
-      ? process.argv[jsonIndex + 1]
-      : `tests/output/text-affine-baseline-protocol-${platform()}.json`,
-  );
+  const path = resolve(flag(values, "--json", `tests/output/text-affine-baseline-protocol-${platform()}.json`)!);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
   console.log(
@@ -828,6 +824,4 @@ async function main(): Promise<number> {
   return report.verdict === "source-exact-line-origin" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

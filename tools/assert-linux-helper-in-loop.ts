@@ -37,42 +37,49 @@
  */
 import { withSystemFallbackResolution, resolveLinuxFamilyMatch } from "@domotion/text-engine/testing";
 import { getFontInstance } from "../src/render/font-resolution.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 
 function fail(msg: string): never {
   console.error(`FAIL: ${msg}`);
   process.exit(1);
 }
 
-if (process.platform !== "linux") {
-  console.log("skipped: not Linux (this asserts the Linux helper seam).");
-  process.exit(0);
+function main(argv: string[]): number {
+  parseFlags(argv, {});
+  if (process.platform !== "linux") {
+    console.log("skipped: not Linux (this asserts the Linux helper seam).");
+    return 0;
+  }
+
+  // Deliberately NOT isGlyphHelperAvailable() — see (1) above. A non-null
+  // familyMatch answer is the only evidence the transcribed matcher is reachable.
+  if (resolveLinuxFamilyMatch("Liberation Sans", { weight: 700 }) == null) {
+    fail(
+      "the helper does not answer `familyMatch`, so the declared-family cut mechanism is inert. " +
+        "Either no helper resolved, or the one that did predates the query (the published release " +
+        "asset does) — in both cases a fidelity number scored here describes the two-slot fallback " +
+        "table, not the shipped mechanism.",
+    );
+  }
+
+  const psName = (weight: number): string | undefined =>
+    (getFontInstance("arial", weight, 22, 0) as { postscriptName?: string } | null)?.postscriptName;
+
+  const on = psName(550);
+  const off = withSystemFallbackResolution(false, () => psName(550));
+
+  console.log(`arial@550  resolver ON  -> ${on ?? "(none)"}`);
+  console.log(`arial@550  resolver OFF -> ${off ?? "(none)"}`);
+
+  if (on == null || on === off) {
+    fail(
+      "disabling the resolver did NOT move the answer at the discriminating rung — the matcher is " +
+        "not in the loop, so a green fidelity number here would be about a path nobody meant to measure.",
+    );
+  }
+
+  console.log(`MOVED (${off ?? "(none)"} -> ${on}) — the declared-family matcher is in the loop.`);
+  return 0;
 }
 
-// Deliberately NOT isGlyphHelperAvailable() — see (1) above. A non-null
-// familyMatch answer is the only evidence the transcribed matcher is reachable.
-if (resolveLinuxFamilyMatch("Liberation Sans", { weight: 700 }) == null) {
-  fail(
-    "the helper does not answer `familyMatch`, so the declared-family cut mechanism is inert. " +
-      "Either no helper resolved, or the one that did predates the query (the published release " +
-      "asset does) — in both cases a fidelity number scored here describes the two-slot fallback " +
-      "table, not the shipped mechanism.",
-  );
-}
-
-const psName = (weight: number): string | undefined =>
-  (getFontInstance("arial", weight, 22, 0) as { postscriptName?: string } | null)?.postscriptName;
-
-const on = psName(550);
-const off = withSystemFallbackResolution(false, () => psName(550));
-
-console.log(`arial@550  resolver ON  -> ${on ?? "(none)"}`);
-console.log(`arial@550  resolver OFF -> ${off ?? "(none)"}`);
-
-if (on == null || on === off) {
-  fail(
-    "disabling the resolver did NOT move the answer at the discriminating rung — the matcher is " +
-      "not in the loop, so a green fidelity number here would be about a path nobody meant to measure.",
-  );
-}
-
-console.log(`MOVED (${off ?? "(none)"} -> ${on}) — the declared-family matcher is in the loop.`);
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

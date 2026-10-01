@@ -12,6 +12,10 @@ aliases: ["docs/187-backdrop-source-surface-transitions.md", "doc-187"]
 
 # 187 — Backdrop-filter source-surface transitions
 
+The audit CLI accepts `--dpr`, `--json`, `--artifact-dir`, and `--strict`.
+Unknown options and missing values fail before browser work; importing the
+module does not start an audit.
+
 **Status: source investigation and all ownership follow-ups shipped. Ordinary
 effect-space parity is now a strict native gate in
 [doc 195](195-strict-ordinary-backdrop-ownership.md).**

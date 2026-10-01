@@ -12,10 +12,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import type { CDPSession, Page, Route } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type {
   CapturedBrokenImageFallback,
@@ -1804,16 +1804,21 @@ export async function runBrokenImageFallbackOracle(
   }, undefined);
 }
 
-function arg(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
-async function main(): Promise<number> {
-  const dprs = arg("--dpr")?.split(",").map(Number) ?? [...BROKEN_IMAGE_GATE_DPRS];
-  const schemes = (arg("--scheme")?.split(",") ?? [...BROKEN_IMAGE_GATE_SCHEMES]) as Scheme[];
-  const reportPath = resolve(arg("--json") ?? `tests/output/broken-image-fallback-${platform()}/report.json`);
-  const artifactRoot = resolve(arg("--artifacts") ?? resolve(dirname(reportPath), "artifacts"));
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, {
+    dpr: { type: "string" },
+    scheme: { type: "string" },
+    json: { type: "string" },
+    artifacts: { type: "string" },
+  });
+  const dpr = flag(args, "dpr");
+  const scheme = flag(args, "scheme");
+  const dprs = typeof dpr === "string" ? dpr.split(",").map(Number) : [...BROKEN_IMAGE_GATE_DPRS];
+  const schemes = (typeof scheme === "string" ? scheme.split(",") : [...BROKEN_IMAGE_GATE_SCHEMES]) as Scheme[];
+  const reportPath = resolve(
+    String(flag(args, "json", `tests/output/broken-image-fallback-${platform()}/report.json`)),
+  );
+  const artifactRoot = resolve(String(flag(args, "artifacts", resolve(dirname(reportPath), "artifacts"))));
   const report = await runBrokenImageFallbackOracle({ deviceScaleFactors: dprs, colorSchemes: schemes, artifactRoot });
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
@@ -1832,6 +1837,4 @@ async function main(): Promise<number> {
   return report.verdict === "hard-broken-image-fallback-parity" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

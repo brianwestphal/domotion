@@ -11,8 +11,8 @@
  * separately labeled browser observation, not a reason to tune constants.
  */
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import * as fontkit from "fontkit";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   clearWebfonts,
   computeSkipInkGaps,
@@ -540,12 +540,11 @@ export function runVerticalDecorationLogicalOracle(): VerticalDecorationOracleRe
   };
 }
 
-async function main(): Promise<void> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  parseFlags(argv, {});
   const report = runVerticalDecorationLogicalOracle();
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (report.verdict !== "source-exact-logical-geometry") process.exitCode = 1;
+  return report.verdict === "source-exact-logical-geometry" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

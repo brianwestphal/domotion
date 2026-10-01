@@ -23,6 +23,9 @@ aliases: ["docs/113-cluster-granularity-fallback.md", "doc-113"]
 
 # 113 — Font fallback at shaped-cluster granularity
 
+The cluster conformance CLI accepts `--only`, `--out`, and `--help` (`-h`).
+Unknown options and missing values fail before browser work.
+
 Status: **SHIPPED, default-on** for BOTH run splitters — the embedded-font
 pipeline and the glyph-path emitter. `packages/text-engine/src/render/cluster-fallback.ts` replaces
 `splitTextIntoFontRuns`' per-codepoint cmap walk (embedded), and

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
 const PINNED_CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const ZERO_SHA256 = "0".repeat(64);
@@ -116,16 +116,13 @@ export async function buildAnimatedImageTruthSourceManifest({ chromiumRoot, depo
   };
 }
 
-async function main() {
-  const values = {};
-  for (let index = 2; index < process.argv.length; index += 2) {
-    const flag = process.argv[index];
-    const value = process.argv[index + 1];
-    if (!["--chromium-root", "--depot-tools-root", "--out"].includes(flag) || value == null) {
-      throw new Error(`unknown or valueless argument: ${flag}`);
-    }
-    values[flag.slice(2)] = value;
-  }
+async function main(argv) {
+  const { values, positionals } = parseCommand(argv, {
+    "chromium-root": { type: "string" },
+    "depot-tools-root": { type: "string" },
+    out: { type: "string" },
+  });
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
   if (!values["chromium-root"] || !values["depot-tools-root"]) {
     throw new Error("--chromium-root and --depot-tools-root are required");
   }
@@ -144,9 +141,13 @@ async function main() {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  main().catch((error) => {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
+if (isMain(import.meta.url))
+  await runMain(async () => {
+    try {
+      await main(process.argv.slice(2));
+      return 0;
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   });
-}

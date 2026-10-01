@@ -22,6 +22,12 @@ aliases: ["docs/225-fragmented-collapsed-table-ownership.md", "doc-225"]
 
 # Fragmented collapsed-table ownership
 
+The fragmentation oracle accepts `--json` and validates options before
+browser work.
+
+The release gate requires `--reports <directory>`. Unknown options and missing
+values fail before evidence is read; importing the module does not run the gate.
+
 Domotion authenticates collapsed-border ownership for ordinary screen-layout
 fragments before vector paint. This contract covers multicolumn and other
 screen fragmentation, including continued rows and repeated table sections.

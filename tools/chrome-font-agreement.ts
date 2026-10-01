@@ -35,6 +35,7 @@ import {
   stackPrimaryIsSystemUi,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseCommand, runMain } from "./lib/cli.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
 
 const P = (s: string): void => console.log(`FONTAGREE: ${s}`);
@@ -71,84 +72,91 @@ function sameFace(chrome: string, ourKey: string, ourFile: string): boolean {
 // Defaults mirror the html-test unicode fixtures' own stack and a spread of the
 // codepoints whose blocks fail on CI (Cyrillic, phonetic extensions, currency,
 // enclosed alphanumerics, Latin extended additional / B).
-const STACK =
-  process.argv[2] ??
-  `"SF Pro Text","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
-const CPS = (process.argv[3] ?? "04FA,04FB,04FC,1D00,1D80,20A0,2460,1E00,0180,A720,FE00")
-  .split(",")
-  .map((h) => parseInt(h.trim(), 16))
-  .filter((n) => Number.isFinite(n));
+export async function chromeFontAgreement(argv: string[]): Promise<number> {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 2) throw new Error("expected at most a font stack and a comma-separated codepoint list");
+  const STACK =
+    positionals[0] ??
+    `"SF Pro Text","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
+  const CPS = (positionals[1] ?? "04FA,04FB,04FC,1D00,1D80,20A0,2460,1E00,0180,A720,FE00")
+    .split(",")
+    .map((h) => parseInt(h.trim(), 16))
+    .filter((n) => Number.isFinite(n));
 
-const FONT_PX = 32;
+  const FONT_PX = 32;
 
-await withBrowser(async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 1000, height: 400 } });
-  const page = await ctx.newPage();
-  const cdp = await ctx.newCDPSession(page);
-  await cdp.send("DOM.enable");
-  await cdp.send("CSS.enable");
+  await withBrowser(async (browser) => {
+    const ctx = await browser.newContext({ viewport: { width: 1000, height: 400 } });
+    const page = await ctx.newPage();
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
 
-  const spans = CPS.map(
-    (cp, i) =>
-      `<span id="c${i}" style="font-family:${STACK.replace(/"/g, "'")};font-size:${FONT_PX}px">&#x${cp.toString(16)};</span>`,
-  ).join("");
-  await page.setContent(`<!doctype html><body style="margin:0">${spans}</body>`);
-  await page.evaluate(() => document.fonts.ready);
+    const spans = CPS.map(
+      (cp, i) =>
+        `<span id="c${i}" style="font-family:${STACK.replace(/"/g, "'")};font-size:${FONT_PX}px">&#x${cp.toString(16)};</span>`,
+    ).join("");
+    await page.setContent(`<!doctype html><body style="margin:0">${spans}</body>`);
+    await page.evaluate(() => document.fonts.ready);
 
-  const chain = resolveFontKeyChain(STACK);
-  P(`stack = ${STACK}`);
-  P(`chain = ${JSON.stringify(chain)}`);
+    const chain = resolveFontKeyChain(STACK);
+    P(`stack = ${STACK}`);
+    P(`chain = ${JSON.stringify(chain)}`);
 
-  const primaryKey = chain[0];
-  const primary = primaryKey != null ? getFontInstance(primaryKey, 400, FONT_PX) : null;
-  if (primary == null) P(`WARNING: no primary instance for chain head ${String(primaryKey)}`);
+    const primaryKey = chain[0];
+    const primary = primaryKey != null ? getFontInstance(primaryKey, 400, FONT_PX) : null;
+    if (primary == null) P(`WARNING: no primary instance for chain head ${String(primaryKey)}`);
 
-  const { root } = await cdp.send("DOM.getDocument");
-  let agree = 0;
-  let compared = 0;
+    const { root } = await cdp.send("DOM.getDocument");
+    let agree = 0;
+    let compared = 0;
 
-  for (let i = 0; i < CPS.length; i++) {
-    const cp = CPS[i];
-    const hex = `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
-    const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#c${i}` });
-    const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-    // Chrome reports the faces it used, most-glyphs first; one span, one glyph.
-    const chrome = fonts != null && fonts.length > 0 ? fonts[0].familyName : "(none)";
+    for (let i = 0; i < CPS.length; i++) {
+      const cp = CPS[i];
+      const hex = `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+      const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#c${i}` });
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+      // Chrome reports the faces it used, most-glyphs first; one span, one glyph.
+      const chrome = fonts != null && fonts.length > 0 ? fonts[0].familyName : "(none)";
 
-    let ours = "(unresolved)";
-    let ourFile = "";
-    if (primary != null && primaryKey != null) {
-      const r = resolveFontForCodepoint(
-        cp,
-        primary,
-        primaryKey,
-        400,
-        FONT_PX,
-        0,
-        undefined,
-        undefined,
-        chain,
-        stackPrimaryIsSystemUi(STACK),
-        100,
-        undefined,
-        STACK,
-      );
-      if (r != null) {
-        ours = r.key;
-        const spec = resolveFontSpec(r.key);
-        ourFile = spec?.path != null ? (spec.path.split("/").pop() ?? "") : "";
+      let ours = "(unresolved)";
+      let ourFile = "";
+      if (primary != null && primaryKey != null) {
+        const r = resolveFontForCodepoint(
+          cp,
+          primary,
+          primaryKey,
+          400,
+          FONT_PX,
+          0,
+          undefined,
+          undefined,
+          chain,
+          stackPrimaryIsSystemUi(STACK),
+          100,
+          undefined,
+          STACK,
+        );
+        if (r != null) {
+          ours = r.key;
+          const spec = resolveFontSpec(r.key);
+          ourFile = spec?.path != null ? (spec.path.split("/").pop() ?? "") : "";
+        }
       }
+
+      const painted = chrome !== "(none)";
+      const ok = painted && sameFace(chrome, ours, ourFile);
+      if (painted) {
+        compared++;
+        if (ok) agree++;
+      }
+      const verdict = !painted ? "n/a (not painted)" : ok ? "AGREE" : "MISMATCH";
+      P(`${hex}  chrome="${chrome}"  ours="${ours}"${ourFile !== "" ? ` @ ${ourFile}` : ""}  ${verdict}`);
     }
 
-    const painted = chrome !== "(none)";
-    const ok = painted && sameFace(chrome, ours, ourFile);
-    if (painted) {
-      compared++;
-      if (ok) agree++;
-    }
-    const verdict = !painted ? "n/a (not painted)" : ok ? "AGREE" : "MISMATCH";
-    P(`${hex}  chrome="${chrome}"  ours="${ours}"${ourFile !== "" ? ` @ ${ourFile}` : ""}  ${verdict}`);
-  }
+    P(`${agree}/${compared} agree (${CPS.length - compared} not painted by Chrome)`);
+  }, undefined);
+  return 0;
+}
 
-  P(`${agree}/${compared} agree (${CPS.length - compared} not painted by Chrome)`);
-}, undefined);
+if (isMain(import.meta.url)) await runMain(() => chromeFontAgreement(process.argv.slice(2)));

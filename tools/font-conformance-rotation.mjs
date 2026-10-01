@@ -6,6 +6,7 @@
  * complementary focus without changing the 351-stack single-axis matrix: it
  * tells reports which secondary oracle family to emphasize at this revision.
  */
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 export function rotationForRevision(revision, ordinal) {
   const normalized = String(revision ?? "")
     .trim()
@@ -39,11 +40,15 @@ export function rotationForRevision(revision, ordinal) {
   };
 }
 
-if (process.argv[1]?.endsWith("font-conformance-rotation.mjs")) {
-  try {
-    process.stdout.write(`${JSON.stringify(rotationForRevision(process.argv[2], process.argv[3]))}\n`);
-  } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 2;
-  }
-}
+if (isMain(import.meta.url))
+  await runMain(() => {
+    try {
+      const { positionals } = parseCommand(process.argv.slice(2), {});
+      if (positionals.length !== 2) throw new Error("expected revision and rotation ordinal");
+      process.stdout.write(`${JSON.stringify(rotationForRevision(positionals[0], positionals[1]))}\n`);
+      return 0;
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 2;
+    }
+  });

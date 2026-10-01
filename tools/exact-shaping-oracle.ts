@@ -18,6 +18,7 @@ import {
 import { versionString, BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { getFontInstance } from "../src/render/font-resolution.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   DEFAULT_TRACKING_FIXTURE,
   DEFAULT_VARIABLE_FIXTURE,
@@ -37,290 +38,321 @@ interface OracleGlyph {
   unsafeToBreak: boolean;
 }
 
-const argv = process.argv.slice(2);
-const value = (flag: string): string | undefined => {
-  const i = argv.indexOf(flag);
-  return i >= 0 ? argv[i + 1] : undefined;
-};
-const mode = argv.includes("--exhaustive") ? "exhaustive" : argv.includes("--rotating") ? "rotating" : "representative";
-const output = value("--json");
-const faceFilter = value("--face")?.toLowerCase();
-const sizePx = Number(value("--size") ?? "16");
-const zoom = Number(value("--zoom") ?? "1");
-const deviceScaleFactor = Number(value("--device-scale") ?? "1");
-const variableControlFixture = value("--variable-control-fixture") ?? DEFAULT_VARIABLE_FIXTURE;
-const trackingControlFixture = value("--tracking-control-fixture") ?? DEFAULT_TRACKING_FIXTURE;
-const skipNegativeControl = argv.includes("--skip-negative-control");
+export function main(argv: string[] = process.argv.slice(2)): number {
+  const values = parseFlags(argv, {
+    exhaustive: { type: "boolean" },
+    rotating: { type: "boolean" },
+    json: { type: "string" },
+    face: { type: "string" },
+    size: { type: "string" },
+    zoom: { type: "string" },
+    "device-scale": { type: "string" },
+    "variable-control-fixture": { type: "string" },
+    "tracking-control-fixture": { type: "string" },
+    "skip-negative-control": { type: "boolean" },
+  });
+  const value = (name: string): string | undefined => flag(values, name) ?? undefined;
+  const mode = values.exhaustive === true ? "exhaustive" : values.rotating === true ? "rotating" : "representative";
+  const output = value("--json");
+  const faceFilter = value("--face")?.toLowerCase();
+  const sizePx = Number(value("--size") ?? "16");
+  const zoom = Number(value("--zoom") ?? "1");
+  const deviceScaleFactor = Number(value("--device-scale") ?? "1");
+  const variableControlFixture = value("--variable-control-fixture") ?? DEFAULT_VARIABLE_FIXTURE;
+  const trackingControlFixture = value("--tracking-control-fixture") ?? DEFAULT_TRACKING_FIXTURE;
+  const skipNegativeControl = values["skip-negative-control"] === true;
 
-function sourceEnd(text: string, cluster: number, clusters: number[]): number {
-  const later = clusters.filter((c) => c > cluster);
-  return later.length > 0 ? Math.min(...later) : text.length;
-}
+  function sourceEnd(text: string, cluster: number, clusters: number[]): number {
+    const later = clusters.filter((c) => c > cluster);
+    return later.length > 0 ? Math.min(...later) : text.length;
+  }
 
-function logical(result: ShapeResult, text: string): OracleGlyph[] {
-  return result.glyphs.map((g, i) => ({
-    id: g.id,
-    cluster: result.clusters[i],
-    sourceSpan: [result.clusters[i], sourceEnd(text, result.clusters[i], result.clusters)],
-    xAdvance: result.positions[i].xAdvance,
-    yAdvance: result.positions[i].yAdvance,
-    xOffset: result.positions[i].xOffset,
-    yOffset: result.positions[i].yOffset,
-    flags: result.glyphFlags[i],
-    unsafeToBreak: (result.glyphFlags[i] & 1) !== 0,
-  }));
-}
+  function logical(result: ShapeResult, text: string): OracleGlyph[] {
+    return result.glyphs.map((g, i) => ({
+      id: g.id,
+      cluster: result.clusters[i],
+      sourceSpan: [result.clusters[i], sourceEnd(text, result.clusters[i], result.clusters)],
+      xAdvance: result.positions[i].xAdvance,
+      yAdvance: result.positions[i].yAdvance,
+      xOffset: result.positions[i].xOffset,
+      yOffset: result.positions[i].yOffset,
+      flags: result.glyphFlags[i],
+      unsafeToBreak: (result.glyphFlags[i] & 1) !== 0,
+    }));
+  }
 
-function signature(r: ShapeResult | null): string {
-  if (r == null) return "declined";
-  return JSON.stringify(r.glyphs.map((g, i) => [g.id, r.clusters[i], r.positions[i], r.glyphFlags[i]]));
-}
+  function signature(r: ShapeResult | null): string {
+    if (r == null) return "declined";
+    return JSON.stringify(r.glyphs.map((g, i) => [g.id, r.clusters[i], r.positions[i], r.glyphFlags[i]]));
+  }
 
-const samples = mode === "representative" ? SHAPE_SAMPLES.slice(0, 28) : SHAPE_SAMPLES;
-const keys = platformFontKeys().filter((k) => faceFilter == null || k.toLowerCase().includes(faceFilter));
-const records: unknown[] = [];
-const controlHits = {
-  face: 0,
-  axes: 0,
-  ptem: 0,
-  features: 0,
-  direction: 0,
-  script: 0,
-  language: 0,
-  bufferFlags: 0,
-  clusterLevel: 0,
-};
-let pairs = 0;
+  const samples = mode === "representative" ? SHAPE_SAMPLES.slice(0, 28) : SHAPE_SAMPLES;
+  const keys = platformFontKeys().filter((k) => faceFilter == null || k.toLowerCase().includes(faceFilter));
+  const records: unknown[] = [];
+  const controlHits = {
+    face: 0,
+    axes: 0,
+    ptem: 0,
+    features: 0,
+    direction: 0,
+    script: 0,
+    language: 0,
+    bufferFlags: 0,
+    clusterLevel: 0,
+  };
+  let pairs = 0;
 
-for (const key of keys) {
-  const face = shapingFaceFor(key, 400, sizePx, 0);
-  if (face == null || face.faceIndex == null || !existsSync(face.path)) continue;
-  const query = harfbuzzGlyphQuery(face.path, face.faceIndex);
-  if (query == null) continue;
-  for (const sample of samples) {
-    if ([...sample.text].some((ch) => query.nominalGlyph(ch.codePointAt(0)!) === 0)) continue;
-    const direction = sample.note.includes("vertical-form")
-      ? ("ttb" as const)
-      : /^(arabic|hebrew|myanmar)$/.test(sample.script)
-        ? ("rtl" as const)
-        : ("ltr" as const);
-    const script = sample.script === "cjk" ? "Hani" : sample.script;
-    const opts = {
-      script,
-      language: sample.language ?? "und",
-      bufferFlags: BufferFlag.BOT | BufferFlag.EOT,
-      clusterLevel: ClusterLevel.MONOTONE_CHARACTERS,
-    };
-    const baseline = harfbuzzShapeRun(
-      face.path,
-      face.faceIndex,
-      sample.text,
-      direction,
-      sizePx,
-      face.axes,
-      undefined,
-      opts,
-    );
-    if (baseline == null) continue;
-    pairs++;
-    const baseSig = signature(baseline);
-    const controls = {
-      axes:
-        face.axes == null
-          ? null
-          : harfbuzzShapeRun(
-              face.path,
-              face.faceIndex,
-              sample.text,
-              direction,
-              sizePx,
-              Object.fromEntries(
-                Object.entries(face.axes).map(([tag, coordinate], i) => [tag, coordinate + (i === 0 ? 1 : 0)]),
-              ),
-              undefined,
-              opts,
-            ),
-      ptem: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx * 2, face.axes, undefined, opts),
-      features: harfbuzzShapeRun(
+  for (const key of keys) {
+    const face = shapingFaceFor(key, 400, sizePx, 0);
+    if (face == null || face.faceIndex == null || !existsSync(face.path)) continue;
+    const query = harfbuzzGlyphQuery(face.path, face.faceIndex);
+    if (query == null) continue;
+    for (const sample of samples) {
+      if ([...sample.text].some((ch) => query.nominalGlyph(ch.codePointAt(0)!) === 0)) continue;
+      const direction = sample.note.includes("vertical-form")
+        ? ("ttb" as const)
+        : /^(arabic|hebrew|myanmar)$/.test(sample.script)
+          ? ("rtl" as const)
+          : ("ltr" as const);
+      const script = sample.script === "cjk" ? "Hani" : sample.script;
+      const opts = {
+        script,
+        language: sample.language ?? "und",
+        bufferFlags: BufferFlag.BOT | BufferFlag.EOT,
+        clusterLevel: ClusterLevel.MONOTONE_CHARACTERS,
+      };
+      const baseline = harfbuzzShapeRun(
         face.path,
         face.faceIndex,
         sample.text,
         direction,
-        sizePx,
-        face.axes,
-        ["-liga", "-kern"],
-        opts,
-      ),
-      direction: harfbuzzShapeRun(
-        face.path,
-        face.faceIndex,
-        sample.text,
-        direction === "rtl" ? "ltr" : "rtl",
         sizePx,
         face.axes,
         undefined,
         opts,
-      ),
-      script: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, {
-        ...opts,
-        script: script === "Latn" ? "Arab" : "Latn",
-      }),
-      language: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, {
-        ...opts,
-        language: opts.language === "sr" ? "und" : "sr",
-      }),
-      bufferFlags: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, {
-        ...opts,
-        bufferFlags: opts.bufferFlags | BufferFlag.PRESERVE_DEFAULT_IGNORABLES,
-      }),
-      clusterLevel: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, {
-        ...opts,
-        clusterLevel: ClusterLevel.CHARACTERS,
-      }),
-    };
-    for (const name of Object.keys(controls) as Array<keyof typeof controls>) {
-      if (name === "axes" && face.axes == null) continue;
-      if (signature(controls[name]) !== baseSig) controlHits[name]++;
+      );
+      if (baseline == null) continue;
+      pairs++;
+      const baseSig = signature(baseline);
+      const controls = {
+        axes:
+          face.axes == null
+            ? null
+            : harfbuzzShapeRun(
+                face.path,
+                face.faceIndex,
+                sample.text,
+                direction,
+                sizePx,
+                Object.fromEntries(
+                  Object.entries(face.axes).map(([tag, coordinate], i) => [tag, coordinate + (i === 0 ? 1 : 0)]),
+                ),
+                undefined,
+                opts,
+              ),
+        ptem: harfbuzzShapeRun(
+          face.path,
+          face.faceIndex,
+          sample.text,
+          direction,
+          sizePx * 2,
+          face.axes,
+          undefined,
+          opts,
+        ),
+        features: harfbuzzShapeRun(
+          face.path,
+          face.faceIndex,
+          sample.text,
+          direction,
+          sizePx,
+          face.axes,
+          ["-liga", "-kern"],
+          opts,
+        ),
+        direction: harfbuzzShapeRun(
+          face.path,
+          face.faceIndex,
+          sample.text,
+          direction === "rtl" ? "ltr" : "rtl",
+          sizePx,
+          face.axes,
+          undefined,
+          opts,
+        ),
+        script: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, {
+          ...opts,
+          script: script === "Latn" ? "Arab" : "Latn",
+        }),
+        language: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, {
+          ...opts,
+          language: opts.language === "sr" ? "und" : "sr",
+        }),
+        bufferFlags: harfbuzzShapeRun(face.path, face.faceIndex, sample.text, direction, sizePx, face.axes, undefined, {
+          ...opts,
+          bufferFlags: opts.bufferFlags | BufferFlag.PRESERVE_DEFAULT_IGNORABLES,
+        }),
+        clusterLevel: harfbuzzShapeRun(
+          face.path,
+          face.faceIndex,
+          sample.text,
+          direction,
+          sizePx,
+          face.axes,
+          undefined,
+          {
+            ...opts,
+            clusterLevel: ClusterLevel.CHARACTERS,
+          },
+        ),
+      };
+      for (const name of Object.keys(controls) as Array<keyof typeof controls>) {
+        if (name === "axes" && face.axes == null) continue;
+        if (signature(controls[name]) !== baseSig) controlHits[name]++;
+      }
+      const instance = getFontInstance(key, 400, sizePx, 0);
+      records.push({
+        environment: parityEnvironment({
+          chromium: `Playwright package-pinned; HarfBuzz ${versionString()}`,
+          launchFlags: [],
+          deviceScaleFactor,
+          zoom,
+          writingMode: direction === "ttb" ? "vertical-rl" : "horizontal-tb",
+          direction,
+          corpusIdentity: `shape-samples-v2:${SHAPE_SAMPLES.length}`,
+          sampleIdentity: `${key}:${sample.note}`,
+        }),
+        face: {
+          key,
+          path: face.path,
+          member: face.faceIndex,
+          postscriptName: instance?.instantiatedPostscriptName ?? instance?.postscriptName ?? null,
+          localPostscriptName: instance?.postscriptName ?? null,
+          namedInstance: null,
+          axes: face.axes,
+        },
+        input: {
+          text: sample.text,
+          utf16Span: [0, sample.text.length],
+          direction,
+          fontSizePx: sizePx,
+          script,
+          language: opts.language,
+          features: [],
+          bufferFlags: opts.bufferFlags,
+          clusterLevel: opts.clusterLevel,
+        },
+        fallbackRuns: [{ utf16Span: [0, sample.text.length], face: `${face.path}#${face.faceIndex}` }],
+        glyphs: logical(baseline, sample.text),
+        rasterization: "out-of-scope",
+      });
     }
-    const instance = getFontInstance(key, 400, sizePx, 0);
-    records.push({
-      environment: parityEnvironment({
-        chromium: `Playwright package-pinned; HarfBuzz ${versionString()}`,
-        launchFlags: [],
-        deviceScaleFactor,
-        zoom,
-        writingMode: direction === "ttb" ? "vertical-rl" : "horizontal-tb",
-        direction,
-        corpusIdentity: `shape-samples-v2:${SHAPE_SAMPLES.length}`,
-        sampleIdentity: `${key}:${sample.note}`,
-      }),
-      face: {
-        key,
-        path: face.path,
-        member: face.faceIndex,
-        postscriptName: instance?.instantiatedPostscriptName ?? instance?.postscriptName ?? null,
-        localPostscriptName: instance?.postscriptName ?? null,
-        namedInstance: null,
-        axes: face.axes,
-      },
-      input: {
-        text: sample.text,
-        utf16Span: [0, sample.text.length],
-        direction,
-        fontSizePx: sizePx,
-        script,
-        language: opts.language,
-        features: [],
-        bufferFlags: opts.bufferFlags,
-        clusterLevel: opts.clusterLevel,
-      },
-      fallbackRuns: [{ utf16Span: [0, sample.text.length], face: `${face.path}#${face.faceIndex}` }],
-      glyphs: logical(baseline, sample.text),
-      rasterization: "out-of-scope",
-    });
   }
-}
 
-// A distinct covering face is an additional mandatory negative control.
-if (records.length > 0) {
-  const first = records[0] as {
-    face: { path: string; member: number };
-    input: { text: string; direction: "ltr" | "rtl" | "ttb" | "btt" };
-    glyphs: OracleGlyph[];
-  };
-  for (const key of keys) {
-    const alt = shapingFaceFor(key, 400, sizePx, 0);
-    if (
-      alt == null ||
-      alt.faceIndex == null ||
-      `${alt.path}#${alt.faceIndex}` === `${first.face.path}#${first.face.member}`
-    )
-      continue;
-    const q = harfbuzzGlyphQuery(alt.path, alt.faceIndex);
-    if (q == null || [...first.input.text].some((ch) => q.nominalGlyph(ch.codePointAt(0)!) === 0)) continue;
-    const r = harfbuzzShapeRun(alt.path, alt.faceIndex, first.input.text, first.input.direction, sizePx, alt.axes);
-    if (
-      signature(r) !==
-      JSON.stringify(
-        first.glyphs.map((g) => [
-          g.id,
-          g.cluster,
-          { xAdvance: g.xAdvance, yAdvance: g.yAdvance, xOffset: g.xOffset, yOffset: g.yOffset },
-          g.flags,
-        ]),
+  // A distinct covering face is an additional mandatory negative control.
+  if (records.length > 0) {
+    const first = records[0] as {
+      face: { path: string; member: number };
+      input: { text: string; direction: "ltr" | "rtl" | "ttb" | "btt" };
+      glyphs: OracleGlyph[];
+    };
+    for (const key of keys) {
+      const alt = shapingFaceFor(key, 400, sizePx, 0);
+      if (
+        alt == null ||
+        alt.faceIndex == null ||
+        `${alt.path}#${alt.faceIndex}` === `${first.face.path}#${first.face.member}`
       )
-    )
-      controlHits.face++;
-    break;
+        continue;
+      const q = harfbuzzGlyphQuery(alt.path, alt.faceIndex);
+      if (q == null || [...first.input.text].some((ch) => q.nominalGlyph(ch.codePointAt(0)!) === 0)) continue;
+      const r = harfbuzzShapeRun(alt.path, alt.faceIndex, first.input.text, first.input.direction, sizePx, alt.axes);
+      if (
+        signature(r) !==
+        JSON.stringify(
+          first.glyphs.map((g) => [
+            g.id,
+            g.cluster,
+            { xAdvance: g.xAdvance, yAdvance: g.yAdvance, xOffset: g.xOffset, yOffset: g.yOffset },
+            g.flags,
+          ]),
+        )
+      )
+        controlHits.face++;
+      break;
+    }
   }
+
+  // The host inventory remains the production corpus, but no supported platform
+  // is required to install a variable face or a modern AAT tracking face. Keep
+  // those applicability controls source-owned and portable instead of treating a
+  // static host inventory as evidence that the two parameters moved.
+  const hostControlHits = { ...controlHits };
+  const applicableControls = runApplicableShapingControls({
+    variableFixture: variableControlFixture,
+    trackingFixture: trackingControlFixture,
+  });
+  for (const control of ["axes", "ptem"] as const) controlHits[control] += applicableControls.controlHits[control];
+
+  const required = [
+    "face",
+    "axes",
+    "ptem",
+    "features",
+    "direction",
+    "script",
+    "language",
+    "bufferFlags",
+    "clusterLevel",
+  ] as const;
+  const missed = required.filter((k) => controlHits[k] === 0);
+  const completeEnvironment = records.every((r) => fingerprintComplete((r as { environment: unknown }).environment));
+  const movementProven = !skipNegativeControl && missed.length === 0 && applicableControls.failedControls.length === 0;
+  const verdict =
+    !completeEnvironment || !movementProven
+      ? "verdict-withheld"
+      : pairs > 0
+        ? "exact-logical-agreement"
+        : "logical-mismatch";
+  const report = {
+    schemaVersion: 3,
+    stage: "shaping",
+    mode,
+    verdict,
+    completeEnvironment,
+    movementProven,
+    pairs,
+    controlHits,
+    hostControlHits,
+    applicableControlHits: applicableControls.controlHits,
+    missedControls: missed,
+    missedApplicableControls: applicableControls.missedControls,
+    controlRows: applicableControls.controlRows,
+    inapplicableControls: applicableControls.inapplicableControls,
+    nonMovingControls: applicableControls.nonMovingControls,
+    unexpectedControls: applicableControls.unexpectedControls,
+    failedControls: applicableControls.failedControls,
+    records,
+  };
+  if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
+  console.log(
+    `Exact shaping oracle: ${pairs} face×sample pairs; controls ${JSON.stringify(controlHits)}; portable ${JSON.stringify(applicableControls.controlHits)}`,
+  );
+  if (output != null) console.log(`wrote ${output}`);
+  if (pairs === 0 || !completeEnvironment || !movementProven) {
+    const reasons = [
+      pairs === 0 ? "no comparable pairs" : null,
+      !completeEnvironment ? "incomplete source/runtime fingerprint" : null,
+      missed.length > 0 ? `no delta for ${missed.join(", ")}` : null,
+      applicableControls.failedControls.length > 0
+        ? `portable control failure: ${applicableControls.failedControls.join(", ")}`
+        : null,
+      skipNegativeControl ? "negative controls were skipped" : null,
+    ].filter((reason): reason is string => reason != null);
+    console.error(`Oracle sensitivity failure: ${reasons.join("; ")}`);
+    return 1;
+  }
+  return 0;
 }
 
-// The host inventory remains the production corpus, but no supported platform
-// is required to install a variable face or a modern AAT tracking face. Keep
-// those applicability controls source-owned and portable instead of treating a
-// static host inventory as evidence that the two parameters moved.
-const hostControlHits = { ...controlHits };
-const applicableControls = runApplicableShapingControls({
-  variableFixture: variableControlFixture,
-  trackingFixture: trackingControlFixture,
-});
-for (const control of ["axes", "ptem"] as const) controlHits[control] += applicableControls.controlHits[control];
-
-const required = [
-  "face",
-  "axes",
-  "ptem",
-  "features",
-  "direction",
-  "script",
-  "language",
-  "bufferFlags",
-  "clusterLevel",
-] as const;
-const missed = required.filter((k) => controlHits[k] === 0);
-const completeEnvironment = records.every((r) => fingerprintComplete((r as { environment: unknown }).environment));
-const movementProven = !skipNegativeControl && missed.length === 0 && applicableControls.failedControls.length === 0;
-const verdict =
-  !completeEnvironment || !movementProven
-    ? "verdict-withheld"
-    : pairs > 0
-      ? "exact-logical-agreement"
-      : "logical-mismatch";
-const report = {
-  schemaVersion: 3,
-  stage: "shaping",
-  mode,
-  verdict,
-  completeEnvironment,
-  movementProven,
-  pairs,
-  controlHits,
-  hostControlHits,
-  applicableControlHits: applicableControls.controlHits,
-  missedControls: missed,
-  missedApplicableControls: applicableControls.missedControls,
-  controlRows: applicableControls.controlRows,
-  inapplicableControls: applicableControls.inapplicableControls,
-  nonMovingControls: applicableControls.nonMovingControls,
-  unexpectedControls: applicableControls.unexpectedControls,
-  failedControls: applicableControls.failedControls,
-  records,
-};
-if (output != null) writeFileSync(output, JSON.stringify(report, null, 2));
-console.log(
-  `Exact shaping oracle: ${pairs} face×sample pairs; controls ${JSON.stringify(controlHits)}; portable ${JSON.stringify(applicableControls.controlHits)}`,
-);
-if (output != null) console.log(`wrote ${output}`);
-if (pairs === 0 || !completeEnvironment || !movementProven) {
-  const reasons = [
-    pairs === 0 ? "no comparable pairs" : null,
-    !completeEnvironment ? "incomplete source/runtime fingerprint" : null,
-    missed.length > 0 ? `no delta for ${missed.join(", ")}` : null,
-    applicableControls.failedControls.length > 0
-      ? `portable control failure: ${applicableControls.failedControls.join(", ")}`
-      : null,
-    skipNegativeControl ? "negative controls were skipped" : null,
-  ].filter((reason): reason is string => reason != null);
-  console.error(`Oracle sensitivity failure: ${reasons.join("; ")}`);
-  process.exitCode = 1;
-}
+if (isMain(import.meta.url)) await runMain(() => main());

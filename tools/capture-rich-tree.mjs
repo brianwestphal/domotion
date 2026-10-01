@@ -5,7 +5,13 @@
 import { writeFileSync } from "node:fs";
 import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-const html = `<!doctype html><meta charset=utf8><body style="margin:0">
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
+
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const html = `<!doctype html><meta charset=utf8><body style="margin:0">
 <div style="position:relative;width:400px;height:300px;background:#eee;padding:20px">
   <div style="width:120px;height:80px;background:linear-gradient(45deg,#f00,#00f);border-radius:10px 30px 50px 70px;border:4px solid #333;padding:8px"></div>
   <div style="width:100px;height:100px;background:#3a3;clip-path:circle(40% at center);transform:rotate(20deg) scale(1.1);opacity:0.8;margin-top:10px"></div>
@@ -18,11 +24,19 @@ const html = `<!doctype html><meta charset=utf8><body style="margin:0">
   <svg width=0 height=0><mask id=fragmask><rect x=0 y=0 width=40 height=40 fill=white/><circle cx=20 cy=20 r=10 fill=black/></mask></svg>
   <div style="width:70px;height:70px;background:#74c;mask-image:url(#fragmask);-webkit-mask-image:url(#fragmask)"></div>
 </div></body>`;
-await withBrowser(async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  await page.setContent(html, { waitUntil: "networkidle" });
-  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 600 });
-  writeFileSync("/tmp/claude/dm1085-tree.json", JSON.stringify(tree));
-  console.log("captured tree elements:", Array.isArray(tree) ? tree.length : "?");
-});
+    await withBrowser(async (browser) => {
+      const ctx = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
+      const page = await ctx.newPage();
+      await page.setContent(html, { waitUntil: "networkidle" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 600 });
+      writeFileSync("/tmp/claude/dm1085-tree.json", JSON.stringify(tree));
+      console.log("captured tree elements:", Array.isArray(tree) ? tree.length : "?");
+    });
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

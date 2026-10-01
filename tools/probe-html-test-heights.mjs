@@ -21,60 +21,74 @@ import { withBrowser } from "./lib/browser.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolve(__dirname, "..", "external", "html-test");
-const ROOT = process.argv[2] != null ? resolve(process.argv[2]) : DEFAULT_ROOT;
-const WIDTH = 1024;
-const BASE_HEIGHT = 768;
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-function walk(dir, prefix = "") {
-  const out = [];
-  for (const name of readdirSync(dir)) {
-    if (name.startsWith(".") || name.startsWith("_")) continue;
-    const full = resolve(dir, name);
-    const rel = prefix === "" ? name : `${prefix}/${name}`;
-    if (statSync(full).isDirectory()) {
-      out.push(...walk(full, rel));
-    } else if (name.endsWith(".html") && rel !== "index.html") {
-      out.push(rel);
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 1) throw new Error("too many positional arguments");
+  try {
+    const ROOT = positionals[0] != null ? resolve(positionals[0]) : DEFAULT_ROOT;
+    const WIDTH = 1024;
+    const BASE_HEIGHT = 768;
+
+    function walk(dir, prefix = "") {
+      const out = [];
+      for (const name of readdirSync(dir)) {
+        if (name.startsWith(".") || name.startsWith("_")) continue;
+        const full = resolve(dir, name);
+        const rel = prefix === "" ? name : `${prefix}/${name}`;
+        if (statSync(full).isDirectory()) {
+          out.push(...walk(full, rel));
+        } else if (name.endsWith(".html") && rel !== "index.html") {
+          out.push(rel);
+        }
+      }
+      return out;
     }
+
+    const files = walk(ROOT).sort();
+    console.error(`Probing ${files.length} fixtures under ${ROOT}…`);
+
+    const { entries } = await withBrowser(async (browser) => {
+      const ctx = await browser.newContext({ viewport: { width: WIDTH, height: BASE_HEIGHT } });
+      const page = await ctx.newPage();
+
+      const entries = [];
+      for (const file of files) {
+        await page.goto(`file://${resolve(ROOT, file)}`);
+        await page.waitForTimeout(80);
+        const measure = await page.evaluate(() => {
+          let maxBottom = 0;
+          const all = document.querySelectorAll("*");
+          for (const el of all) {
+            const cs = getComputedStyle(el);
+            if (cs.display === "none" || cs.visibility === "hidden") continue;
+            const r = el.getBoundingClientRect();
+            if (r.bottom > maxBottom) maxBottom = r.bottom;
+          }
+          return {
+            scrollH: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+            maxBottom: Math.ceil(maxBottom),
+          };
+        });
+        const required = Math.max(measure.scrollH, measure.maxBottom);
+        if (required > BASE_HEIGHT) {
+          const name = file.replace(/\.html$/, "").replace(/\//g, "-");
+          entries.push({ name, height: Math.ceil((required + 8) / 8) * 8 });
+        }
+      }
+
+      return { entries };
+    });
+
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    console.error(`${entries.length} fixtures exceed ${BASE_HEIGHT} px.\n`);
+    for (const e of entries) console.log(`  ${JSON.stringify(e.name)}: ${e.height},`);
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
   }
-  return out;
 }
 
-const files = walk(ROOT).sort();
-console.error(`Probing ${files.length} fixtures under ${ROOT}…`);
-
-const { entries } = await withBrowser(async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: WIDTH, height: BASE_HEIGHT } });
-  const page = await ctx.newPage();
-
-  const entries = [];
-  for (const file of files) {
-    await page.goto(`file://${resolve(ROOT, file)}`);
-    await page.waitForTimeout(80);
-    const measure = await page.evaluate(() => {
-      let maxBottom = 0;
-      const all = document.querySelectorAll("*");
-      for (const el of all) {
-        const cs = getComputedStyle(el);
-        if (cs.display === "none" || cs.visibility === "hidden") continue;
-        const r = el.getBoundingClientRect();
-        if (r.bottom > maxBottom) maxBottom = r.bottom;
-      }
-      return {
-        scrollH: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-        maxBottom: Math.ceil(maxBottom),
-      };
-    });
-    const required = Math.max(measure.scrollH, measure.maxBottom);
-    if (required > BASE_HEIGHT) {
-      const name = file.replace(/\.html$/, "").replace(/\//g, "-");
-      entries.push({ name, height: Math.ceil((required + 8) / 8) * 8 });
-    }
-  }
-
-  return { entries };
-});
-
-entries.sort((a, b) => a.name.localeCompare(b.name));
-console.error(`${entries.length} fixtures exceed ${BASE_HEIGHT} px.\n`);
-for (const e of entries) console.log(`  ${JSON.stringify(e.name)}: ${e.height},`);
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

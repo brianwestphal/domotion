@@ -12,13 +12,13 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   PROJECTIVE_QUAD_EPSILON,
   projectiveQuadResidual,
@@ -1149,14 +1149,16 @@ function parseDprs(value: string | undefined): number[] {
   return dprs;
 }
 
-async function main(): Promise<void> {
-  const jsonIndex = process.argv.indexOf("--json");
-  const artifactIndex = process.argv.indexOf("--artifact-dir");
-  const dprIndex = process.argv.indexOf("--dpr");
-  const jsonPath = jsonIndex >= 0 ? process.argv[jsonIndex + 1] : undefined;
-  const artifactDir = artifactIndex >= 0 ? process.argv[artifactIndex + 1] : undefined;
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, {
+    json: { type: "string" },
+    "artifact-dir": { type: "string" },
+    dpr: { type: "string" },
+  });
+  const jsonPath = flag(values, "--json") ?? undefined;
+  const artifactDir = flag(values, "--artifact-dir") ?? undefined;
   const report = await runNestedProjectiveOwnershipAudit({
-    dprs: parseDprs(dprIndex >= 0 ? process.argv[dprIndex + 1] : undefined),
+    dprs: parseDprs(flag(values, "--dpr") ?? undefined),
     artifactDir,
   });
   const output = `${JSON.stringify(report, null, 2)}\n`;
@@ -1165,11 +1167,9 @@ async function main(): Promise<void> {
     writeFileSync(jsonPath, output);
   }
   process.stdout.write(output);
-  if (report.verdict !== "investigation-complete") process.exitCode = 1;
+  return report.verdict === "investigation-complete" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());
 
 export { emptyGrouping };

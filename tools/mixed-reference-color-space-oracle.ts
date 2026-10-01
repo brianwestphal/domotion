@@ -11,10 +11,11 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -779,14 +780,16 @@ export async function runMixedReferenceColorSpaceOracle(
   };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const dprAt = args.indexOf("--dpr");
-  const jsonAt = args.indexOf("--json");
-  const artifactsAt = args.indexOf("--artifact-dir");
-  const dprs = dprAt >= 0 ? args[dprAt + 1].split(",").map(Number).filter(Number.isFinite) : [1, 2];
-  const jsonPath = jsonAt >= 0 ? args[jsonAt + 1] : undefined;
-  const artifactDir = artifactsAt >= 0 ? args[artifactsAt + 1] : undefined;
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, {
+    dpr: { type: "string" },
+    json: { type: "string" },
+    "artifact-dir": { type: "string" },
+  });
+  const dpr = flag(values, "--dpr");
+  const dprs = dpr == null ? [1, 2] : dpr.split(",").map(Number).filter(Number.isFinite);
+  const jsonPath = flag(values, "--json");
+  const artifactDir = flag(values, "--artifact-dir") ?? undefined;
   const report = await runMixedReferenceColorSpaceOracle(dprs, artifactDir);
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (jsonPath != null) {
@@ -794,7 +797,7 @@ async function main(): Promise<void> {
     writeFileSync(jsonPath, body);
   }
   process.stdout.write(body);
-  if (report.verdict === "unexpected-drift") process.exitCode = 1;
+  return report.verdict === "unexpected-drift" ? 1 : 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) void main();
+if (isMain(import.meta.url)) await runMain(() => main());

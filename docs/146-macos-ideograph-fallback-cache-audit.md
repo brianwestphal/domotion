@@ -17,6 +17,9 @@ aliases: ["docs/146-macos-ideograph-fallback-cache-audit.md", "doc-146"]
 
 # macOS ideograph fallback-cache audit
 
+The oracle accepts `--disabled-arm` for the controlled cache mutation. Unknown
+options fail before browser launch; importing the module does not run it.
+
 DM-2342 audited the existing DM-1949 model against Chromium revision
 `7d859f271cbda744098ac69f44978d4edfa62be3`. The broad mechanism is correct:
 for `Ideographic=Yes` scalars, Blink can reuse the first fallback face associated

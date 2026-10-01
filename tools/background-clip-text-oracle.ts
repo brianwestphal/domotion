@@ -4,9 +4,9 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { pathToFileURL } from "node:url";
 import { chromium } from "@playwright/test";
 import sharp from "sharp";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { withBrowser } from "./lib/browser.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -370,24 +370,24 @@ export async function runBackgroundClipTextOracle(
   };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const jsonAt = args.indexOf("--json");
-  const artifactAt = args.indexOf("--artifact-dir");
-  const dprAt = args.indexOf("--dpr");
-  const jsonPath = jsonAt >= 0 ? args[jsonAt + 1] : undefined;
-  const artifactDir = artifactAt >= 0 ? args[artifactAt + 1] : undefined;
-  const dprs = dprAt >= 0 ? args[dprAt + 1].split(",").map(Number).filter(Number.isFinite) : [1, 2];
-  const report = await runBackgroundClipTextOracle(dprs, artifactDir);
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, {
+    json: { type: "string" },
+    "artifact-dir": { type: "string" },
+    dpr: { type: "string" },
+  });
+  const jsonPath = flag(args, "json");
+  const artifactDir = flag(args, "artifact-dir");
+  const dpr = flag(args, "dpr");
+  const dprs = typeof dpr === "string" ? dpr.split(",").map(Number).filter(Number.isFinite) : [1, 2];
+  const report = await runBackgroundClipTextOracle(dprs, typeof artifactDir === "string" ? artifactDir : undefined);
   const body = `${JSON.stringify(report, null, 2)}\n`;
-  if (jsonPath != null) {
+  if (typeof jsonPath === "string") {
     mkdirSync(dirname(jsonPath), { recursive: true });
     writeFileSync(jsonPath, body);
   }
   process.stdout.write(body);
-  if (report.verdict !== "source-exact") process.exitCode = 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  void main();
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

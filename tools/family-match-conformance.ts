@@ -35,6 +35,7 @@ import { readdirSync, statSync, existsSync, writeFileSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import * as fontkit from "fontkit";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 const FONT_DIRS = ["/System/Library/Fonts", "/Library/Fonts"];
@@ -100,11 +101,11 @@ function installedFamilies(): string[] {
   return [...families].sort().filter((f) => !f.startsWith("."));
 }
 
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  const asJson = argv.includes("--json");
-  const allowIdx = argv.indexOf("--allow");
-  const allow = allowIdx >= 0 ? Number(argv[allowIdx + 1]) : 0;
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const values = parseFlags(argv, { json: { type: "boolean" }, allow: { type: "string" } });
+  const asJson = values.json === true;
+  const allow = values.allow == null ? 0 : Number(values.allow);
+  if (!Number.isSafeInteger(allow) || allow < 0) throw new Error("--allow requires a nonnegative integer");
 
   if (process.platform !== "darwin") {
     console.error("family-match conformance is macOS-only (it scores the CoreText/AppKit matcher).");
@@ -207,4 +208,4 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+if (isMain(import.meta.url)) await runMain(() => main());

@@ -4,13 +4,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import type { ConformanceMode, DecisionRow, SourceDriftEvidence } from "../src/review/source-drift-gate.js";
+import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 
-const value = (flag: string): string | undefined => {
-  const i = process.argv.indexOf(flag);
-  return i < 0 ? undefined : process.argv[i + 1];
-};
-const values = (flag: string): string[] =>
-  process.argv.flatMap((arg, i) => (arg === flag && process.argv[i + 1] != null ? [process.argv[i + 1]] : []));
 const hashFile = (path: string): string =>
   createHash("sha256")
     .update(readFileSync(resolve(path)))
@@ -28,34 +23,48 @@ const chromiumHarfBuzzRevision = (): string => {
 const loadRows = (path: string | undefined): DecisionRow[] =>
   path == null ? [] : (JSON.parse(readFileSync(resolve(path), "utf8")) as DecisionRow[]);
 
-const mode = value("--mode") as ConformanceMode | undefined;
-const icuData = value("--icu-data"),
-  out = value("--out");
-const helpers = values("--helper"),
-  classifiers = values("--classifier");
-if (
-  (mode !== "representative" && mode !== "exhaustive") ||
-  icuData == null ||
-  out == null ||
-  helpers.length === 0 ||
-  classifiers.length === 0
-) {
-  throw new Error(
-    "usage: source-drift-evidence --mode representative|exhaustive --icu-data icudtl.dat --helper binary [--helper binary] --classifier generated.ts [--classifier generated.ts] --unicode rows.json --shaping rows.json --out evidence.json",
-  );
+export function main(argv: string[] = process.argv.slice(2)): void {
+  const options = parseFlags(argv, {
+    mode: { type: "string" },
+    "icu-data": { type: "string" },
+    out: { type: "string" },
+    helper: { type: "string", multiple: true },
+    classifier: { type: "string", multiple: true },
+    unicode: { type: "string" },
+    shaping: { type: "string" },
+  });
+  const value = (name: string): string | undefined => flag(options, name) as string | undefined;
+  const mode = value("--mode") as ConformanceMode | undefined;
+  const icuData = value("--icu-data"),
+    out = value("--out");
+  const helpers = options.helper ?? [],
+    classifiers = options.classifier ?? [];
+  if (
+    (mode !== "representative" && mode !== "exhaustive") ||
+    icuData == null ||
+    out == null ||
+    helpers.length === 0 ||
+    classifiers.length === 0
+  ) {
+    throw new Error(
+      "usage: source-drift-evidence --mode representative|exhaustive --icu-data icudtl.dat --helper binary [--helper binary] --classifier generated.ts [--classifier generated.ts] --unicode rows.json --shaping rows.json --out evidence.json",
+    );
+  }
+  const evidence: SourceDriftEvidence = {
+    fingerprint: {
+      chromiumRevision: revision("external/chromium"),
+      chromiumHarfBuzzRevision: chromiumHarfBuzzRevision(),
+      harfbuzzRevision: revision("external/harfbuzz"),
+      icuRevision: revision("external/chromium/third_party/icu"),
+      icuDataSha256: hashFile(icuData),
+      helperBinaries: keyedHashes(helpers),
+      generatedClassifiers: keyedHashes(classifiers),
+    },
+    mode,
+    unicodeProperties: loadRows(value("--unicode")),
+    shapingDecisions: loadRows(value("--shaping")),
+  };
+  writeFileSync(resolve(requiredFlag(options, "--out")), `${JSON.stringify(evidence, null, 2)}\n`);
 }
-const evidence: SourceDriftEvidence = {
-  fingerprint: {
-    chromiumRevision: revision("external/chromium"),
-    chromiumHarfBuzzRevision: chromiumHarfBuzzRevision(),
-    harfbuzzRevision: revision("external/harfbuzz"),
-    icuRevision: revision("external/chromium/third_party/icu"),
-    icuDataSha256: hashFile(icuData),
-    helperBinaries: keyedHashes(helpers),
-    generatedClassifiers: keyedHashes(classifiers),
-  },
-  mode,
-  unicodeProperties: loadRows(value("--unicode")),
-  shapingDecisions: loadRows(value("--shaping")),
-};
-writeFileSync(resolve(out), `${JSON.stringify(evidence, null, 2)}\n`);
+
+if (isMain(import.meta.url)) await runMain(() => main());

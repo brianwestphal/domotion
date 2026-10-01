@@ -12,7 +12,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import {
   __clusterFallbackCountersForTest,
@@ -34,6 +33,7 @@ import {
 import { resolveFontKey, type FontVariantEmojiOverride } from "../src/render/font-resolution.js";
 import { bidiLevelsFor } from "../src/render/script-segmentation.js";
 import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 export { sourcePriorityItems } from "@domotion/text-engine/testing";
 
@@ -336,29 +336,18 @@ export function buildEmojiOwnershipAudit(options: { requireLinuxArm64?: boolean 
   };
 }
 
-function cliArgs(argv: string[]): { json?: string; requireLinuxArm64: boolean } {
-  let json: string | undefined;
-  let requireLinuxArm64 = false;
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--json") json = argv[++i];
-    else if (argv[i] === "--require-linux-arm64") requireLinuxArm64 = true;
-    else throw new Error(`unknown argument: ${argv[i]}`);
-  }
-  return { json, requireLinuxArm64 };
-}
-
-async function main(): Promise<void> {
-  const args = cliArgs(process.argv.slice(2));
-  const report = buildEmojiOwnershipAudit({ requireLinuxArm64: args.requireLinuxArm64 });
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" }, "require-linux-arm64": { type: "boolean" } });
+  const report = buildEmojiOwnershipAudit({ requireLinuxArm64: values["require-linux-arm64"] === true });
   const formatted = `${JSON.stringify(report, null, 2)}\n`;
-  if (args.json != null) {
-    const output = resolve(args.json);
+  const json = flag(values, "--json");
+  if (json != null) {
+    const output = resolve(json);
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, formatted);
   }
   process.stdout.write(formatted);
-  if (report.verdict === "discriminator-failed") process.exitCode = 1;
+  return report.verdict === "discriminator-failed" ? 1 : 0;
 }
 
-const isCli = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-if (isCli) void main();
+if (isMain(import.meta.url)) await runMain(() => main());

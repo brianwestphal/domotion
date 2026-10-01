@@ -19,6 +19,9 @@ aliases: ["docs/156-broken-image-fallback-ownership-audit.md", "doc-156"]
 
 # 156 — Chromium broken-image fallback ownership audit
 
+The oracle accepts `--dpr`, `--scheme`, `--json`, and `--artifacts`;
+unknown options or missing values fail before browser work.
+
 Status: capture foundation, hybrid rendering, and the independent native
 macOS/Linux/Windows hard gate shipped in DM-2463/DM-2464/DM-2465.
 

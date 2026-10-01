@@ -24,6 +24,9 @@ aliases: ["docs/83-feature-coverage.md", "doc-83"]
 
 # 83 — Feature/requirement coverage (behavior coverage, not just line coverage)
 
+The coverage check accepts no options. It validates arguments before scanning
+the feature index and runs only when invoked as a script.
+
 Status: **shipped** (DM-1459). Modeled on the apple-fm coverage-by-feature exercise.
 
 This public-feature catalog is linked to the state-level rendering inventory in

@@ -14,50 +14,67 @@
 
 import { readFileSync } from "node:fs";
 import { win32FallbackChain } from "@domotion/text-engine/testing";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const IN = process.env.IN ?? "tools/scratch/win32-calib.json";
-const data = JSON.parse(readFileSync(IN, "utf-8"));
+async function main(argv: string[]) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const IN = process.env.IN ?? "tools/scratch/win32-calib.json";
+    const data = JSON.parse(readFileSync(IN, "utf-8"));
 
-function staticRoutes(hex: string): string[] {
-  return win32FallbackChain(parseInt(hex, 16));
+    function staticRoutes(hex: string): string[] {
+      return win32FallbackChain(parseInt(hex, 16));
+    }
+
+    function annotate(entry: { hex: string }) {
+      const chain = staticRoutes(entry.hex);
+      return { ...entry, staticChain: chain, staticMisses: chain.length === 0 };
+    }
+
+    const diverge = (data.diverge ?? []).map(annotate);
+    const resolverTofu = (data.resolverTofu ?? []).map(annotate);
+
+    // The fidelity-relevant subset: cps the static table misses (resolver fires).
+    const divergeFires = diverge.filter((d: any) => d.staticMisses);
+    const tofuFires = resolverTofu.filter((d: any) => d.staticMisses);
+
+    console.log("=== DM-1424 win32 calibration refine ===");
+    console.log(`sampled=${data.sampled} uniqueCps=${data.uniqueCps}`);
+    console.log(JSON.stringify(data.summary, null, 2));
+    console.log();
+    console.log(`diverge total=${diverge.length}  of which static-MISSES (resolver fires)=${divergeFires.length}`);
+    console.log(
+      `resolverTofu total=${resolverTofu.length}  of which static-MISSES (resolver fires)=${tofuFires.length}`,
+    );
+
+    console.log("\n--- Divergences where the static chain MISSES (resolver fires; genuine) ---");
+    for (const d of divergeFires)
+      console.log(
+        `  U+${d.hex.toUpperCase().padStart(4, "0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  mapChars=${d.mapChars}  static=[]`,
+      );
+    if (!divergeFires.length) console.log("  (none)");
+
+    console.log("\n--- Resolver-tofu where the static chain MISSES (resolver fires; potential regression) ---");
+    for (const d of tofuFires)
+      console.log(
+        `  U+${d.hex.toUpperCase().padStart(4, "0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  static=[]`,
+      );
+    if (!tofuFires.length) console.log("  (none)");
+
+    // Divergences where the static table OWNS the cp — resolver never fires, harmless.
+    console.log("\n--- Divergences where the static chain OWNS the cp (resolver never fires; harmless) ---");
+    const ownedByFam = new Map<string, number>();
+    for (const d of diverge)
+      if (!d.staticMisses)
+        ownedByFam.set(`${d.chromium}=>${d.mapChars}`, (ownedByFam.get(`${d.chromium}=>${d.mapChars}`) ?? 0) + 1);
+    for (const [k, c] of [...ownedByFam.entries()].sort((a, b) => b[1] - a[1]))
+      console.log(`  ${String(c).padStart(4)}  ${k}`);
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
 }
 
-function annotate(entry: { hex: string }) {
-  const chain = staticRoutes(entry.hex);
-  return { ...entry, staticChain: chain, staticMisses: chain.length === 0 };
-}
-
-const diverge = (data.diverge ?? []).map(annotate);
-const resolverTofu = (data.resolverTofu ?? []).map(annotate);
-
-// The fidelity-relevant subset: cps the static table misses (resolver fires).
-const divergeFires = diverge.filter((d: any) => d.staticMisses);
-const tofuFires = resolverTofu.filter((d: any) => d.staticMisses);
-
-console.log("=== DM-1424 win32 calibration refine ===");
-console.log(`sampled=${data.sampled} uniqueCps=${data.uniqueCps}`);
-console.log(JSON.stringify(data.summary, null, 2));
-console.log();
-console.log(`diverge total=${diverge.length}  of which static-MISSES (resolver fires)=${divergeFires.length}`);
-console.log(`resolverTofu total=${resolverTofu.length}  of which static-MISSES (resolver fires)=${tofuFires.length}`);
-
-console.log("\n--- Divergences where the static chain MISSES (resolver fires; genuine) ---");
-for (const d of divergeFires)
-  console.log(
-    `  U+${d.hex.toUpperCase().padStart(4, "0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  mapChars=${d.mapChars}  static=[]`,
-  );
-if (!divergeFires.length) console.log("  (none)");
-
-console.log("\n--- Resolver-tofu where the static chain MISSES (resolver fires; potential regression) ---");
-for (const d of tofuFires)
-  console.log(`  U+${d.hex.toUpperCase().padStart(4, "0")} ${JSON.stringify(d.ch)}  chromium=${d.chromium}  static=[]`);
-if (!tofuFires.length) console.log("  (none)");
-
-// Divergences where the static table OWNS the cp — resolver never fires, harmless.
-console.log("\n--- Divergences where the static chain OWNS the cp (resolver never fires; harmless) ---");
-const ownedByFam = new Map<string, number>();
-for (const d of diverge)
-  if (!d.staticMisses)
-    ownedByFam.set(`${d.chromium}=>${d.mapChars}`, (ownedByFam.get(`${d.chromium}=>${d.mapChars}`) ?? 0) + 1);
-for (const [k, c] of [...ownedByFam.entries()].sort((a, b) => b[1] - a[1]))
-  console.log(`  ${String(c).padStart(4)}  ${k}`);
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

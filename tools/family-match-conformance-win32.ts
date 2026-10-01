@@ -58,6 +58,7 @@ import { join, extname, resolve } from "node:path";
 import * as fontkit from "fontkit";
 import { win32FamilySuffixAdjustment } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,
@@ -215,10 +216,10 @@ function ourAnswers(families: string[]): Map<string, Map<number, OurAnswer>> {
   return map;
 }
 
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  const asJson = argv.includes("--json");
-  const writeBaseline = argv.includes("--write-baseline");
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const values = parseFlags(argv, { json: { type: "boolean" }, "write-baseline": { type: "boolean" } });
+  const asJson = values.json === true;
+  const writeBaseline = values["write-baseline"] === true;
 
   if (process.platform !== "win32") {
     console.error("family-match conformance (win32) must run on Windows (it scores the DirectWrite matcher).");
@@ -356,4 +357,4 @@ async function main(): Promise<void> {
   console.log(`no regressions vs baseline (baseline misses: ${baseline.misses.length}, this run: ${misses.length}).`);
 }
 
-await main();
+if (isMain(import.meta.url)) await runMain(() => main());

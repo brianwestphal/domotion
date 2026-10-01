@@ -16,10 +16,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type Browser, type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import type { IntraFrameAnimation } from "../src/animation/animator.js";
 import { generateAnimatedSvg } from "../src/animation/animator.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -1276,11 +1276,6 @@ function parsePositiveList(raw: string, label: string): number[] {
   return [...new Set(values)];
 }
 
-function option(args: string[], name: string, fallback: string): string {
-  const index = args.indexOf(name);
-  return index >= 0 && args[index + 1] != null ? args[index + 1] : fallback;
-}
-
 function corpusErrors(cases: AnimatedCullingCase[], controls: CullingMutationControl[]): string[] {
   const errors: string[] = [];
   const caseIds = new Set<string>();
@@ -1478,12 +1473,12 @@ export async function runAnimatedCullingGeometryOracle(
   );
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const dprs = parsePositiveList(option(args, "--dpr", "1,2"), "--dpr");
-  const zooms = parsePositiveList(option(args, "--zoom", "1,1.25"), "--zoom");
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, { dpr: { type: "string" }, zoom: { type: "string" }, json: { type: "string" } });
+  const dprs = parsePositiveList(String(flag(args, "dpr", "1,2")), "--dpr");
+  const zooms = parsePositiveList(String(flag(args, "zoom", "1,1.25")), "--zoom");
   const report = await runAnimatedCullingGeometryOracle({ dprs, zooms });
-  const jsonPath = resolve(option(args, "--json", `tests/output/animated-culling-geometry-${platform()}.json`));
+  const jsonPath = resolve(String(flag(args, "json", `tests/output/animated-culling-geometry-${platform()}.json`)));
   mkdirSync(dirname(jsonPath), { recursive: true });
   writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
   console.log(
@@ -1500,12 +1495,7 @@ async function main(): Promise<void> {
       `FAIL ${mutation.scenario.dpr}x/${mutation.scenario.zoom} ${mutation.id}: discriminator did not move`,
     );
   }
-  if (report.summary.failed > 0 || report.summary.mutationsFailed > 0) process.exitCode = 1;
+  return report.summary.failed > 0 || report.summary.mutationsFailed > 0 ? 1 : 0;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void main().catch((error: unknown) => {
-    console.error(error);
-    process.exitCode = 2;
-  });
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

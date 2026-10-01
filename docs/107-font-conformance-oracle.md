@@ -64,6 +64,9 @@ report records the selected universe and the answers in that same order.
 - **Our answer** — `resolveFontForCodepoint` against the same stack's key chain, at the same size, weight and style, materialized through the same call the renderer makes (`res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`), so the face reported is the concrete **cut** the renderer would load and not the family's base entry.
 
 `tools/chrome-font-agreement.ts` is the single-shot diagnostic sibling: it prints `FONTAGREE:` lines into a CI log for a handful of codepoints and never gates. This is the exhaustive, gateable one.
+Its optional positional operands are the CSS font stack and a comma-separated
+hex codepoint list. Unknown options and extra operands fail before Chromium
+launches; importing the module does not start the diagnostic.
 
 ## Running it
 

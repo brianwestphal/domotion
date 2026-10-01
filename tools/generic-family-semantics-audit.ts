@@ -11,7 +11,6 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type CDPSession, type Page } from "@playwright/test";
 import {
   __setWin32FamilyKeyResolverForTest,
@@ -26,6 +25,7 @@ import {
   type WinGenericFamily,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 
 export const GENERIC_FAMILY_SEMANTICS_SOURCE_PINS = {
@@ -889,22 +889,17 @@ export async function runGenericFamilySemanticsAudit(): Promise<GenericFamilySem
   );
 }
 
-async function main(): Promise<void> {
+async function main(args: string[]): Promise<number> {
+  const flags = parseFlags(args, { json: { type: "string" } });
   const report = await runGenericFamilySemanticsAudit();
-  const jsonAt = process.argv.indexOf("--json");
-  if (jsonAt >= 0) {
-    const target = process.argv[jsonAt + 1];
+  if (flags.json !== undefined) {
+    const target = flags.json as string;
     if (target == null || target === "") throw new Error("--json requires a path");
     mkdirSync(dirname(resolve(target)), { recursive: true });
     writeFileSync(resolve(target), `${JSON.stringify(report, null, 2)}\n`);
   }
   console.log(JSON.stringify(report, null, 2));
-  process.exitCode = report.verdict === "source-exact" ? 0 : 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().catch((error: unknown) => {
-    console.error(error);
-    process.exitCode = 2;
-  });
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

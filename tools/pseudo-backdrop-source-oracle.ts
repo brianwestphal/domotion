@@ -10,13 +10,13 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import {
@@ -438,20 +438,22 @@ export async function runPseudoBackdropSourceOracle(
   };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const dprAt = args.indexOf("--dpr");
-  const jsonAt = args.indexOf("--json");
-  const artifactAt = args.indexOf("--artifact-dir");
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, {
+    dpr: { type: "string" },
+    json: { type: "string" },
+    "artifact-dir": { type: "string" },
+  });
+  const dpr = flag(values, "--dpr");
   const dprs =
-    dprAt < 0
+    dpr == null
       ? [1, 2]
-      : args[dprAt + 1]
+      : dpr
           .split(",")
           .map(Number)
           .filter((value) => value > 0 && Number.isFinite(value));
-  const jsonPath = jsonAt < 0 ? undefined : args[jsonAt + 1];
-  const artifactDir = artifactAt < 0 ? undefined : args[artifactAt + 1];
+  const jsonPath = flag(values, "--json");
+  const artifactDir = flag(values, "--artifact-dir") ?? undefined;
   const report = await runPseudoBackdropSourceOracle(dprs, artifactDir);
   const body = `${JSON.stringify(report, null, 2)}\n`;
   if (jsonPath != null) {
@@ -459,7 +461,7 @@ async function main(): Promise<void> {
     writeFileSync(jsonPath, body);
   }
   process.stdout.write(body);
-  if (report.verdict !== "source-exact") process.exitCode = 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) void main();
+if (isMain(import.meta.url)) await runMain(() => main());

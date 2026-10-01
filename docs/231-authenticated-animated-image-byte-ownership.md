@@ -24,6 +24,18 @@ aliases: ["docs/231-authenticated-animated-image-byte-ownership.md", "doc-231"]
 
 # Authenticated animated-image encoded-byte ownership
 
+The truth adjudicator validates `--artifact`, `--report`, and
+`--allow-withheld` before opening evidence files. It preserves the same
+redacted failure message for malformed arguments and artifacts; importing the
+module does not adjudicate.
+The private collector requires `--os`, `--role`, `--browser`, `--renderer`,
+`--loaded-libraries`, `--plan`, `--authority`, `--out`,
+`--build-invocation-id`, and `--observation-id`; it validates all options
+before launching Chromium, while retaining a redacted failure message.
+The frame-selection audit wrapper accepts `--json`; the production release
+wrapper accepts `--reports` and `--json`. Both validate arguments before
+running and are safe to import.
+
 DM-2578 is a source-first design investigation. It adds no production capture
 behavior, decoder runtime, or visual tolerance. All findings are pinned to
 Chromium revision `7d859f271cbda744098ac69f44978d4edfa62be3`.
@@ -491,6 +503,9 @@ The stable evidence surface is split deliberately:
   HTML, SVG, input, CSS layer/item, image-set, generated-pseudo, closed-shadow,
   cache, redirect, revalidation, service-worker, CORS, data/blob, multipart,
   adoption, detachment, DPR, and stale-navigation route required above;
+- the fixture server requires `--chromium-root`, `--plan-out`, and a loopback
+  `--port` from 1024 to 65535; it validates arguments before loading fixtures,
+  and importing its module does not start the server;
 - the collector has one browser launch site, always passes `headless: true`,
   uses hard timeouts for private calls and teardown, authenticates live browser
   and renderer executable/library mappings, and serializes only rows that pass

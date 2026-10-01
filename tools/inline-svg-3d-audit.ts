@@ -13,10 +13,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type Page } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -1036,16 +1036,15 @@ export async function runInlineSvg3dAudit(
   );
 }
 
-async function main(): Promise<number> {
-  const dprIndex = process.argv.indexOf("--dpr");
-  const deviceScaleFactors =
-    dprIndex >= 0 && process.argv[dprIndex + 1] != null ? process.argv[dprIndex + 1].split(",").map(Number) : [1, 2];
+async function main(args: string[]): Promise<number> {
+  const flags = parseFlags(args, { dpr: { type: "string" }, json: { type: "string" } });
+  const deviceScaleFactors = typeof flags.dpr === "string" ? flags.dpr.split(",").map(Number) : [1, 2];
+  if (deviceScaleFactors.some((value) => !Number.isFinite(value) || value <= 0)) {
+    throw new Error("--dpr needs positive comma-separated numbers");
+  }
   const report = await runInlineSvg3dAudit({ deviceScaleFactors });
-  const jsonIndex = process.argv.indexOf("--json");
   const reportPath = resolve(
-    jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
-      ? process.argv[jsonIndex + 1]
-      : `tests/output/inline-svg-3d-gate-${platform()}.json`,
+    typeof flags.json === "string" ? flags.json : `tests/output/inline-svg-3d-gate-${platform()}.json`,
   );
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
@@ -1073,6 +1072,4 @@ async function main(): Promise<number> {
     : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

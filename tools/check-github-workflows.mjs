@@ -3,6 +3,7 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isMap, isScalar, isSeq, LineCounter, parseDocument } from "yaml";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
 const KNOWN_CONTEXTS = new Set([
   "env",
@@ -143,16 +144,20 @@ export function lintWorkflowDirectory(directory) {
   return { files, problems };
 }
 
-const modulePath = fileURLToPath(import.meta.url);
-if (process.argv[1] && resolve(process.argv[1]) === modulePath) {
-  const workflowDirectory = resolve(dirname(modulePath), "../.github/workflows");
-  const { files, problems } = lintWorkflowDirectory(workflowDirectory);
-  if (problems.length > 0) {
-    for (const problem of problems) {
-      console.error(`${problem.file}:${problem.line}: ${problem.message}`);
+if (isMain(import.meta.url))
+  await runMain(() => {
+    const { positionals } = parseCommand(process.argv.slice(2), {});
+    if (positionals.length > 0) throw new Error("unexpected positional arguments");
+    const modulePath = fileURLToPath(import.meta.url);
+    const workflowDirectory = resolve(dirname(modulePath), "../.github/workflows");
+    const { files, problems } = lintWorkflowDirectory(workflowDirectory);
+    if (problems.length > 0) {
+      for (const problem of problems) {
+        console.error(`${problem.file}:${problem.line}: ${problem.message}`);
+      }
+      return 1;
+    } else {
+      console.log(`GitHub workflow context check passed (${files.length} workflows)`);
+      return 0;
     }
-    process.exitCode = 1;
-  } else {
-    console.log(`GitHub workflow context check passed (${files.length} workflows)`);
-  }
-}
+  });

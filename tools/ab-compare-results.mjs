@@ -4,93 +4,105 @@
 // tiles. Usage: node tools/ab-compare-results.mjs <off/results.json> <on/results.json>
 import { readFileSync } from "node:fs";
 
-const [offPath, onPath] = process.argv.slice(2);
-if (!offPath || !onPath) {
-  console.error("usage: ab-compare-results.mjs <off.json> <on.json>");
-  process.exit(1);
-}
-const off = JSON.parse(readFileSync(offPath, "utf-8"));
-const on = JSON.parse(readFileSync(onPath, "utf-8"));
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const byName = (arr) => new Map(arr.map((r) => [r.name, r]));
-const O = byName(off),
-  N = byName(on);
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  const [offPath, onPath] = positionals;
+  if (positionals.length > 2) throw new Error("expected two results paths");
 
-const newlyPass = [],
-  newlyFail = [],
-  improved = [],
-  regressed = [],
-  unchanged = [];
-let sumRegionDelta = 0,
-  sumDiffDelta = 0;
-for (const [name, o] of O) {
-  const n = N.get(name);
-  if (!n) continue;
-  const dReg = (n.regionCount ?? 0) - (o.regionCount ?? 0);
-  const dDiff = (n.diffPct ?? 0) - (o.diffPct ?? 0);
-  sumRegionDelta += dReg;
-  sumDiffDelta += dDiff;
-  if (!o.pass && n.pass) newlyPass.push({ name, o, n });
-  else if (o.pass && !n.pass) newlyFail.push({ name, o, n });
-  else if (dReg < 0 || dDiff < -0.005) improved.push({ name, o, n, dReg, dDiff });
-  else if (dReg > 0 || dDiff > 0.005) regressed.push({ name, o, n, dReg, dDiff });
-  else unchanged.push(name);
-}
-// Attribution for a transition, when the sweeps recorded the evidence.
-// Mirrors `attributeMovementWithBytes` (src/review/side-digest.ts): a
-// byte-identical side is exonerated outright — the metric is a pure function of
-// the two images, so if one input did not change bytewise, the movement came
-// from the other side. Perceptual-digest equality is NOT output equality (two
-// distinct outputs 2,900 bytes apart have hashed digest-equal), so digest-based
-// verdicts are labeled unproven. `chromeFaces` names the face flip when Chrome
-// itself painted differently between the runs (absent on cache hits).
-function attribution(o, n) {
-  const parts = [];
-  const expBytesSame = !!o.expectedSha256 && o.expectedSha256 === n.expectedSha256;
-  const actBytesSame = !!o.actualSha256 && o.actualSha256 === n.actualSha256;
-  if (expBytesSame && actBytesSame) parts.push("NEITHER side changed (both byte-identical) — suspect the comparator");
-  else if (expBytesSame) parts.push("RENDERER side (proven: expected byte-identical)");
-  else if (actBytesSame) parts.push("ORACLE side (proven: actual byte-identical — not caused by this change)");
-  else if (o.expectedDigest && n.expectedDigest && o.actualDigest && n.actualDigest) {
-    const em = o.expectedDigest !== n.expectedDigest,
-      am = o.actualDigest !== n.actualDigest;
-    if (em && am) parts.push("both sides moved (digest)");
-    else if (em) parts.push("oracle side (digest — unproven)");
-    else if (am) parts.push("renderer side (digest — unproven)");
-    else
-      parts.push("unattributed: no digest moved, bytes differ on both sides (sub-digest — NOT proof of 'same output')");
+  if (!offPath || !onPath) {
+    console.error("usage: ab-compare-results.mjs <off.json> <on.json>");
+    return 1;
   }
-  if (
-    Array.isArray(o.chromeFaces) &&
-    Array.isArray(n.chromeFaces) &&
-    JSON.stringify(o.chromeFaces) !== JSON.stringify(n.chromeFaces)
-  ) {
-    parts.push(`Chrome painted different faces: ${JSON.stringify(o.chromeFaces)} → ${JSON.stringify(n.chromeFaces)}`);
-  }
-  return parts;
-}
-const fmt = (e) => {
-  const line = `${e.name.padEnd(52)} regions ${String(e.o.regionCount).padStart(3)}→${String(e.n.regionCount).padStart(3)}  diff ${e.o.diffPct.toFixed(3)}%→${e.n.diffPct.toFixed(3)}%`;
-  const attr = attribution(e.o, e.n);
-  return attr.length > 0 ? `${line}\n${attr.map((a) => `        ↳ ${a}`).join("\n")}` : line;
-};
+  const off = JSON.parse(readFileSync(offPath, "utf-8"));
+  const on = JSON.parse(readFileSync(onPath, "utf-8"));
 
-const offPassCount = off.filter((r) => r.pass).length;
-const onPassCount = on.filter((r) => r.pass).length;
-console.log(`\n=== DM-1083 A/B (${O.size} fixtures) ===`);
-console.log(
-  `Pass count:  OFF ${offPassCount}  →  ON ${onPassCount}   (${onPassCount - offPassCount >= 0 ? "+" : ""}${onPassCount - offPassCount})`,
-);
-console.log(
-  `Σ region delta: ${sumRegionDelta >= 0 ? "+" : ""}${sumRegionDelta}    Σ diffPct delta: ${sumDiffDelta >= 0 ? "+" : ""}${sumDiffDelta.toFixed(3)}%`,
-);
-console.log(`\nNewly PASS (${newlyPass.length}):`);
-for (const e of newlyPass) console.log("  ✅ " + fmt(e));
-console.log(`\nNewly FAIL (${newlyFail.length}):`);
-for (const e of newlyFail) console.log("  ❌ " + fmt(e));
-console.log(`\nREGRESSED but still same pass-state (${regressed.length}):`);
-for (const e of regressed.sort((a, b) => b.dReg - a.dReg)) console.log("  ⚠️  " + fmt(e));
-console.log(`\nIMPROVED but still same pass-state (${improved.length}):`);
-for (const e of improved.sort((a, b) => a.dReg - b.dReg).slice(0, 40)) console.log("  ▴ " + fmt(e));
-if (improved.length > 40) console.log(`  … and ${improved.length - 40} more improved`);
-console.log(`\nUnchanged: ${unchanged.length}`);
+  const byName = (arr) => new Map(arr.map((r) => [r.name, r]));
+  const O = byName(off),
+    N = byName(on);
+
+  const newlyPass = [],
+    newlyFail = [],
+    improved = [],
+    regressed = [],
+    unchanged = [];
+  let sumRegionDelta = 0,
+    sumDiffDelta = 0;
+  for (const [name, o] of O) {
+    const n = N.get(name);
+    if (!n) continue;
+    const dReg = (n.regionCount ?? 0) - (o.regionCount ?? 0);
+    const dDiff = (n.diffPct ?? 0) - (o.diffPct ?? 0);
+    sumRegionDelta += dReg;
+    sumDiffDelta += dDiff;
+    if (!o.pass && n.pass) newlyPass.push({ name, o, n });
+    else if (o.pass && !n.pass) newlyFail.push({ name, o, n });
+    else if (dReg < 0 || dDiff < -0.005) improved.push({ name, o, n, dReg, dDiff });
+    else if (dReg > 0 || dDiff > 0.005) regressed.push({ name, o, n, dReg, dDiff });
+    else unchanged.push(name);
+  }
+  // Attribution for a transition, when the sweeps recorded the evidence.
+  // Mirrors `attributeMovementWithBytes` (src/review/side-digest.ts): a
+  // byte-identical side is exonerated outright — the metric is a pure function of
+  // the two images, so if one input did not change bytewise, the movement came
+  // from the other side. Perceptual-digest equality is NOT output equality (two
+  // distinct outputs 2,900 bytes apart have hashed digest-equal), so digest-based
+  // verdicts are labeled unproven. `chromeFaces` names the face flip when Chrome
+  // itself painted differently between the runs (absent on cache hits).
+  function attribution(o, n) {
+    const parts = [];
+    const expBytesSame = !!o.expectedSha256 && o.expectedSha256 === n.expectedSha256;
+    const actBytesSame = !!o.actualSha256 && o.actualSha256 === n.actualSha256;
+    if (expBytesSame && actBytesSame) parts.push("NEITHER side changed (both byte-identical) — suspect the comparator");
+    else if (expBytesSame) parts.push("RENDERER side (proven: expected byte-identical)");
+    else if (actBytesSame) parts.push("ORACLE side (proven: actual byte-identical — not caused by this change)");
+    else if (o.expectedDigest && n.expectedDigest && o.actualDigest && n.actualDigest) {
+      const em = o.expectedDigest !== n.expectedDigest,
+        am = o.actualDigest !== n.actualDigest;
+      if (em && am) parts.push("both sides moved (digest)");
+      else if (em) parts.push("oracle side (digest — unproven)");
+      else if (am) parts.push("renderer side (digest — unproven)");
+      else
+        parts.push(
+          "unattributed: no digest moved, bytes differ on both sides (sub-digest — NOT proof of 'same output')",
+        );
+    }
+    if (
+      Array.isArray(o.chromeFaces) &&
+      Array.isArray(n.chromeFaces) &&
+      JSON.stringify(o.chromeFaces) !== JSON.stringify(n.chromeFaces)
+    ) {
+      parts.push(`Chrome painted different faces: ${JSON.stringify(o.chromeFaces)} → ${JSON.stringify(n.chromeFaces)}`);
+    }
+    return parts;
+  }
+  const fmt = (e) => {
+    const line = `${e.name.padEnd(52)} regions ${String(e.o.regionCount).padStart(3)}→${String(e.n.regionCount).padStart(3)}  diff ${e.o.diffPct.toFixed(3)}%→${e.n.diffPct.toFixed(3)}%`;
+    const attr = attribution(e.o, e.n);
+    return attr.length > 0 ? `${line}\n${attr.map((a) => `        ↳ ${a}`).join("\n")}` : line;
+  };
+
+  const offPassCount = off.filter((r) => r.pass).length;
+  const onPassCount = on.filter((r) => r.pass).length;
+  console.log(`\n=== DM-1083 A/B (${O.size} fixtures) ===`);
+  console.log(
+    `Pass count:  OFF ${offPassCount}  →  ON ${onPassCount}   (${onPassCount - offPassCount >= 0 ? "+" : ""}${onPassCount - offPassCount})`,
+  );
+  console.log(
+    `Σ region delta: ${sumRegionDelta >= 0 ? "+" : ""}${sumRegionDelta}    Σ diffPct delta: ${sumDiffDelta >= 0 ? "+" : ""}${sumDiffDelta.toFixed(3)}%`,
+  );
+  console.log(`\nNewly PASS (${newlyPass.length}):`);
+  for (const e of newlyPass) console.log("  ✅ " + fmt(e));
+  console.log(`\nNewly FAIL (${newlyFail.length}):`);
+  for (const e of newlyFail) console.log("  ❌ " + fmt(e));
+  console.log(`\nREGRESSED but still same pass-state (${regressed.length}):`);
+  for (const e of regressed.sort((a, b) => b.dReg - a.dReg)) console.log("  ⚠️  " + fmt(e));
+  console.log(`\nIMPROVED but still same pass-state (${improved.length}):`);
+  for (const e of improved.sort((a, b) => a.dReg - b.dReg).slice(0, 40)) console.log("  ▴ " + fmt(e));
+  if (improved.length > 40) console.log(`  … and ${improved.length - 40} more improved`);
+  console.log(`\nUnchanged: ${unchanged.length}`);
+  return 0;
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

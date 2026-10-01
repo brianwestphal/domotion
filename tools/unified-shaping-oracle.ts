@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 export interface ExactRecord {
   environment: Record<string, unknown>;
@@ -75,11 +76,6 @@ export interface PaintedFace {
 export type FaceObservation = "matched" | "css-unaddressable-after-candidate-walk";
 type ControlRects = Record<string, Array<{ left: number; top: number; right: number; bottom: number }>>;
 
-const output = (() => {
-  const i = process.argv.indexOf("--json");
-  return i >= 0 ? process.argv[i + 1] : undefined;
-})();
-
 function rectSignature(rects: Array<{ left: number; top: number; right: number; bottom: number }>): string {
   return JSON.stringify(rects.map((rect) => [rect.left, rect.top, rect.right, rect.bottom]));
 }
@@ -128,7 +124,9 @@ export function browserControlMovement(
   );
 }
 
-async function main(): Promise<number> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
+  const output = flag(values, "--json");
   const temp = mkdtempSync(resolve(tmpdir(), "unified-shaping-"));
   const exactPath = resolve(temp, "exact.json");
   const tsx = resolve("node_modules/.bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
@@ -362,13 +360,4 @@ async function main(): Promise<number> {
   }
 }
 
-if (process.argv[1] != null && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  main()
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 2;
-    });
-}
+if (isMain(import.meta.url)) await runMain(() => main());

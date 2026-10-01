@@ -4,8 +4,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { platform } from "node:os";
-import { pathToFileURL } from "node:url";
 import { parityEnvironment } from "./parity-environment.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 export interface CorpusRun {
   text: string;
@@ -66,15 +66,20 @@ export function reduceMismatches(rows: Array<Record<string, unknown>>) {
   return [...groups.values()].sort((a, b) => b.count - a.count || a.signature.localeCompare(b.signature));
 }
 
-const arg = (name: string, fallback?: string): string | undefined => {
-  const i = process.argv.indexOf(name);
-  return i < 0 ? fallback : process.argv[i + 1];
-};
-async function main(): Promise<void> {
-  const runsFile = resolve(arg("--runs", "tests/output/shaping-unicode/full-runs.json")!);
-  const outDir = resolve(arg("--out", "tests/output/shaping-unicode")!);
-  const mode = arg("--mode", "representative") as CorpusMode;
-  const shard = arg("--shard", "0/1")!.split("/").map(Number);
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const values = parseFlags(argv, {
+    runs: { type: "string" },
+    out: { type: "string" },
+    mode: { type: "string" },
+    shard: { type: "string" },
+    "representative-limit": { type: "string" },
+  });
+  const runsFile = resolve(flag(values, "--runs", "tests/output/shaping-unicode/full-runs.json")!);
+  const outDir = resolve(flag(values, "--out", "tests/output/shaping-unicode")!);
+  const mode = flag(values, "--mode", "representative") as CorpusMode;
+  const shard = flag(values, "--shard", "0/1")!.split("/").map(Number);
+  if (shard.length !== 2 || !shard.every(Number.isSafeInteger) || shard[1] < 1 || shard[0] < 0 || shard[0] >= shard[1])
+    throw new Error("--shard requires a zero-based index/count pair");
   if (!existsSync(runsFile))
     throw new Error(
       `missing corpus ${runsFile}; extract it with fonts:shaping:runs -- --source external/html-test/unicode`,
@@ -86,7 +91,7 @@ async function main(): Promise<void> {
     mode,
     shard[0],
     shard[1],
-    Number(arg("--representative-limit", "4096")),
+    Number(flag(values, "--representative-limit", "4096")),
   );
   const corpusDigest = digest({ sources: corpus.sources, splitWords: corpus.splitWords === true, runs: corpus.runs });
   const shardDigest = digest({ corpusDigest, mode, shard, selected: selected.map(runIdentity) });
@@ -155,4 +160,4 @@ async function main(): Promise<void> {
   process.exitCode = child.status ?? 2;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();
+if (isMain(import.meta.url)) await runMain(() => main());

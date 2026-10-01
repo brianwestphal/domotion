@@ -7,13 +7,9 @@ import {
   type HelperAvailabilityContract,
   isGlyphHelperAvailable,
 } from "@domotion/text-engine/testing";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 type SupportedPlatform = "darwin" | "linux" | "win32";
-
-function argument(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index < 0 ? undefined : process.argv[index + 1];
-}
 
 function helperPath(platform: SupportedPlatform): string {
   if (process.env.DOMOTION_HELPER_PATH) return resolve(process.env.DOMOTION_HELPER_PATH);
@@ -62,34 +58,42 @@ function validatePair(present: HelperAvailabilityContract, absent: HelperAvailab
   }
 }
 
-const compare = argument("--compare");
-if (compare != null) {
-  const [presentPath, absentPath] = compare.split(",");
-  if (!presentPath || !absentPath) throw new Error("--compare expects present.json,absent.json");
-  const present = JSON.parse(readFileSync(presentPath, "utf8")) as HelperAvailabilityContract;
-  const absent = JSON.parse(readFileSync(absentPath, "utf8")) as HelperAvailabilityContract;
-  validatePair(present, absent);
-  process.stdout.write(JSON.stringify({ pass: true, platform: present.platform, present, absent }, null, 2) + "\n");
-} else {
-  if (process.platform !== "darwin" && process.platform !== "linux" && process.platform !== "win32") {
-    throw new Error(`unsupported platform: ${process.platform}`);
+export function runHelperAvailabilityContract(argv: string[]): number {
+  const args = parseFlags(argv, { compare: { type: "string" }, out: { type: "string" } });
+  const compare = flag(args, "compare");
+  if (typeof compare === "string") {
+    const [presentPath, absentPath] = compare.split(",");
+    if (!presentPath || !absentPath) throw new Error("--compare expects present.json,absent.json");
+    const present = JSON.parse(readFileSync(presentPath, "utf8")) as HelperAvailabilityContract;
+    const absent = JSON.parse(readFileSync(absentPath, "utf8")) as HelperAvailabilityContract;
+    validatePair(present, absent);
+    process.stdout.write(JSON.stringify({ pass: true, platform: present.platform, present, absent }, null, 2) + "\n");
+  } else {
+    if (process.platform !== "darwin" && process.platform !== "linux" && process.platform !== "win32") {
+      throw new Error(`unsupported platform: ${process.platform}`);
+    }
+    const platform = process.platform;
+    const disabled = process.env.DOMOTION_DISABLE_HELPER === "1";
+    const path = helperPath(platform);
+    const identity = authenticatedIdentity(path);
+    const helperObserved = isGlyphHelperAvailable();
+    if (helperObserved === disabled) {
+      throw new Error(
+        `DOMOTION_DISABLE_HELPER activation was inert (disabled=${disabled}, observed=${helperObserved})`,
+      );
+    }
+    const report = helperAvailabilityContract({
+      platform,
+      helperObserved,
+      explicitlyDisabled: disabled,
+      implementationIdentity: identity,
+    });
+    const out = flag(args, "out");
+    const json = JSON.stringify(report, null, 2) + "\n";
+    if (typeof out === "string") writeFileSync(out, json);
+    process.stdout.write(json);
   }
-  const platform = process.platform;
-  const disabled = process.env.DOMOTION_DISABLE_HELPER === "1";
-  const path = helperPath(platform);
-  const identity = authenticatedIdentity(path);
-  const helperObserved = isGlyphHelperAvailable();
-  if (helperObserved === disabled) {
-    throw new Error(`DOMOTION_DISABLE_HELPER activation was inert (disabled=${disabled}, observed=${helperObserved})`);
-  }
-  const report = helperAvailabilityContract({
-    platform,
-    helperObserved,
-    explicitlyDisabled: disabled,
-    implementationIdentity: identity,
-  });
-  const out = argument("--out");
-  const json = JSON.stringify(report, null, 2) + "\n";
-  if (out) writeFileSync(out, json);
-  process.stdout.write(json);
+  return 0;
 }
+
+if (isMain(import.meta.url)) await runMain(() => runHelperAvailabilityContract(process.argv.slice(2)));

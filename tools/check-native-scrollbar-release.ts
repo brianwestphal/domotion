@@ -2,16 +2,12 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, extname, relative, resolve } from "node:path";
 import sharp from "sharp";
+import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 import {
   adjudicateNativeScrollbarReports,
   nativeScrollbarAuditReportSchema,
   type NativeScrollbarRasterEnvelope,
 } from "./native-scrollbar-release-gate.js";
-
-function option(name: string): string | null {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? (process.argv[index + 1] ?? null) : null;
-}
 
 async function jsonFiles(path: string): Promise<string[]> {
   const entries = await readdir(path, { withFileTypes: true });
@@ -61,19 +57,28 @@ async function verifyArtifacts(reportPath: string, input: unknown): Promise<stri
   return blockers;
 }
 
-const reportsDir = option("--reports");
-if (reportsDir == null)
-  throw new Error("usage: check-native-scrollbar-release --reports <downloaded-artifact-dir> [--envelopes <json>]");
-const reportPaths = (await jsonFiles(resolve(reportsDir))).sort();
-const reports = await Promise.all(reportPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown));
-const integrity = (await Promise.all(reportPaths.map((path, index) => verifyArtifacts(path, reports[index])))).flat();
-const envelopesPath = option("--envelopes");
-const envelopes =
-  envelopesPath == null
-    ? []
-    : (JSON.parse(await readFile(resolve(envelopesPath), "utf8")) as NativeScrollbarRasterEnvelope[]);
-const result = adjudicateNativeScrollbarReports(reports, envelopes, integrity);
+export async function checkNativeScrollbarRelease(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, {
+    reports: { type: "string" },
+    envelopes: { type: "string" },
+    "report-only": { type: "boolean" },
+  });
+  const reportsDir = requiredFlag(args, "reports");
+  const reportPaths = (await jsonFiles(resolve(reportsDir))).sort();
+  const reports = await Promise.all(
+    reportPaths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as unknown),
+  );
+  const integrity = (await Promise.all(reportPaths.map((path, index) => verifyArtifacts(path, reports[index])))).flat();
+  const envelopesPath = flag(args, "envelopes");
+  const envelopes =
+    envelopesPath == null
+      ? []
+      : (JSON.parse(await readFile(resolve(String(envelopesPath)), "utf8")) as NativeScrollbarRasterEnvelope[]);
+  const result = adjudicateNativeScrollbarReports(reports, envelopes, integrity);
 
-console.log(`native scrollbar release gate — ${result.summary}`);
-for (const blocker of result.blockers) console.log(`BLOCKER ${blocker}`);
-if (!result.ready && !process.argv.includes("--report-only")) process.exitCode = 1;
+  console.log(`native scrollbar release gate — ${result.summary}`);
+  for (const blocker of result.blockers) console.log(`BLOCKER ${blocker}`);
+  return result.ready || flag(args, "report-only", false) === true ? 0 : 1;
+}
+
+if (isMain(import.meta.url)) await runMain(() => checkNativeScrollbarRelease(process.argv.slice(2)));

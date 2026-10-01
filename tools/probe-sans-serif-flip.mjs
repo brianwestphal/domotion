@@ -39,144 +39,152 @@
 // Diagnostic only: renders nothing, gates nothing, writes no baseline. Every
 // line is prefixed `SANSFLIP` so it is greppable out of a job log.
 import { withBrowser } from "./lib/browser.mjs";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const N = Number(process.env.LAUNCHES ?? process.argv[2] ?? 20);
-const SETTLE_MS = Number(process.env.SETTLE_MS ?? 750);
-/** Browsers to run AT ONCE in the concurrent phase. The visual harness runs a
- *  worker pool, so every real sighting of the flip happened under concurrency
- *  and CPU pressure; 30 sequential launches on a runner did not reproduce it.
- *  0 skips the phase. */
-const CONCURRENT = Number(process.env.CONCURRENT ?? 6);
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 1) throw new Error("expected at most one launch count");
+  const N = Number(process.env.LAUNCHES ?? positionals[0] ?? 20);
+  const SETTLE_MS = Number(process.env.SETTLE_MS ?? 750);
+  /** Browsers to run AT ONCE in the concurrent phase. The visual harness runs a
+   *  worker pool, so every real sighting of the flip happened under concurrency
+   *  and CPU pressure; 30 sequential launches on a runner did not reproduce it.
+   *  0 skips the phase. */
+  const CONCURRENT = Number(process.env.CONCURRENT ?? 6);
 
-/** The probes. `sans-serif` at 32px/700 is the exact case that flipped; the rest
- *  are there to say WHICH mechanism moved when it does. */
-const PROBES = [
-  { id: "sans-serif@700", css: "font-family:sans-serif;font-size:32px;font-weight:700" },
-  { id: "sans-serif@400", css: "font-family:sans-serif;font-size:32px;font-weight:400" },
-  { id: "serif@400", css: "font-family:serif;font-size:32px;font-weight:400" },
-  { id: "monospace@400", css: "font-family:monospace;font-size:32px;font-weight:400" },
-  { id: "Helvetica@700", css: "font-family:Helvetica;font-size:32px;font-weight:700" },
-  { id: "Arial@700", css: "font-family:Arial;font-size:32px;font-weight:700" },
-];
+  /** The probes. `sans-serif` at 32px/700 is the exact case that flipped; the rest
+   *  are there to say WHICH mechanism moved when it does. */
+  const PROBES = [
+    { id: "sans-serif@700", css: "font-family:sans-serif;font-size:32px;font-weight:700" },
+    { id: "sans-serif@400", css: "font-family:sans-serif;font-size:32px;font-weight:400" },
+    { id: "serif@400", css: "font-family:serif;font-size:32px;font-weight:400" },
+    { id: "monospace@400", css: "font-family:monospace;font-size:32px;font-weight:400" },
+    { id: "Helvetica@700", css: "font-family:Helvetica;font-size:32px;font-weight:700" },
+    { id: "Arial@700", css: "font-family:Arial;font-size:32px;font-weight:700" },
+  ];
 
-const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body style="margin:0">${PROBES.map(
-  (p, i) => `<div class="p" data-i="${i}" style="${p.css}">Ag</div>`,
-).join("")}</body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body style="margin:0">${PROBES.map(
+    (p, i) => `<div class="p" data-i="${i}" style="${p.css}">Ag</div>`,
+  ).join("")}</body></html>`;
 
-/** One page's answers: probe id → the face Chrome reports. */
-async function facesFor(ctx) {
-  const page = await ctx.newPage();
-  const cdp = await ctx.newCDPSession(page);
-  await cdp.send("DOM.enable");
-  await cdp.send("CSS.enable");
-  await page.setContent(html);
-  const { root } = await cdp.send("DOM.getDocument");
-  const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".p" });
-  const out = {};
-  for (let i = 0; i < PROBES.length; i++) {
-    const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: nodeIds[i] });
-    out[PROBES[i].id] = fonts.map((f) => f.postScriptName || f.familyName).join(",") || "(none)";
+  /** One page's answers: probe id → the face Chrome reports. */
+  async function facesFor(ctx) {
+    const page = await ctx.newPage();
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    await page.setContent(html);
+    const { root } = await cdp.send("DOM.getDocument");
+    const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".p" });
+    const out = {};
+    for (let i = 0; i < PROBES.length; i++) {
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: nodeIds[i] });
+      out[PROBES[i].id] = fonts.map((f) => f.postScriptName || f.familyName).join(",") || "(none)";
+    }
+    await page.close();
+    return out;
   }
-  await page.close();
-  return out;
-}
 
-const rows = [];
-for (let i = 0; i < N; i++) {
-  const { first, second } = await withBrowser(async (browser) => {
-    const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
-    // Ask immediately, then from a fresh page in the same process after settling.
-    const first = await facesFor(ctx);
-    await new Promise((r) => setTimeout(r, SETTLE_MS));
-    const second = await facesFor(ctx);
-    return { first, second };
-  });
-  rows.push({ i, first, second });
-  const flag = PROBES.some((p) => first[p.id] !== second[p.id]) ? "  <- first/second DIFFER" : "";
-  console.log(
-    `SANSFLIP launch ${String(i + 1).padStart(3)}  ${PROBES.map((p) => `${p.id}=${first[p.id]}`).join("  ")}${flag}`,
-  );
-}
-
-console.log("SANSFLIP");
-console.log(`SANSFLIP === tally over ${N} launches (first ask) ===`);
-let anyVaries = false;
-for (const p of PROBES) {
-  const tally = new Map();
-  for (const r of rows) tally.set(r.first[p.id], (tally.get(r.first[p.id]) ?? 0) + 1);
-  const varies = tally.size > 1;
-  anyVaries ||= varies;
-  const detail = [...tally].map(([k, v]) => `${v}x ${k}`).join("   |   ");
-  console.log(`SANSFLIP ${varies ? "VARIES " : "stable "} ${p.id.padEnd(16)} ${detail}`);
-}
-
-// Cold start: does launch 1 disagree with the rest? Reported separately because
-// it implies a different fix (warm up once) from a uniformly random flip.
-const firstRow = rows[0],
-  restRows = rows.slice(1);
-const coldOnly = PROBES.filter(
-  (p) =>
-    restRows.length > 0 &&
-    restRows.every((r) => r.first[p.id] === restRows[0].first[p.id]) &&
-    firstRow.first[p.id] !== restRows[0].first[p.id],
-);
-console.log("SANSFLIP");
-console.log(
-  coldOnly.length > 0
-    ? `SANSFLIP COLD-START: launch 1 differs from a unanimous 2..${N} on: ${coldOnly.map((p) => p.id).join(", ")}`
-    : "SANSFLIP no cold-start signature (launch 1 is not the odd one out)",
-);
-
-const timing = PROBES.filter((p) => rows.some((r) => r.first[p.id] !== r.second[p.id]));
-console.log(
-  timing.length > 0
-    ? `SANSFLIP TIMING: first vs settled ask differ within a launch on: ${timing.map((p) => p.id).join(", ")}`
-    : "SANSFLIP no within-launch timing effect (settled ask always agrees with the first)",
-);
-
-// Concurrent phase. Sequential launches on an idle runner came back 30/30
-// stable, so if the flip is real it needs something the sweep has and a bare
-// probe does not — the obvious candidate being several browsers competing at
-// once, which is how the harness actually runs.
-let concVaries = false;
-if (CONCURRENT > 0) {
-  console.log("SANSFLIP");
-  console.log(`SANSFLIP === ${CONCURRENT} browsers launched SIMULTANEOUSLY ===`);
-  const results = await Promise.all(
-    Array.from({ length: CONCURRENT }, async (_, k) => {
-      return await withBrowser(async (browser) => {
-        const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
-        const faces = await facesFor(ctx);
-        return { k, faces };
-      });
-    }),
-  );
-  results.sort((a, b) => a.k - b.k);
-  for (const { k, faces } of results) {
+  const rows = [];
+  for (let i = 0; i < N; i++) {
+    const { first, second } = await withBrowser(async (browser) => {
+      const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
+      // Ask immediately, then from a fresh page in the same process after settling.
+      const first = await facesFor(ctx);
+      await new Promise((r) => setTimeout(r, SETTLE_MS));
+      const second = await facesFor(ctx);
+      return { first, second };
+    });
+    rows.push({ i, first, second });
+    const flag = PROBES.some((p) => first[p.id] !== second[p.id]) ? "  <- first/second DIFFER" : "";
     console.log(
-      `SANSFLIP concurrent ${String(k + 1).padStart(2)}  ${PROBES.map((p) => `${p.id}=${faces[p.id]}`).join("  ")}`,
+      `SANSFLIP launch ${String(i + 1).padStart(3)}  ${PROBES.map((p) => `${p.id}=${first[p.id]}`).join("  ")}${flag}`,
     );
   }
+
+  console.log("SANSFLIP");
+  console.log(`SANSFLIP === tally over ${N} launches (first ask) ===`);
+  let anyVaries = false;
   for (const p of PROBES) {
-    const set = new Set(results.map((r) => r.faces[p.id]));
-    if (set.size > 1) {
-      concVaries = true;
-      console.log(`SANSFLIP CONCURRENT-VARIES ${p.id}: ${[...set].join("  |  ")}`);
+    const tally = new Map();
+    for (const r of rows) tally.set(r.first[p.id], (tally.get(r.first[p.id]) ?? 0) + 1);
+    const varies = tally.size > 1;
+    anyVaries ||= varies;
+    const detail = [...tally].map(([k, v]) => `${v}x ${k}`).join("   |   ");
+    console.log(`SANSFLIP ${varies ? "VARIES " : "stable "} ${p.id.padEnd(16)} ${detail}`);
+  }
+
+  // Cold start: does launch 1 disagree with the rest? Reported separately because
+  // it implies a different fix (warm up once) from a uniformly random flip.
+  const firstRow = rows[0],
+    restRows = rows.slice(1);
+  const coldOnly = PROBES.filter(
+    (p) =>
+      restRows.length > 0 &&
+      restRows.every((r) => r.first[p.id] === restRows[0].first[p.id]) &&
+      firstRow.first[p.id] !== restRows[0].first[p.id],
+  );
+  console.log("SANSFLIP");
+  console.log(
+    coldOnly.length > 0
+      ? `SANSFLIP COLD-START: launch 1 differs from a unanimous 2..${N} on: ${coldOnly.map((p) => p.id).join(", ")}`
+      : "SANSFLIP no cold-start signature (launch 1 is not the odd one out)",
+  );
+
+  const timing = PROBES.filter((p) => rows.some((r) => r.first[p.id] !== r.second[p.id]));
+  console.log(
+    timing.length > 0
+      ? `SANSFLIP TIMING: first vs settled ask differ within a launch on: ${timing.map((p) => p.id).join(", ")}`
+      : "SANSFLIP no within-launch timing effect (settled ask always agrees with the first)",
+  );
+
+  // Concurrent phase. Sequential launches on an idle runner came back 30/30
+  // stable, so if the flip is real it needs something the sweep has and a bare
+  // probe does not — the obvious candidate being several browsers competing at
+  // once, which is how the harness actually runs.
+  let concVaries = false;
+  if (CONCURRENT > 0) {
+    console.log("SANSFLIP");
+    console.log(`SANSFLIP === ${CONCURRENT} browsers launched SIMULTANEOUSLY ===`);
+    const results = await Promise.all(
+      Array.from({ length: CONCURRENT }, async (_, k) => {
+        return await withBrowser(async (browser) => {
+          const ctx = await browser.newContext({ viewport: { width: 800, height: 200 } });
+          const faces = await facesFor(ctx);
+          return { k, faces };
+        });
+      }),
+    );
+    results.sort((a, b) => a.k - b.k);
+    for (const { k, faces } of results) {
+      console.log(
+        `SANSFLIP concurrent ${String(k + 1).padStart(2)}  ${PROBES.map((p) => `${p.id}=${faces[p.id]}`).join("  ")}`,
+      );
+    }
+    for (const p of PROBES) {
+      const set = new Set(results.map((r) => r.faces[p.id]));
+      if (set.size > 1) {
+        concVaries = true;
+        console.log(`SANSFLIP CONCURRENT-VARIES ${p.id}: ${[...set].join("  |  ")}`);
+      }
+    }
+    // Also compare the concurrent answers against the sequential ones — the two
+    // phases disagreeing is itself the finding, even if each is internally stable.
+    for (const p of PROBES) {
+      const seq = rows[0].first[p.id],
+        con = results[0].faces[p.id];
+      if (seq !== con) {
+        concVaries = true;
+        console.log(`SANSFLIP PHASE-DIFFERS ${p.id}: sequential=${seq} concurrent=${con}`);
+      }
     }
   }
-  // Also compare the concurrent answers against the sequential ones — the two
-  // phases disagreeing is itself the finding, even if each is internally stable.
-  for (const p of PROBES) {
-    const seq = rows[0].first[p.id],
-      con = results[0].faces[p.id];
-    if (seq !== con) {
-      concVaries = true;
-      console.log(`SANSFLIP PHASE-DIFFERS ${p.id}: sequential=${seq} concurrent=${con}`);
-    }
-  }
+
+  console.log("SANSFLIP");
+  console.log(
+    anyVaries || concVaries ? "SANSFLIP *** VARIES ***" : "SANSFLIP stable across launches and under concurrency",
+  );
+  return 0;
 }
 
-console.log("SANSFLIP");
-console.log(
-  anyVaries || concVaries ? "SANSFLIP *** VARIES ***" : "SANSFLIP stable across launches and under concurrency",
-);
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

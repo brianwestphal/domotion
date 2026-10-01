@@ -3,9 +3,9 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -411,18 +411,17 @@ export async function runPseudoFragmentRenderOracle(
   };
 }
 
-async function main(): Promise<void> {
-  const outputIndex = process.argv.indexOf("--json");
-  const output = outputIndex >= 0 ? process.argv[outputIndex + 1] : undefined;
-  const artifactIndex = process.argv.indexOf("--artifact-dir");
-  const artifactDir = artifactIndex >= 0 ? process.argv[artifactIndex + 1] : undefined;
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" }, "artifact-dir": { type: "string" } });
+  const output = flag(values, "--json");
+  const artifactDir = flag(values, "--artifact-dir") ?? undefined;
   const report = await runPseudoFragmentRenderOracle(undefined, artifactDir);
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (output != null) {
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, json);
   } else process.stdout.write(json);
-  if (report.verdict !== "source-exact") process.exitCode = 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) void main();
+if (isMain(import.meta.url)) await runMain(() => main());

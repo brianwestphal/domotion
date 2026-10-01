@@ -21,6 +21,7 @@ import { writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTree, elementTreeToSvg } from "../src/index.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + "/..";
@@ -35,7 +36,7 @@ const VIEWPORT_W = 390;
 const VIEWPORT_H = 844;
 const CAPTURE_H = 600;
 
-async function main(): Promise<void> {
+async function main(): Promise<number> {
   await withBrowser(async (browser) => {
     const ctx = await browser.newContext({
       viewport: { width: VIEWPORT_W, height: VIEWPORT_H },
@@ -101,6 +102,11 @@ async function main(): Promise<void> {
     writeFileSync(OUT, svg);
     console.log(`Wrote ${OUT} (${(svg.length / 1024).toFixed(1)} KB, ${VIEWPORT_W}×${CAPTURE_H})`);
   }, undefined);
+  return 0;
 }
 
-void main();
+if (isMain(import.meta.url))
+  await runMain(() => {
+    parseFlags(process.argv.slice(2), {});
+    return main();
+  });

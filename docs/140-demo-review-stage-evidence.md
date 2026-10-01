@@ -37,6 +37,12 @@ painted-face evidence plus concrete helper/HarfBuzz records for the
 font-selection stage while the broader
 font-conformance program remains independently owned by that parity area.
 
+The collector accepts `--out <directory>` (default `stage-evidence`). Its
+declared options are validated before it creates the directory or launches an
+oracle. Importing the collector module does not start collection.
+The manifest builder accepts `--out`, `--reports`, and `--env` and validates
+these before reading input files; importing it does not build a manifest.
+
 The review UI displays the applicable semantic transitions, evidence scope,
 and report status on each fixture card. Suite-global reports apply to every
 selected region unless narrower validated fixture evidence is available. In

@@ -51,6 +51,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { hbSubsetRetainGids } from "@domotion/text-engine/testing";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, "tests/fixtures/variable-axis");
@@ -184,10 +185,17 @@ ${INSTANCES.map((i) => `<div class="run" id="${i.id}" data-settings='${i.setting
   );
 }
 
-const [fontPath, licensePath] = process.argv.slice(2);
-if (fontPath == null || licensePath == null) {
-  process.stderr.write("usage: node tools/build-variable-axis-fixture.mjs <variable-font.ttf> <OFL.txt>\n");
-  process.exitCode = 2;
-} else {
-  build(fontPath, licensePath);
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 2) throw new Error("expected a variable font and license path");
+  const [fontPath, licensePath] = positionals;
+  if (fontPath == null || licensePath == null) {
+    process.stderr.write("usage: node tools/build-variable-axis-fixture.mjs <variable-font.ttf> <OFL.txt>\n");
+    return 2;
+  } else {
+    build(fontPath, licensePath);
+  }
+  return 0;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

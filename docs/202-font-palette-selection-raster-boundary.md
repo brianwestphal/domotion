@@ -22,6 +22,10 @@ aliases: ["docs/202-font-palette-selection-raster-boundary.md", "doc-202"]
 
 # Font-palette selection and native paint gate
 
+The ownership audit and paint gate CLIs accept `--json` and `--artifact-dir`.
+Both reject unknown options and missing values before browser work; importing
+either module does not start a run.
+
 DM-2350 traces the complete
 `font-palette` ownership chain, replaces a platform-font visual with a pinned
 COLR/CPAL webfont discriminator, and records a reproducible Domotion cache

@@ -63,7 +63,6 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import {
@@ -78,6 +77,7 @@ import {
   hbSubsetRetainGids,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags } from "./lib/cli.js";
 import { clearWebfonts, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
 // Reuse the per-codepoint oracle's face-identity reconciliation verbatim, so
 // "same face" means the same thing in both instruments.
@@ -486,21 +486,23 @@ interface Options {
 }
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { only: null, outDir: "tests/output/cluster-conformance" };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--only") o.only = argv[++i] ?? null;
-    else if (a === "--out") o.outDir = argv[++i] ?? o.outDir;
-    else if (a === "-h" || a === "--help") {
-      process.stdout.write(readFileSync(new URL(import.meta.url).pathname, "utf-8").split("*/")[0]);
-      process.exit(0);
-    } else throw new Error(`unknown option ${a}`);
-  }
-  return o;
+  const values = parseFlags(
+    argv.map((arg) => (arg === "-h" ? "--help" : arg)),
+    { only: { type: "string" }, out: { type: "string" }, help: { type: "boolean" } },
+  );
+  return {
+    only: typeof flag(values, "only") === "string" ? String(flag(values, "only")) : null,
+    outDir: String(flag(values, "out", "tests/output/cluster-conformance")),
+  };
 }
 
-async function main(): Promise<number> {
-  const opts = parseArgs(process.argv.slice(2));
+async function main(argv: string[]): Promise<number> {
+  if (argv.includes("-h") || argv.includes("--help")) {
+    parseArgs(argv);
+    process.stdout.write(readFileSync(new URL(import.meta.url).pathname, "utf-8").split("*/")[0]);
+    return 0;
+  }
+  const opts = parseArgs(argv);
   let cells = buildCells();
   if (opts.only != null) cells = cells.filter((c) => c.id.includes(opts.only!));
 
@@ -625,10 +627,8 @@ async function main(): Promise<number> {
 // Only sweep when run as a script — the pure pieces (`buildCells`, `judgeCell`,
 // `reconciles`, `ourFaceForRun`) are imported by the unit test without launching
 // a browser.
-const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-
-if (invokedDirectly) {
-  main().then(
+if (isMain(import.meta.url)) {
+  main(process.argv.slice(2)).then(
     (code) => {
       process.exitCode = code;
     },

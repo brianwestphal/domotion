@@ -65,6 +65,7 @@ import { pathToFileURL } from "node:url";
 import { type Browser, type Page } from "@playwright/test";
 import { clearFontResolutionCaches, getFontSourceInfo } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { identifyFace, type ChromeFace, type OurFace } from "./font-conformance.js";
 import { compareShaping } from "./shaping-conformance.js";
 import { getFontInstance, registerWebfont, resolveFontKey } from "../src/render/font-resolution.js";
@@ -395,19 +396,9 @@ export function pairingHolds(rows: PairVerdict[]): { ok: boolean; failures: stri
 }
 
 async function main(argv: string[]): Promise<number> {
-  let fixture = DEFAULT_FIXTURE;
-  let json = false;
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--fixture") {
-      const v = argv[++i];
-      if (v == null) throw new Error("--fixture needs a path");
-      fixture = v;
-    } else if (argv[i] === "--json") {
-      json = true;
-    } else {
-      throw new Error(`unknown option ${argv[i]}`);
-    }
-  }
+  const values = parseFlags(argv, { fixture: { type: "string" }, json: { type: "boolean" } });
+  const fixture = flag(values, "--fixture", DEFAULT_FIXTURE)!;
+  const json = values.json === true;
   if (!existsSync(fixture)) {
     process.stderr.write(`no fixture at ${fixture} — build it with tools/build-variable-axis-fixture.mjs\n`);
     return 2;
@@ -533,16 +524,4 @@ async function main(argv: string[]): Promise<number> {
   }, undefined);
 }
 
-const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-
-if (invokedDirectly) {
-  main(process.argv.slice(2)).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (err: unknown) => {
-      process.stderr.write(`variable-axis-oracle-pair failed: ${String(err instanceof Error ? err.stack : err)}\n`);
-      process.exitCode = 2;
-    },
-  );
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { AnimatedImageFrameSelectionReport } from "./animated-image-frame-selection-audit.js";
+import { flag, parseFlags } from "./lib/cli.js";
 
 export interface AnimatedImageProductionReleaseReport {
   schemaVersion: 1;
@@ -84,20 +85,16 @@ export async function adjudicateAnimatedImageProductionRelease(
   };
 }
 
-export async function mainAnimatedImageProductionReleaseGate(argv = process.argv): Promise<void> {
-  const reportsIndex = argv.indexOf("--reports");
-  const jsonIndex = argv.indexOf("--json");
-  const root = resolve(
-    reportsIndex >= 0 && argv[reportsIndex + 1] != null
-      ? argv[reportsIndex + 1]
-      : "tests/output/animated-image-release",
-  );
+export async function mainAnimatedImageProductionReleaseGate(argv: string[]): Promise<number> {
+  const values = parseFlags(argv, { reports: { type: "string" }, json: { type: "string" } });
+  const root = resolve(String(flag(values, "reports", "tests/output/animated-image-release")));
   const report = await adjudicateAnimatedImageProductionRelease(root);
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  if (jsonIndex >= 0 && argv[jsonIndex + 1] != null) {
-    const output = resolve(argv[jsonIndex + 1]);
+  const jsonPath = flag(values, "json");
+  if (typeof jsonPath === "string") {
+    const output = resolve(jsonPath);
     await mkdir(dirname(output), { recursive: true });
     await writeFile(output, json);
   } else process.stdout.write(json);
-  if (report.verdict !== "macos-linux-windows-production-exact") process.exitCode = 1;
+  return report.verdict === "macos-linux-windows-production-exact" ? 0 : 1;
 }

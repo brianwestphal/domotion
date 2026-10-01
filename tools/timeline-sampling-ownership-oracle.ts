@@ -15,10 +15,11 @@ import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import { type Browser, type BrowserContext, type CDPSession, type Frame, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 import { seekAnimationsToFrame } from "../src/capture/animation-frame.js";
 
@@ -1190,19 +1191,17 @@ export async function runTimelineSamplingOwnershipOracle(): Promise<TimelineSamp
   }
 }
 
-async function main(): Promise<void> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runTimelineSamplingOwnershipOracle();
-  const outputIndex = process.argv.indexOf("--json");
-  const output = outputIndex >= 0 ? process.argv[outputIndex + 1] : null;
+  const output = flag(values, "--json");
   if (output) {
     const absolute = resolve(ROOT, output);
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, `${JSON.stringify(report, null, 2)}\n`);
   }
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (!report.pass) process.exitCode = 1;
+  return report.pass ? 0 : 1;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

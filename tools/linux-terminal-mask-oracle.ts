@@ -12,12 +12,12 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import * as fontkitNs from "fontkit";
 import sharp from "sharp";
 import svg2ttf from "svg2ttf";
 import { hbSubsetRetainGids, injectPuaCmap } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
 
 const fontkit = (fontkitNs as { default?: typeof fontkitNs }).default ?? fontkitNs;
@@ -905,28 +905,30 @@ export async function runLinuxTerminalMaskOracle(options: LinuxTerminalMaskOracl
   return report;
 }
 
-function cliArg(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index < 0 ? undefined : process.argv[index + 1];
-}
-
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const out = cliArg("--out") ?? "tests/output/linux-terminal-mask/report.json";
-  const artifactDir = cliArg("--artifact-dir") ?? "tests/output/linux-terminal-mask/artifacts";
-  const report = await runLinuxTerminalMaskOracle({ out, artifactDir });
-  const summary = report.results
-    .filter((row) => row.id !== "native-reference")
-    .map((row) => ({
-      id: row.id,
-      diffPct: "global" in row ? row.global.diffPct : 0,
-      regions: "global" in row ? row.global.regionCount : 0,
-    }));
-  console.log(JSON.stringify(summary, null, 2));
-  if (process.argv.includes("--gate")) {
-    const errors = validateLinuxTerminalMaskResults(report.results);
-    if (errors.length > 0) {
-      console.error(`Linux terminal-mask gate failed:\n- ${errors.join("\n- ")}`);
-      process.exitCode = 1;
+if (isMain(import.meta.url))
+  await runMain(async () => {
+    const flags = parseFlags(process.argv.slice(2), {
+      out: { type: "string" },
+      "artifact-dir": { type: "string" },
+      gate: { type: "boolean" },
+    });
+    const out = (flags.out as string | undefined) ?? "tests/output/linux-terminal-mask/report.json";
+    const artifactDir = (flags["artifact-dir"] as string | undefined) ?? "tests/output/linux-terminal-mask/artifacts";
+    const report = await runLinuxTerminalMaskOracle({ out, artifactDir });
+    const summary = report.results
+      .filter((row) => row.id !== "native-reference")
+      .map((row) => ({
+        id: row.id,
+        diffPct: "global" in row ? row.global.diffPct : 0,
+        regions: "global" in row ? row.global.regionCount : 0,
+      }));
+    console.log(JSON.stringify(summary, null, 2));
+    if (flags.gate === true) {
+      const errors = validateLinuxTerminalMaskResults(report.results);
+      if (errors.length > 0) {
+        console.error(`Linux terminal-mask gate failed:\n- ${errors.join("\n- ")}`);
+        return 1;
+      }
     }
-  }
-}
+    return 0;
+  });

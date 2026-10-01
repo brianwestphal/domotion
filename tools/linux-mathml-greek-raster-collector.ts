@@ -14,7 +14,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
@@ -25,6 +24,7 @@ import {
   getTextRunProvenance,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import {
@@ -755,28 +755,32 @@ export async function collectLinuxMathmlGreekRaster(
   );
 }
 
-function arg(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index < 0 ? undefined : process.argv[index + 1];
-}
-
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const debPath = arg("--deb"),
-    fontPath = arg("--font"),
-    out = arg("--out"),
-    artifactDir = arg("--artifact-dir"),
-    runLabel = arg("--run-label");
-  if (
-    debPath == null ||
-    fontPath == null ||
-    out == null ||
-    artifactDir == null ||
-    (runLabel !== "proposal" && runLabel !== "validation")
-  ) {
-    throw new Error(
-      "usage: linux-mathml-greek-raster-collector --deb <fonts-freefont.deb> --font <FreeSans.ttf> --out <observations.json> --artifact-dir <dir> --run-label proposal|validation",
-    );
-  }
-  const rows = await collectLinuxMathmlGreekRaster({ debPath, fontPath, out, artifactDir, runLabel });
-  console.log(`Collected ${rows.length} authenticated Linux FreeSans MathML Greek cell.`);
-}
+if (isMain(import.meta.url))
+  await runMain(async () => {
+    const flags = parseFlags(process.argv.slice(2), {
+      deb: { type: "string" },
+      font: { type: "string" },
+      out: { type: "string" },
+      "artifact-dir": { type: "string" },
+      "run-label": { type: "string" },
+    });
+    const debPath = flags.deb as string | undefined,
+      fontPath = flags.font as string | undefined,
+      out = flags.out as string | undefined,
+      artifactDir = flags["artifact-dir"] as string | undefined,
+      runLabel = flags["run-label"] as string | undefined;
+    if (
+      debPath == null ||
+      fontPath == null ||
+      out == null ||
+      artifactDir == null ||
+      (runLabel !== "proposal" && runLabel !== "validation")
+    ) {
+      throw new Error(
+        "usage: linux-mathml-greek-raster-collector --deb <fonts-freefont.deb> --font <FreeSans.ttf> --out <observations.json> --artifact-dir <dir> --run-label proposal|validation",
+      );
+    }
+    const rows = await collectLinuxMathmlGreekRaster({ debPath, fontPath, out, artifactDir, runLabel });
+    console.log(`Collected ${rows.length} authenticated Linux FreeSans MathML Greek cell.`);
+    return 0;
+  });

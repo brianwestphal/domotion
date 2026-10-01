@@ -1,0 +1,86 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { main as runMixedBidi } from "../tools/mixed-bidi-logical-oracle.js";
+import { main as runReplacedGeometry } from "../tools/replaced-geometry-oracle.js";
+import { main as runTransformGeometry } from "../tools/transform-geometry-oracle.js";
+import { main as runSyntheticBold } from "../tools/synthetic-bold-paint-oracle.js";
+import { main as aggregatePathsRaster } from "../tools/paths-native-raster-aggregate.js";
+import { main as producePathsRaster } from "../tools/paths-native-raster-producer.js";
+import { main as runNestedProjective } from "../tools/nested-projective-ownership-audit.js";
+import { main as runNativeScrollbar } from "../tools/native-scrollbar-ownership-audit.js";
+import { main as runSvgEffects } from "../tools/svg-effect-combination-oracle.js";
+import { main as runTextTransform } from "../tools/text-transform-geometry-audit.js";
+import { main as runUrlBackground } from "../tools/url-background-geometry-audit.js";
+import { main as adjudicatePathsRaster } from "../tools/paths-native-raster-gate.js";
+import { main as runSourceDrift } from "../tools/source-drift-evidence.js";
+import { main as runSfnsMask } from "../tools/sfns-mask-baseline-oracle.js";
+import { main as runSfnsChromium } from "../tools/sfns-pinned-chromium-validation-collector.js";
+import { main as runSfnsSkia } from "../tools/sfns-pinned-skia-mask-collector.js";
+import { main as runShapeAgreement } from "../tools/shape-agreement.js";
+import { parseArgs as parseShapingConformance } from "../tools/shaping-conformance.js";
+import { main as runUnicodeTrace } from "../tools/unicode-font-route-trace.js";
+import { main as runShapedOrigin } from "../tools/shaped-origin-oracle.js";
+import { main as runWinDriftProbe } from "../tools/probe-win-text-drift.js";
+import { main as runScrollProbe } from "../tools/observe-scroll.js";
+import { main as runLinuxFallbackProbe } from "../tools/probe-linux-fallback-diagnostics.js";
+
+describe("M–Z tool CLI boundaries", () => {
+  it("rejects unknown options before running the oracle", async () => {
+    await expect(runMixedBidi(["--typo"])).rejects.toThrow();
+    await expect(runReplacedGeometry(["--typo"])).rejects.toThrow();
+    await expect(runTransformGeometry(["--typo"])).rejects.toThrow();
+    expect(() => runSyntheticBold(["--typo"])).toThrow();
+    await expect(aggregatePathsRaster(["--typo"])).rejects.toThrow();
+    await expect(producePathsRaster(["--typo"])).rejects.toThrow();
+    await expect(runNestedProjective(["--typo"])).rejects.toThrow();
+    await expect(runNativeScrollbar(["--typo"])).rejects.toThrow();
+    await expect(runSvgEffects(["--typo"])).rejects.toThrow();
+    await expect(runTextTransform(["--typo"])).rejects.toThrow();
+    await expect(runUrlBackground(["--typo"])).rejects.toThrow();
+    expect(() => adjudicatePathsRaster(["--typo"])).toThrow();
+    expect(() => runSourceDrift(["--typo"])).toThrow();
+    await expect(runSfnsMask(["--typo"])).rejects.toThrow();
+    await expect(runSfnsChromium(["--typo"])).rejects.toThrow();
+    expect(() => runSfnsSkia(["--typo"])).toThrow();
+    expect(() => runShapeAgreement(["--typo"])).toThrow();
+    expect(() => parseShapingConformance(["--typo"])).toThrow();
+    await expect(runUnicodeTrace(["--typo"])).rejects.toThrow();
+    await expect(runShapedOrigin(["--typo"])).rejects.toThrow();
+    await expect(runWinDriftProbe(["--typo"])).rejects.toThrow();
+    await expect(runScrollProbe(["--typo"])).rejects.toThrow();
+    await expect(runLinuxFallbackProbe(["--typo"])).rejects.toThrow();
+  });
+
+  it("rejects missing option values before running the oracle", async () => {
+    await expect(runMixedBidi(["--json"])).rejects.toThrow();
+    await expect(runReplacedGeometry(["--dpr"])).rejects.toThrow();
+    await expect(runTransformGeometry(["--json"])).rejects.toThrow();
+    await expect(aggregatePathsRaster(["--artifacts"])).rejects.toThrow();
+    await expect(producePathsRaster(["--observations"])).rejects.toThrow();
+    await expect(runNestedProjective(["--dpr"])).rejects.toThrow();
+    await expect(runNativeScrollbar(["--zoom"])).rejects.toThrow();
+    await expect(runSvgEffects(["--json"])).rejects.toThrow();
+    await expect(runTextTransform(["--artifact-dir"])).rejects.toThrow();
+    await expect(runUrlBackground(["--artifacts"])).rejects.toThrow();
+    expect(() => adjudicatePathsRaster(["--rows"])).toThrow();
+    expect(() => runSourceDrift(["--mode"])).toThrow();
+    await expect(runSfnsMask(["--out"])).rejects.toThrow();
+    await expect(runSfnsChromium(["--binary"])).rejects.toThrow();
+    expect(() => runSfnsSkia(["--binary"])).toThrow();
+    expect(() => runShapeAgreement(["--face"])).toThrow();
+    expect(() => parseShapingConformance(["--batch"])).toThrow();
+    await expect(runUnicodeTrace(["--out"])).rejects.toThrow();
+  });
+
+  it("preserves a release mismatch exit code after writing the report", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-cli-raster-"));
+    const rows = join(dir, "rows.json");
+    const envelopes = join(dir, "envelopes.json");
+    const out = join(dir, "report.json");
+    writeFileSync(rows, "[]");
+    writeFileSync(envelopes, JSON.stringify({ schemaVersion: 2, ratified: false, envelopes: [] }));
+    expect(adjudicatePathsRaster(["--rows", rows, "--envelopes", envelopes, "--out", out])).toBe(1);
+  });
+});

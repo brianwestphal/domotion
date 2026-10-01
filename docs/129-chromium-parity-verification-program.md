@@ -12,6 +12,12 @@ aliases: ["docs/129-chromium-parity-verification-program.md", "doc-129"]
 
 # 129 — Chromium parity verification program
 
+The `check-activation-coverage`, `check-semantic-coverage`, and
+`check-parity-release` commands validate declared options before reading their
+ledgers. Each can be imported without running its command. The parity release
+tool accepts `--evidence <json>` and `--report-only`; semantic coverage accepts
+`--fail-on-gaps`; activation coverage accepts `--json <path>`.
+
 ## Goal
 
 Domotion must match Chromium's logical rendering decisions wherever SVG can

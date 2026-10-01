@@ -38,6 +38,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fontkit from "fontkit";
 import { buildSfnt, hbSubsetRetainGids } from "@domotion/text-engine/testing";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, "packages", "text-engine", "assets", "fonts", "fixture");
@@ -125,10 +126,17 @@ function subset(srcPath, outName) {
   console.log(`${outName}: ${bytes.length} -> ${out.length} bytes (${gids.size} glyphs)`);
 }
 
-const [monoSrc, serifSrc] = process.argv.slice(2);
-if (!monoSrc || !serifSrc) {
-  console.error("usage: node tools/build-fixture-fonts.mjs <JetBrainsMono-Regular.ttf> <IBMPlexSerif-Regular.ttf>");
-  process.exit(2);
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 2) throw new Error("expected two source font paths");
+  const [monoSrc, serifSrc] = positionals;
+  if (!monoSrc || !serifSrc) {
+    console.error("usage: node tools/build-fixture-fonts.mjs <JetBrainsMono-Regular.ttf> <IBMPlexSerif-Regular.ttf>");
+    return 2;
+  }
+  subset(monoSrc, "DomotionFixtureMono-Regular.ttf");
+  subset(serifSrc, "DomotionFixtureSerif-Regular.ttf");
+  return 0;
 }
-subset(monoSrc, "DomotionFixtureMono-Regular.ttf");
-subset(serifSrc, "DomotionFixtureSerif-Regular.ttf");
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

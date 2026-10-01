@@ -12,6 +12,9 @@ aliases: ["docs/220-browser-harfbuzz-substitution-streams.md", "doc-220"]
 
 # Browser HarfBuzz substitution-stream ownership
 
+The oracle accepts `--aggregate`, `--json`, `--validation`, and `--logic-only`.
+It validates options before reading artifacts or launching Chromium.
+
 DM-2532 closes the logical gap between the substitution-free native-raster
 corpus in doc 197 and browser-shaped OpenType substitutions. The gate proves
 portable `GSUB`/`GPOS`, required ligature, contextual-form, mark-attachment,

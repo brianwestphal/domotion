@@ -20,6 +20,7 @@ import {
   invalidateFontEnvironmentCaches,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
@@ -637,17 +638,19 @@ export async function runSystemUiPreferenceRouteOracle(
   };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(args, {
+    modes: { type: "string" },
+    "allow-headed-browser": { type: "boolean" },
+    "allow-system-preference-mutation": { type: "boolean" },
+    json: { type: "string" },
+  });
   const report = await runSystemUiPreferenceRouteOracle(args);
-  const outIndex = args.indexOf("--json");
-  const out = outIndex >= 0 ? args[outIndex + 1] : undefined;
+  const out = flag(values, "--json");
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (out != null && out !== "") writeFileSync(resolve(out), json);
   process.stdout.write(json);
-  process.exitCode = report.verdict === "source-exact" ? 0 : 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  void main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

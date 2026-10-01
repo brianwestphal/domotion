@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   SFNS_TERMINAL_MASK_CONTROL_IDS,
   SFNS_TERMINAL_MASK_MANIFEST,
@@ -26,11 +27,17 @@ import {
   type SfnsPinnedSkiaProposalArtifact,
 } from "./sfns-pinned-skia-mask-schema.js";
 
-const argv = process.argv.slice(2);
-function value(flag: string, fallback?: string): string {
-  const index = argv.indexOf(flag);
-  const result = index < 0 ? fallback : argv[index + 1];
-  if (result == null || result.startsWith("--")) throw new Error(`missing ${flag}`);
+export function main(argv: string[] = process.argv.slice(2)): void {
+const options = parseFlags(argv, {
+  binary: { type: "string" },
+  "build-metadata": { type: "string" },
+  "ots-metadata": { type: "string" },
+  out: { type: "string" },
+  "observation-directory": { type: "string" },
+});
+function value(name: string, fallback?: string): string {
+  const result = flag(options, name, fallback);
+  if (result == null || result.startsWith("--")) throw new Error(`missing ${name}`);
   return result;
 }
 
@@ -216,3 +223,6 @@ console.log(JSON.stringify({
   observations: 26,
   browserLaunches: 0,
 }));
+}
+
+if (isMain(import.meta.url)) await runMain(() => main());

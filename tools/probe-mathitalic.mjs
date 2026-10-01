@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import * as fontkit from "fontkit";
+import { isMain, runMain } from "./lib/cli.mjs";
 
 const stixCands = [
   "/Library/Fonts/STIX2Math.otf",
@@ -54,6 +54,8 @@ export function runMathItalicProbe() {
   }
 }
 
-if (process.argv[1] != null && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
-  runMathItalicProbe();
-}
+if (isMain(import.meta.url))
+  await runMain(async () => {
+    runMathItalicProbe();
+    return 0;
+  });

@@ -12,11 +12,9 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { pathToFileURL } from "node:url";
-
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
-
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -1048,30 +1046,32 @@ export async function runBackdropSourceSurfaceAudit(
   };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const dprAt = args.indexOf("--dpr");
-  const jsonAt = args.indexOf("--json");
-  const artifactAt = args.indexOf("--artifact-dir");
-  const strict = args.includes("--strict");
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, {
+    dpr: { type: "string" },
+    json: { type: "string" },
+    "artifact-dir": { type: "string" },
+    strict: { type: "boolean" },
+  });
+  const dpr = flag(args, "dpr");
+  const strict = flag(args, "strict", false) === true;
   const dprs =
-    dprAt < 0
+    typeof dpr !== "string"
       ? [1, 2]
-      : args[dprAt + 1]
+      : dpr
           .split(",")
           .map(Number)
           .filter((value) => value > 0 && Number.isFinite(value));
-  const jsonPath = jsonAt < 0 ? undefined : args[jsonAt + 1];
-  const artifactDir = artifactAt < 0 ? undefined : args[artifactAt + 1];
-  const report = await runBackdropSourceSurfaceAudit(dprs, artifactDir);
+  const jsonPath = flag(args, "json");
+  const artifactDir = flag(args, "artifact-dir");
+  const report = await runBackdropSourceSurfaceAudit(dprs, typeof artifactDir === "string" ? artifactDir : undefined);
   const body = `${JSON.stringify(report, null, 2)}\n`;
-  if (jsonPath != null) {
+  if (typeof jsonPath === "string") {
     mkdirSync(dirname(jsonPath), { recursive: true });
     writeFileSync(jsonPath, body);
   }
   process.stdout.write(body);
-  if (report.verdict !== "investigation-complete" || (strict && report.strictVerdict !== "source-exact"))
-    process.exitCode = 1;
+  return report.verdict !== "investigation-complete" || (strict && report.strictVerdict !== "source-exact") ? 1 : 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) void main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

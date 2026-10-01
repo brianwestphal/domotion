@@ -4,11 +4,11 @@ import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 
 import sharp from "sharp";
 import { type Browser, type BrowserContext, type Page, type Route } from "playwright";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CaptureWarning } from "../src/capture/types.js";
@@ -1028,19 +1028,20 @@ export async function runReplacedOwnershipGate(
   );
 }
 
-async function main(): Promise<void> {
-  const dprIndex = process.argv.indexOf("--dpr");
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { dpr: { type: "string" }, json: { type: "string" } });
+  const dpr = flag(values, "--dpr");
   const dprs =
-    dprIndex >= 0 && process.argv[dprIndex + 1] != null
-      ? process.argv[dprIndex + 1]
+    dpr != null
+      ? dpr
           .split(",")
           .map(Number)
           .filter((value) => Number.isFinite(value) && value > 0)
       : [1];
   const report = await runReplacedOwnershipGate(dprs);
-  const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
-    writeFileSync(process.argv[jsonIndex + 1], `${JSON.stringify(report, null, 2)}\n`);
+  const json = flag(values, "--json");
+  if (json != null) {
+    writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
   }
   for (const run of report.runs) {
     console.log(
@@ -1048,7 +1049,7 @@ async function main(): Promise<void> {
     );
     for (const error of run.adjudication.errors) console.log(`FAIL DPR${run.fingerprint.deviceScaleFactor} ${error}`);
   }
-  if (report.verdict !== "source-exact") process.exitCode = 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) void main();
+if (isMain(import.meta.url)) await runMain(() => main());

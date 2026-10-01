@@ -103,8 +103,7 @@
  */
 import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
-import { resolve } from "node:path";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 /** Bump when the RULE changes. Part of the corpus identity, so the baseline
  *  comparator refuses to compare a v1 measurement against a v2 one. */
@@ -374,24 +373,19 @@ export function serializeCorpus(corpus: SyntheticCorpus): string {
   return `${JSON.stringify(corpus, null, 2)}\n`;
 }
 
-function main(argv: string[]): number {
-  let out = DEFAULT_SYNTHETIC_STACKS_FILE;
-  let printOnly = false;
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--out") {
-      const v = argv[++i];
-      if (v == null) throw new Error("--out needs a path");
-      out = v;
-    } else if (a === "--print") {
-      printOnly = true;
-    } else if (a === "-h" || a === "--help") {
-      process.stdout.write(`${new URL(import.meta.url).pathname}: see the header comment\n`);
-      return 0;
-    } else {
-      throw new Error(`unknown option ${a}`);
-    }
+export function main(argv: string[]): number {
+  const values = parseFlags(argv, {
+    out: { type: "string" },
+    print: { type: "boolean" },
+    h: { type: "boolean" },
+    help: { type: "boolean" },
+  });
+  if (values.h === true || values.help === true) {
+    process.stdout.write(`${new URL(import.meta.url).pathname}: see the header comment\n`);
+    return 0;
   }
+  const out = flag(values, "--out", DEFAULT_SYNTHETIC_STACKS_FILE)!;
+  const printOnly = values.print === true;
   const corpus = syntheticCorpus();
   const byDistance = new Map<number, number>();
   for (const s of corpus.stacks) {
@@ -421,13 +415,4 @@ function main(argv: string[]): number {
   return 0;
 }
 
-const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-
-if (invokedDirectly) {
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (err) {
-    process.stderr.write(`synthetic-stacks failed: ${String(err instanceof Error ? err.message : err)}\n`);
-    process.exitCode = 2;
-  }
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

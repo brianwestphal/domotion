@@ -43,6 +43,7 @@
 // does consult first. There the "static" row is parity, not interposition. The
 // no-counterpart-in-Blink claim is a macOS/Linux one.
 import { readFileSync } from "node:fs";
+import { isMain, parseCommand, runMain, shardFlag } from "./lib/cli.mjs";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 import { buildUniverse } from "./font-conformance.js";
 import {
@@ -55,82 +56,92 @@ import {
 // `--family "<stack>"` sweeps a stack directly (distribution only, no Chrome
 // column); otherwise the first positional is a conformance report and the
 // mismatch column is joined from it.
-const famArgIdx = process.argv.indexOf("--family");
-const familyOverride = famArgIdx > 0 ? process.argv[famArgIdx + 1] : null;
-const reportPath = familyOverride == null ? process.argv[2] : null;
-if (reportPath == null && familyOverride == null) {
-  console.error('usage: stage-attribution.mts <report.json> [shard] | --family "<stack>" [shard]');
-  process.exit(2);
-}
-const report =
-  reportPath == null
-    ? { meta: {}, mismatches: [] }
-    : (JSON.parse(readFileSync(reportPath, "utf-8")) as {
-        meta: {
-          slice?: { codepoints?: number };
-          stackPrimaries?: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string }>;
-        };
-        mismatches: Array<{ cp: number; ourKey: string; stack: string }>;
-      });
+async function main(argv: string[]) {
+  const { values, positionals } = parseCommand(argv, { family: { type: "string" } });
+  const familyOverride = values.family ?? null;
+  if (positionals.length > (familyOverride == null ? 2 : 1)) throw new Error("too many positional arguments");
+  const reportPath = familyOverride == null ? (positionals[0] ?? null) : null;
+  if (reportPath == null && familyOverride == null) {
+    console.error('usage: stage-attribution.mts <report.json> [shard] | --family "<stack>" [shard]');
+    return 2;
+  }
+  const report =
+    reportPath == null
+      ? { meta: {}, mismatches: [] }
+      : (JSON.parse(readFileSync(reportPath, "utf-8")) as {
+          meta: {
+            slice?: { codepoints?: number };
+            stackPrimaries?: Array<{ fontFamily: string; fontSize: number; fontWeight: number; fontStyle: string }>;
+          };
+          mismatches: Array<{ cp: number; ourKey: string; stack: string }>;
+        });
 
-const spec = report.meta.stackPrimaries?.[0];
-const fontFamily = familyOverride ?? spec?.fontFamily;
-const fontSize = spec?.fontSize ?? 16;
-const fontWeight = spec?.fontWeight ?? 400;
-if (fontFamily == null) {
-  console.error("no stack: pass --family or a report with stackPrimaries");
-  process.exit(2);
-}
+  const spec = report.meta.stackPrimaries?.[0];
+  const fontFamily = familyOverride ?? spec?.fontFamily;
+  const fontSize = spec?.fontSize ?? 16;
+  const fontWeight = spec?.fontWeight ?? 400;
+  if (fontFamily == null) {
+    console.error("no stack: pass --family or a report with stackPrimaries");
+    return 2;
+  }
 
-const primaryKey = resolveFontKey(fontFamily);
-const chain = resolveFontKeyChain(fontFamily);
-const primary = resolveFont(fontFamily, fontWeight, fontSize, 0);
-if (primary == null) {
-  console.error(`primary did not resolve for ${fontFamily}`);
-  process.exit(2);
-}
-const declared = new Set(chain);
+  const primaryKey = resolveFontKey(fontFamily);
+  const chain = resolveFontKeyChain(fontFamily);
+  const primary = resolveFont(fontFamily, fontWeight, fontSize, 0);
+  if (primary == null) {
+    console.error(`primary did not resolve for ${fontFamily}`);
+    return 2;
+  }
+  const declared = new Set(chain);
 
-function stageOf(cp: number, key: string | null, covered: boolean): string {
-  if (!covered || key == null) return "tofu";
-  if (declared.has(key)) return "declared";
-  if (key.startsWith("sysfb:")) return "sysfb";
-  if (fallbackFontChain(cp, primaryKey, "en").includes(key)) return "static";
-  return "other";
-}
+  function stageOf(cp: number, key: string | null, covered: boolean): string {
+    if (!covered || key == null) return "tofu";
+    if (declared.has(key)) return "declared";
+    if (key.startsWith("sysfb:")) return "sysfb";
+    if (fallbackFontChain(cp, primaryKey, "en").includes(key)) return "static";
+    return "other";
+  }
 
-// The oracle's OWN universe and stride, so the two columns below describe the
-// same set of codepoints. An approximation here (a dense stride of the BMP+SMP)
-// made the overall distribution and the mismatch rows disagree about which
-// codepoints existed, which is exactly the kind of mismatch that turns a
-// cross-tabulation into nonsense.
-const shard = process.argv.find((a) => /^\d+\/\d+$/.test(a)) ?? "1/10";
-const [si, sn] = shard.split("/").map((x) => parseInt(x, 10));
-const cps = buildUniverse({ includePua: true, ranges: null }).filter((_, i) => i % sn === si - 1);
+  // The oracle's OWN universe and stride, so the two columns below describe the
+  // same set of codepoints. An approximation here (a dense stride of the BMP+SMP)
+  // made the overall distribution and the mismatch rows disagree about which
+  // codepoints existed, which is exactly the kind of mismatch that turns a
+  // cross-tabulation into nonsense.
+  const shard = familyOverride == null ? (positionals[1] ?? "1/10") : (positionals[0] ?? "1/10");
+  const selection = shardFlag({ shard }, "--shard");
+  if (selection == null) throw new Error("shard is required");
+  const { index: si, total: sn } = selection;
+  const cps = buildUniverse({ includePua: true, ranges: null }).filter((_, i) => i % sn === si - 1);
 
-const overall = new Map<string, number>();
-for (const cp of cps) {
-  const r = resolveFontForCodepoint(cp, primary, primaryKey, fontWeight, fontSize, 0, undefined, "en", chain);
-  const s = stageOf(cp, r.key, r.covered);
-  overall.set(s, (overall.get(s) ?? 0) + 1);
-}
+  const overall = new Map<string, number>();
+  for (const cp of cps) {
+    const r = resolveFontForCodepoint(cp, primary, primaryKey, fontWeight, fontSize, 0, undefined, "en", chain);
+    const s = stageOf(cp, r.key, r.covered);
+    overall.set(s, (overall.get(s) ?? 0) + 1);
+  }
 
-const mismatchByStage = new Map<string, number>();
-for (const row of report.mismatches) {
-  const s = stageOf(row.cp, row.ourKey, true);
-  mismatchByStage.set(s, (mismatchByStage.get(s) ?? 0) + 1);
-}
+  const mismatchByStage = new Map<string, number>();
+  for (const row of report.mismatches) {
+    const s = stageOf(row.cp, row.ourKey, true);
+    mismatchByStage.set(s, (mismatchByStage.get(s) ?? 0) + 1);
+  }
 
-const pct = (n: number, d: number): string => (d === 0 ? "—" : `${((n / d) * 100).toFixed(2)}%`);
-console.log(`stack: ${fontFamily} @${fontSize}px/${fontWeight}   primary=${primaryKey}   chain=[${chain.join(", ")}]`);
-console.log(`swept ${cps.length} codepoints; report carries ${report.mismatches.length} mismatch rows\n`);
-console.log("stage      resolved        share    mismatch rows   share of mismatches");
-for (const s of ["declared", "sysfb", "static", "other", "tofu"]) {
-  const o = overall.get(s) ?? 0,
-    m = mismatchByStage.get(s) ?? 0;
-  if (o === 0 && m === 0) continue;
+  const pct = (n: number, d: number): string => (d === 0 ? "—" : `${((n / d) * 100).toFixed(2)}%`);
   console.log(
-    `${s.padEnd(10)} ${String(o).padStart(8)}  ${pct(o, cps.length).padStart(8)}` +
-      `   ${String(m).padStart(8)}       ${pct(m, report.mismatches.length).padStart(8)}`,
+    `stack: ${fontFamily} @${fontSize}px/${fontWeight}   primary=${primaryKey}   chain=[${chain.join(", ")}]`,
   );
+  console.log(`swept ${cps.length} codepoints; report carries ${report.mismatches.length} mismatch rows\n`);
+  console.log("stage      resolved        share    mismatch rows   share of mismatches");
+  for (const s of ["declared", "sysfb", "static", "other", "tofu"]) {
+    const o = overall.get(s) ?? 0,
+      m = mismatchByStage.get(s) ?? 0;
+    if (o === 0 && m === 0) continue;
+    console.log(
+      `${s.padEnd(10)} ${String(o).padStart(8)}  ${pct(o, cps.length).padStart(8)}` +
+        `   ${String(m).padStart(8)}       ${pct(m, report.mismatches.length).padStart(8)}`,
+    );
+  }
+  return 0;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

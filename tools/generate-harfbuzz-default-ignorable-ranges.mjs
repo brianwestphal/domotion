@@ -19,64 +19,69 @@
 //
 // Regenerate with: node tools/generate-harfbuzz-default-ignorable-ranges.mjs
 import { writeFileSync } from "node:fs";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const HARFBUZZ_REV = "4de187d"; // external/harfbuzz HEAD as of writing (git -C external/harfbuzz log -1)
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const HARFBUZZ_REV = "4de187d"; // external/harfbuzz HEAD as of writing (git -C external/harfbuzz log -1)
 
-// Transcribed verbatim from hb-unicode.hh:167-198 (rev 4de187d).
-function hbIsDefaultIgnorable(ch) {
-  const plane = ch >>> 16;
-  if (plane === 0) {
-    const page = ch >>> 8;
-    switch (page) {
-      case 0x00:
-        return ch === 0x00ad;
-      case 0x03:
-        return ch === 0x034f;
-      case 0x06:
-        return ch === 0x061c;
-      case 0x17:
-        return ch >= 0x17b4 && ch <= 0x17b5;
-      case 0x18:
-        return ch >= 0x180b && ch <= 0x180e;
-      case 0x20:
-        return (ch >= 0x200b && ch <= 0x200f) || (ch >= 0x202a && ch <= 0x202e) || (ch >= 0x2060 && ch <= 0x206f);
-      case 0xfe:
-        return (ch >= 0xfe00 && ch <= 0xfe0f) || ch === 0xfeff;
-      case 0xff:
-        return ch >= 0xfff0 && ch <= 0xfff8;
-      default:
-        return false;
+    // Transcribed verbatim from hb-unicode.hh:167-198 (rev 4de187d).
+    function hbIsDefaultIgnorable(ch) {
+      const plane = ch >>> 16;
+      if (plane === 0) {
+        const page = ch >>> 8;
+        switch (page) {
+          case 0x00:
+            return ch === 0x00ad;
+          case 0x03:
+            return ch === 0x034f;
+          case 0x06:
+            return ch === 0x061c;
+          case 0x17:
+            return ch >= 0x17b4 && ch <= 0x17b5;
+          case 0x18:
+            return ch >= 0x180b && ch <= 0x180e;
+          case 0x20:
+            return (ch >= 0x200b && ch <= 0x200f) || (ch >= 0x202a && ch <= 0x202e) || (ch >= 0x2060 && ch <= 0x206f);
+          case 0xfe:
+            return (ch >= 0xfe00 && ch <= 0xfe0f) || ch === 0xfeff;
+          case 0xff:
+            return ch >= 0xfff0 && ch <= 0xfff8;
+          default:
+            return false;
+        }
+      } else {
+        switch (plane) {
+          case 0x01:
+            return ch >= 0x1d173 && ch <= 0x1d17a;
+          case 0x0e:
+            return ch >= 0xe0000 && ch <= 0xe0fff;
+          default:
+            return false;
+        }
+      }
     }
-  } else {
-    switch (plane) {
-      case 0x01:
-        return ch >= 0x1d173 && ch <= 0x1d17a;
-      case 0x0e:
-        return ch >= 0xe0000 && ch <= 0xe0fff;
-      default:
-        return false;
+
+    const members = [];
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (hbIsDefaultIgnorable(cp)) members.push(cp);
     }
-  }
-}
+    console.error(`${members.length} default-ignorable codepoints`);
 
-const members = [];
-for (let cp = 0; cp <= 0x10ffff; cp++) {
-  if (hbIsDefaultIgnorable(cp)) members.push(cp);
-}
-console.error(`${members.length} default-ignorable codepoints`);
+    const ranges = [];
+    for (const cp of members) {
+      const last = ranges[ranges.length - 1];
+      if (last != null && last[1] === cp - 1) last[1] = cp;
+      else ranges.push([cp, cp]);
+    }
+    console.error(`Collapsed into ${ranges.length} ranges`);
 
-const ranges = [];
-for (const cp of members) {
-  const last = ranges[ranges.length - 1];
-  if (last != null && last[1] === cp - 1) last[1] = cp;
-  else ranges.push([cp, cp]);
-}
-console.error(`Collapsed into ${ranges.length} ranges`);
+    const hex = (n) => "0x" + n.toString(16).toUpperCase();
+    const lines = ranges.map(([lo, hi]) => `  [${hex(lo)}, ${hex(hi)}],`);
 
-const hex = (n) => "0x" + n.toString(16).toUpperCase();
-const lines = ranges.map(([lo, hi]) => `  [${hex(lo)}, ${hex(hi)}],`);
-
-const banner = `// GENERATED FILE -- do not hand-edit. Regenerate with:
+    const banner = `// GENERATED FILE -- do not hand-edit. Regenerate with:
 //   node tools/generate-harfbuzz-default-ignorable-ranges.mjs
 //
 // The exact codepoint set HarfBuzz's \`hb_unicode_funcs_t::is_default_ignorable\`
@@ -98,8 +103,16 @@ ${lines.join("\n")}
 ];
 `;
 
-writeFileSync(
-  new URL("../packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts", import.meta.url),
-  banner,
-);
-console.error("Wrote packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts");
+    writeFileSync(
+      new URL("../packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts", import.meta.url),
+      banner,
+    );
+    console.error("Wrote packages/text-engine/src/render/harfbuzz-default-ignorable-ranges.generated.ts");
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

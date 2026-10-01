@@ -2,8 +2,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { isMain, parseCommand, runMain } from "./lib/cli.js";
 
 import {
   FREE_SANS_NOBLE_PACKAGE,
@@ -412,16 +412,19 @@ export function adjudicateLinuxMathmlGreekRows(rawRows: unknown, rawEnvelopes: u
   };
 }
 
-function arg(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index < 0 ? undefined : process.argv[index + 1];
-}
-
-async function main(): Promise<void> {
-  const mode = process.argv[2];
+async function main(argv: string[]): Promise<number> {
+  const { values, positionals } = parseCommand(argv, {
+    observations: { type: "string" },
+    out: { type: "string" },
+    artifacts: { type: "string" },
+    envelopes: { type: "string" },
+    "allow-unratified": { type: "boolean" },
+  });
+  if (positionals.length !== 1) throw new Error("usage: linux-mathml-greek-raster-gate <produce|aggregate> ...");
+  const mode = positionals[0];
   if (mode === "produce") {
-    const observations = arg("--observations"),
-      out = arg("--out");
+    const observations = values.observations as string | undefined,
+      out = values.out as string | undefined;
     if (observations == null || out == null)
       throw new Error("usage: linux-mathml-greek-raster-gate produce --observations <json> --out <json>");
     const rows = await reauthenticateLinuxMathmlGreekRows(
@@ -430,12 +433,12 @@ async function main(): Promise<void> {
     );
     writeFileSync(out, JSON.stringify(rows, null, 2));
     console.log(`Authenticated ${rows.length} Linux MathML Greek raster row(s).`);
-    return;
+    return 0;
   }
   if (mode === "aggregate") {
-    const artifacts = arg("--artifacts"),
-      envelopePath = arg("--envelopes"),
-      out = arg("--out");
+    const artifacts = values.artifacts as string | undefined,
+      envelopePath = values.envelopes as string | undefined,
+      out = values.out as string | undefined;
     if (artifacts == null || envelopePath == null || out == null)
       throw new Error(
         "usage: linux-mathml-greek-raster-gate aggregate --artifacts <dir> --envelopes <json> --out <json> [--allow-unratified]",
@@ -454,11 +457,9 @@ async function main(): Promise<void> {
     const report = adjudicateLinuxMathmlGreekRows(rows, JSON.parse(readFileSync(envelopePath, "utf8")));
     writeFileSync(out, JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
-    if (!report.pass && !(process.argv.includes("--allow-unratified") && report.eligibleForRatification))
-      process.exitCode = 1;
-    return;
+    return !report.pass && !(values["allow-unratified"] === true && report.eligibleForRatification) ? 1 : 0;
   }
   throw new Error("usage: linux-mathml-greek-raster-gate <produce|aggregate> ...");
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

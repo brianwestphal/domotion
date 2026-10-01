@@ -20,106 +20,111 @@
 // for the consuming merge-set algorithm.
 import { writeFileSync } from "node:fs";
 import { getScript } from "unicode-properties";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const commonScxRe = /\p{Script_Extensions=Common}/u;
-const inheritedScxRe = /\p{Script_Extensions=Inherited}/u;
-const assignedRe = /\p{Assigned}/u;
-
-// Step 1: collect every distinct Script value in use, to use as the scx
-// membership-test candidate list. (scx values are always drawn from the same
-// enumeration as Script -- a codepoint cannot be "extended" into a script
-// value that no codepoint's PRIMARY script is.) This makes the candidate
-// list itself generated from live Unicode data rather than hand-typed.
-const scriptNames = new Set();
-for (let cp = 0; cp <= 0x10ffff; cp++) {
-  if (cp >= 0xd800 && cp <= 0xdfff) continue;
-  const ch = String.fromCodePoint(cp);
-  if (!assignedRe.test(ch)) continue;
-  const s = getScript(cp);
-  if (s && s !== "Common" && s !== "Inherited" && s !== "Unknown") scriptNames.add(s);
-}
-const candidates = [...scriptNames].sort();
-console.error(`Candidate script list: ${candidates.length} scripts`);
-
-// Precompile a Script_Extensions regex per candidate script (some
-// `unicode-properties` names may not exactly match ICU/ECMAScript property
-// value aliases -- skip any that don't compile rather than guessing).
-const scxTests = [];
-for (const name of candidates) {
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
   try {
-    scxTests.push([name, new RegExp(`\\p{Script_Extensions=${name}}`, "u")]);
-  } catch {
-    console.error(`  (skipping "${name}" -- not a valid Script_Extensions value alias)`);
-  }
-}
+    const commonScxRe = /\p{Script_Extensions=Common}/u;
+    const inheritedScxRe = /\p{Script_Extensions=Inherited}/u;
+    const assignedRe = /\p{Assigned}/u;
 
-// Step 2: find every Common/Inherited codepoint with a non-trivial scx, and
-// record its exact member-script set.
-//
-// Corroboration gate: `unicode-properties` (the package `getScript` -- and
-// therefore this project's segmenter -- actually calls at runtime) ships a
-// bundled Unicode data snapshot that lags Node's own live ICU (measured:
-// 15,735 assigned codepoints where `getScript` still says "Common" but the
-// live \p{Script=...} property escape says otherwise, e.g. U+0870, part of
-// the Arabic Extended-B block Unicode assigned after that snapshot). Without
-// this gate the generator would emit thousands of spurious "Common with a
-// restricted scx" rows for codepoints whose PRIMARY script our own runtime
-// getScript() doesn't (yet) know isn't Common at all -- a real, orthogonal
-// staleness in `unicode-properties` itself, out of scope for the
-// Script_Extensions-vs-Script fix this table exists for. Requiring the live
-// \p{Script=Common}/\p{Script=Inherited} test to ALSO agree keeps this table
-// scoped to genuine scx exceptions the runtime's own getScript() call will
-// actually reach.
-const livePropCommonRe = /\p{Script=Common}/u;
-const livePropInheritedRe = /\p{Script=Inherited}/u;
-const entries = [];
-let staleSkipped = 0;
-for (let cp = 0; cp <= 0x10ffff; cp++) {
-  if (cp >= 0xd800 && cp <= 0xdfff) continue;
-  const ch = String.fromCodePoint(cp);
-  if (!assignedRe.test(ch)) continue;
-  const primary = getScript(cp);
-  if (primary !== "Common" && primary !== "Inherited") continue;
-  const liveAgrees = primary === "Common" ? livePropCommonRe.test(ch) : livePropInheritedRe.test(ch);
-  if (!liveAgrees) {
-    staleSkipped++;
-    continue;
-  }
-  const trivial = primary === "Common" ? commonScxRe.test(ch) : inheritedScxRe.test(ch);
-  if (trivial) continue;
-  const members = [];
-  for (const [name, re] of scxTests) {
-    if (re.test(ch)) members.push(name);
-  }
-  entries.push({ cp, primary, members });
-}
-console.error(`Skipped (unicode-properties/live-ICU Script disagreement): ${staleSkipped}`);
-console.error(`Divergent codepoints: ${entries.length}`);
+    // Step 1: collect every distinct Script value in use, to use as the scx
+    // membership-test candidate list. (scx values are always drawn from the same
+    // enumeration as Script -- a codepoint cannot be "extended" into a script
+    // value that no codepoint's PRIMARY script is.) This makes the candidate
+    // list itself generated from live Unicode data rather than hand-typed.
+    const scriptNames = new Set();
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const ch = String.fromCodePoint(cp);
+      if (!assignedRe.test(ch)) continue;
+      const s = getScript(cp);
+      if (s && s !== "Common" && s !== "Inherited" && s !== "Unknown") scriptNames.add(s);
+    }
+    const candidates = [...scriptNames].sort();
+    console.error(`Candidate script list: ${candidates.length} scripts`);
 
-// Step 3: collapse into contiguous ranges sharing an IDENTICAL (primary,
-// members) pair, so the emitted table stays small and each row is checkable
-// against ScriptExtensions.txt by eye.
-const ranges = [];
-for (const e of entries) {
-  const key = e.primary + "|" + e.members.join(",");
-  const last = ranges[ranges.length - 1];
-  if (last && last.key === key && e.cp === last.hi + 1) {
-    last.hi = e.cp;
-  } else {
-    ranges.push({ lo: e.cp, hi: e.cp, key, primary: e.primary, members: e.members });
-  }
-}
-console.error(`Collapsed into ${ranges.length} ranges`);
+    // Precompile a Script_Extensions regex per candidate script (some
+    // `unicode-properties` names may not exactly match ICU/ECMAScript property
+    // value aliases -- skip any that don't compile rather than guessing).
+    const scxTests = [];
+    for (const name of candidates) {
+      try {
+        scxTests.push([name, new RegExp(`\\p{Script_Extensions=${name}}`, "u")]);
+      } catch {
+        console.error(`  (skipping "${name}" -- not a valid Script_Extensions value alias)`);
+      }
+    }
 
-const hex = (n) => "0x" + n.toString(16).toUpperCase();
-const lines = ranges.map(
-  (r) =>
-    `  { lo: ${hex(r.lo)}, hi: ${hex(r.hi)}, primary: ${JSON.stringify(r.primary)}, scripts: [${r.members
-      .map((m) => JSON.stringify(m))
-      .join(", ")}] },`,
-);
+    // Step 2: find every Common/Inherited codepoint with a non-trivial scx, and
+    // record its exact member-script set.
+    //
+    // Corroboration gate: `unicode-properties` (the package `getScript` -- and
+    // therefore this project's segmenter -- actually calls at runtime) ships a
+    // bundled Unicode data snapshot that lags Node's own live ICU (measured:
+    // 15,735 assigned codepoints where `getScript` still says "Common" but the
+    // live \p{Script=...} property escape says otherwise, e.g. U+0870, part of
+    // the Arabic Extended-B block Unicode assigned after that snapshot). Without
+    // this gate the generator would emit thousands of spurious "Common with a
+    // restricted scx" rows for codepoints whose PRIMARY script our own runtime
+    // getScript() doesn't (yet) know isn't Common at all -- a real, orthogonal
+    // staleness in `unicode-properties` itself, out of scope for the
+    // Script_Extensions-vs-Script fix this table exists for. Requiring the live
+    // \p{Script=Common}/\p{Script=Inherited} test to ALSO agree keeps this table
+    // scoped to genuine scx exceptions the runtime's own getScript() call will
+    // actually reach.
+    const livePropCommonRe = /\p{Script=Common}/u;
+    const livePropInheritedRe = /\p{Script=Inherited}/u;
+    const entries = [];
+    let staleSkipped = 0;
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const ch = String.fromCodePoint(cp);
+      if (!assignedRe.test(ch)) continue;
+      const primary = getScript(cp);
+      if (primary !== "Common" && primary !== "Inherited") continue;
+      const liveAgrees = primary === "Common" ? livePropCommonRe.test(ch) : livePropInheritedRe.test(ch);
+      if (!liveAgrees) {
+        staleSkipped++;
+        continue;
+      }
+      const trivial = primary === "Common" ? commonScxRe.test(ch) : inheritedScxRe.test(ch);
+      if (trivial) continue;
+      const members = [];
+      for (const [name, re] of scxTests) {
+        if (re.test(ch)) members.push(name);
+      }
+      entries.push({ cp, primary, members });
+    }
+    console.error(`Skipped (unicode-properties/live-ICU Script disagreement): ${staleSkipped}`);
+    console.error(`Divergent codepoints: ${entries.length}`);
 
-const banner = `// GENERATED FILE -- do not hand-edit. Regenerate with:
+    // Step 3: collapse into contiguous ranges sharing an IDENTICAL (primary,
+    // members) pair, so the emitted table stays small and each row is checkable
+    // against ScriptExtensions.txt by eye.
+    const ranges = [];
+    for (const e of entries) {
+      const key = e.primary + "|" + e.members.join(",");
+      const last = ranges[ranges.length - 1];
+      if (last && last.key === key && e.cp === last.hi + 1) {
+        last.hi = e.cp;
+      } else {
+        ranges.push({ lo: e.cp, hi: e.cp, key, primary: e.primary, members: e.members });
+      }
+    }
+    console.error(`Collapsed into ${ranges.length} ranges`);
+
+    const hex = (n) => "0x" + n.toString(16).toUpperCase();
+    const lines = ranges.map(
+      (r) =>
+        `  { lo: ${hex(r.lo)}, hi: ${hex(r.hi)}, primary: ${JSON.stringify(r.primary)}, scripts: [${r.members
+          .map((m) => JSON.stringify(m))
+          .join(", ")}] },`,
+    );
+
+    const banner = `// GENERATED FILE -- do not hand-edit. Regenerate with:
 //   node tools/generate-script-extensions.mjs
 //
 // The codepoint ranges where Unicode's Script_Extensions (scx) property is
@@ -150,5 +155,16 @@ ${lines.join("\n")}
 ];
 `;
 
-writeFileSync(new URL("../packages/text-engine/src/render/script-extensions.generated.ts", import.meta.url), banner);
-console.error("Wrote packages/text-engine/src/render/script-extensions.generated.ts");
+    writeFileSync(
+      new URL("../packages/text-engine/src/render/script-extensions.generated.ts", import.meta.url),
+      banner,
+    );
+    console.error("Wrote packages/text-engine/src/render/script-extensions.generated.ts");
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -7,7 +7,7 @@
  * stage because Skia and SVG rasterization cannot establish logical geometry.
  */
 import { writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   buildLinearGradientDef,
   buildRadialGradientDef,
@@ -1749,7 +1749,8 @@ export function runPaintGeometryOracle(): { rows: OracleRow[]; movementProven: b
   return { rows, movementProven, verdict };
 }
 
-function main(): number {
+export function main(argv: string[] = process.argv.slice(2)): number {
+  const values = parseFlags(argv, { json: { type: "string" } });
   const result = runPaintGeometryOracle();
   const failures = result.rows.filter((row) => !row.pass);
   const report = {
@@ -1759,9 +1760,8 @@ function main(): number {
     tolerance: TOLERANCE,
     ...result,
   };
-  const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null)
-    writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
+  const json = flag(values, "--json");
+  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
   console.log(
     `paint geometry oracle: ${result.rows.length - failures.length}/${result.rows.length} exact; activation control ${result.movementProven ? "moved" : "DID NOT MOVE"}`,
   );
@@ -1769,4 +1769,4 @@ function main(): number {
   return failures.length || !result.movementProven ? 1 : 0;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = main();
+if (isMain(import.meta.url)) await runMain(() => main());

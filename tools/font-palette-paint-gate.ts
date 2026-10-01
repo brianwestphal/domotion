@@ -5,11 +5,11 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { runFontPaletteOwnershipAudit } from "./font-palette-ownership-audit.js";
 import { runFontPaletteDynamicGate, type FontPaletteDynamicGateReport } from "./font-palette-dynamic-gate.js";
 
@@ -294,15 +294,12 @@ export async function runFontPalettePaintGate(
   };
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const value = (name: string): string | undefined => {
-    const index = process.argv.indexOf(name);
-    return index < 0 ? undefined : process.argv[index + 1];
-  };
-  const json = value("--json");
-  const artifactDir = value("--artifact-dir");
-  const report = await runFontPalettePaintGate({ ...(artifactDir == null ? {} : { artifactDir }) });
-  if (json != null) {
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, { json: { type: "string" }, "artifact-dir": { type: "string" } });
+  const json = flag(args, "json");
+  const artifactDir = flag(args, "artifact-dir");
+  const report = await runFontPalettePaintGate({ ...(typeof artifactDir === "string" ? { artifactDir } : {}) });
+  if (typeof json === "string") {
     mkdirSync(dirname(resolve(json)), { recursive: true });
     writeFileSync(resolve(json), JSON.stringify(report, null, 2));
   }
@@ -318,5 +315,7 @@ if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process
       2,
     ),
   );
-  if (report.verdict !== "source-exact") process.exitCode = 1;
+  return report.verdict === "source-exact" ? 0 : 1;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

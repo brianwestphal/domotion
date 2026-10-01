@@ -19,6 +19,10 @@ aliases: ["docs/194-ordinary-backdrop-effect-space.md", "doc-194"]
 
 # 194 — Ordinary backdrop Backdrop Root/effect-space ownership
 
+The animated projective oracle accepts `--dpr`, `--times`, and `--json`.
+Unknown options and missing values fail before browser work; importing the
+module does not run the oracle.
+
 **Status: source ownership shipped; final composite parity completed by the
 strict gate in [doc 195](195-strict-ordinary-backdrop-ownership.md).**
 

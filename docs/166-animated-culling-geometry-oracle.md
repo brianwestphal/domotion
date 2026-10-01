@@ -12,6 +12,9 @@ aliases: ["docs/166-animated-culling-geometry-oracle.md", "doc-166"]
 
 # Animated culling geometry oracle
 
+The CLI accepts `--dpr`, `--zoom`, and `--json`. Unknown options and missing
+values fail before browser work; importing the module does not run the oracle.
+
 `npm run culling:animated-geometry-oracle` is the independent live-Chromium
 gate for animated viewBox culling. It grades an optimization, so its governing
 invariant is one-sided: **production may retain paint conservatively, but it

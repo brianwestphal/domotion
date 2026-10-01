@@ -31,6 +31,7 @@ import { join, resolve } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   extractCoverage,
   compareGlyphCoverage,
@@ -70,11 +71,6 @@ interface SheetResult {
   alignDy: number;
   incorrectCps: string[];
   verdicts: CellVerdict[];
-}
-
-function arg(name: string, fallback = ""): string {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
 }
 
 /** Slice an (x,y,w,h) sub-rect out of a decoded RGBA/RGB buffer. */
@@ -270,17 +266,24 @@ async function auditSheet(
   };
 }
 
-async function main(): Promise<void> {
-  const resultsDir = arg("--results-dir");
-  const fixturesDir = arg("--fixtures-dir");
-  const only = arg("--only");
-  const sheet = arg("--sheet");
-  const outPath = arg("--out", "tools/scratch/sheet-audit.json");
+async function main(args: string[]): Promise<number> {
+  const flags = parseFlags(args, {
+    "results-dir": { type: "string" },
+    "fixtures-dir": { type: "string" },
+    only: { type: "string" },
+    sheet: { type: "string" },
+    out: { type: "string" },
+  });
+  const resultsDir = (flags["results-dir"] as string | undefined) ?? "";
+  const fixturesDir = (flags["fixtures-dir"] as string | undefined) ?? "";
+  const only = (flags.only as string | undefined) ?? "";
+  const sheet = (flags.sheet as string | undefined) ?? "";
+  const outPath = (flags.out as string | undefined) ?? "tools/scratch/sheet-audit.json";
   if (!resultsDir || !fixturesDir) {
     console.error(
       "usage: glyph-sheet-audit.ts --results-dir <dir> --fixtures-dir <dir> [--only <substr>] [--sheet <name>] [--out <json>]",
     );
-    process.exit(2);
+    return 2;
   }
 
   // Discover sheets: <name>-expected.png + <name>-actual.png + <name>.html.
@@ -335,6 +338,7 @@ async function main(): Promise<void> {
   }
   const totalIncorrect = results.reduce((s, r) => s + r.incorrect, 0);
   console.log(`\ntotal incorrect glyphs: ${totalIncorrect}  ·  full per-codepoint JSON: ${outPath}`);
+  return 0;
 }
 
-void main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

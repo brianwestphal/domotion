@@ -1,31 +1,36 @@
 import { withBrowser } from "./lib/browser.mjs";
 import { writeFileSync } from "node:fs";
 import { CURSOR_CATEGORIES, cursorGlyphSvg } from "../src/animation/cursor-glyphs.js";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const SIZE = 40; // glyph render size (px in the 24-box)
-const TILE = 92; // tile size
-function tile(value: string, bg: string): string {
-  // glyph centered; hotspot lands at tile center
-  const cx = TILE / 2,
-    cy = TILE / 2 - 6;
-  const glyph = cursorGlyphSvg(value, cx, cy, SIZE);
-  const empty = value === "none";
-  return `<div class="tile" style="background:${bg}">
+async function main(argv: string[]) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const SIZE = 40; // glyph render size (px in the 24-box)
+    const TILE = 92; // tile size
+    function tile(value: string, bg: string): string {
+      // glyph centered; hotspot lands at tile center
+      const cx = TILE / 2,
+        cy = TILE / 2 - 6;
+      const glyph = cursorGlyphSvg(value, cx, cy, SIZE);
+      const empty = value === "none";
+      return `<div class="tile" style="background:${bg}">
     <svg width="${TILE}" height="${TILE - 22}" viewBox="0 0 ${TILE} ${TILE - 22}">
       ${empty ? `<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="11" fill="${bg === "#1f2430" ? "#9aa" : "#999"}">(hidden)</text>` : glyph}
       <circle cx="${cx}" cy="${cy}" r="1.5" fill="#e0218a"/>
     </svg>
     <div class="lbl" style="color:${bg === "#1f2430" ? "#cdd3df" : "#222"}">${value}</div>
   </div>`;
-}
-const cats = CURSOR_CATEGORIES.map(
-  (c) => `
+    }
+    const cats = CURSOR_CATEGORIES.map(
+      (c) => `
   <h2>${c.title}</h2>
   <div class="row">${c.values.map((v) => tile(v, "#fbfbfd")).join("")}</div>
   <div class="row">${c.values.map((v) => tile(v, "#1f2430")).join("")}</div>
 `,
-).join("");
-const html = `<!doctype html><meta charset="utf8"><body style="margin:0;font-family:-apple-system,system-ui,sans-serif;background:#fff;padding:18px 22px">
+    ).join("");
+    const html = `<!doctype html><meta charset="utf8"><body style="margin:0;font-family:-apple-system,system-ui,sans-serif;background:#fff;padding:18px 22px">
 <h1 style="margin:0 0 2px">Domotion cursor glyphs — DM-1106 review</h1>
 <div style="color:#666;font-size:13px;margin-bottom:10px">Lucide-composed glyphs, one per CSS <code>cursor</code> value. Each shown on light + dark to check the white halo. The <span style="color:#e0218a">pink dot</span> marks the hotspot (the point that lands on the actual cursor position).</div>
 <style>
@@ -36,13 +41,21 @@ const html = `<!doctype html><meta charset="utf8"><body style="margin:0;font-fam
 </style>
 ${cats}
 </body>`;
-await withBrowser(async (browser) => {
-  const page = await browser.newContext({ deviceScaleFactor: 2 }).then((c) => c.newPage());
-  await page.setViewportSize({ width: 980, height: 1400 });
-  await page.setContent(html);
-  const h = await page.evaluate(() => document.body.scrollHeight);
-  await page.setViewportSize({ width: 980, height: h + 20 });
-  const out = "tests/output/cursor-glyphs-catalog.png";
-  writeFileSync(out, await page.screenshot({ fullPage: true }));
-  console.log("wrote", out, h);
-});
+    await withBrowser(async (browser) => {
+      const page = await browser.newContext({ deviceScaleFactor: 2 }).then((c) => c.newPage());
+      await page.setViewportSize({ width: 980, height: 1400 });
+      await page.setContent(html);
+      const h = await page.evaluate(() => document.body.scrollHeight);
+      await page.setViewportSize({ width: 980, height: h + 20 });
+      const out = "tests/output/cursor-glyphs-catalog.png";
+      writeFileSync(out, await page.screenshot({ fullPage: true }));
+      console.log("wrote", out, h);
+    });
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

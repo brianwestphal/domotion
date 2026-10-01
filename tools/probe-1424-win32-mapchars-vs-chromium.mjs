@@ -30,182 +30,195 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { openOwnedBrowser } from "./lib/browser.mjs";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "\\\\Mac\\Home\\Documents\\html-test\\unicode");
-const OUT_PATH = process.env.OUT ?? "\\\\Mac\\Home\\Documents\\domotion\\tools\\scratch\\win32-calib.json";
-const EXE = process.env.EXE ?? "C:\\dm-build\\domotion-glyph-paths.exe";
-const ENVELOPE_TMP = process.env.ENVELOPE ?? "C:\\dm-build\\calib-envelope.json";
-const MAX_CELLS = parseInt(process.env.MAX_CELLS ?? "6", 10);
-const RECYCLE = 80;
-// Use the already-cached headless-shell build (the repo's pinned 1217 build
-// failed to download cleanly on the VM; the OS-level DirectWrite font fallback
-// CDP reports is identical across Chromium patch builds, so 1223 is fine here).
-const EXEC_PATH =
-  process.env.CHROME_EXE ??
-  "C:\\WINDOWS\\system32\\config\\systemprofile\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1223\\chrome-headless-shell-win64\\chrome-headless-shell.exe";
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const UNICODE_DIR = resolve(process.env.HTML_TEST_DIR ?? "\\\\Mac\\Home\\Documents\\html-test\\unicode");
+    const OUT_PATH = process.env.OUT ?? "\\\\Mac\\Home\\Documents\\domotion\\tools\\scratch\\win32-calib.json";
+    const EXE = process.env.EXE ?? "C:\\dm-build\\domotion-glyph-paths.exe";
+    const ENVELOPE_TMP = process.env.ENVELOPE ?? "C:\\dm-build\\calib-envelope.json";
+    const MAX_CELLS = parseInt(process.env.MAX_CELLS ?? "6", 10);
+    const RECYCLE = 80;
+    // Use the already-cached headless-shell build (the repo's pinned 1217 build
+    // failed to download cleanly on the VM; the OS-level DirectWrite font fallback
+    // CDP reports is identical across Chromium patch builds, so 1223 is fine here).
+    const EXEC_PATH =
+      process.env.CHROME_EXE ??
+      "C:\\WINDOWS\\system32\\config\\systemprofile\\AppData\\Local\\ms-playwright\\chromium_headless_shell-1223\\chrome-headless-shell-win64\\chrome-headless-shell.exe";
 
-const files = readdirSync(UNICODE_DIR)
-  .filter((f) => f.endsWith(".html") && f !== "index.html")
-  .sort();
+    const files = readdirSync(UNICODE_DIR)
+      .filter((f) => f.endsWith(".html") && f !== "index.html")
+      .sort();
 
-const rows = []; // { block, cp, hex, ch, chromium:[fam...] }
+    const rows = []; // { block, cp, hex, ch, chromium:[fam...] }
 
-let owner = null,
-  ctx = null,
-  page = null,
-  cdp = null;
-async function fresh() {
-  if (owner) await owner.close();
-  owner = null;
-  owner = await openOwnedBrowser({ executablePath: EXEC_PATH });
-  const browser = owner.browser;
-  ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
-  page = await ctx.newPage();
-  cdp = await ctx.newCDPSession(page);
-  await cdp.send("DOM.enable");
-  await cdp.send("CSS.enable");
-}
-
-try {
-  await fresh();
-  let n = 0;
-  for (const file of files) {
-    if (n > 0 && n % RECYCLE === 0) await fresh();
-    n++;
-    const block = file.replace(/\.html$/, "");
-    try {
-      await page.setContent(readFileSync(join(UNICODE_DIR, file), "utf-8"));
-      await page.waitForLoadState("domcontentloaded");
-    } catch {
-      await fresh();
-      continue;
+    let owner = null,
+      ctx = null,
+      page = null,
+      cdp = null;
+    async function fresh() {
+      if (owner) await owner.close();
+      owner = null;
+      owner = await openOwnedBrowser({ executablePath: EXEC_PATH });
+      const browser = owner.browser;
+      ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+      page = await ctx.newPage();
+      cdp = await ctx.newCDPSession(page);
+      await cdp.send("DOM.enable");
+      await cdp.send("CSS.enable");
     }
 
-    let root;
     try {
-      ({ root } = await cdp.send("DOM.getDocument", { depth: -1 }));
-    } catch {
       await fresh();
-      continue;
-    }
+      let n = 0;
+      for (const file of files) {
+        if (n > 0 && n % RECYCLE === 0) await fresh();
+        n++;
+        const block = file.replace(/\.html$/, "");
+        try {
+          await page.setContent(readFileSync(join(UNICODE_DIR, file), "utf-8"));
+          await page.waitForLoadState("domcontentloaded");
+        } catch {
+          await fresh();
+          continue;
+        }
 
-    const cells = [];
-    function walk(nd) {
-      if (cells.length >= MAX_CELLS) return;
-      if (nd.localName === "x" && nd.children) {
-        let gNode = null,
-          label = null;
-        for (const c of nd.children) {
-          if (c.localName === "g") gNode = c;
-          if (c.localName === "n" && c.children) {
-            for (const t of c.children) if (t.nodeName === "#text") label = t.nodeValue;
+        let root;
+        try {
+          ({ root } = await cdp.send("DOM.getDocument", { depth: -1 }));
+        } catch {
+          await fresh();
+          continue;
+        }
+
+        const cells = [];
+        function walk(nd) {
+          if (cells.length >= MAX_CELLS) return;
+          if (nd.localName === "x" && nd.children) {
+            let gNode = null,
+              label = null;
+            for (const c of nd.children) {
+              if (c.localName === "g") gNode = c;
+              if (c.localName === "n" && c.children) {
+                for (const t of c.children) if (t.nodeName === "#text") label = t.nodeValue;
+              }
+            }
+            if (gNode && label) cells.push({ gNodeId: gNode.nodeId, label });
+          }
+          for (const c of nd.children || []) {
+            if (cells.length >= MAX_CELLS) break;
+            walk(c);
           }
         }
-        if (gNode && label) cells.push({ gNodeId: gNode.nodeId, label });
-      }
-      for (const c of nd.children || []) {
-        if (cells.length >= MAX_CELLS) break;
-        walk(c);
-      }
-    }
-    walk(root);
+        walk(root);
 
-    for (const { gNodeId, label } of cells) {
-      const m = /U\+([0-9A-Fa-f]+)/.exec(label);
-      if (!m) continue;
-      const cp = parseInt(m[1], 16);
-      if (!Number.isFinite(cp)) continue;
-      let chromium = [];
+        for (const { gNodeId, label } of cells) {
+          const m = /U\+([0-9A-Fa-f]+)/.exec(label);
+          if (!m) continue;
+          const cp = parseInt(m[1], 16);
+          if (!Number.isFinite(cp)) continue;
+          let chromium = [];
+          try {
+            const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: gNodeId });
+            chromium = fonts.filter((f) => f.glyphCount > 0).map((f) => f.familyName);
+          } catch {
+            /* stale node */
+          }
+          rows.push({ block, cp, hex: cp.toString(16), ch: String.fromCodePoint(cp), chromium });
+        }
+        if (n % 100 === 0) console.error(`...${n}/${files.length} fixtures, ${rows.length} cps`);
+      }
+    } finally {
+      if (owner) await owner.close();
+
+      // --- Phase 2: one batched MapCharacters query for every unique cp ----------
+      const uniqueCps = [...new Set(rows.map((r) => r.cp))];
+      const mapByCp = new Map();
       try {
-        const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: gNodeId });
-        chromium = fonts.filter((f) => f.glyphCount > 0).map((f) => f.familyName);
-      } catch {
-        /* stale node */
+        writeFileSync(ENVELOPE_TMP, JSON.stringify({ fonts: [], queries: [{ type: "fallback", cps: uniqueCps }] }));
+        const out = execFileSync(EXE, ["--input", ENVELOPE_TMP], { encoding: "utf-8", maxBuffer: 256 * 1024 * 1024 });
+        const parsed = JSON.parse(out);
+        for (const f of parsed.results[0].fonts) mapByCp.set(f.cp, f);
+      } catch (e) {
+        console.error("MapCharacters batch FAILED:", e.message);
       }
-      rows.push({ block, cp, hex: cp.toString(16), ch: String.fromCodePoint(cp), chromium });
-    }
-    if (n % 100 === 0) console.error(`...${n}/${files.length} fixtures, ${rows.length} cps`);
-  }
-} finally {
-  if (owner) await owner.close();
 
-  // --- Phase 2: one batched MapCharacters query for every unique cp ----------
-  const uniqueCps = [...new Set(rows.map((r) => r.cp))];
-  const mapByCp = new Map();
-  try {
-    writeFileSync(ENVELOPE_TMP, JSON.stringify({ fonts: [], queries: [{ type: "fallback", cps: uniqueCps }] }));
-    const out = execFileSync(EXE, ["--input", ENVELOPE_TMP], { encoding: "utf-8", maxBuffer: 256 * 1024 * 1024 });
-    const parsed = JSON.parse(out);
-    for (const f of parsed.results[0].fonts) mapByCp.set(f.cp, f);
-  } catch (e) {
-    console.error("MapCharacters batch FAILED:", e.message);
-  }
+      // --- Phase 3: join + categorize -------------------------------------------
+      const buckets = {
+        match: 0, // MapCharacters family == Chromium first family (safe; resolver matches)
+        chromiumTofu: 0, // Chromium painted nothing — out of scope
+        resolverTofu: [], // MapCharacters found:false but Chromium DID paint — fidelity-risk
+        diverge: [], // both painted, different family — needs scrutiny
+      };
+      for (const r of rows) {
+        const mc = mapByCp.get(r.cp) || null;
+        r.mc = mc;
+        if (!r.chromium.length) {
+          buckets.chromiumTofu++;
+          continue;
+        }
+        const chrome0 = r.chromium[0];
+        if (!mc || !mc.found) {
+          buckets.resolverTofu.push({ block: r.block, hex: r.hex, ch: r.ch, chromium: chrome0 });
+          continue;
+        }
+        if (mc.familyName === chrome0) {
+          buckets.match++;
+          continue;
+        }
+        buckets.diverge.push({ block: r.block, hex: r.hex, ch: r.ch, chromium: chrome0, mapChars: mc.familyName });
+      }
 
-  // --- Phase 3: join + categorize -------------------------------------------
-  const buckets = {
-    match: 0, // MapCharacters family == Chromium first family (safe; resolver matches)
-    chromiumTofu: 0, // Chromium painted nothing — out of scope
-    resolverTofu: [], // MapCharacters found:false but Chromium DID paint — fidelity-risk
-    diverge: [], // both painted, different family — needs scrutiny
-  };
-  for (const r of rows) {
-    const mc = mapByCp.get(r.cp) || null;
-    r.mc = mc;
-    if (!r.chromium.length) {
-      buckets.chromiumTofu++;
-      continue;
-    }
-    const chrome0 = r.chromium[0];
-    if (!mc || !mc.found) {
-      buckets.resolverTofu.push({ block: r.block, hex: r.hex, ch: r.ch, chromium: chrome0 });
-      continue;
-    }
-    if (mc.familyName === chrome0) {
-      buckets.match++;
-      continue;
-    }
-    buckets.diverge.push({ block: r.block, hex: r.hex, ch: r.ch, chromium: chrome0, mapChars: mc.familyName });
-  }
+      writeFileSync(
+        OUT_PATH,
+        JSON.stringify(
+          {
+            sampled: rows.length,
+            uniqueCps: uniqueCps.length,
+            summary: {
+              match: buckets.match,
+              chromiumTofu: buckets.chromiumTofu,
+              resolverTofuCount: buckets.resolverTofu.length,
+              divergeCount: buckets.diverge.length,
+            },
+            resolverTofu: buckets.resolverTofu,
+            diverge: buckets.diverge,
+            rows,
+          },
+          null,
+          2,
+        ),
+      );
 
-  writeFileSync(
-    OUT_PATH,
-    JSON.stringify(
-      {
-        sampled: rows.length,
-        uniqueCps: uniqueCps.length,
-        summary: {
-          match: buckets.match,
-          chromiumTofu: buckets.chromiumTofu,
-          resolverTofuCount: buckets.resolverTofu.length,
-          divergeCount: buckets.diverge.length,
-        },
-        resolverTofu: buckets.resolverTofu,
-        diverge: buckets.diverge,
-        rows,
-      },
-      null,
-      2,
-    ),
-  );
-
-  console.error(`\nDONE: ${rows.length} cps sampled, ${uniqueCps.length} unique`);
-  console.error(`  match (MapChars==Chromium):   ${buckets.match}`);
-  console.error(`  chromium-tofu (out of scope): ${buckets.chromiumTofu}`);
-  console.error(`  resolver-tofu but chrome paints: ${buckets.resolverTofu.length}`);
-  console.error(`  diverge (both paint, differ):    ${buckets.diverge.length}`);
-  if (buckets.diverge.length) {
-    console.error("\n  Divergences (chromium -> mapChars):");
-    const seen = new Map();
-    for (const d of buckets.diverge)
-      seen.set(`${d.chromium}=>${d.mapChars}`, (seen.get(`${d.chromium}=>${d.mapChars}`) ?? 0) + 1);
-    for (const [k, c] of [...seen.entries()].sort((a, b) => b[1] - a[1]))
-      console.error(`    ${String(c).padStart(4)}  ${k}`);
-  }
-  if (buckets.resolverTofu.length) {
-    console.error("\n  Resolver-tofu-but-Chromium-paints (by family):");
-    const seen = new Map();
-    for (const d of buckets.resolverTofu) seen.set(d.chromium, (seen.get(d.chromium) ?? 0) + 1);
-    for (const [k, c] of [...seen.entries()].sort((a, b) => b[1] - a[1]))
-      console.error(`    ${String(c).padStart(4)}  ${k}`);
+      console.error(`\nDONE: ${rows.length} cps sampled, ${uniqueCps.length} unique`);
+      console.error(`  match (MapChars==Chromium):   ${buckets.match}`);
+      console.error(`  chromium-tofu (out of scope): ${buckets.chromiumTofu}`);
+      console.error(`  resolver-tofu but chrome paints: ${buckets.resolverTofu.length}`);
+      console.error(`  diverge (both paint, differ):    ${buckets.diverge.length}`);
+      if (buckets.diverge.length) {
+        console.error("\n  Divergences (chromium -> mapChars):");
+        const seen = new Map();
+        for (const d of buckets.diverge)
+          seen.set(`${d.chromium}=>${d.mapChars}`, (seen.get(`${d.chromium}=>${d.mapChars}`) ?? 0) + 1);
+        for (const [k, c] of [...seen.entries()].sort((a, b) => b[1] - a[1]))
+          console.error(`    ${String(c).padStart(4)}  ${k}`);
+      }
+      if (buckets.resolverTofu.length) {
+        console.error("\n  Resolver-tofu-but-Chromium-paints (by family):");
+        const seen = new Map();
+        for (const d of buckets.resolverTofu) seen.set(d.chromium, (seen.get(d.chromium) ?? 0) + 1);
+        for (const [k, c] of [...seen.entries()].sort((a, b) => b[1] - a[1]))
+          console.error(`    ${String(c).padStart(4)}  ${k}`);
+      }
+    }
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
   }
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

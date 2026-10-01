@@ -11,6 +11,12 @@ export function parseFlags(argv, options) {
   return parseArgs({ args: argv, options, strict: true, allowPositionals: false }).values;
 }
 
+/** Parse declared flags and positional operands without accepting unknown flags. */
+export function parseCommand(argv, options) {
+  const { values, positionals } = parseArgs({ args: argv, options, strict: true, allowPositionals: true });
+  return { values, positionals };
+}
+
 export function flag(values, name, fallback = null) {
   const value = values[name.replace(/^--/, "")];
   return value === undefined ? fallback : value;
@@ -47,9 +53,11 @@ export function isMain(metaUrl, argv = process.argv) {
   return argv[1] != null && pathToFileURL(resolve(argv[1])).href === metaUrl;
 }
 
+/** Preserve a gate's explicit mismatch code when its main returns void. */
 export async function runMain(main) {
   try {
-    process.exitCode = await main();
+    const code = await main();
+    if (code !== undefined) process.exitCode = code;
   } catch (error) {
     console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
     process.exitCode = EXIT_ERROR;

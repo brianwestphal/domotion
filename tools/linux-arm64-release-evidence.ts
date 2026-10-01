@@ -12,9 +12,9 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { arch as osArch, platform as osPlatform, release as osRelease } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 import { assetNameFor, ICU_COMPANION_VERSION, resolveIcuCompanionTarget } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseCommand, requiredFlag, runMain } from "./lib/cli.js";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
 import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
@@ -202,15 +202,13 @@ export function parseElfIdentity(bytes: Buffer): ElfIdentity {
   };
 }
 
-function argValue(args: string[], flag: string): string | undefined {
-  const index = args.indexOf(flag);
-  return index >= 0 ? args[index + 1] : undefined;
+type CliValues = Record<string, string | boolean | undefined>;
+function argValue(values: CliValues, name: string): string | undefined {
+  return values[name.slice(2)] as string | undefined;
 }
 
-function requiredArg(args: string[], flag: string): string {
-  const value = argValue(args, flag);
-  if (value == null || value.trim() === "") throw new Error(`${flag} is required`);
-  return value;
+function requiredArg(values: CliValues, name: string): string {
+  return requiredFlag(values, name);
 }
 
 function writeJson(file: string, value: unknown): void {
@@ -754,16 +752,16 @@ export function buildFinalReport(
   };
 }
 
-async function acquireCommand(args: string[]): Promise<number> {
-  const output = requiredArg(args, "--json");
-  const runEnvOutput = requiredArg(args, "--run-env");
+async function acquireCommand(values: CliValues): Promise<number> {
+  const output = requiredArg(values, "--json");
+  const runEnvOutput = requiredArg(values, "--run-env");
   try {
-    const cacheRoot = path.resolve(requiredArg(args, "--cache-root"));
-    const version = argValue(args, "--glyph-version") ?? PKG.version;
+    const cacheRoot = path.resolve(requiredArg(values, "--cache-root"));
+    const version = argValue(values, "--glyph-version") ?? PKG.version;
     const report = await acquireEvidence(cacheRoot, version);
     writeJson(output, report);
     writeJson(runEnvOutput, { ...report.environment, fingerprint: report.environmentFingerprint });
-    const githubEnv = argValue(args, "--github-env");
+    const githubEnv = argValue(values, "--github-env");
     if (githubEnv != null) {
       const icuTarget = resolveIcuCompanionTarget({
         platform: "linux",
@@ -799,12 +797,12 @@ async function acquireCommand(args: string[]): Promise<number> {
   }
 }
 
-function finalizeCommand(args: string[]): number {
-  const output = requiredArg(args, "--json");
+function finalizeCommand(values: CliValues): number {
+  const output = requiredArg(values, "--json");
   try {
-    const acquisition = JSON.parse(readFileSync(requiredArg(args, "--acquisition"), "utf8")) as AcquisitionReport;
-    const artifactsRoot = path.resolve(requiredArg(args, "--artifacts-root"));
-    const outcomes = parseOutcomes(requiredArg(args, "--outcomes"));
+    const acquisition = JSON.parse(readFileSync(requiredArg(values, "--acquisition"), "utf8")) as AcquisitionReport;
+    const artifactsRoot = path.resolve(requiredArg(values, "--artifacts-root"));
+    const outcomes = parseOutcomes(requiredArg(values, "--outcomes"));
     const artifacts = digestArtifacts(artifactsRoot).filter(
       (artifact) => artifact.path !== path.relative(artifactsRoot, output).split(path.sep).join("/"),
     );
@@ -841,14 +839,26 @@ function finalizeCommand(args: string[]): number {
   }
 }
 
-async function main(): Promise<number> {
-  const [command, ...args] = process.argv.slice(2);
-  if (command === "acquire") return acquireCommand(args);
-  if (command === "finalize") return finalizeCommand(args);
+async function main(argv: string[]): Promise<number> {
+  const { values, positionals } = parseCommand(argv, {
+    json: { type: "string" },
+    "run-env": { type: "string" },
+    "cache-root": { type: "string" },
+    "glyph-version": { type: "string" },
+    "github-env": { type: "string" },
+    acquisition: { type: "string" },
+    "artifacts-root": { type: "string" },
+    outcomes: { type: "string" },
+  });
+  if (positionals.length !== 1) {
+    process.stderr.write("usage: linux-arm64-release-evidence.ts <acquire|finalize> ...\n");
+    return 2;
+  }
+  const command = positionals[0];
+  if (command === "acquire") return acquireCommand(values);
+  if (command === "finalize") return finalizeCommand(values);
   process.stderr.write("usage: linux-arm64-release-evidence.ts <acquire|finalize> ...\n");
   return 2;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -7,12 +7,14 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 
 const TOOLS_DIR = dirname(fileURLToPath(import.meta.url));
 const SVG_PATH = resolve(TOOLS_DIR, "..", "tests/output/real-world/nytimes-desktop-scroll.svg");
 const OUT_DIR = "/tmp/claude/dm668-frames";
 
-async function main() {
+export async function main(argv: string[] = process.argv.slice(2)) {
+  parseFlags(argv, {});
   if (!existsSync(SVG_PATH)) throw new Error(`SVG not found: ${SVG_PATH}`);
   mkdirSync(OUT_DIR, { recursive: true });
   const svg = readFileSync(SVG_PATH, "utf8");
@@ -57,4 +59,4 @@ async function main() {
     console.log(`Saved samples to ${OUT_DIR}`);
   });
 }
-void main();
+if (isMain(import.meta.url)) await runMain(() => main());

@@ -10,11 +10,11 @@ import { createServer, type Server } from "node:http";
 import { createReadStream, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   attachWebfontTracker,
   captureElementTreeWithWarnings,
@@ -621,16 +621,13 @@ export async function runFontPaletteOwnershipAudit(
   }
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const value = (name: string): string | undefined => {
-    const index = process.argv.indexOf(name);
-    return index < 0 ? undefined : process.argv[index + 1];
-  };
-  const json = value("--json");
-  const artifactDir = value("--artifact-dir");
-  const report = await runFontPaletteOwnershipAudit({ ...(artifactDir == null ? {} : { artifactDir }) });
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, { json: { type: "string" }, "artifact-dir": { type: "string" } });
+  const json = flag(args, "json");
+  const artifactDir = flag(args, "artifact-dir");
+  const report = await runFontPaletteOwnershipAudit({ ...(typeof artifactDir === "string" ? { artifactDir } : {}) });
   const serializable = { ...report, productionOrders: report.productionOrders.map(({ svg: _svg, ...row }) => row) };
-  if (json != null) {
+  if (typeof json === "string") {
     mkdirSync(dirname(resolve(json)), { recursive: true });
     writeFileSync(resolve(json), JSON.stringify(serializable, null, 2));
   }
@@ -651,5 +648,7 @@ if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process
       2,
     ),
   );
-  if (report.verdict === "invalid-evidence" || report.verdict === "inconclusive") process.exitCode = 1;
+  return report.verdict === "invalid-evidence" || report.verdict === "inconclusive" ? 1 : 0;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

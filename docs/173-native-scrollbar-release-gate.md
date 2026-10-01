@@ -103,8 +103,10 @@ extra top ink row or lose border area.
 
 `tools/check-native-scrollbar-release.ts` recursively loads the six reports,
 re-hashes and decodes every PNG, and rejects a path escaping its report
-directory, a non-PNG crop, a digest mismatch, or a dimension mismatch. The
-pure adjudicator then requires:
+directory, a non-PNG crop, a digest mismatch, or a dimension mismatch. The CLI
+requires `--reports <directory>` and accepts `--envelopes <json>` and
+`--report-only`. It validates these options before reading artifacts. Importing
+the module does not run adjudication. The pure adjudicator then requires:
 
 - exactly one proposal and one validation report per platform and the pinned
   source revisions;

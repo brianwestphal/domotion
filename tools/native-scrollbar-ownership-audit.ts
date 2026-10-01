@@ -12,10 +12,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { createRequire } from "node:module";
 import { join, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { chromium, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import type { CapturedElement, CapturedNativeScrollbarRaster } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -1193,14 +1193,19 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
   };
 }
 
-async function main(): Promise<number> {
-  const jsonIndex = process.argv.indexOf("--json");
-  const jsonPath = jsonIndex >= 0 ? process.argv[jsonIndex + 1] : undefined;
-  const value = (flag: string): string | undefined => {
-    const index = process.argv.indexOf(flag);
-    return index >= 0 ? process.argv[index + 1] : undefined;
-  };
-  const numbers = (flag: string): number[] | undefined => value(flag)?.split(",").map(Number);
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, {
+    json: { type: "string" },
+    dpr: { type: "string" },
+    zoom: { type: "string" },
+    artifacts: { type: "string" },
+    "evidence-role": { type: "string" },
+    "boot-id": { type: "string" },
+    "runner-image": { type: "string" },
+  });
+  const value = (name: string): string | undefined => flag(values, name) ?? undefined;
+  const jsonPath = value("--json");
+  const numbers = (name: string): number[] | undefined => value(name)?.split(",").map(Number);
   const role = value("--evidence-role");
   if (role != null && role !== "proposal" && role !== "validation") {
     throw new Error("--evidence-role must be proposal or validation");
@@ -1247,6 +1252,4 @@ async function main(): Promise<number> {
   return report.verdict === "authoritative-capture-and-source-owned-paint-exact" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

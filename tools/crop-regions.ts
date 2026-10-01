@@ -18,7 +18,8 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { flag, isMain, parseFlags } from "./lib/cli.js";
 
 import { executeRegionCrops, parseRegionsBlock, planRegionCrops, type Region } from "../src/utils/region-feedback.js";
 import {
@@ -78,27 +79,35 @@ function loadSettings(): Settings {
   return { port: raw.port, secret: raw.secret };
 }
 
+function validateArgs(argv: string[]): Record<string, string | boolean | undefined> {
+  return parseFlags(
+    argv.map((arg) => (arg === "-t" ? "--ticket" : arg === "-h" ? "--help" : arg)),
+    {
+      ticket: { type: "string" },
+      id: { type: "string" },
+      "output-root": { type: "string" },
+      help: { type: "boolean" },
+    },
+  );
+}
+
 export function parseArgs(argv: string[]): { ref: TicketRef; outputRoot: string } {
-  let ref: TicketRef | null = null;
-  let outputRoot = DEFAULT_OUTPUT_ROOT;
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--ticket" || a === "-t") {
-      ref = parseTicketRef(argv[++i] ?? "");
-    } else if (a === "--id") {
-      ref = parseTicketRef(argv[++i] ?? "");
-    } else if (a === "--output-root") {
-      outputRoot = resolve(process.cwd(), argv[++i] ?? "");
-    } else if (a === "--help" || a === "-h") {
-      printUsage();
-      process.exit(0);
-    }
+  const values = validateArgs(argv);
+  if (flag(values, "help", false) === true) {
+    printUsage();
+    process.exit(0);
   }
-  if (ref == null) {
+  const ticket = flag(values, "ticket");
+  const id = flag(values, "id");
+  const token = typeof ticket === "string" ? ticket : typeof id === "string" ? id : null;
+  if (token == null) {
     printUsage();
     throw new Error("Missing --ticket DM-<slug> (or a legacy --id <number>)");
   }
-  return { ref, outputRoot };
+  return {
+    ref: parseTicketRef(token),
+    outputRoot: resolve(process.cwd(), String(flag(values, "output-root", DEFAULT_OUTPUT_ROOT))),
+  };
 }
 
 function printUsage(): void {
@@ -199,8 +208,8 @@ async function loadTicket(ref: TicketRef): Promise<LoadedTicket> {
   };
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(argv: string[]): Promise<void> {
+  const args = parseArgs(argv);
   const ticket = await loadTicket(args.ref);
   const picked = pickRegionsSource(ticket);
   if (picked == null) {
@@ -252,9 +261,17 @@ function reportRun(
 }
 
 // Run only when invoked as the entry script, so tests can import `parseArgs` / `pickRegionsSource`.
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  void main().catch((err: unknown) => {
-    console.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
-  });
+if (isMain(import.meta.url)) {
+  const argv = process.argv.slice(2);
+  try {
+    validateArgs(argv);
+  } catch (err) {
+    console.error(err);
+    process.exitCode = 2;
+  }
+  if (process.exitCode !== 2)
+    void main(argv).catch((err: unknown) => {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    });
 }

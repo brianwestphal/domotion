@@ -2,9 +2,9 @@
 /** Live Chromium validation for the source-transcribed paint geometry oracle. */
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { blinkCornerLine } from "./paint-geometry-oracle.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -301,12 +301,12 @@ export async function runBrowserPaintOracle(): Promise<{
   );
 }
 
-async function main(): Promise<number> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runBrowserPaintOracle();
   const failures = report.probes.filter((probe) => !probe.pass);
-  const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null)
-    writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(report, null, 2));
+  const json = flag(values, "--json");
+  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
   console.log(
     `paint geometry browser oracle: ${report.probes.length - failures.length}/${report.probes.length}; ${report.chromiumVersion}; source ${report.sourceRevision}`,
   );
@@ -314,4 +314,4 @@ async function main(): Promise<number> {
   return failures.length ? 1 : 0;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();
+if (isMain(import.meta.url)) await runMain(() => main());

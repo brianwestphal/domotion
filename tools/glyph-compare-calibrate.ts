@@ -32,14 +32,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { compareGlyphPngs, DEFAULT_THRESHOLDS, type GlyphCompareResult } from "../src/review/glyph-compare.js";
 
 const OUT_DIR = "tests/output/glyph-compare-calibration";
-const QUICK = process.argv.includes("--quick");
-
 const DISCRIMINATIVE = ["R", "a", "g", "e", "t", "G", "Q"];
 const WEAK = ["l", "o", "8"];
-const CHARS = QUICK ? ["R", "a", "g"] : [...DISCRIMINATIVE, ...WEAK];
 
 interface Cell {
   family: string;
@@ -100,9 +98,10 @@ function cell(family: string, char: string, over: Partial<Cell> = {}): Cell {
   return { family, weight: 400, style: "normal", size: 32, offset: 0, char, ...over };
 }
 
-function buildPairs(): PairSpec[] {
+function buildPairs(quick: boolean): PairSpec[] {
+  const CHARS = quick ? ["R", "a", "g"] : [...DISCRIMINATIVE, ...WEAK];
   const pairs: PairSpec[] = [];
-  const families = QUICK
+  const families = quick
     ? ["Helvetica", "Arial", "Georgia"]
     : [
         "Helvetica",
@@ -119,7 +118,7 @@ function buildPairs(): PairSpec[] {
 
   // SAME: subpixel-phase re-render of every family at 32px and 16px.
   for (const f of families) {
-    for (const size of QUICK ? [32] : [32, 16]) {
+    for (const size of quick ? [32] : [32, 16]) {
       for (const ch of CHARS) {
         pairs.push({
           kind: "same",
@@ -134,7 +133,7 @@ function buildPairs(): PairSpec[] {
   }
 
   // DIFFERENT family (lookalikes) at 32px.
-  const familyPairs: Array<[string, string]> = QUICK
+  const familyPairs: Array<[string, string]> = quick
     ? [["Helvetica", "Arial"]]
     : [
         ["Helvetica", "Arial"],
@@ -161,7 +160,7 @@ function buildPairs(): PairSpec[] {
   }
 
   // DIFFERENT weight.
-  const weightFamilies = QUICK ? ["Helvetica"] : ["Helvetica", "system-ui", "Times", "Georgia"];
+  const weightFamilies = quick ? ["Helvetica"] : ["Helvetica", "system-ui", "Times", "Georgia"];
   for (const f of weightFamilies) {
     for (const ch of CHARS) {
       pairs.push({
@@ -174,7 +173,7 @@ function buildPairs(): PairSpec[] {
       });
     }
   }
-  if (!QUICK) {
+  if (!quick) {
     for (const ch of CHARS) {
       pairs.push({
         kind: "weight",
@@ -190,7 +189,7 @@ function buildPairs(): PairSpec[] {
   // DIFFERENT size (same family). 32→34 (~6%) must be caught; 32→33 (~3%)
   // is advisory — a single-glyph 3% scale change sits at the detection floor
   // at this crop scale (see docs/98 § Limits).
-  const sizeFamilies = QUICK ? ["Helvetica"] : ["Helvetica", "Times"];
+  const sizeFamilies = quick ? ["Helvetica"] : ["Helvetica", "Times"];
   for (const f of sizeFamilies) {
     for (const ch of CHARS) {
       pairs.push({
@@ -201,7 +200,7 @@ function buildPairs(): PairSpec[] {
         b: cell(f, ch, { size: 34 }),
         label: `${f} 32 vs 34px '${ch}'`,
       });
-      if (!QUICK) {
+      if (!quick) {
         pairs.push({
           kind: "size",
           expect: "mismatch",
@@ -215,7 +214,7 @@ function buildPairs(): PairSpec[] {
   }
 
   // DIFFERENT style (upright vs italic).
-  const styleFamilies = QUICK ? ["Georgia"] : ["Helvetica", "Georgia", "system-ui"];
+  const styleFamilies = quick ? ["Georgia"] : ["Helvetica", "Georgia", "system-ui"];
   for (const f of styleFamilies) {
     for (const ch of CHARS) {
       pairs.push({
@@ -238,9 +237,10 @@ function fmtP(values: number[], p: number): string {
   return s[idx].toFixed(3);
 }
 
-async function main(): Promise<void> {
+async function main(args: string[]): Promise<number> {
+  const flags = parseFlags(args, { quick: { type: "boolean" } });
   mkdirSync(OUT_DIR, { recursive: true });
-  const pairs = buildPairs();
+  const pairs = buildPairs(flags.quick === true);
 
   // Collect the unique cells to render, grouped by config.
   const cells = new Map<string, Cell>();
@@ -380,6 +380,7 @@ async function main(): Promise<void> {
   const jsonPath = join(OUT_DIR, "results.json");
   writeFileSync(jsonPath, JSON.stringify({ thresholds: DEFAULT_THRESHOLDS, pairs: dump }, null, 1));
   console.log(`\nwrote ${jsonPath}`);
+  return 0;
 }
 
-void main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

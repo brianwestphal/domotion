@@ -13,6 +13,7 @@ import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
 import { chromium, type CDPSession, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, requiredFlag } from "./lib/cli.js";
 
 import {
   ANIMATED_IMAGE_TRUTH_CHROMIUM_REVISION,
@@ -314,21 +315,25 @@ function validateProbePlan(plan: ProbePlan): void {
   }
 }
 
-function parseCli(): CliOptions {
-  const values = new Map<string, string>();
-  for (let index = 2; index < process.argv.length; index += 2) {
-    const flag = process.argv[index];
-    const value = process.argv[index + 1];
-    if (!flag?.startsWith("--") || value == null) {
-      throw new Error("invalid collector arguments");
-    }
-    values.set(flag.slice(2), value);
-  }
-  const required = (name: string): string => {
-    const value = values.get(name);
-    if (!value) throw new Error(`--${name} is required`);
-    return value;
-  };
+export function parseCli(argv: string[]): CliOptions {
+  const values = parseFlags(
+    argv,
+    Object.fromEntries(
+      [
+        "os",
+        "role",
+        "browser",
+        "renderer",
+        "loaded-libraries",
+        "plan",
+        "authority",
+        "out",
+        "build-invocation-id",
+        "observation-id",
+      ].map((name) => [name, { type: "string" as const }]),
+    ),
+  );
+  const required = (name: string): string => requiredFlag(values, name);
   const operatingSystem = required("os");
   const evidenceRole = required("role");
   if (!["macOS", "Linux", "Windows"].includes(operatingSystem) || !["proposal", "validation"].includes(evidenceRole)) {
@@ -742,12 +747,12 @@ async function collectRow(
   return row;
 }
 
-async function main(): Promise<void> {
+async function main(argv: string[]): Promise<void> {
   const stage = (name: string): void => {
     safeFailureStage = name;
     process.stderr.write(`animated-image truth collector at ${safeFailureStage}\n`);
   };
-  const options = parseCli();
+  const options = parseCli(argv);
   const runtimeOperatingSystem =
     process.platform === "darwin"
       ? "macOS"
@@ -872,14 +877,15 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch(() => {
-  // Never serialize a caught protocol object: a denied body may have existed
-  // transiently in this process. The detailed failure stays only in memory.
-  process.stderr.write(`animated-image truth collector failed closed at ${safeFailureStage}\n`);
-  process.exitCode = 1;
-  // A crashed renderer can leave Playwright's transport handle alive even
-  // after bounded teardown. Force only this collector process to terminate;
-  // closing its remote-debugging pipe also tears down its headless browser.
-  const forcedExit = setTimeout(() => process.exit(1), 1_000);
-  forcedExit.unref();
-});
+if (isMain(import.meta.url))
+  main(process.argv.slice(2)).catch(() => {
+    // Never serialize a caught protocol object: a denied body may have existed
+    // transiently in this process. The detailed failure stays only in memory.
+    process.stderr.write(`animated-image truth collector failed closed at ${safeFailureStage}\n`);
+    process.exitCode = 1;
+    // A crashed renderer can leave Playwright's transport handle alive even
+    // after bounded teardown. Force only this collector process to terminate;
+    // closing its remote-debugging pipe also tears down its headless browser.
+    const forcedExit = setTimeout(() => process.exit(1), 1_000);
+    forcedExit.unref();
+  });

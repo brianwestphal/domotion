@@ -12,6 +12,13 @@ aliases: ["docs/191-cross-platform-border-phase-envelopes.md", "doc-191"]
 
 # Cross-platform border phase envelopes
 
+The oracle accepts `--json`, `--keep`, `--dsf`, `--zoom`, and `--report-only`;
+unknown options or missing values fail before capture starts.
+
+The ratifier CLI validates `--report`, `--baseline`, `--run-env`,
+`--artifact-dir`, and `--json` before reading evidence. Importing the module
+does not run adjudication.
+
 DM-2355 turns the diagnostic border/outline phase matrix from docs 127 and 129
 into a hard, source-scoped regression gate. The important qualification is
 **source-scoped**: a stable screenshot is not enough to ratify geometry that

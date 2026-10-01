@@ -20,6 +20,10 @@ aliases: ["docs/98-glyph-font-compare.md", "doc-98"]
 
 Status: **Shipped** (library + CLI + calibration harness).
 
+The CLI requires two image paths and accepts `--rect-a`, `--rect-b`, and
+`--json`. It rejects unknown options or missing values before reading images;
+importing the module does not run the comparison.
+
 Given two PNG crops of the SAME character — typically Chromium's expected
 paint vs Domotion's rendered SVG — decide with high probability whether they
 were rendered with **the same font** (family + size + weight + style + other

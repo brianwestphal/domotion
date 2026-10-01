@@ -5,7 +5,13 @@
 import { createHash } from "node:crypto";
 import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-const html = `<!doctype html><meta charset=utf8><style>
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
+
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const html = `<!doctype html><meta charset=utf8><style>
 @counter-style prefixed { system: numeric; symbols: "0" "1" "2" "3" "4" "5" "6" "7" "8" "9"; prefix: "Step "; suffix: ": "; pad: 2 "0"; }
 ol { counter-reset: step; } li { counter-increment: step; }
 li::before { content: counter(step, prefixed); color: #07a; }
@@ -19,10 +25,18 @@ q::before { content: open-quote; } q::after { content: close-quote; }
 <p><q>quoted text</q></p>
 <span class=ico>hairline</span><div class=sep>section</div>
 </body>`;
-await withBrowser(async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 400, height: 360 }, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  await page.setContent(html, { waitUntil: "networkidle" });
-  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 360 });
-  console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
-});
+    await withBrowser(async (browser) => {
+      const ctx = await browser.newContext({ viewport: { width: 400, height: 360 }, deviceScaleFactor: 1 });
+      const page = await ctx.newPage();
+      await page.setContent(html, { waitUntil: "networkidle" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 360 });
+      console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
+    });
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

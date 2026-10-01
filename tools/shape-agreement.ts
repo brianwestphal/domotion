@@ -94,6 +94,7 @@ import {
   usesHarfbuzzShaping,
 } from "@domotion/text-engine/testing";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 interface Disagreement {
   face: string;
@@ -240,16 +241,18 @@ function comparePair(
   return out;
 }
 
-function main(): void {
-  const argv = process.argv.slice(2);
-  const arg = (name: string): string | null => {
-    const i = argv.indexOf(name);
-    return i >= 0 && i + 1 < argv.length ? argv[i + 1] : null;
-  };
-  const jsonOut = arg("--json");
-  const filter = arg("--face");
-  const verbose = argv.includes("--verbose");
-  const maxReport = Number(arg("--max-report") ?? "40");
+export function main(argv: string[] = process.argv.slice(2)): number {
+  const values = parseFlags(argv, {
+    json: { type: "string" },
+    face: { type: "string" },
+    verbose: { type: "boolean" },
+    "max-report": { type: "string" },
+  });
+  const jsonOut = flag(values, "--json");
+  const filter = flag(values, "--face");
+  const verbose = values.verbose === true;
+  const maxReport = Number(flag(values, "--max-report", "40"));
+  if (!Number.isSafeInteger(maxReport) || maxReport < 0) throw new Error("--max-report requires a nonnegative integer");
 
   if (!isGlyphHelperAvailable()) {
     // Not a silent skip: on a platform with no `shape` helper there is no B side
@@ -257,7 +260,7 @@ function main(): void {
     console.error(`No native glyph helper with a shape query on ${process.platform} — nothing to compare against.`);
     console.error("This tool currently measures the macOS CoreText path. On other platforms the shaper is fontkit,");
     console.error("which needs a different B side (see the ticket).");
-    process.exit(2);
+    return 2;
   }
 
   // Both weights, not just 400. A family's cut stops being its base entry at
@@ -400,7 +403,7 @@ function main(): void {
   }
 
   console.log("");
-  process.exit(disagreements.length > 0 ? 1 : 0);
+  return disagreements.length > 0 ? 1 : 0;
 }
 
-main();
+if (isMain(import.meta.url)) await runMain(() => main());

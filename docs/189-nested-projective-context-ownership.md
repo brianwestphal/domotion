@@ -256,6 +256,11 @@ is resolved against its own report's directory by
 `tools/projective-owner-artifact-integrity.ts`, which then checks PNG decoding,
 SHA-256 and dimensions.
 
+The producer accepts `--json <path>`, `--artifacts <directory>`, and
+`--report-only`. It validates options before launching the audit, and importing
+the module does not produce artifacts. `--report-only` preserves a failed row in
+the report without making the command fail.
+
 - Artifact paths are **portable report-relative paths**. The producer writes
   them with `/`, and the adjudicator accepts both `/` and `\` and resolves them
   segment by segment. A Windows collector once wrote `artifacts\<fingerprint>\…`,

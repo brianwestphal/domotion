@@ -5,7 +5,6 @@ import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
@@ -15,6 +14,7 @@ import {
   getTextRunProvenance,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 import {
   clearGlyphDefs,
   clearWebfonts,
@@ -694,23 +694,21 @@ export async function collectPathsNativeRaster(options: CollectPathsRasterOption
   );
 }
 
-function cliArg(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index < 0 ? undefined : process.argv[index + 1];
-}
-
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const fontRoot = cliArg("--font-root"),
-    out = cliArg("--out"),
-    artifactDir = cliArg("--artifact-dir");
-  if (fontRoot == null || out == null || artifactDir == null)
-    throw new Error(
-      "usage: paths-native-raster-collector --font-root <dir> --out <observations.json> --artifact-dir <dir> [--dpr 1|2] [--run-label proposal|validation]",
-    );
-  const rawDpr = cliArg("--dpr");
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const values = parseFlags(argv, {
+    "font-root": { type: "string" },
+    out: { type: "string" },
+    "artifact-dir": { type: "string" },
+    dpr: { type: "string" },
+    "run-label": { type: "string" },
+  });
+  const fontRoot = requiredFlag(values, "--font-root");
+  const out = requiredFlag(values, "--out");
+  const artifactDir = requiredFlag(values, "--artifact-dir");
+  const rawDpr = flag(values, "--dpr");
   const dpr = rawDpr == null ? undefined : Number(rawDpr);
   if (dpr != null && dpr !== 1 && dpr !== 2) throw new Error("--dpr must be 1 or 2");
-  const runLabel = cliArg("--run-label") ?? "proposal";
+  const runLabel = flag(values, "--run-label") ?? "proposal";
   if (runLabel !== "proposal" && runLabel !== "validation")
     throw new Error("--run-label must be proposal or validation");
   const rows = await collectPathsNativeRaster({
@@ -722,3 +720,5 @@ if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process
   });
   console.log(`Collected ${rows.length} paths/native rows on ${platform()}/${arch()}.`);
 }
+
+if (isMain(import.meta.url)) await runMain(() => main());

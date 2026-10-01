@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { isMain, parseFlags } from "./lib/cli.js";
 import {
   adjudicateAnimatedImageOwnerResourceTruth,
   animatedImageTruthSha256,
@@ -84,8 +84,8 @@ export function runAnimatedImageOwnerResourceTruthAdjudicator(
   return { ...payload, reportSha256: animatedImageTruthSha256(payload) };
 }
 
-function runCli(): void {
-  const argv = process.argv.slice(2);
+function runCli(argv: string[]): void {
+  parseFlags(argv, { artifact: { type: "string" }, report: { type: "string" }, "allow-withheld": { type: "boolean" } });
   const artifactPaths = argumentValues(argv, "--artifact");
   if (artifactPaths.length === 0) {
     throw new Error("at least one --artifact path is required");
@@ -109,10 +109,9 @@ function runCli(): void {
   }
 }
 
-const isMain = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-if (isMain) {
+if (isMain(import.meta.url)) {
   try {
-    runCli();
+    runCli(process.argv.slice(2));
   } catch {
     // A malformed retained file may itself contain facts that are forbidden in
     // a denial artifact. Never echo its parser error, source text, or path.

@@ -15,10 +15,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { release as osRelease } from "node:os";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import { type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -1088,20 +1088,22 @@ export async function runUrlBackgroundGeometryGate(
   };
 }
 
-async function main(): Promise<number> {
-  const dprIndex = process.argv.indexOf("--dpr");
-  const parsedDprs =
-    (dprIndex >= 0 ? process.argv[dprIndex + 1] : "1,2")
-      ?.split(",")
-      .map(Number)
-      .filter((value) => Number.isFinite(value) && value > 0) ?? [];
-  const artifactsIndex = process.argv.indexOf("--artifacts");
-  const artifactDir = artifactsIndex >= 0 ? process.argv[artifactsIndex + 1] : undefined;
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, {
+    dpr: { type: "string" },
+    artifacts: { type: "string" },
+    json: { type: "string" },
+  });
+  const parsedDprs = flag(values, "--dpr", "1,2")!
+    .split(",")
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const artifactDir = flag(values, "--artifacts") ?? undefined;
   const report = await runUrlBackgroundGeometryGate(parsedDprs, artifactDir);
-  const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
-    mkdirSync(dirname(process.argv[jsonIndex + 1]), { recursive: true });
-    writeFileSync(process.argv[jsonIndex + 1], `${JSON.stringify(report, null, 2)}\n`);
+  const json = flag(values, "--json");
+  if (json != null) {
+    mkdirSync(dirname(json), { recursive: true });
+    writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
   }
   for (const run of report.runs) {
     const failures = run.rows.filter((row) => !row.pass);
@@ -1123,6 +1125,4 @@ async function main(): Promise<number> {
   return report.verdict === "pass" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

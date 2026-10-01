@@ -18,7 +18,6 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { platform } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type Browser, type BrowserContext, type Page } from "playwright";
 import {
   harfbuzzShapeRun,
@@ -29,6 +28,7 @@ import {
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";
@@ -1216,14 +1216,17 @@ export function validateSubstitutionArtifacts(
   };
 }
 
-function valueAfter(flag: string): string | undefined {
-  const index = process.argv.indexOf(flag);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
-async function main(): Promise<number> {
-  const aggregateInput = valueAfter("--aggregate");
-  const output = valueAfter("--json");
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, {
+    aggregate: { type: "string" },
+    json: { type: "string" },
+    validation: { type: "boolean" },
+    "logic-only": { type: "boolean" },
+  });
+  const aggregate = flag(args, "aggregate");
+  const aggregateInput = typeof aggregate === "string" ? aggregate : undefined;
+  const json = flag(args, "json");
+  const output = typeof json === "string" ? json : undefined;
   if (aggregateInput != null) {
     const reports = artifactJsonPaths(resolve(aggregateInput)).map(
       (path) => JSON.parse(readFileSync(path, "utf8")) as BrowserHarfBuzzSubstitutionReport,
@@ -1237,10 +1240,10 @@ async function main(): Promise<number> {
     return aggregate.verdict === "proposal-validation-agreement" ? 0 : 1;
   }
 
-  const evidence = process.argv.includes("--validation") ? "validation" : "proposal";
+  const evidence = flag(args, "validation", false) === true ? "validation" : "proposal";
   const report = await buildBrowserHarfBuzzSubstitutionReport({
     evidence,
-    includeBrowser: !process.argv.includes("--logic-only"),
+    includeBrowser: flag(args, "logic-only", false) !== true,
   });
   if (output != null) {
     const target = resolve(output);
@@ -1255,13 +1258,4 @@ async function main(): Promise<number> {
   return report.verdict === "exact-logical-agreement" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main()
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 2;
-    });
-}
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

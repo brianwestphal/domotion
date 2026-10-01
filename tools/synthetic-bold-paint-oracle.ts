@@ -28,6 +28,7 @@ import {
   type FakeBoldSvgPaintPass,
   type SkiaFakeBoldPaintStage,
 } from "@domotion/text-engine/testing";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 
 type Platform = "darwin" | "linux" | "win32";
 type Hinting = "unhinted" | "light" | "native-full";
@@ -267,7 +268,8 @@ export function runSyntheticBoldPaintOracle(): {
   };
 }
 
-function main(): void {
+export function main(argv: string[] = process.argv.slice(2)): void {
+  parseFlags(argv, {});
   const report = runSyntheticBoldPaintOracle();
   console.log(`synthetic-bold paint oracle: ${report.rows.length - report.failures}/${report.rows.length}`);
   console.log(`retired outline mutation: ${report.retiredMutationMoved}/${report.retiredMutationRows} moved`);
@@ -280,4 +282,4 @@ function main(): void {
     process.exitCode = 1;
 }
 
-if (import.meta.url === new URL(`file://${process.argv[1]}`).href) main();
+if (isMain(import.meta.url)) await runMain(() => main());

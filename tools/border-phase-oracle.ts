@@ -10,10 +10,10 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 
@@ -312,19 +312,21 @@ async function screenshotInVerticalTiles(page: Page, width: number, height: numb
     .toBuffer();
 }
 
-async function main(): Promise<number> {
-  const args = process.argv.slice(2);
-  const option = (name: string, fallback: string) => {
-    const i = args.indexOf(name);
-    return i >= 0 && args[i + 1] != null ? args[i + 1] : fallback;
-  };
-  const jsonPath = option("--json", ""),
-    keepDir = option("--keep", "");
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, {
+    json: { type: "string" },
+    keep: { type: "string" },
+    dsf: { type: "string" },
+    zoom: { type: "string" },
+    "report-only": { type: "boolean" },
+  });
+  const jsonPath = String(flag(args, "json", "")),
+    keepDir = String(flag(args, "keep", ""));
   const scenarios = buildPhaseScenarios(
-    numberList(option("--dsf", "4"), "--dsf"),
-    numberList(option("--zoom", "1"), "--zoom"),
+    numberList(String(flag(args, "dsf", "4")), "--dsf"),
+    numberList(String(flag(args, "zoom", "1")), "--zoom"),
   );
-  const reportOnly = args.includes("--report-only");
+  const reportOnly = flag(args, "report-only", false) === true;
   // Baseline envelopes are deliberately just above the measured 2026-08-15
   // maxima (0.551 / 0.471). A paint change may tighten them when it reduces
   // the named fixture residuals; widening them requires an explicit review.
@@ -470,12 +472,4 @@ async function main(): Promise<number> {
   }, undefined);
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href)
-  main()
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 2;
-    });
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

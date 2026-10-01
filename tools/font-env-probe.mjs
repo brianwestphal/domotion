@@ -14,71 +14,84 @@ import {
   resolveInstalledFont,
 } from "@domotion/text-engine/testing";
 import { getFontInstance } from "../src/render/font-resolution.js";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const P = (s) => console.log(`FONTPROBE: ${s}`);
-
-P(`platform=${process.platform} arch=${process.arch} release=${os.release()}`);
-
-// 0. Does the NAMED "SF Pro Text"/"SF Pro Display" family resolve on this
-// machine? (The conditional-mapping fix keys off this: Chrome can only paint
-// SF Pro Text when the named font is installed; the stock GitHub runner lacks
-// the standalone SF-Pro-*.otf, so this should be NULL there and non-null on a
-// dev Mac.)
-for (const n of [
-  "SF Pro Text",
-  "SF Pro Display",
-  "SF Pro",
-  // Other author-named fonts the unicode fixtures request via hardcoded-path
-  // keys: does Chrome resolve them on THIS machine? (If NULL but Domotion uses
-  // them unconditionally, that's a fall-through divergence like SF Pro Text.)
-  "Arial Unicode MS",
-  "Hiragino Kaku Gothic ProN",
-  "Arial",
-  "Helvetica",
-  "Times New Roman",
-  "Noto Sans",
-  "Noto Serif",
-  "Noto Sans KR",
-]) {
-  const r = resolveInstalledFont(n);
-  P(`resolveInstalledFont("${n}") = ${r ? `${r.postscriptName} @ ${r.path.split("/").pop()}` : "NULL"}`);
-}
-
-// 1. Does Domotion's `sf-pro` key resolve to a file that EXISTS + LOADS here?
-const sfSpec = resolveFontSpec("sf-pro");
-P(`sf-pro spec path = ${sfSpec?.path ?? "(null)"}`);
-P(`sf-pro path exists = ${sfSpec?.path ? existsSync(sfSpec.path) : "n/a"}`);
-const sfInst = getFontInstance("sf-pro", 400, 32);
-P(`getFontInstance("sf-pro") = ${sfInst ? "LOADED" : "NULL (falls through the chain!)"}`);
-if (sfInst) {
-  for (const cp of [0x41, 0x2c, 0x61, 0x1f130]) {
-    P(`  sf-pro covers U+${cp.toString(16).toUpperCase()} = ${sfInst.glyphForCodePoint(cp).id !== 0}`);
-  }
-}
-
-// 2. The fixture's actual font stack → key chain → which key each cp lands on.
-const css = `"SF Pro Text","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
-const chain = resolveFontKeyChain(css);
-P(`fixture key chain = ${JSON.stringify(chain)}`);
-for (const key of chain) {
-  const spec = resolveFontSpec(key);
-  const inst = getFontInstance(key, 400, 32);
-  P(
-    `  chain key ${key}: path=${spec?.path?.split("/").pop() ?? "(dynamic)"} exists=${spec?.path ? existsSync(spec.path) : "?"} loaded=${!!inst} covers','=${inst ? inst.glyphForCodePoint(0x2c).id !== 0 : "?"}`,
-  );
-}
-
-// 3. What does CoreText (what Chromium paints) cascade the comma / letters to?
-for (const cp of [0x2c, 0x41, 0x61, 0x1f130]) {
-  P(`CoreText resolve U+${cp.toString(16).toUpperCase()} = ${ctResolve(cp) ?? "(null)"}`);
-}
-
-// 4. What SF / system font files are actually present on this machine?
-for (const dir of ["/System/Library/Fonts", "/Library/Fonts", "/System/Library/Fonts/Supplemental"]) {
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
   try {
-    const sf = readdirSync(dir).filter((f) => /SF|SFNS|Helvetica|\.ttc$|SFPro/i.test(f) && /SF|Helvetica/i.test(f));
-    P(`${dir}: ${sf.join(", ") || "(no SF/Helvetica files)"}`);
-  } catch {
-    P(`${dir}: (unreadable)`);
+    const P = (s) => console.log(`FONTPROBE: ${s}`);
+
+    P(`platform=${process.platform} arch=${process.arch} release=${os.release()}`);
+
+    // 0. Does the NAMED "SF Pro Text"/"SF Pro Display" family resolve on this
+    // machine? (The conditional-mapping fix keys off this: Chrome can only paint
+    // SF Pro Text when the named font is installed; the stock GitHub runner lacks
+    // the standalone SF-Pro-*.otf, so this should be NULL there and non-null on a
+    // dev Mac.)
+    for (const n of [
+      "SF Pro Text",
+      "SF Pro Display",
+      "SF Pro",
+      // Other author-named fonts the unicode fixtures request via hardcoded-path
+      // keys: does Chrome resolve them on THIS machine? (If NULL but Domotion uses
+      // them unconditionally, that's a fall-through divergence like SF Pro Text.)
+      "Arial Unicode MS",
+      "Hiragino Kaku Gothic ProN",
+      "Arial",
+      "Helvetica",
+      "Times New Roman",
+      "Noto Sans",
+      "Noto Serif",
+      "Noto Sans KR",
+    ]) {
+      const r = resolveInstalledFont(n);
+      P(`resolveInstalledFont("${n}") = ${r ? `${r.postscriptName} @ ${r.path.split("/").pop()}` : "NULL"}`);
+    }
+
+    // 1. Does Domotion's `sf-pro` key resolve to a file that EXISTS + LOADS here?
+    const sfSpec = resolveFontSpec("sf-pro");
+    P(`sf-pro spec path = ${sfSpec?.path ?? "(null)"}`);
+    P(`sf-pro path exists = ${sfSpec?.path ? existsSync(sfSpec.path) : "n/a"}`);
+    const sfInst = getFontInstance("sf-pro", 400, 32);
+    P(`getFontInstance("sf-pro") = ${sfInst ? "LOADED" : "NULL (falls through the chain!)"}`);
+    if (sfInst) {
+      for (const cp of [0x41, 0x2c, 0x61, 0x1f130]) {
+        P(`  sf-pro covers U+${cp.toString(16).toUpperCase()} = ${sfInst.glyphForCodePoint(cp).id !== 0}`);
+      }
+    }
+
+    // 2. The fixture's actual font stack → key chain → which key each cp lands on.
+    const css = `"SF Pro Text","Arial Unicode MS","Apple Symbols","Apple Color Emoji","Noto Sans","Noto Serif",sans-serif`;
+    const chain = resolveFontKeyChain(css);
+    P(`fixture key chain = ${JSON.stringify(chain)}`);
+    for (const key of chain) {
+      const spec = resolveFontSpec(key);
+      const inst = getFontInstance(key, 400, 32);
+      P(
+        `  chain key ${key}: path=${spec?.path?.split("/").pop() ?? "(dynamic)"} exists=${spec?.path ? existsSync(spec.path) : "?"} loaded=${!!inst} covers','=${inst ? inst.glyphForCodePoint(0x2c).id !== 0 : "?"}`,
+      );
+    }
+
+    // 3. What does CoreText (what Chromium paints) cascade the comma / letters to?
+    for (const cp of [0x2c, 0x41, 0x61, 0x1f130]) {
+      P(`CoreText resolve U+${cp.toString(16).toUpperCase()} = ${ctResolve(cp) ?? "(null)"}`);
+    }
+
+    // 4. What SF / system font files are actually present on this machine?
+    for (const dir of ["/System/Library/Fonts", "/Library/Fonts", "/System/Library/Fonts/Supplemental"]) {
+      try {
+        const sf = readdirSync(dir).filter((f) => /SF|SFNS|Helvetica|\.ttc$|SFPro/i.test(f) && /SF|Helvetica/i.test(f));
+        P(`${dir}: ${sf.join(", ") || "(no SF/Helvetica files)"}`);
+      } catch {
+        P(`${dir}: (unreadable)`);
+      }
+    }
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
   }
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

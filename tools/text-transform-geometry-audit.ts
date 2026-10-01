@@ -8,11 +8,11 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { type CDPSession, type ElementHandle, type Page } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import type {
@@ -1136,22 +1136,18 @@ export async function runTextTransformGeometryAudit(
   );
 }
 
-async function main(): Promise<number> {
-  const dprIndex = process.argv.indexOf("--dpr"),
-    dprs =
-      dprIndex >= 0 && process.argv[dprIndex + 1] != null ? process.argv[dprIndex + 1].split(",").map(Number) : [1, 2];
-  const artifactIndex = process.argv.indexOf("--artifact-dir");
-  const artifactDir =
-    artifactIndex >= 0 && process.argv[artifactIndex + 1] != null
-      ? resolve(process.argv[artifactIndex + 1])
-      : undefined;
-  const report = await runTextTransformGeometryAudit({ deviceScaleFactors: dprs, artifactDir }),
-    jsonIndex = process.argv.indexOf("--json"),
-    reportPath = resolve(
-      jsonIndex >= 0 && process.argv[jsonIndex + 1] != null
-        ? process.argv[jsonIndex + 1]
-        : `tests/output/text-transform-parity-${platform()}.json`,
-    );
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, {
+    dpr: { type: "string" },
+    "artifact-dir": { type: "string" },
+    json: { type: "string" },
+  });
+  const dpr = flag(values, "--dpr");
+  const dprs = dpr == null ? [1, 2] : dpr.split(",").map(Number);
+  const artifact = flag(values, "--artifact-dir");
+  const artifactDir = artifact == null ? undefined : resolve(artifact);
+  const report = await runTextTransformGeometryAudit({ deviceScaleFactors: dprs, artifactDir });
+  const reportPath = resolve(flag(values, "--json", `tests/output/text-transform-parity-${platform()}.json`)!);
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   console.log(
@@ -1168,4 +1164,4 @@ async function main(): Promise<number> {
   console.log(`report: ${reportPath}`);
   return report.verdict === "hard-two-leg-transformed-text-parity" ? 0 : 1;
 }
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();
+if (isMain(import.meta.url)) await runMain(() => main());

@@ -4,10 +4,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import type { CapturedElement } from "../src/capture/types.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
@@ -564,14 +564,14 @@ export async function runSvgEffectCombinationOracle(
   );
 }
 
-async function main(): Promise<number> {
-  const dprIndex = process.argv.indexOf("--dpr");
-  const deviceScaleFactors =
-    dprIndex >= 0 && process.argv[dprIndex + 1] != null ? process.argv[dprIndex + 1].split(",").map(Number) : [1, 2];
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { dpr: { type: "string" }, json: { type: "string" } });
+  const dpr = flag(values, "--dpr");
+  const deviceScaleFactors = dpr == null ? [1, 2] : dpr.split(",").map(Number);
   const report = await runSvgEffectCombinationOracle({ deviceScaleFactors });
-  const jsonIndex = process.argv.indexOf("--json");
-  if (jsonIndex >= 0 && process.argv[jsonIndex + 1] != null) {
-    const output = resolve(process.argv[jsonIndex + 1]);
+  const json = flag(values, "--json");
+  if (json != null) {
+    const output = resolve(json);
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
   }
@@ -592,4 +592,4 @@ async function main(): Promise<number> {
   return report.verdict === "source-exact-native-svg-delegation" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();
+if (isMain(import.meta.url)) await runMain(() => main());

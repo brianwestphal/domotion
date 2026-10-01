@@ -4219,6 +4219,16 @@
       "file": "265-capture-boundary-lifecycle.md"
     },
     {
+      "id": "requirements/tool-command-boundary",
+      "title": "Tool command boundary",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["tools"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": ["tools/lib/cli.mjs", "tools/lib/cli.ts"],
+      "file": "266-tool-command-boundary.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

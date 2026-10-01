@@ -2,57 +2,70 @@
 // families whose name the shipping matcher rejects? Run inside the noble
 // container: CMD="node tools/scratch/probe-1955-declared-walk.mjs" npm run test:linux-docker
 import { withBrowser } from "./lib/browser.mjs";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
-const families = [
-  '"Courier New"',
-  "Courier",
-  "Consolas",
-  "monospace",
-  "Georgia",
-  "Helvetica",
-  '"Helvetica Neue"',
-  "Times",
-  '"Times New Roman"',
-  "Arial",
-  "serif",
-  "sans-serif",
-  "Menlo",
-  "Monaco",
-  '"SF Mono"',
-  "Papyrus",
-  "cursive",
-  "fantasy",
-];
-const weights = [400, 550, 700];
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const families = [
+      '"Courier New"',
+      "Courier",
+      "Consolas",
+      "monospace",
+      "Georgia",
+      "Helvetica",
+      '"Helvetica Neue"',
+      "Times",
+      '"Times New Roman"',
+      "Arial",
+      "serif",
+      "sans-serif",
+      "Menlo",
+      "Monaco",
+      '"SF Mono"',
+      "Papyrus",
+      "cursive",
+      "fantasy",
+    ];
+    const weights = [400, 550, 700];
 
-await withBrowser(async (browser) => {
-  const page = await browser.newPage();
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("DOM.enable");
-  await cdp.send("CSS.enable");
+    await withBrowser(async (browser) => {
+      const page = await browser.newPage();
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("DOM.enable");
+      await cdp.send("CSS.enable");
 
-  const html = ["<body>"];
-  let id = 0;
-  for (const fam of families) {
-    for (const w of weights) {
-      html.push(
-        `<div id="p${id++}" style="font-family:${fam.replace(/"/g, "&quot;")};font-weight:${w};font-size:24px">Hamburgefonstiv 123</div>`,
-      );
-    }
+      const html = ["<body>"];
+      let id = 0;
+      for (const fam of families) {
+        for (const w of weights) {
+          html.push(
+            `<div id="p${id++}" style="font-family:${fam.replace(/"/g, "&quot;")};font-weight:${w};font-size:24px">Hamburgefonstiv 123</div>`,
+          );
+        }
+      }
+      html.push("</body>");
+      await page.setContent(html.join("\n"));
+
+      const doc = await cdp.send("DOM.getDocument", { depth: -1 });
+      const out = [];
+      id = 0;
+      for (const fam of families) {
+        for (const w of weights) {
+          const node = await cdp.send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: `#p${id++}` });
+          const fonts = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: node.nodeId });
+          const best = fonts.fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0];
+          out.push({ family: fam, weight: w, painted: best?.familyName ?? "(none)", ps: best?.postScriptName ?? "" });
+        }
+      }
+      console.log(JSON.stringify(out, null, 1));
+    });
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
   }
-  html.push("</body>");
-  await page.setContent(html.join("\n"));
+}
 
-  const doc = await cdp.send("DOM.getDocument", { depth: -1 });
-  const out = [];
-  id = 0;
-  for (const fam of families) {
-    for (const w of weights) {
-      const node = await cdp.send("DOM.querySelector", { nodeId: doc.root.nodeId, selector: `#p${id++}` });
-      const fonts = await cdp.send("CSS.getPlatformFontsForNode", { nodeId: node.nodeId });
-      const best = fonts.fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0];
-      out.push({ family: fam, weight: w, painted: best?.familyName ?? "(none)", ps: best?.postScriptName ?? "" });
-    }
-  }
-  console.log(JSON.stringify(out, null, 1));
-});
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -3,14 +3,28 @@
 import { createHash } from "node:crypto";
 import { withBrowser } from "./lib/browser.mjs";
 import { captureElementTree } from "/Users/westphal/Documents/domotion/dist/capture/index.js";
-const html = `<!doctype html><meta charset=utf8><body style="margin:0;font-size:24px">
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
+
+async function main(argv) {
+  const { positionals } = parseCommand(argv, {});
+  if (positionals.length > 0) throw new Error("unexpected positional arguments");
+  try {
+    const html = `<!doctype html><meta charset=utf8><body style="margin:0;font-size:24px">
 <math><mrow><mi>a</mi><mo>+</mo><mi>x</mi><mo>=</mo><mi>h</mi><mi>α</mi><mi>ϑ</mi><mi>∇</mi></mrow></math>
 <p style="font-size:40px">Drop cap paragraph with a styled <span style="font-weight:bold">first</span> word.</p>
 </body>`;
-await withBrowser(async (browser) => {
-  const ctx = await browser.newContext({ viewport: { width: 600, height: 300 }, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  await page.setContent(html, { waitUntil: "networkidle" });
-  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 600, height: 300 });
-  console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
-});
+    await withBrowser(async (browser) => {
+      const ctx = await browser.newContext({ viewport: { width: 600, height: 300 }, deviceScaleFactor: 1 });
+      const page = await ctx.newPage();
+      await page.setContent(html, { waitUntil: "networkidle" });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 600, height: 300 });
+      console.log(createHash("sha256").update(JSON.stringify(tree)).digest("hex"));
+    });
+    return 0;
+  } catch (error) {
+    console.error(error);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -2,7 +2,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { type Browser } from "playwright";
 import bidiFactory from "bidi-js";
 import {
@@ -16,6 +15,7 @@ import {
   segmentForShaping,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   clearEmbeddedFonts,
   clearGlyphDefs,
@@ -112,8 +112,6 @@ const cases: OracleCase[] = [
   },
 ];
 
-const outputAt = process.argv.indexOf("--json");
-const output = outputAt >= 0 ? process.argv[outputAt + 1] : undefined;
 const family = "Helvetica, Arial, sans-serif";
 const bidi = bidiFactory();
 
@@ -455,7 +453,9 @@ export function compareRouteControls(records: Awaited<ReturnType<typeof collectC
   return { controls, mechanisms };
 }
 
-async function main(): Promise<number> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
+  const output = flag(values, "--json");
   const helperObserved = isGlyphHelperAvailable();
   const helperPath = resolvedGlyphHelperPathForEvidence();
   const helperImplementationIdentity =
@@ -492,13 +492,4 @@ async function main(): Promise<number> {
   );
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main()
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error: unknown) => {
-      console.error(error);
-      process.exitCode = 2;
-    });
-}
+if (isMain(import.meta.url)) await runMain(() => main());

@@ -2,6 +2,7 @@
 /** DM-2542 deterministic frozen-frame investigation; no production mutation. */
 import { createHash } from "node:crypto";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 
@@ -61,8 +62,10 @@ export async function runLiveReplacedMediaOwnershipAudit() {
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const report = await runLiveReplacedMediaOwnershipAudit();
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (report.verdict !== "frozen-frame-exact") process.exitCode = 1;
-}
+if (isMain(import.meta.url))
+  await runMain(async () => {
+    parseFlags(process.argv.slice(2), {});
+    const report = await runLiveReplacedMediaOwnershipAudit();
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    return report.verdict === "frozen-frame-exact" ? 0 : 1;
+  });

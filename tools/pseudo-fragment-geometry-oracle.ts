@@ -2,9 +2,9 @@
 /** Live Chromium structural oracle for generated ::before/::after fragments. */
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 import {
@@ -665,11 +665,11 @@ export async function runPseudoFragmentGeometryOracle(
   );
 }
 
-async function main(): Promise<number> {
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
   const report = await runPseudoFragmentGeometryOracle();
-  const outputIndex = process.argv.indexOf("--json");
-  if (outputIndex >= 0 && process.argv[outputIndex + 1] != null)
-    writeFileSync(process.argv[outputIndex + 1], JSON.stringify(report, null, 2));
+  const json = flag(values, "--json");
+  if (json != null) writeFileSync(json, JSON.stringify(report, null, 2));
   const passed = report.rows.filter((row) => row.pass).length;
   const rejected = report.mutations.filter((mutation) => mutation.rejected).length;
   console.log(
@@ -682,4 +682,4 @@ async function main(): Promise<number> {
   return report.verdict === "source-exact" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();
+if (isMain(import.meta.url)) await runMain(() => main());

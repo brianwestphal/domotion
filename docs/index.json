@@ -5681,6 +5681,20 @@
       }
     },
     {
+      "file": "266-tool-command-boundary.md",
+      "metadata": {
+        "id": "requirements/tool-command-boundary",
+        "title": "Tool command boundary",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["tools"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-AP6BPA", "DM-M9KT76"],
+        "code": ["tools/lib/cli.mjs", "tools/lib/cli.ts"],
+        "aliases": ["docs/266-tool-command-boundary.md", "doc-266"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6128,6 +6142,7 @@
     "263": ["requirements/nine-piece-image-paint"],
     "264": ["requirements/opentype-math-radical-geometry"],
     "265": ["requirements/capture-boundary-lifecycle"],
+    "266": ["requirements/tool-command-boundary"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

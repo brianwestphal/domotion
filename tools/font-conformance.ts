@@ -58,6 +58,7 @@
 import { hostname, cpus, release } from "node:os";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { inventoryDocument } from "./font-inventory.mjs";
 import { intFlag, parseShardSpec } from "./lib/conformance-args.js";
 
@@ -159,7 +160,6 @@ function parityEnvironment(chromiumVersion: string): Record<string, unknown> {
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
 import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
 import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
@@ -1247,6 +1247,29 @@ export interface Options {
 }
 
 export function parseArgs(argv: string[]): Options {
+  parseFlags(argv, {
+    stacks: { type: "string" },
+    "extract-stacks": { type: "boolean" },
+    source: { type: "string" },
+    range: { type: "string", multiple: true },
+    "sample-byte": { type: "string" },
+    "no-pua": { type: "boolean" },
+    shard: { type: "string" },
+    "stack-shard": { type: "string" },
+    batch: { type: "string" },
+    concurrency: { type: "string" },
+    out: { type: "string" },
+    allowlist: { type: "string" },
+    "strict-alias": { type: "boolean" },
+    "max-stacks": { type: "string" },
+    "stack-filter": { type: "string" },
+    "max-rows": { type: "string" },
+    "reset-every": { type: "string" },
+    "allow-foreign-corpus": { type: "boolean" },
+    lang: { type: "string" },
+    h: { type: "boolean" },
+    help: { type: "boolean" },
+  });
   const o: Options = {
     stacksFile: DEFAULT_STACKS_FILE,
     extractStacks: false,
@@ -1959,8 +1982,8 @@ export async function sweepStack(
   }
 }
 
-async function main(): Promise<number> {
-  const opts = parseArgs(process.argv.slice(2));
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const opts = parseArgs(argv);
   try {
     if (opts.extractStacks) {
       const dirs = opts.sources.filter((d) => existsSync(d));
@@ -2077,16 +2100,4 @@ async function main(): Promise<number> {
 // Only sweep when run as a script. The pure pieces above (`buildUniverse`,
 // `identifyFace`, `mismatchClass`, `loadAllowlist`, …) are imported by
 // `tests/font-conformance.test.ts`, which must not launch a browser.
-const invokedDirectly = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-
-if (invokedDirectly) {
-  main().then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (err: unknown) => {
-      process.stderr.write(`font-conformance failed: ${String(err instanceof Error ? err.stack : err)}\n`);
-      process.exitCode = 2;
-    },
-  );
-}
+if (isMain(import.meta.url)) await runMain(() => main());

@@ -21,6 +21,7 @@ import {
   type CollapsedBorderFragmentRecord,
 } from "../src/capture/collapsed-border-fragment-record.js";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
@@ -1004,14 +1005,11 @@ export async function runCollapsedBorderFragmentationOracle(): Promise<Collapsed
   );
 }
 
-function parseJsonPath(args: string[]): string | null {
-  const index = args.indexOf("--json");
-  return index >= 0 ? (args[index + 1] ?? null) : null;
-}
-
-if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, { json: { type: "string" } });
+  const json = flag(args, "json");
+  const jsonPath = typeof json === "string" ? json : null;
   const report = await runCollapsedBorderFragmentationOracle();
-  const jsonPath = parseJsonPath(process.argv.slice(2));
   if (jsonPath != null) {
     mkdirSync(dirname(resolve(jsonPath)), { recursive: true });
     writeFileSync(resolve(jsonPath), `${JSON.stringify(report, null, 2)}\n`);
@@ -1025,5 +1023,7 @@ if (process.argv[1] != null && resolve(process.argv[1]) === fileURLToPath(import
       `${mutation.moved ? "PASS" : "FAIL"} mutation ${mutation.id}: ${mutation.baseline} -> ${mutation.mutated}`,
     );
   if (jsonPath != null) console.log(`report: ${resolve(jsonPath)}`);
-  if (!report.pass) process.exitCode = 1;
+  return report.pass ? 0 : 1;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

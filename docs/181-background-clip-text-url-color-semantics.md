@@ -18,6 +18,10 @@ aliases: ["docs/181-background-clip-text-url-color-semantics.md", "doc-181"]
 
 # 181 — `background-clip:text` URL and color semantics
 
+The oracle CLI accepts `--dpr`, `--json`, and `--artifact-dir`. Unknown options
+and missing values fail before browser work; importing the module does not
+start a run.
+
 DM-2366 closes the two remaining paint gaps in the vector text-clip route:
 source-selected `url()` background images and a non-transparent
 `background-color`. Text remains native SVG path/text output; no screenshot of

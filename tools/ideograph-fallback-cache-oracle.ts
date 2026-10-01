@@ -18,6 +18,7 @@ import {
   withFontRendererSession,
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { resolveFontKey } from "../src/render/font-resolution.js";
 
 const EXT_A = 0x3400;
@@ -63,8 +64,9 @@ function row(scenario: string, chromiumPostScript: string | null, domotionKey: s
   };
 }
 
-async function main(): Promise<void> {
-  const disabledArm = process.argv.includes("--disabled-arm");
+async function main(argv: string[]): Promise<number> {
+  const args = parseFlags(argv, { "disabled-arm": { type: "boolean" } });
+  const disabledArm = flag(args, "disabled-arm", false) === true;
   if (process.platform !== "darwin") throw new Error("This oracle targets Chromium/CoreText on macOS");
   const rows: Row[] = [];
   clearCharacterFallbackRendererScopesForTest();
@@ -143,6 +145,7 @@ async function main(): Promise<void> {
     result.disabledArm = JSON.parse(child.stdout) as unknown;
   }
   console.log(JSON.stringify(result, null, 2));
+  return 0;
 }
 
-await main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

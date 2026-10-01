@@ -30,7 +30,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
 const FONT_EXT = /\.(ttf|ttc|otf|otc|dfont|pfb|woff2?)$/i;
 
@@ -97,17 +97,19 @@ export function inventoryDocument() {
   return { platform: process.platform, arch: process.arch, source, count: entries.length, digest, entries };
 }
 
-function main() {
-  const args = process.argv.slice(2);
+function main(argv) {
+  const { values, positionals } = parseCommand(argv, { digest: { type: "boolean" } });
+  if (positionals.length > 1) throw new Error("expected at most one output path");
   const doc = inventoryDocument();
-  if (args.includes("--digest")) {
+  if (values.digest) {
     process.stdout.write(`${doc.digest}\n`);
-    return;
+    return 0;
   }
-  const out = args.find((a) => !a.startsWith("--"));
+  const out = positionals[0];
   const json = `${JSON.stringify(doc, null, 2)}\n`;
   if (out != null) writeFileSync(out, json);
   process.stdout.write(out != null ? `font-inventory: ${doc.count} entries, digest ${doc.digest} → ${out}\n` : json);
+  return 0;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { fileURLToPath } from "node:url";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   buildDecorationFragmentRecords,
   selectDecorationFragment,
@@ -161,8 +161,11 @@ export function runOracle() {
   };
 }
 
-if (process.argv[1] != null && fileURLToPath(import.meta.url) === process.argv[1]) {
+export function main(argv: string[] = process.argv.slice(2)): number {
+  parseFlags(argv, {});
   const report = runOracle();
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  process.exitCode = report.pass ? 0 : 1;
+  return report.pass ? 0 : 1;
 }
+
+if (isMain(import.meta.url)) await runMain(() => main());

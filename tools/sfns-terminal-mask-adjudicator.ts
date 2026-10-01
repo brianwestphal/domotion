@@ -21,7 +21,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 import {
   SFNS_CONTROL_IDS,
   SFNS_PINNED_SCENARIOS,
@@ -692,11 +692,6 @@ export function adjudicateSfnsTerminalMasks(
   return { ...payload, reportDigest: reportDigest(payload) };
 }
 
-function argumentValue(argv: string[], flag: string): string | undefined {
-  const index = argv.indexOf(flag);
-  return index < 0 ? undefined : argv[index + 1];
-}
-
 function readArtifact<T>(path: string): { artifact: T; file: InputFileIdentity } {
   const absolutePath = resolve(path);
   const bytes = readFileSync(absolutePath);
@@ -706,17 +701,19 @@ function readArtifact<T>(path: string): { artifact: T; file: InputFileIdentity }
   };
 }
 
-function runCli(): void {
-  const argv = process.argv.slice(2);
-  const proposalPath = argumentValue(argv, "--proposal");
-  const validationPath = argumentValue(argv, "--validation");
-  if (proposalPath == null || validationPath == null) {
-    throw new Error("--proposal and --validation artifact paths are required");
-  }
+export function runCli(argv: string[] = process.argv.slice(2)): number {
+  const values = parseFlags(argv, {
+    proposal: { type: "string" },
+    validation: { type: "string" },
+    report: { type: "string" },
+    "allow-not-ready": { type: "boolean" },
+  });
+  const proposalPath = requiredFlag(values, "--proposal");
+  const validationPath = requiredFlag(values, "--validation");
   const proposal = readArtifact<SfnsPinnedSkiaProposalArtifact>(proposalPath);
   const validation = readArtifact<SfnsPinnedChromiumValidationArtifact>(validationPath);
   const report = adjudicateSfnsTerminalMasks(proposal.artifact, validation.artifact, proposal.file, validation.file);
-  const reportPath = argumentValue(argv, "--report");
+  const reportPath = flag(values, "--report");
   if (reportPath != null) {
     writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`);
   }
@@ -726,8 +723,7 @@ function runCli(): void {
     `${report.inputIntegrityErrors.length} integrity errors, ` +
     `${report.mismatches.length} exact mismatches; report ${report.reportDigest}`;
   console.log(summary);
-  if (!report.ready && !argv.includes("--allow-not-ready")) process.exitCode = 1;
+  return report.ready || values["allow-not-ready"] === true ? 0 : 1;
 }
 
-const isMain = process.argv[1] != null && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
-if (isMain) runCli();
+if (isMain(import.meta.url)) await runMain(() => runCli());

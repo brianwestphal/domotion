@@ -11,13 +11,13 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   ICU_BINARY,
   isIcuHelperAvailable,
   queryIcuCodepoints,
   type IcuCodepointProperties,
 } from "@domotion/text-engine/testing";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   GRAPHEME_EXTEND_RANGES,
   MIXED_VERTICAL_UPRIGHT_RANGES,
@@ -358,26 +358,24 @@ export function buildVerticalOrientationOracle(
   };
 }
 
-function argument(name: string): string | undefined {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
-async function main(): Promise<void> {
-  const report = buildVerticalOrientationOracle({
-    sourcePath: argument("--source"),
-    requireSource: process.argv.includes("--require-source"),
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const values = parseFlags(argv, {
+    source: { type: "string" },
+    "require-source": { type: "boolean" },
+    json: { type: "string" },
   });
-  const output = argument("--json");
+  const report = buildVerticalOrientationOracle({
+    sourcePath: flag(values, "--source") ?? undefined,
+    requireSource: values["require-source"] === true,
+  });
+  const output = flag(values, "--json");
   if (output != null) {
     const path = resolve(output);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
   }
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (report.verdict !== "exact-logical-match") process.exitCode = 1;
+  return report.verdict === "exact-logical-match" ? 0 : 1;
 }
 
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  await main();
-}
+if (isMain(import.meta.url)) await runMain(() => main());

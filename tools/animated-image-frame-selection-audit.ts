@@ -11,6 +11,7 @@ import { dirname, resolve } from "node:path";
 import { createServer, type Server } from "node:http";
 import { type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
+import { flag, parseFlags } from "./lib/cli.js";
 
 export const ANIMATED_IMAGE_CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 
@@ -498,16 +499,15 @@ export async function runAnimatedImageFrameSelectionAudit(): Promise<AnimatedIma
   }
 }
 
-export async function mainAnimatedImageFrameSelectionAudit(argv = process.argv): Promise<void> {
+export async function mainAnimatedImageFrameSelectionAudit(argv: string[]): Promise<number> {
+  const values = parseFlags(argv, { json: { type: "string" } });
+  const output = flag(values, "json");
   const report = await runAnimatedImageFrameSelectionAudit();
   const json = `${JSON.stringify(report, null, 2)}\n`;
-  const jsonIndex = argv.indexOf("--json");
-  if (jsonIndex >= 0) {
-    const output = argv[jsonIndex + 1];
-    if (output == null || output.startsWith("--")) throw new Error("--json requires an output path");
+  if (typeof output === "string") {
     const path = resolve(output);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, json);
   } else process.stdout.write(json);
-  if (report.verdict !== "decoder-frame-exact") process.exitCode = 1;
+  return report.verdict === "decoder-frame-exact" ? 0 : 1;
 }

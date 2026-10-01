@@ -24,6 +24,7 @@ import { arch, platform, release, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type BrowserContext, type CDPSession, type Frame, type Page } from "@playwright/test";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -1169,13 +1170,17 @@ export async function runGenericProfileTargetOracle(
   }
 }
 
-if (process.argv[1]?.endsWith("generic-profile-target-oracle.ts")) {
-  const report = await runGenericProfileTargetOracle({
-    allowHeadedBrowser: process.argv.includes("--allow-headed-browser"),
+if (isMain(import.meta.url))
+  await runMain(async () => {
+    const flags = parseFlags(process.argv.slice(2), {
+      "allow-headed-browser": { type: "boolean" },
+      json: { type: "string" },
+    });
+    const report = await runGenericProfileTargetOracle({
+      allowHeadedBrowser: flags["allow-headed-browser"] === true,
+    });
+    const json = `${JSON.stringify(report, null, 2)}\n`;
+    if (typeof flags.json === "string" && flags.json !== "") writeFileSync(resolve(flags.json), json);
+    process.stdout.write(json);
+    return report.verdict === "source-exact" ? 0 : 1;
   });
-  const at = process.argv.indexOf("--json");
-  const json = `${JSON.stringify(report, null, 2)}\n`;
-  if (at >= 0 && process.argv[at + 1]) writeFileSync(resolve(process.argv[at + 1]), json);
-  process.stdout.write(json);
-  process.exitCode = report.verdict === "source-exact" ? 0 : 1;
-}

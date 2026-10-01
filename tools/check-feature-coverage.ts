@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { FEATURES } from "../tests/feature-coverage.js";
 import { transitionEvidenceProblems } from "./feature-transition-evidence.js";
+import { isMain, parseFlags } from "./lib/cli.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -34,7 +35,8 @@ const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8")) as {
 };
 const BINS = Object.keys(pkg.bin ?? {});
 
-async function main(): Promise<void> {
+async function main(argv: string[]): Promise<number> {
+  parseFlags(argv, {});
   const problems: string[] = [];
   const warn = (s: string): void => {
     problems.push(s);
@@ -130,17 +132,22 @@ async function main(): Promise<void> {
     console.log(
       "✅ Every public export + CLI verb/bin is claimed by a feature, and every feature/transition has an exact asserting test.\n",
     );
-    process.exit(0);
+    return 0;
   }
   console.log(`\n💥 Feature-coverage check failed: ${problems.length} problem(s).`);
   console.log(
     "   Fix: add the missing exact transition test, add/repair the feature entry in tests/feature-coverage.ts,",
   );
   console.log("   or map the new export/verb to a feature. See docs/83-feature-coverage.md.\n");
-  process.exit(1);
+  return 1;
 }
 
-main().catch((err) => {
-  console.error("check-feature-coverage crashed:", err);
-  process.exit(2);
-});
+if (isMain(import.meta.url))
+  main(process.argv.slice(2))
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((err) => {
+      console.error("check-feature-coverage crashed:", err);
+      process.exitCode = 2;
+    });

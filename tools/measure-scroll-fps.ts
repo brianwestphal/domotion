@@ -23,6 +23,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
 import { chromium, webkit, firefox, type BrowserType } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
+import { flag, isMain, parseCommand, runMain } from "./lib/cli.js";
 
 type BrowserName = "chromium" | "webkit" | "firefox";
 
@@ -211,41 +212,46 @@ function fmtMs(n: number): string {
   return `${n.toFixed(1).padStart(6)} ms`;
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const { values, positionals: files } = parseCommand(argv, {
+    browser: { type: "string" },
+    "cycle-ms": { type: "string" },
+    segments: { type: "string" },
+    cycles: { type: "string" },
+    "warmup-ms": { type: "string" },
+    headless: { type: "boolean" },
+  });
   const numArg = (flag: string, dflt: number): number => {
-    const i = args.indexOf(flag);
-    return i >= 0 ? Number(args[i + 1]) : dflt;
+    const raw = values[flag.slice(2)];
+    if (raw == null) return dflt;
+    const number = Number(raw);
+    if (!Number.isFinite(number) || number < 0) throw new Error(`${flag} requires a nonnegative number`);
+    return number;
   };
-  const strArg = (flag: string, dflt: string): string => {
-    const i = args.indexOf(flag);
-    return i >= 0 ? args[i + 1] : dflt;
-  };
-  const browserName = strArg("--browser", "chromium") as BrowserName;
+  const browserName = flag(values, "--browser", "chromium") as BrowserName;
   if (browserName !== "chromium" && browserName !== "webkit" && browserName !== "firefox") {
     console.error(`Invalid --browser '${browserName}'. Use chromium | webkit | firefox.`);
-    process.exit(1);
+    throw new Error(`Invalid --browser '${browserName}'. Use chromium | webkit | firefox.`);
   }
   const opts: ProbeOptions = {
     cycleMs: numArg("--cycle-ms", 12000),
     segments: numArg("--segments", 8),
     cycles: numArg("--cycles", 2),
     warmupMs: numArg("--warmup-ms", 1000),
-    headless: args.includes("--headless"),
+    headless: values.headless === true,
     browser: browserName,
   };
 
-  const files = args.filter((a) => a.endsWith(".svg"));
   if (files.length === 0) {
     console.error(
       "Usage: tools/measure-scroll-fps.ts <file1.svg> [file2.svg ...] [--browser chromium|webkit|firefox] [--cycle-ms N] [--segments N] [--cycles N] [--warmup-ms N]",
     );
-    process.exit(1);
+    throw new Error("one or more SVG files are required");
   }
   for (const f of files) {
     if (!existsSync(f)) {
       console.error(`Not found: ${f}`);
-      process.exit(1);
+      throw new Error(`Not found: ${f}`);
     }
   }
   console.error(
@@ -317,7 +323,4 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (isMain(import.meta.url)) await runMain(() => main());

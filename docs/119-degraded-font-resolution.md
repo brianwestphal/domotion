@@ -108,6 +108,10 @@ and axes, and native glyph geometry as `withheld`. The two arms include the
 route and reason in `cacheIdentity`; equality is a hard failure. This gate has
 no raster output, pixel threshold, or claim that the static chain reproduced a
 native answer.
+The CLI accepts `--out <path>` for an arm report or
+`--compare <present.json>,<absent.json>` to validate a pair. It rejects unknown
+options and missing values before reading files or probing the helper. Importing
+the module does not execute either arm.
 
 The production renderer-route ledger embeds that contract and a canonical
 ledger fingerprint. Installed-face nomination, system fallback ordering,

@@ -57,6 +57,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { withBrowser } from "./lib/browser.js";
+import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,
@@ -207,10 +208,10 @@ function ourAnswers(families: string[]): Map<string, Map<number, OurAnswer>> {
   return map;
 }
 
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  const asJson = argv.includes("--json");
-  const writeBaseline = argv.includes("--write-baseline");
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const values = parseFlags(argv, { json: { type: "boolean" }, "write-baseline": { type: "boolean" } });
+  const asJson = values.json === true;
+  const writeBaseline = values["write-baseline"] === true;
 
   if (process.platform !== "linux") {
     console.error(
@@ -355,4 +356,4 @@ async function main(): Promise<void> {
   console.log(`no regressions vs baseline (baseline misses: ${baseline.misses.length}, this run: ${misses.length}).`);
 }
 
-await main();
+if (isMain(import.meta.url)) await runMain(() => main());

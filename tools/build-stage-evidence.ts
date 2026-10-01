@@ -5,16 +5,12 @@ import { basename, dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import type { StageEvidenceManifest, StageEvidenceReport, StageEvidenceRule } from "../src/review/stage-evidence.js";
 import type { SemanticCoverageInventory } from "./semantic-coverage.js";
+import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 
 interface ParityArea {
   id: string;
   oracle: string;
 }
-
-const arg = (name: string): string | undefined => {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-};
 
 function fixtureRule(ref: string, transitionId: string, areas: string[]): StageEvidenceRule | null {
   const [path, fixture] = ref.split("#", 2);
@@ -110,10 +106,12 @@ export function buildStageEvidence(
   };
 }
 
-function main(): void {
-  const out = resolve(arg("--out") ?? "stage-evidence.json");
-  const reportsDir = resolve(arg("--reports") ?? dirname(out));
-  const envPath = arg("--env");
+function main(argv: string[]): number {
+  const args = parseFlags(argv, { out: { type: "string" }, reports: { type: "string" }, env: { type: "string" } });
+  const out = resolve(String(flag(args, "out", "stage-evidence.json")));
+  const reportsDir = resolve(String(flag(args, "reports", dirname(out))));
+  const env = flag(args, "env");
+  const envPath = typeof env === "string" ? env : undefined;
   const semantic = JSON.parse(
     readFileSync(resolve("tools/semantic-coverage.json"), "utf8"),
   ) as SemanticCoverageInventory;
@@ -135,6 +133,7 @@ function main(): void {
     JSON.stringify(buildStageEvidence(semantic, parity.areas, reportsDir, environment, revision), null, 2) + "\n",
   );
   console.log(`stage evidence: ${basename(out)}`);
+  return 0;
 }
 
-if (import.meta.url === new URL(`file://${process.argv[1]}`).href) main();
+if (isMain(import.meta.url)) await runMain(() => main(process.argv.slice(2)));

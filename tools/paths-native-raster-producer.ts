@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 
 import { assertCompletePathsRasterMatrix, assertPathsRasterRowDeclaration } from "./paths-native-raster-corpus.js";
 import { pathsRasterRowSchema, type PathsRasterRow } from "./paths-native-raster-gate.js";
@@ -69,17 +69,19 @@ export async function producePathsRasterRows(
   return rows;
 }
 
-function arg(name: string): string {
-  const index = process.argv.indexOf(name);
-  if (index < 0 || process.argv[index + 1] == null) throw new Error(`missing ${name}`);
-  return process.argv[index + 1];
-}
-
-if (process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const observations = resolve(arg("--observations"));
-  const rows = await producePathsRasterRows(JSON.parse(readFileSync(observations, "utf8")), dirname(observations), {
-    requireComplete: !process.argv.includes("--allow-partial"),
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const values = parseFlags(argv, {
+    observations: { type: "string" },
+    out: { type: "string" },
+    "allow-partial": { type: "boolean" },
   });
-  writeFileSync(arg("--out"), JSON.stringify(rows, null, 2));
+  const observations = resolve(requiredFlag(values, "--observations"));
+  const out = requiredFlag(values, "--out");
+  const rows = await producePathsRasterRows(JSON.parse(readFileSync(observations, "utf8")), dirname(observations), {
+    requireComplete: values["allow-partial"] !== true,
+  });
+  writeFileSync(out, JSON.stringify(rows, null, 2));
   console.log(`Produced ${rows.length} lossless, fingerprinted paths/native raster rows.`);
 }
+
+if (isMain(import.meta.url)) await runMain(() => main());
