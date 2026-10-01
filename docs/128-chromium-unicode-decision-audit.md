@@ -85,6 +85,10 @@ expose all operations Blink calls.
 
 ## Supported-path result
 
+The MathML generator reads Chromium's `mathml_operator_dictionary.cc` and
+`character.cc`. Clean-checkout source materialization must fetch both pinned
+files before the generated-dictionary check runs in CI.
+
 When both native companions validate, every resolved run is shaped through the
 pinned HarfBuzz build while glyph outlines remain owned by the selected platform
 face. Domotion therefore no longer chooses whether to shape from a script/range

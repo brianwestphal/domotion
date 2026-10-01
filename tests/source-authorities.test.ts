@@ -37,6 +37,14 @@ describe("clean-checkout source authority materialization", () => {
     for (const ref of DIRECT_SOURCE_FILES) expect(sourceUrlFor(ref).url).toContain(sourceUrlFor(ref).pin);
   });
 
+  it("materializes every Chromium input used by the MathML dictionary generator", () => {
+    const generator = readFileSync(resolve(__dirname, "..", "tools/generate-mathml-operator-dictionary.mjs"), "utf8");
+    const inputs = generator.match(/external\/chromium\/[^"\n]+\.cc/g) ?? [];
+    const planned = new Set(sourceAuthorityPlan(inventory, parityProgram).files);
+    expect(inputs.length).toBeGreaterThan(0);
+    expect(inputs.filter((path) => !planned.has(path))).toEqual([]);
+  });
+
   it("rejects paths outside the external authority roots", () => {
     expect(() => sourceUrlFor("external/../package.json")).toThrow(/escapes external/);
     expect(() => sourceUrlFor("package.json")).toThrow(/escapes external/);
