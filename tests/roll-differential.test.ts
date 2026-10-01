@@ -67,6 +67,44 @@ describe("roll differential", () => {
     expect(result.pass).toBe(true);
   });
 
+  it("compares legacy and wrapped source evidence by the same logical fingerprint", () => {
+    const wrapped = {
+      schemaVersion: 1,
+      tool: "source-drift-evidence",
+      generatedAt: new Date().toISOString(),
+      env: { mode: "representative" },
+      data: { ...goodDrift, outcome: "pass" },
+    };
+    const oldRun = withDrift("old", goodDrift);
+    const newRun = withDrift("new", wrapped);
+    oldRun.reports.push({ area: "icu-harfbuzz-source-drift", status: "passed" });
+    newRun.reports.push({ area: "icu-harfbuzz-source-drift", status: "passed" });
+    const result = compareRollArtifacts(oldRun, newRun);
+    expect(result.sourceDrift?.verdict).toBe("comparable");
+    expect(result.stageChanges).toEqual([]);
+    expect(result.pass).toBe(true);
+  });
+
+  it("withholds malformed versioned source evidence without throwing", () => {
+    const wrapped = {
+      schemaVersion: 1,
+      tool: "source-drift-evidence",
+      generatedAt: new Date().toISOString(),
+      env: {},
+      data: { ...goodDrift, outcome: "pass" },
+    };
+    for (const invalid of [
+      { ...wrapped, schemaVersion: 2 },
+      { ...wrapped, tool: "wrong" },
+      { ...wrapped, data: { ...goodDrift, outcome: "fail" } },
+      { ...goodDrift, schemaVersion: 2 },
+    ]) {
+      const result = compareRollArtifacts(withDrift("old", goodDrift), withDrift("new", invalid));
+      expect(result.sourceDrift?.blockers).toEqual(["invalid-source-drift-payload"]);
+      expect(result.pass).toBe(false);
+    }
+  });
+
   it("withholds the verdict on a malformed payload instead of throwing a TypeError", () => {
     for (const bad of [
       {},

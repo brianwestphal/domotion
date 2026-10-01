@@ -2,7 +2,7 @@ import { stableDigest } from "./stable-digest.js";
 import {
   compareSourceDrift,
   invalidSourceDriftVerdict,
-  sourceDriftEvidenceSchema,
+  sourceDriftEvidenceFromReport,
   type SourceDriftReview,
   type SourceDriftVerdict,
 } from "./source-drift-gate.js";
@@ -50,7 +50,11 @@ export function compareRollArtifacts(oldRun: RollArtifact, newRun: RollArtifact,
   const stageChanges = areas.flatMap((area) => {
     const a = oldRun.reportPayloads?.[area] ?? oldRun.reports.find((r) => r.area === area);
     const b = newRun.reportPayloads?.[area] ?? newRun.reports.find((r) => r.area === area);
-    return digest(a) === digest(b) ? [] : [{ area, oldDigest: digest(a), newDigest: digest(b) }];
+    const oldValue = area === "icu-harfbuzz-source-drift" ? (sourceDriftEvidenceFromReport(a) ?? a) : a;
+    const newValue = area === "icu-harfbuzz-source-drift" ? (sourceDriftEvidenceFromReport(b) ?? b) : b;
+    return digest(oldValue) === digest(newValue)
+      ? []
+      : [{ area, oldDigest: digest(oldValue), newDigest: digest(newValue) }];
   });
   const ids = [...new Set([...Object.keys(oldRun.visuals ?? {}), ...Object.keys(newRun.visuals ?? {})])].sort();
   const visualChanges = ids
@@ -72,11 +76,11 @@ export function compareRollArtifacts(oldRun: RollArtifact, newRun: RollArtifact,
   // withholds the verdict (fail closed) instead of throwing a TypeError out of the comparator.
   let sourceDrift: SourceDriftVerdict | undefined;
   if (oldRaw != null && newRaw != null) {
-    const before = sourceDriftEvidenceSchema.safeParse(oldRaw);
-    const after = sourceDriftEvidenceSchema.safeParse(newRaw);
+    const before = sourceDriftEvidenceFromReport(oldRaw);
+    const after = sourceDriftEvidenceFromReport(newRaw);
     sourceDrift =
-      before.success && after.success
-        ? compareSourceDrift(before.data, after.data, review?.sourceDrift)
+      before != null && after != null
+        ? compareSourceDrift(before, after, review?.sourceDrift)
         : invalidSourceDriftVerdict();
   }
   const sourceComparable = !sourcePayloadMismatch && (sourceDrift == null || sourceDrift.verdict === "comparable");

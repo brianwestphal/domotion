@@ -51,3 +51,10 @@ compared as if they sampled the same evidence.
 checked-out source revisions and SHA-256 hashes of an explicitly supplied ICU
 data file, platform helper binaries, and generated classifier files. Inputs are
 explicit so a release job cannot silently fingerprint a developer-cache default.
+The command keeps the same required `--out` path and writes a version 1 report
+envelope (`tool: source-drift-evidence`, `data.outcome: pass`). The inner
+fingerprint, mode, and decision rows remain the logical evidence. Roll
+comparison accepts that envelope and the explicit historical flat payload;
+unknown versions, wrong tools, malformed data, or non-pass outcomes withhold
+the source-drift verdict. Equivalent flat and enveloped payloads have the same
+stage digest, so a format change alone does not count as source drift.

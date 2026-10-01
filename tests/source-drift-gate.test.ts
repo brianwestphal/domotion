@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compareSourceDrift, type SourceDriftEvidence } from "../src/review/source-drift-gate.js";
+import {
+  compareSourceDrift,
+  sourceDriftEvidenceFromReport,
+  type SourceDriftEvidence,
+} from "../src/review/source-drift-gate.js";
 
 const evidence = (
   revision: string,
@@ -21,6 +25,25 @@ const evidence = (
 });
 
 describe("ICU/HarfBuzz source drift gate", () => {
+  it("unwraps current reports and accepts only the explicit legacy domain shape", () => {
+    const legacy = evidence("a");
+    const wrapped = {
+      schemaVersion: 1,
+      tool: "source-drift-evidence",
+      generatedAt: new Date().toISOString(),
+      env: {},
+      data: { ...legacy, outcome: "pass" },
+    };
+    expect(sourceDriftEvidenceFromReport(legacy)).toEqual(legacy);
+    expect(sourceDriftEvidenceFromReport(wrapped)).toEqual(legacy);
+    expect(sourceDriftEvidenceFromReport({ ...legacy, schemaVersion: 2 })).toBeNull();
+    expect(sourceDriftEvidenceFromReport({ ...wrapped, schemaVersion: 2 })).toBeNull();
+    expect(
+      sourceDriftEvidenceFromReport({ ...wrapped, data: { ...legacy, schemaVersion: 2, outcome: "pass" } }),
+    ).toBeNull();
+    expect(sourceDriftEvidenceFromReport({ ...wrapped, data: { ...legacy, outcome: "fail" } })).toBeNull();
+  });
+
   it("withholds changed property branches until source refs and exact oracle rows are updated", () => {
     const result = compareSourceDrift(evidence("old"), evidence("new", "Lowercase_Letter"));
     expect(result.verdict).toBe("verdict-withheld");

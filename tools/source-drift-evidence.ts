@@ -1,10 +1,11 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import type { ConformanceMode, DecisionRow, SourceDriftEvidence } from "../src/review/source-drift-gate.js";
 import { flag, isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import { writeReport } from "./lib/report.js";
 
 const hashFile = (path: string): string =>
   createHash("sha256")
@@ -64,7 +65,15 @@ export function main(argv: string[] = process.argv.slice(2)): void {
     unicodeProperties: loadRows(value("--unicode")),
     shapingDecisions: loadRows(value("--shaping")),
   };
-  writeFileSync(resolve(requiredFlag(options, "--out")), `${JSON.stringify(evidence, null, 2)}\n`);
+  writeReport(
+    resolve(requiredFlag(options, "--out")),
+    "source-drift-evidence",
+    { ...evidence, outcome: "pass" },
+    {
+      schemaVersion: 1,
+      env: { mode },
+    },
+  );
 }
 
 if (isMain(import.meta.url)) await runMain(() => main());

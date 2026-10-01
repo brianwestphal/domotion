@@ -41,6 +41,31 @@ export const sourceDriftEvidenceSchema = z.object({
   shapingDecisions: z.array(decisionRowSchema),
 });
 
+/** Read retained flat evidence or the versioned CLI report without changing logical fingerprints. */
+export function sourceDriftEvidenceFromReport(raw: unknown): SourceDriftEvidence | null {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if ("tool" in raw || "data" in raw || "schemaVersion" in raw || "version" in raw || "outcome" in raw) {
+    const data = (raw as Record<string, unknown>).data;
+    if (data != null && typeof data === "object" && ("schemaVersion" in data || "version" in data)) {
+      return null;
+    }
+    const envelope = z
+      .object({
+        schemaVersion: z.literal(1),
+        tool: z.literal("source-drift-evidence"),
+        generatedAt: z.iso.datetime({ offset: true }),
+        env: z.record(z.string(), z.unknown()),
+        data: sourceDriftEvidenceSchema.extend({ outcome: z.literal("pass") }),
+      })
+      .safeParse(raw);
+    if (!envelope.success) return null;
+    const { outcome: _outcome, ...evidence } = envelope.data.data;
+    return evidence;
+  }
+  const legacy = sourceDriftEvidenceSchema.safeParse(raw);
+  return legacy.success ? legacy.data : null;
+}
+
 export interface SourceDriftReview {
   sourceRefs: string[];
   updatedPropertyRows: string[];
