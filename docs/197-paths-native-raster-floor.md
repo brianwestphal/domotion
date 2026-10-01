@@ -125,6 +125,26 @@ producer JSON. Missing platform/run artifacts, a non-homogeneous fingerprint,
 or any incomplete 348-row matrix fails closed; no external observation bundle
 is accepted.
 
+Runner-image rollouts can assign different complete fingerprints to the two
+jobs for one platform. The separate manual
+`.github/workflows/paths-native-raster-pair.yml` accepts comma-separated
+collection run IDs, downloads their sealed producer artifacts, and stages one
+matching proposal/validation pair per platform. The selector requires each
+348-cell arm to identify its source run, contain one full fingerprint and run
+provenance, match a fingerprint in the ratified manifest, and have the same
+declared cell set as its partner. It requires two distinct runner names and
+matching renderer/oracle source hashes within each platform pair. Source-byte
+hashes differ by platform because the Windows checkout uses different file
+bytes, so the selector does not compare their literal values across OSes. Selection is
+stable for a given artifact set and recorded in
+`paths-native-raster-selection.json`. The unchanged strict aggregate then
+reauthenticates every selected PNG, checks independent provenance, and applies
+the exact per-cell ratified envelopes. No residual or fingerprint is widened.
+The pairing workflow and selector run only after collection and are outside
+the collector's source-byte fingerprint inputs, so this recovery path does not
+invalidate previously reviewed observations. If no complete matching set
+exists, collect another independent arm or re-ratify a new image fingerprint.
+
 The committed `tools/paths-native-raster-envelopes.json` is re-ratified from
 GitHub Actions runs `36809165709`, `36808241984`, and `36810724407`, after
 the report-envelope migration changed the oracle source fingerprint. The first
