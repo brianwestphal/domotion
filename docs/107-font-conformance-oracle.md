@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-QD903D"]
+tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D"]
 code:
   [
     ".github/workflows/font-conformance-synthetic.yml",
@@ -362,6 +362,15 @@ The three `mismatch*` buckets gate. Each mismatch row also carries a triage `cla
 
 - `different-family` — we routed the codepoint to a different typeface entirely (Chrome: `.SFDevanagari-Regular`, us: `KohinoorDevanagari-Regular`). A routing defect.
 - `same-family-different-cut` — right typeface, wrong weight or optical cut (Chrome: `Arimo-Bold`, us: `Arimo-Regular`). A cut-selection defect — or, for a variable face we instance along `wght` instead of naming a static cut, a name the oracle cannot adjudicate either way.
+
+The Windows byte-00 synthetic review in DM-N78DX3 exposed a generic-primary
+instrument error: probing a script letter could record the face that **fell
+back** to paint it, then reuse that face as the configured CSS generic for the
+whole stack. Under `fantasy lang=ko`, Chrome kept Impact as its primary while
+our probe supplied Malgun Gothic, multiplying the difference over uncovered
+private-use codepoints. Scripted generic probes now use an uncovered
+noncharacter under the same locale to read the primary's `.notdef` face.
+See [the live generic-family probe contract](198-live-generic-family-preference-parity.md).
 
 ### What the oracle does not yet compare
 

@@ -47,19 +47,21 @@ describe("genericFamilyProbeTargets", () => {
     }
   });
 
-  it("uses a primary-covered sample and canonical Blink script keys", () => {
+  it("uses an uncovered primary sentinel with each locale's Blink script key", () => {
     const targets = genericFamilyProbeTargets();
     const sample = (lang: string) => targets.find((target) => target.lang === lang)!;
-    expect(sample("ja")).toMatchObject({ text: "日", script: "KATAKANA_OR_HIRAGANA" });
-    expect(sample("ko")).toMatchObject({ text: "한", script: "HANGUL" });
-    expect(sample("zh-Hans")).toMatchObject({ text: "汉", script: "SIMPLIFIED_HAN" });
-    expect(sample("zh-Hant")).toMatchObject({ text: "漢", script: "TRADITIONAL_HAN" });
-    expect(sample("ru")).toMatchObject({ text: "Я", script: "CYRILLIC" });
-    expect(sample("ar")).toMatchObject({ text: "ا", script: "ARABIC" });
-    expect(sample("el")).toMatchObject({ text: "Ω", script: "GREEK" });
-    expect(sample("en")).toMatchObject({ text: "A", script: "LATIN" });
-    expect(sample("he")).toMatchObject({ text: "א", script: "HEBREW" });
-    expect(sample("hi")).toMatchObject({ text: "अ", script: "DEVANAGARI" });
+    const sentinel = String.fromCodePoint(0x10ffff);
+    expect(targets.filter((target) => target.lang != null).every((target) => target.text === sentinel)).toBe(true);
+    expect(sample("ja")).toMatchObject({ script: "KATAKANA_OR_HIRAGANA" });
+    expect(sample("ko")).toMatchObject({ script: "HANGUL" });
+    expect(sample("zh-Hans")).toMatchObject({ script: "SIMPLIFIED_HAN" });
+    expect(sample("zh-Hant")).toMatchObject({ script: "TRADITIONAL_HAN" });
+    expect(sample("ru")).toMatchObject({ script: "CYRILLIC" });
+    expect(sample("ar")).toMatchObject({ script: "ARABIC" });
+    expect(sample("el")).toMatchObject({ script: "GREEK" });
+    expect(sample("en")).toMatchObject({ script: "LATIN" });
+    expect(sample("he")).toMatchObject({ script: "HEBREW" });
+    expect(sample("hi")).toMatchObject({ script: "DEVANAGARI" });
   });
 
   it("adds every effective page language once per Blink settings script", () => {
@@ -69,8 +71,14 @@ describe("genericFamilyProbeTargets", () => {
     expect(languages).not.toContain("th-TH");
     expect(languages).toContain("ka");
     expect(languages).toContain("bn");
-    expect(targets.find((target) => target.lang === "th")).toMatchObject({ text: "ก", script: "THAI" });
-    expect(targets.find((target) => target.lang === "ka")).toMatchObject({ text: "ა", script: "GEORGIAN" });
+    expect(targets.find((target) => target.lang === "th")).toMatchObject({
+      text: String.fromCodePoint(0x10ffff),
+      script: "THAI",
+    });
+    expect(targets.find((target) => target.lang === "ka")).toMatchObject({
+      text: String.fromCodePoint(0x10ffff),
+      script: "GEORGIAN",
+    });
   });
 
   it("extracts response and flattened shadow-tree language facts from DOMSnapshot", () => {
