@@ -7,13 +7,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { arch, release } from "node:os";
 import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
 import { chromium, type CDPSession, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, requiredFlag } from "./lib/cli.js";
+import { writeAnimatedImageTruthRun } from "./animated-image-owner-resource-truth-report.js";
 
 import {
   ANIMATED_IMAGE_TRUTH_CHROMIUM_REVISION,
@@ -862,9 +863,7 @@ async function main(argv: string[]): Promise<void> {
           normalizedLogicalSha256: normalizedAnimatedImageTruthRowsSha256(rows),
         };
         stage("artifact serialization");
-        await writeFile(options.out, `${JSON.stringify(report, null, 2)}\n`, {
-          flag: "wx",
-        });
+        writeAnimatedImageTruthRun(options.out, report);
       } finally {
         await boundedTeardown(browserCdp.detach());
       }

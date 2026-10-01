@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runAnimatedImageOwnerResourceTruthAdjudicator } from "../tools/animated-image-owner-resource-truth-adjudicator.js";
+import { writeAnimatedImageTruthRun } from "../tools/animated-image-owner-resource-truth-report.js";
 import {
   adjudicateAnimatedImageOwnerResourceTruth,
   animatedImageTruthSha256,
@@ -385,7 +386,7 @@ describe("animated image owner/resource truth schema", () => {
       "utf8",
     );
     expect(source.match(/chromium\.launch\(/g)).toHaveLength(1);
-    expect(source).toMatch(/chromium\.launch\(\{[\s\S]*?headless:\s*true,/);
+    expect(source).toMatch(/withBrowser\([\s\S]*?headless:\s*true/);
     expect(source).not.toMatch(/headless:\s*false/);
     expect(source).toMatch(/host\.pseudoElements\?\.find/);
     expect(source).not.toMatch(/node\.parentId\s*===\s*host\.nodeId/);
@@ -533,9 +534,53 @@ describe("animated image owner/resource truth schema", () => {
 
       const malformedPath = join(directory, "malformed-structural.json");
       writeFileSync(malformedPath, '{"not":"a report"}\n');
-      const withheld = runAnimatedImageOwnerResourceTruthAdjudicator([paths[0], malformedPath]);
-      expect(withheld.adjudication.verdict).toBe("verdict-withheld");
-      expect(withheld.adjudication.failures.some((failure) => failure.includes("unsafe or missing keys"))).toBe(true);
+      expect(() => runAnimatedImageOwnerResourceTruthAdjudicator([paths[0], malformedPath])).toThrow();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("adjudicates wrapped runs and rejects wrong tool, outcome, or legacy version", () => {
+    const directory = mkdtempSync(join(tmpdir(), "dm2583-wrapped-"));
+    try {
+      const reports = [
+        report("macOS", "proposal", 1),
+        report("macOS", "validation", 2),
+        report("Linux", "proposal", 3),
+        report("Linux", "validation", 4),
+        report("Windows", "proposal", 5),
+        report("Windows", "validation", 6),
+      ];
+      const paths = reports.map((value, index) => {
+        const path = join(directory, `run-${index}.json`);
+        writeAnimatedImageTruthRun(path, value);
+        expect(() => writeAnimatedImageTruthRun(path, value)).toThrow();
+        return path;
+      });
+      expect(runAnimatedImageOwnerResourceTruthAdjudicator(paths).adjudication.verdict).toBe(
+        "proposal-validation-agreement",
+      );
+      const bad = join(directory, "bad.json");
+      for (const mutation of [
+        { ...reports[0], schemaVersion: 2 },
+        {
+          schemaVersion: 1,
+          tool: "wrong",
+          generatedAt: new Date().toISOString(),
+          env: {},
+          data: { ...reports[0], outcome: "pass" },
+        },
+        {
+          schemaVersion: 1,
+          tool: "animated-image-owner-resource-truth-collector",
+          generatedAt: new Date().toISOString(),
+          env: {},
+          data: { ...reports[0], outcome: "fail" },
+        },
+      ]) {
+        writeFileSync(bad, JSON.stringify(mutation));
+        expect(() => runAnimatedImageOwnerResourceTruthAdjudicator([bad])).toThrow();
+      }
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

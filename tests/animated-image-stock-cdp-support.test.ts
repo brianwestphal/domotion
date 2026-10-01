@@ -1,9 +1,14 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { animatedImageTruthSha256 } from "../tools/animated-image-owner-resource-truth-schema.js";
 import {
   adjudicateAnimatedImageStockCdpSupport,
+  adjudicateAnimatedImageStockCdpSupportFile,
   ANIMATED_IMAGE_STOCK_CDP_CASE_MATRIX,
+  ANIMATED_IMAGE_STOCK_CDP_EVIDENCE,
   ANIMATED_IMAGE_STOCK_CDP_SUPPORTED_SUBSET,
   type AnimatedImageStockCdpAdjudicationArtifact,
 } from "../tools/animated-image-stock-cdp-support.js";
@@ -13,38 +18,7 @@ function retainedArtifact(): AnimatedImageStockCdpAdjudicationArtifact {
     schemaVersion: 1,
     ticket: "DM-2583",
     stage: "animated-image-owner-resource-truth-adjudication",
-    inputs: [
-      {
-        pathToken: "DM-2589_DM-2589_linux-proposal-93e150ec.json",
-        byteLength: 252529,
-        sha256: "1218ffadfaed3d1272a79b5681d47f0d4283c5ff4293eae5138d9e813594964b",
-      },
-      {
-        pathToken: "DM-2589_DM-2589_linux-validation-93e150ec.json",
-        byteLength: 252574,
-        sha256: "51f0455203bb8e5497ed59f4946c6ff651cc015338d0cb84554960294d407f0a",
-      },
-      {
-        pathToken: "DM-2589_macos-proposal-93e150ec.json",
-        byteLength: 251695,
-        sha256: "53e7a5f8bf43d47545bcf13a5a930a1fbca25e69fdeb6a04143d4eb6f278d61e",
-      },
-      {
-        pathToken: "DM-2589_macos-validation-93e150ec.json",
-        byteLength: 252012,
-        sha256: "e8333f8e2d19d9cff00eba6e0a4a894f72edc9db48cc935f3ea9a06153c96f08",
-      },
-      {
-        pathToken: "DM-2590_windows-proposal-93e150ec.json",
-        byteLength: 251892,
-        sha256: "08f5b6e94451059f7c54092cb88b702d7953a2055ce28a22c6566f8664d9496a",
-      },
-      {
-        pathToken: "DM-2590_windows-validation-93e150ec.json",
-        byteLength: 251894,
-        sha256: "bfcf819316b2c2813dec0bf7db0d7a7a8168fea303247772e17a5ce8669246ce",
-      },
-    ],
+    inputs: ANIMATED_IMAGE_STOCK_CDP_EVIDENCE.inputs.map((input) => ({ ...input })),
     adjudication: {
       schemaVersion: 1,
       ticket: "DM-2583",
@@ -60,17 +34,40 @@ function retainedArtifact(): AnimatedImageStockCdpAdjudicationArtifact {
       verdict: "proposal-validation-agreement",
       failures: [],
     },
-    reportSha256: "2c54d2a41a0f50e21dc9ecc2075d5eaaa4d110e534a7f6a3e2de163ddd6892f0",
+    reportSha256: "4d12957302a310fc83f20ef958afb5d9db10f25d93269e97bbea845b99ac865e",
   };
 }
 
 describe("animated-image stock-CDP support adjudicator", () => {
+  it("reads current envelope and explicit flat v1 authority, while rejecting version drift", () => {
+    const dir = mkdtempSync(join(tmpdir(), "animated-image-truth-"));
+    const artifact = retainedArtifact();
+    const file = join(dir, "adjudication.json");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        schemaVersion: 1,
+        tool: "animated-image-owner-resource-truth-adjudicator",
+        generatedAt: new Date().toISOString(),
+        env: {},
+        data: { ...artifact, outcome: "pass" },
+      }),
+    );
+    expect(adjudicateAnimatedImageStockCdpSupportFile(file).verdict).toBe("supported-subset-ratified");
+    writeFileSync(file, JSON.stringify(artifact));
+    expect(adjudicateAnimatedImageStockCdpSupportFile(file).verdict).toBe("supported-subset-ratified");
+    writeFileSync(file, JSON.stringify({ ...artifact, schemaVersion: 2 }));
+    expect(() => adjudicateAnimatedImageStockCdpSupportFile(file)).toThrow();
+    writeFileSync(file, JSON.stringify({ tool: "wrong", data: { ...artifact, outcome: "pass" } }));
+    expect(() => adjudicateAnimatedImageStockCdpSupportFile(file)).toThrow();
+  });
+
   it("ratifies the conservative macOS/Linux/Windows subset from the six retained artifacts", () => {
     const report = adjudicateAnimatedImageStockCdpSupport(retainedArtifact());
     expect(report.verdict).toBe("supported-subset-ratified");
     expect(report.failures).toEqual([]);
     expect(report.scope).toBe("macOS-linux-windows");
-    expect(report.matrixSha256).toBe("a2aac9de58fcfcf095a6c09e48e135ee98fe9b225debaa5833072a242404712a");
+    expect(report.matrixSha256).toBe("db6e145d373869093018ed7232f70948496aa6409d75e829e471ee051b23118e");
     expect(report.eligibleCaseKeys).toEqual([
       "img-src-mutation/stable-animated-webp",
       "img-src-mutation/stable-apng",
@@ -90,7 +87,7 @@ describe("animated-image stock-CDP support adjudicator", () => {
 
   it("rejects a rewritten artifact even when its self-hash is recomputed", () => {
     const artifact = retainedArtifact();
-    artifact.inputs[5] = { ...artifact.inputs[5], byteLength: 251895 };
+    artifact.inputs[5] = { ...artifact.inputs[5], byteLength: 264183 };
     const { reportSha256: _old, ...payload } = artifact;
     artifact.reportSha256 = animatedImageTruthSha256(payload);
     const report = adjudicateAnimatedImageStockCdpSupport(artifact);

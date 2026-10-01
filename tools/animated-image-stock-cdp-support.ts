@@ -9,9 +9,10 @@ import {
   ANIMATED_IMAGE_TRUTH_CASES,
   type AnimatedImageTruthDenialCode,
 } from "./animated-image-owner-resource-truth-schema.js";
+import { readAnimatedImageTruthAdjudication } from "./animated-image-owner-resource-truth-report.js";
 
 const RETAINED_LOGICAL_SHA256 = "2af7b4b95aeac7f8bd94c2f619e7b2bbdbb9c7c676a54f0ea8b4e63940eade5a";
-const RETAINED_ADJUDICATION_SHA256 = "2c54d2a41a0f50e21dc9ecc2075d5eaaa4d110e534a7f6a3e2de163ddd6892f0";
+const RETAINED_ADJUDICATION_SHA256 = "4d12957302a310fc83f20ef958afb5d9db10f25d93269e97bbea845b99ac865e";
 
 export const ANIMATED_IMAGE_STOCK_CDP_EVIDENCE = Object.freeze({
   chromiumRevision: "7d859f271cbda744098ac69f44978d4edfa62be3",
@@ -28,33 +29,33 @@ export const ANIMATED_IMAGE_STOCK_CDP_EVIDENCE = Object.freeze({
   inputs: [
     {
       pathToken: "DM-2589_DM-2589_linux-proposal-93e150ec.json",
-      byteLength: 252529,
-      sha256: "1218ffadfaed3d1272a79b5681d47f0d4283c5ff4293eae5138d9e813594964b",
+      byteLength: 264817,
+      sha256: "7f22bf80058e4d5725f528f7cdd84482e00d0b981c45bd2f3dd6e0a1fce1b113",
     },
     {
       pathToken: "DM-2589_DM-2589_linux-validation-93e150ec.json",
-      byteLength: 252574,
-      sha256: "51f0455203bb8e5497ed59f4946c6ff651cc015338d0cb84554960294d407f0a",
+      byteLength: 264862,
+      sha256: "d489dd02dc75a218af94df9c9c455856bd62a69fc4db4864f235e26a64d39721",
     },
     {
       pathToken: "DM-2589_macos-proposal-93e150ec.json",
-      byteLength: 251695,
-      sha256: "53e7a5f8bf43d47545bcf13a5a930a1fbca25e69fdeb6a04143d4eb6f278d61e",
+      byteLength: 263983,
+      sha256: "8fde72fed6ea0b2fe3ff64c5f4b600ddc8f18c71b46e1e58262a8175a2a896be",
     },
     {
       pathToken: "DM-2589_macos-validation-93e150ec.json",
-      byteLength: 252012,
-      sha256: "e8333f8e2d19d9cff00eba6e0a4a894f72edc9db48cc935f3ea9a06153c96f08",
+      byteLength: 264300,
+      sha256: "68ffb9ec048bdfe5a6cef7d380b3c466b771f9dc40cd63d6c31c5a392dcfa1fe",
     },
     {
       pathToken: "DM-2590_windows-proposal-93e150ec.json",
-      byteLength: 251892,
-      sha256: "08f5b6e94451059f7c54092cb88b702d7953a2055ce28a22c6566f8664d9496a",
+      byteLength: 264180,
+      sha256: "6c9bd4d594141b37c80ab043425ce82ab9b339ecef703a201a05a0f8870d4da1",
     },
     {
       pathToken: "DM-2590_windows-validation-93e150ec.json",
-      byteLength: 251894,
-      sha256: "bfcf819316b2c2813dec0bf7db0d7a7a8168fea303247772e17a5ce8669246ce",
+      byteLength: 264182,
+      sha256: "78217faabf88054449a575d0fb8a4540a65a0556e625363527f0786d52e371cc",
     },
   ],
 } as const);
@@ -300,4 +301,11 @@ export function adjudicateAnimatedImageStockCdpSupport(
     eligibleCaseKeys,
     failures,
   };
+}
+
+/** Reopen a retained adjudication in either the current envelope or explicit v1 flat format. */
+export function adjudicateAnimatedImageStockCdpSupportFile(path: string): AnimatedImageStockCdpSupportReport {
+  return adjudicateAnimatedImageStockCdpSupport(
+    readAnimatedImageTruthAdjudication(path) as unknown as AnimatedImageStockCdpAdjudicationArtifact,
+  );
 }

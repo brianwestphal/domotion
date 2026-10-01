@@ -30,7 +30,7 @@ export function writeReport<T>(
   path: string,
   tool: string,
   data: T,
-  options: { schemaVersion: number; generatedAt?: string; env?: Record<string, unknown> },
+  options: { schemaVersion: number; generatedAt?: string; env?: Record<string, unknown>; flag?: "w" | "wx" },
 ): ReportEnvelope<T> {
   const report: ReportEnvelope<T> = {
     schemaVersion: options.schemaVersion,
@@ -40,7 +40,7 @@ export function writeReport<T>(
     data,
   };
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`);
+  writeFileSync(path, `${JSON.stringify(report, null, 2)}\n`, { flag: options.flag ?? "w" });
   return report;
 }
 
@@ -54,11 +54,7 @@ export function readReportData<T extends z.ZodTypeAny, L extends z.ZodType<z.inf
   options: { tool: string; schemaVersion: number; legacySchema?: L; legacySchemaVersion?: number },
 ): z.infer<T> {
   const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
-  if (
-    raw != null &&
-    typeof raw === "object" &&
-    ("tool" in raw || ("schemaVersion" in raw && "data" in raw))
-  ) {
+  if (raw != null && typeof raw === "object" && ("tool" in raw || ("schemaVersion" in raw && "data" in raw))) {
     return reportEnvelopeSchema(dataSchema, options).parse(raw).data as z.infer<T>;
   }
   if (raw != null && typeof raw === "object" && "schemaVersion" in raw) {

@@ -7,9 +7,13 @@
  * browser, reads an image body, or changes production capture behavior.
  */
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { isMain, parseFlags } from "./lib/cli.js";
+import {
+  readAnimatedImageTruthRun,
+  writeAnimatedImageTruthAdjudication,
+} from "./animated-image-owner-resource-truth-report.js";
 import {
   adjudicateAnimatedImageOwnerResourceTruth,
   animatedImageTruthSha256,
@@ -52,7 +56,7 @@ function readReport(path: string): {
       byteLength: bytes.byteLength,
       sha256: createHash("sha256").update(bytes).digest("hex"),
     },
-    report: JSON.parse(bytes.toString("utf8")),
+    report: readAnimatedImageTruthRun(path),
   };
 }
 
@@ -93,7 +97,7 @@ function runCli(argv: string[]): void {
   const report = runAnimatedImageOwnerResourceTruthAdjudicator(artifactPaths);
   const reportPath = argumentValue(argv, "--report");
   if (reportPath != null) {
-    writeFileSync(resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`, { flag: "wx" });
+    writeAnimatedImageTruthAdjudication(resolve(reportPath), report);
   }
   console.log(
     `DM-2583 truth adjudication: ${report.adjudication.verdict}; ` +

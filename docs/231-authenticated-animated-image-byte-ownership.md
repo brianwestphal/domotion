@@ -546,11 +546,30 @@ SHA-256 identities
 Each contains the same 38 rows and normalized logical SHA-256 above, keeps all
 18 denied envelopes body-free, and has distinct build, process, observation,
 and browser-context provenance. The canonical fail-closed six-artifact
-macOS/Linux/Windows adjudication requires exactly those six inputs, reports
+macOS/Linux/Windows legacy adjudication requires exactly those six flat v1 inputs, reports
 zero failures and `proposal-validation-agreement`, and has report self-hash
 `2c54d2a41a0f50e21dc9ecc2075d5eaaa4d110e534a7f6a3e2de163ddd6892f0`.
 This is private logical evidence only; it does not authorize the stock-CDP or
 production collectors.
+
+DM-V5423X retains the six original files and locally reratifies their exact
+logical contents in `tools/lib/report.ts` version 1 envelopes. The collector
+records `outcome: pass`; the adjudicator records `pass` for agreement and
+`fail` for a withheld verdict. Readers accept the explicit flat v1 format for
+historical artifacts, reject unknown versions and mismatched tools/outcomes,
+and pass only the inner report to logical validation. Input SHA-256 still hashes
+the entire persisted file, while the normalized logical SHA-256 above remains
+unchanged. The newly retained envelope input SHA-256 identities, in Linux
+proposal/validation, macOS proposal/validation, Windows proposal/validation
+order, are
+`7f22bf80058e4d5725f528f7cdd84482e00d0b981c45bd2f3dd6e0a1fce1b113`,
+`d489dd02dc75a218af94df9c9c455856bd62a69fc4db4864f235e26a64d39721`,
+`8fde72fed6ea0b2fe3ff64c5f4b600ddc8f18c71b46e1e58262a8175a2a896be`,
+`68ffb9ec048bdfe5a6cef7d380b3c466b771f9dc40cd63d6c31c5a392dcfa1fe`,
+`6c9bd4d594141b37c80ab043425ce82ab9b339ecef703a201a05a0f8870d4da1`,
+and `78217faabf88054449a575d0fb8a4540a65a0556e625363527f0786d52e371cc`.
+The reratified adjudication has zero failures, the same agreement verdict, and
+inner self-hash `4d12957302a310fc83f20ef958afb5d9db10f25d93269e97bbea845b99ac865e`.
 
 ## Implemented stock-CDP support adjudication
 
@@ -559,7 +578,7 @@ The evidence-only stock-CDP adjudicator is
 macOS/Linux/Windows adjudication by exact input-file identity and report
 self-hash, then publishes a 38-case supported/denied/unsupported matrix. The
 accepted three-platform matrix SHA-256 is
-`a2aac9de58fcfcf095a6c09e48e135ee98fe9b225debaa5833072a242404712a`.
+`db6e145d373869093018ed7232f70948496aa6409d75e829e471ee051b23118e`.
 
 The smallest production-eligible network subset is same-origin HTTP(S)
 `<img>`, `<picture>`, and `<input type=image>` with a settled GIF, APNG, or
