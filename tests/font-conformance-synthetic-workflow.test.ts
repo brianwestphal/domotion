@@ -124,6 +124,14 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
     expect(job).not.toMatch(/baselines\/font-conformance-\$\{\{ matrix\.os \}\}\.json/);
   });
 
+  it("installs dependencies before the Zod-backed aggregate scripts", () => {
+    const job = jobs.aggregate;
+    const install = job.indexOf("run: npm ci");
+    const merge = job.indexOf("merge-font-conformance-shards.mjs");
+    expect(install).toBeGreaterThanOrEqual(0);
+    expect(install).toBeLessThan(merge);
+  });
+
   it("tells the aggregate how many shards to expect", () => {
     // A run whose shards died would otherwise merge the survivors into a smaller
     // mismatch total, which reads as an improvement.

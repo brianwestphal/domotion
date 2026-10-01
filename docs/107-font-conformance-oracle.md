@@ -576,6 +576,12 @@ The full cross product — 292,466 codepoints × 418 stacks = **122.2 million co
 
 Whatever the scope, the report's `meta` block records exactly what was swept — codepoint count, stack count, ranges, shards, PUA inclusion — so a number can never be quoted without its scope.
 
+Each sweep job installs dependencies before the repository prepare build. The
+terminal command's optional `node-pty` package is resolved only when live PTY
+capture runs, so a Linux install that omits it still typechecks the font sweep.
+The harvested and synthetic aggregate jobs also run `npm ci` before the
+Zod-backed shard merger and baseline comparator.
+
 ## Three platforms, three oracles
 
 Reaching agreement on macOS says nothing about Linux or Windows, because per-codepoint fallback is not one procedure with three font sets behind it. Blink runs different code on each (`external/chromium` at `7d859f27`, 2026-06-27):
@@ -592,7 +598,7 @@ Per-platform environment notes that the jobs encode:
 
 - **macOS** builds the CoreText helper (`swift build`). Without it the resolver cannot ask CoreText and silently drops to the static chain — answering a different question than the one reported.
 - **Windows** builds the DirectWrite helper (`build.ps1`), for the same reason.
-- **Linux** builds nothing, deliberately: its per-codepoint resolver shells out to `fc-match`, so there is no helper to fall off. The only cost of the absent helper is `resolveInstalledFont`, hence the dead `agree-same-file` tier noted above.
+- **Linux** builds the fontconfig glyph helper before sweeping. Without it the resolver drops to the older `fc-match` approximation and measures a different route.
 - **Linux runs in the pinned `mcr.microsoft.com/playwright:v<ver>-noble` container**, not on a bare `ubuntu-latest`. The Linux fallback answer _is_ the container's fontconfig set, so a different image is a different oracle — the same reasoning the Linux fidelity suites already run on.
 
 ### Verifying the instrument on a new platform

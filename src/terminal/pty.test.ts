@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, statSync, rmSync } fr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { recordPtySession, buildCastText, ensureSpawnHelperExecutable } from "./pty.js";
+import { recordPtySession, buildCastText, ensureSpawnHelperExecutable, loadNodePty } from "./pty.js";
 import { parseCast } from "./cast.js";
 
 // A fake node-pty that emits scripted chunks then exits — lets us exercise the
@@ -80,6 +80,19 @@ describe("recordPtySession (DM-1226 live capture shim)", () => {
     expect(JSON.parse(lines[1])).toEqual([0, "o", "a"]);
     expect(JSON.parse(lines[2])).toEqual([0.5, "o", "b\r\n"]);
     expect(parseCast(text).events).toHaveLength(2);
+  });
+});
+
+describe("optional node-pty loader", () => {
+  it("defers the optional package lookup and explains a missing install", async () => {
+    const requested: string[] = [];
+    await expect(
+      loadNodePty(async (specifier) => {
+        requested.push(specifier);
+        throw new Error("Cannot find package");
+      }),
+    ).rejects.toThrow(/needs the optional `node-pty`.*Install it with:/s);
+    expect(requested).toEqual(["node-pty"]);
   });
 });
 

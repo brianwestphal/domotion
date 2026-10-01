@@ -134,6 +134,14 @@ describe("font-conformance.yml sweeps all three platforms honestly", () => {
     expect(job).toMatch(/tests\/baselines\/font-conformance-\$\{\{ matrix\.os \}\}\.json/);
   });
 
+  it("installs dependencies before the Zod-backed aggregate scripts", () => {
+    const job = jobs.aggregate;
+    const install = job.indexOf("run: npm ci");
+    const merge = job.indexOf("merge-font-conformance-shards.mjs");
+    expect(install).toBeGreaterThanOrEqual(0);
+    expect(install).toBeLessThan(merge);
+  });
+
   it("the aggregate is told how many shards to expect, across BOTH axes", () => {
     // Without it a run whose shards died would merge the survivors and report a
     // smaller mismatch total, which reads as an improvement.

@@ -123,9 +123,15 @@ function resolveNodePtyDir(): string | null {
   }
 }
 
-async function loadNodePty(): Promise<PtyModule> {
+// Keep the specifier typed as a general string: TypeScript must not require
+// an optional native package to exist while compiling unrelated commands.
+const NODE_PTY_MODULE: string = "node-pty";
+
+export async function loadNodePty(
+  importOptional: (specifier: string) => Promise<unknown> = (specifier) => import(specifier),
+): Promise<PtyModule> {
   try {
-    const mod = (await import("node-pty")) as unknown as { default?: PtyModule } & PtyModule;
+    const mod = (await importOptional(NODE_PTY_MODULE)) as { default?: PtyModule } & PtyModule;
     ensureSpawnHelperExecutable();
     return (mod.default ?? mod) as PtyModule;
   } catch (e) {
