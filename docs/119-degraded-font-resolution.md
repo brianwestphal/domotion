@@ -113,6 +113,16 @@ The CLI accepts `--out <path>` for an arm report or
 options and missing values before reading files or probing the helper. Importing
 the module does not execute either arm.
 
+Arm files written with `--out` use the version 1 `tools/lib/report.ts` envelope
+with `tool: helper-availability-contract` and `data.outcome: pass`. The inner
+`native-helper-availability-v1` contract and its cache identity remain the
+logical evidence. Stdout still prints that inner contract; compare mode still
+prints the `{ pass, platform, present, absent }` result and keeps the same exit
+behavior. Compare mode validates both current envelopes and explicit legacy
+flat reports bearing `version: native-helper-availability-v1`, rejecting
+unknown envelope or contract versions, wrong tools, malformed facts, and
+non-pass outcomes before testing the pair.
+
 The production renderer-route ledger embeds that contract and a canonical
 ledger fingerprint. Installed-face nomination, system fallback ordering,
 native axes/traits, and native glyph geometry are `native-observed` only in the

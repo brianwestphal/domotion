@@ -1,15 +1,52 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   helperAvailabilityContract,
   type HelperAvailabilityContract,
   isGlyphHelperAvailable,
 } from "@domotion/text-engine/testing";
+import { z } from "zod";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { outcomeSchema, reportEnvelopeSchema, writeReport } from "./lib/report.js";
 
 type SupportedPlatform = "darwin" | "linux" | "win32";
+const REPORT_TOOL = "helper-availability-contract";
+const contractSchema = z
+  .object({
+    version: z.literal("native-helper-availability-v1"),
+    platform: z.enum(["darwin", "linux", "win32"]),
+    mode: z.enum(["helper-present", "helper-absent"]),
+    reason: z.enum(["native-helper-observed", "explicitly-disabled", "helper-unavailable"]),
+    verdict: z.enum(["exact-native-route", "explicit-degraded-route"]),
+    cacheIdentity: z.string(),
+    logicalFacts: z
+      .object({
+        capturedWebfontBytes: z.literal("preserved"),
+        deterministicStaticTermination: z.literal("preserved"),
+        installedFaceNomination: z.enum(["native-observed", "withheld"]),
+        systemFallbackOrdering: z.enum(["native-observed", "withheld"]),
+        nativeTraitsAndAxes: z.enum(["native-observed", "withheld"]),
+        nativeGlyphGeometry: z.enum(["native-observed", "withheld"]),
+      })
+      .strict(),
+  })
+  .strict();
+
+export function readHelperAvailabilityReport(path: string): HelperAvailabilityContract {
+  const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (raw != null && typeof raw === "object" && ("tool" in raw || "data" in raw)) {
+    const data = reportEnvelopeSchema(contractSchema.extend({ outcome: outcomeSchema }), {
+      tool: REPORT_TOOL,
+      schemaVersion: 1,
+    }).parse(raw).data;
+    if (data.outcome !== "pass") throw new Error("helper availability report outcome mismatch");
+    const { outcome: _outcome, ...contract } = data;
+    return contract as HelperAvailabilityContract;
+  }
+  return contractSchema.parse(raw) as HelperAvailabilityContract;
+}
 
 function helperPath(platform: SupportedPlatform): string {
   if (process.env.DOMOTION_HELPER_PATH) return resolve(process.env.DOMOTION_HELPER_PATH);
@@ -64,8 +101,8 @@ export function runHelperAvailabilityContract(argv: string[]): number {
   if (typeof compare === "string") {
     const [presentPath, absentPath] = compare.split(",");
     if (!presentPath || !absentPath) throw new Error("--compare expects present.json,absent.json");
-    const present = JSON.parse(readFileSync(presentPath, "utf8")) as HelperAvailabilityContract;
-    const absent = JSON.parse(readFileSync(absentPath, "utf8")) as HelperAvailabilityContract;
+    const present = readHelperAvailabilityReport(presentPath);
+    const absent = readHelperAvailabilityReport(absentPath);
     validatePair(present, absent);
     process.stdout.write(JSON.stringify({ pass: true, platform: present.platform, present, absent }, null, 2) + "\n");
   } else {
@@ -90,7 +127,17 @@ export function runHelperAvailabilityContract(argv: string[]): number {
     });
     const out = flag(args, "out");
     const json = JSON.stringify(report, null, 2) + "\n";
-    if (typeof out === "string") writeFileSync(out, json);
+    if (typeof out === "string") {
+      writeReport(
+        out,
+        REPORT_TOOL,
+        { ...report, outcome: "pass" },
+        {
+          schemaVersion: 1,
+          env: { platform, mode: report.mode },
+        },
+      );
+    }
     process.stdout.write(json);
   }
   return 0;
