@@ -277,6 +277,9 @@ describeBrowser("projective inline SVG raster ownership", () => {
         await page.evaluate(() => ({
           scrollY,
           ownerProbePresent: Object.keys(globalThis).some((key) => key.startsWith("__domotionProjectivePaintNodes_")),
+          visibilityRestorePresent: Object.keys(globalThis).some((key) =>
+            key.startsWith("__domotionProjectiveVisibilityRestore_"),
+          ),
           sourceVisibility: ["art", "fohost", "plane", "sibling"].map((id) => {
             const style = document.getElementById(id)!.style;
             return [style.getPropertyValue("visibility"), style.getPropertyPriority("visibility")];
@@ -286,6 +289,7 @@ describeBrowser("projective inline SVG raster ownership", () => {
       ).toEqual({
         scrollY: 300,
         ownerProbePresent: false,
+        visibilityRestorePresent: false,
         sourceVisibility: [
           ["", ""],
           ["", ""],
@@ -294,6 +298,9 @@ describeBrowser("projective inline SVG raster ownership", () => {
         ],
         frameTransform: expect.stringMatching(/^matrix\(/),
       });
+      const repeated = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
+      expect(rasterOwners(repeated)).toHaveLength(1);
+      expect(await page.screenshot()).toEqual(expected);
     } finally {
       await page.close();
       await rendered.close();

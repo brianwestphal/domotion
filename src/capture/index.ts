@@ -2563,23 +2563,28 @@ export async function rasterizeProjectiveSurfaces(
     throw new Error("projective raster owners are missing their Chromium source-node registry");
   }
 
-  const restoreVisibility = async (): Promise<void> => {
-    await evaluateInFrame(page, () => {
-      const host = globalThis as typeof globalThis & {
-        __domotionProjectiveVisibilityRestore?: Array<{
-          element: Element;
-          property: string;
-          value: string;
-          priority: string;
-        }>;
-      };
-      for (const item of host.__domotionProjectiveVisibilityRestore ?? []) {
-        const html = item.element as HTMLElement;
-        if (item.value === "") html.style.removeProperty(item.property);
-        else html.style.setProperty(item.property, item.value, item.priority);
-      }
-      delete host.__domotionProjectiveVisibilityRestore;
-    }).catch(() => undefined);
+  const restoreVisibility = async (restoreKey: string): Promise<void> => {
+    await evaluateInFrame(
+      page,
+      (key) => {
+        const host = globalThis as typeof globalThis & Record<string, unknown>;
+        const restore = host[key] as
+          | Array<{
+              element: Element;
+              property: string;
+              value: string;
+              priority: string;
+            }>
+          | undefined;
+        for (const item of restore ?? []) {
+          const html = item.element as HTMLElement;
+          if (item.value === "") html.style.removeProperty(item.property);
+          else html.style.setProperty(item.property, item.value, item.priority);
+        }
+        if (restore != null) restore.length = 0;
+      },
+      restoreKey,
+    ).catch(() => undefined);
   };
 
   for (const target of targets) {
@@ -2587,25 +2592,26 @@ export async function rasterizeProjectiveSurfaces(
     if (sourceNodeIndex == null) {
       throw new Error("projective raster owner is missing its Chromium source-node correlation");
     }
+    const restoreRegistry = createPageRegistry<
+      Array<{ element: Element; property: string; value: string; priority: string }>
+    >(page, "ProjectiveVisibilityRestore");
     try {
+      await restoreRegistry.tag(page, () => []);
       const prepared = await evaluateInFrame(
         page,
-        ({ index, sourceNodeKey }) => {
-          const host = globalThis as typeof globalThis & {
-            __domotionProjectiveVisibilityRestore?: Array<{
-              element: Element;
-              property: string;
-              value: string;
-              priority: string;
-            }>;
-          };
-          const sourceNodes = (host as typeof host & Record<string, unknown>)[sourceNodeKey] as Element[] | undefined;
+        ({ index, sourceNodeKey, restoreKey }) => {
+          const host = globalThis as typeof globalThis & Record<string, unknown>;
+          const sourceNodes = host[sourceNodeKey] as Element[] | undefined;
           const sourceOwner = sourceNodes?.[index];
           if (sourceOwner == null || !sourceOwner.isConnected) return false;
-          const restore: NonNullable<typeof host.__domotionProjectiveVisibilityRestore> = [];
-          // Publish before the first mutation so a mid-preparation exception can
-          // still restore every declaration already recorded by the finally path.
-          host.__domotionProjectiveVisibilityRestore = restore;
+          const restore = host[restoreKey] as Array<{
+            element: Element;
+            property: string;
+            value: string;
+            priority: string;
+          }>;
+          // The registry was initialized before the first mutation, so a
+          // mid-preparation exception can restore declarations already recorded.
           const ownerVisibility = getComputedStyle(sourceOwner).visibility;
           for (const element of Array.from(document.querySelectorAll("*"))) {
             if (element === sourceOwner || sourceOwner.contains(element)) continue;
@@ -2704,7 +2710,7 @@ export async function rasterizeProjectiveSurfaces(
           }
           return true;
         },
-        { index: sourceNodeIndex, sourceNodeKey },
+        { index: sourceNodeIndex, sourceNodeKey, restoreKey: restoreRegistry.key },
       );
       if (!prepared) throw new Error("projective raster owner detached before Chromium snapshot");
 
@@ -2748,7 +2754,8 @@ export async function rasterizeProjectiveSurfaces(
       target.dataUri = `data:image/png;base64,${cropped.toString("base64")}`;
     } finally {
       delete target.sourceNodeIndex;
-      await restoreVisibility();
+      await restoreVisibility(restoreRegistry.key);
+      await restoreRegistry.dispose();
     }
   }
 }

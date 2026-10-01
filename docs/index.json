@@ -5670,7 +5670,7 @@
         "status": "current",
         "owners": ["capture"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-WS5R8D"],
+        "tickets": ["DM-WS5R8D", "DM-ERHTRB"],
         "code": [
           "src/capture/page-registry.ts",
           "src/capture/evaluate-in-frame.ts",

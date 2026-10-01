@@ -67,6 +67,57 @@ const CUSTOM_CSS = `
 `;
 
 describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
+  it("clears tagged frames after discovery fails and can prepare again", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 240, height: 180 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        #target{width:120px;height:80px;overflow:auto;scrollbar-width:none}
+        #target>i{display:block;width:280px;height:220px}
+      </style><div id="target"><i></i></div>`);
+      const frame = page.mainFrame();
+      const originalEvaluate = frame.evaluate.bind(frame);
+      Object.defineProperty(frame, "evaluate", {
+        configurable: true,
+        value: async (expression: unknown, argument?: unknown) => {
+          if (typeof expression === "string" && expression.includes("storedNodes.push")) {
+            throw new Error("injected discovery failure");
+          }
+          return originalEvaluate(expression as string, argument);
+        },
+      });
+      const options = { propertyKey: "", stylesByHost: {}, dynamicScrollbarKinds: new Set<string>() };
+      let failed: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>>;
+      try {
+        failed = await prepareCapturedScrollbarSets(page, "body", { x: 0, y: 0, width: 240, height: 180 }, options);
+      } finally {
+        Reflect.deleteProperty(frame, "evaluate");
+      }
+      expect(failed.warnings.some(({ detail }) => detail.includes("injected discovery failure"))).toBe(true);
+      expect(
+        await page.evaluate(() =>
+          Object.keys(globalThis).filter(
+            (key) =>
+              key.startsWith("__domotionCapturedScrollbarNodes_") ||
+              key.startsWith("__domotionCapturedScrollbarMarker_"),
+          ),
+        ),
+      ).toEqual([]);
+      const prepared = await prepareCapturedScrollbarSets(
+        page,
+        "body",
+        { x: 0, y: 0, width: 240, height: 180 },
+        options,
+      );
+      try {
+        expect(prepared.warnings.some(({ detail }) => detail.includes("discovery failed"))).toBe(false);
+      } finally {
+        await prepared.dispose();
+      }
+    } finally {
+      await page.close();
+    }
+  });
+
   it("keeps source-run discovery independent of authored __name frame globals", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 240, height: 180 } });
     try {
@@ -119,6 +170,13 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       }
       expect(await page.evaluate("globalThis.__name")).toBe("authored-sentinel");
       expect(await child.evaluate("globalThis.__name")).toBe("child-sentinel");
+      const registryKeys = () =>
+        Object.keys(globalThis).filter(
+          (key) =>
+            key.startsWith("__domotionCapturedScrollbarNodes_") || key.startsWith("__domotionCapturedScrollbarMarker_"),
+        );
+      expect(await page.evaluate(registryKeys)).toEqual([]);
+      expect(await child.evaluate(registryKeys)).toEqual([]);
     } finally {
       await page.close();
     }
@@ -322,6 +380,18 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       expect([set.horizontal?.route, set.vertical?.route]).toContain("author-custom");
       const thumb = set.vertical?.parts.find(({ kind }) => kind === "thumb");
       expect(thumb?.finalPseudoStyle?.backgroundColor).toBe("rgb(33, 61, 203)");
+      expect(
+        await page.evaluate(() =>
+          Object.keys(globalThis).filter(
+            (key) =>
+              key.startsWith("__domotionCapturedScrollbarNodes_") ||
+              key.startsWith("__domotionCapturedScrollbarMarker_"),
+          ),
+        ),
+      ).toEqual([]);
+      const repeated = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 360, height: 240 });
+      expect(byAnimId(repeated.tree, "part-only")!.scrollbars?.vertical?.route).toBe("author-custom");
+      expect(await page.locator("#part-only").getAttribute("style")).toBeNull();
     } finally {
       await page.close();
     }

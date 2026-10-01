@@ -28,6 +28,7 @@
 import { randomUUID } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import sharp from "sharp";
+import { disposeAll } from "./cdp-lifecycle.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { privateCaptureKey } from "./private-key.js";
 import { createPageRegistry } from "./page-registry.js";
@@ -768,13 +769,15 @@ async function materializeAuthorPartRasters(
 
 async function restoreMarkerPaint(
   frame: Frame,
-  args: { nodesKey: string; index: number; markerAttribute: string },
+  args: { nodesKey: string; markerKey: string; index: number; markerAttribute: string },
 ): Promise<void> {
   await frame
-    .evaluate(({ nodesKey, index, markerAttribute }) => {
+    .evaluate(({ nodesKey, markerKey, index, markerAttribute }) => {
       const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
       const element = nodes?.[index];
-      const state = (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`] as
+      const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as
+        { state?: unknown } | undefined;
+      const state = marker?.state as
         | {
             hadAttribute: boolean;
             attributeValue: string | null;
@@ -794,7 +797,7 @@ async function restoreMarkerPaint(
           html.style.removeProperty("scrollbar-color");
         }
       }
-      delete (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`];
+      if (marker != null) marker.state = undefined;
     }, args)
     .catch(() => undefined);
   await frame
@@ -955,7 +958,10 @@ export async function prepareCapturedScrollbarSets(
   },
 ): Promise<PreparedScrollbarCapture> {
   const propertyKey = privateCaptureKey("CapturedScrollbars");
-  const nodesKey = `${propertyKey}_nodes`;
+  const nodesRegistry = createPageRegistry<Element[]>(page, "CapturedScrollbarNodes");
+  const markerRegistry = createPageRegistry<{ state?: unknown }>(page, "CapturedScrollbarMarker");
+  const nodesKey = nodesRegistry.key;
+  const markerKey = markerRegistry.key;
   const markerAttribute = `data-${propertyKey.toLowerCase().replaceAll("_", "-")}`;
   let candidates: BrowserCandidate[];
   const frameTargets: readonly PreparedFrameScrollFrame[] = options?.frameScrollCapture?.frames.filter(
@@ -986,8 +992,10 @@ export async function prepareCapturedScrollbarSets(
     },
   ];
   try {
-    const discovered = await Promise.all(
+    const discovered = await Promise.allSettled(
       frameTargets.map(async (target) => {
+        await nodesRegistry.tag(target.frame, () => []);
+        await markerRegistry.tag(target.frame, () => ({}));
         const local = await evaluateInFrame(
           target.frame,
           ({ selector, viewport, nodesKey, pseudoKey, frameMeta, top }) => {
@@ -1041,7 +1049,8 @@ export async function prepareCapturedScrollbarSets(
               if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
               for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]!);
             }
-            (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] = nodes;
+            const storedNodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[];
+            storedNodes.push(...nodes);
             const globalRect = (rect: { x: number; y: number; width: number; height: number }) => ({
               x: frameMeta.offsetX + rect.x * frameMeta.scaleX,
               y: frameMeta.offsetY + rect.y * frameMeta.scaleY,
@@ -1196,8 +1205,11 @@ export async function prepareCapturedScrollbarSets(
         })) as BrowserCandidate[];
       }),
     );
-    candidates = discovered.flat();
+    const failed = discovered.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
+    candidates = discovered.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
   } catch (error) {
+    await disposeAll(nodesRegistry, markerRegistry);
     return {
       propertyKey,
       warnings: [
@@ -1211,244 +1223,272 @@ export async function prepareCapturedScrollbarSets(
     };
   }
 
-  const warnings: CaptureWarning[] = [];
-  const viewportSize = page.viewportSize();
-  const fingerprint = await captureNativeScrollbarFingerprint(page);
-  const overlayCandidates = candidates.filter(
-    (candidate) =>
-      routeForCandidate(candidate, pseudoCapture) === "native-raster" &&
-      Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5 &&
-      candidate.scrollbarWidth !== "none" &&
-      (candidate.overflowX === "scroll" ||
-        candidate.overflowY === "scroll" ||
-        candidate.scrollWidth > candidate.clientWidth ||
-        candidate.scrollHeight > candidate.clientHeight),
-  );
-  const overlayFrameIndexes = frameTargets.map(({ frame }) => ({
-    frame,
-    indexes: overlayCandidates.filter((candidate) => candidate.frame === frame).map(({ index }) => index),
-  }));
-  const overlayFrames = await captureNativeOverlayFrames(page, nodesKey, overlayFrameIndexes, viewport);
-  const sourceFrame =
-    options?.sourceImagePath == null
-      ? overlayFrames.source
-      : await captureNativeScrollbarSourceFrame(page, viewport, options.sourceImagePath);
+  let handedOff = false;
   try {
-    for (const candidate of candidates) {
-      const hostStyles = candidate.hostId == null ? undefined : pseudoCapture.stylesByHost[candidate.hostId];
-      const route = routeForCandidate(candidate, pseudoCapture);
-      if (candidate.scrollbarWidth === "none") {
-        const record = makeScrollbarSet(candidate, route, [], {});
+    const warnings: CaptureWarning[] = [];
+    const viewportSize = page.viewportSize();
+    const fingerprint = await captureNativeScrollbarFingerprint(page);
+    const overlayCandidates = candidates.filter(
+      (candidate) =>
+        routeForCandidate(candidate, pseudoCapture) === "native-raster" &&
+        Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5 &&
+        candidate.scrollbarWidth !== "none" &&
+        (candidate.overflowX === "scroll" ||
+          candidate.overflowY === "scroll" ||
+          candidate.scrollWidth > candidate.clientWidth ||
+          candidate.scrollHeight > candidate.clientHeight),
+    );
+    const overlayFrameIndexes = frameTargets.map(({ frame }) => ({
+      frame,
+      indexes: overlayCandidates.filter((candidate) => candidate.frame === frame).map(({ index }) => index),
+    }));
+    const overlayFrames = await captureNativeOverlayFrames(page, nodesKey, overlayFrameIndexes, viewport);
+    const sourceFrame =
+      options?.sourceImagePath == null
+        ? overlayFrames.source
+        : await captureNativeScrollbarSourceFrame(page, viewport, options.sourceImagePath);
+    try {
+      for (const candidate of candidates) {
+        const hostStyles = candidate.hostId == null ? undefined : pseudoCapture.stylesByHost[candidate.hostId];
+        const route = routeForCandidate(candidate, pseudoCapture);
+        if (candidate.scrollbarWidth === "none") {
+          const record = makeScrollbarSet(candidate, route, [], {});
+          await candidate.frame.evaluate(
+            ({ nodesKey, index, propertyKey, record }) => {
+              const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
+                Element[] | undefined;
+              const element = nodes?.[index];
+              if (element != null) Object.defineProperty(element, propertyKey, { value: record, configurable: true });
+            },
+            { nodesKey, index: candidate.index, propertyKey, record },
+          );
+          continue;
+        }
+        const baselinePng = await page.screenshot({ type: "png" });
+        const token = `${candidate.index}-${randomUUID().replaceAll("-", "")}`;
+        let components: ClassifiedComponent[] = [];
+        try {
+          await candidate.frame.evaluate(
+            ({
+              nodesKey,
+              markerKey,
+              index,
+              markerAttribute,
+              token,
+              route,
+              css,
+              thumb,
+              track,
+              rootScroller,
+              overflowX,
+              overflowY,
+            }) => {
+              const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
+                Element[] | undefined;
+              const element = nodes?.[index];
+              if (!(element instanceof HTMLElement || element instanceof SVGElement)) return;
+              const state = {
+                hadAttribute: element.hasAttribute(markerAttribute),
+                attributeValue: element.getAttribute(markerAttribute),
+                scrollbarColor: (element as HTMLElement).style.getPropertyValue("scrollbar-color"),
+                scrollbarColorPriority: (element as HTMLElement).style.getPropertyPriority("scrollbar-color"),
+                style: null as HTMLStyleElement | null,
+              };
+              const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as {
+                state?: unknown;
+              };
+              marker.state = state;
+              if (route === "author-custom") {
+                element.setAttribute(markerAttribute, token);
+                const style = element.ownerDocument.createElement("style");
+                style.textContent = css;
+                const owner = element.getRootNode();
+                if (owner instanceof ShadowRoot) owner.append(style);
+                else (element.ownerDocument.head ?? element.ownerDocument.documentElement).append(style);
+                state.style = style;
+              } else {
+                (element as HTMLElement).style.setProperty("scrollbar-color", `${thumb} ${track}`, "important");
+              }
+              // Blink propagates `visible` root overflow to the viewport as used
+              // `auto`, but a newly inserted root pseudo rule does not invalidate
+              // that already-built scrollbar. Flip only those visible longhands to
+              // their equivalent used value and restore them synchronously; the
+              // measured animation frame therefore retains the source declarations.
+              if (rootScroller) {
+                const html = element as HTMLElement;
+                const previousX = html.style.getPropertyValue("overflow-x");
+                const previousXPriority = html.style.getPropertyPriority("overflow-x");
+                const previousY = html.style.getPropertyValue("overflow-y");
+                const previousYPriority = html.style.getPropertyPriority("overflow-y");
+                try {
+                  if (overflowX === "visible") html.style.setProperty("overflow-x", "auto", "important");
+                  if (overflowY === "visible") html.style.setProperty("overflow-y", "auto", "important");
+                  void html.clientWidth;
+                } finally {
+                  if (previousX !== "") html.style.setProperty("overflow-x", previousX, previousXPriority);
+                  else html.style.removeProperty("overflow-x");
+                  if (previousY !== "") html.style.setProperty("overflow-y", previousY, previousYPriority);
+                  else html.style.removeProperty("overflow-y");
+                  void html.clientWidth;
+                }
+              }
+            },
+            {
+              nodesKey,
+              markerKey,
+              index: candidate.index,
+              markerAttribute,
+              token,
+              route,
+              css: customMarkerCss(markerAttribute, token),
+              thumb: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "thumb")!.rgb),
+              track: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "track")!.rgb),
+              rootScroller: candidate.rootScroller,
+              overflowX: candidate.overflowX,
+              overflowY: candidate.overflowY,
+            },
+          );
+          await candidate.frame.evaluate(
+            () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+          );
+          const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+          const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
+            const png = await page.screenshot({ type: "png" });
+            const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+            const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
+            const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);
+            const scaleX = decoded.info.width / surfaceWidth;
+            const scaleY = decoded.info.height / surfaceHeight;
+            const restriction = {
+              x: Math.max(0, candidate.screenRect.x * scaleX),
+              y: Math.max(0, candidate.screenRect.y * scaleY),
+              width: Math.max(0, candidate.screenRect.width * scaleX),
+              height: Math.max(0, candidate.screenRect.height * scaleY),
+            };
+            return scrollbarMarkerComponents(
+              decoded.data,
+              decoded.info.width,
+              decoded.info.height,
+              restriction,
+              baseline.info.width === decoded.info.width && baseline.info.height === decoded.info.height
+                ? baseline.data
+                : undefined,
+            )
+              .map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))
+              .filter((component): component is ClassifiedComponent => component != null);
+          };
+          components = await classifyScreenshot();
+          if (route === "author-custom") {
+            // The all-parts frame exposes the topmost pieces/thumb/buttons but
+            // those obscure Blink's frame and track background objects. Repaint
+            // each lower layer alone while preserving every source layout value
+            // so their rectangles also remain browser-owned facts.
+            for (const isolatedKind of ["background", "track"] as const) {
+              const css = customMarkerCss(markerAttribute, token, isolatedKind);
+              await candidate.frame.evaluate(
+                ({ markerKey, css }) => {
+                  const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as
+                    { state?: unknown } | undefined;
+                  const state = marker?.state as
+                    | {
+                        style: HTMLStyleElement | null;
+                      }
+                    | undefined;
+                  if (state?.style != null) state.style.textContent = css;
+                },
+                { markerKey, css },
+              );
+              await candidate.frame.evaluate(
+                () =>
+                  new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+              );
+              const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
+              components = [...components.filter(({ kind }) => kind !== isolatedKind), ...isolated];
+            }
+          }
+        } finally {
+          await restoreMarkerPaint(candidate.frame, { nodesKey, markerKey, index: candidate.index, markerAttribute });
+        }
+
+        if (
+          route === "native-raster" &&
+          components.length === 0 &&
+          Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5
+        ) {
+          components = nativeOverlayComponentsFromSource(candidate, overlayFrames, viewport);
+        }
+
+        const styles = (hostStyles ?? {}) as Record<string, CapturedScrollbarPseudoStyle | undefined>;
+        const record = makeScrollbarSet(candidate, route, components, styles);
+        if (route === "native-raster") {
+          await materializeNativeScrollbarSet(record, candidate, viewport, sourceFrame, overlayFrames, fingerprint);
+        } else {
+          await materializeAuthorPartRasters(
+            baselinePng,
+            record,
+            viewport,
+            viewportSize,
+            pseudoCapture.dynamicScrollbarKinds,
+          );
+        }
         await candidate.frame.evaluate(
           ({ nodesKey, index, propertyKey, record }) => {
             const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
               Element[] | undefined;
             const element = nodes?.[index];
-            if (element != null) Object.defineProperty(element, propertyKey, { value: record, configurable: true });
+            if (element == null) return;
+            Object.defineProperty(element, propertyKey, { value: record, configurable: true });
           },
           { nodesKey, index: candidate.index, propertyKey, record },
         );
-        continue;
-      }
-      const baselinePng = await page.screenshot({ type: "png" });
-      const token = `${candidate.index}-${randomUUID().replaceAll("-", "")}`;
-      await candidate.frame.evaluate(
-        ({ nodesKey, index, markerAttribute, token, route, css, thumb, track, rootScroller, overflowX, overflowY }) => {
-          const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
-          const element = nodes?.[index];
-          if (!(element instanceof HTMLElement || element instanceof SVGElement)) return;
-          const state = {
-            hadAttribute: element.hasAttribute(markerAttribute),
-            attributeValue: element.getAttribute(markerAttribute),
-            scrollbarColor: (element as HTMLElement).style.getPropertyValue("scrollbar-color"),
-            scrollbarColorPriority: (element as HTMLElement).style.getPropertyPriority("scrollbar-color"),
-            style: null as HTMLStyleElement | null,
-          };
-          if (route === "author-custom") {
-            element.setAttribute(markerAttribute, token);
-            const style = element.ownerDocument.createElement("style");
-            style.textContent = css;
-            const owner = element.getRootNode();
-            if (owner instanceof ShadowRoot) owner.append(style);
-            else (element.ownerDocument.head ?? element.ownerDocument.documentElement).append(style);
-            state.style = style;
-          } else {
-            (element as HTMLElement).style.setProperty("scrollbar-color", `${thumb} ${track}`, "important");
-          }
-          // Blink propagates `visible` root overflow to the viewport as used
-          // `auto`, but a newly inserted root pseudo rule does not invalidate
-          // that already-built scrollbar. Flip only those visible longhands to
-          // their equivalent used value and restore them synchronously; the
-          // measured animation frame therefore retains the source declarations.
-          if (rootScroller) {
-            const html = element as HTMLElement;
-            const previousX = html.style.getPropertyValue("overflow-x");
-            const previousXPriority = html.style.getPropertyPriority("overflow-x");
-            const previousY = html.style.getPropertyValue("overflow-y");
-            const previousYPriority = html.style.getPropertyPriority("overflow-y");
-            try {
-              if (overflowX === "visible") html.style.setProperty("overflow-x", "auto", "important");
-              if (overflowY === "visible") html.style.setProperty("overflow-y", "auto", "important");
-              void html.clientWidth;
-            } finally {
-              if (previousX !== "") html.style.setProperty("overflow-x", previousX, previousXPriority);
-              else html.style.removeProperty("overflow-x");
-              if (previousY !== "") html.style.setProperty("overflow-y", previousY, previousYPriority);
-              else html.style.removeProperty("overflow-y");
-              void html.clientWidth;
-            }
-          }
-          (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`] = state;
-        },
-        {
-          nodesKey,
-          index: candidate.index,
-          markerAttribute,
-          token,
-          route,
-          css: customMarkerCss(markerAttribute, token),
-          thumb: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "thumb")!.rgb),
-          track: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "track")!.rgb),
-          rootScroller: candidate.rootScroller,
-          overflowX: candidate.overflowX,
-          overflowY: candidate.overflowY,
-        },
-      );
-      let components: ClassifiedComponent[] = [];
-      try {
-        await candidate.frame.evaluate(
-          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-        );
-        const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-        const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
-          const png = await page.screenshot({ type: "png" });
-          const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-          const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
-          const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);
-          const scaleX = decoded.info.width / surfaceWidth;
-          const scaleY = decoded.info.height / surfaceHeight;
-          const restriction = {
-            x: Math.max(0, candidate.screenRect.x * scaleX),
-            y: Math.max(0, candidate.screenRect.y * scaleY),
-            width: Math.max(0, candidate.screenRect.width * scaleX),
-            height: Math.max(0, candidate.screenRect.height * scaleY),
-          };
-          return scrollbarMarkerComponents(
-            decoded.data,
-            decoded.info.width,
-            decoded.info.height,
-            restriction,
-            baseline.info.width === decoded.info.width && baseline.info.height === decoded.info.height
-              ? baseline.data
-              : undefined,
-          )
-            .map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))
-            .filter((component): component is ClassifiedComponent => component != null);
-        };
-        components = await classifyScreenshot();
-        if (route === "author-custom") {
-          // The all-parts frame exposes the topmost pieces/thumb/buttons but
-          // those obscure Blink's frame and track background objects. Repaint
-          // each lower layer alone while preserving every source layout value
-          // so their rectangles also remain browser-owned facts.
-          for (const isolatedKind of ["background", "track"] as const) {
-            const css = customMarkerCss(markerAttribute, token, isolatedKind);
-            await candidate.frame.evaluate(
-              ({ nodesKey, css }) => {
-                const state = (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`] as
-                  | {
-                      style: HTMLStyleElement | null;
-                    }
-                  | undefined;
-                if (state?.style != null) state.style.textContent = css;
-              },
-              { nodesKey, css },
-            );
-            await candidate.frame.evaluate(
-              () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-            );
-            const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
-            components = [...components.filter(({ kind }) => kind !== isolatedKind), ...isolated];
-          }
+        if (record.status === "partial" || record.status === "unavailable") {
+          warnings.push({
+            selector: candidate.selector,
+            feature: REQUIRED_FACT_FEATURE,
+            detail: `authoritative scrollbar record is ${record.status}; missing ${record.missingFacts.join(", ") || "marker-owned geometry"}; legacy synthesis is disabled`,
+          });
         }
-      } finally {
-        await restoreMarkerPaint(candidate.frame, { nodesKey, index: candidate.index, markerAttribute });
       }
-
-      if (
-        route === "native-raster" &&
-        components.length === 0 &&
-        Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5
-      ) {
-        components = nativeOverlayComponentsFromSource(candidate, overlayFrames, viewport);
-      }
-
-      const styles = (hostStyles ?? {}) as Record<string, CapturedScrollbarPseudoStyle | undefined>;
-      const record = makeScrollbarSet(candidate, route, components, styles);
-      if (route === "native-raster") {
-        await materializeNativeScrollbarSet(record, candidate, viewport, sourceFrame, overlayFrames, fingerprint);
-      } else {
-        await materializeAuthorPartRasters(
-          baselinePng,
-          record,
-          viewport,
-          viewportSize,
-          pseudoCapture.dynamicScrollbarKinds,
-        );
-      }
-      await candidate.frame.evaluate(
-        ({ nodesKey, index, propertyKey, record }) => {
-          const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
-          const element = nodes?.[index];
-          if (element == null) return;
-          Object.defineProperty(element, propertyKey, { value: record, configurable: true });
-        },
-        { nodesKey, index: candidate.index, propertyKey, record },
-      );
-      if (record.status === "partial" || record.status === "unavailable") {
-        warnings.push({
-          selector: candidate.selector,
-          feature: REQUIRED_FACT_FEATURE,
-          detail: `authoritative scrollbar record is ${record.status}; missing ${record.missingFacts.join(", ") || "marker-owned geometry"}; legacy synthesis is disabled`,
-        });
-      }
+    } catch (error) {
+      warnings.push({
+        selector,
+        feature: REQUIRED_FACT_FEATURE,
+        detail: `authoritative scrollbar probe failed (${error instanceof Error ? error.message : String(error)}); legacy synthesis is disabled`,
+      });
     }
-  } catch (error) {
-    warnings.push({
-      selector,
-      feature: REQUIRED_FACT_FEATURE,
-      detail: `authoritative scrollbar probe failed (${error instanceof Error ? error.message : String(error)}); legacy synthesis is disabled`,
-    });
-  }
 
-  return {
-    propertyKey,
-    warnings,
-    async dispose(): Promise<void> {
-      await Promise.all(
-        frameTargets.map(({ frame }) =>
-          frame
-            .evaluate(
-              ({ nodesKey, propertyKey }) => {
-                const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
-                  Element[] | undefined;
-                for (const element of nodes ?? []) {
-                  try {
-                    delete (element as Element & Record<string, unknown>)[propertyKey];
-                  } catch {
-                    /* Detached node. */
+    const prepared: PreparedScrollbarCapture = {
+      propertyKey,
+      warnings,
+      async dispose(): Promise<void> {
+        await Promise.all(
+          frameTargets.map(({ frame }) =>
+            frame
+              .evaluate(
+                ({ nodesKey, propertyKey }) => {
+                  const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
+                    Element[] | undefined;
+                  for (const element of nodes ?? []) {
+                    try {
+                      delete (element as Element & Record<string, unknown>)[propertyKey];
+                    } catch {
+                      /* Detached node. */
+                    }
                   }
-                }
-                delete (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey];
-                delete (globalThis as typeof globalThis & Record<string, unknown>)[`${nodesKey}_marker`];
-              },
-              { nodesKey, propertyKey },
-            )
-            .catch(() => undefined),
-        ),
-      );
-    },
-  };
+                },
+                { nodesKey, propertyKey },
+              )
+              .catch(() => undefined),
+          ),
+        );
+        await disposeAll(nodesRegistry, markerRegistry);
+      },
+    };
+    handedOff = true;
+    return prepared;
+  } finally {
+    if (!handedOff) await disposeAll(nodesRegistry, markerRegistry);
+  }
 }
 
 /** ScrollableAreaPainter paints the resizer after the corner. */
