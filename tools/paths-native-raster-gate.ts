@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
+import { outcomeSchema, readReportData, writeReport } from "./lib/report.js";
 import { assessPathsNativeFaceIdentity, pathsRasterCssFamily } from "./paths-native-face-identity.js";
 
 const finite = z.number().finite();
@@ -175,6 +176,25 @@ export const pathsRasterRowSchema = z
   })
   .strict();
 export type PathsRasterRow = z.infer<typeof pathsRasterRowSchema>;
+const pathsRasterRowsSchema = z.array(pathsRasterRowSchema);
+export const pathsRasterRowsDataSchema = z
+  .object({ outcome: outcomeSchema, rows: pathsRasterRowsSchema })
+  .superRefine((report, ctx) => {
+    if (report.outcome !== (report.rows.length === 0 ? "skip" : "pass"))
+      ctx.addIssue({ code: "custom", message: "outcome must agree with row count" });
+  });
+const legacyRowsSchema = pathsRasterRowsSchema.transform((rows) => ({
+  outcome: rows.length === 0 ? ("skip" as const) : ("pass" as const),
+  rows,
+}));
+
+export function readPathsRasterRows(
+  path: string,
+  tool: "paths-native-raster-collector" | "paths-native-raster-producer",
+) {
+  return readReportData(path, pathsRasterRowsDataSchema, { tool, schemaVersion: 1, legacySchema: legacyRowsSchema })
+    .rows;
+}
 
 const envelopeSchema = z
   .object({
@@ -324,6 +344,30 @@ export interface PathsRasterVerdict {
     | "accepted-rasterization-only";
   reason?: string;
 }
+export const pathsRasterVerdictDataSchema = z
+  .object({
+    pass: z.boolean(),
+    outcome: outcomeSchema,
+    platforms: z.array(z.enum(["darwin", "linux", "win32"])).optional(),
+    rows: z.array(
+      z.object({
+        id: z.string().min(1),
+        verdict: z.enum([
+          "logical-mismatch",
+          "invalid-evidence",
+          "envelope-unratified",
+          "missing-envelope",
+          "envelope-violation",
+          "accepted-rasterization-only",
+        ]),
+        reason: z.string().optional(),
+      }),
+    ),
+  })
+  .superRefine((report, ctx) => {
+    if (report.outcome !== (report.pass ? "pass" : "fail"))
+      ctx.addIssue({ code: "custom", message: "outcome must agree with gate result" });
+  });
 
 export function adjudicatePathsRasterRows(
   rawRows: unknown,
@@ -394,10 +438,15 @@ export function main(argv: string[] = process.argv.slice(2)): number {
   const envelopes = requiredFlag(values, "--envelopes");
   const out = requiredFlag(values, "--out");
   const report = adjudicatePathsRasterRows(
-    JSON.parse(readFileSync(rows, "utf8")),
+    readPathsRasterRows(rows, "paths-native-raster-producer"),
     JSON.parse(readFileSync(envelopes, "utf8")),
   );
-  writeFileSync(out, JSON.stringify({ schemaVersion: 1, ...report }, null, 2));
+  writeReport(
+    out,
+    "paths-native-raster-gate",
+    pathsRasterVerdictDataSchema.parse({ ...report, outcome: report.pass ? "pass" : "fail" }),
+    { schemaVersion: 1 },
+  );
   console.log(`Paths/native raster gate: ${report.rows.length} rows; ${report.pass ? "PASS" : "WITHHELD"}`);
   return report.pass ? 0 : 1;
 }

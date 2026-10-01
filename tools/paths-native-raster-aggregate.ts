@@ -1,9 +1,16 @@
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { isMain, parseFlags, requiredFlag, runMain } from "./lib/cli.js";
 
-import { adjudicatePathsRasterRows, fingerprintSha256, type PathsRasterRow } from "./paths-native-raster-gate.js";
+import {
+  adjudicatePathsRasterRows,
+  fingerprintSha256,
+  pathsRasterVerdictDataSchema,
+  readPathsRasterRows,
+  type PathsRasterRow,
+} from "./paths-native-raster-gate.js";
 import { producePathsRasterRows } from "./paths-native-raster-producer.js";
+import { writeReport } from "./lib/report.js";
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
   const values = parseFlags(argv, {
@@ -22,7 +29,10 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   const rows: PathsRasterRow[] = [];
   for (const file of rowFiles) {
     const absolute = resolve(root, file);
-    const produced = await producePathsRasterRows(JSON.parse(readFileSync(absolute, "utf8")), dirname(absolute));
+    const produced = await producePathsRasterRows(
+      readPathsRasterRows(absolute, "paths-native-raster-producer"),
+      dirname(absolute),
+    );
     if (
       new Set(produced.map((row) => row.fingerprint.platform)).size !== 1 ||
       new Set(produced.map((row) => fingerprintSha256(row.fingerprint))).size !== 1 ||
@@ -53,7 +63,16 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       throw new Error(`${target}: proposal and validation must come from independent runners`);
   }
   const report = adjudicatePathsRasterRows(rows, JSON.parse(readFileSync(envelopes, "utf8")));
-  writeFileSync(out, JSON.stringify({ schemaVersion: 1, platforms: [...platforms].sort(), ...report }, null, 2));
+  writeReport(
+    out,
+    "paths-native-raster-aggregate",
+    pathsRasterVerdictDataSchema.parse({
+      platforms: [...platforms].sort(),
+      ...report,
+      outcome: report.pass ? "pass" : "fail",
+    }),
+    { schemaVersion: 1 },
+  );
   console.log(
     `Paths/native raster aggregate: ${rows.length} rows across ${platforms.size} platforms; ${report.pass ? "PASS" : "WITHHELD"}`,
   );

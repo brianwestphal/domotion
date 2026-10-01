@@ -1,5 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { main as aggregate } from "../tools/paths-native-raster-aggregate.js";
 
 const workflow = readFileSync(".github/workflows/paths-native-raster-floor.yml", "utf8");
 const collector = readFileSync("tools/paths-native-raster-collector.ts", "utf8");
@@ -39,9 +42,31 @@ describe("paths/native raster workflow", () => {
     expect(workflow).toContain("tools/paths-native-raster-envelopes.json");
     expect(workflow).toContain("fonts:paths-raster:aggregate");
   });
-  it("executes both CLIs through platform-normalized file URLs", () => {
+  it("reads versioned producer artifacts before checking the complete platform matrix", async () => {
+    const root = mkdtempSync(join(tmpdir(), "domotion-raster-aggregate-"));
+    for (let index = 0; index < 6; index++) {
+      const dir = join(root, String(index));
+      mkdirSync(dir);
+      writeFileSync(
+        join(dir, "paths-native-raster-rows.json"),
+        JSON.stringify({
+          schemaVersion: 1,
+          tool: "paths-native-raster-producer",
+          generatedAt: new Date().toISOString(),
+          env: {},
+          data: { outcome: "skip", rows: [] },
+        }),
+      );
+    }
+    const envelopes = join(root, "envelopes.json");
+    writeFileSync(envelopes, JSON.stringify({ schemaVersion: 2, ratified: false, envelopes: [] }));
+    await expect(
+      aggregate(["--artifacts", root, "--envelopes", envelopes, "--out", join(root, "report.json")]),
+    ).rejects.toThrow(/incomplete paths\/native raster matrix/);
+  });
+  it("guards both CLI entry points through the shared main helper", () => {
     for (const source of [collector, producer]) {
-      expect(source).toContain("pathToFileURL(resolve(process.argv[1])).href");
+      expect(source).toContain("if (isMain(import.meta.url)) await runMain(() => main());");
       expect(source).not.toContain("`file://${process.argv[1]}`");
     }
   });
