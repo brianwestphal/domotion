@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { launchChromium } from "../src/capture/index.js";
@@ -8,6 +11,7 @@ import {
   NESTED_PROJECTIVE_VIEWPORT,
   nestedProjectiveAuditFixtureHtml,
   runNestedProjectiveOwnershipAudit,
+  writeNestedProjectiveAuditReport,
 } from "../tools/nested-projective-ownership-audit.js";
 
 describe("DM-2356 live nested projective ownership audit", () => {
@@ -33,6 +37,13 @@ describe("DM-2356 live nested projective ownership audit", () => {
     expect(report.productionGaps).toEqual([]);
     expect(report.sourceVsSvgChangedFraction.dpr1).toBeGreaterThan(0);
     expect(report.sourceVsSvgChangedFraction.dpr1).toBeLessThan(1);
+    const output = join(mkdtempSync(join(tmpdir(), "domotion-projective-audit-")), "nested", "report.json");
+    writeNestedProjectiveAuditReport(output, report);
+    expect(JSON.parse(readFileSync(output, "utf8"))).toMatchObject({
+      schemaVersion: 1,
+      tool: "nested-projective-ownership-audit",
+      data: { schemaVersion: 1, verdict: "investigation-complete", outcome: "pass" },
+    });
   }, 90_000);
 
   it("materializes one atomic raster per owner under the vertical/RTL fractional-zoom profile", async () => {

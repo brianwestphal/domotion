@@ -11,6 +11,7 @@ import {
   adjudicateProjectiveOwnership,
   emptyGrouping,
   nestedProjectiveAuditFixtureHtml,
+  nestedProjectiveAuditDataSchema,
   nestedProjectiveScrollBlockers,
   projectiveGroupingReasons,
   projectiveQuadWithinViewport,
@@ -36,6 +37,27 @@ const fact = (
 });
 
 describe("DM-2356 Blink projective context model", () => {
+  it("validates the nested audit report data and normalized outcome", () => {
+    const data = {
+      schemaVersion: 1,
+      sourcePins: NESTED_PROJECTIVE_SOURCE_PINS,
+      chromiumVersion: "test",
+      platform: "darwin",
+      architecture: "arm64",
+      dprs: [1],
+      rows: [{ id: "owner@1" }],
+      mutations: [{ id: "control", killed: true }],
+      blockers: [],
+      warnings: [],
+      restorationExact: true,
+      verdict: "investigation-complete",
+      outcome: "pass",
+    };
+    expect(nestedProjectiveAuditDataSchema.parse(data).outcome).toBe("pass");
+    expect(() => nestedProjectiveAuditDataSchema.parse({ ...data, rows: [{}] })).toThrow();
+    expect(() => nestedProjectiveAuditDataSchema.parse({ ...data, outcome: "unknown" })).toThrow();
+    expect(() => nestedProjectiveAuditDataSchema.parse({ ...data, outcome: "fail" })).toThrow();
+  });
   it("pins the audited Chromium and Chromium-owned Skia revisions", () => {
     expect(NESTED_PROJECTIVE_SOURCE_PINS).toEqual({
       chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",

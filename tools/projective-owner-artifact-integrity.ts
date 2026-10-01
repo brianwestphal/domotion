@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import sharp from "sharp";
-import { projectiveOwnerReleaseReportSchema } from "./projective-owner-release-gate.js";
+import {
+  projectiveOwnerReleaseDataSchema,
+  projectiveOwnerReleaseReportSchema,
+} from "./projective-owner-release-gate.js";
+import { reportEnvelopeSchema } from "./lib/report.js";
 
 /**
  * Report-relative artifact paths are a portable, cross-platform contract: each native collector
@@ -39,11 +43,17 @@ export async function findProjectiveOwnerReports(root: string): Promise<string[]
  * are skipped here — the adjudicator reports those as schema rejections.
  */
 export async function verifyProjectiveOwnerArtifacts(reportPath: string, input: unknown): Promise<string[]> {
-  const parsed = projectiveOwnerReleaseReportSchema.safeParse(input);
-  if (!parsed.success) return [];
+  const enveloped = input != null && typeof input === "object" && ("tool" in input || "data" in input);
+  const report = enveloped
+    ? reportEnvelopeSchema(projectiveOwnerReleaseDataSchema, {
+        tool: "projective-owner-release-producer",
+        schemaVersion: 1,
+      }).safeParse(input).data?.data
+    : projectiveOwnerReleaseReportSchema.safeParse(input).data;
+  if (report == null) return [];
   const reportDir = dirname(reportPath);
   const integrity: string[] = [];
-  for (const row of parsed.data.rows)
+  for (const row of report.rows)
     for (const artifact of row.artifacts) {
       const segments = portableArtifactSegments(artifact.path);
       const path = segments == null ? undefined : resolve(reportDir, ...segments);

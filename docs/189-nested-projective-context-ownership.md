@@ -248,6 +248,8 @@ now captures a scrolled state:
 
 ### Aggregate artifact-integrity contract
 
+The nested observational audit keeps its flat schema-v1 JSON on stdout; `--json` writes a version-1 `{schemaVersion, tool, generatedAt, env, data}` envelope with the original audit schema and normalized `data.outcome`. The projective release producer writes the same envelope around its strict schema-v2 domain report. The release checker accepts validated flat v2 retained reports and current envelopes, rejects unknown versions and tools, and passes the validated domain data to artifact authentication and the three-platform gate. Report-relative PNG paths and SHA-256 values remain inside the domain data.
+
 The adjudicator (`npm run transform:projective-owner-release -- --reports <dir>`,
 `tools/check-projective-owner-release.ts`) runs once on Linux over the
 downloaded tree `projective-owner-{macOS,Linux,Windows}/`, each holding its own

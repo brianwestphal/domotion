@@ -11,7 +11,8 @@
 
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { z } from "zod";
 
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
@@ -19,6 +20,7 @@ import sharp from "sharp";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { outcomeSchema, writeReport } from "./lib/report.js";
 import {
   PROJECTIVE_QUAD_EPSILON,
   projectiveQuadResidual,
@@ -862,6 +864,42 @@ export interface NestedProjectiveAuditReport {
   restorationExact: boolean;
   verdict: "investigation-complete" | "evidence-incomplete";
 }
+export const nestedProjectiveAuditDataSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    sourcePins: z.object({ chromium: z.string(), skiaPinnedByChromium: z.string() }),
+    chromiumVersion: z.string(),
+    platform: z.string(),
+    architecture: z.string(),
+    dprs: z.array(z.number().positive()),
+    rows: z.array(z.object({ id: z.string() }).passthrough()),
+    mutations: z.array(z.object({ id: z.string(), killed: z.boolean() }).passthrough()),
+    blockers: z.array(z.string()),
+    warnings: z.array(z.string()),
+    restorationExact: z.boolean(),
+    verdict: z.enum(["investigation-complete", "evidence-incomplete"]),
+    outcome: outcomeSchema,
+  })
+  .passthrough()
+  .superRefine((report, ctx) => {
+    if (report.outcome !== (report.verdict === "investigation-complete" ? "pass" : "fail"))
+      ctx.addIssue({ code: "custom", message: "outcome must agree with nested audit verdict" });
+  });
+
+export function writeNestedProjectiveAuditReport(path: string, report: NestedProjectiveAuditReport): void {
+  writeReport(
+    path,
+    "nested-projective-ownership-audit",
+    nestedProjectiveAuditDataSchema.parse({
+      ...report,
+      outcome: report.verdict === "investigation-complete" ? "pass" : "fail",
+    }),
+    {
+      schemaVersion: 1,
+      env: { platform: report.platform, architecture: report.architecture, chromium: report.chromiumVersion },
+    },
+  );
+}
 
 function mutationControls(): NestedProjectiveMutationResult[] {
   const expected = ["inner"];
@@ -905,8 +943,9 @@ export async function runNestedProjectiveOwnershipAudit(
   const sourceVsSvgChangedFraction: Record<string, number> = {};
   const scrollOffsets: NestedProjectiveAuditReport["scrollOffsets"] = {};
   const profile = options.profile ?? "horizontal-ltr-static";
-  const chromiumVersion = browser.version();
+  let chromiumVersion = "unknown";
   await withBrowser(async (browser) => {
+    chromiumVersion = browser.version();
     for (const dpr of dprs) {
       const page = await browser.newPage({ viewport: NESTED_PROJECTIVE_VIEWPORT, deviceScaleFactor: dpr });
       const rendered = await browser.newPage({ viewport: NESTED_PROJECTIVE_VIEWPORT, deviceScaleFactor: dpr });
@@ -1162,10 +1201,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     artifactDir,
   });
   const output = `${JSON.stringify(report, null, 2)}\n`;
-  if (jsonPath != null) {
-    mkdirSync(dirname(jsonPath), { recursive: true });
-    writeFileSync(jsonPath, output);
-  }
+  if (jsonPath != null) writeNestedProjectiveAuditReport(jsonPath, report);
   process.stdout.write(output);
   return report.verdict === "investigation-complete" ? 0 : 1;
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { release } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
@@ -11,8 +11,10 @@ import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.m
 import {
   PROJECTIVE_GATE_FAMILIES,
   PROJECTIVE_GATE_PROFILES,
+  projectiveOwnerReleaseDataSchema,
   type ProjectiveOwnerReleaseReport,
 } from "./projective-owner-release-gate.js";
+import { writeReport } from "./lib/report.js";
 
 export async function produceProjectiveOwnerRelease(argv: string[]): Promise<number> {
   const args = parseFlags(argv, {
@@ -114,8 +116,15 @@ export async function produceProjectiveOwnerRelease(argv: string[]): Promise<num
     rows,
     mutations: mutationEvidence,
   };
-  await mkdir(dirname(out), { recursive: true });
-  await writeFile(out, `${JSON.stringify(report, null, 2)}\n`);
+  writeReport(
+    out,
+    "projective-owner-release-producer",
+    projectiveOwnerReleaseDataSchema.parse({ ...report, outcome: rows.some((row) => !row.pass) ? "fail" : "pass" }),
+    {
+      schemaVersion: 1,
+      env: { platform: report.environment.platform, architecture: report.environment.architecture, chromiumVersion },
+    },
+  );
   return rows.some((row) => !row.pass) && flag(args, "report-only", false) !== true ? 1 : 0;
 }
 

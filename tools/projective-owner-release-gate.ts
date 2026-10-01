@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { outcomeSchema, readReportData } from "./lib/report.js";
 
 export const PROJECTIVE_GATE_PLATFORMS = ["darwin", "linux", "win32"] as const;
 export const PROJECTIVE_GATE_DPRS = [1, 2] as const;
@@ -97,6 +98,25 @@ export const projectiveOwnerReleaseReportSchema = z.object({
   rows: z.array(row),
   mutations: z.array(z.object({ id: z.enum(PROJECTIVE_GATE_MUTATIONS), killed: z.boolean() })),
 });
+export const projectiveOwnerReleaseDataSchema = projectiveOwnerReleaseReportSchema
+  .extend({ outcome: outcomeSchema })
+  .superRefine((report, ctx) => {
+    if (report.outcome !== (report.rows.some((row) => !row.pass) ? "fail" : "pass"))
+      ctx.addIssue({ code: "custom", message: "outcome must agree with release rows" });
+  });
+const legacyProjectiveOwnerReleaseSchema = projectiveOwnerReleaseReportSchema.transform((report) => ({
+  ...report,
+  outcome: report.rows.some((row) => !row.pass) ? ("fail" as const) : ("pass" as const),
+}));
+
+export function readProjectiveOwnerReleaseReport(path: string) {
+  return readReportData(path, projectiveOwnerReleaseDataSchema, {
+    tool: "projective-owner-release-producer",
+    schemaVersion: 1,
+    legacySchemaVersion: 2,
+    legacySchema: legacyProjectiveOwnerReleaseSchema,
+  });
+}
 export type ProjectiveOwnerReleaseReport = z.infer<typeof projectiveOwnerReleaseReportSchema>;
 
 export function projectiveGateRowKey(

@@ -4,12 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { writeReport } from "../tools/lib/report.js";
+import { checkProjectiveOwnerRelease } from "../tools/check-projective-owner-release.js";
 import {
   findProjectiveOwnerReports,
   portableArtifactSegments,
   verifyProjectiveOwnerArtifacts,
 } from "../tools/projective-owner-artifact-integrity.js";
-import { type ProjectiveOwnerReleaseReport } from "../tools/projective-owner-release-gate.js";
+import {
+  readProjectiveOwnerReleaseReport,
+  type ProjectiveOwnerReleaseReport,
+} from "../tools/projective-owner-release-gate.js";
 
 type Platform = ProjectiveOwnerReleaseReport["environment"]["platform"];
 
@@ -109,6 +114,37 @@ async function verifyTree(): Promise<string[]> {
 }
 
 describe("projective owner artifact integrity over the aggregated three-platform tree", () => {
+  it("reads flat v2 and current reports, including nested report destinations", async () => {
+    const path = join(root, "projective-owner-Linux", "report.json");
+    expect(readProjectiveOwnerReleaseReport(path).environment.platform).toBe("linux");
+    const data = report("linux", "artifacts/linux-x64-linux-image-1-pin/horizontal-ltr-static/source-dpr1.png", digest);
+    writeReport(path, "projective-owner-release-producer", { ...data, outcome: "pass" }, { schemaVersion: 1 });
+    expect(readProjectiveOwnerReleaseReport(path).rows).toEqual(data.rows);
+    expect(await verifyTree()).toEqual([]);
+    const nested = join(root, "nested", "release", "report.json");
+    writeReport(nested, "projective-owner-release-producer", { ...data, outcome: "pass" }, { schemaVersion: 1 });
+    expect(readProjectiveOwnerReleaseReport(nested).outcome).toBe("pass");
+  });
+
+  it("rejects unknown report versions, wrong tools, and malformed legacy payloads", async () => {
+    const path = join(root, "projective-owner-Linux", "report.json");
+    const data = report("linux", "artifacts/source.png", digest);
+    writeReport(path, "projective-owner-release-producer", { ...data, outcome: "pass" }, { schemaVersion: 2 });
+    expect(() => readProjectiveOwnerReleaseReport(path)).toThrow();
+    writeReport(path, "other-tool", { ...data, outcome: "pass" }, { schemaVersion: 1 });
+    expect(() => readProjectiveOwnerReleaseReport(path)).toThrow();
+    writeReport(path, "projective-owner-release-producer", { ...data, outcome: "fail" }, { schemaVersion: 1 });
+    expect(() => readProjectiveOwnerReleaseReport(path)).toThrow();
+    await writeFile(path, JSON.stringify({ ...data, schemaVersion: 3 }));
+    expect(() => readProjectiveOwnerReleaseReport(path)).toThrow();
+  });
+
+  it("keeps invalid retained versions on the release mismatch path", async () => {
+    const path = join(root, "projective-owner-Linux", "report.json");
+    const data = report("linux", "artifacts/source.png", digest);
+    writeReport(path, "projective-owner-release-producer", { ...data, outcome: "pass" }, { schemaVersion: 2 });
+    expect(await checkProjectiveOwnerRelease(["--reports", root])).toBe(1);
+  });
   it("finds one report per native collector", async () => {
     expect((await findProjectiveOwnerReports(root)).length).toBe(3);
   });
