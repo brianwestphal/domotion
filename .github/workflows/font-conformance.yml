@@ -146,6 +146,7 @@ jobs:
           NO_PUA: ${{ inputs.no_pua }}
           STRICT_ALIAS: ${{ inputs.strict_alias }}
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: font-conformance-macos-shard-${{ matrix.shard }}-cp${{ matrix.cp }}
           path: tests/output/font-conformance/
@@ -205,6 +206,7 @@ jobs:
           NO_PUA: ${{ inputs.no_pua }}
           STRICT_ALIAS: ${{ inputs.strict_alias }}
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: font-conformance-linux-shard-${{ matrix.shard }}-cp${{ matrix.cp }}
           path: tests/output/font-conformance/
@@ -242,6 +244,7 @@ jobs:
           NO_PUA: ${{ inputs.no_pua }}
           STRICT_ALIAS: ${{ inputs.strict_alias }}
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: font-conformance-windows-shard-${{ matrix.shard }}-cp${{ matrix.cp }}
           path: tests/output/font-conformance/

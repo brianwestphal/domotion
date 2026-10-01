@@ -959,7 +959,85 @@ export function probePageHtml(cps: number[], spec: StackSpec, lang: string): str
  *  slow layout from a hung one, and only the second reading should fail a run. */
 const SET_CONTENT_TIMEOUT_MS = 120_000;
 
+/** A noncharacter forces Blink to report the generic's `.notdef` donor,
+ * without asking the platform fallback cache about an assigned codepoint.
+ * That exposes the Page's configured family even when an ordinary probe glyph
+ * would paint through a different fallback face. */
+const ORACLE_CONTROL_CODEPOINT = String.fromCodePoint(0x10ffff);
+const ORACLE_CONTROL_FAMILIES = ["serif", "sans-serif", "monospace", "cursive", "fantasy", "math"] as const;
+
+export async function probeOracleControlSignature(page: Page, cdp: CDPSession): Promise<string[]> {
+  // Keep the measured document and its renderer state intact. setContent here
+  // would introduce an extra navigation between every two sweep batches.
+  await page.evaluate(
+    ({ families, codepoint }) => {
+      const container = document.createElement("div");
+      container.id = "font-conformance-oracle-controls";
+      container.style.cssText = "position:absolute;left:0;top:0;pointer-events:none";
+      for (const family of families) {
+        const cell = document.createElement("span");
+        cell.className = "font-conformance-oracle-control";
+        cell.style.cssText = `display:inline-block;font:normal 400 16px ${family}`;
+        cell.textContent = codepoint;
+        container.append(cell);
+      }
+      (document.body ?? document.documentElement).append(container);
+      container.getBoundingClientRect();
+    },
+    { families: [...ORACLE_CONTROL_FAMILIES], codepoint: ORACLE_CONTROL_CODEPOINT },
+  );
+  try {
+    const { root } = await cdp.send("DOM.getDocument");
+    const { nodeIds } = await cdp.send("DOM.querySelectorAll", {
+      nodeId: root.nodeId,
+      selector: "#font-conformance-oracle-controls .font-conformance-oracle-control",
+    });
+    if (nodeIds.length !== ORACLE_CONTROL_FAMILIES.length) {
+      throw new Error(`oracle controls: expected ${ORACLE_CONTROL_FAMILIES.length} cells, got ${nodeIds.length}`);
+    }
+    const results = await Promise.all(nodeIds.map((nodeId) => cdp.send("CSS.getPlatformFontsForNode", { nodeId })));
+    return results.map((result, index) => {
+      const face = primaryChromeFace(result.fonts as ChromeFace[]);
+      if (face == null) throw new Error(`oracle control ${ORACLE_CONTROL_FAMILIES[index]} painted no face`);
+      return `${ORACLE_CONTROL_FAMILIES[index]}=${face.postScriptName ?? face.familyName}`;
+    });
+  } finally {
+    await page.evaluate(() => document.getElementById("font-conformance-oracle-controls")?.remove());
+  }
+}
+
+/** Abort a sweep when the same browser Page changes font settings mid-run.
+ * Such a report describes two different Chrome oracles and cannot be compared
+ * to one resolver answer or ratified as a baseline. */
+export class OracleStabilityGuard {
+  private expected: string[] | null = null;
+
+  observe(actual: readonly string[], at = "oracle control"): void {
+    if (this.expected == null) {
+      this.expected = [...actual];
+      return;
+    }
+    if (actual.length !== this.expected.length || actual.some((face, index) => face !== this.expected![index])) {
+      throw new OracleDriftError(at, this.expected, actual);
+    }
+  }
+}
+
+export class OracleDriftError extends Error {
+  constructor(
+    readonly at: string,
+    readonly expected: readonly string[],
+    readonly actual: readonly string[],
+  ) {
+    super(
+      `oracle font settings changed during sweep at ${at}: ` +
+        `expected [${expected.join(", ")}], got [${actual.join(", ")}]`,
+    );
+  }
+}
+
 class ChromeOracle {
+  private readonly stability = new OracleStabilityGuard();
   constructor(
     private readonly page: Page,
     private readonly cdp: CDPSession,
@@ -1045,6 +1123,10 @@ class ChromeOracle {
       for (const r of rs) out.push(r.fonts as ChromeFace[]);
     }
     return out;
+  }
+
+  async assertStable(at: string): Promise<void> {
+    this.stability.observe(await probeOracleControlSignature(this.page, this.cdp), at);
   }
 
   async close(): Promise<void> {
@@ -1911,7 +1993,7 @@ export async function sweepStack(
   stackCount: number,
   universe: number[],
   opts: Options,
-  oracle: Pick<ChromeOracle, "resolvedPrimary" | "facesFor">,
+  oracle: Pick<ChromeOracle, "resolvedPrimary" | "facesFor"> & Partial<Pick<ChromeOracle, "assertStable">>,
   tally: SweepTally,
   t0: number,
   operations: SweepOperations = sweepOperations,
@@ -1971,6 +2053,10 @@ export async function sweepStack(
     const tc = Date.now();
     const faces = await oracle.facesFor(cps, spec);
     tally.chromeMs += Date.now() - tc;
+    await oracle.assertStable?.(
+      `stack ${stackIndex + 1}/${stackCount} ${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}` +
+        ` batch ${batchNo} codepoints ${i + 1}-${i + cps.length}/${universe.length}`,
+    );
     const to = Date.now();
     operations.primeCodepoints(cps);
     for (let j = 0; j < cps.length; j++) {
@@ -2071,9 +2157,31 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       const tally = new SweepTally(opts.maxRows, opts.lang, opts.strictAlias, allowlist);
       const t0 = Date.now();
 
-      for (const [stackIndex, spec] of stacks.entries()) {
-        const oracle = await oracles.forLang(spec.lang ?? opts.lang);
-        await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
+      try {
+        for (const [stackIndex, spec] of stacks.entries()) {
+          const oracle = await oracles.forLang(spec.lang ?? opts.lang);
+          await oracle.assertStable(`before stack ${stackIndex + 1}/${stacks.length}`);
+          await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
+        }
+      } catch (error) {
+        if (error instanceof OracleDriftError) {
+          mkdirSync(opts.outDir, { recursive: true });
+          writeFileSync(
+            join(opts.outDir, "oracle-drift.json"),
+            JSON.stringify(
+              {
+                at: error.at,
+                expected: error.expected,
+                actual: error.actual,
+                comparisonsBeforeDrift: Object.values(tally.counts).reduce((a, b) => a + b, 0),
+                note: "Partial sweep invalid; no conformance report was written.",
+              },
+              null,
+              2,
+            ) + "\n",
+          );
+        }
+        throw error;
       }
       await oracles.close();
 

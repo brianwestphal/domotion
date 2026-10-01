@@ -25,6 +25,8 @@ import {
   loadAllowlist,
   mismatchClass,
   needsIsolatedQuery,
+  OracleDriftError,
+  OracleStabilityGuard,
   oracleScopeKey,
   OracleRegistry,
   parseArgs,
@@ -46,6 +48,26 @@ import {
   type SweepOperations,
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
+
+describe("OracleStabilityGuard", () => {
+  it("accepts repeated settings and rejects a later face switch", () => {
+    const guard = new OracleStabilityGuard();
+    const first = ["serif=Times-Roman", "fantasy=Papyrus"];
+    guard.observe(first);
+    first[0] = "serif=TimesNewRomanPSMT";
+    guard.observe(["serif=Times-Roman", "fantasy=Papyrus"]);
+    expect(() => guard.observe(["serif=TimesNewRomanPSMT", "fantasy=Papyrus"], "stack 31 batch 1")).toThrow(
+      /oracle font settings changed during sweep.*Times-Roman.*TimesNewRomanPSMT/,
+    );
+    try {
+      guard.observe(["serif=TimesNewRomanPSMT", "fantasy=Papyrus"], "stack 31 batch 1");
+    } catch (error) {
+      expect(error).toBeInstanceOf(OracleDriftError);
+      expect((error as OracleDriftError).at).toBe("stack 31 batch 1");
+    }
+    expect(() => guard.observe(["serif=Times-Roman"])).toThrow(/oracle font settings changed/);
+  });
+});
 
 describe("helperImplementationDigest", () => {
   it("is stable across rebuilt Windows executable bytes", () => {
@@ -131,20 +153,26 @@ describe("sweepStack orchestration", () => {
         events.push(`chrome:${cps.join(",")}`);
         return cps.map(() => [chrome({ familyName: "Arial", postScriptName: "Arial" })]);
       },
+      assertStable: async (at: string) => {
+        events.push(`stable:${at.match(/batch (\d+)/)?.[1]}`);
+      },
     };
     await sweepStack(spec, 0, 1, [0x41, 0x42, 0x43], opts, oracle, tally, Date.now(), operations);
     expect(events).toEqual([
       "scope:ja",
       "prepare",
       "chrome:65",
+      "stable:1",
       "icu:65",
       "ours:65",
       "chrome:66",
+      "stable:2",
       "icu:66",
       "ours:66",
       "reset",
       "prepare",
       "chrome:67",
+      "stable:3",
       "icu:67",
       "ours:67",
     ]);
@@ -189,6 +217,43 @@ describe("sweepStack orchestration", () => {
       ...codepoints.map((cp) => `ours:${cp}`),
     ]);
     expect(tally.mismatchRowsSeen).toBe(0);
+  });
+
+  it("stops before resolving or recording a batch whose oracle donors changed", async () => {
+    const events: string[] = [];
+    const spec: StackSpec = { fontFamily: "serif", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
+    const opts = parseArgs(["--range", "0041-0043", "--batch", "1"]);
+    const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
+    const guard = new OracleStabilityGuard();
+    const operations: SweepOperations = {
+      platform: "darwin",
+      selectScope: () => {},
+      prepare: (() => ({ chain: ["serif"], primaryKey: "serif" })) as SweepOperations["prepare"],
+      reset: () => {},
+      primeCodepoints: () => {},
+      faceFor: ((cp: number) => {
+        events.push(`ours:${cp}`);
+        return ours({ key: "Times", postscriptName: "Times" });
+      }) as SweepOperations["faceFor"],
+      memoSize: () => 0,
+      rssMb: () => 0,
+      write: () => {},
+    };
+    const oracle = {
+      resolvedPrimary: async () => "Times",
+      facesFor: async (cps: number[]) => {
+        events.push(`chrome:${cps[0]}`);
+        return [[chrome({ familyName: "Times", postScriptName: "Times" })]];
+      },
+      assertStable: async (at: string) => {
+        guard.observe([at.includes("batch 2") ? "serif=Times-Roman" : "serif=TimesNewRomanPSMT"], at);
+      },
+    };
+    await expect(
+      sweepStack(spec, 0, 1, [0x41, 0x42, 0x43], opts, oracle, tally, Date.now(), operations),
+    ).rejects.toBeInstanceOf(OracleDriftError);
+    expect(events).toEqual(["chrome:65", "ours:65", "chrome:66"]);
+    expect(Object.values(tally.counts).reduce((sum, count) => sum + count, 0)).toBe(1);
   });
 });
 
