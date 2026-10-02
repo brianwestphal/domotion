@@ -12,7 +12,7 @@
 // Driven through a fake helper (`DOMOTION_HELPER_PATH`) because the real one
 // answers correctly — which is the point. These cover what happens when it does
 // not, i.e. exactly the case no real run will ever demonstrate.
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
@@ -36,9 +36,13 @@ let modeFile: string;
  * for the 30 s read deadline and then passes by accident on the retry.
  */
 function installFakeHelper(): string {
-  const p = join(dir, "fake-helper");
+  // `.cjs`, not an extensionless shebang script: the transport runs `.cjs`
+  // helpers through `process.execPath`, and the explicit extension pins
+  // CommonJS. An extensionless file is subject to Node's module-type
+  // detection, under which current Node loads it as ESM, so `require` threw
+  // before the fake answered and every request read as a helper failure.
+  const p = join(dir, "fake-helper.cjs");
   const script = [
-    "#!/usr/bin/env node",
     'const fs = require("fs");',
     `const MODE_FILE = ${JSON.stringify(modeFile)};`,
     "function answer(req) {",
@@ -65,7 +69,6 @@ function installFakeHelper(): string {
     'process.stdin.on("end", () => { if (buf.trim()) process.stdout.write(answer(JSON.parse(buf))); });',
   ].join("\n");
   writeFileSync(p, script);
-  chmodSync(p, 0o755);
   return p;
 }
 
