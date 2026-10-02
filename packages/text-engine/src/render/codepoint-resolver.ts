@@ -197,6 +197,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     variationSettings,
     lang,
     fontKeyChain,
+    systemUiPrimary,
     stretch,
     fontVariantEmoji,
     semanticContext,
@@ -303,7 +304,16 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // codepoint SFNS doesn't cover falls to the standalone OTF BEFORE the declared
   // chain — else it hits a LATER author family (Arial Unicode MS's full-em circled
   // numbers, a visibly larger glyph than Chrome's condensed SF Pro one, DM-1127).
-  if (primaryFontKey === "sf-pro" || primaryFontKey === "sf-pro-italic") {
+  //
+  // Only an explicitly-named SF Pro family reaches the OTF this way: Blink sends
+  // that name to `MatchFontFamily`, which finds the installed OTF itself. A
+  // `system-ui` / `BlinkMacSystemFont` primary goes to `MatchSystemUIFont`
+  // instead (`mac/font_cache_mac.mm:409-417`, Chromium rev 7d859f27), and its
+  // per-codepoint fallback is `CTFontCreateForString` over the UI font's own
+  // cascade list, which does not contain the standalone OTF — Chrome paints
+  // `system-ui` U+2469 from `.HiraKakuInterface-W4` on a Mac that has the OTF
+  // installed. That route belongs to the live resolver's `systemUi` base below.
+  if (!systemUiPrimary && (primaryFontKey === "sf-pro" || primaryFontKey === "sf-pro-italic")) {
     const otfKey = sfProCoverageOtfKey();
     if (otfKey != null) {
       const otf = getFontInstance(otfKey, weight, fontSize, slant);

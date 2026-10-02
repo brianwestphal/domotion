@@ -32,6 +32,7 @@ import {
   resolveFontKeyChain,
   stackPrimaryIsSystemUi,
 } from "./font-resolution.js";
+import { sfProCoverageOtfKey } from "./shaping-route.js";
 
 describe("system-ui cascade-base signal (DM-1859)", () => {
   it("treats the generic UI families as system-ui primaries", () => {
@@ -156,6 +157,61 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
       const uiBase = resolveFontForCodepoint(...args, stackPrimaryIsSystemUi(family), 100, undefined, family);
       expect(namedBase.key).toBe("sysfb:GeezaPro");
       expect(uiBase.key).toBe("sysfb:.SFArabic-Regular");
+    },
+  );
+
+  // DM-GPT363: the standalone-OTF coverage shortcut is MatchFontFamily's route
+  // (an explicitly-named SF Pro family finds the installed OTF). A system-ui
+  // primary cascades through the CoreText UI font instead, which Chrome measured
+  // painting U+2469 from `.HiraKakuInterface-W4` on a Mac with the OTF installed.
+  // Runs only where the OTF is installed — elsewhere the shortcut cannot fire.
+  it.runIf(process.platform === "darwin" && sfProCoverageOtfKey() != null)(
+    "keeps the standalone SF Pro OTF shortcut off the system-ui UI cascade",
+    () => {
+      const family = "system-ui";
+      const primaryKey = resolveFontKey(family);
+      expect(primaryKey).toBe("sf-pro");
+      const primary = resolveFont(family, 400, 16);
+      expect(primary).not.toBeNull();
+      const resolveWith = (systemUiPrimary: boolean) =>
+        resolveFontForCodepoint(
+          0x2469,
+          primary!,
+          primaryKey,
+          400,
+          16,
+          0,
+          undefined,
+          undefined,
+          resolveFontKeyChain(family),
+          systemUiPrimary,
+          100,
+          undefined,
+          family,
+        ).key;
+      // Without the system-ui signal the sf-pro key still takes the OTF shortcut,
+      // which is what proves the gate (not some other stage) moved the answer.
+      expect(resolveWith(false)).toBe(sfProCoverageOtfKey());
+      expect(resolveWith(stackPrimaryIsSystemUi(family))).toBe("sysfb:.HiraKakuInterface-W4");
+      // An explicitly-named SF Pro Text still paints the OTF, as Chrome does.
+      const named = '"SF Pro Text"';
+      expect(
+        resolveFontForCodepoint(
+          0x2469,
+          resolveFont(named, 400, 16)!,
+          resolveFontKey(named),
+          400,
+          16,
+          0,
+          undefined,
+          undefined,
+          resolveFontKeyChain(named),
+          stackPrimaryIsSystemUi(named),
+          100,
+          undefined,
+          named,
+        ).key,
+      ).toBe(sfProCoverageOtfKey());
     },
   );
 });

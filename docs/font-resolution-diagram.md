@@ -1171,7 +1171,7 @@ flowchart TD
   F1 -->|"yes"| F1H["cover(primaryKey)"]
   F1 -->|"no"| FSP{"HarfBuzz same-font space fallback:<br/>isHarfbuzzSameFontSpaceFallback(cp) && primary covers U+0020?"}
   FSP -->|"yes"| FSPH["cover(primaryKey, ' ')"]
-  FSP -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic?"}
+  FSP -->|"no"| FSF{"primaryKey is sf-pro / sf-pro-italic<br/>AND NOT systemUiPrimary?<br/>(system-ui → MatchSystemUIFont: UI cascade, no OTF)"}
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
   FSF1 --> F2
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain<br/>(declared stack, then preferred STANDARD)<br/>literal coverage only in supported mode;<br/>JS NFD prediction is helper-absent compatibility<br/>(chain EMPTY: step 0b first — primary's NFD singleton /<br/>in-font canonical decomposition via hb proxy)"]
@@ -1633,6 +1633,15 @@ run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
   Chromium rev 7d859f27), and the platform memo rows are populated by one asker
   in one order. `packages/text-engine/src/render/notdef-probe-question-parity.test.ts` pins the
   delegation at the source level plus the later-declared-family behavior.
+
+The SF Pro coverage hook serves only an explicitly-named SF Pro family, which
+Blink sends to `MatchFontFamily` and which finds the installed standalone OTF by
+name. A `system-ui` / `BlinkMacSystemFont` primary goes to `MatchSystemUIFont`
+(`mac/font_cache_mac.mm:409-417`, Chromium rev 7d859f27), whose per-codepoint
+fallback is `CTFontCreateForString` over the UI font's own cascade list; that list
+does not contain the OTF, so Chrome paints `system-ui` U+2469 from
+`.HiraKakuInterface-W4` even on a Mac with `SF-Pro-Text-Regular.otf` installed.
+Those runs skip the hook and reach the live resolver's `systemUi` base.
 
 **Source of truth:** `resolveFontForCodepoint` / `codepointResolvesToNotdef` /
 `sfProCoverageOtfKey` in `shaping-route.ts` and `decomposeMathAlphaRun` in
