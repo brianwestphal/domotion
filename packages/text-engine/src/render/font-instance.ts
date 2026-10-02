@@ -1302,15 +1302,36 @@ function instantiateResolvedFont(
     // CoreText names the resulting 700 cut `.SFNS-Bold` (other intermediate
     // weights may have coordinate-bearing clone names). Ask the already-ported
     // native route for the identity; keep the fontkit instance and its outlines
-    // unchanged. An explicit author variation is applied later in Blink and is
-    // not represented by this native UI query, so leave that case unclassified.
-    if (
-      isDarwinSystemUiAxisKey(effectiveKey, systemUiPrimary) &&
-      (variationSettings == null || Object.keys(variationSettings).length === 0)
-    ) {
+    // unchanged.
+    //
+    // An explicit author variation is applied after MatchSystemUIFont: Blink
+    // clones the UI font handle at the requested axis location when a clamped
+    // target differs from the handle's current position, and CoreText names the
+    // clone with per-axis suffixes (`font_platform_data_mac.mm:60-102` +
+    // `:167-195`, Chromium rev 7d859f27). That is the same mechanism and name
+    // composition as a live-resolver fallback clone, so it is composed by
+    // `darwinCloneInstanceName` against the UI handle's own axis state — e.g.
+    // `"opsz" 32, "wdth" 120, "wght" 700` at 26 px names
+    // `.SFNS-Regular_wdth780000_opsz200000_GRAD_wght2BC0000`, as Chrome reports.
+    if (isDarwinSystemUiAxisKey(effectiveKey, systemUiPrimary)) {
       const uiFace = resolveSystemUiFontFace({ weight, slant, stretch, size: fontSize });
-      if (uiFace?.postscriptName != null && uiFace.postscriptName !== instance.postscriptName) {
-        instance.instantiatedPostscriptName = uiFace.postscriptName;
+      const hasAuthorVariation = variationSettings != null && Object.keys(variationSettings).length > 0;
+      if (!hasAuthorVariation) {
+        if (uiFace?.postscriptName != null && uiFace.postscriptName !== instance.postscriptName) {
+          instance.instantiatedPostscriptName = uiFace.postscriptName;
+        }
+      } else if (uiFace?.ctAxes != null && uiFace.ctAxes.length > 0) {
+        const faceInfo = resolveFaceInfoForFile(spec.path, uiFace.postscriptName);
+        const composeBase = faceInfo.memberPostscriptName ?? font?.postscriptName ?? uiFace.postscriptName;
+        const cloneName = darwinCloneInstanceName(
+          composeBase,
+          uiFace.ctAxes,
+          fontSize,
+          variationSettings,
+          faceInfo.namedInstances,
+        );
+        const identity = cloneName ?? uiFace.postscriptName;
+        if (identity !== instance.postscriptName) instance.instantiatedPostscriptName = identity;
       }
     }
     // A declared variable-family cut can be a named instance in a single file.

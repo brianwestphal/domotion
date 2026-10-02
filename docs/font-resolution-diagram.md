@@ -458,7 +458,13 @@ font_family.cc:63-74`, rev 7d859f27; the computed style delivers the
 > reads the live menu family and asks DirectWrite for its style cut. The strict
 > pinned/full-Chrome headed/headless mutation gate and source trace are in
 > [doc 211](211-platform-system-ui-preference-route.md). DM-2351's `system-ui`
-> rows remain only Settings-ownership negative controls.
+> rows remain only Settings-ownership negative controls. On macOS the same UI
+> query also names the `sf-pro` system-ui instance: its own PostScript name
+> (`.SFNS-Bold`) without author variations, and with `font-variation-settings`
+> the CoreText clone name `darwinCloneInstanceName` composes against the UI
+> handle's `ctAxes` — Blink clones that handle at the author's axis location
+> after `MatchSystemUIFont`. The outlines are the fontkit instance either way;
+> only the reported identity changes.
 
 ```mermaid
 flowchart TD
