@@ -16,6 +16,8 @@ code:
     "tools/linux-unicode-mutation-matrix.ts",
     "tools/linux-unicode-mutation-report.ts",
     "tests/linux-unicode-mutation-report.test.ts",
+    "tests/fontconfig/reject-selected-unicode-faces.conf",
+    ".github/workflows/linux-unicode-mutation-evidence.yml",
     "tools/semantic-coverage.json",
   ]
 aliases: ["docs/140-demo-review-stage-evidence.md", "doc-140"]
@@ -74,13 +76,15 @@ spans/identities, requires the current hinted subset path to retain hint tables,
 and refuses raster-only classification if the controlled hinting mutation
 changes face, glyph, cluster, advance, offset, or outline. Run 36809436632
 validated an active selected-face helper-off mutation in 14 rows and a
-logically exact, raster-changing hint-off mutation in all 24. Only the 14
-face-mutation-validated rows may supersede suite-global logical reports. A
+logically exact, raster-changing hint-off mutation in all 24. A row may
+supersede suite-global logical reports only once a face-selection control for
+it is ratified: 14 rows through helper-off, the other ten through the
+fontconfig selection-reject arm described below. A
 current artifact is eligible for the precedence rule only while its residual
 remains within the validated one-percent Linux raster floor. Fixture `.30`
 additionally pins the WenQuanYi Zen Hei TTC mono member at face index 1.
 
-The other ten rows remain unclassified by the raster-floor rule. The four
+For the other ten rows helper-off is not a face-selection control. The four
 declared-family-only rows are `0080-00FF`, `0100-017F`, `02B0-02FF`, and
 `1F00-1FFF`. The six rows with some system-resolver runs are `0870-089F`,
 `0900-097F`, `0D00-0D7F`, `1E00-1EFF`, `A720-A7FF`, and `FB50-FDFF`. In the
@@ -88,23 +92,46 @@ pinned Linux arm, disabling the helper changed no selected face in any of
 them. The hint-off control proves that hint tables and raster output matter;
 it does not prove the missing face-selection control. Baseline and helper-off
 pixel hashes differ in all ten, but pixel movement alone cannot admit them.
+Their face-selection control is a fourth arm: `FONTCONFIG_FILE` points at
+`tests/fontconfig/reject-selected-unicode-faces.conf`, which includes the
+system configuration and `<rejectfont>`s every family these rows select
+(Liberation Sans, WenQuanYi Zen Hei / Mono / Sharp, FreeSans, FreeSerif,
+Unifont). Removing the helper leaves fontconfig answering through the
+declared-family matcher and the helper-less resolver path, so it cannot move
+them; rejecting the selected families in fontconfig itself must move both the
+declared-family and the system-resolver rows, while a face opened from a
+hard-coded path would stay put. In the pinned container it moves Liberation
+Sans to Liberation Serif, WenQuanYi Zen Hei (Mono) to IPAGothic/Loma, and
+FreeSans to FreeMono. `tools/linux-unicode-mutation-matrix.ts` accepts the arm
+as `--selection-reject` (optional, so earlier artifacts stay readable), grades
+each row against its own ratified control
+(`LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES` beside the helper-off
+set), and fails when the arm leaves any row without a helper-off control
+unmoved or when the arm is missing while rows depend on it. A four-arm run of
+the closed corpus in the pinned `mcr.microsoft.com/playwright:v1.59.1-noble`
+image (via `npm run test:linux-docker`, which reproduces the CI container)
+moved 80–520 selected-face rows in each of the ten under rejection, while each
+row's hinted-subset-off arm stayed logically exact and moved both builder and
+raster. The ten are therefore ratified, and the matrix reports all 24 rows as
+raster-floor candidates. The 14 helper-off rows moved exactly as in run 36809436632.
 The structural Vedic Extensions row uses the same fixture-scoped transport but
 is never admitted to that raster-floor set: its dedicated validator requires
 the exact 14 selected-face HarfBuzz streams, Chromium's FreeSans/FreeSerif
 census, and no unexpected U+25CC gid in the remaining Vedic cells.
 
 The manually dispatched `linux-unicode-mutation-evidence.yml` workflow runs
-that closed 24-row corpus in one pinned Linux container under three conditions:
-production baseline, the fontconfig helper removed, and hinted subsetting
-disabled. The helper-off arm also sets `DOMOTION_DISABLE_HELPER=1`: removing the
+that closed 24-row corpus in one pinned Linux container under four conditions:
+production baseline, the fontconfig helper removed, hinted subsetting
+disabled, and the selected faces rejected in fontconfig. The helper-off arm also sets `DOMOTION_DISABLE_HELPER=1`: removing the
 in-tree binary alone can select an automatically acquired cached helper and leave
 the control inert. `tools/linux-unicode-mutation-matrix.ts` writes a complete matrix and
 a sidecar beside every baseline fixture. It emits the logically exact
-`dm-2352-raster-floor-candidates.json` feed only from the 14 ratified rows
-whose helper-off arm moves face selection and whose hint-off arm removes hint
-tables and changes the raster without changing
-face/gid/cluster/metrics/source-outline evidence. The gate fails if a ratified
-row stops moving face, or if an unratified row starts moving face and needs a
+`dm-2352-raster-floor-candidates.json` feed only from ratified rows whose
+own face-selection control (helper-off for 14, selection-reject for ten) moves
+face selection and whose hint-off arm removes hint tables and changes the
+raster without changing face/gid/cluster/metrics/source-outline evidence. The
+gate fails if a ratified row stops moving face under its control, or if a row
+outside both ratified sets starts moving face under helper-off and needs a
 fresh review. A logical change is reported as `logical-mismatch` and fails adjudication; pixel
 percentages cannot override it.
 The matrix and candidate feed use separate version 1 report envelopes. The

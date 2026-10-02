@@ -3359,6 +3359,8 @@
           "tools/linux-unicode-mutation-matrix.ts",
           "tools/linux-unicode-mutation-report.ts",
           "tests/linux-unicode-mutation-report.test.ts",
+          "tests/fontconfig/reject-selected-unicode-faces.conf",
+          ".github/workflows/linux-unicode-mutation-evidence.yml",
           "tools/semantic-coverage.json"
         ],
         "aliases": ["docs/140-demo-review-stage-evidence.md", "doc-140"]

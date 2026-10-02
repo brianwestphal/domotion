@@ -59,6 +59,21 @@ jobs:
         run: |
           export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
           bash scripts/ci-run-shard.sh unicode
+      - name: Fontconfig selection-reject arm
+        continue-on-error: true
+        env:
+          HTML_TEST_OUTPUT_DIR: tests/output/linux-unicode-mutation/selection-reject
+          DOMOTION_NO_NICE: "1"
+          DOMOTION_TEST_WORKERS: "1"
+        run: |
+          # Rejects every face the helper-off-inert rows select; a selection
+          # that truly consults fontconfig must move, a hard-coded file must not.
+          # Exported here because the job runs in a container, where the
+          # `github.workspace` expression names the host path.
+          export FONTCONFIG_FILE="$PWD/tests/fontconfig/reject-selected-unicode-faces.conf"
+          test -f "$FONTCONFIG_FILE"
+          export ONLY="$(cat /tmp/linux-unicode-fixtures.txt)"
+          bash scripts/ci-run-shard.sh unicode
       - name: Adjudicate exact logical and raster mutations
         if: always()
         run: |
@@ -66,8 +81,9 @@ jobs:
             --baseline tests/output/linux-unicode-mutation/baseline \
             --helper-off tests/output/linux-unicode-mutation/fontconfig-helper-off \
             --hint-off tests/output/linux-unicode-mutation/hinted-subset-off \
+            --selection-reject tests/output/linux-unicode-mutation/selection-reject \
             --out tests/output/linux-unicode-mutation
-      - name: Upload all three arms and DM-2352 candidate feed
+      - name: Upload all four arms and DM-2352 candidate feed
         if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -4,12 +4,15 @@ import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance
 import {
   LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
   LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES,
+  LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES,
   LINUX_UNICODE_THIN_OUTLINE_CONTROLS,
   LINUX_VEDIC_DOTTED_CIRCLE_FIXTURE,
   LINUX_VEDIC_DOTTED_CIRCLE_RECORDS,
   compareLinuxUnicodeMutations,
   classifyLinuxUnicodeFixtureEvidence,
   hasLinuxUnicodeFaceMutationEvidence,
+  hasLinuxUnicodeHelperOffFaceMutationEvidence,
+  hasLinuxUnicodeSelectionRejectEvidence,
   shouldCollectLinuxUnicodeTextEvidence,
   validateFixtureTextEvidence,
   validateLinuxVedicDottedCircleEvidence,
@@ -100,18 +103,13 @@ describe("row-scoped Linux Unicode evidence", () => {
     expect(LINUX_UNICODE_THIN_OUTLINE_CONTROLS).toEqual([0x0964, 0x0965]);
   });
 
-  it("admits only the 14 rows with measured face-selection mutations", () => {
+  it("admits every row through exactly one measured face-selection control", () => {
+    // 14 rows move under helper-off (run 36809436632); the other ten move only
+    // under the fontconfig selection-reject arm. The two sets partition the
+    // closed 24-row corpus.
     expect(LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES).toHaveLength(14);
     expect(new Set(LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES).size).toBe(14);
-    expect(
-      LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES.every((fixture) =>
-        LINUX_UNICODE_RASTER_FLOOR_FIXTURES.includes(fixture),
-      ),
-    ).toBe(true);
-    const withheld = LINUX_UNICODE_RASTER_FLOOR_FIXTURES.filter(
-      (fixture) => !hasLinuxUnicodeFaceMutationEvidence(fixture),
-    );
-    expect(withheld).toEqual([
+    expect(LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES).toEqual([
       "0080-00FF-latin-1-supplement",
       "0100-017F-latin-extended-a",
       "02B0-02FF-spacing-modifier-letters",
@@ -123,6 +121,14 @@ describe("row-scoped Linux Unicode evidence", () => {
       "A720-A7FF-latin-extended-d",
       "FB50-FDFF-arabic-presentation-forms-a.2",
     ]);
+    for (const fixture of LINUX_UNICODE_RASTER_FLOOR_FIXTURES) {
+      expect(
+        Number(hasLinuxUnicodeHelperOffFaceMutationEvidence(fixture)) +
+          Number(hasLinuxUnicodeSelectionRejectEvidence(fixture)),
+        fixture,
+      ).toBe(1);
+    }
+    expect(LINUX_UNICODE_RASTER_FLOOR_FIXTURES.filter((f) => !hasLinuxUnicodeFaceMutationEvidence(f))).toEqual([]);
     for (const fixture of LINUX_UNICODE_RASTER_FLOOR_FIXTURES) {
       const textRunEvidence = evidence();
       textRunEvidence.fixture = fixture;

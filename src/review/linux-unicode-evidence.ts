@@ -33,9 +33,9 @@ export const LINUX_UNICODE_RASTER_FLOOR_FIXTURES = [
 export type LinuxUnicodeRasterFloorFixture = (typeof LINUX_UNICODE_RASTER_FLOOR_FIXTURES)[number];
 const FIXTURES = new Set<string>(LINUX_UNICODE_RASTER_FLOOR_FIXTURES);
 
-/** Run 36809436632 proved a selected-face mutation for these 14 rows. The
- * other ten remain in the evidence corpus but have no face-selection control,
- * so their pixel residual cannot supersede the broader logical reports. */
+/** Run 36809436632 proved a helper-off selected-face mutation for these 14
+ * rows. The other ten have their face-selection control in
+ * `LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES` instead. */
 export const LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES = [
   "0180-024F-latin-extended-b",
   "0400-04FF-cyrillic",
@@ -54,8 +54,43 @@ export const LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES = [
 ] as const satisfies readonly LinuxUnicodeRasterFloorFixture[];
 const FACE_MUTATION_VALIDATED_FIXTURES = new Set<string>(LINUX_UNICODE_FACE_MUTATION_VALIDATED_FIXTURES);
 
-export function hasLinuxUnicodeFaceMutationEvidence(fixture: string): boolean {
+/** Rows whose face-selection control is the fontconfig REJECTION arm
+ * (`tests/fontconfig/reject-selected-unicode-faces.conf`) rather than the
+ * helper-off arm. Disabling the helper leaves these rows' selection unchanged
+ * because fontconfig still answers through the declared-family matcher and the
+ * helper-less resolver path; rejecting the selected families in fontconfig
+ * itself must move them, which proves the selection is the live fontconfig
+ * decision rather than a hard-coded file. Ratified from the four-arm run in
+ * the pinned `mcr.microsoft.com/playwright:v1.59.1-noble` image: every row
+ * moved 80-520 selected-face rows under rejection, while its hinted-subset-off
+ * arm stayed logically exact and moved both builder and raster. */
+export const LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES = [
+  "0080-00FF-latin-1-supplement",
+  "0100-017F-latin-extended-a",
+  "02B0-02FF-spacing-modifier-letters",
+  "0870-089F-arabic-extended-b",
+  "0900-097F-devanagari",
+  "0D00-0D7F-malayalam",
+  "1E00-1EFF-latin-extended-additional",
+  "1F00-1FFF-greek-extended",
+  "A720-A7FF-latin-extended-d",
+  "FB50-FDFF-arabic-presentation-forms-a.2",
+] as const satisfies readonly LinuxUnicodeRasterFloorFixture[];
+const SELECTION_REJECT_VALIDATED_FIXTURES = new Set<string>(LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES);
+
+/** The helper-off arm is this row's face-selection control. */
+export function hasLinuxUnicodeHelperOffFaceMutationEvidence(fixture: string): boolean {
   return FACE_MUTATION_VALIDATED_FIXTURES.has(fixture);
+}
+
+/** The fontconfig rejection arm is this row's face-selection control. */
+export function hasLinuxUnicodeSelectionRejectEvidence(fixture: string): boolean {
+  return SELECTION_REJECT_VALIDATED_FIXTURES.has(fixture);
+}
+
+/** Some ratified face-selection control exists for this row. */
+export function hasLinuxUnicodeFaceMutationEvidence(fixture: string): boolean {
+  return hasLinuxUnicodeHelperOffFaceMutationEvidence(fixture) || hasLinuxUnicodeSelectionRejectEvidence(fixture);
 }
 
 /** The structural Vedic row is adjudicated separately from the 24-row
@@ -331,6 +366,22 @@ export interface LinuxUnicodeMutationVerdict {
 
 /** Judge the two required row-scoped mutation arms. A raster-floor verdict is
  * impossible when the hinting mutation changes any logical record. */
+/** Production rows whose selected face differs between two arms (a row the
+ * mutated arm no longer has counts as moved). */
+export function countSelectedFaceRowsMoved(
+  baseline: FixtureTextRunProvenance,
+  mutated: FixtureTextRunProvenance,
+): number {
+  return baseline.runs.reduce(
+    (count, run, index) =>
+      count +
+      (mutated.runs[index] == null || selectedFaceSignature(run) !== selectedFaceSignature(mutated.runs[index])
+        ? 1
+        : 0),
+    0,
+  );
+}
+
 export function compareLinuxUnicodeMutations(
   baseline: FixtureTextRunProvenance,
   fontconfigHelperOff: FixtureTextRunProvenance,
@@ -340,15 +391,7 @@ export function compareLinuxUnicodeMutations(
   baselineRasterSha256: string,
   hintedSubsetOffRasterSha256: string,
 ): LinuxUnicodeMutationVerdict {
-  const selectedFaceRowsMoved = baseline.runs.reduce(
-    (count, run, index) =>
-      count +
-      (fontconfigHelperOff.runs[index] == null ||
-      selectedFaceSignature(run) !== selectedFaceSignature(fontconfigHelperOff.runs[index])
-        ? 1
-        : 0),
-    0,
-  );
+  const selectedFaceRowsMoved = countSelectedFaceRowsMoved(baseline, fontconfigHelperOff);
   const hintedLogicalRowsExact =
     logicalTextEvidenceSignature(baseline) === logicalTextEvidenceSignature(hintedSubsetOff);
   const hintedByKey = new Map(hintedSubsetOffBuilds.map((build) => [build.instanceKey, build]));

@@ -11,14 +11,15 @@ import {
 import {
   LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
   hasLinuxUnicodeFaceMutationEvidence,
+  hasLinuxUnicodeHelperOffFaceMutationEvidence,
 } from "../src/review/linux-unicode-evidence.js";
 
 const dir = mkdtempSync(join(tmpdir(), "linux-unicode-mutation-report-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("Linux Unicode mutation reports", () => {
-  it("admits 14 active rows and retains ten unclassified sidecars through the real CLI", () => {
-    const arms = ["baseline", "helper-off", "hint-off"].map((name) => join(dir, "validated", name));
+  it("admits all 24 rows through their own face-selection control via the real CLI", () => {
+    const arms = ["baseline", "helper-off", "hint-off", "selection-reject"].map((name) => join(dir, "validated", name));
     for (const arm of arms) mkdirSync(arm, { recursive: true });
     const rows = LINUX_UNICODE_RASTER_FLOOR_FIXTURES.map((fixture) => ({
       fixture,
@@ -44,7 +45,7 @@ describe("Linux Unicode mutation reports", () => {
                 {
                   ...run,
                   selected:
-                    armIndex === 1 && hasLinuxUnicodeFaceMutationEvidence(fixture)
+                    (armIndex === 1 && hasLinuxUnicodeHelperOffFaceMutationEvidence(fixture)) || armIndex === 3
                       ? { ...run.selected, fontKey: "fallback", postscriptName: "Fallback" }
                       : run.selected,
                 },
@@ -62,19 +63,31 @@ describe("Linux Unicode mutation reports", () => {
       );
     }
     const out = join(dir, "validated", "reports");
-    expect(main(["--baseline", arms[0], "--helper-off", arms[1], "--hint-off", arms[2], "--out", out])).toBe(0);
+    const argv = [
+      "--baseline",
+      arms[0],
+      "--helper-off",
+      arms[1],
+      "--hint-off",
+      arms[2],
+      "--selection-reject",
+      arms[3],
+      "--out",
+      out,
+    ];
+    expect(main(argv)).toBe(0);
     const matrix = readLinuxUnicodeMutationMatrix(join(out, "linux-unicode-mutation-matrix.json"));
     const candidates = readLinuxUnicodeRasterCandidates(join(out, "dm-2352-raster-floor-candidates.json"));
     expect(matrix).toMatchObject({
       outcome: "pass",
-      summary: { rasterFloorCandidates: 14, mutationInert: 10 },
+      summary: { rasterFloorCandidates: 24, mutationInert: 0 },
       errors: [],
     });
-    expect(candidates.fixtures).toHaveLength(14);
+    expect(candidates.fixtures).toHaveLength(24);
     expect(matrix.fixtures).toHaveLength(24);
     expect(
       readFileSync(join(arms[0], `${LINUX_UNICODE_RASTER_FLOOR_FIXTURES[0]}-mutation-evidence.json`), "utf8"),
-    ).toContain('"verdict": "mutation-inert"');
+    ).toContain('"verdict": "raster-floor-candidate"');
 
     const helperPath = join(arms[1], "results.json");
     const helperRows = JSON.parse(readFileSync(helperPath, "utf8")) as Array<{
@@ -94,18 +107,105 @@ describe("Linux Unicode mutation reports", () => {
       faceIndex: 0,
     };
     writeFileSync(helperPath, JSON.stringify(helperRows));
-    expect(main(["--baseline", arms[0], "--helper-off", arms[1], "--hint-off", arms[2], "--out", out])).toBe(1);
+    expect(main(argv)).toBe(1);
     const drift = readLinuxUnicodeMutationMatrix(join(out, "linux-unicode-mutation-matrix.json"));
     expect(drift.errors).toEqual(
       expect.arrayContaining([
         expect.stringContaining("0180-024F-latin-extended-b: expected fontconfig-helper-off mutation did not move"),
-        expect.stringContaining(
-          "0080-00FF-latin-1-supplement: newly moved selected-face row requires corpus re-ratification",
-        ),
       ]),
     );
+    // A selection-reject-ratified row moving under helper-off too is not drift.
+    expect(drift.errors.some((error) => error.startsWith("0080-00FF-latin-1-supplement"))).toBe(false);
     expect(readLinuxUnicodeRasterCandidates(join(out, "dm-2352-raster-floor-candidates.json")).fixtures).not.toContain(
-      "0080-00FF-latin-1-supplement",
+      "0180-024F-latin-extended-b",
+    );
+  });
+
+  it("requires the fontconfig selection-reject arm to move every row without a helper-off control", () => {
+    const names = ["baseline", "helper-off", "hint-off", "selection-reject"] as const;
+    const arms = Object.fromEntries(names.map((name) => [name, join(dir, "reject", name)])) as Record<
+      (typeof names)[number],
+      string
+    >;
+    const writeArm = (name: (typeof names)[number], moved: (fixture: string) => boolean): void => {
+      mkdirSync(arms[name], { recursive: true });
+      writeFileSync(
+        join(arms[name], "results.json"),
+        JSON.stringify(
+          LINUX_UNICODE_RASTER_FLOOR_FIXTURES.map((fixture) => ({
+            name: fixture,
+            actualSha256: name === "hint-off" ? "unhinted" : "hinted",
+            textRunEvidence: {
+              fixture,
+              runs: [
+                {
+                  fixture,
+                  row: 0,
+                  sourceSpan: [0, 1],
+                  sourceCodepointSpan: [0, 1],
+                  selected: moved(fixture)
+                    ? { fontKey: "rejected", postscriptName: "Rejected", sourcePath: "/other.ttf", faceIndex: 0 }
+                    : { fontKey: "base", postscriptName: "Base", sourcePath: "/base.ttf", faceIndex: 0 },
+                  glyphs: [{ id: 1, cluster: 0, xAdvance: 1, yAdvance: 0, xOffset: 0, yOffset: 0 }],
+                },
+              ],
+            },
+            embeddedFontBuilds: [
+              {
+                instanceKey: fixture,
+                selectedBuilder: name === "hint-off" ? "svg2ttf" : "hb-subset",
+                retainedHintTableTags: name === "hint-off" ? [] : ["prep"],
+              },
+            ],
+          })),
+        ),
+      );
+    };
+    writeArm("baseline", () => false);
+    writeArm("helper-off", (fixture) => hasLinuxUnicodeHelperOffFaceMutationEvidence(fixture));
+    writeArm("hint-off", () => false);
+    writeArm("selection-reject", () => true);
+    const out = join(dir, "reject", "reports");
+    const argv = [
+      "--baseline",
+      arms.baseline,
+      "--helper-off",
+      arms["helper-off"],
+      "--hint-off",
+      arms["hint-off"],
+      "--selection-reject",
+      arms["selection-reject"],
+      "--out",
+      out,
+    ];
+    expect(main(argv)).toBe(0);
+    const matrix = readLinuxUnicodeMutationMatrix(join(out, "linux-unicode-mutation-matrix.json"));
+    expect(matrix.errors).toEqual([]);
+    const unratified = LINUX_UNICODE_RASTER_FLOOR_FIXTURES.filter(
+      (f) => !hasLinuxUnicodeHelperOffFaceMutationEvidence(f),
+    );
+    expect(unratified).toHaveLength(10);
+
+    // An inert rejection arm for an unratified row is a missing control.
+    writeArm("selection-reject", (fixture) => fixture !== unratified[0]);
+    expect(main(argv)).toBe(1);
+    const inert = readLinuxUnicodeMutationMatrix(join(out, "linux-unicode-mutation-matrix.json"));
+    expect(inert.errors).toEqual([
+      `${unratified[0]}: fontconfig selection-reject mutation did not move a selected-face row`,
+    ]);
+    // Its own control is inert, so it can no longer be a raster-floor candidate.
+    expect(readLinuxUnicodeRasterCandidates(join(out, "dm-2352-raster-floor-candidates.json")).fixtures).not.toContain(
+      unratified[0],
+    );
+
+    // Omitting the arm altogether is a missing control, not a pass.
+    expect(
+      main(
+        argv.filter((_, i) => i !== argv.indexOf("--selection-reject") && i !== argv.indexOf("--selection-reject") + 1),
+      ),
+    ).toBe(1);
+    expect(readLinuxUnicodeMutationMatrix(join(out, "linux-unicode-mutation-matrix.json")).errors).toContain(
+      "missing selection-reject arm: ratified rows depend on it as their face-selection control",
     );
   });
 
@@ -123,7 +223,8 @@ describe("Linux Unicode mutation reports", () => {
     const candidates = readLinuxUnicodeRasterCandidates(candidatesPath);
     expect(matrix.outcome).toBe("fail");
     expect(matrix.summary.incomplete).toBe(24);
-    expect(matrix.errors).toHaveLength(24);
+    // 24 incomplete rows plus the missing selection-reject arm.
+    expect(matrix.errors).toHaveLength(25);
     expect(candidates).toMatchObject({ outcome: "skip", fixtures: [] });
     expect(JSON.parse(readFileSync(matrixPath, "utf8"))).toMatchObject({
       schemaVersion: 1,

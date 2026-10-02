@@ -6,8 +6,12 @@ import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-bu
 import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import {
   LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
+  LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES,
   compareLinuxUnicodeMutations,
+  countSelectedFaceRowsMoved,
   hasLinuxUnicodeFaceMutationEvidence,
+  hasLinuxUnicodeHelperOffFaceMutationEvidence,
+  hasLinuxUnicodeSelectionRejectEvidence,
   validateFixtureTextEvidence,
 } from "../src/review/linux-unicode-evidence.js";
 
@@ -30,6 +34,10 @@ export function main(args: string[]): number {
     baseline: { type: "string" },
     "helper-off": { type: "string" },
     "hint-off": { type: "string" },
+    // Optional fourth arm: the fontconfig selected-face rejection control
+    // (`tests/fontconfig/reject-selected-unicode-faces.conf`). Optional so
+    // artifacts recorded before it existed remain readable.
+    "selection-reject": { type: "string" },
     out: { type: "string" },
   });
   if (flags["print-fixtures"] === true) {
@@ -40,12 +48,18 @@ export function main(args: string[]): number {
     const helperOffDir = resolve(requiredFlag(flags, "--helper-off"));
     const hintOffDir = resolve(requiredFlag(flags, "--hint-off"));
     const outputDir = resolve(requiredFlag(flags, "--out"));
+    const selectionRejectFlag = flags["selection-reject"];
+    const selectionRejectDir = typeof selectionRejectFlag === "string" ? resolve(selectionRejectFlag) : null;
     const arms = {
       baseline: readRows(baselineDir),
       fontconfigHelperOff: readRows(helperOffDir),
       hintedSubsetOff: readRows(hintOffDir),
+      selectionReject: selectionRejectDir == null ? null : readRows(selectionRejectDir),
     };
     const errors: string[] = [];
+    if (arms.selectionReject == null && LINUX_UNICODE_SELECTION_REJECT_VALIDATED_FIXTURES.length > 0) {
+      errors.push("missing selection-reject arm: ratified rows depend on it as their face-selection control");
+    }
     const fixtures = LINUX_UNICODE_RASTER_FLOOR_FIXTURES.map((fixture) => {
       const baseline = arms.baseline.get(fixture);
       const helperOff = arms.fontconfigHelperOff.get(fixture);
@@ -84,21 +98,36 @@ export function main(args: string[]): number {
           (error) => `${fixture}/baseline: ${error}`,
         ),
       );
+      const reject = arms.selectionReject?.get(fixture);
+      if (arms.selectionReject != null && reject?.textRunEvidence == null)
+        errors.push(`${fixture}/selection-reject: missing textRunEvidence`);
+      const selectionRejectRowsMoved =
+        reject?.textRunEvidence == null
+          ? null
+          : countSelectedFaceRowsMoved(baseline.textRunEvidence, reject.textRunEvidence);
+      // Each row is graded against ITS ratified face-selection control.
+      const rejectIsControl = hasLinuxUnicodeSelectionRejectEvidence(fixture) && reject?.textRunEvidence != null;
       const verdict = compareLinuxUnicodeMutations(
         baseline.textRunEvidence,
-        helperOff.textRunEvidence,
+        rejectIsControl ? reject!.textRunEvidence! : helperOff.textRunEvidence,
         hintOff.textRunEvidence,
         baseline.embeddedFontBuilds ?? [],
         hintOff.embeddedFontBuilds ?? [],
         baseline.actualSha256,
         hintOff.actualSha256,
       );
-      if (hasLinuxUnicodeFaceMutationEvidence(fixture)) {
-        if (verdict.selectedFaceRowsMoved === 0)
+      const helperOffRowsMoved = countSelectedFaceRowsMoved(baseline.textRunEvidence, helperOff.textRunEvidence);
+      if (hasLinuxUnicodeHelperOffFaceMutationEvidence(fixture)) {
+        if (helperOffRowsMoved === 0)
           errors.push(`${fixture}: expected fontconfig-helper-off mutation did not move a selected-face row`);
-      } else if (verdict.selectedFaceRowsMoved > 0) {
+      } else if (!hasLinuxUnicodeSelectionRejectEvidence(fixture) && helperOffRowsMoved > 0) {
         errors.push(`${fixture}: newly moved selected-face row requires corpus re-ratification`);
       }
+      // The rejection arm must move every row that is not helper-off ratified:
+      // it is their only face-selection control, and an inert one means the
+      // selection never consulted fontconfig.
+      if (selectionRejectRowsMoved === 0 && !hasLinuxUnicodeHelperOffFaceMutationEvidence(fixture))
+        errors.push(`${fixture}: fontconfig selection-reject mutation did not move a selected-face row`);
       if (!verdict.hintedLogicalRowsExact)
         errors.push(`${fixture}: hinted-subset-off changed logical evidence (logical-mismatch)`);
       if (verdict.hintedBuilderRowsMoved === 0)
@@ -108,7 +137,7 @@ export function main(args: string[]): number {
       return {
         fixture,
         verdict: verdict.verdict,
-        measurements: verdict,
+        measurements: { ...verdict, helperOffRowsMoved, selectionRejectRowsMoved },
         arms: {
           baseline: {
             actualSha256: baseline.actualSha256,
@@ -125,6 +154,14 @@ export function main(args: string[]): number {
             textRunEvidence: hintOff.textRunEvidence,
             embeddedFontBuilds: hintOff.embeddedFontBuilds ?? [],
           },
+          ...(reject?.textRunEvidence == null
+            ? {}
+            : {
+                selectionReject: {
+                  actualSha256: reject.actualSha256,
+                  textRunEvidence: reject.textRunEvidence,
+                },
+              }),
         },
       };
     });
