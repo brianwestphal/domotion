@@ -24,6 +24,7 @@ import { systemFallbackKeyCache } from "./font-spec.js";
 import { isEmojiPresentationCp } from "./emoji-presentation.js";
 import { registerDynamicSystemFont } from "./font-paths.win32.js";
 import { registerDarwinHandleAxes } from "./font-instance.js";
+import { darwinHandleAxesCompatible, darwinHandleStateSignature } from "./font-instance.js";
 import { fileFamilyNameForKey } from "./family-match.js";
 import { win32FallbackChainWithPriority } from "./fallback-chain.win32.js";
 import { fontCoversCp } from "./font-instance.js";
@@ -741,6 +742,23 @@ export function resolveSystemFallbackKeyForCp(
       }
       if (resolved != null && resolved.path !== "") {
         key = `sysfb:${resolved.postscriptName}`;
+        // The same face can come back with a DIFFERENT handle state depending on
+        // the cascade base: at U+0D00 / 16 px a Times base yields an
+        // `.SFMalayalam-Regular` handle with `opsz` already at 17 (Blink's
+        // `axes_reconfigured` guard never clones it, so Chrome reports the base
+        // name), while the UI-font base yields one at the default `opsz`, which
+        // Blink clones to 17 (`_opsz110000_wght`). The handle state is recorded
+        // per (key, weight, size, slant) and the memo above holds only the key,
+        // so a shared key let whichever route asked first decide the instance
+        // for both. A route whose state differs from the recorded one gets its
+        // own key, named by that state, so each route keeps its own handle.
+        if (
+          resolved.ctAxes != null &&
+          resolved.ctAxes.length > 0 &&
+          !darwinHandleAxesCompatible(key, weight, fontSize, slant, resolved.ctAxes)
+        ) {
+          key = `sysfb:handle:${resolved.postscriptName}#${darwinHandleStateSignature(resolved.ctAxes)}`;
+        }
         // The handle's axis position also lands on the spec (opsz excluded at
         // derivation time — it is per-style, the non-opsz coordinates are a
         // property of the NAME), so the axis-location derivation can pin the

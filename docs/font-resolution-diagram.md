@@ -2517,7 +2517,15 @@ still fall back to svg2ttf when the source cannot be subset safely.
    key/weight/size/slant in `darwinHandleAxesMap`) because CoreText PRE-SETS
    `opsz` on some cascade handles (`.SFArabic-Regular` arrives at opsz 17 from
    a 13 px cascade and Blink never clones it; `.SFDevanagari-Regular` arrives
-   unset and clones). The NAME is CoreText's and is DEFAULT-relative: per-axis
+   unset and clones). The handle state is a property of the cascade ROUTE, not
+   only of the face: at U+0D00 / 16 px a Times base hands back
+   `.SFMalayalam-Regular` already at opsz 17 (no clone, base name) while the
+   system-ui base hands back the same face at its default opsz (clone,
+   `_opsz110000_wght`). Since the handle record is first-write per tuple and the
+   live memo holds only the key, a route whose handle state differs from the one
+   already recorded gets its own registry key,
+   `sysfb:handle:<PostScript name>#<tag=value,…>`, carrying its own axes — so
+   neither ask order can stamp one route's identity onto the other. The NAME is CoreText's and is DEFAULT-relative: per-axis
    `_tag` suffix in the face's axis order, uppercase hex 16.16 when off the
    axis default, bare tag at default; the member base name for a named-instance
    face; a location landing exactly on a named instance takes that instance's

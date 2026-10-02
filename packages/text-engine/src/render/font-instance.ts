@@ -2516,6 +2516,28 @@ export function registerDarwinHandleAxes(
   if (!darwinHandleAxesMap.has(k)) darwinHandleAxesMap.set(k, axes);
 }
 
+/** Whether `axes` is the handle state already recorded for this tuple, or no
+ *  state is recorded yet. A different state means another cascade route reached
+ *  the same face first with its own handle, so this route needs its own key. */
+export function darwinHandleAxesCompatible(
+  key: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  axes: readonly DarwinHandleAxis[],
+): boolean {
+  const recorded = darwinHandleAxesFor(key, weight, fontSize, slant);
+  return recorded == null || darwinHandleStateSignature(recorded) === darwinHandleStateSignature(axes);
+}
+
+/** The handle's identity-bearing state: each axis and its CURRENT position. */
+export function darwinHandleStateSignature(axes: readonly DarwinHandleAxis[]): string {
+  return axes
+    .map((axis) => `${axis.tag}=${axis.value}`)
+    .sort()
+    .join(",");
+}
+
 function darwinHandleAxesFor(
   key: string,
   weight: number,
