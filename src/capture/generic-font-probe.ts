@@ -55,6 +55,15 @@ const PROBED_GENERICS = ["standard", "serif", "sans-serif", "monospace", "cursiv
 // fallback look like the configured generic family. An uncovered noncharacter
 // asks Blink for the locale's initial family through its `.notdef` donor.
 const PRIMARY_FAMILY_PROBE_TEXT = String.fromCodePoint(0x10ffff);
+// The Common rows need a locale whose font-selection script IS Common. With no
+// `lang` a span inherits the page's locale — `en`, or the browser default,
+// i.e. Latin — and `und` maps to Latin too (`locale_to_script_mapping.cc:390`).
+// Blink reads a script's own settings entry and falls back to Common only when
+// it is empty (`GenericFontFamilyForScript`, `generic_font_family_settings.cc:
+// 81-108`, rev 7d859f27), so a Latin probe reports Latin's entry whenever the
+// two differ. A 4-letter script subtag decides the script directly, and
+// `Zyyy` is `USCRIPT_COMMON` (`ScriptNameToCode`, `locale_to_script_mapping.cc:50`).
+export const COMMON_SCRIPT_PROBE_LANG = "und-Zyyy";
 const SCRIPT_PROBES = [
   { lang: "ja" },
   { lang: "ko" },
@@ -178,7 +187,7 @@ export function genericFamilyProbeTargets(additionalLanguages: readonly string[]
     id: `gc${i}`,
     generic,
     text: "Regna",
-    lang: null,
+    lang: COMMON_SCRIPT_PROBE_LANG,
     script: null,
   }));
   const scriptedInputs = [...SCRIPT_PROBES, ...additionalLanguages.map((lang) => ({ lang }))]

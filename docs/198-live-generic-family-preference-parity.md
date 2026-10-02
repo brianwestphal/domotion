@@ -121,6 +121,20 @@ Times New Roman: `한` painted through Apple SD Gothic Neo, while the sentinel
 reported Times New Roman. The probe keeps the existing Page-owned map contract;
 only the source of each scripted primary changes.
 
+The Common rows carry `lang="und-Zyyy"` (and the matching `-webkit-locale`).
+Blink reads a script's own settings entry and falls back to the Common entry
+only when that entry is empty (`GenericFontFamilyForScript`,
+`platform/fonts/generic_font_family_settings.cc:81-108`, revision
+`7d859f271c`). A Common row with no `lang` inherits the document locale,
+usually `en` or the browser default, so its script is Latin; `und` is Latin in
+`LocaleToScriptCodeForFontSelection` as well (`locale_to_script_mapping.cc:390`).
+Either form therefore records Latin's entry as Common whenever the two differ.
+A 4-letter script subtag decides the script directly, and `Zyyy` is
+`USCRIPT_COMMON`. Measured with Page settings Common `fantasy` = Times and
+Latin `fantasy` = Courier: the no-`lang` row reported Courier, the `und-Zyyy`
+row reports Times, and the Latin (`en`) row still reports Courier
+(`tests/generic-font-probe.e2e.test.ts`).
+
 Each scripted row restores a quoted author-important `-webkit-locale` after
 its hostile-style `all: initial` reset. This mirrors
 `Element::MapLanguageAttributeToLocale()`: `-webkit-locale` is inherited,

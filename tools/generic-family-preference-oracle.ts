@@ -234,7 +234,7 @@ export function logicalProbeTargets(): LogicalProbeTarget[] {
   const systemUi = [
     { id: "gui", generic: "system-ui" as const, text: "Regna", lang: null, script: null },
     ...settings
-      .filter((target) => target.generic === "standard" && target.lang != null)
+      .filter((target) => target.generic === "standard" && target.script != null)
       .map((target, index) => ({
         id: `guis${index}`,
         generic: "system-ui" as const,
@@ -249,7 +249,7 @@ export function logicalProbeTargets(): LogicalProbeTarget[] {
   const quotedSerif = [
     { id: "gqi", generic: "quoted-serif" as const, text: "Regna", lang: null, script: null },
     ...settings
-      .filter((target) => target.generic === "standard" && target.lang != null)
+      .filter((target) => target.generic === "standard" && target.script != null)
       .map((target, index) => ({
         id: `gqis${index}`,
         generic: "quoted-serif" as const,

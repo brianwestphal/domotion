@@ -147,6 +147,28 @@ describe("the live session generic-family probe", () => {
     }
   });
 
+  it("records the Common preference separately from a different Latin preference", async () => {
+    const page = await context!.newPage();
+    const families = await defaultCommonFamilyNames(context!, page);
+    const session = await context!.newCDPSession(page);
+    try {
+      // Common and Latin disagree on purpose. A Common probe that inherits the
+      // page's (Latin) locale, or uses `und`, reports Latin's family here.
+      await session.send("Page.setFontFamilies", {
+        fontFamilies: { fantasy: families.serif },
+        forScripts: [{ script: "latn", fontFamilies: { fantasy: families.mono } }],
+      });
+      const result = await probePageGenericFamilies(page);
+      expect(result).not.toBeNull();
+      expect(result!.common.get("serif")).not.toBe(result!.common.get("monospace"));
+      expect(result!.common.get("fantasy")).toBe(result!.common.get("serif"));
+      expect(result!.byScript.get("LATIN")!.get("fantasy")).toBe(result!.common.get("monospace"));
+    } finally {
+      await session.detach();
+      await page.close();
+    }
+  });
+
   it("is isolated from hostile author-important universal font rules", async () => {
     const page = await context!.newPage();
     await page.setContent("<!doctype html><body>clean</body>");

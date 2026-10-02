@@ -3,12 +3,14 @@ import type { Page } from "@playwright/test";
 import {
   deserializeSessionGenericFamilyProbe,
   genericFamilyReplayName,
+  COMMON_SCRIPT_PROBE_LANG,
   genericFamilyProbeTargets,
   genericProbeArmed,
   languagesFromDomSnapshot,
   probePageGenericFamilies,
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
+import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
 
 describe("genericFamilyReplayName", () => {
   const face = { familyName: "Arial", postScriptName: "ArialMT" };
@@ -30,7 +32,7 @@ describe("genericFamilyProbeTargets", () => {
     expect(targets).toHaveLength(7 + 10 * 7);
     expect(new Set(targets.map((target) => target.id)).size).toBe(targets.length);
 
-    const scripted = targets.filter((target) => target.lang != null);
+    const scripted = targets.filter((target) => target.script != null);
     expect(new Set(scripted.map((target) => target.lang))).toEqual(
       new Set(["ja", "ko", "zh-Hans", "zh-Hant", "ru", "ar", "el", "en", "he", "hi"]),
     );
@@ -47,11 +49,30 @@ describe("genericFamilyProbeTargets", () => {
     }
   });
 
+  it("probes Common under a locale whose Blink font-selection script is Common", () => {
+    // Neither "no lang" (inherits the page locale, usually Latin) nor `und`
+    // (Latin in Blink's table) reaches the Common settings entry when the
+    // Latin entry is populated; the `Zyyy` script subtag does.
+    const common = genericFamilyProbeTargets().filter((target) => target.script == null);
+    expect(common.map((target) => target.generic)).toEqual([
+      "standard",
+      "serif",
+      "sans-serif",
+      "monospace",
+      "cursive",
+      "fantasy",
+      "math",
+    ]);
+    expect(common.every((target) => target.lang === COMMON_SCRIPT_PROBE_LANG)).toBe(true);
+    expect(localeToScriptCodeForFontSelection(COMMON_SCRIPT_PROBE_LANG)).toBe("COMMON");
+    expect(localeToScriptCodeForFontSelection("und")).toBe("LATIN");
+  });
+
   it("uses an uncovered primary sentinel with each locale's Blink script key", () => {
     const targets = genericFamilyProbeTargets();
     const sample = (lang: string) => targets.find((target) => target.lang === lang)!;
     const sentinel = String.fromCodePoint(0x10ffff);
-    expect(targets.filter((target) => target.lang != null).every((target) => target.text === sentinel)).toBe(true);
+    expect(targets.filter((target) => target.script != null).every((target) => target.text === sentinel)).toBe(true);
     expect(sample("ja")).toMatchObject({ script: "KATAKANA_OR_HIRAGANA" });
     expect(sample("ko")).toMatchObject({ script: "HANGUL" });
     expect(sample("zh-Hans")).toMatchObject({ script: "SIMPLIFIED_HAN" });
@@ -66,7 +87,7 @@ describe("genericFamilyProbeTargets", () => {
 
   it("adds every effective page language once per Blink settings script", () => {
     const targets = genericFamilyProbeTargets(["th", "th-TH", "ka", "bn", ""]);
-    const languages = new Set(targets.filter((target) => target.lang != null).map((target) => target.lang));
+    const languages = new Set(targets.filter((target) => target.script != null).map((target) => target.lang));
     expect(languages).toContain("th");
     expect(languages).not.toContain("th-TH");
     expect(languages).toContain("ka");
