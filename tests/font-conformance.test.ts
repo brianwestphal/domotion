@@ -53,10 +53,15 @@ import { getFontInstance } from "../src/render/font-resolution.js";
 describe("OracleStabilityGuard", () => {
   it("accepts repeated settings and rejects a later face switch", () => {
     const guard = new OracleStabilityGuard();
+    expect(guard.initialSignature()).toBeNull();
     const first = ["serif=Times-Roman", "fantasy=Papyrus"];
     guard.observe(first);
     first[0] = "serif=TimesNewRomanPSMT";
     guard.observe(["serif=Times-Roman", "fantasy=Papyrus"]);
+    const signature = guard.initialSignature();
+    expect(signature).toEqual(["serif=Times-Roman", "fantasy=Papyrus"]);
+    signature![0] = "changed";
+    expect(guard.initialSignature()).toEqual(["serif=Times-Roman", "fantasy=Papyrus"]);
     expect(() => guard.observe(["serif=TimesNewRomanPSMT", "fantasy=Papyrus"], "stack 31 batch 1")).toThrow(
       /oracle font settings changed during sweep.*Times-Roman.*TimesNewRomanPSMT/,
     );
@@ -434,6 +439,7 @@ describe("sweep state transitions", () => {
       universeLength: 1,
       stackLength: 1,
       oracleIsolation: "shared-renderer",
+      oracleDonorSignatures: [{ scope: "shared", lang: "en", faces: ["serif=Times-Roman"] }],
       oraclePreferenceRepairs: [
         { at: "before batch 2", expected: ["serif=Times-Roman"], actual: ["serif=TimesNewRomanPSMT"] },
       ],
@@ -459,6 +465,7 @@ describe("sweep state transitions", () => {
     expect(report.rowsRetained).toBe(0);
     expect(report.rowsTruncated).toBe(1);
     expect(report.meta.generatedAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(report.meta.oracleDonorSignatures).toEqual([{ scope: "shared", lang: "en", faces: ["serif=Times-Roman"] }]);
     expect(report.meta.oraclePreferenceRepairs).toEqual({
       count: 1,
       events: [{ at: "before batch 2", expected: ["serif=Times-Roman"], actual: ["serif=TimesNewRomanPSMT"] }],

@@ -79,6 +79,14 @@ replacing its document between batches. Each span carries the oracle locale
 explicitly, including the first probe before the first measured document exists. A
 change during a measured batch aborts with harness exit code `2` and writes
 `oracle-drift.json` with the stack, batch, expected faces, and observed faces.
+Every successful report also records the first six-face donor signature for
+each oracle renderer scope in `meta.oracleDonorSignatures`, with the
+scope and locale that produced it. This copies the stability guard's first
+observation; it does not ask Chromium an extra font question. Repeated captures
+can compare the exact configured donors even when neither run drifts.
+The merged run preserves each producer's signatures with its shard name in
+`meta.oracleDonorSignatures`; they are diagnostic evidence, not a baseline
+comparison key.
 On macOS, a donor change discovered before the next measured question may be
 restored by reapplying the exact installed Playwright font preferences, up to
 three times in one sweep, only while the measured document marker, time origin,

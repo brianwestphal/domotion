@@ -1057,6 +1057,10 @@ export async function reassertPlaywrightMacFontFamilies(page: Page): Promise<voi
 export class OracleStabilityGuard {
   private expected: string[] | null = null;
 
+  initialSignature(): string[] | null {
+    return this.expected == null ? null : [...this.expected];
+  }
+
   observe(actual: readonly string[], at = "oracle control"): void {
     if (this.expected == null) {
       this.expected = [...actual];
@@ -1292,6 +1296,10 @@ export class ChromeOracle {
 
   async assertStable(at: string): Promise<void> {
     this.stability.observe(await probeOracleControlSignature(this.page, this.cdp, this.lang), at);
+  }
+
+  controlSignature(): string[] | null {
+    return this.stability.initialSignature();
   }
 
   /** Restore an idle-interval macOS Page setting reset before asking the next
@@ -1942,6 +1950,7 @@ export interface FontConformanceReportInput {
   universeLength: number;
   stackLength: number;
   oracleIsolation: string;
+  oracleDonorSignatures: ReadonlyArray<{ scope: string; lang: string; faces: readonly string[] }>;
   oraclePreferenceRepairs?: ReadonlyArray<{ at: string; expected: string[]; actual: string[] }>;
   resolverAnswerDigest: string;
   tally: SweepTally;
@@ -1969,6 +1978,7 @@ export function buildReport(input: FontConformanceReportInput) {
     universeLength,
     stackLength,
     oracleIsolation,
+    oracleDonorSignatures,
     oraclePreferenceRepairs,
     resolverAnswerDigest,
     tally,
@@ -2053,6 +2063,7 @@ export function buildReport(input: FontConformanceReportInput) {
       lang: opts.lang,
       resetEvery: opts.resetEvery,
       oracleIsolation,
+      oracleDonorSignatures,
       ...(oraclePreferenceRepairs == null
         ? {}
         : { oraclePreferenceRepairs: { count: oraclePreferenceRepairs.length, events: oraclePreferenceRepairs } }),
@@ -2410,6 +2421,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         ChromeOracle.create(activeBrowser, opts.concurrency, lang),
       );
       const tally = new SweepTally(opts.maxRows, opts.lang, opts.strictAlias, allowlist);
+      const oracleDonorSignatures = new Map<string, { scope: string; lang: string; faces: string[] }>();
       const t0 = Date.now();
       let measuredOracle: ChromeOracle | null = null;
 
@@ -2418,6 +2430,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           const oracle = await oracles.forLang(spec.lang ?? opts.lang);
           measuredOracle = oracle;
           await oracle.prepareMeasurement(`before stack ${stackIndex + 1}/${stacks.length}`);
+          const lang = spec.lang ?? opts.lang;
+          const scope = oracleScopeKey(process.platform, lang);
+          if (!oracleDonorSignatures.has(scope)) {
+            const faces = oracle.controlSignature();
+            if (faces == null) throw new Error(`oracle: missing control signature for scope ${scope}`);
+            oracleDonorSignatures.set(scope, { scope, lang, faces });
+          }
           await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
         }
       } catch (error) {
@@ -2466,6 +2485,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         universeLength: universe.length,
         stackLength: stacks.length,
         oracleIsolation,
+        oracleDonorSignatures: [...oracleDonorSignatures.values()],
         oraclePreferenceRepairs: process.platform === "darwin" ? measuredOracle?.preferenceRepairEvents() : undefined,
         resolverAnswerDigest,
         tally,

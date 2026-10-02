@@ -2610,10 +2610,12 @@
         "status": "current",
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1811", "DM-1844", "DM-1852", "DM-1854", "DM-1859", "DM-1868"],
+        "tickets": ["DM-1811", "DM-1844", "DM-1852", "DM-1854", "DM-1859", "DM-1868", "DM-X8V6RN", "DM-R91M61"],
         "code": [
           "packages/text-engine/src/render/harfbuzz-shaper.ts",
-          "packages/text-engine/src/render/text-to-path.ts"
+          "packages/text-engine/src/render/text-to-path.ts",
+          "packages/text-engine/src/render/system-fallback-resolver.ts",
+          "packages/text-engine/src/render/codepoint-resolver.ts"
         ],
         "aliases": ["docs/106-blink-font-parity-inventory.md", "doc-106"]
       }

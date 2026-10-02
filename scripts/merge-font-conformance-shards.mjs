@@ -143,6 +143,7 @@ export function mergeShards(shards, opts = {}) {
   const chromeFaces = {};
   const missingShards = [];
   const resolverAnswerDigests = {};
+  const oracleDonorSignatures = [];
   let meta = null;
 
   // DM-1887: the two axes must be accounted DIFFERENTLY, and getting either one
@@ -178,6 +179,9 @@ export function mergeShards(shards, opts = {}) {
     const cn = report.meta?.shard?.[1] ?? 1;
     if (report.meta?.resolverAnswerDigest != null) {
       resolverAnswerDigests[`stack-${si}/${sn}:codepoint-${ci}/${cn}`] = report.meta.resolverAnswerDigest;
+    }
+    if (Array.isArray(report.meta?.oracleDonorSignatures)) {
+      oracleDonorSignatures.push({ shard: name, signatures: report.meta.oracleDonorSignatures });
     }
     stacksByStackShard.set(si, report.meta?.stacks ?? 0);
     cpsByCpShard.set(ci, report.meta?.codepoints ?? 0);
@@ -239,6 +243,7 @@ export function mergeShards(shards, opts = {}) {
        * than the run, and the comparator must refuse to judge it.
        */
       envConflicts,
+      oracleDonorSignatures,
       /** False ⇒ the numbers below describe part of the sweep and are not a verdict. */
       complete: merged,
     },

@@ -378,6 +378,18 @@ describe("mergeShards", () => {
     });
     expect(m.meta.unicode).toBe("16.0");
   });
+
+  it("retains each producer's donor signatures without making them a baseline slice input", () => {
+    const signatures = [{ scope: "en", lang: "en", faces: ["serif=Times-Roman"] }];
+    const m = mergeShards(
+      [{ name: "s1", report: report({ meta: { ...report().meta, oracleDonorSignatures: signatures } }) }],
+      {
+        expected: 1,
+      },
+    );
+    expect(m.meta.oracleDonorSignatures).toEqual([{ shard: "s1", signatures }]);
+    expect(m.meta.slice).not.toHaveProperty("oracleDonorSignatures");
+  });
 });
 
 describe("sliceOf", () => {

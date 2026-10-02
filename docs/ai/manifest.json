@@ -1786,7 +1786,12 @@
       "status": "current",
       "owners": ["text-fonts", "platform-release"],
       "platforms": ["macos", "linux", "windows"],
-      "code": ["packages/text-engine/src/render/harfbuzz-shaper.ts", "packages/text-engine/src/render/text-to-path.ts"],
+      "code": [
+        "packages/text-engine/src/render/harfbuzz-shaper.ts",
+        "packages/text-engine/src/render/text-to-path.ts",
+        "packages/text-engine/src/render/system-fallback-resolver.ts",
+        "packages/text-engine/src/render/codepoint-resolver.ts"
+      ],
       "file": "106-blink-font-parity-inventory.md"
     },
     {
