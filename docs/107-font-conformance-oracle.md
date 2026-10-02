@@ -70,6 +70,18 @@ report records the selected universe and the answers in that same order.
 - **Chrome's answer** — CDP `CSS.getPlatformFontsForNode` over a one-codepoint cell. This is the face the engine reports having painted with, not a guess inferred from pixels. Two earlier attempts to identify a face from rendered crops (a hand-rolled shape matcher, and `tools/compare-glyphs.ts` on upscaled 1× captures) both failed their controls; asking the browser is strictly better.
 - **Our answer** — the primary is opened through the renderer's `resolveFont` route, then `resolveFontForCodepoint` walks the same stack's key chain at the same size, weight, and style. A fallback is materialized as `res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`, so the reported face is the concrete **cut** the renderer would load. The primary cannot be reopened from its key alone: on macOS `system-ui` and a named SF family share `sf-pro`, but only the `system-ui` route applies the CSS `wght` axis. The native CoreText UI query supplies the resulting face identity when fontkit's variation instance retains its default `.SFNS-Regular` name. This keeps the bold `system-ui` oracle aligned with Chromium's `.SFNS-Bold` instead of manufacturing a mismatch for every codepoint whose run uses that face.
 
+  On macOS, every CJK compatibility ideograph with a one-scalar canonical
+  decomposition (U+F900–FAFF, U+2F800–2FA1F) is answered with the first family
+  in the stack's declared chain that covers either the codepoint or its
+  canonical scalar. That is the face the renderer's shape-first splitter
+  paints, because HarfBuzz decomposes the missing codepoint and keeps the font
+  that covers the canonical form, while the fast per-codepoint seam would walk
+  on to system fallback (PingFang, AppleMyungjo) instead of the declared
+  Hiragino face Chrome paints. The rule is applied to every such cell, never
+  only to cells that already disagree with Chrome, and a unit test pins it to
+  the real splitter. `DOMOTION_CLUSTER_FALLBACK=0` disables it together with the
+  shape-first splitter.
+
 The oracle checks its own browser Page before each stack, before each macOS
 batch, and after every batch. A fixed set
 of CSS generics paints U+10FFFF, a noncharacter that retains each generic's

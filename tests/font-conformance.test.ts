@@ -12,12 +12,21 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getFontSourceInfo, resolveFont, resolveFontSpec, resolveInstalledFont } from "@domotion/text-engine/testing";
+import {
+  getFontSourceInfo,
+  isGlyphHelperAvailable,
+  resolveFont,
+  resolveFontSpec,
+  resolveInstalledFont,
+  splitTextIntoFontRunsShaped,
+  stackPrimaryIsSystemUi,
+} from "@domotion/text-engine/testing";
 import {
   allowlisted,
   assertSupplementaryPuaOracleFace,
   buildReport,
   buildUniverse,
+  cjkCanonicalSingleton,
   faceFor,
   formatSummary,
   identifyFace,
@@ -31,9 +40,11 @@ import {
   oracleScopeKey,
   OracleRegistry,
   parseArgs,
+  ourFaceFor,
   prepareStack,
   primaryChromeFace,
   probePageHtml,
+  cjkCanonicalRendererFace,
   slantForStyle,
   shouldResetBatch,
   selectStacksAndUniverse,
@@ -44,11 +55,99 @@ import {
   verdictForCodepoint,
   type ChromeFace,
   type OurFace,
+  type ResolvedStack,
   type StackSpec,
   type StackCorpus,
   type SweepOperations,
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
+
+describe("CJK canonical singleton coverage", () => {
+  it("normalizes compatibility ideographs and excludes unrelated or unchanged scalars", () => {
+    expect(cjkCanonicalSingleton(0xf900)).toBe(0x8c48);
+    expect(cjkCanonicalSingleton(0xfa00)).toBe(0x5207);
+    expect(cjkCanonicalSingleton(0x0d00)).toBeNull();
+    expect(cjkCanonicalSingleton(0x0344)).toBeNull();
+    expect(cjkCanonicalSingleton(0x2f900)).toBe(0x6d3e);
+  });
+
+  it.skipIf(process.platform !== "darwin")("prefers the declared face that shapes the canonical scalar", () => {
+    const primary = {
+      postscriptName: "CanonicalFace",
+      glyphForCodePoint: (cp: number) => (cp === 0x8c48 ? { id: 12 } : null),
+    } as unknown as ResolvedStack["primary"];
+    const rs = {
+      spec: { fontWeight: 400, fontSize: 16 },
+      primaryKey: "canonical-face",
+      primary,
+      chain: ["canonical-face"],
+      slant: 0,
+      stretch: 100,
+      faceCache: new Map(),
+    } as unknown as ResolvedStack;
+    const provisional: OurFace = { key: "other-face", path: null, postscriptName: "OtherFace", covered: true };
+    // Unconditional: no Chrome answer is consulted, so it cannot only ever
+    // remove disagreements.
+    expect(cjkCanonicalRendererFace(0xf900, rs, provisional)).toMatchObject({
+      key: "canonical-face",
+      postscriptName: "CanonicalFace",
+      covered: true,
+    });
+    expect(cjkCanonicalRendererFace(0x0d00, rs, provisional)).toBe(provisional);
+  });
+
+  // The oracle's bounded walk stands in for the renderer's shape-first splitter;
+  // this is what keeps the stand-in honest. Japanese and Korean stacks, where
+  // the fast seam and the splitter measurably disagree for these cells.
+  it.skipIf(process.platform !== "darwin" || !isGlyphHelperAvailable())(
+    "matches the renderer's shape-first splitter for compatibility ideographs",
+    () => {
+      const stacks: StackSpec[] = [
+        { fontFamily: "serif", lang: "ja" },
+        { fontFamily: "sans-serif", lang: "ja" },
+        { fontFamily: "system-ui", lang: "ja" },
+        { fontFamily: "system-ui", lang: "ko" },
+      ].map((s) => ({
+        ...s,
+        fontSize: 16,
+        fontWeight: 400,
+        fontStyle: "normal",
+        fontStretch: "100%",
+        fixtures: 0,
+        example: "",
+      }));
+      for (const spec of stacks) {
+        const rs = prepareStack(spec);
+        expect(rs).not.toBeNull();
+        for (const cp of [0xf900, 0xfa00, 0x2f900]) {
+          const oracle = cjkCanonicalRendererFace(cp, rs!, ourFaceFor(cp, rs!, spec.lang));
+          const runs = splitTextIntoFontRunsShaped(
+            String.fromCodePoint(cp),
+            rs!.primary,
+            rs!.primaryKey,
+            spec.fontWeight,
+            spec.fontSize,
+            rs!.slant,
+            undefined,
+            spec.lang,
+            rs!.chain,
+            stackPrimaryIsSystemUi(spec.fontFamily, spec.lang),
+            rs!.stretch,
+            undefined,
+            spec.fontFamily,
+          );
+          expect(runs).toHaveLength(1);
+          expect([spec.fontFamily, spec.lang, cp.toString(16), oracle.key]).toEqual([
+            spec.fontFamily,
+            spec.lang,
+            cp.toString(16),
+            runs[0].fontKey,
+          ]);
+        }
+      }
+    },
+  );
+});
 
 describe("OracleStabilityGuard", () => {
   it("accepts repeated settings and rejects a later face switch", () => {

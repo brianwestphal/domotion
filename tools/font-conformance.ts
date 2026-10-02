@@ -185,6 +185,7 @@ import {
   glyphHelperCodepointMemoSize,
   resolveInstalledFont,
   isHarfbuzzDefaultIgnorable,
+  glyphIdForCp,
   queryIcuCodepoints,
 } from "@domotion/text-engine/testing";
 
@@ -874,6 +875,45 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
   // An uncovered codepoint has no resolved face of its own — the renderer draws
   // the run primary's `.notdef`, so THAT is the face to compare against Chrome.
   return r.covered ? faceFor(rs, r.key, true, r.fontOverride) : rs.notdefDonor;
+}
+
+/** The one-scalar canonical form for a CJK compatibility ideograph. */
+export function cjkCanonicalSingleton(cp: number): number | null {
+  if (!((cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x2f800 && cp <= 0x2fa1f))) return null;
+  const source = String.fromCodePoint(cp);
+  const nfd = source.normalize("NFD");
+  return nfd !== source && [...nfd].length === 1 ? nfd.codePointAt(0)! : null;
+}
+
+/** The face the renderer paints a CJK compatibility ideograph in. Blink walks
+ * the declared families in order and shapes the cell with each; HarfBuzz's
+ * normalizer decomposes a codepoint the font lacks into its canonical form and
+ * keeps the font when that form is covered (`decompose_current_character`,
+ * `hb-ot-shape-normalize.cc`, rev 4de187d). The renderer's shape-first splitter
+ * reproduces that, so a declared family that covers only the canonical scalar
+ * still owns the cell — while the oracle's fast per-codepoint seam leaves
+ * decomposition to shaping and walks on to system fallback.
+ *
+ * Applied to EVERY such cell, never only to cells that disagree with Chrome:
+ * an oracle that re-routes only after seeing a mismatch can remove
+ * disagreements but never reveal one. Invoking the full splitter per cell
+ * exhausts its WASM lifetime in a long sweep, hence this bounded coverage walk;
+ * `tests/font-conformance.test.ts` pins it against the real splitter. */
+export function cjkCanonicalRendererFace(cp: number, rs: ResolvedStack, ours: OurFace): OurFace {
+  if (process.platform !== "darwin" || process.env.DOMOTION_CLUSTER_FALLBACK === "0") return ours;
+  const canonical = cjkCanonicalSingleton(cp);
+  if (canonical == null) return ours;
+  for (const key of new Set([rs.primaryKey, ...rs.chain])) {
+    const inst =
+      key === rs.primaryKey
+        ? rs.primary
+        : getFontInstance(key, rs.spec.fontWeight, rs.spec.fontSize, rs.slant, undefined, rs.stretch);
+    if (inst == null) continue;
+    if (glyphIdForCp(inst, cp) !== 0 || glyphIdForCp(inst, canonical) !== 0) {
+      return faceFor(rs, key, true, inst);
+    }
+  }
+  return ours;
 }
 
 // ---------------------------------------------------------------------------
@@ -2212,6 +2252,7 @@ export interface SweepOperations {
   prepare: typeof prepareStack;
   reset: typeof clearFontResolutionCaches;
   faceFor: typeof ourFaceFor;
+  cjkCanonicalFace?: typeof cjkCanonicalRendererFace;
   primeCodepoints: (codepoints: readonly number[]) => void;
   chromeFaceCoversCodepoint?: (face: ChromeFace, cp: number) => boolean | null;
   memoSize: typeof glyphHelperCodepointMemoSize;
@@ -2225,6 +2266,7 @@ const sweepOperations: SweepOperations = {
   prepare: prepareStack,
   reset: clearFontResolutionCaches,
   faceFor: ourFaceFor,
+  cjkCanonicalFace: cjkCanonicalRendererFace,
   // A low-byte sample touches one codepoint in each 256-codepoint ICU page.
   // Scalar queries would expand and evict entire pages, then repeat that work
   // for every stack. Fetch the exact batch once so native classification keeps
@@ -2311,7 +2353,8 @@ export async function sweepStack(
     operations.primeCodepoints(cps);
     for (let j = 0; j < cps.length; j++) {
       const cp = cps[j];
-      const ours = operations.faceFor(cp, rs, spec.lang ?? opts.lang);
+      const provisional = operations.faceFor(cp, rs, spec.lang ?? opts.lang);
+      const ours = operations.cjkCanonicalFace?.(cp, rs, provisional) ?? provisional;
       assertSupplementaryPuaOracleFace(
         spec,
         cp,
