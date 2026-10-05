@@ -1,0 +1,48 @@
+name: CJK canonical singleton Windows probe
+
+# Manual native DirectWrite measurement for the five representative CJK
+# compatibility ideographs. The report records Chromium, the fast resolver,
+# the proposed canonical walk, and the production shape-first splitter from
+# one runner image and one Chromium session.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.21.0"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Build the native DirectWrite glyph helper
+        shell: pwsh
+        run: |
+          ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
+          if (-not (Test-Path packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe)) {
+            throw "native DirectWrite glyph helper is missing"
+          }
+      - run: npm run build:text-engine
+      - name: Create report directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force tests/output | Out-Null
+      - name: Record runner image
+        run: node scripts/record-runner-image.mjs tests/output/cjk-canonical-singleton-runner-image.txt
+      - name: Compare native splitter, candidate, fast seam, and Chromium
+        run: npx tsx tools/cjk-canonical-singleton-platform-probe.ts tests/output/cjk-canonical-singleton-probe.json
+      - name: Upload native report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cjk-canonical-singleton-windows-probe
+          path: |
+            tests/output/cjk-canonical-singleton-probe.json
+            tests/output/cjk-canonical-singleton-runner-image.txt
+          if-no-files-found: warn

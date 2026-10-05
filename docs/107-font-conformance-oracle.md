@@ -103,6 +103,17 @@ report records the selected universe and the answers in that same order.
   zh-Hans compatibility ideographs. `DOMOTION_CLUSTER_FALLBACK=0` disables the
   bounded walk together with the shape-first splitter.
 
+  The manual `cjk-canonical-singleton-windows-probe` workflow measures that
+  gate on a hosted Windows runner with its native DirectWrite helper. Its
+  60-cell report records the fast seam, proposed canonical walk, production
+  shape-first splitter, and Chromium's painted face for U+F900, U+FA00,
+  U+2F800, U+2F900, and U+2FA00 across `serif`, `sans-serif`, and `system-ui`
+  at `ja`, `ko`, `zh-Hans`, and `zh-Hant`. The candidate stays disabled on
+  Windows until a hosted report confirms it matches the splitter and the
+  splitter matches Chromium. The report includes the source SHA, runner image,
+  OS release, Chromium version, and native-helper status so its result can be
+  attributed to the measured image.
+
   **Open macOS mixed-language sequence (DM-QQJDH1; fix DM-6F4YJT).** Chromium
   147.0.7727.15 changes the answer for U+2F800/U+2F900/U+2FA00 when
   `system-ui` cells for those scalars in English precede otherwise identical

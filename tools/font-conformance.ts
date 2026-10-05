@@ -904,6 +904,12 @@ export function cjkCanonicalRendererFace(cp: number, rs: ResolvedStack, ours: Ou
   // with Chromium for locale-specific compatibility ideographs. The fast seam
   // alone disagrees with Chrome on several zh-Hans cells.
   if (process.platform === "win32" || process.env.DOMOTION_CLUSTER_FALLBACK === "0") return ours;
+  return cjkCanonicalCandidateFace(cp, rs, ours);
+}
+
+/** Evaluate the proposed canonical walk without the platform gate, so native
+ * validation can compare it to the renderer splitter before enabling it. */
+export function cjkCanonicalCandidateFace(cp: number, rs: ResolvedStack, ours: OurFace): OurFace {
   const canonical = cjkCanonicalSingleton(cp);
   if (canonical == null) return ours;
   for (const key of new Set([rs.primaryKey, ...rs.chain])) {
