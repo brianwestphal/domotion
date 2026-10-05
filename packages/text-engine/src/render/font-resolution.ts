@@ -66,6 +66,12 @@ export { createFontRendererSession } from "./system-fallback-resolver.js";
 export { withFontRendererSession } from "./system-fallback-resolver.js";
 export { beginCharacterFallbackDocument } from "./system-fallback-resolver.js";
 export { endCharacterFallbackDocument } from "./system-fallback-resolver.js";
+export {
+  clearPrimaryNotdefShapesAfterOracleGc,
+  hasPrimaryNotdefShape,
+  primaryNotdefShapeKey,
+  recordPrimaryNotdefShape,
+} from "./system-fallback-resolver.js";
 export { selectCharacterFallbackRendererScope } from "./system-fallback-resolver.js";
 export { clearCharacterFallbackRendererScopesForTest } from "./system-fallback-resolver.js";
 export { __characterFallbackDocumentCacheForTest } from "./system-fallback-resolver.js";

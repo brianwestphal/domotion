@@ -5707,7 +5707,7 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-WGF8AE", "DM-XZZ0MS", "DM-24GQD3", "DM-K0GPP7"],
+        "tickets": ["DM-WGF8AE", "DM-XZZ0MS", "DM-24GQD3", "DM-K0GPP7", "DM-9DC90C"],
         "code": [
           "packages/text-engine/src/render/open-type-math.ts",
           "packages/text-engine/src/render/math-radical-shape.ts",

@@ -120,7 +120,7 @@ report records the selected universe and the answers in that same order.
   fallback rule. A Windows browser regression test pins both transitions;
   the renderer's state model is tracked by `DM-WNS4J8`.
 
-  **Open macOS mixed-language sequence (DM-QQJDH1; fix DM-6F4YJT).** Chromium
+  **macOS mixed-language sequence (DM-QQJDH1, DM-6F4YJT).** Chromium
   147.0.7727.15 changes the answer for U+2F800/U+2F900/U+2FA00 when
   `system-ui` cells for those scalars in English precede otherwise identical
   `lang=zh-Hans` cells in one ordinary, static document. CDP reports
@@ -131,16 +131,43 @@ report records the selected universe and the answers in that same order.
   Chinese cells does not trigger it. The result depends on earlier cells for
   the _same_ compatibility ideographs. The 351-stack byte-00 synthetic slice
   reproduces 12 such rows across `fantasy`, `monospace`, and `system-ui` with
-  `zh-Hans`/`zh-Hant`; no macOS byte-00 baseline may ratify them until the
-  renderer and oracle model the mechanism.
+  `zh-Hans`/`zh-Hant`. The renderer and oracle now retain an earlier primary
+  `.notdef` shape for a one-scalar canonical CJK compatibility ideograph under
+  `system-ui`, `fantasy`, or `monospace` in
+  the current document or owned renderer session. The key includes primary
+  family, size, weight, slant, stretch, axes, features, and exact scalar. A
+  fresh Chinese-only document still selects PingFang; an English-first
+  document reuses the `.SFNS` result for the matching Chinese scalar. This
+  bounded model applies to those three macOS generics only. A real-page
+  matrix over all 13 synthetic generics found the transition for precisely
+  these three; `cursive` and the others kept their Chinese fallback.
 
   The pinned Blink source's `FontCache::PlatformFallbackFontForCharacter`
   (`third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm:330-372`)
   checks the cached face's _literal_ cmap glyph before a character-fallback
   cache hit. PingFang lacks these compatibility scalars in its cmap, so that
-  hit alone cannot explain a cached PingFang answer for them. The fallback-list
-  and shape-cache candidates remain under investigation in DM-6F4YJT; this
-  evidence does not yet identify the exact state owner.
+  hit alone cannot explain a cached PingFang answer for them. Removing the
+  English seed and forcing `HeapProfiler.collectGarbage` before inserting the
+  Chinese cell restores PingFang; without GC the result remains `.SFNS`.
+  `InlineNode::IsNGShapeCacheAllowed` (`core/layout/inline/inline_node.cc:
+1463-1550`) excludes nonzero spacing, and `NGShapeCache::GetOrCreateImpl`
+  (`platform/fonts/shaping/ng_shape_cache.h:211-258`) retains primary-only
+  shape results through a weak map. A `0.1px` letter spacing on either cell
+  also restores PingFang. These controls identify a weak shape-result cache as
+  the state owner. The source key explicitly includes locale, however, while
+  the real page crosses English and Chinese locales. The exact key path and
+  spacing/GC modeling beyond the bounded singleton case remain open in
+  DM-FM49KF.
+
+  The synthetic sweep starts a fresh weak shape-cache epoch before each
+  stack: it removes the previous stack's cells, navigates the same Page to a
+  blank document, drops CDP DOM node bindings, asks Chromium to collect
+  garbage, and clears only Domotion's mirrored primary `.notdef` entries.
+  The Page, renderer, and Blink's separate strong ideograph character-fallback
+  cache persist. This makes each stack's face result independent of whether a weak
+  shape result from an unrelated earlier stack happened to survive GC. A
+  dedicated mixed-language browser test keeps the within-document transition
+  covered outside that synthetic protocol.
 
 The oracle checks its own browser Page before each stack, before each macOS
 batch, and after every batch. A fixed set
@@ -465,9 +492,9 @@ Correctness constraints, all of which cost throughput and all of which are load-
 - **`white-space: pre` on the cell.** Without it a cell holding U+0020 collapses to nothing, Chrome paints no glyph, and the oracle reports a mismatch that exists only because of how the probe page was written.
 - **Batched, pipelined CDP.** Each page holds `--batch` cells; all node ids come back from one `DOM.querySelectorAll`, and `CSS.getPlatformFontsForNode` is issued `--concurrency`-at-a-time rather than awaited serially.
 - **Cell font faces read as Chrome reports them, not as Chrome ranks them.** Blink accumulates platform-font usage into a hash map before serializing it, so the protocol array's order is not a documented ranking; the oracle takes the entry with the highest glyph count. A one-codepoint cell normally has exactly one entry, and the full list is preserved in `chromeAllFaces` when it does not.
-- **On macOS, the sweep is ONE document scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText. The oracle creates one measured document, then replaces only its codepoint cells and changes its style when the stack changes. Its renderer, Page font settings, and document persist across every batch and stack. The Domotion side opens one matching `beginCharacterFallbackDocument()` scope spanning the whole sweep, and both sides ask in the identical (stack, ascending-codepoint) order; the periodic memory reset (`--reset-every`) deliberately does NOT clear it, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
+- **On macOS, the sweep keeps one renderer cache scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText. The oracle reuses one Page and renderer across every batch and stack, while opening a fresh measured document for each stack to clear weak shape results. The Domotion side opens one matching `beginCharacterFallbackDocument()` scope spanning the whole sweep, and both sides ask in the identical (stack, ascending-codepoint) order; the periodic memory reset (`--reset-every`) deliberately does NOT clear the strong ideograph cache, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
 
-  The prior macOS protocol called `setContent` for every batch. On one image and source, three native full-slice shards changed all six `.notdef` generic donor faces partway through the run from Playwright's Page settings to Blink constructor defaults. Keeping one measured document and proactively replaying preferences before each batch did not prevent the switch. A native abort after 224,000 comparisons retained the same document marker, time origin, and loader ID; replaying the exact installed Playwright font table on that same Page restored all six donors. The oracle therefore checks the donor signature before each next measurement, repairs an idle-interval reset at most three times, and verifies the six donors before asking the next codepoint. It still checks after every measured batch and aborts if the Page changed during that batch. Chromium rejects a second `Page.setFontFamilies` on one session, so each replay uses a fresh one-use CDP session. A real Chromium test verifies that a deliberate defaults-to-Playwright restoration preserves the documented first-ideograph cached face. Successful reports identify this protocol as `oracleIsolation: "shared-renderer-single-document-repaired-prefs"` and record repair count and events. Older macOS baselines are intentionally incomparable. Linux and Windows retain their existing `setContent` path and isolation metadata. Both generic-donor and supplementary-PUA sentinels remain required; a supplementary-PUA flip still aborts.
+  The prior macOS protocol called `setContent` for every batch. On one image and source, three native full-slice shards changed all six `.notdef` generic donor faces partway through the run from Playwright's Page settings to Blink constructor defaults. Keeping one measured document and proactively replaying preferences before each batch did not prevent the switch. A native abort after 224,000 comparisons retained the same document marker, time origin, and loader ID; replaying the exact installed Playwright font table on that same Page restored all six donors. The oracle therefore checks the donor signature before each next measurement, repairs an idle-interval reset at most three times, and verifies the six donors before asking the next codepoint. It still checks after every measured batch and aborts if the Page changed during that batch. Chromium rejects a second `Page.setFontFamilies` on one session, so each replay uses a fresh one-use CDP session. A real Chromium test verifies that a deliberate defaults-to-Playwright restoration preserves the documented first-ideograph cached face. Reports made under that protocol used `oracleIsolation: "shared-renderer-single-document-repaired-prefs"`. DM-6F4YJT keeps the Page and renderer but opens a new measured document for each stack after clearing weak shape results; its reports use `oracleIsolation: "shared-renderer-fresh-stack-document-repaired-prefs"`. The protocol identities are intentionally incomparable, and reports still record repair count and events. Linux and Windows retain their existing `setContent` path and isolation metadata. Both generic-donor and supplementary-PUA sentinels remain required; a supplementary-PUA flip still aborts.
 
 ## How to read the output
 

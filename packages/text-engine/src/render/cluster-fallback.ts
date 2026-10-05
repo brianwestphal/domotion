@@ -75,6 +75,7 @@ import {
   registerFontEnvironmentInvalidator,
 } from "./font-resolution.js";
 import { hostPlatform } from "./host-platform.js";
+import { hasPrimaryNotdefShape, primaryNotdefShapeKey, recordPrimaryNotdefShape } from "./character-fallback-cache.js";
 import { harfbuzzShapeRun, harfbuzzGlyphQuery, mirrorPairedCharacters } from "./harfbuzz-shaper.js";
 import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
 import { applyFontVariantEmojiToPriority, type SourceFallbackPriority } from "./emoji-presentation-priority.js";
@@ -580,6 +581,38 @@ export function splitTextIntoFontRunsShaped(
   opts?: ShapedSplitOptions,
 ): FontRun[] {
   if (text.length === 0) return [];
+  const shapeKey = primaryNotdefShapeKey(
+    text,
+    `${fontFamily ?? primaryFontKey}|${primaryFontKey}`,
+    weight,
+    fontSize,
+    slant,
+    stretch,
+    variationSettings,
+    opts?.features,
+  );
+  if (hasPrimaryNotdefShape(shapeKey)) {
+    return [
+      {
+        fontKey: primaryFontKey,
+        font: harfbuzzShapedRunOverride(
+          primaryFont,
+          primaryFontKey,
+          weight,
+          fontSize,
+          slant,
+          variationSettings,
+          text,
+          opts?.features,
+        ),
+        text,
+        startIdx: 0,
+        endIdx: text.length,
+        isPrimary: true,
+        routeMechanism: "first-candidate-notdef",
+      },
+    ];
+  }
   const semanticContext = opts?.semanticContext ?? createFontFallbackSemanticContext(fontFamily);
   _invoked++;
   const runs = splitShapedInner(
@@ -599,6 +632,9 @@ export function splitTextIntoFontRunsShaped(
     { ...opts, semanticContext },
   );
   _accepted++;
+  if (runs.length === 1 && runs[0].isPrimary && runs[0].routeMechanism === "first-candidate-notdef") {
+    recordPrimaryNotdefShape(shapeKey);
+  }
   return runs;
 }
 

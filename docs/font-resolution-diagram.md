@@ -203,6 +203,20 @@ not erase it during memory trims. The conformance oracle selects a distinct
 scope namespace per locale, matching its distinct Chromium renderer contexts;
 production uses one namespace and therefore preserves mixed-language order.
 
+On macOS, `splitTextIntoFontRunsShaped()` also consults the document/session
+primary `.notdef` shape state before walking fallback for a one-scalar
+canonical CJK compatibility ideograph under `system-ui`, `fantasy`, or
+`monospace`. If an earlier text item with the same primary font request and
+scalar ended at Blink's first-candidate `.notdef`,
+the later item reuses that primary run. The state is opened and closed with
+`beginCharacterFallbackDocument()` / `endCharacterFallbackDocument()` and is
+retained across owned renderer-session documents. The conformance oracle
+consults the same state before applying its canonical-singleton family walk.
+The synthetic oracle starts a new document and forces Chromium GC between
+stacks, then clears only its matching weak shape state; the Page, renderer, and
+character-fallback cache persist. This matches measured English-first sequences in Chromium;
+DM-FM49KF tracks the remaining locale-key and invalidation limits.
+
 ---
 
 ## 2. Family stack → primary key (`resolveFontKey` / `matchFamilyNameToKey`)
