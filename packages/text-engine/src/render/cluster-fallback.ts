@@ -590,6 +590,7 @@ export function splitTextIntoFontRunsShaped(
     stretch,
     variationSettings,
     opts?.features,
+    ((bidiLevelsFor(text, opts?.bidiOverride)?.[0] ?? 0) & 1) === 1 ? "rtl" : "ltr",
   );
   if (hasPrimaryNotdefShape(shapeKey)) {
     return [

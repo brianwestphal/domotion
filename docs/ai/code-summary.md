@@ -179,9 +179,10 @@ plus controlled-healing browser passes.
   `tests/oracle-phases.e2e.test.ts` exercises a live Chromium paint order flow.
 - `tests/font-conformance-mixed-locale-controls.e2e.test.ts` records native
   macOS Chromium face and computed-locale transitions for compatibility
-  ideographs across spacing, document replacement, GC, and different-scalar
-  controls. The source ownership limit is documented in
-  `docs/107-font-conformance-oracle.md`.
+  ideographs across spacing, noninitial features, text length, bidi direction,
+  document replacement, GC, and different-scalar controls. The pinned
+  Chromium 147 `SimpleFontData` cache path and bounded renderer mirror are
+  documented in `docs/107-font-conformance-oracle.md`.
 - `tools/lib/conformance-args.ts` validates numeric flags and 1-based shard
   selection for conformance tools and the visual harness.
 - `tools/lib/browser.ts` owns TypeScript tool browsers, while

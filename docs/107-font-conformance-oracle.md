@@ -14,6 +14,7 @@ tickets:
     "DM-2507",
     "DM-B4ANRH",
     "DM-EBRC7F",
+    "DM-FM49KF",
     "DM-KK5BP2",
     "DM-N78DX3",
     "DM-QD903D",
@@ -35,6 +36,7 @@ code:
     "tests/font-conformance-baseline.test.ts",
     "tests/font-conformance-cli.test.ts",
     "tests/font-conformance-extraction.e2e.test.ts",
+    "tests/font-conformance-mixed-locale-controls.e2e.test.ts",
     "tests/font-conformance-document-lifecycle.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
@@ -152,38 +154,52 @@ report records the selected universe and the answers in that same order.
   English seed and forcing `HeapProfiler.collectGarbage` before inserting the
   Chinese cell restored PingFang in the original probe; without GC the result
   remained `.SFNS`.
-  `InlineNode::IsNGShapeCacheAllowed` (`core/layout/inline/inline_node.cc:
-1463-1550`) excludes nonzero spacing, and `NGShapeCache::GetOrCreateImpl`
-  (`platform/fonts/shaping/ng_shape_cache.h:211-258`) retains primary-only
-  shape results through a weak map. A `0.1px` letter spacing on either cell
-  also restores PingFang. These controls implicate a weakly held shaping or
-  fallback result but do not identify its exact owner. The source key explicitly
-  includes locale, while the real page crosses English and Chinese locales.
+  The **Chromium 147.0.7727.15** source (commit `6b5a1b80`) resolves the
+  cross-locale path. `InlineNode::ReusingTextShaper::Shape` calls
+  `GetOrCreate` on the primary font's cache with full text and resolved
+  direction. That cache belongs to `SimpleFontData`; its LTR and RTL maps use
+  the full text as their only entry key. Locale is absent. An English primary
+  result can therefore be returned before a Chinese style's fallback path runs
+  when both styles share the same primary font data. The local 151 source
+  (`7d859f27`) later added `ShapeCacheKey` with locale, features, and offsets;
+  using it to explain Chromium 147 produced the earlier false contradiction.
+
+  `InlineNode::IsNGShapeCacheAllowed` in 147 requires a single text item,
+  initial font features, no spacing, and no auto-space adjustment. The cache
+  rejects text longer than 30 UTF-16 units and stores only a newly shaped
+  result without fallback fonts. In the default runtime branch, the map's
+  `ShapeResult` values are weak; a separate memory-consumer flag chooses a
+  strong map with explicit memory-release clearing. A `0.1px` letter spacing
+  on either cell restores PingFang. The source paths are
+  [inline_node.cc](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/layout/inline/inline_node.cc)
+  and
+  [ng_shape_cache.h](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/platform/fonts/shaping/ng_shape_cache.h).
 
   **Transition controls (DM-FM49KF).** A separate Chromium test adds the seed
   and target cells in sequence, paints each before querying CDP's one-glyph
   font, and records each cell's computed `-webkit-locale`. The English and
   Chinese values differ (`"en"` and `"zh-Hans"`) even when both painted faces
-  are `.SFNS-Regular`. An authored inline `-webkit-locale` does not override the
-  value derived from `lang` in this fixture. Adding `0.1px` letter spacing to
-  either cell gives the Chinese target `PingFangSC-Regular`; seeding U+0100
-  instead of the identical U+2F900 also gives PingFang. Removing the English
+  are `.SFNS-Regular`. An authored inline `-webkit-locale: "zh-Hans"` on the
+  English seed **does** change its computed locale and selects PingFang for
+  both cells. Adding `0.1px` letter spacing or a noninitial `"ss01"` feature
+  to either cell gives the Chinese target `PingFangSC-Regular`; seeding U+0100
+  instead of the identical U+2F900 also gives PingFang. Fifteen repeated
+  supplementary scalars (30 UTF-16 units) retain the English face; sixteen
+  (32 units) do not. A forced RTL target does not hit the LTR seed's map.
+  Removing the English
   cell without GC preserves `.SFNS`. Removing it and collecting garbage alone
   gave either face across repeated isolated runs, so that operation is not a
   deterministic reset contract. A fresh document on the same Page without GC
   preserves `.SFNS`; a fresh document followed by GC restores PingFang. The
   tested reset therefore needs both document replacement and collection.
 
-  `FontBuilder::SetLocale` and its build step copy the resolved layout locale
-  into `FontDescription`; `InlineNode::ReusingTextShaper::Shape` supplies that
-  locale to `ShapeCacheKey`; `NGShapeCache::GetOrCreateImpl` stores only results
-  without fallback fonts and its map holds weak `ShapeResult` values. These
-  source facts make a direct cross-locale hit on that key insufficient as an
-  explanation. Computed CSS locale is observable evidence, not an internal
-  `FontDescription.Locale` trace. Cache hits, prior-item result reuse, and
-  fallback calls must be instrumented in the pinned browser before assigning
-  the cross-locale result to one owner or widening the renderer model. That
-  source-level check is tracked by DM-1VDA2K.
+  The renderer and conformance oracle still mirror only the observed
+  primary-`.notdef` face change for canonical compatibility singletons under
+  three macOS generics. Their mirror now separates resolved bidi direction and
+  refuses noninitial feature lists, matching the 147 eligibility route; it
+  retains a harmless default `chws` feature. The source key is broader than
+  this **behavioral** model. DM-0H2HSA tracks native transition evidence
+  before extending face-changing reuse to other text.
 
   The synthetic sweep starts a fresh weak shape-cache epoch before each
   stack: it removes the previous stack's cells, navigates the same Page to a

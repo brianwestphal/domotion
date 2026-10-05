@@ -169,8 +169,7 @@ export function endCharacterFallbackDocument(): void {
 }
 
 /** Only the observed one-scalar canonical CJK compatibility forms enter this
- * model. Other shaping cases retain the source-equivalent locale-keyed route
- * until a browser control establishes their cache behavior. */
+ * model. Other primary-missing text awaits direct browser transition evidence. */
 export function primaryNotdefShapeKey(
   text: string,
   primaryIdentity: string,
@@ -180,9 +179,15 @@ export function primaryNotdefShapeKey(
   stretch: number,
   variationSettings: Record<string, number> | undefined,
   features: string[] | undefined,
+  direction: "ltr" | "rtl" = "ltr",
 ): string | null {
   const platform = hostPlatform();
   if ((platform !== "darwin" && platform !== "win32") || primaryNotdefShapeCache == null) return null;
+  // Chromium 147's NGShapeCache lives on SimpleFontData, splits LTR/RTL maps,
+  // and only admits text up to 30 UTF-16 units with initial font features.
+  // `chws` is Blink's default Text 4 spacing feature in this renderer, so it
+  // does not by itself make the feature set noninitial.
+  if (text.length > 30 || features?.some((feature) => feature !== "chws")) return null;
   // The macOS same-page matrix found the transition for three generics. The
   // hosted Windows forward/reverse/fresh-context matrix established it for
   // system-ui; other Windows generics remain outside this measured slice.
@@ -203,7 +208,7 @@ export function primaryNotdefShapeKey(
     slant,
     stretch,
     variationSettings ?? null,
-    features ?? [],
+    direction,
     text,
   ]);
 }

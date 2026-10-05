@@ -28,6 +28,20 @@ describe("macOS primary .notdef shape state", () => {
         expect(hasPrimaryNotdefShape(key("\u{2f800}"))).toBe(false);
         expect(hasPrimaryNotdefShape(key("\u{2f900}", 17))).toBe(false);
         expect(hasPrimaryNotdefShape(key("\u{2f900}", 16, 500))).toBe(false);
+        expect(
+          hasPrimaryNotdefShape(
+            primaryNotdefShapeKey("\u{2f900}", "system-ui|sf-pro", 400, 16, 0, 100, undefined, undefined, "rtl"),
+          ),
+        ).toBe(false);
+        expect(primaryNotdefShapeKey("\u{2f900}", "system-ui|sf-pro", 400, 16, 0, 100, undefined, ["chws"])).toBe(
+          shapeKey,
+        );
+        expect(
+          primaryNotdefShapeKey("\u{2f900}", "system-ui|sf-pro", 400, 16, 0, 100, undefined, ["ss01", "chws"]),
+        ).toBeNull();
+        expect(
+          primaryNotdefShapeKey("\u{2f900}", "system-ui|sf-pro", 400, 16, 0, 100, undefined, ["-liga", "chws"]),
+        ).toBeNull();
         expect(key("\u0100")).toBeNull();
         expect(key("\u{2f900}x")).toBeNull();
         expect(

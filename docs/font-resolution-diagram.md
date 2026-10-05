@@ -216,8 +216,14 @@ consults the same state before applying its canonical-singleton family walk.
 The synthetic oracle starts a new document and forces Chromium GC between
 stacks, then clears only its matching weak shape state; the Page, renderer, and
 character-fallback cache persist. This matches measured English-first macOS
-and Japanese/Korean-first Windows sequences in Chromium; DM-FM49KF tracks the
-remaining locale-key and invalidation limits.
+and Japanese/Korean-first Windows sequences in Chromium.
+Chromium 147's `SimpleFontData` shape cache uses full text plus resolved bidi
+direction, with no locale key. Its weak result survives while referenced and
+is removed by GC after the owning document is replaced. Noninitial features
+and nonzero letter spacing exclude this path. The face-changing Domotion mirror
+remains bounded to the three measured macOS generics, Windows `system-ui`, and
+canonical compatibility singletons; DM-0H2HSA tracks evidence for other
+primary-missing text.
 
 ---
 
