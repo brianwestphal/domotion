@@ -91,14 +91,14 @@ report records the selected universe and the answers in that same order.
   the English cells with Chinese cells in the same document also produces the
   `.SFNS-Regular` result. An English U+0100, U+0200, or U+4E00 before the
   Chinese cells does not trigger it. The result depends on earlier cells for
-  the *same* compatibility ideographs. The 351-stack byte-00 synthetic slice
+  the _same_ compatibility ideographs. The 351-stack byte-00 synthetic slice
   reproduces 12 such rows across `fantasy`, `monospace`, and `system-ui` with
   `zh-Hans`/`zh-Hant`; no macOS byte-00 baseline may ratify them until the
   renderer and oracle model the mechanism.
 
   The pinned Blink source's `FontCache::PlatformFallbackFontForCharacter`
   (`third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm:330-372`)
-  checks the cached face's *literal* cmap glyph before a character-fallback
+  checks the cached face's _literal_ cmap glyph before a character-fallback
   cache hit. PingFang lacks these compatibility scalars in its cmap, so that
   hit alone cannot explain a cached PingFang answer for them. The fallback-list
   and shape-cache candidates remain under investigation in DM-6F4YJT; this
