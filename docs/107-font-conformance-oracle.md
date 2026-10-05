@@ -310,6 +310,31 @@ Three properties are load-bearing rather than incidental.
 
 It also declares `platform: "any"`, which the sweep's per-platform corpus guard accepts without `--allow-foreign-corpus`. That exemption is narrow and deliberate: the guard exists because a _harvested_ corpus records computed style, and the computed `font-family` of an element that declares none is Chrome's per-platform default preference. This corpus holds only literal CSS keywords. What each keyword resolves to differs per platform — which is the question it asks, not a reason it cannot be asked.
 
+**Quoted `"System-ui", Menlo` after a fresh stack document (DM-VP9BZ6).**
+The committed macOS byte-00 baseline's 877 rows in this stack came from a
+`macos26-arm64` image with 370 inventoried faces, Unicode 16.0, and 1,162
+codepoints. A local macOS 27 run after DM-6F4YJT had 1,087 rows on an inventory
+of 2,634 faces, Unicode 17.0, and 1,179 codepoints. The old run had Chrome
+`.SFNS-Regular` while Domotion chose Menlo for 876 rows; the local run reversed
+the direction for 891 rows and added UI/CJK interface-face routes. These counts
+cannot isolate a protocol effect across different hosts and universes.
+
+The local route change itself is reproducible in one Chromium instance. A
+canonical `system-ui` stack followed by the quoted case variant keeps
+`.SFNS-Regular` when both use one document, including after 1,179 byte-00 glyphs.
+After that broad stack, removing cells, collecting garbage in the same document,
+or navigating to a new document alone still keeps `.SFNS`. Navigation **plus**
+`HeapProfiler.collectGarbage` makes the case variant select `Menlo-Regular`.
+Both complementary half-size byte-00 shards retain `.SFNS` even with that full
+boundary. This is evidence of reachability-sensitive cache lifetime; the exact
+Blink retention path is not yet proven. The renderer's current permanent
+`darwinSystemUiPlatformCacheWarm` flag does not expire at this boundary and
+therefore disagrees on this host. `DM-FDBWVJ` owns the cross-image cache-lifetime
+model. Before ratifying a new hosted macOS synthetic baseline, run
+`tests/font-conformance-warmed-system-ui.e2e.test.ts` and the focused two-stack
+byte-00 sweep on the hosted image, then compare the environment fingerprints
+and primary routes from that exact ref.
+
 #### Running it
 
 ```sh

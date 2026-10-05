@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isGlyphHelperAvailable } from "@domotion/text-engine/testing";
-import { main } from "../tools/font-conformance.js";
+import { buildUniverse, ChromeOracle, main } from "../tools/font-conformance.js";
+import { withBrowser } from "../tools/lib/browser.js";
 import { syntheticCorpus } from "../tools/font-conformance-synthetic-stacks.js";
 
 const describeMac = process.platform === "darwin" && isGlyphHelperAvailable() ? describe : describe.skip;
@@ -32,5 +33,36 @@ describeMac("macOS warmed system-ui fallback base", () => {
     expect(report.data.summary.comparisons).toBe(4);
     expect(report.data.summary.mismatchTotal).toBe(0);
     expect(report.data.chromeFaces).toContainEqual(expect.objectContaining({ face: ".PingFangUITextSC-Regular" }));
+  }, 60_000);
+
+  it("keeps a broad quoted-family lookup warm in one document and makes the GC boundary repeatable", async () => {
+    const corpus = syntheticCorpus();
+    const seed = corpus.stacks[2];
+    const quoted = corpus.stacks[73];
+    const byte00 = buildUniverse({ includePua: true, ranges: null, sampleByte: 0 });
+    expect(byte00.length).toBeGreaterThan(1_000);
+
+    await withBrowser(async (browser) => {
+      const routeAfterSeed = async (newStackDocument: boolean): Promise<string | null> => {
+        const oracle = await ChromeOracle.create(browser, 128, "en");
+        try {
+          expect(await oracle.resolvedPrimary(seed)).toBe(".SFNS-Regular");
+          await oracle.facesFor(byte00, seed);
+          if (newStackDocument) await oracle.clearWeakShapeResultsForNextStack();
+          return await oracle.resolvedPrimary(quoted);
+        } finally {
+          await oracle.close();
+        }
+      };
+
+      expect(await routeAfterSeed(false)).toBe(".SFNS-Regular");
+      // Blink may retain the UI alias or expire it after document teardown +
+      // GC depending on which font data the host's inventory keeps live. Both
+      // routes occur on real macOS images; a repeated protocol must agree on
+      // the same host. A Menlo result is the local 1,179-glyph reproduction.
+      const first = await routeAfterSeed(true);
+      expect([".SFNS-Regular", "Menlo-Regular"]).toContain(first);
+      expect(await routeAfterSeed(true)).toBe(first);
+    });
   }, 60_000);
 });
