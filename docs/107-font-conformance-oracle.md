@@ -150,16 +150,40 @@ report records the selected universe and the answers in that same order.
   cache hit. PingFang lacks these compatibility scalars in its cmap, so that
   hit alone cannot explain a cached PingFang answer for them. Removing the
   English seed and forcing `HeapProfiler.collectGarbage` before inserting the
-  Chinese cell restores PingFang; without GC the result remains `.SFNS`.
+  Chinese cell restored PingFang in the original probe; without GC the result
+  remained `.SFNS`.
   `InlineNode::IsNGShapeCacheAllowed` (`core/layout/inline/inline_node.cc:
 1463-1550`) excludes nonzero spacing, and `NGShapeCache::GetOrCreateImpl`
   (`platform/fonts/shaping/ng_shape_cache.h:211-258`) retains primary-only
   shape results through a weak map. A `0.1px` letter spacing on either cell
-  also restores PingFang. These controls identify a weak shape-result cache as
-  the state owner. The source key explicitly includes locale, however, while
-  the real page crosses English and Chinese locales. The exact key path and
-  spacing/GC modeling beyond the bounded singleton case remain open in
-  DM-FM49KF.
+  also restores PingFang. These controls implicate a weakly held shaping or
+  fallback result but do not identify its exact owner. The source key explicitly
+  includes locale, while the real page crosses English and Chinese locales.
+
+  **Transition controls (DM-FM49KF).** A separate Chromium test adds the seed
+  and target cells in sequence, paints each before querying CDP's one-glyph
+  font, and records each cell's computed `-webkit-locale`. The English and
+  Chinese values differ (`"en"` and `"zh-Hans"`) even when both painted faces
+  are `.SFNS-Regular`. An authored inline `-webkit-locale` does not override the
+  value derived from `lang` in this fixture. Adding `0.1px` letter spacing to
+  either cell gives the Chinese target `PingFangSC-Regular`; seeding U+0100
+  instead of the identical U+2F900 also gives PingFang. Removing the English
+  cell without GC preserves `.SFNS`. Removing it and collecting garbage alone
+  gave either face across repeated isolated runs, so that operation is not a
+  deterministic reset contract. A fresh document on the same Page without GC
+  preserves `.SFNS`; a fresh document followed by GC restores PingFang. The
+  tested reset therefore needs both document replacement and collection.
+
+  `FontBuilder::SetLocale` and its build step copy the resolved layout locale
+  into `FontDescription`; `InlineNode::ReusingTextShaper::Shape` supplies that
+  locale to `ShapeCacheKey`; `NGShapeCache::GetOrCreateImpl` stores only results
+  without fallback fonts and its map holds weak `ShapeResult` values. These
+  source facts make a direct cross-locale hit on that key insufficient as an
+  explanation. Computed CSS locale is observable evidence, not an internal
+  `FontDescription.Locale` trace. Cache hits, prior-item result reuse, and
+  fallback calls must be instrumented in the pinned browser before assigning
+  the cross-locale result to one owner or widening the renderer model. That
+  source-level check is tracked by DM-1VDA2K.
 
   The synthetic sweep starts a fresh weak shape-cache epoch before each
   stack: it removes the previous stack's cells, navigates the same Page to a
