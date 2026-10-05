@@ -82,6 +82,28 @@ report records the selected universe and the answers in that same order.
   the real splitter. `DOMOTION_CLUSTER_FALLBACK=0` disables it together with the
   shape-first splitter.
 
+  **Open macOS mixed-language sequence (DM-QQJDH1; fix DM-6F4YJT).** Chromium
+  147.0.7727.15 changes the answer for U+2F800/U+2F900/U+2FA00 when
+  `system-ui` cells for those scalars in English precede otherwise identical
+  `lang=zh-Hans` cells in one ordinary, static document. CDP reports
+  `.SFNS-Regular` with one glyph for the Chinese cells; a fresh document with
+  only the Chinese cells reports `PingFangSC-Regular` with one glyph. Replacing
+  the English cells with Chinese cells in the same document also produces the
+  `.SFNS-Regular` result. An English U+0100, U+0200, or U+4E00 before the
+  Chinese cells does not trigger it. The result depends on earlier cells for
+  the *same* compatibility ideographs. The 351-stack byte-00 synthetic slice
+  reproduces 12 such rows across `fantasy`, `monospace`, and `system-ui` with
+  `zh-Hans`/`zh-Hant`; no macOS byte-00 baseline may ratify them until the
+  renderer and oracle model the mechanism.
+
+  The pinned Blink source's `FontCache::PlatformFallbackFontForCharacter`
+  (`third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm:330-372`)
+  checks the cached face's *literal* cmap glyph before a character-fallback
+  cache hit. PingFang lacks these compatibility scalars in its cmap, so that
+  hit alone cannot explain a cached PingFang answer for them. The fallback-list
+  and shape-cache candidates remain under investigation in DM-6F4YJT; this
+  evidence does not yet identify the exact state owner.
+
 The oracle checks its own browser Page before each stack, before each macOS
 batch, and after every batch. A fixed set
 of CSS generics paints U+10FFFF, a noncharacter that retains each generic's
