@@ -97,10 +97,15 @@ report records the selected universe and the answers in that same order.
   rule-derived generic/language stacks; the bounded walk and real splitter
   agreed on the 60 serif, sans-serif, and system-ui cells in ja, ko, zh-Hans,
   and zh-Hant. On that Linux image, the fast seam already selected the same
-  WenQuanYi face for those cells. Windows remains gated pending a native
-  splitter/Chromium comparison: a hosted Windows locale sweep found the fast
-  seam can choose Gulim while Chromium chooses SimSun or Microsoft YaHei for
-  zh-Hans compatibility ideographs. `DOMOTION_CLUSTER_FALLBACK=0` disables the
+  WenQuanYi face for those cells. A native Windows probe on hosted run
+  `37258910596` measured the same 60 cells with the DirectWrite helper: the
+  proposed canonical walk and production shape-first splitter matched in all
+  60, but both disagreed with Chromium in four `system-ui` Chinese-locale
+  cells. For U+2F800 and U+2FA00, Chromium painted Segoe UI in both `zh-Hans`
+  and `zh-Hant`; the splitter chose Microsoft YaHei or Microsoft JhengHei.
+  The fast seam disagreed with Chromium in ten cells and the proposed walk in
+  four. Windows therefore keeps the canonical walk gated; `DM-WNS4J8` tracks
+  the four splitter disagreements. `DOMOTION_CLUSTER_FALLBACK=0` disables the
   bounded walk together with the shape-first splitter.
 
   **Open macOS mixed-language sequence (DM-QQJDH1; fix DM-6F4YJT).** Chromium
