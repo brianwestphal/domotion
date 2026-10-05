@@ -2182,7 +2182,7 @@ export function shapingFaceFor(
  *  cascade order. macOS is untouched: the darwin helper reports no axes and
  *  CoreText genuinely applies automatic optical sizing (the opsz=fontSize pin
  *  there is validated pixel-exact by the full macOS sweeps). */
-function opticalSizingDisabled(settings: Record<string, number> | undefined): boolean {
+export function opticalSizingDisabled(settings: Record<string, number> | undefined): boolean {
   return (
     (settings as (Record<string, number> & { __dmOpticalSizingNone?: boolean }) | undefined)?.__dmOpticalSizingNone ===
       true && settings?.opsz == null

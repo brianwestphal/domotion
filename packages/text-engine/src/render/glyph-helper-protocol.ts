@@ -19,6 +19,8 @@ export interface HelperRequest {
     requestScoped?: boolean;
     /** macOS `MatchSystemUIFont` route rather than named-face opening. */
     systemUI?: boolean;
+    /** Blink-gated variation copy of the macOS UI cascade base. */
+    uiClone?: { axes: Record<string, number>; opticalSize?: number };
     cssWeight?: number;
     cssSlant?: number;
     cssWidth?: number;

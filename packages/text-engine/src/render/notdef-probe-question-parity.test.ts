@@ -193,12 +193,14 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     expect(perAsker[0]).toContain("fontVariantEmoji");
     expect(perAsker[0]).toContain("rawSlope");
     expect(perAsker[0]).toContain("orientation");
+    expect(perAsker[0]).toContain("variationSettings");
   });
 
   it("keeps every remaining run-context asker's argument list ending in the complete Blink description", () => {
     // Pins the ORDER too: `resolveSystemFallbackKeyForCp` takes
     // (cp, weight, slant, fontSize, primaryKey, systemUiPrimary, lang, stretch,
-    // fontVariantEmoji, declaredFamily), and the trailing five are optional
+    // fontVariantEmoji, declaredFamily, rawSlope, orientation, variationSettings),
+    // and the trailing six are optional
     // with defaults — so a transposition is a silently mis-keyed memo rather
     // than a type error wherever the types line up. `declaredFamily` is the
     // RAW CSS font-family stack, consulted by the Linux standard-style retry
@@ -206,7 +208,9 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
     for (const name of RUN_CONTEXT_ASKERS) {
       const args = systemFallbackCallArgs(functionBody(SYSTEM_FALLBACK_SRC, name))[0];
       expect(
-        args.endsWith("systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation"),
+        args.endsWith(
+          "systemUiPrimary, lang, stretch, fontVariantEmoji, declaredFamily, rawSlope, orientation, variationSettings",
+        ),
         `${name}: ${args}`,
       ).toBe(true);
     }

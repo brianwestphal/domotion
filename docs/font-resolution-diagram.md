@@ -465,6 +465,11 @@ font_family.cc:63-74`, rev 7d859f27; the computed style delivers the
 > handle's `ctAxes` — Blink clones that handle at the author's axis location
 > after `MatchSystemUIFont`. The outlines are the fontkit instance either way;
 > only the reported identity changes.
+> For CoreText fallback, DM-EZJKXN also applies Blink's handle-relative axis
+> gate to the UI primary before `CTFontCreateForString`. An effective author
+> variation clones that UI base; an unchanged location keeps the original.
+> The author location is part of both native fallback and resolver memo keys,
+> so varied and unvaried cascade answers remain separate.
 
 ```mermaid
 flowchart TD
@@ -2524,7 +2529,12 @@ still fall back to svg2ttf when the source cannot be subset safely.
    `opsz` on some cascade handles (`.SFArabic-Regular` arrives at opsz 17 from
    a 13 px cascade and Blink never clones it; `.SFDevanagari-Regular` arrives
    unset and clones). The handle state is a property of the cascade ROUTE, not
-   only of the face: at U+0D00 / 16 px a Times base hands back
+   only the substituted face: an effective author variation on a `system-ui`
+   primary clones the UI cascade base before substitution. CoreText can then
+   select a different fallback face or deliver that face with different current
+   axes. Both fallback memo layers distinguish the author axis location.
+   In the unvaried case the handle state can also depend on the base,
+   as at U+0D00 / 16 px: a Times base hands back
    `.SFMalayalam-Regular` already at opsz 17 (no clone, base name) while the
    system-ui base hands back the same face at its default opsz (clone,
    `_opsz110000_wght`). Since the handle record is first-write per tuple and the

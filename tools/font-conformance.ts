@@ -703,6 +703,7 @@ export interface ResolvedStack {
   slant: number;
   /** Computed `font-stretch` as a percentage, 100 = `normal`. */
   stretch: number;
+  variationSettings: Record<string, number> | undefined;
   /**
    * key → face, memoized for the life of this stack.
    *
@@ -755,20 +756,13 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
   const primaryKey = resolveFontKey(spec.fontFamily, lang);
   const slant = slantForStyle(spec.fontStyle);
   const stretch = stretchPercent(spec.fontStretch);
+  const variationSettings = parseVariationSettings(spec.fontVariationSettings) ?? undefined;
   // The renderer opens its primary through `resolveFont`, which retains the
   // winning family's route (notably `system-ui` versus an explicitly named SF
   // family), applies named optical-cut pins, and lets author axes win. Opening
   // only `primaryKey` loses that provenance and omits the CSS `wght` axis on
   // macOS system-ui, making the oracle compare a different font instance.
-  const primary = resolveFont(
-    spec.fontFamily,
-    spec.fontWeight,
-    spec.fontSize,
-    slant,
-    parseVariationSettings(spec.fontVariationSettings) ?? undefined,
-    stretch,
-    lang,
-  );
+  const primary = resolveFont(spec.fontFamily, spec.fontWeight, spec.fontSize, slant, variationSettings, stretch, lang);
   if (primary == null) return null;
   const rs: ResolvedStack = {
     spec,
@@ -777,6 +771,7 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
     primary,
     slant,
     stretch,
+    variationSettings,
     faceCache: new Map(),
     // Placeholder — `faceFor` needs the stack, so the real donor is filled in
     // immediately below.
@@ -855,7 +850,7 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
     rs.spec.fontWeight,
     rs.spec.fontSize,
     rs.slant,
-    undefined,
+    rs.variationSettings,
     lang,
     rs.chain,
     // DM-1859: the oracle must ask the question the RENDERER asks, and the

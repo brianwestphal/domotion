@@ -234,7 +234,12 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
                     "system-ui font unavailable at size \(size) weight \(cssWeight) width \(cssWidth) slant \(cssSlant)",
             ])
         }
-        return FontEntry(ref: ref, font: f, cgFont: CTFontCopyGraphicsFont(f, nil),
+        // Blink's FontPlatformDataFromNSFont clones the matched UI typeface
+        // when an author axis moves. CTFontCreateForString then walks the
+        // cascade FROM that clone, which can change both the substitute's
+        // current axes and the selected family member (DM-EZJKXN).
+        let uiFont = cloneSystemUIBaseIfEffective(f, size: CGFloat(size), request: spec["uiClone"])
+        return FontEntry(ref: ref, font: uiFont, cgFont: CTFontCopyGraphicsFont(uiFont, nil),
                          pointSize: CGFloat(size),
                          unitsPerEm: Int(CTFontGetUnitsPerEm(f)),
                          nameMatched: true, resolution: .systemUI)
@@ -883,6 +888,40 @@ func ctAxesReport(_ font: CTFont) -> [[String: Any]]? {
         ctAxes.append(["tag": tag, "min": mn, "def": df, "max": mx, "value": cur])
     }
     return ctAxes.isEmpty ? nil : ctAxes
+}
+
+/// The UI-primary half of Blink's `VariableAxisChangeEffective` loop. Both
+/// checks compare with the ORIGINAL handle position; author settings override
+/// the automatic optical size. A no-op request must keep the original handle,
+/// because CoreText can change the cascade merely by making a copy.
+func cloneSystemUIBaseIfEffective(_ font: CTFont, size: CGFloat, request: Any?) -> CTFont {
+    guard let request = request as? [String: Any],
+          let axes = ctAxesReport(font), !axes.isEmpty else { return font }
+    let author = (request["axes"] as? [String: NSNumber]) ?? [:]
+    let opticalSize = (request["opticalSize"] as? NSNumber)?.doubleValue
+    var location: [CFNumber: CFNumber] = [:]
+    var changed = false
+    for axis in axes {
+        guard let tag = axis["tag"] as? String,
+              let mn = axis["min"] as? Double,
+              let mx = axis["max"] as? Double,
+              let current = axis["value"] as? Double else { continue }
+        func clamp(_ value: Double) -> Double { min(max(value, mn), mx) }
+        var target = current
+        if tag == "opsz", let opticalSize, clamp(opticalSize) != current {
+            target = opticalSize
+            changed = true
+        }
+        if let requested = author[tag]?.doubleValue, clamp(requested) != current {
+            target = requested
+            changed = true
+        }
+        location[NSNumber(value: fourCharTag(tag)) as CFNumber] = NSNumber(value: clamp(target)) as CFNumber
+    }
+    guard changed else { return font }
+    let attributes = [kCTFontVariationAttribute: location as CFDictionary] as CFDictionary
+    let descriptor = CTFontDescriptorCreateWithAttributes(attributes)
+    return CTFontCreateCopyWithAttributes(font, size, nil, descriptor)
 }
 
 // MARK: - Declared-family style matching (font_matcher_mac.mm)

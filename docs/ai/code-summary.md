@@ -58,6 +58,10 @@ deviation for box, inline, control, and text shadows.
   webfont registration, font instances, live and per-codepoint fallback,
   character-cache state, shaping routes, generation, and text mode; see the
   [font-resolution diagram](../font-resolution-diagram.md) for the ownership map.
+  `system-ui-cloned-cascade.test.ts` exercises the macOS cloned UI fallback
+  request and cache transitions; the root
+  `tests/system-ui-cloned-fallback.e2e.test.ts` compares its formerly divergent
+  routes with real Chromium.
   The text-engine build imports its compiled Node ESM entry as a runtime
   initialization check after TypeScript compilation.
   Domotion consumes its session/document/run facade and the focused

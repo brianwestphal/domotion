@@ -6,6 +6,7 @@ import {
   resolveInstalledFont,
   resolveFcFallbackFonts,
   resolveSystemUiFamily,
+  type SystemUiCloneRequest,
 } from "./glyph-helper.js";
 import { blinkWinFallbackLocale } from "./win-font-fallback.js";
 import { _systemFallbackResolutionEnabled, setSystemFallbackResolutionEnabled } from "./font-spec.js";
@@ -31,7 +32,27 @@ import { fontCoversCp } from "./font-instance.js";
 import { fcLangProperty } from "./emoji-presentation.js";
 import { fcMatch } from "./font-paths.win32.js";
 import { openFontkitFace } from "./font-instance.js";
+import { logicalFontSize, opticalSizingDisabled } from "./font-instance.js";
 import type { FontInstance } from "./font-instance.js";
+
+/** The author settings alone can trigger Blink's UI-primary clone. Keep their
+ * axis request separate from helper-only size/optical metadata. */
+function uiCloneForAuthorVariation(
+  settings: Record<string, number> | undefined,
+  fontSize: number,
+): SystemUiCloneRequest | undefined {
+  if (settings == null) return undefined;
+  const axes = Object.fromEntries(
+    Object.entries(settings)
+      .filter(([tag, value]) => /^[\x20-\x7e]{4}$/.test(tag) && typeof value === "number" && Number.isFinite(value))
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
+  if (Object.keys(axes).length === 0) return undefined;
+  return {
+    axes,
+    ...(opticalSizingDisabled(settings) ? {} : { opticalSize: logicalFontSize(settings, fontSize) }),
+  };
+}
 
 /**
  * Test/perf hook to toggle the CoreText per-codepoint fallback resolver. This is
@@ -485,6 +506,7 @@ export function resolveSystemFallbackKeyForRequest(request: FontRequest): string
     request.semanticContext.declaredFamily,
     request.rawSlope,
     request.orientation,
+    request.variationSettings,
   );
 }
 
@@ -532,6 +554,7 @@ export function resolveSystemFallbackKeyForCp(
   rawSlope: number = slant !== 0 ? 14 : 0,
   /** Numeric Blink FontOrientation (horizontal=0, vertical-upright=3). */
   orientation: number = 0,
+  variationSettings?: Record<string, number>,
 ): string | null {
   const suppressEmojiPresentation = fontVariantEmoji === "text" && isEmojiCharCp(cp);
   /** Blink's condition for the monochrome-emoji replacement, verbatim: an
@@ -542,6 +565,8 @@ export function resolveSystemFallbackKeyForCp(
    *  the same filter Blink applies. */
   const wantMonoEmojiReplacement = isEmojiCharCp(cp);
   const useSystemUiBase = systemUiPrimary && _systemUiBaseEnabled;
+  const uiClone =
+    hostPlatform() === "darwin" && useSystemUiBase ? uiCloneForAuthorVariation(variationSettings, fontSize) : undefined;
   const base = fallbackBaseFor(primaryKey, weight, fontSize, slant, stretch);
   // The base joins the cache key for the same reason the CSS description does:
   // the answer is a function of the font you ask FROM, so a base-blind key would
@@ -574,7 +599,7 @@ export function resolveSystemFallbackKeyForCp(
   // the unresolved declared head. It is therefore part of this memo's input,
   // including whether the node was a generic or a quoted/named family.
   const declaredHeadComponent = hostPlatform() === "darwin" ? "" : declaredFamilyHeadIdentity(declaredFamily);
-  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}${darwinDescription}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}|${declaredHeadComponent}`;
+  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}${darwinDescription}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}|${declaredHeadComponent}|${uiClone == null ? "" : JSON.stringify(uiClone)}`;
   // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
   // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
   // process-global memo below, which is a memo of the context-FREE ask and
@@ -685,6 +710,7 @@ export function resolveSystemFallbackKeyForCp(
         // carries its own cascade list, and that list is what reaches Apple's
         // hidden `.…UI` variants.
         ...(useSystemUiBase ? { systemUi: true } : {}),
+        ...(uiClone != null ? { uiClone } : {}),
         // Blink's monochrome-emoji replacement inside `GetSubstituteFont`
         // (`mac/font_cache_mac.mm:156-184`, rev 7d859f27): a color-emoji
         // answer to a kText-priority ask on an `Emoji` character is re-asked
@@ -737,6 +763,7 @@ export function resolveSystemFallbackKeyForCp(
           basePath: base.path,
           baseData: base.data,
           ...(useSystemUiBase ? { systemUi: true } : {}),
+          ...(uiClone != null ? { uiClone } : {}),
         }).get(cp);
         if (unreplaced != null && unreplaced.path !== "") resolved = unreplaced;
       }
@@ -1234,6 +1261,7 @@ export function __resolveSystemFallbackKeyForCpForTest(
   declaredFamily?: string,
   rawSlope: number = slant !== 0 ? 14 : 0,
   orientation: number = 0,
+  variationSettings?: Record<string, number>,
 ): string | null {
   return resolveSystemFallbackKeyForCp(
     cp,
@@ -1248,5 +1276,6 @@ export function __resolveSystemFallbackKeyForCpForTest(
     declaredFamily,
     rawSlope,
     orientation,
+    variationSettings,
   );
 }

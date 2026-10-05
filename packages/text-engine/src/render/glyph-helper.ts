@@ -62,6 +62,20 @@ export interface SystemFallbackFont {
 // process. The CSS description joins the key for the same reason: the in-family
 // re-selection below makes the answer weight- and style-dependent.
 const _systemFallbackCache = new Map<string, SystemFallbackFont | null>();
+/** The variation-cloned UI primary is a different CoreText cascade base. */
+export interface SystemUiCloneRequest {
+  axes: Record<string, number>;
+  /** Blink's specified size for automatic `opsz`; absent for optical sizing none. */
+  opticalSize?: number;
+}
+
+const uiCloneKey = (clone: SystemUiCloneRequest | undefined): string =>
+  clone == null
+    ? ""
+    : `\u0000${clone.opticalSize ?? "none"}\u0000${Object.entries(clone.axes)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([tag, value]) => `${tag}=${value}`)
+        .join(",")}`;
 const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest): string =>
   req == null
     ? `${base}\u0000${cp}`
@@ -81,7 +95,7 @@ const fallbackCacheKey = (base: string, cp: number, req?: SystemFallbackRequest)
       // description does: it changes the answer (Apple Color Emoji vs the
       // monochrome cascade), so a key blind to it would serve a color answer
       // to a forced-text ask or vice versa.
-      `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}\u0000${req.locale ?? ""}\u0000${req.monoEmojiReplacement === true ? 1 : 0}`;
+      `${base}\u0000${cp}\u0000${req.weight}\u0000${req.italic ? 1 : 0}\u0000${req.fontSize}\u0000${req.basePath ?? ""}\u0000${req.systemUi ? 1 : 0}\u0000${req.stretch ?? 100}\u0000${req.baseFamilyName ?? ""}\u0000${req.locale ?? ""}\u0000${req.monoEmojiReplacement === true ? 1 : 0}${req.systemUi ? uiCloneKey(req.uiClone) : ""}`;
 
 /** The CSS description the fallback answer depends on. CoreText nominates one
  *  face per family for a character; Blink then re-selects WITHIN that family at
@@ -155,6 +169,8 @@ export interface SystemFallbackRequest {
    *  width 100 it returns the traited font directly, and otherwise applies clamped
    *  `wght`/`wdth` variation axes. */
   systemUi?: boolean;
+  /** macOS: the author axis request Blink applies to the UI cascade base. */
+  uiClone?: SystemUiCloneRequest;
   /** CSS `font-stretch` as a percentage (100 = normal). Only consulted for the
    *  `systemUi` base, mirroring `MatchSystemUIFont`'s `desired_width`. */
   stretch?: number;
@@ -387,6 +403,7 @@ export function buildFallbackEnvelope(
                     cssWeight: req.weight,
                     cssSlant: req.italic ? 1 : 0,
                     cssWidth: req.stretch ?? 100,
+                    ...(platform === "darwin" && req.uiClone != null ? { uiClone: req.uiClone } : {}),
                   }
                 : {}),
             },
