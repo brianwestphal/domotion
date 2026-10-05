@@ -315,7 +315,7 @@ jobs:
         shell: pwsh
         run: |
           ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
-          if (-not (Test-Path packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe)) {
+          if (-not (Test-Path (Join-Path $env:GITHUB_WORKSPACE 'packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe'))) {
             throw "native DirectWrite glyph helper is missing"
           }
       - run: npm run build:text-engine
