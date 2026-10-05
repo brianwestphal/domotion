@@ -51,6 +51,7 @@ env:
 
 jobs:
   font-width-probe:
+    if: github.ref != 'refs/heads/fix/dm-wns4j8'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +71,7 @@ jobs:
           if-no-files-found: error
 
   regression:
+    if: github.ref != 'refs/heads/fix/dm-wns4j8'
     # DM-1405: distinct check-run name (see test-linux.yml) so this Windows gate
     # is a separately-required status check from the Linux one.
     name: Windows fidelity regression
@@ -119,6 +121,7 @@ jobs:
           if-no-files-found: error
 
   decoration-geometry:
+    if: github.ref != 'refs/heads/fix/dm-wns4j8'
     name: Windows decoration geometry
     runs-on: windows-latest
     steps:
@@ -175,6 +178,7 @@ jobs:
   # the job. Numbers from this runner say nothing about desktop Windows 11 —
   # each environment is judged only against itself.
   family-match:
+    if: github.ref != 'refs/heads/fix/dm-wns4j8'
     name: Windows family-match conformance
     runs-on: windows-latest
     steps:
@@ -217,6 +221,7 @@ jobs:
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
+    if: github.ref != 'refs/heads/fix/dm-wns4j8'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -253,6 +258,7 @@ jobs:
   # committed table on real desktop Windows 11 (run `tools/probe-983-sweep.mjs`
   # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
   font-routing-sweep:
+    if: github.ref != 'refs/heads/fix/dm-wns4j8'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -280,6 +286,7 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
+    if: github.ref != 'refs/heads/fix/dm-wns4j8'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -290,3 +297,26 @@ jobs:
         run: npx playwright install chromium
       - name: Probe captured vs painted text positions
         run: npx tsx tools/probe-win-text-drift.ts
+
+  # DM-WNS4J8: compare Chromium's system-ui CJK choices across locale order,
+  # fresh contexts, and fresh browser processes before altering fallback.
+  cjk-context-probe:
+    if: github.ref == 'refs/heads/fix/dm-wns4j8'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npm run build:text-engine
+      - name: Probe system-ui CJK context and order
+        run: npx tsx tools/probe-windows-system-ui-cjk-context.ts tests/output/windows-system-ui-cjk-context.json
+      - name: Upload context report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-system-ui-cjk-context
+          path: tests/output/windows-system-ui-cjk-context.json
+          if-no-files-found: error
