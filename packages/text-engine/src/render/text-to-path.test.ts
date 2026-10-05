@@ -20,6 +20,7 @@ import {
   positionShapedClusters,
   measureTruncationMarker,
   renderRadicalGlyph,
+  snapPositiveSizeToPixel,
   renderSourceOwnedTextBoundary,
   renderStretchyFenceGlyph,
   renderTextAsPath,
@@ -2269,6 +2270,47 @@ describe("fallbackFontChain: CJK/Hangul combining tone marks U+302A–U+302F (DM
 });
 
 describe("renderRadicalGlyph: MathML msqrt/mroot radical sign (DM-897)", () => {
+  it("preserves Blink's one-pixel rule when positive LayoutUnit edges round together", () => {
+    expect(snapPositiveSizeToPixel(4 / 64, 46.1)).toBe(0);
+    expect(snapPositiveSizeToPixel(5 / 64, 46.1)).toBe(1);
+    expect(snapPositiveSizeToPixel(1 / 64, 46.49)).toBe(1);
+    expect(snapPositiveSizeToPixel(2.2, 46.1)).toBe(2);
+  });
+
+  it.skipIf(process.platform !== "darwin")("retains the two measured Times math-generic bar rows", () => {
+    const rows = [
+      { size: 16, x: 258.984375, y: 43.953125, width: 42.03125, height: 15.953125, barY: 46 },
+      { size: 12, x: 264.234375, y: 309.421875, width: 31.515625, height: 11.953125, barY: 311 },
+    ];
+    for (const row of rows) {
+      clearGlyphDefs();
+      const out = renderRadicalGlyph(
+        row.x,
+        row.y,
+        row.height,
+        row.width,
+        { fontSize: row.size, fontFamily: "math", fontWeight: "400" },
+        "black",
+      );
+      expect(out, `${row.size}px Times radical`).toMatch(
+        new RegExp(`<rect x="[0-9.]+" y="${row.barY}" width="[0-9.]+" height="1"`),
+      );
+    }
+  });
+
+  it.skipIf(process.platform !== "win32")("retains the measured Windows math-generic normal/16 bar row", () => {
+    clearGlyphDefs();
+    const out = renderRadicalGlyph(
+      258.546875,
+      46.078125,
+      17.125,
+      42.90625,
+      { fontSize: 16, fontFamily: "math", fontWeight: "400" },
+      "black",
+    );
+    expect(out).toMatch(/<rect x="[0-9.]+" y="48" width="[0-9.]+" height="1"/);
+  });
+
   it.skipIf(!existsSync("/System/Library/Fonts/Supplemental/STIXTwoMath.otf"))(
     "embeds a selected single radical glyph for text rasterization without an external font",
     () => {

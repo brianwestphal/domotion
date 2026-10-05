@@ -5481,7 +5481,7 @@ export function renderRadicalGlyph(
     const barLeft = snapToPixel(originX + shape.advanceWidth * scale);
     const barRight = snapToPixel(geometry.baseRight ?? x + width - insets.right);
     const barTop = snapToPixel(barY);
-    const barHeight = snapToPixel(barY + rule) - barTop;
+    const barHeight = snapPositiveSizeToPixel(rule, barY);
     const overbar =
       barRight > barLeft && barHeight > 0
         ? `<rect x="${barLeft}" y="${barTop - Math.trunc(barHeight / 2)}" width="${barRight - barLeft}" height="${barHeight}" fill="${fill}"/>`
@@ -5526,7 +5526,7 @@ export function renderRadicalGlyph(
     const barLeft = snapToPixel(originX + advance * scale);
     const barRight = snapToPixel(x + width - insets.right);
     const barTop = snapToPixel(topY + blockOffset);
-    const barHeight = snapToPixel(topY + blockOffset + rule) - barTop;
+    const barHeight = snapPositiveSizeToPixel(rule, topY + blockOffset);
     if (barRight > barLeft && barHeight > 0) {
       const top = barTop - Math.trunc(barHeight / 2);
       overbar = `<rect x="${barLeft}" y="${top}" width="${barRight - barLeft}" height="${barHeight}" fill="${fill}"/>`;
@@ -5543,6 +5543,14 @@ function layoutUnit(value: number): number {
 /** `LayoutUnit::Round` as used by `ToPixelSnappedRect` for positive coordinates. */
 function snapToPixel(value: number): number {
   return Math.floor(value + 0.5);
+}
+
+/** Blink's `SnapSizeToPixel`: a positive LayoutUnit size above four raw units
+ * (4/64 px) cannot disappear when both rectangle edges round to one pixel.
+ * `MathMLPainter::PaintBar` reaches this through `ToPixelSnappedRect`. */
+export function snapPositiveSizeToPixel(size: number, location: number): number {
+  const snapped = snapToPixel(location + size) - snapToPixel(location);
+  return snapped === 0 && size > 4 / 64 ? 1 : snapped;
 }
 
 function hasOpenTypeMathTable(font: unknown): boolean {

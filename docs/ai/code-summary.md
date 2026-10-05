@@ -58,6 +58,8 @@ deviation for box, inline, control, and text shadows.
   webfont registration, font instances, live and per-codepoint fallback,
   character-cache state, shaping routes, generation, and text mode; see the
   [font-resolution diagram](../font-resolution-diagram.md) for the ownership map.
+  `tests/mathml-radical-bar-snap.e2e.test.ts` compares fourteen native
+  math-generic radical bar rows with Chromium on macOS and Windows.
   `system-ui-cloned-cascade.test.ts` exercises the macOS cloned UI fallback
   request and cache transitions; the root
   `tests/system-ui-cloned-fallback.e2e.test.ts` compares its formerly divergent
