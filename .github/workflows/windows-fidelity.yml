@@ -51,6 +51,7 @@ env:
 
 jobs:
   font-width-probe:
+    if: github.ref != 'refs/heads/validation/dm-b4anrh-windows-probe'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +71,7 @@ jobs:
           if-no-files-found: error
 
   regression:
+    if: github.ref != 'refs/heads/validation/dm-b4anrh-windows-probe'
     # DM-1405: distinct check-run name (see test-linux.yml) so this Windows gate
     # is a separately-required status check from the Linux one.
     name: Windows fidelity regression
@@ -119,6 +121,7 @@ jobs:
           if-no-files-found: error
 
   decoration-geometry:
+    if: github.ref != 'refs/heads/validation/dm-b4anrh-windows-probe'
     name: Windows decoration geometry
     runs-on: windows-latest
     steps:
@@ -175,6 +178,7 @@ jobs:
   # the job. Numbers from this runner say nothing about desktop Windows 11 —
   # each environment is judged only against itself.
   family-match:
+    if: github.ref != 'refs/heads/validation/dm-b4anrh-windows-probe'
     name: Windows family-match conformance
     runs-on: windows-latest
     steps:
@@ -217,6 +221,7 @@ jobs:
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
+    if: github.ref != 'refs/heads/validation/dm-b4anrh-windows-probe'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -253,6 +258,7 @@ jobs:
   # committed table on real desktop Windows 11 (run `tools/probe-983-sweep.mjs`
   # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
   font-routing-sweep:
+    if: github.ref != 'refs/heads/validation/dm-b4anrh-windows-probe'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -280,6 +286,7 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
+    if: github.ref != 'refs/heads/validation/dm-b4anrh-windows-probe'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -290,3 +297,41 @@ jobs:
         run: npx playwright install chromium
       - name: Probe captured vs painted text positions
         run: npx tsx tools/probe-win-text-drift.ts
+
+  # DM-B4ANRH: a focused native DirectWrite measurement of the gated CJK
+  # canonical-singleton rule. Dispatch this registered workflow on the exact
+  # validation branch; the other fidelity jobs skip that ref to isolate it.
+  cjk-canonical-singleton-probe:
+    if: github.ref == 'refs/heads/validation/dm-b4anrh-windows-probe'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Build the native DirectWrite glyph helper
+        shell: pwsh
+        run: |
+          ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
+          if (-not (Test-Path packages/text-engine/tools/win32-glyph-extractor/domotion-glyph-paths.exe)) {
+            throw "native DirectWrite glyph helper is missing"
+          }
+      - run: npm run build:text-engine
+      - name: Create report directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force tests/output | Out-Null
+      - name: Record runner image
+        run: node scripts/record-runner-image.mjs tests/output/cjk-canonical-singleton-runner-image.txt
+      - name: Compare native splitter, candidate, fast seam, and Chromium
+        run: npx tsx tools/cjk-canonical-singleton-platform-probe.ts tests/output/cjk-canonical-singleton-probe.json
+      - name: Upload native report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cjk-canonical-singleton-windows-probe
+          path: |
+            tests/output/cjk-canonical-singleton-probe.json
+            tests/output/cjk-canonical-singleton-runner-image.txt
+          if-no-files-found: warn
