@@ -170,9 +170,13 @@ import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.j
 import {
   ITALIC_SLNT,
   beginCharacterFallbackDocument,
+  clearPrimaryNotdefShapesAfterOracleGc,
   selectCharacterFallbackRendererScope,
   clearFontResolutionCaches,
   endCharacterFallbackDocument,
+  hasPrimaryNotdefShape,
+  primaryNotdefShapeKey,
+  recordPrimaryNotdefShape,
   type FontInstance,
   getFontSourceInfo,
   resolveFont,
@@ -901,6 +905,17 @@ export function cjkCanonicalRendererFace(cp: number, rs: ResolvedStack, ours: Ou
   if (process.platform === "win32" || process.env.DOMOTION_CLUSTER_FALLBACK === "0") return ours;
   const canonical = cjkCanonicalSingleton(cp);
   if (canonical == null) return ours;
+  const shapeKey = primaryNotdefShapeKey(
+    String.fromCodePoint(cp),
+    `${rs.spec.fontFamily}|${rs.primaryKey}`,
+    rs.spec.fontWeight,
+    rs.spec.fontSize,
+    rs.slant,
+    rs.stretch,
+    parseVariationSettings(rs.spec.fontVariationSettings) ?? undefined,
+    undefined,
+  );
+  if (hasPrimaryNotdefShape(shapeKey)) return rs.notdefDonor;
   for (const key of new Set([rs.primaryKey, ...rs.chain])) {
     const inst =
       key === rs.primaryKey
@@ -911,6 +926,7 @@ export function cjkCanonicalRendererFace(cp: number, rs: ResolvedStack, ours: Ou
       return faceFor(rs, key, true, inst);
     }
   }
+  if (!ours.covered) recordPrimaryNotdefShape(shapeKey);
   return ours;
 }
 
@@ -1258,7 +1274,27 @@ export class ChromeOracle {
     return f == null ? null : (f.postScriptName ?? f.familyName);
   }
 
-  /** Keep one document, renderer and font-setting authority for the sweep.
+  /** Establish an independent weak shape-cache epoch for each synthetic stack.
+   * The Page/renderer and Blink's strong character-fallback map persist. A new
+   * document plus dropped CDP node bindings makes old ShapeResults unreachable;
+   * Chromium GC then clears weak entries before the next stack is shaped. */
+  async clearWeakShapeResultsForNextStack(): Promise<void> {
+    if (!this.reuseDocument || this.probeCss == null) return;
+    await this.page.locator("#w").evaluate((wrapper) => wrapper.replaceChildren());
+    await this.page.goto("about:blank");
+    this.probeCss = null;
+    this.documentMarker = null;
+    this.initialDocumentTimeOrigin = null;
+    this.initialLoaderId = null;
+    // CDP's DOM agent may retain inspected node ids even after removal. Drop
+    // those frontend bindings so the old ShapeResults are actually weak.
+    await this.cdp.send("DOM.disable");
+    await this.cdp.send("DOM.enable");
+    await this.cdp.send("HeapProfiler.collectGarbage");
+  }
+
+  /** Keep one document per stack and one renderer/font-setting authority for
+   * the sweep.
    * `setContent` on every batch rewrote the document thousands of times; on
    * native macOS full slices the six generic donors sometimes changed from
    * Playwright's Page settings to Blink constructor defaults mid-stack. Replace
@@ -2283,11 +2319,16 @@ export async function sweepStack(
   stackCount: number,
   universe: number[],
   opts: Options,
-  oracle: Pick<ChromeOracle, "resolvedPrimary" | "facesFor"> & Partial<Pick<ChromeOracle, "assertStable">>,
+  oracle: Pick<ChromeOracle, "resolvedPrimary" | "facesFor"> &
+    Partial<Pick<ChromeOracle, "assertStable" | "clearWeakShapeResultsForNextStack">>,
   tally: SweepTally,
   t0: number,
   operations: SweepOperations = sweepOperations,
 ): Promise<void> {
+  if (operations.platform === "darwin") {
+    await oracle.clearWeakShapeResultsForNextStack?.();
+    clearPrimaryNotdefShapesAfterOracleGc();
+  }
   if (operations.platform === "linux") operations.selectScope(spec.lang ?? opts.lang);
   let rs = operations.prepare(spec, opts.lang);
   if (rs == null) {
@@ -2428,16 +2469,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
       );
 
-      // One document scope for the macOS ideograph fallback cache, spanning the
-      // WHOLE sweep — because that is the scope Chrome's own cache has on the
-      // other side of the comparison: the oracle uses a single page (one renderer
-      // process) for every stack and batch, and Blink's character_fallback_cache_
-      // lives on that renderer's FontCache. On macOS the one measured document
-      // also persists as its cells are replaced. Both sides see the ask sequence (stacks in
-      // corpus order, codepoints ascending), so the first-ideograph-under-a-key
-      // entries agree by construction. Deliberately NOT reset at the periodic
-      // `clearFontResolutionCaches()` memory trims — Chrome's cache is not
-      // dropped there either. Closed when the browser owner finishes.
+      // One scope for the macOS ideograph fallback cache spans the WHOLE
+      // sweep: Blink's strong character_fallback_cache_ lives on FontCache in
+      // the shared renderer, even as the oracle opens a new document per stack.
+      // Both sides see stacks in corpus order and codepoints ascending. Only
+      // the separate weak primary-.notdef shape state is cleared at each stack
+      // boundary after the browser's explicit GC. Neither cache is reset by
+      // periodic font-resolution memory trims.
       beginCharacterFallbackDocument();
       // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY
       // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even
@@ -2451,7 +2489,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         process.platform === "linux"
           ? "renderer-per-locale"
           : process.platform === "darwin"
-            ? "shared-renderer-single-document-repaired-prefs"
+            ? "shared-renderer-fresh-stack-document-repaired-prefs"
             : "shared-renderer";
       // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
       // documents from different BrowserContexts in one renderer process, so

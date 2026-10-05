@@ -1,0 +1,115 @@
+import { chromium } from "@playwright/test";
+import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "@domotion/text-engine/testing";
+import { describe, expect, it } from "vitest";
+import {
+  ChromeOracle,
+  cjkCanonicalRendererFace,
+  ourFaceFor,
+  prepareStack,
+  type StackSpec,
+} from "../tools/font-conformance.js";
+
+const cps = [0x2f800, 0x2f900, 0x2fa00];
+const stack: StackSpec = { fontFamily: "system-ui", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
+
+function cell(cp: number, lang: string): string {
+  return `<i class=c lang="${lang}">&#x${cp.toString(16)};</i>`;
+}
+
+async function browserFaces(cells: { cp: number; lang: string }[], family = "system-ui"): Promise<string[]> {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    await page.setContent(
+      "<!doctype html><html lang=en><style>body{margin:0}#w{display:flex;flex-wrap:wrap;" +
+        `font-family:${family};font-size:16px;font-weight:400;font-style:normal}` +
+        ".c{display:inline-block;width:24px;height:24px;overflow:hidden;font-style:inherit;white-space:pre}" +
+        `</style><div id=w>${cells.map(({ cp, lang }) => cell(cp, lang)).join("")}</div></html>`,
+    );
+    await page.screenshot();
+    const { root } = await cdp.send("DOM.getDocument");
+    const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
+    const faces: string[] = [];
+    for (const nodeId of nodeIds) {
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+      expect(fonts).toHaveLength(1);
+      expect(fonts[0].glyphCount).toBe(1);
+      faces.push(fonts[0].postScriptName);
+    }
+    return faces;
+  } finally {
+    await browser.close();
+  }
+}
+
+function oracleFaces(cells: { cp: number; lang: string }[], family = "system-ui"): string[] {
+  beginCharacterFallbackDocument();
+  try {
+    return cells.map(({ cp, lang }) => {
+      const rs = prepareStack({ ...stack, fontFamily: family }, lang);
+      if (rs == null) throw new Error("system-ui stack unavailable");
+      return cjkCanonicalRendererFace(cp, rs, ourFaceFor(cp, rs, lang)).postscriptName ?? "";
+    });
+  } finally {
+    endCharacterFallbackDocument();
+  }
+}
+
+describe.runIf(process.platform === "darwin")("macOS mixed-locale shape cache browser parity", () => {
+  it("matches fresh Chinese and English-first documents for all three compatibility ideographs", async () => {
+    const fresh = cps.map((cp) => ({ cp, lang: "zh-Hans" }));
+    const mixed = [
+      ...cps.map((cp) => ({ cp, lang: "en" })),
+      ...cps.map((cp) => ({ cp, lang: "zh-Hans" })),
+      ...cps.map((cp) => ({ cp, lang: "zh-Hant" })),
+    ];
+    expect(await browserFaces(fresh)).toEqual(Array(3).fill("PingFangSC-Regular"));
+    expect(oracleFaces(fresh)).toEqual(Array(3).fill("PingFangSC-Regular"));
+    expect(await browserFaces(mixed)).toEqual(Array(9).fill(".SFNS-Regular"));
+    expect(oracleFaces(mixed)).toEqual(Array(9).fill(".SFNS-Regular"));
+  }, 60_000);
+
+  it("leaves a different English codepoint from poisoning the Chinese target", async () => {
+    const cells = [
+      { cp: 0x0100, lang: "en" },
+      { cp: 0x2f900, lang: "zh-Hans" },
+    ];
+    expect(await browserFaces(cells)).toEqual([".SFNS-Regular", "PingFangSC-Regular"]);
+    expect(oracleFaces(cells)[1]).toBe("PingFangSC-Regular");
+  }, 60_000);
+
+  it("follows the generic-family activation matrix", async () => {
+    const cells = [
+      { cp: 0x2f900, lang: "en" },
+      { cp: 0x2f900, lang: "zh-Hans" },
+    ];
+    for (const [family, expected] of [
+      ["fantasy", "Papyrus"],
+      ["monospace", "Courier"],
+      ["cursive", "PingFangSC-Regular"],
+    ]) {
+      const browser = await browserFaces(cells, family);
+      const oracle = oracleFaces(cells, family);
+      expect(browser[1]).toBe(expected);
+      expect(oracle[1]).toBe(expected);
+    }
+  }, 60_000);
+
+  it("clears weak shape results between synthetic stacks while reusing the Page", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const oracle = await ChromeOracle.create(browser, 16, "en");
+    try {
+      const en = await oracle.facesFor([0x2f900], { ...stack, lang: "en" });
+      expect(en[0][0].postScriptName).toBe(".SFNS-Regular");
+      await oracle.clearWeakShapeResultsForNextStack();
+      const zh = await oracle.facesFor([0x2f900], { ...stack, lang: "zh-Hans" });
+      expect(zh[0][0].postScriptName).toBe("PingFangSC-Regular");
+    } finally {
+      await oracle.close();
+      await browser.close();
+    }
+  }, 60_000);
+});

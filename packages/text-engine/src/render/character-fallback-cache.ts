@@ -82,6 +82,11 @@ import { isIdeographicCp } from "./unicode-classification.js";
 const _macCharFallbackCacheEnabled = process.env.DOMOTION_MAC_CHAR_FALLBACK_CACHE !== "0";
 
 export let _charFallbackDocCache: Map<string, string> | null = null;
+// Blink's short-text shape result cache is held by the primary font data. A
+// primary-only .notdef result can therefore outlive the element that shaped it.
+// Keep the observed macOS compatibility-ideograph slice in the same explicit
+// renderer/document lifetime as the character fallback model below.
+let primaryNotdefShapeCache: Set<string> | null = null;
 
 let _charFallbackDocDepth = 0;
 
@@ -93,8 +98,10 @@ export interface FontRendererSession {
 }
 
 export let _charFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();
+let primaryNotdefRendererCaches = new WeakMap<FontRendererSession, Set<string>>();
 export function resetCharacterFallbackRendererCaches(): void {
   _charFallbackRendererCaches = new WeakMap();
+  primaryNotdefRendererCaches = new WeakMap();
 }
 
 let _requestedCharFallbackRendererSession: FontRendererSession | null = null;
@@ -130,6 +137,7 @@ export function beginCharacterFallbackDocument(): void {
     _charFallbackDocSession = rendererSession;
     if (rendererSession == null) {
       _charFallbackDocCache = new Map();
+      primaryNotdefShapeCache = new Set();
     } else {
       let cache = _charFallbackRendererCaches.get(rendererSession);
       if (cache == null) {
@@ -137,6 +145,12 @@ export function beginCharacterFallbackDocument(): void {
         _charFallbackRendererCaches.set(rendererSession, cache);
       }
       _charFallbackDocCache = cache;
+      let shapeCache = primaryNotdefRendererCaches.get(rendererSession);
+      if (shapeCache == null) {
+        shapeCache = new Set();
+        primaryNotdefRendererCaches.set(rendererSession, shapeCache);
+      }
+      primaryNotdefShapeCache = shapeCache;
     }
     beginFcFallbackRendererScope();
   }
@@ -148,9 +162,60 @@ export function endCharacterFallbackDocument(): void {
   if (_charFallbackDocDepth > 0) _charFallbackDocDepth--;
   if (_charFallbackDocDepth === 0) {
     _charFallbackDocCache = null;
+    primaryNotdefShapeCache = null;
     _charFallbackDocSession = null;
     endFcFallbackRendererScope();
   }
+}
+
+/** Only the observed one-scalar canonical CJK compatibility forms enter this
+ * model. Other shaping cases retain the source-equivalent locale-keyed route
+ * until a browser control establishes their cache behavior. */
+export function primaryNotdefShapeKey(
+  text: string,
+  primaryIdentity: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  stretch: number,
+  variationSettings: Record<string, number> | undefined,
+  features: string[] | undefined,
+): string | null {
+  if (hostPlatform() !== "darwin" || primaryNotdefShapeCache == null) return null;
+  // A same-page browser matrix over all 13 synthetic generics found this
+  // transition only for these three. Other generics still paint their
+  // language-specific fallback after an English primary .notdef.
+  if (!/^(?:system-ui|fantasy|monospace)\|/.test(primaryIdentity)) return null;
+  const cp = text.codePointAt(0);
+  if (cp == null || String.fromCodePoint(cp) !== text) return null;
+  if (!((cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x2f800 && cp <= 0x2fa1f))) return null;
+  const canonical = text.normalize("NFD");
+  if (canonical === text || [...canonical].length !== 1) return null;
+  return JSON.stringify([
+    primaryIdentity,
+    weight,
+    fontSize,
+    slant,
+    stretch,
+    variationSettings ?? null,
+    features ?? [],
+    text,
+  ]);
+}
+
+export function hasPrimaryNotdefShape(key: string | null): boolean {
+  return key != null && (primaryNotdefShapeCache?.has(key) ?? false);
+}
+
+export function recordPrimaryNotdefShape(key: string | null): void {
+  if (key != null) primaryNotdefShapeCache?.add(key);
+}
+
+/** Conformance-only mirror of an explicit Chromium GC after old probe cells
+ * are removed. The macOS character-fallback cache is independent and remains
+ * live across this reset. */
+export function clearPrimaryNotdefShapesAfterOracleGc(): void {
+  primaryNotdefShapeCache?.clear();
 }
 
 /** Oracle seam: select the renderer cache corresponding to an isolated context. */
