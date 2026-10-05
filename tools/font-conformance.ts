@@ -1279,7 +1279,7 @@ export class ChromeOracle {
    * document plus dropped CDP node bindings makes old ShapeResults unreachable;
    * Chromium GC then clears weak entries before the next stack is shaped. */
   async clearWeakShapeResultsForNextStack(): Promise<void> {
-    if (!this.reuseDocument || this.probeCss == null) return;
+    if (this.probeCss == null) return;
     await this.page.locator("#w").evaluate((wrapper) => wrapper.replaceChildren());
     await this.page.goto("about:blank");
     this.probeCss = null;
@@ -2325,7 +2325,7 @@ export async function sweepStack(
   t0: number,
   operations: SweepOperations = sweepOperations,
 ): Promise<void> {
-  if (operations.platform === "darwin") {
+  if (operations.platform === "darwin" || operations.platform === "win32") {
     await oracle.clearWeakShapeResultsForNextStack?.();
     clearPrimaryNotdefShapesAfterOracleGc();
   }
@@ -2490,7 +2490,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           ? "renderer-per-locale"
           : process.platform === "darwin"
             ? "shared-renderer-fresh-stack-document-repaired-prefs"
-            : "shared-renderer";
+            : process.platform === "win32"
+              ? "shared-renderer-fresh-stack-document"
+              : "shared-renderer";
       // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
       // documents from different BrowserContexts in one renderer process, so
       // each locale gets a distinct WebSandboxSupportLinux cache without the

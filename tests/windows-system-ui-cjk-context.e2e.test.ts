@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { chromium } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import {
   beginCharacterFallbackDocument,
@@ -12,7 +13,7 @@ import {
   withFontRendererSession,
 } from "@domotion/text-engine/testing";
 import { probeWindowsSystemUiCjkContext, systemUiCjkStack } from "../tools/probe-windows-system-ui-cjk-context.js";
-import { faceFor, prepareStack } from "../tools/font-conformance.js";
+import { ChromeOracle, faceFor, prepareStack, primaryChromeFace } from "../tools/font-conformance.js";
 
 interface Row {
   scenario: string;
@@ -24,6 +25,25 @@ interface Row {
 const describeWindows = process.platform === "win32" ? describe : describe.skip;
 
 describeWindows("Windows system-ui CJK shape-cache transition", () => {
+  it("drops a prior primary .notdef before a fresh synthetic stack in the same renderer", async () => {
+    const browser = await chromium.launch();
+    const oracle = await ChromeOracle.create(browser, 3, "en");
+    try {
+      const ask = async (lang: string): Promise<string | null> =>
+        primaryChromeFace((await oracle.facesFor([0x2f800], systemUiCjkStack(lang)))[0] ?? [])?.postScriptName ?? null;
+      const japanese = await ask("ja");
+      expect(japanese).toBeTruthy();
+      expect(await ask("zh-Hans")).toBe(japanese);
+      await oracle.clearWeakShapeResultsForNextStack();
+      const freshChinese = await ask("zh-Hans");
+      expect(freshChinese).toBeTruthy();
+      expect(freshChinese).not.toBe(japanese);
+    } finally {
+      await oracle.close();
+      await browser.close();
+    }
+  }, 60_000);
+
   it("retains a prior primary .notdef for two Chinese compatibility scalars, then resets in a fresh context", async () => {
     expect(isGlyphHelperAvailable()).toBe(true);
     const out = join(mkdtempSync(join(tmpdir(), "domotion-windows-cjk-context-")), "report.json");

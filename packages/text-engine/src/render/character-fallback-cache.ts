@@ -84,8 +84,8 @@ const _macCharFallbackCacheEnabled = process.env.DOMOTION_MAC_CHAR_FALLBACK_CACH
 export let _charFallbackDocCache: Map<string, string> | null = null;
 // Blink's short-text shape result cache is held by the primary font data. A
 // primary-only .notdef result can therefore outlive the element that shaped it.
-// Keep the observed macOS compatibility-ideograph slice in the same explicit
-// renderer/document lifetime as the character fallback model below.
+// Keep the observed macOS and Windows compatibility-ideograph slices in the
+// same explicit renderer/document lifetime as the character fallback model.
 let primaryNotdefShapeCache: Set<string> | null = null;
 
 let _charFallbackDocDepth = 0;
@@ -181,11 +181,16 @@ export function primaryNotdefShapeKey(
   variationSettings: Record<string, number> | undefined,
   features: string[] | undefined,
 ): string | null {
-  if (hostPlatform() !== "darwin" || primaryNotdefShapeCache == null) return null;
-  // A same-page browser matrix over all 13 synthetic generics found this
-  // transition only for these three. Other generics still paint their
-  // language-specific fallback after an English primary .notdef.
-  if (!/^(?:system-ui|fantasy|monospace)\|/.test(primaryIdentity)) return null;
+  const platform = hostPlatform();
+  if ((platform !== "darwin" && platform !== "win32") || primaryNotdefShapeCache == null) return null;
+  // The macOS same-page matrix found the transition for three generics. The
+  // hosted Windows forward/reverse/fresh-context matrix established it for
+  // system-ui; other Windows generics remain outside this measured slice.
+  if (platform === "darwin") {
+    if (!/^(?:system-ui|fantasy|monospace)\|/.test(primaryIdentity)) return null;
+  } else if (!primaryIdentity.startsWith("system-ui|")) {
+    return null;
+  }
   const cp = text.codePointAt(0);
   if (cp == null || String.fromCodePoint(cp) !== text) return null;
   if (!((cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x2f800 && cp <= 0x2fa1f))) return null;
