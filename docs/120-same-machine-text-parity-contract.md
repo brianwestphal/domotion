@@ -143,6 +143,11 @@ unchanged answer means the mechanism was not proven to be in the loop and the
 gate verdict is withheld. Controls use the production switches (currently
 `DOMOTION_DISABLE_HELPER=1` and, where applicable,
 `DOMOTION_SYSTEM_FALLBACK=0`) and record both arms in the report.
+The helper-availability CI gate builds its native binary under
+`packages/text-engine/tools/<platform>-glyph-extractor/` and runs both arms
+through `tools/helper-availability-contract.ts`. Its default helper path must
+resolve to that package build on each platform; an explicit
+`DOMOTION_HELPER_PATH` remains an override for a separately supplied binary.
 
 Routine CI uses deterministic, representative 5–10 minute samples on macOS,
 Linux, and Windows. Low-byte buckets `00` through `FF` are disjoint and together

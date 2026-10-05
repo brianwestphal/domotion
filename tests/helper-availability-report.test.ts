@@ -1,10 +1,14 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { helperAvailabilityContract } from "@domotion/text-engine/testing";
-import { readHelperAvailabilityReport, runHelperAvailabilityContract } from "../tools/helper-availability-contract.js";
+import {
+  helperPath,
+  readHelperAvailabilityReport,
+  runHelperAvailabilityContract,
+} from "../tools/helper-availability-contract.js";
 
 const tool = "helper-availability-contract";
 const present = helperAvailabilityContract({
@@ -28,6 +32,25 @@ const wrap = (data: Record<string, unknown>) => ({
 });
 
 describe("helper availability report migration", () => {
+  it("uses the text-engine native build path for every supported platform by default", () => {
+    const override = process.env.DOMOTION_HELPER_PATH;
+    try {
+      delete process.env.DOMOTION_HELPER_PATH;
+      for (const [platform, directory, binary] of [
+        ["darwin", "macos-glyph-extractor", "domotion-glyph-paths"],
+        ["linux", "linux-glyph-extractor", "domotion-glyph-paths"],
+        ["win32", "win32-glyph-extractor", "domotion-glyph-paths.exe"],
+      ] as const) {
+        expect(helperPath(platform)).toBe(resolve("packages", "text-engine", "tools", directory, binary));
+      }
+      process.env.DOMOTION_HELPER_PATH = process.execPath;
+      expect(helperPath("darwin")).toBe(resolve(process.execPath));
+    } finally {
+      if (override === undefined) delete process.env.DOMOTION_HELPER_PATH;
+      else process.env.DOMOTION_HELPER_PATH = override;
+    }
+  });
+
   it("reads flat v1 and versioned envelopes while rejecting malformed authority", () => {
     const directory = mkdtempSync(join(tmpdir(), "helper-contract-unit-"));
     try {

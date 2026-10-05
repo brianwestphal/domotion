@@ -48,9 +48,11 @@ export function readHelperAvailabilityReport(path: string): HelperAvailabilityCo
   return contractSchema.parse(raw) as HelperAvailabilityContract;
 }
 
-function helperPath(platform: SupportedPlatform): string {
+export function helperPath(platform: SupportedPlatform): string {
   if (process.env.DOMOTION_HELPER_PATH) return resolve(process.env.DOMOTION_HELPER_PATH);
   return resolve(
+    "packages",
+    "text-engine",
     "tools",
     platform === "darwin"
       ? "macos-glyph-extractor"
