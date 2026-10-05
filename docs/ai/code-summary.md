@@ -61,6 +61,8 @@ deviation for box, inline, control, and text shadows.
   The manual Windows fidelity workflow runs
   `tools/mathml-radical-windows-probe.ts` for native MathML font and fourteen-row
   bar evidence; `tests/mathml-radical-windows-probe.test.ts` pins that route.
+  `tests/mathml-radical-bar-snap.e2e.test.ts` compares fourteen native
+  math-generic radical bar rows with Chromium on macOS and Windows.
   `system-ui-cloned-cascade.test.ts` exercises the macOS cloned UI fallback
   request and cache transitions; the root
   `tests/system-ui-cloned-fallback.e2e.test.ts` compares its formerly divergent
