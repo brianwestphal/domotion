@@ -9,7 +9,7 @@ import { writeReport } from "./lib/report.js";
 const CODEPOINTS = [0x2f800, 0x2f900, 0x2fa00];
 const LANGUAGES = ["ja", "ko", "zh-Hans", "zh-Hant"];
 
-function stack(lang: string): StackSpec {
+export function systemUiCjkStack(lang: string): StackSpec {
   const found = syntheticCorpus().stacks.find(
     (candidate) =>
       candidate.fontFamily === "system-ui" &&
@@ -34,7 +34,7 @@ interface Row {
 }
 
 async function ask(oracle: ChromeOracle, scenario: string, lang: string, order: number): Promise<Row[]> {
-  const faces = await oracle.facesFor(CODEPOINTS, stack(lang));
+  const faces = await oracle.facesFor(CODEPOINTS, systemUiCjkStack(lang));
   return CODEPOINTS.map((cp, index) => {
     const face = primaryChromeFace(faces[index] ?? []);
     if (face == null) throw new Error(`no painted face for ${scenario}/${lang}/U+${cp.toString(16)}`);

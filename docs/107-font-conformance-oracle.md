@@ -108,6 +108,18 @@ report records the selected universe and the answers in that same order.
   the four splitter disagreements. `DOMOTION_CLUSTER_FALLBACK=0` disables the
   bounded walk together with the shape-first splitter.
 
+  A follow-up hosted Windows control on `win25-vs2026-x64` (run
+  `37265285688`) established that those four answers depend on query order.
+  When `system-ui` cells in `ja`, then `ko`, precede `zh-Hans` and `zh-Hant`
+  in one Chromium context, U+2F800 and U+2FA00 paint from Segoe UI for the
+  Chinese cells. Reversing the locale order, or asking each Chinese stack in
+  a fresh context or browser, paints Microsoft YaHei or Microsoft JhengHei.
+  U+2F900 paints from the Chinese face throughout. The control reproduces
+  the macOS sequence pattern below, so the original four mismatches are
+  evidence of retained browser shaping state, not a context-free Windows
+  fallback rule. A Windows browser regression test pins both transitions;
+  the renderer's state model is tracked by `DM-WNS4J8`.
+
   **Open macOS mixed-language sequence (DM-QQJDH1; fix DM-6F4YJT).** Chromium
   147.0.7727.15 changes the answer for U+2F800/U+2F900/U+2FA00 when
   `system-ui` cells for those scalars in English precede otherwise identical
