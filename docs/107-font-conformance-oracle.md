@@ -5,7 +5,20 @@ kind: "evidence"
 status: "current"
 owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1858", "DM-1905", "DM-2350", "DM-2422", "DM-2507", "DM-KK5BP2", "DM-N78DX3", "DM-QD903D", "DM-V75PWJ"]
+tickets:
+  [
+    "DM-1858",
+    "DM-1905",
+    "DM-2350",
+    "DM-2422",
+    "DM-2507",
+    "DM-B4ANRH",
+    "DM-EBRC7F",
+    "DM-KK5BP2",
+    "DM-N78DX3",
+    "DM-QD903D",
+    "DM-V75PWJ",
+  ]
 code:
   [
     ".github/workflows/font-conformance-synthetic.yml",
@@ -70,7 +83,7 @@ report records the selected universe and the answers in that same order.
 - **Chrome's answer** — CDP `CSS.getPlatformFontsForNode` over a one-codepoint cell. This is the face the engine reports having painted with, not a guess inferred from pixels. Two earlier attempts to identify a face from rendered crops (a hand-rolled shape matcher, and `tools/compare-glyphs.ts` on upscaled 1× captures) both failed their controls; asking the browser is strictly better.
 - **Our answer** — the primary is opened through the renderer's `resolveFont` route, then `resolveFontForCodepoint` walks the same stack's key chain at the same size, weight, and style. A fallback is materialized as `res.fontOverride ?? getFontInstance(res.key, weight, size, slant)`, so the reported face is the concrete **cut** the renderer would load. The primary cannot be reopened from its key alone: on macOS `system-ui` and a named SF family share `sf-pro`, but only the `system-ui` route applies the CSS `wght` axis. The native CoreText UI query supplies the resulting face identity when fontkit's variation instance retains its default `.SFNS-Regular` name. This keeps the bold `system-ui` oracle aligned with Chromium's `.SFNS-Bold` instead of manufacturing a mismatch for every codepoint whose run uses that face. When the stack also carries `font-variation-settings`, Blink clones that UI handle at the author's axis location, and the identity is the CoreText clone name composed by `darwinCloneInstanceName` against the UI handle's own axis state (`"opsz" 32, "wdth" 120, "wght" 700` at 26 px is `.SFNS-Regular_wdth780000_opsz200000_GRAD_wght2BC0000`, as Chrome reports). That covers both painted cells and `.notdef` cells, whose donor carries the same name.
 
-  On macOS, every CJK compatibility ideograph with a one-scalar canonical
+  On macOS and Linux, every CJK compatibility ideograph with a one-scalar canonical
   decomposition (U+F900–FAFF, U+2F800–2FA1F) is answered with the first family
   in the stack's declared chain that covers either the codepoint or its
   canonical scalar. That is the face the renderer's shape-first splitter
@@ -79,8 +92,16 @@ report records the selected universe and the answers in that same order.
   on to system fallback (PingFang, AppleMyungjo) instead of the declared
   Hiragino face Chrome paints. The rule is applied to every such cell, never
   only to cells that already disagree with Chrome, and a unit test pins it to
-  the real splitter. `DOMOTION_CLUSTER_FALLBACK=0` disables it together with the
-  shape-first splitter.
+  the real splitter. The pinned Linux Noble container agreed with Chromium on
+  all 520 cells from five representative ideographs crossed with the first 104
+  rule-derived generic/language stacks; the bounded walk and real splitter
+  agreed on the 60 serif, sans-serif, and system-ui cells in ja, ko, zh-Hans,
+  and zh-Hant. On that Linux image, the fast seam already selected the same
+  WenQuanYi face for those cells. Windows remains gated pending a native
+  splitter/Chromium comparison: a hosted Windows locale sweep found the fast
+  seam can choose Gulim while Chromium chooses SimSun or Microsoft YaHei for
+  zh-Hans compatibility ideographs. `DOMOTION_CLUSTER_FALLBACK=0` disables the
+  bounded walk together with the shape-first splitter.
 
   **Open macOS mixed-language sequence (DM-QQJDH1; fix DM-6F4YJT).** Chromium
   147.0.7727.15 changes the answer for U+2F800/U+2F900/U+2FA00 when

@@ -900,7 +900,10 @@ export function cjkCanonicalSingleton(cp: number): number | null {
  * exhausts its WASM lifetime in a long sweep, hence this bounded coverage walk;
  * `tests/font-conformance.test.ts` pins it against the real splitter. */
 export function cjkCanonicalRendererFace(cp: number, rs: ResolvedStack, ours: OurFace): OurFace {
-  if (process.platform !== "darwin" || process.env.DOMOTION_CLUSTER_FALLBACK === "0") return ours;
+  // Windows remains gated until its native shaped splitter can be compared
+  // with Chromium for locale-specific compatibility ideographs. The fast seam
+  // alone disagrees with Chrome on several zh-Hans cells.
+  if (process.platform === "win32" || process.env.DOMOTION_CLUSTER_FALLBACK === "0") return ours;
   const canonical = cjkCanonicalSingleton(cp);
   if (canonical == null) return ours;
   for (const key of new Set([rs.primaryKey, ...rs.chain])) {

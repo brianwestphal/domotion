@@ -71,7 +71,7 @@ describe("CJK canonical singleton coverage", () => {
     expect(cjkCanonicalSingleton(0x2f900)).toBe(0x6d3e);
   });
 
-  it.skipIf(process.platform !== "darwin")("prefers the declared face that shapes the canonical scalar", () => {
+  it.skipIf(process.platform === "win32")("prefers the declared face that shapes the canonical scalar", () => {
     const primary = {
       postscriptName: "CanonicalFace",
       glyphForCodePoint: (cp: number) => (cp === 0x8c48 ? { id: 12 } : null),
@@ -97,16 +97,24 @@ describe("CJK canonical singleton coverage", () => {
   });
 
   // The oracle's bounded walk stands in for the renderer's shape-first splitter;
-  // this is what keeps the stand-in honest. Japanese and Korean stacks, where
-  // the fast seam and the splitter measurably disagree for these cells.
-  it.skipIf(process.platform !== "darwin" || !isGlyphHelperAvailable())(
+  // this is what keeps the stand-in honest on the platforms where the walk is
+  // enabled. Windows still needs its native splitter/Chrome comparison.
+  it.skipIf(process.platform === "win32" || !isGlyphHelperAvailable())(
     "matches the renderer's shape-first splitter for compatibility ideographs",
     () => {
       const stacks: StackSpec[] = [
         { fontFamily: "serif", lang: "ja" },
         { fontFamily: "sans-serif", lang: "ja" },
         { fontFamily: "system-ui", lang: "ja" },
+        { fontFamily: "serif", lang: "ko" },
+        { fontFamily: "sans-serif", lang: "ko" },
         { fontFamily: "system-ui", lang: "ko" },
+        { fontFamily: "serif", lang: "zh-Hans" },
+        { fontFamily: "sans-serif", lang: "zh-Hans" },
+        { fontFamily: "system-ui", lang: "zh-Hans" },
+        { fontFamily: "serif", lang: "zh-Hant" },
+        { fontFamily: "sans-serif", lang: "zh-Hant" },
+        { fontFamily: "system-ui", lang: "zh-Hant" },
       ].map((s) => ({
         ...s,
         fontSize: 16,
@@ -119,7 +127,7 @@ describe("CJK canonical singleton coverage", () => {
       for (const spec of stacks) {
         const rs = prepareStack(spec);
         expect(rs).not.toBeNull();
-        for (const cp of [0xf900, 0xfa00, 0x2f900]) {
+        for (const cp of [0xf900, 0xfa00, 0x2f800, 0x2f900, 0x2fa00]) {
           const oracle = cjkCanonicalRendererFace(cp, rs!, ourFaceFor(cp, rs!, spec.lang));
           const runs = splitTextIntoFontRunsShaped(
             String.fromCodePoint(cp),
