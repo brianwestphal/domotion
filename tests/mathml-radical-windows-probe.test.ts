@@ -35,11 +35,13 @@ describe("DM-24GQD3 Windows radical probe", () => {
     expect(paintedBarRows(rgb, width, height, 37, 1, 8)).toEqual([3]);
   });
 
-  it("uses the already registered manual Windows workflow with a probe-only route", () => {
+  it("uses the already registered manual workflow with exact-ref gating", () => {
     const workflow = readFileSync(".github/workflows/windows-fidelity.yml", "utf8");
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).toContain("radical_probe_only:");
+    expect(workflow).not.toContain("radical_probe_only:");
+    expect(workflow.match(/if: github.ref != 'refs\/heads\/dm-24gqd3-windows'/g)).toHaveLength(7);
     expect(workflow).toContain("mathml-radical-probe:");
+    expect(workflow).toContain("if: github.ref == 'refs/heads/dm-24gqd3-windows'");
     expect(workflow).toContain("tools/mathml-radical-windows-probe.ts");
     expect(workflow).toContain("mathml-radical-windows-rendered.png");
   });

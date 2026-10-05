@@ -44,11 +44,6 @@ on:
   # NOTE: removing the required-check status is a branch-protection setting in
   # the repo's GitHub settings and cannot be done from this file.
   workflow_dispatch:
-    inputs:
-      radical_probe_only:
-        description: Run only the focused MathML radical native probe
-        type: boolean
-        default: false
 
 env:
   # Match the Release workflow's pin (Node 22.22.x ships a broken bundled npm).
@@ -56,7 +51,7 @@ env:
 
 jobs:
   font-width-probe:
-    if: ${{ !inputs.radical_probe_only }}
+    if: github.ref != 'refs/heads/dm-24gqd3-windows'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +71,7 @@ jobs:
           if-no-files-found: error
 
   regression:
-    if: ${{ !inputs.radical_probe_only }}
+    if: github.ref != 'refs/heads/dm-24gqd3-windows'
     # DM-1405: distinct check-run name (see test-linux.yml) so this Windows gate
     # is a separately-required status check from the Linux one.
     name: Windows fidelity regression
@@ -126,7 +121,7 @@ jobs:
           if-no-files-found: error
 
   decoration-geometry:
-    if: ${{ !inputs.radical_probe_only }}
+    if: github.ref != 'refs/heads/dm-24gqd3-windows'
     name: Windows decoration geometry
     runs-on: windows-latest
     steps:
@@ -183,7 +178,7 @@ jobs:
   # the job. Numbers from this runner say nothing about desktop Windows 11 —
   # each environment is judged only against itself.
   family-match:
-    if: ${{ !inputs.radical_probe_only }}
+    if: github.ref != 'refs/heads/dm-24gqd3-windows'
     name: Windows family-match conformance
     runs-on: windows-latest
     steps:
@@ -226,7 +221,7 @@ jobs:
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
-    if: ${{ !inputs.radical_probe_only }}
+    if: github.ref != 'refs/heads/dm-24gqd3-windows'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -263,7 +258,7 @@ jobs:
   # committed table on real desktop Windows 11 (run `tools/probe-983-sweep.mjs`
   # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
   font-routing-sweep:
-    if: ${{ !inputs.radical_probe_only }}
+    if: github.ref != 'refs/heads/dm-24gqd3-windows'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -291,7 +286,7 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
-    if: ${{ !inputs.radical_probe_only }}
+    if: github.ref != 'refs/heads/dm-24gqd3-windows'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -304,10 +299,10 @@ jobs:
         run: npx tsx tools/probe-win-text-drift.ts
 
   # DM-24GQD3: CDP face identity and 14 normal/compact seven-size radical rows.
-  # Added to this already-registered manual workflow so a validation branch can
-  # dispatch it before the new probe code reaches the default branch.
+  # Added to this already-registered manual workflow so the exact validation
+  # branch can dispatch it before the new probe code reaches the default branch.
   mathml-radical-probe:
-    if: ${{ inputs.radical_probe_only }}
+    if: github.ref == 'refs/heads/dm-24gqd3-windows'
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
