@@ -2295,6 +2295,16 @@ text` run does. It was narrower than that for a while — restricted to the
   families use the declared-family cut (or their exact dynamic descriptor) and
   retain that face's own coordinates.
 
+  On macOS the case-variant literal `"System-ui"` can reuse a platform-font
+  entry warmed by canonical `system-ui`. `darwin-font-data-lifetime.ts` follows
+  Chromium 147's 64-entry strong `SimpleFontData` LRU per renderer session:
+  each acquired face moves to the front, including unpainted family candidates.
+  Document teardown alone leaves the alias warm; at an explicit GC boundary it
+  expires if the UI data has fallen out of the LRU. The platform and font-data
+  maps are weak, while the old document's `FontFallbackList` held candidates
+  strongly until teardown. The alias flag is still shared across font
+  descriptions; `DM-T8N4R9` owns that finer keying.
+
   **This flag and `DOMOTION_LIVE_FALLBACK_FIRST` are only scoreable together**
   (see §7). With the static per-block chain answering first, the OS is never asked,
   so the base it would have been asked with cannot matter. Conformance oracle, CJK

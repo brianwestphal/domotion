@@ -63,10 +63,16 @@ export { withSystemFallbackResolution } from "./system-fallback-resolver.js";
 export { stackPrimaryIsSystemUi } from "./system-fallback-resolver.js";
 export { FontRendererSession } from "./system-fallback-resolver.js";
 export { createFontRendererSession } from "./system-fallback-resolver.js";
+export {
+  darwinFontDataIdentity,
+  darwinFontDataLruForTest,
+  recordDarwinFontDataUse,
+} from "./darwin-font-data-lifetime.js";
 export { withFontRendererSession } from "./system-fallback-resolver.js";
 export { beginCharacterFallbackDocument } from "./system-fallback-resolver.js";
 export { endCharacterFallbackDocument } from "./system-fallback-resolver.js";
 export {
+  collectDarwinFontDataAfterOracleGc,
   clearPrimaryNotdefShapesAfterOracleGc,
   hasPrimaryNotdefShape,
   primaryNotdefShapeKey,

@@ -170,13 +170,16 @@ import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.j
 import {
   ITALIC_SLNT,
   beginCharacterFallbackDocument,
+  collectDarwinFontDataAfterOracleGc,
   clearPrimaryNotdefShapesAfterOracleGc,
+  darwinFontDataIdentity,
   selectCharacterFallbackRendererScope,
   clearFontResolutionCaches,
   endCharacterFallbackDocument,
   hasPrimaryNotdefShape,
   primaryNotdefShapeKey,
   recordPrimaryNotdefShape,
+  recordDarwinFontDataUse,
   type FontInstance,
   getFontSourceInfo,
   resolveFont,
@@ -2320,13 +2323,14 @@ export async function sweepStack(
   universe: number[],
   opts: Options,
   oracle: Pick<ChromeOracle, "resolvedPrimary" | "facesFor"> &
-    Partial<Pick<ChromeOracle, "assertStable" | "clearWeakShapeResultsForNextStack">>,
+    Partial<Pick<ChromeOracle, "assertStable" | "clearWeakShapeResultsForNextStack" | "controlSignature">>,
   tally: SweepTally,
   t0: number,
   operations: SweepOperations = sweepOperations,
 ): Promise<void> {
   if (operations.platform === "darwin" || operations.platform === "win32") {
     await oracle.clearWeakShapeResultsForNextStack?.();
+    collectDarwinFontDataAfterOracleGc();
     clearPrimaryNotdefShapesAfterOracleGc();
   }
   if (operations.platform === "linux") operations.selectScope(spec.lang ?? opts.lang);
@@ -2388,6 +2392,15 @@ export async function sweepStack(
       `stack ${stackIndex + 1}/${stackCount} ${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}` +
         ` batch ${batchNo} codepoints ${i + 1}-${i + cps.length}/${universe.length}`,
     );
+    if (operations.platform === "darwin") {
+      // The stability probe itself asks Blink for six generic donors through
+      // FontDataCache::Get. Those entries occupy the same 64-slot strong LRU
+      // even though none belongs to a measured glyph cell.
+      for (const donor of oracle.controlSignature?.() ?? []) {
+        const face = donor.slice(donor.indexOf("=") + 1);
+        recordDarwinFontDataUse(darwinFontDataIdentity(face, 400, 16, 0, 100));
+      }
+    }
     const to = Date.now();
     operations.primeCodepoints(cps);
     for (let j = 0; j < cps.length; j++) {

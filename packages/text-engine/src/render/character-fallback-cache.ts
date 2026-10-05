@@ -6,6 +6,14 @@ import {
   selectFcFallbackRendererScope,
 } from "./glyph-helper.js";
 import { isIdeographicCp } from "./unicode-classification.js";
+import { setDarwinSystemUiPlatformCacheWarm } from "./font-instance.js";
+import {
+  beginDarwinFontDataDocument,
+  darwinFontDataIdentity,
+  darwinFontDataSurvivesDocumentGc,
+  endDarwinFontDataDocument,
+  resetDarwinFontDataRendererStates,
+} from "./darwin-font-data-lifetime.js";
 
 /**
  * DM-1949: the macOS per-character fallback cache for ideographs — Blink's
@@ -102,6 +110,7 @@ let primaryNotdefRendererCaches = new WeakMap<FontRendererSession, Set<string>>(
 export function resetCharacterFallbackRendererCaches(): void {
   _charFallbackRendererCaches = new WeakMap();
   primaryNotdefRendererCaches = new WeakMap();
+  resetDarwinFontDataRendererStates();
 }
 
 let _requestedCharFallbackRendererSession: FontRendererSession | null = null;
@@ -152,6 +161,7 @@ export function beginCharacterFallbackDocument(): void {
       }
       primaryNotdefShapeCache = shapeCache;
     }
+    beginDarwinFontDataDocument(rendererSession);
     beginFcFallbackRendererScope();
   }
   _charFallbackDocDepth++;
@@ -164,6 +174,7 @@ export function endCharacterFallbackDocument(): void {
     _charFallbackDocCache = null;
     primaryNotdefShapeCache = null;
     _charFallbackDocSession = null;
+    endDarwinFontDataDocument();
     endFcFallbackRendererScope();
   }
 }
@@ -226,6 +237,16 @@ export function recordPrimaryNotdefShape(key: string | null): void {
  * live across this reset. */
 export function clearPrimaryNotdefShapesAfterOracleGc(): void {
   primaryNotdefShapeCache?.clear();
+}
+
+/** The quoted case-variant family can reuse Blink's platform-font entry only
+ * while its system-UI FontData remains strongly retained after document GC. */
+export function collectDarwinFontDataAfterOracleGc(): void {
+  if (hostPlatform() !== "darwin") return;
+  const systemUiRegular = darwinFontDataIdentity("sf-pro", 400, 16, 0, 100);
+  if (!darwinFontDataSurvivesDocumentGc(systemUiRegular)) {
+    setDarwinSystemUiPlatformCacheWarm(false);
+  }
 }
 
 /** Oracle seam: select the renderer cache corresponding to an isolated context. */

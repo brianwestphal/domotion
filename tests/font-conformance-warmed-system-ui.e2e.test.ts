@@ -65,4 +65,16 @@ describeMac("macOS warmed system-ui fallback base", () => {
       expect(await routeAfterSeed(true)).toBe(first);
     });
   }, 60_000);
+
+  it("matches the quoted-family primary and fallback routes after a byte-00 cache eviction opportunity", async () => {
+    const root = mkdtempSync(join(tmpdir(), "domotion-warmed-system-ui-byte00-"));
+    const stacksFile = join(root, "stacks.json");
+    const output = join(root, "out");
+    const corpus = syntheticCorpus();
+    writeFileSync(stacksFile, JSON.stringify({ ...corpus, stacks: [corpus.stacks[2], corpus.stacks[73]] }));
+    expect(await main(["--stacks", stacksFile, "--sample-byte", "00", "--out", output])).toBe(0);
+    const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
+    expect(report.data.summary.mismatchTotal).toBe(0);
+    expect(report.data.meta.oracleIsolation).toBe("shared-renderer-fresh-stack-document-repaired-prefs");
+  }, 120_000);
 });

@@ -380,14 +380,30 @@ After that broad stack, removing cells, collecting garbage in the same document,
 or navigating to a new document alone still keeps `.SFNS`. Navigation **plus**
 `HeapProfiler.collectGarbage` makes the case variant select `Menlo-Regular`.
 Both complementary half-size byte-00 shards retain `.SFNS` even with that full
-boundary. This is evidence of reachability-sensitive cache lifetime; the exact
-Blink retention path is not yet proven. The renderer's current permanent
-`darwinSystemUiPlatformCacheWarm` flag does not expire at this boundary and
-therefore disagrees on this host. `DM-FDBWVJ` owns the cross-image cache-lifetime
-model. Before ratifying a new hosted macOS synthetic baseline, run
+boundary. Chromium 147.0.7727.15 (tag
+`6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`) holds platform font data and
+`SimpleFontData` in weak maps, while `FontDataCache::strong_reference_lru_`
+strongly retains the latest 64 font-data identities. A document's
+`FontFallbackList` also retains acquired candidates, including candidates
+that never paint. Once navigation drops those references, GC can expire an
+evicted platform entry. The renderer now records explicit font-data
+acquisitions in session-owned LRU order and expires the warmed quoted alias at
+the same document-plus-GC boundary. Repeated acquisitions refresh recency;
+neither a glyph-count threshold nor every navigation clears the alias.
+
+Local browser controls hold 340 seed glyphs fixed: 55 painted faces plus four
+distinct named-font queries retain the alias; six such queries expire it.
+The first 360 glyphs paint 59 faces and also expire it. This shows why
+unpainted family candidates and donor probes matter to the cache occupancy.
+The current quoted alias remains process-wide across font descriptions;
+`DM-T8N4R9` tracks descriptor-keyed behavior. Before ratifying a new hosted
+macOS synthetic baseline, run
 `tests/font-conformance-warmed-system-ui.e2e.test.ts` and the focused two-stack
 byte-00 sweep on the hosted image, then compare the environment fingerprints
 and primary routes from that exact ref.
+On the local macOS 27 image, the repaired model agrees on all 413,829
+comparisons in the first 351 synthetic stacks × byte-00 slice (1,179 scalars),
+with zero wrong-face routes; hosted macOS proof remains a separate gate.
 
 #### Running it
 

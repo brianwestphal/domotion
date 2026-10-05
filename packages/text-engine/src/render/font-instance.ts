@@ -24,6 +24,7 @@ import { pickWebfontVariant } from "./webfont-registry.js";
 import { pickLocalFontAliasVariant } from "./webfont-registry.js";
 import { _trakHbShapingEnabled } from "./system-fallback-resolver.js";
 import { registerDynamicSystemFont } from "./font-paths.win32.js";
+import { darwinFontDataIdentity, recordDarwinFontDataUse } from "./darwin-font-data-lifetime.js";
 // re-export for text-to-path.test.ts + text.ts
 
 /**
@@ -1540,7 +1541,7 @@ export function getFontInstance(
   declaredFamily?: string,
   semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(),
 ): FontInstance | null {
-  return instantiateResolvedFont(
+  const instance = instantiateResolvedFont(
     key,
     weight,
     fontSize,
@@ -1551,6 +1552,11 @@ export function getFontInstance(
     declaredFamily,
     semanticContext,
   );
+  if (instance != null && hostPlatform() === "darwin" && !key.startsWith("webfont:")) {
+    const face = getFontSourceInfo(instance)?.postscriptName ?? key;
+    recordDarwinFontDataUse(darwinFontDataIdentity(face, weight, fontSize, slant, stretch));
+  }
+  return instance;
 }
 
 /** DM-1714/DM-1716: the on-disk file + collection index a font instance was
@@ -3061,8 +3067,9 @@ export const BLINK_GENERIC_FAMILY_SPELLINGS: ReadonlySet<string> = new Set([
 // Blink's macOS platform-font cache folds family keys case-insensitively even
 // though the `system-ui` intercept itself is an exact AtomicString comparison.
 // Consequently an exact system-ui lookup warms the cache entry later used by
-// an ordinary case-variant `System-ui` family. Keep this process-scoped like
-// Blink's FontCache; memory-trim resets deliberately do not clear it.
+// an ordinary case-variant `System-ui` family. This alias survives ordinary
+// memory trims; the FontData lifetime model can expire it at document GC once
+// its weak platform entry has lost the 64-entry strong-LRU protection.
 export let darwinSystemUiPlatformCacheWarm = false;
 export function setDarwinSystemUiPlatformCacheWarm(value: boolean): void {
   darwinSystemUiPlatformCacheWarm = value;

@@ -64,6 +64,9 @@ deviation for box, inline, control, and text shadows.
   request and cache transitions; the root
   `tests/system-ui-cloned-fallback.e2e.test.ts` compares its formerly divergent
   routes with real Chromium.
+  `render/darwin-font-data-lifetime.ts` tracks Chromium's 64-entry strong
+  `SimpleFontData` LRU within a renderer session; the conformance oracle applies
+  its weak platform-entry expiry only after document teardown and explicit GC.
   The text-engine build imports its compiled Node ESM entry as a runtime
   initialization check after TypeScript compilation.
   Domotion consumes its session/document/run facade and the focused
