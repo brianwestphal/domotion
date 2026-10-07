@@ -351,6 +351,19 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
     expect(build, "the helper must be built before the suite runs").toBeLessThan(run);
   });
 
+  it("produces the review fixture before E2E even after an earlier failure", () => {
+    const job = jobs["regression"];
+    const featureStep = job.match(
+      /- name: Run feature visual-regression suite[^\n]*\n([\s\S]*?)(?=\n\s+- name: Record run environment)/,
+    )?.[1];
+    expect(featureStep, "feature producer step must exist").toBeDefined();
+    expect(featureStep).toMatch(/^\s+if: always\(\)$/m);
+    expect(featureStep).toMatch(/^\s+run: npm run demos:test \|\| true$/m);
+    expect(job.indexOf("Run feature visual-regression suite")).toBeLessThan(
+      job.indexOf("Run browser-driven e2e tests"),
+    );
+  });
+
   it("asserts the helper is in the loop, not merely built", () => {
     // A built binary is not a reached one, and `isGlyphHelperAvailable()` is not
     // the predicate that distinguishes them: with the in-tree binary absent it

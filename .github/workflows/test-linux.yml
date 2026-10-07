@@ -141,6 +141,9 @@ jobs:
         # would show no movement and prove nothing.
         run: npx tsx tools/assert-linux-helper-in-loop.ts
       - name: Run feature visual-regression suite (Linux container, helper present)
+        # The E2E lane below runs after earlier failures and requires a feature
+        # fixture. Keep this producer reachable even if the unit lane fails.
+        if: always()
         # Passes within the Linux text-hinting floor (DM-259 / DM-262): the
         # runner applies a per-platform coverage cap on Linux because FreeType
         # grid-fits native text while Domotion fills unhinted vector outlines.
