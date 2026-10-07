@@ -11,6 +11,7 @@ import {
   TRACKING_FIXTURE_SHA256,
   type ExactControlGlyph,
 } from "../tools/exact-shaping-control-fixtures.js";
+import { readExactShapingReport } from "../tools/exact-shaping-report-schema.js";
 
 function asciiGlyphs(ids: number[], advances: number[]): ExactControlGlyph[] {
   return ids.map((id, index) => ({
@@ -128,7 +129,7 @@ describe("DM-2500 portable exact-shaping controls", () => {
     expect(report.controlHits).toEqual({ axes: 2, ptem: 0 });
   });
 
-  it("writes schema-v3 evidence before failing an invalid CLI fixture", () => {
+  it("writes withheld schema-v3 evidence in the report envelope before failing an invalid CLI fixture", () => {
     const outputDir = mkdtempSync(join(tmpdir(), "dm2500-shaping-"));
     const output = join(outputDir, "shaping.json");
     try {
@@ -151,15 +152,24 @@ describe("DM-2500 portable exact-shaping controls", () => {
       expect(run.stderr).toContain("portable control failure: harfbuzz-trak-ptem-9-to-unset");
       const report = JSON.parse(readFileSync(output, "utf8")) as Record<string, unknown>;
       expect(report).toMatchObject({
-        schemaVersion: 3,
-        verdict: "verdict-withheld",
-        movementProven: false,
-        pairs: 0,
-        inapplicableControls: ["harfbuzz-trak-ptem-9-to-unset"],
-        failedControls: ["harfbuzz-trak-ptem-9-to-unset"],
-        records: [],
+        schemaVersion: 1,
+        tool: "exact-shaping-oracle",
+        data: {
+          outcome: "error",
+          verdict: "verdict-withheld",
+          movementProven: false,
+          pairs: 0,
+          inapplicableControls: ["harfbuzz-trak-ptem-9-to-unset"],
+          failedControls: ["harfbuzz-trak-ptem-9-to-unset"],
+          records: [],
+        },
       });
-      expect((report.controlRows as unknown[]).length).toBe(3);
+      expect(readExactShapingReport(output)).toMatchObject({
+        outcome: "error",
+        verdict: "verdict-withheld",
+        failedControls: ["harfbuzz-trak-ptem-9-to-unset"],
+      });
+      expect(((report.data as Record<string, unknown>).controlRows as unknown[]).length).toBe(3);
     } finally {
       rmSync(outputDir, { recursive: true, force: true });
     }
