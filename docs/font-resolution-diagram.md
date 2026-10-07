@@ -607,6 +607,15 @@ the embedded route builds its glyph outlines instead of reusing unscaled source
 font bytes. Both `paths` and `embedded-font` render the adjusted ink bounds in
 `tests/font-size-adjust-sfns.e2e.test.ts`.
 
+The used-size route reads `ex-height`, `cap-height`, `ch-width`, `ic-width`, or
+`ic-height` from the selected face before scaling. Native helper faces can
+supply glyph bounds when font table metrics are unavailable. Each fallback
+run computes its own used size from the same requested aspect; `from-font`
+uses the primary's aspect. The adjusted scale survives HarfBuzz proxying and
+participates in the embedded subset cache key, preventing a previous metric's
+outlines from being reused after an adjustment change.
+`tests/font-size-adjust-general.e2e.test.ts` exercises these transitions.
+
 **The same split governs `wght`.** Only `MatchSystemUIFont` (system-ui) and the
 webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in
 WHICH face the trait/weight matcher picked, and `FontPlatformDataFromCTFont`
@@ -711,7 +720,8 @@ flowchart TD
   G9 -->|"no + native-eligible + helper avail"| G7
   G9 -->|"no font at all"| GNull
   G9 -->|"yes"| G10["applyVariationAxes(font, weight, size, slant, fvs, wdth, opts)<br/>opsz←size · wdth←stretch (system-ui/webfont only)<br/>wght←weight EXCEPT darwin declared families —<br/>there the face's own coords (ctAxes / named instance) pin instead —<br/>and EXCEPT linux, which skips applyVariationAxes entirely:<br/>Blink applies NO coordinates to Linux system fonts, so the<br/>fontconfig-matched named instance (or default master) IS the face<br/>· record fontSourceMap (per-glyph helper fallback)<br/>· cache · return"]
-  G10 -.->|"resolveFont · darwin system-ui numeric font-size-adjust"| GA["usedFontSizeForExHeight(x glyph top, target aspect)<br/>floor to 0.01px · keep computed-size SFNS glyphs<br/>scale geometry · retain adjusted-size CoreText clone name"]
+  G10 -.->|"font-size-adjust requested"| GA["measure selected primary or fallback metric<br/>ex / cap / ch / ic width / ic height<br/>floor used size to 0.01px · scale geometry"]
+  GA -.->|"darwin system-ui"| GB["keep computed-size SFNS glyphs<br/>retain adjusted-size CoreText clone name"]
 ```
 
 **Probe-then-fallback dispatch (doc [51](51-probe-then-fallback-dispatch.md)):**

@@ -155,6 +155,7 @@ export { resolveFontKeyChain } from "./family-match.js";
 export { opticalCutOpszFor } from "./family-match.js";
 export { stretchPercent } from "./family-match.js";
 export { resolveFont } from "./family-match.js";
+export { adjustedFontInstance, fontSizeAdjustAspect, parseFontSizeAdjust } from "./family-match.js";
 export { ensureGlyphDef } from "./generation.js";
 export { getGlyphDefs } from "./generation.js";
 export { glyphDefCount } from "./generation.js";

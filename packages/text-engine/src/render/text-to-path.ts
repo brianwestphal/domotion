@@ -129,6 +129,7 @@ import {
   resolveGlyphCommands,
   stretchPercent,
   stackPrimaryIsSystemUi,
+  adjustedFontInstance,
 } from "./font-resolution.js";
 
 export interface TextPathOwnershipSpan {
@@ -147,6 +148,36 @@ export interface TextPathOwnership {
   inklessGlyphs: number;
   /** Empty outline outcomes that are neither raster-owned nor proven no-ink. */
   degradedGlyphs: TextPathOwnershipSpan[];
+}
+
+/** Blink computes the used size from the primary face's aspect once, then
+ * applies that size to the selected fallback face as well. Keep the fallback's
+ * own outlines while inheriting the primary's CSS-unit scale. */
+function adjustFallbackRunFonts(
+  runs: FontRun[],
+  primaryFont: FontInstance,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  stretch: number,
+  cacheOptions?: DarwinFontCacheOptions,
+): void {
+  const scale = primaryFont.fontSizeAdjustScale;
+  if (scale == null || scale === 1) return;
+  for (const run of runs) {
+    if (run.isPrimary) continue;
+    run.font = adjustedFontInstance(
+      run.font,
+      run.fontKey,
+      weight,
+      fontSize,
+      slant,
+      stretch,
+      undefined,
+      cacheOptions,
+      fontSize * scale,
+    );
+  }
 }
 
 export interface TextPathResult {
@@ -983,6 +1014,7 @@ function renderTextPathRuns(
     bidiOverride,
     fallbackRequest,
   );
+  adjustFallbackRunFonts(runs, primaryFont, weight, fontSize, slant, stretch, cacheOptions);
   // A feature list carrying a disable (`-liga`) or an explicit value can only
   // be honored by HarfBuzz — fontkit's list is enable-only and the platform
   // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
@@ -3116,6 +3148,7 @@ function renderEmbeddedGlyphRuns(
     bidiOverride,
     fallbackRequest,
   );
+  adjustFallbackRunFonts(runs, primaryFont, weight, fontSize, slant, stretch, cacheOptions);
   if (runs.length === 0) return { markup: null, decline: { reason: "empty-shaped-runs" } };
 
   // Same reroute as the glyph-path branch (textToPathMarkup): a feature list
@@ -3438,7 +3471,8 @@ function renderEmbeddedGlyphRuns(
     // identity. Bold now changes paint records, not outlines; oblique still
     // shears the outline and therefore remains keyed.
     const synthPart = `|sh=${shearFactor}`;
-    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}`;
+    const sizeAdjustPart = run.font.fontSizeAdjustScale == null ? "" : `|fsa=${run.font.fontSizeAdjustScale}`;
+    const instanceKey = `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}${sizeAdjustPart}`;
 
     // DM-1714/DM-1716: tag the run with the sfnt file it resolved to, so the
     // embedded builder can hb-subset the ORIGINAL (hinted) font instead of the

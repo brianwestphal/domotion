@@ -531,6 +531,7 @@ export function harfbuzzShapedScriptOverride(
  * distinct proxy in practice.
  */
 function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): void {
+  proxy.fontSizeAdjustScale = base.fontSizeAdjustScale;
   proxy.naturalWeight = base.naturalWeight;
   proxy.hasWeightAxis = base.hasWeightAxis;
   proxy.faceIsBoldTrait = base.faceIsBoldTrait;

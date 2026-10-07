@@ -1999,32 +1999,112 @@ export function usedFontSizeForExHeight(
   unitsPerEm: number,
 ): number | null {
   const aspect = xTopUnits / unitsPerEm;
-  if (!(computedSize > 0) || !(targetAspect > 0) || !(aspect > 0)) return null;
+  if (!(computedSize > 0) || !(targetAspect > 0) || !(aspect > 0) || !Number.isFinite(aspect)) return null;
   return Math.floor((computedSize * targetAspect * 100) / aspect) / 100;
 }
 
-/** Blink sizes the macOS system-ui primary before rebuilding its FontData for
- * `font-size-adjust`, while the SFNS outline selected at the original CSS size
- * remains the geometry source. Keep those two sizes separate: the adjusted
- * size scales the units; the original instance supplies glyphs and shaping.
- * Only the numeric ex-height form is handled here. */
-function adjustedDarwinSystemUiFont(
+type SizeAdjustMetric = "ex-height" | "cap-height" | "ch-width" | "ic-width" | "ic-height";
+
+export function parseFontSizeAdjust(
+  value: string | undefined,
+): { metric: SizeAdjustMetric; target: number | "from-font" } | null {
+  const match = /^(?:(ex-height|cap-height|ch-width|ic-width|ic-height)\s+)?(from-font|(?:\d+\.?\d*|\.\d+))$/.exec(
+    value?.trim() ?? "",
+  );
+  if (match == null) return null;
+  return {
+    metric: (match[1] as SizeAdjustMetric | undefined) ?? "ex-height",
+    target: match[2] === "from-font" ? "from-font" : Number(match[2]),
+  };
+}
+
+/** Blink's `AspectValue` reads these metrics on the unadjusted primary.
+ * Fontkit's metrics are in font units; missing metrics use Blink's aspect 1. */
+export function fontSizeAdjustAspect(
+  instance: FontInstance,
+  metric: SizeAdjustMetric,
+  platform = hostPlatform(),
+): number {
+  const font = instance;
+  const glyph = (codePoint: number) => {
+    const found = instance.glyphForCodePoint(codePoint) as {
+      id: number;
+      bbox?: { maxY: number };
+      advanceWidth?: number;
+      advanceHeight?: number;
+    } | null;
+    return found != null && found.id !== 0 ? found : null;
+  };
+  let units: number | undefined;
+  switch (metric) {
+    case "ex-height":
+      units = platform === "darwin" ? glyph(0x78)?.bbox?.maxY : (font.xHeight ?? glyph(0x78)?.bbox?.maxY);
+      break;
+    case "cap-height":
+      units = font.capHeight ?? glyph(0x48)?.bbox?.maxY;
+      break;
+    case "ch-width": {
+      const zero = glyph(0x30);
+      units = zero?.advanceWidth;
+      break;
+    }
+    case "ic-width":
+    case "ic-height": {
+      const water = glyph(0x6c34);
+      units = water == null ? undefined : metric === "ic-width" ? water.advanceWidth : water.advanceHeight;
+      break;
+    }
+  }
+  return units != null && units > 0 && Number.isFinite(units) && instance.unitsPerEm > 0
+    ? units / instance.unitsPerEm
+    : 1;
+}
+
+/** Keep the computed-size face's shaping and outlines, scaling only its CSS
+ * geometry. Blink computes a separate used size before rebuilding FontData. */
+export function adjustedFontInstance(
   instance: FontInstance,
   key: string,
   weight: number,
   fontSize: number,
   slant: number,
   stretch: number,
+  variationSettings: Record<string, number> | undefined,
   cacheOptions: DarwinFontDescription["cacheOptions"],
+  inheritedUsedSize?: number,
 ): FontInstance {
-  const requested = cacheOptions?.sizeAdjust?.trim();
-  if (hostPlatform() !== "darwin" || key !== "sf-pro" || requested == null || !/^(?:\d+\.?\d*|\.\d+)$/.test(requested))
-    return instance;
-  const x = instance.glyphForCodePoint(0x78) as { bbox?: { maxY: number } } | null;
-  const effectiveSize = usedFontSizeForExHeight(fontSize, Number(requested), x?.bbox?.maxY ?? 0, instance.unitsPerEm);
+  const requested = parseFontSizeAdjust(cacheOptions?.sizeAdjust);
+  if (inheritedUsedSize == null && (requested == null || requested.target === "from-font")) return instance;
+  const aspect = inheritedUsedSize != null || requested == null ? 1 : fontSizeAdjustAspect(instance, requested.metric);
+  const effectiveSize =
+    inheritedUsedSize ??
+    (requested != null && requested.target !== "from-font"
+      ? usedFontSizeForExHeight(fontSize, requested.target, aspect, 1)
+      : null);
   if (effectiveSize == null || effectiveSize <= 0) return instance;
-  const adjusted = getFontInstance(key, weight, effectiveSize, slant, { opsz: fontSize }, stretch, true);
-  const name = adjusted?.instantiatedPostscriptName ?? adjusted?.postscriptName;
+  if (
+    inheritedUsedSize == null &&
+    requested != null &&
+    requested.target !== "from-font" &&
+    (Math.abs(requested.target - aspect) / aspect) * fontSize < 0.01
+  )
+    return instance;
+  if (effectiveSize === fontSize) return instance;
+  const name =
+    hostPlatform() === "darwin" && key === "sf-pro"
+      ? (() => {
+          const adjusted = getFontInstance(
+            key,
+            weight,
+            effectiveSize,
+            slant,
+            { ...(variationSettings ?? {}), opsz: variationSettings?.opsz ?? fontSize },
+            stretch,
+            true,
+          );
+          return adjusted?.instantiatedPostscriptName ?? adjusted?.postscriptName;
+        })()
+      : undefined;
   const scale = effectiveSize / fontSize;
 
   // Keep the source face's layout and outline methods bound to their fontkit
@@ -2033,6 +2113,7 @@ function adjustedDarwinSystemUiFont(
   return new Proxy(instance, {
     get(target, property) {
       if (property === "unitsPerEm") return target.unitsPerEm / scale;
+      if (property === "fontSizeAdjustScale") return scale;
       if (property === "instantiatedPostscriptName" && name != null) return name;
       const value: unknown = Reflect.get(target, property, target);
       return typeof value === "function" ? value.bind(target) : value;
@@ -2087,14 +2168,21 @@ export function resolveFont(
       semanticContext,
     );
     if (instance != null)
-      return stackPrimaryIsSystemUi(entry.name, undefined, description) && variationSettings == null
-        ? adjustedDarwinSystemUiFont(instance, key, fontWeight, matchSize, slant, stretch, cacheOptions)
-        : instance;
+      return adjustedFontInstance(
+        instance,
+        key,
+        fontWeight,
+        matchSize,
+        slant,
+        stretch,
+        variationSettings,
+        cacheOptions,
+      );
   }
 
   const standardKey =
     matchFamilyNameToKey("-webkit-standard", true, lang, undefined, undefined, description) ?? "times";
-  return getFontInstance(
+  const standard = getFontInstance(
     standardKey,
     fontWeight,
     matchSize,
@@ -2105,4 +2193,16 @@ export function resolveFont(
     undefined,
     semanticContext,
   );
+  return standard == null
+    ? null
+    : adjustedFontInstance(
+        standard,
+        standardKey,
+        fontWeight,
+        matchSize,
+        slant,
+        stretch,
+        variationSettings,
+        cacheOptions,
+      );
 }

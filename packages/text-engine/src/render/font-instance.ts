@@ -76,6 +76,8 @@ export interface WebfontSynthesisFace {
 }
 
 export interface FontInstance {
+  /** Used-size / computed-size ratio for font-size-adjust outline subsets. */
+  fontSizeAdjustScale?: number;
   /** Physical SFNT table directory when fontkit opened the face. Native-helper
    * instances omit it. Used for Blink's color-table presentation test. */
   directory?: { tables?: Record<string, unknown> };
@@ -106,6 +108,9 @@ export interface FontInstance {
     glyphFlags?: number[];
   };
   unitsPerEm: number;
+  /** Font table metrics when available; native helpers may omit them. */
+  xHeight?: number;
+  capHeight?: number;
   ascent: number;
   descent: number;
   underlinePosition: number;

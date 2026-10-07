@@ -464,8 +464,17 @@ geometry separately from the computed CSS size. It retains the CoreText clone
 identity produced by the adjusted-size UI query with the specified-size
 optical pin. This removes the two same-family other-cut mismatches in the
 warmed two-stack U+0041 test; `tests/font-size-adjust-sfns.e2e.test.ts` compares
-rendered ink bounds in both pixel-faithful text modes. Other adjustment
-metrics and font families remain outside this SFNS-specific route.
+rendered ink bounds in both pixel-faithful text modes. The same used-size route
+handles numeric ex-height, cap-height, ch-width, ic-width, and ic-height. Blink
+computes one used size from the primary face's metric and applies that size to
+fallback runs, retaining each fallback's own outlines. A native Windows CJK
+control showed that recalculating the aspect from the fallback narrowed `水`
+by five pixels at `0.8`. `from-font` uses the primary metric;
+computed Chromium styles may serialize its aspect as a number. HarfBuzz
+proxies carry the adjustment scale into embedded-font subset identity, so
+runs with different adjustments cannot reuse one glyph size.
+`tests/font-size-adjust-general.e2e.test.ts` checks metric changes, explicit
+SFNS variation, and CJK fallback in both render modes.
 Before ratifying a new hosted macOS synthetic baseline, run
 `tests/font-conformance-warmed-system-ui.e2e.test.ts` and the focused two-stack
 byte-00 sweep on the hosted image, then compare the environment fingerprints
