@@ -241,16 +241,14 @@ describe("font conformance browser oracle stability", () => {
       ).toBe(true);
       expect(await page.locator("#font-conformance-oracle-controls").count()).toBe(0);
 
-      await cdp.send("Page.setFontFamilies", {
-        fontFamilies: {
-          standard: "Times New Roman",
-          serif: "Times New Roman",
-          sansSerif: "Arial",
-          fixed: "Menlo",
-          cursive: "Script",
-          fantasy: "Impact",
-        },
-      });
+      const oracle = new ChromeOracle(page, cdp, 4, "en", true);
+      const spec = { fontFamily: "serif", fontSize: 32, fontWeight: 400, fontStyle: "normal" };
+      const serifFamily = (await oracle.facesFor([0x41], spec))[0][0]?.familyName;
+      const sansFamily = (await oracle.facesFor([0x41], { ...spec, fontFamily: "sans-serif" }))[0][0]?.familyName;
+      expect(serifFamily).toBeTruthy();
+      expect(sansFamily).toBeTruthy();
+      expect(serifFamily).not.toBe(sansFamily);
+      await cdp.send("Page.setFontFamilies", { fontFamilies: { serif: sansFamily!, sansSerif: serifFamily! } });
       const changed = await probeOracleControlSignature(page, cdp);
       expect(changed).not.toEqual(initial);
       expect(() => guard.observe(changed)).toThrow(/oracle font settings changed during sweep/);
