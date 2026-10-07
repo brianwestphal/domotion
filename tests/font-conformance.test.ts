@@ -585,7 +585,7 @@ describe("oracle resolver question", () => {
   it("passes the raw CSS family stack used by Blink's standard-style retry", () => {
     const source = readFileSync(join(process.cwd(), "tools/font-conformance.ts"), "utf8").replace(/\s+/g, " ");
     expect(source).toMatch(
-      /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily, lang\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
+      /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily, lang, \{ weight: rs\.spec\.fontWeight, size: rs\.spec\.fontSize, slant: rs\.slant, stretch: rs\.stretch, variationSettings: rs\.variationSettings, \}\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
     );
   });
 });

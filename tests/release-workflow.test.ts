@@ -29,7 +29,12 @@ describe("release.yml", () => {
     expect(testJob).toContain("raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}");
     expect(testJob).toContain("npx playwright install chromium");
     expect(testJob).toContain('SWIFT_ARCH="$(uname -m)"');
-    expect(testJob).toContain('swift build -c release --arch "$SWIFT_ARCH"');
+    expect(testJob).toContain('bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch "$SWIFT_ARCH"');
+    const helperBuild = readFileSync(
+      resolve(__dirname, "..", "packages", "text-engine", "tools", "macos-glyph-extractor", "build.sh"),
+      "utf8",
+    );
+    expect(helperBuild).toContain('swift build -c release --arch "$arch"');
     expect(testJob.indexOf("npx playwright install chromium")).toBeLessThan(testJob.indexOf("npm test"));
     expect(yaml).toMatch(/DOMOTION_NO_OPEN: ["']1["']/);
   });
