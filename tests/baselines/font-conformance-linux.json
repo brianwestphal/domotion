@@ -4,7 +4,7 @@
     "suite": "font-conformance",
     "os": "linux",
     "image": "playwright-v1.59.1-noble-x64",
-    "capturedAt": "2026-10-01T04:11:00.158Z",
+    "capturedAt": "2026-10-07T06:16:20.189Z",
     "platform": "linux",
     "arch": "x64",
     "node": "v24.14.1",
@@ -125,30 +125,134 @@
     "shardsMerged": 6,
     "missingShards": [],
     "envConflicts": [],
-    "commit": "69a3ded0"
+    "oracleDonorSignatures": [
+      {
+        "shard": "font-conformance-linux-shard-1-cp1",
+        "signatures": [
+          {
+            "scope": "en",
+            "lang": "en",
+            "faces": [
+              "serif=LiberationSerif",
+              "sans-serif=LiberationSans",
+              "monospace=WenQuanYiZenHeiMono",
+              "cursive=LiberationSerif",
+              "fantasy=LiberationSerif",
+              "math=LiberationSerif"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "font-conformance-linux-shard-2-cp1",
+        "signatures": [
+          {
+            "scope": "en",
+            "lang": "en",
+            "faces": [
+              "serif=LiberationSerif",
+              "sans-serif=LiberationSans",
+              "monospace=WenQuanYiZenHeiMono",
+              "cursive=LiberationSerif",
+              "fantasy=LiberationSerif",
+              "math=LiberationSerif"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "font-conformance-linux-shard-3-cp1",
+        "signatures": [
+          {
+            "scope": "en",
+            "lang": "en",
+            "faces": [
+              "serif=LiberationSerif",
+              "sans-serif=LiberationSans",
+              "monospace=WenQuanYiZenHeiMono",
+              "cursive=LiberationSerif",
+              "fantasy=LiberationSerif",
+              "math=LiberationSerif"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "font-conformance-linux-shard-4-cp1",
+        "signatures": [
+          {
+            "scope": "en",
+            "lang": "en",
+            "faces": [
+              "serif=LiberationSerif",
+              "sans-serif=LiberationSans",
+              "monospace=WenQuanYiZenHeiMono",
+              "cursive=LiberationSerif",
+              "fantasy=LiberationSerif",
+              "math=LiberationSerif"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "font-conformance-linux-shard-5-cp1",
+        "signatures": [
+          {
+            "scope": "en",
+            "lang": "en",
+            "faces": [
+              "serif=LiberationSerif",
+              "sans-serif=LiberationSans",
+              "monospace=WenQuanYiZenHeiMono",
+              "cursive=LiberationSerif",
+              "fantasy=LiberationSerif",
+              "math=LiberationSerif"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "font-conformance-linux-shard-6-cp1",
+        "signatures": [
+          {
+            "scope": "en",
+            "lang": "en",
+            "faces": [
+              "serif=LiberationSerif",
+              "sans-serif=LiberationSans",
+              "monospace=WenQuanYiZenHeiMono",
+              "cursive=LiberationSerif",
+              "fantasy=LiberationSerif",
+              "math=LiberationSerif"
+            ]
+          }
+        ]
+      }
+    ],
+    "commit": "a86cdb69be66a8c5405d8fee010fb53d0686b003"
   },
   "summary": {
-    "mismatchTotal": 174,
+    "mismatchTotal": 158,
     "comparisons": 1783614,
-    "agree-exact": 450518,
+    "agree-exact": 450534,
     "agree-same-file": 0,
     "agree-alias": 0,
     "agree-tofu": 1330546,
     "agree-not-painted": 2376,
-    "mismatch": 132,
+    "mismatch": 116,
     "mismatch-we-paint": 0,
     "mismatch-we-tofu": 42,
     "allowlisted": 0,
-    "mismatchDifferentFamily": 174,
+    "mismatchDifferentFamily": 158,
     "mismatchSameFamilyDifferentCut": 0,
-    "distinctMismatchPairs": 14
+    "distinctMismatchPairs": 12
   },
   "byStack": {
     "\"Times New Roman\" @16/400/normal lang=en": 11,
-    "Menlo, Consolas, \"DejaVu Sans Mono\", monospace @17/400/normal lang=en": 38,
-    "system-ui, -apple-system, sans-serif @20/700/normal lang=en": 38,
-    "system-ui, -apple-system, sans-serif @13/400/normal lang=en": 38,
-    "system-ui, -apple-system, sans-serif @13/400/italic lang=en": 38,
+    "Menlo, Consolas, \"DejaVu Sans Mono\", monospace @17/400/normal lang=en": 34,
+    "system-ui, -apple-system, sans-serif @20/700/normal lang=en": 34,
+    "system-ui, -apple-system, sans-serif @13/400/normal lang=en": 34,
+    "system-ui, -apple-system, sans-serif @13/400/italic lang=en": 34,
     "sans-serif @32/700/normal lang=en": 11
   },
   "byPair": {
@@ -157,11 +261,9 @@
     "WenQuanYiZenHeiMono → LiberationSerif": 21,
     "UnifontUpper → WenQuanYiZenHeiMono": 7,
     "WenQuanYiZenHeiMono → FreeSans": 6,
-    "WenQuanYiZenHeiMono → Unifont": 4,
     "WenQuanYiZenHei → LiberationSans-Bold": 21,
     "UnifontUpper → WenQuanYiZenHei": 21,
     "WenQuanYiZenHei → FreeSans": 18,
-    "WenQuanYiZenHei → Unifont": 12,
     "WenQuanYiZenHei → LiberationSans": 21,
     "WenQuanYiZenHei → LiberationSans-Italic": 21,
     "UnifontUpper → LiberationSans-Bold": 7,
@@ -210,10 +312,10 @@
   "stackPrimaries": [],
   "resolverAnswerDigests": {
     "stack-1/6:codepoint-0/1": "f91ae691c14003b191da718b60e7fb9b979e776849e0997499d2655e15d61d29",
-    "stack-2/6:codepoint-0/1": "b5ff8708a232a4bea960919007ba6f8c50d5163dd8fe7482ec8ee3a5ff0f8f78",
-    "stack-3/6:codepoint-0/1": "aefeff318996750f4d4ac8b4112fb6d35d1272422089624eea6cae2beca23115",
-    "stack-4/6:codepoint-0/1": "ea9c9d41d66bf0ef642133b826a1f2e3da009f95b84a24938b402297cd30c2a6",
-    "stack-5/6:codepoint-0/1": "fbc76b0b4a74357a5e93e0af671ae7979c5dd75d059cfa000560c60cd388b315",
+    "stack-2/6:codepoint-0/1": "19d2358af2ae1ad2419f9f5978a04a67752f23200671ce8d3838097315de414c",
+    "stack-3/6:codepoint-0/1": "cc0803e9e84d2ccac25d727f651b8451691d31932759ccfe22cdb66f7819f5e7",
+    "stack-4/6:codepoint-0/1": "f666b5bb6b4fde97002b4ac9fafc1bd9f9295bc7dbc989cdaed1ef15595074ab",
+    "stack-5/6:codepoint-0/1": "91596ca06a00786cd1682cf8c8ff94d549a240c27aa9b2d112e115eab805136b",
     "stack-6/6:codepoint-0/1": "ce52d996c1f1693c589a1958ba2ad6874a4df2cf301d01cdf4f05466d3e22476"
   }
 }

@@ -4,7 +4,7 @@
     "suite": "font-conformance",
     "os": "windows",
     "image": "win25-vs2026-x64",
-    "capturedAt": "2026-10-01T04:42:40.608Z",
+    "capturedAt": "2026-10-07T06:19:25.077Z",
     "platform": "win32",
     "arch": "x64",
     "node": "v22.21.0",
@@ -27,7 +27,7 @@
       "strictAlias": false,
       "stackFilter": null,
       "lang": "en",
-      "oracleIsolation": "shared-renderer"
+      "oracleIsolation": "shared-renderer-fresh-stack-document"
     },
     "fontInventory": {
       "digest": "c379b2deaaab30c2",
@@ -36,7 +36,7 @@
     },
     "parityEnvironment": {
       "image": "win25-vs2026-x64",
-      "imageVersion": "20260922.246.2",
+      "imageVersion": "20260925.250.1",
       "osRelease": "10.0.26100",
       "chromium": "147.0.7727.15",
       "platform": "win32",
@@ -243,7 +243,111 @@
     "shardsMerged": 6,
     "missingShards": [],
     "envConflicts": [],
-    "commit": "69a3ded0"
+    "oracleDonorSignatures": [
+      {
+        "shard": "selected-1-cp1",
+        "signatures": [
+          {
+            "scope": "shared",
+            "lang": "en",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "selected-2-cp1",
+        "signatures": [
+          {
+            "scope": "shared",
+            "lang": "en",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "selected-3-cp1",
+        "signatures": [
+          {
+            "scope": "shared",
+            "lang": "en",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "selected-4-cp1",
+        "signatures": [
+          {
+            "scope": "shared",
+            "lang": "en",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "selected-5-cp1",
+        "signatures": [
+          {
+            "scope": "shared",
+            "lang": "en",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          }
+        ]
+      },
+      {
+        "shard": "selected-6-cp1",
+        "signatures": [
+          {
+            "scope": "shared",
+            "lang": "en",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          }
+        ]
+      }
+    ],
+    "commit": "a86cdb69be66a8c5405d8fee010fb53d0686b003"
   },
   "summary": {
     "mismatchTotal": 10,
