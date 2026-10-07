@@ -31,6 +31,13 @@ const FIXTURE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><sty
   .feat      { font-feature-settings: "tnum" 1; }
   .stretch   { font-stretch: 75%; }
   .axis      { font-variation-settings: "wght" 350; }
+  .adjust    { font-size-adjust: 0.8; }
+  .palette   { font-palette: dark; }
+  .optical   { font-optical-sizing: none; }
+  .synth-w   { font-synthesis-weight: none; }
+  .synth-s   { font-synthesis-style: none; }
+  .text-mode { text-rendering: optimizeLegibility; }
+  .vertical  { writing-mode: vertical-rl; }
 </style></head><body>
   <p class="alt-hist">historical</p>
   <p class="emoji-txt">text presentation</p>
@@ -39,6 +46,13 @@ const FIXTURE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><sty
   <p class="feat">1234567890</p>
   <p class="stretch">condensed</p>
   <p class="axis">axis</p>
+  <p class="adjust">adjusted</p>
+  <p class="palette">palette</p>
+  <p class="optical">optical</p>
+  <p class="synth-w">weight synthesis</p>
+  <p class="synth-s">style synthesis</p>
+  <p class="text-mode">text rendering</p>
+  <p class="vertical">vertical</p>
 </body></html>`;
 
 describe("extractStacks reads the whole font description out of Chrome", () => {
@@ -88,6 +102,23 @@ describe("extractStacks reads the whole font description out of Chrome", () => {
     expect(corpus.stacks.map((s) => s.fontVariationSettings)).toContain('"wght" 350');
   });
 
+  it("captures the remaining observed macOS FontCacheKey fields", () => {
+    const expected = {
+      fontSizeAdjust: "0.8",
+      fontPalette: "dark",
+      fontOpticalSizing: "none",
+      fontSynthesisWeight: "none",
+      fontSynthesisStyle: "none",
+      textRendering: "optimizeLegibility",
+      writingMode: "vertical-rl",
+    } as const;
+    for (const [field, value] of Object.entries(expected)) {
+      expect(corpus.stacks.map((stack) => stack[field as keyof typeof expected]?.toLowerCase())).toContain(
+        value.toLowerCase(),
+      );
+    }
+  });
+
   it("records every property as a string on every stack", () => {
     for (const s of corpus.stacks) {
       expect(typeof s.fontVariantEmoji).toBe("string");
@@ -95,6 +126,13 @@ describe("extractStacks reads the whole font description out of Chrome", () => {
       expect(typeof s.fontFeatureSettings).toBe("string");
       expect(typeof s.fontStretch).toBe("string");
       expect(typeof s.fontVariationSettings).toBe("string");
+      expect(typeof s.fontSizeAdjust).toBe("string");
+      expect(typeof s.fontPalette).toBe("string");
+      expect(typeof s.fontOpticalSizing).toBe("string");
+      expect(typeof s.fontSynthesisWeight).toBe("string");
+      expect(typeof s.fontSynthesisStyle).toBe("string");
+      expect(typeof s.textRendering).toBe("string");
+      expect(typeof s.writingMode).toBe("string");
     }
   });
 

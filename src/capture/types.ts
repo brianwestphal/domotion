@@ -1380,6 +1380,8 @@ export interface CapturedStyles {
   fontVariationSettings: string;
   /** Computed CSS font-optical-sizing. Optional for backward-compatible trees. */
   fontOpticalSizing?: string;
+  /** Computed CSS font-size-adjust; `none` is the initial value. */
+  fontSizeAdjust?: string;
   fontFeatureSettings: string;
   /** Computed CSS Text 4 punctuation spacing (`normal` if unsupported). */
   textSpacingTrim?: string;

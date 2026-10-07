@@ -33,6 +33,20 @@ export interface DarwinFontDescription {
   slant: number;
   stretch: number;
   variationSettings?: Record<string, number>;
+  /** Blink FontDescription::CacheKey inputs that do not select a font instance. */
+  cacheOptions?: DarwinFontCacheOptions;
+}
+
+export interface DarwinFontCacheOptions {
+  sizeAdjust?: string;
+  palette?: string;
+  variantAlternates?: string;
+  variantEmoji?: string;
+  opticalSizing?: string;
+  synthesisWeight?: string;
+  synthesisStyle?: string;
+  textRendering?: string;
+  orientation?: number;
 }
 
 export const DARWIN_INITIAL_FONT_DESCRIPTION: DarwinFontDescription = {
@@ -43,7 +57,23 @@ export const DARWIN_INITIAL_FONT_DESCRIPTION: DarwinFontDescription = {
 };
 
 export function darwinFontDescriptionKey(description: DarwinFontDescription): string {
-  return `${description.weight}|${description.size}|${description.slant}|${description.stretch}|${darwinVariationKey(description.variationSettings)}`;
+  const options = description.cacheOptions;
+  return JSON.stringify([
+    description.weight,
+    description.size,
+    description.slant,
+    description.stretch,
+    darwinVariationKey(description.variationSettings),
+    options?.sizeAdjust ?? "none",
+    options?.palette ?? "normal",
+    options?.variantAlternates ?? "normal",
+    options?.variantEmoji ?? "normal",
+    options?.opticalSizing ?? "auto",
+    options?.synthesisWeight ?? "auto",
+    options?.synthesisStyle ?? "auto",
+    options?.textRendering ?? "auto",
+    options?.orientation ?? 0,
+  ]);
 }
 
 function systemUiFontDataIdentity(description: DarwinFontDescription): string {

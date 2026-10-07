@@ -60,6 +60,44 @@ describe("Chromium 147 macOS FontData strong LRU and platform aliases", () => {
     );
   });
 
+  it("separates every browser-observed FontCacheKey option and normalizes initial values", () => {
+    const initial = {
+      sizeAdjust: "none",
+      palette: "normal",
+      variantAlternates: "normal",
+      variantEmoji: "normal",
+      opticalSizing: "auto",
+      synthesisWeight: "auto",
+      synthesisStyle: "auto",
+      textRendering: "auto",
+      orientation: 0,
+    };
+    expect(darwinFontDescriptionKey(regular)).toBe(darwinFontDescriptionKey({ ...regular, cacheOptions: initial }));
+    const variants = [
+      { sizeAdjust: "0.8" },
+      { palette: "dark" },
+      { variantAlternates: "historical-forms" },
+      { variantEmoji: "emoji" },
+      { opticalSizing: "none" },
+      { synthesisWeight: "none" },
+      { synthesisStyle: "none" },
+      { textRendering: "optimizeLegibility" },
+      { orientation: 3 },
+    ];
+    inDocument(() => {
+      warmDarwinSystemUiAlias(regular);
+      for (const cacheOptions of variants) {
+        const changed = { ...regular, cacheOptions };
+        expect(hasWarmDarwinSystemUiAlias(changed)).toBe(false);
+        warmDarwinSystemUiAlias(changed);
+        expect(hasWarmDarwinSystemUiAlias(changed)).toBe(true);
+      }
+    });
+    expect(darwinFontDescriptionKey({ ...regular, cacheOptions: { sizeAdjust: "none" } })).toBe(
+      darwinFontDescriptionKey(regular),
+    );
+  });
+
   it("retains a warmed UI entry through GC while it is among the latest 64 identities", () => {
     inDocument(() => {
       warmDarwinSystemUiAlias(regular);

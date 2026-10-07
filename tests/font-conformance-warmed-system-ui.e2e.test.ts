@@ -88,6 +88,23 @@ describeMac("macOS warmed system-ui fallback base", () => {
       fontStyle: "normal",
       fontStretch: "100%",
     };
+    const cacheFields: Array<[string, Record<string, string>]> = [
+      ["size adjust", { fontSizeAdjust: "0.8" }],
+      ["palette", { fontPalette: "dark" }],
+      ["alternates", { fontVariantAlternates: "historical-forms" }],
+      ["emoji variant", { fontVariantEmoji: "emoji" }],
+      ["optical sizing", { fontOpticalSizing: "none" }],
+      ["synthesis weight", { fontSynthesisWeight: "none" }],
+      ["synthesis style", { fontSynthesisStyle: "none" }],
+      ["text rendering", { textRendering: "optimizeLegibility" }],
+      ["orientation", { writingMode: "vertical-rl" }],
+    ];
+    const cachePairs = cacheFields.map(([name, change]) => ({
+      name: `regular to ${name}`,
+      warm: regular,
+      query: { ...regular, ...change, fontFamily: '"System-ui", Menlo' },
+      expected: "Menlo-Regular",
+    }));
     const pairs = [
       {
         name: "regular to bold",
@@ -125,6 +142,7 @@ describeMac("macOS warmed system-ui fallback base", () => {
         query: { ...regular, fontFamily: '"System-ui", Menlo', fontVariationSettings: '"wght" 500' },
         expected: "Menlo-Regular",
       },
+      ...cachePairs,
       {
         name: "en to ja",
         warm: regular,
@@ -156,6 +174,37 @@ describeMac("macOS warmed system-ui fallback base", () => {
       const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
       expect(report.data.summary.mismatchTotal, name).toBe(0);
       expect(report.data.meta.stackPrimaries[1].chromePrimary, name).toBe(expected);
+    }
+
+    await withBrowser(async (browser) => {
+      for (const { name, query } of cachePairs) {
+        const oracle = await ChromeOracle.create(browser, 32, "en");
+        try {
+          expect(await oracle.resolvedPrimary({ ...query, fontFamily: "system-ui" }), name).toMatch(/^\.SFNS/);
+          expect(await oracle.resolvedPrimary(query), name).toMatch(/^\.SFNS/);
+        } finally {
+          await oracle.close();
+        }
+      }
+    });
+    for (const { name, query } of cachePairs) {
+      // DM-GMZYRW: size-adjust also changes the SFNS instance itself. This
+      // ticket verifies the alias route; that issue owns adjusted glyph parity.
+      if (name === "regular to size adjust") continue;
+      const root = mkdtempSync(join(tmpdir(), "domotion-system-ui-matching-cache-option-"));
+      const stacksFile = join(root, "stacks.json");
+      const output = join(root, "out");
+      writeFileSync(
+        stacksFile,
+        JSON.stringify({
+          ...corpus,
+          stacks: [{ ...query, fontFamily: "system-ui" }, query],
+        }),
+      );
+      expect(await main(["--stacks", stacksFile, "--range", "0041", "--out", output]), name).toBe(0);
+      const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
+      expect(report.data.summary.mismatchTotal, name).toBe(0);
+      expect(report.data.meta.stackPrimaries[1].chromePrimary, name).toMatch(/^\.SFNS/);
     }
 
     const variedRoot = mkdtempSync(join(tmpdir(), "domotion-system-ui-matching-variation-"));

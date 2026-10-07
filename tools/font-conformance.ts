@@ -169,6 +169,14 @@ export interface StackSpec {
    *  location the author asked for, which the resolver must honor and which
    *  changes the face we instance (docs/99). */
   fontVariationSettings?: string;
+  /** Additional computed Blink FontCacheKey fields for alias transitions. */
+  fontSizeAdjust?: string;
+  fontPalette?: string;
+  fontOpticalSizing?: string;
+  fontSynthesisWeight?: string;
+  fontSynthesisStyle?: string;
+  textRendering?: string;
+  writingMode?: string;
   /**
    * Computed `font-feature-settings` (e.g. `"smcp" 1, "liga" 0`).
    *
@@ -663,6 +671,17 @@ export interface ResolvedStack {
   /** Computed `font-stretch` as a percentage, 100 = `normal`. */
   stretch: number;
   variationSettings: Record<string, number> | undefined;
+  cacheOptions: {
+    sizeAdjust?: string;
+    palette?: string;
+    variantAlternates?: string;
+    variantEmoji?: string;
+    opticalSizing?: string;
+    synthesisWeight?: string;
+    synthesisStyle?: string;
+    textRendering?: string;
+    orientation?: number;
+  };
   /**
    * key → face, memoized for the life of this stack.
    *
@@ -714,7 +733,18 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
   const slant = slantForStyle(spec.fontStyle);
   const stretch = stretchPercent(spec.fontStretch);
   const variationSettings = parseVariationSettings(spec.fontVariationSettings) ?? undefined;
-  const description = { weight: spec.fontWeight, size: spec.fontSize, slant, stretch, variationSettings };
+  const cacheOptions = {
+    sizeAdjust: spec.fontSizeAdjust,
+    palette: spec.fontPalette,
+    variantAlternates: spec.fontVariantAlternates,
+    variantEmoji: spec.fontVariantEmoji,
+    opticalSizing: spec.fontOpticalSizing,
+    synthesisWeight: spec.fontSynthesisWeight,
+    synthesisStyle: spec.fontSynthesisStyle,
+    textRendering: spec.textRendering,
+    orientation: spec.writingMode === "vertical-rl" || spec.writingMode === "vertical-lr" ? 3 : 0,
+  };
+  const description = { weight: spec.fontWeight, size: spec.fontSize, slant, stretch, variationSettings, cacheOptions };
   const chain = resolveFontKeyChain(spec.fontFamily, lang, description);
   const primaryKey = resolveFontKey(spec.fontFamily, lang, description);
   // The renderer opens its primary through `resolveFont`, which retains the
@@ -722,7 +752,16 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
   // family), applies named optical-cut pins, and lets author axes win. Opening
   // only `primaryKey` loses that provenance and omits the CSS `wght` axis on
   // macOS system-ui, making the oracle compare a different font instance.
-  const primary = resolveFont(spec.fontFamily, spec.fontWeight, spec.fontSize, slant, variationSettings, stretch, lang);
+  const primary = resolveFont(
+    spec.fontFamily,
+    spec.fontWeight,
+    spec.fontSize,
+    slant,
+    variationSettings,
+    stretch,
+    lang,
+    cacheOptions,
+  );
   if (primary == null) return null;
   const rs: ResolvedStack = {
     spec,
@@ -732,6 +771,7 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
     slant,
     stretch,
     variationSettings,
+    cacheOptions,
     faceCache: new Map(),
     // Placeholder — `faceFor` needs the stack, so the real donor is filled in
     // immediately below.
@@ -824,6 +864,7 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
       slant: rs.slant,
       stretch: rs.stretch,
       variationSettings: rs.variationSettings,
+      cacheOptions: rs.cacheOptions,
     }),
     rs.stretch,
     undefined,
@@ -944,6 +985,13 @@ function probePageCss(spec: StackSpec): string {
     `font-weight:${spec.fontWeight};font-style:${spec.fontStyle};` +
     `font-stretch:${spec.fontStretch ?? "normal"};` +
     `font-variation-settings:${spec.fontVariationSettings ?? "normal"};` +
+    `font-size-adjust:${spec.fontSizeAdjust ?? "none"};` +
+    `font-palette:${spec.fontPalette ?? "normal"};` +
+    `font-optical-sizing:${spec.fontOpticalSizing ?? "auto"};` +
+    `font-synthesis-weight:${spec.fontSynthesisWeight ?? "auto"};` +
+    `font-synthesis-style:${spec.fontSynthesisStyle ?? "auto"};` +
+    `text-rendering:${spec.textRendering ?? "auto"};` +
+    `writing-mode:${spec.writingMode ?? "horizontal-tb"};` +
     // Declared even though Blink does NOT select a face on it — `feature_settings_`
     // is absent from `FontDescription::CacheKey` and is read only by
     // `FontFeatures::Initialize` at shaping time. It belongs here anyway,
@@ -1506,6 +1554,13 @@ export async function extractStacks(browser: Browser, dirs: string[], outFile: s
             // every explicit axis location swept as though it were the default.
             fontStretch: cs.fontStretch,
             fontVariationSettings: cs.fontVariationSettings,
+            fontSizeAdjust: cs.fontSizeAdjust,
+            fontPalette: cs.fontPalette,
+            fontOpticalSizing: cs.fontOpticalSizing,
+            fontSynthesisWeight: cs.fontSynthesisWeight,
+            fontSynthesisStyle: cs.fontSynthesisStyle,
+            textRendering: cs.textRendering,
+            writingMode: cs.writingMode,
             // Not a face-selection input in Blink (see `StackSpec`), but leaving
             // it out meant the probe page rendered a fixture's text with the
             // features the fixture declares switched off.

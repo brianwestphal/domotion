@@ -26,6 +26,7 @@ export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // one implementation instead of restating it; see `esc` for the disposition.
 import { hostPlatform } from "./host-platform.js";
 import { computedFontSize } from "./font-instance.js";
+import type { DarwinFontCacheOptions } from "./darwin-font-data-lifetime.js";
 import { esc as escAttr } from "./format.js";
 import { visualTextSemantics } from "./text-semantics.js";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -913,6 +914,7 @@ function renderTextPathRuns(
   fallbackRequest?: { rawSlope: number; orientation: number },
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
+  cacheOptions?: DarwinFontCacheOptions,
 ): TextPathResult | null {
   const ownership = createTextPathOwnership();
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
@@ -922,8 +924,9 @@ function renderTextPathRuns(
     slant,
     stretch,
     variationSettings,
+    cacheOptions,
   };
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang, cacheOptions);
   if (primaryFont == null) return null;
 
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
@@ -1617,6 +1620,7 @@ export function textToPathMarkup(
   fallbackRequest?: { rawSlope: number; orientation: number },
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
+  cacheOptions?: DarwinFontCacheOptions,
 ): TextPathResult | null {
   return renderTextPathRuns(
     text,
@@ -1637,6 +1641,7 @@ export function textToPathMarkup(
     fallbackRequest,
     textSpacingTrim,
     hanKerningEdges,
+    cacheOptions,
   );
 }
 
@@ -2088,6 +2093,7 @@ export function insertSyntheticDottedCircles(
    *  second circle. */
   shapeUncoveredOrphansNatively = false,
   fallbackRequest?: { rawSlope: number; orientation: number },
+  cacheOptions?: DarwinFontCacheOptions,
 ): { text: string; xOffsets: number[] | undefined } {
   // Fast path: nothing to do when the text has no combining marks AND the
   // capture probe flagged no codepoints (the latter can be category-Lo cluster
@@ -2107,6 +2113,7 @@ export function insertSyntheticDottedCircles(
     slant,
     stretch,
     variationSettings,
+    cacheOptions,
   };
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   // The full declared stack, derived the same way the run splitters derive it —
@@ -2114,7 +2121,7 @@ export function insertSyntheticDottedCircles(
   // it (Blink's kFontFamily stage), so a mark covered only by a later-declared
   // family is "covered" here exactly when the emitter will paint it.
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang, cacheOptions);
   if (primaryFont == null) return { text, xOffsets };
 
   // Resolve the dotted circle's own advance (CSS px) so the displaced mark can
@@ -3070,6 +3077,7 @@ function renderEmbeddedGlyphRuns(
   authoredTextRendering?: string,
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
+  cacheOptions?: DarwinFontCacheOptions,
 ): EmbeddedTextAttempt {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
   const description = {
@@ -3078,8 +3086,9 @@ function renderEmbeddedGlyphRuns(
     slant,
     stretch,
     variationSettings,
+    cacheOptions,
   };
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
+  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang, cacheOptions);
   if (primaryFont == null) return { markup: null, decline: { reason: "primary-font-unresolved" } };
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
@@ -4035,6 +4044,7 @@ function renderTextAsEmbedded(
   authoredTextRendering?: string,
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
+  cacheOptions?: DarwinFontCacheOptions,
 ): EmbeddedTextAttempt {
   return renderEmbeddedGlyphRuns(
     text,
@@ -4062,6 +4072,7 @@ function renderTextAsEmbedded(
     authoredTextRendering,
     textSpacingTrim,
     hanKerningEdges,
+    cacheOptions,
   );
 }
 
@@ -4127,6 +4138,8 @@ export interface TextFontOptions {
   lang?: string;
   /** Author-set `font-variation-settings` axis overrides. DM-578. */
   variationSettings?: Record<string, number>;
+  /** Computed Blink FontCacheKey fields for the macOS quoted system-ui alias. */
+  fontCacheOptions?: DarwinFontCacheOptions;
   /**
    * OpenType feature tags forwarded to fontkit (e.g. ['smcp'] when CSS
    * `font-variant: small-caps` is in effect on this run). DM-294.
@@ -4249,6 +4262,7 @@ export function selectedGlyphRasterSpans(
     slant,
     stretch,
     variationSettings: options.variationSettings,
+    cacheOptions: options.fontCacheOptions,
   };
   const primaryFont = resolveFont(
     fontFamily,
@@ -4258,6 +4272,7 @@ export function selectedGlyphRasterSpans(
     options.variationSettings,
     stretch,
     options.lang,
+    options.fontCacheOptions,
   );
   if (primaryFont == null) return [];
   const primaryKey = resolveFontKey(fontFamily, options.lang, description);
@@ -4500,6 +4515,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
     fontStretch,
     clusterFallbackEnabled(),
     fallbackRequest,
+    options.fontCacheOptions,
   ));
 
   // DM-1158: hide orphaned variation selectors / tags Chrome paints nothing for
@@ -4549,6 +4565,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
       textRendering,
       textSpacingTrim,
       hanKerningEdges,
+      options.fontCacheOptions,
     );
     if (embedded.markup != null) {
       recordTextEmitterTransition({ kind: "embedded-succeeded", sourceText: text });
@@ -4598,6 +4615,7 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
       fallbackRequest,
       textSpacingTrim,
       hanKerningEdges,
+      options.fontCacheOptions,
     );
   } catch {
     const reason = "path-layout-failed" as const;
@@ -4642,7 +4660,16 @@ export function renderTextAsPath(text: string, x: number, y: number, options: Re
       : { reason: "partial-source-outline", degradedSpans: result.ownership.degradedGlyphs }),
   });
 
-  const font = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
+  const font = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretch,
+    lang,
+    options.fontCacheOptions,
+  );
   if (font == null) {
     const reason = "path-primary-font-unresolved" as const;
     recordTextEmitterTransition({ kind: "source-owned-boundary", sourceText: text, reason });
@@ -4869,6 +4896,7 @@ export function getDecorationMetrics(
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,
+    fontOptions.fontCacheOptions,
   );
   const upem = font?.unitsPerEm ?? 1000;
   // The capture normally carries Blink's FloatAscent/FloatDescent. Without them, derive the same
@@ -5029,6 +5057,7 @@ export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,
+    fontOptions.fontCacheOptions,
   );
   // Blink's `space_width_` is `WidthForGlyph(GlyphForCharacter(' '))` (`platform/fonts/
   // simple_font_data.cc:238-240`, rev 7d859f27) — glyph 0 (.notdef) when the face maps no space, which
@@ -5073,6 +5102,7 @@ export function measureTruncationMarker(
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,
+    fontOptions.fontCacheOptions,
   );
   if (font == null) return null;
   const text = customText ?? (fontCoversCp(font, 0x2026) ? "\u2026" : "...");
@@ -5137,8 +5167,18 @@ export function measureEmphasisMarkMetrics(
     slant,
     stretch,
     variationSettings,
+    cacheOptions: fontOptions.fontCacheOptions,
   };
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
+  const primaryFont = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretch,
+    lang,
+    fontOptions.fontCacheOptions,
+  );
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   const runs = splitTextIntoFontRuns(
@@ -5227,8 +5267,18 @@ export function measureInkMetrics(
     slant,
     stretch,
     variationSettings,
+    cacheOptions: fontOptions.fontCacheOptions,
   };
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
+  const primaryFont = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretch,
+    lang,
+    fontOptions.fontCacheOptions,
+  );
   if (primaryFont == null) return null;
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
@@ -5308,13 +5358,22 @@ export function renderStretchyFenceGlyph(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
-  const description = { weight, size: fontSize, slant, stretch };
+  const description = { weight, size: fontSize, slant, stretch, cacheOptions: fontOptions.fontCacheOptions };
 
   // Resolve a font that actually has the fence glyph via the shared per-codepoint
   // resolver (DM-1068). Uncovered → keep the primary (its `.notdef`); the caller
   // falls back to the synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang, description);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
+  const primaryFont = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    undefined,
+    stretch,
+    fontOptions.lang,
+    fontOptions.fontCacheOptions,
+  );
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(
     cp,
@@ -5425,13 +5484,22 @@ export function renderRadicalGlyph(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
-  const description = { weight, size: fontSize, slant, stretch };
+  const description = { weight, size: fontSize, slant, stretch, cacheOptions: fontOptions.fontCacheOptions };
 
   // Resolve a font that has the √ glyph via the shared per-codepoint resolver
   // (DM-1068). Uncovered → keep the primary; the caller falls back to the
   // synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang, description);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
+  const primaryFont = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    undefined,
+    stretch,
+    fontOptions.lang,
+    fontOptions.fontCacheOptions,
+  );
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(
     cp,

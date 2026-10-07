@@ -441,7 +441,9 @@ distinct named-font queries retain the alias; six such queries expire it.
 The first 360 glyphs paint 59 faces and also expire it. This shows why
 unpainted family candidates and donor probes matter to the cache occupancy.
 The quoted alias is now held per renderer session and keyed by the effective
-font description's weight, size, slant, stretch, and variation settings. On local Chromium 147,
+font description's weight, size, slant, stretch, variation settings, size adjust,
+palette, variant alternates and emoji, optical sizing, synthesis weight and
+style, text rendering, and orientation. On local Chromium 147,
 warming canonical 16px regular `system-ui` makes the matching quoted family
 resolve `.SFNS-Regular`; querying bold, 32px, italic, 75% stretch, or an explicit
 `"wght" 500` variation instead
@@ -450,8 +452,14 @@ the quoted regular route on Menlo. Changing only content language from `en` to
 `ja` keeps the alias warm on this Chromium build. A new document plus GC preserves a matching
 small-corpus alias and leaves cross-description queries cold. This transition
 matrix is pinned in `tests/font-conformance-warmed-system-ui.e2e.test.ts`.
-Other Blink `FontDescription::CacheKey` fields require separate alias probes;
-`DM-5R5HG0` tracks that extension.
+Native same-document cold, mismatched-warm, and matching-warm controls showed
+that each additional field above separates the quoted alias. An explicit
+`font-feature-settings: "liga" 0` did not separate it. The capture and
+conformance oracle now carry the observed fields to the same alias state; unit
+and browser transitions pin mismatched and matching descriptions. For
+`font-size-adjust: 0.8`, the alias route matches but Chromium opens an adjusted
+SFNS font instance that the renderer does not yet reproduce; `DM-GMZYRW`
+tracks that separate face and geometry defect.
 Before ratifying a new hosted macOS synthetic baseline, run
 `tests/font-conformance-warmed-system-ui.e2e.test.ts` and the focused two-stack
 byte-00 sweep on the hosted image, then compare the environment fingerprints

@@ -323,6 +323,7 @@ export const createStyleRecordBuilder = (ctx: {
       fontKerning: cs.fontKerning,
       fontStretch: cs.fontStretch,
       fontVariationSettings: cs.fontVariationSettings,
+      fontSizeAdjust: cs.fontSizeAdjust,
       fontOpticalSizing: cs.fontOpticalSizing,
       fontFeatureSettings: cs.fontFeatureSettings,
       textSpacingTrim: cs.getPropertyValue("text-spacing-trim") || "normal",
