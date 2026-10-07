@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: []
+tickets: ["DM-EBRC7F"]
 code:
   [
     ".github/workflows/test-linux.yml",
@@ -14,6 +14,7 @@ code:
     "tests/baselines/family-match-linux.json",
     "tests/family-match-baseline.test.ts",
     "tools/family-match-baseline.ts",
+    "tools/family-match-environment.ts",
     "tools/family-match-conformance-linux.ts",
     "tools/font-conformance-stacks.linux.json",
     "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
@@ -22,6 +23,15 @@ aliases: ["docs/110-family-match-conformance-linux.md", "doc-110"]
 ---
 
 # 110 — Declared-family match conformance oracle (Linux)
+
+The environment record is produced by `captureRunEnv` and the shared
+`inventoryDocument()` font registry digest. The family-match adapter adds the
+direct `fc-list --version` result. Its `capture-run-env/1` contract refuses to
+select older baselines; new arm64 and x64 entries must be recorded and reviewed
+on their own Linux environments before this gate can judge them. The pinned
+Playwright Noble container was captured on arm64 Docker and x64 CI on
+2026-10-01; each scored 2,292/2,292 cases with zero misses. The older entries
+remain in the set as historical evidence and cannot match the new contract.
 
 `tools/family-match-conformance-linux.ts` · `npm run fonts:family-match:linux`
 · baseline `tests/baselines/family-match-linux.json`

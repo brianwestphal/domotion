@@ -53,7 +53,6 @@
  * mismatch (refused to judge).
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import * as fontkit from "fontkit";
@@ -61,6 +60,7 @@ import { win32FamilySuffixAdjustment } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeFamilyMatchTransientReport } from "./family-match-transient-report.js";
+import { familyMatchEnvironment } from "./family-match-environment.js";
 import {
   FAMILY_MATCH_ENV_KEYS,
   readBaselineSet,
@@ -128,28 +128,6 @@ function installedFamilies(): Map<string, Set<string>> {
     }
   }
   return out;
-}
-
-function runEnv(chromium_: string): Record<string, string | number> {
-  let osBuild = "unknown";
-  try {
-    osBuild = execFileSync("cmd", ["/c", "ver"], { encoding: "utf8" }).trim();
-  } catch {
-    /* not cmd-compatible */
-  }
-  const files = readdirSync(FONT_DIR)
-    .filter((f) => [".ttf", ".otf", ".ttc", ".otc"].includes(extname(f).toLowerCase()))
-    .sort();
-  return {
-    platform: process.platform,
-    arch: process.arch,
-    // The browser that produced Chrome's side of every comparison. See
-    // FAMILY_MATCH_ENV_KEYS for why it is part of the fingerprint.
-    chromium: chromium_,
-    osBuild,
-    fontCount: files.length,
-    fontDigest: createHash("sha256").update(files.join("\n")).digest("hex").slice(0, 16),
-  };
 }
 
 function runHelper(
@@ -307,7 +285,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     return { scored, agree, skipped, rejectAgree, misses, chromiumVersion };
   });
 
-  const env = runEnv(chromiumVersion);
+  const env = familyMatchEnvironment(chromiumVersion);
   const report = {
     meta: { suite: "family-match", os: "windows", capturedAt: new Date().toISOString(), env, weights: WEIGHTS },
     summary: {

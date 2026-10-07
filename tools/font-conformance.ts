@@ -55,7 +55,6 @@
  * mismatch, 2 on a harness error. See `docs/107-font-conformance-oracle.md`.
  * ---------------------------------------------------------------------------
  */
-import { hostname, cpus, release } from "node:os";
 import { createRequire } from "node:module";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
@@ -63,7 +62,7 @@ import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
 import { fontConformanceDataSchema } from "./conformance-report-schemas.js";
-import { inventoryDocument } from "./font-inventory.mjs";
+import { parityEnvironment } from "./parity-environment.js";
 import { intFlag, parseShardSpec } from "./lib/conformance-args.js";
 
 /**
@@ -74,27 +73,6 @@ import { intFlag, parseShardSpec } from "./lib/conformance-args.js";
  * on exactly one machine, and its name is the only handle on that machine
  * afterwards. Cheap enough to always record; useless to add after the fact.
  */
-function hostIdentity(): { name: string; cpus: number; arch: string } {
-  return { name: hostname(), cpus: cpus().length, arch: process.arch };
-}
-
-/**
- * This shard's own font inventory digest — not the run's.
- *
- * The answers are a function of the host's installed fonts, and with one stack
- * per shard those hosts are different machines. A run-level digest asserts a
- * uniformity nothing checks; a per-shard one makes two shards disagreeing about
- * the font set visible in the report instead of invisible.
- */
-function shardFontInventory(): { digest: string; count: number; source: string } | null {
-  try {
-    const doc = inventoryDocument();
-    return { digest: doc.digest, count: doc.count, source: doc.source };
-  } catch {
-    return null; // diagnostic metadata must never fail a sweep
-  }
-}
-
 export function helperImplementationDigest(platform: NodeJS.Platform = process.platform, root = "."): string | null {
   // Locally-built executables are not reproducible artifacts: PE/COFF embeds a
   // linker timestamp (and other toolchains may carry build IDs), so hashing the
@@ -135,32 +113,6 @@ export function helperImplementationDigest(platform: NodeJS.Platform = process.p
 }
 
 /** Inputs that define whether two same-machine oracle measurements are comparable. */
-function parityEnvironment(chromiumVersion: string): Record<string, unknown> {
-  return {
-    contract: "docs/120-same-machine-text-parity-contract.md",
-    chromium: { version: chromiumVersion, launchFlags: [] },
-    os: { platform: process.platform, arch: process.arch, release: release(), image: process.env.ImageOS ?? null },
-    locale: {
-      default: Intl.DateTimeFormat().resolvedOptions().locale,
-      language: process.env.LANG ?? null,
-      languagePreferences: process.env.LANGUAGE ?? null,
-    },
-    genericFamilySettings: "probed-from-oracle-session",
-    helper: {
-      disabled: process.env.DOMOTION_DISABLE_HELPER === "1",
-      systemFallbackEnabled: process.env.DOMOTION_SYSTEM_FALLBACK !== "0",
-      version: process.env.DOMOTION_HELPER_VERSION ?? helperImplementationDigest(),
-    },
-    sources: {
-      unicode: process.versions.unicode,
-      icu: process.versions.icu,
-      harfbuzz: process.env.DOMOTION_HARFBUZZ_REVISION ?? null,
-      chromiumCheckout: process.env.DOMOTION_CHROMIUM_REVISION ?? null,
-      skiaPinned: process.env.DOMOTION_SKIA_REVISION ?? null,
-    },
-    layout: { deviceScaleFactor: 1, zoom: 1, writingMode: "horizontal-tb", direction: "ltr" },
-  };
-}
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -2043,8 +1995,8 @@ export interface FontConformanceReportInput {
   rotationRevision: string | null;
   rotationOrdinal: string | null;
   rotationStackBucket: string | null;
-  host: ReturnType<typeof hostIdentity>;
-  fontInventory: ReturnType<typeof shardFontInventory>;
+  host: Record<string, unknown>;
+  fontInventory: Record<string, unknown> | null;
 }
 
 /** Compose a report from completed sweep evidence; no browser or filesystem access. */
@@ -2573,6 +2525,16 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       const wallMs = Date.now() - t0;
       const resolverAnswerDigest = tally.resolverAnswerHash.digest("hex");
       mkdirSync(opts.outDir, { recursive: true });
+      const environment = parityEnvironment({
+        chromium: browser.version(),
+        corpusIdentity: "font-conformance",
+        sampleIdentity: `${opts.stacksFile}:${opts.stackFilter ?? "all"}`,
+      });
+      environment.helper = {
+        ...(environment.helper as Record<string, unknown>),
+        systemFallbackEnabled: process.env.DOMOTION_SYSTEM_FALLBACK !== "0",
+        version: process.env.DOMOTION_HELPER_VERSION ?? helperImplementationDigest(),
+      };
       const report = buildReport({
         opts,
         corpus,
@@ -2591,12 +2553,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         unicode: process.versions.unicode,
         icu: process.versions.icu,
         chromiumVersion: browser.version(),
-        parityEnv: parityEnvironment(browser.version()),
+        parityEnv: environment,
         rotationRevision: process.env.FONT_CONFORMANCE_REVISION ?? null,
         rotationOrdinal: process.env.FONT_CONFORMANCE_ROTATION_ORDINAL ?? null,
         rotationStackBucket: process.env.FONT_CONFORMANCE_STACK_BUCKET ?? null,
-        host: hostIdentity(),
-        fontInventory: shardFontInventory(),
+        host: { platform: environment.platform, arch: environment.arch, osRelease: environment.osRelease },
+        fontInventory: (environment.fontInventory as Record<string, unknown> | null) ?? null,
       });
       const reportData = fontConformanceDataSchema.parse({
         ...report,

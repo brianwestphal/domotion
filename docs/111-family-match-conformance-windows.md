@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: []
+tickets: ["DM-EBRC7F"]
 code:
   [
     ".github/workflows/windows-fidelity.yml",
@@ -13,12 +13,22 @@ code:
     "packages/text-engine/src/render/win32-family-suffix.ts",
     "tests/baselines/family-match-windows.json",
     "tools/family-match-baseline.ts",
+    "tools/family-match-environment.ts",
     "tools/family-match-conformance-win32.ts",
   ]
 aliases: ["docs/111-family-match-conformance-windows.md", "doc-111"]
 ---
 
 # 111 — Declared-family match conformance oracle (Windows)
+
+The environment record is produced by `captureRunEnv` with the observed
+Chromium build and the shared `inventoryDocument()` font registry digest.
+Windows build identity comes from `os.release()`. The `capture-run-env/1`
+contract refuses to select older baselines; new arm64 and x64 entries require
+reviewed native Windows runs before the gate can judge them. CI x64 entries for
+runner image versions `20260922.246.2` and `20260925.250.1` each scored
+516/516 cases on 2026-10-01. The older Parallels arm64 VM entry remains
+historical; its environment is unavailable for recapture (see `DM-WTFX33`).
 
 `tools/family-match-conformance-win32.ts` · `npm run fonts:family-match:win32`
 · baseline `tests/baselines/family-match-windows.json`

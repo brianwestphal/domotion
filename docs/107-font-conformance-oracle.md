@@ -76,6 +76,21 @@ Domotion's font goal is guaranteed parity with Chromium's font-selection mechani
 
 `tools/font-conformance.ts` is the instrument that replaces sampling with enumeration. It asks Chrome and Domotion the same question about every assigned Unicode codepoint, crossed with every font stack the fixture corpus actually uses, and fails on any disagreement.
 
+Shard and parity metadata now derive their machine identity and installed-font
+digest from `captureRunEnv` and its `inventoryDocument()` source. The observed
+browser version is passed from the running sweep. This changes the fingerprint
+schema embedded in committed macOS, Linux, and Windows baseline reports; each
+platform's baseline must be recorded from its own CI runner and reviewed before
+the conformance comparator can judge under this schema.
+
+The 2026-10-01 migration capture produced complete six-stack Linux and Windows
+reports: Linux measured 174 mismatches in 1,783,614 comparisons; Windows
+measured 10 in 1,754,796 after selecting six same-source shards from the
+`20260922.246.2` runner image across four CI runs. The macOS candidate is
+withheld while `DM-F0Y4QA` investigates the `system-ui` bold route and
+`DM-5YN25A` investigates a Chrome face-count shift. The synthetic byte-00
+baselines are withheld separately under `DM-5XAQND` and `DM-N78DX3`.
+
 The command loads and checks the corpus before launching Chromium, filters and
 shards stacks and codepoints separately, then sweeps each selected stack in
 corpus order. A stack's locale selects its Chromium renderer scope on Linux;

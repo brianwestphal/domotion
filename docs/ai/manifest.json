@@ -1816,6 +1816,7 @@
         "tests/font-conformance-baseline.test.ts",
         "tests/font-conformance-cli.test.ts",
         "tests/font-conformance-extraction.e2e.test.ts",
+        "tests/font-conformance-mixed-locale-controls.e2e.test.ts",
         "tests/font-conformance-document-lifecycle.test.ts",
         "tests/font-conformance-oracle-stability.e2e.test.ts",
         "tests/font-conformance-synthetic-stacks.test.ts",
@@ -1890,6 +1891,7 @@
         "tests/baselines/family-match-linux.json",
         "tests/family-match-baseline.test.ts",
         "tools/family-match-baseline.ts",
+        "tools/family-match-environment.ts",
         "tools/family-match-conformance-linux.ts",
         "tools/font-conformance-stacks.linux.json",
         "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp"
@@ -1909,6 +1911,7 @@
         "packages/text-engine/src/render/win32-family-suffix.ts",
         "tests/baselines/family-match-windows.json",
         "tools/family-match-baseline.ts",
+        "tools/family-match-environment.ts",
         "tools/family-match-conformance-win32.ts"
       ],
       "file": "111-family-match-conformance-windows.md"
@@ -2095,11 +2098,13 @@
       "code": [
         ".github/workflows/font-conformance-synthetic.yml",
         "scripts/ci-font-conformance-shard.sh",
+        "scripts/run-env.mjs",
         "tests/font-conformance.test.ts",
         "tools/cluster-conformance.ts",
         "tools/font-conformance.ts",
         "tools/layout-stage-oracle.ts",
         "tools/paths-native-raster-gate.ts",
+        "tools/parity-environment.ts",
         "src/review/linux-unicode-evidence.ts"
       ],
       "file": "120-same-machine-text-parity-contract.md"
@@ -4236,6 +4241,7 @@
         "packages/text-engine/src/render/open-type-math.ts",
         "packages/text-engine/src/render/math-radical-shape.ts",
         "packages/text-engine/src/render/text-to-path.ts",
+        "tests/mathml-radical-bar-snap.e2e.test.ts",
         "tests/mathml-radical-raster.e2e.test.ts",
         "src/capture/script/walker/style-record.ts",
         "src/capture/types.ts",
