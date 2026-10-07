@@ -27,6 +27,11 @@ import {
   clearFontResolutionCaches,
 } from "./font-resolution.js";
 import { withHostPlatform } from "./host-platform.js";
+import {
+  beginDarwinFontDataDocument,
+  hasWarmDarwinSystemUiAlias,
+  resetDarwinFontDataRendererStates,
+} from "./darwin-font-data-lifetime.js";
 
 // Pin the live resolvers off: these tests assert the platform-independent
 // keyword-vs-literal logic (same rig as family-pin-parity.test.ts).
@@ -109,17 +114,31 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
 
   it("preserves the case-sensitive system-ui platform intercept", () => {
     withHostPlatform("darwin", () => {
-      expect(resolveFontKey('"system-ui", Menlo')).toBe("sf-pro");
-      // The case variant is an ordinary family, not the system-ui intercept.
-      // Ordinary macOS family lookup is AppKit's case-insensitive
-      // availableMembersOfFontFamily walk. macOS releases disagree on whether
-      // that API exposes `System-ui` as an alias: when it does (the CI image),
-      // Blink and our transcribed matcher both select its .SFNS member; when it
-      // does not (the local image), both walk to Menlo.
-      // This exact lookup also warms Blink's case-insensitive platform-font
-      // cache. The following ordinary case variant therefore reuses SFNS even
-      // on a host where a cold `System-ui` family query would walk to Menlo.
-      expect(resolveFontKey('"System-ui", Menlo')).toBe("sf-pro");
+      const regular = { weight: 400, size: 16, slant: 0, stretch: 100 };
+      const bold = { ...regular, weight: 700 };
+      beginDarwinFontDataDocument(null);
+      try {
+        // A case variant is an ordinary family. AppKit may expose it as an
+        // installed alias on some macOS images, so compare it to its own cold
+        // route rather than pinning a host-specific face.
+        const coldBold = resolveFontKey('"System-ui", Menlo', undefined, bold);
+        expect(hasWarmDarwinSystemUiAlias(regular)).toBe(false);
+        expect(hasWarmDarwinSystemUiAlias(bold)).toBe(false);
+
+        // The exact spelling enters Blink's platform UI dispatch even when
+        // quoted. Its cache entry warms only the matching font description.
+        expect(resolveFontKey('"system-ui", Menlo', undefined, regular)).toBe("sf-pro");
+        expect(hasWarmDarwinSystemUiAlias(regular)).toBe(true);
+        expect(hasWarmDarwinSystemUiAlias(bold)).toBe(false);
+        expect(resolveFontKey('"System-ui", Menlo', undefined, regular)).toBe("sf-pro");
+        expect(resolveFontKey('"System-ui", Menlo', undefined, bold)).toBe(coldBold);
+
+        expect(resolveFontKey('"system-ui", Menlo', undefined, bold)).toBe("sf-pro");
+        expect(hasWarmDarwinSystemUiAlias(bold)).toBe(true);
+        expect(resolveFontKey('"System-ui", Menlo', undefined, bold)).toBe("sf-pro");
+      } finally {
+        resetDarwinFontDataRendererStates();
+      }
     });
   });
 
