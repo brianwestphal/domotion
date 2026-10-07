@@ -456,10 +456,16 @@ Native same-document cold, mismatched-warm, and matching-warm controls showed
 that each additional field above separates the quoted alias. An explicit
 `font-feature-settings: "liga" 0` did not separate it. The capture and
 conformance oracle now carry the observed fields to the same alias state; unit
-and browser transitions pin mismatched and matching descriptions. For
-`font-size-adjust: 0.8`, the alias route matches but Chromium opens an adjusted
-SFNS font instance that the renderer does not yet reproduce; `DM-GMZYRW`
-tracks that separate face and geometry defect.
+and browser transitions pin mismatched and matching descriptions. For numeric
+`font-size-adjust: 0.8` on macOS `system-ui`, the renderer computes Blink's
+effective size from the unadjusted primary's `x` outline top, floors it to
+FontCacheKey hundredth-pixel precision, and scales that primary's glyph
+geometry separately from the computed CSS size. It retains the CoreText clone
+identity produced by the adjusted-size UI query with the specified-size
+optical pin. This removes the two same-family other-cut mismatches in the
+warmed two-stack U+0041 test; `tests/font-size-adjust-sfns.e2e.test.ts` compares
+rendered ink bounds in both pixel-faithful text modes. Other adjustment
+metrics and font families remain outside this SFNS-specific route.
 Before ratifying a new hosted macOS synthetic baseline, run
 `tests/font-conformance-warmed-system-ui.e2e.test.ts` and the focused two-stack
 byte-00 sweep on the hosted image, then compare the environment fingerprints

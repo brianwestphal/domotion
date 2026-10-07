@@ -1991,6 +1991,55 @@ export function stretchPercent(value: string | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 100;
 }
 
+/** Blink's `MetricsMultiplierAdjustedFontSize` and FontCacheKey precision. */
+export function usedFontSizeForExHeight(
+  computedSize: number,
+  targetAspect: number,
+  xTopUnits: number,
+  unitsPerEm: number,
+): number | null {
+  const aspect = xTopUnits / unitsPerEm;
+  if (!(computedSize > 0) || !(targetAspect > 0) || !(aspect > 0)) return null;
+  return Math.floor((computedSize * targetAspect * 100) / aspect) / 100;
+}
+
+/** Blink sizes the macOS system-ui primary before rebuilding its FontData for
+ * `font-size-adjust`, while the SFNS outline selected at the original CSS size
+ * remains the geometry source. Keep those two sizes separate: the adjusted
+ * size scales the units; the original instance supplies glyphs and shaping.
+ * Only the numeric ex-height form is handled here. */
+function adjustedDarwinSystemUiFont(
+  instance: FontInstance,
+  key: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  stretch: number,
+  cacheOptions: DarwinFontDescription["cacheOptions"],
+): FontInstance {
+  const requested = cacheOptions?.sizeAdjust?.trim();
+  if (hostPlatform() !== "darwin" || key !== "sf-pro" || requested == null || !/^(?:\d+\.?\d*|\.\d+)$/.test(requested))
+    return instance;
+  const x = instance.glyphForCodePoint(0x78) as { bbox?: { maxY: number } } | null;
+  const effectiveSize = usedFontSizeForExHeight(fontSize, Number(requested), x?.bbox?.maxY ?? 0, instance.unitsPerEm);
+  if (effectiveSize == null || effectiveSize <= 0) return instance;
+  const adjusted = getFontInstance(key, weight, effectiveSize, slant, { opsz: fontSize }, stretch, true);
+  const name = adjusted?.instantiatedPostscriptName ?? adjusted?.postscriptName;
+  const scale = effectiveSize / fontSize;
+
+  // Keep the source face's layout and outline methods bound to their fontkit
+  // object. The proxy changes only CSS-unit scaling and the native face name;
+  // its absent source-file mapping makes embedded mode use its outline path.
+  return new Proxy(instance, {
+    get(target, property) {
+      if (property === "unitsPerEm") return target.unitsPerEm / scale;
+      if (property === "instantiatedPostscriptName" && name != null) return name;
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 export function resolveFont(
   fontFamily: string,
   fontWeight: number,
@@ -2037,7 +2086,10 @@ export function resolveFont(
       undefined,
       semanticContext,
     );
-    if (instance != null) return instance;
+    if (instance != null)
+      return stackPrimaryIsSystemUi(entry.name, undefined, description) && variationSettings == null
+        ? adjustedDarwinSystemUiFont(instance, key, fontWeight, matchSize, slant, stretch, cacheOptions)
+        : instance;
   }
 
   const standardKey =

@@ -7,10 +7,20 @@
  * such a stack, painted or `.notdef`, disagreed with Chrome by name alone.
  */
 import { describe, expect, it } from "vitest";
-import { getFontInstance } from "./font-resolution.js";
+import { getFontInstance, resolveFont } from "./font-resolution.js";
+import { usedFontSizeForExHeight } from "./family-match.js";
 import { isGlyphHelperAvailable } from "./glyph-helper-transport.js";
 
 const describeMac = process.platform === "darwin" && isGlyphHelperAvailable() ? describe : describe.skip;
+
+describe("font-size-adjust effective size", () => {
+  it("uses the primary x glyph top and floors to FontCacheKey precision", () => {
+    expect(usedFontSizeForExHeight(16, 0.8, 1078, 2048)).toBe(24.31);
+    expect(usedFontSizeForExHeight(16, 0.5, 1078, 2048)).toBe(15.19);
+    expect(usedFontSizeForExHeight(16, 0, 1078, 2048)).toBeNull();
+    expect(usedFontSizeForExHeight(16, 0.8, 0, 2048)).toBeNull();
+  });
+});
 
 describeMac("system-ui variation clone identity (DM-SXZDJ7)", () => {
   // Both names were reported by Chrome over CDP for these exact stacks.
@@ -33,5 +43,15 @@ describeMac("system-ui variation clone identity (DM-SXZDJ7)", () => {
 
   it("keeps the UI query's own name when there is no author variation", () => {
     expect(getFontInstance("sf-pro", 700, 16, 0, undefined, 100, true)?.instantiatedPostscriptName).toBe(".SFNS-Bold");
+  });
+
+  it("keeps the computed-size SFNS glyphs while scaling by the adjusted size", () => {
+    const base = resolveFont("system-ui", 400, 16);
+    const adjusted = resolveFont("system-ui", 400, 16, 0, undefined, 100, "en", { sizeAdjust: "0.8" });
+    expect(base).not.toBeNull();
+    expect(adjusted?.instantiatedPostscriptName).toBe(".SFNS-Regular_wdth_opsz110000_GRAD_wght");
+    expect(adjusted?.unitsPerEm).toBeCloseTo(2048 * (16 / 24.31), 6);
+    expect(adjusted?.layout("MMMMxxxx").positions).toEqual(base?.layout("MMMMxxxx").positions);
+    expect(resolveFont("system-ui", 400, 16)?.unitsPerEm).toBe(2048);
   });
 });

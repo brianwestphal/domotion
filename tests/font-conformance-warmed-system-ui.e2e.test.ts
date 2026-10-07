@@ -188,9 +188,6 @@ describeMac("macOS warmed system-ui fallback base", () => {
       }
     });
     for (const { name, query } of cachePairs) {
-      // DM-GMZYRW: size-adjust also changes the SFNS instance itself. This
-      // ticket verifies the alias route; that issue owns adjusted glyph parity.
-      if (name === "regular to size adjust") continue;
       const root = mkdtempSync(join(tmpdir(), "domotion-system-ui-matching-cache-option-"));
       const stacksFile = join(root, "stacks.json");
       const output = join(root, "out");

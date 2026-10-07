@@ -596,6 +596,17 @@ instead (measured on the `Skia` family, which has both mechanisms available:
 50%/62.5%/75% all paint `Skia-Regular_Condensed` at one width, while
 `system-ui` moves continuously and clamps 200% to SF's wdth max 150).
 
+On macOS `system-ui`, numeric ex-height `font-size-adjust` runs through
+`resolveFont` after the ordinary SFNS primary is opened. It reads that primary's
+`x` outline top for Blink's aspect calculation, floors the adjusted size to
+FontCacheKey's 1/100px precision, and scales the primary glyphs without
+changing their computed-size outline selection. A second UI instance query at
+the adjusted size supplies the CoreText clone name with `opsz` pinned to the
+specified size. The wrapper's source-file mapping is intentionally absent, so
+the embedded route builds its glyph outlines instead of reusing unscaled source
+font bytes. Both `paths` and `embedded-font` render the adjusted ink bounds in
+`tests/font-size-adjust-sfns.e2e.test.ts`.
+
 **The same split governs `wght`.** Only `MatchSystemUIFont` (system-ui) and the
 webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in
 WHICH face the trait/weight matcher picked, and `FontPlatformDataFromCTFont`
@@ -700,6 +711,7 @@ flowchart TD
   G9 -->|"no + native-eligible + helper avail"| G7
   G9 -->|"no font at all"| GNull
   G9 -->|"yes"| G10["applyVariationAxes(font, weight, size, slant, fvs, wdth, opts)<br/>opsz←size · wdth←stretch (system-ui/webfont only)<br/>wght←weight EXCEPT darwin declared families —<br/>there the face's own coords (ctAxes / named instance) pin instead —<br/>and EXCEPT linux, which skips applyVariationAxes entirely:<br/>Blink applies NO coordinates to Linux system fonts, so the<br/>fontconfig-matched named instance (or default master) IS the face<br/>· record fontSourceMap (per-glyph helper fallback)<br/>· cache · return"]
+  G10 -.->|"resolveFont · darwin system-ui numeric font-size-adjust"| GA["usedFontSizeForExHeight(x glyph top, target aspect)<br/>floor to 0.01px · keep computed-size SFNS glyphs<br/>scale geometry · retain adjusted-size CoreText clone name"]
 ```
 
 **Probe-then-fallback dispatch (doc [51](51-probe-then-fallback-dispatch.md)):**

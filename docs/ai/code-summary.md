@@ -68,6 +68,10 @@ deviation for box, inline, control, and text shadows.
   `SimpleFontData` LRU and description-keyed macOS `system-ui` aliases within a
   renderer session; the conformance oracle applies weak platform-entry expiry
   only after document teardown and explicit GC.
+  `render/family-match.ts` also applies macOS SFNS numeric ex-height
+  `font-size-adjust` as a used-size geometry scale with a separate CoreText
+  clone identity. `tests/font-size-adjust-sfns.e2e.test.ts` checks captured
+  SVG ink against Chromium in both pixel-faithful text modes.
   The text-engine build imports its compiled Node ESM entry as a runtime
   initialization check after TypeScript compilation.
   Domotion consumes its session/document/run facade and the focused
