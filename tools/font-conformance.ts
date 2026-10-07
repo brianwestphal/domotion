@@ -1839,7 +1839,7 @@ export function stackKey(spec: StackSpec, defaultLang: string): string {
 }
 
 export function oracleScopeKey(platform: NodeJS.Platform, lang: string): string {
-  return platform === "linux" ? lang : "shared";
+  return platform === "linux" || platform === "win32" ? lang : "shared";
 }
 
 export function shouldResetBatch(resetEvery: number, batchNo: number): boolean {
@@ -2513,19 +2513,18 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       beginCharacterFallbackDocument();
       // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY
       // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even
-      // though the browser-side miss path is locale-sensitive. Reusing one
-      // renderer across synthetic language arms therefore makes the first locale
-      // to ask for a character contaminate every later arm. Keep one Chromium
-      // renderer scope per locale on Linux so the authoritative per-locale oracle asks
-      // the same isolated question as Domotion. Other platforms retain the one-
-      // process sweep they have always used.
+      // though the browser-side miss path is locale-sensitive. Windows also
+      // retains a prior locale's generic primary across stacks: a ja serif A
+      // followed by an en serif A selects Yu Gothic for both in one renderer.
+      // Give each locale its own renderer on these platforms so the synthetic
+      // sweep measures each CSS stack independent of arbitrary shard order.
       const oracleIsolation =
         process.platform === "linux"
           ? "renderer-per-locale"
           : process.platform === "darwin"
             ? "shared-renderer-fresh-stack-document-repaired-prefs"
             : process.platform === "win32"
-              ? "shared-renderer-fresh-stack-document"
+              ? "renderer-per-locale-fresh-stack-document"
               : "shared-renderer";
       // ChromeOracle.create makes a fresh BrowserContext. Chromium never puts
       // documents from different BrowserContexts in one renderer process, so

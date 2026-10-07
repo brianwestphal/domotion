@@ -99,7 +99,7 @@ jobs:
         run: npm run build:text-engine
       - name: Verify Windows font rendering transitions
         # The default unit config excludes *e2e.test.ts, so select the browser lane.
-        run: npx vitest run --config vitest.e2e.config.ts tests/windows-system-ui-cjk-context.e2e.test.ts tests/font-size-adjust-general.e2e.test.ts
+        run: npx vitest run --config vitest.e2e.config.ts tests/windows-system-ui-cjk-context.e2e.test.ts tests/font-size-adjust-general.e2e.test.ts tests/font-conformance-windows-locale-scope.e2e.test.ts
       - name: Run feature visual-regression suite
         # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
         # runner applies a per-platform coverage cap on win32 because DirectWrite
