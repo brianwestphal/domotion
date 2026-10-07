@@ -49,7 +49,7 @@ describe("static chain is a degraded-mode net — no such stage in FontFallbackI
     // process-global and memoized), so pin the mechanism at the source level.
     const norm = SRC.replace(/\s+/g, " ");
     expect(norm).toContain(
-      'const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !_systemFallbackResolutionEnabled;',
+      'const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !systemFallbackResolutionEnabled;',
     );
     expect(norm).toContain("const staticChain = (): FontResolution | null => { if (!staticChainArmed) return null;");
   });

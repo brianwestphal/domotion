@@ -23,7 +23,7 @@ import { isIcuHelperAvailable } from "./icu-helper.js";
 import { resolveFontSpec } from "./font-spec.js";
 import { openFontkitFace } from "./font-instance.js";
 import { registerDynamicSystemFont } from "./font-paths.win32.js";
-import { _systemFallbackResolutionEnabled } from "./font-spec.js";
+import { systemFallbackResolutionEnabled } from "./font-spec.js";
 import { skiaLastResortInitialFamily } from "./fallback-chain.js";
 import { LINUX_FONT_PATHS } from "./font-paths.linux.js";
 import type { FontFallbackSemanticContext } from "./fallback-chain.js";
@@ -33,7 +33,7 @@ import { win32FamilyKeyCache } from "./fallback-chain.linux.js";
 import type { FontVariantEmojiOverride } from "./emoji-presentation.js";
 import { isEmojiCharCp } from "./emoji-presentation.js";
 import { isEmojiPresentationCp } from "./emoji-presentation.js";
-import { _famAvailCache } from "./font-instance.js";
+import { familyAvailabilityCache } from "./font-instance.js";
 import { BLINK_GENERIC_FAMILY_SPELLINGS } from "./font-instance.js";
 import { webfontRegistry } from "./font-instance.js";
 import { localFontAliasRegistry } from "./webfont-registry.js";
@@ -396,7 +396,7 @@ function linuxFamilyMatchWithAlternate(
 function linuxNominationWalkArmed(): boolean {
   return (
     hostPlatform() === "linux" &&
-    _systemFallbackResolutionEnabled &&
+    systemFallbackResolutionEnabled &&
     isGlyphHelperAvailable() &&
     resolveLinuxFamilyMatch("sans", { weight: 400 }) != null
   );
@@ -515,7 +515,7 @@ export function linuxPrimaryCutKey(
   stretch: number = 100,
   semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(),
 ): { key: string; italic: boolean } | null {
-  if (hostPlatform() !== "linux" || !_systemFallbackResolutionEnabled || !isGlyphHelperAvailable()) return null;
+  if (hostPlatform() !== "linux" || !systemFallbackResolutionEnabled || !isGlyphHelperAvailable()) return null;
   const declaredFamily = declaredFamilyForKey.get(key);
   if (declaredFamily == null && !DARWIN_DECLARED_FAMILY_KEYS.has(key)) return null;
 
@@ -690,7 +690,7 @@ export function win32DeferOrStatic(fallback: string[]): string[] {
   // retained only for helper-absent/explicitly-disabled best effort.
   if (
     hostPlatform() === "win32" &&
-    _systemFallbackResolutionEnabled &&
+    systemFallbackResolutionEnabled &&
     isGlyphHelperAvailable() &&
     isIcuHelperAvailable()
   ) {
@@ -943,7 +943,7 @@ export function __authorFamilyAvailableForTest(name: string): boolean {
   // modeled host in-process; sharing a bare-name entry across those contexts
   // made the first platform queried win for every later platform.
   const cacheKey = `${hostPlatform()}\u0000${name}`;
-  const cached = _famAvailCache.get(cacheKey);
+  const cached = familyAvailabilityCache.get(cacheKey);
   if (cached != null) return cached;
   let avail: boolean;
   if (resolveInstalledFont(name) != null) {
@@ -954,7 +954,7 @@ export function __authorFamilyAvailableForTest(name: string): boolean {
   } else {
     avail = false;
   }
-  _famAvailCache.set(cacheKey, avail);
+  familyAvailabilityCache.set(cacheKey, avail);
   return avail;
 }
 
@@ -962,7 +962,7 @@ const authorFamilyAvailable = __authorFamilyAvailableForTest;
 
 /** Test-only view: availability memo identities, without exposing answers. */
 export function __familyAvailabilityCacheKeysForTest(): string[] {
-  return [..._famAvailCache.keys()].sort();
+  return [...familyAvailabilityCache.keys()].sort();
 }
 
 /** Materialize the concrete face Chromium reported for a session setting.
@@ -1465,7 +1465,7 @@ function matchFamilyCandidateToKey(
   // before lower-casing names for ordinary case-insensitive family lookup.
   if (name === "system-ui" && canonicalSystemUiName) {
     if (hostPlatform() === "darwin") warmDarwinSystemUiAlias(description);
-    if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled) {
+    if (hostPlatform() === "linux" && systemFallbackResolutionEnabled) {
       const matched = fcMatch("sans");
       if (matched != null) {
         const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? "system-ui";
@@ -1726,7 +1726,7 @@ function matchFamilyCandidateToKey(
       }
     }
   }
-  if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled && authorFamilyAvailable(name)) {
+  if (hostPlatform() === "linux" && systemFallbackResolutionEnabled && authorFamilyAvailable(name)) {
     const matched = fcMatch(name);
     if (matched != null) {
       const psName = matched.postscriptName ?? matched.path.split("/").pop() ?? name;

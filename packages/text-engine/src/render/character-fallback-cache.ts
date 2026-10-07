@@ -87,7 +87,7 @@ import {
  */
 const _macCharFallbackCacheEnabled = process.env.DOMOTION_MAC_CHAR_FALLBACK_CACHE !== "0";
 
-export let _charFallbackDocCache: Map<string, string> | null = null;
+export let characterFallbackDocumentCache: Map<string, string> | null = null;
 // Blink's short-text shape result cache is held by the primary font data. A
 // primary-only .notdef result can therefore outlive the element that shaped it.
 // Keep the observed macOS and Windows compatibility-ideograph slices in the
@@ -103,10 +103,10 @@ export interface FontRendererSession {
   readonly _fontRendererSession: symbol;
 }
 
-export let _charFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();
+export let characterFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();
 let primaryNotdefRendererCaches = new WeakMap<FontRendererSession, Set<string>>();
 export function resetCharacterFallbackRendererCaches(): void {
-  _charFallbackRendererCaches = new WeakMap();
+  characterFallbackRendererCaches = new WeakMap();
   primaryNotdefRendererCaches = new WeakMap();
   resetDarwinFontDataRendererStates();
 }
@@ -143,15 +143,15 @@ export function beginCharacterFallbackDocument(): void {
     const rendererSession = _requestedCharFallbackRendererSession;
     _charFallbackDocSession = rendererSession;
     if (rendererSession == null) {
-      _charFallbackDocCache = new Map();
+      characterFallbackDocumentCache = new Map();
       primaryNotdefShapeCache = new Set();
     } else {
-      let cache = _charFallbackRendererCaches.get(rendererSession);
+      let cache = characterFallbackRendererCaches.get(rendererSession);
       if (cache == null) {
         cache = new Map();
-        _charFallbackRendererCaches.set(rendererSession, cache);
+        characterFallbackRendererCaches.set(rendererSession, cache);
       }
-      _charFallbackDocCache = cache;
+      characterFallbackDocumentCache = cache;
       let shapeCache = primaryNotdefRendererCaches.get(rendererSession);
       if (shapeCache == null) {
         shapeCache = new Set();
@@ -169,7 +169,7 @@ export function beginCharacterFallbackDocument(): void {
 export function endCharacterFallbackDocument(): void {
   if (_charFallbackDocDepth > 0) _charFallbackDocDepth--;
   if (_charFallbackDocDepth === 0) {
-    _charFallbackDocCache = null;
+    characterFallbackDocumentCache = null;
     primaryNotdefShapeCache = null;
     _charFallbackDocSession = null;
     endDarwinFontDataDocument();
@@ -263,7 +263,7 @@ export function clearCharacterFallbackRendererScopesForTest(): void {
 
 /** Test-only window into the active document cache (null when none is open). */
 export function __characterFallbackDocumentCacheForTest(): Map<string, string> | null {
-  return _charFallbackDocCache;
+  return characterFallbackDocumentCache;
 }
 
 /**
@@ -311,7 +311,7 @@ export function characterFallbackDocKey(
   orientation: number,
   fontSize: number,
 ): string | null {
-  if (_charFallbackDocCache == null || !_macCharFallbackCacheEnabled) return null;
+  if (characterFallbackDocumentCache == null || !_macCharFallbackCacheEnabled) return null;
   if (hostPlatform() !== "darwin") return null;
   if (useSystemUiBase || baseName.startsWith(".")) return null;
   if (!isIdeographicCp(cp)) return null;

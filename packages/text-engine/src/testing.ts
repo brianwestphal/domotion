@@ -53,6 +53,7 @@ export {
   type FontInstance,
   type FontRun,
   getFontSourceInfo,
+  getSystemFallbackResolution,
   getSessionGenericFamilyOverrides,
   glyphIdForCp,
   invalidateFontEnvironmentCaches,
@@ -65,6 +66,7 @@ export {
   resolveFontSpec,
   selectCharacterFallbackRendererScope,
   setSessionGenericFamilyOverrides,
+  setSystemFallbackResolution,
   shapingFaceFor,
   skiaLastResortFamilyQuestionOrder,
   skiaLastResortInitialFamily,
@@ -75,6 +77,7 @@ export {
   withSessionGenericFamilyOverrides,
   withSystemFallbackResolution,
 } from "./render/font-resolution.js";
+export { hostPlatform, hostPlatformIsOverridden, withHostPlatform } from "./render/host-platform.js";
 export { createGlyphHelperFont } from "./render/glyph-helper-font.js";
 export { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "./render/glyph-helper-transport.js";
 export {

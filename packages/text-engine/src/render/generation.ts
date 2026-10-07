@@ -22,13 +22,13 @@ import { win32PrimaryCutCache } from "./fallback-chain.linux.js";
 import { helperFontCache } from "./font-instance.js";
 import { helperOutlineCache } from "./font-instance.js";
 import { fileFaceInfoCache } from "./font-instance.js";
-import { _famAvailCache } from "./font-instance.js";
+import { familyAvailabilityCache } from "./font-instance.js";
 import { win32FamilyKeyCache } from "./fallback-chain.linux.js";
 import { darwinHandleAxesMap } from "./font-instance.js";
-import { _sysfbCoverage } from "./system-fallback-resolver.js";
+import { systemFallbackCoverage } from "./system-fallback-resolver.js";
 import { coverageBitsets } from "./font-instance.js";
 import { dynamicSystemFontPaths } from "./font-paths.win32.js";
-import { _charFallbackDocCache } from "./system-fallback-resolver.js";
+import { characterFallbackDocumentCache } from "./system-fallback-resolver.js";
 import { resetCharacterFallbackRendererCaches } from "./system-fallback-resolver.js";
 import { declaredFamilyForKey } from "./family-match.js";
 import { win32SuffixDeclaredForKey } from "./fallback-chain.linux.js";
@@ -223,7 +223,7 @@ export function clearFontResolutionCaches(): void {
   helperFontCache.clear();
   helperOutlineCache.clear();
   fileFaceInfoCache.clear();
-  _famAvailCache.clear();
+  familyAvailabilityCache.clear();
   win32FamilyKeyCache.clear();
   darwinHandleAxesMap.clear();
   // `systemFallbackKeyCache` above is this module's per-codepoint memo; the
@@ -233,7 +233,7 @@ export function clearFontResolutionCaches(): void {
   // still exhausted the heap, because the helper memo had no caller outside the
   // unit tests. The two are the same class of state and must be dropped
   // together.
-  _sysfbCoverage.clear();
+  systemFallbackCoverage.clear();
   // 136 KB per physical face, and the key set grows with every face the
   // resolver reaches — a full-corpus sweep touches hundreds, so this is the
   // same unbounded-growth shape as the memos above rather than a fixed cost.
@@ -277,7 +277,7 @@ export function invalidateFontEnvironmentCaches(): void {
   // that no longer opens. Blink's Invalidate drops its fallback caches with the
   // platform-data cache for the same reason. The open scope (if any) is emptied
   // in place; session-owned maps are replaced so the next begin starts fresh.
-  _charFallbackDocCache?.clear();
+  characterFallbackDocumentCache?.clear();
   resetCharacterFallbackRendererCaches();
   declaredFamilyForKey.clear();
   win32SuffixDeclaredForKey.clear();

@@ -22,7 +22,7 @@ import { darwinPrimaryCutKey } from "./family-match.js";
 import { linuxPrimaryCutKey } from "./family-match.js";
 import { pickWebfontVariant } from "./webfont-registry.js";
 import { pickLocalFontAliasVariant } from "./webfont-registry.js";
-import { _trakHbShapingEnabled } from "./system-fallback-resolver.js";
+import { trakHbShapingEnabled } from "./system-fallback-resolver.js";
 import { registerDynamicSystemFont } from "./font-paths.win32.js";
 import { darwinFontDataIdentity, recordDarwinFontDataUse } from "./darwin-font-data-lifetime.js";
 // re-export for text-to-path.test.ts + text.ts
@@ -1042,7 +1042,7 @@ function instantiateResolvedFont(
     // for PingFang Regular shapes with the Medium master it is an instance of.
     const hasTrakAndStat = helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex);
     const hbShapeFace =
-      _trakHbShapingEnabled && hasTrakAndStat
+      trakHbShapingEnabled && hasTrakAndStat
         ? makeHarfbuzzShapeFallback(
             spec.path,
             helperFaceInfo.faceIndex,
@@ -1093,7 +1093,7 @@ function instantiateResolvedFont(
         instance as unknown as object,
         hbShapeFace != null
           ? `native-harfbuzz:${helperFaceInfo?.faceIndex ?? "null"}`
-          : `native-platform:${_trakHbShapingEnabled ? "enabled" : "disabled"}:${helperFaceInfo?.faceIndex ?? "null"}:${hasTrakAndStat ? "tracked" : "untracked"}`,
+          : `native-platform:${trakHbShapingEnabled ? "enabled" : "disabled"}:${helperFaceInfo?.faceIndex ?? "null"}:${hasTrakAndStat ? "tracked" : "untracked"}`,
       );
       // Native-helper instances carry no name of their own. Stamp the resolved
       // cut's, so the instance is self-identifying no matter which of the two
@@ -1508,7 +1508,7 @@ function instantiateResolvedFont(
   // Only `layout` changes — outlines still come from fontkit, by glyph id, in
   // the same gid space (same file). Same split as the helper path, and Chrome's
   // own: HarfBuzz shapes, the platform typeface draws.
-  if (_trakHbShapingEnabled && faceIndex != null && faceHasTrakAndStat(spec.path, faceIndex)) {
+  if (trakHbShapingEnabled && faceIndex != null && faceHasTrakAndStat(spec.path, faceIndex)) {
     installHarfbuzzShaping(
       instance as unknown as Parameters<typeof installHarfbuzzShaping>[0],
       spec.path,
@@ -3122,4 +3122,4 @@ export function splitFontFamilyNames(fontFamily: string): FontFamilyStackEntry[]
 // the SAME family for a real match but a SUBSTITUTE for a miss — told apart by
 // Skia's own acceptance rule (`skiaFamilyMatchAcceptable` below), not by name
 // canonicalization.
-export const _famAvailCache = new Map<string, boolean>();
+export const familyAvailabilityCache = new Map<string, boolean>();

@@ -24,9 +24,9 @@ import { nativeFaceCoversCp } from "./font-instance.js";
 import { sfProCoverageOtfKey } from "./shaping-route.js";
 import { getFontInstance } from "./font-instance.js";
 import { pickWebfontVariantForCodepoint } from "./webfont-registry.js";
-import { _systemFallbackResolutionEnabled } from "./font-spec.js";
+import { systemFallbackResolutionEnabled } from "./font-spec.js";
 import { exactDarwinFallbackKey, resolveSystemFallbackKeyForRequest } from "./system-fallback-resolver.js";
-import { _sysfbCoverage } from "./system-fallback-resolver.js";
+import { systemFallbackCoverage } from "./system-fallback-resolver.js";
 import { fallbackFontChain } from "./fallback-chain.js";
 import { fallbackFamilyCutKey } from "./system-fallback-resolver.js";
 import { isPrivateUseCodepoint } from "./fallback-chain.js";
@@ -35,7 +35,7 @@ import { isEmojiCharCp } from "./emoji-presentation.js";
 import { isEmojiPresentationCp } from "./emoji-presentation.js";
 import { splitFontFamilyNames } from "./font-instance.js";
 import { matchFamilyNameToKey } from "./family-match.js";
-import { _liveFallbackFirst } from "./system-fallback-resolver.js";
+import { liveFallbackFirst } from "./system-fallback-resolver.js";
 import { decomposeMathAlphaRun } from "./fallback-chain.js";
 import { resolveFontKey } from "./family-match.js";
 import { resolveFont } from "./family-match.js";
@@ -505,12 +505,12 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // `GetFallbackFamilyNameFromHardcodedChoices` BEFORE DirectWrite and only
   // falls through on a miss (`win/font_cache_skia_win.cc:286-296`, rev
   // 7d859f27) — so the win32 chain runs unconditionally, and first
-  // (`_liveFallbackFirst` is false on win32). Its generated per-block tail is
+  // (`liveFallbackFirst` is false on win32). Its generated per-block tail is
   // separately deferred behind the live resolver by `win32DeferOrStatic`.
   // `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order for an
   // A/B; see the flag's declaration for the measurement that set the default.
   const liveFallback = (): FontResolution | null => {
-    if (!_systemFallbackResolutionEnabled) return null;
+    if (!systemFallbackResolutionEnabled) return null;
     _stageStats.liveAsked++;
     const nominatedKey = resolveSystemFallbackKeyForRequest(request);
     if (nominatedKey == null) return null;
@@ -526,7 +526,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     // cost is gone wherever the binary reports it. `??` rather than a default:
     // an older helper omits the field, and treating "absent" as "not covered"
     // would silently discard every live answer.
-    if (_sysfbCoverage.get(`${nominatedKey}|${cp}`) ?? fontCoversCp(sf, cp)) {
+    if (systemFallbackCoverage.get(`${nominatedKey}|${cp}`) ?? fontCoversCp(sf, cp)) {
       _stageStats.liveAnswered++;
       return cover(sysKey, null);
     }
@@ -546,7 +546,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // static chain answers ONLY when the live resolver is out of the loop — no
   // helper binary, or the resolver flagged off. On win32 the chain is Blink's
   // own hardcoded stage and is never gated.
-  const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !_systemFallbackResolutionEnabled;
+  const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !systemFallbackResolutionEnabled;
   const staticChain = (): FontResolution | null => {
     if (!staticChainArmed) return null;
     // Counted only when armed: an unarmed call does no probing, and the
@@ -702,7 +702,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     }
   }
 
-  if (_liveFallbackFirst) {
+  if (liveFallbackFirst) {
     const live = liveFallback();
     if (live != null) return live;
     const stat = staticChain();

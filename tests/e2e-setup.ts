@@ -1,16 +1,14 @@
 import { afterAll, afterEach, beforeEach } from "vitest";
 import {
   clearGlyphHelperCache,
+  getSystemFallbackResolution,
   getSessionGenericFamilyOverrides,
+  hostPlatformIsOverridden,
   setSessionGenericFamilyOverrides,
+  setSystemFallbackResolution,
   setTextRunProvenanceEnabled,
   textRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
-import {
-  getSystemFallbackResolution,
-  setSystemFallbackResolution,
-} from "../packages/text-engine/src/render/text-to-path.js";
-import { hostPlatformIsOverridden } from "../packages/text-engine/src/render/host-platform.js";
 import { getFlattenNestedSvg, setFlattenNestedSvg } from "../src/render/svg-inline.js";
 import { getRenderTextMode, setRenderTextMode } from "../src/render/text-to-path.js";
 

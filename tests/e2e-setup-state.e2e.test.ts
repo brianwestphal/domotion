@@ -1,19 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   getSessionGenericFamilyOverrides,
-  setSessionGenericFamilyOverrides,
-  setTextRunProvenanceEnabled,
-  textRunProvenanceEnabled,
-} from "@domotion/text-engine/testing";
-import {
   getSystemFallbackResolution,
-  setSystemFallbackResolution,
-} from "../packages/text-engine/src/render/text-to-path.js";
-import {
   hostPlatform,
   hostPlatformIsOverridden,
+  setSessionGenericFamilyOverrides,
+  setSystemFallbackResolution,
+  setTextRunProvenanceEnabled,
+  textRunProvenanceEnabled,
   withHostPlatform,
-} from "../packages/text-engine/src/render/host-platform.js";
+} from "@domotion/text-engine/testing";
 import { getFlattenNestedSvg, setFlattenNestedSvg } from "../src/render/svg-inline.js";
 import { getRenderTextMode, setRenderTextMode } from "../src/render/text-to-path.js";
 

@@ -342,7 +342,7 @@ to reproduce the pre-flip bare-table baseline). It originally shipped opt-in
 calibration below proved the flip is fidelity-safe on the noble image.
 
 > **Flag wiring note (DM-1416).** The opt-in env gate alone was inert in real
-> renders: the caller checks the process-global `_systemFallbackResolutionEnabled`
+> renders: the caller checks the process-global `systemFallbackResolutionEnabled`
 > first, which was initialized `process.platform === "darwin"` only — so on Linux
 > the resolver never fired in a real render (only via the `__resolveSystemFallback
 KeyForCpForTest` hook, which bypasses that gate). DM-1416 fixed the init to
@@ -577,7 +577,7 @@ base's own cut, and the cache then propagates that first nomination).
   `resolveLinuxSystemFallbackKeyForCp` (fontconfig, with the DM-1416 coverage
   guard), `fontFileCoversCodepoint` (the coverage check),
   `registerDynamicSystemFont` (takes the extractor), `fcMatch` (the `fc-match`
-  primitive), and the `_systemFallbackResolutionEnabled` init (default-on for
+  primitive), and the `systemFallbackResolutionEnabled` init (default-on for
   Linux **and win32** unless `DOMOTION_SYSTEM_FALLBACK=0`; darwin always).
 - `packages/text-engine/src/render/glyph-helper.ts` — `resolveSystemFallbackFonts` (the
   platform-agnostic `fallback`-query caller; drives the macOS Swift helper AND

@@ -9,7 +9,7 @@ import {
   type SystemUiCloneRequest,
 } from "./glyph-helper.js";
 import { blinkWinFallbackLocale } from "./win-font-fallback.js";
-import { _systemFallbackResolutionEnabled, setSystemFallbackResolutionEnabled } from "./font-spec.js";
+import { systemFallbackResolutionEnabled, setSystemFallbackResolutionEnabled } from "./font-spec.js";
 import { resolveEffectiveCutKey } from "./font-instance.js";
 import { resolveFontSpec } from "./font-spec.js";
 import { getFontInstance } from "./font-instance.js";
@@ -71,7 +71,7 @@ export function setSystemFallbackResolution(on: boolean): void {
 
 /** Read the current process-global toggle (so callers can save/restore it). */
 export function getSystemFallbackResolution(): boolean {
-  return _systemFallbackResolutionEnabled;
+  return systemFallbackResolutionEnabled;
 }
 
 /** A CoreText substitute is an already-selected face, whereas a declared
@@ -112,7 +112,7 @@ export function withSystemFallbackResolution<F extends () => unknown>(
   on: boolean,
   fn: SynchronousCallback<F>,
 ): ReturnType<F> {
-  const prev = _systemFallbackResolutionEnabled;
+  const prev = systemFallbackResolutionEnabled;
   setSystemFallbackResolutionEnabled(on);
   try {
     return invokeSynchronousCallback("withSystemFallbackResolution", fn);
@@ -302,7 +302,7 @@ function isAppleColorEmojiFamily(familyName: string | undefined): boolean {
  *  DEFAULT-ON as of the measurement below; set `DOMOTION_SYSTEM_UI_BASE=0` to
  *  restore the old hardcoded-base behavior for an A/B.
  *
- *  Measured before flipping, as a 2×2 against `_liveFallbackFirst` — because
+ *  Measured before flipping, as a 2×2 against `liveFallbackFirst` — because
  *  neither flag can be scored alone. Conformance oracle, CJK slice (8 corpus
  *  stacks × 28,309 codepoints = 226,472 comparisons), all four cells run at one
  *  revision with one instrument:
@@ -313,7 +313,7 @@ function isAppleColorEmojiFamily(familyName: string | undefined): boolean {
  *    base ON   | 113,908 / 23 rts   |  29,025 /  4 rts
  *
  *  Read the interaction, not the margins. Against the all-off cell: this base fix
- *  alone is **−55** rows, `_liveFallbackFirst` alone is **−556**, and both
+ *  alone is **−55** rows, `liveFallbackFirst` alone is **−556**, and both
  *  together are **−84,938 (−75%)**. Only 611 of that is explained by the two
  *  flags separately — the remaining **84,327 rows exist only when both are on**.
  *  Asking CoreText the right question cannot pay while the static per-block chain
@@ -324,9 +324,9 @@ function isAppleColorEmojiFamily(familyName: string | undefined): boolean {
  *  `.PingFangUI*` routes — 83,838 rows, 73% of the slice's mismatch mass — go to
  *  zero, taking the `system-ui` stack from 84,567 mismatches to 185.
  *
- *  That interaction is also why `_liveFallbackFirst`'s own comment quotes 29,025
+ *  That interaction is also why `liveFallbackFirst`'s own comment quotes 29,025
  *  as its result: that figure was measured with this flag armed, and is not
- *  reproducible from `_liveFallbackFirst` alone. The honest attribution is the
+ *  reproducible from `liveFallbackFirst` alone. The honest attribution is the
  *  table above.
  *
  *  The mechanism itself is verified against Chrome independently of any corpus
@@ -349,7 +349,7 @@ const _systemUiBaseEnabled = process.env.DOMOTION_SYSTEM_UI_BASE !== "0";
  *  by re-running one ref — several of the affected fixtures are independently
  *  bistable from a Chrome-side `sans-serif` flip. Both arms then run from ONE
  *  ref on ONE runner, and the flag is the only difference. */
-export const _trakHbShapingEnabled = process.env.DOMOTION_TRAK_HB_SHAPING !== "0";
+export const trakHbShapingEnabled = process.env.DOMOTION_TRAK_HB_SHAPING !== "0";
 
 /** DM-1868. Put the two kSystemFonts stages in Blink's order — ask the OS first,
  *  and keep the static per-block chain only as the net for what the OS declines.
@@ -419,7 +419,7 @@ export const _trakHbShapingEnabled = process.env.DOMOTION_TRAK_HB_SHAPING !== "0
  *  correctness, which is exactly the confusion a pixel metric cannot resolve and
  *  the conformance oracle can. That fixture's committed CI baseline was refreshed
  *  in this change to record the correct-face raster. */
-export const _liveFallbackFirst = hostPlatform() !== "win32" && process.env.DOMOTION_LIVE_FALLBACK_FIRST !== "0";
+export const liveFallbackFirst = hostPlatform() !== "win32" && process.env.DOMOTION_LIVE_FALLBACK_FIRST !== "0";
 
 /**
  * Does this family stack's PRIMARY resolve through Blink's system-ui path?
@@ -503,7 +503,7 @@ export function stackPrimaryIsSystemUi(
 //    infrastructure with no mechanism-parity value to preserve.
 // The lazy per-codepoint path below is the only ask pattern that remains.
 
-import { _charFallbackDocCache, characterFallbackDocKey } from "./character-fallback-cache.js";
+import { characterFallbackDocumentCache, characterFallbackDocKey } from "./character-fallback-cache.js";
 export * from "./character-fallback-cache.js";
 import type { FontRequest } from "./font-request.js";
 
@@ -624,7 +624,7 @@ export function resolveSystemFallbackKeyForCp(
   // this codepoint, at the weight/size/slant the key pins.
   const docKey = characterFallbackDocKey(cp, base.name, useSystemUiBase, weight, rawSlope, orientation, fontSize);
   if (docKey != null) {
-    const cachedKey = _charFallbackDocCache!.get(docKey);
+    const cachedKey = characterFallbackDocumentCache!.get(docKey);
     if (cachedKey != null) {
       const cachedInst = getFontInstance(cachedKey, weight, fontSize, slant);
       if (cachedInst != null && glyphIdForCp(cachedInst, cp) !== 0) return cachedKey;
@@ -636,8 +636,8 @@ export function resolveSystemFallbackKeyForCp(
   // memo-hit path too: the raw answer is a pure function of its inputs, so a
   // memoized answer is the same answer this document's ask would have produced.
   const docInsert = (resolvedKey: string | null): void => {
-    if (docKey != null && resolvedKey != null && !_charFallbackDocCache!.has(docKey)) {
-      _charFallbackDocCache!.set(docKey, resolvedKey);
+    if (docKey != null && resolvedKey != null && !characterFallbackDocumentCache!.has(docKey)) {
+      characterFallbackDocumentCache!.set(docKey, resolvedKey);
     }
   };
   if (systemFallbackKeyCache.has(cacheKey)) {
@@ -811,7 +811,7 @@ export function resolveSystemFallbackKeyForCp(
         // caller does not have to ask again over IPC. Recorded per (face,
         // codepoint) because that is what the question is about; `undefined`
         // from an older binary simply leaves the caller's own probe in place.
-        if (resolved.covered !== undefined) _sysfbCoverage.set(`${key}|${cp}`, resolved.covered);
+        if (resolved.covered !== undefined) systemFallbackCoverage.set(`${key}|${cp}`, resolved.covered);
         // The substituted handle's variation axes + CURRENT position, observable
         // only here. Blink's clone gate compares against it (CoreText pre-sets
         // `opsz` on some handles), so the instantiated-name stamp in
@@ -890,7 +890,7 @@ export function resolveSystemFallbackKeyForCp(
         }
       }
       // DM-1403/DM-1416: fontconfig live fallback for Linux, default-on (gated
-      // by `_systemFallbackResolutionEnabled`, which honors DOMOTION_SYSTEM_FALLBACK=0).
+      // by `systemFallbackResolutionEnabled`, which honors DOMOTION_SYSTEM_FALLBACK=0).
       // Calibrated against Chromium-on-noble paint — see the flag comment above
       // and docs/80.
       key = resolveLinuxSystemFallbackKeyForCp(cp, lang, suppressEmojiPresentation ? false : undefined);
@@ -961,7 +961,7 @@ export function resolveSystemFallbackKeyForCp(
         // On Windows the field is exact rather than optimistic — the extractor
         // reports it only after Blink's post-MapCharacters family reopen and
         // `HasCharacter(cp)` both succeed.
-        if (resolved.covered !== undefined) _sysfbCoverage.set(`${key}|${cp}`, resolved.covered);
+        if (resolved.covered !== undefined) systemFallbackCoverage.set(`${key}|${cp}`, resolved.covered);
       }
     }
   } catch {
@@ -1203,7 +1203,7 @@ export function fallbackFamilyCutKey(
   slant: number,
   fontSize: number,
 ): string | null {
-  if (hostPlatform() !== "darwin" || !_systemFallbackResolutionEnabled) return null;
+  if (hostPlatform() !== "darwin" || !systemFallbackResolutionEnabled) return null;
   // The BASE key's face, not `getFontInstance`'s effective key — feeding the
   // `-bold` sibling in would ask CoreText to re-weight an already-re-weighted
   // face, and the point is to replace that approximation rather than compose
@@ -1253,7 +1253,7 @@ export const fallbackFamilyCutCache = new Map<string, string | null>();
  * unbounded per-codepoint map with no caller clearing it is exactly what made a
  * full-corpus sweep exhaust the heap earlier in this cycle.
  */
-export const _sysfbCoverage = new Map<string, boolean>();
+export const systemFallbackCoverage = new Map<string, boolean>();
 
 /** Test-only: drive the per-codepoint live system-fallback resolver directly
  *  (DM-1403). Honors the platform routing + the `DOMOTION_SYSTEM_FALLBACK`

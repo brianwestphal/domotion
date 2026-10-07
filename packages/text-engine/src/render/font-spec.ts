@@ -116,12 +116,12 @@ export function __systemFallbackKeyCacheSizeForTest(): number {
 // uses (`FontFallback::MapCharacters`, font_fallback_win.cc) with the helper's
 // HasCharacter coverage guard — so it can only paint Chromium's own covering face
 // or correctly tofu. See docs/80.
-export let _systemFallbackResolutionEnabled =
+export let systemFallbackResolutionEnabled =
   hostPlatform() === "darwin" ||
   (hostPlatform() === "linux" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0") ||
   (hostPlatform() === "win32" && process.env.DOMOTION_SYSTEM_FALLBACK !== "0");
 export function setSystemFallbackResolutionEnabled(on: boolean): void {
-  _systemFallbackResolutionEnabled = on;
+  systemFallbackResolutionEnabled = on;
 }
 
 /** Test-only window into the platform path resolver (DM-258). Widened by
@@ -307,7 +307,7 @@ export function linuxDeferOrStatic(
   // off-Linux) is never consulted for Linux logic.
   if (
     hostPlatform() === "linux" &&
-    _systemFallbackResolutionEnabled &&
+    systemFallbackResolutionEnabled &&
     resolveSystemFallbackKeyForCp(
       cp,
       css?.weight,
