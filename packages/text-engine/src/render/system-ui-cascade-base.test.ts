@@ -109,20 +109,23 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
     withHostPlatform("darwin", () => {
       beginCharacterFallbackDocument();
       try {
-        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
-        expect(resolveFontKey('"System-ui", Menlo')).toBe("menlo");
+        // The host may lack Menlo even while simulating Darwin; `serif` keeps
+        // the pre-warm fallback deterministic on Linux and Windows runners.
+        const stack = '"System-ui", serif';
+        expect(stackPrimaryIsSystemUi(stack)).toBe(false);
+        expect(resolveFontKey(stack)).toBe("times");
 
         // A preceding canonical UI lookup warms the same platform cache that
         // the real browser uses across stacks in one renderer scope.
         expect(resolveFontKey("system-ui")).toBe("sf-pro");
-        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(true);
-        expect(resolveFontKey('"System-ui", Menlo')).toBe("sf-pro");
+        expect(stackPrimaryIsSystemUi(stack)).toBe(true);
+        expect(resolveFontKey(stack)).toBe("sf-pro");
         expect(hasWarmDarwinSystemUiAlias({ weight: 700, size: 16, slant: 0, stretch: 100 })).toBe(false);
       } finally {
         endCharacterFallbackDocument();
       }
     });
-    withHostPlatform("linux", () => expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false));
+    withHostPlatform("linux", () => expect(stackPrimaryIsSystemUi('"System-ui", serif')).toBe(false));
   });
 
   it("is false for an absent or empty stack rather than throwing", () => {
