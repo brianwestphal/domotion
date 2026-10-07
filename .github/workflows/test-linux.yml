@@ -164,6 +164,9 @@ jobs:
         if: always()
         run: node scripts/run-env.mjs tests/output/run-env.json
       - name: Gate vs committed Linux baseline (regressions only, DM-1405)
+        # Preserve this independent verdict when an earlier unit or helper
+        # step fails; a missing visual report fails the strict comparison.
+        if: always()
         run: >
           node scripts/diff-against-baseline.mjs
           --results tests/output/features-results.json

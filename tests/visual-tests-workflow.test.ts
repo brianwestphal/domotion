@@ -364,6 +364,19 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
     );
   });
 
+  it("compares the Linux visual baseline after the producer despite an earlier failure", () => {
+    const job = jobs["regression"];
+    const baselineStep = job.match(
+      /- name: Gate vs committed Linux baseline[^\n]*\n([\s\S]*?)(?=\n\s+- name: Build dist\/)/,
+    )?.[1];
+    expect(baselineStep, "strict baseline step must exist").toBeDefined();
+    expect(baselineStep).toMatch(/^\s+if: always\(\)$/m);
+    expect(baselineStep).toContain("--strict --label");
+    expect(job.indexOf("Run feature visual-regression suite")).toBeLessThan(
+      job.indexOf("Gate vs committed Linux baseline"),
+    );
+  });
+
   it("asserts the helper is in the loop, not merely built", () => {
     // A built binary is not a reached one, and `isGlyphHelperAvailable()` is not
     // the predicate that distinguishes them: with the in-tree binary absent it

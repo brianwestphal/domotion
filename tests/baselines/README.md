@@ -37,7 +37,8 @@ gates with `scripts/diff-against-baseline.mjs --strict` against the committed
 the baseline now fails) or a new failing fixture, never on the recorded residuals.
 This makes the gate safe to mark as a required status check (the workflows also
 dropped their `paths:` filter so the required check always reports). On Linux,
-the visual producer runs even after an earlier step fails, so the independently
+the visual producer and strict baseline comparison run even after an earlier
+step fails, so the regression verdict stays visible and the independently
 running browser E2E lane still receives its review fixture. Refresh a baseline
 from a known-good run:
 
