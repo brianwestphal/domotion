@@ -20,6 +20,7 @@ tickets:
     "DM-KK5BP2",
     "DM-N78DX3",
     "DM-QD903D",
+    "DM-T0T41W",
     "DM-V75PWJ",
   ]
 code:
@@ -31,6 +32,7 @@ code:
     "scripts/diff-font-conformance-baseline.mjs",
     "scripts/merge-font-conformance-shards.mjs",
     "scripts/select-font-conformance-cohort.mjs",
+    "scripts/validate-synthetic-baseline-dispatch.mjs",
     "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
     "tests/baselines/README.md",
@@ -43,6 +45,7 @@ code:
     "tests/font-conformance-document-lifecycle.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
+    "tests/synthetic-baseline-dispatch.test.ts",
     "tests/font-conformance.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/font-conformance-pua-sentinel.e2e.test.ts",
@@ -460,6 +463,54 @@ npx tsx tools/font-conformance.ts \
 ```
 
 On CI it has its **own dispatch and its own baselines** — `.github/workflows/font-conformance-synthetic.yml`. Not an input to the default workflow: the cross product multiplies an already expensive sweep, and the two slices measure different questions, so they must not share a baseline. Both dispatches run the same `scripts/ci-font-conformance-shard.sh` so the flags, exit-code discipline and recorded environment cannot drift between them.
+
+#### Re-recording the exhaustive 351-stack baseline
+
+The unsuffixed `font-conformance-synthetic-<os>.json` baselines still describe
+the old 234-stack, roughly 5,850-codepoint slice. Their `synthetic:v1` corpus
+identity and missing `parityEnvironment` make them incomparable with the current
+351-stack rule-v2 sweep. The `-byte-00` files are a separate rotating-sample
+gate and must remain intact.
+
+The current exhaustive target is 351 stacks × 292,466 eligible Unicode-16
+scalars, or 102,655,566 comparisons on the macOS/Windows Node image. Linux's
+Unicode-17 universe is slightly larger. The workflow's `sample_byte=all` auto
+fan-out uses 8 macOS, 6 Linux, and 16 Windows stack shards; `cp_shard=1` and
+`cp_total=1` keep the full codepoint universe in each stack shard. Recent native
+byte-00 sweeps on the same workflow took 318 seconds for 407,862 macOS
+comparisons, 114 seconds for 413,829 Linux comparisons, and about 159–173
+seconds for roughly 204,000 comparisons in each Windows shard. A linear
+projection is approximately 2.8 hours per macOS shard, 1.3 hours per Linux
+shard, and 1.4 hours per Windows shard, before queue/setup time. This is a
+capacity estimate, not proof that the exhaustive runs will stay below the
+hosted six-hour ceiling; glyph distribution and runner images can change the
+rate.
+
+The setup job now rejects an authoritative baseline update with a stack cap
+other than 351, a stack filter, `no_pua=true`, or a codepoint stride. This
+prevents a partial run from being written to an unsuffixed exhaustive or
+rotating-byte baseline name. A diagnostic `range` uses a hashed filename and
+retains its smaller-slice flexibility.
+
+From a **pushed exact source ref** containing the environment-fingerprint
+contract, record all three native artifacts with:
+
+```sh
+gh workflow run font-conformance-synthetic.yml --ref <branch> \
+  -f os=all -f shards=auto -f max_stacks=351 -f sample_byte=all \
+  -f cp_shard=1 -f cp_total=1 -f no_pua=false -f update_baseline=true
+```
+
+Review that every merged artifact is complete and conflict-free, that the
+three native images and `parityEnvironment` records match their shard cohorts,
+and that each slice reports 351 stacks and the platform's full eligible
+codepoint count. Download and commit only the three unsuffixed baseline files.
+Then push that baseline-bearing ref and rerun the same dispatch with
+`update_baseline=false`; require all three strict aggregates to pass against
+those committed files. If Windows jobs land on different images, use the
+workflow's exact-source `cohort_run_ids` and `cohort_rotation_ordinal` repair
+path before accepting its merge. Do not combine images or accept a partial
+codepoint shard as an exhaustive baseline.
 
 Routine synthetic testing uses a **rotating low-byte sample**. The default bucket `00` retains every eligible assigned codepoint for which `cp & 0xFF === 0x00`: `U+0100`, `U+0200`, … through supplementary planes. This is not the contiguous Latin-1 page `U+0000–U+00FF`. A bucket therefore samples scripts, symbol ranges, CJK, emoji, and private-use planes throughout Unicode while reducing the codepoint axis to approximately 1/256. Buckets `00` through `FF` are disjoint and their union is the exhaustive universe, so advancing the focus from `00` to `01` and onward accumulates complete coverage without the probabilistic holes of a random sample.
 

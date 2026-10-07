@@ -116,6 +116,13 @@ jobs:
         env:
           COHORT_ROTATION_ORDINAL: ${{ inputs.cohort_rotation_ordinal }}
           COHORT_RUN_IDS: ${{ inputs.cohort_run_ids }}
+          BASELINE_UPDATE: ${{ inputs.update_baseline }}
+          BASELINE_RANGE: ${{ inputs.range }}
+          BASELINE_MAX_STACKS: ${{ inputs.max_stacks }}
+          BASELINE_STACK_FILTER: ${{ inputs.stack_filter }}
+          BASELINE_NO_PUA: ${{ inputs.no_pua }}
+          BASELINE_CP_SHARD: ${{ inputs.cp_shard }}
+          BASELINE_CP_TOTAL: ${{ inputs.cp_total }}
         run: |
           requested="${{ inputs.shards }}"
           sample="${{ inputs.sample_byte }}"
@@ -135,6 +142,7 @@ jobs:
           else
             stack_bucket=explicit
           fi
+          node scripts/validate-synthetic-baseline-dispatch.mjs
           echo "sample_byte=$sample" >> "$GITHUB_OUTPUT"
           echo "stack_bucket=$stack_bucket" >> "$GITHUB_OUTPUT"
           if [ "$requested" = auto ]; then

@@ -189,6 +189,11 @@ plus controlled-healing browser passes.
   documented in `docs/107-font-conformance-oracle.md`.
 - `tools/lib/conformance-args.ts` validates numeric flags and 1-based shard
   selection for conformance tools and the visual harness.
+- `scripts/validate-synthetic-baseline-dispatch.mjs` runs in the synthetic
+  workflow setup job and refuses authoritative baseline updates from filtered
+  stacks, omitted private-use scalars, or one codepoint stride. The workflow
+  and CLI contract are pinned by `tests/font-conformance-synthetic-workflow.test.ts`
+  and `tests/synthetic-baseline-dispatch.test.ts`.
 - `tools/lib/browser.ts` owns TypeScript tool browsers, while
   `tools/lib/browser.mjs` gives plain-Node probes the same callback and
   idempotent cleanup pattern. See `docs/tool-browser-lifecycle.md`.

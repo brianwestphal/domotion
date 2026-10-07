@@ -113,9 +113,9 @@ node scripts/diff-font-conformance-baseline.mjs --results merged.json \
 The same shape, from `.github/workflows/font-conformance-synthetic.yml`, sweeping
 the **rule-derived** stack corpus instead of the harvested one (doc 107, _"The
 synthetic stack corpus"_). Separate files rather than a shared one because the
-two slices ask different questions — 2,106 CSS-generic stacks spanning the whole
-weight ladder and every stretch keyword, against 434 harvested stacks that are
-74% weight-400 — and a mismatch count means nothing without its slice. The
+two slices ask different questions — the current routine synthetic prefix has
+351 CSS-generic stacks spanning every single-axis departure, while the
+harvested corpus comes from computed fixture styles — and a mismatch count means nothing without its slice. The
 comparator would refuse to compare them anyway (`meta.slice.stacks` and
 `meta.corpus.generatedAt` both differ); the separate path makes that explicit
 rather than relying on the refusal.
@@ -127,12 +127,16 @@ universe. Each gets its own baseline because their mismatch totals are different
 questions; the unsuffixed file remains the explicit exhaustive baseline.
 
 One difference worth knowing when reading `meta.corpus`: the synthetic corpus's
-`generatedAt` is a **digest of the rule's output** (`synthetic:v1:<hex>`), not a
+`generatedAt` is a **digest of the rule's output** (`synthetic:v2:<hex>`), not a
 timestamp. It is regenerated in every CI job, and a wall-clock stamp would
 invalidate the baseline on every run for no reason. Regenerating is comparable;
 changing the rule is not, which is the discrimination the field is for.
 
-The exhaustive synthetic baselines are seeded. A newly selected low-byte bucket
+The unsuffixed exhaustive synthetic baselines still describe the old 234-stack,
+roughly 5,850-codepoint slice and lack `parityEnvironment`; they require a new
+351-stack, full-codepoint capture and independent strict rerun. See
+[doc 107](../../docs/107-font-conformance-oracle.md#re-recording-the-exhaustive-351-stack-baseline)
+for the exact dispatch and review sequence. A newly selected low-byte bucket
 must be seeded once; until then the comparator reports the run and says there is
 nothing to compare. Review and commit that artifact before using the bucket as a gate.
 

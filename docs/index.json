@@ -2653,6 +2653,7 @@
           "DM-KK5BP2",
           "DM-N78DX3",
           "DM-QD903D",
+          "DM-T0T41W",
           "DM-V75PWJ"
         ],
         "code": [
@@ -2663,6 +2664,7 @@
           "scripts/diff-font-conformance-baseline.mjs",
           "scripts/merge-font-conformance-shards.mjs",
           "scripts/select-font-conformance-cohort.mjs",
+          "scripts/validate-synthetic-baseline-dispatch.mjs",
           "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
           "packages/text-engine/src/render/font-resolution.ts",
           "tests/baselines/README.md",
@@ -2675,6 +2677,7 @@
           "tests/font-conformance-document-lifecycle.test.ts",
           "tests/font-conformance-oracle-stability.e2e.test.ts",
           "tests/font-conformance-synthetic-stacks.test.ts",
+          "tests/synthetic-baseline-dispatch.test.ts",
           "tests/font-conformance.test.ts",
           "tests/font-conformance-oracle-stability.e2e.test.ts",
           "tests/font-conformance-pua-sentinel.e2e.test.ts",

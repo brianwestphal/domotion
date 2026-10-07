@@ -138,6 +138,17 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
     expect(jobs["aggregate"]).toMatch(/--expected \$\{\{ matrix\.expected \}\}/);
   });
 
+  it("rejects incomplete authoritative baseline updates before scheduling shards", () => {
+    const setup = jobs.setup;
+    expect(setup).toContain("node scripts/validate-synthetic-baseline-dispatch.mjs");
+    expect(setup.indexOf("validate-synthetic-baseline-dispatch.mjs")).toBeLessThan(
+      setup.indexOf('echo "macos_matrix='),
+    );
+    for (const input of ["update_baseline", "range", "max_stacks", "stack_filter", "no_pua", "cp_shard", "cp_total"]) {
+      expect(setup).toContain(`inputs.${input}`);
+    }
+  });
+
   it("uses bounded platform-specific fan-out by default", () => {
     // Six shards put 59 stacks on each runner. The authoritative rule-v2 run
     // reached only 49 on Windows before GitHub's six-hour job ceiling killed it,
