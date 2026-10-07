@@ -1817,6 +1817,7 @@
         "tests/font-conformance-cli.test.ts",
         "tests/font-conformance-extraction.e2e.test.ts",
         "tests/font-conformance-mixed-locale-controls.e2e.test.ts",
+        "tests/font-conformance-mixed-locale-shape-cache.e2e.test.ts",
         "tests/font-conformance-document-lifecycle.test.ts",
         "tests/font-conformance-oracle-stability.e2e.test.ts",
         "tests/font-conformance-synthetic-stacks.test.ts",

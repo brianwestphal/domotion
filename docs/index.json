@@ -2648,6 +2648,8 @@
           "DM-B4ANRH",
           "DM-EBRC7F",
           "DM-FM49KF",
+          "DM-0H2HSA",
+          "DM-KWKBQ5",
           "DM-KK5BP2",
           "DM-N78DX3",
           "DM-QD903D",
@@ -2669,6 +2671,7 @@
           "tests/font-conformance-cli.test.ts",
           "tests/font-conformance-extraction.e2e.test.ts",
           "tests/font-conformance-mixed-locale-controls.e2e.test.ts",
+          "tests/font-conformance-mixed-locale-shape-cache.e2e.test.ts",
           "tests/font-conformance-document-lifecycle.test.ts",
           "tests/font-conformance-oracle-stability.e2e.test.ts",
           "tests/font-conformance-synthetic-stacks.test.ts",
@@ -3183,7 +3186,18 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2315", "DM-2316", "DM-2317", "DM-2355", "DM-2557", "DM-2558", "DM-2568", "DM-2575", "DM-2586"],
+        "tickets": [
+          "DM-2315",
+          "DM-2316",
+          "DM-2317",
+          "DM-2355",
+          "DM-2557",
+          "DM-2558",
+          "DM-2568",
+          "DM-2575",
+          "DM-2586",
+          "DM-0H2HSA"
+        ],
         "code": ["src/capture/table-geometry.e2e.test.ts", "tools/parity-program.json", "tools/semantic-coverage.json"],
         "aliases": ["docs/129-chromium-parity-verification-program.md", "doc-129"]
       }
