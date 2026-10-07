@@ -224,10 +224,19 @@ report records the selected universe and the answers in that same order.
   two-scalar routes. The single-codepoint conformance sweep remains a scalar
   oracle; its existing singleton route is unchanged.
 
-  The browser matrix also observed retained faces for U+2F900 mixed with Latin,
-  common Han, or a space, but those are partial primary shapes rather than an
-  all-`.notdef` run. The renderer does not yet retain per-glyph primary results
-  for such runs, so they are outside this extension (`DM-KWKBQ5`).
+  **Mixed primary-covered text (DM-KWKBQ5).** Chromium 147 also retains an
+  English-first primary-only result for U+2F900 paired with Latin `A`, common
+  Han U+4E00, or a space, in either order where the English seed uses only
+  `.SFNS-Regular`. Its `NGShapeCache` stores the whole `ShapeResult` when
+  `HasFallbackFonts(primary_font_)` is false; covered glyphs and the terminal
+  primary `.notdef` can coexist in that result. The renderer now records the
+  exact text only when every shaped run belongs to the primary and at least one
+  run reached the first-candidate `.notdef` terminal. A seed that selected a
+  PingFang fallback is not recorded. The native browser and direct renderer
+  transition test covers the mixed positive and fallback-owned negative rows.
+  The 30-unit ceiling, noninitial feature guard, and LTR/RTL separation remain
+  in force; `0.1px` spacing and forced RTL restored PingFang in the native
+  matrix. The one-codepoint conformance oracle is unaffected by mixed text.
   Other singleton controls U+F900, U+4E00, U+3400, U+20000, U+FF21, U+FDD0,
   and U+E000 showed no cached face change in the tested `system-ui` route. A 30-unit run retained
   the English result; appending U+F900 to make 31 units restored PingFang.

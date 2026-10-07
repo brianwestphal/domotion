@@ -633,7 +633,11 @@ export function splitTextIntoFontRunsShaped(
     { ...opts, semanticContext },
   );
   _accepted++;
-  if (runs.length === 1 && runs[0].isPrimary && runs[0].routeMechanism === "first-candidate-notdef") {
+  if (
+    runs.length > 0 &&
+    runs.every((run) => run.isPrimary && run.fontKey === primaryFontKey) &&
+    runs.some((run) => run.routeMechanism === "first-candidate-notdef")
+  ) {
     recordPrimaryNotdefShape(shapeKey);
   }
   return runs;

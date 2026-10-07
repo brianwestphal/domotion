@@ -84,6 +84,65 @@ function rendererRunFaces(cells: ProbeCell[]): string[] {
   }
 }
 
+async function browserMixedRows(text: string, seeded: boolean, targetStyle = ""): Promise<string[][]> {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    const cells = seeded ? ["en", "zh-Hans"] : ["zh-Hans"];
+    const encoded = [...text].map((scalar) => `&#x${scalar.codePointAt(0)!.toString(16)};`).join("");
+    await page.setContent(
+      `<!doctype html><html lang=en><style>.c{display:block;font:16px system-ui;white-space:pre}</style>${cells.map((lang) => `<i class=c lang=${lang} style="${lang === "zh-Hans" ? targetStyle : ""}">${encoded}</i>`).join("")}`,
+    );
+    await page.screenshot();
+    const { root } = await cdp.send("DOM.getDocument");
+    const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
+    return await Promise.all(
+      nodeIds.map(async (nodeId) => {
+        const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+        return fonts.map((font) => `${font.postScriptName}:${font.glyphCount}`);
+      }),
+    );
+  } finally {
+    await browser.close();
+  }
+}
+
+function rendererMixedRows(text: string, seeded: boolean, targetMode?: "spacing" | "rtl"): string[][] {
+  beginCharacterFallbackDocument();
+  try {
+    const cells = seeded ? ["en", "zh-Hans"] : ["zh-Hans"];
+    return cells.map((lang) => {
+      const rs = prepareStack(stack, lang);
+      if (rs == null) throw new Error("system-ui stack unavailable");
+      return splitTextIntoFontRunsShaped(
+        text,
+        rs.primary,
+        rs.primaryKey,
+        400,
+        16,
+        0,
+        undefined,
+        lang,
+        rs.chain,
+        true,
+        100,
+        undefined,
+        "system-ui",
+        lang === "zh-Hans" && targetMode
+          ? targetMode === "spacing"
+            ? { features: ["-liga"] }
+            : { bidiOverride: { direction: "rtl", unicodeBidi: "bidi-override" } }
+          : undefined,
+      ).map((run) => faceFor(rs, run.fontKey, true, run.font).postscriptName ?? "");
+    });
+  } finally {
+    endCharacterFallbackDocument();
+  }
+}
+
 function oracleFaces(cells: { cp: number; lang: string }[], family = "system-ui"): string[] {
   beginCharacterFallbackDocument();
   try {
@@ -98,6 +157,34 @@ function oracleFaces(cells: { cp: number; lang: string }[], family = "system-ui"
 }
 
 describe.runIf(process.platform === "darwin")("macOS mixed-locale shape cache browser parity", () => {
+  it("retains a mixed primary-only result but not a longer or fallback-owned result", async () => {
+    const cp = "\u{2f900}";
+    for (const text of [cp + "A", "A" + cp, cp + "一", cp + " ", " " + cp]) {
+      const browser = await browserMixedRows(text, true);
+      const renderer = rendererMixedRows(text, true);
+      expect(browser[1]).toEqual([`.SFNS-Regular:${[...text].length}`]);
+      expect(renderer[1].every((face) => face === ".SFNS-Regular")).toBe(true);
+    }
+    for (const text of ["一" + cp, cp + "A".repeat(29)]) {
+      const browser = await browserMixedRows(text, true);
+      const renderer = rendererMixedRows(text, true);
+      expect(browser[1].some((face) => face.startsWith("PingFangSC-Regular:"))).toBe(true);
+      expect(renderer[1].some((face) => face === "PingFangSC-Regular")).toBe(true);
+    }
+    expect((await browserMixedRows(cp + "A", false))[0]).toContain("PingFangSC-Regular:1");
+  }, 60_000);
+
+  it("does not reuse the mixed result across spacing or direction changes", async () => {
+    const text = "\u{2f900}A";
+    for (const [mode, style] of [
+      ["spacing", "letter-spacing:0.1px"],
+      ["rtl", "direction:rtl;unicode-bidi:bidi-override"],
+    ] as const) {
+      expect((await browserMixedRows(text, true, style))[1]).toContain("PingFangSC-Regular:1");
+      expect(rendererMixedRows(text, true, mode)[1]).toContain("PingFangSC-Regular");
+    }
+  }, 60_000);
+
   it("matches the native two-scalar canonical run after an English-first primary-only result", async () => {
     const text = "\u{2f900}\u{2fa00}";
     const fresh = [{ cp: 0x2f900, text, lang: "zh-Hans" }];

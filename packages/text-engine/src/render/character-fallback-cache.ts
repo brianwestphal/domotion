@@ -177,8 +177,10 @@ export function endCharacterFallbackDocument(): void {
   }
 }
 
-/** Only runs wholly composed of canonical CJK compatibility forms enter this
- * model. Mixed primary-covered text needs per-glyph ShapeResult ownership. */
+/** Only runs containing a canonical CJK compatibility form enter this model.
+ * The shaped splitter records a result only when every assigned glyph belongs
+ * to the primary face, matching NGShapeCache::GetOrCreateImpl's
+ * !HasFallbackFonts(primary_font_) guard (Chromium 147). */
 export function primaryNotdefShapeKey(
   text: string,
   primaryIdentity: string,
@@ -205,17 +207,18 @@ export function primaryNotdefShapeKey(
   } else if (!primaryIdentity.startsWith("system-ui|")) {
     return null;
   }
+  const isCanonicalCompatibilityForm = (scalar: string): boolean => {
+    const cp = scalar.codePointAt(0)!;
+    if (!((cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x2f800 && cp <= 0x2fa1f))) return false;
+    const canonical = scalar.normalize("NFD");
+    return canonical !== scalar && [...canonical].length === 1;
+  };
   const scalars = [...text];
-  if (
-    scalars.length === 0 ||
-    !scalars.every((scalar) => {
-      const cp = scalar.codePointAt(0)!;
-      if (!((cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x2f800 && cp <= 0x2fa1f))) return false;
-      const canonical = scalar.normalize("NFD");
-      return canonical !== scalar && [...canonical].length === 1;
-    })
-  )
-    return null;
+  if (!scalars.some(isCanonicalCompatibilityForm)) return null;
+  // The Windows evidence covers wholly missing-primary runs only. The macOS
+  // native matrix also covers primary-owned Latin, Han, and space glyphs in
+  // the same cached ShapeResult; the result's exact text remains in the key.
+  if (platform === "win32" && !scalars.every(isCanonicalCompatibilityForm)) return null;
   return JSON.stringify([
     primaryIdentity,
     weight,

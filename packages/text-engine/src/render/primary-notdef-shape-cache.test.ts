@@ -43,7 +43,7 @@ describe("macOS primary .notdef shape state", () => {
           primaryNotdefShapeKey("\u{2f900}", "system-ui|sf-pro", 400, 16, 0, 100, undefined, ["-liga", "chws"]),
         ).toBeNull();
         expect(key("\u0100")).toBeNull();
-        expect(key("\u{2f900}x")).toBeNull();
+        expect(key("\u{2f900}x")).not.toBeNull();
         const pair = key("\u{2f900}\u{2fa00}");
         expect(pair).not.toBeNull();
         expect(pair).not.toBe(shapeKey);
@@ -67,7 +67,7 @@ describe("macOS primary .notdef shape state", () => {
         ).toBe(false);
         expect(key("\u{2f900}".repeat(15))).not.toBeNull(); // 30 UTF-16 units
         expect(key("\u{2f900}".repeat(15) + "\uF900")).toBeNull(); // 31 units
-        expect(key("\u{2f900}A")).toBeNull(); // primary-covered mixed run
+        expect(key("\u{2f900}A")).not.toBeNull(); // primary-owned mixed run
         expect(
           primaryNotdefShapeKey("\u{2f900}", "cursive|apple-chancery", 400, 16, 0, 100, undefined, undefined),
         ).toBeNull();
