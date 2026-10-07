@@ -903,7 +903,7 @@ So each platform gets its own sweep job, its own stack corpus, its own font inve
 
 Per-platform environment notes that the jobs encode:
 
-- **macOS** builds the CoreText helper (`swift build`). Without it the resolver cannot ask CoreText and silently drops to the static chain — answering a different question than the one reported.
+- **macOS** builds the CoreText helper (`swift build`). Without it the resolver cannot ask CoreText and silently drops to the static chain — answering a different question than the one reported. A helper from an earlier release can also be present but lack the current source's fallback behavior. Before validating native changes locally, run `packages/text-engine/tools/macos-glyph-extractor/build.sh --arch arm64` (or the matching host architecture) so the in-tree helper takes precedence over the downloaded release cache. DM-X85EC0 reproduced eight browser face mismatches and two unit failures with the September 0.30.1 cached helper. Rebuilding the October source helper on the same macOS 27 host restored eight exact agreements and all three focused unit assertions.
 - **Windows** builds the DirectWrite helper (`build.ps1`), for the same reason.
 - **Linux** builds the fontconfig glyph helper before sweeping. Without it the resolver drops to the older `fc-match` approximation and measures a different route.
 - **Linux runs in the pinned `mcr.microsoft.com/playwright:v<ver>-noble` container**, not on a bare `ubuntu-latest`. The Linux fallback answer _is_ the container's fontconfig set, so a different image is a different oracle — the same reasoning the Linux fidelity suites already run on.
