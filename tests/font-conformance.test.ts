@@ -286,6 +286,23 @@ describe("font conformance command selection", () => {
     opts.stackFilter = "absent";
     expect(() => selectStacksAndUniverse(corpus, opts)).toThrow("matched no stacks");
   });
+
+  it("matches the displayed stack signature and existing corpus example text", () => {
+    const target: StackSpec = {
+      fontFamily: "serif",
+      fontSize: 16,
+      fontWeight: 400,
+      fontStyle: "normal",
+      fontStretch: "150%",
+      example: "rule v2: serif extra-expanded keyword",
+    };
+    const corpus: StackCorpus = { generatedAt: "test", platform: "any", sources: [], stacks: [target, ...stacks] };
+    const opts = parseArgs(["--range", "E000-E000"]);
+    opts.stackFilter = "SERIF @16/400/normal/150% lang=en";
+    expect(selectStacksAndUniverse(corpus, opts).stacks).toEqual([target]);
+    opts.stackFilter = "extra-expanded keyword";
+    expect(selectStacksAndUniverse(corpus, opts).stacks).toEqual([target]);
+  });
 });
 
 describe("sweepStack orchestration", () => {
@@ -585,7 +602,7 @@ describe("oracle resolver question", () => {
   it("passes the raw CSS family stack used by Blink's standard-style retry", () => {
     const source = readFileSync(join(process.cwd(), "tools/font-conformance.ts"), "utf8").replace(/\s+/g, " ");
     expect(source).toMatch(
-      /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily, lang, \{ weight: rs\.spec\.fontWeight, size: rs\.spec\.fontSize, slant: rs\.slant, stretch: rs\.stretch, variationSettings: rs\.variationSettings, \}\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
+      /stackPrimaryIsSystemUi\(rs\.spec\.fontFamily, lang, \{ weight: rs\.spec\.fontWeight, size: rs\.spec\.fontSize, slant: rs\.slant, stretch: rs\.stretch, variationSettings: rs\.variationSettings, cacheOptions: rs\.cacheOptions, \}\), rs\.stretch, undefined, .* rs\.spec\.fontFamily, \);/,
     );
   });
 });

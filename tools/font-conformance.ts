@@ -1893,7 +1893,11 @@ export function selectStacksAndUniverse(
   let stacks = corpus.stacks;
   if (opts.stackFilter != null) {
     const needle = opts.stackFilter.toLocaleLowerCase("en-US");
-    stacks = stacks.filter((s) => JSON.stringify(s).toLocaleLowerCase("en-US").includes(needle));
+    stacks = stacks.filter(
+      (s) =>
+        stackKey(s, opts.lang).toLocaleLowerCase("en-US").includes(needle) ||
+        JSON.stringify(s).toLocaleLowerCase("en-US").includes(needle),
+    );
     if (stacks.length === 0) throw new Error(`--stack-filter matched no stacks: ${opts.stackFilter}`);
   }
   if (opts.maxStacks != null) stacks = stacks.slice(0, opts.maxStacks);
