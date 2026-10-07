@@ -1,7 +1,7 @@
 // Env-keyed baseline sets for the family-match oracles (docs 110 / 111).
 //
 // The comparators refuse to judge across an environment change, so one file
-// must be able to carry one baseline PER environment (arm64 local + x64 CI).
+// must be able to carry one baseline PER environment (arm64 and x64 CI).
 // These tests pin the set semantics: legacy single-report files read as a
 // one-entry set (no migration of committed baselines), selection is
 // fingerprint-equality over the tool's key list, and a write replaces only
@@ -144,10 +144,8 @@ const COMMITTED = [
 describe.each(COMMITTED)("committed $os family-match baseline", ({ os, file, keys }) => {
   const entries = readBaselineSet(resolve("tests", "baselines", file));
 
-  it("records at least the local arm64 and the x64 CI environment", () => {
-    // Both oracles run in two places: an arm64 developer environment (Docker on
-    // Apple Silicon / the Parallels VM) and an x64 GitHub runner. An entry per
-    // arch is what makes the gate JUDGE in both rather than decline in one.
+  it("records both arm64 and x64 environments", () => {
+    // An entry per architecture lets each hosted gate judge its own runner.
     expect(entries.length).toBeGreaterThanOrEqual(2);
     expect(new Set(entries.map((e) => e.meta.env.arch))).toEqual(new Set(["arm64", "x64"]));
   });
@@ -170,19 +168,17 @@ describe.each(COMMITTED)("committed $os family-match baseline", ({ os, file, key
   });
 
   it("carries the fingerprint fields its comparator selects on", () => {
-    // Older records remain for historical evidence. Their contract cannot
-    // match a new run, so fields introduced by capture-run-env/1 may be absent.
-    // Every new record must carry the fields the comparator selects on.
-    const LEGACY_OPTIONAL = new Set(["chromium", "imageVersion", "osRelease"]);
+    // Older records remain as historical evidence and cannot match a
+    // capture-run-env/1 report. They predate the image/version fields, but
+    // every retained entry has an authentic browser fingerprint.
+    const LEGACY_OPTIONAL = new Set(["imageVersion", "osRelease"]);
     const migrated = entries.filter((entry) => entry.meta.env.envContract === "capture-run-env/1");
     expect(migrated.some((entry) => entry.meta.env.arch === "x64")).toBe(true);
-    if (os === "linux") expect(migrated.some((entry) => entry.meta.env.arch === "arm64")).toBe(true);
+    expect(migrated.some((entry) => entry.meta.env.arch === "arm64")).toBe(true);
     for (const entry of entries) {
       for (const key of keys) {
-        // Older records remain historical evidence, but envMatches refuses to
-        // select them for a capture-run-env/1 report. Every new record must
-        // carry the complete set of fields its comparator uses.
-        if (entry.meta.env.envContract == null && LEGACY_OPTIONAL.has(key)) continue;
+        const legacy = entry.meta.env.envContract == null;
+        if (legacy && LEGACY_OPTIONAL.has(key)) continue;
         expect(entry.meta.env[key], `${entry.meta.env.arch}: ${key}`).toBeDefined();
       }
     }

@@ -239,13 +239,10 @@ local VM launched a 148 build out of a folder named `chromium-1217`.
 
 A fingerprint field ABSENT on either side is skipped rather than counted as a
 difference ("cannot tell", not "known different"), which is what let `chromium`
-join without disarming every committed baseline until each environment is
+join without disarming a committed baseline before its environment is
 re-seeded. The check arms by itself the first time an entry is recorded carrying
-it. **No committed baseline carries `chromium` yet**: the tools record it
-(`tools/family-match-conformance-linux.ts`, `-win32.ts`), but
-`tests/family-match-baseline.test.ts` exempts it as `AWAITING_RESEED`, so today a
-Chromium bump does NOT make the gate refuse to judge. The exemption is removed
-once every committed entry is re-seeded with the field.
+it. Both Linux entries and both hosted Windows architectures now record
+`chromium`, so a browser-version change makes each gate refuse to judge.
 
 ## The CI gate
 

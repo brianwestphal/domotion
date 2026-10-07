@@ -5,10 +5,11 @@
       "meta": {
         "suite": "family-match",
         "os": "linux",
-        "capturedAt": "2026-08-04T01:34:00.894Z",
+        "capturedAt": "2026-09-30T11:19:19.825Z",
         "env": {
           "platform": "linux",
           "arch": "arm64",
+          "chromium": "147.0.7727.0",
           "image": "Ubuntu 24.04.4 LTS",
           "fcVersion": "fontconfig version 2.15.0",
           "fontCount": 50,
@@ -31,10 +32,11 @@
       "meta": {
         "suite": "family-match",
         "os": "linux",
-        "capturedAt": "2026-08-05T01:18:06.322Z",
+        "capturedAt": "2026-09-28T07:37:35.715Z",
         "env": {
           "platform": "linux",
           "arch": "x64",
+          "chromium": "147.0.7727.15",
           "image": "Ubuntu 24.04.4 LTS",
           "fcVersion": "fontconfig version 2.15.0",
           "fontCount": 50,

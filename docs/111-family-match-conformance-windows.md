@@ -27,8 +27,9 @@ Windows build identity comes from `os.release()`. The `capture-run-env/1`
 contract refuses to select older baselines; new arm64 and x64 entries require
 reviewed native Windows runs before the gate can judge them. CI x64 entries for
 runner image versions `20260922.246.2` and `20260925.250.1` each scored
-516/516 cases on 2026-10-01. The older Parallels arm64 VM entry remains
-historical; its environment is unavailable for recapture (see `DM-WTFX33`).
+516/516 cases on 2026-10-01. The hosted Windows 11 Arm64 entry for image
+`20260924.168.1` scored 516/516 cases on 2026-10-07. It replaces the retired
+Parallels VM entry (see `DM-WTFX33`).
 
 `tools/family-match-conformance-win32.ts` · `npm run fonts:family-match:win32`
 · baseline `tests/baselines/family-match-windows.json`
@@ -119,8 +120,8 @@ fingerprint (platform, arch, **Chromium version**, OS build, font-inventory
 digest); the comparator
 refuses to judge (exit 3) when no recorded fingerprint matches this run's.
 The baseline file is an **env-keyed set** (`tools/family-match-baseline.ts`):
-one entry per environment, selected by fingerprint equality, so the arm64
-Windows 11 VM and CI's x64 runner carry separate entries in the same
+one entry per environment, selected by fingerprint equality, so hosted Arm64
+Windows 11 and CI's x64 Windows Server carry separate entries in the same
 committed file (a legacy single-report file reads as a one-entry set;
 `--write-baseline` records or replaces only the current environment's entry).
 See doc 110's baseline section for why the browser version is in the fingerprint
@@ -139,10 +140,12 @@ environment's committed entry fails the job. If no committed entry matches the
 run's fingerprint, the refuse-to-judge (exit 3) is turned into a green run that
 records a candidate and uploads it in the `family-match-windows` artifact —
 review it, commit `tests/baselines/family-match-windows.json`, and the gate arms
-on the next run. The committed file already carries both an arm64 (Windows 11
-VM) and an x64 (CI runner) entry. As in doc 110, no committed entry carries the
-`chromium` field yet (`AWAITING_RESEED` in `tests/family-match-baseline.test.ts`),
-so a Chromium bump does not currently refuse to judge. One caveat worth
+on the next run. The committed file carries native hosted Windows 11 Arm64
+and Windows Server x64 entries, each with a `chromium` fingerprint that refuses
+to judge a browser-version change. The former Parallels VM entry was retired
+because its backing volume is unavailable and the hosted Arm64 runner is the
+supported replacement. Dispatch `arm64_family_match=true` to validate the
+hosted Arm64 entry; the default family-match lane validates x64. One caveat worth
 restating: `windows-latest` is Windows **Server**, whose font set is narrower than
 desktop Windows 11 — its numbers say nothing about the desktop entry, and
 each environment is judged only against itself.
