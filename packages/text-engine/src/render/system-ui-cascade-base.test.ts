@@ -23,7 +23,8 @@
  * which consults the helper where one exists.)
  */
 import { describe, expect, it } from "vitest";
-import { darwinSystemUiPlatformCacheWarm, setDarwinSystemUiPlatformCacheWarm } from "./font-instance.js";
+import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "./character-fallback-cache.js";
+import { hasWarmDarwinSystemUiAlias } from "./darwin-font-data-lifetime.js";
 import { withHostPlatform } from "./host-platform.js";
 import {
   resolveFont,
@@ -105,10 +106,9 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
   });
 
   it("changes a quoted case-variant to the UI cascade only after Darwin system-ui cache warming", () => {
-    const wasWarm = darwinSystemUiPlatformCacheWarm;
-    try {
-      withHostPlatform("darwin", () => {
-        setDarwinSystemUiPlatformCacheWarm(false);
+    withHostPlatform("darwin", () => {
+      beginCharacterFallbackDocument();
+      try {
         expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
         expect(resolveFontKey('"System-ui", Menlo')).toBe("menlo");
 
@@ -117,17 +117,12 @@ describe("system-ui cascade-base signal (DM-1859)", () => {
         expect(resolveFontKey("system-ui")).toBe("sf-pro");
         expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(true);
         expect(resolveFontKey('"System-ui", Menlo')).toBe("sf-pro");
-
-        setDarwinSystemUiPlatformCacheWarm(false);
-        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
-      });
-      withHostPlatform("linux", () => {
-        setDarwinSystemUiPlatformCacheWarm(true);
-        expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false);
-      });
-    } finally {
-      setDarwinSystemUiPlatformCacheWarm(wasWarm);
-    }
+        expect(hasWarmDarwinSystemUiAlias({ weight: 700, size: 16, slant: 0, stretch: 100 })).toBe(false);
+      } finally {
+        endCharacterFallbackDocument();
+      }
+    });
+    withHostPlatform("linux", () => expect(stackPrimaryIsSystemUi('"System-ui", Menlo')).toBe(false));
   });
 
   it("is false for an absent or empty stack rather than throwing", () => {

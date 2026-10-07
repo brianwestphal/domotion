@@ -25,6 +25,7 @@ export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 // — the consumer showed a broken-image icon rather than the drawing. Import the
 // one implementation instead of restating it; see `esc` for the disposition.
 import { hostPlatform } from "./host-platform.js";
+import { computedFontSize } from "./font-instance.js";
 import { esc as escAttr } from "./format.js";
 import { visualTextSemantics } from "./text-semantics.js";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
@@ -915,11 +916,18 @@ function renderTextPathRuns(
 ): TextPathResult | null {
   const ownership = createTextPathOwnership();
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
+  const description = {
+    weight,
+    size: computedFontSize(variationSettings, fontSize),
+    slant,
+    stretch,
+    variationSettings,
+  };
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
 
-  const primaryFontKey = resolveFontKey(fontFamily, lang);
-  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
+  const primaryFontKey = resolveFontKey(fontFamily, lang, description);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
 
   // Keep fake-bold and author-stroke geometry on the selected RUN. A fallback
   // face can have a real bold cut while the primary needs synthesis (or vice
@@ -964,7 +972,7 @@ function renderTextPathRuns(
     variationSettings,
     lang,
     fontKeyChain,
-    stackPrimaryIsSystemUi(fontFamily, lang),
+    stackPrimaryIsSystemUi(fontFamily, lang, description),
     stretch,
     fontVariantEmoji,
     fontFamily,
@@ -2092,13 +2100,20 @@ export function insertSyntheticDottedCircles(
   // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
   const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
   const semanticContext = createFontFallbackSemanticContext(fontFamily);
-  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const stretch = stretchPercent(fontStretch);
+  const description = {
+    weight,
+    size: computedFontSize(variationSettings, fontSize),
+    slant,
+    stretch,
+    variationSettings,
+  };
+  const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   // The full declared stack, derived the same way the run splitters derive it —
   // the coverage probe below delegates to `resolveFontForCodepoint`, which walks
   // it (Blink's kFontFamily stage), so a mark covered only by a later-declared
   // family is "covered" here exactly when the emitter will paint it.
-  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
-  const stretch = stretchPercent(fontStretch);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return { text, xOffsets };
 
@@ -2316,7 +2331,7 @@ export function insertSyntheticDottedCircles(
           variationSettings,
           lang,
           fontKeyChain,
-          stackPrimaryIsSystemUi(fontFamily, lang),
+          stackPrimaryIsSystemUi(fontFamily, lang, description),
           stretch,
           undefined,
           fallbackRequest?.rawSlope,
@@ -2372,7 +2387,7 @@ export function insertSyntheticDottedCircles(
               variationSettings,
               lang,
               fontKeyChain,
-              stackPrimaryIsSystemUi(fontFamily, lang),
+              stackPrimaryIsSystemUi(fontFamily, lang, description),
               stretch,
               undefined,
               fontFamily,
@@ -3057,10 +3072,17 @@ function renderEmbeddedGlyphRuns(
   hanKerningEdges?: HanKerningLineEdges,
 ): EmbeddedTextAttempt {
   const { weight, slant, stretch } = textFontRequest(fontWeight, fontStyle, fontStretch);
+  const description = {
+    weight,
+    size: computedFontSize(variationSettings, fontSize),
+    slant,
+    stretch,
+    variationSettings,
+  };
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return { markup: null, decline: { reason: "primary-font-unresolved" } };
-  const primaryFontKey = resolveFontKey(fontFamily, lang);
-  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
+  const primaryFontKey = resolveFontKey(fontFamily, lang, description);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
   // DM-1103: the optical-cut opsz `resolveFont` pinned for the primary face,
   // folded into the per-instance embed key below so a cut-pinned run (e.g.
   // "SF Pro Text" → opsz 17) doesn't dedup-collide with a generic SF Pro run
@@ -3077,7 +3099,7 @@ function renderEmbeddedGlyphRuns(
     variationSettings,
     lang,
     fontKeyChain,
-    stackPrimaryIsSystemUi(fontFamily, lang),
+    stackPrimaryIsSystemUi(fontFamily, lang, description),
     stretch,
     fontVariantEmoji,
     fontFamily,
@@ -4221,6 +4243,13 @@ export function selectedGlyphRasterSpans(
   const weight = cssWeightOf(options.fontWeight);
   const slant = slantForStyle(options.fontStyle);
   const stretch = stretchPercent(options.fontStretch);
+  const description = {
+    weight,
+    size: computedFontSize(options.variationSettings, fontSize),
+    slant,
+    stretch,
+    variationSettings: options.variationSettings,
+  };
   const primaryFont = resolveFont(
     fontFamily,
     weight,
@@ -4231,8 +4260,8 @@ export function selectedGlyphRasterSpans(
     options.lang,
   );
   if (primaryFont == null) return [];
-  const primaryKey = resolveFontKey(fontFamily, options.lang);
-  const chain = resolveFontKeyChain(fontFamily, options.lang);
+  const primaryKey = resolveFontKey(fontFamily, options.lang, description);
+  const chain = resolveFontKeyChain(fontFamily, options.lang, description);
   const runs = splitTextIntoGlyphPathRuns(
     text,
     primaryFont,
@@ -4243,7 +4272,7 @@ export function selectedGlyphRasterSpans(
     options.variationSettings,
     options.lang,
     chain,
-    stackPrimaryIsSystemUi(fontFamily, options.lang),
+    stackPrimaryIsSystemUi(fontFamily, options.lang, description),
     stretch,
     options.fontVariantEmoji,
     fontFamily,
@@ -5102,9 +5131,16 @@ export function measureEmphasisMarkMetrics(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
+  const description = {
+    weight,
+    size: computedFontSize(variationSettings, fontSize),
+    slant,
+    stretch,
+    variationSettings,
+  };
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
-  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   const runs = splitTextIntoFontRuns(
     mark,
     primaryFont,
@@ -5114,8 +5150,8 @@ export function measureEmphasisMarkMetrics(
     slant,
     variationSettings,
     lang,
-    resolveFontKeyChain(fontFamily, lang),
-    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang),
+    resolveFontKeyChain(fontFamily, lang, description),
+    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang, description),
     stretch,
     undefined,
     fontFamily,
@@ -5185,10 +5221,17 @@ export function measureInkMetrics(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
+  const description = {
+    weight,
+    size: computedFontSize(variationSettings, fontSize),
+    slant,
+    stretch,
+    variationSettings,
+  };
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang);
   if (primaryFont == null) return null;
-  const primaryFontKey = resolveFontKey(fontFamily, lang);
-  const fontKeyChain = resolveFontKeyChain(fontFamily, lang);
+  const primaryFontKey = resolveFontKey(fontFamily, lang, description);
+  const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
   const runs = splitTextIntoFontRuns(
     text,
     primaryFont,
@@ -5199,7 +5242,7 @@ export function measureInkMetrics(
     variationSettings,
     lang,
     fontKeyChain,
-    stackPrimaryIsSystemUi(fontFamily, lang),
+    stackPrimaryIsSystemUi(fontFamily, lang, description),
     stretch,
     undefined,
     fontFamily,
@@ -5265,11 +5308,12 @@ export function renderStretchyFenceGlyph(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
+  const description = { weight, size: fontSize, slant, stretch };
 
   // Resolve a font that actually has the fence glyph via the shared per-codepoint
   // resolver (DM-1068). Uncovered → keep the primary (its `.notdef`); the caller
   // falls back to the synthesized path when the layout has no outline.
-  const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang);
+  const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang, description);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(
@@ -5281,8 +5325,8 @@ export function renderStretchyFenceGlyph(
     slant,
     undefined,
     fontOptions.lang,
-    resolveFontKeyChain(fontFamily, fontOptions.lang),
-    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang),
+    resolveFontKeyChain(fontFamily, fontOptions.lang, description),
+    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang, description),
     stretch,
     undefined,
     fontFamily,
@@ -5381,11 +5425,12 @@ export function renderRadicalGlyph(
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
   const stretch = stretchPercent(fontStretch);
+  const description = { weight, size: fontSize, slant, stretch };
 
   // Resolve a font that has the √ glyph via the shared per-codepoint resolver
   // (DM-1068). Uncovered → keep the primary; the caller falls back to the
   // synthesized path when the layout has no outline.
-  const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang);
+  const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang, description);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, stretch, fontOptions.lang);
   if (primaryFont == null) return null;
   const res = resolveFontForCodepoint(
@@ -5397,8 +5442,8 @@ export function renderRadicalGlyph(
     slant,
     undefined,
     fontOptions.lang,
-    resolveFontKeyChain(fontFamily, fontOptions.lang),
-    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang),
+    resolveFontKeyChain(fontFamily, fontOptions.lang, description),
+    stackPrimaryIsSystemUi(fontFamily, fontOptions.lang, description),
     stretch,
     undefined,
     fontFamily,

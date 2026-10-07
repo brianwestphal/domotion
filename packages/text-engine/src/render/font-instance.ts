@@ -1554,7 +1554,7 @@ export function getFontInstance(
   );
   if (instance != null && hostPlatform() === "darwin" && !key.startsWith("webfont:")) {
     const face = getFontSourceInfo(instance)?.postscriptName ?? key;
-    recordDarwinFontDataUse(darwinFontDataIdentity(face, weight, fontSize, slant, stretch));
+    recordDarwinFontDataUse(darwinFontDataIdentity(face, weight, fontSize, slant, stretch, variationSettings));
   }
   return instance;
 }
@@ -3063,17 +3063,6 @@ export const BLINK_GENERIC_FAMILY_SPELLINGS: ReadonlySet<string> = new Set([
   "-webkit-standard",
   "-webkit-body",
 ]);
-
-// Blink's macOS platform-font cache folds family keys case-insensitively even
-// though the `system-ui` intercept itself is an exact AtomicString comparison.
-// Consequently an exact system-ui lookup warms the cache entry later used by
-// an ordinary case-variant `System-ui` family. This alias survives ordinary
-// memory trims; the FontData lifetime model can expire it at document GC once
-// its weak platform entry has lost the 64-entry strong-LRU protection.
-export let darwinSystemUiPlatformCacheWarm = false;
-export function setDarwinSystemUiPlatformCacheWarm(value: boolean): void {
-  darwinSystemUiPlatformCacheWarm = value;
-}
 
 /** One name of a computed `font-family` stack: the lower-cased unquoted name,
  *  plus whether this occurrence is a CSS `<generic-family>` KEYWORD rather

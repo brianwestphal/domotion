@@ -37,7 +37,12 @@ import { _famAvailCache } from "./font-instance.js";
 import { BLINK_GENERIC_FAMILY_SPELLINGS } from "./font-instance.js";
 import { webfontRegistry } from "./font-instance.js";
 import { localFontAliasRegistry } from "./webfont-registry.js";
-import { darwinSystemUiPlatformCacheWarm, setDarwinSystemUiPlatformCacheWarm } from "./font-instance.js";
+import {
+  DARWIN_INITIAL_FONT_DESCRIPTION,
+  hasWarmDarwinSystemUiAlias,
+  warmDarwinSystemUiAlias,
+  type DarwinFontDescription,
+} from "./darwin-font-data-lifetime.js";
 import { fcMatch } from "./font-paths.win32.js";
 import { win32SuffixDeclaredForKey } from "./fallback-chain.linux.js";
 import { resolveFaceInfoForFile } from "./font-instance.js";
@@ -1078,6 +1083,7 @@ function matchFamilyCandidateToKey(
   lang?: string,
   canonicalSystemUiName: boolean = name === "system-ui",
   lookupName: string = name,
+  description: DarwinFontDescription = DARWIN_INITIAL_FONT_DESCRIPTION,
 ): string | null {
   if (name === "" || name === "doesnotexist") return null;
   const settingsName = genericSettingsFamilyName(name);
@@ -1104,7 +1110,7 @@ function matchFamilyCandidateToKey(
       const primary = sessionScriptPrimaryFace(probed, settingsName);
       const exact = sessionProbedFaceKey(primary);
       if (exact != null) return exact;
-      const key = matchFamilyNameToKey(primary.toLowerCase(), false);
+      const key = matchFamilyNameToKey(primary.toLowerCase(), false, undefined, undefined, undefined, description);
       if (key != null) return key;
     }
     const scriptValue = perScriptGenericFamily(hostPlatform(), lang, name);
@@ -1137,7 +1143,8 @@ function matchFamilyCandidateToKey(
         // Degraded tier (no native helper): fall back to the curated arms so
         // the nominated family still lands on the closest calibrated face.
         const firstLower = first.toLowerCase();
-        if (firstLower !== name) return matchFamilyNameToKey(firstLower, false);
+        if (firstLower !== name)
+          return matchFamilyNameToKey(firstLower, false, undefined, undefined, undefined, description);
       }
       return null;
     }
@@ -1155,7 +1162,7 @@ function matchFamilyCandidateToKey(
       if (exact != null) return exact;
       const probedName = probed.toLowerCase();
       if (probedName !== name) {
-        const key = matchFamilyNameToKey(probedName);
+        const key = matchFamilyNameToKey(probedName, undefined, undefined, undefined, undefined, description);
         if (key != null) return key;
       }
     }
@@ -1457,7 +1464,7 @@ function matchFamilyCandidateToKey(
   // family and must walk on. `splitFontFamilyNames` preserves that one bit
   // before lower-casing names for ordinary case-insensitive family lookup.
   if (name === "system-ui" && canonicalSystemUiName) {
-    if (hostPlatform() === "darwin") setDarwinSystemUiPlatformCacheWarm(true);
+    if (hostPlatform() === "darwin") warmDarwinSystemUiAlias(description);
     if (hostPlatform() === "linux" && _systemFallbackResolutionEnabled) {
       const matched = fcMatch("sans");
       if (matched != null) {
@@ -1475,7 +1482,7 @@ function matchFamilyCandidateToKey(
     }
     return "sf-pro";
   }
-  if (name === "system-ui" && hostPlatform() === "darwin" && darwinSystemUiPlatformCacheWarm) {
+  if (name === "system-ui" && hostPlatform() === "darwin" && hasWarmDarwinSystemUiAlias(description)) {
     return "sf-pro";
   }
   // `BlinkMacSystemFont` is rewritten to `system-ui` only on macOS — the
@@ -1746,8 +1753,9 @@ export function matchFamilyNameToKey(
   lang?: string,
   canonicalSystemUiName: boolean = name === "system-ui",
   lookupName: string = name,
+  description: DarwinFontDescription = DARWIN_INITIAL_FONT_DESCRIPTION,
 ): string | null {
-  const key = matchFamilyCandidateToKey(name, generic, lang, canonicalSystemUiName, lookupName);
+  const key = matchFamilyCandidateToKey(name, generic, lang, canonicalSystemUiName, lookupName, description);
   if (key == null) return null;
 
   // macOS declared-family identity is the CTFont/NSFont descriptor Blink
@@ -1815,7 +1823,11 @@ export function matchFamilyNameToKey(
   return exactKey;
 }
 
-export function resolveFontKey(fontFamily: string, lang?: string): string {
+export function resolveFontKey(
+  fontFamily: string,
+  lang?: string,
+  description: DarwinFontDescription = DARWIN_INITIAL_FONT_DESCRIPTION,
+): string {
   // Walk the comma-separated stack — Chrome's getComputedStyle returns the
   // unresolved list (e.g. `"DoesNotExist", Georgia, "Times New Roman", serif`)
   // not the matched font. Pick the first name we recognize, mirroring how
@@ -1823,7 +1835,14 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
   // element's content locale; it moves the settings-mapped generics on
   // mac/win via Playwright's per-script tables (see matchFamilyNameToKey).
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName);
+    const key = matchFamilyNameToKey(
+      entry.name,
+      entry.generic,
+      lang,
+      entry.canonicalSystemUiName,
+      entry.lookupName,
+      description,
+    );
     if (key != null) return key;
   }
   // Last-resort fallback when no family in the stack matched: Blink falls to
@@ -1835,7 +1854,7 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
   // jpan STANDARD entry — for every codepoint, not Times. Consult the
   // per-script standard entry first; no entry (Common script, Linux, no
   // lang) keeps the calibrated Times default.
-  const std = matchFamilyNameToKey("-webkit-standard", true, lang);
+  const std = matchFamilyNameToKey("-webkit-standard", true, lang, undefined, undefined, description);
   if (std != null) return std;
   return "times";
 }
@@ -1855,13 +1874,24 @@ export function resolveFontKey(fontFamily: string, lang?: string): string {
  * it identifies the later platform-fallback face, so inserting STANDARD ahead
  * of that stage would contradict the authenticated paint.
  */
-export function resolveFontKeyChain(fontFamily: string, lang?: string): string[] {
+export function resolveFontKeyChain(
+  fontFamily: string,
+  lang?: string,
+  description: DarwinFontDescription = DARWIN_INITIAL_FONT_DESCRIPTION,
+): string[] {
   const out: string[] = [];
   const entries = splitFontFamilyNames(fontFamily);
   let protectedScriptFallback = false;
   for (const entry of entries) {
     protectedScriptFallback ||= sessionScriptFaceIsFallbackOwned(entry.name, entry.generic, lang);
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName);
+    const key = matchFamilyNameToKey(
+      entry.name,
+      entry.generic,
+      lang,
+      entry.canonicalSystemUiName,
+      entry.lookupName,
+      description,
+    );
     if (key != null && !out.includes(key)) out.push(key);
   }
   // Blink's family list ends with the STANDARD family: a codepoint no
@@ -1882,7 +1912,7 @@ export function resolveFontKeyChain(fontFamily: string, lang?: string): string[]
   // at kFontFamily (Times covers Hebrew) before Blink's CoreText stage can
   // produce that authenticated hidden face.
   if (!protectedScriptFallback) {
-    const std = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
+    const std = matchFamilyNameToKey("-webkit-standard", true, lang, undefined, undefined, description) ?? "times";
     if (!out.includes(std)) out.push(std);
   }
   return out;
@@ -1974,13 +2004,21 @@ export function resolveFont(
   lang?: string,
 ): FontInstance | null {
   const matchSize = computedFontSize(variationSettings, fontSize);
+  const description = { weight: fontWeight, size: matchSize, slant, stretch, variationSettings };
   const semanticContext = createFontFallbackSemanticContext(fontFamily);
   // A generated family-name table can recognize a face that is absent from
   // this particular host inventory. Blink's kFontFamily stage keeps walking
   // the authored CSS stack when matching/loading that face fails; do the same
   // here rather than returning null from the first recognized snapshot entry.
   for (const entry of splitFontFamilyNames(fontFamily)) {
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName);
+    const key = matchFamilyNameToKey(
+      entry.name,
+      entry.generic,
+      lang,
+      entry.canonicalSystemUiName,
+      entry.lookupName,
+      description,
+    );
     if (key == null) continue;
     const cutOpsz = OPTICAL_CUT_OPSZ[entry.name];
     const settings =
@@ -1994,14 +2032,15 @@ export function resolveFont(
       slant,
       settings,
       stretch,
-      stackPrimaryIsSystemUi(entry.name),
+      stackPrimaryIsSystemUi(entry.name, undefined, description),
       undefined,
       semanticContext,
     );
     if (instance != null) return instance;
   }
 
-  const standardKey = matchFamilyNameToKey("-webkit-standard", true, lang) ?? "times";
+  const standardKey =
+    matchFamilyNameToKey("-webkit-standard", true, lang, undefined, undefined, description) ?? "times";
   return getFontInstance(
     standardKey,
     fontWeight,

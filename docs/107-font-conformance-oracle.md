@@ -410,15 +410,27 @@ Local browser controls hold 340 seed glyphs fixed: 55 painted faces plus four
 distinct named-font queries retain the alias; six such queries expire it.
 The first 360 glyphs paint 59 faces and also expire it. This shows why
 unpainted family candidates and donor probes matter to the cache occupancy.
-The current quoted alias remains process-wide across font descriptions;
-`DM-T8N4R9` tracks descriptor-keyed behavior. Before ratifying a new hosted
-macOS synthetic baseline, run
+The quoted alias is now held per renderer session and keyed by the effective
+font description's weight, size, slant, stretch, and variation settings. On local Chromium 147,
+warming canonical 16px regular `system-ui` makes the matching quoted family
+resolve `.SFNS-Regular`; querying bold, 32px, italic, 75% stretch, or an explicit
+`"wght" 500` variation instead
+still resolves Menlo. Reversing the warm/query descriptions likewise leaves
+the quoted regular route on Menlo. Changing only content language from `en` to
+`ja` keeps the alias warm on this Chromium build. A new document plus GC preserves a matching
+small-corpus alias and leaves cross-description queries cold. This transition
+matrix is pinned in `tests/font-conformance-warmed-system-ui.e2e.test.ts`.
+Other Blink `FontDescription::CacheKey` fields require separate alias probes;
+`DM-5R5HG0` tracks that extension.
+Before ratifying a new hosted macOS synthetic baseline, run
 `tests/font-conformance-warmed-system-ui.e2e.test.ts` and the focused two-stack
 byte-00 sweep on the hosted image, then compare the environment fingerprints
 and primary routes from that exact ref.
 On the local macOS 27 image, the repaired model agrees on all 413,829
 comparisons in the first 351 synthetic stacks × byte-00 slice (1,179 scalars),
-with zero wrong-face routes; hosted macOS proof remains a separate gate.
+with zero wrong-face routes. The description-keyed revision preserves that
+entire slice's renderer-answer digest exactly; hosted macOS proof remains a
+separate gate.
 
 #### Running it
 

@@ -33,7 +33,6 @@ import { resetCharacterFallbackRendererCaches } from "./system-fallback-resolver
 import { declaredFamilyForKey } from "./family-match.js";
 import { win32SuffixDeclaredForKey } from "./fallback-chain.linux.js";
 import { localFontAliasRegistry } from "./webfont-registry.js";
-import { setDarwinSystemUiPlatformCacheWarm } from "./font-instance.js";
 
 /**
  * Reset the embedded-font subset builder (the per-generation `@font-face`
@@ -283,7 +282,6 @@ export function invalidateFontEnvironmentCaches(): void {
   declaredFamilyForKey.clear();
   win32SuffixDeclaredForKey.clear();
   localFontAliasRegistry.clear();
-  setDarwinSystemUiPlatformCacheWarm(false);
   for (const invalidate of fontEnvironmentInvalidators) invalidate();
 }
 

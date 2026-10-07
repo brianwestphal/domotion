@@ -711,11 +711,12 @@ export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | nu
   // tables on mac/win), so the oracle must ask our side the same question the
   // probe page asks Chrome.
   lang = spec.lang ?? lang;
-  const chain = resolveFontKeyChain(spec.fontFamily, lang);
-  const primaryKey = resolveFontKey(spec.fontFamily, lang);
   const slant = slantForStyle(spec.fontStyle);
   const stretch = stretchPercent(spec.fontStretch);
   const variationSettings = parseVariationSettings(spec.fontVariationSettings) ?? undefined;
+  const description = { weight: spec.fontWeight, size: spec.fontSize, slant, stretch, variationSettings };
+  const chain = resolveFontKeyChain(spec.fontFamily, lang, description);
+  const primaryKey = resolveFontKey(spec.fontFamily, lang, description);
   // The renderer opens its primary through `resolveFont`, which retains the
   // winning family's route (notably `system-ui` versus an explicitly named SF
   // family), applies named optical-cut pins, and lets author axes win. Opening
@@ -817,7 +818,13 @@ export function ourFaceFor(cp: number, rs: ResolvedStack, lang: string | undefin
     // "SF Pro" even though both share the `sf-pro` key. Omitting this would
     // measure a different code path than the one that paints — the exact
     // instrument defect this tool was corrected for once already.
-    stackPrimaryIsSystemUi(rs.spec.fontFamily, lang),
+    stackPrimaryIsSystemUi(rs.spec.fontFamily, lang, {
+      weight: rs.spec.fontWeight,
+      size: rs.spec.fontSize,
+      slant: rs.slant,
+      stretch: rs.stretch,
+      variationSettings: rs.variationSettings,
+    }),
     rs.stretch,
     undefined,
     // The renderer passes the raw declaration because Blink's standard-style

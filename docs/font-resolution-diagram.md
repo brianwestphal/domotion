@@ -2303,7 +2303,10 @@ text` run does. It was narrower than that for a while — restricted to the
   expires if the UI data has fallen out of the LRU. The platform and font-data
   maps are weak, while the old document's `FontFallbackList` held candidates
   strongly until teardown. The alias flag is still shared across font
-  descriptions; `DM-T8N4R9` owns that finer keying.
+  descriptions: the renderer session keeps separate aliases for weight, size,
+  slant, stretch, and variation settings, and GC expires only aliases whose matching UI font data
+  lost strong retention. A 16px regular canonical lookup therefore cannot
+  warm a 32px or bold quoted literal.
 
   **This flag and `DOMOTION_LIVE_FALLBACK_FIRST` are only scoreable together**
   (see §7). With the static per-block chain answering first, the OS is never asked,

@@ -13,7 +13,11 @@ import { _systemFallbackResolutionEnabled, setSystemFallbackResolutionEnabled } 
 import { resolveEffectiveCutKey } from "./font-instance.js";
 import { resolveFontSpec } from "./font-spec.js";
 import { getFontInstance } from "./font-instance.js";
-import { darwinSystemUiPlatformCacheWarm } from "./font-instance.js";
+import {
+  DARWIN_INITIAL_FONT_DESCRIPTION,
+  hasWarmDarwinSystemUiAlias,
+  type DarwinFontDescription,
+} from "./darwin-font-data-lifetime.js";
 import { getFontSourceInfo } from "./font-instance.js";
 import { splitFontFamilyNames } from "./font-instance.js";
 import { declaredFamilyForKey, matchFamilyNameToKey } from "./family-match.js";
@@ -441,7 +445,11 @@ export const _liveFallbackFirst = hostPlatform() !== "win32" && process.env.DOMO
  * when the next available family is `system-ui`, that family entered Blink's
  * MatchSystemUIFont path and must retain the axis/cascade signal.
  */
-export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: string): boolean {
+export function stackPrimaryIsSystemUi(
+  fontFamily: string | undefined,
+  lang?: string,
+  description: DarwinFontDescription = DARWIN_INITIAL_FONT_DESCRIPTION,
+): boolean {
   if (fontFamily == null || fontFamily === "") return false;
   for (const entry of splitFontFamilyNames(fontFamily)) {
     // These two names enter Blink's system-font path before ordinary family
@@ -455,7 +463,8 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
     // Its fallback still walks the UI font's private cascade. The family
     // matcher mirrors the warmed primary; carry the same state into the
     // fallback-base signal rather than reopening plain SFNS.ttf by path.
-    if (hostPlatform() === "darwin" && darwinSystemUiPlatformCacheWarm && entry.name === "system-ui") return true;
+    if (hostPlatform() === "darwin" && hasWarmDarwinSystemUiAlias(description) && entry.name === "system-ui")
+      return true;
 
     // Mirror the same nomination walk `resolveFont` / `resolveFontKey` use.
     // An unavailable name is not the primary merely because it appears first
@@ -463,7 +472,14 @@ export function stackPrimaryIsSystemUi(fontFamily: string | undefined, lang?: st
     // stacks such as `ui-sans-serif, system-ui`, because Blink does not
     // recognize `ui-sans-serif` as a generic keyword and therefore reaches the
     // platform UI font (and its private CoreText cascade) on the next entry.
-    const key = matchFamilyNameToKey(entry.name, entry.generic, lang, entry.canonicalSystemUiName, entry.lookupName);
+    const key = matchFamilyNameToKey(
+      entry.name,
+      entry.generic,
+      lang,
+      entry.canonicalSystemUiName,
+      entry.lookupName,
+      description,
+    );
     if (key != null) return false;
   }
   return false;

@@ -6,11 +6,9 @@ import {
   selectFcFallbackRendererScope,
 } from "./glyph-helper.js";
 import { isIdeographicCp } from "./unicode-classification.js";
-import { setDarwinSystemUiPlatformCacheWarm } from "./font-instance.js";
 import {
   beginDarwinFontDataDocument,
-  darwinFontDataIdentity,
-  darwinFontDataSurvivesDocumentGc,
+  collectDarwinSystemUiAliasesAfterGc,
   endDarwinFontDataDocument,
   resetDarwinFontDataRendererStates,
 } from "./darwin-font-data-lifetime.js";
@@ -242,11 +240,7 @@ export function clearPrimaryNotdefShapesAfterOracleGc(): void {
 /** The quoted case-variant family can reuse Blink's platform-font entry only
  * while its system-UI FontData remains strongly retained after document GC. */
 export function collectDarwinFontDataAfterOracleGc(): void {
-  if (hostPlatform() !== "darwin") return;
-  const systemUiRegular = darwinFontDataIdentity("sf-pro", 400, 16, 0, 100);
-  if (!darwinFontDataSurvivesDocumentGc(systemUiRegular)) {
-    setDarwinSystemUiPlatformCacheWarm(false);
-  }
+  collectDarwinSystemUiAliasesAfterGc();
 }
 
 /** Oracle seam: select the renderer cache corresponding to an isolated context. */

@@ -761,7 +761,8 @@ export function __resolveFontForCodepointForTest(
   slant = 0,
   lang?: string,
 ): { key: string; decomposed: boolean; covered: boolean } | null {
-  const primaryFontKey = resolveFontKey(fontFamily, lang);
+  const description = { weight, size: fontSize, slant, stretch: 100 };
+  const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, undefined, 100, lang);
   if (primaryFont == null) return null;
   const r = resolveFontForCodepoint(
@@ -773,7 +774,7 @@ export function __resolveFontForCodepointForTest(
     slant,
     undefined,
     lang,
-    resolveFontKeyChain(fontFamily, lang),
+    resolveFontKeyChain(fontFamily, lang, description),
     false,
     100,
     undefined,

@@ -77,4 +77,104 @@ describeMac("macOS warmed system-ui fallback base", () => {
     expect(report.data.summary.mismatchTotal).toBe(0);
     expect(report.data.meta.oracleIsolation).toBe("shared-renderer-fresh-stack-document-repaired-prefs");
   }, 120_000);
+
+  it("keeps quoted aliases separate across font descriptions in Chromium and the renderer", async () => {
+    const corpus = syntheticCorpus();
+    const regular = {
+      ...corpus.stacks[2],
+      fontFamily: "system-ui",
+      fontSize: 16,
+      fontWeight: 400,
+      fontStyle: "normal",
+      fontStretch: "100%",
+    };
+    const pairs = [
+      {
+        name: "regular to bold",
+        warm: regular,
+        query: { ...regular, fontFamily: '"System-ui", Menlo', fontWeight: 700 },
+        expected: "Menlo-Bold",
+      },
+      {
+        name: "bold to regular",
+        warm: { ...regular, fontWeight: 700 },
+        query: { ...regular, fontFamily: '"System-ui", Menlo' },
+        expected: "Menlo-Regular",
+      },
+      {
+        name: "regular to large",
+        warm: regular,
+        query: { ...regular, fontFamily: '"System-ui", Menlo', fontSize: 32 },
+        expected: "Menlo-Regular",
+      },
+      {
+        name: "regular to italic",
+        warm: regular,
+        query: { ...regular, fontFamily: '"System-ui", Menlo', fontStyle: "italic" },
+        expected: "Menlo-Italic",
+      },
+      {
+        name: "regular to condensed",
+        warm: regular,
+        query: { ...regular, fontFamily: '"System-ui", Menlo', fontStretch: "75%" },
+        expected: "Menlo-Regular",
+      },
+      {
+        name: "regular to varied",
+        warm: regular,
+        query: { ...regular, fontFamily: '"System-ui", Menlo', fontVariationSettings: '"wght" 500' },
+        expected: "Menlo-Regular",
+      },
+      {
+        name: "en to ja",
+        warm: regular,
+        query: { ...regular, fontFamily: '"System-ui", Menlo', lang: "ja" },
+        expected: ".SFNS-Regular",
+      },
+    ];
+
+    await withBrowser(async (browser) => {
+      for (const { name, warm, query, expected } of pairs) {
+        const oracle = await ChromeOracle.create(browser, 32, "en");
+        try {
+          expect(await oracle.resolvedPrimary(warm), name).toMatch(/^\.SFNS/);
+          expect(await oracle.resolvedPrimary(query), name).toBe(expected);
+          await oracle.clearWeakShapeResultsForNextStack();
+          expect(await oracle.resolvedPrimary(query), `${name} after document GC`).toBe(expected);
+        } finally {
+          await oracle.close();
+        }
+      }
+    });
+
+    for (const { name, warm, query, expected } of pairs) {
+      const root = mkdtempSync(join(tmpdir(), "domotion-system-ui-description-"));
+      const stacksFile = join(root, "stacks.json");
+      const output = join(root, "out");
+      writeFileSync(stacksFile, JSON.stringify({ ...corpus, stacks: [warm, query] }));
+      expect(await main(["--stacks", stacksFile, "--range", "0041", "--out", output]), name).toBe(0);
+      const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
+      expect(report.data.summary.mismatchTotal, name).toBe(0);
+      expect(report.data.meta.stackPrimaries[1].chromePrimary, name).toBe(expected);
+    }
+
+    const variedRoot = mkdtempSync(join(tmpdir(), "domotion-system-ui-matching-variation-"));
+    const variedStacks = join(variedRoot, "stacks.json");
+    const variedOutput = join(variedRoot, "out");
+    const variation = { fontVariationSettings: '"wght" 500' };
+    writeFileSync(
+      variedStacks,
+      JSON.stringify({
+        ...corpus,
+        stacks: [
+          { ...regular, ...variation },
+          { ...regular, ...variation, fontFamily: '"System-ui", Menlo' },
+        ],
+      }),
+    );
+    expect(await main(["--stacks", variedStacks, "--range", "0041", "--out", variedOutput])).toBe(0);
+    const variedReport = JSON.parse(readFileSync(join(variedOutput, "report.json"), "utf8"));
+    expect(variedReport.data.summary.mismatchTotal).toBe(0);
+    expect(variedReport.data.meta.stackPrimaries[1].chromePrimary).toMatch(/^\.SFNS/);
+  }, 180_000);
 });
