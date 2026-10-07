@@ -5,7 +5,8 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2315", "DM-2316", "DM-2317", "DM-2355", "DM-2557", "DM-2558", "DM-2568", "DM-2575", "DM-2586"]
+tickets:
+  ["DM-2315", "DM-2316", "DM-2317", "DM-2355", "DM-2557", "DM-2558", "DM-2568", "DM-2575", "DM-2586", "DM-0H2HSA"]
 code: ["src/capture/table-geometry.e2e.test.ts", "tools/parity-program.json", "tools/semantic-coverage.json"]
 aliases: ["docs/129-chromium-parity-verification-program.md", "doc-129"]
 ---
@@ -338,6 +339,13 @@ unless the ordered sequence activates the cache and the selected face survives
 navigation, while a separately launched Chromium process supplies the isolated
 control. Key unit rows independently cross raw weight, full oblique slope,
 orientation, and effective size.
+
+The macOS text-shape leg also compares an English-first two-scalar canonical
+compatibility run with a fresh Chinese run in both Chromium and the production
+shaped-run splitter. Its browser controls cross the 30/31 UTF-16-unit boundary,
+LTR/RTL direction, nonzero spacing, noninitial font features, and fresh-document
+garbage collection. The all-canonical run is the verified extension; mixed
+primary-covered runs remain tracked by `DM-KWKBQ5`.
 
 The external `html-test` integration corpus also carries composed pages rather
 than only one-property fixtures. Its real-world slice includes editorial,

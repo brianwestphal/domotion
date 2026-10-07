@@ -184,4 +184,74 @@ describe.runIf(process.platform === "darwin")("macOS mixed-locale shape transiti
     );
     expect(result.map(({ face }) => face)).toEqual([".SFNS-Regular", "PingFangSC-Regular"]);
   }, 60_000);
+
+  it("retains a primary-only result for a two-scalar canonical compatibility run", async () => {
+    const text = "\u{2f900}\u{2fa00}";
+    const result = await scenario(
+      { cp: compatibility, text, lang: "en" },
+      { cp: compatibility, text, lang: "zh-Hans" },
+    );
+    expect(result.map(({ face }) => face)).toEqual([".SFNS-Regular", ".SFNS-Regular"]);
+  }, 60_000);
+
+  it("does not retain the run after the exact 30-unit source limit", async () => {
+    const text = String.fromCodePoint(compatibility).repeat(15) + "\uF900";
+    expect(text.length).toBe(31);
+    const result = await scenario(
+      { cp: compatibility, text, lang: "en" },
+      { cp: compatibility, text, lang: "zh-Hans" },
+    );
+    expect(result.map(({ face }) => face)).toEqual([".SFNS-Regular", "PingFangSC-Regular"]);
+  }, 60_000);
+
+  it.each([
+    ["seed spacing", { spacing: "0.1px" }, {}],
+    ["target spacing", {}, { spacing: "0.1px" }],
+    ["seed feature", { features: '"ss01" 1' }, {}],
+    ["target feature", {}, { features: '"ss01" 1' }],
+    ["opposite direction", { direction: "ltr" as const }, { direction: "rtl" as const }],
+  ])(
+    "bypasses the two-scalar cache with %s",
+    async (_name, seedStyle, targetStyle) => {
+      const text = "\u{2f900}\u{2fa00}";
+      const result = await scenario(
+        { cp: compatibility, text, lang: "en", ...seedStyle },
+        { cp: compatibility, text, lang: "zh-Hans", ...targetStyle },
+      );
+      expect(result.map(({ face }) => face)).toEqual([".SFNS-Regular", "PingFangSC-Regular"]);
+    },
+    60_000,
+  );
+
+  it("drops the two-scalar result after a fresh document and explicit GC", async () => {
+    const text = "\u{2f900}\u{2fa00}";
+    const result = await scenario(
+      { cp: compatibility, text, lang: "en" },
+      { cp: compatibility, text, lang: "zh-Hans" },
+      async (page) => {
+        await page.setContent(emptyDocument);
+        const cdp = await page.context().newCDPSession(page);
+        for (let attempt = 0; attempt < 3; attempt++) await cdp.send("HeapProfiler.collectGarbage");
+        await cdp.detach();
+      },
+    );
+    expect(result.map(({ face }) => face)).toEqual([".SFNS-Regular", "PingFangSC-Regular"]);
+  }, 60_000);
+
+  it.each([
+    [0xf900, ".PingFangUITextSC-Regular", "PingFangSC-Regular"],
+    [0x4e00, ".PingFangUITextSC-Regular", "PingFangSC-Regular"],
+    [0x3400, ".PingFangUITextSC-Regular", "PingFangSC-Regular"],
+    [0xff21, ".PingFangUITextSC-Regular", "PingFangSC-Regular"],
+    [0x20000, ".SFNS-Regular", ".SFNS-Regular"],
+    [0xfdd0, ".SFNS-Regular", ".SFNS-Regular"],
+    [0xe000, ".SFNS-Regular", ".SFNS-Regular"],
+  ])(
+    "does not invent a cached face change for other scalar U+%s",
+    async (cp, english, chinese) => {
+      const result = await scenario({ cp, lang: "en" }, { cp, lang: "zh-Hans" });
+      expect(result.map(({ face }) => face)).toEqual([english, chinese]);
+    },
+    60_000,
+  );
 });

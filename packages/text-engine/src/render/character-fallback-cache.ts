@@ -177,8 +177,8 @@ export function endCharacterFallbackDocument(): void {
   }
 }
 
-/** Only the observed one-scalar canonical CJK compatibility forms enter this
- * model. Other primary-missing text awaits direct browser transition evidence. */
+/** Only runs wholly composed of canonical CJK compatibility forms enter this
+ * model. Mixed primary-covered text needs per-glyph ShapeResult ownership. */
 export function primaryNotdefShapeKey(
   text: string,
   primaryIdentity: string,
@@ -205,11 +205,17 @@ export function primaryNotdefShapeKey(
   } else if (!primaryIdentity.startsWith("system-ui|")) {
     return null;
   }
-  const cp = text.codePointAt(0);
-  if (cp == null || String.fromCodePoint(cp) !== text) return null;
-  if (!((cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x2f800 && cp <= 0x2fa1f))) return null;
-  const canonical = text.normalize("NFD");
-  if (canonical === text || [...canonical].length !== 1) return null;
+  const scalars = [...text];
+  if (
+    scalars.length === 0 ||
+    !scalars.every((scalar) => {
+      const cp = scalar.codePointAt(0)!;
+      if (!((cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x2f800 && cp <= 0x2fa1f))) return false;
+      const canonical = scalar.normalize("NFD");
+      return canonical !== scalar && [...canonical].length === 1;
+    })
+  )
+    return null;
   return JSON.stringify([
     primaryIdentity,
     weight,

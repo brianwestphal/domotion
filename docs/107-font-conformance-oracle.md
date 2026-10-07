@@ -15,6 +15,8 @@ tickets:
     "DM-B4ANRH",
     "DM-EBRC7F",
     "DM-FM49KF",
+    "DM-0H2HSA",
+    "DM-KWKBQ5",
     "DM-KK5BP2",
     "DM-N78DX3",
     "DM-QD903D",
@@ -37,6 +39,7 @@ code:
     "tests/font-conformance-cli.test.ts",
     "tests/font-conformance-extraction.e2e.test.ts",
     "tests/font-conformance-mixed-locale-controls.e2e.test.ts",
+    "tests/font-conformance-mixed-locale-shape-cache.e2e.test.ts",
     "tests/font-conformance-document-lifecycle.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
@@ -151,10 +154,11 @@ report records the selected universe and the answers in that same order.
   the _same_ compatibility ideographs. The 351-stack byte-00 synthetic slice
   reproduces 12 such rows across `fantasy`, `monospace`, and `system-ui` with
   `zh-Hans`/`zh-Hant`. The renderer and oracle now retain an earlier primary
-  `.notdef` shape for a one-scalar canonical CJK compatibility ideograph under
+  `.notdef` shape for a canonical CJK compatibility ideograph under
   `system-ui`, `fantasy`, or `monospace` in
   the current document or owned renderer session. The key includes primary
-  family, size, weight, slant, stretch, axes, features, and exact scalar. A
+  family, size, weight, slant, stretch, axes, direction, and exact text;
+  noninitial features are ineligible. A
   fresh Chinese-only document still selects PingFang; an English-first
   document reuses the `.SFNS` result for the matching Chinese scalar. This
   bounded model applies to those three macOS generics only. A real-page
@@ -208,13 +212,27 @@ report records the selected universe and the answers in that same order.
   preserves `.SFNS`; a fresh document followed by GC restores PingFang. The
   tested reset therefore needs both document replacement and collection.
 
-  The renderer and conformance oracle still mirror only the observed
-  primary-`.notdef` face change for canonical compatibility singletons under
-  three macOS generics. Their mirror now separates resolved bidi direction and
-  refuses noninitial feature lists, matching the 147 eligibility route; it
-  retains a harmless default `chws` feature. The source key is broader than
-  this **behavioral** model. DM-0H2HSA tracks native transition evidence
-  before extending face-changing reuse to other text.
+  **Multi-scalar extension (DM-0H2HSA).** A native macOS Chromium matrix found
+  the same English-first `.SFNS-Regular` result for the two-scalar
+  U+2F900/U+2FA00 run; a fresh Chinese run uses `PingFangSC-Regular`. The
+  production shaped-run splitter now mirrors reuse when _every_ scalar in a
+  text item is a one-scalar canonical compatibility ideograph. The direct
+  renderer/browser parity test proves both fresh-Chinese and English-first
+  two-scalar routes. The single-codepoint conformance sweep remains a scalar
+  oracle; its existing singleton route is unchanged.
+
+  The browser matrix also observed retained faces for U+2F900 mixed with Latin,
+  common Han, or a space, but those are partial primary shapes rather than an
+  all-`.notdef` run. The renderer does not yet retain per-glyph primary results
+  for such runs, so they are outside this extension (`DM-KWKBQ5`).
+  Other singleton controls U+F900, U+4E00, U+3400, U+20000, U+FF21, U+FDD0,
+  and U+E000 showed no cached face change in the tested `system-ui` route. A 30-unit run retained
+  the English result; appending U+F900 to make 31 units restored PingFang.
+  Nonzero spacing or `"ss01"` on either cell, opposite bidi direction, and a
+  fresh document plus explicit GC likewise restored PingFang for the pair.
+  The bounded model still separates direction and excludes noninitial features;
+  default `chws` remains eligible. Other primary-missing runs need direct
+  browser and renderer parity evidence before extending this model.
 
   The synthetic sweep starts a fresh weak shape-cache epoch before each
   stack: it removes the previous stack's cells, navigates the same Page to a

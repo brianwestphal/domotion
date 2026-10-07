@@ -1,9 +1,14 @@
 import { chromium } from "@playwright/test";
-import { beginCharacterFallbackDocument, endCharacterFallbackDocument } from "@domotion/text-engine/testing";
+import {
+  beginCharacterFallbackDocument,
+  endCharacterFallbackDocument,
+  splitTextIntoFontRunsShaped,
+} from "@domotion/text-engine/testing";
 import { describe, expect, it } from "vitest";
 import {
   ChromeOracle,
   cjkCanonicalRendererFace,
+  faceFor,
   ourFaceFor,
   prepareStack,
   type StackSpec,
@@ -12,11 +17,16 @@ import {
 const cps = [0x2f800, 0x2f900, 0x2fa00];
 const stack: StackSpec = { fontFamily: "system-ui", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
 
-function cell(cp: number, lang: string): string {
-  return `<i class=c lang="${lang}">&#x${cp.toString(16)};</i>`;
+type ProbeCell = { cp: number; lang: string; text?: string };
+
+function cell({ cp, lang, text }: ProbeCell): string {
+  const content = [...(text ?? String.fromCodePoint(cp))]
+    .map((scalar) => `&#x${scalar.codePointAt(0)!.toString(16)};`)
+    .join("");
+  return `<i class=c lang="${lang}">${content}</i>`;
 }
 
-async function browserFaces(cells: { cp: number; lang: string }[], family = "system-ui"): Promise<string[]> {
+async function browserFaces(cells: ProbeCell[], family = "system-ui"): Promise<string[]> {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
@@ -27,21 +37,50 @@ async function browserFaces(cells: { cp: number; lang: string }[], family = "sys
       "<!doctype html><html lang=en><style>body{margin:0}#w{display:flex;flex-wrap:wrap;" +
         `font-family:${family};font-size:16px;font-weight:400;font-style:normal}` +
         ".c{display:inline-block;width:24px;height:24px;overflow:hidden;font-style:inherit;white-space:pre}" +
-        `</style><div id=w>${cells.map(({ cp, lang }) => cell(cp, lang)).join("")}</div></html>`,
+        `</style><div id=w>${cells.map(cell).join("")}</div></html>`,
     );
     await page.screenshot();
     const { root } = await cdp.send("DOM.getDocument");
     const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
     const faces: string[] = [];
-    for (const nodeId of nodeIds) {
+    for (const [index, nodeId] of nodeIds.entries()) {
       const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
       expect(fonts).toHaveLength(1);
-      expect(fonts[0].glyphCount).toBe(1);
+      expect(fonts[0].glyphCount).toBe([...(cells[index].text ?? String.fromCodePoint(cells[index].cp))].length);
       faces.push(fonts[0].postScriptName);
     }
     return faces;
   } finally {
     await browser.close();
+  }
+}
+
+function rendererRunFaces(cells: ProbeCell[]): string[] {
+  beginCharacterFallbackDocument();
+  try {
+    return cells.map(({ cp, text, lang }) => {
+      const rs = prepareStack(stack, lang);
+      if (rs == null) throw new Error("system-ui stack unavailable");
+      const runs = splitTextIntoFontRunsShaped(
+        text ?? String.fromCodePoint(cp),
+        rs.primary,
+        rs.primaryKey,
+        400,
+        16,
+        0,
+        undefined,
+        lang,
+        rs.chain,
+        true,
+        100,
+        undefined,
+        "system-ui",
+      );
+      expect(runs).toHaveLength(1);
+      return faceFor(rs, runs[0].fontKey, true, runs[0].font).postscriptName ?? "";
+    });
+  } finally {
+    endCharacterFallbackDocument();
   }
 }
 
@@ -59,6 +98,16 @@ function oracleFaces(cells: { cp: number; lang: string }[], family = "system-ui"
 }
 
 describe.runIf(process.platform === "darwin")("macOS mixed-locale shape cache browser parity", () => {
+  it("matches the native two-scalar canonical run after an English-first primary-only result", async () => {
+    const text = "\u{2f900}\u{2fa00}";
+    const fresh = [{ cp: 0x2f900, text, lang: "zh-Hans" }];
+    const mixed = [{ cp: 0x2f900, text, lang: "en" }, ...fresh];
+    expect(await browserFaces(fresh)).toEqual(["PingFangSC-Regular"]);
+    expect(rendererRunFaces(fresh)).toEqual(["PingFangSC-Regular"]);
+    expect(await browserFaces(mixed)).toEqual([".SFNS-Regular", ".SFNS-Regular"]);
+    expect(rendererRunFaces(mixed)).toEqual([".SFNS-Regular", ".SFNS-Regular"]);
+  }, 60_000);
+
   it("matches fresh Chinese and English-first documents for all three compatibility ideographs", async () => {
     const fresh = cps.map((cp) => ({ cp, lang: "zh-Hans" }));
     const mixed = [
