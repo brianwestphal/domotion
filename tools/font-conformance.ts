@@ -425,6 +425,8 @@ interface MismatchRow {
   cp: number;
   cpHex: string;
   stack: string;
+  /** Complete CSS signature, matching `mismatchesByStack[].stack`. */
+  stackKey: string;
   fontSize: number;
   fontWeight: number;
   fontStyle: string;
@@ -2019,6 +2021,7 @@ export class SweepTally {
       cp,
       cpHex: `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`,
       stack: spec.fontFamily,
+      stackKey: key,
       fontSize: spec.fontSize,
       fontWeight: spec.fontWeight,
       fontStyle: spec.fontStyle,

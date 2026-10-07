@@ -711,7 +711,7 @@ Correctness constraints, all of which cost throughput and all of which are load-
 
 Two files land in `--out`:
 
-- `report.json` — machine-readable: run metadata (platform, Unicode version, timings, throughput, shard, stack-corpus timestamp), the summary counters, per-stack mismatch counts, the ranked disagreeing face pairs, the allowlist with per-entry hit counts, and up to `--max-rows` example mismatch rows (`rowsRetained` / `rowsTruncated` say how many were kept).
+- `report.json` — machine-readable: run metadata (platform, Unicode version, timings, throughput, shard, stack-corpus timestamp), the summary counters, per-stack mismatch counts, the ranked disagreeing face pairs, the allowlist with per-entry hit counts, and up to `--max-rows` example mismatch rows (`rowsRetained` / `rowsTruncated` say how many were kept). Each new mismatch row includes `stackKey`, the complete CSS signature used by `mismatchesByStack[].stack`; older rows without it remain readable.
 - `report.json` uses a versioned `{schemaVersion, tool, generatedAt, env, data}` envelope. The counters and rows above live in `data`, which also records `outcome` as `pass`, `fail`, or `skip`. The shard merger, fail-fast iteration driver, and resolver-stage attribution probe accept validated older flat reports and reject unknown envelope versions and tool identities. The attribution probe additionally requires typed stack and mismatch rows before it computes rates. The merged output uses the same envelope pattern. An invalid iteration chunk ends without a route verdict.
 - `summary.txt` — the same headline numbers as stable text, also printed to stdout.
 

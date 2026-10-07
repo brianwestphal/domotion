@@ -494,6 +494,18 @@ describe("sweep state transitions", () => {
     expect(stackKey(spec, "en")).not.toBe(stackKey({ ...spec, lang: "ja" }, "en"));
   });
 
+  it("retains the complete stack signature in each mismatch example", () => {
+    const tally = new SweepTally(2, "en", false, { entries: [], hits: [] });
+    const faces = [chrome({ familyName: "ChromeFace", postScriptName: "ChromeFace" })];
+    const wrong = ours({ key: "Other", postscriptName: "OtherFace" });
+    const stretched = { ...spec, fontStretch: "150%", fontVariationSettings: '"wght" 650', lang: "ja" };
+    tally.record(spec, 0x41, faces, wrong);
+    tally.record(stretched, 0x42, faces, wrong);
+    expect(tally.mismatches.map((row) => row.stack)).toEqual(["sans-serif", "sans-serif"]);
+    expect(tally.mismatches.map((row) => row.stackKey)).toEqual([stackKey(spec, "en"), stackKey(stretched, "en")]);
+    expect(tally.stackCounts.get(tally.mismatches[1]!.stackKey)).toBe(1);
+  });
+
   it("retains bounded examples while counting an empty, mismatch, allowlisted, and refill sequence", () => {
     const allowlist = { entries: [{ lo: 0x42, hi: 0x42, reason: "accepted test divergence" }], hits: [0] };
     const tally = new SweepTally(1, "en", false, allowlist);
