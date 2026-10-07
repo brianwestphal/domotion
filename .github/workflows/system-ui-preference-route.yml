@@ -68,6 +68,11 @@ jobs:
       - name: Build macOS CoreText helper
         if: runner.os == 'macOS'
         run: bash packages/text-engine/tools/macos-glyph-extractor/build.sh
+      - name: Validate DM-FDBWVJ macOS font-data lifetime transitions
+        if: runner.os == 'macOS' && github.ref == 'refs/heads/validation/dm-fdbwvj-hosted'
+        run: |
+          npm run build:text-engine
+          npx vitest run --config vitest.e2e.config.ts tests/font-conformance-warmed-system-ui.e2e.test.ts
       - name: Build Linux fontconfig helper
         if: runner.os == 'Linux'
         run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
