@@ -10,4 +10,17 @@ describe("Windows fidelity workflow", () => {
       "npx vitest run --config vitest.e2e.config.ts tests/windows-system-ui-cjk-context.e2e.test.ts",
     );
   });
+
+  it("gates the hosted Arm64 family match against its committed fingerprint", () => {
+    const workflow = readFileSync(".github/workflows/windows-fidelity.yml", "utf8");
+    const arm64 = workflow.slice(
+      workflow.indexOf("  family-match-arm64-hosted:"),
+      workflow.indexOf("\n  glyph-extractor-build:"),
+    );
+    expect(arm64).toContain("runs-on: windows-11-arm");
+    expect(arm64).toContain("npx tsx tools/family-match-conformance-win32.ts\n");
+    expect(arm64).toContain("if ($code -eq 3)");
+    expect(arm64).toContain("} elseif ($code -ne 0) {");
+    expect(arm64).toContain("npx tsx tools/family-match-conformance-win32.ts --write-baseline");
+  });
 });

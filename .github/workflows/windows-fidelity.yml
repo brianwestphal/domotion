@@ -225,12 +225,11 @@ jobs:
             family-match-windows.baseline-candidate.json
           if-no-files-found: ignore
 
-  # This desktop Arm64 runner is a distinct environment from the developer's
-  # Parallels VM. Keep its candidate separate until its fingerprint and scores
-  # have been reviewed; never overwrite or relabel the VM entry in CI.
+  # This hosted desktop Arm64 runner has its own environment fingerprint. A new
+  # image records a candidate; a matching committed entry gates regressions.
   family-match-arm64-hosted:
     if: ${{ inputs.arm64_family_match }}
-    name: Windows 11 Arm64 hosted family-match candidate
+    name: Windows 11 Arm64 hosted family-match conformance
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v4
@@ -242,15 +241,22 @@ jobs:
       - name: Build the DirectWrite helper
         shell: pwsh
         run: ./packages/text-engine/tools/win32-glyph-extractor/build.ps1
-      - name: Record a hosted Arm64 baseline candidate
+      - name: Family-match conformance vs Chrome (regression-relative)
         shell: pwsh
         run: |
-          npx tsx tools/family-match-conformance-win32.ts --write-baseline
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item tests/baselines/family-match-windows.json family-match-windows-arm64-hosted.candidate.json
+          npx tsx tools/family-match-conformance-win32.ts
+          $code = $LASTEXITCODE
+          if ($code -eq 3) {
+            Write-Host '::notice title=Windows Arm64 family-match::No committed baseline matches this runner environment. Review and commit the uploaded candidate, then rerun to arm the gate.'
+            npx tsx tools/family-match-conformance-win32.ts --write-baseline
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Copy-Item tests/baselines/family-match-windows.json family-match-windows-arm64-hosted.candidate.json
+          } elseif ($code -ne 0) {
+            exit $code
+          }
           node scripts/record-runner-image.mjs family-match-windows-arm64-hosted.runner.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Upload hosted Arm64 candidate and environment evidence
+      - name: Upload hosted Arm64 report and environment evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
