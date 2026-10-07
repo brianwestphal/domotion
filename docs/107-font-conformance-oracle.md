@@ -257,6 +257,13 @@ report records the selected universe and the answers in that same order.
   dedicated mixed-language browser test keeps the within-document transition
   covered outside that synthetic protocol.
 
+  On Windows, `tests/windows-mixed-locale-primary.e2e.test.ts` measures that
+  separate user-flow question: it shapes Japanese `serif` U+0041, appends an
+  English expanded `serif` U+0041 in the same document, and checks the second
+  face against both Domotion and a fresh English Chromium renderer. This guards
+  the in-document transition independently of the synthetic sweep's locale
+  scopes and fresh-document cache history.
+
 The oracle checks its own browser Page before each stack, before each macOS
 batch, and after every batch. A fixed set
 of CSS generics paints U+10FFFF, a noncharacter that retains each generic's
