@@ -47,7 +47,7 @@ on:
         options: [macos, linux, windows, all]
         default: macos
       shards:
-        description: "Stack shards per platform. auto sizes sampled runs to 1 macOS / 1 Linux / 2 Windows; exhaustive runs use 8 / 6 / 16."
+        description: "Stack shards per platform. auto sizes sampled runs to 1 macOS / 1 Linux / 2 Windows; exhaustive runs use 16 / 6 / 16."
         default: "auto"
       max_stacks:
         description: "Cap on synthetic stacks (ordered by distance from the CSS initial/default state). 13 = one per generic; 351 = +every single-axis departure; empty = all 50,544."
@@ -147,7 +147,9 @@ jobs:
           echo "stack_bucket=$stack_bucket" >> "$GITHUB_OUTPUT"
           if [ "$requested" = auto ]; then
             if [ "$sample" = all ] || [ "$sample" = ALL ]; then
-              macos_n=8
+              # Eight macOS shards reached only stack 36/44 on a native retry
+              # before the hosted six-hour job ceiling canceled the sweep.
+              macos_n=16
               linux_n=6
               windows_n=16
             else
