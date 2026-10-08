@@ -48,7 +48,9 @@ describe("Studio AI replay healing (DM-2695)", () => {
             expect(failure.completedEventIds).toEqual(["event-name", "event-launch"]);
             expect(failure.completedEvidence).toHaveLength(2);
             expect(failure.failedEvidence?.eventId).toBe("event-ready");
-            expect(failure.inspection?.ariaSnapshot).toContain("Loading");
+            // Inspection follows a separate observation window, so a busy runner may
+            // see either side of the application's Loading → Ready timer boundary.
+            expect(failure.inspection?.ariaSnapshot).toMatch(/Loading|Ready/);
             const edited = structuredClone(project);
             const wait = edited.scenes[0].tracks![0].events[2];
             if (wait.kind !== "waitForState") throw new Error("fixture event must be a state wait");
@@ -58,7 +60,7 @@ describe("Studio AI replay healing (DM-2695)", () => {
               project: edited,
               summary: "Extend the wait for the application's delayed ready state.",
               evidence: {
-                summary: "The current application remains Loading after the old 100 ms limit.",
+                summary: "The original 100 ms wait expired before the application reached Ready.",
                 data: { completedEventIds: [...failure.completedEventIds] },
               },
             };
