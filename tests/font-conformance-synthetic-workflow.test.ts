@@ -156,7 +156,7 @@ describe("font-conformance-synthetic.yml sweeps the rule-derived corpus honestly
     // below that bound while avoiding unnecessary Linux runner fan-out. The
     // DirectWrite health sample gets more shards because it remains far slower.
     expect(yaml).toMatch(/shards:\n\s+description:.*\n\s+default: ["']auto["']/);
-    expect(jobs["setup"]).toMatch(/sample[\s\S]*?all[\s\S]*?macos_n=8[\s\S]*?linux_n=6[\s\S]*?windows_n=16/);
+    expect(jobs["setup"]).toMatch(/sample[\s\S]*?all[\s\S]*?macos_n=16[\s\S]*?linux_n=6[\s\S]*?windows_n=16/);
     expect(jobs["setup"]).toMatch(/macos_n=1[\s\S]*?linux_n=1[\s\S]*?windows_n=2/);
     expect(jobs["sweep-macos"]).toContain("needs.setup.outputs.macos_matrix");
     expect(jobs["sweep-linux"]).toContain("needs.setup.outputs.linux_matrix");

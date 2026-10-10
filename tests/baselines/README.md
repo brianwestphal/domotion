@@ -135,9 +135,10 @@ timestamp. It is regenerated in every CI job, and a wall-clock stamp would
 invalidate the baseline on every run for no reason. Regenerating is comparable;
 changing the rule is not, which is the discrimination the field is for.
 
-The unsuffixed exhaustive synthetic baselines still describe the old 234-stack,
-roughly 5,850-codepoint slice and lack `parityEnvironment`; they require a new
-351-stack, full-codepoint capture and independent strict rerun. See
+The unsuffixed exhaustive synthetic baselines record the 351-stack,
+full-codepoint `synthetic:v2` corpus with `parityEnvironment`. Linux and Windows
+passed independent native strict reruns; macOS requires a strict rerun before
+its newly recorded baseline is ratified. See
 [doc 107](../../docs/107-font-conformance-oracle.md#re-recording-the-exhaustive-351-stack-baseline)
 for the exact dispatch and review sequence. A newly selected low-byte bucket
 must be seeded once; until then the comparator reports the run and says there is

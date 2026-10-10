@@ -506,25 +506,34 @@ On CI it has its **own dispatch and its own baselines** — `.github/workflows/f
 
 #### Re-recording the exhaustive 351-stack baseline
 
-The unsuffixed `font-conformance-synthetic-<os>.json` baselines still describe
-the old 234-stack, roughly 5,850-codepoint slice. Their `synthetic:v1` corpus
-identity and missing `parityEnvironment` make them incomparable with the current
-351-stack rule-v2 sweep. The `-byte-00` files are a separate rotating-sample
-gate and must remain intact.
+The unsuffixed `font-conformance-synthetic-<os>.json` baselines record the
+351-stack rule-v2 exhaustive sweep with `parityEnvironment`. The earlier
+234-stack, roughly 5,850-codepoint `synthetic:v1` baselines were incomparable
+with this corpus. The `-byte-00` files remain a separate rotating-sample gate.
 
 The current exhaustive target is 351 stacks × 292,466 eligible Unicode-16
 scalars, or 102,655,566 comparisons on the macOS/Windows Node image. Linux's
 Unicode-17 universe is slightly larger. The workflow's `sample_byte=all` auto
-fan-out uses 8 macOS, 6 Linux, and 16 Windows stack shards; `cp_shard=1` and
+fan-out uses 16 macOS, 6 Linux, and 16 Windows stack shards; `cp_shard=1` and
 `cp_total=1` keep the full codepoint universe in each stack shard. Recent native
 byte-00 sweeps on the same workflow took 318 seconds for 407,862 macOS
 comparisons, 114 seconds for 413,829 Linux comparisons, and about 159–173
-seconds for roughly 204,000 comparisons in each Windows shard. A linear
-projection is approximately 2.8 hours per macOS shard, 1.3 hours per Linux
-shard, and 1.4 hours per Windows shard, before queue/setup time. This is a
-capacity estimate, not proof that the exhaustive runs will stay below the
-hosted six-hour ceiling; glyph distribution and runner images can change the
-rate.
+seconds for roughly 204,000 comparisons in each Windows shard. Those sampled
+rates did not predict the macOS exhaustive runtime: in native run `37596709860`,
+eight-way shard 3 restarted after a preference drift and reached stack 36/44
+before the hosted six-hour ceiling canceled it. The 16-way split completed all
+macOS shards in run `37718009119`. The Linux and Windows exhaustive cohorts
+completed with six and sixteen shards respectively.
+
+The reviewed native cohorts measured 104,341,419 comparisons and 5,126 route
+mismatches on Linux, 102,655,566 and 18,196 on Windows, and 102,655,566 and
+8,366,768 on macOS. Each merged report is complete, has no missing shards or
+environment conflicts, and records one platform-specific font inventory and
+runner image. The macOS count is concentrated in CJK primary-to-Times routes;
+it is a measured regression baseline, not an assertion of absolute parity.
+Its route classes require separate investigation. Independent strict Linux and
+Windows runs passed at the baseline-bearing source. A strict macOS rerun is
+required before treating its new baseline as ratified.
 
 The setup job now rejects an authoritative baseline update with a stack cap
 other than 351, a stack filter, `no_pua=true`, or a codepoint stride. This
@@ -532,8 +541,8 @@ prevents a partial run from being written to an unsuffixed exhaustive or
 rotating-byte baseline name. A diagnostic `range` uses a hashed filename and
 retains its smaller-slice flexibility.
 
-From a **pushed exact source ref** containing the environment-fingerprint
-contract, record all three native artifacts with:
+To record new native artifacts from a **pushed exact source ref** containing
+the environment-fingerprint contract, use:
 
 ```sh
 gh workflow run font-conformance-synthetic.yml --ref <branch> \
@@ -649,7 +658,7 @@ At the default 351-stack slice, one low-byte bucket is roughly 1,100–1,200 cod
 
 The sweep fetches the exact codepoints of each batch from the pinned ICU companion before walking its resolver answers. This is a performance requirement for low-byte samples: each selected codepoint lies in a different 256-codepoint page, so scalar ICU lookups would fetch entire pages and churn the companion's bounded 65,536-row memo on every stack. A 351-stack byte-`00` run in October 2026 kept the same 1,162-codepoint slice but spent 3,007 seconds on Domotion's side on macOS and 2,688 seconds on one 176-stack Windows shard; Chromium itself took only 47 and 86 seconds. A local one-stack native macOS probe fell from 12.6 to 1.9 seconds on Domotion's side after exact-batch prefetch, with the same 1,179 comparisons and zero mismatches. Keep the batch prefetch ahead of the per-codepoint loop, and check `chrome` versus `ours` in the sweep summary when runtime moves sharply. The stack and codepoint shard topology remains unchanged.
 
-For `sample_byte: all`, automatic fan-out switches back to **8 macOS, 6 Linux, and 16 Windows**. The exhaustive 351-stack rule-v2 runs demonstrated why: individual hosted jobs approached the six-hour ceiling. A positive numeric `shards` input overrides both profiles when deliberately measuring another split. Every sweep log labels the current stack as `stack i/N`, so a live or canceled job exposes its completed prefix instead of showing only per-codepoint progress within an unnamed stack.
+For `sample_byte: all`, automatic fan-out switches back to **16 macOS, 6 Linux, and 16 Windows**. An eight-way macOS shard reached only stack 36/44 after one oracle-drift restart before the six-hour hosted ceiling canceled it; sixteen-way fan-out keeps the same full stack and codepoint universe while shortening each job. A positive numeric `shards` input overrides both profiles when deliberately measuring another split. Every sweep log labels the current stack as `stack i/N`, so a live or canceled job exposes its completed prefix instead of showing only per-codepoint progress within an unnamed stack.
 
 #### What it found immediately
 
