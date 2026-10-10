@@ -78,6 +78,9 @@ deviation for box, inline, control, and text shadows.
   covers metric changes and fallback transitions.
   The text-engine build imports its compiled Node ESM entry as a runtime
   initialization check after TypeScript compilation.
+  From the repository root, `npm run lint --workspace @domotion/text-engine`
+  checks that workspace with the shared Prettier and ESLint configuration;
+  its `test` and `typecheck` scripts run independently as well.
   Domotion consumes its session/document/run facade and the focused
   `./font-resolution`, `./text`, `./capture`, `./helpers`, `./format`, `./diagnostics`, and
   unstable `./testing` entry points (no deep-import subpath). The stable

@@ -70,8 +70,13 @@ Run it independently from the repository root with:
 ```sh
 npm test --workspace @domotion/text-engine
 npm run typecheck --workspace @domotion/text-engine
+npm run lint --workspace @domotion/text-engine
 npm run conformance --workspace @domotion/text-engine
 ```
+
+The workspace lint command uses the repository's shared Prettier and ESLint
+configuration. It omits the root-only assistant-config presence rule; root
+`npm run lint` enforces that rule for the repository.
 
 The unit suite and isolated helper-transport lane (`test:transport-performance`,
 which exercises the persistent helper channel and proves the

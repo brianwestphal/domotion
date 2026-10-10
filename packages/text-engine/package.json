@@ -53,6 +53,7 @@
     "build": "npm run clean && node ../../scripts/run-typescript.mjs -p tsconfig.build.json && node tools/check-runtime-import.mjs",
     "prepare": "npm run build",
     "typecheck": "node ../../scripts/run-typescript.mjs --noEmit -p tsconfig.json",
+    "lint": "prettier --ignore-path ../../.prettierignore --check src tools/check-runtime-import.mjs tools/font-env-cassette.mjs README.md package.json && eslint src tools/check-runtime-import.mjs tools/font-env-cassette.mjs --max-warnings 0 --rule kerfjs/ai-assistant-configs:off",
     "test": "npm run build && npm run test:unit && npm run test:transport-performance",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:transport-performance": "vitest run --config vitest.performance.config.ts",
