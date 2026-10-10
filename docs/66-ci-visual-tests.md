@@ -23,6 +23,7 @@ code:
     "src/review/side-digest.ts",
     "tests/baselines/README.md",
     "tests/html-test-suite.tsx",
+    "tests/html-test-tables.test.ts",
     "tests/html-test/cache.ts",
     "tests/html-test/compare-lock.ts",
     "tests/html-test/evidence.ts",
@@ -66,6 +67,13 @@ contract exercise a real comparison and a deliberate failure on every platform;
 ordinary fixtures retain the platform floor.
 
 The `html-test` (~277 fixtures) and `html-test-unicode` (~819 fixtures) visual suites run locally as a _deliberately throttled background job_ (`tests/worker-pool.ts`: `min(8, cores/4)` workers at macOS BACKGROUND QoS), so a full unicode sweep takes ~1h. The suites are embarrassingly parallel and the fixture repo (`github.com/brianwestphal/html-test`) is **public**, so GitHub-hosted runners are free here. `.github/workflows/visual-tests.yml` fans the suite out across many runners; a single dispatch turns ~1h into a few minutes, off your machine.
+
+`tests/html-test-tables.test.ts` checks table names against fixture files only
+when the relevant corpus is an installed Git checkout (`.git` may be a
+directory or worktree file). The root `npm test` job does not clone html-test;
+an empty or partial scratch directory under `external/html-test` is not a
+complete corpus and cannot establish that a table key is stale. A real clone
+still fails the gate when a listed fixture is missing.
 
 ## When to use it
 

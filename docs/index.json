@@ -1668,6 +1668,7 @@
           "src/review/side-digest.ts",
           "tests/baselines/README.md",
           "tests/html-test-suite.tsx",
+          "tests/html-test-tables.test.ts",
           "tests/html-test/cache.ts",
           "tests/html-test/compare-lock.ts",
           "tests/html-test/evidence.ts",
