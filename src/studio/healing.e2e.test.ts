@@ -54,7 +54,7 @@ describe("Studio AI replay healing (DM-2695)", () => {
             const edited = structuredClone(project);
             const wait = edited.scenes[0].tracks![0].events[2];
             if (wait.kind !== "waitForState") throw new Error("fixture event must be a state wait");
-            wait.timeoutMs = 3000;
+            wait.timeoutMs = 12000;
             return {
               kind: "edit" as const,
               project: edited,
