@@ -311,8 +311,11 @@ primary probe misses. For the measured macOS
 Domotion-uncovered supplementary PUA codepoint against that stack's already recorded
 Chrome primary. The browser-reported face must also resolve to a readable font
 file whose cmap lacks that codepoint: a genuine PUA glyph remains a conformance
-mismatch, and an unidentifiable cut remains unclassified. A confirmed donor
-divergence aborts with `oracle-drift.json` containing
+mismatch, and an unidentifiable cut remains unclassified. For a TrueType
+Collection, the coverage check opens the browser-reported PostScript cut inside
+the file and caches each cut separately; opening only the collection cannot
+answer its cmap coverage. A confirmed donor divergence aborts with
+`oracle-drift.json` containing
 `kind: "supplementary-pua"`, the first codepoint, stack, batch, and both faces. This
 adds no browser queries and preserves the natural assigned-codepoint ask order. It
 catches the `Helvetica-Bold` to `Arial-BoldMT` shift even when the first PUA cell

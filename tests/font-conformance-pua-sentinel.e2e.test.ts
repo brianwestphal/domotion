@@ -2,6 +2,7 @@ import { chromium } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import {
   assertSupplementaryPuaOracleFace,
+  chromeFaceCoversCodepoint,
   primaryChromeFace,
   probePageHtml,
   type ChromeFace,
@@ -10,6 +11,19 @@ import {
 } from "../tools/font-conformance.js";
 
 describe("macOS supplementary PUA oracle sentinel", () => {
+  it.skipIf(process.platform !== "darwin")("checks the reported cut inside a native TTC", () => {
+    const regular: ChromeFace = {
+      familyName: "Hiragino Mincho ProN",
+      postScriptName: "HiraMinProN-W3",
+      glyphCount: 1,
+    };
+    const bold: ChromeFace = { ...regular, postScriptName: "HiraMinProN-W6" };
+    for (const face of [regular, bold]) {
+      expect(chromeFaceCoversCodepoint(face, 0x41)).toBe(true);
+      expect(chromeFaceCoversCodepoint(face, 0x560)).toBe(false);
+    }
+  });
+
   it.skipIf(process.platform !== "darwin")(
     "detects a same-page generic fallback change in natural ask order",
     async () => {

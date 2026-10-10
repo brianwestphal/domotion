@@ -1161,21 +1161,27 @@ export class OracleDriftError extends Error {
  * mislabeled as instability. */
 const chromeCoverageFontCache = new Map<string, ReturnType<typeof fontkit.openSync> | null>();
 
-function chromeFaceCoversCodepoint(face: ChromeFace, cp: number): boolean | null {
+export function chromeFaceCoversCodepoint(face: ChromeFace, cp: number): boolean | null {
   const path = chromeFaceFile(face);
   if (path == null) return null;
+  const name = face.postScriptName ?? face.familyName;
+  const cacheKey = JSON.stringify([path, name]);
   try {
-    let opened = chromeCoverageFontCache.get(path);
+    let opened = chromeCoverageFontCache.get(cacheKey);
     if (opened === undefined) {
       try {
-        opened = fontkit.openSync(path);
+        // TTC files contain several cuts. Open the collection first and select
+        // its reported face; passing a name for a single TTF asks fontkit for
+        // a variation instead and can return null for an ordinary static font.
+        const file = fontkit.openSync(path);
+        opened = file.type === "TTC" ? file.getFont(name) : file;
       } catch {
         opened = null;
       }
-      chromeCoverageFontCache.set(path, opened);
+      chromeCoverageFontCache.set(cacheKey, opened);
     }
     if (opened == null) return null;
-    if (norm(opened.postscriptName ?? "") !== norm(face.postScriptName ?? face.familyName)) return null;
+    if (norm(opened.postscriptName ?? "") !== norm(name)) return null;
     return opened.hasGlyphForCodePoint(cp);
   } catch {
     return null;
