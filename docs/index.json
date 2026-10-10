@@ -1950,12 +1950,14 @@
           "DM-1868",
           "DM-1889",
           "DM-2507",
+          "DM-S2N2A2",
           "DM-987"
         ],
         "code": [
           "scripts/test-linux-docker.sh",
           "src/render",
           "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/codepoint-resolver.ts",
           "packages/text-engine/src/render/glyph-helper.ts",
           "packages/text-engine/src/render/win-font-fallback.ts",
           "packages/text-engine/src/render/win32-fallback-envelope.test.ts",

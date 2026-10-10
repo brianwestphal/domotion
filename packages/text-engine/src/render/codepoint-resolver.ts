@@ -93,6 +93,14 @@ const _stageStats: FontStageStats = {
 
 const STATIC_CP_SAMPLE_CAP = 20000;
 
+export function win32CjkSingleton(cp: number): number | null {
+  if (cp < 0xf900 || cp > 0xfaff) return null;
+  const source = String.fromCodePoint(cp);
+  const canonical = source.normalize("NFC");
+  const shapedCp = canonical.codePointAt(0);
+  return canonical !== source && shapedCp != null && String.fromCodePoint(shapedCp) === canonical ? shapedCp : null;
+}
+
 export function __getFontStageStatsForTest(): FontStageStats {
   return {
     ..._stageStats,
@@ -506,6 +514,36 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
         if (hbInst !== inst) return cover(key, hbInst, ch, true);
       }
     }
+  }
+
+  // Windows Chromium shapes CJK compatibility ideographs through their
+  // canonical singleton before choosing a system fallback face. The native
+  // exhaustive cohort records Microsoft YaHei for U+F900–F9FF under zh-Hans;
+  // probing the source scalar instead lets our hardcoded stage stop at Gulim
+  // or MS PGothic. Re-enter the same resolver with the normalized scalar so
+  // every candidate, including the platform stage, answers the shaped glyph.
+  // The singleton cannot recurse again: NFC is stable after this reduction.
+  const win32ShapedCp = hostPlatform() === "win32" ? win32CjkSingleton(cp) : null;
+  if (win32ShapedCp != null) {
+    const shaped = resolveFontForCodepoint(
+      win32ShapedCp,
+      primaryFont,
+      primaryFontKey,
+      weight,
+      fontSize,
+      slant,
+      variationSettings,
+      lang,
+      fontKeyChain,
+      systemUiPrimary,
+      stretch,
+      fontVariantEmoji,
+      declaredFamily,
+      request.rawSlope,
+      request.orientation,
+      semanticContext,
+    );
+    if (shaped.covered) return { ...shaped, emitCh: String.fromCodePoint(win32ShapedCp), decomposed: true };
   }
 
   // 2. kSystemFonts.

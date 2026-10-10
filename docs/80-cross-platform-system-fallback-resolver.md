@@ -18,6 +18,7 @@ tickets:
     "DM-1868",
     "DM-1889",
     "DM-2507",
+    "DM-S2N2A2",
     "DM-987",
   ]
 code:
@@ -25,6 +26,7 @@ code:
     "scripts/test-linux-docker.sh",
     "src/render",
     "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/codepoint-resolver.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
     "packages/text-engine/src/render/win-font-fallback.ts",
     "packages/text-engine/src/render/win32-fallback-envelope.test.ts",
@@ -350,6 +352,15 @@ KeyForCpForTest` hook, which bypasses that gate). DM-1416 fixed the init to
 "0")`) so the default-on actually takes effect.
 
 ### Windows (shipped, default-on) — DirectWrite `MapCharacters`
+
+The Windows resolver normalizes CJK compatibility ideographs in U+F900–FAFF
+before choosing a fallback face when the declared families do not cover the
+source scalar. The exhaustive synthetic Windows cohort showed Chromium using
+Microsoft YaHei throughout U+F900–F9FF under `zh-Hans`, while a raw-scalar
+fallback walk stopped at Gulim or MS PGothic. The renderer now resolves the
+canonical singleton through the same ordered font stages and emits that shaped
+scalar. Native Windows browser conformance pins F900, F91D, and F9FF across
+three Chinese generic stacks.
 
 `IDWriteFontFallback::MapCharacters(analysisSource, …)` returns the substitute
 font DirectWrite would map a run to — the same API Chrome-on-Windows uses
