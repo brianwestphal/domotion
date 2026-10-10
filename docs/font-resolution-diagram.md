@@ -1169,6 +1169,12 @@ Ten codepoints is a diagnostic, not a proof. The exhaustive form of the same com
 
 ### Linux (`LINUX_FONT_PATHS`, bare CI image) & Windows (`WIN32_FONT_PATHS`)
 
+Before Linux reaches fontconfig, a declared face may answer through HarfBuzz
+normalization: U+2011 uses its U+2010 glyph, and a canonical alias such as
+U+1F71 may use U+03AC in the same face. The resolver keeps inkless
+U+2028/U+2029 layout separators on the declared face. See
+[doc 80](80-cross-platform-system-fallback-resolver.md) for the native probe.
+
 | Key                                  | Linux (Playwright noble image)                         | Windows                                   |
 | ------------------------------------ | ------------------------------------------------------ | ----------------------------------------- |
 | `helvetica`/`arial`/`sf-pro`         | Liberation Sans                                        | Arial / (sf-pro→Segoe UI)                 |
@@ -2191,8 +2197,10 @@ Three consequences worth holding onto:
   The gate is `isEmojiPresentationCp(cp)` — one predicate shared by every
   platform's emoji stage, which is what Blink's `kEmojiEmoji` priority derives
   from (`IsEmojiPresentationEmoji` = `kEmojiEmoji | kEmojiEmojiWithVS`,
-  `font_fallback_priority.h:45-48`). Derived, not curated — the hand-listed
-  emoji ranges this predicate replaced (the since-removed `isEmojiCodepoint`)
+  `font_fallback_priority.h:45-48`). The property-driven rule has an explicit
+  seven-scalar Emoji 17 exclusion while bundled Chromium 147 still treats those
+  new scalars as text; see [doc 80](80-cross-platform-system-fallback-resolver.md).
+  The hand-listed emoji ranges this predicate replaced (the since-removed `isEmojiCodepoint`)
   missed ⌚ U+231A / ⌛ U+231B / ⏩ U+23E9 / ⏪ U+23EA because nobody sampled
   Miscellaneous Technical, which is exactly the block the defect showed up in.
 

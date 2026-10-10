@@ -38,6 +38,16 @@ describe("Blink's emoji-presentation predicate", () => {
     }
   });
 
+  it("keeps Emoji 17 additions on Chromium 147's text fallback path", () => {
+    // Linux Node recognizes these new scalars as Emoji_Presentation, while the
+    // bundled Chromium paints a literal U+1F6D8 from Unifont Upper.
+    for (const cp of [0x1faea, 0x1faef, 0x1fac8, 0x1facd, 0x1f6d8, 0x1fa8a, 0x1fa8e]) {
+      expect(isEmojiPresentationCp(cp)).toBe(false);
+      expect(blinkEmojiFallbackQuery(cp, "en")).toEqual({ cp, lang: "en" });
+    }
+    expect(blinkEmojiFallbackQuery(0x1f6d1, "en")).toEqual({ cp: FAMILY, lang: ZSYE });
+  });
+
   it("excludes the skin-tone modifiers", () => {
     // U+1F3FB..U+1F3FF are `Emoji_Presentation` but are never a run's priority
     // on their own — they modify a preceding base. Blink's priority is a

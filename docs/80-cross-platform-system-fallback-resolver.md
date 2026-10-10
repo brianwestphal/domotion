@@ -615,12 +615,32 @@ Measured in the Playwright `noble` image, with and without the substitution:
 
 `⌚ → FreeSerif` is exactly the failure the FIXME describes. The two bottom rows are the control: non-emoji queries are untouched, and U+2600 still varies with the locale, so the locale substitution is scoped to emoji rather than applied globally.
 
-`isEmojiPresentationCp` — `Emoji_Presentation` minus `Emoji_Modifier`, from
-Unicode properties rather than a hand-listed range set — remains the
-per-codepoint resolver predicate. Production shaped fallback no longer asks it
-to own the item boundary: DM-2507's pinned `SymbolsIterator` port creates
+`isEmojiPresentationCp` uses Unicode properties and Blink's category ordering,
+with one browser-version boundary: the seven newly encoded Emoji 17 scalars
+(U+1F6D8, U+1FA8A, U+1FA8E, U+1FAC8, U+1FACD, U+1FAEA, U+1FAEF) remain
+text for bundled Chromium 147 even when Linux Node reports Unicode 17 emoji
+properties. A native Linux one-codepoint probe changed U+1F6D8 under `serif`
+from `UnifontUpper → LiberationSerif` to exact agreement; all seven across the
+13 routine stacks agreed in the focused 91-comparison check. Recheck this
+exception when Chromium's emoji data advances. Production shaped fallback no
+longer asks it to own the item boundary: DM-2507's pinned `SymbolsIterator`
+port creates
 maximal `text` / `emoji` / explicit-VS source items, intersects them with
 bidi/script ranges, then calls the platform priority route for that complete
 item. This is what represents Blink's `kEmojiEmoji | kEmojiEmojiWithVS`,
 including a text-default base followed by U+FE0F; see
 [doc 201](201-emoji-presentation-item-ownership.md).
+
+The Linux exhaustive residual probe also exposed three decisions that belong
+to the declared family cascade before fontconfig runs. HarfBuzz substitutes
+U+2010 for U+2011 when a face lacks the non-breaking hyphen; canonical aliases
+such as
+U+1F71 → U+03AC, U+037E → U+003B, and U+212A → U+004B can use a glyph in
+that same face. U+2028/U+2029 are inkless layout separators, which Chromium's
+font-use report attributes to the declared face. `resolveFontForCodepoint`
+checks each declared family for the hyphen substitute (including the standard
+serif family after an emoji family), keeps canonical aliases in the primary,
+and emits an inkless space for the two separators. The pinned noble arm64
+browser run agreed exactly on all 34 previously mismatching codepoints across
+the 351-stack synthetic cohort: 11,934 of 11,934 comparisons. The x64 hosted
+baseline and other platform gates remain the verification authority.

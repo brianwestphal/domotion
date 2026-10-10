@@ -97,6 +97,22 @@ export function fcLangProperty(lang?: string): string {
  * overlay, which is keyed on the sequence rather than on this.
  */
 export function isEmojiPresentationCp(cp: number): boolean {
+  // Chromium 147's emoji segmenter predates the seven newly encoded Emoji 17
+  // scalars. Linux Node 22 reports Unicode 17, so using its current property
+  // data sends these through the U+1F46A color-emoji fallback even though
+  // Chromium treats them as ordinary text and can paint Unifont Upper.
+  // Keep this boundary pinned to the browser that the package ships with;
+  // revisit it when that browser's emoji data advances.
+  if (
+    cp === 0x1faea ||
+    cp === 0x1faef ||
+    cp === 0x1fac8 ||
+    cp === 0x1facd ||
+    cp === 0x1f6d8 ||
+    cp === 0x1fa8a ||
+    cp === 0x1fa8e
+  )
+    return false;
   const pinned = icuCodepointProperties(cp);
   const ch = String.fromCodePoint(cp);
   const v2 = pinned != null && (pinned.binaryProperties & ICU_BINARY.V2) !== 0;

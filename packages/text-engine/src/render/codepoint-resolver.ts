@@ -209,6 +209,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   _stageStats.calls++;
   const ch = String.fromCodePoint(cp);
   const helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable();
+  const linux = hostPlatform() === "linux";
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     coveredFontResolution(key, fontOverride, emitCh, decomposed);
 
@@ -278,6 +279,42 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   if (nativeFaceCoversCp(primaryFont, cp) !== false && primaryCovers) {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null);
+  }
+
+  // HarfBuzz can normalize a canonical alias to another composed scalar in
+  // this same face before font fallback. Greek oxia letters (U+1F71 → U+03AC),
+  // GREEK QUESTION MARK (U+037E → ';'), and KELVIN SIGN (U+212A → 'K') all
+  // exercise this on noble. A literal fontconfig query picks another family.
+  const canonical = ch.normalize("NFC");
+  const canonicalCp = canonical.codePointAt(0);
+  if (
+    linux &&
+    canonical !== ch &&
+    canonicalCp != null &&
+    String.fromCodePoint(canonicalCp) === canonical &&
+    glyphIdForCp(primaryFont, canonicalCp) !== 0
+  ) {
+    _stageStats.fastPathPrimary++;
+    return cover(primaryFontKey, null, canonical, true);
+  }
+
+  // HarfBuzz's normalizer substitutes U+2010 from the current face for the
+  // non-breaking hyphen when that face has no U+2011 glyph. Chromium therefore
+  // keeps this character in the declared family rather than asking fontconfig
+  // for a face with a literal U+2011 cmap entry.
+  if (linux && cp === 0x2011 && glyphIdForCp(primaryFont, 0x2010) !== 0) {
+    _stageStats.fastPathPrimary++;
+    return cover(primaryFontKey, null, "\u2010", true);
+  }
+
+  // Blink treats the Unicode line and paragraph separators as layout breaks.
+  // Its font-use report attributes their empty glyph cell to the declared
+  // face; letting a literal-cmap probe reach fontconfig instead selects
+  // FreeSans and can emit a visible replacement glyph. A space from the same
+  // face keeps the cell inkless while captured advances own its positioning.
+  if (linux && (cp === 0x2028 || cp === 0x2029)) {
+    _stageStats.fastPathPrimary++;
+    return cover(primaryFontKey, null, " ", true);
   }
 
   // HarfBuzz keeps these spaces in the CURRENT font when their literal cmap
@@ -444,6 +481,9 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     // fast path and 3912 reappeared on this line).
     if (nativeFaceCoversCp(inst, cp) !== false && glyphIdForCp(inst, cp) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst);
+    }
+    if (linux && cp === 0x2011 && glyphIdForCp(inst, 0x2010) !== 0) {
+      return cover(key, key === primaryFontKey ? null : inst, "\u2010", true);
     }
     if (singleton != null && glyphIdForCp(inst, singleton) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst, String.fromCodePoint(singleton), true);
