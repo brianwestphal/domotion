@@ -35,6 +35,15 @@ describeWindows("Windows mixed-locale primary in one document", () => {
           '</style><body><i id="ja" lang="ja">A</i></body></html>',
       );
       const usedFace = async (selector: string) => {
+        // A node appended to a live document can be in the DOM before Blink
+        // has assigned its painted font. CDP reports [] in that interval.
+        // Wait for two animation frames after forcing layout so the assertion
+        // observes the same painted-face state as the conformance oracle.
+        await page.locator(selector).evaluate(async (element) => {
+          await document.fonts.ready;
+          element.getBoundingClientRect();
+          await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        });
         const { root } = await cdp.send("DOM.getDocument");
         const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector });
         const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });

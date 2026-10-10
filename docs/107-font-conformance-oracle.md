@@ -19,6 +19,7 @@ tickets:
     "DM-KWKBQ5",
     "DM-KK5BP2",
     "DM-N78DX3",
+    "DM-2NPYHD",
     "DM-QD903D",
     "DM-T0T41W",
     "DM-V75PWJ",
@@ -42,6 +43,7 @@ code:
     "tests/font-conformance-extraction.e2e.test.ts",
     "tests/font-conformance-mixed-locale-controls.e2e.test.ts",
     "tests/font-conformance-mixed-locale-shape-cache.e2e.test.ts",
+    "tests/windows-mixed-locale-primary.e2e.test.ts",
     "tests/font-conformance-document-lifecycle.test.ts",
     "tests/font-conformance-oracle-stability.e2e.test.ts",
     "tests/font-conformance-synthetic-stacks.test.ts",
@@ -262,7 +264,9 @@ report records the selected universe and the answers in that same order.
   English expanded `serif` U+0041 in the same document, and checks the second
   face against both Domotion and a fresh English Chromium renderer. This guards
   the in-document transition independently of the synthetic sweep's locale
-  scopes and fresh-document cache history.
+  scopes and fresh-document cache history. The test waits for font readiness,
+  layout, and paint frames after each node is added before asking CDP for its
+  used face; an immediate query can return an empty list for a valid new node.
 
 The oracle checks its own browser Page before each stack, before each macOS
 batch, and after every batch. A fixed set
