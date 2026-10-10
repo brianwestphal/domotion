@@ -766,9 +766,12 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     (slant !== 0 || weight >= 700)
   ) {
     const declaredHead = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
+    // Blink retries the named first family. A CSS generic is a preference,
+    // not that literal family: treating `serif` as Times New Roman here steals
+    // italic Arabic from the Windows Tahoma hardcoded stage.
     if (
       declaredHead == null ||
-      matchFamilyNameToKey(declaredHead.name, declaredHead.generic, lang) === primaryFontKey
+      (!declaredHead.generic && matchFamilyNameToKey(declaredHead.name, false, lang) === primaryFontKey)
     ) {
       // Style and weight reset to normal; the run's STRETCH is preserved —
       // `substitute_description` is a copy and only `SetStyle` / `SetWeight`

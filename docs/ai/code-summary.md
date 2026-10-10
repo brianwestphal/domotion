@@ -198,6 +198,8 @@ plus controlled-healing browser passes.
   document replacement, GC, and different-scalar controls. The pinned
   Chromium 147 `SimpleFontData` cache path and bounded renderer mirror are
   documented in `docs/107-font-conformance-oracle.md`.
+- `tests/windows-italic-arabic-fallback.e2e.test.ts` checks the generic italic
+  Arabic route against native Windows Chromium and runs in Windows fidelity CI.
 - `tools/lib/conformance-args.ts` validates numeric flags and 1-based shard
   selection for conformance tools and the visual harness.
 - `scripts/validate-synthetic-baseline-dispatch.mjs` runs in the synthetic
