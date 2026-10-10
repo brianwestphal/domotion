@@ -295,13 +295,11 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // exercise this on noble. A literal fontconfig query picks another family.
   const canonical = ch.normalize("NFC");
   const canonicalCp = canonical.codePointAt(0);
-  if (
-    linux &&
-    canonical !== ch &&
-    canonicalCp != null &&
-    String.fromCodePoint(canonicalCp) === canonical &&
-    glyphIdForCp(primaryFont, canonicalCp) !== 0
-  ) {
+  const canonicalAliasCp =
+    linux && canonical !== ch && canonicalCp != null && String.fromCodePoint(canonicalCp) === canonical
+      ? canonicalCp
+      : null;
+  if (canonicalAliasCp != null && glyphIdForCp(primaryFont, canonicalAliasCp) !== 0) {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null, canonical, true);
   }
@@ -489,6 +487,12 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     // fast path and 3912 reappeared on this line).
     if (nativeFaceCoversCp(inst, cp) !== false && glyphIdForCp(inst, cp) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst);
+    }
+    // HarfBuzz can shape a canonical alias in each declared face, including a
+    // standard family reached after an emoji family. Checking only the primary
+    // misses U+212A when the emoji face lacks both it and its 'K' alias.
+    if (canonicalAliasCp != null && glyphIdForCp(inst, canonicalAliasCp) !== 0) {
+      return cover(key, key === primaryFontKey ? null : inst, canonical, true);
     }
     if (linux && cp === 0x2011 && glyphIdForCp(inst, 0x2010) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst, "\u2010", true);

@@ -54,4 +54,23 @@ describe("Linux current-face normalization before fontconfig fallback", () => {
       expect(separator).toMatchObject({ key: primaryKey, emitCh: " ", decomposed: true, covered: true });
     }
   });
+
+  linuxIt("uses a canonical alias in the standard family after an emoji family", () => {
+    const family = "emoji";
+    const description = { weight: 400, size: 16, slant: 0, stretch: 100 };
+    const primaryKey = resolveFontKey(family, "en", description);
+    const primary = resolveFont(family, 400, 16, 0, undefined, 100, "en");
+    const chain = resolveFontKeyChain(family, "en", description);
+    expect(primary).not.toBeNull();
+    expect(chain).toContain("sysfb:LiberationSerif");
+    expect(glyphIdForCp(primary!, 0x212a)).toBe(0);
+    expect(glyphIdForCp(primary!, 0x004b)).toBe(0);
+
+    const resolve = (cp: number) =>
+      resolveFontForCodepoint(cp, primary!, primaryKey, 400, 16, 0, undefined, "en", chain);
+    const kelvin = { key: "sysfb:LiberationSerif", emitCh: "K", decomposed: true, covered: true };
+    expect(resolve(0x212a)).toMatchObject(kelvin);
+    expect(resolve(0x004b)).toMatchObject({ key: "sysfb:LiberationSerif", covered: true });
+    expect(resolve(0x212a)).toMatchObject(kelvin);
+  });
 });

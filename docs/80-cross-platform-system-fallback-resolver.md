@@ -655,9 +655,16 @@ such as
 U+1F71 → U+03AC, U+037E → U+003B, and U+212A → U+004B can use a glyph in
 that same face. U+2028/U+2029 are inkless layout separators, which Chromium's
 font-use report attributes to the declared face. `resolveFontForCodepoint`
-checks each declared family for the hyphen substitute (including the standard
-serif family after an emoji family), keeps canonical aliases in the primary,
+checks each declared family for the hyphen substitute and single-scalar NFC
+aliases (including the standard serif family after an emoji family),
 and emits an inkless space for the two separators. The pinned noble arm64
 browser run agreed exactly on all 34 previously mismatching codepoints across
 the 351-stack synthetic cohort: 11,934 of 11,934 comparisons. The x64 hosted
 baseline and other platform gates remain the verification authority.
+
+A later full Linux x64 sweep found 27 U+212A residuals in emoji stacks: the
+emoji primary has neither U+212A nor its `K` alias, while the standard serif
+family later in the declared chain has `K`. The chain now tries the alias in
+each family after literal coverage. The Linux residuals end-to-end test already
+includes U+212A across all 351 stacks; the hosted full sweep checks the wider
+style combinations.
