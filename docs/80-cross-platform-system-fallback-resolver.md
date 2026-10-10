@@ -368,6 +368,15 @@ canonical singleton through the same ordered font stages and emits that shaped
 scalar. Native Windows browser conformance pins F900, F91D, and F9FF across
 three Chinese generic stacks.
 
+The Windows synthetic cohort also found U+2011, U+2028, U+2029, and U+212A
+falling to Times New Roman in Domotion while Chromium kept the declared face
+(Consolas in 16 monospace stacks, with the same pattern in other generics).
+The per-face HarfBuzz normalization rules now retain U+2011 through a covered
+U+2010 glyph, retain U+212A through its covered NFC `K` alias, and emit an
+inkless space from the primary for the two layout separators. Each declared
+family gets the substitute check after literal coverage; native Windows
+conformance checks the representative stacks.
+
 `IDWriteFontFallback::MapCharacters(analysisSource, …)` returns the substitute
 font DirectWrite would map a run to — the same API Chrome-on-Windows uses
 (`FontFallback::MapCharacters` in `font_fallback_win.cc`). It's implemented as a

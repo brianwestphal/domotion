@@ -217,7 +217,9 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   _stageStats.calls++;
   const ch = String.fromCodePoint(cp);
   const helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable();
-  const linux = hostPlatform() === "linux";
+  const platform = hostPlatform();
+  const linux = platform === "linux";
+  const sameFaceNormalization = linux || platform === "win32";
   const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
     coveredFontResolution(key, fontOverride, emitCh, decomposed);
 
@@ -293,10 +295,13 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // this same face before font fallback. Greek oxia letters (U+1F71 → U+03AC),
   // GREEK QUESTION MARK (U+037E → ';'), and KELVIN SIGN (U+212A → 'K') all
   // exercise this on noble. A literal fontconfig query picks another family.
+  // The Windows exhaustive cohort shows the same shape-first decision for
+  // U+212A under several generics: Chrome stays on the declared face while a
+  // literal-only walk falls to Times New Roman.
   const canonical = ch.normalize("NFC");
   const canonicalCp = canonical.codePointAt(0);
   const canonicalAliasCp =
-    linux && canonical !== ch && canonicalCp != null && String.fromCodePoint(canonicalCp) === canonical
+    sameFaceNormalization && canonical !== ch && canonicalCp != null && String.fromCodePoint(canonicalCp) === canonical
       ? canonicalCp
       : null;
   if (canonicalAliasCp != null && glyphIdForCp(primaryFont, canonicalAliasCp) !== 0) {
@@ -308,7 +313,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // non-breaking hyphen when that face has no U+2011 glyph. Chromium therefore
   // keeps this character in the declared family rather than asking fontconfig
   // for a face with a literal U+2011 cmap entry.
-  if (linux && cp === 0x2011 && glyphIdForCp(primaryFont, 0x2010) !== 0) {
+  if (sameFaceNormalization && cp === 0x2011 && glyphIdForCp(primaryFont, 0x2010) !== 0) {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null, "\u2010", true);
   }
@@ -318,7 +323,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // face; letting a literal-cmap probe reach fontconfig instead selects
   // FreeSans and can emit a visible replacement glyph. A space from the same
   // face keeps the cell inkless while captured advances own its positioning.
-  if (linux && (cp === 0x2028 || cp === 0x2029)) {
+  if (sameFaceNormalization && (cp === 0x2028 || cp === 0x2029)) {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null, " ", true);
   }
@@ -494,7 +499,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     if (canonicalAliasCp != null && glyphIdForCp(inst, canonicalAliasCp) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst, canonical, true);
     }
-    if (linux && cp === 0x2011 && glyphIdForCp(inst, 0x2010) !== 0) {
+    if (sameFaceNormalization && cp === 0x2011 && glyphIdForCp(inst, 0x2010) !== 0) {
       return cover(key, key === primaryFontKey ? null : inst, "\u2010", true);
     }
     if (singleton != null && glyphIdForCp(inst, singleton) !== 0) {
