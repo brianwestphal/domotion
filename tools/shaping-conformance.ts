@@ -422,6 +422,10 @@ export async function extractRuns(
     for (const p of walkHtml(d)) files.push({ path: p, label: `${d}/${p.slice(d.length).replace(/^\/+/, "")}` });
   }
   const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+  // tsx/esbuild's keep-names transform wraps nested named functions in
+  // `__name(fn, "name")`, which does not exist inside the page; without this
+  // every serialized evaluate callback throws `__name is not defined`.
+  await ctx.addInitScript({ content: "globalThis.__name=(target)=>target;" });
   const page = await ctx.newPage();
   const tally = new Map<string, { spec: Omit<RunSpec, "fixtures" | "example">; fixtures: number; example: string }>();
   let n = 0;
@@ -1330,6 +1334,10 @@ export function buildShapingReport(input: {
 
 async function collectShapingEvidence(browser: Browser, runs: RunSpec[], opts: Options, allow: ReadonlySet<string>) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  // tsx/esbuild's keep-names transform wraps nested named functions in
+  // `__name(fn, "name")`, which does not exist inside the page; without this
+  // every serialized evaluate callback throws `__name is not defined`.
+  await ctx.addInitScript({ content: "globalThis.__name=(target)=>target;" });
   const page = await ctx.newPage();
 
   const counts: Record<Verdict, number> = {
