@@ -45,7 +45,7 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
     .ov { position: absolute; left: 0; top: 0; width: 200px; height: 100px; z-index: 10; visibility: visible }
     ${overlay}
   </style><div class="box"><canvas id="c" width="200" height="100"></canvas><div class="ov"></div></div>
-  <script>window.__contextLost=0;document.getElementById('c').addEventListener('contextlost',()=>window.__contextLost++);const c=document.getElementById('c').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);</script>`;
+  <script>window.__contextLost=0;document.getElementById('c').addEventListener('contextlost',()=>window.__contextLost++);const c=document.getElementById('c').getContext('2d',{willReadFrequently:true});c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);</script>`;
 
   it("leaves the pseudo out of the canvas snapshot even when it declares visibility: visible", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 260, height: 160 } });
@@ -68,8 +68,12 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
         return [data[o], data[o + 1], data[o + 2]];
       };
       // A fully transparent sample means the canvas surface itself was missing, not that isolation
-      // leaked. Hosted runners have produced that intermittently; record whether Chromium reported a
-      // 2D context loss (GPU-process reset) so a recurrence names its cause.
+      // leaked. Hosted macOS runners did reset the GPU context mid-test: only a GPU-backed (SharedImage)
+      // canvas provider receives that loss (`canvas_resource_provider.cc:2255-2261`, chromium 7d859f27),
+      // and Blink then clears the canvas, so Chrome itself paints it blank. The fixtures therefore ask for
+      // `willReadFrequently`, which selects CPU raster (`html_canvas_element.cc:1565-1575`); isolation is
+      // CSS applied around the screenshot and does not depend on the raster mode. If the canvas ever comes
+      // back empty again, the message records whether a context loss was reported.
       const contextLost = await page.evaluate(() => (window as unknown as { __contextLost: number }).__contextLost);
       const alphaAt = (x: number, y: number): number =>
         channels < 4 ? 255 : data[(Math.floor(y * scaleY) * width + Math.floor(x * scaleX)) * channels + 3];
@@ -123,7 +127,7 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
           body.page { background: rgb(0, 128, 0) !important }
         </style>
         <body class="page"><div class="box"><canvas id="c" width="200" height="100"></canvas><div class="veil"></div></div>
-        <script>const c=document.getElementById('c').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);</script></body>`,
+        <script>const c=document.getElementById('c').getContext('2d',{willReadFrequently:true});c.fillStyle='#fff';c.fillRect(0,0,200,100);</script></body>`,
       );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 260, height: 160 });
       const uri = walk(tree).find((node) => node.tag === "canvas")!.replacedSnapshot?.dataUri;
