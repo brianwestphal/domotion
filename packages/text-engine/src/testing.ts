@@ -41,6 +41,7 @@ export {
   clearFontResolutionCaches,
   createFontFallbackSemanticContext,
   createFontRendererSession,
+  type FontRendererSession,
   declaredFamilyHeadIdentity,
   endCharacterFallbackDocument,
   darwinFontDataIdentity,
