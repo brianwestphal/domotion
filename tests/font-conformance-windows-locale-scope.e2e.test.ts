@@ -58,6 +58,39 @@ describeWindows("Windows synthetic oracle locale scopes", () => {
     expect(report.data.chromeFaces).toContainEqual(expect.objectContaining({ face: "Gulim" }));
   }, 60_000);
 
+  // Blink runs no system fallback for private-use scalars, so an uncovered
+  // U+F301 reaches `GetLastResortFallbackFont`. Under DirectWrite neither the
+  // generic name nor "Sans" opens, so that face is Arial — which Chrome paints
+  // here while every CJK locale primary lacks the scalar. U+F300 / U+F302 are
+  // the negative controls: Arial lacks them, so they stay on the primary's
+  // `.notdef`.
+  it("paints uncovered private-use scalars in the Arial last-resort face", async () => {
+    const root = mkdtempSync(join(tmpdir(), "domotion-windows-pua-last-resort-"));
+    const stacksFile = join(root, "stacks.json");
+    const output = join(root, "out");
+    const corpus = syntheticCorpus();
+    const stacks = ["ja", "ko", "zh-Hans", "zh-Hant"].flatMap((lang) =>
+      ["serif", "system-ui"].map((fontFamily) => {
+        const stack = corpus.stacks.find(
+          (candidate) =>
+            candidate.fontFamily === fontFamily &&
+            candidate.lang === lang &&
+            candidate.fontWeight === 400 &&
+            candidate.fontStyle === "normal",
+        );
+        if (stack == null) throw new Error(`missing synthetic stack ${fontFamily}/${lang}`);
+        return stack;
+      }),
+    );
+    writeFileSync(stacksFile, JSON.stringify({ ...corpus, stacks }));
+
+    expect(await main(["--stacks", stacksFile, "--range", "F300-F302", "--out", output])).toBe(0);
+    const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
+    expect(report.data.summary.comparisons).toBe(24);
+    expect(report.data.summary.mismatchTotal).toBe(0);
+    expect(report.data.chromeFaces).toContainEqual(expect.objectContaining({ face: "ArialMT" }));
+  }, 60_000);
+
   it("keeps Chinese compatibility ideographs in Microsoft YaHei after normalization", async () => {
     const root = mkdtempSync(join(tmpdir(), "domotion-windows-cjk-normalization-"));
     const stacksFile = join(root, "stacks.json");

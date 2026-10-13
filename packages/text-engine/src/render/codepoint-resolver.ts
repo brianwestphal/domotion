@@ -680,14 +680,28 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     // so Chrome paints Times rather than the primary's `.notdef`. When Times
     // lacks the codepoint too, fall through to the first candidate exactly as
     // before.
-    if (hostPlatform() === "darwin") {
-      for (const lastResortKey of ["times", "lucida-grande"]) {
-        const lastResort = getFontInstance(lastResortKey, weight, fontSize, slant);
-        if (lastResort != null && glyphIdForCp(lastResort, cp) !== 0) {
-          return cover(lastResortKey, lastResort);
-        }
-        if (lastResortKey === "times" && lastResort != null) break;
+    //
+    // On Windows the shared `FontCache::GetLastResortFallbackFont`
+    // (`skia/font_cache_skia.cc:146-172`, rev 7d859f27) asks first for the
+    // generic's own name (`GetFallbackFontFamily`: "serif", "sans-serif", …,
+    // or empty for `system-ui`), then "Sans", then Arial. DirectWrite has no
+    // family by any of the first names: Skia's `onMatchFamilyStyle` matches
+    // the empty style set and returns null (`SkFontMgr_win_dw.cpp:381-385` at
+    // the DEPS-pinned skia `62efacd3`), and the `kLastResort` branch of the
+    // Windows `CreateFontPlatformData` returns null for a null typeface
+    // (`win/font_cache_skia_win.cc`). So the first face that opens is Arial,
+    // matched to the run's style. Observable on CJK-locale stacks for
+    // U+F301, which Chrome paints in ArialMT while the locale primary lacks it.
+    const lastResortKeys =
+      hostPlatform() === "darwin" ? ["times", "lucida-grande"] : hostPlatform() === "win32" ? ["arial"] : [];
+    for (const lastResortKey of lastResortKeys) {
+      const lastResort = getFontInstance(lastResortKey, weight, fontSize, slant);
+      if (lastResort != null && glyphIdForCp(lastResort, cp) !== 0) {
+        return cover(lastResortKey, lastResort);
       }
+      // Only the first face that OPENS is the last resort; a later entry is
+      // reached only when the earlier one is absent from the machine.
+      if (lastResort != null) break;
     }
     return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
   }

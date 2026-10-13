@@ -1239,9 +1239,9 @@ flowchart TD
   F2 --> F2A["for each key: instanceFor(key)<br/>glyphForCodePoint(cp)?"]
   F2A -->|"hit"| F2H["cover(key)"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
-  FPUA -->|"yes — no system fallback"| FLR{"darwin: Blink's explicit last-resort face covers cp?<br/>times, then lucida-grande ONLY if Times cannot be opened<br/>(font_fallback_iterator.cc:143-162, font_cache_mac.mm:376-393)"}
-  FLR -->|"yes"| FLRH["cover(times | lucida-grande)"]
-  FLR -->|"no / non-darwin"| F6
+  FPUA -->|"yes — no system fallback"| FLR{"Blink's explicit last-resort face covers cp?<br/>darwin: times, then lucida-grande ONLY if Times cannot be opened<br/>(font_fallback_iterator.cc:143-162, font_cache_mac.mm:376-393)<br/>win32: arial — the generic name and Sans open no DirectWrite family<br/>(font_cache_skia.cc:146-172)"}
+  FLR -->|"yes"| FLRH["cover(times | lucida-grande | arial)"]
+  FLR -->|"no / linux"| F6
   FPUA -->|"no"| FSTD{"win32 pre-stage — FallbackOnStandardFontStyle<br/>(win/font_cache_skia_win.cc:270-277): italic run or<br/>weight ≥ 700 (kBoldWeightValue — NOT Linux's 600),<br/>non-emoji-presentation, head declared name matches primary<br/>(a CSS generic never does, except exact system-ui → system font),<br/>and the family's STANDARD-style cut covers cp?"}
   FSTD -->|"yes (win32 only) — stay in the family"| FSTDH["cover(primaryKey, standard-style instance)<br/>synthetic bold/italic derives downstream from the<br/>requested style against that face"]
   FSTD -->|"no / not win32"| FW{"liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
@@ -1587,7 +1587,13 @@ run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
   explicit last-resort face before `kFirstCandidateForNotdefGlyph`
   (`font_fallback_iterator.cc:143-162`): Times, then Lucida Grande only if Times
   cannot be opened (`font_cache_mac.mm:376-393`) — observable for U+F8FF, where a
-  Japanese serif primary lacks the Apple logo but Times carries it — and only
+  Japanese serif primary lacks the Apple logo but Times carries it. On Windows the
+  shared Skia walk (`skia/font_cache_skia.cc:146-172`) asks for the generic's own
+  name, then "Sans", then Arial; DirectWrite has no family by either of the first
+  two (Skia's `onMatchFamilyStyle` returns null for an empty style set, and the
+  `kLastResort` branch of `CreateFontPlatformData` returns null with it), so the
+  face is Arial at the run's style — observable for U+F301 on CJK-locale stacks,
+  whose primaries lack it. Only
   when that face lacks `cp` too does the walk fall to `kOutOfLuck`, leaving the
   run painting from its primary. Two live defects came from not having it: macOS CoreText
   answers `SFCompact-Regular` for U+100000 (Apple keeps SF Symbols in plane 16),
