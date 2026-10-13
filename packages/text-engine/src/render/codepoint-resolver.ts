@@ -25,7 +25,7 @@ import { sfProCoverageOtfKey } from "./shaping-route.js";
 import { getFontInstance } from "./font-instance.js";
 import { pickWebfontVariantForCodepoint } from "./webfont-registry.js";
 import { systemFallbackResolutionEnabled } from "./font-spec.js";
-import { exactDarwinFallbackKey, resolveSystemFallbackKeyForRequest } from "./system-fallback-resolver.js";
+import { exactSystemFallbackKey, resolveSystemFallbackKeyForRequest } from "./system-fallback-resolver.js";
 import { systemFallbackCoverage } from "./system-fallback-resolver.js";
 import { fallbackFontChain } from "./fallback-chain.js";
 import { fallbackFamilyCutKey } from "./system-fallback-resolver.js";
@@ -563,7 +563,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     _stageStats.liveAsked++;
     const nominatedKey = resolveSystemFallbackKeyForRequest(request);
     if (nominatedKey == null) return null;
-    const sysKey = exactDarwinFallbackKey(nominatedKey);
+    const sysKey = exactSystemFallbackKey(nominatedKey);
     const sf = getFontInstance(sysKey, weight, fontSize, slant);
     if (sf == null) return null;
     // DM-1986: coverage is the CMAP question — see `fontCoversCp`. The id test

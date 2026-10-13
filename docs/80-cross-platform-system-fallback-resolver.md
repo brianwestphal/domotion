@@ -19,6 +19,7 @@ tickets:
     "DM-1889",
     "DM-2507",
     "DM-ANS8X4",
+    "DM-YT7SZ1",
     "DM-S2N2A2",
     "DM-987",
   ]
@@ -388,6 +389,16 @@ U+2010 glyph, retain U+212A through its covered NFC `K` alias, and emit an
 inkless space from the primary for the two layout separators. Each declared
 family gets the substitute check after literal coverage; native Windows
 conformance checks the representative stacks.
+
+The DirectWrite answer is already the final face: the helper mirrors Blink's
+`UpdateFromSkiaFontStyle` and family reopen (`win/font_cache_skia_win.cc:244-253`,
+chromium `7d859f27`). When an earlier declared family has registered the same
+`sysfb:<PostScript name>` key, the resolver uses an exact-face
+`sysfb:exact:<PostScript name>` key instead, so the per-run cut matcher cannot
+re-weight it. Without that, archaic Hangul at weight 200 (absent from Malgun
+Gothic Semilight, so Blink falls through to DirectWrite and reopens regular
+Malgun Gothic) was reported as Semilight after any Korean stack had declared
+Malgun Gothic. macOS uses the same exact-key guard for CoreText substitutes.
 
 `IDWriteFontFallback::MapCharacters(analysisSource, …)` returns the substitute
 font DirectWrite would map a run to — the same API Chrome-on-Windows uses

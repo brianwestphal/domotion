@@ -2008,7 +2008,7 @@ flowchart TD
   SRDN --> SRG
   SRL --> SRLG{"coverage guard:<br/>fontFileCoversCodepoint(path, ps, cp)?<br/>(fc-match returns a default even when nothing covers)"}
   SRWR --> SRG
-  SRG -->|"yes"| SRR["registerDynamicSystemFont('sysfb:'+ps, path, ps)<br/>→ return key"]
+  SRG -->|"yes"| SRR["registerDynamicSystemFont('sysfb:'+ps, path, ps)<br/>→ return key · darwin/win32: the resolver wraps it in<br/>exactSystemFallbackKey → sysfb:exact:ps when a declared<br/>family already owns that key (no cut re-selection)"]
   SRG -->|"no"| SRNull["null → keep last-resort tofu"]
   SRLG -->|"covers"| SRR
   SRLG -->|"doesn't cover"| SRNull

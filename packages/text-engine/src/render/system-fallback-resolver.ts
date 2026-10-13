@@ -74,14 +74,22 @@ export function getSystemFallbackResolution(): boolean {
   return systemFallbackResolutionEnabled;
 }
 
-/** A CoreText substitute is an already-selected face, whereas a declared
- * family key is a request to run the CSS style matcher. Both historically used
- * `sysfb:<PostScript name>`, so a prior declared primary could make a later
- * fallback to that same face silently reopen a different cut. Give only that
- * collision an exact-face key; other platform keys and fallback answers keep
- * their existing identity. */
-export function exactDarwinFallbackKey(key: string): string {
-  if (hostPlatform() !== "darwin" || !key.startsWith("sysfb:") || !declaredFamilyForKey.has(key)) return key;
+/** A CoreText or DirectWrite substitute is an already-selected face, whereas a
+ * declared family key is a request to run the CSS style matcher. Both
+ * historically used `sysfb:<PostScript name>`, so a prior declared primary
+ * could make a later fallback to that same face silently reopen a different
+ * cut. Give only that collision an exact-face key; other platform keys and
+ * fallback answers keep their existing identity.
+ *
+ * On Windows the helper already mirrors Blink's `UpdateFromSkiaFontStyle` and
+ * family reopen (`win/font_cache_skia_win.cc:244-253`, chromium 7d859f27), so
+ * its face is the final one. Re-weighting it through `win32PrimaryCutKey`
+ * turned DirectWrite's Malgun Gothic answer for archaic Hangul at weight 200
+ * back into Malgun Gothic Semilight, which lacks those jamo. */
+export function exactSystemFallbackKey(key: string): string {
+  const platform = hostPlatform();
+  if ((platform !== "darwin" && platform !== "win32") || !key.startsWith("sysfb:") || !declaredFamilyForKey.has(key))
+    return key;
   const spec = resolveFontSpec(key);
   if (spec == null || spec.path === "" || spec.postscriptName == null) return key;
   const exactKey = `sysfb:exact:${spec.postscriptName}`;
