@@ -18,6 +18,7 @@ tickets:
     "DM-1868",
     "DM-1889",
     "DM-2507",
+    "DM-ANS8X4",
     "DM-S2N2A2",
     "DM-987",
   ]
@@ -359,14 +360,21 @@ KeyForCpForTest` hook, which bypasses that gate). DM-1416 fixed the init to
 
 ### Windows (shipped, default-on) — DirectWrite `MapCharacters`
 
-The Windows resolver normalizes CJK compatibility ideographs in U+F900–FAFF
-before choosing a fallback face when the declared families do not cover the
-source scalar. The exhaustive synthetic Windows cohort showed Chromium using
-Microsoft YaHei throughout U+F900–F9FF under `zh-Hans`, while a raw-scalar
-fallback walk stopped at Gulim or MS PGothic. The renderer now resolves the
-canonical singleton through the same ordered font stages and emits that shaped
-scalar. Native Windows browser conformance pins F900, F91D, and F9FF across
-three Chinese generic stacks.
+CJK compatibility ideographs (U+F900–FAFF) are NOT normalized before system
+fallback on Windows. Blink's hardcoded and DirectWrite stages both test the
+literal scalar (`FontContainsCharacter(codepoint)` in
+`win/font_cache_skia_win.cc`, chromium `7d859f27`), so under an English stack
+Chrome paints U+F900 from Gulim or MS PGothic (the first `kCjkFonts` entries
+that cover it) and leaves U+FA70–FAD9 as the primary face's `.notdef`. The
+Microsoft YaHei answer under `zh-Hans` comes from the family stage instead:
+Blink appends the locale's standard font after the declared families, and
+HarfBuzz decomposes the canonical singleton inside that face when it lacks the
+literal glyph. The resolver models that with the same-face canonical-alias
+check it already applies to the primary and every declared-chain face. An
+earlier fallback-stage normalization fitted to the `zh-Hans` rows moved about
+118,000 comparisons in other locales away from Chrome in the exhaustive
+Windows sweep and was removed. Native Windows browser conformance pins both
+the Chinese YaHei answer and the English Gulim / tofu answers.
 
 The Windows synthetic cohort also found U+2011, U+2028, U+2029, and U+212A
 falling to Times New Roman in Domotion while Chromium kept the declared face
