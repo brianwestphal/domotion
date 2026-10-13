@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Page } from "@playwright/test";
+import type { BrowserContext, Page } from "@playwright/test";
 import {
   deserializeSessionGenericFamilyProbe,
   genericFamilyReplayName,
@@ -8,6 +8,7 @@ import {
   genericProbeArmed,
   languagesFromDomSnapshot,
   probePageGenericFamilies,
+  probeSessionGenericFamilies,
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
 import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
@@ -246,5 +247,87 @@ describe("probePageGenericFamilies failure reporting", () => {
       throw new Error("closed");
     });
     await expect(probePageGenericFamilies(page)).resolves.toBeNull();
+  });
+});
+
+describe("probePageGenericFamilies incomplete and unstable reads", () => {
+  const times = { familyName: "Times", postScriptName: "Times-Roman", glyphCount: 1, isCustomFont: false };
+  const fakePage = (fontsFor: (call: number) => (typeof times)[]): { page: Page; frames: () => number } => {
+    let call = 0;
+    let frames = 0;
+    const session = {
+      send: async (method: string) => {
+        if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
+        if (method === "DOM.querySelector") return { nodeId: 2 };
+        if (method === "CSS.getPlatformFontsForNode") return { fonts: fontsFor(call++) };
+        if (method === "DOMSnapshot.captureSnapshot") return { documents: [], strings: [] };
+        return {};
+      },
+      detach: async () => {},
+    };
+    const page = {
+      context: () => ({ newCDPSession: async () => session }),
+      once: () => {},
+      evaluate: async (fn: (...args: unknown[]) => unknown) => {
+        if (String(fn).includes("requestAnimationFrame(() => resolve())")) frames++;
+        return undefined;
+      },
+    } as unknown as Page;
+    return { page, frames: () => frames };
+  };
+
+  // A row not yet laid out reports no fonts. Recording the table without it
+  // made two reads disagree under hosted-runner load, so the read waits a
+  // frame and re-asks for that row instead.
+  it("re-queries rows that reported no platform font after another paint frame", async () => {
+    const rows = genericFamilyProbeTargets().length;
+    // The first row is still unlaid on the first two queries for it. Without a
+    // re-query, two consecutive reads agree on a table missing that row.
+    const { page } = fakePage((call) => (call === 0 || call === rows ? [] : [times]));
+
+    const result = await probePageGenericFamilies(page);
+
+    expect(result).not.toBeNull();
+    expect(result!.common.size + [...result!.byScript.values()].reduce((n, m) => n + m.size, 0)).toBe(rows);
+  });
+
+  it("keeps reading until two consecutive reads agree", async () => {
+    const rows = genericFamilyProbeTargets().length;
+    const courier = { ...times, familyName: "Courier", postScriptName: "Courier" };
+    // Reads 1-3 alternate; reads 4 and 5 agree.
+    const { page } = fakePage((call) => {
+      const read = Math.floor(call / rows);
+      return [read < 3 && read % 2 === 1 ? courier : times];
+    });
+
+    const result = await probePageGenericFamilies(page);
+
+    expect(result?.common.get("serif")).toBe("Times-Roman");
+  });
+
+  it("returns null without reporting a failure when reads never agree", async () => {
+    const rows = genericFamilyProbeTargets().length;
+    const courier = { ...times, familyName: "Courier", postScriptName: "Courier" };
+    const failures: string[] = [];
+    const { page } = fakePage((call) => [Math.floor(call / rows) % 2 === 0 ? times : courier]);
+
+    await expect(probePageGenericFamilies(page, (probe) => failures.push(probe))).resolves.toBeNull();
+    expect(failures).toEqual([]);
+  });
+});
+
+describe("probeSessionGenericFamilies failure reporting", () => {
+  it("reports a probe page that could not be opened", async () => {
+    const failures: string[] = [];
+    const context = {
+      newPage: async () => {
+        throw new Error("context closed");
+      },
+    } as unknown as BrowserContext;
+
+    await expect(
+      probeSessionGenericFamilies(context, (probe, cause) => failures.push(`${probe}: ${(cause as Error).message}`)),
+    ).resolves.toBeNull();
+    expect(failures).toEqual(["session probe page: context closed"]);
   });
 });

@@ -217,6 +217,11 @@ export function genericProbeArmed(): boolean {
 
 let probeDocumentSequence = 0;
 
+/** Extra paint frames a read waits for rows that have not been laid out yet. */
+const INCOMPLETE_ROW_RETRIES = 3;
+/** Reads a page probe makes before deciding its settings never stabilized. */
+const MAX_STABILITY_READS = 5;
+
 // Keep the Inspector session that observes Page-owned font Settings alive for
 // the lifetime of its target. On some hosted macOS Chrome builds, attaching and
 // immediately detaching a fresh session can expose the constructor/profile
@@ -360,32 +365,48 @@ async function readPageGenericFamilies(
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
     const common = new Map<string, string>();
     const byScript = new Map<string, Map<string, string>>();
-    for (const target of targets) {
-      const { nodeId } = await cdp.send("DOM.querySelector", {
-        nodeId: root.nodeId,
-        selector: `#${containerId}_${target.id}`,
-      });
-      if (nodeId === 0) continue;
-      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
-      const primary = fonts.reduce(
-        (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
-        null as (typeof fonts)[number] | null,
-      );
-      if (primary == null || primary.familyName === "") continue;
-      // Fontconfig and DirectWrite resolve family display names, not arbitrary
-      // painted PostScript identifiers (`LiberationSans`, `ArialMT`). CoreText
-      // can reopen exact PostScript members and needs that precision for
-      // dot-prefixed system faces.
-      const faceName = genericFamilyReplayName(process.platform, primary);
-      if (target.script == null) common.set(target.generic, faceName);
-      else {
-        let scriptMap = byScript.get(target.script);
-        if (scriptMap == null) {
-          scriptMap = new Map();
-          byScript.set(target.script, scriptMap);
+    // Every row carries text, so a row with no platform font has not been laid
+    // out yet rather than painting nothing. Recording the table without it
+    // gives a read that disagrees with the next one, so re-cross a paint frame
+    // and ask again for just those rows before giving up on them.
+    let pending = targets;
+    for (let attempt = 0; pending.length > 0 && attempt <= INCOMPLETE_ROW_RETRIES; attempt++) {
+      if (attempt > 0) await waitForGenericSettingsTurn(page);
+      const unresolved: ProbeTarget[] = [];
+      for (const target of pending) {
+        const { nodeId } = await cdp.send("DOM.querySelector", {
+          nodeId: root.nodeId,
+          selector: `#${containerId}_${target.id}`,
+        });
+        if (nodeId === 0) {
+          unresolved.push(target);
+          continue;
         }
-        scriptMap.set(target.generic, faceName);
+        const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+        const primary = fonts.reduce(
+          (best, font) => (best == null || font.glyphCount > best.glyphCount ? font : best),
+          null as (typeof fonts)[number] | null,
+        );
+        if (primary == null || primary.familyName === "") {
+          unresolved.push(target);
+          continue;
+        }
+        // Fontconfig and DirectWrite resolve family display names, not arbitrary
+        // painted PostScript identifiers (`LiberationSans`, `ArialMT`). CoreText
+        // can reopen exact PostScript members and needs that precision for
+        // dot-prefixed system faces.
+        const faceName = genericFamilyReplayName(process.platform, primary);
+        if (target.script == null) common.set(target.generic, faceName);
+        else {
+          let scriptMap = byScript.get(target.script);
+          if (scriptMap == null) {
+            scriptMap = new Map();
+            byScript.set(target.script, scriptMap);
+          }
+          scriptMap.set(target.generic, faceName);
+        }
       }
+      pending = unresolved;
     }
     return common.size > 0 ? { common, byScript } : null;
   } finally {
@@ -417,16 +438,19 @@ export async function probePageGenericFamilies(
   try {
     cdp = await persistentTargetProbeSession(page);
     const targets = genericFamilyProbeTargets(await pageLanguageFacts(cdp, onFailure));
-    await waitForGenericSettingsTurn(page);
-    const first = await readPageGenericFamilies(page, cdp, targets);
-    await waitForGenericSettingsTurn(page);
-    const second = await readPageGenericFamilies(page, cdp, targets);
-    if (probeResultsEqual(first, second)) return second;
-    await waitForGenericSettingsTurn(page);
-    const third = await readPageGenericFamilies(page, cdp, targets);
-    // Three reads that never agree mean another session is mutating the settings; that is a
+    // A fresh page can still be receiving Playwright's launch-time
+    // `Page.setFontFamilies` overlay, so the first read may legitimately see the
+    // profile table. Accept the first two consecutive reads that agree.
+    let previous: SessionGenericFamilyProbe | null | undefined;
+    for (let read = 0; read < MAX_STABILITY_READS; read++) {
+      await waitForGenericSettingsTurn(page);
+      const current = await readPageGenericFamilies(page, cdp, targets);
+      if (previous !== undefined && probeResultsEqual(previous, current)) return current;
+      previous = current;
+    }
+    // Reads that never agree mean another session is mutating the settings; that is a
     // legitimate "no stable authority" answer, not a probe failure, so it is not reported.
-    return probeResultsEqual(second, third) ? third : null;
+    return null;
   } catch (cause) {
     if (cdp != null) invalidateTargetProbeSession(page, cdp);
     onFailure?.("page generic-family probe", cause);
@@ -502,13 +526,17 @@ export async function assertGenericFamilyTargetConsistency(
  * "Courier"), or null when the
  * probe fails or never stabilizes. Never throws.
  */
-export async function probeSessionGenericFamilies(context: BrowserContext): Promise<SessionGenericFamilyProbe | null> {
+export async function probeSessionGenericFamilies(
+  context: BrowserContext,
+  onFailure?: GenericProbeFailure,
+): Promise<SessionGenericFamilyProbe | null> {
   let page: Page | null = null;
   try {
     page = await context.newPage();
     await page.setContent("<!DOCTYPE html><meta charset=utf-8><body></body>");
-    return await probePageGenericFamilies(page);
-  } catch {
+    return await probePageGenericFamilies(page, onFailure);
+  } catch (cause) {
+    onFailure?.("session probe page", cause);
     return null;
   } finally {
     await page?.close().catch(() => {});

@@ -1248,9 +1248,16 @@ export class ChromeOracle {
     // answers this oracle compares. Browser launch shape and Playwright's
     // Page.setFontFamilies override are runtime inputs to Blink, not constants
     // that can be transcribed from the Chromium checkout.
-    const generics = await probeSessionGenericFamilies(ctx);
+    const failures: string[] = [];
+    const generics = await probeSessionGenericFamilies(ctx, (probe, cause) =>
+      failures.push(`${probe}: ${cause instanceof Error ? cause.message : String(cause)}`),
+    );
     if (generics == null) {
-      throw new Error("oracle: Chromium session-family probe did not stabilize");
+      throw new Error(
+        failures.length > 0
+          ? `oracle: Chromium session-family probe failed (${failures.join("; ")})`
+          : "oracle: Chromium session-family probe did not stabilize",
+      );
     }
     setSessionGenericFamilyOverrides(generics);
     const page = await ctx.newPage();
