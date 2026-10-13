@@ -4508,7 +4508,7 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3"],
+        "tickets": ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3"],
         "code": [
           ".github/workflows/generic-family-preference-parity.yml",
           "src/capture/generic-font-probe.ts",

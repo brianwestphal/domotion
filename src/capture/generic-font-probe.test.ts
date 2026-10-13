@@ -144,6 +144,53 @@ describe("genericFamilyProbeTargets", () => {
   });
 });
 
+describe("probePageGenericFamilies read ordering", () => {
+  // `CSS.getPlatformFontsForNode` never runs layout, so every read must force
+  // layout and cross paint frames after inserting its spans and before asking
+  // CDP. Without that, a loaded runner recorded partial tables that later
+  // captures in the same run contradicted.
+  it("forces layout and paint between inserting the probe spans and each CDP font query", async () => {
+    const events: string[] = [];
+    const session = {
+      send: async (method: string) => {
+        if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
+        if (method === "DOM.querySelector") return { nodeId: 2 };
+        if (method === "CSS.getPlatformFontsForNode") {
+          events.push("fonts");
+          return {
+            fonts: [{ familyName: "Times", postScriptName: "Times-Roman", glyphCount: 1, isCustomFont: false }],
+          };
+        }
+        if (method === "DOMSnapshot.captureSnapshot") return { documents: [], strings: [] };
+        return {};
+      },
+      detach: async () => {},
+    };
+    const page = {
+      context: () => ({ newCDPSession: async () => session }),
+      once: () => {},
+      evaluate: async (fn: (...args: unknown[]) => unknown, arg?: unknown) => {
+        const source = String(fn);
+        if (source.includes("data-domotion-generic-probe")) events.push("insert");
+        else if (source.includes("getBoundingClientRect")) events.push(`layout:${String(arg)}`);
+        return undefined;
+      },
+    } as unknown as Page;
+
+    const result = await probePageGenericFamilies(page);
+
+    expect(result).not.toBeNull();
+    const reads = events.join(" ").split("insert").slice(1);
+    expect(reads.length).toBeGreaterThanOrEqual(2);
+    for (const read of reads) {
+      const tokens = read.trim().split(" ");
+      expect(tokens[0]).toMatch(/^layout:__domotion_generic_probe_\d+$/);
+      expect(tokens.slice(1).every((token) => token === "fonts")).toBe(true);
+      expect(tokens.length).toBeGreaterThan(1);
+    }
+  });
+});
+
 describe("probePageGenericFamilies failure reporting", () => {
   // The persistent session cache is keyed by Page, so each test uses its own fake.
   const fakePage = (newCDPSession: () => Promise<unknown>, evaluate?: () => Promise<unknown>): Page =>

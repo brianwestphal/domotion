@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3"]
+tickets: ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3"]
 code:
   [
     ".github/workflows/generic-family-preference-parity.yml",
@@ -193,6 +193,16 @@ overlay. Each probe also crosses renderer turns before and between its two
 matching observations. A stable record is therefore stable across CDP task and
 paint boundaries, and a read-only probe cannot split adjacent animation frames
 between two preference authorities.
+
+Each observation also forces layout and crosses two paint frames after its
+probe spans are inserted and before any CDP font query.
+`InspectorCSSAgent::getPlatformFontsForNode` reads the node's existing inline
+fragments and never runs a lifecycle update (`inspector_css_agent.cc:2794-2829`,
+chromium `7d859f27`), so a span queried before layout reports no fonts and is
+skipped. On a loaded hosted macOS runner two consecutive reads could miss the
+same rows and record a partial table, which a later capture in the same run
+then contradicted ("different generic-family preference sessions" while
+composing frames).
 
 ## Independent logical gate
 

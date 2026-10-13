@@ -342,7 +342,21 @@ async function readPageGenericFamilies(
   );
 
   try {
-    await page.evaluate(() => document.fonts.ready);
+    // `CSS.getPlatformFontsForNode` reads the node's existing inline fragments
+    // and never runs a lifecycle update (`InspectorCSSAgent::
+    // getPlatformFontsForNode`, `inspector_css_agent.cc:2794-2829`, chromium
+    // 7d859f27). A span queried before the next layout therefore reports no
+    // fonts and is skipped below. Under hosted-runner load two consecutive
+    // reads could miss the same rows, recording a partial table that a later
+    // capture in the same run contradicted ("different generic-family
+    // preference sessions"). Force layout, then cross two paint frames.
+    await page.evaluate(async (id) => {
+      await document.fonts.ready;
+      document.getElementById(id)?.getBoundingClientRect();
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+    }, containerId);
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
     const common = new Map<string, string>();
     const byScript = new Map<string, Map<string, string>>();
