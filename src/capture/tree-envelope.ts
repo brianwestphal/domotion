@@ -17,6 +17,29 @@ function preferenceSignature(record: CapturedSessionGenericFamilies): string {
   });
 }
 
+/** Name the first few entries two records disagree on, for a diagnosable error. */
+function describePreferenceDifference(a: CapturedSessionGenericFamilies, b: CapturedSessionGenericFamilies): string {
+  const flatten = (record: CapturedSessionGenericFamilies): Map<string, string> => {
+    const out = new Map<string, string>();
+    for (const [generic, family] of Object.entries(record.common ?? {})) out.set(`common.${generic}`, family);
+    for (const [script, families] of Object.entries(record.byScript ?? {})) {
+      for (const [generic, family] of Object.entries(families)) out.set(`${script}.${generic}`, family);
+    }
+    return out;
+  };
+  const left = flatten(a);
+  const right = flatten(b);
+  const differences: string[] = [];
+  for (const key of [...new Set([...left.keys(), ...right.keys()])].sort()) {
+    if (left.get(key) !== right.get(key)) {
+      differences.push(`${key}: ${left.get(key) ?? "<absent>"} vs ${right.get(key) ?? "<absent>"}`);
+    }
+  }
+  if (a.source !== b.source) differences.unshift(`source: ${a.source} vs ${b.source}`);
+  const shown = differences.slice(0, 6).join("; ");
+  return differences.length > 6 ? `${shown}; +${differences.length - 6} more` : shown;
+}
+
 function assertPreferenceRecord(record: CapturedSessionGenericFamilies): void {
   if (
     record == null ||
@@ -57,8 +80,12 @@ function rootPreferenceRecord(tree: CapturedElement[]): CapturedSessionGenericFa
   }
   for (const record of records) assertPreferenceRecord(record);
   const firstSignature = preferenceSignature(records[0]);
-  if (records.some((record) => preferenceSignature(record) !== firstSignature)) {
-    throw new Error("Cannot render roots captured from different generic-family preference sessions in one tree");
+  const conflicting = records.find((record) => preferenceSignature(record) !== firstSignature);
+  if (conflicting != null) {
+    throw new Error(
+      "Cannot render roots captured from different generic-family preference sessions in one tree" +
+        ` (${describePreferenceDifference(records[0], conflicting)})`,
+    );
   }
   return records[0];
 }
