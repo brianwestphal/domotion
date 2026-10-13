@@ -4,7 +4,7 @@
     "suite": "font-conformance",
     "os": "windows",
     "image": "win25-vs2026-x64",
-    "capturedAt": "2026-10-07T06:16:36.641Z",
+    "capturedAt": "2026-10-13T15:36:37.545Z",
     "platform": "win32",
     "arch": "x64",
     "node": "v22.21.0",
@@ -27,7 +27,7 @@
       "strictAlias": false,
       "stackFilter": null,
       "lang": "en",
-      "oracleIsolation": "shared-renderer-fresh-stack-document"
+      "oracleIsolation": "renderer-per-locale-fresh-stack-document"
     },
     "fontInventory": {
       "digest": "c379b2deaaab30c2",
@@ -236,8 +236,8 @@
         "resources": "inline-or-host-inventory"
       }
     },
-    "rotationRevision": "a86cdb69be66a8c5405d8fee010fb53d0686b003",
-    "rotationOrdinal": "71",
+    "rotationRevision": "5589ef789647e8f94095d0b72d90ae9fe0bebffe",
+    "rotationOrdinal": "122",
     "rotationStackBucket": "explicit",
     "shardsExpected": 2,
     "shardsMerged": 2,
@@ -248,11 +248,47 @@
         "shard": "selected-1-cp1",
         "signatures": [
           {
-            "scope": "shared",
+            "scope": "en",
             "lang": "en",
             "faces": [
               "serif=TimesNewRomanPSMT",
               "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          },
+          {
+            "scope": "ko",
+            "lang": "ko",
+            "faces": [
+              "serif=MalgunGothic",
+              "sans-serif=MalgunGothic",
+              "monospace=GulimChe",
+              "cursive=MalgunGothic",
+              "fantasy=Impact",
+              "math=MalgunGothic"
+            ]
+          },
+          {
+            "scope": "zh-Hant",
+            "lang": "zh-Hant",
+            "faces": [
+              "serif=PMingLiU",
+              "sans-serif=MicrosoftJhengHeiRegular",
+              "monospace=MingLiU",
+              "cursive=MicrosoftJhengHeiRegular",
+              "fantasy=Impact",
+              "math=MicrosoftJhengHeiRegular"
+            ]
+          },
+          {
+            "scope": "ar",
+            "lang": "ar",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=SegoeUI",
               "monospace=Consolas",
               "cursive=ComicSansMS",
               "fantasy=Impact",
@@ -265,8 +301,56 @@
         "shard": "selected-2-cp1",
         "signatures": [
           {
-            "scope": "shared",
+            "scope": "en",
             "lang": "en",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          },
+          {
+            "scope": "ja",
+            "lang": "ja",
+            "faces": [
+              "serif=YuGothic-Regular",
+              "sans-serif=YuGothic-Regular",
+              "monospace=MS-Gothic",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=YuGothic-Regular"
+            ]
+          },
+          {
+            "scope": "zh-Hans",
+            "lang": "zh-Hans",
+            "faces": [
+              "serif=SimSun",
+              "sans-serif=MicrosoftYaHei",
+              "monospace=NSimSun",
+              "cursive=MicrosoftYaHei",
+              "fantasy=Impact",
+              "math=MicrosoftYaHei"
+            ]
+          },
+          {
+            "scope": "ru",
+            "lang": "ru",
+            "faces": [
+              "serif=TimesNewRomanPSMT",
+              "sans-serif=ArialMT",
+              "monospace=Consolas",
+              "cursive=ComicSansMS",
+              "fantasy=Impact",
+              "math=TimesNewRomanPSMT"
+            ]
+          },
+          {
+            "scope": "el",
+            "lang": "el",
             "faces": [
               "serif=TimesNewRomanPSMT",
               "sans-serif=ArialMT",
@@ -279,82 +363,26 @@
         ]
       }
     ],
-    "commit": "a86cdb69be66a8c5405d8fee010fb53d0686b003",
-    "oracleMovementReview": {
-      "reason": "Fresh-stack-document Chromium oracle isolation replaced the old shared-renderer protocol; the 11 added CJK compatibility-ideograph cells are U+2F800/U+2F900/U+2FA00 across ko, zh-Hans, zh-Hant and ja. Resolver answer digests match the prior same-image capture exactly; all Chrome face-count movement is confined to these rows. Merged two-shard cohort uses image 20260925.250.1 with no conflicts.",
-      "priorCommit": "e35d63769e81cb61dd7a4673e3aa58e348206198",
-      "absoluteFaceDelta": 22
-    }
+    "commit": "5589ef789647e8f94095d0b72d90ae9fe0bebffe"
   },
   "summary": {
-    "mismatchTotal": 59,
+    "mismatchTotal": 0,
     "comparisons": 407862,
-    "agree-exact": 195490,
+    "agree-exact": 195636,
     "agree-same-file": 0,
     "agree-alias": 0,
-    "agree-tofu": 211611,
+    "agree-tofu": 211524,
     "agree-not-painted": 702,
-    "mismatch": 42,
+    "mismatch": 0,
     "mismatch-we-paint": 0,
-    "mismatch-we-tofu": 17,
+    "mismatch-we-tofu": 0,
     "allowlisted": 0,
-    "mismatchDifferentFamily": 48,
-    "mismatchSameFamilyDifferentCut": 11,
-    "distinctMismatchPairs": 16
+    "mismatchDifferentFamily": 0,
+    "mismatchSameFamilyDifferentCut": 0,
+    "distinctMismatchPairs": 0
   },
-  "byStack": {
-    "system-ui @16/400/normal lang=zh-Hant": 3,
-    "fantasy @16/400/normal lang=zh-Hant": 3,
-    "sans-serif @16/400/italic lang=en": 2,
-    "math @16/400/italic lang=en": 2,
-    "serif @16/400/italic lang=en": 1,
-    "system-ui @16/400/normal lang=ko": 1,
-    "cursive @16/400/italic lang=en": 1,
-    "fantasy @16/400/normal lang=ko": 1,
-    "fantasy @16/400/italic lang=en": 1,
-    "monospace @16/400/italic lang=en": 1,
-    "ui-serif @16/400/italic lang=en": 1,
-    "ui-sans-serif @16/400/italic lang=en": 1,
-    "ui-monospace @16/400/italic lang=en": 1,
-    "ui-rounded @16/400/italic lang=en": 1,
-    "emoji @16/400/italic lang=en": 1,
-    "fangsong @16/400/italic lang=en": 1,
-    "system-ui @16/400/normal lang=zh-Hans": 5,
-    "fantasy @16/400/normal lang=zh-Hans": 5,
-    "serif @16/400/normal lang=zh-Hans": 2,
-    "sans-serif @16/400/normal lang=zh-Hans": 2,
-    "cursive @16/400/normal lang=zh-Hans": 2,
-    "math @16/400/normal lang=zh-Hans": 2,
-    "monospace @16/400/normal lang=ja": 2,
-    "monospace @16/400/normal lang=zh-Hans": 2,
-    "ui-serif @16/400/normal lang=zh-Hans": 2,
-    "ui-sans-serif @16/400/normal lang=zh-Hans": 2,
-    "ui-monospace @16/400/normal lang=zh-Hans": 2,
-    "ui-rounded @16/400/normal lang=zh-Hans": 2,
-    "emoji @16/400/normal lang=zh-Hans": 2,
-    "fangsong @16/400/normal lang=zh-Hans": 2,
-    "system-ui @16/400/normal lang=ja": 1,
-    "cursive @16/400/normal lang=ja": 1,
-    "fantasy @16/400/normal lang=ja": 1
-  },
-  "byPair": {
-    "SegoeUI → SegoeUI-Italic": 11,
-    "MicrosoftJhengHeiRegular → SegoeUI": 3,
-    "MicrosoftJhengHeiRegular → Impact": 3,
-    "Tahoma → TimesNewRomanPSMT": 2,
-    "Tahoma → ArialMT": 1,
-    "MalgunGothic → SegoeUI": 1,
-    "MalgunGothic → Impact": 1,
-    "MicrosoftYaHei → Gulim": 22,
-    "MicrosoftYaHei → SegoeUI": 3,
-    "MicrosoftYaHei → Impact": 3,
-    "SimSun → Gulim": 2,
-    "MS-Gothic → YuGothic-Regular": 2,
-    "NSimSun → Gulim": 2,
-    "YuGothic-Regular → SegoeUI": 1,
-    "YuGothic-Regular → ComicSansMS": 1,
-    "YuGothic-Regular → Impact": 1
-  },
+  "byStack": {},
+  "byPair": {},
   "chromeFaces": [
     "Arial-Black",
     "Arial-BoldMT",
@@ -505,7 +533,7 @@
   },
   "stackPrimaries": [],
   "resolverAnswerDigests": {
-    "stack-1/2:codepoint-0/1": "03dc7799a59552049101d59823814a6577919c65467a9a5f0337e7b748131bab",
-    "stack-2/2:codepoint-0/1": "18e26941752250d7b8bb49334da6fc16f5377a5f2f8c282a88e42f166d2ff611"
+    "stack-1/2:codepoint-0/1": "a51739cfa87d82334d48e5a495141411f9b0e6a372e3c4a781c41fa68cc6ee17",
+    "stack-2/2:codepoint-0/1": "69aca49259af056a11d8819f6538478bb9339d654dec2d37c7e6e641e219a2b7"
   }
 }
