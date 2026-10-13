@@ -45,7 +45,7 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
     .ov { position: absolute; left: 0; top: 0; width: 200px; height: 100px; z-index: 10; visibility: visible }
     ${overlay}
   </style><div class="box"><canvas id="c" width="200" height="100"></canvas><div class="ov"></div></div>
-  <script>const c=document.getElementById('c').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);</script>`;
+  <script>window.__contextLost=0;document.getElementById('c').addEventListener('contextlost',()=>window.__contextLost++);const c=document.getElementById('c').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);</script>`;
 
   it("leaves the pseudo out of the canvas snapshot even when it declares visibility: visible", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 260, height: 160 } });
@@ -67,9 +67,16 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
         const o = (Math.floor(y * scaleY) * width + Math.floor(x * scaleX)) * channels;
         return [data[o], data[o + 1], data[o + 2]];
       };
+      // A fully transparent sample means the canvas surface itself was missing, not that isolation
+      // leaked. Hosted runners have produced that intermittently; record whether Chromium reported a
+      // 2D context loss (GPU-process reset) so a recurrence names its cause.
+      const contextLost = await page.evaluate(() => (window as unknown as { __contextLost: number }).__contextLost);
+      const alphaAt = (x: number, y: number): number =>
+        channels < 4 ? 255 : data[(Math.floor(y * scaleY) * width + Math.floor(x * scaleX)) * channels + 3];
+      const context = `contextlost events=${contextLost}, alpha(100,50)=${alphaAt(100, 50)}, alpha(35,35)=${alphaAt(35, 35)}`;
       // Under the overlay box (60..140 x 30..70), away from the black square: the canvas's own white.
-      expect(at(100, 50)).toEqual([255, 255, 255]);
-      expect(at(70, 40)).toEqual([255, 255, 255]);
+      expect(at(100, 50), context).toEqual([255, 255, 255]);
+      expect(at(70, 40), context).toEqual([255, 255, 255]);
       // The canvas's own ink survives (isolation must not blank the target).
       expect(at(35, 35)).toEqual([0, 0, 0]);
       // And no pixel anywhere carries the overlay's red.
