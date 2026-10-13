@@ -7,6 +7,7 @@ owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets:
   [
+    "DM-Q9BAAJ",
     "DM-1858",
     "DM-1905",
     "DM-2350",
@@ -101,7 +102,8 @@ baselines are withheld separately under `DM-5XAQND` and `DM-N78DX3`.
 
 The command loads and checks the corpus before launching Chromium, filters and
 shards stacks and codepoints separately, then sweeps each selected stack in
-corpus order. A stack's locale selects its Chromium renderer scope on Linux;
+corpus order. A stack's locale selects its Chromium renderer scope on every
+platform;
 resolver cache resets happen between batches at the requested cadence. The
 report records the selected universe and the answers in that same order.
 
@@ -253,8 +255,7 @@ report records the selected universe and the answers in that same order.
   blank document, drops CDP DOM node bindings, asks Chromium to collect
   garbage, and clears only Domotion's mirrored primary `.notdef` entries.
   The Page, renderer, and Blink's separate strong ideograph character-fallback
-  cache persist within each locale scope (macOS uses one scope for the sweep;
-  Linux and Windows use one per locale). This makes each stack's face result independent of whether a weak
+  cache persist within each locale scope (one per locale on every platform). This makes each stack's face result independent of whether a weak
   shape result from an unrelated earlier stack happened to survive GC. A
   dedicated mixed-language browser test keeps the within-document transition
   covered outside that synthetic protocol.
@@ -727,7 +728,7 @@ Correctness constraints, all of which cost throughput and all of which are load-
 - **`white-space: pre` on the cell.** Without it a cell holding U+0020 collapses to nothing, Chrome paints no glyph, and the oracle reports a mismatch that exists only because of how the probe page was written.
 - **Batched, pipelined CDP.** Each page holds `--batch` cells; all node ids come back from one `DOM.querySelectorAll`, and `CSS.getPlatformFontsForNode` is issued `--concurrency`-at-a-time rather than awaited serially.
 - **Cell font faces read as Chrome reports them, not as Chrome ranks them.** Blink accumulates platform-font usage into a hash map before serializing it, so the protocol array's order is not a documented ranking; the oracle takes the entry with the highest glyph count. A one-codepoint cell normally has exactly one entry, and the full list is preserved in `chromeAllFaces` when it does not.
-- **On macOS, the sweep keeps one renderer cache scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText. The oracle reuses one Page and renderer across every batch and stack, while opening a fresh measured document for each stack to clear weak shape results. The Domotion side opens one matching `beginCharacterFallbackDocument()` scope spanning the whole sweep, and both sides ask in the identical (stack, ascending-codepoint) order; the periodic memory reset (`--reset-every`) deliberately does NOT clear the strong ideograph cache, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
+- **On macOS, each locale keeps one renderer cache scope on both sides.** Chrome-on-macOS caches ideograph fallback per (base font, weight, style, size) on the renderer's `FontCache` — first ideograph under a key wins, later covered ideographs reuse its face without re-asking CoreText. The oracle reuses one Page and renderer per locale across every batch and stack of that locale, while opening a fresh measured document for each stack to clear weak shape results. The Domotion side gives each locale its own `FontRendererSession` and opens each stack's `beginCharacterFallbackDocument()` scope under it, so the modeled cache spans exactly the stacks Chrome's renderer does, and both sides ask in the identical (stack, ascending-codepoint) order. A single renderer shared across locales is not usable: after a `ja` serif stack, Chrome paints an English serif stack's U+0020 and U+0041 in Hiragino Mincho (alone it is Times), which made whole hosted exhaustive stacks disagree on about 93% of their codepoints; the periodic memory reset (`--reset-every`) deliberately does NOT clear the strong ideograph cache, because Chrome's is not cleared either. Do NOT "fix" an ideograph mismatch by probing the codepoint in isolation — a solo page answers a genuinely different question than a page full of ideographs, in Chrome itself (see doc 80 and `docs/font-resolution-diagram.md` § 8b).
 
   The prior macOS protocol called `setContent` for every batch. On one image and source, three native full-slice shards changed all six `.notdef` generic donor faces partway through the run from Playwright's Page settings to Blink constructor defaults. Keeping one measured document and proactively replaying preferences before each batch did not prevent the switch. A native abort after 224,000 comparisons retained the same document marker, time origin, and loader ID; replaying the exact installed Playwright font table on that same Page restored all six donors. The oracle therefore checks the donor signature before each next measurement, repairs an idle-interval reset at most three times, and verifies the six donors before asking the next codepoint. It still checks after every measured batch and aborts if the Page changed during that batch. Chromium rejects a second `Page.setFontFamilies` on one session, so each replay uses a fresh one-use CDP session. A real Chromium test verifies that a deliberate defaults-to-Playwright restoration preserves the documented first-ideograph cached face. The cross-platform adversarial test swaps Chromium's measured installed serif and sans families, so its preference change remains observable on Linux as well as macOS. Reports made under that protocol used `oracleIsolation: "shared-renderer-single-document-repaired-prefs"`. DM-6F4YJT keeps the Page and renderer but opens a new measured document for each stack after clearing weak shape results; its reports use `oracleIsolation: "shared-renderer-fresh-stack-document-repaired-prefs"`. The protocol identities are intentionally incomparable, and reports still record repair count and events. Linux retains its existing `setContent` path and isolation metadata. Windows continues to use `setContent` for each batch and opens a blank document and collects weak shape results between stacks. It now uses one renderer context per locale: a Japanese `serif` U+0041 followed by an English expanded `serif` U+0041 in a shared renderer reuses Yu Gothic for the English primary, while an isolated English request selects Times New Roman. The synthetic matrix measures each locale independently of arbitrary shard order; mixed-locale sequences need a separate browser test. Its report identity is `renderer-per-locale-fresh-stack-document`, so older Windows baselines require re-recording. Both generic-donor and supplementary-PUA sentinels remain required; a supplementary-PUA flip still aborts.
 
@@ -1150,7 +1151,7 @@ So the sweep now calls `clearFontResolutionCaches()` every `--reset-every` batch
 
 The command keeps these boundaries explicit in `tools/font-conformance.ts`:
 `shouldResetBatch` decides the reset cadence, `OracleRegistry` reuses one
-Chromium context per locale on Linux and one shared context elsewhere, and
+Chromium context per locale on Linux, macOS, and Windows, and
 `SweepTally` keeps exact counts while retaining only `--max-rows` examples.
 `buildReport` and `formatSummary` consume that completed tally. These seams
 have unit coverage for empty, repeated, allowlisted, and truncated sequences;

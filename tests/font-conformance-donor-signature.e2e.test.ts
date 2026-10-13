@@ -16,10 +16,10 @@ describe("font conformance oracle donor artifacts", () => {
     const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
     expect(report.data.summary.comparisons).toBe(2);
     const signatures = report.data.meta.oracleDonorSignatures;
-    expect(signatures).toHaveLength(process.platform === "linux" ? 2 : 1);
-    expect(signatures.map((entry: { scope: string }) => entry.scope)).toEqual(
-      process.platform === "linux" ? ["en", "ja"] : ["shared"],
-    );
+    // Every supported platform now gives each locale its own renderer.
+    const perLocale = ["linux", "darwin", "win32"].includes(process.platform);
+    expect(signatures).toHaveLength(perLocale ? 2 : 1);
+    expect(signatures.map((entry: { scope: string }) => entry.scope)).toEqual(perLocale ? ["en", "ja"] : ["shared"]);
     for (const entry of signatures) {
       expect(entry.faces).toHaveLength(6);
       expect(entry.faces).toEqual([

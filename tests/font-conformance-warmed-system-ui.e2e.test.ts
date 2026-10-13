@@ -75,7 +75,7 @@ describeMac("macOS warmed system-ui fallback base", () => {
     expect(await main(["--stacks", stacksFile, "--sample-byte", "00", "--out", output])).toBe(0);
     const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
     expect(report.data.summary.mismatchTotal).toBe(0);
-    expect(report.data.meta.oracleIsolation).toBe("shared-renderer-fresh-stack-document-repaired-prefs");
+    expect(report.data.meta.oracleIsolation).toBe("renderer-per-locale-fresh-stack-document-repaired-prefs");
   }, 120_000);
 
   it("keeps quoted aliases separate across font descriptions in Chromium and the renderer", async () => {
@@ -173,7 +173,10 @@ describeMac("macOS warmed system-ui fallback base", () => {
       expect(await main(["--stacks", stacksFile, "--range", "0041", "--out", output]), name).toBe(0);
       const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
       expect(report.data.summary.mismatchTotal, name).toBe(0);
-      expect(report.data.meta.stackPrimaries[1].chromePrimary, name).toBe(expected);
+      // The sweep gives each locale its own renderer, so a cross-locale query
+      // never sees the warmed alias and resolves like the fresh case.
+      const sweepExpected = (warm.lang ?? "en") === (query.lang ?? "en") ? expected : "Menlo-Regular";
+      expect(report.data.meta.stackPrimaries[1].chromePrimary, name).toBe(sweepExpected);
     }
 
     await withBrowser(async (browser) => {

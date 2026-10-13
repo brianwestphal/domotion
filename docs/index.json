@@ -2645,6 +2645,7 @@
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": [
+          "DM-Q9BAAJ",
           "DM-1858",
           "DM-1905",
           "DM-2350",

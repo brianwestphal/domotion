@@ -123,6 +123,9 @@ import {
   ITALIC_SLNT,
   beginCharacterFallbackDocument,
   collectDarwinFontDataAfterOracleGc,
+  createFontRendererSession,
+  type FontRendererSession,
+  withFontRendererSession,
   clearPrimaryNotdefShapesAfterOracleGc,
   darwinFontDataIdentity,
   selectCharacterFallbackRendererScope,
@@ -1845,7 +1848,7 @@ export function stackKey(spec: StackSpec, defaultLang: string): string {
 }
 
 export function oracleScopeKey(platform: NodeJS.Platform, lang: string): string {
-  return platform === "linux" || platform === "win32" ? lang : "shared";
+  return platform === "linux" || platform === "win32" || platform === "darwin" ? lang : "shared";
 }
 
 export function shouldResetBatch(resetEvery: number, batchNo: number): boolean {
@@ -2509,26 +2512,43 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
       );
 
-      // One scope for the macOS ideograph fallback cache spans the WHOLE
-      // sweep: Blink's strong character_fallback_cache_ lives on FontCache in
-      // the shared renderer, even as the oracle opens a new document per stack.
-      // Both sides see stacks in corpus order and codepoints ascending. Only
-      // the separate weak primary-.notdef shape state is cleared at each stack
-      // boundary after the browser's explicit GC. Neither cache is reset by
-      // periodic font-resolution memory trims.
+      // Blink's strong character_fallback_cache_ lives on FontCache in the
+      // renderer, so it spans every document that renderer opens. On macOS
+      // each locale gets its own renderer (below), and our side mirrors that
+      // with one FontRendererSession per locale: each stack opens its own
+      // document scope under its locale's session, which reuses that
+      // session's cache. Both sides see a locale's stacks in corpus order and
+      // codepoints ascending. Only the separate weak primary-.notdef shape
+      // state is cleared at each stack boundary after the browser's explicit
+      // GC. Neither cache is reset by periodic font-resolution memory trims.
       beginCharacterFallbackDocument();
+      const darwinRendererSessions = new Map<string, FontRendererSession>();
+      const openDarwinLocaleDocument = (lang: string): void => {
+        let session = darwinRendererSessions.get(lang);
+        if (session == null) {
+          session = createFontRendererSession();
+          darwinRendererSessions.set(lang, session);
+        }
+        const owner = session;
+        endCharacterFallbackDocument();
+        withFontRendererSession(owner, () => beginCharacterFallbackDocument());
+      };
       // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY
       // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even
       // though the browser-side miss path is locale-sensitive. Windows also
       // retains a prior locale's generic primary across stacks: a ja serif A
       // followed by an en serif A selects Yu Gothic for both in one renderer.
-      // Give each locale its own renderer on these platforms so the synthetic
-      // sweep measures each CSS stack independent of arbitrary shard order.
+      // macOS does the same (a ja serif stack followed by an en serif stack
+      // paints the en stack's U+0020 and U+0041 in Hiragino Mincho; alone, the
+      // en stack is Times), which made whole hosted exhaustive stacks disagree
+      // on ~93% of codepoints. Give each locale its own renderer on every
+      // platform so the synthetic sweep measures each CSS stack independent
+      // of arbitrary shard order.
       const oracleIsolation =
         process.platform === "linux"
           ? "renderer-per-locale"
           : process.platform === "darwin"
-            ? "shared-renderer-fresh-stack-document-repaired-prefs"
+            ? "renderer-per-locale-fresh-stack-document-repaired-prefs"
             : process.platform === "win32"
               ? "renderer-per-locale-fresh-stack-document"
               : "shared-renderer";
@@ -2544,11 +2564,15 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       const oracleDonorSignatures = new Map<string, { scope: string; lang: string; faces: string[] }>();
       const t0 = Date.now();
       let measuredOracle: ChromeOracle | null = null;
+      // Per-locale oracles each own their preference-repair history.
+      const measuredOracles = new Set<ChromeOracle>();
 
       try {
         for (const [stackIndex, spec] of stacks.entries()) {
           const oracle = await oracles.forLang(spec.lang ?? opts.lang);
           measuredOracle = oracle;
+          measuredOracles.add(oracle);
+          if (process.platform === "darwin") openDarwinLocaleDocument(spec.lang ?? opts.lang);
           await oracle.prepareMeasurement(`before stack ${stackIndex + 1}/${stacks.length}`);
           const lang = spec.lang ?? opts.lang;
           const scope = oracleScopeKey(process.platform, lang);
@@ -2616,7 +2640,10 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         stackLength: stacks.length,
         oracleIsolation,
         oracleDonorSignatures: [...oracleDonorSignatures.values()],
-        oraclePreferenceRepairs: process.platform === "darwin" ? measuredOracle?.preferenceRepairEvents() : undefined,
+        oraclePreferenceRepairs:
+          process.platform === "darwin"
+            ? [...measuredOracles].flatMap((oracle) => [...oracle.preferenceRepairEvents()])
+            : undefined,
         resolverAnswerDigest,
         tally,
         wallMs,

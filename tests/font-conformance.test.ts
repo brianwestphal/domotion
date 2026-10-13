@@ -533,7 +533,7 @@ describe("sweep state transitions", () => {
     expect(shouldResetBatch(0, 20)).toBe(false);
     expect(oracleScopeKey("linux", "ja")).not.toBe(oracleScopeKey("linux", "en"));
     expect(oracleScopeKey("win32", "ja")).not.toBe(oracleScopeKey("win32", "en"));
-    expect(oracleScopeKey("darwin", "ja")).toBe(oracleScopeKey("darwin", "en"));
+    expect(oracleScopeKey("darwin", "ja")).not.toBe(oracleScopeKey("darwin", "en"));
     const closed: string[] = [];
     const linux = new OracleRegistry("linux", async (lang) => ({
       lang,
@@ -551,7 +551,11 @@ describe("sweep state transitions", () => {
     expect(await windows.forLang("ja")).not.toBe(await windows.forLang("en"));
     expect(await windows.forLang("en")).toBe(await windows.forLang("en"));
     await windows.close();
-    const shared = new OracleRegistry("darwin", async (lang) => ({ lang, close: async () => undefined }));
+    const mac = new OracleRegistry("darwin", async (lang) => ({ lang, close: async () => undefined }));
+    expect(await mac.forLang("ja")).not.toBe(await mac.forLang("en"));
+    expect(await mac.forLang("en")).toBe(await mac.forLang("en"));
+    await mac.close();
+    const shared = new OracleRegistry("freebsd", async (lang) => ({ lang, close: async () => undefined }));
     expect(await shared.forLang("en")).toBe(await shared.forLang("ja"));
     await shared.close();
     let attempts = 0;
