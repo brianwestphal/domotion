@@ -1242,7 +1242,7 @@ flowchart TD
   FPUA -->|"yes — no system fallback"| FLR{"darwin: Blink's explicit last-resort face covers cp?<br/>times, then lucida-grande ONLY if Times cannot be opened<br/>(font_fallback_iterator.cc:143-162, font_cache_mac.mm:376-393)"}
   FLR -->|"yes"| FLRH["cover(times | lucida-grande)"]
   FLR -->|"no / non-darwin"| F6
-  FPUA -->|"no"| FSTD{"win32 pre-stage — FallbackOnStandardFontStyle<br/>(win/font_cache_skia_win.cc:270-277): italic run or<br/>weight ≥ 700 (kBoldWeightValue — NOT Linux's 600),<br/>non-emoji-presentation, head declared name matches primary,<br/>and the family's STANDARD-style cut covers cp?"}
+  FPUA -->|"no"| FSTD{"win32 pre-stage — FallbackOnStandardFontStyle<br/>(win/font_cache_skia_win.cc:270-277): italic run or<br/>weight ≥ 700 (kBoldWeightValue — NOT Linux's 600),<br/>non-emoji-presentation, head declared name matches primary<br/>(a CSS generic never does, except exact system-ui → system font),<br/>and the family's STANDARD-style cut covers cp?"}
   FSTD -->|"yes (win32 only) — stay in the family"| FSTDH["cover(primaryKey, standard-style instance)<br/>synthetic bold/italic derives downstream from the<br/>requested style against that face"]
   FSTD -->|"no / not win32"| FW{"liveFallbackFirst?<br/>(darwin + linux: yes · win32: NO — Blink's<br/>hardcoded table answers before DirectWrite)"}
   FW -->|"no (win32)"| F3

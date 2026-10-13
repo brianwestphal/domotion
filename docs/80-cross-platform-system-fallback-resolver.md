@@ -257,7 +257,11 @@ standard style and weight. A CSS generic such as `serif` or `sans-serif` is
 not that named-family retry: allowing its resolved Times New Roman or Arial
 stand-in to answer Arabic scalars prevents the hardcoded Tahoma route seen in
 native Chromium. The renderer preserves the retry for an actual named family
-and lets generic stacks reach the per-script stage.
+and lets generic stacks reach the per-script stage. The one generic that does
+retry is `system-ui`: `FontCache::GetFontPlatformData` maps a by-family request
+spelled exactly `system-ui` to `SystemFontPlatformData` (`font_cache.cc:160-164`,
+chromium `7d859f27`), so italic Arabic and Black-weight Georgian, Cyrillic, and
+Indic digits stay in regular Segoe UI, as native Chromium paints them.
 `FontCache::PlatformFallbackFontForCharacter` consults Blink's hardcoded
 per-script table first and only falls through to
 `GetDWriteFallbackFamily`/`MapCharacters` on a miss

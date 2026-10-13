@@ -739,10 +739,15 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     const declaredHead = declaredFamily != null ? splitFontFamilyNames(declaredFamily)[0] : undefined;
     // Blink retries the named first family. A CSS generic is a preference,
     // not that literal family: treating `serif` as Times New Roman here steals
-    // italic Arabic from the Windows Tahoma hardcoded stage.
+    // italic Arabic from the Windows Tahoma hardcoded stage. `system-ui` is the
+    // exception: `FontCache::GetFontPlatformData` maps a by-family request
+    // spelled exactly `system-ui` to `SystemFontPlatformData` (`font_cache.cc:
+    // 160-164`, chromium 7d859f27), so the retry reaches regular Segoe UI and
+    // keeps italic Arabic and Black-weight Georgian / Cyrillic there.
     if (
       declaredHead == null ||
-      (!declaredHead.generic && matchFamilyNameToKey(declaredHead.name, false, lang) === primaryFontKey)
+      ((!declaredHead.generic || declaredHead.canonicalSystemUiName) &&
+        matchFamilyNameToKey(declaredHead.name, declaredHead.generic, lang) === primaryFontKey)
     ) {
       // Style and weight reset to normal; the run's STRETCH is preserved —
       // `substitute_description` is a copy and only `SetStyle` / `SetWeight`
