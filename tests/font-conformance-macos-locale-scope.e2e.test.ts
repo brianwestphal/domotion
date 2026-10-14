@@ -36,12 +36,45 @@ describeMac("macOS synthetic oracle locale scopes", () => {
 
     expect(await main(["--stacks", stacksFile, "--range", "0020,0041", "--out", output])).toBe(0);
     const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
-    expect(report.data.meta.oracleIsolation).toBe("renderer-per-stack-anchored-ideographs-repaired-prefs");
+    expect(report.data.meta.oracleIsolation).toBe("renderer-and-helper-per-stack-anchored-ideographs-repaired-prefs");
     expect(report.data.meta.stackPrimaries.map((row: { chromePrimary: string | null }) => row.chromePrimary)).toEqual([
       "HiraMinProN-W3",
       "Times-Roman",
     ]);
     expect(report.data.summary.comparisons).toBe(4);
     expect(report.data.summary.mismatchTotal).toBe(0);
+  }, 120_000);
+
+  // CoreText carries fallback state across requests in one process: after a
+  // system-ui stack has laid out U+2200, a system-ui italic run resolves U+1D00
+  // and U+2300 to the italic UI font's `.notdef` — in one Chrome renderer AND
+  // in one persistent glyph helper. Alone, Chrome paints `.LucidaGrandeUI` /
+  // `Menlo-Italic`. With a fresh Chrome renderer but a shared helper, the two
+  // sides disagreed on exactly those rows, so the helper restarts per stack.
+  it("restarts the glyph helper with each stack's renderer", async () => {
+    const root = mkdtempSync(join(tmpdir(), "domotion-macos-helper-oracle-"));
+    const stacksFile = join(root, "stacks.json");
+    const output = join(root, "out");
+    const corpus = syntheticCorpus();
+    const pick = (fontStyle: string) => {
+      const stack = corpus.stacks.find(
+        (candidate) =>
+          candidate.fontFamily === "system-ui" &&
+          candidate.lang == null &&
+          candidate.fontSize === 16 &&
+          candidate.fontWeight === 400 &&
+          candidate.fontStyle === fontStyle &&
+          candidate.fontStretch === "100%",
+      );
+      if (stack == null) throw new Error(`missing synthetic system-ui stack ${fontStyle}`);
+      return stack;
+    };
+    writeFileSync(stacksFile, JSON.stringify({ ...corpus, stacks: [pick("normal"), pick("italic")] }));
+
+    expect(await main(["--stacks", stacksFile, "--range", "1D00,2200,2300", "--out", output])).toBe(0);
+    const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
+    expect(report.data.summary.comparisons).toBe(6);
+    expect(report.data.summary.mismatchTotal).toBe(0);
+    expect(report.data.chromeFaces).toContainEqual(expect.objectContaining({ face: ".LucidaGrandeUI" }));
   }, 120_000);
 });

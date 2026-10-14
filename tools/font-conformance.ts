@@ -134,6 +134,7 @@ import {
   darwinFontDataIdentity,
   selectCharacterFallbackRendererScope,
   clearFontResolutionCaches,
+  clearGlyphHelperCache,
   endCharacterFallbackDocument,
   hasPrimaryNotdefShape,
   primaryNotdefShapeKey,
@@ -2622,6 +2623,19 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
       const perStackRenderer = opts.rendererScope === "stack";
       const darwinRendererSessions = new Map<string, FontRendererSession>();
       const openDarwinStackDocument = (lang: string): void => {
+        // CoreText keeps process-wide fallback state that Blink does not
+        // control: in ONE Chrome renderer, a system-ui ∀ (U+2200) followed by
+        // system-ui italic makes U+1D00 / U+2300 resolve to the italic UI
+        // font's `.notdef`, where a fresh renderer paints `.LucidaGrandeUI` /
+        // `Menlo-Italic`. The persistent glyph helper is a long-lived CoreText
+        // process too and reproduces the same carry-over. A fresh Chrome
+        // renderer per stack therefore needs a fresh helper per stack, with the
+        // helper-derived memos dropped alongside, or the two sides measure
+        // different process histories.
+        if (perStackRenderer) {
+          clearGlyphHelperCache();
+          clearFontResolutionCaches();
+        }
         let owner = perStackRenderer ? undefined : darwinRendererSessions.get(lang);
         if (owner == null) {
           owner = createFontRendererSession();
@@ -2647,7 +2661,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           ? "renderer-per-locale"
           : process.platform === "darwin"
             ? perStackRenderer
-              ? "renderer-per-stack-anchored-ideographs-repaired-prefs"
+              ? "renderer-and-helper-per-stack-anchored-ideographs-repaired-prefs"
               : "renderer-per-locale-anchored-ideographs-repaired-prefs"
             : process.platform === "win32"
               ? "renderer-per-locale-fresh-stack-document"
