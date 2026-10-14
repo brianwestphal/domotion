@@ -4,7 +4,7 @@
     "suite": "font-conformance",
     "os": "macos",
     "image": "macos26-arm64",
-    "capturedAt": "2026-10-07T06:27:43.546Z",
+    "capturedAt": "2026-10-14T07:11:04.701Z",
     "platform": "darwin",
     "arch": "arm64",
     "node": "v22.21.0",
@@ -27,7 +27,7 @@
       "strictAlias": false,
       "stackFilter": null,
       "lang": "en",
-      "oracleIsolation": "shared-renderer-fresh-stack-document-repaired-prefs"
+      "oracleIsolation": "renderer-per-locale-fresh-stack-document-repaired-prefs"
     },
     "fontInventory": {
       "digest": "a8a5b567b046c5c5",
@@ -459,8 +459,8 @@
         "resources": "inline-or-host-inventory"
       }
     },
-    "rotationRevision": "a86cdb69be66a8c5405d8fee010fb53d0686b003",
-    "rotationOrdinal": "72",
+    "rotationRevision": "0af2703e4770d39ec9e6e664559cb1f8ed53077b",
+    "rotationOrdinal": "126",
     "rotationStackBucket": "explicit",
     "shardsExpected": 1,
     "shardsMerged": 1,
@@ -471,8 +471,92 @@
         "shard": "font-conformance-synthetic-macos-shard-1",
         "signatures": [
           {
-            "scope": "shared",
+            "scope": "en",
             "lang": "en",
+            "faces": [
+              "serif=Times-Roman",
+              "sans-serif=Helvetica",
+              "monospace=Courier",
+              "cursive=Apple-Chancery",
+              "fantasy=Papyrus",
+              "math=Times-Roman"
+            ]
+          },
+          {
+            "scope": "ja",
+            "lang": "ja",
+            "faces": [
+              "serif=HiraMinProN-W3",
+              "sans-serif=HiraKakuProN-W3",
+              "monospace=HiraKakuProN-W3",
+              "cursive=Apple-Chancery",
+              "fantasy=Papyrus",
+              "math=HiraKakuProN-W3"
+            ]
+          },
+          {
+            "scope": "ko",
+            "lang": "ko",
+            "faces": [
+              "serif=AppleMyungjo",
+              "sans-serif=AppleSDGothicNeo-Regular",
+              "monospace=Courier",
+              "cursive=Apple-Chancery",
+              "fantasy=Papyrus",
+              "math=AppleSDGothicNeo-Regular"
+            ]
+          },
+          {
+            "scope": "zh-Hans",
+            "lang": "zh-Hans",
+            "faces": [
+              "serif=STSongti-SC-Regular",
+              "sans-serif=PingFangSC-Regular",
+              "monospace=Courier",
+              "cursive=PingFangSC-Regular",
+              "fantasy=Papyrus",
+              "math=PingFangSC-Regular"
+            ]
+          },
+          {
+            "scope": "zh-Hant",
+            "lang": "zh-Hant",
+            "faces": [
+              "serif=STSongti-TC-Regular",
+              "sans-serif=PingFangTC-Regular",
+              "monospace=Courier",
+              "cursive=PingFangTC-Regular",
+              "fantasy=Papyrus",
+              "math=PingFangTC-Regular"
+            ]
+          },
+          {
+            "scope": "ru",
+            "lang": "ru",
+            "faces": [
+              "serif=Times-Roman",
+              "sans-serif=Helvetica",
+              "monospace=Courier",
+              "cursive=Apple-Chancery",
+              "fantasy=Papyrus",
+              "math=Times-Roman"
+            ]
+          },
+          {
+            "scope": "ar",
+            "lang": "ar",
+            "faces": [
+              "serif=Times-Roman",
+              "sans-serif=Helvetica",
+              "monospace=Courier",
+              "cursive=Apple-Chancery",
+              "fantasy=Papyrus",
+              "math=Times-Roman"
+            ]
+          },
+          {
+            "scope": "el",
+            "lang": "el",
             "faces": [
               "serif=Times-Roman",
               "sans-serif=Helvetica",
@@ -485,12 +569,7 @@
         ]
       }
     ],
-    "commit": "a86cdb69be66a8c5405d8fee010fb53d0686b003",
-    "oracleMovementReview": {
-      "reason": "Re-recorded after the fresh-stack-document repaired-preferences oracle protocol and completed Mac font cache fixes DM-6F4YJT and DM-FDBWVJ. The old baseline was 1226 mismatches, including 876 .SFNS-Regular to Menlo-Regular warm-route rows; the new native macOS 26 arm64 byte-00 sweep is complete at 407862 comparisons and zero mismatches. Chrome face shifts (.SFNS-Regular -888, Menlo-Regular +878) reflect the new fresh-document route; the resolver now agrees on every cell. Exact source SHA a86cdb69, one shard, no environment conflicts.",
-      "priorCommit": "f2441097c5c6d9410135f2787b8a862c2c90d7f6",
-      "absoluteFaceDelta": 2180
-    }
+    "commit": "0af2703e4770d39ec9e6e664559cb1f8ed53077b"
   },
   "summary": {
     "mismatchTotal": 0,
