@@ -40,6 +40,7 @@ import {
   oracleScopeKey,
   OracleRegistry,
   parseArgs,
+  selectIdeographAnchorCells,
   ourFaceFor,
   prepareStack,
   primaryChromeFace,
@@ -566,6 +567,98 @@ describe("sweep state transitions", () => {
     await expect(retry.forLang("ja")).rejects.toThrow("context setup failed");
     expect((await retry.forLang("ja")).lang).toBe("ja");
     await retry.close();
+  });
+
+  it("parses the macOS renderer scope, defaulting to one renderer per stack", () => {
+    expect(parseArgs([]).rendererScope).toBe("stack");
+    expect(parseArgs(["--renderer-scope", "locale"]).rendererScope).toBe("locale");
+    expect(parseArgs(["--renderer-scope", "stack"]).rendererScope).toBe("stack");
+    expect(() => parseArgs(["--renderer-scope", "page"])).toThrow("--renderer-scope must be stack or locale");
+  });
+
+  it("releases one renderer scope so the next stack gets a new oracle, and is idempotent", async () => {
+    const closed: string[] = [];
+    let created = 0;
+    const mac = new OracleRegistry("darwin", async (lang) => ({
+      lang,
+      id: created++,
+      close: async () => {
+        closed.push(lang);
+      },
+    }));
+    const first = await mac.forLang("en");
+    const ja = await mac.forLang("ja");
+    await mac.release("en");
+    expect(closed).toEqual(["en"]);
+    const second = await mac.forLang("en");
+    expect(second).not.toBe(first);
+    expect(second.id).toBe(2);
+    expect(await mac.forLang("ja")).toBe(ja);
+    await mac.release("en");
+    await mac.release("en");
+    await mac.release("ko");
+    expect(closed).toEqual(["en", "en"]);
+    await mac.close();
+    expect(closed).toEqual(["en", "en", "ja"]);
+  });
+
+  // Blink's macOS ideograph cache values are WeakMember, so a cached face that
+  // no live cell references can be collected mid-stack and replaced by a later
+  // (Ext B) first writer. The oracle keeps the first cell that painted each
+  // distinct face for an Ideographic scalar.
+  it("anchors the first ideograph cell per distinct face across batches", () => {
+    const ideographic = (cp: number) => cp === 0x3006 || (cp >= 0x4e00 && cp <= 0x9fff) || cp >= 0x20000;
+    const face = (name: string) => chrome({ familyName: name, postScriptName: name });
+    const anchored = new Set<string>();
+    expect(
+      selectIdeographAnchorCells(
+        [0x41, 0x3006, 0x4e00, 0x4e01],
+        [[face("Helvetica")], [face("HiraginoSans-W3")], [face("HiraginoSans-W3")], [face("HiraginoSans-W3")]],
+        anchored,
+        ideographic,
+      ),
+    ).toEqual([1]);
+    expect([...anchored]).toEqual(["HiraginoSans-W3"]);
+    // Next batch: a face already anchored is not anchored again, and a
+    // non-ideograph never anchors even when its face is new.
+    expect(
+      selectIdeographAnchorCells(
+        [0x10900, 0x2000b, 0x20089, 0x2000c],
+        [
+          [face("NotoSansPhoenician")],
+          [face("PingFangSC-Regular")],
+          [face("PingFangSC-Regular")],
+          [face("HiraginoSans-W3")],
+        ],
+        anchored,
+        ideographic,
+      ),
+    ).toEqual([1]);
+    expect([...anchored].sort()).toEqual(["HiraginoSans-W3", "PingFangSC-Regular"]);
+    // A cell that reports a known and a new face anchors for the new one; an
+    // empty or missing report never anchors.
+    expect(
+      selectIdeographAnchorCells(
+        [0x4e02, 0x4e03, 0x4e04],
+        [[face("HiraginoSans-W3"), face("STSongti-SC-Regular")], [], []],
+        anchored,
+        ideographic,
+      ),
+    ).toEqual([0]);
+    expect(selectIdeographAnchorCells([0x4e05], [], anchored, ideographic)).toEqual([]);
+    // familyName stands in when Chrome reports no PostScript name.
+    expect(
+      selectIdeographAnchorCells([0x4e06], [[chrome({ familyName: "Songti SC" })]], anchored, ideographic),
+    ).toEqual([0]);
+    expect(anchored.has("Songti SC")).toBe(true);
+    // The default predicate is [:Ideographic=Yes:]: U+3006 and Ext B count,
+    // U+3005 (an iteration mark, not Ideographic) and Latin do not.
+    const fresh = new Set<string>();
+    const one = (cp: number, name: string) => selectIdeographAnchorCells([cp], [[face(name)]], fresh);
+    expect(one(0x41, "Latin")).toEqual([]);
+    expect(one(0x3005, "IterationMark")).toEqual([]);
+    expect(one(0x3006, "Closing")).toEqual([0]);
+    expect(one(0x2000b, "ExtB")).toEqual([0]);
   });
 
   it("builds bounded report and readable summary from the same tally", () => {

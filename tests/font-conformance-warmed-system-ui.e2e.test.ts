@@ -18,17 +18,32 @@ describeMac("macOS warmed system-ui fallback base", () => {
     const output = join(root, "out");
     const corpus = syntheticCorpus();
     writeFileSync(freshStacksFile, JSON.stringify({ ...corpus, stacks: [corpus.stacks[73]] }));
-    expect(await main(["--stacks", freshStacksFile, "--range", "0041,3000", "--out", freshOutput])).toBe(0);
+    expect(
+      await main([
+        "--stacks",
+        freshStacksFile,
+        "--renderer-scope",
+        "locale",
+        "--range",
+        "0041,3000",
+        "--out",
+        freshOutput,
+      ]),
+    ).toBe(0);
     const fresh = JSON.parse(readFileSync(join(freshOutput, "report.json"), "utf8"));
     expect(fresh.data.summary.comparisons).toBe(2);
     expect(fresh.data.summary.mismatchTotal).toBe(0);
     expect(fresh.data.chromeFaces).toContainEqual(expect.objectContaining({ face: "Menlo-Regular" }));
 
+    // `--renderer-scope locale`: the default macOS sweep gives every stack its
+    // own renderer, which would never warm the alias this file is about.
     // One browser page/renderer: the first request warms Blink's platform-font
     // cache, then the case-variant literal reuses its SFNS primary. U+3000
     // distinguishes the private PingFang UI cascade from the public face.
     writeFileSync(stacksFile, JSON.stringify({ ...corpus, stacks: [corpus.stacks[2], corpus.stacks[73]] }));
-    expect(await main(["--stacks", stacksFile, "--range", "0041,3000", "--out", output])).toBe(0);
+    expect(
+      await main(["--stacks", stacksFile, "--renderer-scope", "locale", "--range", "0041,3000", "--out", output]),
+    ).toBe(0);
     const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
     expect(report.data.summary.comparisons).toBe(4);
     expect(report.data.summary.mismatchTotal).toBe(0);
@@ -72,10 +87,12 @@ describeMac("macOS warmed system-ui fallback base", () => {
     const output = join(root, "out");
     const corpus = syntheticCorpus();
     writeFileSync(stacksFile, JSON.stringify({ ...corpus, stacks: [corpus.stacks[2], corpus.stacks[73]] }));
-    expect(await main(["--stacks", stacksFile, "--sample-byte", "00", "--out", output])).toBe(0);
+    expect(
+      await main(["--stacks", stacksFile, "--renderer-scope", "locale", "--sample-byte", "00", "--out", output]),
+    ).toBe(0);
     const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
     expect(report.data.summary.mismatchTotal).toBe(0);
-    expect(report.data.meta.oracleIsolation).toBe("renderer-per-locale-fresh-stack-document-repaired-prefs");
+    expect(report.data.meta.oracleIsolation).toBe("renderer-per-locale-anchored-ideographs-repaired-prefs");
   }, 120_000);
 
   it("keeps quoted aliases separate across font descriptions in Chromium and the renderer", async () => {
@@ -170,7 +187,10 @@ describeMac("macOS warmed system-ui fallback base", () => {
       const stacksFile = join(root, "stacks.json");
       const output = join(root, "out");
       writeFileSync(stacksFile, JSON.stringify({ ...corpus, stacks: [warm, query] }));
-      expect(await main(["--stacks", stacksFile, "--range", "0041", "--out", output]), name).toBe(0);
+      expect(
+        await main(["--stacks", stacksFile, "--renderer-scope", "locale", "--range", "0041", "--out", output]),
+        name,
+      ).toBe(0);
       const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
       expect(report.data.summary.mismatchTotal, name).toBe(0);
       // The sweep gives each locale its own renderer, so a cross-locale query
@@ -201,7 +221,10 @@ describeMac("macOS warmed system-ui fallback base", () => {
           stacks: [{ ...query, fontFamily: "system-ui" }, query],
         }),
       );
-      expect(await main(["--stacks", stacksFile, "--range", "0041", "--out", output]), name).toBe(0);
+      expect(
+        await main(["--stacks", stacksFile, "--renderer-scope", "locale", "--range", "0041", "--out", output]),
+        name,
+      ).toBe(0);
       const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
       expect(report.data.summary.mismatchTotal, name).toBe(0);
       expect(report.data.meta.stackPrimaries[1].chromePrimary, name).toMatch(/^\.SFNS/);
@@ -221,7 +244,9 @@ describeMac("macOS warmed system-ui fallback base", () => {
         ],
       }),
     );
-    expect(await main(["--stacks", variedStacks, "--range", "0041", "--out", variedOutput])).toBe(0);
+    expect(
+      await main(["--stacks", variedStacks, "--renderer-scope", "locale", "--range", "0041", "--out", variedOutput]),
+    ).toBe(0);
     const variedReport = JSON.parse(readFileSync(join(variedOutput, "report.json"), "utf8"));
     expect(variedReport.data.summary.mismatchTotal).toBe(0);
     expect(variedReport.data.meta.stackPrimaries[1].chromePrimary).toMatch(/^\.SFNS/);

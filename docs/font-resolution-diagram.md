@@ -2460,6 +2460,19 @@ time and never replaces the entry. Dot-prefixed base faces get no key (the UI
 font Blink builds passes a null language, so its descriptor lacks the language
 attribute `BuildIdentifierKey` requires), so a `system-ui` base is never cached.
 
+The cache's values are **weak** (`WeakMember<const SimpleFontData>`,
+`mac/character_fallback_cache.h:59`, chromium `7d859f27`). An entry outlives a
+GC only while its face is reachable from live layout or from `FontDataCache`'s
+64-entry strong LRU, and a cache hit does not refresh that LRU. Domotion models
+the entries as strong for the session's lifetime. That is exact while the text
+that painted with each cached face is still in the document, which is the case
+for a single capture. It is not exact once that content has been removed **and**
+more than 64 later font-data acquisitions have evicted the face, after which
+Chrome's next ideograph under the key becomes a new first writer. That eviction
+is not modeled. The conformance oracle keeps Chrome in the modeled regime by
+leaving an anchor cell per cached face in the stack's document and using a
+renderer per stack (doc 107).
+
 Consequence, measured: at `serif`/800 a lone U+4E9F resolves to Songti SC Black,
 but on a page whose first ideograph Black does not cover (most of CJK Ext-A) the
 first ask keeps the nominated Bold, that Bold is cached, and every later

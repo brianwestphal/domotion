@@ -57,6 +57,17 @@ import {
  *    CoreText every time and NEVER replaces the entry. Only successful asks
  *    insert (`if (!alternate_font) return nullptr` precedes it).
  *
+ * VALUE LIFETIME — modeled as strong, which Blink's is not. The map holds
+ * `WeakMember<const SimpleFontData>` values (mac/character_fallback_cache.h:59,
+ * rev 7d859f27): an entry outlives a GC only while its face is reachable from
+ * live layout or `FontDataCache`'s 64-entry strong LRU (font_data_cache.cc),
+ * and a hit never refreshes that LRU. While the content that painted with a
+ * cached face stays in the document, as in one capture, the two agree. After
+ * that content is removed and the face is evicted, Chrome's next ideograph
+ * under the key writes a new entry, and that eviction is not modeled here. The
+ * conformance oracle keeps an anchor cell per cached face so it measures the
+ * modeled regime.
+ *
  * SCOPE — the part that is deliberately different from every other cache in
  * this module. Blink's map lives on `FontCache` (font_cache.h:338), reached via
  * `FontCache::Get()` → `FontGlobalContext::GetFontCache()` (font_cache.cc:121)

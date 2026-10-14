@@ -36,7 +36,7 @@ describeMac("macOS synthetic oracle locale scopes", () => {
 
     expect(await main(["--stacks", stacksFile, "--range", "0020,0041", "--out", output])).toBe(0);
     const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
-    expect(report.data.meta.oracleIsolation).toBe("renderer-per-locale-fresh-stack-document-repaired-prefs");
+    expect(report.data.meta.oracleIsolation).toBe("renderer-per-stack-anchored-ideographs-repaired-prefs");
     expect(report.data.meta.stackPrimaries.map((row: { chromePrimary: string | null }) => row.chromePrimary)).toEqual([
       "HiraMinProN-W3",
       "Times-Roman",

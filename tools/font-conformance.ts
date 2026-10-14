@@ -45,6 +45,10 @@
  *   --max-rows n         example mismatch rows kept in the report (20000)
  *   --reset-every n      drop the font-resolution memos every n batches (1);
  *                        0 disables. Bounds memory — see the loop for why.
+ *   --renderer-scope s   macOS only: `stack` (default) gives every stack its
+ *                        own Chromium renderer and Domotion renderer session;
+ *                        `locale` shares one per locale, for tests of state
+ *                        that crosses stacks (the warmed system-ui alias).
  *   --strict-alias       treat the documented naming aliases as mismatches
  *   --allowlist <file>   accepted-divergence file
  *   --lang <tag>         default locale for BOTH sides — per-stack `lang`
@@ -1225,8 +1229,52 @@ export function assertSupplementaryPuaOracleFace(
   }
 }
 
+const IDEOGRAPHIC = /^\p{Ideographic}$/u;
+
+/** Node's own ICU `[:Ideographic=Yes:]`. Choosing anchors only decides which
+ * cells stay in the document, so it does not need the native helper's
+ * per-codepoint ICU query (about 20 ms each over the one-shot transport). */
+function isIdeographicScalar(cp: number): boolean {
+  return IDEOGRAPHIC.test(String.fromCodePoint(cp));
+}
+
+/**
+ * Which measured cells must stay in the stack's document so every face that
+ * can be a value in Blink's macOS ideograph fallback cache stays reachable.
+ *
+ * `character_fallback_cache_` holds `WeakMember<const SimpleFontData>` values
+ * (mac/character_fallback_cache.h:59, chromium 7d859f27), and `FontDataCache`
+ * keeps only a 64-entry strong LRU that a fallback-cache HIT never refreshes
+ * (font_data_cache.cc:39-79). Once the face written for the first ideograph
+ * leaves that LRU, only live layout keeps it alive, and a batch that replaces
+ * every cell lets the next GC drop the entry mid-stack. The next ideograph then
+ * becomes a new first writer, typically an Ext B scalar answered by a different
+ * face. A real capture is not in that state, because its painted text stays in
+ * the document. Keeping the first cell that painted each distinct face keeps
+ * the oracle in the same live-content regime that Domotion's strong model
+ * describes. Returns the indices to keep, and records their faces in `anchored`.
+ */
+export function selectIdeographAnchorCells(
+  cps: readonly number[],
+  faces: readonly (readonly ChromeFace[])[],
+  anchored: Set<string>,
+  isIdeographic: (cp: number) => boolean = isIdeographicScalar,
+): number[] {
+  const keep: number[] = [];
+  for (let i = 0; i < cps.length; i++) {
+    if (!isIdeographic(cps[i]!)) continue;
+    const names = (faces[i] ?? []).map((face) => face.postScriptName ?? face.familyName);
+    if (names.every((name) => anchored.has(name))) continue;
+    for (const name of names) anchored.add(name);
+    keep.push(i);
+  }
+  return keep;
+}
+
 export class ChromeOracle {
   private readonly stability = new OracleStabilityGuard();
+  /** Faces kept reachable by anchor cells in the current stack's document. */
+  private readonly anchoredFaces = new Set<string>();
   private readonly preferenceRepairs: Array<{ at: string; expected: string[]; actual: string[] }> = [];
   private readonly maxPreferenceRepairs = 3;
   private probeCss: string | null = null;
@@ -1307,6 +1355,7 @@ export class ChromeOracle {
    * document plus dropped CDP node bindings makes old ShapeResults unreachable;
    * Chromium GC then clears weak entries before the next stack is shaped. */
   async clearWeakShapeResultsForNextStack(): Promise<void> {
+    this.anchoredFaces.clear();
     if (this.probeCss == null) return;
     await this.page.locator("#w").evaluate((wrapper) => wrapper.replaceChildren());
     await this.page.goto("about:blank");
@@ -1349,13 +1398,18 @@ export class ChromeOracle {
           (wrapper, { cells, css, changeCss }) => {
             // Remove the old cells before changing styles so they cannot cause
             // an extra font query under the next stack's CSS.
-            wrapper.replaceChildren();
+            // Anchor cells (`data-k`, see selectIdeographAnchorCells) stay
+            // laid out for the rest of the stack; no style rule matches the
+            // attribute, so marking them invalidates nothing.
+            for (const cell of Array.from(wrapper.children)) {
+              if (!cell.hasAttribute("data-k")) cell.remove();
+            }
             if (changeCss) {
               const style = document.getElementById("oracle-probe-style");
               if (style == null) throw new Error("oracle: missing probe style");
               style.textContent = css;
             }
-            wrapper.innerHTML = cells;
+            wrapper.insertAdjacentHTML("beforeend", cells);
             wrapper.getBoundingClientRect();
           },
           { cells: probeCellsHtml(cps, spec.lang ?? this.lang), css, changeCss: css !== this.probeCss },
@@ -1383,7 +1437,10 @@ export class ChromeOracle {
     }
     await this.layOutBatch(cps, spec);
     const { root } = await this.cdp.send("DOM.getDocument");
-    const { nodeIds } = await this.cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
+    const { nodeIds } = await this.cdp.send("DOM.querySelectorAll", {
+      nodeId: root.nodeId,
+      selector: ".c:not([data-k])",
+    });
     if (nodeIds.length !== cps.length) {
       throw new Error(`oracle: asked for ${cps.length} cells, page produced ${nodeIds.length}`);
     }
@@ -1392,6 +1449,15 @@ export class ChromeOracle {
       const slice = nodeIds.slice(i, i + this.concurrency);
       const rs = await Promise.all(slice.map((nodeId) => this.cdp.send("CSS.getPlatformFontsForNode", { nodeId })));
       for (const r of rs) out.push(r.fonts as ChromeFace[]);
+    }
+    if (this.reuseDocument) {
+      const keep = selectIdeographAnchorCells(cps, out, this.anchoredFaces);
+      if (keep.length > 0) {
+        await this.page.locator("#w").evaluate((wrapper, indices) => {
+          const cells = wrapper.querySelectorAll(".c:not([data-k])");
+          for (const i of indices) cells[i]!.setAttribute("data-k", "");
+        }, keep);
+      }
     }
     return out;
   }
@@ -1679,6 +1745,7 @@ export interface Options {
   maxRows: number;
   lang: string;
   resetEvery: number;
+  rendererScope: "stack" | "locale";
   /** Sweep a corpus whose recorded platform is not this one. See `StackCorpus.platform`. */
   allowForeignCorpus: boolean;
 }
@@ -1703,6 +1770,7 @@ export function parseArgs(argv: string[]): Options {
       "stack-filter": { type: "string" },
       "max-rows": { type: "string" },
       "reset-every": { type: "string" },
+      "renderer-scope": { type: "string" },
       "allow-foreign-corpus": { type: "boolean" },
       lang: { type: "string" },
       h: { type: "boolean" },
@@ -1732,6 +1800,7 @@ export function parseArgs(argv: string[]): Options {
     maxRows: 20_000,
     lang: "en",
     resetEvery: 1,
+    rendererScope: "stack",
     allowForeignCorpus: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -1813,6 +1882,13 @@ export function parseArgs(argv: string[]): Options {
       case "--reset-every":
         o.resetEvery = intFlag(a, next(), 0);
         break;
+      case "--renderer-scope": {
+        const scope = next();
+        if (scope !== "stack" && scope !== "locale")
+          throw new Error(`--renderer-scope must be stack or locale, got ${scope}`);
+        o.rendererScope = scope;
+        break;
+      }
       case "--allow-foreign-corpus":
         o.allowForeignCorpus = true;
         break;
@@ -1954,6 +2030,15 @@ export class OracleRegistry<T extends { close(): Promise<void> }> {
     });
     this.entries.set(key, pending);
     return pending;
+  }
+
+  /** Close and forget one scope, so the next `forLang` gets a new renderer. */
+  async release(lang: string): Promise<void> {
+    const key = oracleScopeKey(this.platform, lang);
+    const entry = this.entries.get(key);
+    if (entry == null) return;
+    this.entries.delete(key);
+    await (await entry).close();
   }
 
   async close(): Promise<void> {
@@ -2519,26 +2604,32 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           `= ${(universe.length * stacks.length).toLocaleString()} comparisons\n`,
       );
 
-      // Blink's strong character_fallback_cache_ lives on FontCache in the
-      // renderer, so it spans every document that renderer opens. On macOS
-      // each locale gets its own renderer (below), and our side mirrors that
-      // with one FontRendererSession per locale: each stack opens its own
-      // document scope under its locale's session, which reuses that
-      // session's cache. Both sides see a locale's stacks in corpus order and
-      // codepoints ascending. Only the separate weak primary-.notdef shape
-      // state is cleared at each stack boundary after the browser's explicit
-      // GC. Neither cache is reset by periodic font-resolution memory trims.
+      // Blink's character_fallback_cache_ lives on FontCache in the renderer,
+      // but its values are WEAK (mac/character_fallback_cache.h:59): an entry
+      // survives a GC only while its face is reachable from live layout or the
+      // 64-entry FontDataCache LRU, which a cache hit never refreshes. Sharing
+      // a renderer across stacks therefore made a stack's answers depend on
+      // which entries the previous stack's GCs happened to spare: whole stacks
+      // inherited an Ext B writer (Hiragino Mincho over Songti). On macOS each
+      // stack now gets its own renderer and, on our side, its own
+      // FontRendererSession. Within a stack, anchor cells keep each cached
+      // face reachable (selectIdeographAnchorCells), which is the live-content
+      // regime Domotion's strong model describes. Both sides see codepoints
+      // ascending. Neither cache is reset by periodic font-resolution trims.
+      // `--renderer-scope locale` keeps one renderer and session per locale
+      // for tests of state that deliberately crosses stacks.
       beginCharacterFallbackDocument();
+      const perStackRenderer = opts.rendererScope === "stack";
       const darwinRendererSessions = new Map<string, FontRendererSession>();
-      const openDarwinLocaleDocument = (lang: string): void => {
-        let session = darwinRendererSessions.get(lang);
-        if (session == null) {
-          session = createFontRendererSession();
-          darwinRendererSessions.set(lang, session);
+      const openDarwinStackDocument = (lang: string): void => {
+        let owner = perStackRenderer ? undefined : darwinRendererSessions.get(lang);
+        if (owner == null) {
+          owner = createFontRendererSession();
+          if (!perStackRenderer) darwinRendererSessions.set(lang, owner);
         }
-        const owner = session;
+        const session = owner;
         endCharacterFallbackDocument();
-        withFontRendererSession(owner, () => beginCharacterFallbackDocument());
+        withFontRendererSession(session, () => beginCharacterFallbackDocument());
       };
       // Chromium's Linux sandbox proxy caches fallback by codepoint ONLY
       // (`content/child/child_process_sandbox_support_impl_linux.{h,cc}`), even
@@ -2555,7 +2646,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         process.platform === "linux"
           ? "renderer-per-locale"
           : process.platform === "darwin"
-            ? "renderer-per-locale-fresh-stack-document-repaired-prefs"
+            ? perStackRenderer
+              ? "renderer-per-stack-anchored-ideographs-repaired-prefs"
+              : "renderer-per-locale-anchored-ideographs-repaired-prefs"
             : process.platform === "win32"
               ? "renderer-per-locale-fresh-stack-document"
               : "shared-renderer";
@@ -2579,7 +2672,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           const oracle = await oracles.forLang(spec.lang ?? opts.lang);
           measuredOracle = oracle;
           measuredOracles.add(oracle);
-          if (process.platform === "darwin") openDarwinLocaleDocument(spec.lang ?? opts.lang);
+          if (process.platform === "darwin") openDarwinStackDocument(spec.lang ?? opts.lang);
           await oracle.prepareMeasurement(`before stack ${stackIndex + 1}/${stacks.length}`);
           const lang = spec.lang ?? opts.lang;
           const scope = oracleScopeKey(process.platform, lang);
@@ -2589,6 +2682,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
             oracleDonorSignatures.set(scope, { scope, lang, faces });
           }
           await sweepStack(spec, stackIndex, stacks.length, universe, opts, oracle, tally, t0);
+          if (process.platform === "darwin" && perStackRenderer) await oracles.release(spec.lang ?? opts.lang);
         }
       } catch (error) {
         if (error instanceof OracleDriftError) {
