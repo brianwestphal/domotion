@@ -4,7 +4,7 @@
     "suite": "font-conformance",
     "os": "macos",
     "image": "macos26-arm64",
-    "capturedAt": "2026-10-14T07:11:04.701Z",
+    "capturedAt": "2026-10-14T20:35:18.230Z",
     "platform": "darwin",
     "arch": "arm64",
     "node": "v22.21.0",
@@ -27,7 +27,7 @@
       "strictAlias": false,
       "stackFilter": null,
       "lang": "en",
-      "oracleIsolation": "renderer-per-locale-fresh-stack-document-repaired-prefs"
+      "oracleIsolation": "renderer-and-helper-per-stack-anchored-ideographs-repaired-prefs"
     },
     "fontInventory": {
       "digest": "a8a5b567b046c5c5",
@@ -459,8 +459,8 @@
         "resources": "inline-or-host-inventory"
       }
     },
-    "rotationRevision": "0af2703e4770d39ec9e6e664559cb1f8ed53077b",
-    "rotationOrdinal": "126",
+    "rotationRevision": "7181f6bc06722f2c7ae6b244d0f4d74c55bc9520",
+    "rotationOrdinal": "136",
     "rotationStackBucket": "explicit",
     "shardsExpected": 1,
     "shardsMerged": 1,
@@ -569,15 +569,20 @@
         ]
       }
     ],
-    "commit": "0af2703e4770d39ec9e6e664559cb1f8ed53077b"
+    "commit": "7181f6bc",
+    "oracleMovementReview": {
+      "reason": "Per-stack Chrome renderers (plus a per-stack glyph helper) replace per-locale renderers. In the old shared renderer, an earlier system-ui stack's U+2200 left CoreText process state that made system-ui italic U+1D00/U+2300 resolve to .SFNS-RegularItalic .notdef. A fresh renderer paints .LucidaGrandeUI / Menlo-Italic, and Domotion agrees once its helper is fresh too (verified locally and in hosted runs 38535172042, 38623156500, 38624998380).",
+      "priorCommit": "0af2703e4770d39ec9e6e664559cb1f8ed53077b",
+      "absoluteFaceDelta": 4
+    }
   },
   "summary": {
     "mismatchTotal": 0,
     "comparisons": 407862,
-    "agree-exact": 102596,
+    "agree-exact": 102598,
     "agree-same-file": 0,
     "agree-alias": 0,
-    "agree-tofu": 304564,
+    "agree-tofu": 304562,
     "agree-not-painted": 702,
     "mismatch": 0,
     "mismatch-we-paint": 0,
@@ -619,6 +624,7 @@
     ".HiraKakuInterface-W8",
     ".HiraginoSansGBInterface-W3",
     ".HiraginoSansGBInterface-W6",
+    ".LucidaGrandeUI",
     ".PingFangHK-Bold",
     ".PingFangHK-Heavy",
     ".PingFangHK-Light",
@@ -898,7 +904,7 @@
     "STSongti-TC-Regular": 1003,
     "Helvetica-Oblique": 906,
     "EuphemiaUCAS": 897,
-    ".SFNS-RegularItalic": 879,
+    ".SFNS-RegularItalic": 877,
     "Courier-Oblique": 877,
     ".AppleSDGothicNeoI-Regular": 782,
     "NotoSansYi-Regular": 780,
@@ -1021,8 +1027,8 @@
     ".SFMalayalam-Regular_opsz110000_wght": 18,
     ".SFTelugu-Regular_opsz110000_wght": 18,
     ".CJKSymbolsFallbackSC-Regular_wght_opsz130000": 16,
+    "Menlo-Italic": 16,
     "Kailasa-Bold": 15,
-    "Menlo-Italic": 15,
     ".SFMalayalam-Black": 13,
     ".SFMalayalam-Heavy": 13,
     ".SFMalayalam-Light": 13,
@@ -1105,6 +1111,7 @@
     ".CJKSymbolsFallbackSC-Regular": 1,
     ".CJKSymbolsFallbackSC-Regular_wght2D50000_opsz130000": 1,
     ".CJKSymbolsFallbackSC-Semibold": 1,
+    ".LucidaGrandeUI": 1,
     ".SFArabic-Black": 1,
     ".SFArabic-Bold": 1,
     ".SFArabic-Heavy": 1,
@@ -1137,6 +1144,6 @@
   },
   "stackPrimaries": [],
   "resolverAnswerDigests": {
-    "stack-1/1:codepoint-0/1": "caf11b46443aa2f2758656391ab5a283a2d7a9e6e5343474bf32039295ae5ada"
+    "stack-1/1:codepoint-0/1": "6ae459b2d7b0367539e4c489f7bc9e1823434e3258d60e98409be045044cb8c3"
   }
 }
