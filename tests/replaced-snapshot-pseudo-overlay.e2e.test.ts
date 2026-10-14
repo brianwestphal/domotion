@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { captureElementTree, launchChromium } from "../src/index.js";
@@ -25,6 +26,39 @@ const describeBrowser = env ? describe : describe.skip;
 
 const OVERLAY_RED = [220, 38, 38] as const;
 
+/**
+ * Draw the fixture canvas, and draw it again whenever Blink restores the context.
+ *
+ * A GPU-channel reset loses even a `willReadFrequently` (CPU-raster) canvas: CPU raster still uses a
+ * `Canvas2DResourceProviderSharedImage` under software compositing or mappable shared images
+ * (`canvas_rendering_context_2d.cc:1195-1245`), whose `OnGpuChannelLost` reaches `kRealLostContext`
+ * and clears the canvas (`canvas_resource_provider.cc:607-625`, chromium 7d859f27). Blink then
+ * restores the context on a timer and fires `contextrestored` (`base_rendering_context_2d.cc:189-260`),
+ * after which a page must redraw. Hosted macOS runners did lose the context mid-test.
+ */
+const canvasScript = (paint: string): string =>
+  `<script>window.__contextLost=0;const el=document.getElementById('c');` +
+  `const c=el.getContext('2d',{willReadFrequently:true});window.__ctx=c;` +
+  `const draw=()=>{${paint}};el.addEventListener('contextlost',()=>window.__contextLost++);` +
+  `el.addEventListener('contextrestored',draw);draw();</script>`;
+
+type CanvasWindow = { __contextLost: number; __ctx: CanvasRenderingContext2D };
+
+/**
+ * The canvas's replaced snapshot, taken while its context is live. Pseudo-overlay isolation does not
+ * depend on surviving a context loss, so a loss during the capture is retried, never asserted on.
+ */
+async function captureCanvasSnapshot(page: Page): Promise<string | undefined> {
+  for (let attempt = 0; ; attempt++) {
+    await page.waitForFunction(() => !(window as unknown as CanvasWindow).__ctx.isContextLost());
+    const losses = await page.evaluate(() => (window as unknown as CanvasWindow).__contextLost);
+    const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 260, height: 160 });
+    const uri = walk(tree).find((node) => node.tag === "canvas")!.replacedSnapshot?.dataUri;
+    const after = await page.evaluate(() => (window as unknown as CanvasWindow).__contextLost);
+    if (after === losses || attempt >= 2) return uri;
+  }
+}
+
 function walk(nodes: CapturedElement[]): CapturedElement[] {
   return nodes.flatMap((node) => [node, ...walk(node.children ?? [])]);
 }
@@ -45,7 +79,7 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
     .ov { position: absolute; left: 0; top: 0; width: 200px; height: 100px; z-index: 10; visibility: visible }
     ${overlay}
   </style><div class="box"><canvas id="c" width="200" height="100"></canvas><div class="ov"></div></div>
-  <script>window.__contextLost=0;document.getElementById('c').addEventListener('contextlost',()=>window.__contextLost++);const c=document.getElementById('c').getContext('2d',{willReadFrequently:true});c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);</script>`;
+  ${canvasScript("c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);")}`;
 
   it("leaves the pseudo out of the canvas snapshot even when it declares visibility: visible", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 260, height: 160 } });
@@ -56,9 +90,7 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
             background: rgba(${OVERLAY_RED.join(",")}, .7); visibility: visible }`,
         ),
       );
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 260, height: 160 });
-      const canvas = walk(tree).find((node) => node.tag === "canvas")!;
-      const uri = canvas.replacedSnapshot?.dataUri;
+      const uri = await captureCanvasSnapshot(page);
       expect(uri, "canvas snapshot was not captured").toBeDefined();
       const { data, width, height, channels } = await snapshotPixels(uri!);
       const scaleX = width / 200;
@@ -68,13 +100,8 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
         return [data[o], data[o + 1], data[o + 2]];
       };
       // A fully transparent sample means the canvas surface itself was missing, not that isolation
-      // leaked. Hosted macOS runners did reset the GPU context mid-test: only a GPU-backed (SharedImage)
-      // canvas provider receives that loss (`canvas_resource_provider.cc:2255-2261`, chromium 7d859f27),
-      // and Blink then clears the canvas, so Chrome itself paints it blank. The fixtures therefore ask for
-      // `willReadFrequently`, which selects CPU raster (`html_canvas_element.cc:1565-1575`); isolation is
-      // CSS applied around the screenshot and does not depend on the raster mode. If the canvas ever comes
-      // back empty again, the message records whether a context loss was reported.
-      const contextLost = await page.evaluate(() => (window as unknown as { __contextLost: number }).__contextLost);
+      // leaked (see `canvasScript`). The message records how many context losses the page saw.
+      const contextLost = await page.evaluate(() => (window as unknown as CanvasWindow).__contextLost);
       const alphaAt = (x: number, y: number): number =>
         channels < 4 ? 255 : data[(Math.floor(y * scaleY) * width + Math.floor(x * scaleX)) * channels + 3];
       const context = `contextlost events=${contextLost}, alpha(100,50)=${alphaAt(100, 50)}, alpha(35,35)=${alphaAt(35, 35)}`;
@@ -103,8 +130,7 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
             background: rgb(${OVERLAY_RED.join(",")}); visibility: visible !important }`,
         ),
       );
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 260, height: 160 });
-      const uri = walk(tree).find((node) => node.tag === "canvas")!.replacedSnapshot?.dataUri;
+      const uri = await captureCanvasSnapshot(page);
       expect(uri).toBeDefined();
       const { data, width, channels } = await snapshotPixels(uri!);
       const o = (Math.floor(50 * (width / 200)) * width + Math.floor(100 * (width / 200))) * channels;
@@ -127,10 +153,9 @@ describeBrowser("replaced-element snapshot isolation: non-ancestor pseudo overla
           body.page { background: rgb(0, 128, 0) !important }
         </style>
         <body class="page"><div class="box"><canvas id="c" width="200" height="100"></canvas><div class="veil"></div></div>
-        <script>const c=document.getElementById('c').getContext('2d',{willReadFrequently:true});c.fillStyle='#fff';c.fillRect(0,0,200,100);</script></body>`,
+        ${canvasScript("c.fillStyle='#fff';c.fillRect(0,0,200,100);")}</body>`,
       );
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 260, height: 160 });
-      const uri = walk(tree).find((node) => node.tag === "canvas")!.replacedSnapshot?.dataUri;
+      const uri = await captureCanvasSnapshot(page);
       expect(uri).toBeDefined();
       const { data, width, channels } = await snapshotPixels(uri!);
       const scale = width / 200;
