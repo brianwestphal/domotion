@@ -41,5 +41,6 @@ jobs:
       # it, and this is what makes a later re-run comparable to this one.
       - name: Font inventory (the variable under test)
         run: npx tsx tools/font-env-probe.mjs
-      - name: Score the oracles against Chrome's paint
-        run: node tools/probe-dotted-circle-oracles.mjs --stride ${{ inputs.stride }}
+      # Validation branch only (DM-GNJ47P): watch generic-family Settings drift.
+      - name: Generic-family Settings drift probe
+        run: npx tsx tools/probe-generic-settings-drift.ts --minutes 8 --interval 2
