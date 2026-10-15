@@ -13,6 +13,7 @@ import {
   planRegionCaptureRounds,
   validateAnimateConfig,
 } from "../src/cli/animate.js";
+import { createCapturedTreeEnvelope } from "../src/capture/tree-envelope.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { seekTo } from "../src/cli/svg-to-video-core.js";
 import { comparePngs } from "../src/review/compare-pngs.js";
@@ -322,11 +323,26 @@ describeBrowser("independent per-region timing in one compressed run (docs/100, 
       );
       const truth = await sequentialTrees(ctx, true);
       expect(assembled).toHaveLength(truth.length);
+      // The root's generic-family preference record is owned by the Page that
+      // was captured, not by the page configuration, and the rounds and the
+      // sequential truth are two different Pages. A hosted macOS runner showed
+      // the sequential Page switching from Playwright's `Page.setFontFamilies`
+      // table (Times / Helvetica / Courier) to Chromium's WebPreferences
+      // defaults (Times New Roman / Arial / Menlo) between two captures, while
+      // every tree node matched. So the trees are compared without that record,
+      // and the record is checked against the Page that supplied the splice:
+      // every assembled state must keep round 0's authority unchanged.
+      const roundAuthority = createCapturedTreeEnvelope(roundTrees[0]).sessionGenericFamilies;
       for (let s = 0; s < truth.length; s++) {
+        const assembledEnvelope = createCapturedTreeEnvelope(assembled[s]);
         expect(
-          JSON.stringify(assembled[s]),
+          JSON.stringify(assembledEnvelope.tree),
           `state ${s} assembled from rounds differs from its sequential capture`,
-        ).toBe(JSON.stringify(truth[s]));
+        ).toBe(JSON.stringify(createCapturedTreeEnvelope(truth[s]).tree));
+        expect(
+          assembledEnvelope.sessionGenericFamilies,
+          `state ${s} lost the generic-family authority of the Page its rounds came from`,
+        ).toEqual(roundAuthority);
       }
     } finally {
       await ctx.close();
