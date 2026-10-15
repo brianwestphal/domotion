@@ -449,6 +449,26 @@ export function clearGlyphHelperTransport(): void {
   persistentEverWorked = false;
 }
 
+/**
+ * End the persistent `--serve` child so the next call starts a fresh helper
+ * process. Unlike `clearGlyphHelperTransport`, discovery and the channel
+ * classification are kept: this is a deliberate lifetime boundary, not a
+ * font-environment change. Returns whether a live child was ended.
+ */
+export function restartGlyphHelperProcess(): boolean {
+  if (serverProc == null) return false;
+  try {
+    serverProc.kill();
+  } catch {
+    /* already gone */
+  }
+  serverProc = null;
+  serverInFd = undefined;
+  serverOutFd = undefined;
+  serverLeftover = "";
+  return true;
+}
+
 /** Test-only: seed and read the persistent-channel classification flags. */
 export function __persistentFlagsForTest(set?: { disabled: boolean; everWorked: boolean }): {
   disabled: boolean;

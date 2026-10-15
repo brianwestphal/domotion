@@ -2075,6 +2075,23 @@ The helper opens a fresh `CTFontRef` for each run before
 `PrimarySimpleFontDataWithSpace` input and preventing handle-local CoreText
 cascade state from leaking into a later request.
 
+A fresh handle does not make the answer history-free, though: CoreText also
+keeps process-wide fallback state. In one Chrome renderer, after a `system-ui`
+run has laid out U+2200, a `system-ui` italic run resolves U+1D00 and U+2300 to
+the italic UI font's `.notdef`, while a fresh renderer paints `.LucidaGrandeUI` /
+`Menlo-Italic`. The persistent helper reproduces that carry-over, so on macOS
+its process history follows Domotion's model of a Chrome renderer, the
+`FontRendererSession`. Each outermost `beginCharacterFallbackDocument()` hands
+the history to its session, or to a fresh owner when the document has none
+(`selectCoreTextFallbackOwner`, `glyph-helper.ts`). If a fallback ask has
+reached the helper since its last restart and the owner changes, the helper
+process restarts (`restartGlyphHelperProcess`) and `_systemFallbackCache` and
+`systemFallbackKeyCache` are dropped with it. A document with no fallback ask
+keeps the warm process. Within one document, Domotion asks in document order,
+which reproduces Chrome's carry-over in both directions for the case above.
+Interleaving two sessions loses the earlier one's history at each switch,
+because one helper process holds one history. Linux and Windows are unaffected.
+
 The channel is synchronous — `writeSync`/`readSync` against a real file
 descriptor — because the whole resolution path is synchronous. On Windows, Node
 reports a spawned child's stdio pipes as fd `-1`, so that channel could not be
@@ -3273,7 +3290,9 @@ see the two-mode table above.
 
 † **`clearFontResolutionCaches()` is for bounded-memory batch work, not for
 rendering.** Normal generation never calls it: these memoize deterministic
-lookups over immutable system fonts, so keeping them is free correctness-wise
+lookups over immutable system fonts (except the macOS fallback answers in
+`_systemFallbackCache` and `systemFallbackKeyCache`, which depend on CoreText's
+process history and are dropped at a renderer-owner change instead, § 8·0), so keeping them is free correctness-wise
 and expensive to give up. It exists because a process that sweeps the _entire_
 codepoint space accumulates without bound — fontkit memoizes a `Glyph` per
 glyph id for the life of a `Font`, and `fontInstanceCache` keeps the `Font`

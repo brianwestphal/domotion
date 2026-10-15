@@ -17,6 +17,7 @@ import {
   callGlyphHelper as callHelper,
   clearGlyphHelperTransport,
   isGlyphHelperAvailable,
+  restartGlyphHelperProcess,
 } from "./glyph-helper-transport.js";
 
 export { OFFSET_PROBE_GLYPHS, measureOutlineOffsetY } from "./glyph-helper-outline.js";
@@ -345,6 +346,50 @@ export function resolveFcFallbackFonts(cps: number[], lang: string = "en"): Map<
 }
 
 /**
+ * macOS: which renderer the helper's CoreText fallback history belongs to.
+ *
+ * CoreText keeps process-wide fallback state that depends on earlier requests.
+ * In one Chrome renderer, after a `system-ui` run has laid out U+2200, a
+ * `system-ui` italic run resolves U+1D00 and U+2300 to the italic UI font's
+ * `.notdef`; a fresh renderer paints `.LucidaGrandeUI` / `Menlo-Italic`. The
+ * persistent helper is a long-lived CoreText process and reproduces the same
+ * carry-over, so its history has to have the lifetime of the Chrome renderer it
+ * stands in for, which Domotion models as a `FontRendererSession`. Without this,
+ * one Node process rendering two captures from two fresh Chrome renderers
+ * answered the second capture from the first one's CoreText history.
+ *
+ * `_coreTextFallbackHistory` records that a fallback ask has reached the helper
+ * since its last restart; only then does an owner change restart it, so renders
+ * that never ask CoreText for a fallback keep the warm process. Interleaving
+ * two sessions loses the earlier one's history at each switch: one helper
+ * process holds one history.
+ */
+let _coreTextFallbackOwner: object | null = null;
+let _coreTextFallbackHistory = false;
+
+/**
+ * Give the helper's CoreText fallback history to `owner` (the renderer
+ * session, or a fresh token for a one-off document). On macOS, a different
+ * owner than the one that built the current history restarts the helper and
+ * drops the fallback answers memoized from it. Returns whether that happened,
+ * so callers can drop memos layered on top of these answers.
+ */
+export function selectCoreTextFallbackOwner(owner: object): boolean {
+  if (hostPlatform() !== "darwin" || owner === _coreTextFallbackOwner) return false;
+  _coreTextFallbackOwner = owner;
+  if (!_coreTextFallbackHistory) return false;
+  _coreTextFallbackHistory = false;
+  restartGlyphHelperProcess();
+  _systemFallbackCache.clear();
+  return true;
+}
+
+/** Test-only: whether a fallback ask has built CoreText history since the last restart. */
+export function __coreTextFallbackHistoryForTest(): boolean {
+  return _coreTextFallbackHistory;
+}
+
+/**
  * The request envelope for a per-codepoint system-fallback query.
  *
  * Split out and platform-parameterised so the one decision that differs between
@@ -460,6 +505,7 @@ export function resolveSystemFallbackFonts(
   if (need.length === 0) return out;
   let resp: HelperResponse;
   try {
+    if (hostPlatform() === "darwin") _coreTextFallbackHistory = true;
     resp = callHelper(buildFallbackEnvelope(basePostscriptName, need, req, hostPlatform()));
   } catch {
     // Helper failure → treat all as unresolved this call (don't poison cache).
@@ -1246,6 +1292,8 @@ export function clearGlyphHelperCache(): void {
   // force the next route through SPI_GETNONCLIENTMETRICS again.
   _systemUiFamily = undefined;
   clearGlyphHelperTransport();
+  _coreTextFallbackHistory = false;
+  _coreTextFallbackOwner = null;
   clearGlyphHelperCodepointMemos();
   _installedFontCache.clear();
   _familyStyleMatchCache.clear();

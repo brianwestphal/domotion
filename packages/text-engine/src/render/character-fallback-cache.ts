@@ -3,8 +3,10 @@ import { invokeSynchronousCallback, type SynchronousCallback } from "./synchrono
 import {
   beginFcFallbackRendererScope,
   endFcFallbackRendererScope,
+  selectCoreTextFallbackOwner,
   selectFcFallbackRendererScope,
 } from "./glyph-helper.js";
+import { systemFallbackKeyCache } from "./font-spec.js";
 import { isIdeographicCp } from "./unicode-classification.js";
 import {
   beginDarwinFontDataDocument,
@@ -172,6 +174,10 @@ export function beginCharacterFallbackDocument(): void {
     }
     beginDarwinFontDataDocument(rendererSession);
     beginFcFallbackRendererScope();
+    // A document without a renderer session stands for a fresh Chrome renderer,
+    // so it also gets a fresh CoreText history. The per-codepoint key memo is
+    // built from the helper's answers and goes with them.
+    if (selectCoreTextFallbackOwner(rendererSession ?? {})) systemFallbackKeyCache.clear();
   }
   _charFallbackDocDepth++;
 }
