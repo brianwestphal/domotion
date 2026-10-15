@@ -2143,6 +2143,27 @@ describe("assembleRegionStateTrees (DM-1770): each state's tree from the round h
     );
   });
 
+  it("names a generic-family Settings change between rounds instead of a page change", () => {
+    const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
+    const withFamilies = (tree: CapturedElement[], sansSerif: string): CapturedElement[] => [
+      {
+        ...tree[0],
+        sessionGenericFamilies: {
+          source: "chromium-platform-fonts-v1",
+          common: { "sans-serif": sansSerif },
+          byScript: {},
+        },
+      },
+    ];
+    const rounds = [withFamilies(round("A0", "B0"), "Helvetica"), withFamilies(round("A1", "B1"), "ArialMT")];
+    expect(() => assembleRegionStateTrees(rounds, plan, names, "frames[2]")).toThrow(
+      /frames\[2\] declares per-region timing \(`advances`\), but the browser's generic font families changed between capture round 0 and round 1 .*Helvetica.*ArialMT/,
+    );
+    // The same record in every round is not a change.
+    const same = [withFamilies(round("A0", "B0"), "Helvetica"), withFamilies(round("A1", "B1"), "Helvetica")];
+    expect(contents(assembleRegionStateTrees(same, plan, names, "frames[2]"))).toEqual(["A0/B0", "A1/B0"]);
+  });
+
   it("hard-errors when a region root vanished from a later round", () => {
     const plan = planRegionCaptureRounds([{}, { advances: ["editor"] }], ["editor", "preview"]);
     const rounds = [

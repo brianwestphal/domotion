@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3"]
+tickets: ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM"]
 code:
   [
     ".github/workflows/generic-family-preference-parity.yml",
@@ -15,6 +15,7 @@ code:
     "tools/generic-profile-target-oracle.ts",
     "src/capture/generic-font-probe.test.ts",
     "tests/generic-font-probe.e2e.test.ts",
+    "tests/generic-family-settings-reset.e2e.test.ts",
     "packages/text-engine/src/render/synchronous-scope.ts",
     "packages/text-engine/src/render/synchronous-scope.test.ts",
   ]
@@ -264,6 +265,24 @@ pixels, a font-name snapshot, or a tolerance.
   `-webkit-locale` after `all: initial`, so every dynamic script row selects
   its claimed Settings map. This exposes protected macOS fallback identities;
   [doc 224](224-hidden-macos-hebrew-generic-face.md) owns their CoreText replay.
+- A Page's generic families can change during a session. Any browser-side
+  WebPreferences push re-applies the WebPreferences family maps
+  (`ApplyFontsFromMap`, `core/exported/web_view_impl.cc:1584-1597`, chromium
+  `7d859f27`) and so replaces Playwright's `Page.setFontFamilies` overlay with
+  Chromium's defaults. On macOS that means Times New Roman / Arial / Menlo
+  instead of Times / Helvetica / Courier. One locally reproducible trigger is
+  `Page.captureScreenshot` with `captureBeyondViewport`, which installs
+  modified preferences and then restores the original ones
+  (`content/browser/devtools/protocol/page_handler.cc:1499-1512, 1826-1829`).
+  Playwright sends it for full-page and over-tall element screenshots, but not
+  for clip screenshots, which it trims to the viewport. Capture takes no such
+  screenshot, and repeated captures on one Page keep one record
+  (`tests/generic-family-settings-reset.e2e.test.ts`). Hosted macOS runners
+  have also shown the reset with no screenshot at all; that trigger is still
+  unidentified. After a reset Chrome really paints the default families, so
+  the probe records the new state and the capture stays faithful. Per-region
+  timing refuses to splice rounds captured on both sides of a reset and names
+  the cause in its error.
 - `system-ui` remains outside this gate's parity claim. Its separate exact
   CoreText / Linux renderer-family / Windows menu-font route oracle shipped in
   [doc 211](211-platform-system-ui-preference-route.md); the rows here remain

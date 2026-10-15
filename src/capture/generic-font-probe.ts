@@ -30,9 +30,11 @@
 //      is Menlo).
 //
 // Because the winning layer changes with the launch shape (headless shell vs
-// full binary vs headed) and Playwright's CDP update can even lose a race
-// against first layout on a loaded CI runner, no static table can be correct
-// for every session. We therefore ask the
+// full binary vs headed), Playwright's CDP update can even lose a race
+// against first layout on a loaded CI runner, and any later browser-side
+// WebPreferences push (for example a `captureBeyondViewport` screenshot)
+// replaces the CDP overlay with layer 1 again mid-session (doc 198), no static
+// table can be correct for every session. We therefore ask the
 // capture session itself — render one hidden page with Common and per-script
 // generic spans, read the painted family via CDP
 // `CSS.getPlatformFontsForNode`, serialize those Page-owned answers with the

@@ -2214,6 +2214,25 @@ export function assembleRegionStateTrees(
       }
     }
   }
+  // The root's generic-family record is the Page's live Settings, not page
+  // content. A browser-side WebPreferences push (for example a
+  // `captureBeyondViewport` screenshot) replaces Playwright's
+  // `Page.setFontFamilies` table with Chromium's defaults mid-session, and
+  // Chrome then paints generic families differently. Rounds captured on both
+  // sides of that change cannot be spliced, and saying so beats reporting it as
+  // a page change at some byte offset.
+  const baseAuthority = JSON.stringify(createCapturedTreeEnvelope(roundTrees[0]).sessionGenericFamilies ?? null);
+  for (let r = 1; r < roundTrees.length; r++) {
+    const authority = JSON.stringify(createCapturedTreeEnvelope(roundTrees[r]).sessionGenericFamilies ?? null);
+    if (authority !== baseAuthority) {
+      throw new Error(
+        `animate: ${framePath} declares per-region timing (\`advances\`), but the browser's generic font families ` +
+          `changed between capture round 0 and round ${r} (round 0 ${baseAuthority.slice(0, 160)}, round ${r} ` +
+          `${authority.slice(0, 160)}). Something reset the Page's font-family Settings during the run, so the rounds ` +
+          `paint generic families differently and cannot be combined. Drop \`advances\` to capture every state whole.`,
+      );
+    }
+  }
   const baseKey = outsideRegionsKey(roundTrees[0], ids);
   for (let r = 1; r < roundTrees.length; r++) {
     const roundKey = outsideRegionsKey(roundTrees[r], ids);

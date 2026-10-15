@@ -662,7 +662,10 @@ and the measurements behind it.
    longest-chain assignment and minimal by construction: a state's `actions` are
    one indivisible script so they run in exactly one round, and every region a
    state advances must move strictly past the round of its own previous advance,
-   because rounds are cumulative.
+   because rounds are cumulative. The assembly refuses rounds whose
+   remainder outside the regions differs, and it names one cause of that
+   explicitly: the Page's generic-family Settings changing between rounds (see
+   [doc 198](198-live-generic-family-preference-parity.md)).
 
 **Measured capture-count reduction** (two panes, alternating schedules, through
 the real CLI pipeline):
