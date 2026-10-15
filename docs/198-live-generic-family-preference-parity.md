@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM"]
+tickets: ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM", "DM-GNJ47P"]
 code:
   [
     ".github/workflows/generic-family-preference-parity.yml",
@@ -16,6 +16,7 @@ code:
     "src/capture/generic-font-probe.test.ts",
     "tests/generic-font-probe.e2e.test.ts",
     "tests/generic-family-settings-reset.e2e.test.ts",
+    "tools/probe-generic-settings-drift.ts",
     "packages/text-engine/src/render/synchronous-scope.ts",
     "packages/text-engine/src/render/synchronous-scope.test.ts",
   ]
@@ -278,8 +279,19 @@ pixels, a font-name snapshot, or a tolerance.
   for clip screenshots, which it trims to the viewport. Capture takes no such
   screenshot, and repeated captures on one Page keep one record
   (`tests/generic-family-settings-reset.e2e.test.ts`). Hosted macOS runners
-  have also shown the reset with no screenshot at all; that trigger is still
-  unidentified. After a reset Chrome really paints the default families, so
+  also reset with no screenshot at all, from a host-wide event:
+  `tools/probe-generic-settings-drift.ts` held three separate browsers (idle,
+  repeated CDP attach/detach, repeated capture) and all three flipped within
+  a second of each other, 4–6 minutes into the job (runs `38692735117`,
+  `38693924756`). The unified log at that moment shows `universalaccessd`
+  "System appearance change" / "Invalidate NSApp effectiveAppearance" with an
+  accessibility-settings change, and every Chrome process re-reading the
+  system appearance. Chromium observes exactly those (`effectiveAppearance`
+  KVO and `NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification`,
+  `ui/native_theme/os_settings_provider_mac.mm:29,77`), and
+  `WebContentsImpl::OnNativeThemeUpdated` → `HandleColorRelatedStateChanges`
+  → `NotifyPreferencesChanged` pushes WebPreferences
+  (`web_contents_impl.cc:12324-12365`). After a reset Chrome really paints the default families, so
   the probe records the new state and the capture stays faithful. Per-region
   timing refuses to splice rounds captured on both sides of a reset and names
   the cause in its error.

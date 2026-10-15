@@ -3261,6 +3261,7 @@
         "src/capture/generic-font-probe.test.ts",
         "tests/generic-font-probe.e2e.test.ts",
         "tests/generic-family-settings-reset.e2e.test.ts",
+        "tools/probe-generic-settings-drift.ts",
         "packages/text-engine/src/render/synchronous-scope.ts",
         "packages/text-engine/src/render/synchronous-scope.test.ts"
       ],

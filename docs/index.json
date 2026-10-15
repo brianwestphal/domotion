@@ -4509,7 +4509,7 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM"],
+        "tickets": ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM", "DM-GNJ47P"],
         "code": [
           ".github/workflows/generic-family-preference-parity.yml",
           "src/capture/generic-font-probe.ts",
@@ -4519,6 +4519,7 @@
           "src/capture/generic-font-probe.test.ts",
           "tests/generic-font-probe.e2e.test.ts",
           "tests/generic-family-settings-reset.e2e.test.ts",
+          "tools/probe-generic-settings-drift.ts",
           "packages/text-engine/src/render/synchronous-scope.ts",
           "packages/text-engine/src/render/synchronous-scope.test.ts"
         ],
