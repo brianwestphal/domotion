@@ -175,9 +175,10 @@ export function beginCharacterFallbackDocument(): void {
     beginDarwinFontDataDocument(rendererSession);
     beginFcFallbackRendererScope();
     // A document without a renderer session stands for a fresh Chrome renderer,
-    // so it also gets a fresh CoreText history. The per-codepoint key memo is
-    // built from the helper's answers and goes with them.
-    if (selectCoreTextFallbackOwner(rendererSession ?? {})) systemFallbackKeyCache.clear();
+    // so it also gets a fresh CoreText history; a session keeps its own. The
+    // per-codepoint key memo is built from the helper's answers and goes with
+    // them.
+    selectCoreTextFallbackOwner(rendererSession ?? {}, rendererSession != null, systemFallbackKeyCache);
   }
   _charFallbackDocDepth++;
 }

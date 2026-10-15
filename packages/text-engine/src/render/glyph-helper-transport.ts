@@ -107,6 +107,43 @@ function fdOf(stream: unknown): number | undefined {
 
 let _pipeSeq = 0;
 
+/** A `--serve` child set aside while another renderer owner is current. */
+interface ParkedChannel {
+  proc: ChildProcess;
+  inFd: number | undefined;
+  outFd: number | undefined;
+  leftover: string;
+}
+/** Opaque handle to a parked helper process. */
+export type ParkedGlyphHelperProcess = object;
+const parkedChannels = new Set<ParkedChannel>();
+
+/** A child's exit or error only clears the slot that still holds THAT child.
+ *  Killing a replaced or parked process reports its exit asynchronously, after
+ *  a newer child may already be current; clearing unconditionally would drop
+ *  the newer one and leave it running unreferenced. */
+function forgetExitedProcess(proc: ChildProcess): void {
+  if (serverProc === proc) {
+    serverProc = null;
+    serverLeftover = "";
+  }
+  for (const channel of parkedChannels) if (channel.proc === proc) parkedChannels.delete(channel);
+}
+
+function killQuietly(proc: ChildProcess | null): void {
+  try {
+    proc?.kill();
+  } catch {
+    /* already gone */
+  }
+}
+
+function killAllPersistentProcesses(): void {
+  killQuietly(serverProc);
+  for (const channel of parkedChannels) killQuietly(channel.proc);
+  parkedChannels.clear();
+}
+
 /**
  * DM-1889: the persistent channel on Windows, carried over a named pipe.
  *
@@ -184,21 +221,11 @@ function startPersistentViaPipe(bin: string): boolean {
   serverInFd = fd;
   serverOutFd = fd;
   serverLeftover = "";
-  proc.on("error", () => {
-    serverProc = null;
-  });
-  proc.on("exit", () => {
-    serverProc = null;
-  });
+  proc.on("error", () => forgetExitedProcess(proc));
+  proc.on("exit", () => forgetExitedProcess(proc));
   if (!_persistentExitHookInstalled) {
     _persistentExitHookInstalled = true;
-    process.once("exit", () => {
-      try {
-        serverProc?.kill();
-      } catch {
-        /* ignore */
-      }
-    });
+    process.once("exit", killAllPersistentProcesses);
   }
   return true;
 }
@@ -273,21 +300,11 @@ function startPersistent(bin: string): boolean {
     serverInFd = inFd;
     serverOutFd = outFd;
     serverLeftover = "";
-    proc.on("error", () => {
-      serverProc = null;
-    });
-    proc.on("exit", () => {
-      serverProc = null;
-    });
+    proc.on("error", () => forgetExitedProcess(proc));
+    proc.on("exit", () => forgetExitedProcess(proc));
     if (!_persistentExitHookInstalled) {
       _persistentExitHookInstalled = true;
-      process.once("exit", () => {
-        try {
-          serverProc?.kill();
-        } catch {
-          /* ignore */
-        }
-      });
+      process.once("exit", killAllPersistentProcesses);
     }
     return true;
   } catch {
@@ -434,11 +451,7 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
 export function clearGlyphHelperTransport(): void {
   helperAvailable = null;
   helperPath = undefined;
-  try {
-    serverProc?.kill();
-  } catch {
-    /* already gone */
-  }
+  killAllPersistentProcesses();
   serverProc = null;
   serverInFd = undefined;
   serverOutFd = undefined;
@@ -457,16 +470,57 @@ export function clearGlyphHelperTransport(): void {
  */
 export function restartGlyphHelperProcess(): boolean {
   if (serverProc == null) return false;
-  try {
-    serverProc.kill();
-  } catch {
-    /* already gone */
-  }
+  killQuietly(serverProc);
   serverProc = null;
   serverInFd = undefined;
   serverOutFd = undefined;
   serverLeftover = "";
   return true;
+}
+
+/**
+ * Set the current `--serve` child aside, alive, so a later
+ * `resumeGlyphHelperProcess` continues its process state. The next call
+ * starts a fresh child. Returns null when no child is running (one-shot
+ * transport, or nothing asked yet).
+ */
+export function parkGlyphHelperProcess(): ParkedGlyphHelperProcess | null {
+  if (serverProc == null) return null;
+  const channel: ParkedChannel = { proc: serverProc, inFd: serverInFd, outFd: serverOutFd, leftover: serverLeftover };
+  parkedChannels.add(channel);
+  serverProc = null;
+  serverInFd = undefined;
+  serverOutFd = undefined;
+  serverLeftover = "";
+  return channel;
+}
+
+/**
+ * Make a parked child current again, ending the child that was current.
+ * Returns false when the handle is unknown or its child has exited; the
+ * caller then continues on a fresh child.
+ */
+export function resumeGlyphHelperProcess(handle: ParkedGlyphHelperProcess): boolean {
+  const channel = handle as ParkedChannel;
+  if (!parkedChannels.delete(channel)) return false;
+  if (channel.proc.exitCode != null || channel.proc.signalCode != null) return false;
+  restartGlyphHelperProcess();
+  serverProc = channel.proc;
+  serverInFd = channel.inFd;
+  serverOutFd = channel.outFd;
+  serverLeftover = channel.leftover;
+  return true;
+}
+
+/** End a parked child that will not be resumed. */
+export function discardGlyphHelperProcess(handle: ParkedGlyphHelperProcess): void {
+  const channel = handle as ParkedChannel;
+  if (parkedChannels.delete(channel)) killQuietly(channel.proc);
+}
+
+/** Test-only: how many parked children are alive. */
+export function __parkedGlyphHelperProcessCountForTest(): number {
+  return parkedChannels.size;
 }
 
 /** Test-only: seed and read the persistent-channel classification flags. */

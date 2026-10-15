@@ -16,8 +16,12 @@ import type { HelperRequest, HelperResponse } from "./glyph-helper-protocol.js";
 import {
   callGlyphHelper as callHelper,
   clearGlyphHelperTransport,
+  discardGlyphHelperProcess,
   isGlyphHelperAvailable,
+  parkGlyphHelperProcess,
   restartGlyphHelperProcess,
+  resumeGlyphHelperProcess,
+  type ParkedGlyphHelperProcess,
 } from "./glyph-helper-transport.js";
 
 export { OFFSET_PROBE_GLYPHS, measureOutlineOffsetY } from "./glyph-helper-outline.js";
@@ -358,30 +362,90 @@ export function resolveFcFallbackFonts(cps: number[], lang: string = "en"): Map<
  * one Node process rendering two captures from two fresh Chrome renderers
  * answered the second capture from the first one's CoreText history.
  *
- * `_coreTextFallbackHistory` records that a fallback ask has reached the helper
- * since its last restart; only then does an owner change restart it, so renders
- * that never ask CoreText for a fallback keep the warm process. Interleaving
- * two sessions loses the earlier one's history at each switch: one helper
- * process holds one history.
+ * `_coreTextFallbackHistory` records that a fallback ask has reached the
+ * current helper process; renders that never ask CoreText for a fallback keep
+ * the warm process across owners. A retained owner (a renderer session) that
+ * built history keeps it while another owner is current: its process is parked
+ * alive with the fallback answers memoized from it, and both come back when the
+ * session does. Chrome keeps one renderer per session alive the same way, so
+ * interleaved sessions each continue their own history. A one-off owner (a
+ * document without a session) is never retained: leaving it ends its process.
+ * At most `MAX_RETAINED_CORETEXT_HISTORIES` sessions stay parked; past that the
+ * least recently used one is ended and starts fresh if it returns.
  */
+interface RetainedCoreTextHistory {
+  process: ParkedGlyphHelperProcess | null;
+  history: boolean;
+  systemFallback: Map<string, SystemFallbackFont | null>;
+  keyMemo: Map<string, string | null>;
+}
+const MAX_RETAINED_CORETEXT_HISTORIES = 8;
+// Insertion order is recency order: a record is re-inserted when it is parked.
+const _retainedCoreTextHistories = new Map<object, RetainedCoreTextHistory>();
 let _coreTextFallbackOwner: object | null = null;
+let _coreTextFallbackOwnerRetained = false;
 let _coreTextFallbackHistory = false;
 
 /**
- * Give the helper's CoreText fallback history to `owner` (the renderer
- * session, or a fresh token for a one-off document). On macOS, a different
- * owner than the one that built the current history restarts the helper and
- * drops the fallback answers memoized from it. Returns whether that happened,
- * so callers can drop memos layered on top of these answers.
+ * Give the helper's CoreText fallback history to `owner`. `retain` marks an
+ * owner that can come back (a renderer session); a one-off document passes a
+ * fresh object and `false`. `keyMemo` is the per-codepoint key memo layered on
+ * the helper's answers (`systemFallbackKeyCache`); it is saved and restored
+ * with them. Off macOS this does nothing.
  */
-export function selectCoreTextFallbackOwner(owner: object): boolean {
-  if (hostPlatform() !== "darwin" || owner === _coreTextFallbackOwner) return false;
+export function selectCoreTextFallbackOwner(owner: object, retain: boolean, keyMemo: Map<string, string | null>): void {
+  if (hostPlatform() !== "darwin" || owner === _coreTextFallbackOwner) return;
+  const arriving = _retainedCoreTextHistories.get(owner);
+  if (_coreTextFallbackHistory) {
+    if (_coreTextFallbackOwnerRetained && _coreTextFallbackOwner != null) {
+      retainCoreTextHistory(_coreTextFallbackOwner, {
+        process: parkGlyphHelperProcess(),
+        history: true,
+        systemFallback: new Map(_systemFallbackCache),
+        keyMemo: new Map(keyMemo),
+      });
+    } else {
+      restartGlyphHelperProcess();
+    }
+    _systemFallbackCache.clear();
+    keyMemo.clear();
+  }
   _coreTextFallbackOwner = owner;
-  if (!_coreTextFallbackHistory) return false;
+  _coreTextFallbackOwnerRetained = retain;
   _coreTextFallbackHistory = false;
-  restartGlyphHelperProcess();
-  _systemFallbackCache.clear();
-  return true;
+  if (arriving == null) return;
+  _retainedCoreTextHistories.delete(owner);
+  // A warm process without history may still be current; the arriving
+  // session's own process replaces it.
+  if (arriving.process != null && resumeGlyphHelperProcess(arriving.process)) _coreTextFallbackHistory = true;
+  else restartGlyphHelperProcess();
+  // The memos stay valid even if the process was lost: they are this
+  // session's answers, and Chrome's renderer still holds the state behind them.
+  for (const [key, value] of arriving.systemFallback) _systemFallbackCache.set(key, value);
+  for (const [key, value] of arriving.keyMemo) keyMemo.set(key, value);
+  if (arriving.systemFallback.size > 0) _coreTextFallbackHistory = true;
+}
+
+function retainCoreTextHistory(owner: object, record: RetainedCoreTextHistory): void {
+  _retainedCoreTextHistories.delete(owner);
+  _retainedCoreTextHistories.set(owner, record);
+  while (_retainedCoreTextHistories.size > MAX_RETAINED_CORETEXT_HISTORIES) {
+    const [oldest, evicted] = _retainedCoreTextHistories.entries().next().value!;
+    _retainedCoreTextHistories.delete(oldest);
+    if (evicted.process != null) discardGlyphHelperProcess(evicted.process);
+  }
+}
+
+function forgetRetainedCoreTextHistories(): void {
+  for (const record of _retainedCoreTextHistories.values()) {
+    if (record.process != null) discardGlyphHelperProcess(record.process);
+  }
+  _retainedCoreTextHistories.clear();
+}
+
+/** Test-only: how many renderer sessions keep a parked CoreText history. */
+export function __retainedCoreTextHistoryCountForTest(): number {
+  return _retainedCoreTextHistories.size;
 }
 
 /** Test-only: whether a fallback ask has built CoreText history since the last restart. */
@@ -1291,9 +1355,11 @@ export function clearGlyphHelperCache(): void {
   // promises to observe preference-generation changes, so its helper reset must
   // force the next route through SPI_GETNONCLIENTMETRICS again.
   _systemUiFamily = undefined;
+  forgetRetainedCoreTextHistories();
   clearGlyphHelperTransport();
   _coreTextFallbackHistory = false;
   _coreTextFallbackOwner = null;
+  _coreTextFallbackOwnerRetained = false;
   clearGlyphHelperCodepointMemos();
   _installedFontCache.clear();
   _familyStyleMatchCache.clear();

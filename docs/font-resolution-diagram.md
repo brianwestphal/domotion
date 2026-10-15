@@ -2082,15 +2082,22 @@ the italic UI font's `.notdef`, while a fresh renderer paints `.LucidaGrandeUI` 
 `Menlo-Italic`. The persistent helper reproduces that carry-over, so on macOS
 its process history follows Domotion's model of a Chrome renderer, the
 `FontRendererSession`. Each outermost `beginCharacterFallbackDocument()` hands
-the history to its session, or to a fresh owner when the document has none
-(`selectCoreTextFallbackOwner`, `glyph-helper.ts`). If a fallback ask has
-reached the helper since its last restart and the owner changes, the helper
-process restarts (`restartGlyphHelperProcess`) and `_systemFallbackCache` and
-`systemFallbackKeyCache` are dropped with it. A document with no fallback ask
-keeps the warm process. Within one document, Domotion asks in document order,
-which reproduces Chrome's carry-over in both directions for the case above.
-Interleaving two sessions loses the earlier one's history at each switch,
-because one helper process holds one history. Linux and Windows are unaffected.
+the history to its session, or to a fresh one-off owner when the document has
+none (`selectCoreTextFallbackOwner`, `glyph-helper.ts`). Once a fallback ask has
+built history, leaving that owner either parks its helper process alive with
+the `_systemFallbackCache` and `systemFallbackKeyCache` entries derived from it
+(a session, which resumes both when it returns), or ends the process and drops
+those entries (a one-off document). The transport parks, resumes and discards
+children (`parkGlyphHelperProcess` / `resumeGlyphHelperProcess` /
+`discardGlyphHelperProcess`). At most eight sessions stay parked; the least
+recently used one past that is ended and starts fresh if it returns. A
+document with no fallback ask keeps the warm process. Interleaved sessions
+therefore each continue their own history, as Chrome's per-session renderers
+do: the oracle's `--renderer-scope locale` e2e alternates `en` / `ru` / `en`
+and agrees with Chrome only because the `en` helper resumes. Within one
+document, Domotion asks in document order, which reproduces Chrome's
+carry-over in both directions for the case above. Linux and Windows are
+unaffected.
 
 The channel is synchronous — `writeSync`/`readSync` against a real file
 descriptor — because the whole resolution path is synchronous. On Windows, Node

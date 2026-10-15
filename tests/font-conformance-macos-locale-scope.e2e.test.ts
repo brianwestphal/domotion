@@ -77,4 +77,45 @@ describeMac("macOS synthetic oracle locale scopes", () => {
     expect(report.data.summary.mismatchTotal).toBe(0);
     expect(report.data.chromeFaces).toContainEqual(expect.objectContaining({ face: ".LucidaGrandeUI" }));
   }, 120_000);
+  // `--renderer-scope locale` keeps one Chrome renderer per locale while the
+  // stacks alternate between locales. Chrome's English renderer keeps the
+  // CoreText history from its system-ui U+2200 across the Russian stack, so
+  // the later English system-ui italic run paints U+1D00 / U+2300 in the
+  // italic UI font. Domotion's English renderer session parks its helper
+  // process during the Russian stack and resumes it, so it agrees; restarting
+  // the helper at each locale switch answered `.LucidaGrandeUI` / `Menlo-Italic`.
+  it("keeps each locale renderer's helper history while locales alternate", async () => {
+    const root = mkdtempSync(join(tmpdir(), "domotion-macos-interleaved-oracle-"));
+    const stacksFile = join(root, "stacks.json");
+    const output = join(root, "out");
+    const corpus = syntheticCorpus();
+    const pick = (lang: string | undefined, fontStyle: string) => {
+      const stack = corpus.stacks.find(
+        (candidate) =>
+          candidate.fontFamily === "system-ui" &&
+          candidate.lang === lang &&
+          candidate.fontSize === 16 &&
+          candidate.fontWeight === 400 &&
+          candidate.fontStyle === fontStyle &&
+          candidate.fontStretch === "100%",
+      );
+      if (stack == null) throw new Error(`missing synthetic system-ui stack ${lang ?? "default"} ${fontStyle}`);
+      return stack;
+    };
+    writeFileSync(
+      stacksFile,
+      JSON.stringify({
+        ...corpus,
+        stacks: [pick(undefined, "normal"), pick("ru", "normal"), pick(undefined, "italic")],
+      }),
+    );
+
+    expect(
+      await main(["--stacks", stacksFile, "--range", "1D00,2200,2300", "--renderer-scope", "locale", "--out", output]),
+    ).toBe(0);
+    const report = JSON.parse(readFileSync(join(output, "report.json"), "utf8"));
+    expect(report.data.summary.comparisons).toBe(9);
+    expect(report.data.summary.mismatchTotal).toBe(0);
+    expect(report.data.chromeFaces).toContainEqual(expect.objectContaining({ face: ".SFNS-RegularItalic" }));
+  }, 180_000);
 });

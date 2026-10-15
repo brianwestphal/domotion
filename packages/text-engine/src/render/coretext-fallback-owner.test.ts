@@ -8,8 +8,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { __parkedGlyphHelperProcessCountForTest } from "./glyph-helper-transport.js";
 import {
   __coreTextFallbackHistoryForTest,
+  __retainedCoreTextHistoryCountForTest,
   clearGlyphHelperCache,
   resolveSystemFallbackFonts,
   selectCoreTextFallbackOwner,
@@ -78,47 +80,130 @@ afterAll(() => {
 });
 beforeEach(() => {
   clearGlyphHelperCache();
+  keyMemo.clear();
   writeFileSync(logFile, "");
 });
 
+const keyMemo = new Map<string, string | null>();
+const select = (owner: object, retain = false): void => selectCoreTextFallbackOwner(owner, retain, keyMemo);
+
 describe("CoreText fallback history owner (macOS)", () => {
-  it("keeps one helper process for one owner, and restarts it for the next owner", () => {
+  it("keeps one helper process for one owner, and starts a fresh one for the next one-off owner", () => {
     withHostPlatform("darwin", () => {
       const a = {};
-      expect(selectCoreTextFallbackOwner(a)).toBe(false);
+      select(a);
       const first = answeredBy(0x41);
       expect(__coreTextFallbackHistoryForTest()).toBe(true);
-      expect(selectCoreTextFallbackOwner(a)).toBe(false);
+      select(a);
       expect(answeredBy(0x42)).toBe(first);
 
-      expect(selectCoreTextFallbackOwner({})).toBe(true);
+      keyMemo.set("stale", "sysfb:stale");
+      select({});
       expect(__coreTextFallbackHistoryForTest()).toBe(false);
+      expect(keyMemo.has("stale")).toBe(false);
       // The memoized answer came from the old history, so it is asked again.
-      const again = answeredBy(0x41);
-      expect(again).not.toBe(first);
+      expect(answeredBy(0x41)).not.toBe(first);
       expect(requests()).toHaveLength(3);
+      expect(__parkedGlyphHelperProcessCountForTest()).toBe(0);
     });
   });
 
   it("keeps the warm helper across owners when no fallback was asked", () => {
     withHostPlatform("darwin", () => {
-      selectCoreTextFallbackOwner({});
-      expect(selectCoreTextFallbackOwner({})).toBe(false);
-      const first = answeredBy(0x43);
-      // A fallback ask builds history, so the next owner restarts; the one
-      // after that, with no ask in between, does not.
-      expect(selectCoreTextFallbackOwner({})).toBe(true);
-      expect(selectCoreTextFallbackOwner({})).toBe(false);
-      expect(answeredBy(0x44)).not.toBe(first);
+      select({});
+      // Start the process with an ask that builds no CoreText history (the
+      // marker is macOS-only), as a glyph or metrics query would.
+      const warm = withHostPlatform("linux", () => answeredBy(0x43));
+      expect(__coreTextFallbackHistoryForTest()).toBe(false);
+      select({});
+      const first = answeredBy(0x44);
+      expect(first).toBe(warm);
+      // That fallback ask built history, so the next owner gets a fresh process.
+      select({});
+      expect(answeredBy(0x45)).not.toBe(first);
     });
   });
 
-  it("never restarts off macOS", () => {
+  it("does nothing off macOS", () => {
     withHostPlatform("linux", () => {
-      const first = answeredBy(0x45);
+      const first = answeredBy(0x46);
       expect(__coreTextFallbackHistoryForTest()).toBe(false);
-      expect(selectCoreTextFallbackOwner({})).toBe(false);
-      expect(answeredBy(0x46)).toBe(first);
+      select({}, true);
+      select({});
+      expect(answeredBy(0x47)).toBe(first);
+      expect(__retainedCoreTextHistoryCountForTest()).toBe(0);
+    });
+  });
+
+  it("gives interleaved sessions their own process and answers: A, B, A", () => {
+    withHostPlatform("darwin", () => {
+      const a = {};
+      const b = {};
+      select(a, true);
+      const inA = answeredBy(0x48);
+      keyMemo.set("a-key", "sysfb:a");
+
+      select(b, true);
+      expect(keyMemo.has("a-key")).toBe(false);
+      const inB = answeredBy(0x48);
+      expect(inB).not.toBe(inA);
+      expect(__parkedGlyphHelperProcessCountForTest()).toBe(1);
+
+      select(a, true);
+      // A's memo is back without asking again, and new asks reach A's process.
+      expect(answeredBy(0x48)).toBe(inA);
+      expect(keyMemo.get("a-key")).toBe("sysfb:a");
+      expect(answeredBy(0x49)).toBe(inA);
+      expect(requests()).toHaveLength(3);
+
+      select(b, true);
+      expect(answeredBy(0x49)).toBe(inB);
+    });
+  });
+
+  it("keeps a session's history while one-off documents come and go", () => {
+    withHostPlatform("darwin", () => {
+      const session = {};
+      select(session, true);
+      const inSession = answeredBy(0x4a);
+      select({});
+      const oneOff = answeredBy(0x4a);
+      expect(oneOff).not.toBe(inSession);
+      select({});
+      expect(answeredBy(0x4a)).not.toBe(oneOff);
+      select(session, true);
+      expect(answeredBy(0x4b)).toBe(inSession);
+      // One-off processes are ended, never parked.
+      expect(__parkedGlyphHelperProcessCountForTest()).toBe(0);
+    });
+  });
+
+  it("bounds the parked sessions and lets the least recently used one start fresh", () => {
+    withHostPlatform("darwin", () => {
+      const sessions = Array.from({ length: 10 }, () => ({}));
+      const answers = sessions.map((session) => {
+        select(session, true);
+        return answeredBy(0x4c);
+      });
+      select({});
+      expect(__retainedCoreTextHistoryCountForTest()).toBe(8);
+      expect(__parkedGlyphHelperProcessCountForTest()).toBe(8);
+      select(sessions[0], true);
+      expect(answeredBy(0x4d)).not.toBe(answers[0]);
+      select(sessions[9], true);
+      expect(answeredBy(0x4d)).toBe(answers[9]);
+    });
+  });
+
+  it("ends parked processes when the helper is reset", () => {
+    withHostPlatform("darwin", () => {
+      select({}, true);
+      answeredBy(0x4e);
+      select({}, true);
+      expect(__parkedGlyphHelperProcessCountForTest()).toBe(1);
+      clearGlyphHelperCache();
+      expect(__parkedGlyphHelperProcessCountForTest()).toBe(0);
+      expect(__retainedCoreTextHistoryCountForTest()).toBe(0);
     });
   });
 
@@ -128,7 +213,7 @@ describe("CoreText fallback history owner (macOS)", () => {
         const body = (): string | undefined => {
           beginCharacterFallbackDocument();
           try {
-            return answeredBy(0x47);
+            return answeredBy(0x4f);
           } finally {
             endCharacterFallbackDocument();
           }
@@ -136,6 +221,7 @@ describe("CoreText fallback history owner (macOS)", () => {
         return session == null ? body() : withFontRendererSession(session, body);
       };
       const session = createFontRendererSession();
+      const other = createFontRendererSession();
       const inSession = openDocument(session);
       expect(openDocument(session)).toBe(inSession);
       expect(requests()).toHaveLength(1);
@@ -145,7 +231,11 @@ describe("CoreText fallback history owner (macOS)", () => {
       expect(fresh).not.toBe(inSession);
       expect(systemFallbackKeyCache.has("stale")).toBe(false);
       expect(openDocument()).not.toBe(fresh);
-      expect(requests()).toHaveLength(3);
+      const inOther = openDocument(other);
+      expect(inOther).not.toBe(inSession);
+      // Back in the first session: its own memoized answer, no new ask.
+      expect(openDocument(session)).toBe(inSession);
+      expect(requests()).toHaveLength(4);
     });
   });
 });
