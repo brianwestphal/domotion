@@ -105,6 +105,16 @@ function fdOf(stream: unknown): number | undefined {
   return s?.fd ?? s?._handle?.fd;
 }
 
+/** Upper bound for one one-shot helper process. Ordinary requests take
+ *  milliseconds; the largest glyph batches take seconds. */
+const DEFAULT_ONE_SHOT_TIMEOUT_MS = 120_000;
+let ONE_SHOT_TIMEOUT_MS = DEFAULT_ONE_SHOT_TIMEOUT_MS;
+
+/** Test-only: shorten the one-shot bound; call with no argument to restore it. */
+export function __setOneShotTimeoutForTest(ms?: number): void {
+  ONE_SHOT_TIMEOUT_MS = ms ?? DEFAULT_ONE_SHOT_TIMEOUT_MS;
+}
+
 let _pipeSeq = 0;
 
 /** A `--serve` child set aside while another renderer owner is current. */
@@ -435,10 +445,22 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
     input: JSON.stringify(request),
     encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024,
+    // A spawnSync that never returns blocks the event loop, so no caller-side
+    // timer can fire: a unit-suite worker once sat 18 minutes at 0% CPU with a
+    // one-shot child still waiting for EOF on its stdin. Bound the call so a
+    // stall becomes an error naming the request instead of a silent hang.
+    timeout: ONE_SHOT_TIMEOUT_MS,
   });
   profAccum("helper-spawnSync", profNow() - _t0);
-  if (proc.status !== 0) {
-    throw new Error(`glyph helper failed (exit ${proc.status}): ${proc.stderr}`);
+  if (proc.error != null || proc.status !== 0) {
+    const cause =
+      proc.signal != null
+        ? `killed by ${proc.signal}${(proc.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT" ? ` after ${ONE_SHOT_TIMEOUT_MS} ms` : ""}`
+        : proc.error != null
+          ? String(proc.error)
+          : `exit ${proc.status}`;
+    const queries = request.queries.map((query) => query.type).join(",");
+    throw new Error(`glyph helper failed (${cause}; one-shot, queries ${queries}): ${proc.stderr ?? ""}`);
   }
   return parseHelperResponse(proc.stdout, { helperPath: bin ?? null, transport: "one-shot" });
 }
