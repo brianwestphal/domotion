@@ -294,7 +294,12 @@ pixels, a font-name snapshot, or a tolerance.
   (`web_contents_impl.cc:12324-12365`). After a reset Chrome really paints the default families, so
   the probe records the new state and the capture stays faithful. Per-region
   timing refuses to splice rounds captured on both sides of a reset and names
-  the cause in its error.
+  the cause in its error. This is the intended contract: capture neither
+  re-asserts Playwright's family table nor fails when a Page's families change
+  mid-session. Re-asserting would make capture mutate Page state (and override
+  a page that relies on the new defaults); failing would turn a faithful
+  recording into an error. Only the conformance oracle repairs the overlay
+  between batches, because it measures a fixed preference state by design.
 - `system-ui` remains outside this gate's parity claim. Its separate exact
   CoreText / Linux renderer-family / Windows menu-font route oracle shipped in
   [doc 211](211-platform-system-ui-preference-route.md); the rows here remain
