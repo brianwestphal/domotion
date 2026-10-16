@@ -52,7 +52,12 @@ describe("clearFontResolutionCaches (DM-1860)", () => {
     const after = getFontInstance(KEY, 400, 16, 0);
     expect(after).not.toBeNull();
     // A NEW object (the cache really was dropped) describing the SAME face.
-    expect(after).not.toBe(before);
+    // Compare identity with Object.is, not `expect(after).not.toBe(before)`:
+    // when the two objects differ, Vitest's toBe runs a full deep-equality
+    // walk to suggest toStrictEqual, even under `.not`. On two FontInstances
+    // that walk goes through fontkit's lazily decoded tables and alone took
+    // 32 s, which made this test time out under load.
+    expect(Object.is(after, before)).toBe(false);
     expect(after!.postscriptName ?? null).toBe(before!.postscriptName ?? null);
     expect(after!.unitsPerEm).toBe(before!.unitsPerEm);
   });
