@@ -1953,7 +1953,8 @@
           "DM-ANS8X4",
           "DM-YT7SZ1",
           "DM-S2N2A2",
-          "DM-987"
+          "DM-987",
+          "DM-QP9R7N"
         ],
         "code": [
           "scripts/test-linux-docker.sh",

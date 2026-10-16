@@ -2493,7 +2493,10 @@ that painted with each cached face is still in the document, which is the case
 for a single capture. It is not exact once that content has been removed **and**
 more than 64 later font-data acquisitions have evicted the face, after which
 Chrome's next ideograph under the key becomes a new first writer. That eviction
-is not modeled. The conformance oracle keeps Chrome in the modeled regime by
+is deliberately not modeled: it happens only when a major Oilpan GC runs, which
+depends on the page's own allocation pressure and is invisible to capture and
+render. The measurement and the rejected alternatives are in doc 80 ("Known
+nondeterminism: GC eviction of cached entries"). The conformance oracle keeps Chrome in the modeled regime by
 leaving an anchor cell per cached face in the stack's document and using a
 renderer per stack (doc 107).
 

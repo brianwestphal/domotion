@@ -22,6 +22,7 @@ tickets:
     "DM-YT7SZ1",
     "DM-S2N2A2",
     "DM-987",
+    "DM-QP9R7N",
   ]
 code:
   [
@@ -594,6 +595,30 @@ document cache; `DOMOTION_FALLBACK_BASE_CUT=0` restores the base-entry cascade
 base (the base must otherwise be the primary's weight-matched cut —
 `Times-Bold` at 800 — because `CTFontCreateForString`'s nomination tracks the
 base's own cut, and the cache then propagates that first nomination).
+
+### Known nondeterminism: GC eviction of cached entries
+
+The cache's values are weak (`WeakMember<const SimpleFontData>`,
+`mac/character_fallback_cache.h:59`, Chromium `7d859f27`), so Chrome can drop
+an entry. Domotion keeps every entry for the session and deliberately does not
+model that eviction. Measured locally (one Page, `Helvetica` 16px `lang=en`):
+after U+3006 writes a Hiragino Sans entry, U+4E00 still paints
+`HiraginoSans-W3` when U+3006 is removed from the document, and also after a
+further 140 distinct font datas are acquired. It switches to a fresh first
+writer (`PingFangSC-Regular`) only when a major Oilpan GC then runs
+(`HeapProfiler.collectGarbage`). Without a forced GC, a small page did not
+collect within 10 s.
+
+So the eviction depends on when the page's own allocation pressure triggers a
+GC, which neither capture nor render can observe. The strong model is exact
+unless a GC lands between the removal of the content that painted with a cached
+face and the next ideograph under that key. The expected cost is rare,
+run-to-run-variable mismatches in long multi-document sessions, such as
+`DemoRecorder` navigation or animations that replace CJK text after heavy font
+churn. Two alternatives were rejected: forcing a GC at each capture boundary
+(capture would perturb the page, which can observe GC through `WeakRef` and
+`FinalizationRegistry`), and recording Chrome's painted face per text node
+(this moves font selection from mirrored logic to observation).
 
 ## Testing
 

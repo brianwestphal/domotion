@@ -66,7 +66,10 @@ import {
  * and a hit never refreshes that LRU. While the content that painted with a
  * cached face stays in the document, as in one capture, the two agree. After
  * that content is removed and the face is evicted, Chrome's next ideograph
- * under the key writes a new entry, and that eviction is not modeled here. The
+ * under the key writes a new entry, and that eviction is not modeled here. It
+ * is deliberately left unmodeled: it occurs only when a major Oilpan GC runs,
+ * which depends on the page's allocation pressure and cannot be observed from
+ * capture (doc 80, "Known nondeterminism: GC eviction of cached entries"). The
  * conformance oracle keeps an anchor cell per cached face so it measures the
  * modeled regime.
  *
