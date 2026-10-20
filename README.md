@@ -14,7 +14,7 @@
 
 **Domotion turns real HTML/CSS into one self-contained, animated SVG** — an accurate reproduction of the rendered page, with optional animation and simulated interaction built in. It embeds the exact captured glyph data and positioning, so playback never falls back to a viewer's system fonts; the output scales crisply at any size and embeds anywhere with a plain `<img>`, no external assets.
 
-Beyond raw capture it ships **Domotion Studio**, a local visual workspace for authoring and reviewing versioned projects; a **template library** that turns a few flags into a polished animated SVG; **terminal-session capture** (a recording → an animated terminal); **scroll capture** (a long page replayed as one self-contained scrolling SVG); multi-frame **animation** with parameterized and custom transitions, overlays, and simulated interaction; **scene storyboarding** (sequence distinct scenes end-to-end); **brand kits** and **social-format presets** (reel / square / portrait / landscape); **device-chrome** framing; **nested compositing** (animated layers inside animated layers); one-command **SVG → MP4/WebM**; and fidelity **review** tools.
+Start from a page, a terminal recording, or a built-in template. Animate a product flow with captured interactions, then review it in **Domotion Studio** or export it to video. The same output can live in a README, a docs site, or a product page.
 
 <p align="center">
   <img src="examples/output/hero-product-demo.svg" alt="An analytics dashboard assembling itself inside a browser window — KPI cards rise in, a bar chart grows with its peak highlighted, a search query types itself, and a nav item is clicked — all in one self-contained animated SVG" width="760">
@@ -31,6 +31,10 @@ Animated demos for product marketing and documentation usually mean either:
 - Hand-authored SVG animations — accurate but enormously time-consuming for anything beyond a couple of frames.
 
 Domotion captures real HTML/CSS as it renders in Chromium, then emits a single inline-embeddable SVG that replays the same pixels with CSS keyframe transitions. Author the demo as plain HTML/CSS in your real app, capture frames, and ship the result as a `<img src="demo.svg">` that loads lazily and scales without artifacts.
+
+- **Capture the real interface:** preserve its layout, images, and captured glyphs in one portable SVG, including same-origin iframe content and supported SVG icons.
+- **Make it move:** stitch frames with transitions, typing, clicks, scroll, and overlays; use storyboards or nested composition for longer demos.
+- **Start fast, finish anywhere:** generate branded charts, title cards, and device mockups from templates, then export a still or MP4/WebM when SVG animation is unavailable.
 
 ## Status
 
@@ -98,6 +102,8 @@ off by default because analytics, long polling, and streaming requests may
 never become idle.
 
 Same-origin `<iframe>` content is recursed into the capture as native SVG rather than flattened to a screenshot; opt into cross-origin frames you trust with `--cross-origin-frames "<hosts>"`.
+
+SVG images and supported same-origin `<use href="sprite.svg#icon">` references are inlined as vectors. Unsupported external sprite references or styles fall back to a self-contained Chromium raster of the containing SVG, with a warning.
 
 Text defaults to self-contained, pixel-faithful embedded fonts. For inline SVG,
 `--real-text` adds a paintless authored-text layer for search, selection, copy,

@@ -57,6 +57,35 @@ the final frame immediately before the loop. Then watch one complete loop.
 | - [ ] | Terminal showcase    | `examples/output/terminal-onboarding.svg`, `terminal-window-scroll.svg`                                        | Command readability, window chrome, scroll timing, and no cropped final line.                                                    |
 | - [ ] | Template gallery     | `examples/output/templates/*.svg`                                                                              | Representative chart, kinetic text, device mockup, quote, CTA, counter, and background loop at desktop plus one vertical format. |
 
+For this release, recapture or approve the following in order. Each producer
+updates the source asset named above; `build-demos` then copies it to the site.
+
+- [ ] **Replace the README wordmark if its loop changed:** run
+      `DOMOTION_NO_OPEN=1 npx tsx examples/domotion-word-demo.ts`; review
+      `examples/output/domotion-word-demo.svg` at 0 ms, mid-loop, and pre-loop.
+- [ ] **Regenerate the README and site hero:** run
+      `DOMOTION_NO_OPEN=1 npx tsx examples/hero-product-demo.ts`; inspect the chart,
+      typed search, click feedback, and final hold in
+      `examples/output/hero-product-demo.svg`.
+- [ ] **Regenerate the capability set:** run
+      `DOMOTION_NO_OPEN=1 npx tsx examples/showcase-rendering.ts`,
+      `examples/transition-tour.ts`, `examples/transition-mixed.ts`, and
+      `examples/storyboard-demo.ts`; inspect the four matching SVGs under
+      `examples/output/` and replace a weak showcase card only after its new asset
+      is approved.
+- [ ] **Regenerate the terminal and template set:** run
+      `DOMOTION_NO_OPEN=1 npx tsx examples/terminal-onboarding.ts`,
+      `examples/terminal-window-scroll.ts`, and `examples/templates-demo.ts`;
+      review the terminal pair and representative desktop/vertical template SVGs.
+- [ ] **Recheck the fidelity proof:** run
+      `node site/scripts/generate-fidelity-proof.mjs`; inspect
+      `site/demo-assets/fidelity/wikipedia-fidelity.png` at native size and 4×.
+      Replace its underlying source comparison only after new paired captures are
+      reviewed in the same Chromium environment.
+- [ ] **Refresh the Glassbox and Hot Sheet walkthroughs:** follow
+      `site/demo-assets/apps/README.md`, record each source commit, then replace
+      the approved SVGs under `site/demo-assets/apps/`.
+
 Use deterministic headless derivatives for close inspection:
 
 ```bash

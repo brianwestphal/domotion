@@ -26,6 +26,11 @@ a strict CSP. Pass
 `--no-embed-images` to leave `<img>` and background images as external URL
 references instead (a smaller file, but no longer self-contained).
 
+SVG `<img>` sources and supported same-origin `<use href="sprite.svg#icon">`
+references remain native vectors. Unsupported external sprite references or
+styles fall back to a self-contained Chromium raster of the containing SVG,
+with an `inline-svg` warning.
+
 ## Bring your design mock
 
 You don't need a running app to make a demo. If you have a static mock — a

@@ -76,7 +76,7 @@ const FRAMES = [
           <p class="label">BADGES</p>
           <div class="flex">
             <span class="badge badge-green">Self-contained</span>
-            <span class="badge badge-blue">v0.15.0</span>
+            <span class="badge badge-blue">Captured glyphs</span>
             <span class="badge badge-amber">SVG</span>
           </div>
         </div>
@@ -101,15 +101,15 @@ const FRAMES = [
       `
       <div class="title-row">
         <h1>domotion</h1>
-        <span class="version">v0.15.0</span>
+        <span class="version">Portable SVG</span>
       </div>
-      <p>One CLI, four verbs — each renders pixel-faithful, self-contained SVG.</p>
+      <p>Capture and animate real interfaces as self-contained SVG.</p>
       <div class="card">
         <div class="card-header">
           <span class="card-title">domotion capture</span>
           <span class="badge badge-blue">one frame</span>
         </div>
-        <p class="card-desc">Capture a URL / HTML file as a self-contained SVG (text as glyph paths)</p>
+        <p class="card-desc">Capture a URL / HTML file with embedded glyph data and positioning</p>
         <p class="card-meta">--scroll for a scrolling demo · --chrome for a device bezel</p>
       </div>
       <div class="card">
@@ -134,7 +134,7 @@ const FRAMES = [
       "Forms & Inputs",
       `
       <h1>Capture a page</h1>
-      <p>Render any URL or HTML file to a self-contained animated SVG.</p>
+      <p>Render any URL or HTML file to a self-contained SVG.</p>
       <div style="margin-top: 16px">
         <p class="label">INPUT</p>
         <div class="flex" style="margin-bottom: 16px">
