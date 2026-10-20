@@ -41,6 +41,23 @@ captures. Review the resulting Git diff; generated SVG changes must have an
 explainable source change and must not be accepted solely because regeneration
 succeeded.
 
+### Known lower-third backdrop raster variation
+
+On macOS 27.0.1 with Node 22.23.2 and Playwright 1.59.1, repeated renders of
+`examples/output/templates/brand-acme-lower-third.svg` produced two Chromium
+backdrop-snapshot PNG states. Across 12 renders in one browser and two in fresh
+browsers, the SVG outside the PNG was byte-identical. The decoded 294×89 RGB
+snapshot differed only at `(4, 87)` relative to its top-left corner: the
+committed `(19, 26, 40)` alternated with `(20, 26, 41)`. This is a one-pixel,
+one-level paint variation in Chromium-owned evidence, not a change to the
+template's SVG geometry or content.
+
+For this exact environment, retain the committed asset when regeneration
+changes only that pixel. Compare the decoded PNG pixels and require the rest of
+the SVG to match before applying this narrow tolerance. Any other changed
+pixel, dimension, SVG markup, or platform/browser version needs a new visual
+review; do not normalize the raster or silently accept a broader difference.
+
 ## 2. Approve the launch surfaces
 
 Capture or inspect these assets at their intrinsic size and at 2×. For every
