@@ -3858,7 +3858,7 @@ describe("synthesized small-caps (DM-294): embedded-font mode font-size ROUNDING
   // resolves as a REAL substitution there and this synthesis path never
   // fires. Monaco is a real single-file (non-TTC) system font that lacks
   // `smcp`/`c2sc`/etc. entirely, so `font-variant: small-caps` synthesizes,
-  // same as the CLAUDE.md-documented Helvetica/Arial/Georgia/Times case the
+  // same as the AGENTS.md-documented Helvetica/Arial/Georgia/Times case the
   // paths-mode tests above use.
   const MONACO_PATH = "/System/Library/Fonts/Monaco.ttf";
   const fontBuf = fs.existsSync(MONACO_PATH) ? fs.readFileSync(MONACO_PATH) : null;

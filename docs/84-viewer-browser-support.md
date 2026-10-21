@@ -14,7 +14,7 @@ aliases: ["docs/84-viewer-browser-support.md", "doc-84"]
 
 **Status: shipped contract.** This is the support matrix for the browsers that
 _view_ Domotion's output — distinct from the capture-platform support (which OS
-Chromium runs on to _produce_ the SVG; that's `docs/42` / the CLAUDE.md platform
+Chromium runs on to _produce_ the SVG; that's `docs/42` / the AGENTS.md platform
 section). Here we answer: "I embed a Domotion SVG on a page — which browsers
 render its animation faithfully?"
 

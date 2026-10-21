@@ -4,7 +4,7 @@ description: Check requirements docs against implementation and report discrepan
 allowed-tools: Read, Grep, Glob, Bash, Agent
 ---
 
-Comprehensively compare the requirements documents in `docs/` against the actual implementation. Generate a report with recommendations and questions about any discrepancies. Also synchronize the AI summary documents and verify CLAUDE.md references.
+Comprehensively compare the requirements documents in `docs/` against the actual implementation. Generate a report with recommendations and questions about any discrepancies. Also synchronize the AI summary documents and verify AGENTS.md references.
 
 ## Steps
 
@@ -20,7 +20,7 @@ Comprehensively compare the requirements documents in `docs/` against the actual
 4. **Check for stale documentation**: Requirements that describe behavior that no longer exists or has changed.
 
 5. **Verify the font-resolution flow diagram** (`docs/font-resolution-diagram.md`):
-   - This is a canonical, always-in-sync reference (see CLAUDE.md → "Always-in-sync docs"). It must match the code exactly, so check it every time this skill runs.
+   - This is a canonical, always-in-sync reference (see AGENTS.md → "Always-in-sync docs"). It must match the code exactly, so check it every time this skill runs.
    - Walk each Mermaid diagram + its prose against the authoritative sources: `src/render/font-resolution.ts` (`resolveFontKey` / `matchFamilyNameToKey` / `resolveFontKeyChain`, `getFontInstance`, `resolveFontSpec` + the `FONT_PATHS` / `LINUX_FONT_PATHS` / `WIN32_FONT_PATHS` tables, `resolveFontForCodepoint`, `fallbackFontChain` / `darwinFallbackChain` / `linuxFallbackChain` / `linuxNotoFallbackChain` / `win32FallbackChain`, `resolveSystemFallbackKeyForCp`, the webfont + local-alias registries, the caches), `src/render/glyph-helper.ts` (native CoreText / FreeType / DirectWrite backends), `src/render/text-to-path.ts` (`renderTextAsPath` / `textToPathMarkup` / `splitTextIntoFontRuns` callers), `src/render/embedded-font-builder.ts`, and `src/capture/index.ts` (`discoverAndRegisterWebfonts`).
    - Report as a discrepancy (type `stale`/`different`) any place the diagram's decision order, per-block routes, specific font keys/files, platform branching, registry/cache behavior, or maintenance pointers no longer match the code. The code wins — recommend updating the diagram. Confirm each `**Source of truth:**` pointer still names functions/files that exist.
 
@@ -29,8 +29,8 @@ Comprehensively compare the requirements documents in `docs/` against the actual
    - Read `docs/ai/requirements-summary.md` and verify the status markers (Shipped/Partially built/Design only) are correct. Update any that have changed.
    - Check that both summaries reference all current docs.
 
-7. **Verify CLAUDE.md references**:
-   - Check that all requirements docs in `docs/` are referenced or covered by the guidance in CLAUDE.md.
+7. **Verify AGENTS.md references**:
+   - Check that all requirements docs in `docs/` are referenced or covered by the guidance in AGENTS.md.
    - Check that the AI summary docs (`docs/ai/code-summary.md`, `docs/ai/requirements-summary.md`) are referenced with their maintenance rules.
 
 ## Report Format
@@ -51,9 +51,9 @@ State whether `docs/font-resolution-diagram.md` still matches the code. List any
 
 List any updates made to `docs/ai/code-summary.md` or `docs/ai/requirements-summary.md` to bring them in sync.
 
-### CLAUDE.md Coverage
+### AGENTS.md Coverage
 
-List any requirements docs not referenced or covered by CLAUDE.md guidance.
+List any requirements docs not referenced or covered by AGENTS.md guidance.
 
 ### Questions
 

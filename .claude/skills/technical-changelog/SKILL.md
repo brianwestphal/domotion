@@ -82,7 +82,7 @@ already true). Every claim is a verified delta between the base tag and HEAD.
      structural check is fine.
    - Re-read the draft against the script output and your `git show <base>:…` probes: is
      **every** claim a real delta? Cut or re-label anything that describes the baseline.
-   - Committing is optional and follows the repo's git rules (CLAUDE.md § Git: commit when
+   - Committing is optional and follows the repo's git rules (AGENTS.md § Git: commit when
      it's a clean unit; **never `git push` without explicit permission**; American-English
      spelling; no Anthropic co-author trailer; write the message via `git commit -F` tempfile,
      no hard line-wrapping).

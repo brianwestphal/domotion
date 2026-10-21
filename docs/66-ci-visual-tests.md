@@ -246,7 +246,7 @@ Why those cells are exposed: the fixture's stack is `"SF Pro Text", "Arial Unico
 
 The correct paint there is Helvetica: Blink exhausts the declared family list (`kFontGroupFonts`, which ends at the generic) before it ever consults the platform's per-character fallback (`kSystemFonts`) — see `third_party/blink/renderer/platform/fonts/font_fallback_iterator.h:72-80`, Chromium checkout `7d859f27`. Chrome's own `CSS.getPlatformFontsForNode` reports `Helvetica` for those cells, and the glyph outlines Domotion embeds match Helvetica's `U+2090`/`U+2091` bounding boxes exactly.
 
-**So: before bisecting a single-fixture baseline regression, re-run the same ref.** Attribution by per-commit sweeps is wasted effort if the delta is not reproducible in the first place, and a `--only <fixture>` arm that "passes" proves nothing on its own — the fixture may be order-dependent (see the `--only` caveat in `CLAUDE.md`). The cheap discriminator is to compare the two runs' `*-expected.png` against **each other**: if Chrome's own paint moved, the renderer is not the story.
+**So: before bisecting a single-fixture baseline regression, re-run the same ref.** Attribution by per-commit sweeps is wasted effort if the delta is not reproducible in the first place, and a `--only <fixture>` arm that "passes" proves nothing on its own — the fixture may be order-dependent (see the `--only` caveat in `AGENTS.md`). The cheap discriminator is to compare the two runs' `*-expected.png` against **each other**: if Chrome's own paint moved, the renderer is not the story.
 
 ### The environment moves underneath you — and `meta.image` could not see it
 

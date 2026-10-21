@@ -76,7 +76,7 @@ Status: **macOS shipped** (CoreText, DM-1018) · **Linux shipped, default-on** (
 > oracle, which is the instrument specifically built to catch wrong-font bugs. The
 > oracle was not at fault: it faithfully compared what the renderer does. The gap
 > is that neither it nor any fixture asserts that _a mechanism is in the loop at
-> all_. That is what CLAUDE.md's standing advice — disable the resolver and require
+> all_. That is what AGENTS.md's standing advice — disable the resolver and require
 > the answer to move — is for, and it was not run on Windows after the flip.
 >
 > Fixed in DM-1889 by declaring no base font on Windows, and separately by giving

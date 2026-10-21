@@ -3357,7 +3357,7 @@ output bytes. See doc
 
 The residual per-platform gap is unhinted-outline-vs-native-raster hinting, not
 missing routing. See doc [42](42-cross-platform-fallback-calibration.md) and the
-"Platform support" section of `CLAUDE.md`.
+"Platform support" section of `AGENTS.md`.
 
 All three columns are now backed by an exhaustive per-codepoint agreement
 measurement, not only by the visual fixture suites: the conformance oracle (doc

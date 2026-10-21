@@ -1,6 +1,6 @@
 # Code map for AI agents
 
-Read `CLAUDE.md` first. This page is deliberately compact; use the generated
+Read `AGENTS.md` first. This page is deliberately compact; use the generated
 [manifest](manifest.json) or an on-demand [domain packet](packets/) instead of
 loading the historical documentation corpus.
 

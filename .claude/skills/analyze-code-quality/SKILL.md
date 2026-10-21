@@ -36,9 +36,9 @@ Analyze the overall quality of the source code in this project. Generate a compr
    ```
    Report: total errors/warnings, categorized by rule.
 
-4. **Check for anti-patterns documented in CLAUDE.md**
-   Read `CLAUDE.md` and the `docs/` requirements files. Prefer **ast-grep** for
-   the structural ones (`CLAUDE.md` § Investigation lists the exact patterns) —
+4. **Check for anti-patterns documented in AGENTS.md**
+   Read `AGENTS.md` and the `docs/` requirements files. Prefer **ast-grep** for
+   the structural ones (`AGENTS.md` § Investigation lists the exact patterns) —
    a text grep drowns them in legitimate page-context uses. Look for violations
    of documented conventions:
    - Files that are excessively long (against `docs/ai/code-summary.md` + the

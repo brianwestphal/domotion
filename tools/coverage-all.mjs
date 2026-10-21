@@ -7,7 +7,7 @@
  * for its Vite-transformed modules, direct tsx runners accumulate raw profiles
  * under `NODE_V8_COVERAGE` for c8, and Playwright's V8 ranges are remapped to
  * the source-mapped browser client entry points. The four maps are merged into
- * the one true number per CLAUDE.md's "merge all coverage" convention.
+ * the one true number per AGENTS.md's "merge all coverage" convention.
  *
  *   node tools/coverage-all.mjs            # FAST: unit + browser E2E + features +
  *                                          #   showcase + snapshot-isolation +
@@ -20,7 +20,7 @@
  * the real-world HAR replays — which push the font/text/render modules much
  * higher (they exercise the fallback chains, shaping, and per-block routing the
  * fast suites barely touch) but take the better part of an hour locally (the
- * same reason CLAUDE.md shards those sweeps on CI). `--full` runs only the
+ * same reason AGENTS.md shards those sweeps on CI). `--full` runs only the
  * sweeps whose fixture checkouts are present, skipping (with a warning) any that
  * aren't cloned. Even `--full` won't reach 100%: platform-specific branches
  * (Linux/Windows font extractors, the `<text>`-fallback path) don't execute on a

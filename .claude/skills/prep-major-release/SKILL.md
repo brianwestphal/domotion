@@ -27,7 +27,7 @@ The README is the single most important advertisement. Keep it **compelling, tig
 - **Advertise the best features prominently** — but curate, don't enumerate. Pull the genuinely interesting/differentiating capabilities up where a skimming reader will see them (e.g. the template library that turns a few flags into an animated SVG; faithful capture of real Chromium paint; terminal-session capture; one-command SVG→MP4). A capability buried in `docs/` that nobody knows about is wasted — surface it. A laundry list nobody reads is also wasted — cut it.
 - **Keep the structure scannable**: hook → why → status/platform honesty → install → usage (the headline CLIs with copy-pasteable one-liners) → a "what else it does" highlights pass → links into the hosted docs/gallery for depth. Don't let any section bloat; the README is a launchpad, not the manual.
 - **Preserve the honesty** that's already there (the `## Status` early-stage note and the `## Platform support` macOS-calibrated caveat). Update them if reality changed, but don't quietly drop the caveats.
-- **Verify every claim and command** you keep or add against the current code — run the CLI `--help`, check the bin names, confirm the example paths exist. American-English spelling throughout (per `CLAUDE.md`).
+- **Verify every claim and command** you keep or add against the current code — run the CLI `--help`, check the bin names, confirm the example paths exist. American-English spelling throughout (per `AGENTS.md`).
 - Make **surgical edits** to the existing README where it's still good; only rewrite sections whose framing no longer fits. End with a quick read-through for flow.
 
 ## Step 3 — Review the demo modes + screenshots
@@ -65,13 +65,13 @@ Do this:
 1. **Sync the content** to reality from the Step 1 survey + the updated README. Verify every command, flag, template name, and CLI snippet against the current build (same rigor as the README). American-English throughout.
 2. **Check the demo wiring.** The SVGs the site embeds are copied from the repo by `npm --prefix site run build-demos` (sources: `examples/output/`, `examples/output/templates/`, `examples/animate/<name>/`, `site/demo-assets/apps/` → `site/public/demos/`). Make sure every `<img src="/domotion/demos/…svg">` in the content resolves to a real file after that copy, and that new demos you want shown are committed in those source locations. Fold any new demo wiring into the Step 3 capture checklist where the maintainer must supply the actual asset.
 3. **Build it** to catch breakage: `npm --prefix site install` (if needed) then `npm --prefix site run build` (runs `build-demos` + `build-icons` + `sync-docs` + `astro build`); at minimum run `npm --prefix site run build-demos` + `npm --prefix site run sync-docs`. There's a layout guard: `npm --prefix site test` (`check-hero-layout.mjs`).
-4. **Keep the public-site boundary:** never leak local-only `DM-XXX` ticket references or `.hotsheet/` mentions into site content (per `CLAUDE.md`; the `sync-docs` script header documents this). Pair any necessary reference with a self-contained summary or omit it.
+4. **Keep the public-site boundary:** never leak local-only `DM-XXX` ticket references or `.hotsheet/` mentions into site content (per `AGENTS.md`; the `sync-docs` script header documents this). Pair any necessary reference with a self-contained summary or omit it.
 
 If a site change is genuinely the maintainer's call (drop a page, restructure nav), surface it as an open question rather than deciding silently.
 
 ## Step 5 — Refresh the AI-agent usage doc (`llms.txt`)
 
-`llms.txt` at the repo root is the concise, self-contained guide an **AI agent uses Domotion as a tool** (distinct from `CLAUDE.md`/`docs/ai/*`, which are about editing this repo). It ships in the npm package (`package.json` `files`) and is the thing other agents are pointed at, so it must not drift.
+`llms.txt` at the repo root is the concise, self-contained guide an **AI agent uses Domotion as a tool** (distinct from `AGENTS.md`/`docs/ai/*`, which are about editing this repo). It ships in the npm package (`package.json` `files`) and is the thing other agents are pointed at, so it must not drift.
 
 Bring it back in sync with the survey from Step 1:
 

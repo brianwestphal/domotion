@@ -33,7 +33,7 @@ export interface FeatureEntry {
   id: string;
   /** One-line behavior description (what would break). */
   behavior: string;
-  /** Doc reference(s) — a numbered doc, FEATURES.md anchor, or CLAUDE.md section. */
+  /** Doc reference(s) — a numbered doc, FEATURES.md anchor, or AGENTS.md section. */
   doc?: string;
   /** Public value-exports (from the package barrel) this feature owns. */
   exports?: string[];

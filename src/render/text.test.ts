@@ -43,7 +43,7 @@ describe("BiDi paired-bracket mirroring across wrapped lines (DM-1055)", () => {
 });
 
 // Tests that exercise glyph emission via the macOS-only FONT_PATHS map
-// (Linux / Windows are roadmap per CLAUDE.md) skip on hosts without
+// (Linux / Windows are roadmap per AGENTS.md) skip on hosts without
 // /System/Library/Fonts/Helvetica.ttc — otherwise renderSingleLineText
 // returns an empty string and the per-character assertions assert against
 // nothing on Ubuntu CI runners.

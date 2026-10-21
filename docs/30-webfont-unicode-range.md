@@ -98,7 +98,7 @@ The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontIn
 
 ## Cross-platform note
 
-`unicode-range` parsing and the picker are both pure JavaScript — no platform-specific paths. The cross-platform calibration concern (CLAUDE.md §"Platform support") doesn't apply here. The downstream font rasterisation (fontkit `font.layout()` + `getVariation()`) is the same code path for system fonts.
+`unicode-range` parsing and the picker are both pure JavaScript — no platform-specific paths. The cross-platform calibration concern (AGENTS.md §"Platform support") doesn't apply here. The downstream font rasterisation (fontkit `font.layout()` + `getVariation()`) is the same code path for system fonts.
 
 ## What's NOT in scope
 

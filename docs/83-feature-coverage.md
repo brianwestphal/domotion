@@ -113,5 +113,5 @@ _is there a test that would fail if this behavior regressed?_ — the check make
 "no" impossible to ship silently.
 
 See also: `docs/ai/requirements-summary.md` (status view), `FEATURES.md`
-(per-feature fixture checklist), and the `CLAUDE.md` "Testing Philosophy" section
+(per-feature fixture checklist), and the `AGENTS.md` "Testing Philosophy" section
 (which names the line-coverage trap + the transition-matrix mandate).
