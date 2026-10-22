@@ -1,6 +1,6 @@
 {
   "name": "domotion-svg",
-  "version": "0.30.1",
+  "version": "0.31.0",
   "description": "DOM-to-animated-SVG renderer. Captures HTML/CSS via Playwright Chromium and converts it to self-contained SVG with CSS animations — pixel-faithful demos that scale crisply and load lazily.",
   "license": "MIT",
   "author": "Brian Westphal",
@@ -256,7 +256,7 @@
     "site:preview": "cd site && npm install && npm run preview"
   },
   "dependencies": {
-    "@domotion/text-engine": "0.30.1",
+    "@domotion/text-engine": "0.31.0",
     "@playwright/test": "^1.59.1",
     "@xterm/headless": "^6.0.0",
     "bidi-js": "^1.0.3",

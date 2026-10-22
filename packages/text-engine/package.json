@@ -1,6 +1,6 @@
 {
   "name": "@domotion/text-engine",
-  "version": "0.30.1",
+  "version": "0.31.0",
   "private": true,
   "description": "Domotion's browser-faithful font resolution, shaping, and SVG text emission engine.",
   "license": "MIT",
