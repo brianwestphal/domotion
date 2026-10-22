@@ -6,6 +6,8 @@ This file is the shared source of truth for AI coding agents working in this rep
 
 Project workflows are exposed as skills under `.agents/skills/`. Use a skill when the user names it or the request clearly matches its description. The adapters delegate to `.claude/skills/`, the canonical source for workflows shared across AI tools. When changing a shared workflow, edit the canonical file and keep adapter metadata in sync. Tool names in shared documents describe capabilities; use the equivalent file-search, shell, editing, or web tool available to the current agent. Keep durable repository guidance here and provider-specific configuration in its provider's directory.
 
+Before running Hot Sheet setup, bootstrap, or refresh, check that `hotsheet-cli setup --help` lists `--guidance-owner`. Older CLI builds can add duplicate managed instructions to `CLAUDE.md`. After a refresh, confirm that `CLAUDE.md` still contains only `@AGENTS.md` and that `GEMINI.md` still points here.
+
 ## Project
 
 Domotion is a DOM-to-animated-SVG renderer. It captures HTML/CSS rendered in Playwright Chromium and converts the captured tree into a self-contained SVG with optional CSS animations. The output is pixel-faithful to Chromium on the host platform, scales crisply at any size, and embeds without external assets — purpose-built for marketing and documentation demos that need to load lazily and look identical across browsers.
@@ -470,8 +472,8 @@ The id is optional context for me; the summary is what helps the reader.
 Both AI-summary files already exist and are intentionally thin pointers into this file and the numbered docs — keep them in sync per "AI-summary docs" above.
 
 <!-- BEGIN hotsheet:agents-md -->
-<!-- hotsheet-shared-section: antigravity, codex, opencode -->
-<!-- hotsheet-instructions-version: 63 -->
+<!-- hotsheet-shared-section: antigravity, claude, codex, opencode -->
+<!-- hotsheet-instructions-version: 64 -->
 
 ## Hot Sheet — ticket workflow
 
@@ -666,6 +668,14 @@ ticket; automatic claim-next skips final-testing tickets. Reclaim the exact tick
 when CI resolves and complete it after a green result. Repair failures caused by that
 ticket's own change before completion; create a prioritized follow-up bug for an
 independent failure. This does not defer local gates, integration, or pushing.
+
+**Use the full-suite CI run as the shared batch gate.** Record `CI gate commit: <full
+40-character SHA>` in each waiting ticket's note. The latest successful push run on
+the shipping branch covers that ticket only when the ticket commit is its ancestor;
+an older green run or an unrelated workflow does not count. When a batch is red,
+compare the commits since the last green run and the failing checks, then repair the
+responsible ticket or file an independent bug. Do not add a local last-green marker
+or repeat the full suite for every ticket; keep each ticket's affected local gates.
 
 **Pushing is up to this repository.** Follow whatever push/PR/review conventions this project
 already uses; this default guidance does not require or forbid pushing on its own.
