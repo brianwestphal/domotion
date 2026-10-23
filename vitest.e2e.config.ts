@@ -9,7 +9,7 @@ const laneConfig = e2eLaneConfig(lane);
 // files (Chromium-bound, slower, env-sensitive) — separate from the fast unit
 // gate in vitest.config.ts. `npm run test:e2e`.
 export default defineConfig({
-  // Vite 8 (vitest 4) transforms with oxc, not esbuild — see vitest.config.ts.
+  // Vite 8 (Vitest 5) transforms with oxc, not esbuild — see vitest.config.ts.
   oxc: {
     jsx: {
       runtime: "automatic",

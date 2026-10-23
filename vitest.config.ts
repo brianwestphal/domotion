@@ -7,7 +7,7 @@ import { coverageConfig } from "./vitest.coverage.js";
 // (vitest.e2e.config.ts). Keep the two in sync where they overlap (oxc/jsx,
 // pool, timeout).
 export default defineConfig({
-  // Vite 8 (vitest 4) transforms with oxc, not esbuild — an `esbuild: { jsx }`
+  // Vite 8 (Vitest 5) transforms with oxc, not esbuild — an `esbuild: { jsx }`
   // block here is silently ignored. oxc's own default importSource is "react",
   // so state kerf explicitly rather than leaning on tsconfig.json picking it up.
   oxc: {

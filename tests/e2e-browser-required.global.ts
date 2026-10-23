@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { chromium, type Browser } from "@playwright/test";
 
 type BrowserLauncher = () => Promise<Pick<Browser, "close">>;
@@ -18,6 +19,21 @@ export async function verifyRequiredE2EBrowser(
   await browser.close();
 }
 
+export function runRequiredE2EBrowserPreflight(run: typeof spawnSync = spawnSync): void {
+  // Keep Playwright's launch outside Vite's module runner in Vitest 5.
+  const result = run(
+    process.execPath,
+    [
+      "-e",
+      "const { chromium } = require('@playwright/test'); chromium.launch({ headless: true }).then(browser => browser.close()).catch(error => { console.error(error.message); process.exitCode = 1; });",
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.error != null || result.status !== 0) {
+    throw new Error("Required Chromium E2E preflight failed", { cause: result.error ?? result.stderr });
+  }
+}
+
 export default async function setupRequiredE2EBrowser(): Promise<void> {
-  await verifyRequiredE2EBrowser();
+  runRequiredE2EBrowserPreflight();
 }

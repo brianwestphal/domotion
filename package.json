@@ -262,7 +262,7 @@
     "bidi-js": "^1.0.3",
     "fontkit": "^2.0.4",
     "kerfjs": "^4.4.0",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "svg2ttf": "^6.1.0",
     "svgo": "^4.1.0",
     "wawoff2": "^2.0.1",
@@ -274,7 +274,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@typescript-eslint/parser": "^8.59.4",
-    "@vitest/coverage-v8": "^5.0.1",
+    "@vitest/coverage-v8": "^5.0.5",
     "c8": "^11.0.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
@@ -289,7 +289,7 @@
     "tsx": "^4.23.1",
     "typescript": "^5.8.3",
     "v8-to-istanbul": "^9.3.0",
-    "vitest": "^5.0.1",
+    "vitest": "^5.0.5",
     "yaml": "^2.9.0"
   },
   "optionalDependencies": {
