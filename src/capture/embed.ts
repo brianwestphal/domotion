@@ -41,6 +41,9 @@ function isRemoteUrl(u: string): boolean {
  */
 export const _dataUriCache = new Map<string, string>();
 
+/** URLs whose cached bytes came from caller-supplied request credentials or transport. */
+const customFetchCacheUrls = new Set<string>();
+
 /**
  * @internal — DM-539. Per-source-URL map of sizeKey → resized data URI. The
  * sizeKey is `${ceil(targetW * hiDPI)}x${ceil(targetH * hiDPI)}`. Populated by
@@ -59,6 +62,7 @@ export const _resizedDataUriCache = new Map<string, Map<string, string>>();
 export function clearEmbeddedImageCaches(): void {
   _dataUriCache.clear();
   _resizedDataUriCache.clear();
+  customFetchCacheUrls.clear();
 }
 
 function embedAsDataUri(url: string): string {
@@ -210,6 +214,10 @@ function mimeFromExtension(path: string): string | null {
 }
 
 export interface EmbedRemoteImagesOptions {
+  /** Headers for image requests, either shared or selected for each URL. */
+  headers?: HeadersInit | ((url: string) => HeadersInit);
+  /** Per-call fetch implementation for authenticated or otherwise custom requests. */
+  fetch?: typeof globalThis.fetch;
   /**
    * DM-527: append per-URL fetch failures here as `CaptureWarning` entries.
    * If omitted, warnings push to the module-global `lastCaptureWarnings`
@@ -280,6 +288,8 @@ export async function embedRemoteImages(
   const timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   const retries = options.retries ?? DEFAULT_FETCH_RETRIES;
   const retryBackoffMs = options.retryBackoffMs ?? DEFAULT_FETCH_RETRY_BACKOFF_MS;
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const customRequest = options.headers != null || options.fetch != null;
   // Map URL -> best-effort selector of the first element that referenced it.
   // The selector is a path of captured tag names ("body > div > img"); not
   // unique, but enough for a developer to locate the offending element.
@@ -320,7 +330,12 @@ export async function embedRemoteImages(
   // Fetch all unique URLs in parallel. Fetch failures don't reject the
   // overall pass — a single broken image shouldn't fail the whole capture.
   const tasks = Array.from(refs, async ([url, selector]) => {
-    if (_dataUriCache.has(url)) return;
+    if (!customRequest && _dataUriCache.has(url) && !customFetchCacheUrls.has(url)) return;
+    // URL-only cache entries cannot be shared across credential contexts. A
+    // failed re-fetch must not leave the previous caller's bytes renderable.
+    _dataUriCache.delete(url);
+    _resizedDataUriCache.delete(url);
+    customFetchCacheUrls.delete(url);
     // DM-529: retry transient failures (5xx, network error, timeout). Track
     // the most recent failure so the surfaced warning describes the FINAL
     // outcome rather than the first attempt.
@@ -328,7 +343,8 @@ export async function embedRemoteImages(
     for (let attempt = 0; attempt <= retries; attempt++) {
       if (attempt > 0) await delay(retryBackoffMs);
       try {
-        const res = await fetchWithTimeout(url, timeoutMs);
+        const headers = typeof options.headers === "function" ? options.headers(url) : options.headers;
+        const res = await fetchWithTimeout(url, timeoutMs, fetchImpl, headers);
         if (!res.ok) {
           // 4xx is deterministic — retrying won't help, so bail immediately.
           if (res.status < 500) {
@@ -348,6 +364,7 @@ export async function embedRemoteImages(
             ? ctype.split(";")[0].trim()
             : (mimeFromExtension(url.split("?")[0]) ?? "application/octet-stream");
         _dataUriCache.set(url, `data:${mime};base64,${buf.toString("base64")}`);
+        if (customRequest) customFetchCacheUrls.add(url);
         return;
       } catch (err) {
         lastFailure = { kind: "error", err };
@@ -374,11 +391,16 @@ function delay(ms: number): Promise<void> {
  * named `RemoteImageTimeoutError` so the warning detail tells consumers
  * "this URL didn't respond in time" rather than the generic AbortError.
  */
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+  fetchImpl: typeof globalThis.fetch,
+  headers?: HeadersInit,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetchImpl(url, { signal: controller.signal, ...(headers == null ? {} : { headers }) });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       const e = new Error(`timed out after ${timeoutMs}ms`);

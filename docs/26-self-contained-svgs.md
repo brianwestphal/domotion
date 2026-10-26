@@ -46,6 +46,24 @@ await embedRemoteImages(tree); // ← new pre-pass (DM-512)
 const svg = elementTreeToSvg(tree, w, h); // every URL is now inline
 ```
 
+For images behind an application session, supply request headers without changing
+the process-wide `fetch` function:
+
+```ts
+await embedRemoteImages(tree, {
+  headers: (url) => (url.startsWith("https://app.example/api/image/") ? { Cookie: sessionCookie } : {}),
+});
+```
+
+`headers` also accepts a static `HeadersInit`. A caller can instead provide
+`fetch: customFetch`; the embed pass still supplies an `AbortSignal` and applies
+its timeout and retry rules. Both options affect only image requests made by
+this pre-pass. Custom-request results are refreshed on subsequent embed calls,
+and a default request re-fetches a URL previously loaded with custom options,
+so sequential calls do not carry one session's bytes into another. Concurrent
+captures of the same URL with different credentials still share the cache
+(DM-QT13J0).
+
 Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Type) don't abort the capture: the URL stays as-is in the output so the rest of the SVG isn't held hostage by one broken image, AND the failure is surfaced as a `remote-image` warning via `getLastCaptureWarnings` (DM-528) so it's diagnosable. Each fetch also has a per-URL timeout (`timeoutMs`, default 10000 ms) so a stalled CDN host can't hang the capture, and transient failures (5xx / network / timeout) are retried (`retries`, default 1, with `retryBackoffMs`).
 
 ## CLI / API integration
