@@ -731,9 +731,11 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-512", "DM-528", "DM-529"],
+        "tickets": ["DM-512", "DM-528", "DM-529", "DM-6K9F9M", "DM-QT13J0"],
         "code": [
           "examples/showcase-rendering.ts",
+          "src/capture/embed.ts",
+          "src/capture/embed-cache-transitions.test.ts",
           "src/embed-remote-images.test.ts",
           "src/post-processing/hoist-image-payloads.test.ts",
           "tests/animate-embed-images.e2e.test.ts",

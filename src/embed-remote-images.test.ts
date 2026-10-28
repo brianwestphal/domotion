@@ -484,3 +484,48 @@ describe("embedRemoteImages — DM-512", () => {
     });
   });
 });
+
+describe("overlapping credentialed embeds render their own bytes (DM-QT13J0)", () => {
+  it("two captures of one URL under different credentials each render their own payload", async () => {
+    const url = "https://example.com/dm-qt13j0-private.png";
+    const payload = { one: [1, 1, 1], two: [2, 2, 2] } as const;
+    const uriOf = (bytes: readonly number[]): string =>
+      `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+    let releaseOne!: () => void;
+    const oneGate = new Promise<void>((resolve) => (releaseOne = resolve));
+    const fetchFor = (session: keyof typeof payload, gate?: Promise<void>) =>
+      (async () => {
+        await gate;
+        return new Response(new Uint8Array(payload[session]), { headers: { "content-type": "image/png" } });
+      }) as typeof globalThis.fetch;
+    const treeFor = (): CapturedElement[] => [
+      makeElement({ tag: "img", width: 50, height: 50, imageSrc: url }),
+      makeElement({
+        styles: {
+          ...makeElement().styles,
+          backgroundImage: `url("${url}")`,
+          backgroundIntrinsic: [{ w: 50, h: 50 }],
+        } as CapturedElement["styles"],
+      }),
+    ];
+    const one = treeFor();
+    const two = treeFor();
+    // Session one starts first but finishes last — the ordering that let it overwrite a URL-keyed cache.
+    const pendingOne = embedRemoteImages(one, { headers: { Cookie: "s=one" }, fetch: fetchFor("one", oneGate) });
+    await embedRemoteImages(two, { headers: { Cookie: "s=two" }, fetch: fetchFor("two") });
+    releaseOne();
+    await pendingOne;
+
+    const svgOne = elementTreeToSvgInner(one, 100, 100);
+    const svgTwo = elementTreeToSvgInner(two, 100, 100);
+    expect(svgOne).toContain(uriOf(payload.one));
+    expect(svgOne).not.toContain(uriOf(payload.two));
+    expect(svgTwo).toContain(uriOf(payload.two));
+    expect(svgTwo).not.toContain(uriOf(payload.one));
+    // A cloned tree carries no credential scope, so it never borrows either session's bytes.
+    const cloned = elementTreeToSvgInner(structuredClone(one), 100, 100);
+    expect(cloned).not.toContain(uriOf(payload.one));
+    expect(cloned).not.toContain(uriOf(payload.two));
+    expect(cloned).toContain(url);
+  });
+});

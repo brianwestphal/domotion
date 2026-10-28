@@ -112,6 +112,7 @@ import {
   embedResizedDataUri,
   resolveSvgSource,
   withActiveHiDPIFactor,
+  withEmbeddedImageScopes,
 } from "../capture/embed.js";
 import {
   inlineImgSvg,
@@ -2108,13 +2109,15 @@ export function elementTreeToSvgInner(
     const realText = includeRealTextLayer ? renderRealTextLayer(elements) : "";
     return realText === "" ? visual : `${visual}\n${realText}`;
   };
-  return withActiveHiDPIFactor(hiDPIFactor, () => {
-    const captured = capturedSessionGenericFamilies(input);
-    // This adapter historically joined the caller's generation: single-frame
-    // producers reset before entry, while multi-frame/speculative producers
-    // intentionally accumulate or roll back around it.
-    return withTextEngineDocument({ genericFamilies: captured, generation: "continue" }, render).value;
-  });
+  return withActiveHiDPIFactor(hiDPIFactor, () =>
+    withEmbeddedImageScopes(elements, () => {
+      const captured = capturedSessionGenericFamilies(input);
+      // This adapter historically joined the caller's generation: single-frame
+      // producers reset before entry, while multi-frame/speculative producers
+      // intentionally accumulate or roll back around it.
+      return withTextEngineDocument({ genericFamilies: captured, generation: "continue" }, render).value;
+    }),
+  );
 }
 
 export function capturedSessionGenericFamilies(input: CapturedTreeInput): SessionGenericFamilyOverrides | null {

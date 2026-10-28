@@ -37,12 +37,83 @@ function isRemoteUrl(u: string): boolean {
  * within and across captures. It is NOT evicted — a long-lived process that
  * captures many distinct URLs grows it unbounded. That's fine for the CLI's
  * one-shot use; a long-running embedder should call `clearEmbeddedImageCaches()`
- * between unrelated jobs.
+ * between unrelated jobs. Holds only credential-free bytes: a pass with custom
+ * `headers` / `fetch` writes to its tree's `EmbeddedImageScope` instead.
  */
 export const _dataUriCache = new Map<string, string>();
 
-/** URLs whose cached bytes came from caller-supplied request credentials or transport. */
-const customFetchCacheUrls = new Set<string>();
+/**
+ * Image bytes fetched with caller-supplied `headers` / `fetch` belong to the
+ * capture that requested them, not to the process: two overlapping calls for
+ * one URL under different credentials must not overwrite each other's bytes.
+ * Each such `embedRemoteImages` call owns one scope, attached to the tree's
+ * root elements by identity; the renderer and the resize pre-pass consult it
+ * before the URL-keyed global caches. A `null` source records a failed
+ * credentialed fetch, so the URL renders raw rather than falling back to bytes
+ * another context fetched. A cloned tree (`structuredClone`, JSON) does not
+ * carry its scope and therefore renders those URLs raw.
+ */
+interface EmbeddedImageScope {
+  sources: Map<string, string | null>;
+  resized: Map<string, Map<string, string>>;
+}
+
+const rootImageScopes = new WeakMap<CapturedElement, EmbeddedImageScope>();
+
+/** Scopes of the tree currently being rendered (see `withEmbeddedImageScopes`). */
+let activeImageScopes: readonly EmbeddedImageScope[] = [];
+
+/** Distinct scopes owned by `tree`'s roots, in root order. */
+function imageScopesForTree(tree: readonly CapturedElement[]): EmbeddedImageScope[] {
+  const scopes: EmbeddedImageScope[] = [];
+  for (const root of tree) {
+    const scope = rootImageScopes.get(root);
+    if (scope != null && !scopes.includes(scope)) scopes.push(scope);
+  }
+  return scopes;
+}
+
+/**
+ * The scoped source for `url`: `undefined` when no scope knows it, `null` for
+ * a recorded credentialed failure. Scopes that disagree fail closed — one
+ * render cannot pick between two credential contexts' bytes for the same URL.
+ */
+function scopedSource(scopes: readonly EmbeddedImageScope[], url: string): string | null | undefined {
+  let found: string | null | undefined;
+  for (const scope of scopes) {
+    if (!scope.sources.has(url)) continue;
+    const value = scope.sources.get(url) ?? null;
+    if (found !== undefined && found !== value) {
+      throw new Error(`Cannot render roots embedded with different request credentials for ${url} in one tree`);
+    }
+    found = value;
+  }
+  return found;
+}
+
+/** @internal — source lookup for the resize pre-pass, scoped to `tree`. */
+export function embeddedSourceDataUri(tree: readonly CapturedElement[], url: string): string | undefined {
+  const scoped = scopedSource(imageScopesForTree(tree), url);
+  if (scoped !== undefined) return scoped ?? undefined;
+  return _dataUriCache.get(url);
+}
+
+/** @internal — the resized-variant cache that owns `url` for the resize pre-pass over `tree`. */
+export function resizedVariantsFor(tree: readonly CapturedElement[], url: string): Map<string, Map<string, string>> {
+  const owner = imageScopesForTree(tree).find((scope) => scope.sources.has(url));
+  return owner?.resized ?? _resizedDataUriCache;
+}
+
+/** Run one synchronous render with `tree`'s credential scopes active. */
+export function withEmbeddedImageScopes<T>(tree: readonly CapturedElement[], render: () => T): T {
+  const previous = activeImageScopes;
+  activeImageScopes = imageScopesForTree(tree);
+  try {
+    return render();
+  } finally {
+    activeImageScopes = previous;
+  }
+}
 
 /**
  * @internal — DM-539. Per-source-URL map of sizeKey → resized data URI. The
@@ -62,11 +133,12 @@ export const _resizedDataUriCache = new Map<string, Map<string, string>>();
 export function clearEmbeddedImageCaches(): void {
   _dataUriCache.clear();
   _resizedDataUriCache.clear();
-  customFetchCacheUrls.clear();
 }
 
 function embedAsDataUri(url: string): string {
   if (url == null || url === "") return url;
+  const scoped = scopedSource(activeImageScopes, url);
+  if (scoped !== undefined) return scoped ?? url;
   // Cache check FIRST: a prior `embedRemoteImages` call (DM-512) may have
   // pre-fetched http(s) URLs and stashed the resolved data: URI here. Falling
   // through to the data:/http(s) pass-through would discard that work.
@@ -162,7 +234,8 @@ export function embedResizedDataUri(
   hiDPIFactor: number = _activeHiDPIFactor,
 ): string {
   if (url == null || url === "") return url;
-  const sizeCache = _resizedDataUriCache.get(url);
+  const owner = activeImageScopes.find((scope) => scope.sources.has(url));
+  const sizeCache = (owner?.resized ?? _resizedDataUriCache).get(url);
   if (sizeCache != null && sizeCache.size > 0) {
     const hiDPI = Math.max(1, hiDPIFactor);
     const w = Math.max(1, Math.ceil(consumerW * hiDPI));
@@ -326,16 +399,20 @@ export async function embedRemoteImages(
     }
   };
   walk(tree, "");
+  // Credentialed requests write only to this call's scope; default requests
+  // keep the URL-keyed global cache and its cross-capture dedupe. The latest
+  // pass over a tree owns it, so a default re-embed drops an earlier scope.
+  const scope: EmbeddedImageScope | null = customRequest ? { sources: new Map(), resized: new Map() } : null;
+  for (const root of tree) {
+    if (scope != null) rootImageScopes.set(root, scope);
+    else rootImageScopes.delete(root);
+  }
   if (refs.size === 0) return;
   // Fetch all unique URLs in parallel. Fetch failures don't reject the
   // overall pass — a single broken image shouldn't fail the whole capture.
   const tasks = Array.from(refs, async ([url, selector]) => {
-    if (!customRequest && _dataUriCache.has(url) && !customFetchCacheUrls.has(url)) return;
-    // URL-only cache entries cannot be shared across credential contexts. A
-    // failed re-fetch must not leave the previous caller's bytes renderable.
-    _dataUriCache.delete(url);
-    _resizedDataUriCache.delete(url);
-    customFetchCacheUrls.delete(url);
+    if (scope == null && _dataUriCache.has(url)) return;
+    scope?.sources.set(url, null);
     // DM-529: retry transient failures (5xx, network error, timeout). Track
     // the most recent failure so the surfaced warning describes the FINAL
     // outcome rather than the first attempt.
@@ -363,8 +440,9 @@ export async function embedRemoteImages(
           ctype != null && ctype.startsWith("image/")
             ? ctype.split(";")[0].trim()
             : (mimeFromExtension(url.split("?")[0]) ?? "application/octet-stream");
-        _dataUriCache.set(url, `data:${mime};base64,${buf.toString("base64")}`);
-        if (customRequest) customFetchCacheUrls.add(url);
+        const dataUri = `data:${mime};base64,${buf.toString("base64")}`;
+        if (scope != null) scope.sources.set(url, dataUri);
+        else _dataUriCache.set(url, dataUri);
         return;
       } catch (err) {
         lastFailure = { kind: "error", err };

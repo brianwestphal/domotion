@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { _dataUriCache, _resizedDataUriCache, embedResizedDataUri } from "../render/element-tree-to-svg.js";
-import { embedOriginalDataUri } from "../capture/embed.js";
+import { embedOriginalDataUri, embedRemoteImages, withEmbeddedImageScopes } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import { resizeEmbeddedImages } from "./resize-embedded-images.js";
 
@@ -453,5 +453,35 @@ describe("resizeEmbeddedImages failure isolation", () => {
     _dataUriCache.set(url, await makePngDataUri(800, 800));
     await resizeEmbeddedImages(tree(), { hiDPIFactor: 1 });
     expect(_resizedDataUriCache.get(url)?.has("100x100")).toBe(true);
+  });
+});
+
+describe("credentialed image scopes (DM-QT13J0)", () => {
+  it("resizes each credential context's own bytes and keeps variants out of the global cache", async () => {
+    const url = "https://example.test/private.png";
+    const pngBytes = async (r: number): Promise<Buffer> =>
+      sharp({ create: { width: 200, height: 100, channels: 4, background: { r, g: 0, b: 0, alpha: 1 } } })
+        .png()
+        .toBuffer();
+    const embedWith = async (bytes: Buffer): Promise<CapturedElement[]> => {
+      const tree = [makeImg(url, 50, 25)];
+      const fetch = (async () =>
+        new Response(new Uint8Array(bytes), { headers: { "content-type": "image/png" } })) as typeof globalThis.fetch;
+      await embedRemoteImages(tree, { fetch, headers: { Cookie: `r=${bytes.length}` }, retries: 0 });
+      return tree;
+    };
+    const red = await embedWith(await pngBytes(255));
+    const dark = await embedWith(await pngBytes(10));
+    await Promise.all([resizeEmbeddedImages(red, { hiDPIFactor: 2 }), resizeEmbeddedImages(dark, { hiDPIFactor: 2 })]);
+    expect(_dataUriCache.has(url)).toBe(false);
+    expect(_resizedDataUriCache.has(url)).toBe(false);
+    const pixel = async (tree: CapturedElement[]): Promise<number> => {
+      const resized = withEmbeddedImageScopes(tree, () => embedResizedDataUri(url, 50, 25, 2));
+      const { data, info } = await sharp(decodePngBytes(resized)).raw().toBuffer({ resolveWithObject: true });
+      expect([info.width, info.height]).toEqual([100, 50]);
+      return data[0];
+    };
+    expect(await pixel(red)).toBe(255);
+    expect(await pixel(dark)).toBe(10);
   });
 });

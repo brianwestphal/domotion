@@ -5,10 +5,12 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-512", "DM-528", "DM-529"]
+tickets: ["DM-512", "DM-528", "DM-529", "DM-6K9F9M", "DM-QT13J0"]
 code:
   [
     "examples/showcase-rendering.ts",
+    "src/capture/embed.ts",
+    "src/capture/embed-cache-transitions.test.ts",
     "src/embed-remote-images.test.ts",
     "src/post-processing/hoist-image-payloads.test.ts",
     "tests/animate-embed-images.e2e.test.ts",
@@ -58,11 +60,30 @@ await embedRemoteImages(tree, {
 `headers` also accepts a static `HeadersInit`. A caller can instead provide
 `fetch: customFetch`; the embed pass still supplies an `AbortSignal` and applies
 its timeout and retry rules. Both options affect only image requests made by
-this pre-pass. Custom-request results are refreshed on subsequent embed calls,
-and a default request re-fetches a URL previously loaded with custom options,
-so sequential calls do not carry one session's bytes into another. Concurrent
-captures of the same URL with different credentials still share the cache
-(DM-QT13J0).
+this pre-pass.
+
+Bytes fetched with `headers` or `fetch` belong to the call that fetched them, not
+to the process. Each such call fetches every URL fresh and keeps the results in
+its own scope, which is attached to that tree's root elements by object identity.
+The resize pre-pass and `elementTreeToSvg` / `elementTreeToSvgInner` read that
+scope before the process-global URL cache. The global cache never receives
+credentialed bytes. As a result:
+
+- Two captures can embed the same URL concurrently under different credentials.
+  Each renders its own payload, whichever fetch finishes last.
+- A credentialed fetch that fails leaves the URL raw in that tree's output. It
+  never falls back to bytes another session or a default request fetched.
+- A later default `embedRemoteImages` pass over the same tree releases its
+  credentialed scope, so the latest pass over a tree owns its images.
+- One render whose roots come from different credential scopes, and that hold
+  different results for the same URL, throws instead of picking one session's
+  bytes. Roots from one scope combine freely with roots that have no scope.
+- The scope is not serialized. A cloned tree (`structuredClone`, JSON round
+  trip) renders credentialed URLs raw. Run `embedRemoteImages` on the tree you
+  render, or re-run it on the copy.
+
+Default requests (no `headers` or `fetch`) keep the URL-keyed global cache and
+its cross-capture dedupe.
 
 Per-URL fetch failures (network error, non-2xx, missing or non-image Content-Type) don't abort the capture: the URL stays as-is in the output so the rest of the SVG isn't held hostage by one broken image, AND the failure is surfaced as a `remote-image` warning via `getLastCaptureWarnings` (DM-528) so it's diagnosable. Each fetch also has a per-URL timeout (`timeoutMs`, default 10000 ms) so a stalled CDN host can't hang the capture, and transient failures (5xx / network / timeout) are retried (`retries`, default 1, with `retryBackoffMs`).
 

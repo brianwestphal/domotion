@@ -12,14 +12,14 @@
  * Skips a tuple when the source is already at-or-below target resolution —
  * decoding and re-encoding a same-size image accumulates artifacts (JPEG)
  * and may grow the file (PNG-of-tiny-icon). Skips entirely when the URL
- * isn't in `_dataUriCache` (the resize pass only acts on what
- * `embedRemoteImages` already inlined).
+ * isn't in `_dataUriCache` or the tree's credentialed image scope (the
+ * resize pass only acts on what `embedRemoteImages` already inlined).
  */
 
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { walkCapturedElements } from "./walk-captured-elements.js";
-import { _dataUriCache, _resizedDataUriCache } from "../capture/embed.js";
+import { embeddedSourceDataUri, resizedVariantsFor } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import type { AnimatedImageStaticFrameRecord } from "../capture/animated-image-static-frame.js";
 
@@ -64,14 +64,14 @@ export async function resizeEmbeddedImages(
   const tuples = new Map<string, Tuple>();
   const consider = (url: string | undefined, w: number, h: number): void => {
     if (url == null || url === "") return;
-    if (!_dataUriCache.has(url)) return;
+    if (embeddedSourceDataUri(tree, url) == null) return;
     const tw = Math.max(1, Math.ceil(w * hiDPI));
     const th = Math.max(1, Math.ceil(h * hiDPI));
     const sizeKey = `${tw}x${th}`;
     const dedupeKey = `${url}\n${sizeKey}`;
     if (tuples.has(dedupeKey)) return;
     // Skip if a prior call already cached this size for this URL.
-    const sizeCache = _resizedDataUriCache.get(url);
+    const sizeCache = resizedVariantsFor(tree, url).get(url);
     if (sizeCache != null && sizeCache.has(sizeKey)) return;
     tuples.set(dedupeKey, { url, sizeKey, w: tw, h: th });
   };
@@ -111,7 +111,7 @@ export async function resizeEmbeddedImages(
   // back to the original data URI in the cache so the renderer just emits
   // the source bytes (at source resolution) instead of crashing the capture.
   const tasks = Array.from(tuples.values(), async ({ url, sizeKey, w, h }) => {
-    const sourceDataUri = _dataUriCache.get(url);
+    const sourceDataUri = embeddedSourceDataUri(tree, url);
     if (sourceDataUri == null) return;
     const sourceBytes = decodeDataUri(sourceDataUri);
     if (sourceBytes == null) return;
@@ -134,7 +134,7 @@ export async function resizeEmbeddedImages(
       if (sw > 0 && sh > 0 && sw <= w && sh <= h) {
         // Source is small enough — keep source bytes. Cache the original
         // data URI under this sizeKey so the renderer's lookup is uniform.
-        rememberResized(url, sizeKey, sourceDataUri);
+        rememberResized(tree, url, sizeKey, sourceDataUri);
         rememberFrozenResize(frozenSource, sourceBytes, sw, sh, w, h, false, frozenRecords);
         return;
       }
@@ -155,12 +155,12 @@ export async function resizeEmbeddedImages(
       // with it, the resize pass is a no-op for those tiles and other
       // captures still see their full reduction.
       if (out.length >= sourceBytes.length) {
-        rememberResized(url, sizeKey, sourceDataUri);
+        rememberResized(tree, url, sizeKey, sourceDataUri);
         rememberFrozenResize(frozenSource, sourceBytes, sw, sh, w, h, false, frozenRecords);
         return;
       }
       const dataUri = `data:image/png;base64,${out.toString("base64")}`;
-      rememberResized(url, sizeKey, dataUri);
+      rememberResized(tree, url, sizeKey, dataUri);
       const outputMeta = await sharp(out).metadata();
       rememberFrozenResize(frozenSource, out, outputMeta.width ?? 0, outputMeta.height ?? 0, w, h, true, frozenRecords);
     } catch {
@@ -208,11 +208,12 @@ function rememberFrozenResize(
   });
 }
 
-function rememberResized(url: string, sizeKey: string, dataUri: string): void {
-  let sizeCache = _resizedDataUriCache.get(url);
+function rememberResized(tree: CapturedElement[], url: string, sizeKey: string, dataUri: string): void {
+  const cache = resizedVariantsFor(tree, url);
+  let sizeCache = cache.get(url);
   if (sizeCache == null) {
     sizeCache = new Map<string, string>();
-    _resizedDataUriCache.set(url, sizeCache);
+    cache.set(url, sizeCache);
   }
   sizeCache.set(sizeKey, dataUri);
 }
