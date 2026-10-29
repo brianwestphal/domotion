@@ -18,6 +18,7 @@ import { withBrowser } from "./lib/browser.js";
 import { readDecorationReport, readFontConformanceReport } from "./conformance-report-schemas.js";
 import { readExactShapingReport } from "./exact-shaping-report-schema.js";
 import { isMain, parseCommand, requiredFlag, runMain, stringFlag, type FlagValues } from "./lib/cli.js";
+import { stableJson } from "./lib/stable-json.js";
 import { outcomeSchema, readReportData } from "./lib/report.js";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
 import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
@@ -172,15 +173,7 @@ function sha256(bytes: Buffer | string): string {
 }
 
 /** Stable JSON used for fingerprints: object key order is never evidence. */
-export function stableJson(value: unknown): string {
-  if (value == null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  const object = value as Record<string, unknown>;
-  return `{${Object.keys(object)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableJson(object[key])}`)
-    .join(",")}}`;
-}
+export { stableJson };
 
 export function stableFingerprint(value: unknown): string {
   return sha256(stableJson(value));

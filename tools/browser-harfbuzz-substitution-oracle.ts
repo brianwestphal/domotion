@@ -30,6 +30,7 @@ import {
 } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { stableJson } from "./lib/stable-json.js";
 import { outcomeSchema, readReportData, writeReport } from "./lib/report.js";
 import { BufferFlag, ClusterLevel, versionString } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
@@ -1143,7 +1144,9 @@ export function validateSubstitutionArtifacts(
     }
     for (const fixture of report.fixtures) {
       const expected = expectedFixtures.get(fixture.id);
-      if (expected == null || JSON.stringify(fixture) !== JSON.stringify(expected)) {
+      // The report reader's schema emits keys in schema order, the local record
+      // in construction order; compare values, not insertion order.
+      if (expected == null || stableJson(fixture) !== stableJson(expected)) {
         failures.push(`${key}: fixture ${fixture.id} identity/table drift`);
       }
     }
@@ -1164,7 +1167,7 @@ export function validateSubstitutionArtifacts(
           !mutation.rejected ||
           mutation.changedFields.length === 0 ||
           expected == null ||
-          JSON.stringify(mutation) !== JSON.stringify(expected)
+          stableJson(mutation) !== stableJson(expected)
         );
       })
     ) {

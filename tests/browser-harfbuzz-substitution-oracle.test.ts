@@ -174,6 +174,40 @@ describe("browser HarfBuzz substitution-stream oracle", () => {
     expect(rejected.failures).toContain("exact logical streams differ across proposal/validation or OS");
   });
 
+  // DM-F4F3D7: CI ratifies artifacts read back from disk, whose schema parse
+  // emits keys in schema order. An order-sensitive comparison reported every
+  // identical fixture and mutation as drift.
+  it("ratifies artifacts round-tripped through report files", async () => {
+    const base = completeBrowserRows(await buildBrowserHarfBuzzSubstitutionReport({ includeBrowser: false }));
+    const dir = mkdtempSync(join(tmpdir(), "domotion-harfbuzz-ratify-"));
+    try {
+      const reports = ["Linux", "macOS", "Windows"].flatMap((os) =>
+        (["proposal", "validation"] as const).map((evidence) => {
+          const path = join(dir, `${os}-${evidence}.json`);
+          writeBrowserSubstitutionReport(path, {
+            ...structuredClone(base),
+            evidence,
+            runner: { ...base.runner, os, nodePlatform: nodePlatformForOs(os) },
+          });
+          return readBrowserSubstitutionReport(path);
+        }),
+      );
+      expect(Object.keys(reports[0].fixtures[0])).not.toEqual(
+        Object.keys(Object.values(buildLogicalSubstitutionEvidence().fixtures)[0].evidence),
+      );
+      const aggregate = validateSubstitutionArtifacts(reports);
+      expect(aggregate.failures).toEqual([]);
+      expect(aggregate.verdict).toBe("proposal-validation-agreement");
+
+      reports[0].fixtures[0] = { ...reports[0].fixtures[0], byteLength: reports[0].fixtures[0].byteLength + 1 };
+      expect(validateSubstitutionArtifacts(reports).failures).toContain(
+        `Linux/proposal: fixture ${reports[0].fixtures[0].id} identity/table drift`,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("reopens logical records instead of trusting report booleans", async () => {
     const base = completeBrowserRows(await buildBrowserHarfBuzzSubstitutionReport({ includeBrowser: false }));
     const reports = ["Linux", "macOS", "Windows"].flatMap((os) =>
