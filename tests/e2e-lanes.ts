@@ -15,20 +15,28 @@ export const E2E_HEAVY_FILES = [
 ] as const;
 
 /**
- * Retry a browser test once, and only when it failed because the Page's
- * generic font-family Settings changed between two of its captures. Hosted
- * macOS runners reset every Chromium's WebPreferences at once on a host
- * appearance/accessibility event (`OnNativeThemeUpdated` ->
- * `NotifyPreferencesChanged`), which replaces Playwright's
- * `Page.setFontFamilies` overlay with Chromium's defaults mid-test (doc 198).
- * Production deliberately fails closed rather than splice trees from both
- * sides of that reset, so the error is faithful; the event is one-shot, so a
- * second attempt captures every tree on one side of it. Any other failure,
- * and a second reset-shaped failure, still fails the lane.
+ * Retry a browser test once, and only for a named hosted-runner transient:
+ *
+ * - The Page's generic font-family Settings changed between two of its
+ *   captures. Hosted macOS runners reset every Chromium's WebPreferences at
+ *   once on a host appearance/accessibility event (`OnNativeThemeUpdated` ->
+ *   `NotifyPreferencesChanged`), which replaces Playwright's
+ *   `Page.setFontFamilies` overlay with Chromium's defaults mid-test (doc 198).
+ *   Production deliberately fails closed rather than splice trees from both
+ *   sides of that reset, so the error is faithful; the event is one-shot, so a
+ *   second attempt captures every tree on one side of it.
+ * - DevTools `Page.captureScreenshot` returned "Unable to capture screenshot".
+ *   Chromium sends that when the browser-side surface copy comes back empty
+ *   (`PageHandler::ScreenshotCaptured`, content/browser/devtools/protocol/
+ *   page_handler.cc at 7d859f27), a compositor condition no page content can
+ *   cause or prevent.
+ *
+ * Any other failure, and a second transient-shaped failure, still fails the lane.
  */
-export const E2E_HOST_GENERIC_RESET_RETRY = {
+export const E2E_HOST_TRANSIENT_RETRY = {
   count: 1,
-  condition: /different generic-family preference sessions|generic font families changed between capture round/,
+  condition:
+    /different generic-family preference sessions|generic font families changed between capture round|Page\.captureScreenshot\): Unable to capture screenshot/,
 } as const;
 
 export const E2E_BASE_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/tests/output/**"] as const;
