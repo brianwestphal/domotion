@@ -302,7 +302,9 @@ describe("probePageGenericFamilies incomplete and unstable reads", () => {
 
     const result = await probePageGenericFamilies(page);
 
-    expect(result?.common.get("serif")).toBe("Times-Roman");
+    // CoreText replays the PostScript name; fontconfig and DirectWrite replay
+    // the family display name (`genericFamilyReplayName`).
+    expect(result?.common.get("serif")).toBe(genericFamilyReplayName(process.platform, times));
   });
 
   it("returns null without reporting a failure when reads never agree", async () => {
