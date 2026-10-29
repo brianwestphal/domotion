@@ -19,6 +19,8 @@ export const SFNS_PINNED_SKIA_REVISION =
   "62efacd37737505732dbe3d8daa62abd679626a1";
 export const SFNS_PINNED_OTS_REVISION =
   "46bea9879127d0ff1c6601b078e2ce98e83fcd33";
+export const SFNS_PINNED_HARFBUZZ_REVISION =
+  "511df88b82e697cd2a0f1f0635787aa0b18bddbb";
 export const SFNS_FONT_PATH = "/System/Library/Fonts/SFNS.ttf";
 export const SFNS_FONT_BYTE_LENGTH = 7_872_432;
 export const SFNS_FONT_SHA256 =
@@ -218,6 +220,8 @@ export interface SfnsPinnedBuildMetadata {
   chromiumRevision: string;
   skiaRevision: string;
   depotToolsRevision: string;
+  /** Chromium DEPS `harfbuzz_revision`; the proposal shapes with it as Blink does. */
+  harfbuzzRevision: string;
   platform: string;
   architecture: string;
   gnArgs: string;
@@ -510,9 +514,12 @@ function validateObservation(
       || observation.typeface.fontBytes.collectionIndex !== 0) errors.push(`${label}:typeface-font-bytes`);
   if (observation.typeface.uniqueId <= 0
       || observation.typeface.family !== ".SF NS"
+      // Blink's makeFromData + makeClone route yields CoreText's synthesized
+      // variation-instance name at both optical sizes. The former
+      // MakeFromStream route matched the named `.SFNS-Bold` instance at opsz 17.
       || observation.typeface.postscriptName !== (request.axes.opsz === 26
         ? ".SFNS-Regular_wdth_opsz1A0000_GRAD_wght2BC0000"
-        : ".SFNS-Bold")
+        : ".SFNS-Regular_wdth_opsz110000_GRAD_wght2BC0000")
       || !exact(observation.typeface.style, { weight: 700, width: 5, slant: 0 })) {
     errors.push(`${label}:typeface-identity`);
   }
@@ -587,14 +594,25 @@ function validateObservation(
       errors,
     );
   }
-  if (observation.gamma.inputContrast !== request.surface.textContrast
-      || observation.gamma.inputDeviceGamma !== request.surface.textGamma
-      || !observation.gamma.tableApplicable
+  // onFilterRec may replace the surface gamma: unhinted A8 masks without
+  // SK_GAMMA_APPLY_TO_A8 take ignorePreBlend() (device gamma 1, contrast 0),
+  // which CachedMaskGamma maps to the linear table with no bytes. Derive the
+  // expectation from the filtered record, as the validation schema does.
+  const gammaDump = /device gamma (\d+), contrast (\d+)/.exec(observation.filteredRec.dump);
+  const expectedInputGamma = gammaDump == null ? Number.NaN : Number(gammaDump[1]) / 64;
+  const expectedInputContrast = gammaDump == null ? Number.NaN : Number(gammaDump[2]) / 255;
+  const linearGamma = expectedInputGamma === 1 && expectedInputContrast === 0;
+  const surfaceGamma = expectedInputGamma === request.surface.textGamma
+    && expectedInputContrast === request.surface.textContrast;
+  if (observation.gamma.inputContrast !== expectedInputContrast
+      || observation.gamma.inputDeviceGamma !== expectedInputGamma
+      || (!linearGamma && !surfaceGamma)
+      || observation.gamma.tableApplicable === linearGamma
       || observation.gamma.tableWidth !== 256
       || observation.gamma.tableHeight !== 8
-      || observation.gamma.tableByteLength !== 2_048
-      || !observation.gamma.preblendApplicable
-      || observation.gamma.preblendByteLength !== 256) {
+      || observation.gamma.tableByteLength !== (linearGamma ? 0 : 2_048)
+      || observation.gamma.preblendApplicable === linearGamma
+      || observation.gamma.preblendByteLength !== (linearGamma ? 0 : 256)) {
     errors.push(`${label}:gamma-input-contract`);
   }
   const rawMetrics = observation.coreTextMetrics.raw;
@@ -735,6 +753,7 @@ function validateSfnsPinnedSkiaProposalImpl(
       || artifact.build.skiaRevision !== SFNS_PINNED_SKIA_REVISION
       || artifact.build.depotToolsRevision !==
         "612d70c7ccb01d4a405e822ad0505206de636d7e"
+      || artifact.build.harfbuzzRevision !== SFNS_PINNED_HARFBUZZ_REVISION
       || artifact.build.platform !== "darwin") errors.push("build-identity");
   if (!["arm64", "x64"].includes(artifact.build.architecture)
       || !["is_debug=false", "is_official_build=true", "skia_use_freetype=false"]

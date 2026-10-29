@@ -3939,7 +3939,8 @@
           "DM-2587",
           "DM-2588",
           "DM-2604",
-          "DM-3TZA79"
+          "DM-3TZA79",
+          "DM-8JNC05"
         ],
         "code": [
           "tools/build-sfns-pinned-ots-sanitizer.mjs",

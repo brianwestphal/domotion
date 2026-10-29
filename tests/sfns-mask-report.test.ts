@@ -25,28 +25,28 @@ import type { SfnsOracleArtifact } from "../tools/sfns-mask-baseline-schema.js";
 const proposalBytes = readFileSync(".pr-notes/artifacts/dm2577-sfns-pinned-skia-proposal.json");
 const validationBytes = readFileSync(".pr-notes/artifacts/dm2575-sfns-pinned-chromium-validation.json");
 const terminalBytes = readFileSync(".pr-notes/artifacts/dm2576-sfns-terminal-mask-adjudication.json");
-const retainedWrappedProposal = readFileSync(".pr-notes/artifacts/dm-3tza79-sfns-pinned-skia-proposal.json");
-const retainedWrappedValidation = readFileSync(".pr-notes/artifacts/dm-3tza79-sfns-pinned-chromium-validation.json");
-const retainedWrappedTerminal = readFileSync(".pr-notes/artifacts/dm-3tza79-sfns-terminal-mask-adjudication.json");
+const retainedWrappedProposal = readFileSync(".pr-notes/artifacts/dm-8jnc05-sfns-pinned-skia-proposal.json");
+const retainedWrappedValidation = readFileSync(".pr-notes/artifacts/dm-8jnc05-sfns-pinned-chromium-validation.json");
+const retainedWrappedTerminal = readFileSync(".pr-notes/artifacts/dm-8jnc05-sfns-terminal-mask-adjudication.json");
 
 describe("SFNS report envelopes", () => {
   it("pins the reratified raw bytes and sealed terminal decision", () => {
     const sha = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
-    expect(sha(retainedWrappedProposal)).toBe("a2119aadc32adad0b0f8226f8a2a4b1f76c9e635ce88306ce56c4c3244f995ce");
-    expect(sha(retainedWrappedValidation)).toBe("7ae2aff3a24c1a888e05ed5c636930323e371bbef6e77de0cee9cb62cfdac62c");
-    expect(sha(retainedWrappedTerminal)).toBe("0ffdd61ec5670688deadaf606678d28d2804b19d47c486771d394e220cb1f5f9");
+    expect(sha(retainedWrappedProposal)).toBe("91ec0d0fd56f82a8f023eeb22d83e54f940e2380e5d0cf95c8f69851a79cd6d9");
+    expect(sha(retainedWrappedValidation)).toBe("7e2a9ef055bd41efa77d7aed734876ff779737fe95402c399b4bbf5c5c867e11");
+    expect(sha(retainedWrappedTerminal)).toBe("1c758b863a80a9d06f04167a9389bbe890c799ba063ab54adee270c4929493a3");
     expect(validateSfnsPinnedSkiaProposal(parseSfnsSkiaProposal(retainedWrappedProposal))).toEqual([]);
     expect(validateSfnsPinnedChromiumValidation(parseSfnsChromiumValidation(retainedWrappedValidation))).toEqual([]);
     const terminal = parseSfnsTerminalReport(retainedWrappedTerminal);
-    expect(terminal.reportDigest).toBe("a1ffc26e1f426171c72d1905644ebfcfd246a5462cedd19c36f68b106a81a2aa");
+    expect(terminal.reportDigest).toBe("c29bc7854b3745039f0508cbdfce0e40fcde7873694c63f5e1d8516656310f14");
     expect(sfnsTerminalReportDigest(terminal)).toBe(terminal.reportDigest);
     expect(
-      readSfnsTerminalMaskReport(".pr-notes/artifacts/dm-3tza79-sfns-terminal-mask-adjudication.json").reportDigest,
+      readSfnsTerminalMaskReport(".pr-notes/artifacts/dm-8jnc05-sfns-terminal-mask-adjudication.json").reportDigest,
     ).toBe(terminal.reportDigest);
     expect(terminal.inputs.proposal.sha256).toBe(sha(retainedWrappedProposal));
     expect(terminal.inputs.validation.sha256).toBe(sha(retainedWrappedValidation));
-    expect(terminal.mismatches).toHaveLength(498);
-    expect(terminal.ready).toBe(false);
+    expect(terminal.mismatches).toEqual([]);
+    expect(terminal.ready).toBe(true);
   });
 
   it("accepts explicit flat v2/v3 reports and preserves their domain digests", () => {
@@ -55,8 +55,8 @@ describe("SFNS report envelopes", () => {
     const terminal = parseSfnsTerminalReport(terminalBytes);
     expect(validateSfnsPinnedSkiaProposal(proposal)).toEqual([]);
     expect(validateSfnsPinnedChromiumValidation(validation)).toEqual([]);
-    expect(proposal.artifactDigest).toBe("8ccf39606ac2236bc73797bd21f74f39caf5f5bac36e97b920ef037a38524673");
-    expect(validation.artifactDigest).toBe("ac65e6c0b74621ba8dfaa6fdd279604160019365e233ba41579e8b236869dcc5");
+    expect(proposal.artifactDigest).toBe("65eac6be52fa873f0cf6d1a95e6cccd878fbf45b0461fbabc8454ac69b0cf2b6");
+    expect(validation.artifactDigest).toBe("16894e576eced9d2f46d6a7a9709d67d74417cec0500687f0e9e1a1c25974e6b");
     expect(terminal.ready).toBe(false);
     expect(terminal.mismatches).toHaveLength(498);
   });
@@ -85,9 +85,9 @@ describe("SFNS report envelopes", () => {
         ]),
       ).toBe(0);
       const report = parseSfnsTerminalReport(readFileSync(reportPath));
-      expect(report.ready).toBe(false);
+      expect(report.ready).toBe(true);
       expect(report.inputIntegrityErrors).toEqual([]);
-      expect(report.mismatches).toHaveLength(498);
+      expect(report.mismatches).toEqual([]);
       expect(report.inputs.proposal.sha256).toBe(createHash("sha256").update(readFileSync(proposalPath)).digest("hex"));
       expect(report.inputs.validation.sha256).toBe(
         createHash("sha256").update(readFileSync(validationPath)).digest("hex"),

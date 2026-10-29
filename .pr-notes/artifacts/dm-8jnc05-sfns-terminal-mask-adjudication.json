@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "tool": "sfns-terminal-mask-adjudicator",
+  "generatedAt": "2026-10-29T13:43:28.877Z",
+  "env": {},
+  "data": {
+    "schemaVersion": 3,
+    "authority": "exact-cross-arm-adjudication",
+    "adjudicatorAbi": "domotion-sfns-terminal-mask-adjudicator-v3",
+    "contract": {
+      "equality": "exact-logical-fields-and-bytes-no-tolerance",
+      "recNormalization": "zero-only-process-local-four-byte-typeface-id",
+      "productionRenderingChanges": false,
+      "browserLaunches": 0
+    },
+    "inputs": {
+      "proposal": {
+        "path": ".pr-notes/artifacts/dm-8jnc05-sfns-pinned-skia-proposal.json",
+        "sha256": "91ec0d0fd56f82a8f023eeb22d83e54f940e2380e5d0cf95c8f69851a79cd6d9",
+        "authority": "proposal-private-pinned-skia",
+        "artifactDigest": "65eac6be52fa873f0cf6d1a95e6cccd878fbf45b0461fbabc8454ac69b0cf2b6",
+        "recomputedArtifactDigest": "65eac6be52fa873f0cf6d1a95e6cccd878fbf45b0461fbabc8454ac69b0cf2b6",
+        "buildIdentity": "870611c0dbc85597403a511147492164d568c7d804f524f5fec3c8284a8b9840",
+        "binarySha256": "fd7d68e9c06a836c378fe930d5bde44c5df0420c618bebe935647bf73083d63a"
+      },
+      "validation": {
+        "path": ".pr-notes/artifacts/dm-8jnc05-sfns-pinned-chromium-validation.json",
+        "sha256": "7e2a9ef055bd41efa77d7aed734876ff779737fe95402c399b4bbf5c5c867e11",
+        "authority": "validation-test-only-pinned-chromium",
+        "artifactDigest": "16894e576eced9d2f46d6a7a9709d67d74417cec0500687f0e9e1a1c25974e6b",
+        "recomputedArtifactDigest": "16894e576eced9d2f46d6a7a9709d67d74417cec0500687f0e9e1a1c25974e6b",
+        "buildIdentity": "280c1a1785b4e82d08363debd03944580eaf6e9ebc79c6c987ac57898f40ab53",
+        "binarySha256": "87d9dee94985777cebfce1d976ad159b6d4ba7f96718b7edebcfda5bec46a80c"
+      }
+    },
+    "independence": {
+      "distinctAuthorities": true,
+      "distinctBuildIdentities": true,
+      "distinctBinaryDigests": true,
+      "distinctObservationIds": true
+    },
+    "cancellationDecision": {
+      "required": "13px-scaler-not-26px-later-resample",
+      "requiredScale": [
+        13,
+        13
+      ],
+      "proposalScales": [
+        [
+          13,
+          13
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          13,
+          13
+        ]
+      ],
+      "validationScales": [
+        [
+          13,
+          13
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          13,
+          13
+        ]
+      ],
+      "exact": true
+    },
+    "observationPairs": [
+      {
+        "caseId": "zoom-2",
+        "proposalObservationId": "proposal-zoom-2-cold-1",
+        "validationObservationId": "validation-zoom-2-cold-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "zoom-2",
+        "proposalObservationId": "proposal-zoom-2-cold-2",
+        "validationObservationId": "validation-zoom-2-cold-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "zoom-2",
+        "proposalObservationId": "proposal-zoom-2-warm-1",
+        "validationObservationId": "validation-zoom-2-warm-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "zoom-2",
+        "proposalObservationId": "proposal-zoom-2-warm-2",
+        "validationObservationId": "validation-zoom-2-warm-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "transform-scale-2",
+        "proposalObservationId": "proposal-transform-scale-2-cold-1",
+        "validationObservationId": "validation-transform-scale-2-cold-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "transform-scale-2",
+        "proposalObservationId": "proposal-transform-scale-2-cold-2",
+        "validationObservationId": "validation-transform-scale-2-cold-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "transform-scale-2",
+        "proposalObservationId": "proposal-transform-scale-2-warm-1",
+        "validationObservationId": "validation-transform-scale-2-warm-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "transform-scale-2",
+        "proposalObservationId": "proposal-transform-scale-2-warm-2",
+        "validationObservationId": "validation-transform-scale-2-warm-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "zoom-2-transform-half",
+        "proposalObservationId": "proposal-zoom-2-transform-half-cold-1",
+        "validationObservationId": "validation-zoom-2-transform-half-cold-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "zoom-2-transform-half",
+        "proposalObservationId": "proposal-zoom-2-transform-half-cold-2",
+        "validationObservationId": "validation-zoom-2-transform-half-cold-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "zoom-2-transform-half",
+        "proposalObservationId": "proposal-zoom-2-transform-half-warm-1",
+        "validationObservationId": "validation-zoom-2-transform-half-warm-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "zoom-2-transform-half",
+        "proposalObservationId": "proposal-zoom-2-transform-half-warm-2",
+        "validationObservationId": "validation-zoom-2-transform-half-warm-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "optical-sizing-none",
+        "proposalObservationId": "proposal-optical-sizing-none-cold-1",
+        "validationObservationId": "validation-optical-sizing-none-cold-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "optical-sizing-none",
+        "proposalObservationId": "proposal-optical-sizing-none-cold-2",
+        "validationObservationId": "validation-optical-sizing-none-cold-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "optical-sizing-none",
+        "proposalObservationId": "proposal-optical-sizing-none-warm-1",
+        "validationObservationId": "validation-optical-sizing-none-warm-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "optical-sizing-none",
+        "proposalObservationId": "proposal-optical-sizing-none-warm-2",
+        "validationObservationId": "validation-optical-sizing-none-warm-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "opsz-26-mutation",
+        "proposalObservationId": "proposal-opsz-26-mutation-cold-1",
+        "validationObservationId": "validation-opsz-26-mutation-cold-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "opsz-26-mutation",
+        "proposalObservationId": "proposal-opsz-26-mutation-cold-2",
+        "validationObservationId": "validation-opsz-26-mutation-cold-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "opsz-26-mutation",
+        "proposalObservationId": "proposal-opsz-26-mutation-warm-1",
+        "validationObservationId": "validation-opsz-26-mutation-warm-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "opsz-26-mutation",
+        "proposalObservationId": "proposal-opsz-26-mutation-warm-2",
+        "validationObservationId": "validation-opsz-26-mutation-warm-2",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "control-subpixel-phase",
+        "proposalObservationId": "proposal-control-subpixel-phase-cold-1",
+        "validationObservationId": "validation-control-subpixel-phase-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "control-anti-aliasing",
+        "proposalObservationId": "proposal-control-anti-aliasing-cold-1",
+        "validationObservationId": "validation-control-anti-aliasing-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "control-hinting",
+        "proposalObservationId": "proposal-control-hinting-cold-1",
+        "validationObservationId": "validation-control-hinting-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "control-device-matrix",
+        "proposalObservationId": "proposal-control-device-matrix-cold-1",
+        "validationObservationId": "validation-control-device-matrix-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "control-optical-size",
+        "proposalObservationId": "proposal-control-optical-size-cold-1",
+        "validationObservationId": "validation-control-optical-size-1",
+        "mismatchGroups": []
+      },
+      {
+        "caseId": "control-surface-mask-format",
+        "proposalObservationId": "proposal-control-surface-mask-format-cold-1",
+        "validationObservationId": "validation-control-surface-mask-format-1",
+        "mismatchGroups": []
+      }
+    ],
+    "inputIntegrityErrors": [],
+    "mismatches": [],
+    "ready": true,
+    "reportDigest": "c29bc7854b3745039f0508cbdfce0e40fcde7873694c63f5e1d8516656310f14",
+    "outcome": "pass"
+  }
+}

@@ -201,7 +201,9 @@ const cases: readonly SfnsTerminalMaskManifestCase[] = [
     id: "control-anti-aliasing", kind: "control", scenarioId: "zoom-2",
     controlId: "anti-aliasing", baselineScenarioId: "zoom-2",
     request: request({
-      font: { ...baseFont, edging: "aa" },
+      // Blink's CreateSkFont couples -webkit-font-smoothing:antialiased to AA
+      // edging AND no hinting (font_platform_data_mac.mm:245-268).
+      font: { ...baseFont, edging: "aa", hinting: "none" },
       run: {
         sourceStart: [0, 0], deviceStart: [37.25, 43], deviceBaseline: 43,
         liveDeviceMatrix: [1, 0, 37.25, 0, 1, 43, 0, 0, 1],

@@ -1,12 +1,54 @@
 import("//gn/skia.gni")
 
+declare_args() {
+  # Absolute path to the HarfBuzz `src` directory at the revision the pinned
+  # Chromium's DEPS names (`harfbuzz_revision`). The builder authenticates it.
+  domotion_sfns_harfbuzz_src = ""
+}
+
+assert(domotion_sfns_harfbuzz_src != "",
+       "domotion_sfns_harfbuzz_src must name the pinned HarfBuzz source")
+
+config("domotion_sfns_harfbuzz_config") {
+  include_dirs = [ domotion_sfns_harfbuzz_src ]
+}
+
+# Chromium's HarfBuzz defines (third_party/harfbuzz-ng/BUILD.gn at the pinned
+# revision), except HAVE_ICU / HAVE_ICU_BUILTIN / HB_NO_UCD: this build has no
+# ICU, so HarfBuzz's own UCD supplies Unicode properties. They agree with ICU on
+# the general category and script of the ASCII corpus. HAVE_FONTATIONS and
+# HAVE_HARFRUST are omitted because Blink selects the `ot` shaper here.
+source_set("domotion_sfns_harfbuzz") {
+  sources = [ "$domotion_sfns_harfbuzz_src/harfbuzz.cc" ]
+  public_configs = [ ":domotion_sfns_harfbuzz_config" ]
+  defines = [
+    "HAVE_OT",
+    "HB_NO_MMAP",
+    "HB_NO_RESOURCE_FORK",
+    "HB_NO_PAINT=",
+    "HB_NO_SUBSET_LAYOUT",
+    "HB_NO_SUBSET_CFF",
+    "HB_NO_FALLBACK_SHAPE",
+    "HB_NO_WIN1256",
+    "HB_NO_BUFFER_VERIFY",
+    "HB_NO_DRAW",
+    "HB_NO_BORING_EXPANSION",
+    "HB_NO_VAR_COMPOSITES",
+    "HB_NO_PRAGMA_GCC_DIAGNOSTIC_ERROR",
+    "HB_NO_PRAGMA_GCC_DIAGNOSTIC_WARNING",
+  ]
+  cflags_cc = [ "-Wno-array-bounds" ]
+}
+
 # Deliberately lives inside a pinned Skia checkout: this executable consumes
 # private scaler APIs which must never become a Domotion production dependency.
 executable("sfns_post_conversion_collector") {
   sources = [ "sfns_post_conversion_collector.cpp" ]
-  deps = [ "//:skia" ]
+  deps = [
+    ":domotion_sfns_harfbuzz",
+    "//:skia",
+  ]
   include_dirs = [ "../.." ]
-  defines = [ "SK_GAMMA_APPLY_TO_A8" ]
   frameworks = [
     "AppKit.framework",
     "ApplicationServices.framework",

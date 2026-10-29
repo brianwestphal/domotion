@@ -6,7 +6,19 @@ status: "partial"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos"]
 tickets:
-  ["DM-2452", "DM-2567", "DM-2568", "DM-2575", "DM-2576", "DM-2586", "DM-2587", "DM-2588", "DM-2604", "DM-3TZA79"]
+  [
+    "DM-2452",
+    "DM-2567",
+    "DM-2568",
+    "DM-2575",
+    "DM-2576",
+    "DM-2586",
+    "DM-2587",
+    "DM-2588",
+    "DM-2604",
+    "DM-3TZA79",
+    "DM-8JNC05",
+  ]
 code:
   [
     "tools/build-sfns-pinned-ots-sanitizer.mjs",
@@ -43,15 +55,15 @@ pinned-Chromium validation arm, with exact browser-constructed records and
 post-conversion buffers from 26 separately launched, explicitly headless
 processes. DM-2576 adds the exact cross-arm adjudicator and an optional
 manual-only CI gate. The retained arms authenticate individually and agree on
-the decisive `[13,13]` cancellation scaler, but the adjudicator correctly
-withholds terminal-mask readiness because their exact shaped advances,
-placement/phases, selected typeface identity, records, and mask bytes are not
-equal. Validation v2 now retains the formerly absent direct shaped offsets and
-full gamma/preblend buffers, so missing evidence no longer explains that
-verdict.
-No visual tolerance is accepted: the terminal mask comparison remains
-diagnostic, while the CoreText design-command seam is already an exact logical
-proposal/validation gate. The focused macOS runner is
+the decisive `[13,13]` cancellation scaler. For a long time the adjudicator
+correctly withheld readiness on 498 literal differences. DM-8JNC05 traced every
+one of them to the proposal arm deviating from Blink's decision procedure: it
+did not shape, it built its typeface through a different Skia route, it compiled
+Skia with a gamma define Chromium's macOS build omits, and it requested the
+wrong hinting for one control. With those transcribed from source, the two arms
+now agree byte for byte in all 26 pairs and the adjudicator reports **ready**
+(see "Exact readiness" below). No visual tolerance is accepted, and no
+difference was normalized or fitted. The focused macOS runner is
 `tools/sfns-mask-baseline-oracle.ts`; its native companion is
 `tools/sfns-mask-baseline.swift`.
 
@@ -60,10 +72,10 @@ proposal/validation gate. The focused macOS runner is
 The exact standalone-Skia versus instrumented-Chromium terminal-mask
 adjudication is retained as an optional macOS diagnostic, not a release gate or
 a prerequisite for claiming that Domotion functions on macOS, Linux, and
-Windows. The two collectors intentionally cross different ownership boundaries;
-their 498 literal differences remain useful leads when a visual regression
-points at SFNS, but zero cross-collector byte equality is no longer a product
-requirement.
+Windows. The two collectors intentionally cross different ownership boundaries.
+They now agree exactly (DM-8JNC05), so a future difference is a precise lead
+when a visual regression points at SFNS, but cross-collector byte equality is
+still not a product requirement.
 
 Three-platform functional tests and visual demo/Unicode sweeps remain the
 release-facing contract. A failing or suspicious visual fixture must be traced
@@ -126,9 +138,25 @@ The implementation follows these exact source seams:
   paint through `ShapeResult::ForEachGlyphImpl` or the paint-owned
   `ShapeResultView::ForEachGlyphImpl`; the validation hook records those values
   before bloberization instead of reconstructing them from adjacent origins.
-- macOS Skia constructs data-backed typefaces through
-  `SkTypeface_Mac::MakeFromStream`, keeping the CoreText backend
-  (`SkFontMgr_mac_ct.cpp:485-507`).
+- Blink's web-font factory creates the data-backed base typeface with
+  `makeFromData` (`web_font_typeface_factory.cc:47-53`), and
+  `FontCustomPlatformData` then calls `base_typeface_->makeClone` with the
+  variation coordinates. Skia's `onMakeClone` therefore applies its
+  equal-`opsz` workaround (`SkTypeface_mac_ct.cpp:1180-1217`), which
+  `SkTypeface_Mac::MakeFromStream` does not have. The two routes yield different
+  CoreText instances (`.SFNS-Bold` versus the synthesized
+  `.SFNS-Regular_wdth_opsz110000_GRAD_wght2BC0000`) when the requested `opsz`
+  equals the base font's current value.
+- Blink shapes with HarfBuzz at Chromium's DEPS `harfbuzz_revision`
+  (`511df88b`) using the `ot` shaper. Base advances come from Skia strike
+  widths converted to 16.16 by truncation
+  (`SkFontGetGlyphWidthForHarfBuzz`, `SkiaScalarToHarfBuzzPosition`,
+  `skia_text_metrics.cc:20-73,207-211`). GPOS adjustments come from `hb_ot`
+  with the typeface's variation coordinates (`harfbuzz_face.cc:570-593`).
+- Chromium's macOS Skia is compiled with `SK_GAMMA_SRGB` and
+  `SK_GAMMA_CONTRAST=0.0` but not `SK_GAMMA_APPLY_TO_A8` (`skia/BUILD.gn`).
+  Unhinted A8 masks therefore take `ignorePreBlend()` in `onFilterRec`, which
+  yields device gamma 1, contrast 0, and a linear table with no bytes.
 - Skia builds a complete, clamped CoreText variation dictionary and applies it
   with `CTFontCreateCopyWithAttributes`
   (`SkTypeface_mac_ct.cpp:1075-1174,1213-1217`).
@@ -683,6 +711,81 @@ values `a2119aadc32adad0b0f8226f8a2a4b1f76c9e635ce88306ce56c4c3244f995ce`
 `dm-nzrf7g` files remain as historical evidence for the previous font; they
 no longer validate against the current manifest.
 
+### Exact readiness (DM-8JNC05)
+
+Exact adjudication is now **ready**: 26 observation pairs, zero
+input-integrity errors, and zero mismatches. Every one of the 498 standing
+differences came from the proposal arm departing from Blink's decision
+procedure, and each was corrected by transcribing the source rather than by
+normalizing the comparison.
+
+1. **No shaping (shaped advance, placement, phase, metrics, and mask; 467
+   records).** The proposal reported Skia glyph widths as shaped advances and
+   accumulated them with `SkFont::getPos`. Blink shapes with HarfBuzz, which
+   applies a `z`→`o` GPOS adjustment of −0.3173828125px at 26px. Every later
+   origin moved by that amount, which changed the quarter-pixel phase, which
+   changed mask widths and bytes. The opsz-26 rows also exposed the 16.16
+   truncation: Skia's 15.002363 becomes 15.002349853515625. The proposal now
+   links HarfBuzz at Chromium's pinned `511df88b` and shapes the manifest
+   text exactly as `CreateHarfBuzzFontData` and `GetScaledFont` set it up:
+   - Skia advance callbacks;
+   - `hb_ot` GPOS with the typeface's variations;
+   - `scale` from the font size, and `ptem` from it too. Blink passes the
+     specified size; `ptem` only feeds AAT `trak`, and it is inert for this font
+     (13 and 26 shape identically);
+   - Latin, LTR, `en-us`;
+   - Blink's default feature list for this request, which is only `chws`.
+
+   It also requires the shaped glyph IDs to equal the manifest's. HarfBuzz is
+   compiled with Chromium's defines, except that it uses its own UCD instead of
+   ICU, because this build has no ICU. The two agree on every property of the
+   ASCII corpus. The language is inert for this font: `en-us`, `tr`, and none
+   shape identically.
+
+2. **Typeface route (21 typeface records).** The proposal used
+   `MakeFromStream(args)`; Blink uses `makeFromData` followed by `makeClone`.
+   Only the clone path applies Skia's equal-`opsz` workaround. That is why
+   exactly the 21 opsz-17 observations reported the named `.SFNS-Bold` instance
+   while the 5 opsz-26 observations already matched. The proposal now clones
+   with Blink's coordinate list.
+3. **Anti-aliasing control request (font and raw record; 2 records).** Blink couples
+   `-webkit-font-smoothing:antialiased` to AA edging _and_ no hinting
+   (`font_platform_data_mac.mm:245-268`). The manifest requested AA edging with
+   normal hinting. It now requests `hinting: "none"`, which changes the
+   manifest digest to
+   `20f0c99fdf930eef7a0c64a67a3c90fd7131cd5f7ee60f32f566702eb68cd260`.
+4. **Skia gamma define (filtered record, gamma, and the control's six masks;
+   8 records).** Standalone Skia's
+   `skia_private` config defines `SK_GAMMA_APPLY_TO_A8`; Chromium's macOS build
+   does not. The proposal build now passes
+   `extra_cflags=["-USK_GAMMA_APPLY_TO_A8","-DSK_GAMMA_SRGB","-DSK_GAMMA_CONTRAST=0.0"]`.
+   It also records the filtered record's own device gamma and contrast as
+   gamma inputs, which is what Chromium's hook records. The proposal schema now
+   derives the expected table from that record, as the validation schema does.
+
+Each fix was confirmed separately against the unchanged validation arm, so the
+result is not a single opaque pass. The count fell from 498 to 10 after
+shaping and the typeface route, to 8 after the request fix, and to 0 after the
+gamma define. A second independent validation collection also adjudicates
+ready. The schema refuses a proposal whose shaped advance is swapped back to
+the unkerned Skia width, because its derived origins no longer follow
+(`tests/sfns-terminal-mask-adjudicator.test.ts`).
+
+The flat retained artifacts were replaced in place. Their inner digests are
+proposal `65eac6be52fa873f0cf6d1a95e6cccd878fbf45b0461fbabc8454ac69b0cf2b6`
+and validation
+`16894e576eced9d2f46d6a7a9709d67d74417cec0500687f0e9e1a1c25974e6b`. The
+collectors' envelopes and their terminal report are retained as
+`.pr-notes/artifacts/dm-8jnc05-sfns-*.json`, with file SHA-256 values
+`91ec0d0fd56f82a8f023eeb22d83e54f940e2380e5d0cf95c8f69851a79cd6d9`
+(proposal), `7e2a9ef055bd41efa77d7aed734876ff779737fe95402c399b4bbf5c5c867e11`
+(validation), and
+`1c758b863a80a9d06f04167a9389bbe890c799ba063ab54adee270c4929493a3`
+(terminal; sealed digest
+`c29bc7854b3745039f0508cbdfce0e40fcde7873694c63f5e1d8516656310f14`). The
+`dm-3tza79` and `dm-nzrf7g` files remain as historical evidence; they no longer
+validate against the current manifest.
+
 ### Production outline route (closed by DM-2567)
 
 The pre-DM-2567 route returned fontkit's non-empty SFNS outline before asking
@@ -815,16 +918,17 @@ by face selection, shaping, axes, metrics, baseline placement, quarter-origin
 phase, or cache lifecycle. The proposal artifact byte-authenticates the private
 pinned-Skia post-conversion mask and actual 13px cancellation record. The
 independent validation artifact authenticates the record and mask emitted by
-pinned Chromium. The area remains a partial platform boundary rather than an
-exact cross-arm pixel gate: the adjudicator now exists and fails closed on the
-retained non-equivalent inputs rather than producing a false shared digest.
+pinned Chromium. Since DM-8JNC05 the two agree exactly: every typeface,
+advance, placement, phase, metric, record, gamma, and mask byte matches in all
+26 pairs. The gate still runs on demand rather than on every change, because it
+needs the pinned Chromium build.
 
 The former fontkit-first variable-outline gap is closed by DM-2567's bounded
 CoreText route and exact proposal/validation gate. DM-2568's terminal-mask
 investigation, private-Skia proposal collector, and independent pinned-browser
-validation artifact, and exact adjudicator are complete. Recollection on one
-shared rendering envelope remains follow-up work. It cannot justify changing
-this logical route or widening a visual tolerance.
+validation artifact, and exact adjudicator are complete, and the two arms now
+agree exactly. None of this changes the production route or a visual
+tolerance.
 
 Run the diagnostic on macOS with:
 
@@ -885,6 +989,6 @@ npm run fonts:sfns-terminal-mask:adjudicate -- \
   --report sfns-terminal-mask-adjudication.json
 ```
 
-The command exits nonzero while any logical field or byte differs. Pass
-`--allow-not-ready` only when deliberately retaining the diagnostic report; the
-manual CI gate never passes that flag.
+The command exits nonzero while any logical field or byte differs; the retained
+artifacts now exit zero. Pass `--allow-not-ready` only when deliberately
+retaining a diagnostic report; the manual CI gate never passes that flag.

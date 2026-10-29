@@ -82,47 +82,29 @@ describe("exact SFNS terminal-mask adjudicator v3", () => {
         distinctObservationIds: true,
       }),
     );
-    expect(report.mismatches).toHaveLength(498);
-    expect(groups).toContain("glyph-0-shapedAdvance");
-    expect(count("gamma")).toBe(1);
-    expect(count("glyph-0-shapedAdvance")).toBe(26);
-    expect(count("glyph-1-shapedAdvance")).toBe(5);
-    expect(count("glyph-5-shapedAdvance")).toBe(5);
-    for (const aligned of [
-      "source",
-      "paint",
-      "surfaceProps",
-      "scalerContextFlags",
-      "matrices",
-      "smoothBehavior",
-      "fontMetrics",
-      "glyph-count",
-      "observation-identity",
-      "glyph-0-identity",
-      "glyph-1-identity",
-      "glyph-2-identity",
-      "glyph-3-identity",
-      "glyph-4-identity",
-      "glyph-5-identity",
-      "glyph-0-strikeAdvance",
-      "glyph-1-strikeAdvance",
-      "glyph-2-strikeAdvance",
-      "glyph-3-strikeAdvance",
-      "glyph-4-strikeAdvance",
-      "glyph-5-strikeAdvance",
-      "glyph-0-placement",
-      "glyph-0-phase",
-      "glyph-0-metrics",
-      "glyph-0-shapedOffset",
-      "glyph-1-shapedOffset",
-      "glyph-2-shapedOffset",
-      "glyph-3-shapedOffset",
-      "glyph-4-shapedOffset",
-      "glyph-5-shapedOffset",
-    ])
-      expect(groups).not.toContain(aligned);
-    expect(report.ready).toBe(false);
+    // DM-8JNC05: once the proposal shapes with Chromium's pinned HarfBuzz,
+    // clones its typeface the way Blink does, and builds with Chromium's macOS
+    // gamma defines, every one of the 26 pairs agrees byte for byte.
+    expect(report.mismatches).toEqual([]);
+    expect(groups.size).toBe(0);
+    expect(count("glyph-0-shapedAdvance")).toBe(0);
+    expect(report.observationPairs.every((pair) => pair.mismatchGroups.length === 0)).toBe(true);
+    expect(report.ready).toBe(true);
     expect(report.reportDigest).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("DM-8JNC05: an unshaped proposal advance is a mismatch, not readiness", () => {
+    // The pre-fix proposal used Skia's glyph width for `z`; Blink's HarfBuzz run
+    // applies the `z`->`o` GPOS kern on top of it.
+    const unshaped = mutatedProposal((artifact) => {
+      const glyph = artifact.scenarios.find((entry) => entry.id === "zoom-2")!.observations[0].glyphs[0];
+      glyph.shapedAdvance = glyph.strikeAdvance;
+    });
+    const report = adjudicateSfnsTerminalMasks(unshaped, validation);
+    // The proposal schema re-derives each origin from the shaped advances, so the
+    // swapped width is refused as inconsistent evidence before any comparison.
+    expect(report.inputIntegrityErrors).toContain("proposal:proposal-zoom-2-cold-1:glyph:1:derived-run");
+    expect(report.ready).toBe(false);
   });
 
   it.each([

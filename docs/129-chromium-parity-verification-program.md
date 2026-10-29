@@ -168,12 +168,20 @@ seam, normalized CoreText metrics, and the complete gamma table and three
 preblend buffers, while retaining the exact record/run/phase/mask evidence.
 The v3 re-adjudication authenticates and pairs every observation with zero
 input-integrity errors. Formerly absent shaped offsets agree everywhere and
-full gamma agrees in 25 of 26 pairs; `[13,13]` cancellation remains exact. The
-gate is still **NOT READY** with 498 literal mismatches in typeface, shaped
-advance, placement, phase, metrics, records, gamma, and mask bytes. The next
-ratification must reach zero exact mismatches rather than relabeling them. The
-boundary remains partial; no screenshot tolerance or production route may
-stand in for exact cross-arm equality.
+full gamma agrees in 25 of 26 pairs; `[13,13]` cancellation remains exact.
+DM-8JNC05 then reached **READY** with zero exact mismatches. The 498 former
+differences all came from the proposal departing from Blink's procedure:
+
+- it did not shape with Chromium's pinned HarfBuzz, which dropped a GPOS kern
+  and the 16.16 advance truncation;
+- it built its typeface through `MakeFromStream` instead of Blink's
+  `makeFromData` + `makeClone`;
+- its Skia build defined `SK_GAMMA_APPLY_TO_A8`, which Chromium's macOS build
+  does not;
+- its anti-aliasing control requested normal hinting where Blink uses none.
+
+Each was transcribed from source, never normalized; see
+[doc 168](168-sfns-mask-baseline-oracle.md).
 
 Animated viewBox culling uses the one-sided optimization form of this contract
 ([doc 166](166-animated-culling-geometry-oracle.md)): an unculled production SVG

@@ -23,6 +23,9 @@
 #include "src/utils/mac/SkCTFont.h"
 #include "src/utils/mac/SkCTFontCreateExactCopy.h"
 
+#include "hb-ot.h"
+#include "hb.h"
+
 #include <CommonCrypto/CommonDigest.h>
 #include <CoreText/CoreText.h>
 
@@ -31,10 +34,12 @@
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -55,7 +60,7 @@ constexpr char kCollectorAbi[] = "domotion-sfns-pinned-skia-mask-v2";
 
 struct Options {
     std::string caseId, kind, scenario, controlId, observationId, lifecycle;
-    std::string outputDirectory, sourceFontPath, decodedFontPath;
+    std::string outputDirectory, sourceFontPath, decodedFontPath, text;
     float fontSize = 26, wdth = 100, opsz = 17, grad = 400, wght = 700;
     float sourceStartX = 0, sourceStartY = 0, deviceBaseline = 43;
     float textContrast = 0, textGamma = 0;
@@ -165,6 +170,7 @@ Options parseOptions(int argc, char** argv) {
     o.observationId = req("observation-id");
     o.lifecycle = req("lifecycle"); o.outputDirectory = req("output-directory");
     o.sourceFontPath = req("source-font"); o.decodedFontPath = req("decoded-font");
+    o.text = req("text");
     o.fontSize = asFloat(req("font-size"), "font-size");
     o.wdth = asFloat(req("wdth"), "wdth"); o.opsz = asFloat(req("opsz"), "opsz");
     o.grad = asFloat(req("grad"), "grad"); o.wght = asFloat(req("wght"), "wght");
@@ -318,10 +324,24 @@ TypefaceBundle makeTypeface(const Options& o) {
                          [&](const auto& axis) { return axis.tag == required; }))
             fail("required SFNS axis missing: " + tagName(required));
     }
+    // Blink's custom-font route: the web-font factory creates the base face with
+    // makeFromData (web_font_typeface_factory.cc:47-53), then
+    // FontCustomPlatformData clones it with wght, wdth, slnt from font
+    // selection followed by the font-variation-settings in CSS order
+    // (font_custom_platform_data.cc:134-233). Skia resolves duplicate tags by
+    // taking the last one, so the selection coordinates are superseded here;
+    // they are kept so the clone takes the same onMakeClone path, including its
+    // equal-opsz workaround (SkTypeface_mac_ct.cpp:1180-1217), which
+    // MakeFromStream does not have.
+    const std::vector<SkFontArguments::VariationPosition::Coordinate> blinkCoordinates = {
+        {tag("wght"), o.wght}, {tag("wdth"), o.wdth}, {tag("slnt"), 0},
+        {tag("wdth"), o.wdth}, {tag("opsz"), o.opsz},
+        {tag("GRAD"), o.grad}, {tag("wght"), o.wght},
+    };
     SkFontArguments args;
-    args.setCollectionIndex(0).setVariationDesignPosition(
-        {b.requested.data(), static_cast<int>(b.requested.size())});
-    b.typeface = manager->makeFromStream(std::make_unique<SkMemoryStream>(b.decodedData), args);
+    args.setVariationDesignPosition(
+        {blinkCoordinates.data(), static_cast<int>(blinkCoordinates.size())});
+    b.typeface = base->makeClone(args);
     if (!b.typeface) fail("varied data-backed typeface unavailable");
     count = b.typeface->getVariationDesignPosition({});
     if (count != static_cast<int>(b.parameters.size())) fail("incomplete actual axis tuple");
@@ -384,18 +404,144 @@ std::string pointJson(const SkPoint& point) {
 
 struct DerivedRun {
     std::vector<SkScalar> widths;
+    std::vector<SkPoint> offsets;
     std::vector<SkPoint> sourcePositions;
 };
 
+// SkiaScalarToHarfBuzzPosition (skia_text_metrics.cc:207-211): 16.16 fixed
+// point through ClampTo<int>, which truncates toward zero.
+hb_position_t skiaScalarToHarfBuzzPosition(SkScalar value) {
+    const double scaled = static_cast<double>(value) * (1 << 16);
+    if (scaled >= static_cast<double>(std::numeric_limits<int>::max()))
+        return std::numeric_limits<int>::max();
+    if (scaled <= static_cast<double>(std::numeric_limits<int>::min()))
+        return std::numeric_limits<int>::min();
+    return static_cast<hb_position_t>(value * (1 << 16));
+}
+
+float harfBuzzPositionToFloat(hb_position_t value) {
+    return static_cast<float>(value) / (1 << 16);
+}
+
+// HarfBuzzSkiaGetTable (harfbuzz_face.cc:522-545): CoreText-backed faces are
+// read through table copies on Apple platforms.
+hb_blob_t* skiaGetTable(hb_face_t*, hb_tag_t tableTag, void* userData) {
+    auto* typeface = static_cast<SkTypeface*>(userData);
+    const size_t size = typeface->getTableSize(tableTag);
+    if (!size) return nullptr;
+    char* buffer = static_cast<char*>(std::malloc(size));
+    if (!buffer) return nullptr;
+    if (typeface->getTableData(tableTag, 0, size, buffer) != size) {
+        std::free(buffer);
+        return nullptr;
+    }
+    return hb_blob_create(buffer, static_cast<unsigned>(size), HB_MEMORY_MODE_WRITABLE,
+                          buffer, std::free);
+}
+
+// HarfBuzzGetGlyphHorizontalAdvance(s) -> SkFontGetGlyphWidthForHarfBuzz
+// (harfbuzz_face.cc:240-268, skia_text_metrics.cc:20-73): Skia strike widths,
+// rounded only without subpixel positioning, then 16.16.
+hb_position_t skiaWidth(const SkFont& font, hb_codepoint_t glyph) {
+    SkGlyphID id = static_cast<SkGlyphID>(glyph);
+    SkScalar width = 0;
+    font.getWidths({&id, 1}, {&width, 1});
+    if (!font.isSubpixel()) width = SkScalarRoundToScalar(width);
+    return skiaScalarToHarfBuzzPosition(width);
+}
+
+hb_position_t hbAdvance(hb_font_t*, void* fontData, hb_codepoint_t glyph, void*) {
+    return skiaWidth(*static_cast<const SkFont*>(fontData), glyph);
+}
+
+void hbAdvances(hb_font_t*, void* fontData, unsigned count, const hb_codepoint_t* firstGlyph,
+                unsigned glyphStride, hb_position_t* firstAdvance, unsigned advanceStride, void*) {
+    const auto* font = static_cast<const SkFont*>(fontData);
+    for (unsigned i = 0; i < count; ++i) {
+        const auto* glyph = reinterpret_cast<const hb_codepoint_t*>(
+            reinterpret_cast<const char*>(firstGlyph) + i * glyphStride);
+        auto* advance = reinterpret_cast<hb_position_t*>(
+            reinterpret_cast<char*>(firstAdvance) + i * advanceStride);
+        *advance = skiaWidth(*font, *glyph);
+    }
+}
+
+// Shape the corpus the way Blink does on macOS, then accumulate float origins.
+// Face: CreateHarfBuzzFontData (harfbuzz_face.cc:570-593) -- hb_ot font funcs,
+// the typeface's complete variation position, and a sub-font whose horizontal
+// advances come from Skia. Scale and ptem: GetScaledFont (harfbuzz_face.cc:
+// 628-650). Buffer: the run's language, script and direction
+// (harfbuzz_shaper.cc:339-352) with the default font features for this
+// request, which are only `chws` because text-spacing-trim is normal
+// (font_features.cc:36-228, text_spacing_trim.h:23-25). The `ot` shaper is
+// used because HarfRustShaping has no stable status at this revision.
 DerivedRun deriveRun(const Options& o, const SkFont& font) {
+    SkTypeface* typeface = font.getTypeface();
+    hb_face_t* face = hb_face_create_for_tables(skiaGetTable, typeface, nullptr);
+    hb_font_t* otFont = hb_font_create(face);
+    hb_ot_font_set_funcs(otFont);
+    const int axisCount = typeface->getVariationDesignPosition({});
+    if (axisCount > 0) {
+        std::vector<SkFontArguments::VariationPosition::Coordinate> axes(axisCount);
+        if (typeface->getVariationDesignPosition(
+                SkSpan<SkFontArguments::VariationPosition::Coordinate>(axes.data(), axes.size())) > 0) {
+            std::vector<hb_variation_t> variations;
+            for (const auto& axis : axes) variations.push_back({axis.axis, axis.value});
+            hb_font_set_variations(otFont, variations.data(), variations.size());
+        }
+    }
+    hb_font_t* hbFont = hb_font_create_sub_font(otFont);
+    hb_font_funcs_t* funcs = hb_font_funcs_create();
+    hb_font_funcs_set_glyph_h_advance_func(funcs, hbAdvance, nullptr, nullptr);
+    hb_font_funcs_set_glyph_h_advances_func(funcs, hbAdvances, nullptr, nullptr);
+    hb_font_funcs_make_immutable(funcs);
+    hb_font_set_funcs(hbFont, funcs, const_cast<SkFont*>(&font), nullptr);
+    const int scale = skiaScalarToHarfBuzzPosition(font.getSize());
+    hb_font_set_scale(hbFont, scale, scale);
+    // Blink passes the specified size here. ptem only selects an AAT `trak`
+    // entry, and shaping this font at ptem 13 and 26 is identical.
+    hb_font_set_ptem(hbFont, font.getSize());
+
+    hb_buffer_t* buffer = hb_buffer_create();
+    hb_buffer_add_utf8(buffer, o.text.data(), static_cast<int>(o.text.size()), 0,
+                       static_cast<int>(o.text.size()));
+    hb_buffer_set_language(buffer, hb_language_from_string("en-us", -1));
+    hb_buffer_set_script(buffer, HB_SCRIPT_LATIN);
+    hb_buffer_set_direction(buffer, HB_DIRECTION_LTR);
+    const hb_feature_t features[] = {
+        {HB_TAG('c', 'h', 'w', 's'), 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END}};
+    const char* const shapers[] = {"ot", nullptr};
+    if (!hb_shape_full(hbFont, buffer, features, 1, shapers)) fail("HarfBuzz shaping failed");
+
+    unsigned count = 0;
+    const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);
+    const hb_glyph_position_t* positions = hb_buffer_get_glyph_positions(buffer, &count);
+    if (count != o.glyphIds.size()) fail("shaped glyph count differs from the manifest");
     DerivedRun run;
-    run.widths.resize(o.glyphIds.size());
-    run.sourcePositions.resize(o.glyphIds.size());
-    font.getWidths(SkSpan<const SkGlyphID>(o.glyphIds.data(), o.glyphIds.size()),
-                   SkSpan<SkScalar>(run.widths.data(), run.widths.size()));
-    font.getPos(SkSpan<const SkGlyphID>(o.glyphIds.data(), o.glyphIds.size()),
-                SkSpan<SkPoint>(run.sourcePositions.data(), run.sourcePositions.size()),
-                {o.sourceStartX, o.sourceStartY});
+    SkScalar penX = o.sourceStartX;
+    for (unsigned i = 0; i < count; ++i) {
+        if (info[i].codepoint != o.glyphIds[i]) fail("shaped glyph id differs from the manifest");
+        hb_position_t xAdvance = positions[i].x_advance;
+        hb_position_t xOffset = positions[i].x_offset;
+        hb_position_t yOffset = positions[i].y_offset;
+        if (!font.isSubpixel()) {
+            // RoundHarfBuzzBufferPositions (harfbuzz_shaper.cc:353-355).
+            xAdvance = SkScalarRoundToInt(harfBuzzPositionToFloat(xAdvance)) << 16;
+            xOffset = SkScalarRoundToInt(harfBuzzPositionToFloat(xOffset)) << 16;
+            yOffset = SkScalarRoundToInt(harfBuzzPositionToFloat(yOffset)) << 16;
+        }
+        const SkScalar advance = harfBuzzPositionToFloat(xAdvance);
+        const SkPoint offset{harfBuzzPositionToFloat(xOffset), -harfBuzzPositionToFloat(yOffset)};
+        run.widths.push_back(advance);
+        run.offsets.push_back(offset);
+        run.sourcePositions.push_back({penX + offset.x(), o.sourceStartY + offset.y()});
+        penX += advance;
+    }
+    hb_buffer_destroy(buffer);
+    hb_font_destroy(hbFont);
+    hb_font_funcs_destroy(funcs);
+    hb_font_destroy(otFont);
+    hb_face_destroy(face);
     return run;
 }
 
@@ -431,7 +577,7 @@ std::string glyphsJson(const Options& o, ContextBundle& c, const DerivedRun& run
         uint32_t id = packed.value();
         out << "{\"index\":" << i << ",\"gid\":" << o.glyphIds[i]
             << ",\"shapedAdvance\":[" << num(run.widths[i]) << ",0]"
-            << ",\"shapedOffset\":[0,0]"
+            << ",\"shapedOffset\":" << pointJson(run.offsets[i])
             << ",\"sourcePosition\":" << pointJson(sourcePosition)
             << ",\"deviceOrigin\":" << pointJson(deviceOrigin)
             << ",\"mappedWithRounding\":" << pointJson(mappedWithRounding)
@@ -496,6 +642,22 @@ std::string coreTextJson(const Options& o, const TypefaceBundle& face,
     return out.str();
 }
 
+struct GammaInputs {
+    SkScalar contrast = 0, deviceGamma = 0;
+};
+
+GammaInputs filteredGammaInputs(const SkScalerContextRec& rec) {
+    const std::string dump(rec.dump().c_str());
+    const std::string marker = "device gamma ";
+    const size_t at = dump.find(marker);
+    int gamma = -1, contrast = -1;
+    if (at == std::string::npos ||
+        std::sscanf(dump.c_str() + at, "device gamma %d, contrast %d", &gamma, &contrast) != 2 ||
+        gamma < 0 || gamma > 255 || contrast < 0 || contrast > 255)
+        fail("filtered record gamma inputs unavailable");
+    return {SkIntToScalar(contrast) / ((1 << 8) - 1), SkIntToScalar(gamma) / (1 << 6)};
+}
+
 std::string collect(const Options& o) {
     TypefaceBundle face = makeTypeface(o);
     std::optional<ContextBundle> context;
@@ -510,6 +672,12 @@ std::string collect(const Options& o) {
         SkScalerContextRec::PreMatrixScale::kVertical, &scale, &remaining,
         &remainingWithoutRotation, &remainingRotation, &total);
 
+    // The pre-blend is built from the FILTERED record's private device gamma and
+    // contrast, which onFilterRec may replace (ignorePreBlend). They are not
+    // publicly readable, so take the integers the record itself prints and
+    // convert them with SkScalerContextRec's External*FromInternal rules
+    // (g / 64, c / 255), the same values Chromium's hook records.
+    const GammaInputs gammaInputs = filteredGammaInputs(filtered);
     const SkMaskGamma& gamma = filtered.cachedMaskGamma();
     int gammaWidth = 0, gammaHeight = 0;
     gamma.getGammaTableDimensions(&gammaWidth, &gammaHeight);
@@ -603,8 +771,8 @@ std::string collect(const Options& o) {
         << matrixJson(remainingRotation) << ",\"invertible\":"
         << (invertible ? "true" : "false") << "},\"smoothBehavior\":"
         << q(smoothName(SkCTFontGetSmoothBehavior()))
-        << ",\"gamma\":{\"inputContrast\":" << num(o.textContrast)
-        << ",\"inputDeviceGamma\":" << num(o.textGamma) << ",\"tableApplicable\":"
+        << ",\"gamma\":{\"inputContrast\":" << num(gammaInputs.contrast)
+        << ",\"inputDeviceGamma\":" << num(gammaInputs.deviceGamma) << ",\"tableApplicable\":"
         << (gammaBytes ? "true" : "false") << ",\"tableWidth\":" << gammaWidth
         << ",\"tableHeight\":" << gammaHeight << ",\"tableByteLength\":"
         << (gammaBytes ? gammaSize : 0) << ",\"tableSha256\":"

@@ -11,6 +11,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SKIA_REVISION = "62efacd37737505732dbe3d8daa62abd679626a1";
 const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const DEPOT_TOOLS_REVISION = "612d70c7ccb01d4a405e822ad0505206de636d7e";
+// `harfbuzz_revision` in the pinned Chromium DEPS. The proposal shapes with it
+// the way Blink does, so its shaped advances are not Skia glyph widths.
+const HARFBUZZ_REVISION = "511df88b82e697cd2a0f1f0635787aa0b18bddbb";
 const GN_ARGS = [
   "is_debug=false",
   "is_official_build=true",
@@ -36,6 +39,11 @@ const GN_ARGS = [
   "skia_use_partition_alloc=false",
   "skia_use_wuffs=false",
   "skia_use_zlib=false",
+  // Chromium's macOS Skia text-gamma defines (skia/BUILD.gn at the pinned
+  // Chromium): SK_GAMMA_SRGB and SK_GAMMA_CONTRAST=0.0, and NOT the standalone
+  // skia_private SK_GAMMA_APPLY_TO_A8. Without that define, unhinted A8 masks
+  // take ignorePreBlend() in SkTypeface_Mac::onFilterRec.
+  'extra_cflags=["-USK_GAMMA_APPLY_TO_A8","-DSK_GAMMA_SRGB","-DSK_GAMMA_CONTRAST=0.0"]',
 ].join(" ");
 const ROOT_GROUP = [
   "",
@@ -65,6 +73,8 @@ async function main(argv) {
     const gn = resolve(flag(values, "--gn") ?? join(gnChromiumRoot, "buildtools/mac/gn"));
     const ninja = resolve(flag(values, "--ninja") ?? ".chromium-build/depot_tools/ninja");
     const outputDir = resolve(flag(values, "--out") ?? "tests/output/sfns-pinned-skia-collector");
+    const harfbuzzRoot = join(chromiumRoot, "third_party/harfbuzz/src");
+    const harfbuzzSource = join(harfbuzzRoot, "src");
     const sha = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
     const run = (command, args, cwd) => {
       const result = spawnSync(command, args, {
@@ -106,6 +116,13 @@ async function main(argv) {
     ) {
       throw new Error("Chromium/depot_tools checkout identity mismatch");
     }
+    if (
+      !existsSync(join(harfbuzzSource, "harfbuzz.cc")) ||
+      run("git", ["rev-parse", "HEAD"], harfbuzzRoot) !== HARFBUZZ_REVISION ||
+      run("git", ["status", "--porcelain"], harfbuzzRoot) !== ""
+    ) {
+      throw new Error("HarfBuzz checkout must be exact and clean at the pinned Chromium revision");
+    }
     const actualRevision = run("git", ["rev-parse", "HEAD"], sourceDir);
     const skiaStatus = run("git", ["status", "--porcelain"], sourceDir);
     if (actualRevision !== SKIA_REVISION || skiaStatus !== "") {
@@ -123,7 +140,7 @@ async function main(argv) {
         copyFileSync(join(ROOT, "tools/sfns-pinned-skia-collector", file), join(overlayDir, file));
       }
       writeFileSync(rootBuildPath, rootBuild.trimEnd() + "\n" + ROOT_GROUP, "utf8");
-      run(gn, ["gen", "out/domotion-sfns-dm2586", "--args=" + GN_ARGS], sourceDir);
+      run(gn, ["gen", "out/domotion-sfns-dm2586", `--args=${GN_ARGS} domotion_sfns_harfbuzz_src="${harfbuzzSource}"`], sourceDir);
       run(ninja, ["-C", "out/domotion-sfns-dm2586", "dm2586_sfns_collector"], sourceDir);
       const builtBinary = join(sourceDir, "out/domotion-sfns-dm2586/sfns_post_conversion_collector");
       const outputBinary = join(outputDir, "sfns_post_conversion_collector");
@@ -135,6 +152,7 @@ async function main(argv) {
         chromiumRevision: CHROMIUM_REVISION,
         skiaRevision: SKIA_REVISION,
         depotToolsRevision: DEPOT_TOOLS_REVISION,
+        harfbuzzRevision: HARFBUZZ_REVISION,
         platform: platform(),
         architecture: arch(),
         gnArgs: GN_ARGS,

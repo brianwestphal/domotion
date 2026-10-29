@@ -27,7 +27,7 @@ describe("source-owned SFNS terminal-mask manifest", () => {
       ...SFNS_TERMINAL_MASK_SCENARIO_IDS,
       ...SFNS_TERMINAL_MASK_CONTROL_IDS.map((id) => `control-${id}`),
     ]);
-    expect(sfnsTerminalMaskManifestDigest()).toBe("5b13e7e12bd037af96b50695a4a5408fbd5085fb65a0ca427a60510a6373bbff");
+    expect(sfnsTerminalMaskManifestDigest()).toBe("20f0c99fdf930eef7a0c64a67a3c90fd7131cd5f7ee60f32f566702eb68cd260");
   });
 
   it("contains requests only, never cross-arm derived rendering results", () => {

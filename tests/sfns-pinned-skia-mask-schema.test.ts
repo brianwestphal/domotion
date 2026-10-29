@@ -127,7 +127,7 @@ describe("DM-2586 pinned-Skia proposal evidence v2", () => {
       retained.scenarios
         .find((entry) => entry.id === "zoom-2")!
         .observations.map((observation) => observation.typeface.postscriptName),
-    ).toEqual(Array(4).fill(".SFNS-Bold"));
+    ).toEqual(Array(4).fill(".SFNS-Regular_wdth_opsz110000_GRAD_wght2BC0000"));
     expect(
       retained.scenarios
         .find((entry) => entry.id === "opsz-26-mutation")!

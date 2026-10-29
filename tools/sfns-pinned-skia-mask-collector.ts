@@ -121,6 +121,7 @@ function nativeObservation(
     "--ordinal", String(ordinal),
     "--warmups", lifecycle === "warm" ? "1" : "0",
     "--glyph-ids", SFNS_TERMINAL_MASK_MANIFEST.corpus.glyphIds.join(","),
+    "--text", SFNS_TERMINAL_MASK_MANIFEST.corpus.text,
     "--pixel-geometry", request.surface.pixelGeometry,
     "--edging", request.font.edging,
     "--hinting", request.font.hinting,
