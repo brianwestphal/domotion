@@ -56,12 +56,12 @@ inline constexpr char kHookAbi[] = "domotion-sfns-pinned-chromium-hook-v2";
 inline constexpr char kChromiumRevision[] = "7d859f271cbda744098ac69f44978d4edfa62be3";
 inline constexpr char kSkiaRevision[] = "62efacd37737505732dbe3d8daa62abd679626a1";
 inline constexpr char kSourceFontSha256[] =
-    "2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66";
-inline constexpr size_t kSourceFontByteLength = 7909644;
+    "44890958f3e0b997028121ed7c7a789f3f5cce227c7a93ce8f86ec0db26da571";
+inline constexpr size_t kSourceFontByteLength = 7872432;
 inline constexpr char kDecodedFontSha256[] =
-    "48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4";
-inline constexpr size_t kDecodedFontByteLength = 7806016;
-inline constexpr std::array<SkGlyphID, 6> kGlyphIds = {969, 815, 815, 795, 1310, 1377};
+    "e2165f571fe3a383b57123a1a91234b2b2a2859f0510af2b97e3ef129a352226";
+inline constexpr size_t kDecodedFontByteLength = 7867744;
+inline constexpr std::array<SkGlyphID, 6> kGlyphIds = {970, 816, 816, 795, 1312, 1379};
 
 struct HookContext {
     std::string outputDirectory;

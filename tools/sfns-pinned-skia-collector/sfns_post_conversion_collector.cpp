@@ -46,11 +46,11 @@
 namespace {
 constexpr char kChromiumRevision[] = "7d859f271cbda744098ac69f44978d4edfa62be3";
 constexpr char kSkiaRevision[] = "62efacd37737505732dbe3d8daa62abd679626a1";
-constexpr char kFontSha256[] = "2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66";
-constexpr size_t kFontByteLength = 7909644;
+constexpr char kFontSha256[] = "44890958f3e0b997028121ed7c7a789f3f5cce227c7a93ce8f86ec0db26da571";
+constexpr size_t kFontByteLength = 7872432;
 constexpr char kDecodedFontSha256[] =
-    "48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4";
-constexpr size_t kDecodedFontByteLength = 7806016;
+    "e2165f571fe3a383b57123a1a91234b2b2a2859f0510af2b97e3ef129a352226";
+constexpr size_t kDecodedFontByteLength = 7867744;
 constexpr char kCollectorAbi[] = "domotion-sfns-pinned-skia-mask-v2";
 
 struct Options {

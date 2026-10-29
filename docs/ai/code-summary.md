@@ -209,9 +209,7 @@ plus controlled-healing browser passes.
   and `tests/synthetic-baseline-dispatch.test.ts`.
 - `tsconfig.tools.json` typechecks `tools/**` as part of `npm run typecheck`.
   `tools/lib/cli.d.mts` types `parseFlags` / `flag` by the declared schema;
-  `stringFlag` serves helpers that take a flag name at runtime. Only the
-  hash-pinned `tools/sfns-pinned-skia-mask-schema.ts` and its transitive
-  importers are excluded (see the tsconfig comment).
+  `stringFlag` serves helpers that take a flag name at runtime.
 - `tools/lib/browser.ts` owns TypeScript tool browsers, while
   `tools/lib/browser.mjs` gives plain-Node probes the same callback and
   idempotent cleanup pattern. See `docs/tool-browser-lifecycle.md`.

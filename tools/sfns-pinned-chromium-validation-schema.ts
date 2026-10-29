@@ -16,10 +16,10 @@ import {
 export const SFNS_VALIDATION_CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 export const SFNS_VALIDATION_SKIA_REVISION = "62efacd37737505732dbe3d8daa62abd679626a1";
 export const SFNS_VALIDATION_DEPOT_TOOLS_REVISION = "612d70c7ccb01d4a405e822ad0505206de636d7e";
-export const SFNS_VALIDATION_FONT_SHA256 = "2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66";
-export const SFNS_VALIDATION_FONT_BYTE_LENGTH = 7_909_644;
-export const SFNS_VALIDATION_DECODED_FONT_SHA256 = "48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4";
-export const SFNS_VALIDATION_DECODED_FONT_BYTE_LENGTH = 7_806_016;
+export const SFNS_VALIDATION_FONT_SHA256 = "44890958f3e0b997028121ed7c7a789f3f5cce227c7a93ce8f86ec0db26da571";
+export const SFNS_VALIDATION_FONT_BYTE_LENGTH = 7_872_432;
+export const SFNS_VALIDATION_DECODED_FONT_SHA256 = "e2165f571fe3a383b57123a1a91234b2b2a2859f0510af2b97e3ef129a352226";
+export const SFNS_VALIDATION_DECODED_FONT_BYTE_LENGTH = 7_867_744;
 export const SFNS_VALIDATION_HOOK_ABI = "domotion-sfns-pinned-chromium-hook-v2";
 export const SFNS_VALIDATION_GN_ARGS = [
   "is_debug = false",
@@ -32,6 +32,7 @@ export const SFNS_VALIDATION_GN_ARGS = [
   "treat_warnings_as_errors = false",
   "sk_domotion_sfns_validation_hook = true",
   "blink_domotion_sfns_validation_hook = true",
+  'mac_sdk_path = "//out/DM2575/sdk/xcode_links/MacOSX26.5.sdk"',
   "",
 ].join("\n");
 export const SFNS_VALIDATION_GLYPH_IDS = SFNS_TERMINAL_MASK_MANIFEST.corpus.glyphIds;

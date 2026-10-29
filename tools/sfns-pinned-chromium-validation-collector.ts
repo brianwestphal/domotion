@@ -618,6 +618,23 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
   }
 
   const argsPath = `${sourceRoot}/out/DM2575/args.gn`;
+  // The only Metal output in headless_shell is ANGLE's internal shader library.
+  // Xcode updates remove the pinned toolchain; an incremental rebuild then
+  // reuses the up-to-date metallib it compiled, so record that artifact instead.
+  function metalProvenance(): string {
+    try {
+      return execFileSync("xcrun", ["--toolchain", "com.apple.dt.toolchain.Metal.32023.883", "metal", "--version"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+    } catch {
+      const metallib = `${sourceRoot}/out/DM2575/gen/angle/mtl_internal_shaders_autogen.metallib`;
+      return [
+        "toolchain not installed at collection; build reused the up-to-date ANGLE metallib",
+        `${relative(sourceRoot, metallib)} sha256 ${fileSha(metallib)} mtime ${statSync(metallib).mtime.toISOString()}`,
+      ].join("\n");
+    }
+  }
   const withoutDigest: Omit<SfnsPinnedChromiumValidationArtifact, "artifactDigest"> = {
     schemaVersion: 2,
     authority: "validation-test-only-pinned-chromium",
@@ -677,9 +694,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
         xcode: execFileSync("xcodebuild", ["-version"], { encoding: "utf8" }).trim(),
         macOS: execFileSync("sw_vers", { encoding: "utf8" }).trim(),
         metalToolchainIdentifier: "com.apple.dt.toolchain.Metal.32023.883",
-        metal: execFileSync("xcrun", ["--toolchain", "com.apple.dt.toolchain.Metal.32023.883", "metal", "--version"], {
-          encoding: "utf8",
-        }).trim(),
+        metal: metalProvenance(),
         clang: execFileSync(`${sourceRoot}/third_party/llvm-build/Release+Asserts/bin/clang++`, ["--version"], {
           encoding: "utf8",
         }).trim(),

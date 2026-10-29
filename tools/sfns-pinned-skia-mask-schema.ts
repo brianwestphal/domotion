@@ -20,12 +20,12 @@ export const SFNS_PINNED_SKIA_REVISION =
 export const SFNS_PINNED_OTS_REVISION =
   "46bea9879127d0ff1c6601b078e2ce98e83fcd33";
 export const SFNS_FONT_PATH = "/System/Library/Fonts/SFNS.ttf";
-export const SFNS_FONT_BYTE_LENGTH = 7_909_644;
+export const SFNS_FONT_BYTE_LENGTH = 7_872_432;
 export const SFNS_FONT_SHA256 =
-  "2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66";
-export const SFNS_DECODED_FONT_BYTE_LENGTH = 7_806_016;
+  "44890958f3e0b997028121ed7c7a789f3f5cce227c7a93ce8f86ec0db26da571";
+export const SFNS_DECODED_FONT_BYTE_LENGTH = 7_867_744;
 export const SFNS_DECODED_FONT_SHA256 =
-  "48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4";
+  "e2165f571fe3a383b57123a1a91234b2b2a2859f0510af2b97e3ef129a352226";
 export const SFNS_COLLECTOR_ABI = "domotion-sfns-pinned-skia-mask-v2";
 export const SFNS_GLYPH_IDS = SFNS_TERMINAL_MASK_MANIFEST.corpus.glyphIds;
 export const SFNS_PINNED_SCENARIOS = SFNS_TERMINAL_MASK_SCENARIO_IDS;
@@ -878,7 +878,7 @@ export const SFNS_SCENARIO_CONTRACT = Object.fromEntries(SFNS_PINNED_SCENARIOS.m
     baseline: request.run.deviceBaseline,
     origins: [],
   }];
-})) as Record<SfnsPinnedScenarioId, {
+})) as unknown as Record<SfnsPinnedScenarioId, {
   fontSize: number; deviceScale: number; opsz: number; baseline: number; origins: number[];
 }>;
 export const SFNS_CONTROL_REQUESTS = {} as Record<SfnsControlId, never>;

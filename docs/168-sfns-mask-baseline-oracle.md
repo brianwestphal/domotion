@@ -5,7 +5,8 @@ kind: "evidence"
 status: "partial"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos"]
-tickets: ["DM-2452", "DM-2567", "DM-2568", "DM-2575", "DM-2576", "DM-2586", "DM-2587", "DM-2588", "DM-2604"]
+tickets:
+  ["DM-2452", "DM-2567", "DM-2568", "DM-2575", "DM-2576", "DM-2586", "DM-2587", "DM-2588", "DM-2604", "DM-3TZA79"]
 code:
   [
     "tools/build-sfns-pinned-ots-sanitizer.mjs",
@@ -75,8 +76,8 @@ available for targeted investigation.
 
 The oracle asks where the remaining SFNS zoom/transform residual first becomes
 observable after glyph placement is held constant. Every row uses the physical
-bytes at `/System/Library/Fonts/SFNS.ttf` (SHA-256
-`2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66`),
+bytes at `/System/Library/Fonts/SFNS.ttf` (macOS 27.0.1: 7,872,432 bytes,
+SHA-256 `44890958f3e0b997028121ed7c7a789f3f5cce227c7a93ce8f86ec0db26da571`),
 the text `zoom2!`, and the same gids at the same captured Skia quarter-pixel x
 keys. The base axis dictionary is complete:
 
@@ -91,7 +92,7 @@ production `system-ui` route; that route must prove the same SFNS path and
 digest through text-run provenance. All captured origins, font metrics, style,
 axis requests, and transforms are otherwise retained. CoreText re-maps the
 text independently and must return the supplied gid list
-`[969, 815, 815, 795, 1310, 1377]`.
+`[970, 816, 816, 795, 1312, 1379]`.
 
 Each row crosses four representations:
 
@@ -274,9 +275,9 @@ DM-2586 adds an independent Chromium-exact OTS step before the proposal arm.
 `tools/sfns-pinned-ots-sanitizer/` against OTS revision
 `46bea9879127d0ff1c6601b078e2ce98e83fcd33`. Its table actions and 128 MiB
 output envelope match pinned Blink's `WebFontDecoder`. Starting from the
-authenticated 7,909,644-byte `/System/Library/Fonts/SFNS.ttf`, the independent
-run produces a 7,806,016-byte SFNT with SHA-256
-`48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4`.
+authenticated 7,872,432-byte `/System/Library/Fonts/SFNS.ttf`, the independent
+run produces a 7,867,744-byte SFNT with SHA-256
+`e2165f571fe3a383b57123a1a91234b2b2a2859f0510af2b97e3ef129a352226`.
 The proposal does not copy or read the validation arm's decoded font or mask
 bytes.
 
@@ -349,7 +350,7 @@ records six existing seams without changing their values: direct Blink shaping,
 raw scaler-record construction, macOS record filtering, full filtered-record
 gamma/preblend construction, direct-mask run/phase packing, and the
 post-conversion macOS mask buffer. The hook writes only when the ABI,
-observation envelope, exact 7,909,644-byte source-SFNS digest, deterministic
+observation envelope, exact 7,872,432-byte source-SFNS digest, deterministic
 pinned-OTS decoded-stream digest, and target gid stream all match. The two font
 identities are distinct because Blink's mandatory OTS pass constructs Skia's
 typeface from sanitized bytes; the collector authenticates the source route
@@ -551,7 +552,7 @@ direct HarfBuzz shaped advances and offsets from the paint-owned
 `ShapeResultView` seam, the linked Skia run positions and strike fixed offsets,
 raw and normalized CoreText metrics, exact raw/filtered records, and complete
 gamma-table, preblend, and post-conversion mask bytes. The shape hook
-authenticates the same 7,806,016-byte OTS-decoded typeface used by the Skia
+authenticates the same 7,867,744-byte OTS-decoded typeface used by the Skia
 events. Selection requires one direct shape/run coordinate match and linked
 record digests; it never derives a missing shaped offset from neighboring
 origins.
@@ -618,6 +619,69 @@ and inner sealed digest
 It remains **not ready**, with zero input-integrity errors and the same 498
 exact mismatches. No new browser or native collection was needed to establish
 those unchanged logical facts.
+
+### macOS 27.0.1 re-baseline (DM-3TZA79)
+
+macOS 27.0.1 replaced `/System/Library/Fonts/SFNS.ttf`. The new file is
+7,872,432 bytes (SHA-256
+`44890958f3e0b997028121ed7c7a789f3f5cce227c7a93ce8f86ec0db26da571`); the
+previous 7,909,644-byte file
+(`2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66`) no
+longer exists on an updated host, so both arms refused to run. The four axes
+and their ranges are unchanged, but CoreText now maps `zoom2!` to gids
+`[970, 816, 816, 795, 1312, 1379]` instead of `[969, 815, 815, 795, 1310,
+1377]`. The pinned OTS sanitizer decodes the new file deterministically to
+7,867,744 bytes (SHA-256
+`e2165f571fe3a383b57123a1a91234b2b2a2859f0510af2b97e3ef129a352226`). It
+removes about 4.7 KB, where it removed about 103 KB from the old file, so the
+set of tables OTS drops has changed with the font. The manifest, both schemas,
+the native collector, the Chromium hook header, the OTS builder, and their tests
+pin the new identity; the manifest digest is now
+`5b13e7e12bd037af96b50695a4a5408fbd5085fb65a0ca427a60510a6373bbff`.
+
+Rebuilding the pinned validator needed two host accommodations, neither of
+which changes the Chromium or Skia revision:
+
+- The pinned lld cannot link against the macOS 27.0 SDK, whose
+  `libSystem.tbd` declares an `arm64e.x1` target that lld rejects. The builder
+  now requires Command Line Tools `MacOSX26.5.sdk` build `25F70`, which equals
+  the pinned Chromium's `mac_sdk_official_version`, links it under
+  `out/DM2575/sdk/xcode_links/`, and passes it as `mac_sdk_path`. That argument
+  is part of the authenticated GN argument string.
+- The Xcode 27.1 update removed the pinned Metal toolchain `32023.883`.
+  `headless_shell`'s only Metal output, ANGLE's internal shader library, was
+  already up to date, so the incremental build reused it without invoking
+  `metal`. When the toolchain is absent, the collector records that metallib's
+  path, SHA-256, and modification time as the Metal host component, rather
+  than a compiler version that did not run.
+
+The proposal arm re-collected 26 native observations with no browser launch.
+Shaped advances and glyph metrics are unchanged from August; 152 of its 156
+glyph masks differ, as new outlines predict. The validation arm re-collected 26
+explicitly headless observations from the rebuilt hook binary.
+
+Exact adjudication is still **not ready**, with zero input-integrity errors and
+498 exact mismatches. The breakdown matches the August result category by
+category: 21 typeface, 51 shaped-advance, 130 placement, 122 phase, 47
+glyph-metric, 123 mask, and the single font/raw-record/filtered-record/gamma row
+from the anti-aliasing control. Every one of the 26 observation pairs reports
+the same set of mismatch groups as the August report. The new font therefore
+introduces no new cross-arm disagreement; it reproduces the existing one.
+
+The flat retained artifacts were replaced in place. Their inner digests are
+proposal `8ccf39606ac2236bc73797bd21f74f39caf5f5bac36e97b920ef037a38524673`
+and validation
+`ac65e6c0b74621ba8dfaa6fdd279604160019365e233ba41579e8b236869dcc5`. The
+collectors' own envelopes and the terminal report computed over them are
+retained as `.pr-notes/artifacts/dm-3tza79-sfns-*.json`, with file SHA-256
+values `a2119aadc32adad0b0f8226f8a2a4b1f76c9e635ce88306ce56c4c3244f995ce`
+(proposal), `7ae2aff3a24c1a888e05ed5c636930323e371bbef6e77de0cee9cb62cfdac62c`
+(validation), and
+`0ffdd61ec5670688deadaf606678d28d2804b19d47c486771d394e220cb1f5f9`
+(terminal; sealed digest
+`a1ffc26e1f426171c72d1905644ebfcfd246a5462cedd19c36f68b106a81a2aa`). The
+`dm-nzrf7g` files remain as historical evidence for the previous font; they
+no longer validate against the current manifest.
 
 ### Production outline route (closed by DM-2567)
 

@@ -15,19 +15,19 @@ describe("source-owned SFNS terminal-mask manifest", () => {
       abi: SFNS_TERMINAL_MASK_MANIFEST_ABI,
       corpus: {
         text: "zoom2!",
-        sourceFontByteLength: 7_909_644,
-        sourceFontSha256: "2bfd40dc72e6759e248f82a52a40d551338979fffc9b5c070e685b4b7ad19e66",
-        decodedFontByteLength: 7_806_016,
-        decodedFontSha256: "48eedcecfc1b0338a2b0deaac43b017df55b3023cff2c5e8ecc87570b4eacff4",
+        sourceFontByteLength: 7_872_432,
+        sourceFontSha256: "44890958f3e0b997028121ed7c7a789f3f5cce227c7a93ce8f86ec0db26da571",
+        decodedFontByteLength: 7_867_744,
+        decodedFontSha256: "e2165f571fe3a383b57123a1a91234b2b2a2859f0510af2b97e3ef129a352226",
         collectionIndex: 0,
-        glyphIds: [969, 815, 815, 795, 1310, 1377],
+        glyphIds: [970, 816, 816, 795, 1312, 1379],
       },
     });
     expect(SFNS_TERMINAL_MASK_MANIFEST.cases.map((entry) => entry.id)).toEqual([
       ...SFNS_TERMINAL_MASK_SCENARIO_IDS,
       ...SFNS_TERMINAL_MASK_CONTROL_IDS.map((id) => `control-${id}`),
     ]);
-    expect(sfnsTerminalMaskManifestDigest()).toBe("0a4551275051e7bf3c5548b7d010a82e715325c9ef88784371d2329cb4c714e9");
+    expect(sfnsTerminalMaskManifestDigest()).toBe("5b13e7e12bd037af96b50695a4a5408fbd5085fb65a0ca427a60510a6373bbff");
   });
 
   it("contains requests only, never cross-arm derived rendering results", () => {

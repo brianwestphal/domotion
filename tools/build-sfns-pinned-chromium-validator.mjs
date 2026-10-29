@@ -2,7 +2,7 @@
 /** Apply and build the false-by-default SFNS test hook in an isolated checkout. */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +10,12 @@ const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const SKIA_REVISION = "62efacd37737505732dbe3d8daa62abd679626a1";
 const DEPOT_TOOLS_REVISION = "612d70c7ccb01d4a405e822ad0505206de636d7e";
 const METAL_TOOLCHAIN = "com.apple.dt.toolchain.Metal.32023.883";
+// The pinned Chromium's official macOS SDK (`mac_sdk_official_version` /
+// `mac_sdk_official_build_version` in build/config/mac/mac_sdk.gni). Newer
+// SDKs are not linkable by the pinned lld: the macOS 27.0 libSystem.tbd
+// declares an `arm64e.x1` target it rejects.
+const MAC_SDK_PATH = "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk";
+const MAC_SDK_BUILD_VERSION = "25F70";
 import { flag, isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
 async function main(argv) {
@@ -80,6 +86,20 @@ async function main(argv) {
 
     const outputDirectory = resolve(root, out);
     mkdirSync(outputDirectory, { recursive: true });
+    const sdkBuild = execFileSync(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Print :ProductBuildVersion", `${MAC_SDK_PATH}/System/Library/CoreServices/SystemVersion.plist`],
+      { encoding: "utf8" },
+    ).trim();
+    if (sdkBuild !== MAC_SDK_BUILD_VERSION) {
+      throw new Error(`pinned macOS SDK ${MAC_SDK_PATH} is build ${sdkBuild}, expected ${MAC_SDK_BUILD_VERSION}`);
+    }
+    // With system Xcode, Chromium requires the SDK as a link inside the build
+    // directory (build/config/mac/BUILD.gn `sdk_inputs`).
+    const sdkLink = `${outputDirectory}/sdk/xcode_links/MacOSX26.5.sdk`;
+    mkdirSync(dirname(sdkLink), { recursive: true });
+    rmSync(sdkLink, { force: true });
+    symlinkSync(MAC_SDK_PATH, sdkLink);
     const argsPath = `${outputDirectory}/args.gn`;
     writeFileSync(
       argsPath,
@@ -94,6 +114,7 @@ async function main(argv) {
         "treat_warnings_as_errors = false",
         "sk_domotion_sfns_validation_hook = true",
         "blink_domotion_sfns_validation_hook = true",
+        `mac_sdk_path = "//${out}/sdk/xcode_links/MacOSX26.5.sdk"`,
         "",
       ].join("\n"),
     );
@@ -125,6 +146,7 @@ async function main(argv) {
         skiaRevision: SKIA_REVISION,
         depotToolsRevision: DEPOT_TOOLS_REVISION,
         metalToolchain: METAL_TOOLCHAIN,
+        macSdk: { path: MAC_SDK_PATH, buildVersion: MAC_SDK_BUILD_VERSION },
         binary,
         binarySha256: sha(binary),
         hookHeaderSha256: sha(headerTarget),

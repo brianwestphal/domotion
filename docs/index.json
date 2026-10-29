@@ -3929,7 +3929,18 @@
         "status": "partial",
         "owners": ["paint-effects", "platform-release"],
         "platforms": ["macos"],
-        "tickets": ["DM-2452", "DM-2567", "DM-2568", "DM-2575", "DM-2576", "DM-2586", "DM-2587", "DM-2588", "DM-2604"],
+        "tickets": [
+          "DM-2452",
+          "DM-2567",
+          "DM-2568",
+          "DM-2575",
+          "DM-2576",
+          "DM-2586",
+          "DM-2587",
+          "DM-2588",
+          "DM-2604",
+          "DM-3TZA79"
+        ],
         "code": [
           "tools/build-sfns-pinned-ots-sanitizer.mjs",
           "tools/build-sfns-pinned-skia-collector.mjs",
