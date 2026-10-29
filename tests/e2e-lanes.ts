@@ -28,8 +28,7 @@ export const E2E_HEAVY_FILES = [
  */
 export const E2E_HOST_GENERIC_RESET_RETRY = {
   count: 1,
-  condition:
-    /different generic-family preference sessions|generic font families changed between capture round/,
+  condition: /different generic-family preference sessions|generic font families changed between capture round/,
 } as const;
 
 export const E2E_BASE_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/tests/output/**"] as const;
