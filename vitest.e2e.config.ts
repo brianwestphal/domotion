@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { e2eLaneConfig, resolveE2ELane } from "./tests/e2e-lanes.js";
+import { E2E_HOST_GENERIC_RESET_RETRY, e2eLaneConfig, resolveE2ELane } from "./tests/e2e-lanes.js";
 import { coverageConfig } from "./vitest.coverage.js";
 
 const lane = resolveE2ELane(process.env["DOMOTION_E2E_LANE"]);
@@ -40,6 +40,9 @@ export default defineConfig({
       REVIEW_NO_OPEN: "1",
     },
     testTimeout: 60_000,
+    // A hosted-runner WebPreferences reset is the only failure retried; see
+    // `E2E_HOST_GENERIC_RESET_RETRY`.
+    retry: E2E_HOST_GENERIC_RESET_RETRY,
     include: laneConfig.include,
     exclude: laneConfig.exclude,
     // The merged all-suite report asks this lane for JSON only. Sharing the

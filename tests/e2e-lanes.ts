@@ -14,6 +14,24 @@ export const E2E_HEAVY_FILES = [
   "tests/svg-effect-combination-oracle.e2e.test.ts",
 ] as const;
 
+/**
+ * Retry a browser test once, and only when it failed because the Page's
+ * generic font-family Settings changed between two of its captures. Hosted
+ * macOS runners reset every Chromium's WebPreferences at once on a host
+ * appearance/accessibility event (`OnNativeThemeUpdated` ->
+ * `NotifyPreferencesChanged`), which replaces Playwright's
+ * `Page.setFontFamilies` overlay with Chromium's defaults mid-test (doc 198).
+ * Production deliberately fails closed rather than splice trees from both
+ * sides of that reset, so the error is faithful; the event is one-shot, so a
+ * second attempt captures every tree on one side of it. Any other failure,
+ * and a second reset-shaped failure, still fails the lane.
+ */
+export const E2E_HOST_GENERIC_RESET_RETRY = {
+  count: 1,
+  condition:
+    /different generic-family preference sessions|generic font families changed between capture round/,
+} as const;
+
 export const E2E_BASE_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/tests/output/**"] as const;
 
 export function resolveE2ELane(raw: string | undefined): E2ELane {

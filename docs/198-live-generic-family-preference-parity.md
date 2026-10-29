@@ -300,6 +300,13 @@ pixels, a font-name snapshot, or a tolerance.
   a page that relies on the new defaults); failing would turn a faithful
   recording into an error. Only the conformance oracle repairs the overlay
   between batches, because it measures a fixed preference state by design.
+  The browser E2E lane follows the same contract. Multi-capture tests
+  (`compressed-run`, `two-pane-regions`, per-region timing) hit this reset
+  repeatedly on hosted macOS, including about 20 minutes into a job. So
+  `vitest.e2e.config.ts` retries a test once, and only when it fails with one
+  of the two production refusals above (`E2E_HOST_GENERIC_RESET_RETRY` in
+  `tests/e2e-lanes.ts`, pinned by `tests/e2e-lanes.test.ts`). Production
+  behavior is unchanged, and any other failure still fails the lane.
 - `system-ui` remains outside this gate's parity claim. Its separate exact
   CoreText / Linux renderer-family / Windows menu-font route oracle shipped in
   [doc 211](211-platform-system-ui-preference-route.md); the rows here remain
