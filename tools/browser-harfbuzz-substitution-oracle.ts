@@ -1266,10 +1266,23 @@ export function validateSubstitutionArtifacts(
   };
 }
 
+/** The workflow matrix passes `--proposal` or `--validation` explicitly;
+ * `--proposal` is also the default when neither is given. */
+export function substitutionEvidenceFromFlags(flags: {
+  proposal?: boolean;
+  validation?: boolean;
+}): "proposal" | "validation" {
+  if (flags.proposal === true && flags.validation === true) {
+    throw new Error("--proposal and --validation are mutually exclusive");
+  }
+  return flags.validation === true ? "validation" : "proposal";
+}
+
 async function main(argv: string[]): Promise<number> {
   const args = parseFlags(argv, {
     aggregate: { type: "string" },
     json: { type: "string" },
+    proposal: { type: "boolean" },
     validation: { type: "boolean" },
     "logic-only": { type: "boolean" },
   });
@@ -1286,7 +1299,10 @@ async function main(argv: string[]): Promise<number> {
     return aggregate.verdict === "proposal-validation-agreement" ? 0 : 1;
   }
 
-  const evidence = flag(args, "validation", false) === true ? "validation" : "proposal";
+  const evidence = substitutionEvidenceFromFlags({
+    proposal: flag(args, "proposal", false) === true,
+    validation: flag(args, "validation", false) === true,
+  });
   const report = await buildBrowserHarfBuzzSubstitutionReport({
     evidence,
     includeBrowser: flag(args, "logic-only", false) !== true,

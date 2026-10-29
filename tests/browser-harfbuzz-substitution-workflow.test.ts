@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { substitutionEvidenceFromFlags } from "../tools/browser-harfbuzz-substitution-oracle.js";
 
 const workflow = readFileSync(".github/workflows/browser-harfbuzz-substitution-streams.yml", "utf8");
 const oracle = readFileSync("tools/browser-harfbuzz-substitution-oracle.ts", "utf8");
@@ -37,5 +38,19 @@ describe("browser HarfBuzz substitution-stream workflow", () => {
     expect(oracle).toContain('const REQUIRED_EVIDENCE = ["proposal", "validation"]');
     expect(oracle).toContain("exact logical streams differ across proposal/validation or OS");
     expect(oracle).toContain('"proposal-validation-agreement"');
+  });
+
+  // DM-2WEZ7Y: the matrix passes `--${{ matrix.evidence }}`, so the strict
+  // parser must declare every evidence value as a flag, or the proposal lane
+  // dies with ERR_PARSE_ARGS_UNKNOWN_OPTION before writing report.json.
+  it("declares a CLI flag for every matrix evidence value", () => {
+    expect(workflow).toContain("--${{ matrix.evidence }}");
+    for (const evidence of ["proposal", "validation"]) {
+      expect(oracle).toContain(`    ${evidence}: { type: "boolean" },`);
+    }
+    expect(substitutionEvidenceFromFlags({ proposal: true })).toBe("proposal");
+    expect(substitutionEvidenceFromFlags({ validation: true })).toBe("validation");
+    expect(substitutionEvidenceFromFlags({})).toBe("proposal");
+    expect(() => substitutionEvidenceFromFlags({ proposal: true, validation: true })).toThrow(/mutually exclusive/);
   });
 });
