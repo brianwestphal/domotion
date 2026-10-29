@@ -6,9 +6,11 @@ export {
   parseFlags,
   parseCommand,
   flag,
+  stringFlag,
   requiredFlag,
   intFlag,
   shardFlag,
   isMain,
   runMain,
 } from "./cli.mjs";
+export type { FlagSchema, FlagValues, FlagValuesOf } from "./cli.mjs";

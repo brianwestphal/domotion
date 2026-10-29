@@ -2,7 +2,6 @@
 /** Live capture→SVG oracle for the generated DM-2358 effect corpus. */
 import { arch, platform, release } from "node:os";
 import { resolve } from "node:path";
-import { createRequire } from "node:module";
 import { type Page } from "@playwright/test";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
@@ -23,7 +22,6 @@ import {
   validateSvgEffectCombinationCorpus,
 } from "./svg-effect-combination-corpus.js";
 
-const require = createRequire(import.meta.url);
 const playwrightVersion = readPlaywrightVersion() ?? "unknown";
 
 export const SVG_EFFECT_PIXEL_THRESHOLDS = {

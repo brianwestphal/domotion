@@ -558,7 +558,8 @@ export function adjudicateSfnsTerminalMasks(
   ];
   const proposalBuildIdentity = hashJson(proposal.build);
   const validationBuildIdentity = hashJson(validation.build);
-  const distinctAuthorities = proposal.authority !== validation.authority;
+  // The schemas pin each authority, but the inputs are untrusted files.
+  const distinctAuthorities = (proposal.authority as string) !== validation.authority;
   const distinctBuildIdentities = proposalBuildIdentity !== validationBuildIdentity;
   const distinctBinaryDigests = proposal.build.binary.sha256 !== validation.build.binary.sha256;
   if (!distinctAuthorities) inputIntegrityErrors.push("independence:same-authority");

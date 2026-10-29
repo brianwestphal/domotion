@@ -121,7 +121,7 @@ export function runOracle() {
     {
       id: "wrong-continuation-phase",
       mutate: (r: Row[]) => {
-        (r[0].records[2] as DecorationFragmentRecord & { continuationPhase: number }).continuationPhase = 1;
+        (r[0].records[2] as unknown as { continuationPhase: number }).continuationPhase = 1;
       },
     },
     {

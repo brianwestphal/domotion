@@ -1,6 +1,5 @@
 #!/usr/bin/env tsx
 /** Live Chromium validation for the source-transcribed paint geometry oracle. */
-import { createRequire } from "node:module";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
@@ -11,7 +10,6 @@ import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.m
 
 const SOURCE_REVISION = "chromium:7d859f271cbda744098ac69f44978d4edfa62be3";
 const DPR = 4;
-const require = createRequire(import.meta.url);
 const playwrightVersion = readPlaywrightVersion() ?? "unknown";
 
 export interface BrowserPaintProbe {

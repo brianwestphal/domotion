@@ -22,6 +22,11 @@ export function flag(values, name, fallback = null) {
   return value === undefined ? fallback : value;
 }
 
+export function stringFlag(values, name, fallback) {
+  const value = flag(values, name, fallback ?? null);
+  return typeof value === "string" ? value : undefined;
+}
+
 export function requiredFlag(values, name) {
   const value = flag(values, name);
   if (typeof value !== "string" || value === "") throw new Error(`${name} requires a value`);

@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node
 import { dirname, relative, resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
-import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { isMain, parseFlags, runMain, stringFlag } from "./lib/cli.js";
 import { writeSfnsChromiumValidation } from "./sfns-mask-report.js";
 import {
   SFNS_TERMINAL_MASK_CONTROL_IDS,
@@ -56,7 +56,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     probe: { type: "boolean" },
   });
   function value(name: string, fallback?: string): string {
-    const result = flag(options, name, fallback);
+    const result = stringFlag(options, name, fallback);
     if (result == null || result.startsWith("--")) throw new Error(`missing ${name}`);
     return result;
   }

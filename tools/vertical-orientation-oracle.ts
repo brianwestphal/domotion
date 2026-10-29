@@ -316,7 +316,7 @@ export function buildVerticalOrientationOracle(
   );
   const wrongCombineOwnershipMoved =
     blinkUsesTextCombine("sideways-rl", "all") !== true && blinkUsesTextCombine("sideways-lr", "all") !== true;
-  const staleUnicodeVersionMoved = VERTICAL_ORIENTATION_UNICODE_VERSION !== "16.0.0";
+  const staleUnicodeVersionMoved = (VERTICAL_ORIENTATION_UNICODE_VERSION as string) !== "16.0.0";
   const mutations = { staleRangesMoved, perScalarExtendMoved, wrongCombineOwnershipMoved, staleUnicodeVersionMoved };
   const checks = {
     sourceImageExact: sourceSha256 === VERTICAL_ORIENTATION_SOURCE_PINS.ppucdSha256,

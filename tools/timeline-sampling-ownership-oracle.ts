@@ -592,7 +592,7 @@ async function pinProgressEffects(frame: Frame): Promise<string[]> {
         failures.push(`${id} animation did not expose a resolved CSS percentage`);
         continue;
       }
-      const progress = time as ProgressValue;
+      const progress = time as unknown as ProgressValue;
       if (progress.unit !== "percent" || !Number.isFinite(progress.value)) {
         failures.push(`${id} animation exposed ${progress.value}${progress.unit}`);
         continue;

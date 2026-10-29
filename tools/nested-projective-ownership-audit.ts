@@ -654,7 +654,7 @@ async function gatherBrowserFacts(page: Page): Promise<{ facts: BrowserNodeFact[
           hasCurrentOpacityAnimation: opacityAnimated,
           filter: style.filter || "none",
           backdropFilter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter") || "none",
-          hasBoxReflection: (style.webkitBoxReflect ?? "none") !== "none",
+          hasBoxReflection: (style.getPropertyValue("-webkit-box-reflect") || "none") !== "none",
           clipPath: style.clipPath || "none",
           isolation: style.isolation || "auto",
           maskImage: style.maskImage || style.getPropertyValue("-webkit-mask-image") || "none",
@@ -952,26 +952,28 @@ export async function runNestedProjectiveOwnershipAudit(
       try {
         await page.setContent(nestedProjectiveAuditFixtureHtml(profile), { waitUntil: "load" });
         const sourceDom = await page.evaluate(() =>
-          Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map((element) => [
-            element.dataset.projectiveNode,
-            [
-              "visibility",
-              "background",
-              "opacity",
-              "filter",
-              "mask",
-              "-webkit-mask",
-              "mix-blend-mode",
-              "transform",
-              "translate",
-              "rotate",
-              "scale",
-            ].map((property) => [
-              property,
-              element.style.getPropertyValue(property),
-              element.style.getPropertyPriority(property),
-            ]),
-          ]),
+          Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map(
+            (element): [string | undefined, string[][]] => [
+              element.dataset.projectiveNode,
+              [
+                "visibility",
+                "background",
+                "opacity",
+                "filter",
+                "mask",
+                "-webkit-mask",
+                "mix-blend-mode",
+                "transform",
+                "translate",
+                "rotate",
+                "scale",
+              ].map((property) => [
+                property,
+                element.style.getPropertyValue(property),
+                element.style.getPropertyPriority(property),
+              ]),
+            ],
+          ),
         );
         const scrollBefore = await readScrollOffset(page);
         const sourcePng = await page.screenshot();
@@ -996,26 +998,28 @@ export async function runNestedProjectiveOwnershipAudit(
             .map((warning) => `dpr${dpr}:${warning.feature}:${warning.detail}`),
         );
         const restoredDom = await page.evaluate(() =>
-          Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map((element) => [
-            element.dataset.projectiveNode,
-            [
-              "visibility",
-              "background",
-              "opacity",
-              "filter",
-              "mask",
-              "-webkit-mask",
-              "mix-blend-mode",
-              "transform",
-              "translate",
-              "rotate",
-              "scale",
-            ].map((property) => [
-              property,
-              element.style.getPropertyValue(property),
-              element.style.getPropertyPriority(property),
-            ]),
-          ]),
+          Array.from(document.querySelectorAll<HTMLElement>("[data-projective-node]")).map(
+            (element): [string | undefined, string[][]] => [
+              element.dataset.projectiveNode,
+              [
+                "visibility",
+                "background",
+                "opacity",
+                "filter",
+                "mask",
+                "-webkit-mask",
+                "mix-blend-mode",
+                "transform",
+                "translate",
+                "rotate",
+                "scale",
+              ].map((property) => [
+                property,
+                element.style.getPropertyValue(property),
+                element.style.getPropertyPriority(property),
+              ]),
+            ],
+          ),
         );
         const before = new Map(sourceDom);
         const after = new Map(restoredDom);
@@ -1030,9 +1034,6 @@ export async function runNestedProjectiveOwnershipAudit(
           );
         }
         const elements = flatten(captured.tree);
-        const byAnimId = new Map(
-          elements.filter((element) => element.animId != null).map((element) => [element.animId!, element]),
-        );
         const svg = elementTreeToSvg(
           captured.tree,
           NESTED_PROJECTIVE_VIEWPORT.width,

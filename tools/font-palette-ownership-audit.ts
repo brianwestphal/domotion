@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { createReadStream, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
@@ -136,7 +136,6 @@ export const FONT_PALETTE_CASES: readonly PaletteCase[] = [
 
 const sha256 = (bytes: Uint8Array | string): string => createHash("sha256").update(bytes).digest("hex");
 const colorKey = (color: RgbaColor): string => `${color.red},${color.green},${color.blue},${color.alpha}`;
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 export function readPaletteSourceFacts(path = FONT_PALETTE_FIXTURE): PaletteSourceFacts {
   const bytes = readFileSync(resolve(path));

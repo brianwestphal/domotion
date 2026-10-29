@@ -8,11 +8,7 @@
  */
 import { harfbuzzShapeRun, registerHbBufferSource, type ShapeResult } from "@domotion/text-engine/testing";
 import { BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
-import type {
-  FontFeatureValueCategory,
-  FontFeatureValueTable,
-  FontFeatureValueTables,
-} from "../src/font-feature-values-cascade.js";
+import type { FontFeatureValueCategory, FontFeatureValueTables } from "../src/font-feature-values-cascade.js";
 import { resolveFontVariantAlternates } from "../src/render/text.js";
 
 export type {

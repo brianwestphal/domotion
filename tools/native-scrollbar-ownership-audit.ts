@@ -10,12 +10,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
-import { createRequire } from "node:module";
 import { join, relative, resolve } from "node:path";
 import sharp from "sharp";
 import { chromium, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
-import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { isMain, parseFlags, runMain, stringFlag } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
 import {
   NATIVE_SCROLLBAR_AUDIT_ENVELOPE_VERSION,
@@ -440,7 +439,8 @@ async function mutate(page: Page, mutation: AuditCase["mutation"]): Promise<void
 }
 
 async function browserFacts(page: Page): Promise<BrowserFacts> {
-  return page.locator("#target").evaluate((target) => {
+  return page.locator("#target").evaluate((element) => {
+    const target = element as HTMLElement;
     const style = getComputedStyle(target);
     const clip = document.querySelector<HTMLElement>("#clip")!;
     const scrollbar = getComputedStyle(target, "::-webkit-scrollbar");
@@ -956,7 +956,7 @@ function ownershipControls(rows: readonly AuditRow[]): Record<string, boolean> {
         row("native-auto-dark")!.sourcePixels.edges.right.topColors[0].rgb,
     standardWidthAndColorRecorded:
       row("native-thin-colors")?.source.scrollbarWidth === "thin" &&
-      row("native-thin-colors")?.source.scrollbarColor.includes("rgb(25, 85, 209)"),
+      row("native-thin-colors")?.source.scrollbarColor.includes("rgb(25, 85, 209)") === true,
     captureContractCarriesOwnershipFacts: rows.every((candidate) => {
       if (candidate.captured == null) return false;
       if (candidate.expectedRoute === "marker-free-control") return true;
@@ -1062,13 +1062,14 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
     import("../src/capture/index.js"),
     import("../src/render/element-tree-to-svg.js"),
   ]);
-  const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   // Playwright normally adds `--hide-scrollbars`, which would turn every
   // screenshot into a false negative for the exact thing this probe audits.
   const rows: AuditRow[] = [];
+  let chromiumVersion = "";
   await withBrowser(
     async (browser) => {
+      chromiumVersion = browser.version();
       for (const test of CASES) {
         for (const deviceScaleFactor of options.deviceScaleFactors ?? test.dprs ?? [1]) {
           for (const cssZoom of options.cssZooms ?? [test.id === "custom-zoom-125" ? 1.25 : 1]) {
@@ -1187,7 +1188,7 @@ export async function runNativeScrollbarOwnershipAudit(options: NativeScrollbarA
     browserLaunch: { headless: true, ignoredDefaultArguments: ["--hide-scrollbars"] },
     chromiumExecutableSha256: sha256(readFileSync(chromium.executablePath())),
     sourceRevisions: SOURCE_REVISIONS,
-    chromiumVersion: browser.version(),
+    chromiumVersion,
     playwrightVersion,
     host: { platform: platform(), architecture: arch(), release: release() },
     rows,
@@ -1208,7 +1209,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     "boot-id": { type: "string" },
     "runner-image": { type: "string" },
   });
-  const value = (name: string): string | undefined => flag(values, name) ?? undefined;
+  const value = (name: string): string | undefined => stringFlag(values, name);
   const jsonPath = value("--json");
   const numbers = (name: string): number[] | undefined => value(name)?.split(",").map(Number);
   const role = value("--evidence-role");

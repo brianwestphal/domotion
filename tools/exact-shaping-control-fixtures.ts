@@ -422,10 +422,11 @@ function runFixtureGroup(
   fixture: FixtureSpec,
 ): ApplicableShapingControlRow[] {
   const inspected = inspectFixture(source, fixture);
-  if (inspected.bytes == null || inspected.reason != null) {
+  const bytes = inspected.bytes;
+  if (bytes == null || inspected.reason != null) {
     return specs.map((spec) => inapplicableRow(spec, inspected.metadata, inspected.reason ?? "fixture is unavailable"));
   }
-  return specs.map((spec) => runControl(spec, inspected.bytes, inspected.metadata));
+  return specs.map((spec) => runControl(spec, bytes, inspected.metadata));
 }
 
 /**

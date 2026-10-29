@@ -62,7 +62,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { type Browser, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import { clearFontResolutionCaches, getFontSourceInfo } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";

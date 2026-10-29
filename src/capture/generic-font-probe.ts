@@ -96,7 +96,7 @@ export interface SessionGenericFamilyProbe {
  * system faces. Fontconfig and DirectWrite consume family display names. */
 export function genericFamilyReplayName(
   platform: NodeJS.Platform,
-  face: { familyName: string; postScriptName?: string },
+  face: { familyName: string; postScriptName?: string | null },
 ): string {
   return platform === "darwin" ? face.postScriptName || face.familyName : face.familyName;
 }

@@ -62,7 +62,7 @@
  * ---------------------------------------------------------------------------
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { type Browser, type CDPSession, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import {

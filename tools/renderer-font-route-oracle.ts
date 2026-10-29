@@ -189,7 +189,7 @@ export function compareRouteEvidence(
 export function buildRouteReport<T>(
   records: T[],
   helperEnvironment: ReturnType<typeof helperRouteLedgerEnvironment>,
-  mechanisms: string[],
+  mechanisms: readonly (string | undefined)[],
   controls: Record<string, boolean>,
   complete: boolean,
 ) {

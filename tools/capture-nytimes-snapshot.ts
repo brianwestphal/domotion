@@ -22,7 +22,8 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
-import { captureElementTree, elementTreeToSvg } from "../src/index.js";
+import { captureElementTree } from "../src/index.js";
+import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url)) + "/..";
 const OUT = resolve(ROOT, "site/scripts/install-demo/nytimes-snapshot.svg");
@@ -88,7 +89,7 @@ async function main(): Promise<number> {
       width: VIEWPORT_W,
       height: CAPTURE_H,
     });
-    const inner = elementTreeToSvg(tree, VIEWPORT_W, CAPTURE_H, "nyt-", /* includeGlyphDefs */ true);
+    const inner = elementTreeToSvgInner(tree, VIEWPORT_W, CAPTURE_H, "nyt-", /* includeGlyphDefs */ true);
     // Glyph defs use a global `g0`, `g1`, … counter that isn't prefixable
     // through the public API. The snapshot is embedded as a nested `<svg>`
     // inside the install-demo SVG, where IDs are document-global — so prefix

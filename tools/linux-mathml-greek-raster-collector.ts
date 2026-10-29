@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import {
   copyFileSync,
@@ -14,7 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 import * as fontkit from "fontkit";
 import sharp from "sharp";
 import {
@@ -50,7 +49,6 @@ import { measurePathsRasterResidual } from "./paths-native-raster-metrics.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
-const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = readPlaywrightVersion() ?? "unknown";
 const VIEWPORT = LINUX_MATHML_GREEK_CELL.viewport;
 const UNIQUE_PATHS_FAMILY = "DomotionFreeSansMathmlPaths";
@@ -183,8 +181,8 @@ function isolatedFontconfig(fontBytes: Buffer, fontSource: string, artifactDir: 
   }
   const entry = {
     path: fontPath,
-    byteLength: fontBytes.length,
-    sha256: sha256(fontBytes),
+    byteLength: fontBytes.length as typeof FREE_SANS_NOBLE_PACKAGE.fontByteLength,
+    sha256: sha256(fontBytes) as typeof FREE_SANS_NOBLE_PACKAGE.fontSha256,
     familyName: "FreeSans" as const,
     postscriptName: "FreeSans" as const,
     faceIndex: 0 as const,
@@ -393,7 +391,7 @@ async function sourceEvidence(
         baseline: textTop + fontAscent,
         matrix: [1, 0, 0, 1, 0, 0] as [number, number, number, number, number, number],
       },
-      nativeFace: face,
+      nativeFace: face as LinuxMathmlGreekPreterminalEvidence["tokens"][number]["nativeFace"],
       glyph: {
         gid: glyph.id,
         cluster: 0,
@@ -426,8 +424,8 @@ async function sourceEvidence(
     sourceFont: {
       packagePath: FREE_SANS_NOBLE_PACKAGE.fontPath,
       runtimePath: fontconfig.fontPath,
-      byteLength: fontBytes.length,
-      sha256: sha256(fontBytes),
+      byteLength: fontBytes.length as typeof FREE_SANS_NOBLE_PACKAGE.fontByteLength,
+      sha256: sha256(fontBytes) as typeof FREE_SANS_NOBLE_PACKAGE.fontSha256,
       familyName: opened.familyName,
       postscriptName: opened.postscriptName,
       faceIndex: 0,
@@ -610,9 +608,9 @@ async function hintingOffArm(
       fontFaceRuleFamily: pageFacts.fontFaceRuleFamily,
       fontFaceRuleCount: pageFacts.fontFaceRuleCount as 1,
       sourceSha256: LINUX_MATHML_GREEK_SUBSETS.unhinted.sha256,
-      sourceByteLength: unhinted.length,
-      isCustomFont: [...faces.values()].every((entry) => entry.isCustomFont),
-      glyphCount: [...faces.values()].reduce((sum, entry) => sum + entry.glyphCount, 0) as 4,
+      sourceByteLength: unhinted.length as typeof LINUX_MATHML_GREEK_SUBSETS.unhinted.byteLength,
+      isCustomFont: [...faces.values()].every((entry) => entry.isCustomFont) as true,
+      glyphCount: [...faces.values()].reduce<number>((sum, entry) => sum + entry.glyphCount, 0) as 4,
       tokens: logicalTokens,
     },
   };

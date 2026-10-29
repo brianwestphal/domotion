@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { release } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { createRequire } from "node:module";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { NESTED_PROJECTIVE_VIEWPORT, runNestedProjectiveOwnershipAudit } from "./nested-projective-ownership-audit.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
@@ -27,7 +26,6 @@ export async function produceProjectiveOwnerRelease(argv: string[]): Promise<num
   const runnerImage = process.env.DOMOTION_RUNNER_IMAGE ?? `${process.platform}-local`;
   const runnerImageVersion = process.env.ImageVersion ?? "local";
   const chromiumRevision = "7d859f271cbda744098ac69f44978d4edfa62be3";
-  const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   const fingerprint =
     `${process.platform}-${process.arch}-${runnerImage}-${runnerImageVersion}-${chromiumRevision}`.replaceAll("/", "-");

@@ -30,7 +30,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chromium, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { compareGlyphPngs, DEFAULT_THRESHOLDS, type GlyphCompareResult } from "../src/review/glyph-compare.js";

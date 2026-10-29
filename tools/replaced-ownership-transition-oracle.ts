@@ -2,10 +2,9 @@
 
 import { createHash } from "node:crypto";
 import { arch, platform, release } from "node:os";
-import { createRequire } from "node:module";
 
 import sharp from "sharp";
-import { type Browser, type BrowserContext, type Page, type Route } from "playwright";
+import { type Browser, type BrowserContext, type Route } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
@@ -76,8 +75,6 @@ export interface ReplacedOwnershipGateReport {
   runs: ReplacedOwnershipRunReport[];
   verdict: "source-exact" | "source-drift";
 }
-
-const require = createRequire(import.meta.url);
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
@@ -702,7 +699,8 @@ async function nativeControlRows(context: BrowserContext): Promise<ReplacedOwner
 async function imageDecodingRows(context: BrowserContext): Promise<ReplacedOwnershipTransitionRow[]> {
   const page = await context.newPage();
   const pendingUrl = "https://dm2364.invalid/pending-image.png";
-  let pendingRoute: Route | null = null;
+  // Assigned from a route handler, so control-flow narrowing cannot see it.
+  let pendingRoute = null as Route | null;
   let routeSeenResolve: (() => void) | undefined;
   const routeSeen = new Promise<void>((resolve) => {
     routeSeenResolve = resolve;

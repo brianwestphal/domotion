@@ -320,6 +320,8 @@ async function main(argv: string[]): Promise<number> {
     dsf: { type: "string" },
     zoom: { type: "string" },
     "report-only": { type: "boolean" },
+    "max-edge-error": { type: "string" },
+    "max-profile-rmse": { type: "string" },
   });
   const jsonPath = String(flag(args, "json", "")),
     keepDir = String(flag(args, "keep", ""));
@@ -331,8 +333,8 @@ async function main(argv: string[]): Promise<number> {
   // Baseline envelopes are deliberately just above the measured 2026-08-15
   // maxima (0.551 / 0.471). A paint change may tighten them when it reduces
   // the named fixture residuals; widening them requires an explicit review.
-  const maxEdgeError = Number(option("--max-edge-error", "0.56")),
-    maxProfileRmse = Number(option("--max-profile-rmse", "0.48"));
+  const maxEdgeError = Number(flag(args, "max-edge-error", "0.56")),
+    maxProfileRmse = Number(flag(args, "max-profile-rmse", "0.48"));
   const cases = buildPhaseCases();
   const corpusFingerprint = sha256(
     JSON.stringify({

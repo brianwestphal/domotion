@@ -9,10 +9,8 @@
  * generated corpus runs at DPR 1/2 on macOS, Linux, and Windows CI; no
  * platform-specific tolerance envelope is accepted.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { type Page } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
@@ -654,7 +652,7 @@ async function measureUnsafeMatrixMutations(page: Page): Promise<{
     await page.setContent(markup);
     return page.locator("#mutation-target").evaluate((node, mutationKind) => {
       const target = node as SVGGraphicsElement;
-      const parent = target.parentElement as SVGGraphicsElement;
+      const parent = target.parentNode as SVGGraphicsElement;
       const used = parent.getCTM()!.inverse().multiply(target.getCTM()!);
       const computed = getComputedStyle(target).transform;
       const matrix3d = new DOMMatrix(computed);
@@ -792,7 +790,6 @@ export async function runInlineSvg3dAudit(
     import("../src/capture/index.js"),
     import("../src/render/element-tree-to-svg.js"),
   ]);
-  const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   const deviceScaleFactors = [...new Set(options.deviceScaleFactors ?? [1, 2])].sort((a, b) => a - b);
   if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0)) {

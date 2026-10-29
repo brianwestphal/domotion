@@ -149,7 +149,7 @@ import { resolveFont } from "@domotion/text-engine/testing";
 import { withBrowser } from "./lib/browser.js";
 import { decorationDataSchema } from "./conformance-report-schemas.js";
 import { writeReport } from "./lib/report.js";
-import { flag as flagValue, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { isMain, parseFlags, runMain, stringFlag } from "./lib/cli.js";
 import { captureElementTree, elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { setRenderTextMode } from "../src/render/font-resolution.js";
 
@@ -1583,7 +1583,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
     "no-gate-skip-ink": { type: "boolean" },
   });
   const flag = (name: string) => values[name.slice(2)] === true;
-  const opt = (name: string): string | null => flagValue(values, name);
+  const opt = (name: string): string | null => stringFlag(values, name) ?? null;
   const only = opt("--only");
   const jsonPath = opt("--json");
   const keepDir = opt("--keep");

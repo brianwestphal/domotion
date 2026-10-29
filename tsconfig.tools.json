@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": "."
+  },
+  "include": [
+    "tools/**/*.ts",
+    "tools/**/*.tsx",
+    "src/globals.d.ts",
+    "src/post-processing/wawoff2.d.ts",
+    "src/render/svg2ttf.d.ts"
+  ],
+  // tools/sfns-pinned-skia-mask-schema.ts is hash-pinned by retained native
+  // evidence (tests/sfns-pinned-skia-mask-schema.test.ts records its sha256),
+  // so it cannot be edited to fix its one cast until that evidence is
+  // re-collected. tsc checks every file reachable from an included root, so
+  // the schema's transitive importers are excluded with it.
+  "exclude": [
+    "tools/scratch/**",
+    "tools/**/build/**",
+    "node_modules",
+    "dist",
+    "tools/sfns-pinned-skia-mask-schema.ts",
+    "tools/sfns-mask-baseline-oracle.ts",
+    "tools/sfns-mask-report.ts",
+    "tools/sfns-outline-parity-gate.ts",
+    "tools/sfns-pinned-chromium-validation-collector.ts",
+    "tools/sfns-pinned-skia-mask-collector.ts",
+    "tools/sfns-terminal-mask-adjudicator.ts"
+  ]
+}

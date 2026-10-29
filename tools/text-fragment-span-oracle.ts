@@ -10,9 +10,8 @@
  * artifact.  This oracle never reads pixels and has no visual tolerance.
  */
 
-import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { type CDPSession, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
@@ -29,7 +28,6 @@ import {
   joinBlinkRangeFragmentsToContentQuads,
   splitTextSegmentsOnFragmentSpans,
   type BlinkRangeFragmentProbe,
-  type CapturedTextRangeRect,
   type JoinedTextSourceFragment,
 } from "../src/capture/text-fragment-spans.js";
 import { embeddedVariableFontBytes } from "./exact-shaping-control-fixtures.js";
@@ -310,7 +308,7 @@ async function independentNeutralState(page: Page): Promise<IndependentFragmentS
     ]);
     return { rangeFragments, contentQuads, platformFonts };
   } finally {
-    await neutralStyle.evaluate((style) => style.remove()).catch(() => undefined);
+    await neutralStyle.evaluate((style) => (style as Element).remove()).catch(() => undefined);
     await settle(page).catch(() => undefined);
     await session.detach().catch(() => undefined);
   }
@@ -592,7 +590,6 @@ export async function runTextFragmentSpanOracle(): Promise<TextFragmentSpanRepor
     import("../src/render/text-to-path.js"),
     import("@domotion/text-engine/testing"),
   ]);
-  const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   return await withBrowser(
     async (browser) => {

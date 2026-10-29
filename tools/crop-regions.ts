@@ -19,7 +19,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { flag, isMain, parseFlags } from "./lib/cli.js";
+import { flag, isMain, parseFlags, type FlagValues } from "./lib/cli.js";
 
 import { executeRegionCrops, parseRegionsBlock, planRegionCrops, type Region } from "../src/utils/region-feedback.js";
 import {
@@ -79,7 +79,7 @@ function loadSettings(): Settings {
   return { port: raw.port, secret: raw.secret };
 }
 
-function validateArgs(argv: string[]): Record<string, string | boolean | undefined> {
+function validateArgs(argv: string[]): FlagValues {
   return parseFlags(
     argv.map((arg) => (arg === "-t" ? "--ticket" : arg === "-h" ? "--help" : arg)),
     {

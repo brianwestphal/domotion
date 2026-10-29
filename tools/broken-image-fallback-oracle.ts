@@ -854,10 +854,6 @@ function expectedResolvedText(test: BrokenImageGateCase): string {
   return test.title ?? "";
 }
 
-function escapedRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 interface OutputFacts {
   iconMarkerCount: number;
   vectorTextMarkerCount: number;

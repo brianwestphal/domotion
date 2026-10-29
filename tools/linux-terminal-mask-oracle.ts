@@ -574,6 +574,20 @@ interface LinuxTerminalMaskScoreRow {
   cases?: LinuxTerminalMaskScoreCase[];
 }
 
+/** A full report row: the scored facts plus the artifacts that back them. */
+interface LinuxTerminalMaskResultRow extends LinuxTerminalMaskScoreRow {
+  artifact: string;
+  diffArtifact?: string;
+  exact?: boolean;
+  global?: {
+    diffPct: number;
+    nonAaPixels: number;
+    sigPixelPct: number;
+    regionCount: number;
+    totalChangedArea: number;
+  };
+}
+
 /**
  * Turn the diagnostic matrix into a portable regression contract. Exact
  * percentages vary with runner architecture, so the gate asserts only the
@@ -733,7 +747,7 @@ export async function runLinuxTerminalMaskOracle(options: LinuxTerminalMaskOracl
 
   const native = screenshots.get("native-reference")!;
   const nativeDecoded = await decode(native);
-  const results = [];
+  const results: LinuxTerminalMaskResultRow[] = [];
   await withBrowser(
     async (compareBrowser) => {
       const comparePage = await compareBrowser.newPage();
@@ -925,8 +939,8 @@ if (isMain(import.meta.url))
       .filter((row) => row.id !== "native-reference")
       .map((row) => ({
         id: row.id,
-        diffPct: "global" in row ? row.global.diffPct : 0,
-        regions: "global" in row ? row.global.regionCount : 0,
+        diffPct: row.global?.diffPct ?? 0,
+        regions: row.global?.regionCount ?? 0,
       }));
     console.log(JSON.stringify(summary, null, 2));
     if (flags.gate === true) {

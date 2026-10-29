@@ -35,7 +35,7 @@ export function readBackgroundClipTextNativeReport(path: string): z.infer<typeof
 
 export function adjudicateBackgroundClipTextNativeReports(reports: z.infer<typeof reportDataSchema>[]): string[] {
   const errors: string[] = [];
-  const expected = new Set<NodeJS.Platform>(["linux", "win32"]);
+  const expected = new Set<string>(["linux", "win32"]);
   if (reports.length !== 2) errors.push(`expected 2 native reports, received ${reports.length}`);
   for (const report of reports) {
     if (!expected.delete(report.platform)) errors.push(`unexpected or duplicate platform ${report.platform}`);

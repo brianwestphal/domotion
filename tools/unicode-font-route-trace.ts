@@ -7,7 +7,6 @@
  * Domotion's declared-family → hardcoded candidate → MapCharacters → final
  * renderer key/gid path. Run only on native Windows after building the helper.
  */
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   getFontSourceInfo,

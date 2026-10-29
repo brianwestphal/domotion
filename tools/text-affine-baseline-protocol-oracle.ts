@@ -8,9 +8,8 @@
  * pixels and it does not authorize a production fallback or visual envelope.
  */
 
-import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { type CDPSession, type Page } from "playwright";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
@@ -344,14 +343,6 @@ export function decodeVerticalRlBaseline(
   return { lineRelative: decoded.lineRelative, physical: decoded.physical };
 }
 
-function rectForQuad(quad: CapturedTextPaintQuad): Rect {
-  const xs = [quad[0], quad[2], quad[4], quad[6]];
-  const ys = [quad[1], quad[3], quad[5], quad[7]];
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
-  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
-}
-
 function rectDelta(left: Rect, right: Rect): number {
   return Math.max(
     Math.abs(left.x - right.x),
@@ -537,7 +528,7 @@ async function runCase(
     });
     await animationFrame(source);
     const neutral = await browserState(source, session);
-    await neutralStyle.evaluate((style) => style.remove());
+    await neutralStyle.evaluate((style) => (style as Element).remove());
     neutralStyle = undefined;
     await animationFrame(source);
     const restored = await browserState(source, session);
@@ -641,6 +632,8 @@ async function runCase(
           logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
         noRelevantWarnings: captured.relevantWarnings.length === 0,
       };
+    } else {
+      throw new Error(`${test.id}: unsupported disposition ${String(test.expectedDisposition)}`);
     }
     const controls = { ...sharedControls, ...dispositionControls };
     return {
@@ -657,7 +650,8 @@ async function runCase(
       pass: Object.values(controls).every(Boolean),
     };
   } finally {
-    if (neutralStyle != null) await neutralStyle.evaluate((style) => style.remove()).catch(() => undefined);
+    if (neutralStyle != null)
+      await neutralStyle.evaluate((style) => (style as Element).remove()).catch(() => undefined);
     await session.detach();
   }
 }
@@ -753,7 +747,6 @@ export async function runTextAffineBaselineProtocolOracle(): Promise<TextBaselin
   process.env.DOMOTION_HELPER_NO_SERVE = "1";
   const capture = await import("../src/capture/index.js");
   const render = await import("../src/render/element-tree-to-svg.js");
-  const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   return await withBrowser(
     async (browser) => {

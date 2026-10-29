@@ -1197,7 +1197,7 @@ export function ourShaping(spec: RunSpec): OurShaping {
 
 export function compareShaping(
   c: ChromeShaping,
-  o: OurShaping,
+  o: Pick<OurShaping, "ok" | "glyphCount" | "xs">,
   tolerance: number,
 ): { verdict: Verdict; maxDelta: number | null } {
   if (!o.ok) return { verdict: "mismatch-unrendered", maxDelta: null };

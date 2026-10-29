@@ -23,7 +23,7 @@ import {
 } from "@domotion/text-engine/testing";
 import { captureElementTree } from "../src/capture/index.js";
 import { withBrowser } from "./lib/browser.js";
-import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { isMain, parseFlags, runMain, stringFlag } from "./lib/cli.js";
 import { writeSfnsOutlineReport } from "./sfns-mask-report.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -147,7 +147,7 @@ interface PendingRow {
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
   const values = parseFlags(argv, { out: { type: "string" }, arm: { type: "string" } });
-  const value = (name: string): string | undefined => flag(values, name) ?? undefined;
+  const value = (name: string): string | undefined => stringFlag(values, name);
   const outputDirectory = resolve(value("--out") ?? "tests/output/sfns-mask-baseline");
   const armValue = value("--arm");
   if (armValue != null && armValue !== "proposal" && armValue !== "validation") {
@@ -202,8 +202,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     // /System/Library/Fonts/SFNS.ttf; retain every captured geometry/metric fact
     // while changing only the family lookup back to that production route.
     // The structured Blink family record is authoritative over the legacy
-    // string, so update both carriers or a current capture keeps the isolated
-    // custom family and falls through to the standard font.
+    // string, so update both carriers (styles and the text segment) or a
+    // current capture keeps the isolated custom family and falls through to
+    // the standard font.
     const fontFamilyStack = {
       source: "blink-font-family-stack-v1" as const,
       entries: [
@@ -212,8 +213,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
       ],
       genericFamily: "sans-serif" as const,
     };
-    target.fontFamily = "system-ui, sans-serif";
-    target.fontFamilyStack = structuredClone(fontFamilyStack);
     target.styles.fontFamily = "system-ui, sans-serif";
     target.styles.fontFamilyStack = structuredClone(fontFamilyStack);
     const segment = target.textSegments?.find((candidate) => candidate.text === TEXT);

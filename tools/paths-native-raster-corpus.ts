@@ -270,7 +270,7 @@ export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixt
     if (upstreamHash !== fixture.upstreamSha256) {
       throw new Error(`${fixture.technology}: upstream fixture sha256 ${upstreamHash} != ${fixture.upstreamSha256}`);
     }
-    let bytes = upstream;
+    let bytes: Buffer = upstream;
     if (fixture.derive === "drop-glyf-hinting") {
       const opened: any = fontkit.create(upstream);
       const gids = [

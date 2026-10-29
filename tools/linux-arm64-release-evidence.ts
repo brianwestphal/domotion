@@ -17,7 +17,7 @@ import { assetNameFor, ICU_COMPANION_VERSION, resolveIcuCompanionTarget } from "
 import { withBrowser } from "./lib/browser.js";
 import { readDecorationReport, readFontConformanceReport } from "./conformance-report-schemas.js";
 import { readExactShapingReport } from "./exact-shaping-report-schema.js";
-import { isMain, parseCommand, requiredFlag, runMain } from "./lib/cli.js";
+import { isMain, parseCommand, requiredFlag, runMain, stringFlag, type FlagValues } from "./lib/cli.js";
 import { outcomeSchema, readReportData } from "./lib/report.js";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
 import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
@@ -206,9 +206,9 @@ export function parseElfIdentity(bytes: Buffer): ElfIdentity {
   };
 }
 
-type CliValues = Record<string, string | boolean | undefined>;
+type CliValues = FlagValues;
 function argValue(values: CliValues, name: string): string | undefined {
-  return values[name.slice(2)] as string | undefined;
+  return stringFlag(values, name);
 }
 
 function requiredArg(values: CliValues, name: string): string {

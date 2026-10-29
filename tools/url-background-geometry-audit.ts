@@ -12,7 +12,6 @@
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { release as osRelease } from "node:os";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
@@ -477,7 +476,7 @@ async function readPaintFacts(page: Page): Promise<PaintFacts> {
       backgroundOrigin: style.backgroundOrigin,
       backgroundClip: style.backgroundClip,
       backgroundAttachment: style.backgroundAttachment,
-      boxDecorationBreak: style.boxDecorationBreak || style.webkitBoxDecorationBreak,
+      boxDecorationBreak: style.boxDecorationBreak || style.getPropertyValue("-webkit-box-decoration-break"),
       zoom: style.zoom,
       transform: style.transform,
       scrollLeft: target.scrollLeft,
@@ -533,7 +532,9 @@ function capturedFacts(element: CapturedElement | null): PaintFacts | null {
     backgroundClip: style.backgroundClip ?? "",
     backgroundAttachment: style.backgroundAttachment ?? "",
     boxDecorationBreak: style.boxDecorationBreak ?? "",
-    zoom: style.zoom ?? "",
+    // Capture folds effective zoom into geometry and records no computed
+    // `zoom`, so the captured side has no value to report.
+    zoom: "",
     transform: style.transform ?? "",
     scrollLeft: style.scrollLeft ?? 0,
     scrollTop: style.scrollTop ?? 0,
@@ -820,7 +821,6 @@ export async function runUrlBackgroundGeometryAudit(
     import("../src/capture/index.js"),
     import("../src/render/element-tree-to-svg.js"),
   ]);
-  const require = createRequire(import.meta.url);
   const playwrightVersion = readPlaywrightVersion() ?? "unknown";
   return await withBrowser(
     async (browser) => {

@@ -7,7 +7,7 @@
  * actual record. Blink source anchor: chromium 7d859f27, core/layout/inline and
  * platform/fonts/shaping. Capture representation boundary: docs 116 and 120.
  */
-import { chromium, type Page } from "@playwright/test";
+import { type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
@@ -48,6 +48,16 @@ async function main(args: string[]): Promise<number> {
   interface Geometry {
     box: { width: number; height: number };
     origins: Origin[];
+  }
+  interface StageRecord {
+    id: string;
+    axes: LayoutAssignment;
+    route: "diagnostic" | "logical";
+    diagnosticObserved: boolean;
+    expected: Geometry;
+    actual: Geometry;
+    maxAbsDeltaCssPx: number;
+    pass: boolean;
   }
 
   const defaults = Object.fromEntries(layoutAxes.map((axis) => [axis.id, axis.values[0].id]));
@@ -234,7 +244,7 @@ async function main(args: string[]): Promise<number> {
         `<style>body{margin:0}.probe{margin:0;padding:0;border:0}</style>${fixtures.map((f) => `<div class="probe" lang="en" id="${f.id}" style="${f.css}">${f.html}</div>`).join("")}`,
       );
       const chromiumVersion = browser.version();
-      const records = [];
+      const records: StageRecord[] = [];
       const expectedById = new Map<string, Geometry>();
       const capturedById = new Map<string, Geometry>();
       let mismatches = 0;

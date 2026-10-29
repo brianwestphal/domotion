@@ -7,7 +7,8 @@ import {
   resetTextRunProvenance,
   setTextRunProvenanceEnabled,
 } from "@domotion/text-engine/testing";
-import { captureElementTree, type CapturedElement, type TextSegment } from "../src/index.js";
+import { captureElementTree, type CapturedElement } from "../src/index.js";
+import type { TextSegment } from "../src/capture/types.js";
 import { withBrowser } from "./lib/browser.js";
 import { bidiLevelsFor, type BidiParagraphContext } from "../src/render/script-segmentation.js";
 import { clearEmbeddedFonts, clearGlyphDefs, renderTextAsPath, setRenderTextMode } from "../src/render/text-to-path.js";

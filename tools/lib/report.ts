@@ -48,14 +48,17 @@ export function readReport<T extends z.ZodTypeAny>(path: string, schema: T): z.i
   return schema.parse(JSON.parse(readFileSync(path, "utf8"))) as z.infer<T>;
 }
 
-export function readReportData<T extends z.ZodTypeAny, L extends z.ZodType<z.infer<T>> = T>(
+/** `legacySchema` must parse an unversioned report into the same data shape
+ * as `dataSchema`; zod cannot express that constraint over a generic `T`. */
+export function readReportData<T extends z.ZodTypeAny, L extends z.ZodTypeAny = T>(
   path: string,
   dataSchema: T,
   options: { tool: string; schemaVersion: number; legacySchema?: L; legacySchemaVersion?: number },
 ): z.infer<T> {
   const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (raw != null && typeof raw === "object" && ("tool" in raw || ("schemaVersion" in raw && "data" in raw))) {
-    return reportEnvelopeSchema(dataSchema, options).parse(raw).data as z.infer<T>;
+    const envelope = reportEnvelopeSchema(dataSchema, options).parse(raw) as unknown as ReportEnvelope<z.infer<T>>;
+    return envelope.data;
   }
   if (raw != null && typeof raw === "object" && "schemaVersion" in raw) {
     if (options.legacySchemaVersion == null || raw.schemaVersion !== options.legacySchemaVersion)
@@ -63,6 +66,6 @@ export function readReportData<T extends z.ZodTypeAny, L extends z.ZodType<z.inf
   } else if (options.legacySchemaVersion != null) {
     throw new Error(`missing legacy ${options.tool} report version`);
   }
-  if (options.legacySchema != null) return options.legacySchema.parse(raw) as z.infer<T>;
+  if (options.legacySchema != null) return options.legacySchema.parse(raw) as unknown as z.infer<T>;
   throw new Error(`unversioned ${options.tool} report`);
 }

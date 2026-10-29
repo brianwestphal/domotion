@@ -7,10 +7,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
 import { type Page } from "@playwright/test";
 
@@ -25,9 +23,6 @@ import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(HERE, "..");
 
 export const COLLAPSED_BORDER_FRAGMENT_SOURCE_PINS = {
   chromium: "7d859f271cbda744098ac69f44978d4edfa62be3",

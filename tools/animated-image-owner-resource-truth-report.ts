@@ -74,7 +74,11 @@ export function writeAnimatedImageTruthRun(path: string, report: AnimatedImageTr
   );
 }
 
-export function writeAnimatedImageTruthAdjudication(path: string, report: Record<string, unknown>, env = {}) {
+export function writeAnimatedImageTruthAdjudication(
+  path: string,
+  report: { readonly adjudication?: unknown },
+  env = {},
+) {
   return writeReport(
     path,
     TRUTH_ADJUDICATION_TOOL,

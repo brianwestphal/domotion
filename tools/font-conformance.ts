@@ -1654,7 +1654,7 @@ export async function extractStacks(browser: Browser, dirs: string[], outFile: s
             fontVariantAlternates: cs.fontVariantAlternates,
             // This one DOES select a face: it overrides the run's fallback
             // priority, which is what chooses a color-emoji face over a text one.
-            fontVariantEmoji: cs.fontVariantEmoji,
+            fontVariantEmoji: cs.getPropertyValue("font-variant-emoji"),
           }),
         );
       }

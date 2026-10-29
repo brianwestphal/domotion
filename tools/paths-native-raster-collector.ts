@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { arch, platform, release } from "node:os";
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
@@ -49,7 +48,6 @@ import {
   type PathsNativeHelperFaceEvidence,
 } from "./paths-native-face-identity.js";
 
-const require = createRequire(import.meta.url);
 const PLAYWRIGHT_VERSION = readPlaywrightVersion() ?? "unknown";
 const VIEWPORT = PATHS_NATIVE_RASTER_VIEWPORT;
 const ORIGIN_X = PATHS_NATIVE_RASTER_ORIGIN.x;

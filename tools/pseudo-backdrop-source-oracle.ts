@@ -9,7 +9,6 @@
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 
 import type { Page } from "@playwright/test";
 import sharp from "sharp";

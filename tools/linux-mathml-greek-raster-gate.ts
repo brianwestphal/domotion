@@ -360,7 +360,7 @@ export function adjudicateLinuxMathmlGreekRows(rawRows: unknown, rawEnvelopes: u
       pass: false,
       eligibleForRatification: false,
       verdict: "logical-mismatch",
-      problems: [parsed.success ? envelopes.error.message : parsed.error.message],
+      problems: [parsed.success ? (envelopes.error?.message ?? "invalid envelopes") : parsed.error.message],
     };
   const rows = parsed.data;
   const problems = rows.flatMap((row) => logicalProblems(row).map((problem) => `${row.runLabel}: ${problem}`));

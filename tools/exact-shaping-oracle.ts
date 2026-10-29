@@ -18,7 +18,7 @@ import {
 import { versionString, BufferFlag, ClusterLevel } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { getFontInstance } from "../src/render/font-resolution.js";
 import { SHAPE_SAMPLES } from "./shape-agreement-samples.js";
-import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { isMain, parseFlags, runMain, stringFlag } from "./lib/cli.js";
 import {
   DEFAULT_TRACKING_FIXTURE,
   DEFAULT_VARIABLE_FIXTURE,
@@ -53,7 +53,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     "tracking-control-fixture": { type: "string" },
     "skip-negative-control": { type: "boolean" },
   });
-  const value = (name: string): string | undefined => flag(values, name) ?? undefined;
+  const value = (name: string): string | undefined => stringFlag(values, name);
   const mode = values.exhaustive === true ? "exhaustive" : values.rotating === true ? "rotating" : "representative";
   const output = value("--json");
   const faceFilter = value("--face")?.toLowerCase();

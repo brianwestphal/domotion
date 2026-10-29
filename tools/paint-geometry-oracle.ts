@@ -712,7 +712,7 @@ function clipRows(): OracleRow[] {
     { id: "ellipse", value: "ellipse(30% 40% at 25% 60%)", expected: { cx: 60, cy: 92, rx: 60, ry: 48 } },
     { id: "polygon", value: "polygon(0% 0%, 100% 25%, 75% 100%)", expected: { points: [10, 20, 210, 50, 160, 140] } },
   ];
-  const rows = cases.map(({ id, value, expected }) => {
+  const rows: OracleRow[] = cases.map(({ id, value, expected }) => {
     const markup = translateClipPath(value, 10, 20, 200, 120);
     let actual: unknown;
     if (id === "inset")

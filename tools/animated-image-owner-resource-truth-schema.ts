@@ -1762,6 +1762,7 @@ function validateBinary(value: unknown, label: string, failures: string[]): valu
   if (
     typeof value.pathToken !== "string" ||
     value.pathToken.length === 0 ||
+    typeof value.byteLength !== "number" ||
     !Number.isInteger(value.byteLength) ||
     value.byteLength <= 0
   ) {

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { isMain, parseFlags, runMain, stringFlag } from "./lib/cli.js";
 import { writeSfnsSkiaProposal } from "./sfns-mask-report.js";
 import {
   SFNS_TERMINAL_MASK_CONTROL_IDS,
@@ -37,7 +37,7 @@ const options = parseFlags(argv, {
   "observation-directory": { type: "string" },
 });
 function value(name: string, fallback?: string): string {
-  const result = flag(options, name, fallback);
+  const result = stringFlag(options, name, fallback);
   if (result == null || result.startsWith("--")) throw new Error(`missing ${name}`);
   return result;
 }

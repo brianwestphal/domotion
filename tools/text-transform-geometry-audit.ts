@@ -7,8 +7,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { arch, platform, release } from "node:os";
-import { dirname, resolve } from "node:path";
-import { createRequire } from "node:module";
+import { resolve } from "node:path";
 import { type CDPSession, type ElementHandle, type Page } from "playwright";
 import sharp from "sharp";
 import { withBrowser } from "./lib/browser.js";
@@ -465,7 +464,7 @@ async function animationFrame(page: Page): Promise<void> {
 
 async function independentTextFacts(page: Page, targets: readonly AuditTarget[]): Promise<DirectTargetFacts[]> {
   const session = await page.context().newCDPSession(page);
-  const styles: ElementHandle<HTMLStyleElement>[] = [];
+  const styles: ElementHandle<Node>[] = [];
   try {
     await session.send("DOM.enable");
     const { root } = await session.send("DOM.getDocument", { depth: -1, pierce: true });
@@ -482,7 +481,7 @@ async function independentTextFacts(page: Page, targets: readonly AuditTarget[])
     for (const frame of page.frames()) styles.push(await frame.addStyleTag({ content: neutralCss }));
     await animationFrame(page);
     const neutral = await Promise.all(retained.map((target) => readQuads(session, target.ids)));
-    for (const style of styles.splice(0)) await style.evaluate((node) => node.remove());
+    for (const style of styles.splice(0)) await style.evaluate((node) => (node as Element).remove());
     await animationFrame(page);
     const restored = await Promise.all(retained.map((target) => readQuads(session, target.ids)));
     return retained.map((target, index) => ({
@@ -493,7 +492,7 @@ async function independentTextFacts(page: Page, targets: readonly AuditTarget[])
       restoredQuads: restored[index],
     }));
   } finally {
-    for (const style of styles) await style.evaluate((node) => node.remove()).catch(() => undefined);
+    for (const style of styles) await style.evaluate((node) => (node as Element).remove()).catch(() => undefined);
     await session.detach();
   }
 }
@@ -1048,8 +1047,7 @@ export async function runTextTransformGeometryAudit(
   process.env.DOMOTION_HELPER_NO_SERVE = "1";
   const capture = await import("../src/capture/index.js"),
     render = await import("../src/render/element-tree-to-svg.js");
-  const require = createRequire(import.meta.url),
-    playwrightVersion = readPlaywrightVersion() ?? "unknown",
+  const playwrightVersion = readPlaywrightVersion() ?? "unknown",
     dprs = options.deviceScaleFactors ?? [1, 2];
   return await withBrowser(
     async (browser) => {

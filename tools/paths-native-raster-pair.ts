@@ -7,7 +7,6 @@ import { fingerprintSha256, readPathsRasterRows, type PathsRasterRow } from "./p
 type Platform = PathsRasterRow["fingerprint"]["platform"];
 type Label = PathsRasterRow["runLabel"];
 const PLATFORMS = ["darwin", "linux", "win32"] as const satisfies readonly Platform[];
-const LABELS = ["proposal", "validation"] as const satisfies readonly Label[];
 
 export interface RasterArm {
   directory: string;

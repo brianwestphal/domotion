@@ -445,6 +445,15 @@ export interface MixedColorSpaceBoundaryRow {
 export interface MixedReferenceColorSpaceReport {
   schemaVersion: 1;
   sourcePins: typeof MIXED_COLOR_SPACE_SOURCE_PINS;
+  /** Fails when the configured Chromium roll moved off the pinned revision or
+   *  the early-conversion hostile control stopped discriminating. */
+  chromiumRollDiscriminator: {
+    configuredRevision: string;
+    expectedRevision: string;
+    pinnedBehavior: "missing-linearRGB-to-sRGB-before-shorthand";
+    earlyConversionMutationDistance: number;
+    pass: boolean;
+  };
   producer: { chromiumVersion: string; platform: NodeJS.Platform; architecture: string };
   fixedBounds: { maxChannelCode: 4; mutationMinChannelDistance: 8 };
   sourceRules: {

@@ -1447,6 +1447,11 @@ export interface CapturedStyles {
   fontSynthesisSmallCaps?: string;
   /** CSS direction ('ltr' / 'rtl'). Drives BiDi reordering on RTL paragraphs. */
   direction?: string;
+  /** Computed `unicode-bidi` (`normal` / `isolate` / `bidi-override` /
+   *  `isolate-override` / `plaintext`). Supplies the paragraph context that
+   *  overrides cannot be reconstructed from the characters. Absent on trees
+   *  captured before it was recorded, where `normal` is assumed. */
+  unicodeBidi?: string;
   /** BCP-47 language tag inherited from `el.lang` / nearest ancestor `[lang]` /
    *  `<html lang>`. Routes Han fallback to the matching PingFang regional
    *  variant (TC / HK / MO) or Hiragino Kaku for `ja`. (DM-394) */

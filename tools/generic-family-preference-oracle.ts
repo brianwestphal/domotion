@@ -18,7 +18,6 @@
  *     as the generic-keyword classification control
  */
 
-import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { arch, platform, release } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -48,7 +47,6 @@ import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.m
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const require = createRequire(import.meta.url);
 const CLI_OPTIONS = {
   modes: { type: "string" },
   json: { type: "string" },

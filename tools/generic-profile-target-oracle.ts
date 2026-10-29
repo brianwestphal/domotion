@@ -774,12 +774,18 @@ function rowsExact(actual: ProfileFaceRow[], expected: ProfileFaceRow[]): number
   validateRows(actual, "actual target rows");
   validateRows(expected, "expected target rows");
   const expectedMap = new Map(expected.map((row) => [key(row), row]));
-  return actual.filter((row) => norm(face(row)) === norm(face(expectedMap.get(key(row))))).length;
+  return actual.filter((row) => {
+    const match = expectedMap.get(key(row));
+    return match != null && norm(face(row)) === norm(face(match));
+  }).length;
 }
 
 function systemRowsExact(actual: SystemUiFaceRow[], expected: SystemUiFaceRow[]): number {
   const expectedMap = new Map(expected.map((row) => [systemKey(row), row]));
-  return actual.filter((row) => norm(face(row)) === norm(face(expectedMap.get(systemKey(row))))).length;
+  return actual.filter((row) => {
+    const match = expectedMap.get(systemKey(row));
+    return match != null && norm(face(row)) === norm(face(match));
+  }).length;
 }
 
 export function adjudicateOverlay(

@@ -207,6 +207,11 @@ plus controlled-healing browser passes.
   stacks, omitted private-use scalars, or one codepoint stride. The workflow
   and CLI contract are pinned by `tests/font-conformance-synthetic-workflow.test.ts`
   and `tests/synthetic-baseline-dispatch.test.ts`.
+- `tsconfig.tools.json` typechecks `tools/**` as part of `npm run typecheck`.
+  `tools/lib/cli.d.mts` types `parseFlags` / `flag` by the declared schema;
+  `stringFlag` serves helpers that take a flag name at runtime. Only the
+  hash-pinned `tools/sfns-pinned-skia-mask-schema.ts` and its transitive
+  importers are excluded (see the tsconfig comment).
 - `tools/lib/browser.ts` owns TypeScript tool browsers, while
   `tools/lib/browser.mjs` gives plain-Node probes the same callback and
   idempotent cleanup pattern. See `docs/tool-browser-lifecycle.md`.

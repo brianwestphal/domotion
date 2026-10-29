@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 /** Live Chromium structural oracle for generated ::before/::after fragments. */
-import { createRequire } from "node:module";
-import { type Browser, type CDPSession, type Page } from "@playwright/test";
+import { type Browser, type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
@@ -24,7 +23,6 @@ import {
 const CHROMIUM_REVISION = "7d859f271cbda744098ac69f44978d4edfa62be3";
 const HARFBUZZ_REVISION = "4de187dd0a915d13c976fa8bd474c084229f3aab";
 const SKIA_REVISION = "62efacd37737505732dbe3d8daa62abd679626a1";
-const require = createRequire(import.meta.url);
 const playwrightVersion = readPlaywrightVersion() ?? "unknown";
 
 type Expectation = "absent" | "unpainted" | "exact";
