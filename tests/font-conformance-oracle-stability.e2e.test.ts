@@ -4,8 +4,10 @@ import {
   ChromeOracle,
   OracleStabilityGuard,
   probeOracleControlSignature,
+  probeOracleGenericFamilies,
   reassertPlaywrightMacFontFamilies,
 } from "../tools/font-conformance.js";
+import { probePageGenericFamilies } from "../src/capture/generic-font-probe.js";
 
 describe("font conformance browser oracle stability", () => {
   it.skipIf(process.platform !== "darwin")(
@@ -26,6 +28,44 @@ describe("font conformance browser oracle stability", () => {
       }
     },
     30_000,
+  );
+
+  // A WebPreferences push (doc 198) resets the probe page to Blink's defaults,
+  // where standard is Times New Roman. Every measured batch replays
+  // Playwright's table, so recording that reset made the Domotion side resolve
+  // `-webkit-standard` to TimesNewRomanPSMT while Chrome painted Times.
+  it.skipIf(process.platform !== "darwin")(
+    "probes generic families under the measured table when the probe page resets",
+    async () => {
+      const browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage();
+        await page.setContent("<!DOCTYPE html><body style='height:3000px'></body>");
+        let calls = 0;
+        const resetOnFirstProbe = async (target: typeof page) => {
+          if (calls++ === 0) {
+            const cdp = await target.context().newCDPSession(target);
+            await cdp.send("Page.captureScreenshot", { captureBeyondViewport: true });
+            await cdp.detach();
+          }
+          return await probePageGenericFamilies(target);
+        };
+        const unreplayed = await probePageGenericFamilies(page);
+        const generics = await probeOracleGenericFamilies(
+          page,
+          reassertPlaywrightMacFontFamilies,
+          undefined,
+          resetOnFirstProbe,
+        );
+        expect(unreplayed?.common.get("standard")).toBe("Times-Roman");
+        expect(calls).toBe(3);
+        expect(generics?.common.get("standard")).toBe("Times-Roman");
+        expect(generics?.common.get("sans-serif")).toBe("Helvetica");
+      } finally {
+        await browser.close();
+      }
+    },
+    60_000,
   );
 
   it.skipIf(process.platform !== "darwin")(

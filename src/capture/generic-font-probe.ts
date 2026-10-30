@@ -447,7 +447,7 @@ export async function probePageGenericFamilies(
     for (let read = 0; read < MAX_STABILITY_READS; read++) {
       await waitForGenericSettingsTurn(page);
       const current = await readPageGenericFamilies(page, cdp, targets);
-      if (previous !== undefined && probeResultsEqual(previous, current)) return current;
+      if (previous !== undefined && sessionGenericFamilyProbesEqual(previous, current)) return current;
       previous = current;
     }
     // Reads that never agree mean another session is mutating the settings; that is a
@@ -479,7 +479,7 @@ async function probeFrameGenericFamilies(frame: Frame): Promise<SessionGenericFa
     const first = await readPageGenericFamilies(frame, cdp, targets);
     await waitForGenericSettingsTurn(frame);
     const second = await readPageGenericFamilies(frame, cdp, targets);
-    return probeResultsEqual(first, second) ? second : null;
+    return sessionGenericFamilyProbesEqual(first, second) ? second : null;
   } catch (error) {
     invalidateTargetProbeSession(frame, cdp);
     throw error;
@@ -513,7 +513,7 @@ export async function assertGenericFamilyTargetConsistency(
     }
     if (parentReadable) continue;
     const child = await probeFrameGenericFamilies(frame);
-    if (child != null && !probeResultsEqual(main, child)) {
+    if (child != null && !sessionGenericFamilyProbesEqual(main, child)) {
       throw new Error(
         `Generic-family Settings diverge for frame target ${frame.url() || "<uncommitted>"}; capture requires one non-divergent Page authority.`,
       );
@@ -545,7 +545,12 @@ export async function probeSessionGenericFamilies(
   }
 }
 
-function probeResultsEqual(a: SessionGenericFamilyProbe | null, b: SessionGenericFamilyProbe | null): boolean {
+/** Whether two probes record the same Common and script-keyed answers,
+ * independent of map insertion order. */
+export function sessionGenericFamilyProbesEqual(
+  a: SessionGenericFamilyProbe | null,
+  b: SessionGenericFamilyProbe | null,
+): boolean {
   if (a == null || b == null) return a === b;
   const entries = (probe: SessionGenericFamilyProbe): string[] =>
     [

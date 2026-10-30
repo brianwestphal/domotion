@@ -122,7 +122,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, join, resolve } from "node:path";
 import { getFontInstance, resolveFontKey } from "../src/render/font-resolution.js";
 import { PORTABLE_CORPUS_PLATFORM } from "./font-conformance-synthetic-stacks.js";
-import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
+import {
+  probePageGenericFamilies,
+  sessionGenericFamilyProbesEqual,
+  type GenericProbeFailure,
+  type SessionGenericFamilyProbe,
+} from "../src/capture/generic-font-probe.js";
 import {
   ITALIC_SLNT,
   beginCharacterFallbackDocument,
@@ -1125,6 +1130,43 @@ export async function reassertPlaywrightMacFontFamilies(page: Page): Promise<voi
   }
 }
 
+const ORACLE_GENERIC_PROBE_ATTEMPTS = 5;
+
+/** The generic families the oracle's Domotion side models for one renderer.
+ *
+ * On macOS every measured batch first replays Playwright's table
+ * (`ChromeOracle.facesFor`), so Chrome's answers always come from that table.
+ * The probe runs on its own page. Moving it into the measured renderer would
+ * add CoreText fallback history to that renderer. A browser-side
+ * WebPreferences push can reset this page to Blink's constructor defaults
+ * (doc 198), so the probe applies the same replay. A probe taken without it
+ * once recorded standard = `TimesNewRomanPSMT` while the measured page painted
+ * Times, and a `system-ui` italic stack then disagreed where Times New Roman
+ * Italic covers a codepoint Times does not. Accept only two consecutive
+ * replay-then-probe answers that agree, so a reset landing mid-probe is retried
+ * instead of recorded. Without a replay (Linux and Windows) the Page's own
+ * stable answer stands. */
+export async function probeOracleGenericFamilies(
+  page: Page,
+  preferenceReplay: ((page: Page) => Promise<void>) | null,
+  onFailure?: GenericProbeFailure,
+  probe: (
+    page: Page,
+    onFailure?: GenericProbeFailure,
+  ) => Promise<SessionGenericFamilyProbe | null> = probePageGenericFamilies,
+): Promise<SessionGenericFamilyProbe | null> {
+  if (preferenceReplay == null) return await probe(page, onFailure);
+  let previous: SessionGenericFamilyProbe | undefined;
+  for (let attempt = 0; attempt < ORACLE_GENERIC_PROBE_ATTEMPTS; attempt++) {
+    await preferenceReplay(page);
+    const current = await probe(page, onFailure);
+    if (current == null) return null;
+    if (previous !== undefined && sessionGenericFamilyProbesEqual(previous, current)) return current;
+    previous = current;
+  }
+  return null;
+}
+
 /** Abort a sweep when the same browser Page changes font settings mid-run.
  * Such a report describes two different Chrome oracles and cannot be compared
  * to one resolver answer or ratified as a baseline. */
@@ -1289,6 +1331,8 @@ export class ChromeOracle {
     private readonly lang: string,
     private readonly reuseDocument = process.platform === "darwin",
     private readonly preferenceReplay: ((page: Page) => Promise<void>) | null = null,
+    /** This renderer's probed generic families, which its stacks are resolved under. */
+    readonly sessionGenerics: SessionGenericFamilyProbe | null = null,
   ) {}
 
   static async create(browser: Browser, concurrency: number, lang: string): Promise<ChromeOracle> {
@@ -1298,9 +1342,17 @@ export class ChromeOracle {
     // Page.setFontFamilies override are runtime inputs to Blink, not constants
     // that can be transcribed from the Chromium checkout.
     const failures: string[] = [];
-    const generics = await probeSessionGenericFamilies(ctx, (probe, cause) =>
-      failures.push(`${probe}: ${cause instanceof Error ? cause.message : String(cause)}`),
-    );
+    const preferenceReplay = process.platform === "darwin" ? reassertPlaywrightMacFontFamilies : null;
+    const probePage = await ctx.newPage();
+    let generics: SessionGenericFamilyProbe | null;
+    try {
+      await probePage.setContent("<!DOCTYPE html><meta charset=utf-8><body></body>");
+      generics = await probeOracleGenericFamilies(probePage, preferenceReplay, (probe, cause) =>
+        failures.push(`${probe}: ${cause instanceof Error ? cause.message : String(cause)}`),
+      );
+    } finally {
+      await probePage.close().catch(() => {});
+    }
     if (generics == null) {
       throw new Error(
         failures.length > 0
@@ -1313,14 +1365,7 @@ export class ChromeOracle {
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("DOM.enable");
     await cdp.send("CSS.enable");
-    return new ChromeOracle(
-      page,
-      cdp,
-      concurrency,
-      lang,
-      process.platform === "darwin",
-      process.platform === "darwin" ? reassertPlaywrightMacFontFamilies : null,
-    );
+    return new ChromeOracle(page, cdp, concurrency, lang, process.platform === "darwin", preferenceReplay, generics);
   }
 
   /**
@@ -2686,6 +2731,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
           const oracle = await oracles.forLang(spec.lang ?? opts.lang);
           measuredOracle = oracle;
           measuredOracles.add(oracle);
+          // Each oracle probe replaces the process-global settings. Per-locale
+          // oracles stay alive across stacks, so restore the measured one's.
+          if (oracle.sessionGenerics != null) setSessionGenericFamilyOverrides(oracle.sessionGenerics);
           if (process.platform === "darwin") openDarwinStackDocument(spec.lang ?? opts.lang);
           await oracle.prepareMeasurement(`before stack ${stackIndex + 1}/${stacks.length}`);
           const lang = spec.lang ?? opts.lang;

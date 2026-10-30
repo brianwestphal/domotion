@@ -306,6 +306,18 @@ fresh Node process and Chromium browser; its partial result remains under
 wrapper records attempted and accepted counts in `oracle-attempts.json`.
 Unrelated failures and a third drift abort leave the shard failed with no
 top-level report. Linux and Windows retain their single-attempt wrapper path.
+The Domotion side resolves generic keywords, including the `-webkit-standard`
+tail of every chain, from a session probe that each oracle renderer takes on its
+own page (`probeOracleGenericFamilies`). Running it in the measured renderer
+would add CoreText fallback history there. On macOS the probe page gets the
+same Playwright replay as every measured batch, and the probe is accepted only
+after two consecutive replay-then-probe answers agree. Hosted run `40885285009`
+shows why the replay is needed. A WebPreferences push (see doc 198) had reset
+the unreplayed probe page to Blink's constructor defaults, so stack 2's chain
+ended in `sysfb:TimesNewRomanPSMT` while the replayed measured page painted
+Times. `system-ui @16/400/italic` then disagreed on one row (`.LucidaGrandeUI`
+→ `TimesNewRomanPS-ItalicMT`). Each renderer keeps its own probe answer, and the
+sweep installs the measured oracle's answer before each stack.
 The guard catches mid-session generic font-settings changes that a single `A`
 primary probe misses. For the measured macOS
 `sans-serif @32px/700/normal` route, the sweep also checks each naturally queried,
