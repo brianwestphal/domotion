@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG"]
+tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG", "DM-D1BK35"]
 code:
   [
     ".github/workflows/border-phase-oracle.yml",
@@ -122,7 +122,13 @@ widths, so each stripe is the integer `(thickness + 1) / 3` of the snapped edge
 (`box_border_painter.cc:678`): 1px, a 2px gap, and 1px for a 4px edge. Thick dotted edges
 size their dot intervals from the full snapped edge, then move both endpoints
 in by half the width and stroke from that inset start with dash phase 0
-(`box_border_painter.cc:515-538`).
+(`box_border_painter.cc:515-538`). Uniform straight dotted sides take the same
+`DrawLineWithStyle` path, so they also start at the inset endpoint with phase 0
+and get no SVG `stroke-dashoffset`. Dash intervals are emitted to 0.001px, not
+the renderer's usual 0.1px, because they repeat along the whole side. Rounding
+them would accumulate drift and erase the thick-dotted interval
+`{0, gap + width - kEpsilon}` (`styled_stroke_data.cc:118-128`). That epsilon
+keeps the last dot just inside the line end.
 Unit tests grade each decision stage, the browser test checks the
 captured table contract, and `border-collapse-edge-graph` is the visual
 integration discriminator. Table fragmentation remains tracked separately;

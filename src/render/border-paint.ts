@@ -244,7 +244,11 @@ function paintUniformDashedDottedBorder(
     // `stroke-dashoffset` equal to `cornerTrim` rewinds the pattern
     // so the visible portion aligns with Chrome's per-edge dash
     // positions.
-    const phaseOffset = cornerTrim;
+    // Thick dotted sides are the exception: Blink's DrawLineWithStyle moves
+    // the endpoints in itself and strokes from the moved start with dash
+    // phase 0 (box_border_painter.cc:529-538, styled_stroke_data.cc:156,
+    // chromium 7d859f27), so the first dot sits exactly at the inset start.
+    const phaseOffset = style === "dotted" ? 0 : cornerTrim;
     const dashAttrs =
       dash !== ""
         ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}`

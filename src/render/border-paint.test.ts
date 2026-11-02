@@ -145,4 +145,25 @@ describe("SVG border paint owner", () => {
     expect(line).toContain('stroke-linecap="round"');
     expect(line).not.toContain("stroke-dashoffset");
   });
+
+  it("strokes uniform thick dotted sides from the inset start with dash phase 0 (DM-D1BK35)", () => {
+    const ctx = context();
+    const sides = ["Top", "Right", "Bottom", "Left"];
+    const el = element(
+      Object.fromEntries(
+        sides.flatMap((side) => [
+          [`border${side}Width`, "4"],
+          [`border${side}Style`, "dotted"],
+        ]),
+      ),
+    );
+    const corners = parseCornerRadii(el.styles, el.width, el.height);
+    paintBorder(ctx, el, "", corners, 800, 600, 4, parseColor("rgb(255,0,0)"), false, false, new Set());
+    const top = ctx.svgParts.find((part) => part.includes('y1="22"') && part.includes('y2="22"'));
+    // Blink moves the endpoints in by width/2 and draws the first dot there.
+    expect(top).toContain('x1="12"');
+    expect(top).toContain('x2="108"');
+    expect(top).toContain(`stroke-dasharray="${openDashArray("dotted", 4, 100)}"`);
+    expect(ctx.svgParts.join("\n")).not.toContain("stroke-dashoffset");
+  });
 });
