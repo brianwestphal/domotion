@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2355", "DM-N6XJRS", "DM-RQBPPP"]
+tickets: ["DM-2355", "DM-N6XJRS", "DM-RQBPPP", "DM-PPT418"]
 code: [".github/workflows/border-phase-oracle.yml", "tools/border-phase-oracle.ts", "tools/border-phase-ratifier.ts"]
 aliases: ["docs/191-cross-platform-border-phase-envelopes.md", "doc-191"]
 ---
@@ -112,23 +112,27 @@ bucket and add only one further quantization step; they are not inherited from t
 
 | DSF / zoom | observed edge (CSS px) | edge ceiling | observed profile RMSE | RMSE ceiling |
 | ---------- | ---------------------: | -----------: | --------------------: | -----------: |
-| 1 / 0.8    |                      0 |     0.505883 |                     0 |     0.196079 |
-| 1 / 1      |                      0 |     0.505883 |                     0 |     0.188236 |
-| 1 / 1.25   |               0.003922 |     0.505883 |              0.001538 |     0.184315 |
+| 1 / 0.8    |                      0 |     0.003922 |                     0 |     0.003922 |
+| 1 / 1      |                      0 |     0.003922 |                     0 |     0.003922 |
+| 1 / 1.25   |               0.003922 |     0.007844 |              0.001538 |     0.007844 |
 | 2 / 0.8    |               0.015686 |     0.019609 |              0.009682 |     0.015687 |
-| 2 / 1      |               0.001961 |     0.035295 |              0.000818 |     0.019609 |
-| 2 / 1.25   |               0.001961 |     0.011765 |              0.001109 |     0.011765 |
-| 4 / 0.8    |               0.000980 |     0.015687 |              0.000877 |     0.015687 |
-| 4 / 1      |               0.001961 |     0.023530 |              0.001322 |     0.015687 |
+| 2 / 1      |               0.001961 |     0.007844 |              0.000818 |     0.007844 |
+| 2 / 1.25   |               0.001961 |     0.007844 |              0.001109 |     0.007844 |
+| 4 / 0.8    |               0.000980 |     0.007844 |              0.000877 |     0.007844 |
+| 4 / 1      |               0.001961 |     0.007844 |              0.001322 |     0.007844 |
 | 4 / 1.25   |                      0 |     0.003922 |                     0 |     0.003922 |
 
 The 2026-11-02 refresh measured these maxima on all three platforms, identical
 because the artifact set was identical. The DSF 1 residual of the half-covered
 outer pixel of one-pixel dotted outlines (formerly 0.501961 / 0.189723) is gone:
 dotted outline sides now start at the inset endpoint with Blink's phase-0 dot
-period, and their side length is exact. The ceilings were deliberately left at
-their reviewed values. Tightening them to the new maxima is a separate review
-decision.
+period, and their side length is exact. The ceilings were then tightened to the
+rule applied to these maxima: each is `ceil(observed × 255) / 255`, written to six
+decimals rounded up, plus one 0.003922 step. The DSF 2 / 0.8 and DSF 4 / 1.25
+ceilings were already at that value. The others had been derived from the
+pre-fix maxima and were up to 129× looser, so a return of the 0.5px dotted
+residual would have passed. `tests/border-phase-ratifier.test.ts` now derives
+every platform's ceilings from its observed maxima and rejects that residual.
 
 ## Gate contract
 

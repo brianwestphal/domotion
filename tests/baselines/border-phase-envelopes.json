@@ -37,24 +37,24 @@
       },
       "scenarios": {
         "dsf1.zoom0.8": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.196079,
+          "edgeCeilingCssPx": 0.003922,
+          "profileRmseCeiling": 0.003922,
           "observedWorstEdge": 0,
           "observedWorstRmse": 0,
           "repeatedMaxEdgeDelta": 0,
           "repeatedMaxRmseDelta": 0
         },
         "dsf1.zoom1": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.188236,
+          "edgeCeilingCssPx": 0.003922,
+          "profileRmseCeiling": 0.003922,
           "observedWorstEdge": 0,
           "observedWorstRmse": 0,
           "repeatedMaxEdgeDelta": 0,
           "repeatedMaxRmseDelta": 0
         },
         "dsf1.zoom1.25": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.184315,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.003921568627447414,
           "observedWorstRmse": 0.0015381657657896732,
           "repeatedMaxEdgeDelta": 0.0,
@@ -69,32 +69,32 @@
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf2.zoom1": {
-          "edgeCeilingCssPx": 0.035295,
-          "profileRmseCeiling": 0.019609,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0008177035845375451,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf2.zoom1.25": {
-          "edgeCeilingCssPx": 0.011765,
-          "profileRmseCeiling": 0.011765,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0011091871077436315,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf4.zoom0.8": {
-          "edgeCeilingCssPx": 0.015687,
-          "profileRmseCeiling": 0.015687,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.0009803921568618534,
           "observedWorstRmse": 0.0008768894029410909,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf4.zoom1": {
-          "edgeCeilingCssPx": 0.02353,
-          "profileRmseCeiling": 0.015687,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0013219605146338107,
           "repeatedMaxEdgeDelta": 0.0,
@@ -129,24 +129,24 @@
       },
       "scenarios": {
         "dsf1.zoom0.8": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.196079,
+          "edgeCeilingCssPx": 0.003922,
+          "profileRmseCeiling": 0.003922,
           "observedWorstEdge": 0,
           "observedWorstRmse": 0,
           "repeatedMaxEdgeDelta": 0,
           "repeatedMaxRmseDelta": 0
         },
         "dsf1.zoom1": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.188236,
+          "edgeCeilingCssPx": 0.003922,
+          "profileRmseCeiling": 0.003922,
           "observedWorstEdge": 0,
           "observedWorstRmse": 0,
           "repeatedMaxEdgeDelta": 0,
           "repeatedMaxRmseDelta": 0
         },
         "dsf1.zoom1.25": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.184315,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.003921568627447414,
           "observedWorstRmse": 0.0015381657657896732,
           "repeatedMaxEdgeDelta": 0.0,
@@ -161,32 +161,32 @@
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf2.zoom1": {
-          "edgeCeilingCssPx": 0.035295,
-          "profileRmseCeiling": 0.019609,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0008177035845375451,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf2.zoom1.25": {
-          "edgeCeilingCssPx": 0.011765,
-          "profileRmseCeiling": 0.011765,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0011091871077436315,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf4.zoom0.8": {
-          "edgeCeilingCssPx": 0.015687,
-          "profileRmseCeiling": 0.015687,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.0009803921568618534,
           "observedWorstRmse": 0.0008768894029410909,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf4.zoom1": {
-          "edgeCeilingCssPx": 0.02353,
-          "profileRmseCeiling": 0.015687,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0013219605146338107,
           "repeatedMaxEdgeDelta": 0.0,
@@ -221,24 +221,24 @@
       },
       "scenarios": {
         "dsf1.zoom0.8": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.196079,
+          "edgeCeilingCssPx": 0.003922,
+          "profileRmseCeiling": 0.003922,
           "observedWorstEdge": 0,
           "observedWorstRmse": 0,
           "repeatedMaxEdgeDelta": 0,
           "repeatedMaxRmseDelta": 0
         },
         "dsf1.zoom1": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.188236,
+          "edgeCeilingCssPx": 0.003922,
+          "profileRmseCeiling": 0.003922,
           "observedWorstEdge": 0,
           "observedWorstRmse": 0,
           "repeatedMaxEdgeDelta": 0,
           "repeatedMaxRmseDelta": 0
         },
         "dsf1.zoom1.25": {
-          "edgeCeilingCssPx": 0.505883,
-          "profileRmseCeiling": 0.184315,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.003921568627447414,
           "observedWorstRmse": 0.0015381657657896732,
           "repeatedMaxEdgeDelta": 0.0,
@@ -253,32 +253,32 @@
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf2.zoom1": {
-          "edgeCeilingCssPx": 0.035295,
-          "profileRmseCeiling": 0.019609,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0008177035845375451,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf2.zoom1.25": {
-          "edgeCeilingCssPx": 0.011765,
-          "profileRmseCeiling": 0.011765,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0011091871077436315,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf4.zoom0.8": {
-          "edgeCeilingCssPx": 0.015687,
-          "profileRmseCeiling": 0.015687,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.0009803921568618534,
           "observedWorstRmse": 0.0008768894029410909,
           "repeatedMaxEdgeDelta": 0.0,
           "repeatedMaxRmseDelta": 0.0
         },
         "dsf4.zoom1": {
-          "edgeCeilingCssPx": 0.02353,
-          "profileRmseCeiling": 0.015687,
+          "edgeCeilingCssPx": 0.007844,
+          "profileRmseCeiling": 0.007844,
           "observedWorstEdge": 0.001960784313723707,
           "observedWorstRmse": 0.0013219605146338107,
           "repeatedMaxEdgeDelta": 0.0,

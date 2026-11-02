@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -175,5 +175,43 @@ describe("border phase ratifier", () => {
     const evidenceDrift = adjudicateBorderPhaseReport(report, baseline, fingerprint);
     expect(evidenceDrift.verdict).toBe("drift");
     expect(evidenceDrift.findings).toContain("darwin baseline lacks repeated stable artifact evidence");
+  });
+});
+
+// DM-PPT418: doc 191 defines each ceiling as the observed maximum rounded up to
+// an 8-bit alpha bucket plus one further quantization step (both written as
+// 6-decimal values rounded up). Pin the reviewed baseline to that rule so a
+// stale, looser ceiling cannot survive a later refresh of the observed maxima.
+describe("border phase envelope ceilings (DM-PPT418)", () => {
+  const ceil6 = (value: number) => Math.ceil(value * 1e6 - 1e-6) / 1e6;
+  const ceilingFor = (observed: number) =>
+    Number((ceil6(Math.ceil(observed * 255 - 1e-9) / 255) + ceil6(1 / 255)).toFixed(6));
+  const baseline = JSON.parse(
+    readFileSync("tests/baselines/border-phase-envelopes.json", "utf8"),
+  ) as BorderPhaseEnvelope;
+
+  it("derives every platform's ceilings from its observed maxima", () => {
+    for (const [platform, envelope] of Object.entries(baseline.platforms)) {
+      for (const [id, scenario] of Object.entries(envelope.scenarios)) {
+        expect({ platform, id, edge: scenario.edgeCeilingCssPx, rmse: scenario.profileRmseCeiling }).toEqual({
+          platform,
+          id,
+          edge: ceilingFor(scenario.observedWorstEdge),
+          rmse: ceilingFor(scenario.observedWorstRmse),
+        });
+      }
+    }
+  });
+
+  it("rejects the retired DSF 1 half-covered dotted-outline residual", () => {
+    const { report, baseline: fixtureBaseline } = fixture();
+    const envelope = fixtureBaseline.platforms.darwin.scenarios["dsf1.zoom1"];
+    Object.assign(envelope, baseline.platforms.darwin.scenarios["dsf1.zoom1"]);
+    const scenario = report.scenarios.find(({ scenario: { id } }) => id === "dsf1.zoom1")!;
+    scenario.rows.find((row) => borderPhaseGeometryStatus(row) === "source-exact")!.outerError = 128 / 255;
+    scenario.ratifiedPaintResiduals.worstEdge = 128 / 255;
+    const result = adjudicateBorderPhaseReport(report, fixtureBaseline, fingerprint);
+    expect(result.verdict).toBe("drift");
+    expect(result.findings).toContain(`dsf1.zoom1 ratified edge ${128 / 255} > 0.003922`);
   });
 });
