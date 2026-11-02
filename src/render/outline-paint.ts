@@ -174,15 +174,25 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         const linecap = ostyle === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
         const oxR = ox + owd,
           oyB = oy + oh;
-        const jointOffset = Math.floor((Math.round(ow) + 1) / 2);
-        const sideLeft = ox - jointOffset,
-          sideRight = oxR + jointOffset;
-        const sideTop = oy - jointOffset,
-          sideBottom = oyB + jointOffset;
+        // The single-rect outline paints each side over the pixel-snapped
+        // outer rect (BoxBorderPainter's outline constructor, outsets =
+        // offset + width), so a side runs exactly from outer corner to outer
+        // corner: half the snapped width out from the centerline. The old
+        // floor((w + 1) / 2) joint overshot by 0.5px at each end for odd
+        // widths, which lengthened a 1px side by 1px and changed the dash fit.
+        const halfWidth = Math.round(ow) / 2;
+        const sideLeft = ox - halfWidth,
+          sideRight = oxR + halfWidth;
+        const sideTop = oy - halfWidth,
+          sideBottom = oyB + halfWidth;
         const hLen = sideRight - sideLeft,
           vLen = sideBottom - sideTop;
         const hDash = openDashArray(ostyle, ow, hLen);
         const vDash = openDashArray(ostyle, ow, vLen);
+        // DrawLineWithStyle sizes thick-dotted intervals from that full length,
+        // then moves both endpoints in by width/2 so the round caps stay inside
+        // (box_border_painter.cc:529-538, chromium 7d859f27).
+        const capInset = ostyle === "dotted" && !thinDotted ? halfWidth : 0;
         const hAttrs = hDash !== "" ? ` stroke-dasharray="${hDash}"` : "";
         const vAttrs = vDash !== "" ? ` stroke-dasharray="${vDash}"` : "";
         const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
@@ -198,10 +208,10 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
           );
         } else {
           out.push(
-            `${indent}<line x1="${r(sideLeft)}" y1="${r(oy)}" x2="${r(sideRight)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-            `${indent}<line x1="${r(oxR)}" y1="${r(sideTop)}" x2="${r(oxR)}" y2="${r(sideBottom)}" ${strokeAttrs}${vAttrs}${linecap} />`,
-            `${indent}<line x1="${r(sideLeft)}" y1="${r(oyB)}" x2="${r(sideRight)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-            `${indent}<line x1="${r(ox)}" y1="${r(sideTop)}" x2="${r(ox)}" y2="${r(sideBottom)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+            `${indent}<line x1="${r(sideLeft + capInset)}" y1="${r(oy)}" x2="${r(sideRight - capInset)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${indent}<line x1="${r(oxR)}" y1="${r(sideTop + capInset)}" x2="${r(oxR)}" y2="${r(sideBottom - capInset)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+            `${indent}<line x1="${r(sideLeft + capInset)}" y1="${r(oyB)}" x2="${r(sideRight - capInset)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${indent}<line x1="${r(ox)}" y1="${r(sideTop + capInset)}" x2="${r(ox)}" y2="${r(sideBottom - capInset)}" ${strokeAttrs}${vAttrs}${linecap} />`,
           );
         }
       } else {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
 import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
+import { openDashArray } from "./stroke-style.js";
 
 const BASE_STYLES = {
   backgroundColor: "rgba(0, 0, 0, 0)",
@@ -231,5 +232,24 @@ describe("square dashed outline side geometry (DM-2660)", () => {
     expect(lines[1]).toContain('stroke-dasharray="6 3.667"');
     expect(lines[2]).toContain('x1="8" y1="81" x2="112" y2="81"');
     expect(lines[3]).toContain('x1="9" y1="18" x2="9" y2="82"');
+  });
+
+  it("ends odd-width sides exactly at the snapped outer corners (DM-64RACW)", () => {
+    const svg = render({ ...outlineOnly, outlineWidth: "1px" });
+    const lines = svg.split("\n").filter((line) => line.includes("<line") && line.includes('stroke="rgb(109,40,217)"'));
+    // Outer rect is the 100x60 box outset by 1px: x 9..111, y 19..81. The old
+    // floor((w + 1) / 2) joint reached 8.5..111.5, one px too long.
+    expect(lines[0]).toContain('x1="9" y1="19.5" x2="111" y2="19.5"');
+    expect(lines[0]).toContain(`stroke-dasharray="${openDashArray("dashed", 1, 102)}"`);
+    expect(lines[1]).toContain('x1="110.5" y1="19" x2="110.5" y2="81"');
+  });
+
+  it("insets thick dotted outline caps by half the width (DM-64RACW)", () => {
+    const svg = render({ ...outlineOnly, outlineWidth: "4px", outlineStyle: "dotted" });
+    const top = svg.split("\n").find((line) => line.includes("<line") && line.includes('stroke="rgb(109,40,217)"'))!;
+    // Outer x 6..114; DrawLineWithStyle draws from 8 to 112 with intervals sized for 108.
+    expect(top).toContain('x1="8" y1="18" x2="112" y2="18"');
+    expect(top).toContain(`stroke-dasharray="${openDashArray("dotted", 4, 108)}"`);
+    expect(top).toContain('stroke-linecap="round"');
   });
 });

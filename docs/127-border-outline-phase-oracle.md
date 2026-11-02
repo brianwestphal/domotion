@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG", "DM-D1BK35", "DM-92KTN7"]
+tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG", "DM-D1BK35", "DM-92KTN7", "DM-64RACW"]
 code:
   [
     ".github/workflows/border-phase-oracle.yml",
@@ -78,6 +78,17 @@ review found the remaining DSF=1 dotted-outline coverage profile byte-stable
 across runners. The later uniform-double snap correction left those maxima and
 their ceilings unchanged; doc 191 records the exact geometry, ceilings, and
 evidence fingerprints.
+
+A square dashed or dotted single-rect outline paints through
+`BoxBorderPainter`'s outline constructor, which uses the pixel-snapped outer
+rect with outsets of offset plus width. Each side therefore runs exactly from
+outer corner to outer corner, half the snapped width out from the stroke
+centerline. Its dash fit uses that full length. Thick dotted sides then inset
+their round caps by half the width, as border sides do. An earlier
+`floor((w + 1) / 2)` joint overshot odd widths by 0.5px at each end, so a 1px
+outline side was 1px too long and fitted one dash too many. Rounded outlines
+and borders still dash one closed contour, which is not yet Blink's per-side
+curved dashing.
 
 Outline emission and its shared dashed/dotted side geometry live in
 `src/render/outline-paint.ts` and `src/render/stroke-style.ts`. The latter
