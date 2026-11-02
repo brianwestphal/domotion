@@ -284,7 +284,7 @@ const sha256 = (value: string | Buffer): string => createHash("sha256").update(v
  * that). The device pixels are stitched unchanged, so every platform still
  * measures the same 128-case corpus. */
 async function screenshotInVerticalTiles(page: Page, width: number, height: number, dsf: number): Promise<Buffer> {
-  const maxTileDeviceHeight = 3_600;
+  const maxTileDeviceHeight = 1_024;
   const tileCssHeight = Math.max(1, Math.floor(maxTileDeviceHeight / dsf));
   if (height <= tileCssHeight) return page.screenshot({ omitBackground: true });
 

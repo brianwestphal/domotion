@@ -43,6 +43,7 @@
       "type": "category"
     }
   ],
+  "push_policy": "push-per-ticket",
   "terminals": [
     {
       "command": "{{aiCommand}}",

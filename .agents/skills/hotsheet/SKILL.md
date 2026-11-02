@@ -3,7 +3,7 @@ name: hotsheet
 description: Plan and work through the complete Hot Sheet Up Next queue using priority, overlap, dependencies, and safe parallelism. Works headless, with or without a server.
 ---
 
-<!-- hotsheet-skill-version: 64 -->
+<!-- hotsheet-skill-version: 69 -->
 
 Work the project's complete Hot Sheet Up Next queue. An invocation normally drains every
 actionable Up Next ticket; completing one ticket is not a stopping condition.
@@ -59,6 +59,13 @@ actionable Up Next ticket; completing one ticket is not a stopping condition.
    behavior, create its ticket. Do not ask permission, wait, promise to file it later, or
    leave it only in a comment/TODO/note. Reference every follow-up slug in the current
    ticket's completing note, then continue.
+   When creating a follow-up to the ticket in hand, pass its source context so Hot Sheet
+   records a typed relation: `hotsheet-cli new --follow-up-to <source-slug> --project
+   <checkout-id> ...`, or MCP `hotsheet_create` with `checkout` and qualified
+   `follow_up_to: "@project/connection:native"`. Verify the source's `follow_ups`
+   field after creation; prose references alone do not create the relation (HS2-2Z11A5).
+   If creation reports a target but the source link failed, retry only that link with
+   `hotsheet-cli link-follow-up` or MCP `hotsheet_link_follow_up`; do not create another target.
 5. **Commit at ticket boundaries; push by this repository's rules.** Before closing a
    ticket, run the required gates and review the diff. Give every ticket at least one
    commit, ideally commits unique to that ticket, and include its ticket slug in each
@@ -66,10 +73,13 @@ actionable Up Next ticket; completing one ticket is not a stopping condition.
    so strongly that separation would be unsafe or misleading, or when they are
    duplicates; a combined commit message must reference every ticket slug it addresses.
    Integrate parallel tickets separately, and commit the finished ticket before
-   beginning, resuming, or integrating another. Pushing is up to this repository: follow
-   its own push, PR, and review conventions (for example per ticket, in coherent
-   batches, or through review) as its instructions state. This skill neither requires
-   nor forbids pushing on its own.
+   beginning, resuming, or integrating another.
+
+   <!-- hotsheet:push-policy:begin -->
+   Push policy: `push-per-ticket`. The maintainer authorizes routine fast-forward
+   pushes of verified ticket commits to the shipping branch. Push each ticket
+   commit immediately, confirm it succeeded, then begin the next ticket.
+   <!-- hotsheet:push-policy:end -->
    A final remote CI run may continue after a locally green, integrated commit has been
    pushed. Set the Started phase to `final_testing`, note the commit and CI run, release
    the claim, and take another ready ticket. Claim-next skips such waiting tickets; reclaim
@@ -173,6 +183,14 @@ Notes:
 
 - The CLI (`hotsheet-cli …`) and `hotsheet_*` MCP tools use the same engine and work
   without a server.
+- In a Hot Sheet-launched sandbox, `hotsheet-cli` may fail to open a sibling
+  `<repo>.hs2` store with `Operation not permitted (os error 1)`. Use the
+  configured `hotsheet_*` MCP tools for that operation and preserve the same
+  claim, actor, note, and completion workflow (HS2-DVZXSD).
+- If a Chromium or WebKit browser gate cannot launch because of EPERM or a
+  mach-port denial, rerun that gate with approved unsandboxed execution. If
+  approval or a browser is unavailable, record the gate as blocked, not passed
+  (HS2-DVZXSD).
 - Confirm HS2 generation before using connected MCP: `hotsheet-store.json` (directly
   or through `.hotsheet2/store`, with read-only legacy `.hotsheet/store` fallback)
   identifies HS2; `.hotsheet/db/PG_VERSION` identifies
@@ -209,3 +227,18 @@ Notes:
   JSON-escaped `\\n` sequences in `--note`. The CLI rejects likely escaped line breaks
   outside inline/fenced backtick code; use `--allow-literal-backslash-n` only when prose
   containing literal `\\n` text is intentional.
+
+## Local verification (HS2-RS0FFT)
+
+Use the project's declared affected local gate and inspect its selected checks
+and fallback reasons. Client-only changes do not routinely run unrelated server
+suites. Keep affected unit/API tests, a bounded relevant browser set, shared
+policy/contracts/generated-artifact checks, and one real-app visual review of
+an authorized overlapping UI batch. Full browser/platform regression stays in
+CI. Broaden local checks for shared infrastructure, auth, data formats,
+migrations, gate changes, ambiguous dependencies, or a concrete failure, and
+record the reason. Run the full local browser suite only for an identified
+unresolved risk. Reuse only valid exact-input evidence. Preserve dirty local
+edits and verify the committed tree in a clean worktree; never use a bypass.
+After push, release the claim while CI runs and continue independent work.
+Complete only after successful covering CI on the shipping branch.
