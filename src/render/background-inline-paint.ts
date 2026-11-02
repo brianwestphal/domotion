@@ -779,9 +779,7 @@ export function paintInlineFragment(
         (br.h > 0 || br.v > 0 ? ` A${r(br.h)},${r(br.v)} 0 0 1 ${r(fxR - br.h)},${r(fyB)}` : "") +
         ` L${r(fxL)},${r(fyB)}`;
     }
-    svgParts.push(
-      `${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}" />`,
-    );
+    svgParts.push(`${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}" />`);
   } else {
     // Per-side strokes anchored at the inner half-width inset so they
     // sit inside the border-box (matching Chrome). For slice-mode

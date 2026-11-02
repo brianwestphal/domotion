@@ -130,7 +130,9 @@ describe("background and inline-fragment paint owners", () => {
     // floor(1 / 2) = 0: the 1px border strokes the snapped fragment's outer edge.
     expect(stroke).toMatch(/d="M18,20 /);
     expect(stroke).toContain('stroke-width="2.2"');
-    expect(stroke).toContain(`stroke-dasharray="${closedDashArray("dashed", 1, blinkCurvedDashPathLength(60, 30, round8))}"`);
+    expect(stroke).toContain(
+      `stroke-dasharray="${closedDashArray("dashed", 1, blinkCurvedDashPathLength(60, 30, round8))}"`,
+    );
     expect(stroke).toMatch(/mask="url\(#t-bm\d+\)"/);
   });
 
