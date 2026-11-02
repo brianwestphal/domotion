@@ -1,6 +1,6 @@
 import { emitGaussianBlurFilter } from "./gaussian-blur.js";
-import { openDashArray, closedDashArray, isThinDotted } from "./stroke-style.js";
-import { roundedRectPerimeter } from "./border-paint.js";
+import { openDashArray, isThinDotted } from "./stroke-style.js";
+import { paintBlinkCurvedDashedDottedBorder, paintPerSideBorder } from "./border-paint.js";
 import type { CapturedBackgroundImage, CapturedElement } from "../capture/types.js";
 import { resolveBackgroundAttachment, intersectBackgroundRects } from "./background-attachment.js";
 import {
@@ -675,7 +675,50 @@ export function paintInlineFragment(
     sameColor(sbr.color, sbb.color) &&
     sameColor(sbb.color, sbl.color);
   const anyCorner = fragCorners.tl.h > 0 || fragCorners.tr.h > 0 || fragCorners.br.h > 0 || fragCorners.bl.h > 0;
+  // Rounded dashed/dotted fragments go through Blink's
+  // DrawCurvedDashedDottedBoxSide exactly as block borders do. The inline
+  // painter hands BoxBorderPainter the fragment rect with SidesToInclude()
+  // (inline_box_fragment_painter.cc:459-461, chromium 7d859f27), and
+  // PixelSnappedContouredBorderWithOutsets zeroes the excluded sides' outsets
+  // (contoured_border_geometry.cc:219-250): the centerline stays one CLOSED
+  // contour that runs along the fragment edge on an excluded side, its dash
+  // gap is fitted to that whole contour's truncated Skia length, and the
+  // excluded side, having no width, paints nothing.
+  const fragmentSides = [wantTop ? sbt : null, wantRight ? sbr : null, wantBottom ? sbb : null, wantLeft ? sbl : null];
+  const paintedSides = fragmentSides.filter(
+    (side) => side != null && side.w > 0 && side.style !== "none" && side.style !== "hidden",
+  );
+  const roundContour =
+    fragCorners.curvature == null || Object.values(fragCorners.curvature).every((value) => value === 2);
   if (
+    anyCorner &&
+    paintedSides.length > 0 &&
+    paintedSides.every((side) => side?.style === "dashed" || side?.style === "dotted")
+  ) {
+    if (sbt != null && sidesUniformColor && allFourWanted && roundContour) {
+      paintBlinkCurvedDashedDottedBorder(
+        paintCtx,
+        indent,
+        fragCorners,
+        sbt,
+        Math.round(f.x),
+        Math.round(f.y),
+        Math.round(f.x + f.width),
+        Math.round(f.y + f.height),
+      );
+    } else {
+      const fragmentElement: CapturedElement = {
+        ...element,
+        x: f.x,
+        y: f.y,
+        width: f.width,
+        height: f.height,
+        styles: { ...element.styles, collapsedBorderSegments: undefined },
+      };
+      const [top, right, bottom, left] = fragmentSides;
+      paintPerSideBorder(paintCtx, fragmentElement, indent, fragCorners, top, right, bottom, left, false);
+    }
+  } else if (
     sbt != null &&
     sidesUniformColor &&
     allFourWanted &&
@@ -686,15 +729,8 @@ export function paintInlineFragment(
   ) {
     const half = sbt.w / 2;
     const strokeCorners = insetCornerRadii(fragCorners, half, half, half, half);
-    const dash = closedDashArray(
-      sbt.style,
-      sbt.w,
-      roundedRectPerimeter(Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners),
-    );
-    const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-    const linecap = sbt.style === "dotted" && !isThinDotted(sbt.w) ? ` stroke-linecap="round"` : "";
     svgParts.push(
-      `${indent}${roundedRectSvg(f.x + half, f.y + half, Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners, `fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap}`)}`,
+      `${indent}${roundedRectSvg(f.x + half, f.y + half, Math.max(0, f.width - sbt.w), Math.max(0, f.height - sbt.w), strokeCorners, `fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"`)}`,
     );
   } else if (
     sbt != null &&
@@ -743,15 +779,8 @@ export function paintInlineFragment(
         (br.h > 0 || br.v > 0 ? ` A${r(br.h)},${r(br.v)} 0 0 1 ${r(fxR - br.h)},${r(fyB)}` : "") +
         ` L${r(fxL)},${r(fyB)}`;
     }
-    const dash = openDashArray(
-      sbt.style,
-      sbt.w,
-      roundedRectPerimeter(fxR - fxL, fyB - fyT, strokeCorners) - (fyB - fyT),
-    );
-    const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
-    const linecap = sbt.style === "dotted" && !isThinDotted(sbt.w) ? ` stroke-linecap="round"` : "";
     svgParts.push(
-      `${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}"${dashAttr}${linecap} />`,
+      `${indent}<path d="${d}" fill="none" stroke="${colorStr(sbt.color)}" stroke-width="${r(sbt.w)}" />`,
     );
   } else {
     // Per-side strokes anchored at the inner half-width inset so they

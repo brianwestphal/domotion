@@ -1738,6 +1738,22 @@ export const tests: FeatureTest[] = [
     height: 360,
   },
   {
+    // DM-H20KAP: rounded dashed/dotted borders on wrapped inline spans. Blink
+    // strokes each fragment's closed centerline (floor(width / 2) inside the
+    // included sides, on the fragment edge at an excluded side) and fits the
+    // dashes to its truncated Skia length, so sliced first/last fragments,
+    // middle fragments, and clone fragments each restart their own pattern.
+    name: "inline-rounded-dashed-dotted-fragments",
+    html: `<div style="font-family:-apple-system,sans-serif;font-size:14px;line-height:2.4;padding:16px;background:#fff;color:#111;">
+      <div style="max-width:300px;margin-bottom:8px;">Lead text <span style="border:1px dashed #1f6feb;border-radius:8px;padding:3px 6px;">a one-pixel dashed span that wraps across several line boxes here</span> after.</div>
+      <div style="max-width:300px;margin-bottom:8px;">Lead text <span style="border:3px dashed #cf222e;border-radius:10px;padding:3px 6px;">a three-pixel dashed slice span that wraps across lines</span> after.</div>
+      <div style="max-width:300px;margin-bottom:8px;">Lead text <span style="border:4px dotted #1a7f37;border-radius:12px;padding:3px 6px;">a four-pixel dotted slice span that wraps across lines</span> after.</div>
+      <div style="max-width:300px;">Lead text <span style="border:2px dashed #8250df;border-radius:8px;padding:3px 6px;box-decoration-break:clone;-webkit-box-decoration-break:clone;">a two-pixel dashed clone span that wraps across lines</span> after.</div>
+    </div>`,
+    width: 360,
+    height: 460,
+  },
+  {
     // DM-2365: URL-backed backgrounds on `box-decoration-break:slice` use one
     // logical image strip across physical fragments. The first panel combines
     // content-box positioning with padding-box clipping, the second is the

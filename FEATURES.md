@@ -34,6 +34,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **border-radius**: Rounded corners
 - [x] **border-radius-pill**: Fully rounded (pill shape)
 - [x] **inline-box-decoration-break**: wrapped inline backgrounds / borders paint per line-fragment (`slice` + `clone`); first/last fragment own the start/end edges in slice mode, every fragment paints a full box in clone mode
+- [x] **inline-rounded-dashed-dotted-fragments**: rounded dashed/dotted borders on wrapped inline fragments stroke Blink's closed per-fragment centerline (excluded slice side on the fragment edge) with dashes fitted to its truncated Skia length
 
 ### Layout
 

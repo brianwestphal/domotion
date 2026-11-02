@@ -370,7 +370,7 @@ function paintUniformSolidBorder(
  * match. The dash gap is fitted to the truncated Skia length of that contour.
  * Dashes and thin dots are stroked at 2.2 × width and clipped to the border
  * ring; thick round dots keep the border width. */
-function paintBlinkCurvedDashedDottedBorder(
+export function paintBlinkCurvedDashedDottedBorder(
   ctx: PaintCtx,
   indent: string,
   corners: CornerRadii,

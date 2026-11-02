@@ -2213,6 +2213,7 @@
         "src/render/outline-paint.ts",
         "src/render/stroke-style.ts",
         "src/render/border-paint.ts",
+        "src/render/background-inline-paint.ts",
         "src/render/thin-dotted-endpoints.test.ts"
       ],
       "file": "127-border-outline-phase-oracle.md"

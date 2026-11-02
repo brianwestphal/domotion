@@ -17,6 +17,7 @@ tickets:
     "DM-92KTN7",
     "DM-64RACW",
     "DM-96BH76",
+    "DM-H20KAP",
   ]
 code:
   [
@@ -24,6 +25,7 @@ code:
     "src/render/outline-paint.ts",
     "src/render/stroke-style.ts",
     "src/render/border-paint.ts",
+    "src/render/background-inline-paint.ts",
     "src/render/thin-dotted-endpoints.test.ts",
   ]
 aliases: ["docs/127-border-outline-phase-oracle.md", "doc-127"]
@@ -113,7 +115,17 @@ integer (793.12 against Skia's 792.82) and fits one dash too many. Dashes and
 thin dots are stroked at 2.2 × the max adjacent width under the border-ring
 mask; round dots keep the side width. The path starts at the top-left corner's
 end, clockwise, which is SkRRect start index 0 (`path_builder.cc:228-233`).
-Inline-box fragments still use the older model.
+Rounded dashed and dotted inline-box fragments go through the same procedure
+(`src/render/background-inline-paint.ts`). The inline painter hands
+`BoxBorderPainter` the fragment rect with `SidesToInclude()`
+(`inline_box_fragment_painter.cc:459-461`), and
+`PixelSnappedContouredBorderWithOutsets` zeroes the excluded sides' outsets
+(`contoured_border_geometry.cc:219-250`). A sliced first or last fragment
+therefore still strokes one closed centerline: inset `floor(width / 2)` on its
+included sides and on the fragment edge at the excluded side, with its dashes
+fitted to that whole contour's truncated Skia length. The excluded side has no
+width, so nothing paints there. Middle fragments have no corners and keep the
+straight-side path.
 
 Outline emission and its shared dashed/dotted side geometry live in
 `src/render/outline-paint.ts` and `src/render/stroke-style.ts`. The latter

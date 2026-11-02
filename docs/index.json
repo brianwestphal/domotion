@@ -3170,13 +3170,15 @@
           "DM-D1BK35",
           "DM-92KTN7",
           "DM-64RACW",
-          "DM-96BH76"
+          "DM-96BH76",
+          "DM-H20KAP"
         ],
         "code": [
           ".github/workflows/border-phase-oracle.yml",
           "src/render/outline-paint.ts",
           "src/render/stroke-style.ts",
           "src/render/border-paint.ts",
+          "src/render/background-inline-paint.ts",
           "src/render/thin-dotted-endpoints.test.ts"
         ],
         "aliases": ["docs/127-border-outline-phase-oracle.md", "doc-127"]
