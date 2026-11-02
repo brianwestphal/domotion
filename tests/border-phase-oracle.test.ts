@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import {
   buildBorderPaintDecisionCases,
@@ -8,6 +9,7 @@ import {
   deriveSnapRule,
   profileEdges,
   profileRmse,
+  screenshotAfterPresentedFrame,
 } from "../tools/border-phase-oracle.js";
 
 describe("border phase oracle corpus", () => {
@@ -93,5 +95,46 @@ describe("shared snap-rule fit", () => {
       width: 3,
     }));
     expect(deriveSnapRule(samples)[0]).toMatchObject({ rule: "css-edge-round", mae: 0 });
+  });
+});
+
+describe("oracle screenshots wait for a presented frame (DM-RQBPPP)", () => {
+  const emptySurface = new Error(
+    "page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot",
+  );
+  function fakePage(outcomes: Array<Buffer | Error>) {
+    const calls: string[] = [];
+    const page = {
+      evaluate: async () => {
+        calls.push("frame");
+      },
+      screenshot: async () => {
+        calls.push("shot");
+        const next = outcomes.shift()!;
+        if (next instanceof Error) throw next;
+        return next;
+      },
+    };
+    return { page: page as unknown as Page, calls };
+  }
+
+  it("waits for frames before each capture and retries the empty-surface error", async () => {
+    const png = Buffer.from("png");
+    const { page, calls } = fakePage([emptySurface, emptySurface, png]);
+    await expect(screenshotAfterPresentedFrame(page, { omitBackground: true })).resolves.toBe(png);
+    expect(calls).toEqual(["frame", "shot", "frame", "shot", "frame", "shot"]);
+  });
+
+  it("does not retry any other screenshot error", async () => {
+    const timeout = new Error("page.screenshot: Timeout 30000ms exceeded.");
+    const { page, calls } = fakePage([timeout, Buffer.from("never")]);
+    await expect(screenshotAfterPresentedFrame(page, {})).rejects.toBe(timeout);
+    expect(calls).toEqual(["frame", "shot"]);
+  });
+
+  it("gives up after a bounded number of empty-surface attempts", async () => {
+    const { page, calls } = fakePage([emptySurface, emptySurface, emptySurface, emptySurface, Buffer.from("late")]);
+    await expect(screenshotAfterPresentedFrame(page, {})).rejects.toBe(emptySurface);
+    expect(calls.filter((call) => call === "shot")).toHaveLength(4);
   });
 });

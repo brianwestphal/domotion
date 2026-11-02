@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2355", "DM-N6XJRS"]
+tickets: ["DM-2355", "DM-N6XJRS", "DM-RQBPPP"]
 code: [".github/workflows/border-phase-oracle.yml", "tools/border-phase-oracle.ts", "tools/border-phase-ratifier.ts"]
 aliases: ["docs/191-cross-platform-border-phase-envelopes.md", "doc-191"]
 ---
@@ -75,11 +75,11 @@ unrelated ink, and matching style/phase ordering. The visible residual at DSF 1
 is confined to the expected thin dotted-outline coverage profile; it is not a
 box displacement.
 
-| Runner  | Fingerprint reviewed                                              | Repeat evidence                                                                                                                                                                                                                                                                         |
-| ------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| macOS   | `macos26-arm64` / `20260728.0273.1`; Darwin `25.5.0`; arm64       | Runs `32604023290` and `32604759338` were byte-identical.                                                                                                                                                                                                                               |
-| Linux   | `ubuntu24-x64` / `20260816.277.1`; Linux `6.17.0-1022-azure`; x64 | Runs `32604023290` and `32604759338` completed all nine scenarios byte-identically. Separate attempts exposed Chromium's intermittent oversized full-surface screenshot rejection; the ratified workflow uses lossless bounded vertical tiles to remove that protocol-only instability. |
-| Windows | `win25-vs2026-x64` / `20260818.207.1`; Windows `10.0.26100`; x64  | Runs `32604023290` and `32604759338` were byte-identical.                                                                                                                                                                                                                               |
+| Runner  | Fingerprint reviewed                                             | Repeat evidence                                                                                       |
+| ------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| macOS   | `macos26-arm64` / `20261026.0455.2`; Darwin `25.6.0`; arm64      | Runs `41401746566` and `41401758928` (2026-11-02) produced artifact set `ab2f8e50…` byte-identically. |
+| Linux   | `ubuntu24-x64` / `20261026.354.1`; Linux `7.0.0-1017-azure`; x64 | Runs `41401746566` and `41401758928` produced the same artifact set byte-identically.                 |
+| Windows | `win25-vs2026-x64` / `20261021.278.1`; Windows `10.0.26100`; x64 | Runs `41401746566` and `41402137611` produced the same artifact set byte-identically.                 |
 
 All runners used Node `v22.21.0` and Chromium `147.0.7727.15`. The report also
 records platform, architecture, OS release, source pins, corpus SHA-256, and
@@ -112,20 +112,23 @@ bucket and add only one further quantization step; they are not inherited from t
 
 | DSF / zoom | observed edge (CSS px) | edge ceiling | observed profile RMSE | RMSE ceiling |
 | ---------- | ---------------------: | -----------: | --------------------: | -----------: |
-| 1 / 0.8    |               0.501961 |     0.505883 |              0.189723 |     0.196079 |
-| 1 / 1      |               0.501961 |     0.505883 |              0.183794 |     0.188236 |
-| 1 / 1.25   |               0.501961 |     0.505883 |              0.177470 |     0.184315 |
+| 1 / 0.8    |                      0 |     0.505883 |                     0 |     0.196079 |
+| 1 / 1      |                      0 |     0.505883 |                     0 |     0.188236 |
+| 1 / 1.25   |               0.003922 |     0.505883 |              0.001538 |     0.184315 |
 | 2 / 0.8    |               0.015686 |     0.019609 |              0.009682 |     0.015687 |
-| 2 / 1      |               0.029412 |     0.035295 |              0.012266 |     0.019609 |
-| 2 / 1.25   |               0.007843 |     0.011765 |              0.004437 |     0.011765 |
-| 4 / 0.8    |               0.008824 |     0.015687 |              0.007892 |     0.015687 |
-| 4 / 1      |               0.016667 |     0.023530 |              0.011372 |     0.015687 |
+| 2 / 1      |               0.001961 |     0.035295 |              0.000818 |     0.019609 |
+| 2 / 1.25   |               0.001961 |     0.011765 |              0.001109 |     0.011765 |
+| 4 / 0.8    |               0.000980 |     0.015687 |              0.000877 |     0.015687 |
+| 4 / 1      |               0.001961 |     0.023530 |              0.001322 |     0.015687 |
 | 4 / 1.25   |                      0 |     0.003922 |                     0 |     0.003922 |
 
-At DSF 1 the maximum edge residual remains the half-covered outer pixel of
-one-pixel dotted outlines. At DSF 2/4, the source-exact maxima are at most
-0.029412 CSS px and 0.012266 RMSE. Uniform double borders contribute zero to
-every maximum.
+The 2026-11-02 refresh measured these maxima on all three platforms, identical
+because the artifact set was identical. The DSF 1 residual of the half-covered
+outer pixel of one-pixel dotted outlines (formerly 0.501961 / 0.189723) is gone:
+dotted outline sides now start at the inset endpoint with Blink's phase-0 dot
+period, and their side length is exact. The ceilings were deliberately left at
+their reviewed values. Tightening them to the new maxima is a separate review
+decision.
 
 ## Gate contract
 
@@ -133,7 +136,11 @@ every maximum.
 schema-2 report serializes source pins, corpus identity, 128/0 ownership, the
 source-exact residual summary, and artifact hashes. Large high-DPR pages are
 captured as bounded vertical tiles and stitched without resampling device
-pixels.
+pixels. Every capture first waits for two animation frames so a frame has been
+presented, and it retries only DevTools' empty-surface error ("Unable to
+capture screenshot", `PageHandler::ScreenshotCaptured`), at most four
+attempts. From 2026-10-08, every hosted Linux run failed on the first capture
+of a fresh DSF 4 context, at any tile size; this removed that failure.
 
 `tools/border-phase-ratifier.ts` is a separate fail-closed adjudicator. It
 requires the exact 3 × 3 scenario and 128-row inventories, checks every case's

@@ -274,6 +274,34 @@ function numberList(raw: string, name: string): number[] {
 
 const sha256 = (value: string | Buffer): string => createHash("sha256").update(value).digest("hex");
 
+/** DevTools answers "Unable to capture screenshot" when the browser-side
+ * surface copy comes back empty (PageHandler::ScreenshotCaptured,
+ * content/browser/devtools/protocol/page_handler.cc at chromium 7d859f27), for
+ * example before a freshly created context has presented a frame. On hosted
+ * Linux runners every failure since 2026-10-08 was the first capture of a new
+ * DSF 4 context, at any tile size (1024×1024 tiles failed the same way), and a
+ * later scenario in the same run then succeeded. Wait for two animation frames
+ * so a frame has been presented, and retry only that exact protocol error a
+ * bounded number of times; any other error, or a persistent one, still fails. */
+const EMPTY_SURFACE_SCREENSHOT = /Page\.captureScreenshot\): Unable to capture screenshot/;
+const SCREENSHOT_ATTEMPTS = 4;
+
+export async function screenshotAfterPresentedFrame(
+  page: Page,
+  options: Parameters<Page["screenshot"]>[0],
+): Promise<Buffer> {
+  for (let attempt = 1; ; attempt++) {
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
+    try {
+      return await page.screenshot(options);
+    } catch (error) {
+      if (attempt >= SCREENSHOT_ATTEMPTS || !EMPTY_SURFACE_SCREENSHOT.test(String(error))) throw error;
+    }
+  }
+}
+
 /** Linux's headless screenshot protocol rejects the full DSF=4 surface even
  * though the resulting PNG is within Chromium's image dimensions. Capture
  * bounded vertical tiles and stitch their unchanged device pixels so all
@@ -281,7 +309,7 @@ const sha256 = (value: string | Buffer): string => createHash("sha256").update(v
 async function screenshotInVerticalTiles(page: Page, width: number, height: number, dsf: number): Promise<Buffer> {
   const maxTileDeviceHeight = 3_600;
   const tileCssHeight = Math.max(1, Math.floor(maxTileDeviceHeight / dsf));
-  if (height <= tileCssHeight) return page.screenshot({ omitBackground: true });
+  if (height <= tileCssHeight) return screenshotAfterPresentedFrame(page, { omitBackground: true });
 
   const tiles: Array<{ input: Buffer; left: number; top: number }> = [];
   let y = 0;
@@ -289,7 +317,7 @@ async function screenshotInVerticalTiles(page: Page, width: number, height: numb
   let outputHeight = 0;
   while (y < height) {
     const tileHeight = Math.min(tileCssHeight, height - y);
-    const input = await page.screenshot({
+    const input = await screenshotAfterPresentedFrame(page, {
       clip: { x: 0, y, width, height: tileHeight },
       omitBackground: true,
     });

@@ -4413,7 +4413,7 @@
         "status": "current",
         "owners": ["paint-effects", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2355", "DM-N6XJRS"],
+        "tickets": ["DM-2355", "DM-N6XJRS", "DM-RQBPPP"],
         "code": [
           ".github/workflows/border-phase-oracle.yml",
           "tools/border-phase-oracle.ts",
