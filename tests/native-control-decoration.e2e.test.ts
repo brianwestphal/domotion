@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 
@@ -20,6 +22,50 @@ async function setup() {
 const env = await setup();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
+
+const OUT_DIR = "tests/output/native-control-decoration-e2e";
+
+/** DM-MPDTVX: capture must leave the live page's paint byte-identical. When it
+ *  does not, keep both screenshots and the changed-pixel bounds (CSS px) so the
+ *  CI artifact shows what moved, instead of a bare `expected -1 to be +0`. */
+async function expectUnchangedPaint(name: string, before: Buffer, after: Buffer, scale: number): Promise<void> {
+  if (Buffer.compare(before, after) === 0) return;
+  const [a, b] = await Promise.all(
+    [before, after].map((png) => sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })),
+  );
+  let changed = 0;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -1,
+    maxY = -1;
+  const sameSize = a.info.width === b.info.width && a.info.height === b.info.height;
+  if (sameSize) {
+    for (let y = 0; y < a.info.height; y++) {
+      for (let x = 0; x < a.info.width; x++) {
+        const offset = (y * a.info.width + x) * 4;
+        if (a.data.readUInt32BE(offset) === b.data.readUInt32BE(offset)) continue;
+        changed++;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  const summary = {
+    sameSize,
+    changedDevicePixels: changed,
+    changedCssBounds:
+      maxX < 0
+        ? null
+        : { x: minX / scale, y: minY / scale, width: (maxX - minX + 1) / scale, height: (maxY - minY + 1) / scale },
+  };
+  mkdirSync(OUT_DIR, { recursive: true });
+  writeFileSync(join(OUT_DIR, `${name}-before.png`), before);
+  writeFileSync(join(OUT_DIR, `${name}-after.png`), after);
+  writeFileSync(join(OUT_DIR, `${name}-summary.json`), `${JSON.stringify(summary, null, 2)}\n`);
+  expect.fail(`capture changed the live page's paint: ${JSON.stringify(summary)} (artifacts in ${OUT_DIR})`);
+}
 
 function walk(nodes: CapturedElement[]): CapturedElement[] {
   return nodes.flatMap((node) => [node, ...walk(node.children ?? [])]);
@@ -67,7 +113,7 @@ describeBrowser("source-owned partial native-control decorations", () => {
       const before = await page.screenshot({ omitBackground: true });
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
       const after = await page.screenshot({ omitBackground: true });
-      expect(Buffer.compare(before, after)).toBe(0);
+      await expectUnchangedPaint("file-button", before, after, 2);
       expect(capture.warnings.filter(({ feature }) => feature === "native-control-decoration-raster")).toEqual([]);
 
       for (const id of ["file-empty", "file-multiple", "file-vertical"]) {
@@ -129,7 +175,7 @@ describeBrowser("source-owned partial native-control decorations", () => {
       const before = await page.screenshot({ omitBackground: true });
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
       const after = await page.screenshot({ omitBackground: true });
-      expect(Buffer.compare(before, after)).toBe(0);
+      await expectUnchangedPaint("split-routes", before, after, 2);
       expect(capture.warnings.filter(({ feature }) => feature === "native-control-decoration-raster")).toEqual([]);
 
       expect(byId(capture.tree, "native").nativeControlRaster?.dataUri).toMatch(/^data:image\/png;base64,/);

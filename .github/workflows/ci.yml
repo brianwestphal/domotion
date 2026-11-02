@@ -238,4 +238,5 @@ jobs:
             tests/output/compressed-run-e2e/
             tests/output/region-timing-e2e/
             tests/output/two-pane-regions-e2e/
+            tests/output/native-control-decoration-e2e/
           if-no-files-found: error
