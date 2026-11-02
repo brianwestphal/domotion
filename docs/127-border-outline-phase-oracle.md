@@ -5,7 +5,19 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG", "DM-D1BK35", "DM-92KTN7", "DM-64RACW"]
+tickets:
+  [
+    "DM-2184",
+    "DM-2323",
+    "DM-2355",
+    "DM-CMKF35",
+    "DM-652J8C",
+    "DM-VJASEG",
+    "DM-D1BK35",
+    "DM-92KTN7",
+    "DM-64RACW",
+    "DM-96BH76",
+  ]
 code:
   [
     ".github/workflows/border-phase-oracle.yml",
@@ -86,9 +98,22 @@ outer corner to outer corner, half the snapped width out from the stroke
 centerline. Its dash fit uses that full length. Thick dotted sides then inset
 their round caps by half the width, as border sides do. An earlier
 `floor((w + 1) / 2)` joint overshot odd widths by 0.5px at each end, so a 1px
-outline side was 1px too long and fitted one dash too many. Rounded outlines
-and borders still dash one closed contour, which is not yet Blink's per-side
-curved dashing.
+outline side was 1px too long and fitted one dash too many. Rounded dashed and dotted borders and outlines follow
+`DrawCurvedDashedDottedBoxSide` (`box_border_painter.cc:1827-1860`). Blink does
+stroke one closed centerline per side and clips it to that side's wedge, but the
+centerline is the snapped border contour inset by
+`PhysicalBoxStrut::FromInts(width * 0.5)` (`CenterOutsets`, `:2477-2483`). That
+truncates, so a 1px border strokes its outer edge, and the radii shrink by the
+same integer. The dash gap is fitted to
+`static_cast<int>(centerline_path.length())`. Domotion reproduces that length
+with a port of Skia's `SkContourMeasure` conic subdivision (0.5px tolerance,
+Skia `62efacd3`, which Chromium's DEPS pins): `skiaRoundedRectContourLength` in
+`src/render/borders.ts`. The analytic perimeter can truncate to a different
+integer (793.12 against Skia's 792.82) and fits one dash too many. Dashes and
+thin dots are stroked at 2.2 × the max adjacent width under the border-ring
+mask; round dots keep the side width. The path starts at the top-left corner's
+end, clockwise, which is SkRRect start index 0 (`path_builder.cc:228-233`).
+Inline-box fragments still use the older model.
 
 Outline emission and its shared dashed/dotted side geometry live in
 `src/render/outline-paint.ts` and `src/render/stroke-style.ts`. The latter

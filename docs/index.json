@@ -3169,7 +3169,8 @@
           "DM-VJASEG",
           "DM-D1BK35",
           "DM-92KTN7",
-          "DM-64RACW"
+          "DM-64RACW",
+          "DM-96BH76"
         ],
         "code": [
           ".github/workflows/border-phase-oracle.yml",

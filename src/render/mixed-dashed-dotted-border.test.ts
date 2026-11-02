@@ -194,10 +194,13 @@ describe("rounded mixed dashed/dotted border paths (DM-2430)", () => {
     expect(svg).not.toContain('<line x1="109" y1="20"');
   });
 
-  it("keeps logical side thickness while the vector ring owns antialias clipping", () => {
+  it("strokes each curved side at 2.2 x its max adjacent width, clipped by wedge and ring (DM-96BH76)", () => {
     const svg = render({ ...rounded, borderTopWidth: "12px", borderLeftWidth: "10px" });
     const right = svg.split("\n").find((line) => line.includes("<path") && line.includes('stroke="rgb(210,153,34)"'));
-    expect(right).toContain('stroke-width="2"');
+    // PaintOneBorderSide: max(right 2, top 12, bottom) = 12; DrawCurvedDashedDottedBoxSide x 2.2.
+    expect(right).toContain('stroke-width="26.4"');
+    expect(right).toContain("clip-path=");
+    expect(right).toContain("mask=");
   });
 
   it("keeps the closed-path dash plan invariant when side colors and paint order change", () => {

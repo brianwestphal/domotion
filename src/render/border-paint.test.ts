@@ -7,7 +7,7 @@ import {
   paintCollapsedBorderRects,
   roundedRectPerimeter,
 } from "./border-paint.js";
-import { parseCornerRadii } from "./borders.js";
+import { blinkCurvedDashPathLength, parseCornerRadii, skiaRoundedRectContourLength } from "./borders.js";
 import { openDashArray, closedDashArray } from "./stroke-style.js";
 import { paintThinDottedLine } from "./outline-paint.js";
 import { parseColor } from "./colors.js";
@@ -183,5 +183,59 @@ describe("SVG border paint owner", () => {
       ...paintThinDottedLine(20, 19, 20, 60, 2, "rgb(185,28,28)", ""),
     ]);
     expect(ctx.defsParts).toEqual([]);
+  });
+
+  it("measures rounded contours as Skia does and truncates for the dash fit (DM-96BH76)", () => {
+    const c = { h: 7.5, v: 7.5 };
+    const corners = { tl: c, tr: c, br: c, bl: c };
+    // Chrome's own SVGGeometryElement.getTotalLength() for this rect reports 792.8203125;
+    // the analytic perimeter is 793.12, which would truncate to the wrong integer.
+    expect(skiaRoundedRectContourLength(302, 101, corners)).toBeCloseTo(792.82, 2);
+    expect(blinkCurvedDashPathLength(302, 101, corners)).toBe(792);
+    expect(
+      skiaRoundedRectContourLength(100, 40, {
+        tl: { h: 0, v: 0 },
+        tr: { h: 0, v: 0 },
+        br: { h: 0, v: 0 },
+        bl: { h: 0, v: 0 },
+      }),
+    ).toBe(280);
+    // SkRRect squares a corner when either radius is zero.
+    expect(
+      skiaRoundedRectContourLength(100, 40, {
+        tl: { h: 10, v: 0 },
+        tr: { h: 0, v: 0 },
+        br: { h: 0, v: 0 },
+        bl: { h: 0, v: 0 },
+      }),
+    ).toBe(280);
+  });
+
+  it("strokes a rounded dashed border on Blink's truncated centerline under a ring mask (DM-96BH76)", () => {
+    const ctx = context();
+    const sides = ["Top", "Right", "Bottom", "Left"];
+    const el = element({
+      ...Object.fromEntries(
+        sides.flatMap((side) => [
+          [`border${side}Width`, "1"],
+          [`border${side}Style`, "dashed"],
+        ]),
+      ),
+      borderTopLeftRadius: "8",
+      borderTopRightRadius: "8",
+      borderBottomRightRadius: "8",
+      borderBottomLeftRadius: "8",
+    });
+    const corners = parseCornerRadii(el.styles, el.width, el.height);
+    paintBorder(ctx, el, "", corners, 800, 600, 1, parseColor("rgb(255,0,0)"), false, false, new Set());
+    const stroke = ctx.svgParts.find((part) => part.includes("stroke-dasharray"))!;
+    // CenterOutsets truncates 0.5 to 0: the 1px border strokes its outer edge, radius 8.
+    expect(stroke).toContain('d="M18,20 L102,20 A8,8 0 0 1 110,28');
+    expect(stroke).toContain('stroke-width="2.2"');
+    const corner = { h: 8, v: 8 };
+    const length = blinkCurvedDashPathLength(100, 40, { tl: corner, tr: corner, br: corner, bl: corner });
+    expect(stroke).toContain(`stroke-dasharray="${closedDashArray("dashed", 1, length)}"`);
+    expect(stroke).toMatch(/mask="url\(#[^)]+\)"/);
+    expect(ctx.defsParts.some((part) => part.startsWith("<mask") && part.includes("evenodd"))).toBe(true);
   });
 });

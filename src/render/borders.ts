@@ -1581,3 +1581,74 @@ export function renderBorderImage(
 
   return { svg: parts.join("\n"), usedIds };
 }
+
+type CornerQuad = Pick<CornerRadii, "tl" | "tr" | "br" | "bl">;
+
+// Skia's SkContourMeasure (src/core/SkContourMeasure.cpp at the Skia revision
+// chromium 7d859f27's DEPS pins, 62efacd3): a conic is split at its parametric
+// midpoint while the midpoint strays more than CHEAP_DIST_LIMIT (0.5px at
+// resScale 1) from the chord midpoint, the 30-bit t-span is still >= 1024, and
+// the depth is under 8; each leaf adds its chord length in float32.
+const SK_MAX_T_VALUE = 0x3fffffff;
+const SK_CONIC_TOLERANCE = 0.5;
+const SK_MAX_RECURSION_DEPTH = 8;
+const SK_ROOT2_OVER_2 = Math.fround(Math.SQRT1_2);
+
+type Pt = { x: number; y: number };
+
+function conicEvalAt(p0: Pt, p1: Pt, p2: Pt, w: number, t: number): Pt {
+  const u = 1 - t;
+  const b0 = u * u,
+    b1 = 2 * w * t * u,
+    b2 = t * t;
+  const den = b0 + b1 + b2;
+  return {
+    x: Math.fround((b0 * p0.x + b1 * p1.x + b2 * p2.x) / den),
+    y: Math.fround((b0 * p0.y + b1 * p1.y + b2 * p2.y) / den),
+  };
+}
+
+function conicMeasuredLength(p0: Pt, p1: Pt, p2: Pt, w: number): number {
+  const segment = (distance: number, mint: number, minPt: Pt, maxt: number, maxPt: Pt, depth: number): number => {
+    const halft = (mint + maxt) >> 1;
+    const halfPt = conicEvalAt(p0, p1, p2, w, Math.fround(halft / SK_MAX_T_VALUE));
+    const dist = Math.max(
+      Math.abs(halfPt.x - (minPt.x + maxPt.x) * 0.5),
+      Math.abs(halfPt.y - (minPt.y + maxPt.y) * 0.5),
+    );
+    if (depth < SK_MAX_RECURSION_DEPTH && (maxt - mint) >> 10 !== 0 && dist > SK_CONIC_TOLERANCE) {
+      distance = segment(distance, mint, minPt, halft, halfPt, depth + 1);
+      return segment(distance, halft, halfPt, maxt, maxPt, depth + 1);
+    }
+    return Math.fround(distance + Math.fround(Math.hypot(maxPt.x - minPt.x, maxPt.y - minPt.y)));
+  };
+  return segment(0, 0, p0, SK_MAX_T_VALUE, p2, 0);
+}
+
+/** Length Blink's `Path::length()` reports for a round-cornered rect contour:
+ * straight edges plus each corner's SkRRect quarter conic (weight √2/2, control
+ * point at the corner) measured as Skia measures it. A corner with either
+ * radius zero is square, as SkRRect normalizes it. */
+export function skiaRoundedRectContourLength(width: number, height: number, corners: CornerQuad): number {
+  const radii = (c: { h: number; v: number }) => (c.h > 0 && c.v > 0 ? c : { h: 0, v: 0 });
+  const tl = radii(corners.tl),
+    tr = radii(corners.tr),
+    br = radii(corners.br),
+    bl = radii(corners.bl);
+  let length =
+    Math.max(0, width - tl.h - tr.h) +
+    Math.max(0, width - bl.h - br.h) +
+    Math.max(0, height - tl.v - bl.v) +
+    Math.max(0, height - tr.v - br.v);
+  for (const c of [tl, tr, br, bl]) {
+    if (c.h > 0) length += conicMeasuredLength({ x: 0, y: 0 }, { x: c.h, y: 0 }, { x: c.h, y: c.v }, SK_ROOT2_OVER_2);
+  }
+  return length;
+}
+
+/** `DrawCurvedDashedDottedBoxSide` passes `static_cast<int>(centerline_path.length())`
+ * as the closed path length that sizes the dash gap (box_border_painter.cc:1854-1856,
+ * chromium 7d859f27). */
+export function blinkCurvedDashPathLength(width: number, height: number, corners: CornerQuad): number {
+  return Math.trunc(skiaRoundedRectContourLength(width, height, corners));
+}

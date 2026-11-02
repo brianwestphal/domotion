@@ -12,6 +12,7 @@ import {
   hyperellipseBorderSideClipPolygon,
   contouredRectIntersectionPaths,
   doubleBorderStripeGeometry,
+  blinkCurvedDashPathLength,
   pixelSnappedBorderReferenceRect,
   uniformDoubleBorderStripeBoxes,
   type CornerRadii,
@@ -322,7 +323,7 @@ function paintUniformSolidBorder(
   const dash = closedDashArray(
     bt.style,
     bt.w,
-    roundedRectPerimeter(
+    blinkCurvedDashPathLength(
       Math.max(0, boxRight - boxLeft - half * 2),
       Math.max(0, boxBottom - boxTop - half * 2),
       strokeCorners,
@@ -351,8 +352,56 @@ function paintUniformSolidBorder(
     }
     return;
   }
+  const hasRadius = [corners.tl, corners.tr, corners.br, corners.bl].some((c) => c.h > 0 && c.v > 0);
+  if ((bt.style === "dashed" || bt.style === "dotted") && !collapse && hasRadius && !hasNonRoundContour) {
+    paintBlinkCurvedDashedDottedBorder(ctx, indent, corners, bt, boxLeft, boxTop, boxRight, boxBottom);
+    return;
+  }
   ctx.svgParts.push(
     `${indent}${roundedRectSvg(boxLeft + half, boxTop + half, Math.max(0, boxRight - boxLeft - half * 2), Math.max(0, boxBottom - boxTop - half * 2), strokeCorners, `fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttr}${linecap}`)}`,
+  );
+}
+
+/** Blink's `DrawCurvedDashedDottedBoxSide` geometry for a round-cornered uniform
+ * border (box_border_painter.cc:1827-1860, 2477-2483, chromium 7d859f27). The
+ * stroked "centerline" is the snapped border rect inset by
+ * `PhysicalBoxStrut::FromInts(width * 0.5)`, which truncates, so a 1px border
+ * strokes its outer edge and a 3px border an inset of 1, with radii shrunk to
+ * match. The dash gap is fitted to the truncated Skia length of that contour.
+ * Dashes and thin dots are stroked at 2.2 × width and clipped to the border
+ * ring; thick round dots keep the border width. */
+function paintBlinkCurvedDashedDottedBorder(
+  ctx: PaintCtx,
+  indent: string,
+  corners: CornerRadii,
+  bt: NonNullable<ReturnType<typeof parseSide>>,
+  boxLeft: number,
+  boxTop: number,
+  boxRight: number,
+  boxBottom: number,
+): void {
+  const w = bt.w;
+  const k = Math.floor(Math.round(w) / 2);
+  const centerCorners = insetCornerRadii(corners, k, k, k, k);
+  const centerW = Math.max(0, boxRight - boxLeft - 2 * k);
+  const centerH = Math.max(0, boxBottom - boxTop - 2 * k);
+  const dash = closedDashArray(bt.style, w, blinkCurvedDashPathLength(centerW, centerH, centerCorners));
+  const roundDots = bt.style === "dotted" && !isThinDotted(w);
+  const strokeWidth = roundDots ? w : w * BLINK_CURVED_BORDER_CLIP_OVERDRAW;
+  const outer = roundedRectPath(boxLeft, boxTop, boxRight - boxLeft, boxBottom - boxTop, corners);
+  const inner = roundedRectPath(
+    boxLeft + w,
+    boxTop + w,
+    Math.max(0, boxRight - boxLeft - 2 * w),
+    Math.max(0, boxBottom - boxTop - 2 * w),
+    insetCornerRadii(corners, w, w, w, w),
+  );
+  const maskId = ctx.nextClipId("bm");
+  ctx.defsParts.push(`<mask id="${maskId}"><path d="${outer} ${inner}" fill="white" fill-rule="evenodd"/></mask>`);
+  const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
+  const linecap = roundDots ? ` stroke-linecap="round"` : "";
+  ctx.svgParts.push(
+    `${indent}<path d="${roundedRectPath(boxLeft + k, boxTop + k, centerW, centerH, centerCorners)}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeWidth)}"${dashAttr}${linecap} mask="url(#${maskId})" />`,
   );
 }
 
@@ -611,9 +660,10 @@ interface SideGeometry {
   doubleNormals: readonly [number, number, number, number];
 }
 
-/** Blink's raster clip expands curved side strokes by this width multiple.
- * SVG clips the logical border ring directly, so the overdraw stays out of
- * the emitted SVG stroke width (doc 127). */
+/** `kThicknessMultiplier` in DrawCurvedDashedDottedBoxSide (2 × 1.1): Blink's
+ * curved dash/thin-dot stroke is doubled because its truncated centerline can
+ * sit on the ring's outer edge, plus 10% so the ring clip owns the edge. The
+ * SVG keeps the same width and the same ring clip (doc 127). */
 export const BLINK_CURVED_BORDER_CLIP_OVERDRAW = 2.2;
 
 /**
@@ -901,13 +951,17 @@ export function paintPerSideBorder(
     // every side, then clips that stroke to the side's rounded miter wedge.
     // This preserves dash continuity through the corner arc and lets the
     // side clip, rather than a line endpoint, own each mixed-color joint.
-    const centerCorners = insetCornerRadii(corners, tw / 2, rw / 2, bw / 2, lw / 2);
-    const centerX = bxL + lw / 2;
-    const centerY = bxT + tw / 2;
-    const centerW = Math.max(0, bxR - bxL - (lw + rw) / 2);
-    const centerH = Math.max(0, bxB - bxT - (tw + bw) / 2);
+    // Blink's CenterOutsets() truncates each half width (FromInts), so the
+    // stroked "centerline" sits floor(width / 2) inside each edge
+    // (box_border_painter.cc:2477-2483, chromium 7d859f27).
+    const half = (width: number) => Math.floor(Math.round(width) / 2);
+    const centerCorners = insetCornerRadii(corners, half(tw), half(rw), half(bw), half(lw));
+    const centerX = bxL + half(lw);
+    const centerY = bxT + half(tw);
+    const centerW = Math.max(0, bxR - bxL - half(lw) - half(rw));
+    const centerH = Math.max(0, bxB - bxT - half(tw) - half(bw));
     const centerPath = roundedRectPath(centerX, centerY, centerW, centerH, centerCorners);
-    const centerLength = roundedRectPerimeter(centerW, centerH, centerCorners);
+    const centerLength = blinkCurvedDashPathLength(centerW, centerH, centerCorners);
     const ringMaskId = ctx.nextClipId("bm");
     ctx.defsParts.push(`<mask id="${ringMaskId}"><path d="${annularPath}" fill="white" fill-rule="evenodd"/></mask>`);
     for (let i = 0; i < sides.length; i++) {
@@ -915,12 +969,13 @@ export function paintPerSideBorder(
       if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
       if (side.style !== "dashed" && side.style !== "dotted") continue;
       const thinDotted = side.style === "dotted" && isThinDotted(side.w);
-      // Blink expands this stroke by BLINK_CURVED_BORDER_CLIP_OVERDRAW times
-      // max-adjacent-width solely so its
-      // raster clip can antialias the border-ring edges. SVG clips/masks are
-      // vector-antialiased themselves, so preserve the resulting logical
-      // ink thickness here rather than copying that Skia overdraw width.
-      const strokeWidth = side.w;
+      // PaintOneBorderSide passes the max of this side and its two adjacent
+      // widths; DrawCurvedDashedDottedBoxSide strokes dashes and thin dots at
+      // 2.2 times that (the centerline may sit on the ring's outer edge) and
+      // round dots at the side's own width. The ring mask and side wedge clip.
+      const adjacentMax = Math.max(side.w, sides[(i + 1) % 4].side?.w ?? 0, sides[(i + 3) % 4].side?.w ?? 0);
+      const strokeWidth =
+        side.style === "dotted" && !thinDotted ? side.w : adjacentMax * BLINK_CURVED_BORDER_CLIP_OVERDRAW;
       const dash = closedDashArray(side.style, side.w, centerLength, thinDotted);
       const cid = ctx.nextClipId("bc");
       ctx.defsParts.push(`<clipPath id="${cid}"><polygon points="${annularWedges[i]}"/></clipPath>`);

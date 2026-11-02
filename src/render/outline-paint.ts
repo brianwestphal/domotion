@@ -2,6 +2,7 @@ import type { CapturedElement } from "../capture/types.js";
 import { colorStr, parseColor } from "./colors.js";
 import { r } from "./format.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
+import { blinkCurvedDashPathLength, roundedRectPath, type CornerRadii } from "./borders.js";
 
 export interface ThinDottedEndpointPlan {
   startDotGrowth: number | null;
@@ -214,6 +215,8 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
             `${indent}<line x1="${r(ox)}" y1="${r(sideTop + capInset)}" x2="${r(ox)}" y2="${r(sideBottom - capInset)}" ${strokeAttrs}${vAttrs}${linecap} />`,
           );
         }
+      } else if ((ostyle === "dashed" || ostyle === "dotted") && borderRadius > 0) {
+        out.push(...paintCurvedDashedDottedOutline(el, borderRadius, offset, ow, ostyle, colorStr(ocolor), indent));
       } else {
         const perimeter = 2 * (owd + oh - 4 * oRadius) + 2 * Math.PI * oRadius;
         const dash = closedDashArray(ostyle, ow, perimeter);
@@ -225,4 +228,58 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
     }
   }
   return out;
+}
+
+/** A rounded dashed/dotted single-rect outline goes through the same
+ * DrawCurvedDashedDottedBoxSide as a rounded border (chromium 7d859f27). Its
+ * outer contour is the snapped border box outset by offset + width (radii
+ * outset by the same amount), its inner contour the box outset by offset, and
+ * the stroked centerline sits floor(width / 2) inside the outer contour
+ * (CenterOutsets truncates). Dashes are fitted to the truncated Skia length of
+ * that centerline; dashes and thin dots stroke at 2.2 × width under a ring
+ * mask, round dots at the width itself. */
+function paintCurvedDashedDottedOutline(
+  el: CapturedElement,
+  borderRadius: number,
+  offset: number,
+  ow: number,
+  style: string,
+  color: string,
+  indent: string,
+): string[] {
+  const width = Math.round(ow);
+  const outset = Math.round(offset) + width;
+  const left = Math.round(el.x),
+    top = Math.round(el.y);
+  const right = Math.round(el.x + el.width),
+    bottom = Math.round(el.y + el.height);
+  const radiiAt = (o: number) => {
+    const c = { h: Math.max(0, borderRadius + o), v: Math.max(0, borderRadius + o) };
+    const radii: CornerRadii = { tl: c, tr: c, br: c, bl: c, uniform: true };
+    return radii;
+  };
+  const box = (o: number) => ({
+    x: left - o,
+    y: top - o,
+    w: Math.max(0, right - left + 2 * o),
+    h: Math.max(0, bottom - top + 2 * o),
+  });
+  const outer = box(outset),
+    inner = box(outset - width);
+  const k = Math.floor(width / 2);
+  const center = box(outset - k);
+  const centerRadii = radiiAt(outset - k);
+  const dash = closedDashArray(style, width, blinkCurvedDashPathLength(center.w, center.h, centerRadii));
+  const roundDots = style === "dotted" && !isThinDotted(width);
+  const strokeWidth = roundDots ? width : width * 2.2;
+  // Derived from the geometry so output stays deterministic; equal ids carry equal masks.
+  const maskId = `outline-ring-${outer.x}-${outer.y}-${outer.w}-${outer.h}-${width}-${borderRadius}`.replace(
+    /\./g,
+    "_",
+  );
+  const ring = `${roundedRectPath(outer.x, outer.y, outer.w, outer.h, radiiAt(outset))} ${roundedRectPath(inner.x, inner.y, inner.w, inner.h, radiiAt(outset - width))}`;
+  return [
+    `${indent}<mask id="${maskId}"><path d="${ring}" fill="white" fill-rule="evenodd"/></mask>`,
+    `${indent}<path d="${roundedRectPath(center.x, center.y, center.w, center.h, centerRadii)}" fill="none" stroke="${color}" stroke-width="${r(strokeWidth)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${roundDots ? ` stroke-linecap="round"` : ""} mask="url(#${maskId})" />`,
+  ];
 }
