@@ -3,6 +3,7 @@ import {
   collapsedBorderStyle,
   collapsedBorderFragmentLogicalRects,
   collapsedBorderLogicalRects,
+  collapsedRowSlots,
   compareCollapsedEdgesForPaint,
   createCollapsedBorderGrid,
   mergeCollapsedBorderBox,
@@ -392,5 +393,32 @@ describe("Blink fragmented collapsed-border ownership (DM-2322)", () => {
       blockStart: 6,
       blockSize: 4,
     });
+  });
+});
+
+describe("Blink anonymous table cells in a row (DM-VJASEG)", () => {
+  const cell = (value: string) => ({ kind: "cell" as const, value });
+  const other = (value: string) => ({ kind: "anonymous" as const, value });
+  const none = (value: string) => ({ kind: "none" as const, value });
+
+  it("keeps a non-cell child's column so later cells do not shift", () => {
+    expect(collapsedRowSlots([cell("a"), other("flex-td"), cell("c")])).toEqual(["a", null, "c"]);
+  });
+
+  it("shares one anonymous cell across consecutive non-cell children", () => {
+    expect(collapsedRowSlots([other("x"), other("y"), cell("c"), other("z")])).toEqual([null, "c", null]);
+  });
+
+  it("lets display:none children neither take a slot nor break an anonymous run", () => {
+    expect(collapsedRowSlots([other("x"), none("hidden"), other("y"), cell("c")])).toEqual([null, "c"]);
+    expect(collapsedRowSlots([none("hidden"), cell("a")])).toEqual(["a"]);
+  });
+
+  it("starts a new anonymous cell after a real cell interrupts the run", () => {
+    expect(collapsedRowSlots([other("x"), cell("a"), other("y")])).toEqual([null, "a", null]);
+  });
+
+  it("returns no slots for an empty row", () => {
+    expect(collapsedRowSlots([])).toEqual([]);
   });
 });

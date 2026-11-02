@@ -109,4 +109,40 @@ describe("SVG border paint owner", () => {
     expect(paintCollapsedBorderRects(ctx, el, "")).toBe(true);
     expect(ctx.svgParts[0]).toContain('fill="rgb(0,0,255)"');
   });
+
+  it("paints collapsed double edges with Blink's integer stripe, not thirds (DM-VJASEG)", () => {
+    const ctx = context();
+    const el = element({
+      borderCollapse: "collapse",
+      collapsedBorderRects: [
+        { x: 203, y: 1275, width: 146, height: 4, axis: "row", color: "rgb(109, 40, 217)", style: "double" },
+        { x: 345, y: 1275, width: 4, height: 40, axis: "column", color: "rgb(109, 40, 217)", style: "double" },
+      ],
+    });
+    expect(paintCollapsedBorderRects(ctx, el, "")).toBe(true);
+    // DrawDoubleBoxSide: stripe = (4 + 1) / 3 = 1 → 1px, 2px gap, 1px.
+    expect(ctx.svgParts).toEqual([
+      '<rect x="203" y="1275" width="146" height="1" fill="rgb(109,40,217)" />',
+      '<rect x="203" y="1278" width="146" height="1" fill="rgb(109,40,217)" />',
+      '<rect x="345" y="1275" width="1" height="40" fill="rgb(109,40,217)" />',
+      '<rect x="348" y="1275" width="1" height="40" fill="rgb(109,40,217)" />',
+    ]);
+  });
+
+  it("insets thick collapsed dotted edges by half the width, sizing dots from the full edge (DM-VJASEG)", () => {
+    const ctx = context();
+    const el = element({
+      borderCollapse: "collapse",
+      collapsedBorderRects: [
+        { x: 32, y: 175, width: 100, height: 4, axis: "row", color: "rgb(185, 28, 28)", style: "dotted" },
+      ],
+    });
+    expect(paintCollapsedBorderRects(ctx, el, "")).toBe(true);
+    const line = ctx.svgParts[0];
+    // DrawLineWithStyle: endpoints move in by 4/2; intervals still come from length 100.
+    expect(line).toContain('x1="34" y1="177" x2="130" y2="177"');
+    expect(line).toContain(`stroke-dasharray="${openDashArray("dotted", 4, 100)}"`);
+    expect(line).toContain('stroke-linecap="round"');
+    expect(line).not.toContain("stroke-dashoffset");
+  });
 });

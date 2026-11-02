@@ -77,6 +77,34 @@ export const COLLAPSED_BORDER_STYLE_RANK: Record<string, number> = {
   double: 9,
 };
 
+export type CollapsedRowChildKind = "cell" | "anonymous" | "none";
+
+/** Grid slots one table row generates, in DOM order. Mirrors Blink
+ * `LayoutTableRow::AddChild` (layout_table_row.cc:99-112, chromium 7d859f27):
+ * a row child whose box is not a table cell is placed inside an anonymous
+ * table cell, and consecutive non-cell children share the anonymous cell the
+ * previous one created. That anonymous cell occupies one column and carries no
+ * border of its own, so dropping the child instead would shift every later
+ * cell in the row one column toward the inline start. `none` children
+ * (`display: none`) generate no box and no slot. */
+export function collapsedRowSlots<T>(
+  children: ReadonlyArray<{ kind: CollapsedRowChildKind; value: T }>,
+): Array<T | null> {
+  const slots: Array<T | null> = [];
+  let previousAnonymous = false;
+  for (const child of children) {
+    if (child.kind === "none") continue;
+    if (child.kind === "cell") {
+      slots.push(child.value);
+      previousAnonymous = false;
+    } else if (!previousAnonymous) {
+      slots.push(null);
+      previousAnonymous = true;
+    }
+  }
+  return slots;
+}
+
 /** CSS collapsed-border normalization used by ComputedStyle::CollapsedBorderStyle. */
 export function collapsedBorderStyle(style: string): string {
   if (style === "inset") return "ridge";

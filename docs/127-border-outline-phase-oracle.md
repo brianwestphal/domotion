@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C"]
+tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG"]
 code:
   [
     ".github/workflows/border-phase-oracle.yml",
@@ -111,7 +111,19 @@ in cell/row/section/column/column-group/table order, span-interior
 `TablePainter::ComputeEdgeJoints`, converts through horizontal or vertical table
 writing direction (including RTL inline flow), and applies
 `ToPixelSnappedRect` semantics before recording table-owned physical edge
-rectangles. Unit tests grade each decision stage, the browser test checks the
+rectangles. The grid's columns follow Blink's `LayoutTableRow::AddChild`
+(`layout_table_row.cc:99-112`, chromium `7d859f27`). A row child whose box
+is not a table cell, such as a `<td>` an author made `display: flex`, sits inside
+an anonymous cell. Consecutive non-cell children share that cell, and it
+occupies one borderless column. Dropping that child instead would shift every
+later cell in the row toward the inline start. The non-cell box keeps its own
+ordinary border. Double edges paint through `DrawDoubleBoxSide` with no adjacent
+widths, so each stripe is the integer `(thickness + 1) / 3` of the snapped edge
+(`box_border_painter.cc:678`): 1px, a 2px gap, and 1px for a 4px edge. Thick dotted edges
+size their dot intervals from the full snapped edge, then move both endpoints
+in by half the width and stroke from that inset start with dash phase 0
+(`box_border_painter.cc:515-538`).
+Unit tests grade each decision stage, the browser test checks the
 captured table contract, and `border-collapse-edge-graph` is the visual
 integration discriminator. Table fragmentation remains tracked separately;
 collapsed-table rows can be added to this scale/platform report once that

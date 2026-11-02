@@ -377,7 +377,12 @@ export function paintCollapsedBorderRects(ctx: PaintCtx, el: CapturedElement, in
       continue;
     }
     if (rect.style === "double" && thickness >= DOUBLE_MIN_WIDTH) {
-      const stripe = thickness / 3;
+      // TableSectionPainter paints each collapsed edge through
+      // BoxBorderPainter::DrawBoxSide → DrawDoubleBoxSide with no adjacent
+      // widths, on the pixel-snapped edge rect. Its stripe is the integer
+      // `(thickness + 1) / 3` (box_border_painter.cc:678, chromium 7d859f27),
+      // so a 4px edge paints 1px / 2px gap / 1px rather than three 4/3px bands.
+      const { stripe } = doubleBorderStripeGeometry(thickness);
       if (horizontal) {
         ctx.svgParts.push(
           `${indent}<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(stripe)}" fill="${fill}" />`,
@@ -402,11 +407,18 @@ export function paintCollapsedBorderRects(ctx: PaintCtx, el: CapturedElement, in
       );
       const array = openDashArray(rect.style, thickness, length);
       const dash = array !== "" ? ` stroke-dasharray="${array}"` : "";
-      const cap = rect.style === "dotted" && !isThinDotted(thickness) ? ` stroke-linecap="round"` : "";
-      const x1 = horizontal ? rect.x : rect.x + thickness / 2;
-      const y1 = horizontal ? rect.y + thickness / 2 : rect.y;
-      const x2 = horizontal ? rect.x + rect.width : x1;
-      const y2 = horizontal ? y1 : rect.y + rect.height;
+      const roundDots = rect.style === "dotted" && !isThinDotted(thickness);
+      const cap = roundDots ? ` stroke-linecap="round"` : "";
+      // Blink's DrawLineWithStyle sizes the dash intervals from the full edge
+      // `length` above, then moves thick-dotted endpoints in by width/2 so the
+      // round caps stay inside the edge, and strokes with dash phase 0 from the
+      // moved start (box_border_painter.cc:515-538, styled_stroke_data.cc:156,
+      // chromium 7d859f27).
+      const capInset = roundDots ? thickness / 2 : 0;
+      const x1 = horizontal ? rect.x + capInset : rect.x + thickness / 2;
+      const y1 = horizontal ? rect.y + thickness / 2 : rect.y + capInset;
+      const x2 = horizontal ? rect.x + rect.width - capInset : x1;
+      const y2 = horizontal ? y1 : rect.y + rect.height - capInset;
       ctx.svgParts.push(
         `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${fill}" stroke-width="${r(thickness)}"${dash}${cap} clip-path="url(#${clipId})" />`,
       );

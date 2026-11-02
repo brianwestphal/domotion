@@ -98,6 +98,38 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
     }
   }, 60_000);
 
+  it("keeps a non-cell td's anonymous-cell column so later cells stay in place (DM-VJASEG)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+    try {
+      // Blink wraps the flex td in an anonymous table cell (LayoutTableRow::
+      // AddChild) that still occupies column 1, so the dashed td is column 2.
+      await page.setContent(
+        `<style>body{margin:0}table{border-collapse:collapse}td{padding:8px 14px}.a{border:2px solid rgb(29,78,216)}.flex{display:flex;border:6px solid rgb(220,38,38)}.c{border:2px dashed rgb(22,163,74)}</style><table><tr><td class="a">A</td><td class="flex">Flex</td><td class="c">C</td></tr></table>`,
+        { waitUntil: "load" },
+      );
+      const geometry = await page.evaluate(() => {
+        const r = document.querySelector("td.c")!.getBoundingClientRect();
+        return { left: r.left, right: r.right };
+      });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      const table = find(tree, (node) => node.tag === "table")!;
+      const dashed = ((table.styles as any).collapsedBorderRects as Array<any>).filter(
+        (rect) => rect.style === "dashed",
+      );
+
+      expect(dashed.length).toBeGreaterThan(0);
+      expect(dashed.every((rect) => rect.x >= geometry.left - 2 && rect.x + rect.width <= geometry.right + 2)).toBe(
+        true,
+      );
+      // The dashed cell's inline-end edge is painted, not dropped.
+      expect(
+        dashed.some((rect) => rect.axis === "column" && Math.abs(rect.x + rect.width / 2 - geometry.right) <= 2),
+      ).toBe(true);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
   it("resolves shared edges to the winner and suppresses structural box borders", async () => {
     const { browser } = env!;
     const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });

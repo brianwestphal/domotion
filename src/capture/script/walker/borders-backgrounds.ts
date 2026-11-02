@@ -45,13 +45,14 @@ import {
   collapsedBorderStyle,
   collapsedBorderFragmentLogicalRects,
   collapsedBorderLogicalRects,
+  collapsedRowSlots,
   createCollapsedBorderGrid,
   mergeCollapsedBorderBox,
 } from "./collapsed-border.js";
 import { validateCollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
 import type { CollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
 import type { CapturedStyles } from "../../types.js";
-import type { CollapsedBorderSource, CollapsedBorderWritingMode } from "./collapsed-border.js";
+import type { CollapsedBorderSource, CollapsedBorderWritingMode, CollapsedRowChildKind } from "./collapsed-border.js";
 
 type BorderSide = "borderTopColor" | "borderRightColor" | "borderBottomColor" | "borderLeftColor";
 type RectEdges = Pick<DOMRect, "left" | "top" | "right" | "bottom" | "width" | "height">;
@@ -509,7 +510,8 @@ export const createBordersBackgroundsHandler = ({
     }
     if (!rowEntries.length) return (table.__dmCollapsedBorderRects = null);
     type CellMeta = { cell: HTMLTableCellElement; row: number; column: number; rowspan: number; colspan: number };
-    const occupancy: Array<Array<CellMeta | undefined>> = [],
+    const ANONYMOUS_COLLAPSED_CELL = { anonymous: true } as const;
+    const occupancy: Array<Array<CellMeta | typeof ANONYMOUS_COLLAPSED_CELL | undefined>> = [],
       cells: CellMeta[] = [],
       sections = new Map<HTMLTableSectionElement, { start: number; count: number }>();
     let columns = 0;
@@ -522,10 +524,28 @@ export const createBordersBackgroundsHandler = ({
         else current.count++;
       }
       let c = 0;
-      for (const cell of Array.from(entry.row.children).filter(
-        (x) => (x.tagName === "TD" || x.tagName === "TH") && getComputedStyle(x).display === "table-cell",
-      ) as HTMLTableCellElement[]) {
+      const rowSlots = collapsedRowSlots(
+        Array.from(entry.row.children).map((x) => {
+          const display = getComputedStyle(x).display;
+          const kind: CollapsedRowChildKind =
+            display === "none" || display === "contents"
+              ? "none"
+              : (x.tagName === "TD" || x.tagName === "TH") && display === "table-cell"
+                ? "cell"
+                : "anonymous";
+          return { kind, value: x as HTMLTableCellElement };
+        }),
+      );
+      for (const cell of rowSlots) {
         while (occupancy[r][c] != null) c++;
+        if (cell == null) {
+          // Anonymous cell (see collapsedRowSlots): one borderless column whose
+          // box CSSOM cannot measure, so it contributes no track samples.
+          occupancy[r][c] = ANONYMOUS_COLLAPSED_CELL;
+          c++;
+          columns = Math.max(columns, c);
+          continue;
+        }
         const colspan = Math.max(1, cell.colSpan || 1);
         let rowspan = Math.max(1, cell.rowSpan || 1);
         if (entry.section != null) {
