@@ -274,10 +274,15 @@ function numberList(raw: string, name: string): number[] {
 
 const sha256 = (value: string | Buffer): string => createHash("sha256").update(value).digest("hex");
 
-/** Linux's headless screenshot protocol rejects the full DSF=4 surface even
- * though the resulting PNG is within Chromium's image dimensions. Capture
- * bounded vertical tiles and stitch their unchanged device pixels so all
- * platforms run the same 128-case corpus. */
+/** Linux's headless screenshot protocol rejects large DSF=4 surfaces even when
+ * the resulting PNG is within Chromium's image dimensions. Clipping alone does
+ * not help: a viewport-relative screenshot still composites the whole viewport,
+ * and the viewport spans the full page (2432×5856 device px at DSF 4 / zoom
+ * 0.8 already failed every Linux run from 2026-10-08 on). So shrink the
+ * viewport to one bounded tile, scroll to each tile, and capture it with a
+ * viewport-relative clip (Playwright sends captureBeyondViewport: false for
+ * that). The device pixels are stitched unchanged, so every platform still
+ * measures the same 128-case corpus. */
 async function screenshotInVerticalTiles(page: Page, width: number, height: number, dsf: number): Promise<Buffer> {
   const maxTileDeviceHeight = 3_600;
   const tileCssHeight = Math.max(1, Math.floor(maxTileDeviceHeight / dsf));
@@ -287,18 +292,40 @@ async function screenshotInVerticalTiles(page: Page, width: number, height: numb
   let y = 0;
   let outputWidth = 0;
   let outputHeight = 0;
-  while (y < height) {
-    const tileHeight = Math.min(tileCssHeight, height - y);
-    const input = await page.screenshot({
-      clip: { x: 0, y, width, height: tileHeight },
-      omitBackground: true,
-    });
-    const metadata = await sharp(input).metadata();
-    if (metadata.width == null || metadata.height == null) throw new Error(`screenshot tile ${y} has no dimensions`);
-    outputWidth = Math.max(outputWidth, metadata.width);
-    tiles.push({ input, left: 0, top: outputHeight });
-    outputHeight += metadata.height;
-    y += tileHeight;
+  await page.setViewportSize({ width, height: tileCssHeight });
+  // The corpus is absolutely positioned, so the document can be shorter than
+  // the nominal page height; a transparent root min-height keeps every tile
+  // reachable by scrolling and is removed before anything else reads the page.
+  const previousMinHeight = await page.evaluate((h) => {
+    const root = document.documentElement;
+    const previous = root.style.minHeight;
+    root.style.minHeight = `${h}px`;
+    return previous;
+  }, height);
+  try {
+    while (y < height) {
+      const tileHeight = Math.min(tileCssHeight, height - y);
+      const scrollY = await page.evaluate((top) => {
+        window.scrollTo(0, top);
+        return window.scrollY;
+      }, y);
+      const input = await page.screenshot({
+        clip: { x: 0, y: y - scrollY, width, height: tileHeight },
+        omitBackground: true,
+      });
+      const metadata = await sharp(input).metadata();
+      if (metadata.width == null || metadata.height == null) throw new Error(`screenshot tile ${y} has no dimensions`);
+      outputWidth = Math.max(outputWidth, metadata.width);
+      tiles.push({ input, left: 0, top: outputHeight });
+      outputHeight += metadata.height;
+      y += tileHeight;
+    }
+  } finally {
+    await page.evaluate((previous) => {
+      window.scrollTo(0, 0);
+      document.documentElement.style.minHeight = previous;
+    }, previousMinHeight);
+    await page.setViewportSize({ width, height });
   }
   return sharp({
     create: {
