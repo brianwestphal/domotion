@@ -167,6 +167,13 @@ export interface BorderPhaseAdjudication {
   platform: string;
   verdict: "ratified-source-exact" | "drift";
   artifactSetSha256: string;
+  /**
+   * How the runner fingerprint was accepted. `reviewed` means it equals the
+   * pinned fingerprint. `artifact-set-match` means it differs, but the run's
+   * verified artifact set is byte-identical to the reviewed one, so the image
+   * change cannot have affected the measured output (`drift` lists what moved).
+   */
+  fingerprint: { status: "reviewed" | "artifact-set-match" | "drift"; drift: string[] };
   ratifiedRows: number;
   unratifiedRows: number;
   unratifiedFamilies: string[];
@@ -271,16 +278,34 @@ export function adjudicateBorderPhaseReport(
     findings.push("upstream source pin drift");
   if (platformBaseline == null) findings.push(`no ratified platform ${report.meta.platform}`);
 
+  const artifactSetSha256 = artifactSetFingerprint(report);
+  const fingerprintDrift: string[] = [];
+  let fingerprintStatus: BorderPhaseAdjudication["fingerprint"]["status"] =
+    platformBaseline == null ? "drift" : "reviewed";
   if (platformBaseline != null) {
-    compareReportFingerprint(platformBaseline.fingerprint, report.meta, findings);
+    compareReportFingerprint(platformBaseline.fingerprint, report.meta, fingerprintDrift);
     if (runEnvironment == null) findings.push("missing runner fingerprint");
-    else compareFingerprint(platformBaseline.fingerprint, runEnvironment, "runner", findings);
-    if (
-      platformBaseline.evidence.workflowRuns.length < 2 ||
-      platformBaseline.evidence.repeatedArtifactSetSha256.length < 2 ||
-      new Set(platformBaseline.evidence.repeatedArtifactSetSha256).size !== 1
-    )
-      findings.push(`${report.meta.platform} baseline lacks repeated stable artifact evidence`);
+    else compareFingerprint(platformBaseline.fingerprint, runEnvironment, "runner", fingerprintDrift);
+    const { workflowRuns, repeatedArtifactSetSha256 } = platformBaseline.evidence;
+    const stableEvidence =
+      workflowRuns.length >= 2 &&
+      repeatedArtifactSetSha256.length >= 2 &&
+      new Set(repeatedArtifactSetSha256).size === 1;
+    if (!stableEvidence) findings.push(`${report.meta.platform} baseline lacks repeated stable artifact evidence`);
+    // GitHub rolls runner images out gradually, so consecutive runs land on
+    // different images. An unreviewed fingerprint is accepted only when the
+    // run's artifact set (native PNG, emitted SVG, and SVG raster for every
+    // scenario) is byte-identical to the reviewed set. The hashes must also be
+    // re-verified against the uploaded files, so `artifactDir` is required.
+    // Any pixel change still drifts and needs a fresh review.
+    if (fingerprintDrift.length !== 0) {
+      if (stableEvidence && artifactDir != null && artifactSetSha256 === repeatedArtifactSetSha256[0])
+        fingerprintStatus = "artifact-set-match";
+      else {
+        fingerprintStatus = "drift";
+        findings.push(...fingerprintDrift);
+      }
+    }
   }
 
   const expectedCases = buildPhaseCases();
@@ -394,7 +419,8 @@ export function adjudicateBorderPhaseReport(
     schemaVersion: 1,
     platform: report.meta.platform,
     verdict: findings.length === 0 ? "ratified-source-exact" : "drift",
-    artifactSetSha256: artifactSetFingerprint(report),
+    artifactSetSha256,
+    fingerprint: { status: fingerprintStatus, drift: fingerprintDrift },
     ratifiedRows,
     unratifiedRows,
     unratifiedFamilies: [],

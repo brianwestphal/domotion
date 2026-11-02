@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2355", "DM-N6XJRS", "DM-RQBPPP", "DM-PPT418"]
+tickets: ["DM-2355", "DM-N6XJRS", "DM-RQBPPP", "DM-PPT418", "DM-132FV4"]
 code: [".github/workflows/border-phase-oracle.yml", "tools/border-phase-oracle.ts", "tools/border-phase-ratifier.ts"]
 aliases: ["docs/191-cross-platform-border-phase-envelopes.md", "doc-191"]
 ---
@@ -84,9 +84,22 @@ box displacement.
 All runners used Node `v22.21.0` and Chromium `147.0.7727.15`. The report also
 records platform, architecture, OS release, source pins, corpus SHA-256, and
 the SHA-256 of every PNG/SVG. The adjudicator re-hashes the uploaded files and
-fails if a report is detached from its evidence. A runner-image, OS, Node,
-Chromium, source-pin, corpus, scenario, row, or artifact mismatch is drift and
-requires a fresh review; another platform's envelope is never substituted.
+fails if a report is detached from its evidence. A source-pin, corpus,
+scenario, row, or artifact mismatch is drift and requires a fresh review;
+another platform's envelope is never substituted.
+
+A runner-fingerprint mismatch (image, image version, OS release, Node,
+Chromium, or architecture) is accepted only when the run's artifact set is
+byte-identical to the reviewed `repeatedArtifactSetSha256`. The artifact files
+must also re-hash to the reported values. The platform's reviewed evidence must
+still be stable (two or more runs with one hash). GitHub rolls runner images out
+gradually, so consecutive runs land on different images. On 2026-11-02, 2 of
+8 platform-runs landed on an image other than the pinned one, and every run
+produced the reviewed artifact set `ab2f8e50…`. Identical native PNGs, SVGs, and
+SVG rasters mean the image change cannot have affected the measured output. The
+adjudication records the accepted mismatch in `fingerprint.drift` with status
+`artifact-set-match`. A fingerprint change that also changes any artifact
+remains drift and needs a fresh review.
 
 ## Ratified envelope
 
@@ -153,7 +166,9 @@ winners, enforces the fixed source-exact envelope over every row, requires an
 empty unresolved-family set, checks repeated reviewed evidence and runner
 fingerprints, and verifies the artifact files against the report. Mutation
 tests cover ordinary paint drift, the retired unsnapped double-border geometry,
-and runner/evidence drift.
+runner/evidence drift, and runner-image rollouts. A rolled-out image passes on a
+verified, byte-identical artifact set. It drifts on a changed artifact, a tampered
+upload, missing artifact files, unstable evidence, or a missing runner fingerprint.
 
 `.github/workflows/border-phase-oracle.yml` is now a pull-request and `main`
 matrix gate on macOS, Linux, and Windows. It always uploads the lossless source

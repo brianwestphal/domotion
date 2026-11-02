@@ -1,4 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -175,6 +176,106 @@ describe("border phase ratifier", () => {
     const evidenceDrift = adjudicateBorderPhaseReport(report, baseline, fingerprint);
     expect(evidenceDrift.verdict).toBe("drift");
     expect(evidenceDrift.findings).toContain("darwin baseline lacks repeated stable artifact evidence");
+  });
+});
+
+// DM-132FV4: GitHub rolls runner images out gradually, so the ratifier accepts
+// an unreviewed fingerprint only when the run's verified artifact set is
+// byte-identical to the reviewed one. Every way around that must still drift.
+describe("border phase ratifier runner-image rollouts (DM-132FV4)", () => {
+  const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+  const rolledOut: RunEnvironment = { ...fingerprint, imageVersion: "20261030.0001.1", osRelease: "25.7.0" };
+
+  /** Writes real artifact files, points the report at them, and reviews that artifact set. */
+  function uploadedFixture() {
+    const { report, baseline } = fixture();
+    const dir = mkdtempSync(join(tmpdir(), "domotion-border-artifacts-"));
+    reportDirs.push(dir);
+    for (const scenario of report.scenarios) {
+      const scenarioDir = join(dir, scenario.scenario.id);
+      mkdirSync(scenarioDir);
+      for (const [name, key] of [
+        ["html.png", "htmlPngSha256"],
+        ["domotion.svg", "svgSha256"],
+        ["svg-img.png", "svgPngSha256"],
+      ] as const) {
+        const content = `${name}:${scenario.scenario.id}`;
+        writeFileSync(join(scenarioDir, name), content);
+        scenario.artifacts[key] = sha256(content);
+      }
+    }
+    const reviewed = artifactSetFingerprint(report);
+    baseline.platforms.darwin.evidence.repeatedArtifactSetSha256 = [reviewed, reviewed];
+    report.meta.osRelease = rolledOut.osRelease;
+    return { report, baseline, dir };
+  }
+
+  it("accepts an unreviewed image whose verified artifact set equals the reviewed set", () => {
+    const { report, baseline, dir } = uploadedFixture();
+    const result = adjudicateBorderPhaseReport(report, baseline, rolledOut, dir);
+    expect(result.verdict).toBe("ratified-source-exact");
+    expect(result.findings).toEqual([]);
+    expect(result.fingerprint).toEqual({
+      status: "artifact-set-match",
+      drift: [
+        "report osRelease fingerprint drift: 25.7.0 != 25.5.0",
+        "runner imageVersion fingerprint drift: 20261030.0001.1 != 20260728.0273.1",
+        "runner osRelease fingerprint drift: 25.7.0 != 25.5.0",
+      ],
+    });
+  });
+
+  it("reports the pinned image as reviewed", () => {
+    const { report, baseline, dir } = uploadedFixture();
+    report.meta.osRelease = fingerprint.osRelease;
+    const result = adjudicateBorderPhaseReport(report, baseline, fingerprint, dir);
+    expect(result.verdict).toBe("ratified-source-exact");
+    expect(result.fingerprint).toEqual({ status: "reviewed", drift: [] });
+  });
+
+  it("drifts when an unreviewed image changes any artifact", () => {
+    const { report, baseline, dir } = uploadedFixture();
+    const scenario = report.scenarios[0];
+    const content = "a different native paint";
+    writeFileSync(join(dir, scenario.scenario.id, "html.png"), content);
+    scenario.artifacts.htmlPngSha256 = sha256(content);
+    const result = adjudicateBorderPhaseReport(report, baseline, rolledOut, dir);
+    expect(result.verdict).toBe("drift");
+    expect(result.fingerprint.status).toBe("drift");
+    expect(result.findings).toContain("runner imageVersion fingerprint drift: 20261030.0001.1 != 20260728.0273.1");
+  });
+
+  it("drifts when the reported hashes are not backed by the uploaded files", () => {
+    const { report, baseline, dir } = uploadedFixture();
+    const scenarioId = report.scenarios[0].scenario.id;
+    writeFileSync(join(dir, scenarioId, "domotion.svg"), "tampered");
+    const result = adjudicateBorderPhaseReport(report, baseline, rolledOut, dir);
+    expect(result.verdict).toBe("drift");
+    expect(result.findings).toContain(`${scenarioId} domotion.svg hash mismatch`);
+  });
+
+  it("does not accept an unreviewed image without verifying the artifact files", () => {
+    const { report, baseline } = uploadedFixture();
+    const result = adjudicateBorderPhaseReport(report, baseline, rolledOut);
+    expect(result.verdict).toBe("drift");
+    expect(result.fingerprint.status).toBe("drift");
+  });
+
+  it("does not accept an unreviewed image against unstable reviewed evidence", () => {
+    const { report, baseline, dir } = uploadedFixture();
+    baseline.platforms.darwin.evidence.workflowRuns = [1];
+    const result = adjudicateBorderPhaseReport(report, baseline, rolledOut, dir);
+    expect(result.verdict).toBe("drift");
+    expect(result.fingerprint.status).toBe("drift");
+    expect(result.findings).toContain("darwin baseline lacks repeated stable artifact evidence");
+  });
+
+  it("still requires a runner fingerprint when the artifact set matches", () => {
+    const { report, baseline, dir } = uploadedFixture();
+    report.meta.osRelease = fingerprint.osRelease;
+    const result = adjudicateBorderPhaseReport(report, baseline, undefined, dir);
+    expect(result.verdict).toBe("drift");
+    expect(result.findings).toContain("missing runner fingerprint");
   });
 });
 
