@@ -1,0 +1,27 @@
+name: DM-MPDTVX repro (throwaway)
+on:
+  push:
+    branches: [validation/dm-mpdtvx-repro]
+jobs:
+  repro:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npm run build:capture-script
+      - name: Probe (4 concurrent workers x 40 iterations x 2 arms)
+        run: |
+          for w in 1 2 3 4; do OUT=mpdtvx-out/w$w npx tsx tools/repro/mpdtvx-probe.ts 40 > mpdtvx-w$w.log 2>&1 & done
+          wait
+          cat mpdtvx-w*.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpdtvx-out
+          path: mpdtvx-out/
+          if-no-files-found: ignore
