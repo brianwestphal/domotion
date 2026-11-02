@@ -9,6 +9,7 @@ import {
 } from "./border-paint.js";
 import { parseCornerRadii } from "./borders.js";
 import { openDashArray, closedDashArray } from "./stroke-style.js";
+import { paintThinDottedLine } from "./outline-paint.js";
 import { parseColor } from "./colors.js";
 import type { PaintCtx } from "./element-tree-to-svg.js";
 
@@ -165,5 +166,22 @@ describe("SVG border paint owner", () => {
     expect(top).toContain('x2="108"');
     expect(top).toContain(`stroke-dasharray="${openDashArray("dotted", 4, 100)}"`);
     expect(ctx.svgParts.join("\n")).not.toContain("stroke-dashoffset");
+  });
+
+  it("paints thin collapsed dotted edges with Blink's endpoint-dot plan (DM-92KTN7)", () => {
+    const ctx = context();
+    const el = element({
+      borderCollapse: "collapse",
+      collapsedBorderRects: [
+        { x: 19, y: 19, width: 101, height: 2, axis: "row", color: "rgb(185, 28, 28)", style: "dotted" },
+        { x: 19, y: 19, width: 2, height: 41, axis: "column", color: "rgb(185, 28, 28)", style: "dotted" },
+      ],
+    });
+    expect(paintCollapsedBorderRects(ctx, el, "")).toBe(true);
+    expect(ctx.svgParts).toEqual([
+      ...paintThinDottedLine(19, 20, 120, 20, 2, "rgb(185,28,28)", ""),
+      ...paintThinDottedLine(20, 19, 20, 60, 2, "rgb(185,28,28)", ""),
+    ]);
+    expect(ctx.defsParts).toEqual([]);
   });
 });

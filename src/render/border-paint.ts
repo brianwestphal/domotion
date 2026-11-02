@@ -404,6 +404,19 @@ export function paintCollapsedBorderRects(ctx: PaintCtx, el: CapturedElement, in
       }
       continue;
     }
+    if (rect.style === "dotted" && isThinDotted(thickness)) {
+      // Thin dots take DrawLineWithStyle's EnforceDotsAtEndpoints branch on the
+      // full snapped edge and its centerline (box_border_painter.cc:521-527,
+      // chromium 7d859f27), the same rule paintThinDottedLine mirrors for
+      // uniform borders.
+      const mid = thickness / 2;
+      ctx.svgParts.push(
+        ...(horizontal
+          ? paintThinDottedLine(rect.x, rect.y + mid, rect.x + rect.width, rect.y + mid, thickness, fill, indent)
+          : paintThinDottedLine(rect.x + mid, rect.y, rect.x + mid, rect.y + rect.height, thickness, fill, indent)),
+      );
+      continue;
+    }
     if (rect.style === "dashed" || rect.style === "dotted") {
       const clipId = ctx.nextClipId("cb");
       ctx.defsParts.push(

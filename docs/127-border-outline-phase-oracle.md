@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["paint-effects", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG", "DM-D1BK35"]
+tickets: ["DM-2184", "DM-2323", "DM-2355", "DM-CMKF35", "DM-652J8C", "DM-VJASEG", "DM-D1BK35", "DM-92KTN7"]
 code:
   [
     ".github/workflows/border-phase-oracle.yml",
@@ -128,7 +128,9 @@ and get no SVG `stroke-dashoffset`. Dash intervals are emitted to 0.001px, not
 the renderer's usual 0.1px, because they repeat along the whole side. Rounding
 them would accumulate drift and erase the thick-dotted interval
 `{0, gap + width - kEpsilon}` (`styled_stroke_data.cc:118-128`). That epsilon
-keeps the last dot just inside the line end.
+keeps the last dot just inside the line end. Thin dotted collapsed edges (3px or less) use the
+`EnforceDotsAtEndpoints` plan (`box_border_painter.cc:521-527`) over the full
+snapped edge, which is the same helper the uniform-border painter uses.
 Unit tests grade each decision stage, the browser test checks the
 captured table contract, and `border-collapse-edge-graph` is the visual
 integration discriminator. Table fragmentation remains tracked separately;

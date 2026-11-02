@@ -245,6 +245,16 @@ export const tests: FeatureTest[] = [
     height: 190,
   },
   {
+    // Collapsed-table edge paint styles: thin (≤3px) dotted edges take Blink's
+    // EnforceDotsAtEndpoints plan, thick dotted edges inset their round caps,
+    // double edges use the integer (t + 1) / 3 stripe, and a display:flex td
+    // keeps its anonymous-cell column so the next cell's edges stay put.
+    name: "border-collapse-edge-styles",
+    html: `<div style="padding:20px;background:#fff;display:flex;gap:30px;align-items:flex-start"><style>.ce{border-collapse:collapse;font:13px sans-serif}.ce td{padding:10px 24px}.ce .d2{border:2px dotted #b91c1c}.ce .d3{border:3px dotted #b91c1c}.ce .d4{border:4px dotted #1d4ed8}.ce .db{border:4px double #6d28d9}.ce .fx{display:flex;border:6px solid #dc2626}.ce .dash{border:2px dashed #16a34a}</style><table class="ce"><tr><td class="d2">two</td><td class="d3">three</td></tr><tr><td class="d4">four</td><td class="db">double</td></tr></table><table class="ce"><tr><td class="d2">a</td><td class="fx">flex</td><td class="dash">dashed</td></tr></table></div>`,
+    width: 560,
+    height: 150,
+  },
+  {
     // DM-2322 / DM-2337: LayoutNG keeps the global collapsed-border winner graph across
     // fragmentainers, but TablePainter clips/halves/omits edges using each
     // section fragment's row offsets. Includes both whole-row breaks and one
