@@ -27,6 +27,12 @@ Other formats can still be the right fit:
   colors or longer motion.
 - **Lottie** is scalable and compact for authored vector animation, but needs a
   player and is not a capture of arbitrary HTML/CSS.
+- **Rive** does true runtime interactivity: its state machines respond to live
+  pointer and keyboard input, which a Domotion `<img>` deliberately cannot. Its
+  runtimes are open source (MIT), but the artwork is drawn in Rive's hosted
+  editor rather than captured from your product, and the page must load a
+  WebAssembly runtime before the first frame, so a `.riv` plays only where that
+  runtime is integrated.
 - **Hand-built CSS** can be tiny and flexible, but recreating a product UI by
   hand raises authoring and maintenance cost.
 
