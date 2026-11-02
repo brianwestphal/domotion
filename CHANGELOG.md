@@ -4,6 +4,17 @@ All notable changes to **Domotion** are documented in this file.
 
 ## Unreleased
 
+## [0.32.0] - 2026-11-02
+
+**🚀 Features**
+
+- **Authenticated remote image embedding:** `embedRemoteImages(tree, { headers })` now sends request headers, such as a session cookie, when it fetches images. This lets you inline images that sit behind an application login without replacing the process-wide `fetch`. `headers` takes either a static `HeadersInit` or a per-URL function. You can also pass your own `fetch` for that call.
+
+**🐛 Fixes**
+
+- When two `embedRemoteImages` calls overlap and fetch the same URL with different credentials, each render now gets the image bytes fetched for its own call. Previously, the fetch that finished last decided the bytes for both renders. Images fetched with custom headers or a custom `fetch` are now cached separately per call, so they never enter the shared cache, and the image resize pass also uses each call's own bytes.
+- Updated dependencies to resolve npm audit security advisories.
+
 ## [0.31.0] - 2026-10-23
 
 **Changed**
