@@ -4,6 +4,21 @@ All notable changes to **Domotion** are documented in this file.
 
 ## Unreleased
 
+## [0.33.0] - 2026-11-03
+
+**🐛 Fixes**
+
+- **Rounded dashed and dotted borders** now use Chrome's dash spacing. The dash pattern follows the same line through the border as Chrome, and its length is measured the way Chrome measures it, so a border no longer fits one dash too many.
+- **Rounded dashed and dotted outlines** now use the same geometry as rounded borders, so their dashes and dots match Chrome.
+- **Rounded dashed and dotted borders on inline elements that wrap across lines** now match Chrome on every line. For example, a 1px dashed span draws 3px dashes with 2px gaps, where it used to draw 4px dashes with 1px gaps. Each line's piece starts its own dash pattern, whether the border is split across lines (the default) or repeated on each line (`box-decoration-break: clone`).
+- **Square dashed and dotted outlines** now end exactly at the outer corners. Odd-width outlines (such as 1px) are no longer 1px too long or given an extra dash. On thick dotted outlines, the round dots at each end now sit fully inside the outline.
+- **Thick dotted borders** now start with a dot exactly at each side's start point and no longer drop the last dot. Dash patterns are now written with three decimal places, which keeps them from drifting along long sides, so `stroke-dasharray` values in your SVG output will change.
+- **Tables with `border-collapse: collapse`:**
+  - A `<td>` set to something other than a table cell (for example `display: flex`) keeps its column again. Later cells in the row no longer shift over or lose their borders.
+  - Double borders now use whole-pixel stripes like Chrome: a 4px border paints 1px, a 2px gap, then 1px.
+  - Dotted borders 3px or thinner now place a dot at both ends of each edge.
+  - On thicker dotted borders, the round dots at each end now stay inside the edge.
+
 ## [0.32.0] - 2026-11-02
 
 **🚀 Features**
