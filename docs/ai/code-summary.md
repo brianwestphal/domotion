@@ -236,6 +236,8 @@ plus controlled-healing browser passes.
 - [Platforms, testing, and release](../handbook/platforms-testing-and-release.md)
 - [Major-release visual capture checklist](../handbook/major-release-visual-capture.md)
   (release-time README/examples/site demo refresh, not a domain handbook)
+- [Manual test plan](../handbook/manual-test-plan.md)
+  (checks the automated gates cannot reliably make, not a domain handbook)
 
 Search the [manifest](manifest.json) by stable ID or code path, then open only
 the handbook and current reference/evidence records relevant to the change.
