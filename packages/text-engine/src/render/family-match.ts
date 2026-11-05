@@ -1086,7 +1086,50 @@ function matchFamilyCandidateToKey(
   description: DarwinFontDescription = DARWIN_INITIAL_FONT_DESCRIPTION,
 ): string | null {
   if (name === "" || name === "doesnotexist") return null;
-  const settingsName = genericSettingsFamilyName(name);
+  const candidate: FamilyCandidate = {
+    name,
+    generic,
+    lang,
+    canonicalSystemUiName,
+    lookupName,
+    description,
+    settingsName: genericSettingsFamilyName(name),
+  };
+  for (const stage of FAMILY_CANDIDATE_STAGES) {
+    const verdict = stage(candidate);
+    if (verdict !== undefined) return verdict;
+  }
+  return null;
+}
+
+/** One declared family-stack entry, as every family-matching stage sees it. */
+interface FamilyCandidate {
+  /** Lower-cased family name used for the case-insensitive routes. */
+  readonly name: string;
+  /** The entry is a CSS `<generic-family>` keyword, not a literal name. */
+  readonly generic: boolean;
+  readonly lang: string | undefined;
+  /** The author spelled exactly `system-ui` (case-sensitive `AtomicString`). */
+  readonly canonicalSystemUiName: boolean;
+  /** The original-case spelling handed to host font lookups. */
+  readonly lookupName: string;
+  readonly description: DarwinFontDescription;
+  /** `name` after Blink's legacy WebKit standard-family aliasing. */
+  readonly settingsName: string;
+}
+
+/**
+ * A family-matching stage's verdict: a logical key, `null` when Chrome walks
+ * past this family to the next one in the stack, or `undefined` when the stage
+ * does not decide and the next stage asks.
+ */
+type FamilyStageVerdict = string | null | undefined;
+
+/**
+ * Per-script generic-family settings: `FamilyNameFromSettings` keyed on the run's script.
+ */
+function resolvePerScriptGenericFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, generic, lang, settingsName, description } = candidate;
   // ── Per-script generic-family settings (Playwright forScripts, mac/win) ──
   // Blink keys every settings-mapped generic on the run's content script:
   // `FamilyNameFromSettings` consults `settings.<Generic>(script)` with
@@ -1149,6 +1192,14 @@ function matchFamilyCandidateToKey(
       return null;
     }
   }
+  return undefined;
+}
+
+/**
+ * Session-probed Common-script answer for a generic keyword.
+ */
+function resolveSessionProbedGenericFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, generic, settingsName, description } = candidate;
   // Session-probed generic route (see setSessionGenericFamilyOverrides): when
   // the capture session has been asked what it paints for a generic keyword,
   // route the keyword to that family. The probed name is a concrete platform
@@ -1167,6 +1218,14 @@ function matchFamilyCandidateToKey(
       }
     }
   }
+  return undefined;
+}
+
+/**
+ * Page-registered families: a held webfont, or an `@font-face` `local()` alias.
+ */
+function resolvePageRegisteredFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name } = candidate;
   // Registered webfonts win — the page declared this family AND we hold
   // its bytes. `getFontInstance` dispatches the webfont: prefix to the
   // runtime registry instead of the on-disk FONT_PATHS table.
@@ -1178,6 +1237,14 @@ function matchFamilyCandidateToKey(
   // weight/italic against the registered variants — important when the page
   // declared regular + italic + bold but NOT bold-italic (DM-360 / DM-303).
   if (localFontAliasRegistry.has(name)) return `localalias:${name}`;
+  return undefined;
+}
+
+/**
+ * Linux declared-family nomination: `FontFallbackList::GetFontData` asking fontconfig per name.
+ */
+function resolveLinuxNominatedFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, generic } = candidate;
   // ── Linux declared-family NOMINATION: the transcribed walk ──
   // Blink resolves a non-generic CSS family on Linux by ASKING the matcher,
   // not a table: `FontFallbackList::GetFontData` walks the stack calling
@@ -1260,6 +1327,14 @@ function matchFamilyCandidateToKey(
       return key;
     }
   }
+  return undefined;
+}
+
+/**
+ * Calibrated monospace routes: the `monospace` keyword, Courier, Menlo, Monaco and SF Mono.
+ */
+function resolveCalibratedMonospaceFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, generic } = candidate;
   // The capture harness's `monospace` resolves to Courier because PLAYWRIGHT
   // says so, not Chromium. Identified end-to-end (previously "unidentified"):
   // Playwright applies its own vendored per-platform generic-family table to
@@ -1336,6 +1411,14 @@ function matchFamilyCandidateToKey(
   if (name === "sf mono" || name === "sfmono-regular" || name === "sf-mono") {
     return authorFamilyAvailable("SF Mono") ? "sf-mono" : null;
   }
+  return undefined;
+}
+
+/**
+ * Calibrated serif routes: the `serif` keyword, Times, Georgia and the named display and CJK serifs.
+ */
+function resolveCalibratedSerifFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, generic, lookupName } = candidate;
   // `Times New Roman` resolves to the Microsoft TNR face (separate file from
   // Apple's Times.ttc); bare `Times` / `serif` / the UA default resolve to
   // Apple Times (DM-330). The two have identical metrics but visibly
@@ -1373,6 +1456,14 @@ function matchFamilyCandidateToKey(
   ) {
     return authorFamilyAvailable(lookupName) ? "hiragino-mincho" : null;
   }
+  return undefined;
+}
+
+/**
+ * Calibrated `cursive` and `fantasy` routes and their named families.
+ */
+function resolveCalibratedCursiveFantasyFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, generic } = candidate;
   // Chrome on macOS resolves the CSS `cursive` generic keyword to Apple
   // Chancery (per the empirical probe — bare `cursive` paints at exactly
   // Apple Chancery's advance, NOT Snell Roundhand's, on macOS Sonoma+).
@@ -1388,6 +1479,14 @@ function matchFamilyCandidateToKey(
   // `impact.ttf`, which are Chrome's Windows defaults. The macOS-flavoured
   // key names are a naming wart, not a routing one.
   if ((generic && name === "fantasy") || name === "papyrus") return "papyrus";
+  return undefined;
+}
+
+/**
+ * Calibrated sans-serif routes: the `sans-serif` keyword, Helvetica (Neue), Arial and Arial Unicode MS.
+ */
+function resolveCalibratedSansSerifFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, generic } = candidate;
   // DM-1189 / DM-1199 / DM-1196 / DM-1183: `Helvetica Neue` is its OWN face,
   // NOT plain Helvetica. Verified with Chrome's `getPlatformFontsForNode`:
   // `font-family: 'Helvetica Neue'` paints from Helvetica Neue (HelveticaNeue.ttc),
@@ -1419,6 +1518,14 @@ function matchFamilyCandidateToKey(
   if (name === "arial unicode ms" || name === "arialunicodems") {
     return authorFamilyAvailable("Arial Unicode MS") ? "u-arial-unicode-ms" : null;
   }
+  return undefined;
+}
+
+/**
+ * The platform UI font: `system-ui`, `BlinkMacSystemFont` and the SF Pro names.
+ */
+function resolveSystemUiFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name, canonicalSystemUiName, description } = candidate;
   // system-ui / BlinkMacSystemFont / "SF Pro" → SF Pro.
   // These keywords mean "the platform UI font", which on modern macOS is
   // San Francisco. NOTE: `-apple-system` is INTENTIONALLY excluded —
@@ -1527,6 +1634,14 @@ function matchFamilyCandidateToKey(
     const named = name === "sf pro display" ? "SF Pro Display" : "SF Pro Text";
     return resolveInstalledFont(named) != null ? "sf-pro" : null;
   }
+  return undefined;
+}
+
+/**
+ * Calibrated Hiragino Sans route for the author-named Japanese gothic families.
+ */
+function resolveCalibratedHiraginoSansFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name } = candidate;
   // DM-806: author-named "Hiragino Sans" / "Hiragino Kaku Gothic ProN" /
   // the underlying ヒラギノ角ゴシック native name maps to the JP variant
   // we already ship under the `hiragino-jp` key (HiraKakuProN-W3 /
@@ -1548,6 +1663,14 @@ function matchFamilyCandidateToKey(
   ) {
     return authorFamilyAvailable("Hiragino Sans") ? "hiragino-jp" : null;
   }
+  return undefined;
+}
+
+/**
+ * Names Chrome walks past: non-keywords spelled like generics, and the uninstalled `math` setting.
+ */
+function resolveWalkPastFamilyName(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name } = candidate;
   // Names Chrome WALKS PAST, for two different reasons:
   //
   // (a) `ui-monospace`, `ui-serif`, `ui-sans-serif`, `ui-rounded`, `emoji`,
@@ -1596,6 +1719,14 @@ function matchFamilyCandidateToKey(
     name === "-apple-system"
   )
     return null;
+  return undefined;
+}
+
+/**
+ * New York Medium: the optical-size cut, addressed by its unambiguous PostScript name.
+ */
+function resolveNewYorkMediumCutKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name } = candidate;
   // DM-1108: macOS New York optical-size cut "New York Medium" name
   // collision. Unlike SF Pro (one variable file whose cuts are CoreText-only
   // named faces — see OPTICAL_CUT_OPSZ below), New York's optical cuts ship
@@ -1619,6 +1750,14 @@ function matchFamilyCandidateToKey(
       return key;
     }
   }
+  return undefined;
+}
+
+/**
+ * An installed but uncalibrated family: macOS `MatchFontFamily`, else the native exact-name probe.
+ */
+function resolveNativeInstalledFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { lookupName } = candidate;
   // DM-1018: the name isn't one of our calibrated families or a generic
   // keyword — but it may still be a REAL installed font (SF Compact,
   // Mplus 1p, …). Blink's FontFallbackList sets `first_candidate_` to the
@@ -1685,17 +1824,14 @@ function matchFamilyCandidateToKey(
     }
     return key;
   }
-  // DM-1690: on Linux the `resolveInstalledFont` native helper is always null,
-  // so an installed-but-uncalibrated author family (e.g. `font-family: "DejaVu
-  // Sans"`) used to fall through here to the `times` default — whereas
-  // Chrome-on-Linux resolves it via fontconfig (`FcFontMatch`). Mirror that:
-  // when fontconfig genuinely HAS the family (`authorFamilyAvailable` grades
-  // the `fc-match` result with Skia's own acceptance rule — strcasecmp plus
-  // the metric-equivalence classes — so a fontconfig SUBSTITUTE for a miss
-  // still returns false → we fall through, matching Chrome), register its file
-  // as a dynamic `sysfb:` key. Gated by the live-resolver flag (default-on;
-  // honors DOMOTION_SYSTEM_FALLBACK=0) so it can be disabled alongside the
-  // per-codepoint fontconfig resolver.
+  return undefined;
+}
+
+/**
+ * Windows weight/stretch suffix families (`font_cache_skia_win.cc`).
+ */
+function resolveWin32SuffixAdjustedFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name } = candidate;
   // Windows: an author family like "Segoe UI Light" is not a DirectWrite
   // family, so the `resolveInstalledFont` probe above missed it — Blink
   // resolves it by stripping the weight/stretch suffix and pinning that axis
@@ -1726,6 +1862,25 @@ function matchFamilyCandidateToKey(
       }
     }
   }
+  return undefined;
+}
+
+/**
+ * Linux installed family through fontconfig, graded by Skia's acceptance rule.
+ */
+function resolveLinuxFontconfigFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
+  const { name } = candidate;
+  // DM-1690: on Linux the `resolveInstalledFont` native helper is always null,
+  // so an installed-but-uncalibrated author family (e.g. `font-family: "DejaVu
+  // Sans"`) used to fall through here to the `times` default — whereas
+  // Chrome-on-Linux resolves it via fontconfig (`FcFontMatch`). Mirror that:
+  // when fontconfig genuinely HAS the family (`authorFamilyAvailable` grades
+  // the `fc-match` result with Skia's own acceptance rule — strcasecmp plus
+  // the metric-equivalence classes — so a fontconfig SUBSTITUTE for a miss
+  // still returns false → we fall through, matching Chrome), register its file
+  // as a dynamic `sysfb:` key. Gated by the live-resolver flag (default-on;
+  // honors DOMOTION_SYSTEM_FALLBACK=0) so it can be disabled alongside the
+  // per-codepoint fontconfig resolver.
   if (hostPlatform() === "linux" && systemFallbackResolutionEnabled && authorFamilyAvailable(name)) {
     const matched = fcMatch(name);
     if (matched != null) {
@@ -1743,8 +1898,31 @@ function matchFamilyCandidateToKey(
       return key;
     }
   }
-  return null;
+  return undefined;
 }
+
+/**
+ * The family-matching stages in Blink's order. The first stage whose verdict
+ * is not `undefined` decides; when every stage declines, the family does not
+ * resolve and the caller continues the stack.
+ */
+const FAMILY_CANDIDATE_STAGES: ReadonlyArray<(candidate: FamilyCandidate) => FamilyStageVerdict> = [
+  resolvePerScriptGenericFamilyKey,
+  resolveSessionProbedGenericFamilyKey,
+  resolvePageRegisteredFamilyKey,
+  resolveLinuxNominatedFamilyKey,
+  resolveCalibratedMonospaceFamilyKey,
+  resolveCalibratedSerifFamilyKey,
+  resolveCalibratedCursiveFantasyFamilyKey,
+  resolveCalibratedSansSerifFamilyKey,
+  resolveSystemUiFamilyKey,
+  resolveCalibratedHiraginoSansFamilyKey,
+  resolveWalkPastFamilyName,
+  resolveNewYorkMediumCutKey,
+  resolveNativeInstalledFamilyKey,
+  resolveWin32SuffixAdjustedFamilyKey,
+  resolveLinuxFontconfigFamilyKey,
+];
 
 /** One family-stack candidate to its logical platform key. */
 export function matchFamilyNameToKey(
