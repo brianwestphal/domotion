@@ -44,7 +44,7 @@ them: Amazing 🙌" -o thread.svg
 | `accent`                         | string                       | `#3b82f6`              | `me` bubble color.                                                                       |
 | `themBubble` / `themText`        | string                       | `#e9e9eb` / `#111111`  | `them` bubble + text color.                                                              |
 | `background`                     | string                       | `#ffffff`              | Thread background.                                                                       |
-| `typing`                         | boolean                      | `true`                 | Show a "…" typing indicator before each `them` message.                                  |
+| `typing`                         | boolean                      | `true`                 | Show a "…" typing indicator before each `them` message. Turn off with `--no-typing`.     |
 | `typingMs`                       | int                          | `900`                  | How long the indicator shows before the message.                                         |
 | `width` / `height`               | int                          | `560` / `760`          | Output size.                                                                             |
 | `fontFamily`                     | string                       | system sans            | CSS font-family.                                                                         |
@@ -88,7 +88,7 @@ domotion template subscribe --name "Ada Lovelace" --subtitle "@ada · 89.4K foll
 | `avatarColor` / `avatarText` | string            | `#6366f1` / name's initial      | Avatar circle + initial.                                                    |
 | `theme`                      | `light` \| `dark` | `light`                         | Card theme.                                                                 |
 | `background`                 | string            | a navy gradient                 | Frame background.                                                           |
-| `showBell`                   | boolean           | `true`                          | Show the bell button beside the CTA.                                        |
+| `showBell`                   | boolean           | `true`                          | Show the bell button beside the CTA. Hide with `--no-showBell`.             |
 | `clickAfterMs`               | int               | `1700`                          | Simulate a click after this delay (CTA flips, bell fills). `0` disables it. |
 | `subscribedLabel`            | string            | `Subscribed`                    | Label after the simulated click.                                            |
 | `width` / `height`           | int               | `760` / `360`                   | Output size.                                                                |

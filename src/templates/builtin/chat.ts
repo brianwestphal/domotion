@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import { templateBoolean } from "../boolean-param.js";
 import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -61,7 +62,7 @@ export const chatParamsSchema = z.object({
   background: cssValue().default("#ffffff").describe("Thread background (CSS color)."),
   ...sizeSchema({ width: 560, height: 760 }),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("CSS font-family."),
-  typing: z.coerce.boolean().default(true).describe('Show a "…" typing indicator before each "them" message.'),
+  typing: templateBoolean(true).describe('Show a "…" typing indicator before each "them" message.'),
   typingMs: msSchema(900, "How long the typing indicator shows before the message in ms."),
   popMs: msSchema(360, "Pop-in duration per message in ms."),
   staggerMs: z.coerce.number().int().nonnegative().default(650).describe("Delay between messages in ms."),

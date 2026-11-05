@@ -123,6 +123,8 @@ export {
   type RenderTemplateOptions,
   templateParamsJsonSchema,
   describeTemplateParams,
+  templateBoolean,
+  parseTemplateBoolean,
   type ParamInfo,
   FORMATS,
   resolveFormat,

@@ -11,6 +11,7 @@
  */
 
 import { z } from "zod";
+import { templateBoolean } from "../boolean-param.js";
 import { THEMES, blank, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
@@ -48,7 +49,7 @@ export const ctaParamsSchema = z.object({
   logo: z.string().optional().describe("Optional logo image (URL or absolute path) shown above the headline."),
   handles: handlesSchema.optional().describe("Social handles / links (comma-separated or array), shown as a row."),
   url: z.string().optional().describe("A URL line under the handles."),
-  pulse: z.coerce.boolean().default(true).describe("Whether the CTA button gently pulses."),
+  pulse: templateBoolean(true).describe("Whether the CTA button gently pulses."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
   background: cssValue().optional().describe("Card background (CSS color or gradient). Defaults to the theme surface."),
   textColor: cssValue().optional().describe("Headline/text color. Defaults to the theme foreground."),

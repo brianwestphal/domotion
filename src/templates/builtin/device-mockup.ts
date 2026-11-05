@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
+import { templateBoolean } from "../boolean-param.js";
 import { DEVICE_CHROMES, CHROME_THEMES, wrapInDeviceChrome } from "../../render/index.js";
 import { namespaceEmbeddedAnimatedSvg } from "../../animation/embed-namespace.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../../animation/svg-meta.js";
@@ -52,7 +53,7 @@ export const deviceMockupParamsSchema = z.object({
   ),
   label: z.string().optional().describe("Chrome-bar text (browser URL / window title; ignored by phone)."),
   theme: z.enum(CHROME_THEMES).default("dark").describe('Bezel theme for browser/window: "dark" | "light".'),
-  mobile: z.coerce.boolean().default(false).describe("Emulate a mobile device for the capture (use with phone)."),
+  mobile: templateBoolean(false).describe("Emulate a mobile device for the capture (use with phone)."),
   colorScheme: z.enum(["light", "dark", "no-preference"]).optional().describe("prefers-color-scheme for the page."),
   selector: z.string().default("body").describe("Element selector to capture."),
 });

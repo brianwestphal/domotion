@@ -104,9 +104,11 @@ HTML through the same capture/compose pipeline the rest of Domotion uses.
 and is **projected to CLI flags** plus a JSON Schema for `--help` and editor
 tooling. The zod schema stays the authoritative validator.
 
-- Use **`z.coerce.number()` / `z.coerce.boolean()`** for non-string scalars, so
-  the CLI's string flags (`--width 960`) and raw JSON values (`"width": 960`)
-  both parse.
+- Use **`z.coerce.number()`** for numeric scalars, so the CLI's string flags
+  (`--width 960`) and raw JSON values (`"width": 960`) both parse.
+- Use **`templateBoolean(<default>)`** from `domotion-svg/templates` for boolean
+  params, not `z.coerce.boolean()` (which turns the string `"false"` into
+  `true`). Each boolean param gets both `--<param>` and `--no-<param>` flags.
 - Give every field a **`.describe()`** — that text is what
   `domotion template <name> --help` prints.
 - Scalar params (string / number / boolean / enum) become `--flags`

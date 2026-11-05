@@ -61,20 +61,41 @@ export async function parseTemplateArgs(args: string[]) {
   const paramInfos = describeTemplateParams(template);
 
   // Derive parseArgs options from the params schema: booleans get a presence
-  // flag, everything scalar takes a string value (numeric coercion lives in the
+  // flag plus a `--no-<param>` negation (so a default-`true` param can be turned
+  // off), everything scalar takes a string value (numeric coercion lives in the
   // template's zod schema, so a string flag validates fine).
   const options: ArgOptions = { ...FIXED_OPTIONS };
-  for (const p of paramInfos) {
-    if (p.name in options) continue; // never shadow a fixed option
-    options[p.name] = { type: p.kind === "boolean" ? "boolean" : "string" };
-  }
+  /** Every boolean flag that also got a `--no-<flag>` negation. */
+  const negatableFlags = new Set<string>();
+  const addFlag = (flag: string, kind: ParamInfo["kind"]): void => {
+    if (flag in options) return; // never shadow a fixed option
+    if (kind !== "boolean") {
+      options[flag] = { type: "string" };
+      return;
+    }
+    const negated = `no-${flag}`;
+    options[flag] = { type: "boolean" };
+    if (!(negated in options)) {
+      options[negated] = { type: "boolean" };
+      negatableFlags.add(flag);
+    }
+  };
+  for (const p of paramInfos) addFlag(p.name, p.kind);
   for (const [alias, canonical] of Object.entries(template.paramAliases ?? {})) {
     const target = paramInfos.find((p) => p.name === canonical);
-    if (target != null && !(alias in options))
-      options[alias] = { type: target.kind === "boolean" ? "boolean" : "string" };
+    if (target != null) addFlag(alias, target.kind);
   }
 
   const { values } = parseArgs({ args: args.slice(1), options, allowPositionals: false, strict: true });
+  const flagValues = values as Record<string, unknown>;
+  // Fold each `--no-<flag>` into `<flag>: false`, rejecting both spellings at once.
+  for (const flag of negatableFlags) {
+    if (flagValues[`no-${flag}`] !== true) continue;
+    if (flagValues[flag] === true) {
+      throw new UsageError(`template: --${flag} and --no-${flag} are mutually exclusive`);
+    }
+    flagValues[flag] = false;
+  }
 
   if (values.help === true) return { help: templateHelp(template, paramInfos) };
   if (values.optimize === true && values["no-optimize"] === true) {
@@ -199,7 +220,7 @@ function templateHelp(template: Template, params: ParamInfo[]): string {
   const lines: string[] = [`domotion template ${template.name} — ${template.description}`, "", "Parameters:"];
   for (const p of params) {
     const typeHint = p.enumValues != null ? p.enumValues.join("|") : p.kind === "boolean" ? "" : `<${p.kind}>`;
-    const flag = p.kind === "boolean" ? `--${p.name}` : `--${p.name} ${typeHint}`;
+    const flag = p.kind === "boolean" ? `--[no-]${p.name}` : `--${p.name} ${typeHint}`;
     const note = p.required
       ? "(required)"
       : p.default !== undefined
@@ -220,6 +241,9 @@ function templateHelp(template: Template, params: ParamInfo[]): string {
     "                        Explicit flags win over the brand.",
     "      --optimize        Run the output through SVGO.",
     "      --quiet           Suppress progress messages on stderr.",
+    "",
+    "Boolean params: --<param> turns one on, --no-<param> turns it off. In --params /",
+    '--params-file JSON use true/false (the strings "true"/"false"/"1"/"0" also work).',
     "",
   );
   return lines.join("\n");

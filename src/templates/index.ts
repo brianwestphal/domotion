@@ -11,6 +11,7 @@ export { isTemplate } from "./types.js";
 export { listBuiltinTemplates, getBuiltinTemplate, loadTemplate, templatePackageName } from "./registry.js";
 export { renderTemplateToSvg, validateTemplateParams, type RenderTemplateOptions } from "./render.js";
 export { templateParamsJsonSchema, describeTemplateParams, type ParamInfo } from "./json-schema.js";
+export { templateBoolean, parseTemplateBoolean } from "./boolean-param.js";
 export {
   FORMATS,
   resolveFormat,

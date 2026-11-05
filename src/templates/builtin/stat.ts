@@ -9,6 +9,7 @@
  */
 
 import { z } from "zod";
+import { templateBoolean } from "../boolean-param.js";
 import { THEMES, blank, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
@@ -38,11 +39,11 @@ export const statParamsSchema = z.object({
     .enum(DELTA_DIRS)
     .default("auto")
     .describe('Trend direction: "up" | "down" | "auto" (parse sign from delta).'),
-  animateValue: z.coerce.boolean().default(true).describe("Roll the value up from 0 (else show it static)."),
+  animateValue: templateBoolean(true).describe("Roll the value up from 0 (else show it static)."),
   prefix: z.string().optional().describe('Text before the value (e.g. "$").'),
   suffix: z.string().optional().describe('Text after the value (e.g. "%" or "K").'),
   decimals: z.coerce.number().int().min(0).max(6).default(0).describe("Fixed decimal places."),
-  grouping: z.coerce.boolean().default(true).describe("Insert a thousands separator."),
+  grouping: templateBoolean(true).describe("Insert a thousands separator."),
   durationMs: msSchema(1500, "Value roll duration in ms."),
   accent: cssValue().default("#22c55e").describe("Accent for the up-trend chip (down uses a red)."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),

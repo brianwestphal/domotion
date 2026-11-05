@@ -1220,7 +1220,12 @@
       "status": "current",
       "owners": ["product-tooling"],
       "platforms": [],
-      "code": ["examples/template-package/", "src/templates/registry.ts"],
+      "code": [
+        "examples/template-package/",
+        "src/templates/registry.ts",
+        "src/templates/boolean-param.ts",
+        "src/cli/template.ts"
+      ],
       "file": "74-template-authoring.md"
     },
     {

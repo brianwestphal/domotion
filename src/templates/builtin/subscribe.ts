@@ -9,6 +9,7 @@
  */
 
 import { z } from "zod";
+import { templateBoolean } from "../boolean-param.js";
 import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import { brandParams, brandBackground, type Brand } from "../brand.js";
@@ -28,7 +29,7 @@ export const subscribeParamsSchema = z.object({
   background: cssValue()
     .default("linear-gradient(135deg,#1e293b,#0f172a)")
     .describe("Frame background (CSS color/gradient)."),
-  showBell: z.coerce.boolean().default(true).describe("Show the notification-bell button beside the CTA."),
+  showBell: templateBoolean(true).describe("Show the notification-bell button beside the CTA."),
   clickAfterMs: z.coerce
     .number()
     .int()

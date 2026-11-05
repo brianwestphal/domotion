@@ -1835,8 +1835,13 @@
         "status": "current",
         "owners": ["product-tooling"],
         "platforms": [],
-        "tickets": ["DM-1282", "DM-1297"],
-        "code": ["examples/template-package/", "src/templates/registry.ts"],
+        "tickets": ["DM-1282", "DM-1297", "DM-V628HR"],
+        "code": [
+          "examples/template-package/",
+          "src/templates/registry.ts",
+          "src/templates/boolean-param.ts",
+          "src/cli/template.ts"
+        ],
         "aliases": ["docs/74-template-authoring.md", "doc-74"]
       }
     },

@@ -5,8 +5,9 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-1282", "DM-1297"]
-code: ["examples/template-package/", "src/templates/registry.ts"]
+tickets: ["DM-1282", "DM-1297", "DM-V628HR"]
+code:
+  ["examples/template-package/", "src/templates/registry.ts", "src/templates/boolean-param.ts", "src/cli/template.ts"]
 aliases: ["docs/74-template-authoring.md", "doc-74"]
 ---
 
@@ -175,8 +176,19 @@ These come straight from the SVG output model — respect them or motion breaks
 `paramsSchema` does triple duty: it **validates** input, supplies **defaults**,
 and is **projected to CLI flags** + a JSON Schema.
 
-- Use **`z.coerce.number()` / `z.coerce.boolean()`** for non-string scalars so the
-  CLI's string flags AND raw JSON values both parse.
+- Use **`z.coerce.number()`** for numeric scalars so the CLI's string flags AND
+  raw JSON values both parse.
+- Use **`templateBoolean(<default>)`** (exported from `domotion-svg/templates`) for
+  boolean params — **not** `z.coerce.boolean()`. Coercion is `Boolean(value)`, so
+  the string `"false"` (from `--params '{"pulse":"false"}'`, a brand file, or any
+  string source) becomes `true` and a default-`true` param can never be switched
+  off. `templateBoolean` accepts real booleans and the strings `"true"` / `"1"` /
+  `"false"` / `"0"` (case-insensitive) and rejects anything else. Call
+  `.describe()` on its result as usual; pass the default as the argument rather
+  than chaining `.default()` (the default must sit inside the preprocess so the
+  JSON-Schema projection, and therefore `--help`, still reports it).
+- Every boolean param gets both `--<param>` (on) and `--no-<param>` (off) on the
+  CLI; passing both is a usage error. `--help` lists them as `--[no-]<param>`.
 - Give every field a **`.describe()`** — it's the text `domotion template <name>
 --help` prints.
 - Scalar params (string / number / boolean / enum) become `--flags`

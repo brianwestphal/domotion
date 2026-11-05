@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import { templateBoolean } from "../boolean-param.js";
 import { THEMES, blank, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
@@ -36,7 +37,7 @@ export const counterParamsSchema = z.object({
   prefix: z.string().optional().describe('Text before the number (e.g. "$").'),
   suffix: z.string().optional().describe('Text after the number (e.g. "+" or "%").'),
   decimals: z.coerce.number().int().min(0).max(6).default(0).describe("Fixed decimal places (count mode)."),
-  grouping: z.coerce.boolean().default(false).describe("Insert a thousands separator (count mode)."),
+  grouping: templateBoolean(false).describe("Insert a thousands separator (count mode)."),
   durationMs: msSchema(1600, "Roll duration in ms."),
   staggerMs: z.coerce.number().int().min(0).default(60).describe("Per-digit stagger (ms), cascading left→right."),
   easing: z.string().default("cubic-bezier(0.22,1,0.36,1)").describe("CSS easing for the roll."),

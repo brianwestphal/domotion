@@ -117,7 +117,9 @@ Numeric params should use `z.coerce.number()` so a CLI string flag (`--width
 960`) and a JSON value (`"width": 960`) both validate. The JSON-Schema
 projection (`templateParamsJsonSchema`, mirroring the animate-config schema in
 `src/cli/animate-config-json-schema.ts`) drives `--help` and tells the CLI which
-params take a boolean presence flag vs a string value.
+params take a boolean flag (`--<param>` / `--no-<param>`) vs a string value.
+Boolean params should use `templateBoolean(<default>)` (see doc 74) rather than
+`z.coerce.boolean()`, which turns the string `"false"` into `true`.
 
 ## CLI
 

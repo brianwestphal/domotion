@@ -9,6 +9,7 @@
  */
 
 import { z } from "zod";
+import { templateBoolean } from "../boolean-param.js";
 import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { Anims } from "../../cli/animate.js";
@@ -74,10 +75,7 @@ export const chartParamsSchema = z.object({
     .nonnegative()
     .default(4)
     .describe("Value-axis gridline / tick divisions (0 disables the scale)."),
-  showValues: z.coerce
-    .boolean()
-    .default(true)
-    .describe("Print each value at the end of its bar / point (single series only)."),
+  showValues: templateBoolean(true).describe("Print each value at the end of its bar / point (single series only)."),
   ...sizeSchema({ width: 1000, height: 600 }),
   background: cssValue().default("#0b1020").describe('Frame background (CSS color or "transparent").'),
   textColor: cssValue().default("#e6edf3").describe("Text / axis color (CSS color)."),
