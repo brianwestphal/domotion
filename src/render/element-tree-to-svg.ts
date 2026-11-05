@@ -118,6 +118,7 @@ import {
 import {
   inlineImgSvg,
   flattenImgSvg,
+  flattenedRootGroupAttributes,
   getFlattenNestedSvg,
   withFlattenNestedSvg,
   isSvgSafeToFlatten,
@@ -1135,7 +1136,10 @@ function flattenCapturedInlineSvg(
 
   const mf = (n: number): string => Number(n.toFixed(6)).toString();
   const m = `matrix(${mf(matrix.a)} ${mf(matrix.b)} ${mf(matrix.c)} ${mf(matrix.d)} ${mf(matrix.e)} ${mf(matrix.f)})`;
-  const group = `<g transform="${m}">${body}</g>`;
+  // DM-97E2CN: keep the root's inheritable presentation attributes (capture
+  // bakes the page-cascade `font-family` / `fill` / `stroke` there) — `sized`
+  // is already id/class-namespaced, so they are carried verbatim.
+  const group = `<g${flattenedRootGroupAttributes(attrs)} transform="${m}">${body}</g>`;
   const overflowVisible = /\boverflow\s*=\s*["']?\s*visible/i.test(attrs) || /\boverflow\s*:\s*visible/i.test(attrs);
   if (overflowVisible) return group;
   // A `<g>` doesn't clip like a viewport — add a deterministic rect clip. Without

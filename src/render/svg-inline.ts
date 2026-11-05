@@ -284,6 +284,39 @@ function stripAttrs(attrs: string, names: string[]): string {
   return out;
 }
 
+/** Root `<svg>` attributes a flattened `<g>` must NOT carry: the viewport and
+ *  layout attributes the viewport matrix replaces, namespace/version
+ *  declarations, the viewport-only `overflow`, and `transform` (the group's own
+ *  `transform` holds the viewport matrix, so keeping the root's would emit a
+ *  duplicate attribute). */
+const FLATTENED_ROOT_DROPPED_ATTRS = [
+  "x",
+  "y",
+  "width",
+  "height",
+  "viewBox",
+  "preserveAspectRatio",
+  "xmlns",
+  "xmlns:xlink",
+  "version",
+  "overflow",
+  "transform",
+];
+
+/**
+ * The attribute string (with its leading space, trailing space trimmed) that a
+ * flattened `<g>` keeps from the root `<svg>` it replaces. Inheritable
+ * presentation attributes on the root (`fill`, `stroke`, `font-family`, `color`,
+ * …), its `class`/`style`, and accessibility attributes must survive so the
+ * children inherit and match exactly what they did under the nested `<svg>`.
+ * DM-97E2CN: the DOM-inline flatten path previously dropped all of them, so the
+ * root `font-family` capture bakes from the page cascade vanished and SVG text
+ * fell back to the serif default.
+ */
+export function flattenedRootGroupAttributes(rootAttrs: string): string {
+  return stripAttrs(rootAttrs, FLATTENED_ROOT_DROPPED_ATTRS).replace(/\s+$/, "");
+}
+
 export interface InlineSvgPlacement {
   /** Content-box top-left + size to place the SVG at (px, already border/pad-adjusted). */
   x: number;
@@ -500,21 +533,7 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
   // Inheritable presentation properties + currentColor context on the root svg
   // must survive: carry a root `color`/`fill`/… by keeping the source svg's
   // presentation attrs on the group (strip layout attrs it must not carry).
-  const groupAttrs = prefixSvgIds(
-    stripAttrs(attrs, [
-      "x",
-      "y",
-      "width",
-      "height",
-      "viewBox",
-      "preserveAspectRatio",
-      "xmlns",
-      "xmlns:xlink",
-      "version",
-      "overflow",
-    ]),
-    p.idPrefix,
-  ).replace(/\s+$/, "");
+  const groupAttrs = prefixSvgIds(flattenedRootGroupAttributes(attrs), p.idPrefix);
 
   // The `r()` px formatter rounds to 1 decimal — fine for coordinates but far
   // too coarse for the scale/skew components (0.6667 would round to 0.7, a ~5%

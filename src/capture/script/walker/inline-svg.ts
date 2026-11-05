@@ -259,6 +259,43 @@ export const captureInlineSvg = (
   // non-scaling-stroke geometry, and gradient interpolation; capture only
   // makes Blink's chosen class self-contained.
   const _bakeSvgNativePaintProps = ["marker-start", "marker-mid", "marker-end", "vector-effect", "color-interpolation"];
+  // DM-97E2CN: text presentation is inherited CSS, so a re-embedded SVG loses
+  // every value the page cascade supplied (a `font-family: var(--token)` on the
+  // <svg>, a class-driven `font-size` / `text-anchor` on a <text>) and falls
+  // back to the serif default at 16px, start-anchored. Bake the resolved values
+  // onto each text-content element as inline declarations, which win over any
+  // XML attribute exactly as the computed winner did. A <text> carries the full
+  // set; a nested <tspan> / <textPath> only the values that differ from its
+  // parent's, since the output inherits the rest from the baked <text>.
+  const _bakeSvgTextProps = [
+    "font-family",
+    "font-size",
+    "font-weight",
+    "font-style",
+    "font-stretch",
+    "font-variant-numeric",
+    "text-anchor",
+    "dominant-baseline",
+    "letter-spacing",
+    "word-spacing",
+  ];
+  const _svgTextContentTags = new Set(["text", "tspan", "textpath"]);
+  // getComputedStyle serializes font-stretch as a percentage. Write the
+  // equivalent keyword instead (CSS Fonts 4 §2.4 defines the nine keywords as
+  // exactly these percentages): a bare `%` in the emitted markup reads as
+  // viewport-relative geometry to the flatten safety check, which would then
+  // refuse to flatten every SVG that contains text.
+  const _fontStretchKeywords: Record<string, string> = {
+    "50%": "ultra-condensed",
+    "62.5%": "extra-condensed",
+    "75%": "condensed",
+    "87.5%": "semi-condensed",
+    "100%": "normal",
+    "112.5%": "semi-expanded",
+    "125%": "expanded",
+    "150%": "extra-expanded",
+    "200%": "ultra-expanded",
+  };
   // DM-720: SVG 2 promotes geometry properties (cx/cy/r/rx/ry/x/y/width/
   // height/d) to CSS — modern Chrome resolves them from the cascade. When
   // a fixture sets them entirely from CSS (no XML attrs on the element),
@@ -339,6 +376,21 @@ export const captureInlineSvg = (
       for (const prop of _bakeSvgNativePaintProps) {
         const value = ocs.getPropertyValue(prop).trim();
         if (value !== "") cloneNode.style.setProperty(prop, value);
+      }
+      const textTag = (origNode.localName || "").toLowerCase();
+      if (_svgTextContentTags.has(textTag)) {
+        const parent = origNode.parentElement;
+        const pcs =
+          textTag !== "text" && parent != null && _svgTextContentTags.has((parent.localName || "").toLowerCase())
+            ? window.getComputedStyle(parent)
+            : null;
+        for (const prop of _bakeSvgTextProps) {
+          let value = ocs.getPropertyValue(prop).trim();
+          if (value === "") continue;
+          if (pcs != null && pcs.getPropertyValue(prop).trim() === value) continue;
+          if (prop === "font-stretch") value = _fontStretchKeywords[value] ?? value;
+          cloneNode.style.setProperty(prop, value);
+        }
       }
       // DM-720 / DM-2414: bake CSS-driven geometry. A presentation
       // attribute participates at the bottom of the author cascade, so a

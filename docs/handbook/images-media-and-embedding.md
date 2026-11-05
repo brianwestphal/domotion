@@ -27,7 +27,10 @@ aliases: ["docs/handbook/images-media-and-embedding.md"]
    embedded, and no runtime script is added. Viewer sanitization may reduce an
    animation to its static frame but must not create an external dependency.
 2. Ordinary images preserve source bytes or a deterministic bounded resize.
-   Inline SVG keeps resource/reference semantics. Canvas, video, object, embed,
+   Inline SVG keeps resource/reference semantics, and the presentation it
+   inherits from the page cascade (paint, CSS geometry, and text such as
+   `font-family` / `font-size` / `text-anchor`) is baked onto the cloned nodes
+   ([doc 96](../96-native-svg-image-inlining.md)). Canvas, video, object, embed,
    broken-image, and other replaced content cross an explicit ownership gate.
 3. Time-dependent media is captured only from a coherent authenticated frame.
    Animated-image indexed capture is opt-in: owner bytes, decode, frame

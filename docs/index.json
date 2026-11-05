@@ -2367,9 +2367,10 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1592", "DM-1593", "DM-1595"],
+        "tickets": ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN"],
         "code": [
           "src/capture/embed.ts",
+          "src/capture/script/walker/inline-svg.ts",
           "src/cli/animate-orchestrator.ts",
           "src/cli/capture.ts",
           "src/cli/index.ts",
@@ -2377,6 +2378,7 @@
           "src/render/resolve-svg-source.test.ts",
           "src/render/svg-inline.test.ts",
           "src/render/svg-inline.ts",
+          "tests/inline-svg-text-presentation.e2e.test.ts",
           "tests/inline-svg-textpath-oracle.e2e.test.ts",
           "tests/replaced-used-size.e2e.test.ts"
         ],

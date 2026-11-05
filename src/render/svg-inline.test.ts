@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   inlineImgSvg,
   flattenImgSvg,
+  flattenedRootGroupAttributes,
   isSvgSafeToFlatten,
   prefixSvgIds,
   prefixSvgClasses,
@@ -414,6 +415,34 @@ describe("isSvgSafeToFlatten — the gate (DM-K0S6ZS)", () => {
     expect(isSvgSafeToFlatten(`<style>path{fill:red}</style><path d="M0 0h1v1z"/>`)).toBe(false);
     expect(isSvgSafeToFlatten(`<style>*{fill:red}</style><path d="M0 0h1v1z"/>`)).toBe(false);
   });
+});
+
+describe("flattenedRootGroupAttributes (DM-97E2CN)", () => {
+  it("keeps inheritable presentation, class, style and a11y attributes", () => {
+    const attrs = ` class="gauge" viewBox="0 0 100 60" fill="red" font-family="Helvetica, sans-serif" style="overflow: hidden;" role="img" width="200" height="120"`;
+    expect(flattenedRootGroupAttributes(attrs)).toBe(
+      ` class="gauge" fill="red" font-family="Helvetica, sans-serif" style="overflow: hidden;" role="img"`,
+    );
+  });
+
+  it("drops viewport, namespace and transform attributes the group must not carry", () => {
+    const attrs = ` xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" x="1" y="2" preserveAspectRatio="none" overflow="visible" transform="scale(2)" `;
+    expect(flattenedRootGroupAttributes(attrs)).toBe("");
+  });
+});
+
+it("flattenImgSvg never emits a duplicate transform attribute from a root transform", () => {
+  const out = flattenImgSvg(`<svg viewBox="0 0 24 24" transform="scale(2)" fill="red"><path d="M0 0h1v1z"/></svg>`, {
+    x: 0,
+    y: 0,
+    w: 24,
+    h: 24,
+    par: "xMidYMid meet",
+    idPrefix: "p",
+  });
+  expect(out).not.toBeNull();
+  expect(out!.match(/<g[^>]*>/g)!.some((tag) => (tag.match(/\btransform=/g) ?? []).length > 1)).toBe(false);
+  expect(out).toContain('fill="red"');
 });
 
 describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {

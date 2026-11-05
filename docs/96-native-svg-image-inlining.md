@@ -5,10 +5,11 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1592", "DM-1593", "DM-1595"]
+tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN"]
 code:
   [
     "src/capture/embed.ts",
+    "src/capture/script/walker/inline-svg.ts",
     "src/cli/animate-orchestrator.ts",
     "src/cli/capture.ts",
     "src/cli/index.ts",
@@ -16,6 +17,7 @@ code:
     "src/render/resolve-svg-source.test.ts",
     "src/render/svg-inline.test.ts",
     "src/render/svg-inline.ts",
+    "tests/inline-svg-text-presentation.e2e.test.ts",
     "tests/inline-svg-textpath-oracle.e2e.test.ts",
     "tests/replaced-used-size.e2e.test.ts",
   ]
@@ -67,6 +69,10 @@ The result is emitted by `paintImage` in `src/render/element-tree-to-svg.ts`. A 
 ### Flattened output (`--flatten-nested-svg`)
 
 `domotion capture <input> --flatten-nested-svg` is an opt-in compatibility mode for consumers that have trouble importing nested `<svg>` elements. For an inlined SVG image, `flattenImgSvg` replaces the nested viewport with a positioned `<g transform="matrix(…)">` and adds a rectangular clip when the source SVG hides overflow. The ordinary nested `<svg>` remains the default.
+
+The same flag flattens a DOM-inline `<svg>` (`flattenCapturedInlineSvg` in `src/render/element-tree-to-svg.ts`). In both paths the group keeps the root's own attributes (`flattenedRootGroupAttributes` in `src/render/svg-inline.ts`), dropping only the viewport, namespace, `overflow` and `transform` attributes that the group's matrix and clip replace. That keeps inheritable presentation on the root, such as `fill`, `stroke`, `color` and the `font-family` that capture bakes from the page cascade, so children inherit exactly what they did under the nested `<svg>`. Before this, the DOM-inline path dropped every root attribute, and SVG text fell back to the serif default.
+
+Capture also bakes the resolved text presentation onto each DOM-inline `<text>` as inline declarations, because none of it survives outside the page cascade: `font-family`, `font-size`, `font-weight`, `font-style`, `font-stretch` (written as its keyword), `font-variant-numeric`, `text-anchor`, `dominant-baseline`, `letter-spacing` and `word-spacing`. A nested `<tspan>` or `<textPath>` carries only the values that differ from its parent's. This bake lives in `_walkBake` in `src/capture/script/walker/inline-svg.ts`.
 
 Flattening is conservative. The renderer keeps the nested `<svg>` when the source lacks a usable coordinate system, uses viewport-relative percentages in painted geometry or user-space definitions, has CSS selectors beyond scoped class/id selectors, contains another `<svg>`, `<symbol>`, `<use>`, `<foreignObject>`, or `<image>`, or uses `vector-effect="non-scaling-stroke"`. The same fallback applies if the source cannot be parsed as an SVG. It does not turn the image into a raster.
 

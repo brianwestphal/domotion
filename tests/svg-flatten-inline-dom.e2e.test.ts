@@ -45,7 +45,8 @@ describe("captured DOM inline <svg> flattening (DM-7AN9AH)", () => {
     const nested = render(tree, false);
     const flat = render(tree, true);
     expect(nested).toMatch(/<svg[^>]*viewBox="0 0 24 24"/); // baseline keeps the nested <svg>
-    expect(flat).toMatch(/<g transform="matrix\(1\.666667 0 0 1\.666667 8 8\)"/); // 40/24 scale at (8,8)
+    // 40/24 scale at (8,8); the group also carries the root's baked presentation attrs (DM-97E2CN)
+    expect(flat).toMatch(/<g [^>]*transform="matrix\(1\.666667 0 0 1\.666667 8 8\)"/);
     expect(flat).not.toMatch(/<svg[^>]*viewBox="0 0 24 24"/); // the nested <svg> wrapper is gone
     expect(flat).toContain('fill="#39c"'); // the circle survived the flatten
 
