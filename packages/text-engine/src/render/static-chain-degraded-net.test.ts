@@ -48,10 +48,16 @@ describe("static chain is a degraded-mode net — no such stage in FontFallbackI
     // gate is a predicate an integration test cannot vary (helper presence is
     // process-global and memoized), so pin the mechanism at the source level.
     const norm = SRC.replace(/\s+/g, " ");
-    expect(norm).toContain(
-      'const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !systemFallbackResolutionEnabled;',
+    // The gate opens the static-chain stage function itself, so no caller can
+    // reach the chain walk without passing it.
+    const stage = norm.slice(
+      norm.indexOf("function resolveStaticFallbackChain(walk: FallbackWalk): FontResolution | null {"),
     );
-    expect(norm).toContain("const staticChain = (): FontResolution | null => { if (!staticChainArmed) return null;");
+    expect(stage.length).toBeLessThan(norm.length);
+    expect(stage).toContain(
+      'const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !systemFallbackResolutionEnabled; if (!staticChainArmed) return null;',
+    );
+    expect(stage.indexOf("if (!staticChainArmed) return null;")).toBeLessThan(stage.indexOf("fallbackFontChain("));
   });
 
   const thaiFace = getFontInstance("thai", 400, 16, 0);

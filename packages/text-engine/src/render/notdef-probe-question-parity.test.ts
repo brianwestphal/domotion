@@ -179,7 +179,7 @@ describe("dotted-circle coverage probe shares the resolver's walk", () => {
   });
 
   it("hands the system-fallback resolver the same arguments from every remaining run-context asker", () => {
-    expect(normalizedSource(functionBody(CODEPOINT_RESOLVER_SRC, "walkFontFallbackStages"))).toContain(
+    expect(normalizedSource(functionBody(CODEPOINT_RESOLVER_SRC, "resolveLiveSystemFallback"))).toContain(
       "resolveSystemFallbackKeyForRequest(request)",
     );
     const perAsker = RUN_CONTEXT_ASKERS.map((name) => {

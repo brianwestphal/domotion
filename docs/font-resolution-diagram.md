@@ -1246,7 +1246,7 @@ flowchart TD
   FSF -->|"yes"| FSF1["SF Pro coverage hook:<br/>sysfb:SF-Pro-*.otf covers cp?<br/>(the few glyphs SFNS lacks: circled 21-50 etc.)"]
   FSF1 --> F2
   FSF -->|"no"| F2["1. kFontFamily: walk fontKeyChain<br/>(declared stack, then preferred STANDARD)<br/>literal coverage only in supported mode;<br/>JS NFD prediction is helper-absent compatibility<br/>(chain EMPTY: step 0b first — primary's NFD singleton /<br/>in-font canonical decomposition via hb proxy)"]
-  F2 --> F2A["for each key: instanceFor(key)<br/>glyphForCodePoint(cp)?"]
+  F2 --> F2A["for each key: fallbackChainInstance(request, key)<br/>glyphForCodePoint(cp)?"]
   F2A -->|"hit"| F2H["cover(key)"]
   F2A -->|"none"| FPUA{"isPrivateUseCodepoint(cp) ||<br/>isNonCharacterCodepoint(cp)?<br/>(Blink: FontCache::FallbackFontForCharacter<br/>returns null BEFORE any platform fallback)"}
   FPUA -->|"yes — no system fallback"| FLR{"Blink's explicit last-resort face covers cp?<br/>darwin: times, then lucida-grande ONLY if Times cannot be opened<br/>(font_fallback_iterator.cc:143-162, font_cache_mac.mm:376-393)<br/>win32: arial — the generic name and Sans open no DirectWrite family<br/>(font_cache_skia.cc:146-172)"}
@@ -1278,7 +1278,7 @@ flowchart TD
 
 Notes:
 
-- `instanceFor(key)` materializes a chain key to an instance —
+- `fallbackChainInstance(request, key)` materializes a chain key to an instance —
   webfont-partition-aware (`pickWebfontVariantForCodepoint`), and only the
   **primary** carries the author's `font-variation-settings`.
 - **The supported post-step routes all SHAPING to HarfBuzz without moving the OUTLINES.**
@@ -1728,6 +1728,13 @@ Those runs skip the hook and reach the live resolver's `systemUi` base.
 **Source of truth:** `resolveFontForCodepoint` / `codepointResolvesToNotdef` /
 `sfProCoverageOtfKey` in `shaping-route.ts` and `decomposeMathAlphaRun` in
 `fallback-chain.ts` (`resolveFontForCodepoint` lives in `codepoint-resolver.ts`).
+There, `walkFontFallbackStages` is a coordinator over one function per stage in the
+order drawn above: `resolveComplexShaperDecomposition`, `resolvePrimaryLiteralCoverage`,
+`resolvePrimarySameFaceNormalization`, `resolveSfProCoverageOtf`,
+`resolvePrimaryDecompositionWithoutChain` (step 0b), `resolveDeclaredFamilyFallback`
+(kFontFamily), `resolveNoSystemFallbackTerminal`, `resolveWin32StandardStyleRetry`,
+`resolveSystemFontsStage` (kSystemFonts: `resolveLiveSystemFallback` and
+`resolveStaticFallbackChain`), and `resolveHelperAbsentMathAlpha`.
 Doc [80](80-cross-platform-system-fallback-resolver.md).
 
 ---
@@ -1851,7 +1858,7 @@ stage order that produces, matching Blink's:
 
 Blink also runs `FallbackOnStandardFontStyle` **before** stage 1
 (`win/font_cache_skia_win.cc:270-277`, threshold `kBoldWeightValue = 700` —
-not Linux's 600): that is the win32 pre-stage in `resolveFontForCodepointInner`
+not Linux's 600): that is the win32 pre-stage `resolveWin32StandardStyleRetry` in `codepoint-resolver.ts`
 (§6), ahead of this chain, not part of it.
 
 ```mermaid

@@ -187,34 +187,96 @@ export function coveredFontResolution(
 }
 
 function walkFontFallbackStages(request: FontRequest): FontResolution {
-  const {
-    cp,
-    primaryFont,
-    primaryFontKey,
-    weight,
-    fontSize,
-    slant,
-    variationSettings,
-    lang,
-    fontKeyChain,
-    systemUiPrimary,
-    stretch,
-    fontVariantEmoji,
-    semanticContext,
-  } = request;
+  _stageStats.calls++;
+  const walk = buildFallbackWalk(request);
+  const complexShaped = resolveComplexShaperDecomposition(walk);
+  if (complexShaped != null) return complexShaped;
+
+  // NOTE (DM-1688): a per-codepoint SF-cascade guard was tried here and REVERTED.
+  // Chrome's own ground truth (CDP getPlatformFontsForNode) shows Chrome paints
+  // the squared / circled / enclosed alphanumerics AND Latin-Extended (🄰 ① Ɓ …)
+  // from SF Pro Text (SFNS) — i.e. the fast-path below is already correct. Only a
+  // narrow set (🅪🅫 U+1F16A/1F16B RAISED MC/MD) is genuinely cascaded off the SF
+  // UI font (→ New York). Detecting THAT precisely needs the SF UI font's real
+  // coverage (CTFontCreateUIFontForLanguage + CTFontGetGlyphsForCharacters — a
+  // glyph-helper addition); the CoreText default-base (Helvetica) system-fallback
+  // query is NOT a valid proxy — it cascades every codepoint Helvetica lacks
+  // (all of Latin-Extended-B, the enclosed alphanumerics) that SF actually paints,
+  // so gating on it mis-routes those. Left as a documented 2-codepoint residual.
+
+  // 0. Primary fast-path, then HarfBuzz's same-face normalizations.
+  const primaryLiteral = resolvePrimaryLiteralCoverage(walk);
+  if (primaryLiteral != null) return primaryLiteral;
+  const alias = resolveCanonicalAlias(walk);
+  const primaryNormalized = resolvePrimarySameFaceNormalization(walk, alias);
+  if (primaryNormalized != null) return primaryNormalized;
+  const sfProOtf = resolveSfProCoverageOtf(walk);
+  if (sfProOtf != null) return sfProOtf;
+
+  // 0b. / 1. The primary's decompositions when the chain is empty, then kFontFamily.
+  const decompositions = buildCanonicalDecompositions(walk);
+  const primaryDecomposed = resolvePrimaryDecompositionWithoutChain(walk, decompositions);
+  if (primaryDecomposed != null) return primaryDecomposed;
+  const declared = resolveDeclaredFamilyFallback(walk, alias, decompositions);
+  if (declared != null) return declared;
+
+  // 2. kSystemFonts: the private-use / noncharacter terminal, the win32
+  // standard-style pre-stage, then the live resolver and the static chain.
+  const noSystemFallback = resolveNoSystemFallbackTerminal(walk);
+  if (noSystemFallback != null) return noSystemFallback;
+  _stageStats.systemStageReached++;
+  const standardStyle = resolveWin32StandardStyleRetry(walk);
+  if (standardStyle != null) return standardStyle;
+  const system = resolveSystemFontsStage(walk, decompositions.singleton);
+  if (system != null) return system;
+
+  // 3. Helper-absent compatibility only.
+  const mathAlpha = resolveHelperAbsentMathAlpha(walk);
+  if (mathAlpha != null) return mathAlpha;
+
+  // 4. kOutOfLuck — nothing covers it; caller applies its own uncovered terminal.
+  _stageStats.uncovered++;
+  return { key: request.primaryFontKey, fontOverride: null, emitCh: walk.ch, decomposed: false, covered: false };
+}
+
+/** Per-request state every fallback stage reads; built once per codepoint decision. */
+interface FallbackWalk {
+  readonly request: FontRequest;
+  /** The serialized request carrier's family stack (see `buildFallbackWalk`). */
+  readonly declaredFamily: string | undefined;
+  readonly ch: string;
+  /** Both native companions (glyph helper and pinned ICU) are available. */
+  readonly helperBacked: boolean;
+  /** Linux and Windows: HarfBuzz's same-face normalizations are modeled ahead of fallback. */
+  readonly sameFaceNormalization: boolean;
+}
+
+function buildFallbackWalk(request: FontRequest): FallbackWalk {
   // From this point the serialized request carrier is the sole owner. Keeping
   // the legacy scalar only in the public signature preserves call compatibility
   // without allowing hardcoded and live stages to answer different stacks.
-  const declaredFamily = semanticContext.declaredFamily;
-  _stageStats.calls++;
-  const ch = String.fromCodePoint(cp);
+  const declaredFamily = request.semanticContext.declaredFamily;
+  const ch = String.fromCodePoint(request.cp);
   const helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable();
   const platform = hostPlatform();
   const linux = platform === "linux";
   const sameFaceNormalization = linux || platform === "win32";
-  const cover = (key: string, fontOverride: FontInstance | null, emitCh = ch, decomposed = false): FontResolution =>
-    coveredFontResolution(key, fontOverride, emitCh, decomposed);
+  return { request, declaredFamily, ch, helperBacked, sameFaceNormalization };
+}
 
+/** The common covered result, defaulting `emitCh` to the walk's source character. */
+function walkCover(
+  walk: FallbackWalk,
+): (key: string, fontOverride: FontInstance | null, emitCh?: string, decomposed?: boolean) => FontResolution {
+  return (key, fontOverride, emitCh = walk.ch, decomposed = false) =>
+    coveredFontResolution(key, fontOverride, emitCh, decomposed);
+}
+
+/** Helper-absent HarfBuzz proxy for a complex-script letter with a base+mark decomposition. */
+function resolveComplexShaperDecomposition(walk: FallbackWalk): FontResolution | null {
+  const { cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings } = walk.request;
+  const { ch, helperBacked } = walk;
+  const cover = walkCover(walk);
   // DM-1197: complex-script letters with a canonical base+mark NFD (e.g. Kaithi
   // U+110AB VA) shape DIFFERENTLY in Chrome (HarfBuzz decomposes + GPOS-positions
   // the nukta) than in Domotion's macOS CoreText helper (recomposes to the
@@ -243,19 +305,13 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
       }
     }
   }
+  return null;
+}
 
-  // NOTE (DM-1688): a per-codepoint SF-cascade guard was tried here and REVERTED.
-  // Chrome's own ground truth (CDP getPlatformFontsForNode) shows Chrome paints
-  // the squared / circled / enclosed alphanumerics AND Latin-Extended (🄰 ① Ɓ …)
-  // from SF Pro Text (SFNS) — i.e. the fast-path below is already correct. Only a
-  // narrow set (🅪🅫 U+1F16A/1F16B RAISED MC/MD) is genuinely cascaded off the SF
-  // UI font (→ New York). Detecting THAT precisely needs the SF UI font's real
-  // coverage (CTFontCreateUIFontForLanguage + CTFontGetGlyphsForCharacters — a
-  // glyph-helper addition); the CoreText default-base (Helvetica) system-fallback
-  // query is NOT a valid proxy — it cascades every codepoint Helvetica lacks
-  // (all of Latin-Extended-B, the enclosed alphanumerics) that SF actually paints,
-  // so gating on it mis-routes those. Left as a documented 2-codepoint residual.
-
+/** Step 0: literal coverage in the run's primary font. */
+function resolvePrimaryLiteralCoverage(walk: FallbackWalk): FontResolution | null {
+  const { cp, primaryFont, primaryFontKey } = walk.request;
+  const cover = walkCover(walk);
   // 0. Primary fast-path: literal coverage in the run's primary font.
   //
   // On a helper-backed primary this is one IPC round trip PER CODEPOINT and it
@@ -282,20 +338,41 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null);
   }
+  return null;
+}
 
-  // HarfBuzz can normalize a canonical alias to another composed scalar in
-  // this same face before font fallback. Greek oxia letters (U+1F71 → U+03AC),
-  // GREEK QUESTION MARK (U+037E → ';'), and KELVIN SIGN (U+212A → 'K') all
-  // exercise this on noble. A literal fontconfig query picks another family.
-  // The Windows exhaustive cohort shows the same shape-first decision for
-  // U+212A under several generics: Chrome stays on the declared face while a
-  // literal-only walk falls to Times New Roman.
+/** A canonical alias HarfBuzz may normalize to inside the same face. */
+interface CanonicalAlias {
+  readonly canonical: string;
+  readonly canonicalAliasCp: number | null;
+}
+
+/**
+ * HarfBuzz can normalize a canonical alias to another composed scalar in
+ * this same face before font fallback. Greek oxia letters (U+1F71 → U+03AC),
+ * GREEK QUESTION MARK (U+037E → ';'), and KELVIN SIGN (U+212A → 'K') all
+ * exercise this on noble. A literal fontconfig query picks another family.
+ * The Windows exhaustive cohort shows the same shape-first decision for
+ * U+212A under several generics: Chrome stays on the declared face while a
+ * literal-only walk falls to Times New Roman.
+ */
+function resolveCanonicalAlias(walk: FallbackWalk): CanonicalAlias {
+  const { ch, sameFaceNormalization } = walk;
   const canonical = ch.normalize("NFC");
   const canonicalCp = canonical.codePointAt(0);
   const canonicalAliasCp =
     sameFaceNormalization && canonical !== ch && canonicalCp != null && String.fromCodePoint(canonicalCp) === canonical
       ? canonicalCp
       : null;
+  return { canonical, canonicalAliasCp };
+}
+
+/** The primary's same-face normalizations: canonical alias, U+2011, line/paragraph separators, spaces. */
+function resolvePrimarySameFaceNormalization(walk: FallbackWalk, alias: CanonicalAlias): FontResolution | null {
+  const { cp, primaryFont, primaryFontKey } = walk.request;
+  const { sameFaceNormalization } = walk;
+  const { canonical, canonicalAliasCp } = alias;
+  const cover = walkCover(walk);
   if (canonicalAliasCp != null && glyphIdForCp(primaryFont, canonicalAliasCp) !== 0) {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null, canonical, true);
@@ -334,7 +411,13 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     _stageStats.fastPathPrimary++;
     return cover(primaryFontKey, null, " ");
   }
+  return null;
+}
 
+/** macOS SF Pro coverage hook: the standalone OTF for the few glyphs SFNS lacks. */
+function resolveSfProCoverageOtf(walk: FallbackWalk): FontResolution | null {
+  const { cp, primaryFontKey, weight, fontSize, slant, systemUiPrimary } = walk.request;
+  const cover = walkCover(walk);
   // DM-1659: SF Pro Text/Display and the system font resolve to SFNS (matching
   // Chrome's PAINTED glyph shapes — see matchFamilyNameToKey). But SFNS lacks a
   // few glyphs the standalone `/Library/Fonts/SF-Pro-*.otf` carries (the two-digit
@@ -360,7 +443,18 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
       if (otf != null && glyphIdForCp(otf, cp) !== 0) return cover(otfKey, otf);
     }
   }
+  return null;
+}
 
+/** The canonical decompositions HarfBuzz may shape a missing codepoint as. */
+interface CanonicalDecompositions {
+  readonly singleton: number | null;
+  readonly decompositionCandidates: ReturnType<typeof harfbuzzCanonicalDecompositionCandidates>;
+}
+
+function buildCanonicalDecompositions(walk: FallbackWalk): CanonicalDecompositions {
+  const { cp } = walk.request;
+  const { ch, helperBacked } = walk;
   // Canonical NFD singleton (e.g. U+2F800→U+4E3D). null when `cp` has no
   // single-codepoint canonical decomposition — multi-char decompositions are not
   // a font-substitution case here.
@@ -406,20 +500,34 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // Keep the established base+mark gate for ordinary cases, but add mark-only
   // decompositions such as U+0344 that HarfBuzz normalizes by the same rule.
   const decompositionCandidates = baseMarkNfd != null || canonicalCandidates.length > 0 ? canonicalCandidates : [];
+  return { singleton, decompositionCandidates };
+}
 
-  // Materialize a chain key to an instance — webfont-partition-aware, and only
-  // the primary carries the author's font-variation-settings.
-  const instanceFor = (key: string): FontInstance | null => {
-    const fvs = key === primaryFontKey ? variationSettings : undefined;
-    if (key === primaryFontKey) return primaryFont;
-    if (key.startsWith("webfont:")) {
-      const family = key.slice("webfont:".length);
-      const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
-      if (v != null) return v;
-    }
-    return getFontInstance(key, weight, fontSize, slant, fvs);
-  };
+/**
+ * Materialize a chain key to an instance — webfont-partition-aware, and only
+ * the primary carries the author's font-variation-settings.
+ */
+function fallbackChainInstance(request: FontRequest, key: string): FontInstance | null {
+  const { cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, stretch } = request;
+  const fvs = key === primaryFontKey ? variationSettings : undefined;
+  if (key === primaryFontKey) return primaryFont;
+  if (key.startsWith("webfont:")) {
+    const family = key.slice("webfont:".length);
+    const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
+    if (v != null) return v;
+  }
+  return getFontInstance(key, weight, fontSize, slant, fvs);
+}
 
+/** Step 0b: the primary's decomposition checks, when the declared chain is empty. */
+function resolvePrimaryDecompositionWithoutChain(
+  walk: FallbackWalk,
+  decompositions: CanonicalDecompositions,
+): FontResolution | null {
+  const { primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, fontKeyChain } = walk.request;
+  const { ch } = walk;
+  const { singleton, decompositionCandidates } = decompositions;
+  const cover = walkCover(walk);
   // 0b. The primary's DECOMPOSITION checks, when the chain cannot give them.
   //
   // Step 0 above tests the primary for LITERAL coverage only; the singleton and
@@ -471,10 +579,23 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
       }
     }
   }
+  return null;
+}
 
+/** Step 1: kFontFamily, the declared families (literal, then in-font normalization and decomposition). */
+function resolveDeclaredFamilyFallback(
+  walk: FallbackWalk,
+  alias: CanonicalAlias,
+  decompositions: CanonicalDecompositions,
+): FontResolution | null {
+  const { request, ch, sameFaceNormalization } = walk;
+  const { cp, primaryFontKey, weight, fontSize, slant, variationSettings, fontKeyChain } = request;
+  const { canonical, canonicalAliasCp } = alias;
+  const { singleton, decompositionCandidates } = decompositions;
+  const cover = walkCover(walk);
   // 1. kFontFamily — walk the declared families (literal, then in-font decomp).
   for (const key of fontKeyChain) {
-    const inst = instanceFor(key);
+    const inst = fallbackChainInstance(request, key);
     if (inst == null) continue;
     // Same prove-non-coverage-only use of the bitset as the primary fast-path
     // above — see the reasoning there for why a positive is never taken from
@@ -516,131 +637,104 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
       }
     }
   }
+  return null;
+}
 
-  // 2. kSystemFonts.
-  //
-  // Blink has exactly ONE stage here, and it is the OS. `FontFallbackIterator::Next`
-  // (font_fallback_iterator.cc:120-157, Chromium rev 7d859f27) runs
-  // kFontGroupFonts / kSegmentedFace → (kFallbackPriorityFonts, one-shot) →
-  // **kSystemFonts = `UniqueSystemFontForHintList`** → kFirstCandidateForNotdefGlyph
-  // → kOutOfLuck. There is no static per-Unicode-block table anywhere in that
-  // walk; `UniqueSystemFontForHintList` goes straight to the platform fallback
-  // (`CTFontCreateForString` on macOS).
-  //
-  // Our static `fallbackFontChain` is therefore an EXTRA stage, sitting exactly
-  // where Blink asks the OS — so whenever it answers first, Chrome's question is
-  // never asked (docs/106). Measured cost of that shadowing, back when it did:
-  // the UI-font cascade base, verified 18/18 against Chrome, moved the CJK slice
-  // by 55 rows out of an expected 83,838, purely because `[pingfang-sc, cjk]`
-  // covers Han and the walk stopped there.
-  //
-  // So the OS goes first, and the static chain is a DEGRADED-MODE net on
-  // macOS and Linux — not a competitor and not a second-chance stage. Blink
-  // runs no such stage at all, so when the live resolver is in the loop the
-  // chain must not answer. Measured before the gate: over the darwin
-  // conformance corpus the chain was ASKED 492,624 times (~64% of the
-  // resolver's coverage probes) and ANSWERED 6 of 916,119 system-stage
-  // decisions — every answer a variation selector U+FE0x routed to
-  // `u-noto-sans`, a divergence from Chrome, not coverage (on Linux: 0
-  // answers in 779,964). The chain still earns its keep exactly where the
-  // live resolver cannot run — a host without the helper binary
-  // (`DOMOTION_DISABLE_HELPER`, or an npm install with no prebuilt helper) or
-  // a resolver flagged off (`DOMOTION_SYSTEM_FALLBACK=0` on Linux; macOS
-  // ignores that variable, so there only the in-process
-  // `setSystemFallbackResolutionEnabled(false)` flags it off) — and outright
-  // deletion would drop every fallback answer on such a host, so the gate is
-  // the availability predicate itself rather than a removal.
-  //
-  // win32 is EXCLUDED from the gate on purpose: there the hardcoded table IS
-  // Blink's mechanism — `PlatformFallbackFontForCharacter` consults
-  // `GetFallbackFamilyNameFromHardcodedChoices` BEFORE DirectWrite and only
-  // falls through on a miss (`win/font_cache_skia_win.cc:286-296`, rev
-  // 7d859f27) — so the win32 chain runs unconditionally, and first
-  // (`liveFallbackFirst` is false on win32). Its generated per-block tail is
-  // separately deferred behind the live resolver by `win32DeferOrStatic`.
-  // `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order for an
-  // A/B; see the flag's declaration for the measurement that set the default.
-  const liveFallback = (): FontResolution | null => {
-    if (!systemFallbackResolutionEnabled) return null;
-    _stageStats.liveAsked++;
-    const nominatedKey = resolveSystemFallbackKeyForRequest(request);
-    if (nominatedKey == null) return null;
-    const sysKey = exactSystemFallbackKey(nominatedKey);
-    const sf = getFontInstance(sysKey, weight, fontSize, slant);
-    if (sf == null) return null;
-    // DM-1986: coverage is the CMAP question — see `fontCoversCp`. The id test
-    // discarded the live resolver's own answer for every emoji-presentation
-    // codepoint on Linux, because the font it names (`NotoColorEmoji.ttf`) is
-    // bitmap-only and yields no Glyph object.
-    // The helper now answers coverage with the nomination (as the Linux
-    // `fcfallback` query always has), so the second round trip this line used to
-    // cost is gone wherever the binary reports it. `??` rather than a default:
-    // an older helper omits the field, and treating "absent" as "not covered"
-    // would silently discard every live answer.
-    if (systemFallbackCoverage.get(`${nominatedKey}|${cp}`) ?? fontCoversCp(sf, cp)) {
-      _stageStats.liveAnswered++;
-      return cover(sysKey, null);
-    }
-    if (singleton != null && fontCoversCp(sf, singleton)) {
-      _stageStats.liveAnswered++;
-      return cover(sysKey, null, String.fromCodePoint(singleton), true);
-    }
-    return null;
-  };
-  const recordStaticAnswer = (candidateKey: string): void => {
-    _stageStats.staticAnswered++;
-    _stageStats.staticKeyTally.set(candidateKey, (_stageStats.staticKeyTally.get(candidateKey) ?? 0) + 1);
-    _stageStats.staticPrimaryTally.set(primaryFontKey, (_stageStats.staticPrimaryTally.get(primaryFontKey) ?? 0) + 1);
-    if (_stageStats.staticCpSample.length < STATIC_CP_SAMPLE_CAP) _stageStats.staticCpSample.push(cp);
-  };
+/** The kSystemFonts platform call itself: CoreText, fontconfig or DirectWrite. */
+function resolveLiveSystemFallback(walk: FallbackWalk, singleton: number | null): FontResolution | null {
+  const { request } = walk;
+  const { cp, weight, fontSize, slant } = request;
+  const cover = walkCover(walk);
+  if (!systemFallbackResolutionEnabled) return null;
+  _stageStats.liveAsked++;
+  const nominatedKey = resolveSystemFallbackKeyForRequest(request);
+  if (nominatedKey == null) return null;
+  const sysKey = exactSystemFallbackKey(nominatedKey);
+  const sf = getFontInstance(sysKey, weight, fontSize, slant);
+  if (sf == null) return null;
+  // DM-1986: coverage is the CMAP question — see `fontCoversCp`. The id test
+  // discarded the live resolver's own answer for every emoji-presentation
+  // codepoint on Linux, because the font it names (`NotoColorEmoji.ttf`) is
+  // bitmap-only and yields no Glyph object.
+  // The helper now answers coverage with the nomination (as the Linux
+  // `fcfallback` query always has), so the second round trip this line used to
+  // cost is gone wherever the binary reports it. `??` rather than a default:
+  // an older helper omits the field, and treating "absent" as "not covered"
+  // would silently discard every live answer.
+  if (systemFallbackCoverage.get(`${nominatedKey}|${cp}`) ?? fontCoversCp(sf, cp)) {
+    _stageStats.liveAnswered++;
+    return cover(sysKey, null);
+  }
+  if (singleton != null && fontCoversCp(sf, singleton)) {
+    _stageStats.liveAnswered++;
+    return cover(sysKey, null, String.fromCodePoint(singleton), true);
+  }
+  return null;
+}
+
+function recordStaticChainAnswer(primaryFontKey: string, cp: number, candidateKey: string): void {
+  _stageStats.staticAnswered++;
+  _stageStats.staticKeyTally.set(candidateKey, (_stageStats.staticKeyTally.get(candidateKey) ?? 0) + 1);
+  _stageStats.staticPrimaryTally.set(primaryFontKey, (_stageStats.staticPrimaryTally.get(primaryFontKey) ?? 0) + 1);
+  if (_stageStats.staticCpSample.length < STATIC_CP_SAMPLE_CAP) _stageStats.staticCpSample.push(cp);
+}
+
+/** The static per-block chain: Blink's hardcoded stage on win32, a degraded-mode net elsewhere. */
+function resolveStaticFallbackChain(walk: FallbackWalk): FontResolution | null {
+  const { cp, primaryFontKey, weight, fontSize, slant, lang, fontVariantEmoji, semanticContext } = walk.request;
+  const cover = walkCover(walk);
   // Degraded-mode gate (see the block comment above): on darwin/linux the
   // static chain answers ONLY when the live resolver is out of the loop — no
   // helper binary, or the resolver flagged off. On win32 the chain is Blink's
   // own hardcoded stage and is never gated.
   const staticChainArmed = hostPlatform() === "win32" || !isGlyphHelperAvailable() || !systemFallbackResolutionEnabled;
-  const staticChain = (): FontResolution | null => {
-    if (!staticChainArmed) return null;
-    // Counted only when armed: an unarmed call does no probing, and the
-    // retirement measurement this feeds is about probe cost.
-    _stageStats.staticAsked++;
-    // DM-1985: the run's `font-variant-emoji` reaches the chain, because on
-    // Windows it decides which arm of `GetFallbackFamily` the codepoint takes.
-    for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, {
-      weight,
-      slant,
-      fontSize,
-      fontVariantEmoji,
-      ...semanticContext,
-    })) {
-      if (candidate === "last-resort") continue;
-      const cf = getFontInstance(candidate, weight, fontSize, slant);
-      // The coverage test, answered from a local cmap bitset when the face can
-      // be identified in its file and from the helper otherwise. This walk is
-      // where ~64% of the resolver's coverage probes come from — 4.43 per
-      // codepoint on Windows — and each one is a round trip whose answer the
-      // font file already holds. `nativeFaceCoversCp` returns null rather than
-      // guessing when it cannot name the face, so the helper stays the
-      // authority for exactly the cases it is needed for.
-      // Blink's Windows guard is `CreateSkFont().unicharToGlyph(character)`
-      // (`font_platform_data.cc:219-221`), so a cmap entry that resolves to
-      // glyph zero is NOT coverage. The bitset is only a fast negative here;
-      // the glyph-id check is the source-equivalent positive predicate.
-      if (cf != null && nativeFaceCoversCp(cf, cp) !== false && glyphIdForCp(cf, cp) !== 0) {
-        const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
-        if (cut != null) {
-          const cutFont = getFontInstance(cut, weight, fontSize, slant);
-          if (cutFont != null && nativeFaceCoversCp(cutFont, cp) !== false && glyphIdForCp(cutFont, cp) !== 0) {
-            recordStaticAnswer(cut);
-            return cover(cut, null);
-          }
+  if (!staticChainArmed) return null;
+  // Counted only when armed: an unarmed call does no probing, and the
+  // retirement measurement this feeds is about probe cost.
+  _stageStats.staticAsked++;
+  // DM-1985: the run's `font-variant-emoji` reaches the chain, because on
+  // Windows it decides which arm of `GetFallbackFamily` the codepoint takes.
+  for (const candidate of fallbackFontChain(cp, primaryFontKey, lang, {
+    weight,
+    slant,
+    fontSize,
+    fontVariantEmoji,
+    ...semanticContext,
+  })) {
+    if (candidate === "last-resort") continue;
+    const cf = getFontInstance(candidate, weight, fontSize, slant);
+    // The coverage test, answered from a local cmap bitset when the face can
+    // be identified in its file and from the helper otherwise. This walk is
+    // where ~64% of the resolver's coverage probes come from — 4.43 per
+    // codepoint on Windows — and each one is a round trip whose answer the
+    // font file already holds. `nativeFaceCoversCp` returns null rather than
+    // guessing when it cannot name the face, so the helper stays the
+    // authority for exactly the cases it is needed for.
+    // Blink's Windows guard is `CreateSkFont().unicharToGlyph(character)`
+    // (`font_platform_data.cc:219-221`), so a cmap entry that resolves to
+    // glyph zero is NOT coverage. The bitset is only a fast negative here;
+    // the glyph-id check is the source-equivalent positive predicate.
+    if (cf != null && nativeFaceCoversCp(cf, cp) !== false && glyphIdForCp(cf, cp) !== 0) {
+      const cut = fallbackFamilyCutKey(candidate, cp, weight, slant, fontSize);
+      if (cut != null) {
+        const cutFont = getFontInstance(cut, weight, fontSize, slant);
+        if (cutFont != null && nativeFaceCoversCp(cutFont, cp) !== false && glyphIdForCp(cutFont, cp) !== 0) {
+          recordStaticChainAnswer(primaryFontKey, cp, cut);
+          return cover(cut, null);
         }
-        recordStaticAnswer(candidate);
-        return cover(candidate, null);
       }
+      recordStaticChainAnswer(primaryFontKey, cp, candidate);
+      return cover(candidate, null);
     }
-    return null;
-  };
+  }
+  return null;
+}
 
+/** No system fallback for private-use and noncharacter codepoints; only the explicit last-resort face. */
+function resolveNoSystemFallbackTerminal(walk: FallbackWalk): FontResolution | null {
+  const { cp, primaryFontKey, weight, fontSize, slant } = walk.request;
+  const { ch } = walk;
+  const cover = walkCover(walk);
   // Blink runs NO system fallback for private-use or noncharacter codepoints.
   // `FontCache::FallbackFontForCharacter` returns null before it ever reaches
   // `PlatformFallbackFontForCharacter` (`platform/fonts/font_cache.cc:229-244`,
@@ -707,8 +801,14 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     }
     return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
   }
+  return null;
+}
 
-  _stageStats.systemStageReached++;
+/** Windows `FallbackOnStandardFontStyle`, which runs before the hardcoded table. */
+function resolveWin32StandardStyleRetry(walk: FallbackWalk): FontResolution | null {
+  const { cp, primaryFontKey, weight, fontSize, slant, lang, stretch, fontVariantEmoji } = walk.request;
+  const { declaredFamily } = walk;
+  const cover = walkCover(walk);
   // Windows stage 1 of `PlatformFallbackFontForCharacter` — "First try the
   // specified font with standard style & weight"
   // (`win/font_cache_skia_win.cc:270-277`, rev 7d859f27):
@@ -774,19 +874,73 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
       }
     }
   }
+  return null;
+}
 
+/** Step 2: kSystemFonts, ordered live resolver first except on win32. */
+function resolveSystemFontsStage(walk: FallbackWalk, singleton: number | null): FontResolution | null {
+  // 2. kSystemFonts.
+  //
+  // Blink has exactly ONE stage here, and it is the OS. `FontFallbackIterator::Next`
+  // (font_fallback_iterator.cc:120-157, Chromium rev 7d859f27) runs
+  // kFontGroupFonts / kSegmentedFace → (kFallbackPriorityFonts, one-shot) →
+  // **kSystemFonts = `UniqueSystemFontForHintList`** → kFirstCandidateForNotdefGlyph
+  // → kOutOfLuck. There is no static per-Unicode-block table anywhere in that
+  // walk; `UniqueSystemFontForHintList` goes straight to the platform fallback
+  // (`CTFontCreateForString` on macOS).
+  //
+  // Our static `fallbackFontChain` is therefore an EXTRA stage, sitting exactly
+  // where Blink asks the OS — so whenever it answers first, Chrome's question is
+  // never asked (docs/106). Measured cost of that shadowing, back when it did:
+  // the UI-font cascade base, verified 18/18 against Chrome, moved the CJK slice
+  // by 55 rows out of an expected 83,838, purely because `[pingfang-sc, cjk]`
+  // covers Han and the walk stopped there.
+  //
+  // So the OS goes first, and the static chain is a DEGRADED-MODE net on
+  // macOS and Linux — not a competitor and not a second-chance stage. Blink
+  // runs no such stage at all, so when the live resolver is in the loop the
+  // chain must not answer. Measured before the gate: over the darwin
+  // conformance corpus the chain was ASKED 492,624 times (~64% of the
+  // resolver's coverage probes) and ANSWERED 6 of 916,119 system-stage
+  // decisions — every answer a variation selector U+FE0x routed to
+  // `u-noto-sans`, a divergence from Chrome, not coverage (on Linux: 0
+  // answers in 779,964). The chain still earns its keep exactly where the
+  // live resolver cannot run — a host without the helper binary
+  // (`DOMOTION_DISABLE_HELPER`, or an npm install with no prebuilt helper) or
+  // a resolver flagged off (`DOMOTION_SYSTEM_FALLBACK=0` on Linux; macOS
+  // ignores that variable, so there only the in-process
+  // `setSystemFallbackResolutionEnabled(false)` flags it off) — and outright
+  // deletion would drop every fallback answer on such a host, so the gate is
+  // the availability predicate itself rather than a removal.
+  //
+  // win32 is EXCLUDED from the gate on purpose: there the hardcoded table IS
+  // Blink's mechanism — `PlatformFallbackFontForCharacter` consults
+  // `GetFallbackFamilyNameFromHardcodedChoices` BEFORE DirectWrite and only
+  // falls through on a miss (`win/font_cache_skia_win.cc:286-296`, rev
+  // 7d859f27) — so the win32 chain runs unconditionally, and first
+  // (`liveFallbackFirst` is false on win32). Its generated per-block tail is
+  // separately deferred behind the live resolver by `win32DeferOrStatic`.
+  // `DOMOTION_LIVE_FALLBACK_FIRST=0` restores the old chain-first order for an
+  // A/B; see the flag's declaration for the measurement that set the default.
   if (liveFallbackFirst) {
-    const live = liveFallback();
+    const live = resolveLiveSystemFallback(walk, singleton);
     if (live != null) return live;
-    const stat = staticChain();
+    const stat = resolveStaticFallbackChain(walk);
     if (stat != null) return stat;
   } else {
-    const stat = staticChain();
+    const stat = resolveStaticFallbackChain(walk);
     if (stat != null) return stat;
-    const live = liveFallback();
+    const live = resolveLiveSystemFallback(walk, singleton);
     if (live != null) return live;
   }
+  return null;
+}
 
+/** Step 3: helper-absent Math Alphanumeric decomposition. */
+function resolveHelperAbsentMathAlpha(walk: FallbackWalk): FontResolution | null {
+  const { cp, primaryFontKey, weight, fontSize, slant, lang, semanticContext } = walk.request;
+  const { helperBacked } = walk;
+  const cover = walkCover(walk);
   // 3. Helper-absent compatibility only. Chromium never rewrites a Math
   // Alphanumeric scalar after system fallback; it shapes the source scalar
   // and reaches kOutOfLuck if no face covers it. Keep the historical FreeFont
@@ -806,10 +960,7 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
     );
     if (decomp != null) return cover(decomp.key, decomp.font, decomp.ch, true);
   }
-
-  // 4. kOutOfLuck — nothing covers it; caller applies its own uncovered terminal.
-  _stageStats.uncovered++;
-  return { key: primaryFontKey, fontOverride: null, emitCh: ch, decomposed: false, covered: false };
+  return null;
 }
 
 /** Per-codepoint fallback coordinator; ordered Blink stages live above. */
