@@ -58,6 +58,34 @@ export const SNAPSHOT_HIDE_CSS = [
   `html${HIDE_BOOST}, body${HIDE_BOOST} { background: transparent !important; }`,
 ].join("\n");
 
+type Viewport = { x: number; y: number; width: number; height: number };
+type CssRect = { x: number; y: number; width: number; height: number };
+
+interface RasterTarget {
+  snapshot: NonNullable<CapturedElement["replacedSnapshot"]>;
+  tag: string;
+  imageReplacement: boolean;
+  serializedTransform: boolean;
+  projectiveOwner: boolean;
+}
+
+type RecordFailure = (
+  target: RasterTarget | undefined,
+  phase: ReplacedElementRasterFailurePhase,
+  detail: string,
+) => void;
+
+/** Shared state for one `rasterizeReplacedElements` call. */
+interface RasterSession {
+  page: Page;
+  viewport: Viewport;
+  report: ReplacedElementRasterReport;
+  recordFailure: RecordFailure;
+  /** Box-model CDP session; undefined when it could not be opened. */
+  cdp: CDPSession | undefined;
+  rootNodeId: number | undefined;
+}
+
 /**
  * DM-457: rasterize each <canvas> / <video> / <iframe> / <object> / <embed>
  * captured in the tree. CAPTURE_SCRIPT tagged the live DOM nodes with
@@ -73,17 +101,64 @@ export const SNAPSHOT_HIDE_CSS = [
 export async function rasterizeReplacedElements(
   page: Page,
   tree: CapturedElement[],
-  viewport: { x: number; y: number; width: number; height: number },
+  viewport: Viewport,
   opts: ReplacedElementRasterOptions = {},
 ): Promise<ReplacedElementRasterReport> {
-  interface Target {
-    snapshot: NonNullable<CapturedElement["replacedSnapshot"]>;
-    tag: string;
-    imageReplacement: boolean;
-    serializedTransform: boolean;
-    projectiveOwner: boolean;
+  const targets = collectRasterTargets(tree);
+  const report: ReplacedElementRasterReport = {
+    targetCount: targets.length,
+    rasterizedCount: 0,
+    skippedProjectiveCount: targets.filter((target) => target.projectiveOwner).length,
+    failures: [],
+  };
+  const recordFailure = createFailureRecorder(report, opts);
+  if (targets.length === 0) return report;
+
+  // A projective rendering context is already captured as one Chromium-owned
+  // surface by transformSubtreeRaster. Sampling a nested canvas/video/frame as
+  // well cannot affect output (the renderer returns at the outer owner) and
+  // risks retaining a second, independently transformed bitmap in the tree.
+  const activeTargets = targets.filter((target) => !target.projectiveOwner);
+  if (activeTargets.length === 0) {
+    await cleanupSnapshotMarkers(page, recordFailure);
+    return report;
   }
-  const targets: Target[] = [];
+
+  const { cdp, rootNodeId } = await openBoxModelSession(page);
+  const session: RasterSession = { page, viewport, report, recordFailure, cdp, rootNodeId };
+
+  const { cropTargets, screenshotTargets } = partitionRasterTargets(activeTargets, opts);
+
+  // DM-562: when the caller supplies a `sourceImagePath` (the expected.png
+  // already on disk), crop each rid's rect from it instead of taking fresh
+  // page.screenshot calls. The per-rid screenshots originally provided
+  // isolation via the hide-everything-else CSS trick, but they also happened
+  // hundreds of milliseconds after the expected screenshot — so cross-origin
+  // iframes with rotating carousels (Google Ads on NYT) ended up with
+  // rasterized content that drifted from the expected. Cropping from the
+  // SAME PNG that produced the expected eliminates the drift entirely. For
+  // typical replaced elements (iframe / canvas / video / custom-element with
+  // shadow DOM) the rid's content-box rect doesn't overlap with siblings, so
+  // the loss of CSS-trick isolation is a no-op visually.
+  if (cropTargets.length > 0 && opts?.sourceImagePath != null) {
+    await rasterizeFromSourceImage(session, opts.sourceImagePath, cropTargets, screenshotTargets);
+  }
+  if (screenshotTargets.length === 0) {
+    try {
+      await detachQuietly(cdp);
+    } catch (error) {
+      recordFailure(undefined, "cleanup", `could not detach CDP session: ${errorDetail(error)}`);
+    }
+    await cleanupSnapshotMarkers(page, recordFailure);
+    return report;
+  }
+
+  await rasterizeByIsolatedScreenshots(session, screenshotTargets);
+  return report;
+}
+
+function collectRasterTargets(tree: CapturedElement[]): RasterTarget[] {
+  const targets: RasterTarget[] = [];
   const collectTargets = (
     nodes: CapturedElement[],
     inheritedSerializedTransform: boolean,
@@ -107,18 +182,15 @@ export async function rasterizeReplacedElements(
     }
   };
   collectTargets(tree, false, false);
-  const report: ReplacedElementRasterReport = {
-    targetCount: targets.length,
-    rasterizedCount: 0,
-    skippedProjectiveCount: targets.filter((target) => target.projectiveOwner).length,
-    failures: [],
-  };
-  const errorDetail = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-  const recordFailure = (
-    target: Target | undefined,
-    phase: ReplacedElementRasterFailurePhase,
-    detail: string,
-  ): void => {
+  return targets;
+}
+
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createFailureRecorder(report: ReplacedElementRasterReport, opts: ReplacedElementRasterOptions): RecordFailure {
+  return (target, phase, detail) => {
     report.failures.push({
       ...(target == null ? {} : { rid: target.snapshot.rid, tag: target.tag }),
       phase,
@@ -131,31 +203,24 @@ export async function rasterizeReplacedElements(
       status: "partial",
     });
   };
-  if (targets.length === 0) return report;
+}
 
-  const cleanupMarkers = async (): Promise<void> => {
-    try {
-      await page.evaluate(() => {
-        document
-          .querySelectorAll("[data-domotion-snapshot-target]")
-          .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
-        document.querySelectorAll("[data-domotion-rid]").forEach((el) => el.removeAttribute("data-domotion-rid"));
-      });
-    } catch (error) {
-      recordFailure(undefined, "cleanup", `could not remove snapshot markers: ${errorDetail(error)}`);
-    }
-  };
-
-  // A projective rendering context is already captured as one Chromium-owned
-  // surface by transformSubtreeRaster. Sampling a nested canvas/video/frame as
-  // well cannot affect output (the renderer returns at the outer owner) and
-  // risks retaining a second, independently transformed bitmap in the tree.
-  const activeTargets = targets.filter((target) => !target.projectiveOwner);
-  if (activeTargets.length === 0) {
-    await cleanupMarkers();
-    return report;
+async function cleanupSnapshotMarkers(page: Page, recordFailure: RecordFailure): Promise<void> {
+  try {
+    await page.evaluate(() => {
+      document
+        .querySelectorAll("[data-domotion-snapshot-target]")
+        .forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+      document.querySelectorAll("[data-domotion-rid]").forEach((el) => el.removeAttribute("data-domotion-rid"));
+    });
+  } catch (error) {
+    recordFailure(undefined, "cleanup", `could not remove snapshot markers: ${errorDetail(error)}`);
   }
+}
 
+async function openBoxModelSession(
+  page: Page,
+): Promise<{ cdp: CDPSession | undefined; rootNodeId: number | undefined }> {
   let cdp: CDPSession | undefined;
   let rootNodeId: number | undefined;
   try {
@@ -167,8 +232,11 @@ export async function rasterizeReplacedElements(
     await cdp?.detach().catch(() => undefined);
     cdp = undefined;
   }
+  return { cdp, rootNodeId };
+}
 
-  const rectQuad = (rect: { x: number; y: number; width: number; height: number }): CssQuad => [
+function rectQuad(rect: CssRect): CssQuad {
+  return [
     rect.x,
     rect.y,
     rect.x + rect.width,
@@ -178,7 +246,10 @@ export async function rasterizeReplacedElements(
     rect.x,
     rect.y + rect.height,
   ];
-  const localizeQuad = (quad: CssQuad): CssQuad => [
+}
+
+function localizeQuad(quad: CssQuad, viewport: Viewport): CssQuad {
+  return [
     quad[0] - viewport.x,
     quad[1] - viewport.y,
     quad[2] - viewport.x,
@@ -188,504 +259,165 @@ export async function rasterizeReplacedElements(
     quad[6] - viewport.x,
     quad[7] - viewport.y,
   ];
-  const boxQuad = async (target: Target): Promise<CssQuad | null> => {
-    if (cdp != null && rootNodeId != null) {
-      try {
-        const queried = await cdp.send("DOM.querySelector", {
-          nodeId: rootNodeId,
-          selector: `[data-domotion-rid="${target.snapshot.rid}"]`,
-        });
-        if (queried.nodeId !== 0) {
-          const result = await cdp.send("DOM.getBoxModel", { nodeId: queried.nodeId });
-          const values = target.imageReplacement ? result.model.border : result.model.content;
-          if (Array.isArray(values) && values.length === 8) return values as CssQuad;
-        }
-      } catch {
-        // The live node may have detached after the synchronous capture walk.
-      }
-    }
-    if (target.serializedTransform) return null;
-    const snapshot = target.snapshot;
-    return rectQuad({
-      x: snapshot.x + viewport.x,
-      y: snapshot.y + viewport.y,
-      width: snapshot.width,
-      height: snapshot.height,
-    });
-  };
-  const installRaster = (
-    target: Target,
-    uri: string,
-    output: { x: number; y: number; width: number; height: number },
-    contentQuad: CssQuad,
-    pixelWidth: number,
-    pixelHeight: number,
-  ): void => {
-    const snapshot = target.snapshot;
-    snapshot.dataUri = uri;
-    snapshot.x = output.x;
-    snapshot.y = output.y;
-    snapshot.width = output.width;
-    snapshot.height = output.height;
-    snapshot.rasterToOutput = {
-      contentQuad: localizeQuad(contentQuad),
-      pixelWidth,
-      pixelHeight,
-      cssPerPixelX: output.width / pixelWidth,
-      cssPerPixelY: output.height / pixelHeight,
-    };
-  };
+}
 
-  // DM-562: custom elements (hyphenated tag — DM-511 routed them through
-  // replacedSnapshot when they have shadow DOM) have light-DOM children that
-  // ALSO paint inside the rect. Cropping from expected.png captures both the
-  // shadow-DOM paint AND the overlapping light-DOM paint as a single image,
-  // and then the renderer composites that crop on top of its own rendering
-  // of the same light-DOM children — producing stacking artifacts (e.g.
-  // doubled video-controls or text seen through translucent custom-element
-  // backgrounds). For iframe / canvas / video / object / embed the rect is
-  // truly opaque-replaced — there's no light-DOM content to double-paint —
-  // so the image crop is clean. Split targets accordingly.
-  const _replacedTagSet = new Set(["iframe", "canvas", "video", "object", "embed"]);
-  const cropTargets = activeTargets.filter(
-    (target) => opts?.sourceImagePath != null && _replacedTagSet.has(target.tag) && !target.serializedTransform,
-  );
-  const screenshotTargets = activeTargets.filter((target) => !cropTargets.includes(target));
-
-  // DM-562: when the caller supplies a `sourceImagePath` (the expected.png
-  // already on disk), crop each rid's rect from it instead of taking fresh
-  // page.screenshot calls. The per-rid screenshots originally provided
-  // isolation via the hide-everything-else CSS trick, but they also happened
-  // hundreds of milliseconds after the expected screenshot — so cross-origin
-  // iframes with rotating carousels (Google Ads on NYT) ended up with
-  // rasterized content that drifted from the expected. Cropping from the
-  // SAME PNG that produced the expected eliminates the drift entirely. For
-  // typical replaced elements (iframe / canvas / video / custom-element with
-  // shadow DOM) the rid's content-box rect doesn't overlap with siblings, so
-  // the loss of CSS-trick isolation is a no-op visually.
-  if (cropTargets.length > 0 && opts?.sourceImagePath != null) {
+/**
+ * Blink's live content (or border, for image replacements) quad for the
+ * target, falling back to the capture-walk rect when the node cannot be
+ * queried and no serialized transform makes that rect unreliable.
+ */
+async function resolveTargetQuad(session: RasterSession, target: RasterTarget): Promise<CssQuad | null> {
+  const { cdp, rootNodeId, viewport } = session;
+  if (cdp != null && rootNodeId != null) {
     try {
-      const srcMeta = await sharp(opts.sourceImagePath).metadata();
-      const sourceSize = { width: srcMeta.width ?? 0, height: srcMeta.height ?? 0 };
-      for (const target of cropTargets) {
-        try {
-          const contentQuad = await boxQuad(target);
-          const bounds = contentQuad == null ? null : axisAlignedQuadBounds(contentQuad);
-          if (contentQuad == null || bounds == null) {
-            screenshotTargets.push(target);
-            continue;
-          }
-          const mapped = mapCssRectToSourcePixels(
-            {
-              x: bounds.x - viewport.x,
-              y: bounds.y - viewport.y,
-              width: bounds.width,
-              height: bounds.height,
-            },
-            viewport,
-            sourceSize,
-          );
-          if (mapped == null) {
-            screenshotTargets.push(target);
-            continue;
-          }
-          const buf = await sharp(opts.sourceImagePath).extract(mapped.crop).png().toBuffer();
-          installRaster(
-            target,
-            `data:image/png;base64,${buf.toString("base64")}`,
-            mapped.output,
-            contentQuad,
-            mapped.crop.width,
-            mapped.crop.height,
-          );
-          report.rasterizedCount++;
-        } catch {
-          screenshotTargets.push(target);
-        }
+      const queried = await cdp.send("DOM.querySelector", {
+        nodeId: rootNodeId,
+        selector: `[data-domotion-rid="${target.snapshot.rid}"]`,
+      });
+      if (queried.nodeId !== 0) {
+        const result = await cdp.send("DOM.getBoxModel", { nodeId: queried.nodeId });
+        const values = target.imageReplacement ? result.model.border : result.model.content;
+        if (Array.isArray(values) && values.length === 8) return values as CssQuad;
       }
     } catch {
-      // Source-image access is an optimization. Fall back to isolated live
-      // screenshots without changing the rendered result or reporting a false
-      // failure when those screenshots succeed.
-      for (const target of cropTargets) {
-        if (!screenshotTargets.includes(target)) screenshotTargets.push(target);
+      // The live node may have detached after the synchronous capture walk.
+    }
+  }
+  if (target.serializedTransform) return null;
+  const snapshot = target.snapshot;
+  return rectQuad({
+    x: snapshot.x + viewport.x,
+    y: snapshot.y + viewport.y,
+    width: snapshot.width,
+    height: snapshot.height,
+  });
+}
+
+function installRaster(
+  target: RasterTarget,
+  viewport: Viewport,
+  uri: string,
+  output: CssRect,
+  contentQuad: CssQuad,
+  pixelWidth: number,
+  pixelHeight: number,
+): void {
+  const snapshot = target.snapshot;
+  snapshot.dataUri = uri;
+  snapshot.x = output.x;
+  snapshot.y = output.y;
+  snapshot.width = output.width;
+  snapshot.height = output.height;
+  snapshot.rasterToOutput = {
+    contentQuad: localizeQuad(contentQuad, viewport),
+    pixelWidth,
+    pixelHeight,
+    cssPerPixelX: output.width / pixelWidth,
+    cssPerPixelY: output.height / pixelHeight,
+  };
+}
+
+// DM-562: custom elements (hyphenated tag — DM-511 routed them through
+// replacedSnapshot when they have shadow DOM) have light-DOM children that
+// ALSO paint inside the rect. Cropping from expected.png captures both the
+// shadow-DOM paint AND the overlapping light-DOM paint as a single image,
+// and then the renderer composites that crop on top of its own rendering
+// of the same light-DOM children — producing stacking artifacts (e.g.
+// doubled video-controls or text seen through translucent custom-element
+// backgrounds). For iframe / canvas / video / object / embed the rect is
+// truly opaque-replaced — there's no light-DOM content to double-paint —
+// so the image crop is clean. Split targets accordingly.
+const REPLACED_CROP_TAGS = new Set(["iframe", "canvas", "video", "object", "embed"]);
+
+function partitionRasterTargets(
+  activeTargets: RasterTarget[],
+  opts: ReplacedElementRasterOptions,
+): { cropTargets: RasterTarget[]; screenshotTargets: RasterTarget[] } {
+  const cropTargets = activeTargets.filter(
+    (target) => opts?.sourceImagePath != null && REPLACED_CROP_TAGS.has(target.tag) && !target.serializedTransform,
+  );
+  const screenshotTargets = activeTargets.filter((target) => !cropTargets.includes(target));
+  return { cropTargets, screenshotTargets };
+}
+
+/**
+ * Crops each target from the already-captured source image. Any target that
+ * cannot be cropped is appended to `screenshotTargets` for the isolated live
+ * screenshot path.
+ */
+async function rasterizeFromSourceImage(
+  session: RasterSession,
+  sourceImagePath: string,
+  cropTargets: RasterTarget[],
+  screenshotTargets: RasterTarget[],
+): Promise<void> {
+  const { viewport, report } = session;
+  try {
+    const srcMeta = await sharp(sourceImagePath).metadata();
+    const sourceSize = { width: srcMeta.width ?? 0, height: srcMeta.height ?? 0 };
+    for (const target of cropTargets) {
+      try {
+        const contentQuad = await resolveTargetQuad(session, target);
+        const bounds = contentQuad == null ? null : axisAlignedQuadBounds(contentQuad);
+        if (contentQuad == null || bounds == null) {
+          screenshotTargets.push(target);
+          continue;
+        }
+        const mapped = mapCssRectToSourcePixels(
+          {
+            x: bounds.x - viewport.x,
+            y: bounds.y - viewport.y,
+            width: bounds.width,
+            height: bounds.height,
+          },
+          viewport,
+          sourceSize,
+        );
+        if (mapped == null) {
+          screenshotTargets.push(target);
+          continue;
+        }
+        const buf = await sharp(sourceImagePath).extract(mapped.crop).png().toBuffer();
+        installRaster(
+          target,
+          viewport,
+          `data:image/png;base64,${buf.toString("base64")}`,
+          mapped.output,
+          contentQuad,
+          mapped.crop.width,
+          mapped.crop.height,
+        );
+        report.rasterizedCount++;
+      } catch {
+        screenshotTargets.push(target);
       }
     }
-  }
-  if (screenshotTargets.length === 0) {
-    try {
-      await detachQuietly(cdp);
-    } catch (error) {
-      recordFailure(undefined, "cleanup", `could not detach CDP session: ${errorDetail(error)}`);
+  } catch {
+    // Source-image access is an optimization. Fall back to isolated live
+    // screenshots without changing the rendered result or reporting a false
+    // failure when those screenshots succeed.
+    for (const target of cropTargets) {
+      if (!screenshotTargets.includes(target)) screenshotTargets.push(target);
     }
-    await cleanupMarkers();
-    return report;
   }
+}
 
+/**
+ * Screenshots each target with everything else hidden, then restores the
+ * live page: markers, the isolation stylesheet, and the CDP session.
+ */
+async function rasterizeByIsolatedScreenshots(
+  session: RasterSession,
+  screenshotTargets: RasterTarget[],
+): Promise<void> {
+  const { page, report, recordFailure, cdp } = session;
   // Inject the hide-everything-else stylesheet (shared SNAPSHOT_HIDE_CSS);
   // restored unconditionally in finally.
   let styleHandle: ElementHandle | null = null;
   try {
     styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
     for (const target of screenshotTargets) {
-      let prepared = false;
-      let phase: ReplacedElementRasterFailurePhase = "target-lookup";
-      try {
-        prepared = await page.evaluate((rid) => {
-          type SavedProperty = { name: string; value: string; priority: string };
-          type SavedElement = {
-            element: HTMLElement;
-            properties: SavedProperty[];
-            scrollLeft?: number;
-            scrollTop?: number;
-          };
-          type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
-          const stateKey = "__domotionReplacedSnapshotState";
-          const host = globalThis as unknown as {
-            __domotionReplacedSnapshotState?: SnapshotState;
-          };
-          const previous = host[stateKey];
-          if (previous != null) {
-            for (let i = previous.saved.length - 1; i >= 0; i--) {
-              const entry = previous.saved[i];
-              for (const property of entry.properties) {
-                if (property.value === "") entry.element.style.removeProperty(property.name);
-                else entry.element.style.setProperty(property.name, property.value, property.priority);
-              }
-              if (entry.scrollLeft != null) entry.element.scrollLeft = entry.scrollLeft;
-              if (entry.scrollTop != null) entry.element.scrollTop = entry.scrollTop;
-            }
-            delete host[stateKey];
-          }
-          const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
-          prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
-          const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
-          if (!(next instanceof HTMLElement)) return false;
-          next.setAttribute("data-domotion-snapshot-target", "");
-
-          const saved: SavedElement[] = [];
-          for (let owner: HTMLElement | null = next; owner != null; owner = owner.parentElement) {
-            const style = getComputedStyle(owner);
-            const transform = style.transform;
-            let needsRendererTransform = false;
-            const matrix = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,/.exec(transform);
-            if (matrix != null && (Math.abs(parseFloat(matrix[2])) > 1e-6 || Math.abs(parseFloat(matrix[3])) > 1e-6)) {
-              needsRendererTransform = true;
-            }
-            const matrix3d =
-              /^matrix3d\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*[-\d.eE]+\s*,\s*[-\d.eE]+\s*,\s*([-\d.eE]+)\s*,/.exec(
-                transform,
-              );
-            if (
-              matrix3d != null &&
-              (Math.abs(parseFloat(matrix3d[2])) > 1e-6 || Math.abs(parseFloat(matrix3d[3])) > 1e-6)
-            ) {
-              needsRendererTransform = true;
-            }
-            if (style.rotate != null && style.rotate !== "" && style.rotate !== "none") {
-              const angle = /([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*(deg|rad|grad|turn)?\s*$/i.exec(style.rotate);
-              if (angle != null) {
-                const value = parseFloat(angle[1]);
-                const unit = angle[2]?.toLowerCase() ?? "deg";
-                const degrees =
-                  unit === "rad"
-                    ? (value * 180) / Math.PI
-                    : unit === "grad"
-                      ? value * 0.9
-                      : unit === "turn"
-                        ? value * 360
-                        : value;
-                if (Math.abs(degrees % 360) > 1e-6) needsRendererTransform = true;
-              }
-            }
-            if (!needsRendererTransform) continue;
-            const properties: SavedProperty[] = [];
-            for (const name of ["transform", "translate", "rotate", "scale"]) {
-              properties.push({
-                name,
-                value: owner.style.getPropertyValue(name),
-                priority: owner.style.getPropertyPriority(name),
-              });
-            }
-            saved.push({ element: owner, properties });
-            owner.style.setProperty("transform", "translate(0)", "important");
-            owner.style.setProperty("translate", "none", "important");
-            owner.style.setProperty("rotate", "none", "important");
-            owner.style.setProperty("scale", "none", "important");
-          }
-          host[stateKey] = { target: next, saved };
-          // Force Blink to rebuild paint-property nodes before CDP asks for
-          // LocalRectToAbsoluteQuad.
-          void next.getBoundingClientRect();
-          return true;
-        }, target.snapshot.rid);
-        if (!prepared) {
-          recordFailure(target, "target-lookup", "live owner was unavailable after the capture walk");
-          continue;
-        }
-
-        phase = "geometry";
-        const outputQuad = await boxQuad(target);
-        const outputBounds = outputQuad == null ? null : axisAlignedQuadBounds(outputQuad);
-        if (outputQuad == null || outputBounds == null) {
-          recordFailure(target, "geometry", "could not resolve an axis-aligned output quad");
-          continue;
-        }
-
-        // The bitmap is the replaced element's local source surface. Blink
-        // maps that surface through descendant/ancestor transforms before
-        // intersecting ancestor clip nodes. Read `outputQuad` first, then
-        // temporarily remove those paint clips: overflow changes can expose a
-        // stored scroll offset or alter formatting, and only the later
-        // same-size translation check is allowed to map that sample back.
-        phase = "isolation";
-        const clipsSuppressed = await page.evaluate(() => {
-          type SavedProperty = { name: string; value: string; priority: string };
-          type SavedElement = {
-            element: HTMLElement;
-            properties: SavedProperty[];
-            scrollLeft?: number;
-            scrollTop?: number;
-          };
-          type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
-          const stateKey = "__domotionReplacedSnapshotState";
-          const host = globalThis as unknown as {
-            __domotionReplacedSnapshotState?: SnapshotState;
-          };
-          const state = host[stateKey];
-          if (state == null) return false;
-          for (
-            let ancestor = state.target.parentElement;
-            ancestor != null && ancestor !== document.documentElement;
-            ancestor = ancestor.parentElement
-          ) {
-            const style = getComputedStyle(ancestor);
-            const properties: SavedProperty[] = [];
-            const scrollLeft = ancestor.scrollLeft;
-            const scrollTop = ancestor.scrollTop;
-            if (style.overflowX !== "visible" || style.overflowY !== "visible") {
-              for (const name of ["overflow", "overflow-x", "overflow-y"]) {
-                properties.push({
-                  name,
-                  value: ancestor.style.getPropertyValue(name),
-                  priority: ancestor.style.getPropertyPriority(name),
-                });
-              }
-              ancestor.style.setProperty("overflow", "visible", "important");
-              ancestor.style.setProperty("overflow-x", "visible", "important");
-              ancestor.style.setProperty("overflow-y", "visible", "important");
-            }
-            if (style.clip !== "auto") {
-              properties.push({
-                name: "clip",
-                value: ancestor.style.getPropertyValue("clip"),
-                priority: ancestor.style.getPropertyPriority("clip"),
-              });
-              ancestor.style.setProperty("clip", "auto", "important");
-            }
-            if (style.clipPath !== "none") {
-              properties.push({
-                name: "clip-path",
-                value: ancestor.style.getPropertyValue("clip-path"),
-                priority: ancestor.style.getPropertyPriority("clip-path"),
-              });
-              ancestor.style.setProperty("clip-path", "none", "important");
-            }
-            if (style.maskImage !== "none") {
-              properties.push({
-                name: "mask-image",
-                value: ancestor.style.getPropertyValue("mask-image"),
-                priority: ancestor.style.getPropertyPriority("mask-image"),
-              });
-              ancestor.style.setProperty("mask-image", "none", "important");
-            }
-            if (style.webkitMaskImage != null && style.webkitMaskImage !== "none") {
-              properties.push({
-                name: "-webkit-mask-image",
-                value: ancestor.style.getPropertyValue("-webkit-mask-image"),
-                priority: ancestor.style.getPropertyPriority("-webkit-mask-image"),
-              });
-              ancestor.style.setProperty("-webkit-mask-image", "none", "important");
-            }
-            if (properties.length > 0) {
-              state.saved.push({
-                element: ancestor,
-                properties,
-                scrollLeft,
-                scrollTop,
-              });
-            }
-          }
-          void state.target.getBoundingClientRect();
-          return true;
-        });
-        if (!clipsSuppressed) {
-          recordFailure(target, "isolation", "temporary owner state disappeared before clip suppression");
-          continue;
-        }
-
-        phase = "geometry";
-        const unclippedQuad = await boxQuad(target);
-        const unclippedBounds = unclippedQuad == null ? null : axisAlignedQuadBounds(unclippedQuad);
-        if (unclippedQuad == null || unclippedBounds == null) {
-          recordFailure(target, "geometry", "could not resolve the unclipped source quad");
-          continue;
-        }
-
-        // A local surface may sit outside the viewport before its serialized
-        // rotate/skew maps it back on-screen. Translate only the isolated
-        // target for sampling, then map the resulting bitmap back by that
-        // proven translation. When the surface already fits, no mutation is
-        // made and sampledQuad === outputQuad.
-        const margin = 1;
-        const availableWidth = Math.max(0, viewport.width - margin * 2);
-        const availableHeight = Math.max(0, viewport.height - margin * 2);
-        let dx = 0;
-        let dy = 0;
-        if (unclippedBounds.width <= availableWidth) {
-          if (unclippedBounds.x < viewport.x + margin) dx = viewport.x + margin - unclippedBounds.x;
-          else if (unclippedBounds.x + unclippedBounds.width > viewport.x + viewport.width - margin) {
-            dx = viewport.x + viewport.width - margin - unclippedBounds.x - unclippedBounds.width;
-          }
-        }
-        if (unclippedBounds.height <= availableHeight) {
-          if (unclippedBounds.y < viewport.y + margin) dy = viewport.y + margin - unclippedBounds.y;
-          else if (unclippedBounds.y + unclippedBounds.height > viewport.y + viewport.height - margin) {
-            dy = viewport.y + viewport.height - margin - unclippedBounds.y - unclippedBounds.height;
-          }
-        }
-        if (dx !== 0 || dy !== 0) {
-          await page.evaluate(
-            ({ dx, dy }) => {
-              type SavedProperty = { name: string; value: string; priority: string };
-              type SavedElement = {
-                element: HTMLElement;
-                properties: SavedProperty[];
-                scrollLeft?: number;
-                scrollTop?: number;
-              };
-              type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
-              const stateKey = "__domotionReplacedSnapshotState";
-              const host = globalThis as unknown as {
-                __domotionReplacedSnapshotState?: SnapshotState;
-              };
-              const state = host[stateKey];
-              if (state == null) return;
-              if (!state.saved.some((entry) => entry.element === state.target)) {
-                state.saved.push({
-                  element: state.target,
-                  properties: [
-                    {
-                      name: "translate",
-                      value: state.target.style.getPropertyValue("translate"),
-                      priority: state.target.style.getPropertyPriority("translate"),
-                    },
-                  ],
-                });
-              }
-              const computed = getComputedStyle(state.target).translate;
-              const parts: string[] = [];
-              if (computed !== "none" && computed !== "") {
-                let start = 0;
-                let depth = 0;
-                const value = computed.trim();
-                for (let i = 0; i <= value.length; i++) {
-                  const character = value[i];
-                  if (character === "(") depth++;
-                  else if (character === ")") depth--;
-                  if (i === value.length || (depth === 0 && character != null && /\s/.test(character))) {
-                    if (i > start) parts.push(value.slice(start, i));
-                    while (i + 1 < value.length && /\s/.test(value[i + 1])) i++;
-                    start = i + 1;
-                  }
-                }
-              }
-              const x = parts[0] ?? "0px";
-              const y = parts[1] ?? "0px";
-              const z = parts[2];
-              const shiftedX = dx === 0 ? x : `calc(${x} + ${dx}px)`;
-              const shiftedY = dy === 0 ? y : `calc(${y} + ${dy}px)`;
-              state.target.style.setProperty(
-                "translate",
-                `${shiftedX} ${shiftedY}${z == null ? "" : ` ${z}`}`,
-                "important",
-              );
-              void state.target.getBoundingClientRect();
-            },
-            { dx, dy },
-          );
-        }
-
-        const sampledQuad = await boxQuad(target);
-        if (sampledQuad == null) {
-          recordFailure(target, "geometry", "could not resolve the sampled source quad");
-          continue;
-        }
-        const mapping = mapTranslatedQuadToScreenshot(outputQuad, sampledQuad, viewport);
-        if (mapping == null) {
-          recordFailure(target, "geometry", "sampled source was not a same-size axis-aligned translation");
-          continue;
-        }
-        phase = "screenshot";
-        const buf = await page.screenshot({ clip: mapping.clip, omitBackground: true, type: "png" });
-        const metadata = await sharp(buf).metadata();
-        const pixelWidth = metadata.width ?? 0;
-        const pixelHeight = metadata.height ?? 0;
-        if (pixelWidth <= 0 || pixelHeight <= 0) {
-          recordFailure(target, "screenshot", "Chromium returned an empty bitmap");
-          continue;
-        }
-        installRaster(
-          target,
-          `data:image/png;base64,${Buffer.from(buf).toString("base64")}`,
-          {
-            x: mapping.output.x - viewport.x,
-            y: mapping.output.y - viewport.y,
-            width: mapping.output.width,
-            height: mapping.output.height,
-          },
-          outputQuad,
-          pixelWidth,
-          pixelHeight,
-        );
-        report.rasterizedCount++;
-      } catch (error) {
-        // A detached/mutating live node leaves the normal element box in place.
-        recordFailure(target, phase, errorDetail(error));
-      } finally {
-        if (prepared) {
-          try {
-            await page.evaluate(() => {
-              type SavedProperty = { name: string; value: string; priority: string };
-              type SavedElement = {
-                element: HTMLElement;
-                properties: SavedProperty[];
-                scrollLeft?: number;
-                scrollTop?: number;
-              };
-              type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
-              const stateKey = "__domotionReplacedSnapshotState";
-              const host = globalThis as unknown as {
-                __domotionReplacedSnapshotState?: SnapshotState;
-              };
-              const state = host[stateKey];
-              if (state == null) return;
-              for (let i = state.saved.length - 1; i >= 0; i--) {
-                const entry = state.saved[i];
-                for (const property of entry.properties) {
-                  if (property.value === "") entry.element.style.removeProperty(property.name);
-                  else entry.element.style.setProperty(property.name, property.value, property.priority);
-                }
-                if (entry.scrollLeft != null) entry.element.scrollLeft = entry.scrollLeft;
-                if (entry.scrollTop != null) entry.element.scrollTop = entry.scrollTop;
-              }
-              delete host[stateKey];
-            });
-          } catch (error) {
-            recordFailure(target, "cleanup", `could not restore authored styles: ${errorDetail(error)}`);
-          }
-        }
-      }
+      await rasterizeTargetByScreenshot(session, target);
     }
   } catch (error) {
     for (const target of screenshotTargets) {
@@ -698,7 +430,7 @@ export async function rasterizeReplacedElements(
     // remove the hide stylesheet so the live page is back to its original
     // visual state (matters when the same page is captured again, or when
     // tests inspect the page after capture).
-    await cleanupMarkers();
+    await cleanupSnapshotMarkers(page, recordFailure);
     if (styleHandle != null) {
       try {
         await styleHandle.evaluate((node: Element) => {
@@ -714,5 +446,398 @@ export async function rasterizeReplacedElements(
       recordFailure(undefined, "cleanup", `could not detach CDP session: ${errorDetail(error)}`);
     }
   }
-  return report;
 }
+
+/**
+ * Translation that moves the unclipped surface fully inside the viewport
+ * (with a 1px margin) on each axis where it fits; zero otherwise.
+ */
+function resolveSampleShift(unclippedBounds: CssRect, viewport: Viewport): { dx: number; dy: number } {
+  const margin = 1;
+  const availableWidth = Math.max(0, viewport.width - margin * 2);
+  const availableHeight = Math.max(0, viewport.height - margin * 2);
+  let dx = 0;
+  let dy = 0;
+  if (unclippedBounds.width <= availableWidth) {
+    if (unclippedBounds.x < viewport.x + margin) dx = viewport.x + margin - unclippedBounds.x;
+    else if (unclippedBounds.x + unclippedBounds.width > viewport.x + viewport.width - margin) {
+      dx = viewport.x + viewport.width - margin - unclippedBounds.x - unclippedBounds.width;
+    }
+  }
+  if (unclippedBounds.height <= availableHeight) {
+    if (unclippedBounds.y < viewport.y + margin) dy = viewport.y + margin - unclippedBounds.y;
+    else if (unclippedBounds.y + unclippedBounds.height > viewport.y + viewport.height - margin) {
+      dy = viewport.y + viewport.height - margin - unclippedBounds.y - unclippedBounds.height;
+    }
+  }
+  return { dx, dy };
+}
+
+/**
+ * One isolated live screenshot: prepare the target in the page, resolve its
+ * output quad, suppress ancestor clips, shift it on-screen if needed, sample,
+ * and always restore the authored styles. Failures are recorded, not thrown.
+ */
+async function rasterizeTargetByScreenshot(session: RasterSession, target: RasterTarget): Promise<void> {
+  const { page, viewport, report, recordFailure } = session;
+  let prepared = false;
+  let phase: ReplacedElementRasterFailurePhase = "target-lookup";
+  try {
+    prepared = await page.evaluate(prepareSnapshotTargetInPage, target.snapshot.rid);
+    if (!prepared) {
+      recordFailure(target, "target-lookup", "live owner was unavailable after the capture walk");
+      return;
+    }
+
+    phase = "geometry";
+    const outputQuad = await resolveTargetQuad(session, target);
+    const outputBounds = outputQuad == null ? null : axisAlignedQuadBounds(outputQuad);
+    if (outputQuad == null || outputBounds == null) {
+      recordFailure(target, "geometry", "could not resolve an axis-aligned output quad");
+      return;
+    }
+
+    // The bitmap is the replaced element's local source surface. Blink
+    // maps that surface through descendant/ancestor transforms before
+    // intersecting ancestor clip nodes. Read `outputQuad` first, then
+    // temporarily remove those paint clips: overflow changes can expose a
+    // stored scroll offset or alter formatting, and only the later
+    // same-size translation check is allowed to map that sample back.
+    phase = "isolation";
+    const clipsSuppressed = await page.evaluate(suppressAncestorClipsInPage);
+    if (!clipsSuppressed) {
+      recordFailure(target, "isolation", "temporary owner state disappeared before clip suppression");
+      return;
+    }
+
+    phase = "geometry";
+    const unclippedQuad = await resolveTargetQuad(session, target);
+    const unclippedBounds = unclippedQuad == null ? null : axisAlignedQuadBounds(unclippedQuad);
+    if (unclippedQuad == null || unclippedBounds == null) {
+      recordFailure(target, "geometry", "could not resolve the unclipped source quad");
+      return;
+    }
+
+    // A local surface may sit outside the viewport before its serialized
+    // rotate/skew maps it back on-screen. Translate only the isolated
+    // target for sampling, then map the resulting bitmap back by that
+    // proven translation. When the surface already fits, no mutation is
+    // made and sampledQuad === outputQuad.
+    const { dx, dy } = resolveSampleShift(unclippedBounds, viewport);
+    if (dx !== 0 || dy !== 0) {
+      await page.evaluate(shiftSnapshotTargetInPage, { dx, dy });
+    }
+
+    const sampledQuad = await resolveTargetQuad(session, target);
+    if (sampledQuad == null) {
+      recordFailure(target, "geometry", "could not resolve the sampled source quad");
+      return;
+    }
+    const mapping = mapTranslatedQuadToScreenshot(outputQuad, sampledQuad, viewport);
+    if (mapping == null) {
+      recordFailure(target, "geometry", "sampled source was not a same-size axis-aligned translation");
+      return;
+    }
+    phase = "screenshot";
+    const buf = await page.screenshot({ clip: mapping.clip, omitBackground: true, type: "png" });
+    const metadata = await sharp(buf).metadata();
+    const pixelWidth = metadata.width ?? 0;
+    const pixelHeight = metadata.height ?? 0;
+    if (pixelWidth <= 0 || pixelHeight <= 0) {
+      recordFailure(target, "screenshot", "Chromium returned an empty bitmap");
+      return;
+    }
+    installRaster(
+      target,
+      viewport,
+      `data:image/png;base64,${Buffer.from(buf).toString("base64")}`,
+      {
+        x: mapping.output.x - viewport.x,
+        y: mapping.output.y - viewport.y,
+        width: mapping.output.width,
+        height: mapping.output.height,
+      },
+      outputQuad,
+      pixelWidth,
+      pixelHeight,
+    );
+    report.rasterizedCount++;
+  } catch (error) {
+    // A detached/mutating live node leaves the normal element box in place.
+    recordFailure(target, phase, errorDetail(error));
+  } finally {
+    if (prepared) {
+      try {
+        await page.evaluate(restoreSnapshotStateInPage);
+      } catch (error) {
+        recordFailure(target, "cleanup", `could not restore authored styles: ${errorDetail(error)}`);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Page-evaluated callbacks. Playwright serializes each function's source and
+// runs it in the page, so these must stay self-contained: no imports, no
+// references to module scope (the type aliases below are erased at compile
+// time). Each one shares temporary state through
+// `globalThis.__domotionReplacedSnapshotState`.
+// ---------------------------------------------------------------------------
+
+/**
+ * Restores any stale snapshot state, marks the target, and neutralizes every
+ * ancestor rotate/skew transform the renderer will re-apply. Returns false
+ * when the live node is gone.
+ */
+const prepareSnapshotTargetInPage = (rid: string): boolean => {
+  type SavedProperty = { name: string; value: string; priority: string };
+  type SavedElement = {
+    element: HTMLElement;
+    properties: SavedProperty[];
+    scrollLeft?: number;
+    scrollTop?: number;
+  };
+  type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
+  const stateKey = "__domotionReplacedSnapshotState";
+  const host = globalThis as unknown as {
+    __domotionReplacedSnapshotState?: SnapshotState;
+  };
+  const previous = host[stateKey];
+  if (previous != null) {
+    for (let i = previous.saved.length - 1; i >= 0; i--) {
+      const entry = previous.saved[i];
+      for (const property of entry.properties) {
+        if (property.value === "") entry.element.style.removeProperty(property.name);
+        else entry.element.style.setProperty(property.name, property.value, property.priority);
+      }
+      if (entry.scrollLeft != null) entry.element.scrollLeft = entry.scrollLeft;
+      if (entry.scrollTop != null) entry.element.scrollTop = entry.scrollTop;
+    }
+    delete host[stateKey];
+  }
+  const prev = document.querySelectorAll("[data-domotion-snapshot-target]");
+  prev.forEach((el) => el.removeAttribute("data-domotion-snapshot-target"));
+  const next = document.querySelector(`[data-domotion-rid="${rid}"]`);
+  if (!(next instanceof HTMLElement)) return false;
+  next.setAttribute("data-domotion-snapshot-target", "");
+
+  const saved: SavedElement[] = [];
+  for (let owner: HTMLElement | null = next; owner != null; owner = owner.parentElement) {
+    const style = getComputedStyle(owner);
+    const transform = style.transform;
+    let needsRendererTransform = false;
+    const matrix = /^matrix\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,/.exec(transform);
+    if (matrix != null && (Math.abs(parseFloat(matrix[2])) > 1e-6 || Math.abs(parseFloat(matrix[3])) > 1e-6)) {
+      needsRendererTransform = true;
+    }
+    const matrix3d =
+      /^matrix3d\(\s*([-\d.eE]+)\s*,\s*([-\d.eE]+)\s*,\s*[-\d.eE]+\s*,\s*[-\d.eE]+\s*,\s*([-\d.eE]+)\s*,/.exec(
+        transform,
+      );
+    if (matrix3d != null && (Math.abs(parseFloat(matrix3d[2])) > 1e-6 || Math.abs(parseFloat(matrix3d[3])) > 1e-6)) {
+      needsRendererTransform = true;
+    }
+    if (style.rotate != null && style.rotate !== "" && style.rotate !== "none") {
+      const angle = /([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*(deg|rad|grad|turn)?\s*$/i.exec(style.rotate);
+      if (angle != null) {
+        const value = parseFloat(angle[1]);
+        const unit = angle[2]?.toLowerCase() ?? "deg";
+        const degrees =
+          unit === "rad"
+            ? (value * 180) / Math.PI
+            : unit === "grad"
+              ? value * 0.9
+              : unit === "turn"
+                ? value * 360
+                : value;
+        if (Math.abs(degrees % 360) > 1e-6) needsRendererTransform = true;
+      }
+    }
+    if (!needsRendererTransform) continue;
+    const properties: SavedProperty[] = [];
+    for (const name of ["transform", "translate", "rotate", "scale"]) {
+      properties.push({
+        name,
+        value: owner.style.getPropertyValue(name),
+        priority: owner.style.getPropertyPriority(name),
+      });
+    }
+    saved.push({ element: owner, properties });
+    owner.style.setProperty("transform", "translate(0)", "important");
+    owner.style.setProperty("translate", "none", "important");
+    owner.style.setProperty("rotate", "none", "important");
+    owner.style.setProperty("scale", "none", "important");
+  }
+  host[stateKey] = { target: next, saved };
+  // Force Blink to rebuild paint-property nodes before CDP asks for
+  // LocalRectToAbsoluteQuad.
+  void next.getBoundingClientRect();
+  return true;
+};
+
+/**
+ * Temporarily removes ancestor overflow / clip / clip-path / mask paint
+ * clips, saving the authored values and scroll offsets for restoration.
+ */
+const suppressAncestorClipsInPage = (): boolean => {
+  type SavedProperty = { name: string; value: string; priority: string };
+  type SavedElement = {
+    element: HTMLElement;
+    properties: SavedProperty[];
+    scrollLeft?: number;
+    scrollTop?: number;
+  };
+  type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
+  const stateKey = "__domotionReplacedSnapshotState";
+  const host = globalThis as unknown as {
+    __domotionReplacedSnapshotState?: SnapshotState;
+  };
+  const state = host[stateKey];
+  if (state == null) return false;
+  for (
+    let ancestor = state.target.parentElement;
+    ancestor != null && ancestor !== document.documentElement;
+    ancestor = ancestor.parentElement
+  ) {
+    const style = getComputedStyle(ancestor);
+    const properties: SavedProperty[] = [];
+    const scrollLeft = ancestor.scrollLeft;
+    const scrollTop = ancestor.scrollTop;
+    if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+      for (const name of ["overflow", "overflow-x", "overflow-y"]) {
+        properties.push({
+          name,
+          value: ancestor.style.getPropertyValue(name),
+          priority: ancestor.style.getPropertyPriority(name),
+        });
+      }
+      ancestor.style.setProperty("overflow", "visible", "important");
+      ancestor.style.setProperty("overflow-x", "visible", "important");
+      ancestor.style.setProperty("overflow-y", "visible", "important");
+    }
+    if (style.clip !== "auto") {
+      properties.push({
+        name: "clip",
+        value: ancestor.style.getPropertyValue("clip"),
+        priority: ancestor.style.getPropertyPriority("clip"),
+      });
+      ancestor.style.setProperty("clip", "auto", "important");
+    }
+    if (style.clipPath !== "none") {
+      properties.push({
+        name: "clip-path",
+        value: ancestor.style.getPropertyValue("clip-path"),
+        priority: ancestor.style.getPropertyPriority("clip-path"),
+      });
+      ancestor.style.setProperty("clip-path", "none", "important");
+    }
+    if (style.maskImage !== "none") {
+      properties.push({
+        name: "mask-image",
+        value: ancestor.style.getPropertyValue("mask-image"),
+        priority: ancestor.style.getPropertyPriority("mask-image"),
+      });
+      ancestor.style.setProperty("mask-image", "none", "important");
+    }
+    if (style.webkitMaskImage != null && style.webkitMaskImage !== "none") {
+      properties.push({
+        name: "-webkit-mask-image",
+        value: ancestor.style.getPropertyValue("-webkit-mask-image"),
+        priority: ancestor.style.getPropertyPriority("-webkit-mask-image"),
+      });
+      ancestor.style.setProperty("-webkit-mask-image", "none", "important");
+    }
+    if (properties.length > 0) {
+      state.saved.push({
+        element: ancestor,
+        properties,
+        scrollLeft,
+        scrollTop,
+      });
+    }
+  }
+  void state.target.getBoundingClientRect();
+  return true;
+};
+
+/** Adds `dx`/`dy` to the isolated target's computed `translate`. */
+const shiftSnapshotTargetInPage = ({ dx, dy }: { dx: number; dy: number }): void => {
+  type SavedProperty = { name: string; value: string; priority: string };
+  type SavedElement = {
+    element: HTMLElement;
+    properties: SavedProperty[];
+    scrollLeft?: number;
+    scrollTop?: number;
+  };
+  type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
+  const stateKey = "__domotionReplacedSnapshotState";
+  const host = globalThis as unknown as {
+    __domotionReplacedSnapshotState?: SnapshotState;
+  };
+  const state = host[stateKey];
+  if (state == null) return;
+  if (!state.saved.some((entry) => entry.element === state.target)) {
+    state.saved.push({
+      element: state.target,
+      properties: [
+        {
+          name: "translate",
+          value: state.target.style.getPropertyValue("translate"),
+          priority: state.target.style.getPropertyPriority("translate"),
+        },
+      ],
+    });
+  }
+  const computed = getComputedStyle(state.target).translate;
+  const parts: string[] = [];
+  if (computed !== "none" && computed !== "") {
+    let start = 0;
+    let depth = 0;
+    const value = computed.trim();
+    for (let i = 0; i <= value.length; i++) {
+      const character = value[i];
+      if (character === "(") depth++;
+      else if (character === ")") depth--;
+      if (i === value.length || (depth === 0 && character != null && /\s/.test(character))) {
+        if (i > start) parts.push(value.slice(start, i));
+        while (i + 1 < value.length && /\s/.test(value[i + 1])) i++;
+        start = i + 1;
+      }
+    }
+  }
+  const x = parts[0] ?? "0px";
+  const y = parts[1] ?? "0px";
+  const z = parts[2];
+  const shiftedX = dx === 0 ? x : `calc(${x} + ${dx}px)`;
+  const shiftedY = dy === 0 ? y : `calc(${y} + ${dy}px)`;
+  state.target.style.setProperty("translate", `${shiftedX} ${shiftedY}${z == null ? "" : ` ${z}`}`, "important");
+  void state.target.getBoundingClientRect();
+};
+
+/** Restores every saved authored style and scroll offset, newest first. */
+const restoreSnapshotStateInPage = (): void => {
+  type SavedProperty = { name: string; value: string; priority: string };
+  type SavedElement = {
+    element: HTMLElement;
+    properties: SavedProperty[];
+    scrollLeft?: number;
+    scrollTop?: number;
+  };
+  type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
+  const stateKey = "__domotionReplacedSnapshotState";
+  const host = globalThis as unknown as {
+    __domotionReplacedSnapshotState?: SnapshotState;
+  };
+  const state = host[stateKey];
+  if (state == null) return;
+  for (let i = state.saved.length - 1; i >= 0; i--) {
+    const entry = state.saved[i];
+    for (const property of entry.properties) {
+      if (property.value === "") entry.element.style.removeProperty(property.name);
+      else entry.element.style.setProperty(property.name, property.value, property.priority);
+    }
+    if (entry.scrollLeft != null) entry.element.scrollLeft = entry.scrollLeft;
+    if (entry.scrollTop != null) entry.element.scrollTop = entry.scrollTop;
+  }
+  delete host[stateKey];
+};
