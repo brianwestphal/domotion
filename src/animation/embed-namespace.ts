@@ -31,7 +31,9 @@
  * namespaced after the fact instead.
  */
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+import { escapeRegExp } from "../utils/escape-regexp.js";
+
+const escapeRe = escapeRegExp;
 const byLengthDesc = (a: string, b: string): number => b.length - a.length;
 
 /** Options for {@link namespaceEmbeddedAnimatedSvg}. */

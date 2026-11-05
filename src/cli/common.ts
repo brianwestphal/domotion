@@ -17,6 +17,16 @@ import { gzipSvg } from "../post-processing/index.js";
 
 const execFileP = promisify(execFile);
 
+// A decimal number as a user types it on the command line. `Number(v)` alone
+// turned `""` into 0 and accepted `0x10` (16), `0b1` and `Infinity` spellings.
+const DECIMAL_FLAG = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+/** A numeric flag value, or NaN when it is not a plain decimal number. */
+export function flagNumber(value: string): number {
+  const trimmed = value.trim();
+  return DECIMAL_FLAG.test(trimmed) ? Number(trimmed) : Number.NaN;
+}
+
 /** Parse a positive-integer flag, falling back to `def` when the flag is absent.
  *  Thin default-applying wrapper over `parsePositiveInt` so the two share one
  *  validation predicate (DM-1434). */
@@ -28,7 +38,7 @@ export function parseIntFlag(value: string | undefined, name: string, def: numbe
  *  default), unlike `parseIntFlag`. Shared by the `svg-to-video` bin. */
 export function parsePositiveInt(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;
-  const n = Number(value);
+  const n = flagNumber(value);
   if (!Number.isInteger(n) || n <= 0) throw new UsageError(`--${name} expects a positive integer, got "${value}"`);
   return n;
 }
@@ -36,7 +46,7 @@ export function parsePositiveInt(value: string | undefined, name: string): numbe
 /** Parse an OPTIONAL non-negative-integer flag (0 allowed) — `undefined` when absent. */
 export function parseNonNegativeInt(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;
-  const n = Number(value);
+  const n = flagNumber(value);
   if (!Number.isInteger(n) || n < 0) throw new UsageError(`--${name} expects a non-negative integer, got "${value}"`);
   return n;
 }
@@ -50,7 +60,7 @@ export function parseNonNegativeInt(value: string | undefined, name: string): nu
  *  boundary so a bad port fails there instead of inside `server.listen`. */
 export function parsePort(value: string | undefined): number | undefined {
   if (value == null) return undefined;
-  const n = Number(value);
+  const n = flagNumber(value);
   if (!Number.isInteger(n) || n < 0 || n > 65535) {
     throw new UsageError(`--port expects an integer in 0..65535 (0 = an OS-assigned free port), got "${value}"`);
   }
@@ -60,7 +70,7 @@ export function parsePort(value: string | undefined): number | undefined {
 /** Parse an OPTIONAL positive-float flag — `undefined` when absent. */
 export function parsePositiveFloat(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;
-  const n = Number(value);
+  const n = flagNumber(value);
   if (!Number.isFinite(n) || n <= 0) throw new UsageError(`--${name} expects a positive number, got "${value}"`);
   return n;
 }
@@ -68,7 +78,7 @@ export function parsePositiveFloat(value: string | undefined, name: string): num
 /** Parse an OPTIONAL non-negative-float flag (0 allowed) — `undefined` when absent. */
 export function parseNonNegativeFloat(value: string | undefined, name: string): number | undefined {
   if (value == null) return undefined;
-  const n = Number(value);
+  const n = flagNumber(value);
   if (!Number.isFinite(n) || n < 0) throw new UsageError(`--${name} expects a number >= 0, got "${value}"`);
   return n;
 }
@@ -240,7 +250,7 @@ export function parseColorScheme(value: string | undefined): "light" | "dark" | 
 export function parseTuple(value: string, len: number, name: string): number[] {
   const parts = value.split(",").map((s) => s.trim());
   if (parts.length !== len) throw new UsageError(`--${name} expects ${len} comma-separated numbers, got "${value}"`);
-  const nums = parts.map((p) => Number(p));
+  const nums = parts.map(flagNumber);
   if (nums.some((n) => !Number.isFinite(n)))
     throw new UsageError(`--${name} contains a non-numeric component: "${value}"`);
   return nums;

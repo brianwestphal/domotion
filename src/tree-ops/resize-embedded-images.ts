@@ -19,6 +19,7 @@
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { walkCapturedElements } from "./walk-captured-elements.js";
+import { parseDataUri } from "../utils/data-uri.js";
 import { embeddedSourceDataUri, resizedVariantsFor } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
 import type { AnimatedImageStaticFrameRecord } from "../capture/animated-image-static-frame.js";
@@ -219,16 +220,11 @@ function rememberResized(tree: CapturedElement[], url: string, sizeKey: string, 
 }
 
 function decodeDataUri(dataUri: string): Buffer | null {
-  // `embedRemoteImages` always emits `data:<mime>;base64,<payload>` form.
-  // Anything else (a passthrough URL the cache stored verbatim) we ignore —
-  // we can't decode source bytes from a non-data: cache entry.
-  const m = /^data:[^;]+;base64,(.*)$/s.exec(dataUri);
-  if (m == null) return null;
-  try {
-    return Buffer.from(m[1], "base64");
-  } catch {
-    return null;
-  }
+  // `embedRemoteImages` emits `data:<mime>;base64,<payload>`, but an author's
+  // own data URL can be percent-encoded or carry parameters; the shared decoder
+  // handles every form. A passthrough URL the cache stored verbatim (not a
+  // data: URL) yields null — there are no source bytes to decode.
+  return parseDataUri(dataUri)?.bytes ?? null;
 }
 
 // `embedResizedDataUri` lives in `dom-to-svg.ts` next to `embedAsDataUri` so

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { CDPSession, Page } from "@playwright/test";
+import { parseDataUri } from "../utils/data-uri.js";
 
 export const AUTHENTICATED_ANIMATED_IMAGE_BYTE_PROTOCOL = "domotion-animated-image-bytes-v1" as const;
 
@@ -167,16 +168,9 @@ function fail(code: AnimatedImageByteFailureCode): never {
 }
 
 function dataUrlBytes(url: string): Uint8Array {
-  const match = /^data:([^,]*?),(.*)$/s.exec(url);
-  if (match == null) fail("data-url-parse-failed");
-  try {
-    const metadata = match[1];
-    return metadata.split(";").some((part) => part.toLowerCase() === "base64")
-      ? Buffer.from(match[2], "base64")
-      : Buffer.from(decodeURIComponent(match[2]), "utf8");
-  } catch {
-    return fail("data-url-parse-failed");
-  }
+  const parsed = parseDataUri(url);
+  if (parsed == null) fail("data-url-parse-failed");
+  return parsed.bytes;
 }
 
 async function snapshotOwner(

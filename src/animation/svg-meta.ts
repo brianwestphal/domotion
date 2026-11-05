@@ -9,19 +9,77 @@
  * not-found fallback.
  */
 
+// CSS absolute-length units in CSS px (css-values-4 §6.2), the conversions
+// `SVGLengthContext` applies to a root `width`/`height`.
+const ABSOLUTE_UNIT_PX: Readonly<Record<string, number>> = {
+  "": 1,
+  px: 1,
+  in: 96,
+  cm: 96 / 2.54,
+  mm: 96 / 25.4,
+  q: 96 / 101.6,
+  pt: 96 / 72,
+  pc: 96 / 6,
+};
+const SVG_NUMBER = String.raw`[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?`;
+const LENGTH_RE = new RegExp(`^(${SVG_NUMBER})([a-z]*|%)$`, "i");
+const VIEWBOX_RE = new RegExp(
+  `^(${SVG_NUMBER})(?:\\s*,\\s*|\\s+)(${SVG_NUMBER})(?:\\s*,\\s*|\\s+)(${SVG_NUMBER})(?:\\s*,\\s*|\\s+)(${SVG_NUMBER})$`,
+);
+
+/** One attribute value from an opening tag, either quote style; `undefined` when absent. */
+function readAttribute(tag: string, name: string): string | undefined {
+  // `(?<=\s)` keeps `width` from matching inside `stroke-width` / `data-width`.
+  const m = new RegExp(`(?<=\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "i").exec(tag);
+  return m == null ? undefined : (m[1] ?? m[2]).trim();
+}
+
 /**
- * Best-effort intrinsic size of an SVG document: the root `width`/`height` attrs
- * (unitless or `px`), else the `viewBox` width/height. `null` when neither is
- * parseable (e.g. a `width="100%"` root with no viewBox).
+ * A root `width`/`height` as Blink's `SVGSVGElement::IntrinsicWidth` reads it:
+ * an absolute length in px, clamped at 0. A percentage, `auto`, a missing value
+ * and (here, without computed style) a font-relative unit yield no natural
+ * dimension.
+ */
+function naturalDimension(value: string | undefined): number | undefined {
+  if (value == null) return undefined;
+  const m = LENGTH_RE.exec(value);
+  if (m == null) return undefined;
+  const scale = ABSOLUTE_UNIT_PX[m[2].toLowerCase()];
+  if (scale == null) return undefined;
+  return Math.max(0, Number(m[1]) * scale);
+}
+
+/**
+ * The single intrinsic-size reader for an SVG document's root `<svg>`, shared by
+ * every tool that sizes an SVG (composite, storyboard, templates, Studio,
+ * svg-to-image / svg-to-video, the scrubber and svg-review).
+ *
+ * Precedence follows Blink's `LayoutSVGRoot::UnscaledNaturalSizingInfo`
+ * (chromium 7d859f27, `core/layout/svg/layout_svg_root.cc:74-103`, with
+ * `SVGSVGElement::IntrinsicWidth/Height` in `core/svg/svg_svg_element.cc:629-649`):
+ * non-percentage `width`/`height` lengths ARE the natural size, and the
+ * `viewBox` only supplies a natural aspect ratio when that size is empty. So
+ * `width="640" height="360" viewBox="0 0 1280 720"` is 640×360 — what Chromium
+ * paints for the document — and a single declared dimension takes the other from
+ * the viewBox ratio.
+ *
+ * One deliberate departure: with no natural size at all (both dimensions
+ * percentage, `auto`, missing or 0) Blink has only a ratio and a consumer falls
+ * back to its default object size; these tools need a canvas, so the viewBox
+ * extent is returned. `null` when there is neither a usable size nor a viewBox.
  */
 export function parseSvgIntrinsicSize(svg: string): { w: number; h: number } | null {
   const open = /<svg\b[^>]*>/i.exec(svg)?.[0] ?? "";
-  const w = /\bwidth="([\d.]+)(px)?"/i.exec(open);
-  const h = /\bheight="([\d.]+)(px)?"/i.exec(open);
-  if (w != null && h != null) return { w: parseFloat(w[1]), h: parseFloat(h[1]) };
-  const vb = /\bviewBox="[\d.\s-]*?([\d.]+)\s+([\d.]+)"/i.exec(open);
-  if (vb != null) return { w: parseFloat(vb[1]), h: parseFloat(vb[2]) };
-  return null;
+  const w = naturalDimension(readAttribute(open, "width"));
+  const h = naturalDimension(readAttribute(open, "height"));
+  if (w != null && h != null && w > 0 && h > 0) return { w, h };
+  const vb = VIEWBOX_RE.exec(readAttribute(open, "viewBox") ?? "");
+  const vbW = vb == null ? NaN : Number(vb[3]);
+  const vbH = vb == null ? NaN : Number(vb[4]);
+  if (!(vbW > 0 && vbH > 0)) return null;
+  if (w != null && w > 0 && h == null) return { w, h: (w * vbH) / vbW };
+  if (h != null && h > 0 && w == null) return { w: (h * vbW) / vbH, h };
+  return { w: vbW, h: vbH };
 }
 
 /**

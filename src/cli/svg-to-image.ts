@@ -14,7 +14,7 @@
 
 import { parseArgs } from "node:util";
 import { launchChromium } from "../capture/index.js";
-import { runBin, makeLogger, parseNonNegativeFloat, parsePositiveInt } from "./common.js";
+import { runBin, makeLogger, flagNumber, parseNonNegativeFloat, parsePositiveInt, UsageError } from "./common.js";
 import {
   resolveImageFormat,
   runSvgToImage,
@@ -33,8 +33,10 @@ function parseFormat(value: string | undefined): ImageFormat | undefined {
 
 function parseQuality(value: string | undefined): number | undefined {
   if (value == null) return undefined;
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 1 || n > 100) throw new Error(`--quality expects an integer 1–100, got "${value}"`);
+  // A bad flag is a usage error (exit 2), like every other flag parser.
+  const n = flagNumber(value);
+  if (!Number.isInteger(n) || n < 1 || n > 100)
+    throw new UsageError(`--quality expects an integer 1–100, got "${value}"`);
   return n;
 }
 

@@ -18,7 +18,7 @@ import { z } from "zod";
 import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { composeAnimatedLayers, type CompositeLayerAnimation } from "../../animation/index.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
-import { escapeHtml } from "../../utils/escapeHtml.js";
+import { escapeAttr, escapeHtml } from "../../utils/escapeHtml.js";
 import { formatScaleFactor, type SafeInset } from "../formats.js";
 
 const MODES = ["wipe", "slide"] as const;
@@ -57,11 +57,6 @@ function resolveSrc(src: string): string {
  * captured directly; an image/SVG asset is wrapped in a full-bleed page so its
  * bytes embed into the captured SVG. `slot` disambiguates the temp filename.
  */
-/** Escape a value for a double-quoted HTML attribute. */
-function escapeAttr(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 async function visualToSvg(
   ctx: TemplateRenderContext,
   src: string,

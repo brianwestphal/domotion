@@ -26,6 +26,7 @@ import type { Browser } from "@playwright/test";
 import { isTransparentBackground } from "./common.js";
 import { seekAnimationsToFrame } from "../capture/animation-frame.js";
 import { startFfmpegFrameSink } from "./ffmpeg-frame-sink.js";
+import { parseSvgIntrinsicSize } from "../animation/svg-meta.js";
 
 export interface SvgToVideoOptions {
   input: string;
@@ -91,29 +92,13 @@ export function fitContain(
 }
 
 /**
- * Read the intrinsic size from SVG markup: `viewBox` width/height preferred
- * (the true coordinate extent), else the `width`/`height` attributes with units
- * stripped. Returns null when neither is present (caller then requires explicit
- * --width/--height).
+ * The intrinsic size of SVG markup — the shared reader from `svg-meta.ts`
+ * (root `width`/`height` first, as Chromium sizes the document; the viewBox
+ * supplies a ratio or a fallback extent). Re-exported here because svg-to-image
+ * and the scrubber import it from this module. Null when unsized (the caller then
+ * requires explicit --width/--height).
  */
-export function parseSvgIntrinsicSize(markup: string): { w: number; h: number } | null {
-  const open = markup.match(/<svg\b[^>]*>/i);
-  const tag = open ? open[0] : markup;
-  const viewBox = tag.match(/\bviewBox\s*=\s*["']\s*([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s*["']/);
-  if (viewBox) {
-    const w = Number(viewBox[3]);
-    const h = Number(viewBox[4]);
-    if (w > 0 && h > 0) return { w, h };
-  }
-  const wAttr = tag.match(/\bwidth\s*=\s*["']\s*([\d.]+)\s*(?:px)?\s*["']/i);
-  const hAttr = tag.match(/\bheight\s*=\s*["']\s*([\d.]+)\s*(?:px)?\s*["']/i);
-  if (wAttr && hAttr) {
-    const w = Number(wAttr[1]);
-    const h = Number(hAttr[1]);
-    if (w > 0 && h > 0) return { w, h };
-  }
-  return null;
-}
+export { parseSvgIntrinsicSize };
 
 function gcd(a: number, b: number): number {
   a = Math.abs(a);

@@ -77,7 +77,11 @@ What is _not_ free:
 2. **Load the SVG in Chromium** (Playwright, reusing `launchChromium`). Inline
    the SVG into a minimal HTML wrapper at its intrinsic size so the document's
    animations are script-reachable and the viewport is controlled.
-3. **Determine intrinsic size** from `viewBox` / `width`/`height`, then compute
+3. **Determine intrinsic size** with the shared `parseSvgIntrinsicSize`
+   (`src/animation/svg-meta.ts`). It follows Chromium's precedence: absolute
+   root `width`/`height` are the natural size. When only one is given, the
+   viewBox ratio supplies the other, and when neither is usable the viewBox
+   extent is used. Then compute
    the output size: `--width`/`--height` _contain_ the natural aspect ratio
    (fit inside the box, never distort). Render at an integer device scale for
    crisp frames; pad to even dimensions (h264 `yuv420p` requires even W/H).

@@ -413,7 +413,12 @@ async function hydrateBackgroundTargets(
         const match = /^data:image\/svg\+xml([^,]*),(.*)$/is.exec(url);
         if (match == null) return null;
         try {
-          if (/;base64/i.test(match[1])) return atob(match[2]);
+          // `atob` yields one char per byte (Latin-1); a UTF-8 SVG needs its
+          // bytes decoded as UTF-8, matching the Node-side `parseDataUri`.
+          if (/;\s*base64\s*$/i.test(match[1])) {
+            const binary = atob(match[2].replace(/[\t\n\f\r ]/g, ""));
+            return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
+          }
           return decodeURIComponent(match[2]);
         } catch {
           return null;

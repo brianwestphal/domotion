@@ -5,6 +5,7 @@ import { namespaceEmbeddedAnimatedSvg } from "../animation/embed-namespace.js";
 import type { Transition } from "../animation/transition-schema.js";
 import { parseSvgIntrinsicSize } from "../animation/svg-meta.js";
 import { wrapInDeviceChrome } from "../render/device-chrome.js";
+import { esc } from "../render/format.js";
 import type { Brand } from "../templates/brand.js";
 import {
   studioTreatmentsSchema,
@@ -111,9 +112,9 @@ export function resolveStudioTreatmentPlan(raw: unknown, brand: Brand = {}): Stu
   };
 }
 
-function escapeXml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-}
+// The canonical SVG escaper, which also drops XML-illegal code points (a control
+// character in callout text must not make the treated document malformed).
+const escapeXml = esc;
 
 /**
  * The `animation` declaration for a treatment's `style` attribute, already

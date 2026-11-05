@@ -35,6 +35,7 @@ import { findFillBoxInClipOrMask } from "../post-processing/clip-transform-safet
 import { namespaceEmbeddedAnimatedSvg } from "./embed-namespace.js";
 import { offsetEmbeddedAnimatedSvgTimeline, type EmbeddedTimelineMode } from "./embed-timeline.js";
 import { parseSvgIntrinsicSize, fmt, clampPct } from "./svg-meta.js";
+import { escapeRegExp } from "../utils/escape-regexp.js";
 
 /** A layer-level animation: move / scale / fade / transform / resize-clip the whole layer. */
 export interface CompositeLayerAnimation {
@@ -420,7 +421,7 @@ export function dedupeCompositeFonts(svg: string): string {
   // Repoint every reference of a removed family at its surviving copy — only in
   // `font-family` declaration / attribute contexts (never a bare global replace,
   // so a base64 payload can't be corrupted).
-  const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const esc = escapeRegExp;
   for (const [dup, canon] of renames) {
     const e = esc(dup);
     out = out

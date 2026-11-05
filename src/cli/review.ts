@@ -18,10 +18,11 @@
 
 import { parseArgs } from "node:util";
 import { resolve, extname, basename } from "node:path";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { type Browser } from "@playwright/test";
+import { parseSvgIntrinsicSize } from "../animation/svg-meta.js";
 import { launchChromium } from "../capture/index.js";
 import { comparePngs } from "../review/compare-pngs.js";
 import { startReviewServer } from "../review/server.js";
@@ -99,22 +100,13 @@ async function rasteriseSvg(
   const page = await ctx.newPage();
   // Load the SVG inside a minimal HTML host so Chromium uses its native
   // SVG renderer (matches what consumers' browsers paint when the SVG is
-  // embedded as <img> / inline). Resolve width/height from the SVG's
-  // viewBox or width/height attributes so the screenshot rect matches.
+  // embedded as <img> / inline). Size the screenshot rect with the shared
+  // intrinsic-size reader (root width/height first, as Chromium sizes the
+  // document; the viewBox as ratio/fallback) — this used to be an in-page copy
+  // that read the viewBox first and so disagreed with every other tool.
   await page.goto(pathToFileURL(svgPath).href);
-  const dims = await page.evaluate(() => {
-    const svg = document.querySelector("svg");
-    if (svg == null) return null;
-    const vb = svg.getAttribute("viewBox");
-    if (vb != null) {
-      const parts = vb.split(/\s+/).map(Number);
-      if (parts.length === 4) return { width: parts[2]!, height: parts[3]! };
-    }
-    const w = parseFloat(svg.getAttribute("width") ?? "");
-    const h = parseFloat(svg.getAttribute("height") ?? "");
-    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) return { width: w, height: h };
-    return null;
-  });
+  const intrinsic = parseSvgIntrinsicSize(readFileSync(svgPath, "utf8"));
+  const dims = intrinsic == null ? null : { width: intrinsic.w, height: intrinsic.h };
   if (dims == null) {
     await ctx.close();
     throw new Error(`svg-review: couldn't determine SVG dimensions from ${svgPath}`);

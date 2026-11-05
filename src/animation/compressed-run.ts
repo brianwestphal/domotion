@@ -106,6 +106,7 @@
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { paintOrderHitSequence } from "../render/paint-order.js";
+import { esc } from "../render/format.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
 import { IDENTITY_TEXT_AFFINE, prepareAffineTextPaint, textAffineEquals } from "../render/text-affine.js";
@@ -1585,9 +1586,6 @@ export function buildCompressedRunPlan(
 }
 
 // ── Composition ─────────────────────────────────────────────────────────────
-
-const esc = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /**
  * Compose N captured continue+cut states into one nested animated SVG. See

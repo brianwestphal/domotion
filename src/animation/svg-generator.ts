@@ -48,6 +48,7 @@ import { buildShineSweep } from "./shine.js";
 import { barCaretHeightPx, caretShapeRect, type CaretShape } from "./caret-metrics.js";
 import { textTrackMarkup, type ResolvedTextTrack } from "./caret-track.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
+import { escapeRegExp } from "../utils/escape-regexp.js";
 import { normalizeTransition, type NormalizedTransitionPlan, type Transition } from "./transition-schema.js";
 
 export interface AnimationFrame {
@@ -448,7 +449,7 @@ function emitCrossfadeOrCutFrame(
  */
 export function dedupeFrameIds(frames: AnimationFrame[]): AnimationFrame[] {
   const seen = new Set<string>();
-  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const esc = escapeRegExp;
   return frames.map((frame, i) => {
     const svg = frame.svgContent;
     if (svg == null || svg === "") return frame;

@@ -497,3 +497,10 @@ describe("nested-SVG flattening is a scoped, restorable setting (DM-K0S6ZS trans
     expect(getFlattenNestedSvg()).toBe(false);
   });
 });
+
+describe("editSvgRootAttributes escapes set values for XML", () => {
+  it("escapes < and drops XML-illegal code points (they used to pass through)", () => {
+    const out = editSvgRootAttributes('<svg viewBox="0 0 1 1"></svg>', [], { "aria-label": 'a<b & "c"\u0001' });
+    expect(out).toBe('<svg viewBox="0 0 1 1" aria-label="a&lt;b &amp; &quot;c&quot;"></svg>');
+  });
+});

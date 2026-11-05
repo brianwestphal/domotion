@@ -13,6 +13,40 @@ describe("parseSvgIntrinsicSize", () => {
   it("returns null when neither is parseable", () => {
     expect(parseSvgIntrinsicSize('<svg width="100%" height="100%">')).toBeNull();
     expect(parseSvgIntrinsicSize("<svg>")).toBeNull();
+    expect(parseSvgIntrinsicSize('<svg width="0" height="0">')).toBeNull();
+    expect(parseSvgIntrinsicSize('<svg viewBox="0 0 0 10">')).toBeNull();
+  });
+  it("lets width/height win over a conflicting viewBox (Blink: viewBox is only a ratio)", () => {
+    expect(parseSvgIntrinsicSize('<svg viewBox="0 0 1280 720" width="640" height="360">')).toEqual({ w: 640, h: 360 });
+  });
+  it("accepts single quotes and whitespace around values", () => {
+    expect(parseSvgIntrinsicSize("<svg width=' 300 ' height='150px'>")).toEqual({ w: 300, h: 150 });
+    expect(parseSvgIntrinsicSize("<svg viewBox='0,0,320,180'>")).toEqual({ w: 320, h: 180 });
+    expect(parseSvgIntrinsicSize('<svg viewBox=" -10 -10 320 180 ">')).toEqual({ w: 320, h: 180 });
+  });
+  it("converts absolute units to px", () => {
+    expect(parseSvgIntrinsicSize('<svg width="1in" height="72pt">')).toEqual({ w: 96, h: 96 });
+    const mm = parseSvgIntrinsicSize('<svg width="25.4mm" height="2.54cm">');
+    expect(mm?.w).toBeCloseTo(96, 9);
+    expect(mm?.h).toBeCloseTo(96, 9);
+    expect(parseSvgIntrinsicSize('<svg width="1PC" height="1e2">')).toEqual({ w: 16, h: 100 });
+  });
+  it("treats 0, negative, percentage, auto and font-relative sizes as no natural size", () => {
+    expect(parseSvgIntrinsicSize('<svg width="0" height="0" viewBox="0 0 200 100">')).toEqual({ w: 200, h: 100 });
+    expect(parseSvgIntrinsicSize('<svg width="-5" height="10" viewBox="0 0 200 100">')).toEqual({ w: 200, h: 100 });
+    expect(parseSvgIntrinsicSize('<svg width="auto" height="auto" viewBox="0 0 200 100">')).toEqual({ w: 200, h: 100 });
+    expect(parseSvgIntrinsicSize('<svg width="10em" height="5em" viewBox="0 0 200 100">')).toEqual({ w: 200, h: 100 });
+  });
+  it("derives a single missing dimension from the viewBox ratio", () => {
+    expect(parseSvgIntrinsicSize('<svg width="400" viewBox="0 0 200 100">')).toEqual({ w: 400, h: 200 });
+    expect(parseSvgIntrinsicSize('<svg height="50" viewBox="0 0 200 100">')).toEqual({ w: 100, h: 50 });
+    expect(parseSvgIntrinsicSize('<svg width="400" height="100%" viewBox="0 0 200 100">')).toEqual({ w: 400, h: 200 });
+  });
+  it("does not read width from a hyphenated attribute such as stroke-width", () => {
+    expect(parseSvgIntrinsicSize('<svg stroke-width="2" data-height="3" viewBox="0 0 200 100">')).toEqual({
+      w: 200,
+      h: 100,
+    });
   });
 });
 

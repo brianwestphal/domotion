@@ -18,6 +18,7 @@ export function radicalUsesDisplayStyle(mathStyle: string | undefined, parentDis
 import { renderWarn } from "./render-warn.js";
 import { fontSizeOrDefault, LEGACY_MARKER_ASCENT_RATIO } from "./text-defaults.js";
 import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-background.js";
+import { parseDataUri } from "../utils/data-uri.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { measureTruncationMarker, renderRadicalGlyph, renderTextAsPath } from "./text-to-path.js";
 import {
@@ -861,7 +862,9 @@ function paintSyntheticListMarker(
     const renderLabel = outside ? label : collapseMarkerWhitespace(label);
     const mx = contentEdge;
     const anchor = outside ? "end" : "start";
-    const escLabel = renderLabel.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // The canonical escaper also drops XML-illegal code points: a control
+    // character in a counter/string marker must not make the document malformed.
+    const escLabel = esc(renderLabel);
     // DM-1258: outside markers preserve their suffix spaces (white-space: pre);
     // inside markers fold into the content line, so let SVG collapse there.
     const xmlSpace = outside ? ' xml:space="preserve"' : "";
@@ -4822,17 +4825,12 @@ function svgTransformForElement(el: CapturedElement): string {
  * the inner SVG can't be parsed.
  */
 export function rewriteSvgDataUriPreserveAspectRatio(dataUri: string, w: number, h: number, par: string): string {
-  if (!/^data:image\/svg\+xml/i.test(dataUri)) return dataUri;
-  // Decode payload: support base64 or URL-encoded forms.
-  const m = /^data:image\/svg\+xml(;base64)?,(.*)$/is.exec(dataUri);
-  if (m == null) return dataUri;
-  const isBase64 = m[1] != null;
-  let svgText: string;
-  try {
-    svgText = isBase64 ? Buffer.from(m[2], "base64").toString("utf8") : decodeURIComponent(m[2]);
-  } catch {
-    return dataUri;
-  }
+  // The shared decoder accepts media-type parameters (`;charset=utf-8;base64`),
+  // which the old inline `(;base64)?` regex rejected — silently skipping this
+  // rewrite for such sources.
+  const parsed = parseDataUri(dataUri);
+  if (parsed?.mime !== "image/svg+xml") return dataUri;
+  const svgText = parsed.bytes.toString("utf8");
   // Find the first <svg ...> opening tag and rewrite its attrs.
   const tagMatch = /<svg\b([^>]*)>/i.exec(svgText);
   if (tagMatch == null) return dataUri;

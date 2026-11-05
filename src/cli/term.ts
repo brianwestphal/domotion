@@ -22,7 +22,16 @@ import { launchChromium } from "../capture/index.js";
 import { castToAnimatedSvg, type TermToSvgOptions } from "../terminal/index.js";
 import { recordPtySession } from "../terminal/pty.js";
 import { THEMES, terminalThemeSpecSchema, type TerminalThemeSpec } from "../terminal/theme.js";
-import { UsageError, formatConfigIssues, errorMessage, readInputFile, writeSvgOutput } from "./common.js";
+import {
+  UsageError,
+  formatConfigIssues,
+  errorMessage,
+  parseNonNegativeFloat,
+  parsePositiveFloat,
+  parsePositiveInt,
+  readInputFile,
+  writeSvgOutput,
+} from "./common.js";
 
 export const TERM_HELP = `domotion term — record a terminal session as an animated SVG
 
@@ -107,30 +116,15 @@ export function parseTermArgs(argv: string[]) {
 
   // Every flag is validated up front (exit 2) — BEFORE a live command runs or Chromium
   // launches, so a typo never costs the user their recorded session.
-  const num = (
-    v: string | undefined,
-    flag: string,
-    kind: "positive" | "non-negative" | "positive-int",
-  ): number | undefined => {
-    if (v == null) return undefined;
-    const n = Number(v);
-    const ok =
-      Number.isFinite(n) &&
-      (kind === "positive" ? n > 0 : kind === "non-negative" ? n >= 0 : Number.isInteger(n) && n > 0);
-    if (!ok) {
-      const want =
-        kind === "positive-int" ? "a positive integer" : kind === "positive" ? "a positive number" : "a number >= 0";
-      throw new UsageError(`--${flag} expects ${want}, got "${v}"`);
-    }
-    return n;
-  };
-  const cols = num(values.cols, "cols", "positive-int");
-  const rows = num(values.rows, "rows", "positive-int");
-  const fontSize = num(values["font-size"], "font-size", "positive");
-  const settleMs = num(values["settle-ms"], "settle-ms", "non-negative");
-  const minFrameMs = num(values["min-frame-ms"], "min-frame-ms", "non-negative");
-  const maxFrameMs = num(values["max-frame-ms"], "max-frame-ms", "non-negative");
-  const tailMs = num(values["tail-ms"], "tail-ms", "non-negative");
+  // The shared parsers throw `UsageError` with the same messages this file's
+  // local copy used to build.
+  const cols = parsePositiveInt(values.cols, "cols");
+  const rows = parsePositiveInt(values.rows, "rows");
+  const fontSize = parsePositiveFloat(values["font-size"], "font-size");
+  const settleMs = parseNonNegativeFloat(values["settle-ms"], "settle-ms");
+  const minFrameMs = parseNonNegativeFloat(values["min-frame-ms"], "min-frame-ms");
+  const maxFrameMs = parseNonNegativeFloat(values["max-frame-ms"], "max-frame-ms");
+  const tailMs = parseNonNegativeFloat(values["tail-ms"], "tail-ms");
   const mode = values.mode;
   if (mode != null && mode !== "incremental" && mode !== "full") {
     throw new UsageError(`--mode must be "incremental" or "full", got "${mode}"`);

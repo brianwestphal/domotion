@@ -21,6 +21,8 @@
  * the `domotion capture --chrome` flag) crib from.
  */
 
+import { esc } from "./format.js";
+
 /** Devices the `--chrome` flag understands. */
 export const DEVICE_CHROMES = ["phone", "browser", "window"] as const;
 export type DeviceChrome = (typeof DEVICE_CHROMES)[number];
@@ -99,9 +101,9 @@ export interface FramedSvg {
 const MONO = "ui-monospace, 'SF Mono', Menlo, monospace";
 const SANS = "-apple-system, system-ui, 'Segoe UI', sans-serif";
 
-function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+// The canonical SVG escaper: it also drops XML-illegal code points, so a control
+// character in a chrome label can no longer make the whole document malformed.
+const escapeXml = esc;
 
 /**
  * Strip the outer `<svg …>…</svg>` wrapper off a complete SVG document, leaving

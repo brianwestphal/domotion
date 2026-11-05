@@ -21,7 +21,7 @@
  * exactly one place.
  */
 
-import { r } from "./format.js";
+import { esc, r } from "./format.js";
 import { computeViewportMatrix, parsePreserveAspectRatio, type ViewBox } from "./svg-viewport-matrix.js";
 
 export interface SvgOpeningTag {
@@ -136,7 +136,9 @@ export function editSvgOpeningTagAttributes(
     if (removed.has(token.name.toLowerCase())) attrs = attrs.slice(0, token.start) + attrs.slice(token.end);
   }
   const appended = Object.entries(set)
-    .map(([name, value]) => ` ${name}="${value.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"`)
+    // `esc`, not a bespoke `&`/`"` escape: XML forbids a literal `<` in an
+    // attribute value, and an illegal code point would make the document malformed.
+    .map(([name, value]) => ` ${name}="${esc(value)}"`)
     .join("");
   return (
     markup.slice(0, root.start) + `<${tagName}${attrs}${appended}${selfClosing ? " /" : ""}>` + markup.slice(root.end)

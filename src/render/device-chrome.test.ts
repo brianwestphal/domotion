@@ -204,3 +204,11 @@ describe("device-chrome: light/dark theme (DM-1212)", () => {
     expect(isChromeTheme("sepia")).toBe(false);
   });
 });
+
+describe("chrome labels are escaped with the canonical XML escaper", () => {
+  it("escapes markup and drops XML-illegal code points from a label", () => {
+    const { svg } = wrapInDeviceChrome("<svg/>", "browser", 320, 200, { label: "a<b>\u0007￾" });
+    expect(svg).toContain(">a&lt;b&gt;</text>");
+    expect(svg).not.toMatch(/[\u0007￾]/);
+  });
+});

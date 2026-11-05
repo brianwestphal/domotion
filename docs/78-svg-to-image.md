@@ -82,8 +82,10 @@ extension is a usage error that names the supported set.
   the scrubber, so a grabbed frame is pixel-identical to the corresponding video
   frame. Harmless on a static SVG.
 - `--width <px>` / `--height <px>` — contain within, preserving aspect ratio.
-  Give either or both; omitted → the SVG's intrinsic size (from `viewBox`, else
-  the `width`/`height` attributes). An SVG with no derivable size requires both.
+  Give either or both; omitted → the SVG's intrinsic size. That is the absolute
+  root `width`/`height`, as Chromium sizes the document; a single missing one is
+  derived from the `viewBox` ratio, and with neither the `viewBox` extent is
+  used. An SVG with no derivable size requires both.
 - `--scale <n>` — device-pixel-ratio / supersample factor for **raster** output
   (a positive **integer**; default `1`; output px = size × scale). Use `2` for a
   crisp retina raster. Ignored for PDF (vector, resolution-independent).

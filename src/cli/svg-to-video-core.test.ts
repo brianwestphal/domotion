@@ -55,8 +55,14 @@ describe("fitContain", () => {
 });
 
 describe("parseSvgIntrinsicSize", () => {
-  it("prefers viewBox", () => {
-    expect(parseSvgIntrinsicSize('<svg viewBox="0 0 800 500" width="100" height="60">')).toEqual({ w: 800, h: 500 });
+  // This module used to read the viewBox first while svg-meta.ts read
+  // width/height first, so the same SVG sized differently per tool. Both now use
+  // one reader with Chromium's precedence: width/height are the natural size.
+  it("prefers the root width/height over the viewBox, as Chromium does", () => {
+    expect(parseSvgIntrinsicSize('<svg viewBox="0 0 800 500" width="100" height="60">')).toEqual({ w: 100, h: 60 });
+  });
+  it("falls back to the viewBox when width/height are percentages", () => {
+    expect(parseSvgIntrinsicSize("<svg viewBox='0 0 800 500' width='100%' height='100%'>")).toEqual({ w: 800, h: 500 });
   });
   it("falls back to width/height attributes (units stripped)", () => {
     expect(parseSvgIntrinsicSize('<svg width="640px" height="360px">')).toEqual({ w: 640, h: 360 });

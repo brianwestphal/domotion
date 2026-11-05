@@ -21,6 +21,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { captureWarningSink } from "./warnings.js";
+import { parseDataUri } from "../utils/data-uri.js";
 
 /** True for an absolute http(s) URL — the ones `embedRemoteImages` fetches and
  *  the data-URI pass-through leaves untouched. */
@@ -262,17 +263,9 @@ export function embedResizedDataUri(
  */
 export function resolveSvgSource(url: string | null | undefined): string | null {
   if (url == null || url === "") return null;
-  const dataUri = embedAsDataUri(url);
-  const m = /^data:image\/svg\+xml([^,]*),(.*)$/is.exec(dataUri);
-  if (m == null) return null;
-  const params = m[1] ?? "";
-  const payload = m[2];
-  try {
-    if (/;base64/i.test(params)) return Buffer.from(payload, "base64").toString("utf8");
-    return decodeURIComponent(payload);
-  } catch {
-    return null;
-  }
+  const parsed = parseDataUri(embedAsDataUri(url));
+  if (parsed?.mime !== "image/svg+xml") return null;
+  return parsed.bytes.toString("utf8");
 }
 
 function mimeFromExtension(path: string): string | null {

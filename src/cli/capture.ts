@@ -59,6 +59,7 @@ import {
   MOBILE_USER_AGENT,
   PAGE_DEFAULT_TIMEOUT_MS,
   parseNonNegativeInt,
+  flagNumber,
 } from "./common.js";
 import { setupDebugBundle } from "./debug-bundle.js";
 
@@ -237,7 +238,7 @@ function parseCaptureOptions(args: string[]) {
 
   const pattern = values.scroll == null ? undefined : parseScrollPattern(values.scroll);
   const speedRaw = values["scroll-speed"];
-  const speed = speedRaw == null ? undefined : Number(speedRaw);
+  const speed = speedRaw == null ? undefined : flagNumber(speedRaw);
   if (speed != null && (!Number.isFinite(speed) || speed <= 0)) {
     throw new UsageError(`--scroll-speed expects a positive number (px/s), got "${speedRaw}"`);
   }

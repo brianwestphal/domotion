@@ -7,13 +7,17 @@ import {
   UsageError,
   errorMessage,
   exitCodeFor,
+  flagNumber,
   formatConfigIssues,
   installShutdownHandlers,
   loadInputIntoPage,
   openInBrowser,
+  parseNonNegativeFloat,
   parseNonNegativeInt,
   parsePort,
+  parsePositiveFloat,
   parsePositiveInt,
+  parseTuple,
   readInputFile,
   shouldOpenInBrowser,
   writeOutput,
@@ -52,6 +56,27 @@ describe("openInBrowser", () => {
     ]) {
       await expect(openInBrowser(url)).rejects.toThrow(/refusing a non-local-server URL/);
     }
+  });
+});
+
+describe("numeric flags accept only plain decimal numbers", () => {
+  it("parses decimals, signs and exponents", () => {
+    expect(flagNumber("12")).toBe(12);
+    expect(flagNumber(" 1.5 ")).toBe(1.5);
+    expect(flagNumber("-.5")).toBe(-0.5);
+    expect(flagNumber("2e3")).toBe(2000);
+  });
+  it("rejects what Number() silently accepted", () => {
+    for (const v of ["", " ", "0x10", "0b1", "0o7", "Infinity", "1_000", "12px", "NaN"])
+      expect(flagNumber(v)).toBeNaN();
+  });
+  it("surfaces as a usage error in every shared parser", () => {
+    expect(() => parsePositiveInt("0x10", "fps")).toThrow(UsageError);
+    expect(() => parseNonNegativeInt("", "delay")).toThrow(UsageError);
+    expect(() => parseNonNegativeFloat("", "at")).toThrow(UsageError);
+    expect(() => parsePositiveFloat("0x1", "scale")).toThrow(UsageError);
+    expect(() => parseTuple("1,0x2", 2, "size")).toThrow(UsageError);
+    expect(parseTuple(" 1 , 2.5", 2, "size")).toEqual([1, 2.5]);
   });
 });
 

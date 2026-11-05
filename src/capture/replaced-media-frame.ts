@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import { privateCaptureKey } from "./private-key.js";
+import { parseDataUri } from "../utils/data-uri.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import type { StableAnimationFrameState } from "./animation-frame.js";
 import type { StableCaptureRafState } from "./raf-clock.js";
@@ -84,11 +85,16 @@ export interface ReplacedMediaFrameTransaction {
 const sha256 = (value: string | Uint8Array): string => createHash("sha256").update(value).digest("hex");
 
 function digestDataUri(uri: string, expectedMime?: string): string {
-  const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(uri);
-  if (match == null || (expectedMime != null && match[1] !== expectedMime)) {
+  const parsed = parseDataUri(uri);
+  if (
+    parsed == null ||
+    !parsed.base64 ||
+    parsed.bytes.length === 0 ||
+    (expectedMime != null && parsed.mime !== expectedMime)
+  ) {
     throw new Error(`replaced-media transaction received a non-${expectedMime ?? "base64"} raster`);
   }
-  return sha256(Buffer.from(match[2], "base64"));
+  return sha256(parsed.bytes);
 }
 
 function comparableFact(fact: BrowserOwnerFact): ComparableReplacedMediaOwnerFact {
