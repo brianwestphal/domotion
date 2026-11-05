@@ -125,13 +125,21 @@ isRtl=FALSE, geometrySink)` where `emSize` is the face's units-per-em so the
 metrics)` → scale `advanceWidth` by `emSize / unitsPerEm`. Derive bbox from
    the sink's accumulated min/max, or from `GetDesignGlyphMetrics`'
    `leftSideBearing` / `topSideBearing` / `advanceHeight` scaled to px.
-7. **Meta query.** `IDWriteFontMetrics` (via
+7. **Meta query.** `DWRITE_FONT_METRICS` (via
    `fontFace->GetMetrics(&m)`): `m.designUnitsPerEm`, `m.ascent`, `m.descent`,
    `m.underlinePosition` / `m.underlineThickness`,
    `m.strikethroughPosition` / `m.strikethroughThickness`. These map directly
    onto doc 16's `meta` response fields (note: DirectWrite already exposes
-   underline/strikeout in the metrics struct, so unlike the CoreText helper we
-   don't need to crack the raw `post` / `OS/2` tables). **Sign note (as built):**
+   underline/strikeout in the metrics struct, so the helper does not crack
+   `post` for those). **As built, the helper does read raw `OS/2`:** Blink's
+   `text-underline-position: under` needs the face's `sTypoAscender` /
+   `sTypoDescender`, which `DWRITE_FONT_METRICS` does not carry, so the helper
+   reads them from the `OS/2` table (offsets 68/70) via `TryGetFontTable` and
+   emits `typoAscender` / `typoDescender` when present. The `meta` response
+   additionally carries `embeddedBitmapPaint` (when the query passes `fontSizePx`),
+   `availableFeatures` (the face's GSUB feature tags), `supportedColorTables`,
+   the face's `postscriptName` and `faceIndex`, and `resolvedAxes` for variable
+   faces (`packages/text-engine/tools/win32-glyph-extractor/src/main.cpp`). **Sign note (as built):**
    DirectWrite's `descent` is a positive magnitude below the baseline; fontkit
    and the other helpers report descent as negative, so the helper emits
    `-m.descent`. The optional `traitItalic` field comes from

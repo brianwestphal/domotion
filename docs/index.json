@@ -1488,7 +1488,11 @@
         "owners": ["rendering"],
         "platforms": ["macos"],
         "tickets": ["DM-1103", "DM-1108"],
-        "code": ["packages/text-engine/src/render/font-resolution.ts", "tests/new-york-optical-cut.e2e.test.ts"],
+        "code": [
+          "packages/text-engine/src/render/family-match.ts",
+          "packages/text-engine/src/render/font-resolution.ts",
+          "tests/new-york-optical-cut.e2e.test.ts"
+        ],
         "aliases": ["docs/58-new-york-optical-cuts.md", "doc-58"]
       }
     },
@@ -1815,6 +1819,7 @@
           "src/animation/embed-namespace.test.ts",
           "src/animation/embed-namespace.ts",
           "src/cli/animate.test.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/animate.ts",
           "tests/compose-animate-frames.e2e.test.ts"
         ],
@@ -1891,6 +1896,7 @@
           "src/animation/composite.ts",
           "src/animation/embed-namespace.ts",
           "src/animation/embed-timeline.ts",
+          "src/cli/animate-orchestrator.ts",
           "src/cli/animate.ts",
           "src/cli/composite-font-dedup.e2e.test.ts",
           "src/cli/composite.ts",
@@ -1925,7 +1931,9 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": ["DM-1028", "DM-1197", "DM-1215", "DM-983"],
         "code": [
+          "packages/text-engine/src/render/codepoint-resolver.ts",
           "packages/text-engine/src/render/font-resolution.ts",
+          "packages/text-engine/src/render/shaping-route.ts",
           "packages/text-engine/src/render/text-to-path.ts"
         ],
         "aliases": ["docs/79-harfbuzz-use-reroute.md", "doc-79"]

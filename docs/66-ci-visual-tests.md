@@ -196,7 +196,7 @@ Where each flag is described: [doc 99](99-hinted-embedded-subset.md) (`hinted_su
 
 - `--run-id <id>` — skip dispatch and watch; re-stage an **already-completed** run. Use it when a run finished but the driver gave up downloading (artifacts finalize after `gh run watch` returns).
 - `--eager` — download every shard's images up front (~GBs) instead of the default metadata-only staging that lets the review server lazy-fetch shards.
-- `--review` / `--no-review` — stage each OS's shard PNGs, SVGs, and merged `results.json` under `tests/output/review/ci-<os>/<suite>/` for the review UI's source toggle. **On by default**; `--no-review` skips it.
+- `--no-review` — skip staging the run for the review UI. Staging is **on by default** and has no positive flag: the script parses its flags strictly, so `--review` is rejected as unknown. By default it stages the merged `results.json` plus the `.ci-source.json` run pointer under `tests/output/review/ci-<os>/<suite>/` for the review UI's source toggle (metadata only; shard PNGs/SVGs are fetched lazily unless `--eager` is passed).
 
 Helpers it and the workflows rely on:
 

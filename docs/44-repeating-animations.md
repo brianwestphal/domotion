@@ -12,7 +12,7 @@ aliases: ["docs/44-repeating-animations.md", "doc-44"]
 
 # 44 — Repeating animations: blink, pulse, typing caret
 
-Status: **shipped**. Spec for repeating / looping animations in the animation pipeline; all three mechanisms are implemented — `repeat`/`alternate` on `IntraFrameAnimation` (`src/animation/animator.ts`; config schema in `src/cli/animate.ts`), the typing-overlay blinking `caret`, and the standalone `blink` overlay (DM-869 / DM-870 / DM-871). See `docs/08-animation-model.md` for the one-shot intra-frame animation model this extends, and `docs/43-declarative-animate-config.md` for the config surface.
+Status: **shipped**. Spec for repeating / looping animations in the animation pipeline; all three mechanisms are implemented — `repeat`/`alternate` on `IntraFrameAnimation` (`src/animation/animator.ts`; config schema in `src/cli/animate-orchestrator.ts`, behind the `src/cli/animate.ts` facade), the typing-overlay blinking `caret`, and the standalone `blink` overlay (DM-869 / DM-870 / DM-871). See `docs/08-animation-model.md` for the one-shot intra-frame animation model this extends, and `docs/43-declarative-animate-config.md` for the config surface.
 
 ## Why
 
@@ -20,7 +20,7 @@ Nothing can **blink** — a repeating on/off cycle held for a frame's duration. 
 
 ## Three mechanisms
 
-These compose; each is independently useful. Recommended build order (smallest/most-general first) is noted; each has its own implementation ticket.
+These compose; each is independently useful. All three are shipped; the sections below keep the original design rationale.
 
 ### 1. Repeating intra-frame animations (the general primitive)
 
@@ -97,4 +97,4 @@ A general standalone blinker, for carets/dots not tied to a typing overlay (reco
 
 ## Rollout
 
-Mechanism 1 (repeat/alternate on `IntraFrameAnimation`) is the substrate — build it first. Mechanism 2 (typing caret) is the highest-value specific form and lowers onto 1. Mechanism 3 (`blink` overlay) is standalone sugar, last. Each has its own implementation ticket. Update `docs/08` (animation model) once mechanism 1 ships and the CLI `--help` per the declarative-config doc surface.
+_Completed._ Mechanism 1 (repeat/alternate on `IntraFrameAnimation`) was built first as the substrate; mechanism 2 (typing caret) is the highest-value specific form and lowers onto 1; mechanism 3 (`blink` overlay) is standalone sugar and shipped last (DM-869 / DM-870 / DM-871).

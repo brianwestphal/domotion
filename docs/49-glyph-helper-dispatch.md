@@ -33,9 +33,11 @@ the macOS one. Origin: DM-881 (follow-up to DM-385 / DM-872 / DM-837).
 > split: **A (platform-aware resolution)** shipped as DM-881; **B (on-demand
 > acquisition)** is filed separately as DM-886. See "Implemented (piece A)".
 
-## Current state (verified)
+## State at investigation time (historical)
 
-`src/render/coretext.ts` resolves the helper binary as:
+_Historical snapshot, kept for the design rationale. `src/render/coretext.ts` no longer exists: resolution now lives in `packages/text-engine/src/render/glyph-helper-transport.ts` (`HELPER_BINARIES`, `resolveHelperPath`), and on-demand acquisition shipped (doc 50) — see "Implemented (piece A)" below._
+
+At the time, `src/render/coretext.ts` resolved the helper binary as:
 
 ```ts
 const HELPER_PATH =
@@ -43,7 +45,7 @@ const HELPER_PATH =
   path.resolve(HERE, "..", "tools", "macos-glyph-extractor", "domotion-glyph-paths");
 ```
 
-and `isGlyphHelperAvailable()` returns false unless `process.platform === "darwin"`
+and `isGlyphHelperAvailable()` returned false unless `process.platform === "darwin"`
 **and** that path exists. Two consequences:
 
 1. **There is no on-demand release-asset download anywhere** (`grep` across
@@ -118,7 +120,7 @@ too. Confirm before implementing, since A touches the macOS-working render path.
 
 ## Implemented (piece A, DM-881)
 
-`src/render/coretext.ts` now resolves the helper binary **platform-aware**:
+The helper binary is now resolved **platform-aware** (originally in `src/render/coretext.ts`, today in `packages/text-engine/src/render/glyph-helper-transport.ts`):
 
 - `HELPER_BINARIES` maps `darwin` / `linux` / `win32` to their in-tree
   `tools/<platform>-glyph-extractor/` binary (`.exe` on Windows). Originally

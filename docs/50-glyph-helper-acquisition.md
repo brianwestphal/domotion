@@ -36,8 +36,8 @@ without it being committed to git or bundled in the tarball. Origin: DM-886
 
 `isGlyphHelperAvailable()` (DM-881) resolves a helper binary from, in order:
 `DOMOTION_HELPER_PATH` → the in-tree `tools/<platform>-glyph-extractor/` build.
-But `tools/` is **not** in the published npm `files` (`["dist", …]`), so for a
-consumer who ran `npm install domotion`, neither path exists → the helper is
+But the published package carries no built helper binary: at the time `tools/` was not in the published npm `files` (`["dist", …]`), and today the bundled `@domotion/text-engine` workspace ships `tools/` only for the helper _sources_ — built binaries are gitignored per helper directory and kept out of the tarball (doc 46, `npm run check:pack-contents`). So for a
+consumer who ran `npm install domotion`, neither path yields a binary → the helper is
 unavailable on **every** platform (macOS included) and the renderer falls back
 to fontkit. The helpers therefore only work in in-repo dev or when a consumer
 manually points `DOMOTION_HELPER_PATH` at a binary they built themselves.
@@ -128,7 +128,7 @@ acquisition entirely; `DOMOTION_HELPER_PATH` still overrides (no download).
 The maintainer's calls on the open questions (all implemented):
 
 1. **Download trigger → lazy first-render fetch.** The synchronous resolver in
-   `glyph-helper.ts` calls `acquireGlyphHelperSync()` when no `DOMOTION_HELPER_PATH`
+   `packages/text-engine/src/render/glyph-helper-transport.ts` (`resolveHelperPath`) calls `acquireGlyphHelperSync()` when no `DOMOTION_HELPER_PATH`
    / in-tree binary is found; the download runs in a short-lived child `node`
    process (this module re-invoked as a script) so the otherwise-synchronous
    render path blocks on it exactly once, then caches + reuses. No install-time
@@ -162,7 +162,7 @@ The maintainer's calls on the open questions (all implemented):
   `acquireGlyphHelperSync` (child-process download, one attempt per process,
   warn-once latch), the async `acquireGlyphHelper`, and a worker entry guarded
   on `argv[1]` so a normal `import` never triggers a download.
-- **`packages/text-engine/src/render/glyph-helper.ts`** — `resolveHelperPath` now falls through to
+- **`packages/text-engine/src/render/glyph-helper-transport.ts`** — `resolveHelperPath` now falls through to
   `acquireGlyphHelperSync({ platform })` after the env override + existing
   in-tree binary.
 - **Tested:** unit (asset/cache/sidecar resolvers, unsupported-arch + cache-hit

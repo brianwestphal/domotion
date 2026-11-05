@@ -6,7 +6,13 @@ status: "partial"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets: ["DM-1028", "DM-1197", "DM-1215", "DM-983"]
-code: ["packages/text-engine/src/render/font-resolution.ts", "packages/text-engine/src/render/text-to-path.ts"]
+code:
+  [
+    "packages/text-engine/src/render/codepoint-resolver.ts",
+    "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/shaping-route.ts",
+    "packages/text-engine/src/render/text-to-path.ts",
+  ]
 aliases: ["docs/79-harfbuzz-use-reroute.md", "doc-79"]
 ---
 
@@ -63,8 +69,9 @@ Chrome (DM-1197 — the Kaithi `U+110AB` "dot position" diff).
 
 ## Helper-absent reroute
 
-`resolveFontForCodepoint` (`packages/text-engine/src/render/font-resolution.ts`)
-sets `helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable()` and
+`resolveFontForCodepoint` (`packages/text-engine/src/render/codepoint-resolver.ts`,
+re-exported by the `font-resolution.ts` barrel; the check is in its
+`coveredFontResolution` step) sets `helperBacked = isGlyphHelperAvailable() && isIcuHelperAvailable()` and
 evaluates `complexShaperBaseMarkDecomposition(cp)` only when `helperBacked` is
 false. If the primary font covers the decomposed pieces, it sets the run's
 `fontOverride` to a HarfBuzz shaping instance
@@ -76,7 +83,7 @@ clusters. The run text stays the SOURCE codepoint — HarfBuzz decomposes
 internally, like Chrome — so clusters / captured xOffsets stay aligned and the
 embedded-font emitter's cluster-aware anchoring (DM-1028) places the mark.
 
-On the supported path, `harfbuzzShapedRunOverride` in `font-resolution.ts`
+On the supported path, `harfbuzzShapedRunOverride` in `shaping-route.ts` (re-exported by `font-resolution.ts`)
 wraps selected concrete-face runs after fallback splitting; `text-to-path.ts`
 applies that override in both text emission routes. The native/fontkit instance
 continues to provide outlines and metrics. This run-level mechanism replaces

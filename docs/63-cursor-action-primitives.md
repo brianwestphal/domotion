@@ -25,7 +25,7 @@ design + contract.
 DM-1132 (doc 61) exposed `resolveOverlays(page, overlays)` — overlay selector
 `anchor` + typing `maxWidth: "anchor"` → concrete coords — but deliberately
 scoped OUT two sibling resolution steps that still live private inside
-`composeAnimateConfig` (`src/cli/animate.ts`):
+`composeAnimateConfig` (`src/cli/animate-orchestrator.ts`):
 
 1. **Cursor `selector` → point.** `queryCursorBox(page, sel)` returns the
    element's **border-box center** in viewport coords; `buildCursorOverlay`

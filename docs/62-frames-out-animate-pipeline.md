@@ -47,7 +47,7 @@ opposite of the "start declarative, make a small change to evolve" goal that
 motivated the DM-1128 gap analysis.
 
 The gap is structural, not incidental: `composeAnimateConfig` interleaves all of
-those steps in one `for` loop in `src/cli/animate.ts`, then computes
+those steps in one `for` loop in `src/cli/animate-orchestrator.ts` (re-exported by the `src/cli/animate.ts` facade), then computes
 `cursorOverlay` / `resolveCursorAt` / `fontFaceCss` / `background` after the loop
 and feeds everything to a single `generateAnimatedSvg(...)` call. The caller
 sees only the two endpoints (config, SVG string) and nothing in between.
@@ -160,7 +160,7 @@ const svg = await composeAnimateConfig(browser, cfg, {
 the positional `(browser, cfg, configDir?, log?)` OR an options object as the 3rd
 parameter: `(browser, cfg, configDirOrOpts?: string | ComposeAnimateOptions,
 logArg?)`, where `opts = { configDir?, log?, onFrame? }` (normalized in
-`src/cli/animate.ts`). This keeps the published positional form back-compatible
+`src/cli/animate-orchestrator.ts`). This keeps the published positional form back-compatible
 while adding the `onFrame` hook — `composeAnimateConfig` is part of the published
 `domotion-svg` API as of DM-1130, so external callers using the positional form
 keep working. Doc 60 documents the resolved behavior.
@@ -186,7 +186,7 @@ callers; (A) was chosen.)
   corresponding `frame.svgContent` is the composed scroll SVG — callers
   mutating it should treat it as opaque.
 - **`cast` / `template` frames don't fire `onFrame` at all.** They push their
-  pre-built `svgContent` and `continue` before the hook site (`src/cli/animate.ts`),
+  pre-built `svgContent` and `continue` before the hook site (`src/cli/animate-orchestrator.ts`),
   so the hook only runs for captured (page-`input` / `continue`) and scroll frames.
 
 ## Follow-up tickets

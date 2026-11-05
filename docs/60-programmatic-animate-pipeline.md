@@ -100,7 +100,7 @@ argument (`{ configDir?, log?, onFrame? }`). It fires after the frame is capture
 culled, and pushed, before the magic-move bridge. NOTE: `onFrame` fires only for
 **captured** frames (page-`input` / `continue` and scroll frames) — `cast`
 (terminal) and `template` frames push their pre-built `svgContent` and skip the
-hook (`src/cli/animate.ts`), so it never fires for them.
+hook (`src/cli/animate-orchestrator.ts`), so it never fires for them.
 
 ```ts
 const svg = await composeAnimateConfig(browser, cfg, {
@@ -148,7 +148,8 @@ needs it.
 
 ## Implementation note — barrel cycle
 
-`src/cli/animate.ts` previously imported the capture / render / animation /
+`src/cli/animate.ts` (whose implementation now lives in
+`src/cli/animate-orchestrator.ts`, behind the facade) previously imported the capture / render / animation /
 scroll helpers from the package root (`../index.js`). Because the root now
 re-exports `animate.ts`, that would form an import cycle, so `animate.ts` was
 switched to import from the feature sub-barrels directly (`../animation/index

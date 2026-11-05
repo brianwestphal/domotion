@@ -13,6 +13,7 @@ code:
     "src/animation/composite.ts",
     "src/animation/embed-namespace.ts",
     "src/animation/embed-timeline.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/animate.ts",
     "src/cli/composite-font-dedup.e2e.test.ts",
     "src/cli/composite.ts",
@@ -211,15 +212,15 @@ pairs threaded down the tree.
   layers of different natural lengths, the composite's true loop is the LCM of
   the layer periods; the primitive should either (a) hold each layer after it
   finishes within one master period (DM-1319's choice) or (b) expose a per-layer
-  `loop` mode. Decide in "Open questions."
+  `loop` mode. _(Resolved: both — each layer picks `mode: "hold" | "stretch" | "loop"`, see `src/cli/composite.ts` and Open question 4.)_
 - **Size.** Each nested layer embeds a full animated SVG (incl. its glyph paths /
   fonts). Deep composites grow additively. Font dedup across layers (the
   `manageFonts:false` trick casts already use) should extend to nested layers to
   avoid re-embedding a shared monospace font per level.
 - **Main risk:** API surface scope, not technical feasibility. The mechanism is
-  proven; the question is how much surface to expose (see Open questions).
+  proven; the question was how much surface to expose (resolved as option C — see Open questions).
 
-## API options (decision needed — see Open questions)
+## API options (resolved — option C shipped)
 
 - **(A) Declarative `animate` extension.** A layer/overlay whose `content` is a
   reference to an already-rendered animated SVG (a file, or another inline frame
@@ -273,10 +274,10 @@ nested inside another composite keeps looping at its own rate (its period doesn'
 collapse to the parent master), which can seam at the parent's loop boundary —
 fine for seamless-by-design loops; documented so it isn't a surprise.
 
-## Until then (docs already updated)
+## Static-decorator caveat (historical; superseded by phase 3)
 
-The "decorator wrappers are static-only / do not preserve animation" caveat is
-now stated in `llms.txt`, `docs/43` (the DM-1322 preservation table), `docs/65`
+The "decorator wrappers are static-only / do not preserve animation" caveat was
+stated in `llms.txt`, `docs/43` (the DM-1322 preservation table), `docs/65`
 (device chrome), and `docs/70` (template system), so a reader no longer assumes
 "render X, wrap it in window/device chrome" yields an animated framed result.
 
@@ -284,13 +285,17 @@ now stated in `llms.txt`, `docs/43` (the DM-1322 preservation table), `docs/65`
 
 - `src/animation/embed-namespace.ts` — `namespaceEmbeddedAnimatedSvg` (collisions).
 - `src/animation/embed-timeline.ts` — `offsetEmbeddedAnimatedSvgTimeline` (DM-1319).
-- `src/cli/animate.ts` — `composeAnimateConfig` / frame composition / `embeddedAnimationPeriodMs`.
+- `src/cli/animate-orchestrator.ts` (behind the `src/cli/animate.ts` facade) — `composeAnimateConfig` / frame composition / `embeddedAnimationPeriodMs`.
+- `src/animation/composite.ts` — `composeAnimatedLayers` (the compositing primitive).
+- `src/cli/composite.ts` — the declarative `domotion composite` verb, including the per-layer `mode: hold | stretch | loop`.
 - `src/templates/builtin/device-mockup.ts` + `src/render/device-chrome.ts` — the
-  decorator that re-captures to static today.
+  decorator; nests animated content via `screenSvg` (the `input`-capture path stays static).
 - `docs/43` (animate config), `docs/67` (terminal), `docs/70` (templates),
   `docs/73` (template frames).
 
-## Open questions (mirrored to DM-1323 `FEEDBACK NEEDED`)
+## Open questions (all resolved)
+
+_These were the pre-implementation questions; each has been answered by the shipped code. Resolutions: (1) the full multi-level composite shipped (`examples/composite-desktop.ts`); (2) option C — the programmatic `composeAnimatedLayers` (`src/animation/composite.ts`) plus the declarative `domotion composite` verb; (3) `device-mockup` was evolved to nest animated content (`screenSvg`) **and** a separate primitive exists; (4) per-layer `mode: "hold" | "stretch" | "loop"` (`src/cli/composite.ts`)._
 
 1. **Near-term target:** the simple "animated terminal/page in window chrome"
    (one level — directly unblocks apple-fm), or the full 3-level

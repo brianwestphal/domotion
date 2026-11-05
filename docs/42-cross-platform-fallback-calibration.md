@@ -625,8 +625,8 @@ the real regression catch.
 | Windows  | DirectWrite (heavy) | 3.34% (18 fixtures)                                    | `coveragePct ≤ 4%`         |
 
 Both non-macOS suites are green at these caps (Linux via `npm run
-test:linux-docker`; Windows via `windows-fidelity.yml`, 97/97). The cap lives in
-`tests/runner.tsx` (`HINTING_FLOOR_PCT`).
+test:linux-docker`; Windows via `windows-fidelity.yml`, 97/97). The cap is
+`HINTING_FLOOR_PCT` in `tests/harness-constants.ts`, applied by `tests/runner.tsx`.
 
 **The capture is now unhinted too (DM-1795).** This harness launches Chromium
 with `--font-render-hinting=none`, so the _expected_ paint is no longer
@@ -753,7 +753,7 @@ straight while reading the calibration numbers above:
 
 - **DM-259**: probe results documented per Unicode block on Linux; `linuxFallbackChain`
   populated; the text fixtures pass the Linux feature-suite gate. That gate is
-  the platform hinting-floor cap in `tests/runner.tsx` (`HINTING_FLOOR_PCT`,
+  the platform hinting-floor cap (`HINTING_FLOOR_PCT` in `tests/harness-constants.ts`, applied by `tests/runner.tsx`;
   Linux ≤ 1% coverage), not the 3.5% threshold this record originally cited;
   macOS stays the strict per-pixel gate (`regionCount === 0`).
 - **DM-260**: same, on Windows; `win32FallbackChain` populated; text fixtures

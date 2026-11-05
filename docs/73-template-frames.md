@@ -11,6 +11,7 @@ code:
     "src/animation/embed-namespace.test.ts",
     "src/animation/embed-namespace.ts",
     "src/cli/animate.test.ts",
+    "src/cli/animate-orchestrator.ts",
     "src/cli/animate.ts",
     "tests/compose-animate-frames.e2e.test.ts",
   ]
@@ -90,7 +91,7 @@ which grows by its bezel — is placed per the frame's optional **`fit`** policy
   clipped.
 
 `fit` is only meaningful on a template frame (it's a validation error elsewhere).
-The geometry is the pure `placeEmbeddedFrame` helper in `src/cli/animate.ts`
+The geometry is the pure `placeEmbeddedFrame` helper in `src/cli/animate-orchestrator.ts`
 (unit-tested) — a `<g transform="translate(…) scale(…)">` wrapper, omitted
 entirely for the exact-fit common case.
 
@@ -114,7 +115,7 @@ still requires a positive `duration`.
 
 A template is itself a front-end onto `composeAnimateConfig`, so a template frame
 is `config → template → (its own) config → nested animated SVG`. Two things make
-that nesting correct (`src/cli/animate.ts`):
+that nesting correct (`src/cli/animate-orchestrator.ts`):
 
 1. **Pre-render before the outer font lifecycle.** `renderTemplateFrames` renders
    every template frame **up front**, before the outer run clears the
