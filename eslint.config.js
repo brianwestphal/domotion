@@ -81,6 +81,30 @@ export default [
     rules: { "domotion/import-group-order": "error", "domotion/no-import-in-page-callback": "error" },
   },
   {
+    // No `any` in shipped source outside the fontkit / bidi-js boundary (AGENTS.md § Quality gates). Core
+    // `no-restricted-syntax` on the `TSAnyKeyword` node, so no typescript-eslint plugin is needed. The two
+    // allowlisted files ARE the fontkit boundary (they wrap fontkit's untyped `Font` objects); a one-off
+    // boundary use elsewhere takes a line-level disable with its reason. Tests and tools are not covered.
+    files: ["src/**/*.ts", "src/**/*.tsx", "packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
+    ignores: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.d.ts",
+      "packages/text-engine/src/render/font-instance.ts",
+      "src/capture/emoji.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "TSAnyKeyword",
+          message:
+            "No `any` outside the fontkit / bidi-js boundary (AGENTS.md § Quality gates). Use the real type (e.g. CDPSession.send's Protocol return), `unknown` plus a guard, or a narrow structural type.",
+        },
+      ],
+    },
+  },
+  {
     // The CLI verbs import from feature sub-barrels, never the package root: the root barrel re-exports the
     // animate stack and importing it from a CLI module creates the circular-import TDZ documented in
     // animate-command.ts (it broke the storyboard-schema build). Tests may still use the public entry.

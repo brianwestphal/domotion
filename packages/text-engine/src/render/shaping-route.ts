@@ -542,8 +542,8 @@ function carryFontInstanceMetadata(proxy: FontInstance, base: FontInstance): voi
   proxy.isRoutedItalicCut = base.isRoutedItalicCut;
   proxy.postscriptName = base.postscriptName;
   proxy.instantiatedPostscriptName = base.instantiatedPostscriptName;
-  const src = fontSourceMap.get(base as unknown as object);
-  if (src != null) fontSourceMap.set(proxy as unknown as object, src);
+  const src = fontSourceMap.get(base);
+  if (src != null) fontSourceMap.set(proxy, src);
 }
 
 /**

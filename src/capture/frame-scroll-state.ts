@@ -87,12 +87,6 @@ interface ProtocolFrameTree {
   childFrames?: ProtocolFrameTree[];
 }
 
-interface ProtocolTargetInfo {
-  targetId: string;
-  type: string;
-  parentFrameId?: string;
-}
-
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -459,15 +453,13 @@ async function cdpFrameIds(
     try {
       await session.send("Page.enable");
       const byToken = await collectDefaultContextTokens(session, propertyKey);
-      const tree = (await session.send("Page.getFrameTree")) as unknown as { frameTree: ProtocolFrameTree };
+      const tree = await session.send("Page.getFrameTree");
       const parents = flattenProtocolFrameTree(tree.frameTree);
       // Page.getFrameTree only contains the local-frame subtree of this target.
       // Site-isolated children are separate `iframe` targets; Chromium publishes
       // their exact target id (also the OOPIF's FrameId) and parent FrameId in
       // TargetInfo, so merge those protocol-owned edges into the same graph.
-      const targets = (await session.send("Target.getTargets")) as unknown as {
-        targetInfos: ProtocolTargetInfo[];
-      };
+      const targets = await session.send("Target.getTargets");
       for (const target of targets.targetInfos) {
         if (target.type === "iframe" && target.parentFrameId != null) {
           parents.set(target.targetId, target.parentFrameId);

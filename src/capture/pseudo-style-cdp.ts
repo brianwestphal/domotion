@@ -703,12 +703,9 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
                 session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId }),
                 session.send("CSS.getAnimatedStylesForNode", { nodeId: node.nodeId }),
               ]);
-              matched = responses[0] as CdpMatchedStylesLike;
-              computed = responses[1] as { computedStyle: ComputedProperty[] };
-              const animated = responses[2] as {
-                animationStyles?: CdpMatchedStylesLike["animationStyles"];
-                transitionsStyle?: CdpMatchedStylesLike["transitionsStyle"];
-              };
+              matched = responses[0];
+              computed = responses[1];
+              const animated = responses[2];
               const properties = computedMap(computed.computedStyle);
               const facts = authorControlStyleFactsFromMatchedStyles(
                 {
@@ -756,13 +753,9 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
           // capture script; querying matched pseudo rules here only adds an
           // avoidable protocol failure surface.
           if (kind === "file-selector-status") return;
-          matched ??= (await session.send("CSS.getMatchedStylesForNode", {
-            nodeId: node.nodeId,
-          })) as CdpMatchedStylesLike;
+          matched ??= await session.send("CSS.getMatchedStylesForNode", { nodeId: node.nodeId });
           if (hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {
-            computed ??= (await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId })) as {
-              computedStyle: ComputedProperty[];
-            };
+            computed ??= await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId });
             await store(uaHost.nodeId, kind, computed.computedStyle);
           }
         }

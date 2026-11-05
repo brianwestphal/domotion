@@ -173,7 +173,7 @@ The capture function is serialized to a string and executed inside the captured 
 
 ## Quality gates
 
-- **`npm run build`** must succeed (tsc with strict TypeScript). No `any` outside the fontkit/bidi-js boundary types.
+- **`npm run build`** must succeed (tsc with strict TypeScript). No `any` outside the fontkit/bidi-js boundary types — `npm run lint` enforces it for shipped `src/**` and `packages/*/src/**` (a `no-restricted-syntax` rule on `TSAnyKeyword` in `eslint.config.js`; the fontkit-boundary files are allowlisted there, and a one-off boundary use elsewhere takes a line-level disable with its reason).
 - **`npm test`** must pass (unit tests).
 - **`npm run lint`** must pass. It is `eslint . --max-warnings 0`, and CI's `lint` job runs that exact command — so a warning fails the build, not just an error. Zero is a fair bar because the tree really does report zero; fix a new warning at its source rather than raising the threshold or reaching for a blanket `eslint-disable`. Note that ESLint flat config does **not** read `.gitignore`, so gitignored-but-lintable trees (`tools/scratch/`, `.tmp/`, the in-repo agent worktrees under `.claude/worktrees/`) are listed explicitly in `eslint.config.js`'s `ignores` — without them a dev machine lints several thousand files CI never sees, and `npm run lint` stops being the same command in the two places.
 - **`npm run demos:test`** is the primary regression signal — every feature has a fixture; new features need fixtures.

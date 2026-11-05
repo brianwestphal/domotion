@@ -152,7 +152,7 @@ export async function installCaptureRafClock(context: BrowserContext): Promise<C
 }
 
 async function targetId(session: CDPSession): Promise<string> {
-  const result = (await session.send("Target.getTargetInfo")) as { targetInfo: { targetId: string } };
+  const result = await session.send("Target.getTargetInfo");
   return result.targetInfo.targetId;
 }
 

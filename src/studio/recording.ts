@@ -195,9 +195,7 @@ export async function recordStudioInteractions(
   };
   const cdp = await page.context().newCDPSession(page);
   const source = `(${installStudioRecorderInPage.toString()})(${JSON.stringify(installOptions)}, ${studioPageSelectorFor.toString()})`;
-  const { identifier: initScriptId } = (await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source })) as {
-    identifier: string;
-  };
+  const { identifier: initScriptId } = await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source });
   await page.evaluate(source);
   let failure: unknown;
   try {

@@ -15,6 +15,7 @@ import { extname } from "node:path";
 import type { Browser } from "@playwright/test";
 import { htmlWrapper, seekTo, screenshot, parseSvgIntrinsicSize } from "./svg-to-video-core.js";
 import { isTransparentBackground } from "./common.js";
+import { waitForFontsReady } from "../utils/wait-events.js";
 
 export type ImageFormat = "png" | "jpeg" | "pdf" | "webp" | "avif" | "tiff";
 
@@ -140,9 +141,7 @@ export async function runSvgToImage(
     // forward-from-0, never a backward seek across a free-run (DM-1779).
     await page.setContent(htmlWrapper(svgMarkup, renderBackground, true), { waitUntil: "load" });
     // Let embedded webfonts (data-URI @font-face) finish loading before we shoot.
-    await page
-      .evaluate(() => (document as unknown as { fonts: { ready: Promise<unknown> } }).fonts.ready)
-      .catch(() => {});
+    await waitForFontsReady(page).catch(() => {});
     await seekTo(page, atMs);
 
     let buf: Buffer;

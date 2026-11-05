@@ -1103,6 +1103,8 @@ function systemFontKeyForLocalName(localName: string): string | null {
 async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: number; italic: boolean } | null> {
   const fontkit = await import("fontkit");
   try {
+    // fontkit boundary (AGENTS.md allows `any` there): the opened face is read untyped below.
+    // eslint-disable-next-line no-restricted-syntax
     const f = (fontkit as any).create(buf);
     if (f == null) return null;
     const family = f.familyName ?? "";

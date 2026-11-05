@@ -42,10 +42,17 @@ export interface CdpCssStyleLike {
   cssProperties?: CdpCssPropertyLike[];
 }
 
+/** The fields of a CDP `CSS.CSSLayer` that layer identity reads. */
+export interface CdpLayerLike {
+  text?: string;
+  styleSheetId?: string;
+  range?: { startLine?: number; startColumn?: number };
+}
+
 export interface CdpRuleLike {
   origin?: string;
   style?: CdpCssStyleLike;
-  layers?: Array<Record<string, unknown>>;
+  layers?: CdpLayerLike[];
 }
 
 export interface CdpMatchedStylesLike {
@@ -282,7 +289,7 @@ function originForProtocol(value: string | undefined): CascadeOrigin {
   return "author";
 }
 
-function layerIdentity(layers: Array<Record<string, unknown>> | undefined): string | null {
+function layerIdentity(layers: CdpLayerLike[] | undefined): string | null {
   if (layers == null || layers.length === 0) return null;
   // Protocol order is inner-most to outer-most. Named layers with the same
   // path intentionally coalesce across sheets; anonymous layers instead need
@@ -290,7 +297,7 @@ function layerIdentity(layers: Array<Record<string, unknown>> | undefined): stri
   return [...layers]
     .reverse()
     .map((layer) => {
-      const range = layer.range as { startLine?: number; startColumn?: number } | undefined;
+      const range = layer.range;
       const name = String(layer.text ?? "").trim();
       if (name !== "") return `named:${name}`;
       return [

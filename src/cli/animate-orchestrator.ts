@@ -3391,7 +3391,9 @@ async function applyDomAction(page: Page, action: AnimateAction): Promise<void> 
     const sel = "selector" in a ? a.selector : "";
     // Not cast to HTMLElement: an <svg> match is legitimate for most actions, and only the
     // style/blur cases below need an element that has those members.
-    const els = Array.from(document.querySelectorAll(sel));
+    // `value` / `checked` are assigned on whatever matched (input, textarea, select, or a custom
+    // element with its own setter), exactly as an untyped assignment would; this type only says so.
+    const els: Array<Element & { value?: string; checked?: boolean }> = Array.from(document.querySelectorAll(sel));
     for (const h of els) {
       switch (a.type) {
         case "setText":
@@ -3427,13 +3429,13 @@ async function applyDomAction(page: Page, action: AnimateAction): Promise<void> 
           h.insertAdjacentHTML(a.position, a.html);
           break;
         case "setValue":
-          (h as unknown as HTMLInputElement).value = a.value;
+          h.value = a.value;
           break;
         case "check":
-          (h as unknown as HTMLInputElement).checked = a.checked;
+          h.checked = a.checked;
           break;
         case "clear":
-          (h as unknown as HTMLInputElement).value = "";
+          h.value = "";
           break;
         case "scrollIntoView":
           h.scrollIntoView({ block: a.block ?? "center", inline: a.inline ?? "nearest" });

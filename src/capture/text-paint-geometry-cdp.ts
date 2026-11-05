@@ -39,6 +39,16 @@ interface ProbeTreeElement extends CapturedElement {
   _textPaintSourceKey?: string;
 }
 
+/** The page-side registry the prepare step stores under `globalThis[key]` (the fields later callbacks touch). */
+interface PageTextPaintRegistry {
+  owners: HTMLElement[];
+  textRows: Array<{ element: Element; textNode: Text }>;
+  snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null }> | null;
+  factsByElement: Record<string, unknown>;
+}
+/** `globalThis` as the page callbacks see it: registries keyed by the probe key. */
+type PageRegistryScope = typeof globalThis & Record<string, PageTextPaintRegistry | undefined>;
+
 export interface TextPaintGeometryProbe {
   key: string;
   warnings: CaptureWarning[];
@@ -235,11 +245,11 @@ async function mutateFrames(frames: readonly PreparedFrame[], key: string, neutr
       await evaluateInFrame(
         frame,
         ({ key, neutral }) => {
-          const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+          const registry = (globalThis as PageRegistryScope)[key];
           if (registry == null) return;
           if (neutral) {
             registry.snapshots = [];
-            for (const owner of registry.owners as HTMLElement[]) {
+            for (const owner of registry.owners) {
               registry.snapshots.push({ owner, styleAttribute: owner.getAttribute("style") });
               owner.style.setProperty("transform", "matrix(1, 0, 0, 1, 0, 0)", "important");
               owner.style.setProperty("translate", "none", "important");
@@ -398,7 +408,7 @@ export async function measureRangeFragments(
       const rows = await evaluateInFrame(
         frame,
         ({ key }) => {
-          const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+          const registry = (globalThis as PageRegistryScope)[key];
           if (registry == null) return [];
           const rect = (value: DOMRect): { x: number; y: number; width: number; height: number } => ({
             x: value.x,
@@ -689,7 +699,7 @@ export async function prepareTextPaintGeometry(
             evaluateInFrame(
               frame,
               ({ key, facts }) => {
-                const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+                const registry = (globalThis as PageRegistryScope)[key];
                 if (registry != null) registry.factsByElement = facts;
               },
               { key, facts: byFrame.get(token) ?? {} },
@@ -721,7 +731,7 @@ export async function prepareTextPaintGeometry(
         return evaluateInFrame(
           frame,
           ({ key, facts }) => {
-            const registry = (globalThis as typeof globalThis & Record<string, any>)[key];
+            const registry = (globalThis as PageRegistryScope)[key];
             if (registry != null) registry.factsByElement = facts;
           },
           { key, facts },

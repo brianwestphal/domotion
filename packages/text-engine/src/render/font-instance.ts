@@ -10,6 +10,7 @@ import {
   resolveFaceTraitItalic,
   resolveSystemUiFontFace,
   type GlyphRasterRepresentation,
+  type GlyphHelperFontInstance,
 } from "./glyph-helper.js";
 import { faceHasTrakAndStat, installHarfbuzzShaping, makeHarfbuzzShapeFallback } from "./harfbuzz-shaper.js";
 import { isLegitimatelyInklessCodepoint } from "./unicode-classification.js";
@@ -1093,9 +1094,9 @@ function instantiateResolvedFont(
       preferShapeFallback: hbShapeFace != null,
     });
     if (helper != null) {
-      const instance = helper as unknown as FontInstance;
+      const instance: FontInstance = helper;
       fontShapeRouteMap.set(
-        instance as unknown as object,
+        instance,
         hbShapeFace != null
           ? `native-harfbuzz:${helperFaceInfo?.faceIndex ?? "null"}`
           : `native-platform:${trakHbShapingEnabled ? "enabled" : "disabled"}:${helperFaceInfo?.faceIndex ?? "null"}:${hasTrakAndStat ? "tracked" : "untracked"}`,
@@ -1157,7 +1158,7 @@ function instantiateResolvedFont(
       // default master's outlines.
       if (hintedSubsetEnabled() && helperFaceInfo != null) {
         const { faceIndex, nameMatched, fileAxes, instanceAxes } = helperFaceInfo;
-        fontSourceMap.set(instance as unknown as object, {
+        fontSourceMap.set(instance, {
           path: spec.path,
           postscriptName: spec.postscriptName,
           faceIndex,
@@ -1228,7 +1229,7 @@ function instantiateResolvedFont(
       shapeFallback: makeFontkitShaper(spec.path, spec.postscriptName),
     });
     if (helper != null) {
-      const instance = helper as unknown as FontInstance;
+      const instance: FontInstance = helper;
       instance.postscriptName ??= spec.postscriptName;
       fontInstanceCache.set(cacheKey, instance);
       return instance;
@@ -1514,15 +1515,9 @@ function instantiateResolvedFont(
   // the same gid space (same file). Same split as the helper path, and Chrome's
   // own: HarfBuzz shapes, the platform typeface draws.
   if (trakHbShapingEnabled && faceIndex != null && faceHasTrakAndStat(spec.path, faceIndex)) {
-    installHarfbuzzShaping(
-      instance as unknown as Parameters<typeof installHarfbuzzShaping>[0],
-      spec.path,
-      faceIndex,
-      fontSize,
-      fileIsVariable ? (appliedAxes ?? null) : null,
-    );
+    installHarfbuzzShaping(instance, spec.path, faceIndex, fontSize, fileIsVariable ? (appliedAxes ?? null) : null);
   }
-  fontSourceMap.set(instance as unknown as object, {
+  fontSourceMap.set(instance, {
     path: spec.path,
     postscriptName: spec.postscriptName,
     faceIndex,
@@ -1572,7 +1567,7 @@ export function getFontInstance(
  *  defaults), or null for a static file. */
 export function getFontSourceInfo(font: FontInstance | null | undefined): FontSourceInfo | null {
   if (font == null) return null;
-  return fontSourceMap.get(font as unknown as object) ?? null;
+  return fontSourceMap.get(font) ?? null;
 }
 
 export interface FontSourceInfo {
@@ -1645,7 +1640,7 @@ const fontShapeRouteMap = new WeakMap<object, string>();
 
 /** Test-only diagnostic for native-helper shaping dispatch. */
 export function __fontShapeRouteForTest(font: FontInstance | null): string | null {
-  return font == null ? null : (fontShapeRouteMap.get(font as unknown as object) ?? null);
+  return font == null ? null : (fontShapeRouteMap.get(font) ?? null);
 }
 
 /** Keep source bookkeeping for the default-on hinted-subset path. The explicit
@@ -2589,7 +2584,7 @@ function clampAxesToFvarRange(axes: Record<string, number>, fileAxes: Record<str
   return axes;
 }
 
-export const helperFontCache = new Map<string, FontInstance | null>();
+export const helperFontCache = new Map<string, GlyphHelperFontInstance | null>();
 // path → helper instance | null
 
 export type GlyphCommandDisposition =
@@ -2717,11 +2712,11 @@ function helperGlyphOutline(source: FontSourceInfo, glyphId: number): HelperOutl
   let helper = helperFontCache.get(sourceIdentity);
   if (helper === undefined) {
     helper =
-      (createGlyphHelperFont({
+      createGlyphHelperFont({
         postscriptName: source.postscriptName,
         fontPath: source.path,
         variations: source.variationAxes ?? undefined,
-      }) as unknown as FontInstance) ?? null;
+      }) ?? null;
     helperFontCache.set(sourceIdentity, helper);
   }
 
@@ -2730,7 +2725,7 @@ function helperGlyphOutline(source: FontSourceInfo, glyphId: number): HelperOutl
     result = { commands: [], disposition: "helper-font-unopenable" };
   } else {
     try {
-      const g = (helper as unknown as NonNullable<ReturnType<typeof createGlyphHelperFont>>).getGlyph(glyphId);
+      const g = helper.getGlyph(glyphId);
       const commands: PathCommand[] = g?.path?.commands ?? [];
       result =
         commands.length > 0
@@ -2782,7 +2777,7 @@ export function resolveGlyphCommands(
     if (expectation === "unknown") return { commands: [], disposition: "unclassified-empty-glyph" };
   }
 
-  const selectedSource = selectedFont == null ? undefined : fontSourceMap.get(selectedFont as unknown as object);
+  const selectedSource = selectedFont == null ? undefined : fontSourceMap.get(selectedFont);
   if (selectedSource != null && coreTextDesignOutlineEligibility(selectedSource) === "eligible") {
     // Once this exact variable instance is known to belong to CoreText, a
     // missing helper cannot truthfully fall back to fontkit's different path.
@@ -2801,7 +2796,7 @@ export function resolveGlyphCommands(
   // Re-resolve the instance (cache hit) to read the exact file fontkit loaded.
   // variationSettings don't affect the file path, so they're omitted here.
   const inst = selectedFont ?? getFontInstance(fontKey, weight, fontSize, slant);
-  const src = inst != null ? fontSourceMap.get(inst as unknown as object) : undefined;
+  const src = inst != null ? fontSourceMap.get(inst) : undefined;
   if (src == null) {
     return {
       commands: [],

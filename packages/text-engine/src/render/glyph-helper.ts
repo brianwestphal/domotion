@@ -248,7 +248,7 @@ export function resolveFcFallbackDiagnostic(cps: number[], lang: string = "en"):
   if (hostPlatform() !== "linux" || !isGlyphHelperAvailable() || cps.length === 0) return null;
   try {
     const resp = callHelper({ fonts: [], queries: [{ type: "fcdiagnostic", lang, cps }] });
-    const r = resp.results[0] as unknown as (FcFallbackDiagnostic & { type?: string; error?: string }) | undefined;
+    const r: (typeof resp.results)[number] | undefined = resp.results[0];
     if (r?.type !== "fcdiagnostic" || r.error != null || !Array.isArray(r.candidates)) return null;
     return { before: r.before, after: r.after, fingerprint: r.fingerprint, candidates: r.candidates };
   } catch {
@@ -322,7 +322,9 @@ export function resolveFcFallbackFonts(cps: number[], lang: string = "en"): Map<
   if (need.length === 0) return out;
   try {
     const resp = callHelper({ fonts: [], queries: [{ type: "fcfallback", lang, cps: need }] });
-    const r: any = resp.results[0];
+    // Typed by the protocol union, but kept `| undefined` and checked field by field below: the
+    // helper binary is versioned separately, so an older one may answer a different shape.
+    const r: (typeof resp.results)[number] | undefined = resp.results[0];
     // An older helper answers `{error:"unknown query type"}`; treat that as "no
     // helper for this question" rather than as "no font", so the caller falls
     // back instead of tofuing every codepoint.
@@ -1184,7 +1186,7 @@ export function __helperMetaForTest(postscriptName: string): MetaResponse | null
       queries: [{ type: "meta", fontRef: "f" }],
     });
     const r = resp.results[0];
-    return r != null && r.type === "meta" ? (r as unknown as MetaResponse) : null;
+    return r != null && r.type === "meta" ? r : null;
   } catch {
     return null;
   }
@@ -1236,7 +1238,7 @@ export function resolveFaceTraitBold(postscriptName: string, path?: string): boo
       });
       const r = resp.results[0];
       if (r != null && r.type === "meta") {
-        const meta = r as unknown as MetaResponse & { postscriptName?: string };
+        const meta: MetaResponse = r;
         const got = meta.postscriptName;
         // Only trust the trait when CoreText opened the face we named. A
         // mismatch means it substituted (see the dot-prefixed note above).
@@ -1279,7 +1281,7 @@ export function resolveFaceTraitItalic(postscriptName: string, path?: string): b
       });
       const r = resp.results[0];
       if (r != null && r.type === "meta") {
-        const meta = r as unknown as MetaResponse & { postscriptName?: string };
+        const meta: MetaResponse = r;
         const got = meta.postscriptName;
         // Only trust the trait when CoreText opened the face we named. A
         // mismatch means it substituted (see `resolveFaceTraitBold`'s note).

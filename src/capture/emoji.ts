@@ -757,8 +757,9 @@ export async function rasterizeBackdropFilters(
     let layerMapping: ReturnType<typeof backdropLayerMapping> = null;
     if (hasRelativeTransform && cdp != null && targetBackendNodeId != null) {
       try {
-        const box = (await cdp.send("DOM.getBoxModel", { backendNodeId: targetBackendNodeId })) as any;
-        const border = box.model?.border as number[] | undefined;
+        const box = await cdp.send("DOM.getBoxModel", { backendNodeId: targetBackendNodeId });
+        // `model` is required by the protocol type, but stay defensive against a short reply.
+        const border = (box.model as typeof box.model | undefined)?.border;
         if (border?.length === 8) {
           const localQuad = border.map(
             (coordinate, index) => coordinate - (index % 2 === 0 ? viewport.x : viewport.y),
@@ -878,13 +879,13 @@ export async function rasterizeBackdropFilters(
           try {
             for (const backendNodeId of plan.hideBackendNodeIds) {
               try {
-                const resolved = (await cdp.send("DOM.resolveNode", { backendNodeId })) as any;
-                const objectId = resolved.object?.objectId as string | undefined;
+                const resolved = await cdp.send("DOM.resolveNode", { backendNodeId });
+                const objectId = resolved.object.objectId;
                 if (objectId == null) {
                   unresolvedNodeCount++;
                   continue;
                 }
-                const changed = (await cdp.send("Runtime.callFunctionOn", {
+                const changed = await cdp.send("Runtime.callFunctionOn", {
                   objectId,
                   functionDeclaration: function (this: HTMLElement) {
                     const value = this.style.getPropertyValue("visibility");
@@ -893,11 +894,13 @@ export async function rasterizeBackdropFilters(
                     return { v: value, p: priority };
                   }.toString(),
                   returnByValue: true,
-                })) as any;
+                });
+                // `returnByValue` hands back the function's `{ v, p }` object; the protocol types it as `any`.
+                const previous = changed.result.value as { v?: string; p?: string } | undefined;
                 restores.push({
                   objectId,
-                  value: changed.result?.value?.v ?? "",
-                  priority: changed.result?.value?.p ?? "",
+                  value: previous?.v ?? "",
+                  priority: previous?.p ?? "",
                 });
               } catch {
                 // The crop is still useful, but it contains paint that the exact

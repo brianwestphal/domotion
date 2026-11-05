@@ -33,7 +33,7 @@ export function isPlainCssValue(value: string): boolean {
 export function cssValue(): z.ZodString {
   return z.string().refine(isPlainCssValue, {
     message: "must be a plain CSS value (no braces, angle brackets or line breaks)",
-  }) as unknown as z.ZodString;
+  });
 }
 
 /**

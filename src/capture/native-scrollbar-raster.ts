@@ -104,7 +104,7 @@ export async function captureNativeScrollbarFingerprint(page: Page): Promise<Cap
   let launchArguments: string[] = [];
   try {
     await withCdpSession(page, async (session) => {
-      const commandLine = (await session.send("Browser.getBrowserCommandLine")) as { arguments?: string[] };
+      const commandLine = await session.send("Browser.getBrowserCommandLine");
       launchArguments = commandLine.arguments ?? [];
     });
   } catch {
