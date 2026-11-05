@@ -37,7 +37,11 @@ deviation for box, inline, control, and text shadows.
   `src/capture/script/walker/capture-phases.ts`. The capture build inlines those
   importable/testable phases back into one self-contained `page.evaluate`
   function, so no module boundary leaks into the captured page (DM-2639).
-  `captureInner` (the per-element walk) is a short orchestrator over named
+  `index.ts` only wires the factories together; the fact registries,
+  root-relative prepasses, root capture, and top-level payload attachment
+  live in `walker/document-prepass.ts`. `captureInner` (the per-element
+  walk, `walker/element-capture.ts`, bound to its dependencies after the
+  prepasses) is a short orchestrator over named
   handlers under `walker/`: `projective-state.ts` (3D facts and homography),
   `native-controls.ts` (appearance ownership, decoration parts, file input),
   `text-phase.ts`, `image-elements.ts`, `style-record.ts` (the `styles` record),

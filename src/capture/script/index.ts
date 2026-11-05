@@ -11,34 +11,30 @@
 // Helpers that are self-contained pre-walk / per-call utilities live in
 // sibling files (`color-norm.ts`, `emoji-detect.ts`, `font-metrics.ts`,
 // `placeholder-shown.ts`, `pseudo-rules.ts`, `warnings.ts`); per-concern
-// walker handlers live under `./walker/`. `walker/capture-phases.ts` owns the
+// walker handlers live under `./walker/`. `walker/element-capture.ts` owns the
+// per-element walk (`capture` / `captureInner`), `walker/capture-phases.ts` its
 // geometry/style admission, pseudo/closed-shadow normalization, child
-// traversal, and final result-assembly boundaries. This file keeps the
-// remaining content/style record body and top-level orchestration
-// (fixed-ancestor pre-pass, counter pre-walk, root-element capture, mask-def +
-// dark-mode attachment to the result tree).
+// traversal, and final result-assembly boundaries, and
+// `walker/document-prepass.ts` the fact registries, root-relative prepasses,
+// root capture, and top-level payload attachment. This file only wires the
+// factories together in the order the live page must be observed.
 
-import { isPaintedColor } from "../../utils/transparent-background.js";
 import { createColorNorm } from "./color-norm.js";
 import { createEmojiDetect } from "./emoji-detect.js";
 import { createDottedCircleDetect } from "./dotted-circle-detect.js";
 import { createFontMetrics } from "./font-metrics.js";
 import { createPlaceholderShown } from "./placeholder-shown.js";
 import { createFontFamilyDefault } from "./font-family-default.js";
-import { collectFontFeatureValues } from "./font-feature-values.js";
 import { createFontPaletteResolver } from "./font-palette.js";
 import { createPseudoRules } from "./pseudo-rules.js";
 import { createWarnings } from "./warnings.js";
 import { createCounterStyleResolver } from "./walker/counter-style-resolver.js";
 import { createCounterStylePrewalk } from "./walker/counter-prewalk.js";
-import { captureInlineSvg } from "./walker/inline-svg.js";
-import { computeFieldsetLegendBox } from "./walker/fieldset-legend.js";
-import { detectInlineFragments } from "./walker/fragmentation.js";
 import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
-import { createTransformsHandler, composeEffectiveTransform, transformHasRotationOrSkew } from "./walker/transforms.js";
+import { createTransformsHandler, composeEffectiveTransform } from "./walker/transforms.js";
 import {
   createBordersBackgroundsHandler,
   physicalComputedGradientImage,
@@ -47,57 +43,40 @@ import {
 import { createBackgroundAttachmentHandler } from "./walker/background-attachment.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
 import { createInputValueHandler } from "./walker/input-value.js";
-import { createTextSegmentsHandler, computeElementRaster } from "./walker/text-segments.js";
+import { createTextSegmentsHandler } from "./walker/text-segments.js";
 import { createPseudoInjectHandler } from "./walker/pseudo-inject.js";
 import { createResizeHandleHandler } from "./walker/resize-handle.js";
-import {
-  assembleCaptureResultPhase,
-  captureGeometryStylePhase,
-  captureTraversalPhase,
-} from "./walker/capture-phases.js";
 import { createLineClampHandler } from "./line-clamp.js";
-import { resolveElementCursor, isOutsideCaptureViewport } from "./utils.js";
-import type { CaptureScriptArgs, CapturedElement } from "../types.js";
-import type { ProjectivePaintNodeFact } from "../projective-owner.js";
+import type { CaptureScriptArgs } from "../types.js";
 import { parseCrossOriginAllowlist } from "./cross-origin.js";
-import { selectProjectiveRasterOwnerIndexes } from "../projective-owner.js";
-import { backdropEffectNeutralizations, backdropRootReasons } from "../backdrop-effect-space.js";
 import { captureFontFamilyStack } from "../../font-family-stack.js";
-import {
-  projectiveStateFor,
-  transformSubtreeRasterFor,
-  transformSubtreeRasterOwner,
-} from "./walker/projective-state.js";
 import { createCounterScopes } from "./walker/counter-scopes.js";
 import { createIframeRecursionHandler } from "./walker/iframe-recursion.js";
 import { createStyleRecordBuilder } from "./walker/style-record.js";
 import { createNativeControlsHandler } from "./walker/native-controls.js";
 import { createTextPhaseHandler } from "./walker/text-phase.js";
-import { captureImageElement } from "./walker/image-elements.js";
 import { createFidelityWarnings } from "./walker/fidelity-warnings.js";
-import {
-  captureBackdropFilterRaster,
-  captureNativeControlDecorationRaster,
-  captureNativeControlRaster,
-  captureScrollbarRecord,
-  computedSizeFontMetric,
-} from "./walker/element-rasters.js";
 import { createScrollMarkersHandler } from "./walker/scroll-markers.js";
+import { createElementCapture } from "./walker/element-capture.js";
+import type { ElementCaptureDeps } from "./walker/element-capture.js";
+import {
+  attachRootPayloads,
+  buildCollapsedBorderFragmentLookup,
+  captureRootElements,
+  collectAnimInfluenced,
+  collectFixedAncestors,
+  collectOwnershipElements,
+  collectTransformInfluenced,
+  createBackdropEffectSpace,
+  createBackgroundAttachmentPaintScale,
+  createCaptureFactRegistries,
+  createEffectiveZoomResolver,
+  createFontFeatureValuesLookup,
+  createSvgReferenceScopes,
+  indexProjectiveFacts,
+  probeTransformRelatedBoxes,
+} from "./walker/document-prepass.js";
 
-type TextPaintRegistry = {
-  indexByElement?: WeakMap<Element, number>;
-  factsByElement?: Array<{ geometry?: CapturedElement["textPaintGeometry"] }>;
-  token: string;
-  indexByTextNode?: WeakMap<Node, number>;
-};
-type PseudoFragmentRegistry = {
-  indexByElement?: WeakMap<Element, number>;
-  factsByElement?: Array<CapturedElement["pseudoFragments"]>;
-};
-type CaptureWindow = Record<string, unknown>;
-type CollapsedFragmentLookup = NonNullable<
-  Parameters<typeof createBordersBackgroundsHandler>[0]["collapsedBorderFragmentRecordFor"]
->;
 const captureDocumentTree = (args: CaptureScriptArgs) => {
   const sel = args.selector;
   const vp = args.viewport;
@@ -111,71 +90,12 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
   // repeated URL, stale allowlist, or sibling-frame index from authorizing the
   // wrong document during a multi-segment scroll capture.
   const _frameScrollKey = typeof args.frameScrollPropertyKey === "string" ? args.frameScrollPropertyKey : "";
-  const _svgReferenceScopes = new WeakMap<Node, number>();
-  let _nextSvgReferenceScope = 0;
-  function _svgReferenceScope(el: Element) {
-    var root = el.getRootNode ? el.getRootNode() : el.ownerDocument;
-    var existing = _svgReferenceScopes.get(root);
-    if (existing != null) return existing;
-    var allocated = _nextSvgReferenceScope++;
-    _svgReferenceScopes.set(root, allocated);
-    return allocated;
-  }
-  let _backdropRasterSeq = 0;
-  // DM-2469: the Node/CDP affine probe retains live nodes in a private
-  // per-frame registry. The synchronous walker consumes only immutable facts;
-  // no author-visible attributes or source-order guesses are involved.
-  function _textPaintRegistryFor(el: Element): TextPaintRegistry | undefined {
-    if (typeof args.textPaintGeometryKey !== "string" || args.textPaintGeometryKey === "") return undefined;
-    var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
-    return view != null
-      ? ((view as unknown as CaptureWindow)[args.textPaintGeometryKey] as TextPaintRegistry | undefined)
-      : undefined;
-  }
-  function _textPaintElementIndexFor(el: Element) {
-    var registry = _textPaintRegistryFor(el);
-    return registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
-  }
-  function _textPaintFactFor(el: Element) {
-    var registry = _textPaintRegistryFor(el);
-    var index = _textPaintElementIndexFor(el);
-    return registry != null && index != null && registry.factsByElement != null
-      ? registry.factsByElement[index]
-      : undefined;
-  }
-  function _textPaintSourceKeyFor(el: Element) {
-    var registry = _textPaintRegistryFor(el);
-    var index = _textPaintElementIndexFor(el);
-    return registry != null && index != null ? registry.token + ":" + index : undefined;
-  }
-  function _textPaintSourceTextNodeIndexFor(node: Node) {
-    var registry =
-      node != null && node.ownerDocument != null
-        ? ((node.ownerDocument.defaultView as unknown as CaptureWindow | null)?.[args.textPaintGeometryKey ?? ""] as
-            TextPaintRegistry | undefined)
-        : undefined;
-    return registry != null && registry.indexByTextNode != null ? registry.indexByTextNode.get(node) : undefined;
-  }
-  // DM-2467: exact generated-content fragment records are installed by one
-  // frame-scoped CDP prepass. Presence (including a terminal-raster record)
-  // disables the legacy clone/probe path for that live host.
-  function _pseudoFragmentFactsFor(el: Element) {
-    if (typeof args.pseudoFragmentKey !== "string" || args.pseudoFragmentKey === "") return undefined;
-    var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
-    var registry =
-      view != null
-        ? ((view as unknown as CaptureWindow)[args.pseudoFragmentKey] as PseudoFragmentRegistry | undefined)
-        : undefined;
-    var index = registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
-    return registry != null && index != null && registry.factsByElement != null
-      ? registry.factsByElement[index]
-      : undefined;
-  }
+  const _svgReferenceScope = createSvgReferenceScopes();
+  const { textPaintFactFor, textPaintSourceKeyFor, textPaintSourceTextNodeIndexFor, pseudoFragmentFactsFor } =
+    createCaptureFactRegistries(args);
 
   // Wire up per-concern helpers. Each factory closes over its own state and
-  // returns the handles captureInner / the orchestration tail call. Renamed
-  // (e.g. `warnings: _warnings`) to keep captureInner's existing references
-  // unchanged.
+  // returns the handles the element walk / the orchestration tail call.
   const { normColor: normalizeColor, normGradientColors: normalizeGradientColors } = createColorNorm();
   const normColor = normalizeColor as (color: string, elementColor?: string) => string;
   const normGradientColors = normalizeGradientColors as (image: string, elementColor?: string) => string;
@@ -203,15 +123,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
   };
   const { resolveFontPalette: _resolveFontPalette, resolveShadowFontPalettes: _resolveShadowFontPalettes } =
     createFontPaletteResolver();
-  const _fontFeatureValuesByDocument = new WeakMap<Document, ReturnType<typeof collectFontFeatureValues>>();
-  const _fontFeatureValuesFor = (doc: Document) => {
-    let tables = _fontFeatureValuesByDocument.get(doc);
-    if (tables == null) {
-      tables = collectFontFeatureValues(doc);
-      _fontFeatureValuesByDocument.set(doc, tables);
-    }
-    return tables;
-  };
+  const _fontFeatureValuesFor = createFontFeatureValuesLookup();
   const { resolvePseudo: _resolvePseudo, resolveCornerRadius: _resolveCornerRadius } = createPseudoRules(
     args.pseudoStylesByHost as Parameters<typeof createPseudoRules>[0],
     args.pseudoStylePropertyKey,
@@ -251,31 +163,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     physicalComputedGradientImage,
   });
   const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
-  // Fragmented collapsed-table paint is allowed only when the Node/CDP
-  // prepass authenticated one transform-neutral physical section record from
-  // independent CSSOM and protocol geometry. Keep the live DOM correlation in
-  // a private WeakMap; no author-visible id participates in ownership.
-  const _collapsedBorderFragmentRegistry =
-    typeof args.collapsedBorderFragmentKey === "string"
-      ? ((globalThis as Record<string, unknown>)[args.collapsedBorderFragmentKey] as {
-          tables: Element[];
-          records: unknown[];
-        } | null)
-      : null;
-  const _collapsedBorderFragmentByTable = new WeakMap<Element, NonNullable<ReturnType<CollapsedFragmentLookup>>>();
-  if (
-    _collapsedBorderFragmentRegistry != null &&
-    Array.isArray(_collapsedBorderFragmentRegistry.tables) &&
-    Array.isArray(_collapsedBorderFragmentRegistry.records)
-  ) {
-    for (let _cbfi = 0; _cbfi < _collapsedBorderFragmentRegistry.tables.length; _cbfi++) {
-      const _cbfTable = _collapsedBorderFragmentRegistry.tables[_cbfi];
-      const _cbfRecord = _collapsedBorderFragmentRegistry.records[_cbfi];
-      if (_cbfTable != null && _cbfRecord != null) {
-        _collapsedBorderFragmentByTable.set(_cbfTable, _cbfRecord as NonNullable<ReturnType<CollapsedFragmentLookup>>);
-      }
-    }
-  }
+  const _collapsedBorderFragmentByTable = buildCollapsedBorderFragmentLookup(args);
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
     normColor,
     normGradientColors,
@@ -328,7 +216,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     markGetsDottedCircle,
     finalizeLineClampText,
     fontFamilyStackFor: _fontFamilyStackFor,
-    sourceTextNodeIndexFor: _textPaintSourceTextNodeIndexFor,
+    sourceTextNodeIndexFor: textPaintSourceTextNodeIndexFor,
   });
   const { injectPseudoSegments } = createPseudoInjectHandler();
   const { captureResizeHandle } = createResizeHandleHandler({
@@ -340,683 +228,30 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     vp,
   });
 
-  const capture = (el: Element): CapturedElement | null => {
-    // Freeze the element's CSS transform for the duration of the capture
-    // so getBoundingClientRect returns un-transformed coords; the renderer
-    // re-applies the saved transform via an SVG group wrapper. See
-    // walker/transforms.ts for the rationale.
-    // A recursed iframe's element belongs to its own Window. Calling the top
-    // window's getter for a foreign-document element can return default UA
-    // values for inherited properties (notably Times for `font-family`) even
-    // though Chromium paints the frame's authored face.
-    const styleWindow = el.ownerDocument?.defaultView ?? window;
-    const cs = styleWindow.getComputedStyle(el);
-    return wrapWithFrozenTransform(el as HTMLElement, cs, captureInner);
-  };
-  const captureInner = (
-    el: Element,
-    cs: CSSStyleDeclaration,
-    frozenTransform?: string | null,
-    frozenTransformOrigin?: string | null,
-  ): CapturedElement | null => {
-    const rect = el.getBoundingClientRect();
-    const _textPaintFact = _textPaintFactFor(el);
-    const _pseudoFragmentFacts = _pseudoFragmentFactsFor(el);
-    const _capturedFontFamilyStack = _fontFamilyStackFor(el, cs.fontFamily);
-    let transformSubtreeRaster;
-    const _projectiveIndex = _projectiveNodeIndex.get(el);
-    const _ownsRasterBoundary = _nonAffineProjectiveRoots.has(el);
-    const { projectiveFrameState, projectiveTransform, projectiveHidden } = projectiveStateFor({
-      args,
-      vp,
-      cs,
-      rect,
-      fact: _projectiveIndex != null ? _projectiveFacts[_projectiveIndex] : undefined,
-      ownsRasterBoundary: _ownsRasterBoundary,
-      quad: _projectedQuads.get(el),
-      parentAbsolute: el.parentElement != null ? _projectiveAbsH.get(el.parentElement) : undefined,
-      recordAbsolute: (absolute) => _projectiveAbsH.set(el, absolute),
-    });
-    const _makeTransformSubtreeRaster = () => transformSubtreeRasterFor(el, rect, vp, _projectiveNodeIndex.get(el));
-    transformSubtreeRaster = transformSubtreeRasterOwner({
-      makeRaster: _makeTransformSubtreeRaster,
-      ownsRasterBoundary: _ownsRasterBoundary,
-      textPaintFact: _textPaintFact as { surfaceReason?: string | null } | undefined,
-      warn,
-      selector: () => shortSelector(el),
-    });
-    // DM-513: when an element's rect is outside the viewport, normally skip the
-    // whole subtree. But position:fixed / position:sticky descendants escape
-    // their containing-block flow and can paint INSIDE the viewport even when
-    // their DOM-tree parent is offscreen (e.g. slashdot's #mongo-stick-it ad
-    // bar is position:fixed at top:710px but its parent <footer id="ft"> is
-    // at y=7140 in the document flow). Don't return null for an ancestor that
-    // has at least one position:fixed/sticky descendant in-viewport — instead
-    // capture the element as a transparent container (no own paint, but walk
-    // children) so the in-viewport descendants are reached. _fixedAncestors
-    // is precomputed in the pre-pass below.
-    const _geometryStyle = captureGeometryStylePhase({
-      el: el as HTMLElement,
-      cs,
-      rect,
-      vp,
-      fixedAncestors: _fixedAncestors,
-      transformInfluenced: _transformInfluenced,
-      animInfluenced: _animInfluenced,
-      isOutsideCaptureViewport: (rect) => isOutsideCaptureViewport(rect, vp),
-    });
-    if (_geometryStyle == null) return null;
-    const { bordersOnlyCell, contentVisibilityHidden: _contentVisHidden, tag } = _geometryStyle;
-
-    // Emit warnings for features domotion can't fully round-trip. Keep
-    // these short and actionable — consumers (CLI, tests, demo scripts) log
-    // them so the fidelity gaps are self-documenting.
-    const sel = shortSelector(el);
-    const _native = captureNativeControlState({
-      el: el as Parameters<typeof captureNativeControlState>[0]["el"],
-      cs,
-      tag,
-      sel,
-      _pseudoFragmentFacts,
-    });
-    warnBeforeMaskDiscovery(el, cs, sel);
-    const {
-      maskFragmentReferences: _maskFragmentReferences,
-      maskFragmentReferenceScope: _maskFragmentReferenceScope,
-      clipFragmentReferenceScope: _clipFragmentReferenceScope,
-      urlFilterRasterToken,
-    } = discoverFragmentReferences(el, cs, sel);
-    warnAfterMaskDiscovery(el, cs, tag, sel);
-    let svgContent = undefined;
-    const _text = captureTextPhase({ el, cs, tag, rect, _contentVisHidden, _pseudoFragmentFacts });
-
-    let textImageUri = undefined;
-    const textImageScale = 2;
-
-    const { imageSrc, imageIntrinsic, imageEffectiveZoom, imageBroken, imageAlt, brokenImageFallback } =
-      captureImageElement({
-        el: el as HTMLElement,
-        tag,
-        rect,
-        vp,
-        sel,
-        effectiveZoomFor: _effectiveZoomFor,
-        sourceNodeIndex: _projectiveNodeIndex.get(el),
-      });
-    const _listsCounters = captureListsCounters(el, cs, tag);
-    let svgReferenceScope = undefined;
-    if (tag === "svg") {
-      const externalSvgDocuments =
-        typeof args.externalSvgUseKey === "string" && args.externalSvgUseKey !== ""
-          ? ((globalThis as Record<string, unknown>)[args.externalSvgUseKey] as Parameters<typeof captureInlineSvg>[4])
-          : undefined;
-      const inlineSvgCapture = captureInlineSvg(el as SVGSVGElement, cs, warn, sel, externalSvgDocuments);
-      svgContent = inlineSvgCapture.content;
-      // Missing/singular CTMs and failed isolated-clone correlation are an
-      // explicit vector boundary, never a request for cssTransformToSvg's six-
-      // entry matrix3d approximation. Reuse the outer Chromium raster owner.
-      if (inlineSvgCapture.rasterOwnershipRequired && transformSubtreeRaster == null) {
-        transformSubtreeRaster = _makeTransformSubtreeRaster();
-      }
-      svgReferenceScope = _svgReferenceScope(el);
-    }
-
-    const children = captureTraversalPhase({
-      el,
-      tag,
-      contentVisibilityHidden: _contentVisHidden,
-      capture,
-    });
-
-    const _animId = (el as HTMLElement).dataset?.domotionAnim;
-    // DM-900: author-supplied magic-move pairing key (`data-magic-key`). When
-    // present on the same logical element across two animation frames, the
-    // magic-move matcher force-pairs them ahead of its fingerprint heuristic.
-    const _magicKey = (el as HTMLElement).dataset?.magicKey;
-
-    // <fieldset>+<legend> box adjustment (DM-1436: extracted to walker/fieldset-legend.ts).
-    const _fsBox = computeFieldsetLegendBox(el as HTMLElement, tag, rect, vp);
-
-    const _captured = {
-      tag,
-      text: _text.text,
-      x: _fsBox.x,
-      y: _fsBox.y,
-      width: _fsBox.width,
-      height: _fsBox.height,
-      fieldsetLegendNotch: _fsBox.fieldsetLegendNotch,
-      resizeHandle: captureResizeHandle(el as HTMLElement, cs, tag, rect),
-      // DM-2481: populated by the Node-side live Chromium marker probe.  The
-      // serialized record is already in capture-viewport coordinates and may
-      // be explicitly partial/unavailable; the renderer must never infer a
-      // replacement from scrollWidth/clientWidth or scroll offsets.
-      scrollbars: captureScrollbarRecord({ args, el, cs, warn, sel }),
-      animId: _animId,
-      magicKey: _magicKey,
-      // DM-2457: private correlation only. The Node/CDP post-pass resolves the
-      // real generated ::marker fragment and deletes this index before return.
-      _summaryMarkerSourceNodeIndex:
-        tag === "summary" && cs.display != null && cs.display.includes("list-item")
-          ? _projectiveNodeIndex.get(el)
-          : undefined,
-      svgReferenceScope,
-      fragmentReferenceScope:
-        _maskFragmentReferenceScope != null ? _maskFragmentReferenceScope : _clipFragmentReferenceScope,
-      fragmentReferenceZoom:
-        (_maskFragmentReferences != null && _maskFragmentReferences.length > 0) || _clipFragmentReferenceScope != null
-          ? _effectiveZoomFor(el)
-          : undefined,
-      maskFragmentReferences:
-        _maskFragmentReferences != null && _maskFragmentReferences.length > 0 ? _maskFragmentReferences : undefined,
-      // DM-1106: effective cursor keyword for the auto cursor-overlay hit-test.
-      // Omitted when it resolves to the default arrow (the common case) to keep
-      // the tree lean — the overlay treats a missing value as `default`.
-      cursor: (() => {
-        const _c = resolveElementCursor(el as HTMLElement, cs);
-        return _c === "default" ? undefined : _c;
-      })(),
-      styles: buildStyleRecord({
-        el: el as HTMLElement,
-        cs,
-        tag,
-        rect,
-        frozenTransform,
-        frozenTransformOrigin,
-        isPlaceholderCapture: _text.isPlaceholderCapture,
-        ..._native,
-        _capturedFontFamilyStack,
-      }) as CapturedElement["styles"],
-      projectiveTransform,
-      projectiveHidden,
-      projectiveFrameState,
-      transformSubtreeRaster,
-      children,
-      imageSrc,
-      imageIntrinsic,
-      imageEffectiveZoom,
-      imageBroken,
-      imageAlt,
-      brokenImageFallback,
-      svgContent,
-      pseudoFragments: Array.isArray(_pseudoFragmentFacts) ? _pseudoFragmentFacts : undefined,
-      pseudoImages: _text.pseudoImages,
-      pseudoBoxes: _text.pseudoBoxes.length > 0 ? _text.pseudoBoxes : undefined,
-      // SK-1115: ::marker pseudo styles plus list-marker intrinsic dims and
-      // list-item index — see walker/lists-counters.ts.
-      ..._listsCounters,
-      textSegments: _text.textSegments.length > 0 ? _text.textSegments : undefined,
-      textPaintGeometry: _textPaintFact != null ? _textPaintFact.geometry : undefined,
-      // Correlation marker emitted only by the all-transform-neutral probe
-      // capture and consumed before that intermediate tree is discarded.
-      _textPaintSourceKey: args.textPaintProbe === true ? _textPaintSourceKeyFor(el) : undefined,
-      lineClampTextFragments: _text.lineClampTextFragments || undefined,
-      textTop: _text.textTop,
-      textLeft: _text.textLeft,
-      textHeight: _text.textHeight,
-      textWidth: _text.textWidth,
-      // DM-2446: Blink chooses and measures the face at computed size
-      // (logical CSS size × effective zoom), then the transform stage scales
-      // those metrics into paint space. Re-measure at computed size instead of
-      // multiplying logical-size metrics by zoom: variable-font metrics can
-      // change non-linearly when the computed size selects another instance.
-      fontAscent: computedSizeFontMetric({
-        metric: "ascent",
-        value: _text.fontAscent,
-        cs,
-        el,
-        _effectiveZoomFor,
-        _measureFontMetrics,
-      }),
-      fontDescent: computedSizeFontMetric({
-        metric: "descent",
-        value: _text.fontDescent,
-        cs,
-        el,
-        _effectiveZoomFor,
-        _measureFontMetrics,
-      }),
-      // Blink's `line-height: normal` at the computed size (see font-metrics.ts); only recorded when the
-      // computed value IS `normal`, so a numeric line-height never pays for the probe.
-      normalLineHeight:
-        cs.lineHeight === "normal" && isFinite(parseFloat(cs.fontSize) * _effectiveZoomFor(el))
-          ? _measureNormalLineSpacing(cs, (parseFloat(cs.fontSize) * _effectiveZoomFor(el)).toFixed(4) + "px")
-          : undefined,
-      inputXOffsets: _text.inputXOffsets,
-      textImageUri,
-      textImageScale,
-      // Placeholder metadata (SK-1097 / SK-1100 / SK-1099): captured in
-      // walker/input-value.ts when the host is a placeholder-shown input
-      // or textarea. Undefined elsewhere.
-      isPlaceholderText: _text.isPlaceholderCapture || undefined,
-      placeholderColor: _text.placeholderColor,
-      placeholderFontStyle: _text.placeholderFontStyle,
-      placeholderFontWeight: _text.placeholderFontWeight,
-      placeholderFontFamily: _text.placeholderFontFamily,
-      placeholderFontFamilyStack: _text.placeholderFontFamilyStack,
-      // Old-capture compatibility field. Current textarea and vertical text
-      // capture is fully vector; see walker/text-segments.ts.
-      elementRaster: computeElementRaster(el, cs, tag, rect, vp),
-      // DM-2149 / DM-2453: snapshot only appearances for which Blink's
-      // ThemePainter owns the complete host. EffectiveAppearance is derived
-      // above from the actual auto mapping and cascade-origin author flags.
-      // menulist-button/listbox/base states keep their author-owned host box
-      // structural; native decoration splitting is owned by DM-2455.
-      nativeControlRaster: captureNativeControlRaster({
-        ..._native,
-        rect,
-        cs,
-        vp,
-        _projectiveNodeIndex: _projectiveNodeIndex as unknown as Map<Element, number>,
-        sel,
-        tag,
-        el,
-      }),
-      // A CSS-owned host can still contain either ThemePainter's select arrow
-      // or layout-backed closed-UA-shadow decorations. Keep the host box and
-      // value text structural, but reserve this narrow overlay so a failed
-      // Chromium isolation can never reopen the sampled glyph functions.
-      nativeControlDecorationRaster: captureNativeControlDecorationRaster({
-        ..._native,
-        rect,
-        vp,
-        sel,
-        _projectiveNodeIndex: _projectiveNodeIndex as unknown as Map<Element, number>,
-        el,
-      }),
-      // DM-2171: backdrop-filter samples already-painted content behind this
-      // element through a distinct Blink effect node. An img-rendered SVG has
-      // no equivalent input surface, so preserve Chromium's composited pixels
-      // for the complete isolation subtree at its paint-order position.
-      backdropFilterRaster: captureBackdropFilterRaster({
-        cs,
-        rect,
-        el,
-        vp,
-        sel,
-        _backdropEffectSpaceFor: _backdropEffectSpaceFor as Parameters<
-          typeof captureBackdropFilterRaster
-        >[0]["_backdropEffectSpaceFor"],
-        nextBackdropToken: () => "bf" + _backdropRasterSeq++,
-      }),
-      // DM-2415: a CSS URL filter containing feConvolveMatrix needs Blink's
-      // original layer-space SourceGraphic pixels. The Node post-pass replaces
-      // this placeholder with the isolated, fully-filtered Chromium surface.
-      urlFilterRaster:
-        urlFilterRasterToken == null
-          ? undefined
-          : {
-              x: rect.left - vp.x,
-              y: rect.top - vp.y,
-              width: rect.width,
-              height: rect.height,
-              token: urlFilterRasterToken,
-            },
-    } as CapturedElement;
-    return assembleCaptureResultPhase({
-      captured: _captured,
-      el,
-      cs,
-      tag,
-      rect,
-      vp,
-      bordersOnlyCell,
-      detectInlineFragments,
-      iframeFrameAuthority: _iframeFrameAuthority as Parameters<
-        typeof assembleCaptureResultPhase
-      >[0]["iframeFrameAuthority"],
-      captureIframeRecursion: _captureIframeRecursion as Parameters<
-        typeof assembleCaptureResultPhase
-      >[0]["captureIframeRecursion"],
-      handleReplacedElement,
-      captureScrollMarkerGroup: _captureScrollMarkerGroup as Parameters<
-        typeof assembleCaptureResultPhase
-      >[0]["captureScrollMarkerGroup"],
-      captureScrollButtons: _captureScrollButtons as Parameters<
-        typeof assembleCaptureResultPhase
-      >[0]["captureScrollButtons"],
-    });
-  };
+  // The per-element walk (walker/element-capture.ts). Its dependencies are
+  // bound below, once the root-relative prepasses have run.
+  const elementCapture = createElementCapture();
+  const capture = elementCapture.capture;
 
   const { _captureScrollMarkerGroup, _captureScrollButtons } = createScrollMarkersHandler({ capture });
 
   const root = document.querySelector(sel);
   if (!root) return { tree: [], warnings: [] };
 
-  // DM-513: pre-pass to find position:fixed / position:sticky descendants
-  // whose rect intersects the viewport. Their DOM-tree parents may be far
-  // outside the viewport (e.g. slashdot's #mongo-stick-it ad bar pinned at
-  // top:710px while its <footer> ancestor sits at y=7140 in document flow),
-  // and the per-element viewport filter in captureInner would otherwise drop
-  // the whole subtree. We mark every ancestor of every in-viewport fixed/
-  // sticky element so captureInner knows to walk past those ancestors as
-  // transparent containers. position:absolute is NOT included because absolute
-  // elements are positioned relative to their containing block, so if their
-  // CB ancestor's rect is offscreen, so is the absolute child.
-  const _fixedAncestors = new Set<Element>();
+  // Root-relative prepasses (walker/document-prepass.ts), in the order they
+  // must observe the live page: before any transform is frozen.
   const _allEls = root.getElementsByTagName("*");
-  for (let _i = 0; _i < _allEls.length; _i++) {
-    const _el = _allEls[_i];
-    const _pos = getComputedStyle(_el).position;
-    if (_pos !== "fixed" && _pos !== "sticky") continue;
-    const _r = _el.getBoundingClientRect();
-    const _outside = _r.right < vp.x || _r.bottom < vp.y || _r.left > vp.x + vp.width || _r.top > vp.y + vp.height;
-    if (_outside) continue;
-    // Walk up and mark every ancestor up to root.
-    let _cur = _el.parentElement;
-    while (_cur != null && _cur !== root.parentElement) {
-      if (_fixedAncestors.has(_cur)) break;
-      _fixedAncestors.add(_cur);
-      _cur = _cur.parentElement;
-    }
-  }
-
-  // DM-587: every descendant of a transformed ancestor must escape the
-  // outsideViewport early-return in captureInner. Because the per-element
-  // freeze pass clears each ancestor's CSS transform before descending,
-  // getBoundingClientRect on a descendant returns its NATURAL-layout
-  // position (no ancestor translates / scales). For a carousel-style
-  // widget where the "current slide" is brought into the viewport by a
-  // parent `transform: translate(-Npx, 0)` (Stripe's connect-platform
-  // payment-card-content does exactly this), the descendant's natural
-  // rect is offscreen — without this set the cull drops it and the
-  // renderer never sees the slide at all. The renderer re-applies the
-  // saved transform when drawing, so descendants captured here will be
-  // painted at the correct post-transform position.
-  const _transformInfluenced = new Set<Element>();
-  for (let _ti = 0; _ti < _allEls.length; _ti++) {
-    const _tel = _allEls[_ti];
-    const _tt = getComputedStyle(_tel).transform;
-    if (_tt === "none" || _tt === "") continue;
-    // Mark the transformed element itself AND every descendant. The element
-    // itself needs the exemption because its own post-transform rect may be
-    // entirely outside the viewport (e.g. framer's marquee `<ul>` is
-    // `transform: translateX(-1000px)` at some animation frames), and the
-    // `outsideViewport` cull would drop the ul + abort recursion before its
-    // (in-viewport) descendant lis ever get walked. Including the transformed
-    // element keeps the recursion alive so its descendants are captured.
-    // (DM-637 / framer brand-logo carousel.)
-    _transformInfluenced.add(_tel);
-    const _tdescs = _tel.getElementsByTagName("*");
-    for (let _tj = 0; _tj < _tdescs.length; _tj++) {
-      _transformInfluenced.add(_tdescs[_tj]);
-    }
-  }
-
-  // DM-2385: a computed transform-related value does not imply that Blink's
-  // LayoutObject can apply it. In particular, a non-replaced `display:inline`
-  // element serializes perspective/transform normally but fails the `IsBox()` arm
-  // in ComputeIsFixedContainer and creates neither a fixed CB nor a perspective
-  // paint node. ComputedStyle's stacking-context predicate remains separate.
-  // CSSOM does not expose IsBox(), but fixed ownership is
-  // observable without matrix inference: give a neutral temporary host the
-  // candidate's computed display and an active perspective; its fixed child's
-  // offsetParent is that host exactly when Blink constructed an IsBox layout
-  // object. Using a neutral host avoids changing the source element or letting
-  // its independent filter/contain state answer the transform question. Probe
-  // only transform-related candidates, remove the zero-size host immediately,
-  // and retain the boolean for perspective activation and fixed ownership.
+  const _fixedAncestors = collectFixedAncestors(root, _allEls, vp);
+  const _transformInfluenced = collectTransformInfluenced(_allEls);
   const _transformRelatedBox = new WeakMap<Element, boolean>();
-  const _transformRelatedWillChange = new Set([
-    "transform",
-    "transform-style",
-    "perspective",
-    "translate",
-    "rotate",
-    "scale",
-    "offset-path",
-    "offset-position",
-  ]);
-  const _hasTransformRelatedSignal = (_cs: CSSStyleDeclaration) => {
-    if (
-      (_cs.transform != null && _cs.transform !== "" && _cs.transform !== "none") ||
-      (_cs.translate != null && _cs.translate !== "" && _cs.translate !== "none") ||
-      (_cs.rotate != null && _cs.rotate !== "" && _cs.rotate !== "none") ||
-      (_cs.scale != null && _cs.scale !== "" && _cs.scale !== "none") ||
-      _cs.transformStyle === "preserve-3d" ||
-      (_cs.perspective != null && _cs.perspective !== "" && _cs.perspective !== "none")
-    )
-      return true;
-    if (_cs.willChange == null || _cs.willChange === "" || _cs.willChange === "auto") return false;
-    const _tokens = _cs.willChange.split(/[\s,]+/);
-    for (let _wi = 0; _wi < _tokens.length; _wi++) {
-      if (_transformRelatedWillChange.has(_tokens[_wi].toLowerCase())) return true;
-    }
-    return false;
-  };
-  const _ownershipEls = [root, ...Array.from(_allEls)];
-  // Attachment ownership walks beyond the selected capture root. A fixed
-  // background on the root still becomes scroll-attached when an authored
-  // transform ancestor outside that root establishes the containing block;
-  // likewise, a transform on an inert inline ancestor must remain a negative
-  // control. Include those ancestors in the LayoutBox applicability probe.
-  let _ownershipAncestor = root.parentElement;
-  while (_ownershipAncestor != null) {
-    _ownershipEls.push(_ownershipAncestor);
-    _ownershipAncestor = _ownershipAncestor.parentElement;
-  }
-  // DM-2487: snapshot the ancestor effect tree before the transform walker can
-  // temporarily freeze rotate/skew declarations. This source-owned record is
-  // consumed by the Node screenshot pass; ordinary stacking, isolation,
-  // overflow, positioning, and transforms do not become Backdrop Roots.
-  const _backdropEffectFacts = new WeakMap<Element, ReturnType<typeof _backdropFactsFor>>();
-  const _backdropFactsFor = (_element: Element, _style: CSSStyleDeclaration) => ({
-    isDocumentRoot: _element === _element.ownerDocument.documentElement,
-    opacity: _style.opacity || "1",
-    filter: _style.filter || "none",
-    backdropFilter:
-      _style.backdropFilter ||
-      (_style as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter ||
-      "none",
-    clipPath: _style.clipPath || "none",
-    maskImage: _style.maskImage || "none",
-    maskBorderSource: (_style as CSSStyleDeclaration & { maskBorderSource?: string }).maskBorderSource || "none",
-    mixBlendMode: _style.mixBlendMode || "normal",
-    willChange: _style.willChange || "auto",
-    transform: _style.transform || "none",
-    translate: _style.translate || "none",
-    rotate: _style.rotate || "none",
-    scale: _style.scale || "none",
-  });
-  for (let _bi = 0; _bi < _ownershipEls.length; _bi++) {
-    const _element = _ownershipEls[_bi];
-    const _styleWindow = _element.ownerDocument?.defaultView ?? window;
-    _backdropEffectFacts.set(_element, _backdropFactsFor(_element, _styleWindow.getComputedStyle(_element)));
-  }
-  const _backdropEffectSpaceFor = (_target: Element) => {
-    const _ancestors = [];
-    let _nearestRoot;
-    let _ancestor = _target.parentElement;
-    let _depth = 1;
-    while (_ancestor != null) {
-      const _styleWindow = _ancestor.ownerDocument?.defaultView ?? window;
-      const _facts =
-        _backdropEffectFacts.get(_ancestor) || _backdropFactsFor(_ancestor, _styleWindow.getComputedStyle(_ancestor));
-      const _reasons = backdropRootReasons(_facts);
-      const _neutralize = backdropEffectNeutralizations(_facts);
-      const _selector = shortSelector(_ancestor);
-      if (_nearestRoot == null && _reasons.length > 0) {
-        _nearestRoot = {
-          kind: _facts.isDocumentRoot ? "document" : "element",
-          depth: _depth,
-          selector: _selector,
-          reasons: _reasons,
-        };
-      }
-      if (_reasons.length > 0 || _neutralize.length > 0) {
-        _ancestors.push({ depth: _depth, selector: _selector, reasons: _reasons, neutralize: _neutralize });
-      }
-      _ancestor = _ancestor.parentElement;
-      _depth++;
-    }
-    // A connected HTML target always reaches documentElement. Keep this
-    // conservative fallback explicit for detached/custom-document probes.
-    if (_nearestRoot == null) {
-      _nearestRoot = { kind: "document", depth: 0, selector: "html", reasons: ["document-root"] };
-    }
-    return {
-      source: "blink-backdrop-effect-tree-v1",
-      nearestRoot: _nearestRoot,
-      ancestors: _ancestors,
-    };
-  };
-  const _probeUnsupportedTags = /^(?:AUDIO|CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO)$/;
-  for (let _oi = 0; _oi < _ownershipEls.length; _oi++) {
-    const _owner = _ownershipEls[_oi];
-    const _ownerStyle = getComputedStyle(_owner);
-    if (!_hasTransformRelatedSignal(_ownerStyle)) continue;
-    // Replaced/control content and SVG suppress an appended HTML child, so a
-    // false result there would describe the probe host rather than IsBox().
-    // Such elements cannot expose an authored fixed descendant through this
-    // tree; leave the fact undefined so their own perspective paint retains
-    // the source-compatible fallback.
-    if (_owner.namespaceURI === "http://www.w3.org/2000/svg" || _probeUnsupportedTags.test(_owner.tagName)) continue;
-    const _probeHost = document.createElement("span");
-    _probeHost.setAttribute("aria-hidden", "true");
-    _probeHost.style.setProperty("all", "initial", "important");
-    _probeHost.style.setProperty("display", _ownerStyle.display, "important");
-    _probeHost.style.setProperty("perspective", "1px", "important");
-    _probeHost.style.setProperty("visibility", "hidden", "important");
-    _probeHost.style.setProperty("width", "0", "important");
-    _probeHost.style.setProperty("height", "0", "important");
-    _probeHost.style.setProperty("margin", "0", "important");
-    _probeHost.style.setProperty("padding", "0", "important");
-    _probeHost.style.setProperty("border", "0", "important");
-    const _probe = document.createElement("i");
-    _probe.setAttribute("aria-hidden", "true");
-    _probe.style.setProperty("all", "initial", "important");
-    _probe.style.setProperty("position", "fixed", "important");
-    _probe.style.setProperty("width", "0", "important");
-    _probe.style.setProperty("height", "0", "important");
-    _probeHost.appendChild(_probe);
-    try {
-      (document.body || document.documentElement).appendChild(_probeHost);
-      _transformRelatedBox.set(_owner, _probe.offsetParent === _probeHost);
-    } catch (_e) {
-      // If the neutral host cannot participate in layout, leave the compatible
-      // computed-style fallback undefined rather than guessing.
-    } finally {
-      _probeHost.remove();
-    }
-  }
-
-  // DM-2474: CSS 3D ownership comes from Chromium's live paint quads, gathered
-  // by the Node/CDP prepass before capture mutates transforms.  DOM object
-  // correlation is held in a private page-global array, so no marker attribute
-  // or appended HTML child can change SVG layout.  SVG graphics children are
-  // source-flattened affine and deliberately do not receive a general box
-  // homography; outer SVG roots and HTML boxes may.
-  const _projectiveFacts = (
-    Array.isArray(args.projectiveFacts) ? args.projectiveFacts : []
-  ) as ProjectivePaintNodeFact[];
-  const _projectiveDomNodes =
-    typeof args.projectiveKey === "string" && Array.isArray((globalThis as Record<string, unknown>)[args.projectiveKey])
-      ? ((globalThis as Record<string, unknown>)[args.projectiveKey] as Element[])
-      : [];
-  const _projectiveNodeIndex = new WeakMap<Element, number>();
-  const _projectedQuads = new WeakMap<Element, Array<{ x: number; y: number }>>();
-  const _projectiveAbsH = new WeakMap<Element, number[]>();
-  for (let _pi = 0; _pi < _projectiveFacts.length; _pi++) {
-    const _fact = _projectiveFacts[_pi];
-    const _pel = _projectiveDomNodes[_pi];
-    if (_pel == null || _fact == null) continue;
-    _projectiveNodeIndex.set(_pel, _pi);
-    if (_fact.role === "svg-graphics") continue;
-    const _values = _fact.borderQuad || _fact.quad;
-    if (!Array.isArray(_values) || _values.length !== 8) continue;
-    _projectedQuads.set(_pel, [
-      { x: _values[0], y: _values[1] },
-      { x: _values[2], y: _values[3] },
-      { x: _values[4], y: _values[5] },
-      { x: _values[6], y: _values[7] },
-    ]);
-  }
-  const _nonAffineProjectiveRoots = new Set<Element>();
-  for (const _ownerIndex of selectProjectiveRasterOwnerIndexes(_projectiveFacts)) {
-    const _owner = _projectiveDomNodes[_ownerIndex];
-    if (_owner != null) _nonAffineProjectiveRoots.add(_owner);
-  }
-
-  // DM-1532: an element carrying `data-domotion-anim` gets a post-capture
-  // intra-frame animation that CAN be a transform (e.g. an odometer digit reel
-  // whose strip `translateY`-rolls, scrolling otherwise-offscreen digit cells
-  // through a clipped window). Capture runs on the static, untransformed DOM and
-  // can't know the animation's range, so it would drop those offscreen cells
-  // before the animation ever brings them in. Exempt the whole animated subtree
-  // from the `outsideViewport` early-return; the post-capture, animation-aware
-  // viewBox cull (`cullElementsOutsideViewBox`) then trims any that never
-  // actually enter the viewport during the scene. Mirrors `_transformInfluenced`.
-  const _animInfluenced = new Set<Element>();
-  for (let _ai = 0; _ai < _allEls.length; _ai++) {
-    const _ael = _allEls[_ai];
-    if ((_ael as HTMLElement).dataset?.domotionAnim == null || (_ael as HTMLElement).dataset.domotionAnim === "")
-      continue;
-    _animInfluenced.add(_ael);
-    const _adescs = _ael.getElementsByTagName("*");
-    for (let _aj = 0; _aj < _adescs.length; _aj++) _animInfluenced.add(_adescs[_aj]);
-  }
-
-  // DM-2470: keep effective CSS zoom as a local layout/metric input. CSS
-  // transforms never enter this map; authoritative textPaintGeometry owns
-  // their complete signed affine mapping after shaping.
-  const _cumulativeZoom = new Map<Element, number>();
-  const _effectiveZoomFor = (el: Element | null): number => {
-    if (el == null) return 1;
-    const hit = _cumulativeZoom.get(el);
-    if (hit != null) return hit;
-    const parentZoom = _effectiveZoomFor(el.parentElement);
-    const own = parseFloat(getComputedStyle(el).zoom);
-    const zoom = parentZoom * (Number.isFinite(own) && own > 0 ? own : 1);
-    _cumulativeZoom.set(el, zoom);
-    return zoom;
-  };
-  // Background attachment is a separate box-paint protocol. Its live physical
-  // scroll geometry still needs pure scale magnitudes, so keep that conversion
-  // narrowly named and owned here rather than sharing it with text.
-  const _backgroundAttachmentAxisScale = (_tt: string): [number, number] => {
-    if (_tt == null || _tt === "none" || _tt === "") return [1, 1];
-    const _m2 = /^matrix\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)/.exec(_tt);
-    let _sa = 1,
-      _sd = 1;
-    if (_m2 != null) {
-      _sa = parseFloat(_m2[1]);
-      _sd = parseFloat(_m2[4]);
-    } else {
-      const _m3 = /^matrix3d\(([^)]+)\)/.exec(_tt);
-      if (_m3 != null) {
-        const _parts = _m3[1].split(",");
-        _sa = parseFloat(_parts[0]);
-        _sd = parseFloat(_parts[5]);
-      }
-    }
-    if (!isFinite(_sa) || !isFinite(_sd)) return [1, 1];
-    const _sx = Math.abs(_sa) > 0 ? Math.abs(_sa) : 1;
-    const _sy = Math.abs(_sd) > 0 ? Math.abs(_sd) : 1;
-    return [_sx, _sy];
-  };
-  // Background attachment geometry is serialized in the same physical space
-  // as the element rect. Pure translate/scale transforms stay live during
-  // capture, so their scale is already baked into that space. Rotation/skew
-  // transforms are temporarily frozen and later re-applied by the SVG wrapper;
-  // folding their matrix a/d terms into scroll offsets would apply that part
-  // twice. Resolve the scale along the real DOM ancestry and cache the result.
-  const _backgroundAttachmentPaintScale = new WeakMap<Element, [number, number]>();
-  const _backgroundAttachmentPaintScaleFor = (el: Element | null): [number, number] => {
-    if (el == null) return [1, 1];
-    const _hit = _backgroundAttachmentPaintScale.get(el);
-    if (_hit != null) return _hit;
-    const _parent = _backgroundAttachmentPaintScaleFor(el.parentElement);
-    const _styleWindow = el.ownerDocument?.defaultView ?? window;
-    const _style = _styleWindow.getComputedStyle(el);
-    const _effectiveTransform = composeEffectiveTransform(_style);
-    const _ownScale = transformHasRotationOrSkew(_effectiveTransform)
-      ? [1, 1]
-      : _backgroundAttachmentAxisScale(_effectiveTransform);
-    const _ownZoom = parseFloat(_style.zoom);
-    const _zoom = Number.isFinite(_ownZoom) && _ownZoom > 0 ? _ownZoom : 1;
-    const _resolved: [number, number] = [_parent[0] * _ownScale[0] * _zoom, _parent[1] * _ownScale[1] * _zoom];
-    _backgroundAttachmentPaintScale.set(el, _resolved);
-    return _resolved;
-  };
+  const _ownershipEls = collectOwnershipElements(root, _allEls);
+  const _backdropEffectSpaceFor = createBackdropEffectSpace(_ownershipEls, shortSelector);
+  probeTransformRelatedBoxes(_ownershipEls, _transformRelatedBox);
+  const { projectiveFacts, projectiveNodeIndex, projectedQuads, projectiveAbsH, nonAffineProjectiveRoots } =
+    indexProjectiveFacts(args);
+  const _animInfluenced = collectAnimInfluenced(_allEls);
+  const _effectiveZoomFor = createEffectiveZoomResolver();
+  const _backgroundAttachmentPaintScaleFor = createBackgroundAttachmentPaintScale();
   const { counterSnapshot: _counterSnapshot, counterPreWalk: _counterPreWalk } = createCounterScopes();
   _counterPreWalk(root);
   const { _captureIframeRecursion, _iframeFrameAuthority, _iframeIsRecursable } = createIframeRecursionHandler({
@@ -1080,6 +315,43 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     isTableCellHiddenByEmptyCells,
     normColor,
   });
+  elementCapture.bind({
+    args,
+    vp,
+    warn,
+    shortSelector,
+    wrapWithFrozenTransform,
+    textPaintFactFor,
+    textPaintSourceKeyFor,
+    pseudoFragmentFactsFor,
+    fontFamilyStackFor: _fontFamilyStackFor,
+    svgReferenceScope: _svgReferenceScope,
+    effectiveZoomFor: _effectiveZoomFor,
+    measureFontMetrics: _measureFontMetrics,
+    measureNormalLineSpacing: _measureNormalLineSpacing,
+    fixedAncestors: _fixedAncestors,
+    transformInfluenced: _transformInfluenced,
+    animInfluenced: _animInfluenced,
+    projectiveFacts,
+    projectiveNodeIndex,
+    nonAffineProjectiveRoots,
+    projectedQuads,
+    projectiveAbsH,
+    backdropEffectSpaceFor: _backdropEffectSpaceFor as ElementCaptureDeps["backdropEffectSpaceFor"],
+    captureNativeControlState,
+    warnBeforeMaskDiscovery,
+    warnAfterMaskDiscovery,
+    discoverFragmentReferences,
+    captureTextPhase,
+    captureListsCounters,
+    captureResizeHandle,
+    buildStyleRecord,
+    handleReplacedElement,
+    iframeFrameAuthority: _iframeFrameAuthority as ElementCaptureDeps["iframeFrameAuthority"],
+    captureIframeRecursion: _captureIframeRecursion as ElementCaptureDeps["captureIframeRecursion"],
+    captureScrollMarkerGroup: _captureScrollMarkerGroup as ElementCaptureDeps["captureScrollMarkerGroup"],
+    captureScrollButtons: _captureScrollButtons as ElementCaptureDeps["captureScrollButtons"],
+  });
 
   // DM-770: collect `@counter-style` rule definitions from all stylesheets into
   // the shared `_counterStyles` map, so the lists-counters / pseudo-content
@@ -1090,103 +362,13 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
   // walker/counter-prewalk.ts — DM-1086.)
   _runCounterStylePrewalk();
 
-  const result = [];
-  // Capture the root element itself when it has visible border or background
-  // (DM-362: <body style="border:3px solid pink"> was not rendering because
-  // we only walked root.children). When the root has nothing visually
-  // distinctive, fall through to the prior child-walk so we don't wrap
-  // every page in a redundant outer rect.
-  const rootCs = window.getComputedStyle(root);
-  const rootHasBorder =
-    (parseFloat(rootCs.borderTopWidth) || 0) > 0 ||
-    (parseFloat(rootCs.borderRightWidth) || 0) > 0 ||
-    (parseFloat(rootCs.borderBottomWidth) || 0) > 0 ||
-    (parseFloat(rootCs.borderLeftWidth) || 0) > 0;
-  const rootBg = rootCs.backgroundColor;
-  // DM-855: also capture the root when it carries a gradient/image background,
-  // not just a solid color. `backgroundColor` is `transparent` for a
-  // gradient-only <body>, so checking it alone made us skip capturing the root
-  // element and drop its background entirely. Treating a non-`none`
-  // `background-image` as "has background" captures the root as a normal
-  // element, routing its gradient through the existing element-gradient path.
-  const rootBgImage = rootCs.backgroundImage;
-  const rootHasBgImage = rootBgImage != null && rootBgImage !== "none" && rootBgImage !== "";
-  const rootHasBg = isPaintedColor(rootBg) || rootHasBgImage;
-  // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
-  // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
-  // Chrome paints it; we'd miss it if we only walked root.children (Element
-  // children only). When the root has any direct text-node child with non-
-  // whitespace content, capture root so its text-node walk picks them up.
-  let rootHasDirectText = false;
-  for (const node of root.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && (node.textContent || "").trim() !== "") {
-      rootHasDirectText = true;
-      break;
-    }
-  }
-  if (rootHasBorder || rootHasBg || rootHasDirectText || _nonAffineProjectiveRoots.has(root)) {
-    const c = capture(root);
-    if (c) result.push(c);
-  } else {
-    for (const child of root.children) {
-      const c = capture(child);
-      if (c) result.push(c);
-    }
-  }
-  // DM-493: attach the collected mask fragment defs to the first root element
-  // as a top-level payload. Renderer reads tree[0].maskDefs to emit the mask
-  // defs into the output SVG.
-  if (_maskDefs.size > 0 && result.length > 0) {
-    result[0].maskDefs = Array.from(_maskDefs.values());
-  }
-  // DM-826: same shape as maskDefs above — top-level collection of inline
-  // <clipPath> defs the renderer emits into the output SVG. See docs/39.
-  if (_clipPathDefs.size > 0 && result.length > 0) {
-    result[0].clipPathDefs = Array.from(_clipPathDefs.values());
-  }
-  // DM-934: same shape — inline <filter> defs referenced by CSS `filter:
-  // url(#id)`. The renderer copies these into the output SVG and the
-  // existing pass-through of cs.filter as an inline style on the wrapping
-  // group references them.
-  if (_filterDefs.size > 0 && result.length > 0) {
-    result[0].filterDefs = Array.from(_filterDefs.values());
-  }
-  // DM-494: attach mask raster references (mask-image: element(#id)). Skip
-  // null entries (display:none / zero-area / not-found targets). The post-
-  // capture rasterize pass on the Node side fills in dataUri.
-  if (_maskRasters.size > 0 && result.length > 0) {
-    var rasterArr = [];
-    for (var entry of _maskRasters.values()) {
-      if (entry != null) rasterArr.push(entry);
-    }
-    if (rasterArr.length > 0) result[0].maskRasters = rasterArr;
-  }
-  // DM-552: stamp page-level dark-mode signals on the captured tree's root
-  // element. The renderer reads these to emit color-scheme="dark" on the
-  // root <svg> (this slice) and to source the body-bg fallback in the
-  // transparent-root case (DM-554 wires up the second consumer).
-  if (result.length > 0) {
-    try {
-      var _rootScrollbarOwner = document.scrollingElement;
-      var _rootScrollbarRecord =
-        _rootScrollbarOwner != null && typeof args.scrollbarPropertyKey === "string" && args.scrollbarPropertyKey !== ""
-          ? (_rootScrollbarOwner as Element & Record<string, unknown>)[args.scrollbarPropertyKey]
-          : undefined;
-      if (_rootScrollbarRecord != null)
-        result[0].rootScrollbars = _rootScrollbarRecord as CapturedElement["rootScrollbars"];
-      var _isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      result[0].styles.rootColorScheme = _isDark ? "dark" : "light";
-      var _docCs = window.getComputedStyle(document.documentElement);
-      result[0].styles.rootBgComputed = _docCs.backgroundColor;
-      // DM-1244: <html>'s overflow decides whether <body>'s overflow propagates
-      // to the viewport (it only does when <html> is `overflow: visible`). The
-      // renderer needs it to know whether to apply <body>'s own overflow clip.
-      result[0].styles.rootOverflowX = _docCs.overflowX;
-      result[0].styles.rootOverflowY = _docCs.overflowY;
-    } catch (_e) {
-      /* no-op — never block capture on this */
-    }
-  }
+  const result = captureRootElements(root, capture, nonAffineProjectiveRoots);
+  attachRootPayloads(result, args, {
+    maskDefs: _maskDefs,
+    clipPathDefs: _clipPathDefs,
+    filterDefs: _filterDefs,
+    maskRasters: _maskRasters,
+  });
   return { tree: result, warnings: _warnings };
 };
 

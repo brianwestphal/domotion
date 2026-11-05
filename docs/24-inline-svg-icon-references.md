@@ -52,11 +52,11 @@ Implemented in DM-499 (this doc). `CAPTURE_SCRIPT` clones the host `<svg>`'s out
 - `<use>` presentation attrs (`fill`, `stroke`, `stroke-width`, `opacity`, `class`, `style`) override the same on the resolved root.
 - `currentColor` substitution: the presentation-attribute bake preserves
   `fill="currentColor"` / `stroke="currentColor"` in the resolved subtree.
-  `_substCurrentColor` then substitutes the host SVG's resolved `cs.color`
+  `substituteCurrentColor` then substitutes the host SVG's resolved `cs.color`
   before re-embedding outside the original cascade.
 - Cycle / depth guard: 5-level recursion limit on `<use>` chains.
 
-When the resolved subtree contains an active CSS animation (`getAnimations({subtree:true})` non-empty), capture no longer raster-falls-back (DM-508). The `_walkBake` pass bakes the subtree's computed presentation attributes and transforms at the moment of capture, so the t=0 paint state is captured declaratively in the inlined SVG — vector, self-contained, frozen at one frame. Capture still emits a warning so consumers know the snapshot is a single frame; animation timing and later frames don't survive (the same one-frame contract Domotion provides for any other time-varying content).
+When the resolved subtree contains an active CSS animation (`getAnimations({subtree:true})` non-empty), capture no longer raster-falls-back (DM-508). The `walkBake` pass bakes the subtree's computed presentation attributes and transforms at the moment of capture, so the t=0 paint state is captured declaratively in the inlined SVG — vector, self-contained, frozen at one frame. Capture still emits a warning so consumers know the snapshot is a single frame; animation timing and later frames don't survive (the same one-frame contract Domotion provides for any other time-varying content).
 
 ### External-file references (`<use href="sprite.svg#icon">`)
 
@@ -130,10 +130,10 @@ The `<use>` resolver is covered by the `inline-svg-use-group` / `inline-svg-use-
    handed to Chromium's raster with a warning. Open: inlining the external
    document's own `<style>` cascade and fragment resources (gradients, clip
    paths) instead of refusing them.
-3. **CSS-animated symbols**: if `<symbol id="icon">` has a child with a CSS animation, the cloned outerHTML captures the animation declaration, but the keyframe rules don't survive. _Resolved (DM-508): we do NOT rasterize these._ The `_walkBake` pass bakes each animated node's computed presentation attributes and transforms at t=0, so the inlined SVG carries the correct paint for the captured frame (vector, self-contained); capture only warns that the snapshot is one frame.
+3. **CSS-animated symbols**: if `<symbol id="icon">` has a child with a CSS animation, the cloned outerHTML captures the animation declaration, but the keyframe rules don't survive. _Resolved (DM-508): we do NOT rasterize these._ The `walkBake` pass bakes each animated node's computed presentation attributes and transforms at t=0, so the inlined SVG carries the correct paint for the captured frame (vector, self-contained); capture only warns that the snapshot is one frame.
 4. **`fill="currentColor"` resolution**: resolved in the shipped path. The
    walker preserves the keyword while baking the cloned subtree, then
-   `_substCurrentColor` uses the consumer's resolved `cs.color` before the
+   `substituteCurrentColor` uses the consumer's resolved `cs.color` before the
    cloned SVG is serialized.
 
 ## Follow-ups to file when this lands
