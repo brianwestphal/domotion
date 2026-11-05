@@ -96,7 +96,7 @@ The `typeResample` caret is a `blink` overlay; a block caret sets the overlay's 
 ## Not covered
 
 - **Static (non-typing) captures** don't draw a caret at all — the caret only appears on the animated typing surfaces. A focused input in a plain capture has no caret in either Chrome's headless screenshot or Domotion's output, so there's nothing to honor there.
-- The **terminal renderer** already draws a block cursor (`buildCursor`, `src/terminal/incremental.ts`, full cell at ~0.7 alpha) — its own convention, unchanged by this feature.
+- The **terminal renderer** has its own cursor (`buildCursor`, `src/terminal/incremental.ts`) with three shapes — `block` (a full cell at `0.7` fill opacity), `bar`, and `underline` (both fully opaque) — its own convention, unchanged by this feature.
 
 ## Testing / demos
 

@@ -54,7 +54,7 @@ no SMIL — so they play as a plain `<img>` on every supported engine.
 `push-left` and `scroll` were the original pair (`scroll` is a vertical push
 upward). DM-1524 completes the compass with **`push-right`**, **`push-up`**, and
 **`push-down`**. All five route through one slide engine (`emitSlideFrame` /
-`slideKeyframes` in `src/animation/animator.ts`): the outgoing frame slides out by
+`slideKeyframes` in `src/animation/svg-generator.ts`): the outgoing frame slides out by
 a signed displacement on an axis and the incoming frame slides in from the
 opposite side — **both frames move together**, a true push (not a cover).
 
@@ -172,8 +172,16 @@ on the reveal-open / dolly-start stop, so the surrounding holds stay linear. A
 sampled spring `linear(...)` overshoots its target and rings down: on a wipe the
 reveal edge shoots past full-reveal, retreats a sliver, and settles; on a zoom the
 scale overshoots `scale(1)` and rings back — a lively pop. Both still **rest at
-identity** (the last keyframe pins the fully-revealed clip / `scale(1)`). The
-other transition types ignore `easing` (their motion is fixed). Purely
+identity** (the last keyframe pins the fully-revealed clip / `scale(1)`).
+`easing` is part of the strict transition schema
+(`src/animation/transition-schema.ts`) only for `wipe`, `iris`, `wipe-radial`,
+`wipe-clock`, `zoom-in`, `zoom-out`, and the parameterized `push` / `reveal` /
+`zoom` / `custom` types. The other legacy types (`crossfade`, `cut`,
+`magic-move`, `push-left` / `push-right` / `push-up` / `push-down`, `scroll`, and
+`shine`) do not declare it, so a transition such as
+`{ "type": "crossfade", "easing": "ease-out" }` is **rejected** as an unknown key
+by both `animate` and `storyboard` config validation rather than silently
+ignored. Purely
 `clip-path` / `transform` — no animated filter.
 
 ## Scale dollies: `zoom-in`, `zoom-out`
@@ -217,7 +225,7 @@ backed by `buildShineSweep`:
   "delay": 900, // ms from frame start to the first sweep (default 200)
   "duration": 850, // one-shot sweep length in ms (default 900)
   "repeat": "infinite", // omit for a single sweep; a count / "infinite" shimmers
-  "repeatPeriodMs": 2000,
+  "repeatPeriodMs": 2000, // spacing between repeated sweeps (default 1400)
   "color": "#ffffff",
   "opacity": 0.55,
   "bandWidth": 40,

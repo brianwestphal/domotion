@@ -83,8 +83,9 @@ The gap line coverage is blindest to is a **state transition**: operating on a
 module after it has already moved through one or more states. The index MUST
 include those, not just single operations from a clean state. A transition entry
 must cite the exact assertion(s) in `transitionEvidence`; a nearby or broadly
-related test file is not evidence. Current
-transition-bearing entries (grep `transition:` in `tests/feature-coverage.ts`):
+related test file is not evidence. Representative transition-bearing entries
+follow; the list is illustrative, not exhaustive — `tests/feature-coverage.ts`
+is the authoritative set (grep `transition:` there):
 
 - **`text.mode`** — `default → set(paths) → withRenderTextMode(…) restores paths`,
   including when the callback throws or illegally returns a Promise. Async

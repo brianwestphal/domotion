@@ -50,9 +50,9 @@ They compose with the **brand kit** (DM-1522 — each gets a `brandDefaults`) an
 A full-bleed opening card: an optional eyebrow/kicker, a large headline, an
 optional subtitle, on a brand background. Staggered fade-up/`pop` reveal (reuse
 the kinetic-text motion vocabulary), then hold.
-Params: `title` (req), `subtitle`, `eyebrow`, `align` (left/center), `background`,
-`textColor`, `accent`, `fontFamily`, `logo`, `logoPosition`, `width`, `height`,
-`holdMs`. `logo` (a URL/data-URI mark, auto-filled from `brand.logo` — DM-1575)
+Params: `title` (req), `subtitle`, `eyebrow`, `align` (left/center), `theme`
+(dark/light), `background`, `textColor`, `accent`, `reveal` (`fade-up`/`pop`),
+`fontFamily`, `logo`, `logoPosition`, `width`, `height`, `holdMs`. `logo` (a URL/data-URI mark, auto-filled from `brand.logo` — DM-1575)
 renders above the title; `logoPosition` places it.
 
 ### 2. `quote` (testimonial)
@@ -112,8 +112,9 @@ authoritative; `domotion template <name> --help` prints them. (Static inputs nes
 
 A closing card: headline + a call-to-action button + optional logo + social
 handles/URL. Elements stagger in; the button can pulse (repeat animation).
-Params: `headline`, `cta` (label), `ctaColor`, `logo`, `handles` (array), `url`,
-`background`, sizing.
+Params: `headline`, `cta` (label, req), `ctaColor`, `logo`, `handles` (array or
+comma-separated string), `url`, `pulse` (default on), `theme` (dark/light),
+`background`, `textColor`, `fontFamily`, sizing (`width` / `height`), `holdMs`.
 
 ## Cross-cutting design notes
 

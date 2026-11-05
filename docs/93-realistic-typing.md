@@ -74,7 +74,7 @@ on longer lines. That trailing-caret drift is what read as unprofessional.
 
 ### Measured advances → exact caret
 
-`measureTypingLines()` resolves the overlay's monospace font via the renderer's
+`overlayAdvances()` resolves the overlay's monospace font via the renderer's
 own `resolveFontKey` + `getFontInstance` (`packages/text-engine/src/render/font-resolution.ts`) and
 builds a **cumulative per-glyph advance array** `cum[line][k]` = the caret x
 after `k` glyphs of that line, from fontkit's real advances. Both the reveal
@@ -84,7 +84,7 @@ Chromium's painted advance (verified: `17.309` vs `17.31`), so the parked caret
 lands within `0.02px` of the true text width (was `12.7px` behind).
 
 When the font can't be resolved (a platform without the monospace face),
-`measureTypingLines` falls back to the old uniform `0.6em` estimate — no crash,
+`overlayAdvances` falls back to the old uniform `0.6em` estimate — no crash,
 same behavior as before, and still self-consistent.
 
 ### Exact caret height (per-font ascent + descent)

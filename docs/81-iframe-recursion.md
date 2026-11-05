@@ -14,6 +14,8 @@ code:
     "src/capture/script/cross-origin.test.ts",
     "src/capture/script/cross-origin.ts",
     "src/capture/script/index.ts",
+    "src/capture/script/walker/capture-phases.ts",
+    "src/capture/script/walker/iframe-recursion.ts",
     "src/capture/script/walker/replaced-elements.ts",
     "src/cli/capture.ts",
     "tests/cross-origin-iframe-recursion.e2e.test.ts",
@@ -61,7 +63,8 @@ Two phases:
 Recursion only replaces the raster when there is a DOM to walk. These stay
 raster `<image>` snapshots:
 
-- **Cross-origin frames** (until Phase 2 ships, and then only when allowlisted).
+- **Cross-origin frames** that are not on the `--cross-origin-frames` allowlist
+  (Phase 2 recurses only allowlisted origins).
 - **`<canvas>` / `<video>` / WebGL frames** and other pixel surfaces — there is
   no DOM to recurse.
 - **Login / consent-gated frames** — the page renders its gated state; recursion
@@ -92,18 +95,21 @@ text is selectable (it's native SVG, not a raster). Not part of
 
 ### Accessibility gate
 
-`_iframeIsRecursable(el)` (in `src/capture/script/index.ts`, page context)
+`_iframeIsRecursable(el)` (in `src/capture/script/walker/iframe-recursion.ts`,
+page context)
 returns the inner `Document` or `null`:
 
 1. The element must be an `<iframe>`.
 2. `el.contentDocument` must be readable and have a `body` + `documentElement`.
    Cross-origin access throws or yields `null` → not recursable.
-3. `_frameIsCrossOrigin(el)` must be false. Under the SOP a readable
-   `contentDocument` is already same-origin, so this is a defensive guard: if a
-   frame's document became readable **only** because web security was disabled
-   (the Phase 2 path), Phase 1 refuses to recurse it until the allowlist gate is
-   wired. `srcdoc` / `about:blank` report origin `"null"` (or inherit the
-   embedder) and are treated as same-origin.
+3. `_frameIsCrossOrigin(el)` must be false, **or** the frame's origin must pass
+   `_crossOriginFrameAllowed(el)`. Under the SOP a readable `contentDocument` is
+   already same-origin, so the cross-origin check only matters when a frame's
+   document became readable because web security was disabled (the Phase 2
+   `--cross-origin-frames` path); such a frame recurses only when its origin is
+   on the allowlist, and otherwise stays a raster snapshot. `srcdoc` /
+   `about:blank` report origin `"null"` (or inherit the embedder) and are
+   treated as same-origin.
 
 ### Coordinate placement — the `vp`-shift trick
 
@@ -155,8 +161,11 @@ children), matching how a bordered iframe looks in Chrome.
 
 ### Code map
 
-- `src/capture/script/index.ts` — `_frameIsCrossOrigin`, `_iframeIsRecursable`,
-  `_captureIframeRecursion`; wired into `captureInner` just before the
+- `src/capture/script/walker/iframe-recursion.ts` — `_frameIsCrossOrigin`,
+  `_crossOriginFrameAllowed`, `_iframeIsRecursable`, `_captureIframeRecursion`
+  (built by `createIframeRecursionHandler`, instantiated in
+  `src/capture/script/index.ts`); called from the capture phases in
+  `src/capture/script/walker/capture-phases.ts` just before the
   replaced-element routing. Sets `_captured.children`, `_captured._iframeRecursed`,
   and `overflowX/Y = 'hidden'`. The `_iframeRecursed` marker is deleted after the
   replaced-element handler runs (it only exists to gate that handler).
@@ -307,8 +316,8 @@ raster even when its document is readable). Wiring:
   security warning, launches with the args, threads the value to `captureElementTree`.
 - `src/capture/index.ts` — `crossOriginFramesLaunchArgs`, the `CaptureOptions`
   field + `DemoRecorder` wiring, and `cof` serialized into the capture-script args.
-- `src/capture/script/index.ts` — `_crossOriginFrameAllowed` + the gate in
-  `_iframeIsRecursable`.
+- `src/capture/script/walker/iframe-recursion.ts` — `_crossOriginFrameAllowed` +
+  the gate in `_iframeIsRecursable`.
 
 ### Scope note
 

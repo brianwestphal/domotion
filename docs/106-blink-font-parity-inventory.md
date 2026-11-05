@@ -18,7 +18,7 @@ aliases: ["docs/106-blink-font-parity-inventory.md", "doc-106"]
 
 # 106 — Blink font-resolution parity inventory
 
-Status: **in progress** (DM-1854 step 0). This is the reference the parity work hangs off: for each stage Blink runs, what we do, and whether it matches **by construction** or only **by measurement**.
+Status: **action items complete** — every action item in §5 is done (it began as DM-1854 step 0, the inventory that the font-parity work grew from). This is the reference the parity work hangs off: for each stage Blink runs, what we do, and whether it matches **by construction** or only **by measurement**.
 
 The goal (DM-1854) is a guaranteed match of the _mechanism_, not less code. A stage matches by construction when it is either transcribed Blink logic or the identical API call with identical arguments. "Scores well on the fixture corpus" is explicitly **not** a passing verdict here — every wrong-font bug in the 2026-07 cycle scored well right up until it didn't.
 
@@ -131,11 +131,11 @@ Ordered by expected impact:
 2. ~~**Fix the macOS base-font argument**~~ **Done** — the cascade base is the run's own primary, matching `CTFontCreateForString(ct_font, …)`.
 3. ~~**Audit the Linux locale argument** against `gfx::GetFallbackFontForChar`.~~ **Done** — `GetFallbackFontForChar` adds the locale string verbatim as `FC_LANG` (`ui/gfx/font_fallback_linux.cc:251-253`, chromium `7d859f27`, 2026-06-27; the file IS in the local sparse checkout), and the live resolver carries the run's locale into fontconfig the same way (`fcLangProperty` in `font-resolution.ts`, `:lang=<tag>`, DM-1863). Region tags discriminate (`zh-cn` vs `zh-tw`); a script-subtag locale such as `zh-Hans` passes through unchanged and does not discriminate, which is what Chrome's verbatim `FC_LANG` does too, so no table is invented.
 4. ~~**Port the Windows table** ahead of our `MapCharacters` call.~~ **Done** — transcribed in `packages/text-engine/src/render/win-font-fallback.ts` (see §2/§3).
-5. **Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the _first_ candidate. Done — the uncovered terminal pins the primary's `.notdef` in both modes; the single remaining exception is paths mode's uncovered-emoji terminal, which pins the chain tail on purpose so the raster-overlay advance stays aligned (an overlay mechanism, not a parity gap).
+5. ~~**Correct the terminal**: Blink's last resort is Times on macOS, and the notdef comes from the _first_ candidate.~~ **Done** — the uncovered terminal pins the primary's `.notdef` in both modes; the single remaining exception is paths mode's uncovered-emoji terminal, which pins the chain tail on purpose so the raster-overlay advance stays aligned (an overlay mechanism, not a parity gap).
 6. ~~**Skip system fallback for private-use and noncharacter codepoints**~~ **Done** — `font_cache.cc:242-244`. Cost nothing to transcribe; the ranges are absent from the corpus, so measure it with a purpose-built fixture rather than expecting the sweep to speak.
 7. ~~**Model `kFallbackPriorityFonts`** as the one-shot stage it is.~~ **Done** — the explicit `priority` stage in `cluster-fallback.ts`.
 
-Each has corpus-wide blast radius and needs a full-sweep A/B before landing, measured against the conformance oracle rather than fixture scores.
+Each had corpus-wide blast radius and needed a full-sweep A/B before landing, measured against the conformance oracle rather than fixture scores.
 
 ## 6. Not in scope
 

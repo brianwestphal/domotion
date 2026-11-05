@@ -1330,6 +1330,8 @@
         "src/capture/script/cross-origin.test.ts",
         "src/capture/script/cross-origin.ts",
         "src/capture/script/index.ts",
+        "src/capture/script/walker/capture-phases.ts",
+        "src/capture/script/walker/iframe-recursion.ts",
         "src/capture/script/walker/replaced-elements.ts",
         "src/cli/capture.ts",
         "tests/cross-origin-iframe-recursion.e2e.test.ts",

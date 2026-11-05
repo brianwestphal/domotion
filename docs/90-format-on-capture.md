@@ -128,7 +128,7 @@ their viewport.
   (`parseIntFlag` default becomes the format's size), validates `--safe-guide`
   requires `--format`, injects `safeAreaGuideSvg(...)` before the chrome wrap, and
   writes `safe-area.json` under `--debug`.
-- `src/cli/animate.ts` — `runAnimate` applies `--format`/`--width`/`--height`
+- `src/cli/animate-command.ts` — `runAnimate` applies `--format`/`--width`/`--height`
   onto `cfg.width`/`cfg.height` and threads the safe inset through
   `composeAnimateConfig` → `composeAnimateFrames` → `renderTemplateFrames` into
   each template frame's render context (`ComposeAnimateOptions.safeInset`).
