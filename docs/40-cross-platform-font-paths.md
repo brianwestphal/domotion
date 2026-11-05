@@ -48,10 +48,15 @@ A single resolver, `resolveFontSpec(key)`, dispatches by `process.platform`:
 | `linux`  | `LINUX_FONT_PATHS`       | Canonical `/usr/share/fonts/...` path tried first when it exists; otherwise `fc-match -f '%{file}\t%{postscriptname}' <pattern>` (fontconfig) — robust across Debian / Arch / Fedora layout differences. |
 | `win32`  | `WIN32_FONT_PATHS`       | `%WINDIR%\Fonts\<file>` (stable across Windows 10/11), guarded by an existence check.                                                                                                                    |
 
-Resolved specs are cached per logical key in `resolvedSpecCache` (the
-`fc-match` shell-out is the main cost this avoids repeating). Because
-`process.platform` never changes at runtime, a single key→spec cache is
-sufficient.
+Resolved specs are cached in `resolvedSpecCache` (the `fc-match` shell-out is
+the main cost this avoids repeating), keyed `<platform>|<logical key>`
+(`resolvedSpecMemoKey`). `process.platform` never changes in production, but
+`withHostPlatform()` substitutes it in tests, and a name-only key would then
+serve whichever platform asked first. Because entries carry that prefix,
+`registerDynamicSystemFont` evicts a previously cached `null` for a `sysfb:` /
+`winfam:` key through `forgetResolvedSpec`, which drops the key under every
+platform; deleting the bare key never matched, so a dynamic key resolved before
+its face was registered used to stay `null` until the next cache clear.
 
 The resolver returns the same `{ path, postscriptName?, extractor? }` shape on
 every platform, so everything downstream — the weight/slant variant logic, the

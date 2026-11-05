@@ -120,10 +120,33 @@ export const WIN32_FONT_PATHS: Record<string, FontPath> = {
   ),
 };
 
-// Resolved-path cache, keyed by logical font key. Holds the platform-specific
-// FontPath (or null when the key has no mapping / file on this host). The
-// fc-match shell-out on Linux is the main thing this avoids repeating.
+// Resolved-path cache, keyed `<platform>|<logical font key>` (see
+// `resolvedSpecMemoKey`). Holds the platform-specific FontPath (or null when the
+// key has no mapping / file on this host). The fc-match shell-out on Linux is
+// the main thing this avoids repeating.
 export const resolvedSpecCache = new Map<string, FontPath | null>();
+
+/** The `resolvedSpecCache` key for `key` as resolved for `platform`. The answer
+ *  is per-platform, so the platform is part of the key; see `resolveFontSpec`. */
+export function resolvedSpecMemoKey(platform: string, key: string): string {
+  return `${platform}|${key}`;
+}
+
+/**
+ * Forget every platform's memoized answer for `key`.
+ *
+ * Deleting the bare `key` matched nothing, because entries are stored under
+ * `resolvedSpecMemoKey(platform, key)`: a `sysfb:` key resolved (to `null`)
+ * before its face was registered stayed `null` for the rest of the process.
+ * The platform component is never a `|`-containing string, so the logical key
+ * is everything after the first `|`.
+ */
+export function forgetResolvedSpec(key: string): void {
+  for (const memoKey of resolvedSpecCache.keys()) {
+    const bar = memoKey.indexOf("|");
+    if (bar >= 0 && memoKey.slice(bar + 1) === key) resolvedSpecCache.delete(memoKey);
+  }
+}
 
 // `fc-match` is a synchronous process boundary and the same exact fontconfig
 // pattern is reached through multiple logical font keys and render passes. Its
@@ -244,7 +267,7 @@ export function registerDynamicSystemFont(
     linuxFallbackIsItalic,
     faceIndex,
   });
-  resolvedSpecCache.delete(key); // in case a prior null was cached
+  forgetResolvedSpec(key); // in case a prior null was cached, under any platform
 }
 
 /**

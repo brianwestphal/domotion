@@ -4,7 +4,7 @@ import { LINUX_FONT_PATHS } from "./font-paths.linux.js";
 import { WIN32_FONT_PATHS } from "./font-paths.win32.js";
 import { FONT_PATHS } from "./font-paths.darwin.js";
 import type { FontPath } from "./font-paths.darwin.js";
-import { resolvedSpecCache } from "./font-paths.win32.js";
+import { resolvedSpecCache, resolvedSpecMemoKey } from "./font-paths.win32.js";
 import { dynamicSystemFontPaths } from "./font-paths.win32.js";
 import { resolveLinuxSpec } from "./font-paths.win32.js";
 import { resolveWin32Spec } from "./font-paths.win32.js";
@@ -46,7 +46,7 @@ export function resolveFontSpec(key: string): FontPath | null {
   // and a name-only key then serves whichever platform asked first. Third cache
   // in this file to need it, for the same reason and with the same production
   // impact: none.
-  const memoKey = `${hostPlatform()}|${key}`;
+  const memoKey = resolvedSpecMemoKey(hostPlatform(), key);
   if (resolvedSpecCache.has(memoKey)) return resolvedSpecCache.get(memoKey)!;
   let resolved: FontPath | null;
   if (key.startsWith("sysfb:") || key.startsWith("winfam:")) {

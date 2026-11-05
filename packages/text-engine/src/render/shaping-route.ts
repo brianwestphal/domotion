@@ -16,6 +16,7 @@ import { logicalFontSize } from "./font-instance.js";
 import type { FontVariantEmojiOverride } from "./emoji-presentation.js";
 import { registerDynamicSystemFont } from "./font-paths.win32.js";
 import { fontSourceMap } from "./font-instance.js";
+import { registerFontEnvironmentInvalidator } from "./generation.js";
 
 // ── Text Rendering ──
 
@@ -368,6 +369,14 @@ export interface FontResolution {
 // registered once, lazily. `undefined` = not yet checked, `null` = OTF not
 // installed on this host (Chrome can't use it either → SFNS's cascade continues).
 let _sfProCoverageKey: string | null | undefined;
+// The memoized key names a `dynamicSystemFontPaths` entry, and
+// `invalidateFontEnvironmentCaches` clears that registry. Without this reset
+// the memo kept returning a key that no longer resolved, and the coverage hook
+// in `resolveFontForCodepoint` went silently inert for the rest of the process.
+// A `null` (OTF not installed) is equally environment-derived, so it resets too.
+registerFontEnvironmentInvalidator(() => {
+  _sfProCoverageKey = undefined;
+});
 
 export function sfProCoverageOtfKey(): string | null {
   if (_sfProCoverageKey !== undefined) return _sfProCoverageKey;
