@@ -49,8 +49,27 @@ contains current Chromium pixels with the expected geometry and composition.
 negative controls, not active pixel-content boundaries. They intentionally have
 no bitmap-content gate.
 
-The dedicated browser gates run on shard 1 of every macOS, Linux, and Windows
-visual workflow. That avoids multiplying their cost by the shard count while
-making platform verification part of every reviewable visual run. A local pass
-proves the mechanisms on the local environment; all-platform confidence is
-recorded only after the corresponding CI artifacts are green and reviewed.
+Where each gate runs in CI:
+
+- **Blocking, on every push to `main` and every pull request:** every browser
+  file in the table (`tests/*.e2e.test.ts`, `src/**/*.e2e.test.ts`, including
+  `replaced-used-size`) runs in the full `npm run test:e2e` lane on macOS
+  (`ci.yml` `visual-macos`) and on Linux (`test-linux.yml` `regression`, a
+  required check). The unit tests in the table run in `npm test` on both.
+- **Advisory, on shard 1 of each macOS, Linux, and Windows `visual-tests.yml`
+  dispatch:** `raster-fallback-content`, `native-control-source-frame`,
+  `effective-appearance`, `native-control-decoration`, `conic-chromium-raster`
+  and `backdrop-isolation`. The step is `continue-on-error`, so a failure is
+  reported in the shard log but never fails the run. This is the only place
+  these six run on Windows.
+- **Elsewhere:** `tests/cross-origin-iframe-recursion.e2e.test.ts` also runs
+  in its own path-filtered `cross-origin-frame-scroll-ownership.yml` matrix;
+  `tests/snapshot-isolation.tsx` runs in the manually dispatched
+  `fast-visual-tests.yml` on all three platforms; the
+  `tools/paint-geometry-oracle.ts` and `tools/transform-geometry-oracle.ts`
+  entries run in `ci.yml`'s `test` job on macOS.
+
+A local pass proves the mechanisms on the local environment; all-platform
+confidence is recorded only after the corresponding CI artifacts are green and
+reviewed — for Windows that means reading the advisory shard-1 step's result,
+since the workflow stays green even when it fails.
