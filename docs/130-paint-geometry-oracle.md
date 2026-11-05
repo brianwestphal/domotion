@@ -27,7 +27,7 @@ source-transcribed rule leg against the definitions emitted by Domotion's real
 gradient, mask, basic-clip, and platform-resizer builders. It does not rasterize
 either side.
 
-The 118-row corpus is fully exact after DM-2528. Its URL-mask `round`
+The 119-row corpus is fully exact after DM-2528. Its URL-mask `round`
 and `space` rows now keep Blink's two rectangles distinct: tile size and phase
 come from `mask-origin`, while the SVG pattern cell and final destination come
 from `mask-clip`. Both rows include a destructive collapsed-area mutation and
@@ -192,9 +192,9 @@ grammar, HTML/SVG ownership, nested-frame/external routes, and all three basic-
 shape box classes.
 
 DM-2358 adds the generated native-SVG integration leg documented in
-[doc 188](188-generated-svg-effect-combinations.md). Twenty-four deterministic
-cases cover every one of the 953 pairs among 18 shape, gradient, clip, mask,
-viewport, marker, stroke, transform, and interpolation axes. The final SVG is
+[doc 188](188-generated-svg-effect-combinations.md). Thirty-seven deterministic
+cases cover every one of the 1,088 pairs among 19 shape, gradient, clip, mask,
+filter, viewport, marker, stroke, transform, and interpolation axes. The final SVG is
 pixel-identical to the source in the local DPR-1/2 run, while destructive
 marker, non-scaling-stroke, and interpolation controls prove the newly
 preserved computed-style transitions are active. The matrix delegates all

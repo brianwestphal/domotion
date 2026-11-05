@@ -28,7 +28,11 @@ Each `embeddedFontBuilds` entry in `results.json` contains:
 - the generated CSS family plus source `path`, TTC `faceIndex`, and resolved
   variation-axis location, plus the builder's input UPEM;
 - the selected builder (`hb-subset` or `svg2ttf`);
-- all exact hinted-source disqualification reasons: synthetic outline, missing
+- all exact hinted-source disqualification reasons: synthetic outline, a
+  target-strike variant (`target-strike`: the run's outlines carry the
+  per-size target-strike vertical geometry from
+  `packages/text-engine/src/render/linux-target-strike.ts`, so the unmodified
+  source font cannot be subset for them), missing
   source, missing physical face index, source/axis disagreement, CFF or subset
   failure, or the explicit `DOMOTION_HINTED_SUBSET=0` control;
 - the emitted font's sorted sfnt table tags, including retained hint tables when

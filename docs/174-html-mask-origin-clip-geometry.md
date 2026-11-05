@@ -9,6 +9,7 @@ tickets: ["DM-2379", "DM-2472", "DM-2494"]
 code:
   [
     "src/capture/script/index.ts",
+    "src/capture/script/walker/style-record.ts",
     "src/render/mask-origin-clip.test.ts",
     "src/render/mask-origin-clip.ts",
     "src/render/mask.ts",
@@ -49,7 +50,7 @@ changing observable pixels.
 
 ## Capture and emission contract
 
-`src/capture/script/index.ts` captures three independent facts:
+`src/capture/script/walker/style-record.ts` (the page-context style record built for `src/capture/script/index.ts`) captures three independent facts:
 
 1. the complete computed per-layer `mask-origin` list;
 2. the complete computed per-layer `mask-clip` list; and

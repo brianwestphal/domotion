@@ -125,10 +125,12 @@ Domotion SVG leg captured a separately laid-out DPR-1 fragment; pinned Linux
 arm64 placed that fragment at y=122 and y=123 respectively. DM-2501 binds both
 full-matrix legs to DPR 4 and records the scales in `decoration.json`; the
 aggregate finalizer refuses a cross-DPR report, a widened `0.3px` envelope, or
-anything short of the full 106-row/29-pattern-row matrix. The pinned Noble
-arm64 container now passes 106/106 transcription, 29/29 skip-ink/pattern, and
-106/106 SVG geometry. A focused browser gate also passes coherent DPR 1 and
-DPR 4. No capture or renderer behavior changed. See [doc 200](200-linux-arm64-decoration-coordinate-ownership.md).
+anything short of the full matrix — currently 109 rows with 30 skip-ink/pattern
+rows (`tools/linux-arm64-release-evidence.ts`; the matrix was 106/29 when this
+run was retained and has since grown, including three CSS-zoom controls). The
+pinned Noble arm64 container passes 109/109 transcription, 30/30
+skip-ink/pattern, and 109/109 SVG geometry. A focused browser gate also passes
+coherent DPR 1 and DPR 4. No capture or renderer behavior changed. See [doc 200](200-linux-arm64-decoration-coordinate-ownership.md).
 
 The same run's sole significant HTML region was a separate logical ownership
 finding, not native raster noise. DM-2507 now intersects pinned Chromium's

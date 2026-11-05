@@ -118,9 +118,11 @@ pre-correlation boundary where several physical `FragmentItem`s correspond to
 one line-grouped normal `TextSegment`.
 
 The DM-2467 generated-pseudo protocol is correlated after the transform-neutral
-text prepass. Its compatibility projection can therefore lack a matching
-neutral bundle even though its physical pseudo fragments are authoritative.
-DM-2468 remains the direct source-owned pseudo-record consumer. DM-2470 does
+text prepass, so a generated pseudo can lack a matching neutral bundle; its
+physical pseudo fragments are authoritative instead. DM-2468 removed the
+former `pseudo-fragment-compat.ts` projection: `src/render/pseudo-fragments.ts`
+consumes the source-owned pseudo record directly
+([doc 178](178-direct-pseudo-fragment-rendering.md)). DM-2470 does
 not infer a pseudo matrix from a host rectangle. Similarly, Chromium's ordinary
 text-fragment protocol does not expose the generated line-clamp marker; a
 transformed clamped owner remains one explicit Chromium surface.

@@ -208,7 +208,19 @@ quads and reject a cardinality or residual mismatch.
 ### Record
 
 The record should make upstream identity explicit rather than overloading an
-ordinary host text segment:
+ordinary host text segment.
+
+> **Historical design sketch.** The interfaces below are the pre-implementation
+> design. The shipped contract is `CapturedPseudoFragmentSet` in
+> `src/capture/types.ts`, and it differs: there is no `hostCaptureId` (internal
+> host correlation ids are deliberately absent from the serialized record);
+> `pseudo` is `"::checkmark" | "::before" | "::after"`; the single
+> `computedStyle` is split into `writingMode`, `direction`,
+> `boxDecorationBreak`, `edges`, `typography`, and `paint`; and the record adds
+> a `source` tag, an `exact` / `unpainted` / `terminal-raster` `status` with an
+> optional `reason`, and optional Chromium raster boundaries
+> (`backdropFilterRaster`, `bitmapTextRaster`). Read the type, not this sketch,
+> for the current fields.
 
 ```ts
 interface CapturedPseudoFragmentSet {

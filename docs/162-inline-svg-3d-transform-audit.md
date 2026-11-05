@@ -2,10 +2,10 @@
 id: "requirements/inline-svg-3d-transform-audit"
 title: "Cloned inline-SVG 3D transform audit"
 kind: "evidence"
-status: "partial"
+status: "current"
 owners: ["layout", "platform-release"]
-platforms: ["macos", "windows"]
-tickets: ["DM-2356", "DM-2359", "DM-2371", "DM-2473", "DM-2474", "DM-2475"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2356", "DM-2359", "DM-2371", "DM-2473", "DM-2474", "DM-2475", "DM-2492", "DM-2493"]
 code:
   [
     ".github/workflows/inline-svg-3d-parity.yml",
@@ -30,7 +30,8 @@ The audit JSON file uses a version 1 `{schemaVersion, tool, generatedAt, env, da
 
 **Status:** SVG-child affine freezing, opaque-clone projective promotion, and
 the hard all-platform two-leg parity gate shipped; smallest nested HTML
-projective-context selection is known partial (DM-2356)
+projective-context selection (DM-2356) shipped afterward by DM-2492/DM-2493 —
+see [doc 189](189-nested-projective-context-ownership.md)
 
 **Ticket:** DM-2371
 
@@ -51,9 +52,13 @@ and three-dimensional origin, then flattens the result to an affine
 live CTMs, serializes one valid six-value SVG matrix, and verifies the isolated
 clone before accepting vector ownership. Non-affine root and `<foreignObject>`
 paint crosses one reachable Chromium surface promoted above the opaque clone.
-The preceding HTML owner selector is not yet minimal across nested rendering-
-context breaks: doc 189 proves that the current descendant-union climb can
-promote past perspective-only, ordinary/flat, or grouping intermediaries.
+The preceding HTML owner selector was originally not minimal across nested
+rendering-context breaks: doc 189 proved that the former descendant-union climb
+could promote past perspective-only, ordinary/flat, or grouping
+intermediaries. That selector has since been replaced by Blink's direct-parent
+used-preserve-3d propagation (`selectProjectiveRasterOwnerIndexes` in
+`src/capture/projective-owner.ts`); the descendant union survives only as the
+conservative fallback when a used-style fact is unobservable.
 
 ## Verdict
 
@@ -124,10 +129,12 @@ bundle. `src/capture/projective-owner.ts` classifies the held-out fourth corner,
 selects a projective owner, promotes any owner beneath an atomic inline-SVG
 clone to the outermost suppressing SVG root, and removes nested duplicate
 owners. Property-only perspective with affine resulting paint stays vector.
-The SVG promotion itself is source-owned; the earlier HTML selection still
-uses an influenced-descendant union rather than Blink's used
-`RenderingContextId` propagation and can therefore choose an ancestor above
-the smallest context ([doc 189](189-nested-projective-context-ownership.md)).
+The SVG promotion itself is source-owned, and the earlier HTML selection now
+follows Blink's used `RenderingContextId` propagation through direct-parent
+preserve-3d edges rather than an influenced-descendant union, so it selects the
+smallest context ([doc 189](189-nested-projective-context-ownership.md)). The
+former union climb is kept only as the conservative fallback when a node's
+used preserve-3d fact is unknown.
 
 `rasterizeProjectiveSurfaces` isolates the selected live owner without forcing
 authored hidden descendants visible, excludes the propagated document canvas,
@@ -298,15 +305,15 @@ affine. It also deletes the need to reproduce `StrokeBoundingBox`,
 non-scaling-stroke aliases, z-origin composition, or effective-zoom math in
 JavaScript.
 
-### Raster promotion — implemented; nested HTML root selection partial
+### Raster promotion — implemented, including minimal nested HTML root selection
 
 Classify root SVG and HTML layout boxes from authoritative live quads/paint
 facts rather than `offsetWidth` plus appended HTML markers. When a final plane
 is non-affine, backface/depth composition is active, or an inner HTML context
 cannot be frozen into native SVG, the shipped SVG-specific route:
 
-1. accepts the selected HTML projective owner (whose nested minimality remains
-   the DM-2356 follow-up);
+1. accepts the selected HTML projective owner (the smallest used rendering-
+   context root, per doc 189);
 2. if that owner is under a captured inline SVG, promote it to the inline SVG
    root unless an already-owning ancestor will suppress the root;
 3. capture bounds from transformed descendant visual paint, intersect only at
@@ -380,13 +387,14 @@ rejected before the fixed platform-independent pixel limits are considered.
   independently advancing timelines. Capture now pauses the source before all
   prepasses, exposes the same-frame CDP/computed/owner record, and the separate
   all-platform DPR-1/2 gate covers animated timing, geometry, and atomic paint.
-  Doc 189 shows its current owner expectation shares the descendant-union
-  over-promotion bug and must be corrected before it proves minimal ownership.
-- **DM-2356 — investigation complete in doc 189.** Blink's direct-parent used
-  preserve-3d context propagation makes perspective-only, ordinary/flat
-  intermediaries, and grouping-property breaks smaller owners than the current
-  descendant-union selector chooses. Implementation and strict-gate follow-ups
-  are tracked in Hot Sheet.
+  Doc 189 found that its original owner expectation shared the
+  descendant-union over-promotion bug; DM-2492 corrected those expectations.
+- **DM-2356 — investigated in doc 189; shipped by DM-2492/DM-2493.** Blink's
+  direct-parent used preserve-3d context propagation makes perspective-only,
+  ordinary/flat intermediaries, and grouping-property breaks smaller owners
+  than the former descendant-union selector chose. The production selector
+  (DM-2492) and its strict all-platform release gate (DM-2493) now implement
+  that propagation.
 
 ## Source map
 

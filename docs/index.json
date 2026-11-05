@@ -3676,9 +3676,12 @@
         "kind": "evidence",
         "status": "current",
         "owners": ["text-fonts"],
-        "platforms": ["macos", "windows"],
+        "platforms": ["macos", "linux", "windows"],
         "tickets": [],
-        "code": ["packages/text-engine/src/render/glyph-helper.ts"],
+        "code": [
+          "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/glyph-helper-font.ts"
+        ],
         "aliases": ["docs/154-mathml-helper-ink-evidence.md", "doc-154"]
       }
     },
@@ -3829,10 +3832,10 @@
         "id": "requirements/inline-svg-3d-transform-audit",
         "title": "Cloned inline-SVG 3D transform audit",
         "kind": "evidence",
-        "status": "partial",
+        "status": "current",
         "owners": ["layout", "platform-release"],
-        "platforms": ["macos", "windows"],
-        "tickets": ["DM-2356", "DM-2359", "DM-2371", "DM-2473", "DM-2474", "DM-2475"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-2356", "DM-2359", "DM-2371", "DM-2473", "DM-2474", "DM-2475", "DM-2492", "DM-2493"],
         "code": [
           ".github/workflows/inline-svg-3d-parity.yml",
           "src/capture/index.ts",
@@ -4094,6 +4097,7 @@
         "tickets": ["DM-2379", "DM-2472", "DM-2494"],
         "code": [
           "src/capture/script/index.ts",
+          "src/capture/script/walker/style-record.ts",
           "src/render/mask-origin-clip.test.ts",
           "src/render/mask-origin-clip.ts",
           "src/render/mask.ts",

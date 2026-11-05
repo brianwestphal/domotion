@@ -36,8 +36,9 @@ Blink's used rendering-context root, or the non-affine plane itself when no
 rendering context exists.
 
 The audit found a production defect. Before DM-2492, `measureProjectivePaintQuads` marked every
-descendant of a 3D-signal element as influenced, and `selectProjectiveRasterOwners`
-then climbs through all influenced ancestors. That descendant-union model
+descendant of a 3D-signal element as influenced, and the selector (then
+`selectProjectiveRasterOwners`, now `selectProjectiveRasterOwnerIndexes` in
+`src/capture/projective-owner.ts`) climbed through all influenced ancestors. That descendant-union model
 over-owns nine of thirteen source-discriminating families. The resulting SVG is
 visually close because the larger Chromium crop contains the right pixels, but
 unrelated vector siblings were unnecessarily baked into the bitmap. DM-2492

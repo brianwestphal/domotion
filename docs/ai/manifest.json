@@ -2589,8 +2589,11 @@
       "kind": "evidence",
       "status": "current",
       "owners": ["text-fonts"],
-      "platforms": ["macos", "windows"],
-      "code": ["packages/text-engine/src/render/glyph-helper.ts"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        "packages/text-engine/src/render/glyph-helper.ts",
+        "packages/text-engine/src/render/glyph-helper-font.ts"
+      ],
       "file": "154-mathml-helper-ink-evidence.md"
     },
     {
@@ -2710,9 +2713,9 @@
       "id": "requirements/inline-svg-3d-transform-audit",
       "title": "Cloned inline-SVG 3D transform audit",
       "kind": "evidence",
-      "status": "partial",
+      "status": "current",
       "owners": ["layout", "platform-release"],
-      "platforms": ["macos", "windows"],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         ".github/workflows/inline-svg-3d-parity.yml",
         "src/capture/index.ts",
@@ -2914,6 +2917,7 @@
       "platforms": [],
       "code": [
         "src/capture/script/index.ts",
+        "src/capture/script/walker/style-record.ts",
         "src/render/mask-origin-clip.test.ts",
         "src/render/mask-origin-clip.ts",
         "src/render/mask.ts",

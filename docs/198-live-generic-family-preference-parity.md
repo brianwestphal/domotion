@@ -177,7 +177,10 @@ full map onto every descendant.
 
 `elementTreeToSvg` and `elementTreeToSvgInner` accept either the legacy array or
 the envelope, read its one record, and call
-`withSessionGenericFamilyOverrides(record, render)`. The scope is synchronous:
+`withTextEngineDocument({ genericFamilies: record, generation: "continue" }, render)`
+(`src/render/element-tree-to-svg.ts`), which scopes the record through
+`withSessionGenericFamilyOverrides` in
+`packages/text-engine/src/render/text-engine.ts`. The scope is synchronous:
 TypeScript rejects async callbacks and the runtime rejects native Promises or
 custom thenables, so JavaScript cannot interleave another render across an
 `await`; `try/finally` restores any explicit oracle setting. Mixed
