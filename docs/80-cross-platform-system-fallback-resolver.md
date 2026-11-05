@@ -283,8 +283,13 @@ stages in Blink's order. See
 >
 > **Tightened since to a degraded-mode-only net on macOS/Linux:** the static
 > chain no longer answers at all while this resolver is in the loop — it is
-> gated on the helper binary being absent or the resolver being flagged off
-> (`DOMOTION_SYSTEM_FALLBACK=0`). Measured behind the live-first order it
+> gated on the helper binary being absent or the resolver being flagged off.
+> The flag is `DOMOTION_SYSTEM_FALLBACK=0` on Linux and Windows only: macOS
+> ignores that variable (`systemFallbackResolutionEnabled` is unconditionally
+> true there, `font-spec.ts`), so on macOS take the resolver out of the loop
+> with `DOMOTION_DISABLE_HELPER=1` or the in-process
+> `setSystemFallbackResolutionEnabled(false)` / `withSystemFallbackResolution`.
+> Measured behind the live-first order it
 > answered 6 of 916,119 system-stage decisions on macOS (0 of 779,964 on
 > Linux), all six of them lone variation selectors routed to Noto Sans —
 > divergences from Chrome, not coverage. A codepoint the OS declines on a live

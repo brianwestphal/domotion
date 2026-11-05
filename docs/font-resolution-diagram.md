@@ -1615,8 +1615,10 @@ run fonts:shaper-ab` compares HarfBuzz against the macOS CoreText helper over
   `hb_ot_hide_default_ignorables`, `hb-ot-shape.cc:824-846`, HarfBuzz rev
   `4de187d`; the darwin chain now returns `[]` for U+FE00-FE0F). So
   `staticChainArmed` gates the stage: on darwin/linux it runs only when the
-  helper binary is absent or the resolver is flagged off
-  (`DOMOTION_SYSTEM_FALLBACK=0`) — the hosts where dropping it would drop every
+  helper binary is absent or the resolver is flagged off — on Linux by
+  `DOMOTION_SYSTEM_FALLBACK=0`; macOS ignores that variable, so there only
+  `DOMOTION_DISABLE_HELPER=1` or the in-process `withSystemFallbackResolution(false, …)`
+  arms it (see the `systemFallbackResolutionEnabled` note in §7) — the hosts where dropping it would drop every
   fallback answer, which is why it is gated rather than deleted. A codepoint
   the OS _declines_ on a live host now falls to the uncovered terminal,
   Chrome's own answer. The chain FUNCTION (`fallbackFontChain`) stays ungated
@@ -2449,8 +2451,10 @@ constants:
   table, including the A/B showing the substitution moves no answer while the
   simulation loop moves one.
 
-Gated by `systemFallbackResolutionEnabled` (macOS always on; Linux/Windows
-default-on, force off with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with
+Gated by `systemFallbackResolutionEnabled` (macOS always on and the
+environment variable is ignored there — disable the macOS resolver with
+`DOMOTION_DISABLE_HELPER=1` or in process; Linux/Windows default-on, force off
+with `DOMOTION_SYSTEM_FALLBACK=0`). Toggle safely with
 `withSystemFallbackResolution(on, fn)` (save/restore) rather than a bare
 `setSystemFallbackResolution`. The Windows/macOS backends share the same native
 "fallback" protocol (`resolveSystemFallbackFonts` in `packages/text-engine/src/render/glyph-helper.ts`)

@@ -93,7 +93,9 @@ export function __systemFallbackKeyCacheSizeForTest(): number {
 // generated table's block-level route lacks at the codepoint level).
 //
 // macOS: CoreText `CTFontCreateForString` (always on; auto-off when the helper
-// binary isn't present).
+// binary isn't present). `DOMOTION_SYSTEM_FALLBACK` is deliberately NOT read
+// here: on macOS take the resolver out of the loop with
+// `DOMOTION_DISABLE_HELPER=1` or `setSystemFallbackResolutionEnabled(false)`.
 //
 // Linux: fontconfig `fc-match :charset` (DM-1403). Default-ON as of DM-1416 —
 // calibrated against Chromium-on-noble paint (tools/scratch probe-1416), which

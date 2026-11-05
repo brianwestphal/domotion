@@ -545,7 +545,9 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // answers in 779,964). The chain still earns its keep exactly where the
   // live resolver cannot run — a host without the helper binary
   // (`DOMOTION_DISABLE_HELPER`, or an npm install with no prebuilt helper) or
-  // a resolver flagged off (`DOMOTION_SYSTEM_FALLBACK=0`) — and outright
+  // a resolver flagged off (`DOMOTION_SYSTEM_FALLBACK=0` on Linux; macOS
+  // ignores that variable, so there only the in-process
+  // `setSystemFallbackResolutionEnabled(false)` flags it off) — and outright
   // deletion would drop every fallback answer on such a host, so the gate is
   // the availability predicate itself rather than a removal.
   //
