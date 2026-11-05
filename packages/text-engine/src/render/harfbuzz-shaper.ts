@@ -144,9 +144,21 @@ function faceCount(data: Uint8Array): number {
  * would end the run at every character and hand a contextual shaper
  * one-character runs). Hence the id is memoized on the buffer's identity.
  */
-const hbBufferSources = new Map<string, Uint8Array>();
+//
+// The id → bytes direction is WEAK. It used to be a strong Map that nothing
+// cleared, so every webfont buffer ever shaped stayed alive for the life of the
+// process — across `clearWebfonts()` and every capture session after it. The
+// owner of the bytes (the webfont registry / its FontInstance) is what keeps
+// them alive; once it drops them the id can no longer be asked for by any live
+// instance, and the finalizer removes the entry. Ids come from a monotonic
+// counter, never the map size, so a removal cannot make two buffers share an id.
+const hbBufferSources = new Map<string, WeakRef<Uint8Array>>();
 const hbBufferIds = new WeakMap<object, string>();
+const hbBufferFinalizer = new FinalizationRegistry<string>((id) => {
+  if (hbBufferSources.get(id)?.deref() == null) hbBufferSources.delete(id);
+});
 const HB_BUFFER_PREFIX = "\u0000hbbuf:";
+let hbBufferSeq = 0;
 
 /**
  * Register font bytes as a shapeable source and return the synthetic
@@ -156,10 +168,16 @@ const HB_BUFFER_PREFIX = "\u0000hbbuf:";
 export function registerHbBufferSource(bytes: Uint8Array): string {
   const existing = hbBufferIds.get(bytes);
   if (existing != null) return existing;
-  const id = `${HB_BUFFER_PREFIX}${hbBufferSources.size}`;
+  const id = `${HB_BUFFER_PREFIX}${hbBufferSeq++}`;
   hbBufferIds.set(bytes, id);
-  hbBufferSources.set(id, bytes);
+  hbBufferSources.set(id, new WeakRef(bytes));
+  hbBufferFinalizer.register(bytes, id);
   return id;
+}
+
+/** Test-only: the bytes registered under `id`, if still alive. */
+export function __hbBufferSourceForTest(id: string): Uint8Array | undefined {
+  return hbBufferSources.get(id)?.deref();
 }
 
 function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null {
@@ -173,7 +191,8 @@ function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null 
     // CoreText / fontkit shaping — a different shaper, but the right font.
     if (faceIndex == null) throw new Error("unidentified face");
     // A registered buffer supplies its own bytes; everything else is a file.
-    const registered = hbBufferSources.get(fontPath);
+    const registered = hbBufferSources.get(fontPath)?.deref();
+    if (registered == null && fontPath.startsWith(HB_BUFFER_PREFIX)) throw new Error("released buffer source");
     const data = registered ?? readFileSync(fontPath);
     // `hb.Blob` wants an ArrayBuffer; a Node Buffer is a view onto a (possibly
     // larger, pooled) ArrayBuffer, so slice out exactly this file's bytes.

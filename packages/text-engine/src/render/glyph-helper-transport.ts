@@ -9,7 +9,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, openSync, readSync, writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { acquireGlyphHelperSync } from "./helper-acquire.js";
+import { acquireGlyphHelperSync, onGlyphHelperRecovered } from "./helper-acquire.js";
 import { hostPlatform } from "./host-platform.js";
 import { profAccum, profNow, renderProfileEnabled } from "./render-profile.js";
 import { sleepSync } from "./sync-retry.js";
@@ -81,6 +81,17 @@ export function isGlyphHelperAvailable(): boolean {
   return helperAvailable;
 }
 
+// A later successful `acquireGlyphHelper()` must be able to undo a memoized
+// "unavailable"; the font-environment invalidation (registered by
+// generation.ts) also lands here through `clearGlyphHelperTransport`, but this
+// keeps the transport correct even where that module is not loaded.
+onGlyphHelperRecovered(() => {
+  if (helperAvailable === false) {
+    helperAvailable = null;
+    helperPath = undefined;
+  }
+});
+
 /** Evidence-only access to the exact resolved helper selected for this run. */
 export function resolvedGlyphHelperPathForEvidence(): string | null {
   return isGlyphHelperAvailable() ? (helperPath ?? null) : null;
@@ -99,6 +110,10 @@ let serverOutFd: number | undefined;
 let serverLeftover = ""; // bytes read past one response (normally "")
 let persistentDisabled = false; // set once we know the binary can't serve
 let persistentEverWorked = false; // distinguishes "broken binary" from a transient crash
+let persistentConsecutiveCrashes = 0; // crashes since the last successful round trip
+/** Respawns allowed in a row before the persistent channel is disabled for the
+ *  rest of the font environment (one-shot calls keep answering). */
+export const MAX_CONSECUTIVE_PERSISTENT_CRASHES = 3;
 
 function fdOf(stream: unknown): number | undefined {
   const s = stream as { fd?: number; _handle?: { fd?: number } } | null;
@@ -388,12 +403,17 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
     const resp = parseHelperResponse(respLine, { helperPath: helperPath ?? null, transport: "persistent" });
     if (renderProfileEnabled) profAccum("helperenv:parse", profNow() - _p0);
     persistentEverWorked = true;
+    persistentConsecutiveCrashes = 0;
     return resp;
   } catch {
     // Channel broken. Tear it down. If it never once worked, the binary almost
     // certainly doesn't support `--serve` (old release) — disable for the
     // session so we don't keep paying a failed spawn. If it had worked before,
-    // this was a transient crash; leave it enabled so the next call respawns.
+    // this was a transient crash; leave it enabled so the next call respawns —
+    // but only a bounded number of times in a row. A helper that crashes on
+    // every request after once working (a request shape it cannot survive, a
+    // corrupted install) would otherwise pay a spawn plus a crash on every call,
+    // forever, on top of the one-shot fallback that actually answers.
     try {
       serverProc?.kill();
     } catch {
@@ -402,6 +422,7 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
     serverProc = null;
     serverLeftover = "";
     if (!persistentEverWorked) persistentDisabled = true;
+    else if (++persistentConsecutiveCrashes >= MAX_CONSECUTIVE_PERSISTENT_CRASHES) persistentDisabled = true;
     return null;
   }
 }
@@ -482,6 +503,7 @@ export function clearGlyphHelperTransport(): void {
   // A swapped binary starts with no track record; a stale `true` would classify
   // its first-call crash as transient and retry it forever.
   persistentEverWorked = false;
+  persistentConsecutiveCrashes = 0;
 }
 
 /**

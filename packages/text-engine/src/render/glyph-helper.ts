@@ -795,9 +795,13 @@ let _systemUiFamily: string | null | undefined;
  * caller on its existing filename-table path rather than failing.
  */
 export function resolveSystemUiFamily(): string | null {
+  // Only a Windows answer is memoized. Checking the platform AFTER writing the
+  // memo let a darwin/linux call store `null` and poison a later
+  // `withHostPlatform("win32")` call in the same process.
+  if (hostPlatform() !== "win32") return null;
   if (_systemUiFamily !== undefined) return _systemUiFamily;
   _systemUiFamily = null;
-  if (hostPlatform() !== "win32" || !isGlyphHelperAvailable()) return _systemUiFamily;
+  if (!isGlyphHelperAvailable()) return _systemUiFamily;
   try {
     const resp = callHelper({ fonts: [], queries: [{ type: "systemfont" }] });
     const r = resp.results[0];

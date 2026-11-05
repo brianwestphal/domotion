@@ -185,19 +185,54 @@ export function acquireGlyphHelperSync(opts: AcquireOptions = {}): string | unde
 export async function acquireGlyphHelper(opts: AcquireOptions = {}): Promise<string | null> {
   const target = resolveTarget(opts);
   if (target == null) return null;
-  if (existsSync(target.dest)) return target.dest;
-  try {
-    const ok = await downloadAndInstall(target.assetUrl, target.shaUrl, target.dest);
-    return ok ? target.dest : null;
-  } catch {
-    return null;
+  let ok = existsSync(target.dest);
+  if (!ok) {
+    try {
+      ok = await downloadAndInstall(target.assetUrl, target.shaUrl, target.dest);
+    } catch {
+      ok = false;
+    }
   }
+  if (!ok) return null;
+  recoverFromDegradedMode();
+  return target.dest;
+}
+
+const recoveryListeners = new Set<() => void>();
+
+/**
+ * Register a callback for the degraded → live transition: a successful
+ * `acquireGlyphHelper()` after the synchronous render-path acquisition already
+ * failed in this process. Every answer computed in between came from the
+ * fontkit fallback, so the listeners (the transport's availability memo and the
+ * font-environment invalidation) must drop it; otherwise the warning's "pre-warm
+ * with acquireGlyphHelper() to restore" advice could never take effect.
+ */
+export function onGlyphHelperRecovered(listener: () => void): () => void {
+  recoveryListeners.add(listener);
+  return () => recoveryListeners.delete(listener);
+}
+
+function recoverFromDegradedMode(): void {
+  if (!syncFailedThisProcess) return;
+  syncFailedThisProcess = false;
+  for (const listener of recoveryListeners) listener();
 }
 
 /** Test-only: reset the per-process "sync download already failed" latch. */
 export function __resetAcquireStateForTest(): void {
   syncFailedThisProcess = false;
   warned.clear();
+}
+
+/** Test-only: whether the synchronous acquisition has latched a failure. */
+export function __syncAcquireFailedForTest(): boolean {
+  return syncFailedThisProcess;
+}
+
+/** Test-only: latch the synchronous-acquisition failure without a download attempt. */
+export function __latchSyncAcquireFailureForTest(): void {
+  syncFailedThisProcess = true;
 }
 
 // ── Worker mode ──

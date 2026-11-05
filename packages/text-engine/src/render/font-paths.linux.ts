@@ -295,9 +295,19 @@ export function linuxFontProfile(): "noto" | "bare" {
   return (_linuxFontProfile = m != null && /noto/i.test(m.path) ? "noto" : "bare");
 }
 
-/** Test-only: clear the memoized Linux font profile (DM-1404). */
-export function __resetLinuxFontProfileForTest(): void {
+/** Forget the detected Linux font profile. The detection is a fontconfig
+ *  answer, so it is environment-derived: `invalidateFontEnvironmentCaches()`
+ *  calls this so a font install (e.g. adding Noto CJK) is observed. */
+export function clearLinuxFontProfile(): void {
   _linuxFontProfile = null;
+}
+
+/** Test-only: clear the memoized Linux font profile (DM-1404). */
+export const __resetLinuxFontProfileForTest = clearLinuxFontProfile;
+
+/** Test-only: the memoized profile without detecting one (`null` = not yet detected). */
+export function __linuxFontProfileMemoForTest(): "noto" | "bare" | null {
+  return _linuxFontProfile;
 }
 
 /** Test-only: read the detected Linux font profile (DM-1404). */

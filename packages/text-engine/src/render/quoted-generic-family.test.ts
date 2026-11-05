@@ -29,6 +29,7 @@ import {
 import { withHostPlatform } from "./host-platform.js";
 import {
   beginDarwinFontDataDocument,
+  endDarwinFontDataDocument,
   hasWarmDarwinSystemUiAlias,
   resetDarwinFontDataRendererStates,
 } from "./darwin-font-data-lifetime.js";
@@ -137,6 +138,7 @@ describe("quoted generic spellings are literal family names (font_selector.cc:25
         expect(hasWarmDarwinSystemUiAlias(bold)).toBe(true);
         expect(resolveFontKey('"System-ui", Menlo', undefined, bold)).toBe("sf-pro");
       } finally {
+        endDarwinFontDataDocument();
         resetDarwinFontDataRendererStates();
       }
     });

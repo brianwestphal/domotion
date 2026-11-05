@@ -123,6 +123,26 @@ never throws into the render path. A single concise warning (once per process)
 explains why the native helper was skipped. `DOMOTION_DISABLE_HELPER` short-circuits
 acquisition entirely; `DOMOTION_HELPER_PATH` still overrides (no download).
 
+**Recovery.** The synchronous render-path download is attempted at most once per
+process. If it failed and a later `acquireGlyphHelper()` succeeds, that success is
+treated as a font-environment change: the sync failure latch and the transport's
+memoized "unavailable" are cleared and `invalidateFontEnvironmentCaches()` runs,
+so the next lookup uses the native helper and no answer computed in degraded mode
+survives. The ICU companion (`acquireIcuCompanion()`) follows the same rule. An
+ordinary pre-warm (no earlier failure) invalidates nothing. Because the
+invalidation also drops `local()` font aliases, a caller that recovers in the
+middle of a capture session must re-register them; a capture re-registers them
+on its next run.
+
+**Persistent-channel crashes.** The helper normally runs as one persistent
+`--serve` child. If its first round trip fails, the binary is taken not to
+support the channel and every later call uses one-shot spawns. If it worked and
+then crashed, the next call respawns it, but only
+`MAX_CONSECUTIVE_PERSISTENT_CRASHES` (3) times in a row without an intervening
+success. After that the channel is disabled until the next
+`invalidateFontEnvironmentCaches()`. Each failed persistent call is still
+answered by a one-shot spawn, so this bound changes cost, not answers.
+
 ## Decisions (adopted)
 
 The maintainer's calls on the open questions (all implemented):

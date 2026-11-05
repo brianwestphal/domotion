@@ -33,6 +33,9 @@ import {
   withFontRendererSession,
 } from "./font-resolution.js";
 import { __fcFallbackRendererCacheForTest, isGlyphHelperAvailable } from "./glyph-helper.js";
+import { hasPrimaryNotdefShape, primaryNotdefShapeKey, recordPrimaryNotdefShape } from "./character-fallback-cache.js";
+import { __darwinFontDataDocumentOpenForTest } from "./darwin-font-data-lifetime.js";
+import { withHostPlatform } from "./host-platform.js";
 import { isIdeographicCp } from "./unicode-classification.js";
 
 const onDarwin = process.platform === "darwin" && isGlyphHelperAvailable();
@@ -217,6 +220,98 @@ describe("host-environment invalidation and the document cache", () => {
       expect(__characterFallbackDocumentCacheForTest()!.get("k")).toBe("v");
       endCharacterFallbackDocument();
     });
+  });
+
+  // DM-74V60G: invalidation INSIDE an open session document used to swap the
+  // session maps out from under it, so entries written after the invalidation
+  // landed in an orphaned map the session's next document never saw.
+  it("begin → set → invalidate → set → end → begin: the session keeps only post-invalidation entries", () => {
+    const session = createFontRendererSession();
+    withFontRendererSession(session, () => {
+      beginCharacterFallbackDocument();
+      const scope = __characterFallbackDocumentCacheForTest()!;
+      scope.set("before", "sysfb:Old-Regular");
+      invalidateFontEnvironmentCaches();
+      // Same map object, emptied in place, still the open document's.
+      expect(__characterFallbackDocumentCacheForTest()).toBe(scope);
+      expect(scope.size).toBe(0);
+      scope.set("after", "sysfb:New-Regular");
+      endCharacterFallbackDocument();
+      beginCharacterFallbackDocument();
+      const next = __characterFallbackDocumentCacheForTest()!;
+      expect(next.get("after")).toBe("sysfb:New-Regular");
+      expect(next.has("before")).toBe(false);
+      endCharacterFallbackDocument();
+    });
+  });
+
+  it("an anonymous document invalidated mid-way still ends cleanly and the next one is fresh", () => {
+    beginCharacterFallbackDocument();
+    __characterFallbackDocumentCacheForTest()!.set("before", "x");
+    invalidateFontEnvironmentCaches();
+    __characterFallbackDocumentCacheForTest()!.set("after", "y");
+    endCharacterFallbackDocument();
+    expect(__characterFallbackDocumentCacheForTest()).toBeNull();
+    beginCharacterFallbackDocument();
+    expect(__characterFallbackDocumentCacheForTest()!.size).toBe(0);
+    endCharacterFallbackDocument();
+  });
+
+  it("repeated invalidations inside one document are idempotent and keep the scope open", () => {
+    const session = createFontRendererSession();
+    withFontRendererSession(session, () => {
+      beginCharacterFallbackDocument();
+      const scope = __characterFallbackDocumentCacheForTest()!;
+      invalidateFontEnvironmentCaches();
+      invalidateFontEnvironmentCaches();
+      expect(__characterFallbackDocumentCacheForTest()).toBe(scope);
+      scope.set("k", "v");
+      endCharacterFallbackDocument();
+      beginCharacterFallbackDocument();
+      expect(__characterFallbackDocumentCacheForTest()!.get("k")).toBe("v");
+      endCharacterFallbackDocument();
+    });
+  });
+
+  it("empties the open document's primary-.notdef shape cache and re-attaches it to the session", () => {
+    withHostPlatform("darwin", () => {
+      const session = createFontRendererSession();
+      withFontRendererSession(session, () => {
+        beginCharacterFallbackDocument();
+        // A key exists only while a document scope is open.
+        const key = primaryNotdefShapeKey("豈", "system-ui|x", 400, 16, 0, 100, undefined, undefined);
+        expect(key).not.toBeNull();
+        recordPrimaryNotdefShape(key);
+        invalidateFontEnvironmentCaches();
+        expect(hasPrimaryNotdefShape(key)).toBe(false);
+        recordPrimaryNotdefShape(key);
+        endCharacterFallbackDocument();
+        beginCharacterFallbackDocument();
+        expect(hasPrimaryNotdefShape(key)).toBe(true);
+        endCharacterFallbackDocument();
+      });
+    });
+  });
+
+  it("keeps the darwin font-data lifetime open (fresh) for the rest of the document", () => {
+    withHostPlatform("darwin", () => {
+      beginCharacterFallbackDocument();
+      expect(__darwinFontDataDocumentOpenForTest()).toBe(true);
+      invalidateFontEnvironmentCaches();
+      expect(__darwinFontDataDocumentOpenForTest()).toBe(true);
+      endCharacterFallbackDocument();
+      expect(__darwinFontDataDocumentOpenForTest()).toBe(false);
+    });
+  });
+
+  it("leaves the Linux renderer codepoint cache alone (Chrome never clears unicode_font_families_)", () => {
+    beginCharacterFallbackDocument();
+    const linux = __fcFallbackRendererCacheForTest()!;
+    linux.set(0x4e00, null);
+    invalidateFontEnvironmentCaches();
+    expect(__fcFallbackRendererCacheForTest()).toBe(linux);
+    expect(linux.has(0x4e00)).toBe(true);
+    endCharacterFallbackDocument();
   });
 });
 

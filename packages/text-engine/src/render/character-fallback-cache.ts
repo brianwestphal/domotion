@@ -121,9 +121,38 @@ export interface FontRendererSession {
 
 export let characterFallbackRendererCaches = new WeakMap<FontRendererSession, Map<string, string>>();
 let primaryNotdefRendererCaches = new WeakMap<FontRendererSession, Set<string>>();
+/**
+ * Font-environment invalidation of the modeled renderer state (called by
+ * `invalidateFontEnvironmentCaches`; doc 146 has the Blink reasoning).
+ *
+ * Every session forgets its maps, and the next document of any session starts
+ * fresh. An OPEN document keeps running: its maps are emptied in place (the
+ * post-GC state of Blink's weak `character_fallback_cache_` values and of the
+ * `NGShapeCache`s that lived on the discarded `SimpleFontData`) and, when it
+ * belongs to a session, are re-attached to that session — so ideographs
+ * resolved after the invalidation stay visible to that session's later
+ * documents, as entries written after `FontCache::Invalidate()` are in Chrome.
+ * The darwin font-data lifetime gets the same treatment.
+ *
+ * Deliberately NOT reset: the Linux renderer codepoint cache in glyph-helper.ts.
+ * It models `ChildProcessSandboxSupport::unicode_font_families_`
+ * (content/child/child_process_sandbox_support_impl_linux.{h:53-58,cc:40-68},
+ * rev 7d859f27), a strong `std::map` that nothing clears for the life of the
+ * renderer process.
+ */
 export function resetCharacterFallbackRendererCaches(): void {
   characterFallbackRendererCaches = new WeakMap();
   primaryNotdefRendererCaches = new WeakMap();
+  characterFallbackDocumentCache?.clear();
+  primaryNotdefShapeCache?.clear();
+  if (_charFallbackDocDepth > 0 && _charFallbackDocSession != null) {
+    if (characterFallbackDocumentCache != null) {
+      characterFallbackRendererCaches.set(_charFallbackDocSession, characterFallbackDocumentCache);
+    }
+    if (primaryNotdefShapeCache != null) {
+      primaryNotdefRendererCaches.set(_charFallbackDocSession, primaryNotdefShapeCache);
+    }
+  }
   resetDarwinFontDataRendererStates();
 }
 
@@ -153,37 +182,59 @@ export function withFontRendererSession<F extends () => unknown>(
 }
 
 /** Open a document scope for the ideograph fallback cache (nested calls share
- *  the outermost scope). Pair with `endCharacterFallbackDocument` in `finally`. */
+ *  the outermost scope). Pair with `endCharacterFallbackDocument` in `finally`.
+ *
+ *  Atomic: if any step of opening the outermost scope throws, every step
+ *  already taken is undone before the error propagates, so a caller that
+ *  begins outside its `try` (and therefore never ends) leaks nothing. */
 export function beginCharacterFallbackDocument(): void {
   if (_charFallbackDocDepth === 0) {
     const rendererSession = _requestedCharFallbackRendererSession;
-    _charFallbackDocSession = rendererSession;
-    if (rendererSession == null) {
-      characterFallbackDocumentCache = new Map();
-      primaryNotdefShapeCache = new Set();
-    } else {
-      let cache = characterFallbackRendererCaches.get(rendererSession);
-      if (cache == null) {
-        cache = new Map();
-        characterFallbackRendererCaches.set(rendererSession, cache);
+    let darwinBegun = false;
+    let fcBegun = false;
+    try {
+      _charFallbackDocSession = rendererSession;
+      if (rendererSession == null) {
+        characterFallbackDocumentCache = new Map();
+        primaryNotdefShapeCache = new Set();
+      } else {
+        let cache = characterFallbackRendererCaches.get(rendererSession);
+        if (cache == null) {
+          cache = new Map();
+          characterFallbackRendererCaches.set(rendererSession, cache);
+        }
+        characterFallbackDocumentCache = cache;
+        let shapeCache = primaryNotdefRendererCaches.get(rendererSession);
+        if (shapeCache == null) {
+          shapeCache = new Set();
+          primaryNotdefRendererCaches.set(rendererSession, shapeCache);
+        }
+        primaryNotdefShapeCache = shapeCache;
       }
-      characterFallbackDocumentCache = cache;
-      let shapeCache = primaryNotdefRendererCaches.get(rendererSession);
-      if (shapeCache == null) {
-        shapeCache = new Set();
-        primaryNotdefRendererCaches.set(rendererSession, shapeCache);
-      }
-      primaryNotdefShapeCache = shapeCache;
+      beginDarwinFontDataDocument(rendererSession);
+      darwinBegun = true;
+      beginFcFallbackRendererScope();
+      fcBegun = true;
+      // A document without a renderer session stands for a fresh Chrome renderer,
+      // so it also gets a fresh CoreText history; a session keeps its own. The
+      // per-codepoint key memo is built from the helper's answers and goes with
+      // them.
+      selectCoreTextFallbackOwner(rendererSession ?? {}, rendererSession != null, systemFallbackKeyCache);
+    } catch (error) {
+      characterFallbackDocumentCache = null;
+      primaryNotdefShapeCache = null;
+      _charFallbackDocSession = null;
+      if (darwinBegun) endDarwinFontDataDocument();
+      if (fcBegun) endFcFallbackRendererScope();
+      throw error;
     }
-    beginDarwinFontDataDocument(rendererSession);
-    beginFcFallbackRendererScope();
-    // A document without a renderer session stands for a fresh Chrome renderer,
-    // so it also gets a fresh CoreText history; a session keeps its own. The
-    // per-codepoint key memo is built from the helper's answers and goes with
-    // them.
-    selectCoreTextFallbackOwner(rendererSession ?? {}, rendererSession != null, systemFallbackKeyCache);
   }
   _charFallbackDocDepth++;
+}
+
+/** Test-only: the open document depth (0 = no document). */
+export function __characterFallbackDocumentDepthForTest(): number {
+  return _charFallbackDocDepth;
 }
 
 /** Close the current document scope; the outermost close drops the state. */

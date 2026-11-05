@@ -10,6 +10,11 @@ import {
 } from "./font-resolution.js";
 import { snapshotBaselineSnapSuppression } from "./text-to-path.js";
 import {
+  __characterFallbackDocumentCacheForTest,
+  __characterFallbackDocumentDepthForTest,
+} from "./character-fallback-cache.js";
+import {
+  activeTextEngineDocument,
   clearTextEngineFonts,
   createTextEngineSession,
   registerTextEngineLocalFontAlias,
@@ -78,6 +83,23 @@ describe("text-engine facade", () => {
       }),
     ).toThrow("stop");
     expect(getRenderTextMode()).toBe("embedded-font");
+  });
+
+  it("leaves no active document and no open fallback scope after a render throws", () => {
+    const session = createTextEngineSession();
+    expect(() =>
+      withTextEngineDocument({ session }, () => {
+        expect(activeTextEngineDocument()).not.toBeNull();
+        expect(__characterFallbackDocumentDepthForTest()).toBe(1);
+        throw new Error("stop");
+      }),
+    ).toThrow("stop");
+    expect(activeTextEngineDocument()).toBeNull();
+    expect(__characterFallbackDocumentDepthForTest()).toBe(0);
+    expect(__characterFallbackDocumentCacheForTest()).toBeNull();
+    // ...and the next document opens normally.
+    withTextEngineDocument({ session }, () => expect(__characterFallbackDocumentDepthForTest()).toBe(1));
+    expect(__characterFallbackDocumentDepthForTest()).toBe(0);
   });
 
   it("restores document-owned baseline policy after an exceptional exit", () => {

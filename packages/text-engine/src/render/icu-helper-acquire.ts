@@ -194,17 +194,48 @@ export async function acquireIcuCompanion(opts: IcuAcquireOptions = {}): Promise
     existsSync(target.executablePath) &&
     existsSync(target.dataPath) &&
     target.runtimeAssets.every((item) => existsSync(item.path))
-  )
+  ) {
+    recoverIcuFromDegradedMode();
     return target.executablePath;
-  try {
-    return (await downloadIcuCompanion(target)) ? target.executablePath : null;
-  } catch {
-    return null;
   }
+  let ok: boolean;
+  try {
+    ok = await downloadIcuCompanion(target);
+  } catch {
+    ok = false;
+  }
+  if (!ok) return null;
+  recoverIcuFromDegradedMode();
+  return target.executablePath;
+}
+
+const icuRecoveryListeners = new Set<() => void>();
+
+/**
+ * Register a callback for the degraded → live transition: a successful
+ * `acquireIcuCompanion()` after the synchronous acquisition already failed in
+ * this process. Classification answers computed in between came from the
+ * JavaScript fallback and feed font-routing memos, so the listeners must drop
+ * them (the ICU memo itself, and the font-environment invalidation).
+ */
+export function onIcuCompanionRecovered(listener: () => void): () => void {
+  icuRecoveryListeners.add(listener);
+  return () => icuRecoveryListeners.delete(listener);
+}
+
+function recoverIcuFromDegradedMode(): void {
+  if (!failed) return;
+  failed = false;
+  for (const listener of icuRecoveryListeners) listener();
 }
 
 export function __resetIcuAcquireStateForTest(): void {
   failed = false;
+}
+
+/** Test-only: latch the synchronous-acquisition failure without a download attempt. */
+export function __latchIcuAcquireFailureForTest(): void {
+  failed = true;
 }
 
 const isWorker =

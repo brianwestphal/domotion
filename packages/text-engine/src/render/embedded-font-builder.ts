@@ -585,6 +585,10 @@ function determinizeFontTimestamps(bytes: Buffer): void {
  * bound memory during a full sweep by dropping caches that hold fonts and glyph
  * objects; this one holds booleans keyed by strings, and clearing it would
  * reinstate exactly the repeated 58 MB reads the sweep is trying to survive.
+ *
+ * It IS dropped by `invalidateFontEnvironmentCaches()` (via
+ * `clearHintedOutlineGuardMemo`): "immutable" holds only within one font
+ * environment, and an install or update can replace the file at the same path.
  */
 const hintedOutlineGuardMemo = new Map<string, boolean>();
 const hintedOutlineGuardKey = (path: string, faceIndex: number): string => `${path}#${faceIndex}`;
@@ -600,10 +604,23 @@ function rememberHintedOutlineGuard(path: string, faceIndex: number, verdict: bo
   return verdict;
 }
 
+/** Forget every hinted-outline guard verdict (font-environment invalidation). */
+export function clearHintedOutlineGuardMemo(): void {
+  hintedOutlineGuardMemo.clear();
+}
+
 /** Test-only: the memo is process-global, so a test that asserts read counts
  *  needs to start from a known state. */
-export function __clearHintedOutlineGuardMemoForTest(): void {
-  hintedOutlineGuardMemo.clear();
+export const __clearHintedOutlineGuardMemoForTest = clearHintedOutlineGuardMemo;
+
+/** Test-only: number of remembered guard verdicts. */
+export function __hintedOutlineGuardMemoSizeForTest(): number {
+  return hintedOutlineGuardMemo.size;
+}
+
+/** Test-only: seed one verdict without reading a font. */
+export function __seedHintedOutlineGuardForTest(path: string, faceIndex: number, verdict: boolean): void {
+  rememberHintedOutlineGuard(path, faceIndex, verdict);
 }
 
 function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer {

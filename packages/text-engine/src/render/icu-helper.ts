@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { acquireIcuCompanionSync } from "./icu-helper-acquire.js";
+import { acquireIcuCompanionSync, onIcuCompanionRecovered } from "./icu-helper-acquire.js";
 
 export interface IcuCodepointProperties {
   cp: number;
@@ -221,3 +221,9 @@ export function clearIcuHelper(): void {
 }
 
 export const __resetIcuHelperForTest = clearIcuHelper;
+
+// A successful async acquisition after a failed synchronous one must undo the
+// memoized "unavailable" (`checked` / `helperValidated`). The font-environment
+// invalidation registered by generation.ts also does this, but this keeps the
+// ICU boundary correct where that module is not loaded.
+onIcuCompanionRecovered(clearIcuHelper);

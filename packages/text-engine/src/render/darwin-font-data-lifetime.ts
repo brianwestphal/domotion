@@ -97,10 +97,12 @@ function newLifetime(): FontDataLifetime {
 }
 
 let active: FontDataLifetime | null = null;
+let activeSession: object | null = null;
 let rendererStates = new WeakMap<object, FontDataLifetime>();
 
 export function beginDarwinFontDataDocument(session: object | null): void {
   if (hostPlatform() !== "darwin") return;
+  activeSession = session;
   if (session == null) {
     active = newLifetime();
   } else {
@@ -115,11 +117,25 @@ export function beginDarwinFontDataDocument(session: object | null): void {
 
 export function endDarwinFontDataDocument(): void {
   active = null;
+  activeSession = null;
 }
 
+/**
+ * Forget every session's font-data lifetime (font-environment invalidation).
+ * An open document continues with a FRESH lifetime rather than none — `null`
+ * would silently turn every later warm/lookup in that document into a no-op —
+ * re-attached to its session so the session's later documents see it.
+ */
 export function resetDarwinFontDataRendererStates(): void {
   rendererStates = new WeakMap();
-  active = null;
+  if (active == null) return;
+  active = newLifetime();
+  if (activeSession != null) rendererStates.set(activeSession, active);
+}
+
+/** Test-only: whether a document's font-data lifetime is open. */
+export function __darwinFontDataDocumentOpenForTest(): boolean {
+  return active != null;
 }
 
 /** Blink's exact-name system-ui dispatch inserts one platform-cache entry for

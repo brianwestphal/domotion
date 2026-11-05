@@ -2,7 +2,9 @@
 import { createHash } from "node:crypto";
 import { clearGlyphHelperCodepointMemos, clearGlyphHelperCache } from "./glyph-helper.js";
 import { clearHbFontCache, clearTrakStatCache } from "./harfbuzz-shaper.js";
+import { clearLinuxFontProfile } from "./font-paths.linux.js";
 import {
+  clearHintedOutlineGuardMemo,
   clearEmbeddedFontBuilder,
   getBuiltEmbeddedFontFaceCss,
   restoreEmbeddedFonts,
@@ -33,6 +35,8 @@ import { resetCharacterFallbackRendererCaches } from "./system-fallback-resolver
 import { declaredFamilyForKey } from "./family-match.js";
 import { win32SuffixDeclaredForKey } from "./fallback-chain.linux.js";
 import { localFontAliasRegistry } from "./webfont-registry.js";
+import { onGlyphHelperRecovered } from "./helper-acquire.js";
+import { onIcuCompanionRecovered } from "./icu-helper-acquire.js";
 
 /**
  * Reset the embedded-font subset builder (the per-generation `@font-face`
@@ -296,8 +300,22 @@ export function invalidateFontEnvironmentCaches(): void {
   declaredFamilyForKey.clear();
   win32SuffixDeclaredForKey.clear();
   localFontAliasRegistry.clear();
+  // Both are environment-derived despite living outside the memory trim: the
+  // hinted-outline verdict is a function of the file at a path (an update can
+  // replace it), and the Linux profile is a fontconfig answer (an install can
+  // change it).
+  clearHintedOutlineGuardMemo();
+  clearLinuxFontProfile();
   for (const invalidate of fontEnvironmentInvalidators) invalidate();
 }
+
+// A successful async acquisition after the synchronous render-path acquisition
+// failed is a font-environment change: every answer memoized in between came
+// from the degraded (fontkit / JavaScript-ICU) path. Dropping them is what makes
+// the degraded-mode warning's "pre-warm to restore" advice true. Fires only on
+// that degraded → live transition, never for an ordinary pre-warm.
+onGlyphHelperRecovered(invalidateFontEnvironmentCaches);
+onIcuCompanionRecovered(invalidateFontEnvironmentCaches);
 
 /** Test-only sizes for the three platform primary-cut memos. */
 export function __primaryCutCacheSizesForTest(): {
