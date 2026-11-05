@@ -115,8 +115,14 @@ function escapeXml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
+/**
+ * The `animation` declaration for a treatment's `style` attribute, already
+ * attribute-escaped. The schema restricts `easing` to the CSS easing grammar;
+ * this escapes as well, so a timing that reaches here without passing the schema
+ * still cannot break out of the attribute.
+ */
 function animationStyle(name: string, timing: StudioTreatmentTiming): string {
-  return `animation:${name} ${timing.durationMs}ms ${timing.easing} ${timing.startMs}ms both`;
+  return escapeXml(`animation:${name} ${timing.durationMs}ms ${timing.easing} ${timing.startMs}ms both`);
 }
 
 function roundedRectPath(x: number, y: number, width: number, height: number, radius = 0): string {

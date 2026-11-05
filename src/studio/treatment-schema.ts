@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CHROME_THEMES, DEVICE_CHROMES } from "../render/device-chrome.js";
 import { storyboardTransitionSchema } from "../animation/transition-schema.js";
+import { isCssEasingFunction } from "../animation/easing.js";
 
 const pointSchema = z.strictObject({ x: z.number(), y: z.number() });
 const regionSchema = z.strictObject({
@@ -14,7 +15,21 @@ const regionSchema = z.strictObject({
 export const studioTreatmentTimingSchema = z.strictObject({
   startMs: z.number().nonnegative().default(0),
   durationMs: z.number().positive().default(500),
-  easing: z.string().trim().min(1).default("cubic-bezier(0.22,1,0.36,1)"),
+  // The easing is written into the treatment's SVG `style` attribute, so it is
+  // held to the CSS <easing-function> grammar rather than accepted as free text:
+  // a project file is shareable and agent-editable, and an unconstrained string
+  // such as `ease" onload="…` would break out of the attribute.
+  easing: z
+    .string()
+    .trim()
+    .min(1)
+    .refine(isCssEasingFunction, {
+      message: "must be a CSS easing function (a keyword, cubic-bezier(), steps() or linear())",
+    })
+    .default("cubic-bezier(0.22,1,0.36,1)")
+    .describe(
+      "CSS <easing-function>: ease, linear, ease-in, ease-out, ease-in-out, step-start, step-end, cubic-bezier(), steps() or linear().",
+    ),
 });
 
 export const studioTreatmentLayerPrimitiveSchema = z.strictObject({

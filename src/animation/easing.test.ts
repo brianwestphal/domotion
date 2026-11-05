@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cubicBezier, interpolateCssValue, resolveEasing, springEasingFn, springLinearEasing } from "./easing.js";
+import {
+  cubicBezier,
+  interpolateCssValue,
+  isCssEasingFunction,
+  resolveEasing,
+  springEasingFn,
+  springLinearEasing,
+} from "./easing.js";
 
 describe("cubicBezier / resolveEasing (DM-1517)", () => {
   it("linear cubic-bezier is the identity", () => {
@@ -117,5 +124,60 @@ describe("spring easing sampler (DM-1542)", () => {
     const css = springLinearEasing(2, 2 * Math.PI, 10);
     expect(css.includes("NaN")).toBe(false);
     expect(css.startsWith("linear(")).toBe(true);
+  });
+});
+
+describe("isCssEasingFunction — Blink's <easing-function> grammar", () => {
+  it.each([
+    "ease",
+    "linear",
+    "ease-in",
+    "ease-out",
+    "ease-in-out",
+    "step-start",
+    "step-end",
+    "EASE-IN-OUT",
+    "  ease  ",
+    "cubic-bezier(0.22,1,0.36,1)",
+    "cubic-bezier( 0 , -2.5 , 1 , 3e1 )",
+    "Cubic-Bezier(.5,.5,.5,.5)",
+    "steps(4)",
+    "steps(1, start)",
+    "steps(3, jump-both)",
+    "steps(2, jump-none)",
+    "steps(+5, END)",
+    "linear(0, 1)",
+    "linear(0, 0.25 25% 75%, 1)",
+    "linear(0 0%, 50% 0.5, 1 100%)",
+    "linear(0, 1.2 60%, 1)",
+  ])("accepts %s", (value) => {
+    expect(isCssEasingFunction(value)).toBe(true);
+  });
+
+  it.each([
+    "",
+    "bounce",
+    "ease-in-out-back",
+    "cubic-bezier(1.1,0,1,1)",
+    "cubic-bezier(0,0,-0.1,1)",
+    "cubic-bezier(0,0,1)",
+    "cubic-bezier(0,0,1,1,1)",
+    "cubic-bezier(calc(0.5),0,1,1)",
+    "steps(0)",
+    "steps(1.5)",
+    "steps(1, jump-none)",
+    "steps(2, middle)",
+    "steps(2, start, end)",
+    "linear(0)",
+    "linear()",
+    "linear(0 1, 1)",
+    "linear(0, 25% 1 75%, 1)",
+    "linear(0, 1 10% 20% 30%, 1)",
+    'ease" onload="alert(1)',
+    "ease;fill:red",
+    "cubic-bezier(0,0,1,1) </style>",
+    "steps(2)) x(",
+  ])("rejects %s", (value) => {
+    expect(isCssEasingFunction(value)).toBe(false);
   });
 });

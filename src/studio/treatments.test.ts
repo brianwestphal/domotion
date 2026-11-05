@@ -1,7 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { studioTreatmentsSchema } from "./treatment-schema.js";
 import { applyStudioTreatments, resolveStudioTreatmentPlan, StudioTreatmentError } from "./treatments.js";
 
 const BASE = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><defs><clipPath id="clip"><rect width="320" height="180"/></clipPath></defs><style>@keyframes pulse{from{opacity:.8}to{opacity:1}}.card{animation:pulse 1s linear infinite}</style><rect class="card" clip-path="url(#clip)" width="320" height="180" fill="#2563eb"/></svg>`;
@@ -112,6 +113,55 @@ describe("Studio cinematic treatment library", () => {
         { kind: "scene-transition", transition: { type: "crossfade", duration: 100 } },
       ]),
     ).toThrow(/only one scene-transition/);
+  });
+});
+
+// A treatment easing used to be any non-empty string, interpolated raw into the
+// SVG `style` attribute, so `ease" onload="…` broke out of the attribute and
+// injected markup into the "self-contained" output.
+describe("treatment easing cannot inject markup", () => {
+  const HOSTILE = 'ease" onload="alert(1)';
+  const timed = (easing: string) => [
+    {
+      kind: "spotlight",
+      mask: { region: { x: 40, y: 30, width: 120, height: 60 } },
+      timing: { startMs: 0, durationMs: 400, easing },
+    },
+  ];
+
+  it("rejects a non-easing string at the schema", () => {
+    expect(() => resolveStudioTreatmentPlan(timed(HOSTILE))).toThrow(/easing: must be a CSS easing function/);
+    expect(() => applyStudioTreatments(BASE, timed("ease;fill:red"))).toThrow(StudioTreatmentError);
+  });
+
+  it("accepts and emits every easing-function form", () => {
+    for (const easing of [
+      "ease-in-out",
+      "cubic-bezier(0.22,1,0.36,1)",
+      "steps(4, jump-end)",
+      "linear(0, 0.4 30%, 1)",
+    ]) {
+      expect(applyStudioTreatments(BASE, timed(easing)).svg).toContain(`400ms ${easing} 0ms both`);
+    }
+  });
+
+  it("escapes the style attribute even when a timing bypasses the schema", () => {
+    const parse = studioTreatmentsSchema.safeParse.bind(studioTreatmentsSchema);
+    const spy = vi.spyOn(studioTreatmentsSchema, "safeParse").mockImplementation((raw) => {
+      const result = parse(raw);
+      if (!result.success) throw new Error("fixture must parse");
+      for (const treatment of result.data)
+        if ("timing" in treatment && treatment.timing) treatment.timing.easing = HOSTILE;
+      return result;
+    });
+    try {
+      const { svg } = applyStudioTreatments(BASE, timed("ease"));
+      expect(svg).not.toContain(HOSTILE);
+      expect(svg).not.toMatch(/\sonload="/);
+      expect(svg).toContain("ease&quot; onload=&quot;alert(1)");
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

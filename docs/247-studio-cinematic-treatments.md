@@ -41,6 +41,19 @@ plan for later direct manipulation. Ordered application makes treatments
 nestable; a browser-framed scene can be zoomed, spotlighted, annotated, and
 branded in one stack.
 
+A timed treatment's `timing.easing` must be a CSS `<easing-function>`: one of
+the keywords `ease`, `linear`, `ease-in`, `ease-out`, `ease-in-out`,
+`step-start`, `step-end`, or a `cubic-bezier()`, `steps()` or `linear()`
+function with literal numeric arguments. `isCssEasingFunction`
+(`src/animation/easing.ts`) transcribes Blink's
+`ConsumeAnimationTimingFunction` grammar
+(`external/chromium/third_party/blink/renderer/core/css/properties/css_parsing_utils.cc`,
+revision 7d859f27), including the `cubic-bezier` x-range and the `jump-none`
+two-step minimum; it rejects `calc()`. Free text is refused because the easing
+is written into the treatment's SVG `style` attribute and project files are
+shareable and agent-editable. Emission also attribute-escapes the whole `style`
+value, so a value that slipped past the schema still cannot leave the attribute.
+
 ## Existing render ownership
 
 Studio compilation first renders a treated scene through the ordinary
@@ -77,7 +90,8 @@ interactive scenes lowered by the Studio capture compiler.
 ## Verification
 
 Schema and unit cases cover every preset, primitive expansion, defaults,
-invalid timing/geometry, brand mapping, local-asset embedding, remote-asset
+invalid timing/geometry, hostile easing strings (schema rejection and escaped
+emission), brand mapping, local-asset embedding, remote-asset
 rejection, and mixed nesting without ID/keyframe/reference collisions. A
 committed eight-scene Studio fixture compiles every treatment through the real
 storyboard integration. Chromium visual evidence renders every example twice at

@@ -178,3 +178,72 @@ export function interpolateCssValue(from: string, to: string, t: number): string
   }
   return out;
 }
+
+// A CSS <number> / <integer> token as authored literally (no calc()). The
+// exponent form is part of the number token in css-syntax-3 §4.3.12.
+const CSS_NUMBER = String.raw`[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?`;
+const NUMBER_RE = new RegExp(`^${CSS_NUMBER}$`);
+const PERCENT_RE = new RegExp(`^${CSS_NUMBER}%$`);
+const INTEGER_RE = /^\+?\d+$/;
+const EASING_KEYWORDS = new Set(["ease", "linear", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"]);
+const STEP_POSITION_KEYWORDS = new Set(["start", "end", "jump-both", "jump-end", "jump-none", "jump-start"]);
+
+/**
+ * Whether `value` is a valid CSS `<easing-function>` — the grammar Blink's
+ * `ConsumeAnimationTimingFunction` accepts (chromium 7d859f27,
+ * `third_party/blink/renderer/core/css/properties/css_parsing_utils.cc:4669`):
+ *
+ * - the keywords `ease | linear | ease-in | ease-out | ease-in-out | step-start | step-end`;
+ * - `cubic-bezier(x1, y1, x2, y2)` with x1 and x2 in [0, 1] (`ConsumeCubicBezier`, :427);
+ * - `steps(<positive-integer>[, start | end | jump-*])`, where `jump-none`
+ *   needs at least 2 steps (`ConsumeSteps`, :357);
+ * - `linear(<stop>#)` with at least two stops, each `<number>` optionally
+ *   followed by one or two `<percentage>`s in either order relative to the
+ *   number (`ConsumeLinear` / `ConsumeLinearStop`, :203-:355).
+ *
+ * Keywords and function names are ASCII case-insensitive, as in CSS. Only
+ * literal numeric arguments are accepted: `calc()` and other math functions are
+ * rejected. That is stricter than Blink, and deliberate — this is the gate for
+ * values written into an SVG `style` attribute, so it accepts nothing a
+ * markup-breaking character could hide inside.
+ */
+export function isCssEasingFunction(value: string): boolean {
+  const s = value.trim();
+  const lower = s.toLowerCase();
+  if (EASING_KEYWORDS.has(lower)) return true;
+  const call = /^([a-z-]+)\(([^()]*)\)$/i.exec(s);
+  if (call == null) return false;
+  const name = call[1].toLowerCase();
+  const args = call[2].split(",").map((arg) => arg.trim());
+  if (name === "cubic-bezier") {
+    if (args.length !== 4 || !args.every((arg) => NUMBER_RE.test(arg))) return false;
+    const [x1, , x2] = args.map(Number);
+    return x1 >= 0 && x1 <= 1 && x2 >= 0 && x2 <= 1;
+  }
+  if (name === "steps") {
+    if (args.length < 1 || args.length > 2 || !INTEGER_RE.test(args[0])) return false;
+    const count = Number(args[0]);
+    if (!(count >= 1)) return false;
+    if (args.length === 1) return true;
+    const position = args[1].toLowerCase();
+    if (!STEP_POSITION_KEYWORDS.has(position)) return false;
+    return position !== "jump-none" || count >= 2;
+  }
+  if (name === "linear") {
+    if (args.length < 2) return false;
+    return args.every((stop) => {
+      const parts = stop.split(/\s+/).filter((part) => part !== "");
+      const numbers = parts.filter((part) => NUMBER_RE.test(part));
+      const percents = parts.filter((part) => PERCENT_RE.test(part));
+      if (numbers.length !== 1 || percents.length > 2 || numbers.length + percents.length !== parts.length)
+        return false;
+      // Two percentages are consumed as one adjacent pair (`ConsumeLinearStop`).
+      if (percents.length === 2) {
+        const first = parts.indexOf(percents[0]);
+        return parts.indexOf(percents[1], first + 1) === first + 1;
+      }
+      return true;
+    });
+  }
+  return false;
+}
