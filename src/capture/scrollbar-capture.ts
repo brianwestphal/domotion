@@ -946,12 +946,67 @@ async function captureNativeOverlayFrames(
   return { source, underlay, restored };
 }
 
+type PseudoScrollbarCapture = Pick<
+  ResolvedPseudoStyleCapture,
+  "propertyKey" | "stylesByHost" | "dynamicScrollbarKinds"
+>;
+type PageRegistry<T> = ReturnType<typeof createPageRegistry<T>>;
+
+/** Serializable inputs for the in-frame scrollable-owner discovery walk. */
+interface ScrollbarDiscoveryArgs {
+  selector: string;
+  viewport: ScrollbarCaptureViewport;
+  nodesKey: string;
+  pseudoKey: string;
+  top: boolean;
+  frameMeta: {
+    offsetX: number;
+    offsetY: number;
+    scaleX: number;
+    scaleY: number;
+    clip: { x: number; y: number; width: number; height: number } | null;
+    axisAligned: boolean;
+  };
+}
+
+/** Serializable inputs for installing one candidate's marker paint. */
+interface MarkerPaintArgs {
+  nodesKey: string;
+  markerKey: string;
+  index: number;
+  markerAttribute: string;
+  token: string;
+  route: CapturedScrollbar["route"];
+  css: string;
+  thumb: string;
+  track: string;
+  rootScroller: boolean;
+  overflowX: string;
+  overflowY: string;
+}
+
+/** Shared, per-call state for probing every discovered scrollbar candidate. */
+interface ScrollbarProbeSession {
+  page: Page;
+  viewport: ScrollbarCaptureViewport;
+  pseudoCapture: PseudoScrollbarCapture;
+  nodesKey: string;
+  markerKey: string;
+  markerAttribute: string;
+  propertyKey: string;
+  viewportSize: { width: number; height: number } | null;
+  fingerprint: Awaited<ReturnType<typeof captureNativeScrollbarFingerprint>>;
+  overlayFrames: NativeOverlayFrames;
+  sourceFrame: NativeScrollbarFrame | null;
+  warnings: CaptureWarning[];
+}
+
 /** Attach source-owned sets as private element expandos for CAPTURE_SCRIPT. */
 export async function prepareCapturedScrollbarSets(
   page: Page,
   selector: string,
   viewport: ScrollbarCaptureViewport,
-  pseudoCapture: Pick<ResolvedPseudoStyleCapture, "propertyKey" | "stylesByHost" | "dynamicScrollbarKinds">,
+  pseudoCapture: PseudoScrollbarCapture,
   options?: {
     sourceImagePath?: string;
     frameScrollCapture?: PreparedFrameScrollCapture;
@@ -964,250 +1019,16 @@ export async function prepareCapturedScrollbarSets(
   const markerKey = markerRegistry.key;
   const markerAttribute = `data-${propertyKey.toLowerCase().replaceAll("_", "-")}`;
   let candidates: BrowserCandidate[];
-  const frameTargets: readonly PreparedFrameScrollFrame[] = options?.frameScrollCapture?.frames.filter(
-    ({ access, reachableFromTop }) =>
-      reachableFromTop && (access === "top" || access === "same-origin" || access === "cross-origin-allowlisted"),
-  ) ?? [
-    {
-      frame: page.mainFrame(),
-      token: "legacy",
-      frameId: "legacy-top",
-      parentFrameId: null,
-      origin: "",
-      access: "top",
-      allowlistMatched: false,
-      readableFromParent: true,
-      reachableFromTop: true,
-      frameOffsetX: 0,
-      frameOffsetY: 0,
-      frameScaleX: 1,
-      frameScaleY: 1,
-      frameClip: {
-        x: 0,
-        y: 0,
-        width: page.viewportSize()?.width ?? viewport.width,
-        height: page.viewportSize()?.height ?? viewport.height,
-      },
-      axisAligned: true,
-    },
-  ];
+  const frameTargets = resolveScrollbarFrameTargets(page, viewport, options?.frameScrollCapture);
   try {
-    const discovered = await Promise.allSettled(
-      frameTargets.map(async (target) => {
-        await nodesRegistry.tag(target.frame, () => []);
-        await markerRegistry.tag(target.frame, () => ({}));
-        const local = await evaluateInFrame(
-          target.frame,
-          ({ selector, viewport, nodesKey, pseudoKey, frameMeta, top }) => {
-            const root = top ? document.querySelector(selector) : document.documentElement;
-            if (root == null) return [];
-            const allElements: Element[] = [];
-            const allIndex = new Map<Element, number>();
-            const allSeen = new Set<Element>();
-            const allStack: Element[] = [document.documentElement];
-            while (allStack.length > 0) {
-              const element = allStack.pop()!;
-              if (allSeen.has(element)) continue;
-              allSeen.add(element);
-              allIndex.set(element, allElements.length);
-              allElements.push(element);
-              const children: Element[] = [...element.children];
-              if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
-              for (let index = children.length - 1; index >= 0; index--) allStack.push(children[index]!);
-            }
-            const nodes: Element[] = [];
-            const seen = new Set<Element>();
-            const stack: Element[] = [root];
-            if (document.scrollingElement != null && !root.contains(document.scrollingElement))
-              stack.push(document.scrollingElement);
-            while (stack.length > 0) {
-              const element = stack.pop()!;
-              if (seen.has(element)) continue;
-              seen.add(element);
-              let style: CSSStyleDeclaration;
-              try {
-                style = getComputedStyle(element);
-              } catch {
-                continue;
-              }
-              const rootScroller = element === document.scrollingElement;
-              const html = element as HTMLElement;
-              const rootRange =
-                rootScroller &&
-                ((style.overflowX !== "hidden" && style.overflowX !== "clip" && html.scrollWidth > html.clientWidth) ||
-                  (style.overflowY !== "hidden" &&
-                    style.overflowY !== "clip" &&
-                    html.scrollHeight > html.clientHeight) ||
-                  style.scrollbarGutter !== "auto");
-              if (
-                ["auto", "scroll"].includes(style.overflowX) ||
-                ["auto", "scroll"].includes(style.overflowY) ||
-                rootRange
-              )
-                nodes.push(element);
-              const children: Element[] = [...element.children];
-              if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
-              for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]!);
-            }
-            const storedNodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[];
-            storedNodes.push(...nodes);
-            const globalRect = (rect: { x: number; y: number; width: number; height: number }) => ({
-              x: frameMeta.offsetX + rect.x * frameMeta.scaleX,
-              y: frameMeta.offsetY + rect.y * frameMeta.scaleY,
-              width: rect.width * frameMeta.scaleX,
-              height: rect.height * frameMeta.scaleY,
-            });
-            const intersect = (
-              left: { x: number; y: number; width: number; height: number },
-              right: { x: number; y: number; width: number; height: number },
-            ) => {
-              const x = Math.max(left.x, right.x);
-              const y = Math.max(left.y, right.y);
-              const r = Math.min(left.x + left.width, right.x + right.width);
-              const b = Math.min(left.y + left.height, right.y + right.height);
-              return { x, y, width: Math.max(0, r - x), height: Math.max(0, b - y) };
-            };
-            return nodes.map((element, index) => {
-              const style = getComputedStyle(element);
-              const rootScroller = element === document.scrollingElement;
-              const measuredRect = element.getBoundingClientRect();
-              const localRect = rootScroller
-                ? { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
-                : { x: measuredRect.x, y: measuredRect.y, width: measuredRect.width, height: measuredRect.height };
-              const rect = globalRect(localRect);
-              let clip = { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height };
-              let hasOverflowControlsClip = !top;
-              if (frameMeta.clip != null) clip = intersect(clip, frameMeta.clip);
-              let clipExact =
-                frameMeta.axisAligned &&
-                style.clipPath === "none" &&
-                style.maskImage === "none" &&
-                style.borderRadius === "0px";
-              for (let ancestor = element.parentElement; ancestor != null; ancestor = ancestor.parentElement) {
-                const ancestorStyle = getComputedStyle(ancestor);
-                const clipsOverflow = [ancestorStyle.overflowX, ancestorStyle.overflowY].some(
-                  (value) => value !== "visible",
-                );
-                if (
-                  ancestorStyle.clipPath !== "none" ||
-                  ancestorStyle.maskImage !== "none" ||
-                  (clipsOverflow && (ancestorStyle.transform !== "none" || ancestorStyle.borderRadius !== "0px"))
-                )
-                  clipExact = false;
-                if (clipsOverflow) {
-                  hasOverflowControlsClip = true;
-                  const ancestorRect = ancestor.getBoundingClientRect();
-                  clip = intersect(
-                    clip,
-                    globalRect({
-                      x: ancestorRect.x + ancestor.clientLeft,
-                      y: ancestorRect.y + ancestor.clientTop,
-                      width: ancestor.clientWidth,
-                      height: ancestor.clientHeight,
-                    }),
-                  );
-                }
-              }
-              let zoom = 1;
-              let axisAlignedOutput = frameMeta.axisAligned;
-              for (let current: Element | null = element; current != null; current = current.parentElement) {
-                const currentStyle = getComputedStyle(current);
-                const value = Number.parseFloat(currentStyle.zoom || "1");
-                if (Number.isFinite(value) && value > 0) zoom *= value;
-                if (currentStyle.transform !== "none") {
-                  try {
-                    const matrix = new DOMMatrixReadOnly(currentStyle.transform);
-                    if (!matrix.is2D || Math.abs(matrix.b) > 1e-7 || Math.abs(matrix.c) > 1e-7)
-                      axisAlignedOutput = false;
-                  } catch {
-                    axisAlignedOutput = false;
-                  }
-                }
-              }
-              const borderLeft = Number.parseFloat(style.borderLeftWidth) || 0;
-              const borderRight = Number.parseFloat(style.borderRightWidth) || 0;
-              const borderTop = Number.parseFloat(style.borderTopWidth) || 0;
-              const borderBottom = Number.parseFloat(style.borderBottomWidth) || 0;
-              const layoutWidth = element instanceof HTMLElement ? element.offsetWidth : localRect.width / zoom;
-              const layoutHeight = element instanceof HTMLElement ? element.offsetHeight : localRect.height / zoom;
-              const selectorText = element.id !== "" ? `${element.localName}#${element.id}` : element.localName;
-              return {
-                index,
-                elementIndex: allIndex.get(element) ?? -1,
-                hostId: pseudoKey === "" ? undefined : (element as Element & Record<string, string>)[pseudoKey],
-                selector: selectorText,
-                screenRect: rect,
-                outputRect: { x: rect.x - viewport.x, y: rect.y - viewport.y, width: rect.width, height: rect.height },
-                clipRect: { x: clip.x - viewport.x, y: clip.y - viewport.y, width: clip.width, height: clip.height },
-                hasOverflowControlsClip,
-                clipExact,
-                overflowX: style.overflowX,
-                overflowY: style.overflowY,
-                scrollbarWidth: style.scrollbarWidth || "auto",
-                scrollbarColor: style.scrollbarColor || "auto",
-                scrollbarGutter: style.scrollbarGutter || "auto",
-                colorScheme: style.colorScheme || "normal",
-                direction: style.direction,
-                writingMode: style.writingMode,
-                visibility: style.visibility,
-                scrollWidth: (element as HTMLElement).scrollWidth ?? 0,
-                scrollHeight: (element as HTMLElement).scrollHeight ?? 0,
-                clientWidth: (element as HTMLElement).clientWidth ?? 0,
-                clientHeight: (element as HTMLElement).clientHeight ?? 0,
-                scrollLeft: (element as HTMLElement).scrollLeft ?? 0,
-                scrollTop: (element as HTMLElement).scrollTop ?? 0,
-                layoutGutterVertical: Math.max(
-                  0,
-                  layoutWidth - (element as HTMLElement).clientWidth - borderLeft - borderRight,
-                ),
-                layoutGutterHorizontal: Math.max(
-                  0,
-                  layoutHeight - (element as HTMLElement).clientHeight - borderTop - borderBottom,
-                ),
-                borderTop,
-                borderRight,
-                borderBottom,
-                borderLeft,
-                effectiveZoom: zoom,
-                devicePixelRatio: window.devicePixelRatio,
-                forcedColors: matchMedia("(forced-colors: active)").matches,
-                prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
-                axisAlignedOutput,
-                hostHovered: element.matches(":hover"),
-                hostPressed: element.matches(":active"),
-                rootScroller,
-              };
-            });
-          },
-          {
-            selector,
-            viewport,
-            nodesKey,
-            pseudoKey: pseudoCapture.propertyKey,
-            top: target.frame === page.mainFrame(),
-            frameMeta: {
-              offsetX: target.frameOffsetX,
-              offsetY: target.frameOffsetY,
-              scaleX: target.frameScaleX,
-              scaleY: target.frameScaleY,
-              clip: target.frameClip,
-              axisAligned: target.axisAligned,
-            },
-          },
-        );
-        return local.map((candidate) => ({
-          ...candidate,
-          frame: target.frame,
-          frameId: target.frameId,
-          ownerId: `${target.frameId}:${candidate.elementIndex}`,
-          selector:
-            target.frame === page.mainFrame() ? candidate.selector : `frame[${target.frameId}] ${candidate.selector}`,
-        })) as BrowserCandidate[];
-      }),
-    );
-    const failed = discovered.find((result) => result.status === "rejected");
-    if (failed?.status === "rejected") throw failed.reason;
-    candidates = discovered.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+    candidates = await discoverScrollbarCandidates(page, frameTargets, {
+      selector,
+      viewport,
+      nodesKey,
+      pseudoKey: pseudoCapture.propertyKey,
+      nodesRegistry,
+      markerRegistry,
+    });
   } catch (error) {
     await disposeAll(nodesRegistry, markerRegistry);
     return {
@@ -1228,16 +1049,7 @@ export async function prepareCapturedScrollbarSets(
     const warnings: CaptureWarning[] = [];
     const viewportSize = page.viewportSize();
     const fingerprint = await captureNativeScrollbarFingerprint(page);
-    const overlayCandidates = candidates.filter(
-      (candidate) =>
-        routeForCandidate(candidate, pseudoCapture) === "native-raster" &&
-        Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5 &&
-        candidate.scrollbarWidth !== "none" &&
-        (candidate.overflowX === "scroll" ||
-          candidate.overflowY === "scroll" ||
-          candidate.scrollWidth > candidate.clientWidth ||
-          candidate.scrollHeight > candidate.clientHeight),
-    );
+    const overlayCandidates = selectNativeOverlayCandidates(candidates, pseudoCapture);
     const overlayFrameIndexes = frameTargets.map(({ frame }) => ({
       frame,
       indexes: overlayCandidates.filter((candidate) => candidate.frame === frame).map(({ index }) => index),
@@ -1247,207 +1059,23 @@ export async function prepareCapturedScrollbarSets(
       options?.sourceImagePath == null
         ? overlayFrames.source
         : await captureNativeScrollbarSourceFrame(page, viewport, options.sourceImagePath);
+    const session: ScrollbarProbeSession = {
+      page,
+      viewport,
+      pseudoCapture,
+      nodesKey,
+      markerKey,
+      markerAttribute,
+      propertyKey,
+      viewportSize,
+      fingerprint,
+      overlayFrames,
+      sourceFrame,
+      warnings,
+    };
     try {
       for (const candidate of candidates) {
-        const hostStyles = candidate.hostId == null ? undefined : pseudoCapture.stylesByHost[candidate.hostId];
-        const route = routeForCandidate(candidate, pseudoCapture);
-        if (candidate.scrollbarWidth === "none") {
-          const record = makeScrollbarSet(candidate, route, [], {});
-          await candidate.frame.evaluate(
-            ({ nodesKey, index, propertyKey, record }) => {
-              const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
-                Element[] | undefined;
-              const element = nodes?.[index];
-              if (element != null) Object.defineProperty(element, propertyKey, { value: record, configurable: true });
-            },
-            { nodesKey, index: candidate.index, propertyKey, record },
-          );
-          continue;
-        }
-        const baselinePng = await page.screenshot({ type: "png" });
-        const token = `${candidate.index}-${randomUUID().replaceAll("-", "")}`;
-        let components: ClassifiedComponent[] = [];
-        try {
-          await candidate.frame.evaluate(
-            ({
-              nodesKey,
-              markerKey,
-              index,
-              markerAttribute,
-              token,
-              route,
-              css,
-              thumb,
-              track,
-              rootScroller,
-              overflowX,
-              overflowY,
-            }) => {
-              const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
-                Element[] | undefined;
-              const element = nodes?.[index];
-              if (!(element instanceof HTMLElement || element instanceof SVGElement)) return;
-              const state = {
-                hadAttribute: element.hasAttribute(markerAttribute),
-                attributeValue: element.getAttribute(markerAttribute),
-                scrollbarColor: (element as HTMLElement).style.getPropertyValue("scrollbar-color"),
-                scrollbarColorPriority: (element as HTMLElement).style.getPropertyPriority("scrollbar-color"),
-                style: null as HTMLStyleElement | null,
-              };
-              const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as {
-                state?: unknown;
-              };
-              marker.state = state;
-              if (route === "author-custom") {
-                element.setAttribute(markerAttribute, token);
-                const style = element.ownerDocument.createElement("style");
-                style.textContent = css;
-                const owner = element.getRootNode();
-                if (owner instanceof ShadowRoot) owner.append(style);
-                else (element.ownerDocument.head ?? element.ownerDocument.documentElement).append(style);
-                state.style = style;
-              } else {
-                (element as HTMLElement).style.setProperty("scrollbar-color", `${thumb} ${track}`, "important");
-              }
-              // Blink propagates `visible` root overflow to the viewport as used
-              // `auto`, but a newly inserted root pseudo rule does not invalidate
-              // that already-built scrollbar. Flip only those visible longhands to
-              // their equivalent used value and restore them synchronously; the
-              // measured animation frame therefore retains the source declarations.
-              if (rootScroller) {
-                const html = element as HTMLElement;
-                const previousX = html.style.getPropertyValue("overflow-x");
-                const previousXPriority = html.style.getPropertyPriority("overflow-x");
-                const previousY = html.style.getPropertyValue("overflow-y");
-                const previousYPriority = html.style.getPropertyPriority("overflow-y");
-                try {
-                  if (overflowX === "visible") html.style.setProperty("overflow-x", "auto", "important");
-                  if (overflowY === "visible") html.style.setProperty("overflow-y", "auto", "important");
-                  void html.clientWidth;
-                } finally {
-                  if (previousX !== "") html.style.setProperty("overflow-x", previousX, previousXPriority);
-                  else html.style.removeProperty("overflow-x");
-                  if (previousY !== "") html.style.setProperty("overflow-y", previousY, previousYPriority);
-                  else html.style.removeProperty("overflow-y");
-                  void html.clientWidth;
-                }
-              }
-            },
-            {
-              nodesKey,
-              markerKey,
-              index: candidate.index,
-              markerAttribute,
-              token,
-              route,
-              css: customMarkerCss(markerAttribute, token),
-              thumb: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "thumb")!.rgb),
-              track: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "track")!.rgb),
-              rootScroller: candidate.rootScroller,
-              overflowX: candidate.overflowX,
-              overflowY: candidate.overflowY,
-            },
-          );
-          await candidate.frame.evaluate(
-            () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-          );
-          const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-          const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
-            const png = await page.screenshot({ type: "png" });
-            const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-            const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
-            const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);
-            const scaleX = decoded.info.width / surfaceWidth;
-            const scaleY = decoded.info.height / surfaceHeight;
-            const restriction = {
-              x: Math.max(0, candidate.screenRect.x * scaleX),
-              y: Math.max(0, candidate.screenRect.y * scaleY),
-              width: Math.max(0, candidate.screenRect.width * scaleX),
-              height: Math.max(0, candidate.screenRect.height * scaleY),
-            };
-            return scrollbarMarkerComponents(
-              decoded.data,
-              decoded.info.width,
-              decoded.info.height,
-              restriction,
-              baseline.info.width === decoded.info.width && baseline.info.height === decoded.info.height
-                ? baseline.data
-                : undefined,
-            )
-              .map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))
-              .filter((component): component is ClassifiedComponent => component != null);
-          };
-          components = await classifyScreenshot();
-          if (route === "author-custom") {
-            // The all-parts frame exposes the topmost pieces/thumb/buttons but
-            // those obscure Blink's frame and track background objects. Repaint
-            // each lower layer alone while preserving every source layout value
-            // so their rectangles also remain browser-owned facts.
-            for (const isolatedKind of ["background", "track"] as const) {
-              const css = customMarkerCss(markerAttribute, token, isolatedKind);
-              await candidate.frame.evaluate(
-                ({ markerKey, css }) => {
-                  const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as
-                    { state?: unknown } | undefined;
-                  const state = marker?.state as
-                    | {
-                        style: HTMLStyleElement | null;
-                      }
-                    | undefined;
-                  if (state?.style != null) state.style.textContent = css;
-                },
-                { markerKey, css },
-              );
-              await candidate.frame.evaluate(
-                () =>
-                  new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-              );
-              const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
-              components = [...components.filter(({ kind }) => kind !== isolatedKind), ...isolated];
-            }
-          }
-        } finally {
-          await restoreMarkerPaint(candidate.frame, { nodesKey, markerKey, index: candidate.index, markerAttribute });
-        }
-
-        if (
-          route === "native-raster" &&
-          components.length === 0 &&
-          Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5
-        ) {
-          components = nativeOverlayComponentsFromSource(candidate, overlayFrames, viewport);
-        }
-
-        const styles = (hostStyles ?? {}) as Record<string, CapturedScrollbarPseudoStyle | undefined>;
-        const record = makeScrollbarSet(candidate, route, components, styles);
-        if (route === "native-raster") {
-          await materializeNativeScrollbarSet(record, candidate, viewport, sourceFrame, overlayFrames, fingerprint);
-        } else {
-          await materializeAuthorPartRasters(
-            baselinePng,
-            record,
-            viewport,
-            viewportSize,
-            pseudoCapture.dynamicScrollbarKinds,
-          );
-        }
-        await candidate.frame.evaluate(
-          ({ nodesKey, index, propertyKey, record }) => {
-            const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
-              Element[] | undefined;
-            const element = nodes?.[index];
-            if (element == null) return;
-            Object.defineProperty(element, propertyKey, { value: record, configurable: true });
-          },
-          { nodesKey, index: candidate.index, propertyKey, record },
-        );
-        if (record.status === "partial" || record.status === "unavailable") {
-          warnings.push({
-            selector: candidate.selector,
-            feature: REQUIRED_FACT_FEATURE,
-            detail: `authoritative scrollbar record is ${record.status}; missing ${record.missingFacts.join(", ") || "marker-owned geometry"}; legacy synthesis is disabled`,
-          });
-        }
+        await probeScrollbarCandidate(session, candidate);
       }
     } catch (error) {
       warnings.push({
@@ -1457,39 +1085,590 @@ export async function prepareCapturedScrollbarSets(
       });
     }
 
-    const prepared: PreparedScrollbarCapture = {
-      propertyKey,
-      warnings,
-      async dispose(): Promise<void> {
-        await Promise.all(
-          frameTargets.map(({ frame }) =>
-            frame
-              .evaluate(
-                ({ nodesKey, propertyKey }) => {
-                  const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as
-                    Element[] | undefined;
-                  for (const element of nodes ?? []) {
-                    try {
-                      delete (element as Element & Record<string, unknown>)[propertyKey];
-                    } catch {
-                      /* Detached node. */
-                    }
-                  }
-                },
-                { nodesKey, propertyKey },
-              )
-              .catch(() => undefined),
-          ),
-        );
-        await disposeAll(nodesRegistry, markerRegistry);
-      },
-    };
+    const prepared = buildPreparedScrollbarCapture(propertyKey, warnings, frameTargets, {
+      nodesKey,
+      nodesRegistry,
+      markerRegistry,
+    });
     handedOff = true;
     return prepared;
   } finally {
     if (!handedOff) await disposeAll(nodesRegistry, markerRegistry);
   }
 }
+
+/**
+ * Frames whose scrollbars this pass may probe. Without a frame-scroll capture
+ * only the top frame is probed, described by a legacy identity record.
+ */
+function resolveScrollbarFrameTargets(
+  page: Page,
+  viewport: ScrollbarCaptureViewport,
+  frameScrollCapture: PreparedFrameScrollCapture | undefined,
+): readonly PreparedFrameScrollFrame[] {
+  return (
+    frameScrollCapture?.frames.filter(
+      ({ access, reachableFromTop }) =>
+        reachableFromTop && (access === "top" || access === "same-origin" || access === "cross-origin-allowlisted"),
+    ) ?? [
+      {
+        frame: page.mainFrame(),
+        token: "legacy",
+        frameId: "legacy-top",
+        parentFrameId: null,
+        origin: "",
+        access: "top",
+        allowlistMatched: false,
+        readableFromParent: true,
+        reachableFromTop: true,
+        frameOffsetX: 0,
+        frameOffsetY: 0,
+        frameScaleX: 1,
+        frameScaleY: 1,
+        frameClip: {
+          x: 0,
+          y: 0,
+          width: page.viewportSize()?.width ?? viewport.width,
+          height: page.viewportSize()?.height ?? viewport.height,
+        },
+        axisAligned: true,
+      },
+    ]
+  );
+}
+
+/**
+ * Discover every scrollable owner in every target frame. Rejects when any
+ * frame's discovery rejects, so the caller can fail the whole pass closed.
+ */
+async function discoverScrollbarCandidates(
+  page: Page,
+  frameTargets: readonly PreparedFrameScrollFrame[],
+  args: {
+    selector: string;
+    viewport: ScrollbarCaptureViewport;
+    nodesKey: string;
+    pseudoKey: string;
+    nodesRegistry: PageRegistry<Element[]>;
+    markerRegistry: PageRegistry<{ state?: unknown }>;
+  },
+): Promise<BrowserCandidate[]> {
+  const { selector, viewport, nodesKey, pseudoKey, nodesRegistry, markerRegistry } = args;
+  const discovered = await Promise.allSettled(
+    frameTargets.map(async (target) => {
+      await nodesRegistry.tag(target.frame, () => []);
+      await markerRegistry.tag(target.frame, () => ({}));
+      const local = await evaluateInFrame(target.frame, discoverScrollbarCandidatesInFrame, {
+        selector,
+        viewport,
+        nodesKey,
+        pseudoKey,
+        top: target.frame === page.mainFrame(),
+        frameMeta: {
+          offsetX: target.frameOffsetX,
+          offsetY: target.frameOffsetY,
+          scaleX: target.frameScaleX,
+          scaleY: target.frameScaleY,
+          clip: target.frameClip,
+          axisAligned: target.axisAligned,
+        },
+      });
+      return local.map((candidate) => ({
+        ...candidate,
+        frame: target.frame,
+        frameId: target.frameId,
+        ownerId: `${target.frameId}:${candidate.elementIndex}`,
+        selector:
+          target.frame === page.mainFrame() ? candidate.selector : `frame[${target.frameId}] ${candidate.selector}`,
+      })) as BrowserCandidate[];
+    }),
+  );
+  const failed = discovered.find((result) => result.status === "rejected");
+  if (failed?.status === "rejected") throw failed.reason;
+  return discovered.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+}
+
+/** Native-route candidates whose overlay scrollbars need the source/underlay frame pair. */
+function selectNativeOverlayCandidates(
+  candidates: readonly BrowserCandidate[],
+  pseudoCapture: PseudoScrollbarCapture,
+): BrowserCandidate[] {
+  return candidates.filter(
+    (candidate) =>
+      routeForCandidate(candidate, pseudoCapture) === "native-raster" &&
+      Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5 &&
+      candidate.scrollbarWidth !== "none" &&
+      (candidate.overflowX === "scroll" ||
+        candidate.overflowY === "scroll" ||
+        candidate.scrollWidth > candidate.clientWidth ||
+        candidate.scrollHeight > candidate.clientHeight),
+  );
+}
+
+/**
+ * Build one candidate's scrollbar record from marker-painted geometry, attach
+ * it to the live element, and warn when the record is incomplete.
+ */
+async function probeScrollbarCandidate(session: ScrollbarProbeSession, candidate: BrowserCandidate): Promise<void> {
+  const { page, viewport, pseudoCapture, nodesKey, propertyKey, viewportSize, warnings } = session;
+  const hostStyles = candidate.hostId == null ? undefined : pseudoCapture.stylesByHost[candidate.hostId];
+  const route = routeForCandidate(candidate, pseudoCapture);
+  if (candidate.scrollbarWidth === "none") {
+    const record = makeScrollbarSet(candidate, route, [], {});
+    await candidate.frame.evaluate(attachScrollbarRecordInFrame, {
+      nodesKey,
+      index: candidate.index,
+      propertyKey,
+      record,
+    });
+    return;
+  }
+  const baselinePng = await page.screenshot({ type: "png" });
+  let components = await captureMarkerComponents(session, candidate, route, baselinePng);
+
+  if (
+    route === "native-raster" &&
+    components.length === 0 &&
+    Math.max(candidate.layoutGutterVertical, candidate.layoutGutterHorizontal) <= 0.5
+  ) {
+    components = nativeOverlayComponentsFromSource(candidate, session.overlayFrames, viewport);
+  }
+
+  const styles = (hostStyles ?? {}) as Record<string, CapturedScrollbarPseudoStyle | undefined>;
+  const record = makeScrollbarSet(candidate, route, components, styles);
+  if (route === "native-raster") {
+    await materializeNativeScrollbarSet(
+      record,
+      candidate,
+      viewport,
+      session.sourceFrame,
+      session.overlayFrames,
+      session.fingerprint,
+    );
+  } else {
+    await materializeAuthorPartRasters(
+      baselinePng,
+      record,
+      viewport,
+      viewportSize,
+      pseudoCapture.dynamicScrollbarKinds,
+    );
+  }
+  await candidate.frame.evaluate(attachScrollbarRecordInFrame, {
+    nodesKey,
+    index: candidate.index,
+    propertyKey,
+    record,
+  });
+  if (record.status === "partial" || record.status === "unavailable") {
+    warnings.push({
+      selector: candidate.selector,
+      feature: REQUIRED_FACT_FEATURE,
+      detail: `authoritative scrollbar record is ${record.status}; missing ${record.missingFacts.join(", ") || "marker-owned geometry"}; legacy synthesis is disabled`,
+    });
+  }
+}
+
+/**
+ * Repaint the candidate's scrollbar parts with reserved marker colors, read
+ * their device-pixel components against the unmarked baseline, and always
+ * restore the authored paint.
+ */
+async function captureMarkerComponents(
+  session: ScrollbarProbeSession,
+  candidate: BrowserCandidate,
+  route: CapturedScrollbar["route"],
+  baselinePng: Buffer,
+): Promise<ClassifiedComponent[]> {
+  const { page, viewport, nodesKey, markerKey, markerAttribute, viewportSize } = session;
+  const token = `${candidate.index}-${randomUUID().replaceAll("-", "")}`;
+  let components: ClassifiedComponent[] = [];
+  try {
+    await candidate.frame.evaluate(installMarkerPaintInFrame, {
+      nodesKey,
+      markerKey,
+      index: candidate.index,
+      markerAttribute,
+      token,
+      route,
+      css: customMarkerCss(markerAttribute, token),
+      thumb: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "thumb")!.rgb),
+      track: cssColor(SCROLLBAR_MARKERS.find(({ kind }) => kind === "track")!.rgb),
+      rootScroller: candidate.rootScroller,
+      overflowX: candidate.overflowX,
+      overflowY: candidate.overflowY,
+    });
+    await candidate.frame.evaluate(waitForTwoAnimationFramesInFrame);
+    const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
+      const png = await page.screenshot({ type: "png" });
+      const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
+      const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);
+      const scaleX = decoded.info.width / surfaceWidth;
+      const scaleY = decoded.info.height / surfaceHeight;
+      const restriction = {
+        x: Math.max(0, candidate.screenRect.x * scaleX),
+        y: Math.max(0, candidate.screenRect.y * scaleY),
+        width: Math.max(0, candidate.screenRect.width * scaleX),
+        height: Math.max(0, candidate.screenRect.height * scaleY),
+      };
+      return scrollbarMarkerComponents(
+        decoded.data,
+        decoded.info.width,
+        decoded.info.height,
+        restriction,
+        baseline.info.width === decoded.info.width && baseline.info.height === decoded.info.height
+          ? baseline.data
+          : undefined,
+      )
+        .map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))
+        .filter((component): component is ClassifiedComponent => component != null);
+    };
+    components = await classifyScreenshot();
+    if (route === "author-custom") {
+      // The all-parts frame exposes the topmost pieces/thumb/buttons but
+      // those obscure Blink's frame and track background objects. Repaint
+      // each lower layer alone while preserving every source layout value
+      // so their rectangles also remain browser-owned facts.
+      for (const isolatedKind of ["background", "track"] as const) {
+        const css = customMarkerCss(markerAttribute, token, isolatedKind);
+        await candidate.frame.evaluate(setMarkerCssInFrame, { markerKey, css });
+        await candidate.frame.evaluate(waitForTwoAnimationFramesInFrame);
+        const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
+        components = [...components.filter(({ kind }) => kind !== isolatedKind), ...isolated];
+      }
+    }
+  } finally {
+    await restoreMarkerPaint(candidate.frame, { nodesKey, markerKey, index: candidate.index, markerAttribute });
+  }
+  return components;
+}
+
+/** The handed-off capture whose dispose removes every attached record and registry. */
+function buildPreparedScrollbarCapture(
+  propertyKey: string,
+  warnings: CaptureWarning[],
+  frameTargets: readonly PreparedFrameScrollFrame[],
+  registries: {
+    nodesKey: string;
+    nodesRegistry: PageRegistry<Element[]>;
+    markerRegistry: PageRegistry<{ state?: unknown }>;
+  },
+): PreparedScrollbarCapture {
+  const { nodesKey, nodesRegistry, markerRegistry } = registries;
+  return {
+    propertyKey,
+    warnings,
+    async dispose(): Promise<void> {
+      await Promise.all(
+        frameTargets.map(({ frame }) =>
+          frame.evaluate(clearScrollbarRecordsInFrame, { nodesKey, propertyKey }).catch(() => undefined),
+        ),
+      );
+      await disposeAll(nodesRegistry, markerRegistry);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Frame-evaluated callbacks. Playwright serializes each function's source and
+// runs it in the frame, so these must stay self-contained: no imports and no
+// references to module scope (type aliases are erased at compile time).
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk the frame (piercing open shadow roots) for scrollable owners, record
+ * them in the private node registry, and measure each owner's Blink-used
+ * scrollbar inputs in top-level output coordinates.
+ */
+const discoverScrollbarCandidatesInFrame = ({
+  selector,
+  viewport,
+  nodesKey,
+  pseudoKey,
+  frameMeta,
+  top,
+}: ScrollbarDiscoveryArgs) => {
+  const root = top ? document.querySelector(selector) : document.documentElement;
+  if (root == null) return [];
+  const allElements: Element[] = [];
+  const allIndex = new Map<Element, number>();
+  const allSeen = new Set<Element>();
+  const allStack: Element[] = [document.documentElement];
+  while (allStack.length > 0) {
+    const element = allStack.pop()!;
+    if (allSeen.has(element)) continue;
+    allSeen.add(element);
+    allIndex.set(element, allElements.length);
+    allElements.push(element);
+    const children: Element[] = [...element.children];
+    if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
+    for (let index = children.length - 1; index >= 0; index--) allStack.push(children[index]!);
+  }
+  const nodes: Element[] = [];
+  const seen = new Set<Element>();
+  const stack: Element[] = [root];
+  if (document.scrollingElement != null && !root.contains(document.scrollingElement))
+    stack.push(document.scrollingElement);
+  while (stack.length > 0) {
+    const element = stack.pop()!;
+    if (seen.has(element)) continue;
+    seen.add(element);
+    let style: CSSStyleDeclaration;
+    try {
+      style = getComputedStyle(element);
+    } catch {
+      continue;
+    }
+    const rootScroller = element === document.scrollingElement;
+    const html = element as HTMLElement;
+    const rootRange =
+      rootScroller &&
+      ((style.overflowX !== "hidden" && style.overflowX !== "clip" && html.scrollWidth > html.clientWidth) ||
+        (style.overflowY !== "hidden" && style.overflowY !== "clip" && html.scrollHeight > html.clientHeight) ||
+        style.scrollbarGutter !== "auto");
+    if (["auto", "scroll"].includes(style.overflowX) || ["auto", "scroll"].includes(style.overflowY) || rootRange)
+      nodes.push(element);
+    const children: Element[] = [...element.children];
+    if (element.shadowRoot != null) children.push(...element.shadowRoot.children);
+    for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]!);
+  }
+  const storedNodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[];
+  storedNodes.push(...nodes);
+  const globalRect = (rect: { x: number; y: number; width: number; height: number }) => ({
+    x: frameMeta.offsetX + rect.x * frameMeta.scaleX,
+    y: frameMeta.offsetY + rect.y * frameMeta.scaleY,
+    width: rect.width * frameMeta.scaleX,
+    height: rect.height * frameMeta.scaleY,
+  });
+  const intersect = (
+    left: { x: number; y: number; width: number; height: number },
+    right: { x: number; y: number; width: number; height: number },
+  ) => {
+    const x = Math.max(left.x, right.x);
+    const y = Math.max(left.y, right.y);
+    const r = Math.min(left.x + left.width, right.x + right.width);
+    const b = Math.min(left.y + left.height, right.y + right.height);
+    return { x, y, width: Math.max(0, r - x), height: Math.max(0, b - y) };
+  };
+  return nodes.map((element, index) => {
+    const style = getComputedStyle(element);
+    const rootScroller = element === document.scrollingElement;
+    const measuredRect = element.getBoundingClientRect();
+    const localRect = rootScroller
+      ? { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
+      : { x: measuredRect.x, y: measuredRect.y, width: measuredRect.width, height: measuredRect.height };
+    const rect = globalRect(localRect);
+    let clip = { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height };
+    let hasOverflowControlsClip = !top;
+    if (frameMeta.clip != null) clip = intersect(clip, frameMeta.clip);
+    let clipExact =
+      frameMeta.axisAligned && style.clipPath === "none" && style.maskImage === "none" && style.borderRadius === "0px";
+    for (let ancestor = element.parentElement; ancestor != null; ancestor = ancestor.parentElement) {
+      const ancestorStyle = getComputedStyle(ancestor);
+      const clipsOverflow = [ancestorStyle.overflowX, ancestorStyle.overflowY].some((value) => value !== "visible");
+      if (
+        ancestorStyle.clipPath !== "none" ||
+        ancestorStyle.maskImage !== "none" ||
+        (clipsOverflow && (ancestorStyle.transform !== "none" || ancestorStyle.borderRadius !== "0px"))
+      )
+        clipExact = false;
+      if (clipsOverflow) {
+        hasOverflowControlsClip = true;
+        const ancestorRect = ancestor.getBoundingClientRect();
+        clip = intersect(
+          clip,
+          globalRect({
+            x: ancestorRect.x + ancestor.clientLeft,
+            y: ancestorRect.y + ancestor.clientTop,
+            width: ancestor.clientWidth,
+            height: ancestor.clientHeight,
+          }),
+        );
+      }
+    }
+    let zoom = 1;
+    let axisAlignedOutput = frameMeta.axisAligned;
+    for (let current: Element | null = element; current != null; current = current.parentElement) {
+      const currentStyle = getComputedStyle(current);
+      const value = Number.parseFloat(currentStyle.zoom || "1");
+      if (Number.isFinite(value) && value > 0) zoom *= value;
+      if (currentStyle.transform !== "none") {
+        try {
+          const matrix = new DOMMatrixReadOnly(currentStyle.transform);
+          if (!matrix.is2D || Math.abs(matrix.b) > 1e-7 || Math.abs(matrix.c) > 1e-7) axisAlignedOutput = false;
+        } catch {
+          axisAlignedOutput = false;
+        }
+      }
+    }
+    const borderLeft = Number.parseFloat(style.borderLeftWidth) || 0;
+    const borderRight = Number.parseFloat(style.borderRightWidth) || 0;
+    const borderTop = Number.parseFloat(style.borderTopWidth) || 0;
+    const borderBottom = Number.parseFloat(style.borderBottomWidth) || 0;
+    const layoutWidth = element instanceof HTMLElement ? element.offsetWidth : localRect.width / zoom;
+    const layoutHeight = element instanceof HTMLElement ? element.offsetHeight : localRect.height / zoom;
+    const selectorText = element.id !== "" ? `${element.localName}#${element.id}` : element.localName;
+    return {
+      index,
+      elementIndex: allIndex.get(element) ?? -1,
+      hostId: pseudoKey === "" ? undefined : (element as Element & Record<string, string>)[pseudoKey],
+      selector: selectorText,
+      screenRect: rect,
+      outputRect: { x: rect.x - viewport.x, y: rect.y - viewport.y, width: rect.width, height: rect.height },
+      clipRect: { x: clip.x - viewport.x, y: clip.y - viewport.y, width: clip.width, height: clip.height },
+      hasOverflowControlsClip,
+      clipExact,
+      overflowX: style.overflowX,
+      overflowY: style.overflowY,
+      scrollbarWidth: style.scrollbarWidth || "auto",
+      scrollbarColor: style.scrollbarColor || "auto",
+      scrollbarGutter: style.scrollbarGutter || "auto",
+      colorScheme: style.colorScheme || "normal",
+      direction: style.direction,
+      writingMode: style.writingMode,
+      visibility: style.visibility,
+      scrollWidth: (element as HTMLElement).scrollWidth ?? 0,
+      scrollHeight: (element as HTMLElement).scrollHeight ?? 0,
+      clientWidth: (element as HTMLElement).clientWidth ?? 0,
+      clientHeight: (element as HTMLElement).clientHeight ?? 0,
+      scrollLeft: (element as HTMLElement).scrollLeft ?? 0,
+      scrollTop: (element as HTMLElement).scrollTop ?? 0,
+      layoutGutterVertical: Math.max(0, layoutWidth - (element as HTMLElement).clientWidth - borderLeft - borderRight),
+      layoutGutterHorizontal: Math.max(
+        0,
+        layoutHeight - (element as HTMLElement).clientHeight - borderTop - borderBottom,
+      ),
+      borderTop,
+      borderRight,
+      borderBottom,
+      borderLeft,
+      effectiveZoom: zoom,
+      devicePixelRatio: window.devicePixelRatio,
+      forcedColors: matchMedia("(forced-colors: active)").matches,
+      prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
+      axisAlignedOutput,
+      hostHovered: element.matches(":hover"),
+      hostPressed: element.matches(":active"),
+      rootScroller,
+    };
+  });
+};
+
+/**
+ * Point the candidate's scrollbar parts at the reserved marker colors: a
+ * scoped pseudo stylesheet for author WebKit scrollbars, otherwise the
+ * standard `scrollbar-color` property. Saves the authored state first.
+ */
+const installMarkerPaintInFrame = ({
+  nodesKey,
+  markerKey,
+  index,
+  markerAttribute,
+  token,
+  route,
+  css,
+  thumb,
+  track,
+  rootScroller,
+  overflowX,
+  overflowY,
+}: MarkerPaintArgs): void => {
+  const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
+  const element = nodes?.[index];
+  if (!(element instanceof HTMLElement || element instanceof SVGElement)) return;
+  const state = {
+    hadAttribute: element.hasAttribute(markerAttribute),
+    attributeValue: element.getAttribute(markerAttribute),
+    scrollbarColor: (element as HTMLElement).style.getPropertyValue("scrollbar-color"),
+    scrollbarColorPriority: (element as HTMLElement).style.getPropertyPriority("scrollbar-color"),
+    style: null as HTMLStyleElement | null,
+  };
+  const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as {
+    state?: unknown;
+  };
+  marker.state = state;
+  if (route === "author-custom") {
+    element.setAttribute(markerAttribute, token);
+    const style = element.ownerDocument.createElement("style");
+    style.textContent = css;
+    const owner = element.getRootNode();
+    if (owner instanceof ShadowRoot) owner.append(style);
+    else (element.ownerDocument.head ?? element.ownerDocument.documentElement).append(style);
+    state.style = style;
+  } else {
+    (element as HTMLElement).style.setProperty("scrollbar-color", `${thumb} ${track}`, "important");
+  }
+  // Blink propagates `visible` root overflow to the viewport as used
+  // `auto`, but a newly inserted root pseudo rule does not invalidate
+  // that already-built scrollbar. Flip only those visible longhands to
+  // their equivalent used value and restore them synchronously; the
+  // measured animation frame therefore retains the source declarations.
+  if (rootScroller) {
+    const html = element as HTMLElement;
+    const previousX = html.style.getPropertyValue("overflow-x");
+    const previousXPriority = html.style.getPropertyPriority("overflow-x");
+    const previousY = html.style.getPropertyValue("overflow-y");
+    const previousYPriority = html.style.getPropertyPriority("overflow-y");
+    try {
+      if (overflowX === "visible") html.style.setProperty("overflow-x", "auto", "important");
+      if (overflowY === "visible") html.style.setProperty("overflow-y", "auto", "important");
+      void html.clientWidth;
+    } finally {
+      if (previousX !== "") html.style.setProperty("overflow-x", previousX, previousXPriority);
+      else html.style.removeProperty("overflow-x");
+      if (previousY !== "") html.style.setProperty("overflow-y", previousY, previousYPriority);
+      else html.style.removeProperty("overflow-y");
+      void html.clientWidth;
+    }
+  }
+};
+
+/** Swap the installed marker stylesheet's text, e.g. to isolate one lower layer. */
+const setMarkerCssInFrame = ({ markerKey, css }: { markerKey: string; css: string }): void => {
+  const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as
+    { state?: unknown } | undefined;
+  const state = marker?.state as
+    | {
+        style: HTMLStyleElement | null;
+      }
+    | undefined;
+  if (state?.style != null) state.style.textContent = css;
+};
+
+const waitForTwoAnimationFramesInFrame = (): Promise<void> =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+/** Define the private scrollbar record expando read by CAPTURE_SCRIPT. */
+const attachScrollbarRecordInFrame = ({
+  nodesKey,
+  index,
+  propertyKey,
+  record,
+}: {
+  nodesKey: string;
+  index: number;
+  propertyKey: string;
+  record: CapturedScrollbarSet;
+}): void => {
+  const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
+  const element = nodes?.[index];
+  if (element == null) return;
+  Object.defineProperty(element, propertyKey, { value: record, configurable: true });
+};
+
+/** Remove every private scrollbar record expando from the registered nodes. */
+const clearScrollbarRecordsInFrame = ({ nodesKey, propertyKey }: { nodesKey: string; propertyKey: string }): void => {
+  const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[nodesKey] as Element[] | undefined;
+  for (const element of nodes ?? []) {
+    try {
+      delete (element as Element & Record<string, unknown>)[propertyKey];
+    } catch {
+      /* Detached node. */
+    }
+  }
+};
 
 /** ScrollableAreaPainter paints the resizer after the corner. */
 export function finalizeScrollbarResizerOverlap(elements: CapturedElement[]): void {
