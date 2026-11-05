@@ -49,7 +49,10 @@ upstream source traces, corpora, and retained runs remain in the linked records.
    APIs: CoreText on macOS, Fontconfig/FreeType on Linux, and DirectWrite on
    Windows. Native helpers are acquired and authenticated on demand; missing
    helpers retain an explicit compatibility boundary.
-4. Text normally emits glyph outlines as SVG paths. Bitmap/color glyphs and
+4. Text emits the selected glyphs in the active render-text mode (item 7): by
+   default as `<text>` against an embedded subset of the source font (a
+   `data:` `@font-face`), or as glyph-outline SVG paths in `paths` mode.
+   Bitmap/color glyphs and
    paint-only effects use their declared specialized route. Placement stays in
    captured physical coordinates, including fragmentation, transforms, zoom,
    vertical orientation, and generated content.
