@@ -33,6 +33,8 @@ export default defineConfig({
       DOMOTION_NO_OPEN: "1",
     },
     testTimeout: 30_000,
+    // Keep hooks on the same budget as tests (Vitest's hook default is 10 s).
+    hookTimeout: 30_000,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts", "tests/**/*.test.tsx"],
     exclude: [
       "**/node_modules/**",

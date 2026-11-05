@@ -40,6 +40,11 @@ export default defineConfig({
       REVIEW_NO_OPEN: "1",
     },
     testTimeout: 60_000,
+    // Hooks keep Vitest's 10 s default unless set. Many browser files launch
+    // Chromium or load a page in `beforeAll`, which can exceed 10 s on a loaded
+    // runner and fail with "Hook timed out" for no functional reason, so hooks
+    // get the same budget as tests.
+    hookTimeout: 60_000,
     // Only named hosted-runner transients are retried; see
     // `E2E_HOST_TRANSIENT_RETRY`.
     retry: E2E_HOST_TRANSIENT_RETRY,

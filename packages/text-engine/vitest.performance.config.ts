@@ -13,6 +13,8 @@ export default defineConfig({
     globalSetup: [resolve(packageRoot, "vitest.global.ts")],
     env: { DOMOTION_NO_OPEN: "1" },
     testTimeout: 30_000,
+    // Keep hooks on the same budget as tests (Vitest's hook default is 10 s).
+    hookTimeout: 30_000,
     include: ["packages/text-engine/src/render/helper-serve-switch.test.ts"],
   },
 });
