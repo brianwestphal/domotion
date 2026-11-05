@@ -3845,7 +3845,9 @@
         "src/studio/client.tsx",
         "scripts/build-studio-client.mjs",
         "src/studio/app-projects.test.ts",
-        "src/studio/server.e2e.test.ts"
+        "src/studio/server.e2e.test.ts",
+        "src/utils/local-server.ts",
+        "src/utils/local-server.e2e.test.ts"
       ],
       "file": "240-studio-application-shell.md"
     },

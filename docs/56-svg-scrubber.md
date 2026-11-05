@@ -167,6 +167,13 @@ follow-up and reuse the same `svg-to-video` / per-frame machinery.
 - `src/scrubber/server.ts` — HTTP server: static shell + client bundle;
   `/timing`, `/trim`, `/export-frame`, `/export-range-video` endpoints; one
   reused Chromium page (Chromium work is serialized — one export at a time).
+  It binds to `127.0.0.1` and inherits the shared cross-site guard in
+  `src/utils/local-server.ts`: a foreign `Host` (DNS rebinding) answers 403 for
+  every method, and a POST must come from the scrubber's own origin (or carry
+  no `Origin`, as curl and scripts do) and declare
+  `content-type: application/json`, else 403 / 415. A web page the user has
+  open therefore cannot feed SVG to the server's Chromium or write review
+  tickets. See doc 240, "Cross-site request guard", for the full rule.
 - `src/scrubber/client.tsx` — the kerfjs page-side UI (bundled to `/client.js` by
   `scripts/build-scrubber-client.mjs`, baked into `client.bundle.generated.ts`).
 - `src/scrubber/trim.ts` — the pure window-slice + re-base transform.

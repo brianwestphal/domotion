@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio", "ui"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2687", "DM-S31XF3"]
+tickets: ["DM-2687", "DM-S31XF3", "DM-1X1GQ8"]
 code:
   [
     "src/cli/studio.ts",
@@ -16,6 +16,8 @@ code:
     "scripts/build-studio-client.mjs",
     "src/studio/app-projects.test.ts",
     "src/studio/server.e2e.test.ts",
+    "src/utils/local-server.ts",
+    "src/utils/local-server.e2e.test.ts",
   ]
 aliases: ["docs/240-studio-application-shell.md", "doc-240"]
 ---
@@ -125,6 +127,32 @@ actionable `$.version` error in the app rather than a generic load failure.
 The HTML bootstrap escapes script-closing markup before embedding project data.
 The server exposes no arbitrary read/write endpoint and never accepts a client
 supplied workspace root.
+
+### Cross-site request guard
+
+Binding to `127.0.0.1` keeps other machines out, but any web page open in the
+user's browser can still reach a loopback port. Every request therefore passes
+`checkLocalRequest` (`src/utils/local-server.ts`) before routing, so Studio, the
+standalone and embedded Scrubber, and `svg-review` share one guard:
+
+- The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`; anything
+  else answers 403, for GET too. This defeats DNS rebinding, where a hostile
+  domain re-resolves to 127.0.0.1 and would otherwise read responses.
+- A request other than GET/HEAD that carries an `Origin` must carry the
+  server's own origin (403 otherwise; `Origin: null` is refused). Browsers send
+  `Origin` on every cross-origin POST, including `no-cors` ones.
+- A request other than GET/HEAD must declare `content-type: application/json`
+  (415 otherwise). A cross-origin page can send `text/plain` or form bodies
+  without a CORS preflight, but not JSON, and the server never approves a
+  preflight.
+
+Requests without an `Origin` (curl, Node `fetch`, scripted tests) are accepted
+when they send the right `Host` and a JSON body, so local automation keeps
+working. `src/utils/local-server.e2e.test.ts` drives Chromium from a second
+loopback origin and proves a cross-site save, scrubber ticket write and
+rebinding read are refused with no side effect. The guard does not
+authenticate other local processes or users; any program on the machine that
+can open the port can still call the API.
 
 ## First visual workflow
 

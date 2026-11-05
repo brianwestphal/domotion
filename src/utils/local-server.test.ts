@@ -1,10 +1,12 @@
 import { Readable } from "node:stream";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   HttpError,
+  checkLocalRequest,
   createRouter,
+  startLocalServer,
   errorResponseFor,
   readJsonBody,
   readRequestBody,
@@ -179,5 +181,107 @@ describe("createRouter", () => {
 
   it("errorResponseFor treats a non-Error throw as a 500 with its string form", () => {
     expect(errorResponseFor("nope")).toEqual({ status: 500, body: { error: "nope" } });
+  });
+});
+
+describe("checkLocalRequest (cross-site guard)", () => {
+  const PORT = 4321;
+  const req = (method: string, headers: Record<string, string>) =>
+    ({ method, url: "/api/save", headers }) as unknown as IncomingMessage;
+  const own = { host: `127.0.0.1:${PORT}` };
+  const json = { "content-type": "application/json" };
+
+  it("accepts the server's own host, under either loopback name, for reads", () => {
+    expect(checkLocalRequest(req("GET", own), PORT)).toBeNull();
+    expect(checkLocalRequest(req("HEAD", { host: `LOCALHOST:${PORT}` }), PORT)).toBeNull();
+  });
+
+  it("refuses a foreign or missing Host with 403, for GET as well (DNS rebinding)", () => {
+    for (const host of [
+      `evil.example:${PORT}`,
+      "127.0.0.1",
+      `127.0.0.1:${PORT + 1}`,
+      `localhost.evil.example:${PORT}`,
+    ]) {
+      expect(checkLocalRequest(req("GET", { host }), PORT)).toMatchObject({ status: 403 });
+    }
+    expect(checkLocalRequest(req("GET", {}), PORT)).toMatchObject({ status: 403 });
+    expect(checkLocalRequest(req("POST", { host: `evil.example:${PORT}`, ...json }), PORT)).toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("accepts a same-origin JSON POST, and one without Origin from a non-browser client", () => {
+    expect(checkLocalRequest(req("POST", { ...own, ...json, origin: `http://127.0.0.1:${PORT}` }), PORT)).toBeNull();
+    const localhost = {
+      host: `localhost:${PORT}`,
+      "content-type": "Application/JSON; charset=utf-8",
+      origin: `http://localhost:${PORT}`,
+    };
+    expect(checkLocalRequest(req("POST", localhost), PORT)).toBeNull();
+    expect(checkLocalRequest(req("POST", { ...own, ...json }), PORT)).toBeNull();
+  });
+
+  it("refuses a cross-origin or opaque-origin state-changing request with 403", () => {
+    for (const origin of [
+      "https://evil.example",
+      `http://127.0.0.1:${PORT + 1}`,
+      `https://127.0.0.1:${PORT}`,
+      "null",
+    ]) {
+      expect(checkLocalRequest(req("POST", { ...own, ...json, origin }), PORT)).toMatchObject({ status: 403 });
+    }
+    expect(checkLocalRequest(req("DELETE", { ...own, ...json, origin: "https://evil.example" }), PORT)).toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("refuses a state-changing request whose body is not declared JSON with 415 (the no-preflight path)", () => {
+    for (const contentType of [
+      "text/plain",
+      "text/plain;charset=UTF-8",
+      "application/x-www-form-urlencoded",
+      "multipart/form-data",
+      "",
+    ]) {
+      const headers: Record<string, string> = contentType === "" ? { ...own } : { ...own, "content-type": contentType };
+      expect(checkLocalRequest(req("POST", headers), PORT)).toMatchObject({ status: 415 });
+    }
+    expect(checkLocalRequest(req("PUT", { ...own, "content-type": "application/jsonx" }), PORT)).toMatchObject({
+      status: 415,
+    });
+  });
+
+  it("is enforced by startLocalServer before the handler runs", async () => {
+    const hits: string[] = [];
+    const local = await startLocalServer((r, res) => {
+      hits.push(`${r.method} ${r.url}`);
+      sendJson(res, 200, { ok: true });
+    });
+    const send = (method: string, headers: Record<string, string>, payload?: string) =>
+      new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const r = httpRequest({ host: "127.0.0.1", port: local.port, path: "/x", method, headers }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (c: Buffer) => chunks.push(c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+        });
+        r.on("error", reject);
+        r.end(payload);
+      });
+    try {
+      const self = `127.0.0.1:${local.port}`;
+      expect((await send("GET", { host: self })).status).toBe(200);
+      expect((await send("POST", { host: self, ...json, origin: `http://${self}` }, "{}")).status).toBe(200);
+      const rebound = await send("GET", { host: `evil.example:${local.port}` });
+      expect(rebound.status).toBe(403);
+      expect(JSON.parse(rebound.body)).toMatchObject({ error: expect.stringContaining("evil.example") as unknown });
+      expect((await send("POST", { host: self, ...json, origin: "https://evil.example" }, "{}")).status).toBe(403);
+      expect((await send("POST", { host: self, "content-type": "text/plain" }, "{}")).status).toBe(415);
+      // Node's fetch sends the real Host and no Origin, so ordinary scripted clients keep working.
+      expect((await fetch(local.url, { method: "POST", headers: json, body: "{}" })).status).toBe(200);
+      expect(hits).toEqual(["GET /x", "POST /x", "POST /"]);
+    } finally {
+      await local.close();
+    }
   });
 });

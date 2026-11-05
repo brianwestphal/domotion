@@ -5268,7 +5268,7 @@
         "status": "current",
         "owners": ["studio", "ui"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2687", "DM-S31XF3"],
+        "tickets": ["DM-2687", "DM-S31XF3", "DM-1X1GQ8"],
         "code": [
           "src/cli/studio.ts",
           "src/studio/app-projects.ts",
@@ -5277,7 +5277,9 @@
           "src/studio/client.tsx",
           "scripts/build-studio-client.mjs",
           "src/studio/app-projects.test.ts",
-          "src/studio/server.e2e.test.ts"
+          "src/studio/server.e2e.test.ts",
+          "src/utils/local-server.ts",
+          "src/utils/local-server.e2e.test.ts"
         ],
         "aliases": ["docs/240-studio-application-shell.md", "doc-240"]
       }

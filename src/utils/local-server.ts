@@ -14,18 +14,73 @@ export interface LocalServer {
   close: () => Promise<void>;
 }
 
+/** Why `checkLocalRequest` refused a request: the status to answer with and a short reason. */
+export interface LocalRequestRejection {
+  status: 403 | 415;
+  message: string;
+}
+
+const SAFE_METHODS = new Set(["GET", "HEAD"]);
+
+/**
+ * The cross-site guard every local server inherits through `startLocalServer`. The servers bind
+ * to `127.0.0.1`, but any page open in the user's browser can still reach that address, so
+ * loopback binding alone does not keep other sites out:
+ *
+ * - **Host.** The `Host` header must name this server (`127.0.0.1:<port>` or `localhost:<port>`).
+ *   A DNS-rebinding page reaches the port under its own hostname, so its `Host` is that hostname;
+ *   refusing it (for GET too) stops a hostile domain that re-resolves to 127.0.0.1 from reading
+ *   responses.
+ * - **Origin.** A state-changing request (anything but GET/HEAD) that carries an `Origin` must
+ *   carry this server's own origin. Browsers send `Origin` on every cross-origin POST, including
+ *   `no-cors` "simple" requests, so this refuses cross-site request forgery. A request with no
+ *   `Origin` (curl, Node `fetch`, Playwright's request API) does not come from a web page and is
+ *   allowed. `Origin: null` (sandboxed frames, `file:` pages) is refused.
+ * - **Content-Type.** A state-changing request must declare `application/json`. A cross-origin
+ *   page can send `text/plain` without a CORS preflight but not `application/json`, and none of
+ *   these servers ever approves a preflight, so this closes the simple-request path even without
+ *   the Origin check.
+ *
+ * Returns `null` for an acceptable request. `port` is the local port the request arrived on.
+ */
+export function checkLocalRequest(req: IncomingMessage, port: number): LocalRequestRejection | null {
+  const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
+  const host = req.headers.host ?? "";
+  if (!allowedHosts.includes(host.toLowerCase())) {
+    return { status: 403, message: `refused request for host ${JSON.stringify(host)}` };
+  }
+  if (SAFE_METHODS.has((req.method ?? "GET").toUpperCase())) return null;
+  const origin = req.headers.origin;
+  if (origin != null && !allowedHosts.some((allowed) => origin.toLowerCase() === `http://${allowed}`)) {
+    return { status: 403, message: `refused cross-origin request from ${JSON.stringify(origin)}` };
+  }
+  const mediaType = (req.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    return { status: 415, message: "state-changing requests must send content-type: application/json" };
+  }
+  return null;
+}
+
 /**
  * Bind an HTTP handler to `127.0.0.1` on `port` (0 = an ephemeral port),
  * resolving once it's listening. Shared bind / port-resolve / close scaffolding
- * for the local `svg-review` + `svg-scrubber` servers (DM-1434). The handler may
- * be sync or async; a rejected async handler is swallowed here, so each server
- * wraps its own try/catch for per-request error responses.
+ * for the local `svg-review`, `svg-scrubber` and Studio servers (DM-1434). Every
+ * request first passes `checkLocalRequest`: a foreign `Host`, a cross-origin
+ * `Origin` or a non-JSON state-changing body is answered 403 / 415 before the
+ * handler runs. The handler may be sync or async; a rejected async handler is
+ * swallowed here, so each server wraps its own try/catch for per-request error
+ * responses.
  */
 export async function startLocalServer(
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>,
   port = 0,
 ): Promise<LocalServer> {
   const server = createServer((req, res) => {
+    const rejection = checkLocalRequest(req, req.socket.localPort ?? port);
+    if (rejection != null) {
+      sendJson(res, rejection.status, { error: rejection.message });
+      return;
+    }
     void handler(req, res);
   });
   const boundPort = await new Promise<number>((resolve, reject) => {

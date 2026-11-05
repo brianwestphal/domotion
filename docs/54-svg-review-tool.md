@@ -142,7 +142,11 @@ reminds the user to paste the text into the issue body and attach
   opens the URL.
 - `src/review/server.ts` — the HTTP server. Serves the static UI bundle and
   the three captured images. Distilled from `tests/review-server.tsx` but
-  stripped of the Hot Sheet integration (consumers don't have access).
+  stripped of the Hot Sheet integration (consumers don't have access). It binds
+  to `127.0.0.1` through `startLocalServer` and so inherits the shared
+  cross-site guard: a request whose `Host` is not `127.0.0.1:<port>` or
+  `localhost:<port>` answers 403, so a DNS-rebinding page cannot read the
+  captured images (doc 240, "Cross-site request guard").
 - `src/review/client.tsx` — the page-side script. Reuses
   `src/review/region-overlay.ts` for drawing/resizing rects and adds the
   Markdown-builder + clipboard-copy panel.
