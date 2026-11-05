@@ -35,4 +35,6 @@ fallback.
 
 The renderer continues to consume the same URL/size caches, but the strict
 cache key is the frozen PNG URI. Repeated owners therefore deduplicate only the
-already-authenticated still. CSS/SVG slot extension remains DM-2581.
+already-authenticated still. The SVG/CSS slot extension shipped under DM-2581
+([doc 236](236-strict-static-frames-for-svg-css-images.md)); generated pseudos,
+shadow owners, and `image-set()` still fail closed.

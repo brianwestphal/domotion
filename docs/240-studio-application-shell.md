@@ -148,7 +148,7 @@ timing are specified in `docs/252-studio-real-interaction-import.md`.
 The zoomable, keyboard-accessible multitrack timing editor is specified in
 `docs/253-studio-detailed-multitrack-timeline.md`.
 
-The responsive two-column layout collapses to one column below 800 CSS pixels,
+The responsive two-column layout collapses to one column at or below 800 CSS pixels,
 all controls retain visible keyboard focus, status/errors use live regions, and
 the complete workflow has a real Chromium E2E assertion. The client is authored
 in `src/studio/client.tsx`, bundled to a checked-in generated TypeScript string,

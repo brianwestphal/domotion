@@ -5950,6 +5950,8 @@
           "docs/handbook/major-release-visual-capture.md",
           "docs/26-self-contained-svgs.md",
           "tests/kerf-client-uis.e2e.test.ts",
+          "src/studio/server.e2e.test.ts",
+          "src/studio/timeline.e2e.test.ts",
           ".github/workflows/generic-profile-target-parity.yml",
           ".github/workflows/windows-fidelity.yml"
         ],

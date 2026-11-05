@@ -28,8 +28,11 @@ Omitting the option preserves legacy capture: no CDP session, Network domain,
 document nonce, byte record, warning, timing change, or new failure.
 
 The first production increment covers `<img>` (including a `<picture>`-selected
-`currentSrc`) and `<input type=image>`. SVG and CSS/pseudo/shadow image slots are
-owned by DM-2581. The macOS/Linux stock-CDP gate in DM-2584 further limits this
+`currentSrc`) and `<input type=image>`. DM-2581 later added SVG `<image href>`
+and ordinary CSS image slots (`background-image`, `border-image-source`,
+`mask-image`, `list-style-image`) through the request's `slot` field; generated
+pseudos, shadow owners, and `image-set()` / other image functions still fail
+closed — see [doc 236](236-strict-static-frames-for-svg-css-images.md). The macOS/Linux stock-CDP gate in DM-2584 further limits this
 increment to same-origin HTTP(S), settled same-origin redirects, ordinary
 `data:` URLs, and same-partition `blob:` URLs. CORS, cache/revalidation,
 service-worker/CacheStorage, repeated-URL ambiguity, multipart, and every

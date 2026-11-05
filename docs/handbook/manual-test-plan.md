@@ -11,6 +11,8 @@ code:
     "docs/handbook/major-release-visual-capture.md",
     "docs/26-self-contained-svgs.md",
     "tests/kerf-client-uis.e2e.test.ts",
+    "src/studio/server.e2e.test.ts",
+    "src/studio/timeline.e2e.test.ts",
     ".github/workflows/generic-profile-target-parity.yml",
     ".github/workflows/windows-fidelity.yml",
   ]
@@ -54,12 +56,12 @@ particular release.
 
 ## Automated Coverage Summary
 
-| Area                                                     | Automated coverage                                                                                                                                                                   | Remaining human judgment                                                                               |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| Public demos and site                                    | Example generation, site build, visual regression suites, and release capture/decode evidence in the [release checklist](major-release-visual-capture.md).                           | Approve appearance, pacing, legibility, and public claims.                                             |
-| Self-contained SVGs                                      | Embed and hoist unit tests plus browser E2E tests listed in [doc 26](../26-self-contained-svgs.md).                                                                                  | Check a native macOS viewer's handling of the distributed SVG.                                         |
-| Studio and Scrubber interactions                         | `tests/kerf-client-uis.e2e.test.ts` drives both browser UIs; server E2E tests cover HTTP behavior.                                                                                   | No standing manual-only interaction check. Add one here if a new behavior cannot be asserted reliably. |
-| Authenticated browser profiles and Windows font fidelity | `.github/workflows/generic-profile-target-parity.yml` and `.github/workflows/windows-fidelity.yml` run automated platform gates, including their headed or manually dispatched legs. | Dispatching a workflow is an execution choice, not a manual test.                                      |
+| Area                                                     | Automated coverage                                                                                                                                                                                                              | Remaining human judgment                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Public demos and site                                    | Example generation, site build, visual regression suites, and release capture/decode evidence in the [release checklist](major-release-visual-capture.md).                                                                      | Approve appearance, pacing, legibility, and public claims.                                             |
+| Self-contained SVGs                                      | Embed and hoist unit tests plus browser E2E tests listed in [doc 26](../26-self-contained-svgs.md).                                                                                                                             | Check a native macOS viewer's handling of the distributed SVG.                                         |
+| Studio and Scrubber interactions                         | The Studio browser UI is driven by `src/studio/server.e2e.test.ts` and `src/studio/timeline.e2e.test.ts`; `tests/kerf-client-uis.e2e.test.ts` drives the review and Scrubber browser UIs; server E2E tests cover HTTP behavior. | No standing manual-only interaction check. Add one here if a new behavior cannot be asserted reliably. |
+| Authenticated browser profiles and Windows font fidelity | `.github/workflows/generic-profile-target-parity.yml` and `.github/workflows/windows-fidelity.yml` run automated platform gates, including their headed or manually dispatched legs.                                            | Dispatching a workflow is an execution choice, not a manual test.                                      |
 
 When an item gains reliable automated coverage, remove its manual procedure and
 update this summary with the test or workflow that now owns it.

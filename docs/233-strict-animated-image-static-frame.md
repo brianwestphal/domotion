@@ -41,6 +41,9 @@ through `src`. The later captured tree therefore cannot retain the animated
 source or decoder continuation. Errors are stable fail-closed codes and never
 contain source bytes, digests, URLs, or decoder exception text.
 
-CSS, SVG, pseudo and shadow image owners remain DM-2581. Downstream resizing
-and final serialization provenance remain DM-2580. Live playback and visual
-tolerance changes are unsupported.
+SVG `<image href>` and ordinary computed CSS image slots shipped later under
+DM-2581 ([doc 236](236-strict-static-frames-for-svg-css-images.md)); generated
+pseudo and shadow image owners and `image-set()` still fail closed. Downstream
+resizing and final serialization provenance shipped under DM-2580
+([doc 234](234-frozen-animated-image-downstream-ownership.md)). Live playback
+and visual tolerance changes are unsupported.

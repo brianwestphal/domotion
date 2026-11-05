@@ -65,6 +65,11 @@ Docs: [176-source-owned-pseudo-fragment-capture.md](../176-source-owned-pseudo-f
 
 ## Element-level fallbacks
 
+Letters E1–E3 are intentionally unused: they named vertical writing-mode text,
+`<textarea>` content, and text-flavored `<input>` screenshots, which were all
+retired when those paths became native SVG. The remaining letters are kept so
+existing cross-references (for example "§E4") stay stable.
+
 ### E4. Replaced elements — `<iframe>` / `<canvas>` / `<video>` / `<object>` / `<embed>` and custom elements with open shadow DOM
 
 Trigger: tag is one of those five, OR a custom element (hyphenated tag with `shadowRoot != null`). **Exception (DM-1441):** a same-origin `<iframe>` is NOT rastered — its document is recursed into native SVG instead (see below).
@@ -120,14 +125,6 @@ The affine/non-affine boundary is also covered by
 `npm run transform:geometry-oracle`, `npm run raster:boundary-oracle`, and the
 focused inline-SVG route/pixel oracle.
 
-### E8. Inline SVG with an external `<use>` that cannot be inlined
-
-Trigger: a `<use href="file.svg#id">` inside an inline `<svg>` names an element in another file that the capture cannot inline faithfully: the document failed to load (HTTP error, timeout, not well-formed SVG), is cross-origin or not http(s), its stylesheet cannot be scoped, a nested file chain exceeds the bounded prefetch depth or document count, its nested use chain exceeds the inline recursion limit, or the reference names no element id. A document that loads but simply lacks the element is not a trigger: Chromium paints nothing for it either, so the dangling `<use>` is already faithful and only a warning is emitted.
-
-Why: the capture script is synchronous, so `src/capture/external-svg-use.ts` prefetches the bounded same-origin document graph first and the script inlines targets from it, as it does for a same-document `#id`. External styles are scoped to each vector copy, referenced fragment resources are copied under unique ids, and nested uses resolve against their source document.
-
-Capture and emit: each refusal emits an `inline-svg` warning naming the reference and the reason and sets `rasterOwnershipRequired`, which reuses the outer Chromium raster owner of E6 (`transformSubtreeRaster`); the SVG tree emits one `<image>` for the host `<svg>` and suppresses the clone. Doc: [24-inline-svg-icon-references.md](../24-inline-svg-icon-references.md). Test: `tests/inline-svg-external-use.e2e.test.ts`.
-
 ### E7. Chromium broken-image icon
 
 Trigger: a live failed `<img>` record exposes a visible UA-shadow
@@ -162,6 +159,14 @@ discriminators, and runs natively on macOS/Linux/Windows through
 
 Doc: [156-broken-image-fallback-ownership-audit.md](../156-broken-image-fallback-ownership-audit.md).
 Tickets: DM-2464 (hybrid paint) and DM-2465 (independent all-platform gate).
+
+### E8. Inline SVG with an external `<use>` that cannot be inlined
+
+Trigger: a `<use href="file.svg#id">` inside an inline `<svg>` names an element in another file that the capture cannot inline faithfully: the document failed to load (HTTP error, timeout, not well-formed SVG), is cross-origin or not http(s), its stylesheet cannot be scoped, a nested file chain exceeds the bounded prefetch depth or document count, its nested use chain exceeds the inline recursion limit, or the reference names no element id. A document that loads but simply lacks the element is not a trigger: Chromium paints nothing for it either, so the dangling `<use>` is already faithful and only a warning is emitted.
+
+Why: the capture script is synchronous, so `src/capture/external-svg-use.ts` prefetches the bounded same-origin document graph first and the script inlines targets from it, as it does for a same-document `#id`. External styles are scoped to each vector copy, referenced fragment resources are copied under unique ids, and nested uses resolve against their source document.
+
+Capture and emit: each refusal emits an `inline-svg` warning naming the reference and the reason and sets `rasterOwnershipRequired`, which reuses the outer Chromium raster owner of E6 (`transformSubtreeRaster`); the SVG tree emits one `<image>` for the host `<svg>` and suppresses the clone. Doc: [24-inline-svg-icon-references.md](../24-inline-svg-icon-references.md). Test: `tests/inline-svg-external-use.e2e.test.ts`.
 
 ---
 
@@ -405,6 +410,7 @@ These also emit `<image>` tags but **aren't fallbacks** — they're the renderer
 - `background-image: url(...)` — author-supplied raster.
 - `list-style-image: url(...)`, marker images (`::marker`).
 - Inline SVG icon references (`<use href="#id">` of an inline `<svg>` icon) — these are resolved as native SVG, not rastered. See [24-inline-svg-icon-references.md](../24-inline-svg-icon-references.md).
+- Studio `logo-reveal` treatment logos (`src/studio/treatments.ts`) — the overlay is an `<image>` whose `href` is the author's logo (a self-contained SVG data URL or an embedded asset file), not a screenshot of captured paint. See [247-studio-cinematic-treatments.md](../247-studio-cinematic-treatments.md).
 
 If a fix moves something from this "not in this list" section into a real fallback (because the synthesis turned out to be too costly to maintain), update both sections.
 
