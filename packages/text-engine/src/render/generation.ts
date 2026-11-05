@@ -274,9 +274,23 @@ export function invalidateFontEnvironmentCaches(): void {
   dynamicSystemFontPaths.clear();
   // The document-scoped ideograph cache stores `sysfb:` keys that resolve only
   // through the registry cleared above; a surviving entry would name a face
-  // that no longer opens. Blink's Invalidate drops its fallback caches with the
-  // platform-data cache for the same reason. The open scope (if any) is emptied
-  // in place; session-owned maps are replaced so the next begin starts fresh.
+  // that no longer opens. This is NOT a transcription of Blink's
+  // `FontCache::Invalidate()` (font_cache.cc:265-276, rev 7d859f27), which
+  // clears `font_platform_data_cache_`, `font_data_cache_` (including its
+  // strong LRU) and the Mac unavailable-family set, then notifies clients —
+  // and leaves `character_fallback_cache_` alone. It is the post-GC state of
+  // that procedure: the map's values are `WeakMember<const SimpleFontData>`
+  // (mac/character_fallback_cache.h:59-61), Invalidate drops the strong LRU
+  // references, and the clients (`FontFallbackMap::FontCacheInvalidated` →
+  // `InvalidateAll`, font_fallback_map.cc:65-67; `CSSFontSelector` dispatching
+  // a general invalidation, css_font_selector.cc:162-164) release every
+  // fallback list that held the old faces. Once the next Oilpan GC runs, every
+  // entry whose face is no longer reachable is gone. The pre-GC window, when an
+  // old entry can still answer, depends on allocation pressure and is not
+  // observable from capture — the same GC eviction this model leaves
+  // unmodeled everywhere else (character-fallback-cache.ts, VALUE LIFETIME;
+  // doc 146). The open scope (if any) is emptied in place; session-owned maps
+  // are replaced so the next begin starts fresh.
   characterFallbackDocumentCache?.clear();
   resetCharacterFallbackRendererCaches();
   declaredFamilyForKey.clear();

@@ -2459,8 +2459,10 @@
       "owners": ["platform-release"],
       "platforms": ["macos"],
       "code": [
+        "packages/text-engine/src/render/character-fallback-cache.ts",
         "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
         "packages/text-engine/src/render/font-resolution.ts",
+        "packages/text-engine/src/render/generation.ts",
         "tools/ideograph-fallback-cache-oracle.ts"
       ],
       "file": "146-macos-ideograph-fallback-cache-audit.md"

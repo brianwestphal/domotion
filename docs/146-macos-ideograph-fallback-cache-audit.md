@@ -8,8 +8,10 @@ platforms: ["macos"]
 tickets: ["DM-1949", "DM-2342", "DM-2401"]
 code:
   [
+    "packages/text-engine/src/render/character-fallback-cache.ts",
     "packages/text-engine/src/render/character-fallback-document-cache.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
+    "packages/text-engine/src/render/generation.ts",
     "tools/ideograph-fallback-cache-oracle.ts",
   ]
 aliases: ["docs/146-macos-ideograph-fallback-cache-audit.md", "doc-146"]
@@ -43,6 +45,20 @@ Style is not an italic boolean. `FontSelectionValue` stores the slope as a
 signed quarter-unit fixed-point number, so normal, italic, and distinct oblique
 angles can own distinct entries. Orientation is independently keyed, so an
 upright vertical request cannot consume a horizontal entry.
+
+`CharacterFallbackKey::Make` returns no key, so nothing is looked up or
+inserted, when `BuildIdentifierKey` yields an empty identifier
+(`mac/character_fallback_cache.mm:21-82`). A face whose PostScript name starts
+with `.` gets an identifier only when its descriptor carries both
+`NSCTFontUIUsageAttribute` and `CTFontDescriptorLanguageAttribute`. Blink
+builds the `system-ui` font with
+`CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size, nullptr)`, and with a
+null language the descriptor has no language attribute (probed with the
+identical call: the attribute keys are `NSCTFontUIUsageAttribute` and
+`NSFontSizeAttribute`). Domotion's `characterFallbackDocKey` therefore returns
+no key for a `system-ui` base or any `.`-prefixed base name. This is a source
+transcription, not a judgment call; it would need revisiting only if Blink began
+passing a language to that call.
 
 On a hit, Blink verifies the cached `SimpleFontData` still has a typeface and
 that `unicharToGlyph(character)` is nonzero. A miss asks CoreText through
@@ -84,6 +100,24 @@ identity and ordered transitions. Pinned ICU supplies the property gate, and
 the selected face's cmap owns coverage; no CJK-specific codepoint or font rules
 are added.
 
+`invalidateFontEnvironmentCaches()` empties the open document map in place and
+replaces every session-owned map. Blink's `Invalidate()` does not clear the map
+itself, so this is not a transcription of that call. It models the state after
+the next garbage collection. `Invalidate()` clears the `FontDataCache` strong
+LRU, and its clients release every fallback list that held the old faces
+(`FontFallbackMap::FontCacheInvalidated` calls `InvalidateAll`;
+`CSSFontSelector` dispatches a general invalidation). After that, the map's
+weak `SimpleFontData` values are collectable, and the next Oilpan GC removes
+each entry whose face is no longer reachable. Domotion models the values as
+strong everywhere else and leaves GC timing unmodeled (it cannot be observed
+from a capture), so the pre-GC window, when an old entry can still answer, is
+not represented. Keeping the entries would also be wrong in a second way: each
+value is a `sysfb:` key that resolves through `dynamicSystemFontPaths`, which
+the same invalidation clears, so a surviving entry would name a face that no
+longer opens. `character-fallback-document-cache.test.ts` pins the reset of the
+open scope and of session-owned maps, and the continued reuse within a session
+after an invalidation.
+
 ## Source map
 
 - `platform/fonts/mac/font_cache_mac.mm:314-372` — gate, lookup, cmap hit,
@@ -94,5 +128,10 @@ are added.
   representation.
 - `platform/fonts/font_global_context.{h,cc}` — thread-specific persistent
   `FontCache` ownership.
-- `platform/fonts/font_cache.cc:265-277` — invalidation does not explicitly
+- `platform/fonts/font_cache.cc:265-276` — invalidation does not explicitly
   clear the character fallback map.
+- `platform/fonts/font_data_cache.h:69-84` — `Clear()` drops the weak map and
+  its strong-reference LRU.
+- `platform/fonts/font_fallback_map.cc:65-67` and
+  `core/css/css_font_selector.cc:162-164` — the invalidation clients that
+  release the fallback lists.
