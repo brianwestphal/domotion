@@ -1102,6 +1102,15 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/templates/templates.test.ts"],
   },
   {
+    id: "templates.boolean-params",
+    behavior:
+      'Strict boolean template params: templateBoolean(default) / parseTemplateBoolean accept real booleans and the strings "true"/"1"/"false"/"0" (anything else is rejected, unlike z.coerce.boolean, which turned "false" into true), and `domotion template` adds `--no-<param>` for every boolean param (DM-V628HR).',
+    doc: "docs/74-template-authoring.md",
+    exports: ["templateBoolean", "parseTemplateBoolean"],
+    verbs: ["template"],
+    tests: ["src/templates/boolean-param.test.ts", "tests/template-boolean-flags.e2e.test.ts"],
+  },
+  {
     id: "templates.formats",
     behavior:
       "Format presets (social aspect ratios): the FORMATS table + resolveFormat (preset/alias/raw WxH → canvas size + safe-area inset) + the --format flag on `template`/`capture`/`animate` with explicit>format>default size precedence. safeAreaPadding + per-template safe-area reflow keep content within canvas − safeInset at each ratio; formatScaleFactor (sqrt of the safe-area vs an ADAPTIVE_REFERENCE box) scales themeable-template type per ratio so it reads at 9:16 (DM-1541); safeAreaGuideSvg overlays the informational safe-area rectangle on a raw capture (--safe-guide, DM-1538).",
