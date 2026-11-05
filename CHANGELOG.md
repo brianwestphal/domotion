@@ -4,6 +4,32 @@ All notable changes to **Domotion** are documented in this file.
 
 ## Unreleased
 
+## [0.34.0] - 2026-11-06
+
+**🚀 Features**
+
+- **Strict boolean helpers for custom templates:** `templateBoolean(default)` and `parseTemplateBoolean` are now exported from the package root and from `domotion-svg/templates`. They accept real booleans and the strings `"true"`, `"1"`, `"false"` and `"0"`, so a template author can declare a boolean param that string inputs can switch off.
+
+**🐛 Fixes**
+
+- **Boolean template params can be turned off:** params that default to `true` can now be disabled from the CLI or `--params`. These are cta `pulse`, stat `animateValue`/`grouping`, chat typing, subscribe `showBell` and chart `showValues`. Before, the string `"false"` was coerced to `true`.
+- **Inline SVG text keeps its page styles:** text in an inline `<svg>` whose font came from the page cascade (for example `font-family: var(--token)`) no longer falls back to the serif default when it's re-embedded. With `--flatten-nested-svg`, the root's `font-family`, `fill` and `stroke` are now kept.
+- **One rule for SVG intrinsic size:** `svg-to-image`, `svg-to-video`, `svg-scrubber`, `svg-review`, composite, storyboard, templates and Studio now all size an SVG the same way, following Chromium. Explicit `width`/`height` win over `viewBox`, and absolute units (`in`, `cm`, `mm`, `q`, …) are converted to px. If an SVG sets both, the image and video tools now size output from `width`/`height` instead of the `viewBox`.
+- **More reliable `data:` URL decoding:** `data:` URLs such as `data:image/svg+xml;charset=utf-8;base64,…` now decode correctly, and a stray `%` no longer causes a failure.
+- **Device-chrome labels are escaped:** labels are now XML-escaped, and characters that are illegal in XML are dropped, so they can't produce broken SVG markup.
+- **Studio treatment easing is validated:** `timing.easing` must now be a valid CSS easing function. Previously any string was accepted and inserted raw into the output's `style` attribute, so a project file could inject markup. Project files with invalid easing values are now rejected.
+- **Local servers are hardened:** the Studio, `svg-scrubber` and `svg-review` servers now refuse cross-site and DNS-rebinding requests, and reject request bodies with an unexpected Content-Type.
+- **Stricter numeric CLI flags:** an empty value, hex or binary forms such as `0x10`, and `Infinity` are no longer silently accepted as numbers.
+- **Clearer `animate` config errors:** a malformed JSON config now produces an error that names the file, instead of a bare `Unexpected token`.
+- **No more blocked event loop or lingering process:**
+  - Installing Chromium automatically no longer blocks the calling process.
+  - Wait timeouts are cleared once they settle, so processes exit promptly.
+- **Font engine recovers properly:**
+  - Calling `acquireGlyphHelper()` or `acquireIcuCompanion()` after an earlier failure now actually restores full-quality text output.
+  - System fonts registered mid-run are no longer stuck with a stale "not found" result.
+  - Very large ICU lookups now return every requested row.
+- **Validated asciinema cast titles:** the cast header's optional `title` is now validated instead of passing any JSON value through.
+
 ## [0.33.0] - 2026-11-03
 
 **🐛 Fixes**
