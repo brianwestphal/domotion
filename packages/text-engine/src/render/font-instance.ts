@@ -18,6 +18,7 @@ import { SUB_BOLD_WEIGHT_CUTS } from "./fallback-chain.js";
 import type { FontFallbackSemanticContext } from "./fallback-chain.js";
 import { createFontFallbackSemanticContext } from "./fallback-chain.js";
 import { resolveFontSpec } from "./font-spec.js";
+import type { FontPath } from "./font-paths.darwin.js";
 import { win32PrimaryCutKey } from "./fallback-chain.linux.js";
 import { darwinPrimaryCutKey } from "./family-match.js";
 import { linuxPrimaryCutKey } from "./family-match.js";
@@ -941,6 +942,20 @@ function instantiateResolvedFont(
   // fc-match / DejaVu / Noto, win32 → C:\Windows\Fonts.
   const spec = resolveFontSpec(effectiveKey);
   if (spec == null) return null;
+  const request: ResolvedFontRequest = {
+    key,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretch,
+    systemUiPrimary,
+    effectiveKey,
+    routedItalicCut,
+    wdthStretch,
+    spec,
+    cacheKey,
+  };
 
   // Probe-then-fallback dispatch (DM-887). fontkit is the primary; the native
   // glyph helper (CoreText/macOS DM-385, FreeType/Linux DM-872, DirectWrite/
@@ -978,230 +993,8 @@ function instantiateResolvedFont(
   //      unrecoverable v8 OOM (try/catch can't rescue). Routing through the
   //      helper before fontkit even sees the codepoint avoids the crash.
   if (helperEligible && isGlyphHelperAvailable()) {
-    // DM-1721: on Windows, DirectWrite opening a variable FILE by path yields
-    // the DEFAULT fvar instance — unlike CoreText, it does not apply axes
-    // internally. Resolve the axis location up front (CSS-derived + the
-    // matcher's resolved values — see resolveAxisLocationForFile) and pass it
-    // to the helper as `variations`, so its outlines and advances come from
-    // the SAME instance the embedded subset pins (e.g. "Segoe UI Variable
-    // Display" at opsz 36, not the file default).
-    //
-    // macOS needs it too, for the same reason and against the previous comment
-    // here, which claimed "CoreText named faces already resolve the optical
-    // instance". Measured on macOS 26.5.2 with the SF Indic faces
-    // (`.SFDevanagari-Regular` in `SFIndia.ttc`, U+0915, upem 1000): a handle
-    // opened by name/path reports NO variation and NO optical-size attribute at
-    // any size, and its advance is 802 — the face at its default `opsz` 28 —
-    // while Chrome paints 833 for a 13 px run. Chrome does not inherit
-    // CoreText's implicit sizing either; it OVERRIDES it, cloning the typeface
-    // at `opsz` = the specified size (see `resolveDarwinAxisLocation`). So the
-    // axes must be applied here rather than assumed.
-    //
-    // The two platforms resolve DIFFERENT axis sets, which is why this is not
-    // one call: Windows pins `wght` from the CSS weight because DirectWrite has
-    // not applied it, macOS must not because the CoreText trait/weight
-    // re-selection already has.
-    const helperFaceInfo =
-      hintedSubsetEnabled() || hostPlatform() === "win32" || hostPlatform() === "darwin"
-        ? resolveFaceInfoForFile(spec.path, spec.postscriptName)
-        : null;
-    // The face's own non-default coordinates (macOS): the CoreText handle's
-    // observed position (`spec.ctAxes` — covers clone names like
-    // `Skia-Regular_Light` whose fvar instances carry no postscriptNameID), or
-    // the fvar named instance the PostScript name denotes. Seeded into the
-    // darwin axis location so the pinned instance IS the matched face — a
-    // CSS-derived `wght` never enters here (Blink's mac path applies only
-    // `opsz` + font-variation-settings on top of the matched face,
-    // `font_platform_data_mac.mm:113-208`, tag 147.0.7727.15).
-    const darwinFaceAxes =
-      hostPlatform() === "darwin"
-        ? darwinFaceOwnAxes(spec.ctAxes, helperFaceInfo?.instanceAxes, helperFaceInfo?.fileAxes ?? null)
-        : null;
-    const helperAxes =
-      helperFaceInfo?.fileAxes == null
-        ? undefined
-        : hostPlatform() === "win32"
-          ? resolveAxisLocationForFile(
-              helperFaceInfo.fileAxes,
-              weight,
-              fontSize,
-              slant,
-              variationSettings,
-              spec.resolvedAxes,
-            )
-          : hostPlatform() === "darwin"
-            ? resolveDarwinAxisLocation(helperFaceInfo.fileAxes, fontSize, variationSettings, darwinFaceAxes)
-            : undefined;
-    // DM-1916: a face carrying both `trak` and `STAT` is tracked by HarfBuzz at
-    // the run's point size, and no platform helper reproduces that — the macOS
-    // helper opens every face at size = unitsPerEm, so it tracks as though every
-    // run were 1000 px. Shape those faces with HarfBuzz instead, through the
-    // `shapeFallback` seam so OUTLINES stay with the helper. That split is
-    // Chrome's own: Blink shapes with HarfBuzz and rasterizes from the platform
-    // typeface via Skia.
-    //
-    // The axis location is the SHAPING-side derivation, not `helperAxes`, and
-    // the two legitimately differ: the helper opens the face by PostScript name,
-    // so CoreText resolves a named fvar instance itself and `wght` must not be
-    // re-applied on top; HarfBuzz opens it by face index and gets the file's
-    // default instance, so every axis has to be named explicitly or a request
-    // for PingFang Regular shapes with the Medium master it is an instance of.
-    const hasTrakAndStat = helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex);
-    const hbShapeFace =
-      trakHbShapingEnabled && hasTrakAndStat
-        ? makeHarfbuzzShapeFallback(
-            spec.path,
-            helperFaceInfo.faceIndex,
-            logicalFontSize(variationSettings, fontSize),
-            helperFaceInfo.fileAxes != null
-              ? hostPlatform() === "darwin"
-                ? // The SAME darwin derivation as `helperAxes` — HarfBuzz opens by
-                  // face index and gets the file's DEFAULT instance, and the face's
-                  // own coordinates are already seeded into that derivation. Tags
-                  // left out sit at the default master, which is exactly where the
-                  // matched face's unset axes are. No CSS `wght` pin: the weight
-                  // lives in WHICH face the matcher picked.
-                  (helperAxes ?? null)
-                : resolveAxisLocationForFile(
-                    helperFaceInfo.fileAxes,
-                    weight,
-                    fontSize,
-                    slant,
-                    variationSettings,
-                    spec.resolvedAxes,
-                    helperFaceInfo.instanceAxes,
-                  )
-              : null,
-          )
-        : undefined;
-    const helper = createGlyphHelperFont({
-      postscriptName: spec.postscriptName,
-      fontPath: spec.path,
-      variations: helperAxes,
-      fontSizePx: fontSize,
-      // DM-1883: consulted when the helper's own `shape` query fails, which on
-      // Windows is always — its helper has no such query, so without this a
-      // shaped run silently degrades to isolated letterforms. On a `trak`+`STAT`
-      // face it is consulted FIRST instead (see `preferShapeFallback`), and the
-      // fontkit shaper is not the one to consult there: fontkit implements no
-      // AAT tracking at all, so it would answer advances with no tracking in
-      // them, where Chrome's carry the tracking for the RUN's point size. Only
-      // HarfBuzz, told the run size via `ptem`, produces that. (The helper's
-      // per-glyph `glyphs` query is deliberately untracked too — a DESIGN-unit
-      // advance cannot hold a size-dependent term — but that is the input to
-      // tracking, not a substitute for it.)
-      shapeFallback: hbShapeFace ?? makeFontkitShaper(spec.path, spec.postscriptName, helperAxes),
-      preferShapeFallback: hbShapeFace != null,
-    });
-    if (helper != null) {
-      const instance: FontInstance = helper;
-      fontShapeRouteMap.set(
-        instance,
-        hbShapeFace != null
-          ? `native-harfbuzz:${helperFaceInfo?.faceIndex ?? "null"}`
-          : `native-platform:${trakHbShapingEnabled ? "enabled" : "disabled"}:${helperFaceInfo?.faceIndex ?? "null"}:${hasTrakAndStat ? "tracked" : "untracked"}`,
-      );
-      // Native-helper instances carry no name of their own. Stamp the resolved
-      // cut's, so the instance is self-identifying no matter which of the two
-      // branches below records a `fontSourceMap` entry (one is flag-gated).
-      instance.postscriptName ??= spec.postscriptName;
-      // When Blink would CLONE this face at a non-default axis location, also
-      // stamp the name CoreText gives that clone — so the conformance oracle
-      // compares Chrome's instantiated name against the instance we actually
-      // paint instead of against the base face. The name is composed from the
-      // coordinates and handle state on OUR side, never copied from Chrome's
-      // answer, so a genuine axis divergence still shows up as a name mismatch.
-      //
-      // The gate consults the CoreText-substituted handle's CURRENT position as
-      // the live resolver observed it (`darwinHandleAxesFor` — see
-      // `darwinCloneInstanceName` for the measured mechanism: CoreText pre-sets
-      // `opsz` on some handles and Blink then never clones them), so faces the
-      // live resolver did not register — static-table keys, hosts on an older
-      // helper binary — keep the base name, which is the previous behavior and
-      // keeps any resulting oracle route visible rather than guessed at.
-      //
-      // The composition base is the MEMBER's name: when the requested face is
-      // an fvar named instance (`.SFDevanagari-Bold` = the Regular member at
-      // wght 700), CoreText composes off-instance clones from the base master
-      // (measured: {opsz:20, wght:700} on a `.SFDevanagari-Bold` handle names
-      // `.SFDevanagari-Regular_opsz140000_wght2BC0000` — which is also exactly
-      // the route name Chrome reports for the bold 20px stacks).
-      if (hostPlatform() === "darwin") {
-        const handleAxes = darwinHandleAxesFor(key, weight, fontSize, slant);
-        const composeBase = helperFaceInfo?.memberPostscriptName ?? spec.postscriptName;
-        if (handleAxes != null && composeBase != null) {
-          const instName = darwinCloneInstanceName(
-            composeBase,
-            handleAxes,
-            fontSize,
-            variationSettings,
-            helperFaceInfo?.namedInstances,
-          );
-          if (instName != null && instName !== spec.postscriptName) {
-            instance.instantiatedPostscriptName = instName;
-          }
-        }
-      }
-      // DM-1714: even when outlines come from the native helper (macOS CoreText /
-      // Windows DirectWrite — the default for live-resolver-registered system
-      // fonts), the on-disk FILE is known. If it's a standard sfnt with glyf/CFF
-      // (Windows TTFs are — only genuinely outline-less files like PingFang's hvgl
-      // aren't), the hinting-preserving hb-subset path can still subset it by the
-      // helper's glyph ids (which share the file's gid space). Record the source
-      // so getFontSourceInfo exposes it; buildGlyfFontForEntry guards on actual
-      // glyf/CFF presence before subsetting. Behind the flag to avoid the extra
-      // fontkit open on the default (svg2ttf) path.
-      //
-      // DM-1716: when the file is VARIABLE (Segoe UI Variable on Windows 11),
-      // also record the axis location this instance resolved to — the
-      // embedded subset must pin the same location or it would embed the
-      // default master's outlines.
-      if (hintedSubsetEnabled() && helperFaceInfo != null) {
-        const { faceIndex, nameMatched, fileAxes, instanceAxes } = helperFaceInfo;
-        fontSourceMap.set(instance, {
-          path: spec.path,
-          postscriptName: spec.postscriptName,
-          faceIndex,
-          nameMatched,
-          descriptorAxes: spec.ctAxes == null ? null : spec.ctAxes.map((axis) => ({ ...axis })),
-          // DM-1721: `spec.resolvedAxes` (DirectWrite's resolved axis values
-          // for live-resolver / family-lookup picks) overrides the CSS-derived
-          // opsz pin — named optical subfamilies don't re-vary opsz per size.
-          //
-          // `fileAxes` is null when the requested name is not a physical member
-          // (`nameMatched: false`), so no axis location is derived from a face
-          // nobody asked for. That used to report member zero's axes: every
-          // PingFang key, whatever its region, came back `{wght: 400}` off
-          // `.PingFangUITextSC-Default`, which read as evidence that SC and HK
-          // had resolved to the same face.
-          variationAxes:
-            fileAxes != null
-              ? (helperAxes ??
-                (hostPlatform() === "darwin"
-                  ? // The darwin derivation already folded the face's own
-                    // coordinates in; when it answers undefined the matched face IS
-                    // the default master, so pin everything to defaults ({}). The
-                    // old fall-through to `resolveAxisLocationForFile` here is what
-                    // pinned the CSS weight onto declared variable families —
-                    // `font-family: Skia` at ANY CSS weight embedded a subset at
-                    // wght = clamp(weight, [0.48..3.2]) = 3.2, the Black master,
-                    // while the shaped advances came from the face Chrome paints.
-                    {}
-                  : resolveAxisLocationForFile(
-                      fileAxes,
-                      weight,
-                      fontSize,
-                      slant,
-                      variationSettings,
-                      spec.resolvedAxes,
-                      instanceAxes,
-                    )))
-              : null,
-        });
-      }
-      fontInstanceCache.set(cacheKey, instance);
-      return instance;
-    }
+    const helperInstance = instantiateHelperFirstFont(request);
+    if (helperInstance != null) return helperInstance;
   }
 
   // TTC collections expose .fonts + .getFont(postscriptName). The requested
@@ -1222,21 +1015,355 @@ function instantiateResolvedFont(
 
   const fontkitHasOutlines = font != null && fontHasOutlineTable(font);
   if (helperEligible && !fontkitHasOutlines && isGlyphHelperAvailable()) {
-    const helper = createGlyphHelperFont({
-      postscriptName: spec.postscriptName,
-      fontPath: spec.path,
-      fontSizePx: fontSize,
-      shapeFallback: makeFontkitShaper(spec.path, spec.postscriptName),
-    });
-    if (helper != null) {
-      const instance: FontInstance = helper;
-      instance.postscriptName ??= spec.postscriptName;
-      fontInstanceCache.set(cacheKey, instance);
-      return instance;
-    }
+    const rescued = instantiateHelperRescueFont(request);
+    if (rescued != null) return rescued;
   }
   if (font == null) return null; // couldn't open and the helper didn't (or can't) rescue
+  return instantiateFontkitFont(request, font, faceIndex, nameMatched);
+}
 
+/** One uncached `getFontInstance` request after cut selection and path discovery. */
+interface ResolvedFontRequest {
+  /** The logical key the caller asked for, before cut routing. */
+  readonly key: string;
+  readonly weight: number;
+  readonly fontSize: number;
+  readonly slant: number;
+  readonly variationSettings: Record<string, number> | undefined;
+  readonly stretch: number;
+  readonly systemUiPrimary: boolean;
+  /** The resolved cut (`resolveEffectiveCutKey`). */
+  readonly effectiveKey: string;
+  readonly routedItalicCut: boolean;
+  /** The stretch that drives the macOS `system-ui` `wdth` axis (`darwinSystemUiWdth`). */
+  readonly wdthStretch: number;
+  readonly spec: FontPath;
+  readonly cacheKey: string;
+}
+
+/**
+ * The helper-first tier for an `extractor: "native"` face: the axis location
+ * the platform typeface is opened at, the shaping seam, and the source record.
+ * Returns null when the helper declines, so the fontkit path runs.
+ */
+function instantiateHelperFirstFont(request: ResolvedFontRequest): FontInstance | null {
+  const { spec, fontSize, cacheKey } = request;
+  const { helperFaceInfo, helperAxes } = resolveHelperAxisLocation(request);
+  const { hasTrakAndStat, hbShapeFace } = buildTrakHarfbuzzShapeFace(request, helperFaceInfo, helperAxes);
+  const helper = createGlyphHelperFont({
+    postscriptName: spec.postscriptName,
+    fontPath: spec.path,
+    variations: helperAxes,
+    fontSizePx: fontSize,
+    // DM-1883: consulted when the helper's own `shape` query fails, which on
+    // Windows is always — its helper has no such query, so without this a
+    // shaped run silently degrades to isolated letterforms. On a `trak`+`STAT`
+    // face it is consulted FIRST instead (see `preferShapeFallback`), and the
+    // fontkit shaper is not the one to consult there: fontkit implements no
+    // AAT tracking at all, so it would answer advances with no tracking in
+    // them, where Chrome's carry the tracking for the RUN's point size. Only
+    // HarfBuzz, told the run size via `ptem`, produces that. (The helper's
+    // per-glyph `glyphs` query is deliberately untracked too — a DESIGN-unit
+    // advance cannot hold a size-dependent term — but that is the input to
+    // tracking, not a substitute for it.)
+    shapeFallback: hbShapeFace ?? makeFontkitShaper(spec.path, spec.postscriptName, helperAxes),
+    preferShapeFallback: hbShapeFace != null,
+  });
+  if (helper != null) {
+    const instance: FontInstance = helper;
+    fontShapeRouteMap.set(
+      instance,
+      hbShapeFace != null
+        ? `native-harfbuzz:${helperFaceInfo?.faceIndex ?? "null"}`
+        : `native-platform:${trakHbShapingEnabled ? "enabled" : "disabled"}:${helperFaceInfo?.faceIndex ?? "null"}:${hasTrakAndStat ? "tracked" : "untracked"}`,
+    );
+    // Native-helper instances carry no name of their own. Stamp the resolved
+    // cut's, so the instance is self-identifying no matter which of the two
+    // branches below records a `fontSourceMap` entry (one is flag-gated).
+    instance.postscriptName ??= spec.postscriptName;
+    stampDarwinHelperCloneName(request, instance, helperFaceInfo);
+    recordHelperFontSource(request, instance, helperFaceInfo, helperAxes);
+    fontInstanceCache.set(cacheKey, instance);
+    return instance;
+  }
+  return null;
+}
+
+/** The face info and the platform-specific axis location the native helper opens the face at. */
+function resolveHelperAxisLocation(request: ResolvedFontRequest): {
+  helperFaceInfo: FileFaceInfo | null;
+  helperAxes: Record<string, number> | undefined;
+} {
+  const { spec, weight, fontSize, slant, variationSettings } = request;
+  // DM-1721: on Windows, DirectWrite opening a variable FILE by path yields
+  // the DEFAULT fvar instance — unlike CoreText, it does not apply axes
+  // internally. Resolve the axis location up front (CSS-derived + the
+  // matcher's resolved values — see resolveAxisLocationForFile) and pass it
+  // to the helper as `variations`, so its outlines and advances come from
+  // the SAME instance the embedded subset pins (e.g. "Segoe UI Variable
+  // Display" at opsz 36, not the file default).
+  //
+  // macOS needs it too, for the same reason and against the previous comment
+  // here, which claimed "CoreText named faces already resolve the optical
+  // instance". Measured on macOS 26.5.2 with the SF Indic faces
+  // (`.SFDevanagari-Regular` in `SFIndia.ttc`, U+0915, upem 1000): a handle
+  // opened by name/path reports NO variation and NO optical-size attribute at
+  // any size, and its advance is 802 — the face at its default `opsz` 28 —
+  // while Chrome paints 833 for a 13 px run. Chrome does not inherit
+  // CoreText's implicit sizing either; it OVERRIDES it, cloning the typeface
+  // at `opsz` = the specified size (see `resolveDarwinAxisLocation`). So the
+  // axes must be applied here rather than assumed.
+  //
+  // The two platforms resolve DIFFERENT axis sets, which is why this is not
+  // one call: Windows pins `wght` from the CSS weight because DirectWrite has
+  // not applied it, macOS must not because the CoreText trait/weight
+  // re-selection already has.
+  const helperFaceInfo =
+    hintedSubsetEnabled() || hostPlatform() === "win32" || hostPlatform() === "darwin"
+      ? resolveFaceInfoForFile(spec.path, spec.postscriptName)
+      : null;
+  // The face's own non-default coordinates (macOS): the CoreText handle's
+  // observed position (`spec.ctAxes` — covers clone names like
+  // `Skia-Regular_Light` whose fvar instances carry no postscriptNameID), or
+  // the fvar named instance the PostScript name denotes. Seeded into the
+  // darwin axis location so the pinned instance IS the matched face — a
+  // CSS-derived `wght` never enters here (Blink's mac path applies only
+  // `opsz` + font-variation-settings on top of the matched face,
+  // `font_platform_data_mac.mm:113-208`, tag 147.0.7727.15).
+  const darwinFaceAxes =
+    hostPlatform() === "darwin"
+      ? darwinFaceOwnAxes(spec.ctAxes, helperFaceInfo?.instanceAxes, helperFaceInfo?.fileAxes ?? null)
+      : null;
+  const helperAxes =
+    helperFaceInfo?.fileAxes == null
+      ? undefined
+      : hostPlatform() === "win32"
+        ? resolveAxisLocationForFile(
+            helperFaceInfo.fileAxes,
+            weight,
+            fontSize,
+            slant,
+            variationSettings,
+            spec.resolvedAxes,
+          )
+        : hostPlatform() === "darwin"
+          ? resolveDarwinAxisLocation(helperFaceInfo.fileAxes, fontSize, variationSettings, darwinFaceAxes)
+          : undefined;
+  return { helperFaceInfo, helperAxes };
+}
+
+/** The HarfBuzz shaping seam for a `trak` + `STAT` face (shapes at the run's point size). */
+function buildTrakHarfbuzzShapeFace(
+  request: ResolvedFontRequest,
+  helperFaceInfo: FileFaceInfo | null,
+  helperAxes: Record<string, number> | undefined,
+): { hasTrakAndStat: boolean; hbShapeFace: ReturnType<typeof makeHarfbuzzShapeFallback> | undefined } {
+  const { spec, weight, fontSize, slant, variationSettings } = request;
+  // DM-1916: a face carrying both `trak` and `STAT` is tracked by HarfBuzz at
+  // the run's point size, and no platform helper reproduces that — the macOS
+  // helper opens every face at size = unitsPerEm, so it tracks as though every
+  // run were 1000 px. Shape those faces with HarfBuzz instead, through the
+  // `shapeFallback` seam so OUTLINES stay with the helper. That split is
+  // Chrome's own: Blink shapes with HarfBuzz and rasterizes from the platform
+  // typeface via Skia.
+  //
+  // The axis location is the SHAPING-side derivation, not `helperAxes`, and
+  // the two legitimately differ: the helper opens the face by PostScript name,
+  // so CoreText resolves a named fvar instance itself and `wght` must not be
+  // re-applied on top; HarfBuzz opens it by face index and gets the file's
+  // default instance, so every axis has to be named explicitly or a request
+  // for PingFang Regular shapes with the Medium master it is an instance of.
+  const hasTrakAndStat = helperFaceInfo != null && faceHasTrakAndStat(spec.path, helperFaceInfo.faceIndex);
+  const hbShapeFace =
+    trakHbShapingEnabled && hasTrakAndStat
+      ? makeHarfbuzzShapeFallback(
+          spec.path,
+          helperFaceInfo.faceIndex,
+          logicalFontSize(variationSettings, fontSize),
+          helperFaceInfo.fileAxes != null
+            ? hostPlatform() === "darwin"
+              ? // The SAME darwin derivation as `helperAxes` — HarfBuzz opens by
+                // face index and gets the file's DEFAULT instance, and the face's
+                // own coordinates are already seeded into that derivation. Tags
+                // left out sit at the default master, which is exactly where the
+                // matched face's unset axes are. No CSS `wght` pin: the weight
+                // lives in WHICH face the matcher picked.
+                (helperAxes ?? null)
+              : resolveAxisLocationForFile(
+                  helperFaceInfo.fileAxes,
+                  weight,
+                  fontSize,
+                  slant,
+                  variationSettings,
+                  spec.resolvedAxes,
+                  helperFaceInfo.instanceAxes,
+                )
+            : null,
+        )
+      : undefined;
+  return { hasTrakAndStat, hbShapeFace };
+}
+
+/** Stamp the CoreText clone name Blink's off-default axis clone would carry (macOS). */
+function stampDarwinHelperCloneName(
+  request: ResolvedFontRequest,
+  instance: FontInstance,
+  helperFaceInfo: FileFaceInfo | null,
+): void {
+  const { key, spec, weight, fontSize, slant, variationSettings } = request;
+  // When Blink would CLONE this face at a non-default axis location, also
+  // stamp the name CoreText gives that clone — so the conformance oracle
+  // compares Chrome's instantiated name against the instance we actually
+  // paint instead of against the base face. The name is composed from the
+  // coordinates and handle state on OUR side, never copied from Chrome's
+  // answer, so a genuine axis divergence still shows up as a name mismatch.
+  //
+  // The gate consults the CoreText-substituted handle's CURRENT position as
+  // the live resolver observed it (`darwinHandleAxesFor` — see
+  // `darwinCloneInstanceName` for the measured mechanism: CoreText pre-sets
+  // `opsz` on some handles and Blink then never clones them), so faces the
+  // live resolver did not register — static-table keys, hosts on an older
+  // helper binary — keep the base name, which is the previous behavior and
+  // keeps any resulting oracle route visible rather than guessed at.
+  //
+  // The composition base is the MEMBER's name: when the requested face is
+  // an fvar named instance (`.SFDevanagari-Bold` = the Regular member at
+  // wght 700), CoreText composes off-instance clones from the base master
+  // (measured: {opsz:20, wght:700} on a `.SFDevanagari-Bold` handle names
+  // `.SFDevanagari-Regular_opsz140000_wght2BC0000` — which is also exactly
+  // the route name Chrome reports for the bold 20px stacks).
+  if (hostPlatform() === "darwin") {
+    const handleAxes = darwinHandleAxesFor(key, weight, fontSize, slant);
+    const composeBase = helperFaceInfo?.memberPostscriptName ?? spec.postscriptName;
+    if (handleAxes != null && composeBase != null) {
+      const instName = darwinCloneInstanceName(
+        composeBase,
+        handleAxes,
+        fontSize,
+        variationSettings,
+        helperFaceInfo?.namedInstances,
+      );
+      if (instName != null && instName !== spec.postscriptName) {
+        instance.instantiatedPostscriptName = instName;
+      }
+    }
+  }
+}
+
+/** Record the helper instance's backing file and pinned axis location for the hinted subset. */
+function recordHelperFontSource(
+  request: ResolvedFontRequest,
+  instance: FontInstance,
+  helperFaceInfo: FileFaceInfo | null,
+  helperAxes: Record<string, number> | undefined,
+): void {
+  const { spec, weight, fontSize, slant, variationSettings } = request;
+  // DM-1714: even when outlines come from the native helper (macOS CoreText /
+  // Windows DirectWrite — the default for live-resolver-registered system
+  // fonts), the on-disk FILE is known. If it's a standard sfnt with glyf/CFF
+  // (Windows TTFs are — only genuinely outline-less files like PingFang's hvgl
+  // aren't), the hinting-preserving hb-subset path can still subset it by the
+  // helper's glyph ids (which share the file's gid space). Record the source
+  // so getFontSourceInfo exposes it; buildGlyfFontForEntry guards on actual
+  // glyf/CFF presence before subsetting. Behind the flag to avoid the extra
+  // fontkit open on the default (svg2ttf) path.
+  //
+  // DM-1716: when the file is VARIABLE (Segoe UI Variable on Windows 11),
+  // also record the axis location this instance resolved to — the
+  // embedded subset must pin the same location or it would embed the
+  // default master's outlines.
+  if (hintedSubsetEnabled() && helperFaceInfo != null) {
+    const { faceIndex, nameMatched, fileAxes, instanceAxes } = helperFaceInfo;
+    fontSourceMap.set(instance, {
+      path: spec.path,
+      postscriptName: spec.postscriptName,
+      faceIndex,
+      nameMatched,
+      descriptorAxes: spec.ctAxes == null ? null : spec.ctAxes.map((axis) => ({ ...axis })),
+      // DM-1721: `spec.resolvedAxes` (DirectWrite's resolved axis values
+      // for live-resolver / family-lookup picks) overrides the CSS-derived
+      // opsz pin — named optical subfamilies don't re-vary opsz per size.
+      //
+      // `fileAxes` is null when the requested name is not a physical member
+      // (`nameMatched: false`), so no axis location is derived from a face
+      // nobody asked for. That used to report member zero's axes: every
+      // PingFang key, whatever its region, came back `{wght: 400}` off
+      // `.PingFangUITextSC-Default`, which read as evidence that SC and HK
+      // had resolved to the same face.
+      variationAxes:
+        fileAxes != null
+          ? (helperAxes ??
+            (hostPlatform() === "darwin"
+              ? // The darwin derivation already folded the face's own
+                // coordinates in; when it answers undefined the matched face IS
+                // the default master, so pin everything to defaults ({}). The
+                // old fall-through to `resolveAxisLocationForFile` here is what
+                // pinned the CSS weight onto declared variable families —
+                // `font-family: Skia` at ANY CSS weight embedded a subset at
+                // wght = clamp(weight, [0.48..3.2]) = 3.2, the Black master,
+                // while the shaped advances came from the face Chrome paints.
+                {}
+              : resolveAxisLocationForFile(
+                  fileAxes,
+                  weight,
+                  fontSize,
+                  slant,
+                  variationSettings,
+                  spec.resolvedAxes,
+                  instanceAxes,
+                )))
+          : null,
+    });
+  }
+}
+
+/** Whole-font helper rescue for a native-eligible face fontkit cannot outline. */
+function instantiateHelperRescueFont(request: ResolvedFontRequest): FontInstance | null {
+  const { spec, fontSize, cacheKey } = request;
+  const helper = createGlyphHelperFont({
+    postscriptName: spec.postscriptName,
+    fontPath: spec.path,
+    fontSizePx: fontSize,
+    shapeFallback: makeFontkitShaper(spec.path, spec.postscriptName),
+  });
+  if (helper != null) {
+    const instance: FontInstance = helper;
+    instance.postscriptName ??= spec.postscriptName;
+    fontInstanceCache.set(cacheKey, instance);
+    return instance;
+  }
+  return null;
+}
+
+/** The fontkit tier: instance the face, read its style traits, and record its source. */
+function instantiateFontkitFont(
+  request: ResolvedFontRequest,
+  font: any,
+  faceIndex: number,
+  nameMatched: boolean,
+): FontInstance {
+  const variation = instantiateFontkitVariation(request, font);
+  const { instance } = variation;
+  applyFaceWeightTraits(request, instance, font, variation);
+  applyDarwinCoreTextTraits(request, instance, font);
+  applyInstancedWeightCorrection(instance);
+  applyFaceSlantTraits(request, instance, font);
+  recordFontkitFontSource(request, instance, font, faceIndex, nameMatched);
+  fontInstanceCache.set(request.cacheKey, instance);
+  return instance;
+}
+
+/** Which platform axis rule instanced a fontkit face, and the instance it produced. */
+interface FontkitVariation {
+  readonly instance: FontInstance;
+  readonly darwinDeclaredAxisPath: boolean;
+  readonly linuxSystemAxisPath: boolean;
+  readonly linuxInstanceAxes: Record<string, number> | null;
+}
+
+/** Apply the platform's variation-axis rule to a fontkit face (macOS declared, Linux system, or CSS-valued). */
+function instantiateFontkitVariation(request: ResolvedFontRequest, font: any): FontkitVariation {
+  const { spec, weight, fontSize, slant, variationSettings, wdthStretch, effectiveKey, systemUiPrimary } = request;
   // On macOS, only the `system-ui` face takes CSS-valued weight/width AXIS
   // pins (`MatchSystemUIFont` sets wght/wdth variations clamped to the axis
   // range — `mac/font_matcher_mac.mm:540-589`, identical at tag 147.0.7727.15
@@ -1303,44 +1430,7 @@ function instantiateResolvedFont(
       wdthStretch,
       darwinDeclaredAxisPath ? { faceAxes: fontkitFaceAxes, cssWghtPin: false } : undefined,
     );
-    // Fontkit keeps SFNS.ttf's default `.SFNS-Regular` PostScript name after
-    // `getVariation`, even when the CSS system-ui route has instanced its wght
-    // axis at 700. Blink first builds that face through MatchSystemUIFont, and
-    // CoreText names the resulting 700 cut `.SFNS-Bold` (other intermediate
-    // weights may have coordinate-bearing clone names). Ask the already-ported
-    // native route for the identity; keep the fontkit instance and its outlines
-    // unchanged.
-    //
-    // An explicit author variation is applied after MatchSystemUIFont: Blink
-    // clones the UI font handle at the requested axis location when a clamped
-    // target differs from the handle's current position, and CoreText names the
-    // clone with per-axis suffixes (`font_platform_data_mac.mm:60-102` +
-    // `:167-195`, Chromium rev 7d859f27). That is the same mechanism and name
-    // composition as a live-resolver fallback clone, so it is composed by
-    // `darwinCloneInstanceName` against the UI handle's own axis state — e.g.
-    // `"opsz" 32, "wdth" 120, "wght" 700` at 26 px names
-    // `.SFNS-Regular_wdth780000_opsz200000_GRAD_wght2BC0000`, as Chrome reports.
-    if (isDarwinSystemUiAxisKey(effectiveKey, systemUiPrimary)) {
-      const uiFace = resolveSystemUiFontFace({ weight, slant, stretch, size: fontSize });
-      const hasAuthorVariation = variationSettings != null && Object.keys(variationSettings).length > 0;
-      if (!hasAuthorVariation) {
-        if (uiFace?.postscriptName != null && uiFace.postscriptName !== instance.postscriptName) {
-          instance.instantiatedPostscriptName = uiFace.postscriptName;
-        }
-      } else if (uiFace?.ctAxes != null && uiFace.ctAxes.length > 0) {
-        const faceInfo = resolveFaceInfoForFile(spec.path, uiFace.postscriptName);
-        const composeBase = faceInfo.memberPostscriptName ?? font?.postscriptName ?? uiFace.postscriptName;
-        const cloneName = darwinCloneInstanceName(
-          composeBase,
-          uiFace.ctAxes,
-          fontSize,
-          variationSettings,
-          faceInfo.namedInstances,
-        );
-        const identity = cloneName ?? uiFace.postscriptName;
-        if (identity !== instance.postscriptName) instance.instantiatedPostscriptName = identity;
-      }
-    }
+    stampDarwinSystemUiIdentity(request, instance, font);
     // A declared variable-family cut can be a named instance in a single file.
     // fontkit returns the base master's PostScript name from getVariation(),
     // but Blink/CoreText retain the matched instance identity. The requested
@@ -1356,6 +1446,61 @@ function instantiateResolvedFont(
       instance.instantiatedPostscriptName = spec.postscriptName;
     }
   }
+  return { instance, darwinDeclaredAxisPath, linuxSystemAxisPath, linuxInstanceAxes };
+}
+
+/** The CoreText identity of a `system-ui` instance, which fontkit's `getVariation` does not rename. */
+function stampDarwinSystemUiIdentity(request: ResolvedFontRequest, instance: FontInstance, font: any): void {
+  const { spec, weight, fontSize, slant, stretch, variationSettings, effectiveKey, systemUiPrimary } = request;
+  // Fontkit keeps SFNS.ttf's default `.SFNS-Regular` PostScript name after
+  // `getVariation`, even when the CSS system-ui route has instanced its wght
+  // axis at 700. Blink first builds that face through MatchSystemUIFont, and
+  // CoreText names the resulting 700 cut `.SFNS-Bold` (other intermediate
+  // weights may have coordinate-bearing clone names). Ask the already-ported
+  // native route for the identity; keep the fontkit instance and its outlines
+  // unchanged.
+  //
+  // An explicit author variation is applied after MatchSystemUIFont: Blink
+  // clones the UI font handle at the requested axis location when a clamped
+  // target differs from the handle's current position, and CoreText names the
+  // clone with per-axis suffixes (`font_platform_data_mac.mm:60-102` +
+  // `:167-195`, Chromium rev 7d859f27). That is the same mechanism and name
+  // composition as a live-resolver fallback clone, so it is composed by
+  // `darwinCloneInstanceName` against the UI handle's own axis state — e.g.
+  // `"opsz" 32, "wdth" 120, "wght" 700` at 26 px names
+  // `.SFNS-Regular_wdth780000_opsz200000_GRAD_wght2BC0000`, as Chrome reports.
+  if (isDarwinSystemUiAxisKey(effectiveKey, systemUiPrimary)) {
+    const uiFace = resolveSystemUiFontFace({ weight, slant, stretch, size: fontSize });
+    const hasAuthorVariation = variationSettings != null && Object.keys(variationSettings).length > 0;
+    if (!hasAuthorVariation) {
+      if (uiFace?.postscriptName != null && uiFace.postscriptName !== instance.postscriptName) {
+        instance.instantiatedPostscriptName = uiFace.postscriptName;
+      }
+    } else if (uiFace?.ctAxes != null && uiFace.ctAxes.length > 0) {
+      const faceInfo = resolveFaceInfoForFile(spec.path, uiFace.postscriptName);
+      const composeBase = faceInfo.memberPostscriptName ?? font?.postscriptName ?? uiFace.postscriptName;
+      const cloneName = darwinCloneInstanceName(
+        composeBase,
+        uiFace.ctAxes,
+        fontSize,
+        variationSettings,
+        faceInfo.namedInstances,
+      );
+      const identity = cloneName ?? uiFace.postscriptName;
+      if (identity !== instance.postscriptName) instance.instantiatedPostscriptName = identity;
+    }
+  }
+}
+
+/** Natural weight and the bold/italic face traits, read from the original fontkit face. */
+function applyFaceWeightTraits(
+  request: ResolvedFontRequest,
+  instance: FontInstance,
+  font: any,
+  variation: FontkitVariation,
+): void {
+  const { spec } = request;
+  const { darwinDeclaredAxisPath, linuxSystemAxisPath, linuxInstanceAxes } = variation;
   // DM-1693: expose the static face's natural weight + whether a variable wght
   // axis was applied, so both render modes can decide faux-bold. Read from
   // the ORIGINAL fontkit Font (`font`) — `instance` may be a variation instance
@@ -1410,6 +1555,11 @@ function instantiateResolvedFont(
   // family or another platform.
   if (spec.linuxFallbackIsBold != null) instance.linuxFallbackIsBold = spec.linuxFallbackIsBold;
   if (spec.linuxFallbackIsItalic != null) instance.linuxFallbackIsItalic = spec.linuxFallbackIsItalic;
+}
+
+/** On macOS, the bold and italic traits CoreText reports, which Blink tests instead of OS/2 bits. */
+function applyDarwinCoreTextTraits(request: ResolvedFontRequest, instance: FontInstance, font: any): void {
+  const { key } = request;
   // ...but on macOS, ASK CORETEXT, because OS/2 bit 5 is not the same fact and
   // this was shipped as though it were. Blink tests
   // `CTFontGetSymbolicTraits(ct_font) & kCTFontTraitBold`
@@ -1439,6 +1589,10 @@ function instantiateResolvedFont(
       if (ctItalicTrait != null) instance.faceIsItalicTrait = ctItalicTrait;
     }
   }
+}
+
+/** Correct the weight fields to the CSS-valued wght coordinate the instance was created at. */
+function applyInstancedWeightCorrection(instance: FontInstance): void {
   // DM-2023: everything set above describes the DEFAULT instance, because it
   // is read from the ORIGINAL fontkit `font` (its OS/2 table, and — on darwin
   // — a CoreText query keyed by the face's un-instanced PostScript name).
@@ -1472,6 +1626,11 @@ function instantiateResolvedFont(
       instance.faceIsBoldTrait = appliedWght >= 600;
     }
   }
+}
+
+/** Italic angle, slant axis presence, and whether routing picked the family's italic cut. */
+function applyFaceSlantTraits(request: ResolvedFontRequest, instance: FontInstance, font: any): void {
+  const { routedItalicCut } = request;
   // DM-1695: expose the face's italic angle + whether a slnt axis carried the
   // slant, for the embedded-font faux-italic decision. Read from the ORIGINAL
   // fontkit Font (same rationale as the weight fields above).
@@ -1487,6 +1646,17 @@ function instantiateResolvedFont(
   // above is the reliable signal — when we picked the family's own italic cut,
   // the face IS slanted, whatever its post table claims.
   instance.isRoutedItalicCut = routedItalicCut;
+}
+
+/** Install HarfBuzz tracking for `trak` + `STAT` faces and record the fontkit instance's source. */
+function recordFontkitFontSource(
+  request: ResolvedFontRequest,
+  instance: FontInstance,
+  font: any,
+  faceIndex: number,
+  nameMatched: boolean,
+): void {
+  const { spec, fontSize } = request;
   // DM-891: record the exact file this fontkit instance was loaded from, so the
   // per-glyph helper fallback can open the SAME file (glyph ids match) when
   // fontkit returns an empty outline for a glyph it should be able to draw.
@@ -1525,8 +1695,6 @@ function instantiateResolvedFont(
     variationAxes: fileIsVariable ? (appliedAxes ?? {}) : null,
     descriptorAxes: spec.ctAxes == null ? null : spec.ctAxes.map((axis) => ({ ...axis })),
   });
-  fontInstanceCache.set(cacheKey, instance);
-  return instance;
 }
 
 /** Public key-to-instance coordinator; platform dispatch lives in the stage above. */
