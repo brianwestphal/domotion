@@ -47,7 +47,12 @@ export {
   type FontSynthesisAllowance,
 } from "./synthesis-decision.js";
 // Unicode-classification predicates (mathAlphaToBase, isRtlScriptCodepoint, isStretchyFenceChar, complex-shaper / matra / rtl ranges, …) moved to ./unicode-classification.ts (DM-1305).
-import { bidiLevelsFor, segmentForShaping, type BidiParagraphContext } from "./script-segmentation.js";
+import {
+  bidiLevelsFor,
+  segmentForShaping,
+  type BidiParagraphContext,
+  type ShapingSegment,
+} from "./script-segmentation.js";
 import { SCRIPT_NAME_TO_ISO15924 } from "./script-iso15924.generated.js";
 import type { FontRequest } from "./font-request.js";
 import { readMathRadicalData } from "./open-type-math.js";
@@ -893,6 +898,236 @@ function fakeBoldSvgPaintAttributes(
   return attrs;
 }
 
+/** Lowers one run's `<use>` stream through that run's ordered paint stages. */
+type PathGroupPainter = (runFont: FontInstance, groupScale: number, transform: string, body: string) => string;
+
+/** The shaped-run shape the path emitters read from `FontInstance.layout`. */
+type PathShapedLayout = ReturnType<FontInstance["layout"]>;
+
+/** Per-call inputs every path run reads; built once by `renderTextPathRuns`. */
+interface PathRunContext {
+  /** The whole captured text; `xOffsets` and run indices address it. */
+  text: string;
+  fontSize: number;
+  weight: number;
+  slant: number;
+  stretch: number;
+  features: string[] | undefined;
+  lang: string | undefined;
+  bidiOverride: BidiParagraphContext | undefined;
+  textSpacingTrim: string | undefined;
+  hanKerningEdges: HanKerningLineEdges | undefined;
+  ownership: TextPathOwnership;
+  paintPathGroup: PathGroupPainter;
+}
+
+/** Per-character synthesized small-caps scales; `null` keeps the native glyph. */
+interface PathSmallCapsSynthesis {
+  lowerScale: number | null;
+  upperScale: number | null;
+  /** Whether either class is synthesized at all. */
+  active: boolean;
+}
+
+/** The emitted groups and the running right edge, threaded through the anchored emitters. */
+interface PathRunEmission {
+  groups: string[];
+  rightEdge: number;
+}
+
+// Keep fake-bold and author-stroke geometry on the selected RUN. A fallback
+// face can have a real bold cut while the primary needs synthesis (or vice
+// versa), and each face can have a different units-per-em scale. Repeating
+// the same <use> stream is necessary only for opaque `stroke fill`: Skia's
+// author-stroke pass and frame-and-fill pass have different colors.
+function buildPathGroupPainter(
+  paint: TextRunPaintOptions | undefined,
+  weight: number,
+  fontSize: number,
+  fontSynthesis: FontSynthesisAllowance | undefined,
+): PathGroupPainter {
+  return (runFont, groupScale, transform, body) => {
+    if (paint == null || groupScale <= 0) {
+      return `<g transform="${transform}">${body}</g>`;
+    }
+    const plan = resolveFakeBoldTextPaint({
+      strokeWidthPx: paint.strokeWidthPx,
+      strokeFirst: paint.strokeFirst,
+      fillIsTransparent: paint.fillIsTransparent,
+      faceLacksWeight: faceNeedsSyntheticBold(runFont, weight, fontSynthesis),
+      fontSizePx: fontSize,
+    });
+    return plan.svgPasses
+      .map((pass) => {
+        const attrs = fakeBoldSvgPaintAttributes(pass, paint, groupScale);
+        return `<g transform="${transform}"${attrs}>${body}</g>`;
+      })
+      .join("");
+  };
+}
+
+// Synthesized small-caps detection (DM-294). When `font-variant: small-caps`
+// resolves to the OpenType `smcp` feature but the active font lacks `smcp`
+// (Helvetica, Arial, SF Pro, Georgia, Times — all the body fonts we hit on
+// macOS), Chrome falls back to *synthesized* small-caps: lowercase letters
+// are rendered as uppercase glyphs at a smaller font size while uppercase
+// letters stay full size. Empirically the scale Chromium uses on Helvetica
+// at 16px is 11/16 ≈ 0.6875; at 32px it's 22/32 = 0.6875; at 20px it's
+// 14/20 = 0.700. We approximate with a flat 0.7 — the per-char xOffsets
+// already encode Chrome's painted positions, so the only thing we choose
+// is the glyph (uppercase vs lowercase) and its scale; small width drift
+// per glyph is acceptable.
+// Synthesis covers all six font-variant-caps modes (DM-294 + DM-444):
+//   small-caps      → smcp                (lowercase → small-cap scale)
+//   all-small-caps  → smcp + c2sc         (lowercase + uppercase → small-cap scale)
+//   petite-caps     → pcap                (lowercase → petite-cap scale)
+//   all-petite-caps → pcap + c2pc         (lowercase + uppercase → petite-cap scale)
+//   unicase         → unic                (uppercase → small-cap scale; lowercase → small-cap)
+//   titling-caps    → titl                (no synthesis fallback; rely on OT feature or no-op)
+// The body-text fonts on macOS (Helvetica / Arial / SF Pro / Georgia /
+// Times / Menlo) lack pcap, c2pc, c2sc, unic, and titl entirely, so the
+// synthesis path runs whenever any of these is requested.
+function resolvePathSmallCapsSynthesis(
+  features: string[] | undefined,
+  fontSize: number,
+  primaryFont: FontInstance,
+  fontSynthesis: FontSynthesisAllowance | undefined,
+): PathSmallCapsSynthesis {
+  const features_ = features ?? [];
+  const wantSmcp = features_.includes("smcp");
+  const wantC2sc = features_.includes("c2sc");
+  const wantPcap = features_.includes("pcap");
+  const wantC2pc = features_.includes("c2pc");
+  const wantUnic = features_.includes("unic");
+  const availableFeatures = primaryFont.availableFeatures ?? [];
+  // DM-1971: `font-synthesis-small-caps: none` vetoes only the SYNTHESIZED
+  // form — the scaled-uppercase stand-in taken when the face has no `smcp`.
+  // A face that really carries the feature is unaffected, because that is a
+  // real OpenType substitution rather than a synthesis, and Blink's
+  // `font_synthesis_small_caps_` gates the same narrow thing.
+  const capsSynthOk = synthesisAllowed(fontSynthesis, "smallCaps");
+  const hasFeature = (f: string) => !capsSynthOk || availableFeatures.includes(f);
+  // Determine the synthesized scale for lowercase / uppercase letters under
+  // each variant. `null` means do not transform (keep native glyph at 1.0).
+  // Chromium uses a single synthesis multiplier for ALL caps variants:
+  // `kSmallCapsFontSizeMultiplier = 0.7f` in
+  // third_party/blink/renderer/platform/fonts/simple_font_data.cc. Per CSS
+  // Fonts 4 §7.4, petite-caps falls back to small-caps when the font lacks
+  // pcap / c2pc, and Chrome uses the same 0.7 scale for the synthesized
+  // form (no separate kPetiteCapsFontSizeMultiplier exists). Our macOS body
+  // fonts (Helvetica/Arial/SF Pro/Georgia/Times/Menlo) ship neither pcap
+  // nor c2pc, so the petite path always synthesizes at 0.7 to match Chrome's
+  // painted output. (DM-444 follow-up.)
+  //
+  // Blink doesn't apply that 0.7 as a continuous scale, though:
+  // `SimpleFontData::CreateScaledFontData` (same file) rounds the SCALED
+  // SIZE to a whole pixel before building the scaled font —
+  // `lroundf(font_description.ComputedSize() * scale_factor)` — and the
+  // synthesized glyph is built at THAT integer size. At 16px Chrome's
+  // small-caps glyph is a 11px face (16 × 0.7 = 11.2 → round → 11), not an
+  // unrounded 11.2px one. `SMALL_CAP_SCALE` here is expressed as a per-size
+  // RATIO (`roundedSize / fontSize`) rather than a flat 0.7 so downstream
+  // multiplications (`runScale * SMALL_CAP_SCALE`) land on the same rounded
+  // pixel size Blink does.
+  const SMALL_CAP_SCALE = synthesizedSmallCapsScale(fontSize);
+  let lowerScale: number | null = null;
+  let upperScale: number | null = null;
+  if (wantSmcp && !hasFeature("smcp")) lowerScale = SMALL_CAP_SCALE;
+  if (wantC2sc && !hasFeature("c2sc")) upperScale = SMALL_CAP_SCALE;
+  if (wantPcap && !hasFeature("pcap")) lowerScale = SMALL_CAP_SCALE;
+  if (wantC2pc && !hasFeature("c2pc")) upperScale = SMALL_CAP_SCALE;
+  if (wantUnic && !hasFeature("unic")) {
+    // unicase synthesis per CSS Fonts 4 §3.5: "display lowercase letters in
+    // their usual lowercase glyphs and uppercase letters in their
+    // small-capitals form". So lowercase stays NORMAL; only uppercase
+    // shrinks. The previous code set both scales to 0.7 + the up-casing
+    // branch ran on lowercase too, producing all-small-caps output
+    // instead of the mixed-case unicase appearance Chrome paints.
+    lowerScale = null;
+    upperScale = SMALL_CAP_SCALE;
+  }
+  return { lowerScale, upperScale, active: lowerScale != null || upperScale != null };
+}
+
+/** Split the text into font runs and bind each run's shaping face. */
+function buildPathFontRuns(
+  text: string,
+  primaryFont: FontInstance,
+  primaryFontKey: string,
+  fontKeyChain: ReturnType<typeof resolveFontKeyChain>,
+  primaryIsSystemUi: boolean,
+  request: {
+    fontFamily: string;
+    fontStyle: string | undefined;
+    weight: number;
+    fontSize: number;
+    slant: number;
+    stretch: number;
+    variationSettings: Record<string, number> | undefined;
+    features: string[] | undefined;
+    lang: string | undefined;
+    bidiOverride: BidiParagraphContext | undefined;
+    fontVariantEmoji: FontVariantEmojiOverride | undefined;
+    fallbackRequest: { rawSlope: number; orientation: number } | undefined;
+    cacheOptions: DarwinFontCacheOptions | undefined;
+  },
+): FontRun[] {
+  const { fontFamily, weight, fontSize, slant, stretch, variationSettings, features, lang } = request;
+  // Split the text into runs by font. Code points that primary lacks (Arabic,
+  // CJK, …) get routed to a fallback font. Each run keeps its order; this
+  // does NOT do BiDi reordering — that's tracked separately. startIdx/endIdx
+  // are UTF-16 code-unit positions into `text` so the multi-font path can
+  // slice xOffsets per run (SK-1255).
+  // Default: shaped-cluster granularity via the shared shape-then-requeue
+  // splitter (docs/113) in its "paths" mode — the same cluster decisions the
+  // embedded pipeline makes. The legacy per-codepoint walk exists only behind
+  // the explicit mutation flag. See `splitTextIntoGlyphPathRuns`.
+  const runs: FontRun[] = splitTextIntoGlyphPathRuns(
+    text,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    fontKeyChain,
+    primaryIsSystemUi,
+    stretch,
+    request.fontVariantEmoji,
+    fontFamily,
+    features,
+    request.bidiOverride,
+    request.fallbackRequest,
+  );
+  adjustFallbackRunFonts(runs, primaryFont, weight, fontSize, slant, stretch, request.cacheOptions);
+  // A feature list carrying a disable (`-liga`) or an explicit value can only
+  // be honored by HarfBuzz — fontkit's list is enable-only and the platform
+  // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
+  // proxy with the FULL list bound (outlines stay with the resolved face).
+  // Chrome's own split: Blink shapes with HarfBuzz and rasterizes from the
+  // platform typeface. See `fontFeatureValueShapingOverride`. Applied after
+  // run grouping (the proxy is memoized, so identical bases keep identity).
+  if (featureListNeedsHbShaping(features)) {
+    for (const run of runs) {
+      const fvs = run.fontKey === primaryFontKey ? variationSettings : undefined;
+      run.font = fontFeatureValueShapingOverride(run.font, run.fontKey, weight, fontSize, slant, fvs, features!);
+    }
+  }
+  recordRendererRuns("paths", text, runs, {
+    fontFamily,
+    fontWeight: weight,
+    fontStyle: request.fontStyle,
+    fontStretch: stretch,
+    fontSizePx: fontSize,
+    variationSettings,
+    features,
+    language: lang,
+    fontVariantEmoji: request.fontVariantEmoji,
+  });
+  return runs;
+}
+
 function renderTextPathRuns(
   text: string,
   fontSize: number,
@@ -962,160 +1197,31 @@ function renderTextPathRuns(
 
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
+  const paintPathGroup = buildPathGroupPainter(paint, weight, fontSize, fontSynthesis);
 
-  // Keep fake-bold and author-stroke geometry on the selected RUN. A fallback
-  // face can have a real bold cut while the primary needs synthesis (or vice
-  // versa), and each face can have a different units-per-em scale. Repeating
-  // the same <use> stream is necessary only for opaque `stroke fill`: Skia's
-  // author-stroke pass and frame-and-fill pass have different colors.
-  const paintPathGroup = (runFont: FontInstance, groupScale: number, transform: string, body: string): string => {
-    if (paint == null || groupScale <= 0) {
-      return `<g transform="${transform}">${body}</g>`;
-    }
-    const plan = resolveFakeBoldTextPaint({
-      strokeWidthPx: paint.strokeWidthPx,
-      strokeFirst: paint.strokeFirst,
-      fillIsTransparent: paint.fillIsTransparent,
-      faceLacksWeight: faceNeedsSyntheticBold(runFont, weight, fontSynthesis),
-      fontSizePx: fontSize,
-    });
-    return plan.svgPasses
-      .map((pass) => {
-        const attrs = fakeBoldSvgPaintAttributes(pass, paint, groupScale);
-        return `<g transform="${transform}"${attrs}>${body}</g>`;
-      })
-      .join("");
-  };
-
-  // Split the text into runs by font. Code points that primary lacks (Arabic,
-  // CJK, …) get routed to a fallback font. Each run keeps its order; this
-  // does NOT do BiDi reordering — that's tracked separately. startIdx/endIdx
-  // are UTF-16 code-unit positions into `text` so the multi-font path can
-  // slice xOffsets per run (SK-1255).
-  // Default: shaped-cluster granularity via the shared shape-then-requeue
-  // splitter (docs/113) in its "paths" mode — the same cluster decisions the
-  // embedded pipeline makes. The legacy per-codepoint walk exists only behind
-  // the explicit mutation flag. See `splitTextIntoGlyphPathRuns`.
-  const runs: FontRun[] = splitTextIntoGlyphPathRuns(
+  const runs = buildPathFontRuns(
     text,
     primaryFont,
     primaryFontKey,
-    weight,
-    fontSize,
-    slant,
-    variationSettings,
-    lang,
     fontKeyChain,
     stackPrimaryIsSystemUi(fontFamily, lang, description),
-    stretch,
-    fontVariantEmoji,
-    fontFamily,
-    features,
-    bidiOverride,
-    fallbackRequest,
+    {
+      fontFamily,
+      fontStyle,
+      weight,
+      fontSize,
+      slant,
+      stretch,
+      variationSettings,
+      features,
+      lang,
+      bidiOverride,
+      fontVariantEmoji,
+      fallbackRequest,
+      cacheOptions,
+    },
   );
-  adjustFallbackRunFonts(runs, primaryFont, weight, fontSize, slant, stretch, cacheOptions);
-  // A feature list carrying a disable (`-liga`) or an explicit value can only
-  // be honored by HarfBuzz — fontkit's list is enable-only and the platform
-  // glyph helpers ignore it — so such a run swaps its shaping to a HarfBuzz
-  // proxy with the FULL list bound (outlines stay with the resolved face).
-  // Chrome's own split: Blink shapes with HarfBuzz and rasterizes from the
-  // platform typeface. See `fontFeatureValueShapingOverride`. Applied after
-  // run grouping (the proxy is memoized, so identical bases keep identity).
-  if (featureListNeedsHbShaping(features)) {
-    for (const run of runs) {
-      const fvs = run.fontKey === primaryFontKey ? variationSettings : undefined;
-      run.font = fontFeatureValueShapingOverride(run.font, run.fontKey, weight, fontSize, slant, fvs, features!);
-    }
-  }
-  recordRendererRuns("paths", text, runs, {
-    fontFamily,
-    fontWeight: weight,
-    fontStyle,
-    fontStretch: stretch,
-    fontSizePx: fontSize,
-    variationSettings,
-    features,
-    language: lang,
-    fontVariantEmoji,
-  });
-  // Synthesized small-caps detection (DM-294). When `font-variant: small-caps`
-  // resolves to the OpenType `smcp` feature but the active font lacks `smcp`
-  // (Helvetica, Arial, SF Pro, Georgia, Times — all the body fonts we hit on
-  // macOS), Chrome falls back to *synthesized* small-caps: lowercase letters
-  // are rendered as uppercase glyphs at a smaller font size while uppercase
-  // letters stay full size. Empirically the scale Chromium uses on Helvetica
-  // at 16px is 11/16 ≈ 0.6875; at 32px it's 22/32 = 0.6875; at 20px it's
-  // 14/20 = 0.700. We approximate with a flat 0.7 — the per-char xOffsets
-  // already encode Chrome's painted positions, so the only thing we choose
-  // is the glyph (uppercase vs lowercase) and its scale; small width drift
-  // per glyph is acceptable.
-  // Synthesis covers all six font-variant-caps modes (DM-294 + DM-444):
-  //   small-caps      → smcp                (lowercase → small-cap scale)
-  //   all-small-caps  → smcp + c2sc         (lowercase + uppercase → small-cap scale)
-  //   petite-caps     → pcap                (lowercase → petite-cap scale)
-  //   all-petite-caps → pcap + c2pc         (lowercase + uppercase → petite-cap scale)
-  //   unicase         → unic                (uppercase → small-cap scale; lowercase → small-cap)
-  //   titling-caps    → titl                (no synthesis fallback; rely on OT feature or no-op)
-  // The body-text fonts on macOS (Helvetica / Arial / SF Pro / Georgia /
-  // Times / Menlo) lack pcap, c2pc, c2sc, unic, and titl entirely, so the
-  // synthesis path runs whenever any of these is requested.
-  const features_ = features ?? [];
-  const wantSmcp = features_.includes("smcp");
-  const wantC2sc = features_.includes("c2sc");
-  const wantPcap = features_.includes("pcap");
-  const wantC2pc = features_.includes("c2pc");
-  const wantUnic = features_.includes("unic");
-  const availableFeatures = primaryFont.availableFeatures ?? [];
-  // DM-1971: `font-synthesis-small-caps: none` vetoes only the SYNTHESIZED
-  // form — the scaled-uppercase stand-in taken when the face has no `smcp`.
-  // A face that really carries the feature is unaffected, because that is a
-  // real OpenType substitution rather than a synthesis, and Blink's
-  // `font_synthesis_small_caps_` gates the same narrow thing.
-  const capsSynthOk = synthesisAllowed(fontSynthesis, "smallCaps");
-  const hasFeature = (f: string) => !capsSynthOk || availableFeatures.includes(f);
-  // Determine the synthesized scale for lowercase / uppercase letters under
-  // each variant. `null` means do not transform (keep native glyph at 1.0).
-  // Chromium uses a single synthesis multiplier for ALL caps variants:
-  // `kSmallCapsFontSizeMultiplier = 0.7f` in
-  // third_party/blink/renderer/platform/fonts/simple_font_data.cc. Per CSS
-  // Fonts 4 §7.4, petite-caps falls back to small-caps when the font lacks
-  // pcap / c2pc, and Chrome uses the same 0.7 scale for the synthesized
-  // form (no separate kPetiteCapsFontSizeMultiplier exists). Our macOS body
-  // fonts (Helvetica/Arial/SF Pro/Georgia/Times/Menlo) ship neither pcap
-  // nor c2pc, so the petite path always synthesizes at 0.7 to match Chrome's
-  // painted output. (DM-444 follow-up.)
-  //
-  // Blink doesn't apply that 0.7 as a continuous scale, though:
-  // `SimpleFontData::CreateScaledFontData` (same file) rounds the SCALED
-  // SIZE to a whole pixel before building the scaled font —
-  // `lroundf(font_description.ComputedSize() * scale_factor)` — and the
-  // synthesized glyph is built at THAT integer size. At 16px Chrome's
-  // small-caps glyph is a 11px face (16 × 0.7 = 11.2 → round → 11), not an
-  // unrounded 11.2px one. `SMALL_CAP_SCALE` here is expressed as a per-size
-  // RATIO (`roundedSize / fontSize`) rather than a flat 0.7 so downstream
-  // multiplications (`runScale * SMALL_CAP_SCALE`) land on the same rounded
-  // pixel size Blink does.
-  const SMALL_CAP_SCALE = synthesizedSmallCapsScale(fontSize);
-  let synthLowerScale: number | null = null;
-  let synthUpperScale: number | null = null;
-  if (wantSmcp && !hasFeature("smcp")) synthLowerScale = SMALL_CAP_SCALE;
-  if (wantC2sc && !hasFeature("c2sc")) synthUpperScale = SMALL_CAP_SCALE;
-  if (wantPcap && !hasFeature("pcap")) synthLowerScale = SMALL_CAP_SCALE;
-  if (wantC2pc && !hasFeature("c2pc")) synthUpperScale = SMALL_CAP_SCALE;
-  if (wantUnic && !hasFeature("unic")) {
-    // unicase synthesis per CSS Fonts 4 §3.5: "display lowercase letters in
-    // their usual lowercase glyphs and uppercase letters in their
-    // small-capitals form". So lowercase stays NORMAL; only uppercase
-    // shrinks. The previous code set both scales to 0.7 + the up-casing
-    // branch ran on lowercase too, producing all-small-caps output
-    // instead of the mixed-case unicase appearance Chrome paints.
-    synthLowerScale = null;
-    synthUpperScale = SMALL_CAP_SCALE;
-  }
-  const synthSmallCaps = synthLowerScale != null || synthUpperScale != null;
-  const smcpRequested = wantSmcp;
-  void smcpRequested;
+  const smallCaps = resolvePathSmallCapsSynthesis(features, fontSize, primaryFont, fontSynthesis);
   // Single-run, primary-font path keeps the existing fast path with xOffsets
   // support and per-char fidelity. Multi-run path falls back to native advances.
   // When synthesizing small-caps we need per-char rendering at variable scales,
@@ -1123,7 +1229,7 @@ function renderTextPathRuns(
   if (
     runs.length === 1 &&
     runs[0].fontKey === primaryFontKey &&
-    !synthSmallCaps &&
+    !smallCaps.active &&
     runs[0].decomposed !== true &&
     runs[0].font.shapesWithHarfbuzz !== true
   ) {
@@ -1145,491 +1251,602 @@ function renderTextPathRuns(
     );
   }
 
-  // Content with captured per-char xOffsets. Primary runs and non-shaping
-  // fallback runs (CJK, hiragana/katakana via cjk, Hebrew, symbols, Menlo)
-  // anchor each glyph at its captured x to preserve subpixel positioning
-  // (SK-1234) AND honor per-char layout decisions Chrome made that fontkit's
-  // native advances would miss (notably ruby-align: space-around distributing
-  // a single rt char to fill its base column — DM-239). Shaping-required
-  // fallbacks (Arabic, Devanagari, Thai) still go through font.layout(runText)
-  // as a unit so contextual joining (init/medi/fina), cluster reordering
-  // (Devanagari i-matra), and ligature substitution (क्ष) survive — fontkit's
-  // shaping for these scripts agrees with Chromium's HarfBuzz to within ~1px
-  // (SK-1237 investigation).
+  const ctx: PathRunContext = {
+    text,
+    fontSize,
+    weight,
+    slant,
+    stretch,
+    features,
+    lang,
+    bidiOverride,
+    textSpacingTrim,
+    hanKerningEdges,
+    ownership,
+    paintPathGroup,
+  };
   if (xOffsets != null && xOffsets.length === text.length) {
-    const groups: string[] = [];
-    let rightEdge = 0;
-    // DM-1894: per-code-unit bidi embedding levels for the whole text, computed
-    // once. This is the outer of Blink's two segmentation levels — it shapes each
-    // BIDI RUN with its own direction (harfbuzz_shaper.cc:1145-1148) and splits
-    // by script within it. `undefined` when the text is unidirectional, which
-    // lets the segmenter take its cheap path.
-    const bidiLevels = bidiLevelsFor(text, bidiOverride);
-    for (const run of runs) {
-      const runScale = fontSize / run.font.unitsPerEm;
-      const sc = Number(runScale.toFixed(5));
-      // Decomposed Math-Alpha runs render via the run-text branch too: their
-      // `text` carries the substituted base letters, which don't line up with
-      // the original astral codepoints the per-char branch reads from `text`.
-      // DM-1868: decide this from the run's SCRIPT, not from its routing key.
-      //
-      // The three key names below are the static fallback-table keys for Arabic /
-      // Devanagari / Thai. When the live system-fallback resolver answers instead
-      // — which is what `resolveFontForCodepoint` does for any codepoint the
-      // static chain misses, and what it does for ALL of them once the stages run
-      // in Blink's order — the key becomes `sysfb:GeezaPro` /
-      // `sysfb:KohinoorDevanagari-Regular`, these comparisons all go false, and
-      // the run silently drops to the per-char branch. Arabic contextual joining
-      // and Devanagari cluster reordering just stop happening: measured as 4 diff
-      // regions on `text-mixed-script`, with the FACE and the glyph positions
-      // both correct, because only the shaping was lost.
-      //
-      // `usesDedicatedShaper` is the same predicate the resolver already uses to
-      // decide which codepoints CoreText shapes correctly, so keying on it makes
-      // the two agree by construction instead of by a name that has to be kept
-      // in sync. The key checks stay as-is: they cost nothing and they keep the
-      // behavior identical for every run that still routes through a static key.
-      const isShapingRequired =
-        run.fontKey === "sf-arabic" ||
-        run.fontKey === "devanagari" ||
-        run.fontKey === "thai" ||
-        run.decomposed === true ||
-        // A face deliberately wrapped with the Chromium-configured HarfBuzz
-        // engine must shape as a run. Sending that wrapper one scalar at a
-        // time defeats the very syllable/cluster logic it was selected for,
-        // including broken-syllable dotted-circle insertion.
-        // Synthesized caps must still take the per-character branch below: it
-        // uppercases and applies Blink's rounded small-cap size independently
-        // to each source character. The HarfBuzz proxy remains the shaper for
-        // every ordinary run, but treating it as an unconditional run-shaping
-        // signal here would silently discard that synthesis.
-        (run.font.shapesWithHarfbuzz === true && !synthSmallCaps) ||
-        [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!));
-
-      if (!isShapingRequired) {
-        // Per-char anchoring — primary runs and any fallback that's 1:1 char→
-        // glyph (no shaping reordering or contextual joining). Each codepoint
-        // shapes individually; placement uses the captured xOffset so we
-        // inherit Chrome's spacing decisions including ruby column-fitting.
-        // When `synthSmallCaps` is on (DM-294 + DM-444), case-fold and
-        // re-scale glyphs per the variant-caps spec. Lowercase letters are
-        // up-cased and rendered at synthLowerScale; uppercase letters
-        // (under c2sc / c2pc / unic) are rendered at synthUpperScale. The
-        // fonts on macOS we hit here all lack the OT features for these
-        // variants, so synthesis is the path Chrome takes too.
-        let i = run.startIdx;
-        while (i < run.endIdx) {
-          const cp = text.codePointAt(i)!;
-          let ch = String.fromCodePoint(cp);
-          let chScale = sc;
-          if (synthSmallCaps) {
-            // DM-1116: scale uppercase letters, digits, punctuation AND symbols
-            // (Blink's `kSmallCapsSameCase`) under c2sc/c2pc/unic — not just
-            // letters/digits — so hyphens/colons aren't left full-size in
-            // all-small-caps / unicase. See `synthSmallCapsCharScale`.
-            const synth = synthSmallCapsCharScale(ch, synthLowerScale, synthUpperScale);
-            if (synth.upcase) ch = ch.toUpperCase();
-            if (synth.scale !== 1) chScale = Number((runScale * synth.scale).toFixed(5));
-          }
-          const layout =
-            features != null && features.length > 0 && !synthSmallCaps
-              ? // Enable-only projection: a disable/value entry is honored by the
-                // run's HarfBuzz proxy (bound at wrap time above), never by fontkit.
-                run.font.layout(ch, fontkitFeatureList(features))
-              : run.font.layout(ch);
-          const nextI = i + ch.length;
-          const uses: string[] = [];
-          for (const g of layout.glyphs) {
-            if (glyphUsesRasterRepresentation(run.font, run.fontKey, g, fontSize, weight, slant)) {
-              noteRasterGlyph(ownership);
-              continue;
-            }
-            const gCmds = ownedCommandsFor(
-              ownership,
-              g,
-              run.fontKey,
-              weight,
-              fontSize,
-              slant,
-              run.font,
-              boundedSourceSpan(text, i, nextI),
-              text,
-            );
-            if (gCmds.length === 0) continue;
-            // A PUA codepoint with no covering icon font paints its `.notdef`
-            // like any other uncovered codepoint — see `singleFontMarkup`'s
-            // comment on the same removal for the single-font branch. Chrome's
-            // fallback iterator lands on the run's own font and paints THAT
-            // font's `.notdef` (`font_fallback_iterator.cc:159-164`), so the
-            // synthetic hollow-rect stand-in this branch used to draw here (a
-            // box ~0.7 × advance wide, 0.65 em tall, with a 0.03 em border) was
-            // a workaround for a defect one layer up, not behavior Chrome
-            // exhibits — and even where it fired, it measured narrower,
-            // shorter and far thinner-stroked than Helvetica's real `.notdef`
-            // (0.71 em vs 0.90 em wide). Uncovered-PUA is otherwise rare (this
-            // fires only for a codepoint neither the primary nor any fallback
-            // in the run's chain covers), so this is expected to move no
-            // current fixture — it's a consistency fix, not a visible one.
-            const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, gCmds, stretch);
-            uses.push(`<use href="#${defId}" x="0" y="0"/>`);
-          }
-          if (uses.length > 0) {
-            let cssX = Number(xOffsets[i].toFixed(3));
-            // DM-1184: shift trimmed fullwidth-punctuation ink (see
-            // cjkTrimShiftFontUnits / the embedded-font path for the rationale).
-            if (layout.glyphs.length === 1) {
-              const shiftFU = cjkTrimShiftFontUnits(
-                run.font,
-                run.fontKey,
-                layout.glyphs[0],
-                text,
-                i,
-                textSpacingTrim,
-                hanKerningEdges,
-              );
-              if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
-            }
-            groups.push(
-              paintPathGroup(run.font, chScale, `translate(${cssX},0) scale(${chScale},${-chScale})`, uses.join("")),
-            );
-            if (cssX > rightEdge) rightEdge = cssX;
-          }
-          i += ch.length;
-        }
-      } else {
-        // Shaping fallback — shape by SEGMENT, not by whole run.
-        //
-        // A run is split on font boundaries only, so a face covering several
-        // scripts leaves a mixed-script line in one run. Shaping that as a unit
-        // makes the shaper choose ONE script and direction for all of it, and an
-        // RTL stretch inside an LTR run then comes back in logical order and
-        // paints mirrored. Chromium does not do this: `HarfBuzzShaper::Shape`
-        // takes direction per BIDI RUN (harfbuzz_shaper.cc:1145-1148 → :341) and
-        // segments by SCRIPT within it via RunSegmenter (:1168-1177). See
-        // `segmentForShaping`, which mirrors both levels.
-        //
-        // `needsSegmentation` keeps the common case free — the analogue of
-        // Blink's 8-bit shortcut (:1157-1161), which skips segmentation for
-        // Latin-1 because it cannot hold a script or direction boundary.
-        // The level array spans the WHOLE text; `run.text` is a slice of it
-        // starting at `run.startIdx`, and both consumers below index it with
-        // RUN-RELATIVE offsets. Handing them the unsliced array reads the level
-        // of whatever character happens to sit that far from the start of the
-        // LINE, so every run except the first was scored against the wrong
-        // characters — `Hello مرحبا …` read levels 0,0,0,0,0 (the `Hello`) for
-        // its Arabic run and called it left-to-right.
-        //
-        // That was invisible for as long as the shaper ignored the direction it
-        // was handed: the macOS helper's shape query takes no direction argument
-        // at all (`shapeText(text)`), so it inferred RTL from the content and
-        // came out right for the wrong reason. HarfBuzz obeys — see the segment
-        // loop below — so the misalignment became a mirrored word the moment any
-        // RTL script was routed to it.
-        //
-        // Sliced only when the run's text is the source slice character for
-        // character. A Math-Alphanumeric `decomposed` run holds SUBSTITUTED base
-        // letters (`mathAlphaToBase`), so its length need not match the span it
-        // came from and no per-character alignment exists to preserve; those runs
-        // are Latin base letters by construction, and `undefined` levels are read
-        // as left-to-right, which is what they are.
-        const runLevels =
-          bidiLevels != null && run.text.length === run.endIdx - run.startIdx
-            ? bidiLevels.subarray(run.startIdx, run.endIdx)
-            : undefined;
-        // Blink's 8-bit shortcut is the only case that may skip script
-        // itemization. A one-segment non-Latin run still needs its resolved
-        // script: HarfBuzz selects the syllabic shaper from that tag, so an
-        // Inherited Vedic mark itemized as Devanagari is observably different
-        // from the same buffer left as Common.
-        const isEightBit = [...run.text].every((ch) => ch.codePointAt(0)! <= 0xff);
-        const segments = isEightBit
-          ? [
-              {
-                start: 0,
-                end: run.text.length,
-                script: "Latin",
-                rtl: runLevels != null && runLevels.length > 0 && (runLevels[0] & 1) === 1,
-              },
-            ]
-          : segmentForShaping(run.text, runLevels);
-
-        // A note on what an override run does NOT need: a different shaper.
-        //
-        // It looked like it did. The platform helper's `shape` query takes no
-        // direction and infers one from the string's own bidi — the exact
-        // inference an override exists to suppress — so the run was routed to
-        // HarfBuzz, the one shaper that can be TOLD a direction. That fixed the
-        // Hebrew cases and left Arabic worse than before (0.526% -> 0.701%).
-        //
-        // The reason is below, at the segment: HarfBuzz does not honor a
-        // contrary direction by shaping the text as-is under it. It reverses the
-        // characters into the script's native order first. So the question was
-        // never "which shaper can be told LTR" — it was "which buffer would
-        // HarfBuzz have shaped", and that buffer is one the helper's own
-        // inference reads correctly. Reversing here leaves nothing for a second
-        // shaper to do, and keeps the AAT-capable one, which on macOS is
-        // load-bearing: GeezaPro and Helvetica carry `morx` and no `GSUB`.
-        for (const seg of segments) {
-          const segText = run.text.slice(seg.start, seg.end);
-          if (segText === "") continue;
-          // Anchor each segment at its OWN visual-leftmost captured x, rather
-          // than accumulating advances across segments. Chrome already decided
-          // where each character sits, so this reuses its positioning instead of
-          // re-deriving it — and it is what keeps a mirrored RTL segment landing
-          // in the right place. Math.min covers both directions.
-          let segMinX = Infinity;
-          for (let i = run.startIdx + seg.start; i < run.startIdx + seg.end && i < xOffsets.length; i++) {
-            if (xOffsets[i] < segMinX) segMinX = xOffsets[i];
-          }
-          if (!Number.isFinite(segMinX)) continue;
-
-          // Direction is passed EXPLICITLY, the way Blink passes it, rather than
-          // left for the shaper to infer from content — inference is what
-          // produced an LTR reading of an Arabic stretch in the first place.
-          // Script stays undefined so fontkit derives it from the segment, which
-          // is now single-script by construction; it reads the same
-          // `unicode-properties` table the segmenter does, so the two agree.
-          const dir = seg.rtl ? "rtl" : "ltr";
-          // Does the SEGMENT's own content imply the direction we are asking
-          // for? `_RTL_RE`-equivalent: any strong-RTL character makes the
-          // content RTL for this purpose.
-          const contentIsRtl = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(segText);
-
-          // When the two disagree, shape the REVERSED characters in the script's
-          // own direction — which is what HarfBuzz does, and therefore what
-          // Chrome does.
-          //
-          // `hb_ensure_native_direction` (`external/harfbuzz/src/hb-ot-shape.cc:588`,
-          // rev 4de187d) runs before any shaper sees the buffer: if the requested
-          // direction is horizontal and differs from
-          // `hb_script_get_horizontal_direction(script)`, it reverses the buffer's
-          // clusters and flips the direction, so the shaper always runs natively;
-          // `hb_ot_shape_internal` reverses back at the end (`:1184`).
-          //
-          // The consequence is easy to miss and is the whole of this ticket:
-          // reversing BEFORE shaping means the contextual forms are computed on
-          // the reversed character sequence. Under `bidi-override; direction: ltr`
-          // Chrome therefore paints Arabic UNJOINED at the ends — the word's first
-          // letter has nothing to its right any more. Verified equivalent on
-          // GeezaPro: `hb-shape --direction=ltr` over the source and
-          // `--direction=rtl` over the reversed source return byte-identical
-          // glyphs and advances (meem isolated 900 | reh.final 700 | hah.medial
-          // 1359 | beh.initial 656 | alef isolated 647), differing only in cluster
-          // numbering. Shaping the source as-is under a forced direction — which
-          // is what asking a shaper for "this text, LTR" does — keeps the joined
-          // forms and is simply a different word shape.
-          //
-          // Doing the reversal here rather than passing a direction down also
-          // removes the reason the override run needed a different shaper at all.
-          // The platform helper infers direction from content and cannot be told
-          // otherwise; on the reversed string that inference now lands on exactly
-          // the direction we want, so the helper stays usable without a shaper
-          // swap. The ground for that is the SAME `hb_ensure_native_direction`
-          // equivalence cited above — `shape(source, requestedDir)` ==
-          // `shape(reversed(source), nativeDir)` from HarfBuzz's point of
-          // view — not an AAT/`morx` capability gap in our own wasm. (An
-          // earlier version of this comment attributed the need to the
-          // *published* harfbuzzjs npm package being built `-DHB_TINY`, which
-          // strips AAT and does return GeezaPro's isolated forms —
-          // 900/902/1292/1415/647 against real HarfBuzz's 900/700/1359/656/647
-          // — because the table that joins them is compiled out. That
-          // description is stale for this project: `packages/text-engine/vendor/harfbuzzjs/` is
-          // rebuilt with Chromium's own HarfBuzz configuration and keeps AAT
-          // — see `packages/text-engine/vendor/harfbuzzjs/README.md` and
-          // `build/config-override.h` — so an AAT gap was never why these
-          // faces stay on the platform helper; `hb_ensure_native_direction`
-          // is.)
-          //
-          // Reversal is by code point, matching `reverse_clusters()` on a buffer
-          // that has not been shaped yet, where clusters are still per-character.
-          //
-          // Gated on there being an override, and the gate is now a narrowing
-          // rather than a correction. It used to be load-bearing for a different
-          // reason: the level array was indexed run-relatively against
-          // whole-line levels (fixed above), so a plain mixed-script line handed
-          // the Arabic segment `rtl: false` while its content was plainly RTL,
-          // and reversing on that signal mirrored the word. With the run-aligned
-          // levels, `seg.rtl` and `contentIsRtl` agree for every strong-script
-          // segment outside an override, so the two forms coincide there; the
-          // gate is kept because the ONE input that can legitimately contradict
-          // the content is an override, where Blink's injected LRO/RLO makes the
-          // level authoritative by construction — which is the whole point of
-          // the property.
-          const forceDirection =
-            bidiOverride?.unicodeBidi === "bidi-override" || bidiOverride?.unicodeBidi === "isolate-override";
-          const flipToNative = forceDirection && seg.rtl !== contentIsRtl;
-          const shapeText = flipToNative ? [...segText].reverse().join("") : segText;
-          // Once flipped, the run IS native, so hand the shaper the direction its
-          // content implies rather than the paragraph's.
-          const shapeDir = flipToNative ? (contentIsRtl ? "rtl" : "ltr") : dir;
-          const shapeFont = run.font;
-          // Shaped fallback already resolved the item's script before it chose
-          // this face. Keep that authoritative tag through emission; legacy
-          // runs without provenance retain the local segment derivation.
-          const scriptTag = run.shapingScript ?? SCRIPT_NAME_TO_ISO15924[seg.script];
-          const layout =
-            features != null && features.length > 0
-              ? shapeFont.layout(shapeText, fontkitFeatureList(features), scriptTag, lang, shapeDir)
-              : shapeFont.layout(shapeText, undefined, scriptTag, lang, shapeDir);
-          const uses: string[] = [];
-          const shapedClusters = (layout as typeof layout & { clusters?: number[] }).clusters;
-          const glyphSourceSpans = shapedGlyphSourceSpans(
-            segText,
-            shapeText,
-            layout.glyphs,
-            shapedClusters,
-            shapeDir === "rtl",
-            flipToNative,
-          );
-          const placements = blinkSuppressesInterLetterSpacing(seg.script)
-            ? (() => {
-                let cursorFU = 0;
-                return layout.positions.map((pos) => {
-                  const xFontUnits = cursorFU + pos.xOffset;
-                  cursorFU += pos.xAdvance;
-                  return { xFontUnits, rightCss: segMinX + cursorFU * runScale };
-                });
-              })()
-            : positionShapedClusters(
-                segText,
-                shapeText,
-                layout.glyphs,
-                layout.positions,
-                shapedClusters,
-                xOffsets,
-                run.startIdx + seg.start,
-                runScale,
-                segMinX,
-                seg.rtl,
-                flipToNative,
-              );
-          let maxRightCss = segMinX;
-          for (let gi = 0; gi < layout.glyphs.length; gi++) {
-            const glyph = layout.glyphs[gi];
-            const pos = layout.positions[gi];
-            // Blink applies letter/word spacing after shaping, then paints each
-            // shaped cluster at that post-spacing inline origin. Preserve that
-            // captured cluster anchor while retaining HarfBuzz's intra-cluster
-            // advance and GPOS offset. Anchoring only the segment (the previous
-            // behavior) discarded spacing between clusters and accumulated a
-            // visible drift across ordinary shaped Latin runs.
-            const rasterOwned = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant);
-            if (rasterOwned) noteRasterGlyph(ownership);
-            const glyphCmds = rasterOwned
-              ? []
-              : ownedCommandsFor(
-                  ownership,
-                  glyph,
-                  run.fontKey,
-                  weight,
-                  fontSize,
-                  slant,
-                  run.font,
-                  boundedSourceSpan(
-                    text,
-                    run.startIdx + seg.start + glyphSourceSpans[gi][0],
-                    run.startIdx + seg.start + glyphSourceSpans[gi][1],
-                  ),
-                  text,
-                );
-            if (glyphCmds.length > 0) {
-              const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
-              const sourceIndex = run.startIdx + seg.start + glyphSourceSpans[gi][0];
-              const sourceEnd = run.startIdx + seg.start + glyphSourceSpans[gi][1];
-              const sourceCp = text.codePointAt(sourceIndex);
-              const ownsOneScalar = sourceCp != null && sourceEnd - sourceIndex === (sourceCp > 0xffff ? 2 : 1);
-              const trimShiftFU = ownsOneScalar
-                ? cjkTrimShiftFontUnits(
-                    run.font,
-                    run.fontKey,
-                    glyph,
-                    text,
-                    sourceIndex,
-                    textSpacingTrim,
-                    hanKerningEdges,
-                  )
-                : 0;
-              const tx = placements[gi].xFontUnits + trimShiftFU;
-              const ty = -pos.yOffset;
-              uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
-            }
-            maxRightCss = Math.max(maxRightCss, placements[gi].rightCss);
-          }
-          if (uses.length > 0) {
-            const cssX = Number(segMinX.toFixed(3));
-            groups.push(paintPathGroup(run.font, sc, `translate(${cssX},0) scale(${sc},${-sc})`, uses.join("")));
-            const segRight = maxRightCss;
-            if (segRight > rightEdge) rightEdge = segRight;
-          }
-        }
-      }
-    }
-    return { markup: groups.join(""), width: rightEdge, ownership };
+    return emitAnchoredPathRuns(ctx, runs, xOffsets, smallCaps);
   }
+  return emitAccumulatedPathRuns(ctx, runs);
+}
 
-  // Multi-font path: emit one <g scale> per run, each at its accumulated CSS-x.
+// Content with captured per-char xOffsets. Primary runs and non-shaping
+// fallback runs (CJK, hiragana/katakana via cjk, Hebrew, symbols, Menlo)
+// anchor each glyph at its captured x to preserve subpixel positioning
+// (SK-1234) AND honor per-char layout decisions Chrome made that fontkit's
+// native advances would miss (notably ruby-align: space-around distributing
+// a single rt char to fill its base column — DM-239). Shaping-required
+// fallbacks (Arabic, Devanagari, Thai) still go through font.layout(runText)
+// as a unit so contextual joining (init/medi/fina), cluster reordering
+// (Devanagari i-matra), and ligature substitution (क्ष) survive — fontkit's
+// shaping for these scripts agrees with Chromium's HarfBuzz to within ~1px
+// (SK-1237 investigation).
+function emitAnchoredPathRuns(
+  ctx: PathRunContext,
+  runs: FontRun[],
+  xOffsets: number[],
+  smallCaps: PathSmallCapsSynthesis,
+): TextPathResult {
+  const emission: PathRunEmission = { groups: [], rightEdge: 0 };
+  // DM-1894: per-code-unit bidi embedding levels for the whole text, computed
+  // once. This is the outer of Blink's two segmentation levels — it shapes each
+  // BIDI RUN with its own direction (harfbuzz_shaper.cc:1145-1148) and splits
+  // by script within it. `undefined` when the text is unidirectional, which
+  // lets the segmenter take its cheap path.
+  const bidiLevels = bidiLevelsFor(ctx.text, ctx.bidiOverride);
+  for (const run of runs) {
+    const runScale = ctx.fontSize / run.font.unitsPerEm;
+    if (!pathRunRequiresShaping(run, smallCaps.active)) {
+      emitPerCharacterPathRun(ctx, run, runScale, xOffsets, smallCaps, emission);
+    } else {
+      emitShapedPathRunSegments(ctx, run, runScale, xOffsets, bidiLevels, emission);
+    }
+  }
+  return { markup: emission.groups.join(""), width: emission.rightEdge, ownership: ctx.ownership };
+}
+
+// Decomposed Math-Alpha runs render via the run-text branch too: their
+// `text` carries the substituted base letters, which don't line up with
+// the original astral codepoints the per-char branch reads from `text`.
+// DM-1868: decide this from the run's SCRIPT, not from its routing key.
+//
+// The three key names below are the static fallback-table keys for Arabic /
+// Devanagari / Thai. When the live system-fallback resolver answers instead
+// — which is what `resolveFontForCodepoint` does for any codepoint the
+// static chain misses, and what it does for ALL of them once the stages run
+// in Blink's order — the key becomes `sysfb:GeezaPro` /
+// `sysfb:KohinoorDevanagari-Regular`, these comparisons all go false, and
+// the run silently drops to the per-char branch. Arabic contextual joining
+// and Devanagari cluster reordering just stop happening: measured as 4 diff
+// regions on `text-mixed-script`, with the FACE and the glyph positions
+// both correct, because only the shaping was lost.
+//
+// `usesDedicatedShaper` is the same predicate the resolver already uses to
+// decide which codepoints CoreText shapes correctly, so keying on it makes
+// the two agree by construction instead of by a name that has to be kept
+// in sync. The key checks stay as-is: they cost nothing and they keep the
+// behavior identical for every run that still routes through a static key.
+function pathRunRequiresShaping(run: FontRun, synthSmallCaps: boolean): boolean {
+  return (
+    run.fontKey === "sf-arabic" ||
+    run.fontKey === "devanagari" ||
+    run.fontKey === "thai" ||
+    run.decomposed === true ||
+    // A face deliberately wrapped with the Chromium-configured HarfBuzz
+    // engine must shape as a run. Sending that wrapper one scalar at a
+    // time defeats the very syllable/cluster logic it was selected for,
+    // including broken-syllable dotted-circle insertion.
+    // Synthesized caps must still take the per-character branch below: it
+    // uppercases and applies Blink's rounded small-cap size independently
+    // to each source character. The HarfBuzz proxy remains the shaper for
+    // every ordinary run, but treating it as an unconditional run-shaping
+    // signal here would silently discard that synthesis.
+    (run.font.shapesWithHarfbuzz === true && !synthSmallCaps) ||
+    [...run.text].some((c) => usesDedicatedShaper(c.codePointAt(0)!))
+  );
+}
+
+// Per-char anchoring — primary runs and any fallback that's 1:1 char→
+// glyph (no shaping reordering or contextual joining). Each codepoint
+// shapes individually; placement uses the captured xOffset so we
+// inherit Chrome's spacing decisions including ruby column-fitting.
+// When `synthSmallCaps` is on (DM-294 + DM-444), case-fold and
+// re-scale glyphs per the variant-caps spec. Lowercase letters are
+// up-cased and rendered at synthLowerScale; uppercase letters
+// (under c2sc / c2pc / unic) are rendered at synthUpperScale. The
+// fonts on macOS we hit here all lack the OT features for these
+// variants, so synthesis is the path Chrome takes too.
+function emitPerCharacterPathRun(
+  ctx: PathRunContext,
+  run: FontRun,
+  runScale: number,
+  xOffsets: number[],
+  smallCaps: PathSmallCapsSynthesis,
+  emission: PathRunEmission,
+): void {
+  const { text, features, fontSize, weight, slant, stretch, ownership } = ctx;
+  const sc = Number(runScale.toFixed(5));
+  let i = run.startIdx;
+  while (i < run.endIdx) {
+    const cp = text.codePointAt(i)!;
+    let ch = String.fromCodePoint(cp);
+    let chScale = sc;
+    if (smallCaps.active) {
+      // DM-1116: scale uppercase letters, digits, punctuation AND symbols
+      // (Blink's `kSmallCapsSameCase`) under c2sc/c2pc/unic — not just
+      // letters/digits — so hyphens/colons aren't left full-size in
+      // all-small-caps / unicase. See `synthSmallCapsCharScale`.
+      const synth = synthSmallCapsCharScale(ch, smallCaps.lowerScale, smallCaps.upperScale);
+      if (synth.upcase) ch = ch.toUpperCase();
+      if (synth.scale !== 1) chScale = Number((runScale * synth.scale).toFixed(5));
+    }
+    const layout =
+      features != null && features.length > 0 && !smallCaps.active
+        ? // Enable-only projection: a disable/value entry is honored by the
+          // run's HarfBuzz proxy (bound at wrap time above), never by fontkit.
+          run.font.layout(ch, fontkitFeatureList(features))
+        : run.font.layout(ch);
+    const nextI = i + ch.length;
+    const uses: string[] = [];
+    for (const g of layout.glyphs) {
+      if (glyphUsesRasterRepresentation(run.font, run.fontKey, g, fontSize, weight, slant)) {
+        noteRasterGlyph(ownership);
+        continue;
+      }
+      const gCmds = ownedCommandsFor(
+        ownership,
+        g,
+        run.fontKey,
+        weight,
+        fontSize,
+        slant,
+        run.font,
+        boundedSourceSpan(text, i, nextI),
+        text,
+      );
+      if (gCmds.length === 0) continue;
+      // A PUA codepoint with no covering icon font paints its `.notdef`
+      // like any other uncovered codepoint — see `singleFontMarkup`'s
+      // comment on the same removal for the single-font branch. Chrome's
+      // fallback iterator lands on the run's own font and paints THAT
+      // font's `.notdef` (`font_fallback_iterator.cc:159-164`), so the
+      // synthetic hollow-rect stand-in this branch used to draw here (a
+      // box ~0.7 × advance wide, 0.65 em tall, with a 0.03 em border) was
+      // a workaround for a defect one layer up, not behavior Chrome
+      // exhibits — and even where it fired, it measured narrower,
+      // shorter and far thinner-stroked than Helvetica's real `.notdef`
+      // (0.71 em vs 0.90 em wide). Uncovered-PUA is otherwise rare (this
+      // fires only for a codepoint neither the primary nor any fallback
+      // in the run's chain covers), so this is expected to move no
+      // current fixture — it's a consistency fix, not a visible one.
+      const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, g.id, gCmds, stretch);
+      uses.push(`<use href="#${defId}" x="0" y="0"/>`);
+    }
+    if (uses.length > 0) {
+      let cssX = Number(xOffsets[i].toFixed(3));
+      // DM-1184: shift trimmed fullwidth-punctuation ink (see
+      // cjkTrimShiftFontUnits / the embedded-font path for the rationale).
+      if (layout.glyphs.length === 1) {
+        const shiftFU = cjkTrimShiftFontUnits(
+          run.font,
+          run.fontKey,
+          layout.glyphs[0],
+          text,
+          i,
+          ctx.textSpacingTrim,
+          ctx.hanKerningEdges,
+        );
+        if (shiftFU !== 0) cssX = Number((cssX + shiftFU * runScale).toFixed(3));
+      }
+      emission.groups.push(
+        ctx.paintPathGroup(run.font, chScale, `translate(${cssX},0) scale(${chScale},${-chScale})`, uses.join("")),
+      );
+      if (cssX > emission.rightEdge) emission.rightEdge = cssX;
+    }
+    i += ch.length;
+  }
+}
+
+// Shaping fallback — shape by SEGMENT, not by whole run.
+//
+// A run is split on font boundaries only, so a face covering several
+// scripts leaves a mixed-script line in one run. Shaping that as a unit
+// makes the shaper choose ONE script and direction for all of it, and an
+// RTL stretch inside an LTR run then comes back in logical order and
+// paints mirrored. Chromium does not do this: `HarfBuzzShaper::Shape`
+// takes direction per BIDI RUN (harfbuzz_shaper.cc:1145-1148 → :341) and
+// segments by SCRIPT within it via RunSegmenter (:1168-1177). See
+// `segmentForShaping`, which mirrors both levels.
+//
+// `needsSegmentation` keeps the common case free — the analogue of
+// Blink's 8-bit shortcut (:1157-1161), which skips segmentation for
+// Latin-1 because it cannot hold a script or direction boundary.
+function emitShapedPathRunSegments(
+  ctx: PathRunContext,
+  run: FontRun,
+  runScale: number,
+  xOffsets: number[],
+  bidiLevels: ReturnType<typeof bidiLevelsFor>,
+  emission: PathRunEmission,
+): void {
+  // The level array spans the WHOLE text; `run.text` is a slice of it
+  // starting at `run.startIdx`, and both consumers below index it with
+  // RUN-RELATIVE offsets. Handing them the unsliced array reads the level
+  // of whatever character happens to sit that far from the start of the
+  // LINE, so every run except the first was scored against the wrong
+  // characters — `Hello مرحبا …` read levels 0,0,0,0,0 (the `Hello`) for
+  // its Arabic run and called it left-to-right.
+  //
+  // That was invisible for as long as the shaper ignored the direction it
+  // was handed: the macOS helper's shape query takes no direction argument
+  // at all (`shapeText(text)`), so it inferred RTL from the content and
+  // came out right for the wrong reason. HarfBuzz obeys — see the segment
+  // loop below — so the misalignment became a mirrored word the moment any
+  // RTL script was routed to it.
+  //
+  // Sliced only when the run's text is the source slice character for
+  // character. A Math-Alphanumeric `decomposed` run holds SUBSTITUTED base
+  // letters (`mathAlphaToBase`), so its length need not match the span it
+  // came from and no per-character alignment exists to preserve; those runs
+  // are Latin base letters by construction, and `undefined` levels are read
+  // as left-to-right, which is what they are.
+  const runLevels =
+    bidiLevels != null && run.text.length === run.endIdx - run.startIdx
+      ? bidiLevels.subarray(run.startIdx, run.endIdx)
+      : undefined;
+  // Blink's 8-bit shortcut is the only case that may skip script
+  // itemization. A one-segment non-Latin run still needs its resolved
+  // script: HarfBuzz selects the syllabic shaper from that tag, so an
+  // Inherited Vedic mark itemized as Devanagari is observably different
+  // from the same buffer left as Common.
+  const isEightBit = [...run.text].every((ch) => ch.codePointAt(0)! <= 0xff);
+  const segments = isEightBit
+    ? [
+        {
+          start: 0,
+          end: run.text.length,
+          script: "Latin",
+          rtl: runLevels != null && runLevels.length > 0 && (runLevels[0] & 1) === 1,
+        },
+      ]
+    : segmentForShaping(run.text, runLevels);
+
+  // A note on what an override run does NOT need: a different shaper.
+  //
+  // It looked like it did. The platform helper's `shape` query takes no
+  // direction and infers one from the string's own bidi — the exact
+  // inference an override exists to suppress — so the run was routed to
+  // HarfBuzz, the one shaper that can be TOLD a direction. That fixed the
+  // Hebrew cases and left Arabic worse than before (0.526% -> 0.701%).
+  //
+  // The reason is below, at the segment: HarfBuzz does not honor a
+  // contrary direction by shaping the text as-is under it. It reverses the
+  // characters into the script's native order first. So the question was
+  // never "which shaper can be told LTR" — it was "which buffer would
+  // HarfBuzz have shaped", and that buffer is one the helper's own
+  // inference reads correctly. Reversing here leaves nothing for a second
+  // shaper to do, and keeps the AAT-capable one, which on macOS is
+  // load-bearing: GeezaPro and Helvetica carry `morx` and no `GSUB`.
+  for (const seg of segments) {
+    emitShapedPathSegment(ctx, run, runScale, xOffsets, seg, emission);
+  }
+}
+
+/** The buffer one shaped segment hands the shaper, after native-direction reversal. */
+interface PathSegmentShapingInput {
+  shapeText: string;
+  shapeDir: "ltr" | "rtl";
+  flipToNative: boolean;
+}
+
+function resolvePathSegmentShapingInput(
+  segText: string,
+  segRtl: boolean,
+  bidiOverride: BidiParagraphContext | undefined,
+): PathSegmentShapingInput {
+  // Direction is passed EXPLICITLY, the way Blink passes it, rather than
+  // left for the shaper to infer from content — inference is what
+  // produced an LTR reading of an Arabic stretch in the first place.
+  // Script stays undefined so fontkit derives it from the segment, which
+  // is now single-script by construction; it reads the same
+  // `unicode-properties` table the segmenter does, so the two agree.
+  const dir = segRtl ? "rtl" : "ltr";
+  // Does the SEGMENT's own content imply the direction we are asking
+  // for? `_RTL_RE`-equivalent: any strong-RTL character makes the
+  // content RTL for this purpose.
+  const contentIsRtl = /[֐-ࣿיִ-﷿ﹰ-﻿]/.test(segText);
+
+  // When the two disagree, shape the REVERSED characters in the script's
+  // own direction — which is what HarfBuzz does, and therefore what
+  // Chrome does.
+  //
+  // `hb_ensure_native_direction` (`external/harfbuzz/src/hb-ot-shape.cc:588`,
+  // rev 4de187d) runs before any shaper sees the buffer: if the requested
+  // direction is horizontal and differs from
+  // `hb_script_get_horizontal_direction(script)`, it reverses the buffer's
+  // clusters and flips the direction, so the shaper always runs natively;
+  // `hb_ot_shape_internal` reverses back at the end (`:1184`).
+  //
+  // The consequence is easy to miss and is the whole of this ticket:
+  // reversing BEFORE shaping means the contextual forms are computed on
+  // the reversed character sequence. Under `bidi-override; direction: ltr`
+  // Chrome therefore paints Arabic UNJOINED at the ends — the word's first
+  // letter has nothing to its right any more. Verified equivalent on
+  // GeezaPro: `hb-shape --direction=ltr` over the source and
+  // `--direction=rtl` over the reversed source return byte-identical
+  // glyphs and advances (meem isolated 900 | reh.final 700 | hah.medial
+  // 1359 | beh.initial 656 | alef isolated 647), differing only in cluster
+  // numbering. Shaping the source as-is under a forced direction — which
+  // is what asking a shaper for "this text, LTR" does — keeps the joined
+  // forms and is simply a different word shape.
+  //
+  // Doing the reversal here rather than passing a direction down also
+  // removes the reason the override run needed a different shaper at all.
+  // The platform helper infers direction from content and cannot be told
+  // otherwise; on the reversed string that inference now lands on exactly
+  // the direction we want, so the helper stays usable without a shaper
+  // swap. The ground for that is the SAME `hb_ensure_native_direction`
+  // equivalence cited above — `shape(source, requestedDir)` ==
+  // `shape(reversed(source), nativeDir)` from HarfBuzz's point of
+  // view — not an AAT/`morx` capability gap in our own wasm. (An
+  // earlier version of this comment attributed the need to the
+  // *published* harfbuzzjs npm package being built `-DHB_TINY`, which
+  // strips AAT and does return GeezaPro's isolated forms —
+  // 900/902/1292/1415/647 against real HarfBuzz's 900/700/1359/656/647
+  // — because the table that joins them is compiled out. That
+  // description is stale for this project: `packages/text-engine/vendor/harfbuzzjs/` is
+  // rebuilt with Chromium's own HarfBuzz configuration and keeps AAT
+  // — see `packages/text-engine/vendor/harfbuzzjs/README.md` and
+  // `build/config-override.h` — so an AAT gap was never why these
+  // faces stay on the platform helper; `hb_ensure_native_direction`
+  // is.)
+  //
+  // Reversal is by code point, matching `reverse_clusters()` on a buffer
+  // that has not been shaped yet, where clusters are still per-character.
+  //
+  // Gated on there being an override, and the gate is now a narrowing
+  // rather than a correction. It used to be load-bearing for a different
+  // reason: the level array was indexed run-relatively against
+  // whole-line levels (fixed above), so a plain mixed-script line handed
+  // the Arabic segment `rtl: false` while its content was plainly RTL,
+  // and reversing on that signal mirrored the word. With the run-aligned
+  // levels, `seg.rtl` and `contentIsRtl` agree for every strong-script
+  // segment outside an override, so the two forms coincide there; the
+  // gate is kept because the ONE input that can legitimately contradict
+  // the content is an override, where Blink's injected LRO/RLO makes the
+  // level authoritative by construction — which is the whole point of
+  // the property.
+  const forceDirection =
+    bidiOverride?.unicodeBidi === "bidi-override" || bidiOverride?.unicodeBidi === "isolate-override";
+  const flipToNative = forceDirection && segRtl !== contentIsRtl;
+  const shapeText = flipToNative ? [...segText].reverse().join("") : segText;
+  // Once flipped, the run IS native, so hand the shaper the direction its
+  // content implies rather than the paragraph's.
+  const shapeDir = flipToNative ? (contentIsRtl ? "rtl" : "ltr") : dir;
+  return { shapeText, shapeDir, flipToNative };
+}
+
+/** Shape and emit one script/direction segment of a shaping-required run. */
+function emitShapedPathSegment(
+  ctx: PathRunContext,
+  run: FontRun,
+  runScale: number,
+  xOffsets: number[],
+  seg: Pick<ShapingSegment, "start" | "end" | "script" | "rtl">,
+  emission: PathRunEmission,
+): void {
+  const { features } = ctx;
+  const segText = run.text.slice(seg.start, seg.end);
+  if (segText === "") return;
+  // Anchor each segment at its OWN visual-leftmost captured x, rather
+  // than accumulating advances across segments. Chrome already decided
+  // where each character sits, so this reuses its positioning instead of
+  // re-deriving it — and it is what keeps a mirrored RTL segment landing
+  // in the right place. Math.min covers both directions.
+  let segMinX = Infinity;
+  for (let i = run.startIdx + seg.start; i < run.startIdx + seg.end && i < xOffsets.length; i++) {
+    if (xOffsets[i] < segMinX) segMinX = xOffsets[i];
+  }
+  if (!Number.isFinite(segMinX)) return;
+
+  const { shapeText, shapeDir, flipToNative } = resolvePathSegmentShapingInput(segText, seg.rtl, ctx.bidiOverride);
+  const shapeFont = run.font;
+  // Shaped fallback already resolved the item's script before it chose
+  // this face. Keep that authoritative tag through emission; legacy
+  // runs without provenance retain the local segment derivation.
+  const scriptTag = run.shapingScript ?? SCRIPT_NAME_TO_ISO15924[seg.script];
+  const layout =
+    features != null && features.length > 0
+      ? shapeFont.layout(shapeText, fontkitFeatureList(features), scriptTag, ctx.lang, shapeDir)
+      : shapeFont.layout(shapeText, undefined, scriptTag, ctx.lang, shapeDir);
+  const shapedClusters = layout.clusters;
+  const glyphSourceSpans = shapedGlyphSourceSpans(
+    segText,
+    shapeText,
+    layout.glyphs,
+    shapedClusters,
+    shapeDir === "rtl",
+    flipToNative,
+  );
+  const placements = blinkSuppressesInterLetterSpacing(seg.script)
+    ? (() => {
+        let cursorFU = 0;
+        return layout.positions.map((pos) => {
+          const xFontUnits = cursorFU + pos.xOffset;
+          cursorFU += pos.xAdvance;
+          return { xFontUnits, rightCss: segMinX + cursorFU * runScale };
+        });
+      })()
+    : positionShapedClusters(
+        segText,
+        shapeText,
+        layout.glyphs,
+        layout.positions,
+        shapedClusters,
+        xOffsets,
+        run.startIdx + seg.start,
+        runScale,
+        segMinX,
+        seg.rtl,
+        flipToNative,
+      );
+  const { uses, maxRightCss } = buildShapedPathSegmentUses(
+    ctx,
+    run,
+    seg.start,
+    layout,
+    glyphSourceSpans,
+    placements,
+    segMinX,
+  );
+  if (uses.length > 0) {
+    const sc = Number(runScale.toFixed(5));
+    const cssX = Number(segMinX.toFixed(3));
+    emission.groups.push(ctx.paintPathGroup(run.font, sc, `translate(${cssX},0) scale(${sc},${-sc})`, uses.join("")));
+    const segRight = maxRightCss;
+    if (segRight > emission.rightEdge) emission.rightEdge = segRight;
+  }
+}
+
+/** Resolve each shaped glyph of a segment to a `<use>` at its cluster placement. */
+function buildShapedPathSegmentUses(
+  ctx: PathRunContext,
+  run: FontRun,
+  segStart: number,
+  layout: PathShapedLayout,
+  glyphSourceSpans: Array<[number, number]>,
+  placements: Array<{ xFontUnits: number; rightCss: number }>,
+  segMinX: number,
+): { uses: string[]; maxRightCss: number } {
+  const { text, fontSize, weight, slant, stretch, ownership } = ctx;
+  const uses: string[] = [];
+  let maxRightCss = segMinX;
+  for (let gi = 0; gi < layout.glyphs.length; gi++) {
+    const glyph = layout.glyphs[gi];
+    const pos = layout.positions[gi];
+    // Blink applies letter/word spacing after shaping, then paints each
+    // shaped cluster at that post-spacing inline origin. Preserve that
+    // captured cluster anchor while retaining HarfBuzz's intra-cluster
+    // advance and GPOS offset. Anchoring only the segment (the previous
+    // behavior) discarded spacing between clusters and accumulated a
+    // visible drift across ordinary shaped Latin runs.
+    const rasterOwned = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant);
+    if (rasterOwned) noteRasterGlyph(ownership);
+    const glyphCmds = rasterOwned
+      ? []
+      : ownedCommandsFor(
+          ownership,
+          glyph,
+          run.fontKey,
+          weight,
+          fontSize,
+          slant,
+          run.font,
+          boundedSourceSpan(
+            text,
+            run.startIdx + segStart + glyphSourceSpans[gi][0],
+            run.startIdx + segStart + glyphSourceSpans[gi][1],
+          ),
+          text,
+        );
+    if (glyphCmds.length > 0) {
+      const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
+      const sourceIndex = run.startIdx + segStart + glyphSourceSpans[gi][0];
+      const sourceEnd = run.startIdx + segStart + glyphSourceSpans[gi][1];
+      const sourceCp = text.codePointAt(sourceIndex);
+      const ownsOneScalar = sourceCp != null && sourceEnd - sourceIndex === (sourceCp > 0xffff ? 2 : 1);
+      const trimShiftFU = ownsOneScalar
+        ? cjkTrimShiftFontUnits(
+            run.font,
+            run.fontKey,
+            glyph,
+            text,
+            sourceIndex,
+            ctx.textSpacingTrim,
+            ctx.hanKerningEdges,
+          )
+        : 0;
+      const tx = placements[gi].xFontUnits + trimShiftFU;
+      const ty = -pos.yOffset;
+      uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
+    }
+    maxRightCss = Math.max(maxRightCss, placements[gi].rightCss);
+  }
+  return { uses, maxRightCss };
+}
+
+// Multi-font path: emit one <g scale> per run, each at its accumulated CSS-x.
+function emitAccumulatedPathRuns(ctx: PathRunContext, runs: FontRun[]): TextPathResult {
   const groups: string[] = [];
   let xCss = 0;
   for (const run of runs) {
-    const runScale = fontSize / run.font.unitsPerEm;
-    const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
-    // Even without captured per-character anchors, a uniform non-Latin run
-    // still needs Blink's explicit script tag. Keep the pre-existing whole-run
-    // layout for genuinely mixed segments; the font-run splitter normally
-    // separates those, while declining here avoids inventing placement rules.
-    const runSegments = segmentForShaping(run.text);
-    const runScript =
-      run.shapingScript ?? (runSegments.length === 1 ? SCRIPT_NAME_TO_ISO15924[runSegments[0].script] : undefined);
-    const layout =
-      features != null && features.length > 0
-        ? run.font.layout(run.text, fontkitFeatureList(features), runScript, lang, runDirection)
-        : run.font.layout(run.text, undefined, runScript, lang, runDirection);
-    const glyphSourceSpans = shapedGlyphSourceSpans(
-      run.text,
-      run.text,
-      layout.glyphs,
-      (layout as typeof layout & { clusters?: number[] }).clusters,
-      runDirection === "rtl",
-    );
-    const uses: string[] = [];
-    let runX = 0;
-    for (let i = 0; i < layout.glyphs.length; i++) {
-      const glyph = layout.glyphs[i];
-      const pos = layout.positions[i];
-      const rasterOwned = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant);
-      if (rasterOwned) noteRasterGlyph(ownership);
-      const glyphCmds = rasterOwned
-        ? []
-        : ownedCommandsFor(
-            ownership,
-            glyph,
-            run.fontKey,
-            weight,
-            fontSize,
-            slant,
-            run.font,
-            boundedSourceSpan(text, run.startIdx + glyphSourceSpans[i][0], run.startIdx + glyphSourceSpans[i][1]),
-            text,
-          );
-      if (glyphCmds.length > 0) {
-        const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
-        const tx = runX + pos.xOffset;
-        const ty = -pos.yOffset;
-        uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
-      }
-      runX += pos.xAdvance;
-    }
+    const runScale = ctx.fontSize / run.font.unitsPerEm;
+    const { uses, runX } = buildAccumulatedPathRunUses(ctx, run);
     if (uses.length > 0) {
       const sc = Number(runScale.toFixed(5));
-      groups.push(paintPathGroup(run.font, sc, `translate(${r2(xCss)},0) scale(${sc},${-sc})`, uses.join("")));
+      groups.push(ctx.paintPathGroup(run.font, sc, `translate(${r2(xCss)},0) scale(${sc},${-sc})`, uses.join("")));
     }
     xCss += runX * runScale;
   }
   return {
     markup: groups.length > 0 ? groups.join("") : "",
     width: xCss,
-    ownership,
+    ownership: ctx.ownership,
   };
+}
+
+/** Shape one whole run and lay its glyphs out on accumulated native advances. */
+function buildAccumulatedPathRunUses(ctx: PathRunContext, run: FontRun): { uses: string[]; runX: number } {
+  const { text, features, fontSize, weight, slant, stretch, ownership } = ctx;
+  const runDirection = run.shapingDirection ?? shapingDirectionAt(text, run.startIdx);
+  // Even without captured per-character anchors, a uniform non-Latin run
+  // still needs Blink's explicit script tag. Keep the pre-existing whole-run
+  // layout for genuinely mixed segments; the font-run splitter normally
+  // separates those, while declining here avoids inventing placement rules.
+  const runSegments = segmentForShaping(run.text);
+  const runScript =
+    run.shapingScript ?? (runSegments.length === 1 ? SCRIPT_NAME_TO_ISO15924[runSegments[0].script] : undefined);
+  const layout =
+    features != null && features.length > 0
+      ? run.font.layout(run.text, fontkitFeatureList(features), runScript, ctx.lang, runDirection)
+      : run.font.layout(run.text, undefined, runScript, ctx.lang, runDirection);
+  const glyphSourceSpans = shapedGlyphSourceSpans(
+    run.text,
+    run.text,
+    layout.glyphs,
+    layout.clusters,
+    runDirection === "rtl",
+  );
+  const uses: string[] = [];
+  let runX = 0;
+  for (let i = 0; i < layout.glyphs.length; i++) {
+    const glyph = layout.glyphs[i];
+    const pos = layout.positions[i];
+    const rasterOwned = glyphUsesRasterRepresentation(run.font, run.fontKey, glyph, fontSize, weight, slant);
+    if (rasterOwned) noteRasterGlyph(ownership);
+    const glyphCmds = rasterOwned
+      ? []
+      : ownedCommandsFor(
+          ownership,
+          glyph,
+          run.fontKey,
+          weight,
+          fontSize,
+          slant,
+          run.font,
+          boundedSourceSpan(text, run.startIdx + glyphSourceSpans[i][0], run.startIdx + glyphSourceSpans[i][1]),
+          text,
+        );
+    if (glyphCmds.length > 0) {
+      const defId = ensureGlyphDef(run.fontKey, weight, fontSize, slant, glyph.id, glyphCmds, stretch);
+      const tx = runX + pos.xOffset;
+      const ty = -pos.yOffset;
+      uses.push(`<use href="#${defId}" x="${r2(tx)}" y="${r2(ty)}"/>`);
+    }
+    runX += pos.xAdvance;
+  }
+  return { uses, runX };
 }
 
 /** Public path-mode entry point; run routing/emission lives in the stage above. */
