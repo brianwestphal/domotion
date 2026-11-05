@@ -643,6 +643,59 @@ export function splitTextIntoFontRunsShaped(
   return runs;
 }
 
+/** Per-call inputs every shaping item reads; built once by `splitShapedInner`. */
+interface ShapedSplitContext {
+  /** Paint-domain text; assignments and returned runs slice it. */
+  text: string;
+  /** Mirror-domain text for RTL shape verdicts — see `splitShapedInner`. */
+  rtlVerdictText: string;
+  /** Logical text for hint collection and RunSegmenter itemization. */
+  logicalText: string;
+  primaryFont: FontInstance;
+  primaryFontKey: string;
+  primaryFace: HbFace | null;
+  weight: number;
+  fontSize: number;
+  slant: number;
+  variationSettings: Record<string, number> | undefined;
+  lang: string | undefined;
+  fontKeyChain: string[];
+  systemUiPrimary: boolean;
+  stretch: number;
+  fontVariantEmoji: FontVariantEmojiOverride | undefined;
+  fontFamily: string | undefined;
+  opts: ShapedSplitOptions | undefined;
+  semanticContext: FontFallbackSemanticContext;
+}
+
+/** One RunSegmenter item: the range one `FontFallbackIterator` owns. */
+type ShapedSplitSegment = ReturnType<typeof segmentForShaping>[number];
+
+/** `FontFallbackIterator` state — one iterator per segment, as Blink. */
+interface SegmentFallbackIterator {
+  seg: ShapedSplitSegment;
+  effectivePriority: SourceFallbackPriority;
+  familyCycle: Array<{ key: string; inst: FontInstance | null }>;
+  familyIndex: number;
+  /** `unique_font_data_for_range_sets_returned_` — face identity of every
+   *  entire-range candidate the iterator returned (`UniqueOrNext`); range-
+   *  subsetted webfont faces are exempt ("We don't want to skip subsetted
+   *  ranges because HarfBuzzShaper's behavior depends on the subsetting"). */
+  returnedFaces: Set<string>;
+  /** `previously_asked_for_hint_` — each hint char asked of the system once. */
+  previouslyAskedHints: Set<number>;
+  /** Per-family segmented-face arrays and cursors. Blink builds the array in
+   * reverse declaration order, then advances it once while filtering each
+   * face against the current hint list. */
+  segmentedWebfonts: Map<string, { faces: FontInstance[]; index: number }>;
+  stage: Stage;
+  firstCandidate: Candidate | null;
+  /** kIntermediateWithVS: an unmatched variation sequence was seen. */
+  vsSeen: boolean;
+  /** kIgnoreVariationSelector: the post-reset second pass. */
+  ignoreVS: boolean;
+}
+
 function splitShapedInner(
   text: string,
   primaryFont: FontInstance,
@@ -691,461 +744,562 @@ function splitShapedInner(
   // to the paint-domain string returned to emitters.
   const segments = segmentForShaping(logicalText, levels);
 
+  const ctx: ShapedSplitContext = {
+    text,
+    rtlVerdictText,
+    logicalText,
+    primaryFont,
+    primaryFontKey,
+    primaryFace,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    lang,
+    fontKeyChain,
+    systemUiPrimary,
+    stretch,
+    fontVariantEmoji,
+    fontFamily,
+    opts,
+    semanticContext,
+  };
   const assignments: Assignment[] = [];
-
   for (const seg of segments) {
-    let queue: QueueRange[] = [{ start: seg.start, end: seg.end }];
+    resolveSegmentAssignments(ctx, seg, assignments);
+  }
+  return assembleShapedFontRuns(ctx, assignments, segments);
+}
 
-    const scriptTag = SCRIPT_NAME_TO_ISO15924[seg.script];
-    const segVsSequences = collectVsSequences(text, seg.start, seg.end, fontVariantEmoji);
+/** Build one segment's fallback iterator over the declared family cycle. */
+function buildSegmentFallbackIterator(ctx: ShapedSplitContext, seg: ShapedSplitSegment): SegmentFallbackIterator {
+  // kFontGroupFonts: the primary, then the remaining declared families. The
+  // primary entry carries the CALLER'S resolved instance (axes, optical-cut
+  // opsz, webfont variant already applied) rather than re-deriving one — the
+  // embedded-font pipeline keys its @font-face entries on that instance's
+  // identity, so a re-pick would collapse distinct axis tuples into one face.
+  // A range-partitioned webfont primary gets a SECOND entry for its remaining
+  // unicode-range partitions (kSegmentedFace walks every face of the family;
+  // the primary instance is just the first).
+  const familyCycle: Array<{ key: string; inst: FontInstance | null }> = ctx.primaryFontKey.startsWith("webfont:")
+    ? [{ key: ctx.primaryFontKey, inst: null }]
+    : [{ key: ctx.primaryFontKey, inst: ctx.primaryFont }];
+  for (const key of ctx.fontKeyChain) {
+    if (key === ctx.primaryFontKey) continue;
+    familyCycle.push({ key, inst: null });
+  }
+  return {
+    seg,
     // Chromium applies CSS after SymbolsIterator has fixed this source range;
     // even equal effective priorities retain distinct iterator instances.
-    const effectivePriority = applyFontVariantEmojiToPriority(seg.sourcePriority, fontVariantEmoji);
+    effectivePriority: applyFontVariantEmojiToPriority(seg.sourcePriority, ctx.fontVariantEmoji),
+    familyCycle,
+    familyIndex: 0,
+    returnedFaces: new Set<string>(),
+    previouslyAskedHints: new Set<number>(),
+    segmentedWebfonts: new Map<string, { faces: FontInstance[]; index: number }>(),
+    stage: "family",
+    firstCandidate: null,
+    vsSeen: false,
+    ignoreVS: false,
+  };
+}
 
-    // ── FontFallbackIterator state (one iterator per segment, as Blink) ──
-    // kFontGroupFonts: the primary, then the remaining declared families. The
-    // primary entry carries the CALLER'S resolved instance (axes, optical-cut
-    // opsz, webfont variant already applied) rather than re-deriving one — the
-    // embedded-font pipeline keys its @font-face entries on that instance's
-    // identity, so a re-pick would collapse distinct axis tuples into one face.
-    // A range-partitioned webfont primary gets a SECOND entry for its remaining
-    // unicode-range partitions (kSegmentedFace walks every face of the family;
-    // the primary instance is just the first).
-    const familyCycle: Array<{ key: string; inst: FontInstance | null }> = primaryFontKey.startsWith("webfont:")
-      ? [{ key: primaryFontKey, inst: null }]
-      : [{ key: primaryFontKey, inst: primaryFont }];
-    for (const key of fontKeyChain) {
-      if (key === primaryFontKey) continue;
-      familyCycle.push({ key, inst: null });
-    }
-    let familyIndex = 0;
-    /** `unique_font_data_for_range_sets_returned_` — face identity of every
-     *  entire-range candidate the iterator returned (`UniqueOrNext`); range-
-     *  subsetted webfont faces are exempt ("We don't want to skip subsetted
-     *  ranges because HarfBuzzShaper's behavior depends on the subsetting"). */
-    const returnedFaces = new Set<string>();
-    /** `previously_asked_for_hint_` — each hint char asked of the system once. */
-    const previouslyAskedHints = new Set<number>();
-    /** Per-family segmented-face arrays and cursors. Blink builds the array in
-     * reverse declaration order, then advances it once while filtering each
-     * face against the current hint list. */
-    const segmentedWebfonts = new Map<string, { faces: FontInstance[]; index: number }>();
-    // Wrapped in an object so TypeScript does not narrow the union across the
-    // closure mutations in `nextFont` (the loop below reads it after each call).
-    const iter = { stage: "family" as Stage };
-    let firstCandidate: Candidate | null = null;
-    /** kIntermediateWithVS: an unmatched variation sequence was seen. */
-    let vsSeen = false;
-    /** kIgnoreVariationSelector: the post-reset second pass. */
-    let ignoreVS = false;
+/** Run one segment's reshape queue to completion, appending its assignments. */
+function resolveSegmentAssignments(ctx: ShapedSplitContext, seg: ShapedSplitSegment, assignments: Assignment[]): void {
+  const { text } = ctx;
+  let queue: QueueRange[] = [{ start: seg.start, end: seg.end }];
 
-    const needsFullHints = familyCycle.some((f) => f.key.startsWith("webfont:"));
+  const scriptTag = SCRIPT_NAME_TO_ISO15924[seg.script];
+  const segVsSequences = collectVsSequences(text, seg.start, seg.end, ctx.fontVariantEmoji);
+  const it = buildSegmentFallbackIterator(ctx, seg);
 
-    const candidateFor = (
-      key: string,
-      font: FontInstance,
-      isPrimary: boolean,
-      clampRanges: Array<[number, number]> | null,
-      mechanism: NonNullable<FontRun["routeMechanism"]>,
-      vs?: Record<string, number>,
-    ): Candidate => {
-      const face = isPrimary ? primaryFace : hbFaceFor(font, key, weight, fontSize, slant, vs);
-      return { key, font, face, isPrimary, mechanism, clampRanges };
-    };
+  const needsFullHints = it.familyCycle.some((f) => f.key.startsWith("webfont:"));
 
-    type Picked = Candidate | null;
+  // ── the reshape queue loop ──
+  // Defensive bound only: every cycle consumes monotone state (family index,
+  // tried variants, asked hints, stage), so the loop terminates. A violation
+  // is an implementation bug; silently switching assignment algorithms would
+  // hide it and produce a plausible but non-Blink result.
+  let guard = it.familyCycle.length + text.length * 2 + 64;
+  while (queue.length > 0) {
+    if (--guard < 0) throw new Error("cluster fallback iterator did not converge");
+    const hints = collectHintChars(ctx.logicalText, queue, needsFullHints);
+    if (hints.length === 0) break;
+    const picked = nextFallbackCandidate(ctx, it, hints);
+    if (picked == null) break;
+    // `ChangeStageToLast` fires when the iterator has nothing further
+    // (`!fallback_iterator.HasNext()`, `harfbuzz_shaper.cc:1041-1043`) —
+    // with the kLastWithVS exception: unmatched variation sequences keep the
+    // requeue open so the queue can RESET for the ignore-VS pass.
+    const isLast = it.stage === "outOfLuck" && !(it.vsSeen && !it.ignoreVS);
 
-    /** `FontFallbackIterator::Next` + `UniqueOrNext`, as one loop. */
-    const nextFont = (hints: number[]): Picked => {
-      for (;;) {
-        switch (iter.stage) {
-          case "family": {
-            if (familyIndex >= familyCycle.length) {
-              iter.stage = effectivePriority !== "text" ? "priority" : "system";
-              break;
-            }
-            const entry = familyCycle[familyIndex];
-            if (entry.inst == null && entry.key.startsWith("webfont:")) {
-              // kSegmentedFace: a webfont family's unicode-range partitions.
-              // Walk EVERY declaration in reverse source order and apply
-              // `RangeSetContributesForHint` to the current hint list. Scoring
-              // each hint independently loses the next overlapping face.
-              const family = entry.key.slice("webfont:".length);
-              let state = segmentedWebfonts.get(entry.key);
-              if (state == null) {
-                state = {
-                  faces: webfontVariantsInDeclarationOrder(
-                    family,
-                    weight,
-                    fontSize,
-                    slant,
-                    entry.key === primaryFontKey ? variationSettings : undefined,
-                    stretch,
-                  ),
-                  index: 0,
-                };
-                segmentedWebfonts.set(entry.key, state);
-              }
-              while (state.index < state.faces.length) {
-                let v = state.faces[state.index++];
-                const ranges = v.webfontUnicodeRange;
-                if (ranges != null && !hints.some((cp) => unicodeRangeCovers(ranges, cp))) continue;
-                const isPrimaryInstance =
-                  entry.key === primaryFontKey && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;
-                if (isPrimaryInstance) v = primaryFont;
-                const face = hbFaceFor(v, entry.key, weight, fontSize, slant, undefined);
-                const cand: Candidate = {
-                  key: entry.key,
-                  font: v,
-                  face,
-                  isPrimary: entry.key === primaryFontKey,
-                  mechanism: "declared-family",
-                  clampRanges: ranges ?? null,
-                };
-                const identity = candidateIdentity(cand);
-                const subsetted = v.webfontUnicodeRange != null;
-                if (!subsetted) {
-                  if (returnedFaces.has(identity)) continue;
-                  returnedFaces.add(identity);
-                }
-                // Every contributing partition of the declared webfont family
-                // remains primary for CSS axis/feature application. The
-                // concrete-instance check above is narrower: it only decides
-                // when the caller's already-instanced Font object can be reused.
-                if (firstCandidate == null) firstCandidate = cand;
-                return cand;
-              }
-              familyIndex++; // no (further) contributing variant for these hints
-              break;
-            }
-            familyIndex++;
-            const inst =
-              entry.inst ??
-              getFontInstance(entry.key, weight, fontSize, slant, undefined, 100, false, undefined, semanticContext);
-            if (inst == null) break;
-            const isPrimary = entry.key === primaryFontKey && inst === primaryFont;
-            const cand = candidateFor(
-              entry.key,
-              inst,
-              isPrimary,
-              inst.webfontUnicodeRange ?? null,
-              "declared-family",
-              isPrimary ? variationSettings : undefined,
+    const current: Candidate = picked;
+    const rangeVs = it.ignoreVS ? [] : segVsSequences;
+    const nextQueue: QueueRange[] = [];
+    for (const range of queue) {
+      // RTL segments shape the mirror-domain-mapped text — see the
+      // `rtlVerdictText` note above. Cluster indices are unaffected (the BMG
+      // map is 1:1 in code units). Features are passed because Blink shapes
+      // fallback passes WITH the run's features (`ShapeRange(buffer,
+      // font_features, …)`), and a `-liga`/letter-spacing veto can flip a
+      // cluster's coverage verdict.
+      const verdicts =
+        current.face == null
+          ? null
+          : shapeVerdicts(
+              current.face,
+              seg.rtl ? ctx.rtlVerdictText : text,
+              range,
+              seg.rtl,
+              scriptTag,
+              ctx.lang,
+              ctx.fontSize,
+              ctx.opts?.features,
             );
-            const identity = candidateIdentity(cand);
-            if (cand.clampRanges == null) {
-              if (returnedFaces.has(identity)) break;
-              returnedFaces.add(identity);
-            }
-            if (firstCandidate == null) firstCandidate = cand;
-            return cand;
-          }
-          case "priority": {
-            // `kFallbackPriorityFonts` is one-shot and owns the first hint,
-            // ahead of `UniqueSystemFontForHintList`. A miss proceeds to the
-            // ordinary system stage; it never retries another priority face.
-            iter.stage = "system";
-            _priorityAsked++;
-            const hint = hints[0];
-            const key =
-              effectivePriority === "emoji" || effectivePriority === "emoji-vs"
-                ? resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang)
-                : resolveSystemFallbackKeyForCp(
-                    hint,
-                    weight,
-                    slant,
-                    fontSize,
-                    primaryFontKey,
-                    systemUiPrimary,
-                    lang,
-                    stretch,
-                    "text",
-                    semanticContext.declaredFamily,
-                    opts?.fallbackRawSlope,
-                    opts?.fallbackOrientation,
-                  );
-            if (key == null) break;
-            const font = getFontInstance(key, weight, fontSize, slant);
-            if (font == null) break;
-            const cand = candidateFor(key, font, false, null, "priority-emoji");
-            const identity = candidateIdentity(cand);
-            if (returnedFaces.has(identity)) break;
-            returnedFaces.add(identity);
-            if (firstCandidate == null) firstCandidate = cand;
-            _priorityAnswered++;
-            return cand;
-          }
-          case "system": {
-            // kSystemFonts = `UniqueSystemFontForHintList`: ONE hint character,
-            // asked at most once. A duplicate answer recurses into Next with
-            // the same (now-consumed) hint, which returns nothing — so both
-            // "already asked" and "duplicate answer" advance to last-resort.
-            if (hints.length === 0) {
-              iter.stage = "lastResort";
-              break;
-            }
-            const hint = hints[chooseHintIndex(hints)];
-            if (hint === 0 || previouslyAskedHints.has(hint)) {
-              iter.stage = "lastResort";
-              break;
-            }
-            previouslyAskedHints.add(hint);
-            // Explicit VS source priorities win over CSS for the whole item.
-            // The post-reset pass ignores the selector during glyph lookup but
-            // preserves this iterator's source/effective priority, as Blink's
-            // FontFallbackIterator::Reset does.
-            const effFve: FontVariantEmojiOverride | undefined = ignoreVS
-              ? undefined
-              : seg.sourcePriority === "emoji-vs"
-                ? "emoji"
-                : seg.sourcePriority === "text-vs"
-                  ? "text"
-                  : fontVariantEmoji;
-            const res = resolveFontForCodepoint(
-              hint,
-              primaryFont,
-              primaryFontKey,
-              weight,
-              fontSize,
-              slant,
-              variationSettings,
-              lang,
-              fontKeyChain,
-              systemUiPrimary,
-              stretch,
-              effFve,
-              fontFamily,
-              opts?.fallbackRawSlope,
-              opts?.fallbackOrientation,
-              semanticContext,
-            );
-            if (!res.covered) {
-              iter.stage = "lastResort";
-              break;
-            }
-            const font =
-              res.fontOverride ??
-              (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
-            if (font == null) {
-              iter.stage = "lastResort";
-              break;
-            }
-            // `res.decomposed` is coverage evidence for the selected face, not
-            // an alternate commit operation. HarfBuzz shapes the ORIGINAL
-            // queued source range below and owns whether canonical pieces are
-            // emitted (`hb-ot-shape-normalize.cc:108-200`).
-            const cand = candidateFor(res.key, font, false, null, "system-resolver");
-            const identity = candidateIdentity(cand);
-            if (returnedFaces.has(identity)) {
-              iter.stage = "lastResort";
-              break;
-            }
-            returnedFaces.add(identity);
-            if (firstCandidate == null) firstCandidate = cand;
-            return cand;
-          }
-          case "lastResort": {
-            // "we only have the last resort font left" —
-            // `font_fallback_iterator.cc:143-157`: the stage advances to
-            // kFirstCandidateForNotdefGlyph BEFORE the last-resort face is
-            // returned, and the face is still deduped (a Times primary skips
-            // straight to the first candidate).
-            iter.stage = "firstCandidate";
-            for (const key of lastResortKeys(semanticContext)) {
-              const inst = getFontInstance(
-                key,
-                weight,
-                fontSize,
-                slant,
-                undefined,
-                100,
-                false,
-                undefined,
-                semanticContext,
-              );
-              if (inst == null) continue;
-              const cand = candidateFor(key, inst, false, null, "last-resort");
-              const identity = candidateIdentity(cand);
-              if (returnedFaces.has(identity)) break; // duplicate → first candidate
-              returnedFaces.add(identity);
-              if (firstCandidate == null) firstCandidate = cand;
-              return cand;
-            }
-            break;
-          }
-          case "firstCandidate": {
-            // kFirstCandidateForNotdefGlyph: re-return the FIRST candidate so
-            // ITS `.notdef` paints (`font_fallback_iterator.cc:159-164`).
-            iter.stage = "outOfLuck";
-            return firstCandidate == null ? null : { ...firstCandidate, mechanism: "first-candidate-notdef" };
-          }
-          case "outOfLuck":
-            return null;
-        }
+      if (verdicts == null) {
+        // Unshapeable with this font — the whole range stays queued (or
+        // terminally commits to the first candidate below when isLast).
+        if (isLast) assignments.push(assignmentFor(range, current));
+        else nextQueue.push(range);
+        continue;
       }
-    };
-
-    // ── the reshape queue loop ──
-    // Defensive bound only: every cycle consumes monotone state (family index,
-    // tried variants, asked hints, stage), so the loop terminates. A violation
-    // is an implementation bug; silently switching assignment algorithms would
-    // hide it and produce a plausible but non-Blink result.
-    let guard = familyCycle.length + text.length * 2 + 64;
-    while (queue.length > 0) {
-      if (--guard < 0) throw new Error("cluster fallback iterator did not converge");
-      const hints = collectHintChars(logicalText, queue, needsFullHints);
-      if (hints.length === 0) break;
-      const picked = nextFont(hints);
-      if (picked == null) break;
-      // `ChangeStageToLast` fires when the iterator has nothing further
-      // (`!fallback_iterator.HasNext()`, `harfbuzz_shaper.cc:1041-1043`) —
-      // with the kLastWithVS exception: unmatched variation sequences keep the
-      // requeue open so the queue can RESET for the ignore-VS pass.
-      const isLast = iter.stage === "outOfLuck" && !(vsSeen && !ignoreVS);
-
-      const current: Candidate = picked;
-      const rangeVs = ignoreVS ? [] : segVsSequences;
-      const nextQueue: QueueRange[] = [];
-      for (const range of queue) {
-        // RTL segments shape the mirror-domain-mapped text — see the
-        // `rtlVerdictText` note above. Cluster indices are unaffected (the BMG
-        // map is 1:1 in code units). Features are passed because Blink shapes
-        // fallback passes WITH the run's features (`ShapeRange(buffer,
-        // font_features, …)`), and a `-liga`/letter-spacing veto can flip a
-        // cluster's coverage verdict.
-        const verdicts =
-          current.face == null
-            ? null
-            : shapeVerdicts(
-                current.face,
-                seg.rtl ? rtlVerdictText : text,
-                range,
-                seg.rtl,
-                scriptTag,
-                lang,
-                fontSize,
-                opts?.features,
-              );
-        if (verdicts == null) {
-          // Unshapeable with this font — the whole range stays queued (or
-          // terminally commits to the first candidate below when isLast).
-          if (isLast)
-            assignments.push({
-              start: range.start,
-              end: range.end,
-              key: current.key,
-              font: current.font,
-              isPrimary: current.isPrimary,
-              mechanism: current.mechanism,
-            });
-          else nextQueue.push(range);
-          continue;
+      for (const v of verdicts) {
+        const abs = { start: range.start + v.startRel, end: range.start + v.endRel };
+        if (clusterShapedByCandidate(text, it, current, abs, v, isLast, rangeVs) || isLast) {
+          assignments.push(assignmentFor(abs, current));
+        } else {
+          nextQueue.push(abs);
         }
-        for (const v of verdicts) {
-          const abs = { start: range.start + v.startRel, end: range.start + v.endRel };
-          let ok = v.allNonZero;
-          // U+3000 synthesized from the space glyph reads `.notdef` unless
-          // shaping with the last font (`harfbuzz_shaper.cc:684-691`).
-          if (ok && v.ideoSpaceSynth && !isLast) ok = false;
-          // Segmented-webfont range clamp: an out-of-range character in the
-          // cluster reads `.notdef` with this face.
-          if (ok && current.clampRanges != null) {
-            for (let i = abs.start; i < abs.end;) {
-              const cp = text.codePointAt(i)!;
-              const selectorBelongsToPreviousBase = rangeVs.some(
-                (seq) => seq.index + String.fromCodePoint(seq.base).length === i && seq.selector === cp,
-              );
-              // HarfBuzz's variation-glyph callback receives (base, selector)
-              // together and Blink applies unicode-range to `unicode` (the
-              // base), not independently to `variation_selector`.
-              if (!selectorBelongsToPreviousBase && !unicodeRangeCovers(current.clampRanges, cp)) {
-                ok = false;
-                break;
-              }
-              i += cp > 0xffff ? 2 : 1;
-            }
-          }
-          // kUnmatchedVSGlyphId: an unmatched variation sequence re-queues.
-          if (ok && rangeVs.length > 0) {
-            for (const seq of rangeVs) {
-              if (seq.index < abs.start || seq.index >= abs.end) continue;
-              if (current.face != null && vsUnmatchedInFace(current.face, current.font, current.key, seq)) {
-                ok = false;
-                vsSeen = true;
-                _vsRequeued++;
-                break;
-              }
-            }
-          }
-          if (ok || isLast) {
-            assignments.push({
-              ...abs,
-              key: current.key,
-              font: current.font,
-              isPrimary: current.isPrimary,
-              mechanism: current.mechanism,
-            });
-          } else {
-            nextQueue.push(abs);
-          }
-        }
-      }
-      // Coalesce adjacent requeued ranges so the next cycle shapes maximal
-      // stretches (Blink requeues maximal same-state slices by construction).
-      nextQueue.sort((a, b) => a.start - b.start);
-      queue = [];
-      for (const r of nextQueue) {
-        const last = queue[queue.length - 1];
-        if (last != null && last.end === r.start) last.end = r.end;
-        else queue.push({ ...r });
-      }
-
-      if (iter.stage === "outOfLuck" && queue.length > 0 && vsSeen && !ignoreVS) {
-        // kReshapeQueueReset (`harfbuzz_shaper.cc:1009-1020`): restart the
-        // iterator and re-run ignoring variation selectors.
-        familyIndex = 0;
-        returnedFaces.clear();
-        previouslyAskedHints.clear();
-        segmentedWebfonts.clear();
-        firstCandidate = null;
-        iter.stage = "family";
-        ignoreVS = true;
-        _vsResets++;
       }
     }
-    // Anything still queued after a defensive break paints the FIRST
-    // candidate's `.notdef` (kFirstCandidateForNotdefGlyph's terminal).
-    for (const r of queue) {
-      const fc = firstCandidate ?? { key: primaryFontKey, font: primaryFont, isPrimary: true };
-      assignments.push({
-        start: r.start,
-        end: r.end,
-        key: fc.key,
-        font: fc.font,
-        isPrimary: fc.isPrimary,
-        mechanism: "first-candidate-notdef",
-      });
+    queue = coalesceRequeuedRanges(nextQueue);
+
+    if (it.stage === "outOfLuck" && queue.length > 0 && it.vsSeen && !it.ignoreVS) {
+      resetFallbackIteratorIgnoringSelectors(it);
     }
   }
+  // Anything still queued after a defensive break paints the FIRST
+  // candidate's `.notdef` (kFirstCandidateForNotdefGlyph's terminal).
+  for (const r of queue) {
+    const fc = it.firstCandidate ?? { key: ctx.primaryFontKey, font: ctx.primaryFont, isPrimary: true };
+    assignments.push({
+      start: r.start,
+      end: r.end,
+      key: fc.key,
+      font: fc.font,
+      isPrimary: fc.isPrimary,
+      mechanism: "first-candidate-notdef",
+    });
+  }
+}
 
-  // Assemble contiguous, source-ordered runs; merge adjacent same-font spans
-  // only INSIDE one shaping item. Blink resolves bidi first and splits an
-  // InlineItem whenever a logical bidi run ends (`InlineNode::SegmentBidiRuns`,
-  // inline_node.cc:1411-1435, Chromium rev 7d859f27). Its shaping scan then
-  // refuses to cross an item whose resolved direction or RunSegmenter data
-  // differs (`ShouldBreakShapingBeforeText`, :470-490). `segments` is our
-  // combined mirror of those bidi + script + source-priority items. Dropping that identity here
-  // made adjacent items that selected the same face become one FontRun; the
-  // downstream embedded shaper consequently applied only the first item's
-  // direction to the whole merged text.
-  assignments.sort((a, b) => a.start - b.start);
-  // Contract check: the assignment must tile [0, text.length) exactly.
+function assignmentFor(range: QueueRange, candidate: Candidate): Assignment {
+  return {
+    start: range.start,
+    end: range.end,
+    key: candidate.key,
+    font: candidate.font,
+    isPrimary: candidate.isPrimary,
+    mechanism: candidate.mechanism,
+  };
+}
+
+/** Does `current` shape the cluster `abs`? Flags an unmatched variation
+ *  sequence on the iterator, which keeps the queue open for the reset pass. */
+function clusterShapedByCandidate(
+  text: string,
+  it: SegmentFallbackIterator,
+  current: Candidate,
+  abs: QueueRange,
+  v: ClusterVerdict,
+  isLast: boolean,
+  rangeVs: VsSequence[],
+): boolean {
+  let ok = v.allNonZero;
+  // U+3000 synthesized from the space glyph reads `.notdef` unless
+  // shaping with the last font (`harfbuzz_shaper.cc:684-691`).
+  if (ok && v.ideoSpaceSynth && !isLast) ok = false;
+  // Segmented-webfont range clamp: an out-of-range character in the
+  // cluster reads `.notdef` with this face.
+  if (ok && current.clampRanges != null) {
+    for (let i = abs.start; i < abs.end;) {
+      const cp = text.codePointAt(i)!;
+      const selectorBelongsToPreviousBase = rangeVs.some(
+        (seq) => seq.index + String.fromCodePoint(seq.base).length === i && seq.selector === cp,
+      );
+      // HarfBuzz's variation-glyph callback receives (base, selector)
+      // together and Blink applies unicode-range to `unicode` (the
+      // base), not independently to `variation_selector`.
+      if (!selectorBelongsToPreviousBase && !unicodeRangeCovers(current.clampRanges, cp)) {
+        ok = false;
+        break;
+      }
+      i += cp > 0xffff ? 2 : 1;
+    }
+  }
+  // kUnmatchedVSGlyphId: an unmatched variation sequence re-queues.
+  if (ok && rangeVs.length > 0) {
+    for (const seq of rangeVs) {
+      if (seq.index < abs.start || seq.index >= abs.end) continue;
+      if (current.face != null && vsUnmatchedInFace(current.face, current.font, current.key, seq)) {
+        ok = false;
+        it.vsSeen = true;
+        _vsRequeued++;
+        break;
+      }
+    }
+  }
+  return ok;
+}
+
+// Coalesce adjacent requeued ranges so the next cycle shapes maximal
+// stretches (Blink requeues maximal same-state slices by construction).
+function coalesceRequeuedRanges(nextQueue: QueueRange[]): QueueRange[] {
+  nextQueue.sort((a, b) => a.start - b.start);
+  const queue: QueueRange[] = [];
+  for (const r of nextQueue) {
+    const last = queue[queue.length - 1];
+    if (last != null && last.end === r.start) last.end = r.end;
+    else queue.push({ ...r });
+  }
+  return queue;
+}
+
+// kReshapeQueueReset (`harfbuzz_shaper.cc:1009-1020`): restart the
+// iterator and re-run ignoring variation selectors.
+function resetFallbackIteratorIgnoringSelectors(it: SegmentFallbackIterator): void {
+  it.familyIndex = 0;
+  it.returnedFaces.clear();
+  it.previouslyAskedHints.clear();
+  it.segmentedWebfonts.clear();
+  it.firstCandidate = null;
+  it.stage = "family";
+  it.ignoreVS = true;
+  _vsResets++;
+}
+
+function fallbackCandidateFor(
+  ctx: ShapedSplitContext,
+  key: string,
+  font: FontInstance,
+  isPrimary: boolean,
+  clampRanges: Array<[number, number]> | null,
+  mechanism: NonNullable<FontRun["routeMechanism"]>,
+  vs?: Record<string, number>,
+): Candidate {
+  const face = isPrimary ? ctx.primaryFace : hbFaceFor(font, key, ctx.weight, ctx.fontSize, ctx.slant, vs);
+  return { key, font, face, isPrimary, mechanism, clampRanges };
+}
+
+/** Record `cand` as the iterator's first candidate when none is set yet. */
+function noteFirstCandidate(it: SegmentFallbackIterator, cand: Candidate): Candidate {
+  if (it.firstCandidate == null) it.firstCandidate = cand;
+  return cand;
+}
+
+/** `FontFallbackIterator::Next` + `UniqueOrNext`, as one loop. Each stage
+ *  helper returns a candidate, or null to re-dispatch on the (possibly
+ *  advanced) stage. */
+function nextFallbackCandidate(
+  ctx: ShapedSplitContext,
+  it: SegmentFallbackIterator,
+  hints: number[],
+): Candidate | null {
+  for (;;) {
+    switch (it.stage) {
+      case "family": {
+        const cand = nextFamilyCandidate(ctx, it, hints);
+        if (cand != null) return cand;
+        break;
+      }
+      case "priority": {
+        const cand = nextPriorityCandidate(ctx, it, hints);
+        if (cand != null) return cand;
+        break;
+      }
+      case "system": {
+        const cand = nextSystemCandidate(ctx, it, hints);
+        if (cand != null) return cand;
+        break;
+      }
+      case "lastResort": {
+        const cand = nextLastResortCandidate(ctx, it);
+        if (cand != null) return cand;
+        break;
+      }
+      case "firstCandidate": {
+        // kFirstCandidateForNotdefGlyph: re-return the FIRST candidate so
+        // ITS `.notdef` paints (`font_fallback_iterator.cc:159-164`).
+        it.stage = "outOfLuck";
+        return it.firstCandidate == null ? null : { ...it.firstCandidate, mechanism: "first-candidate-notdef" };
+      }
+      case "outOfLuck":
+        return null;
+    }
+  }
+}
+
+/** kFontGroupFonts: the next declared family entry, or null to re-dispatch. */
+function nextFamilyCandidate(ctx: ShapedSplitContext, it: SegmentFallbackIterator, hints: number[]): Candidate | null {
+  const { primaryFontKey, primaryFont, weight, fontSize, slant } = ctx;
+  if (it.familyIndex >= it.familyCycle.length) {
+    it.stage = it.effectivePriority !== "text" ? "priority" : "system";
+    return null;
+  }
+  const entry = it.familyCycle[it.familyIndex];
+  if (entry.inst == null && entry.key.startsWith("webfont:")) {
+    return nextSegmentedWebfontCandidate(ctx, it, entry.key, hints);
+  }
+  it.familyIndex++;
+  const inst =
+    entry.inst ??
+    getFontInstance(entry.key, weight, fontSize, slant, undefined, 100, false, undefined, ctx.semanticContext);
+  if (inst == null) return null;
+  const isPrimary = entry.key === primaryFontKey && inst === primaryFont;
+  const cand = fallbackCandidateFor(
+    ctx,
+    entry.key,
+    inst,
+    isPrimary,
+    inst.webfontUnicodeRange ?? null,
+    "declared-family",
+    isPrimary ? ctx.variationSettings : undefined,
+  );
+  const identity = candidateIdentity(cand);
+  if (cand.clampRanges == null) {
+    if (it.returnedFaces.has(identity)) return null;
+    it.returnedFaces.add(identity);
+  }
+  return noteFirstCandidate(it, cand);
+}
+
+// kSegmentedFace: a webfont family's unicode-range partitions.
+// Walk EVERY declaration in reverse source order and apply
+// `RangeSetContributesForHint` to the current hint list. Scoring
+// each hint independently loses the next overlapping face.
+function nextSegmentedWebfontCandidate(
+  ctx: ShapedSplitContext,
+  it: SegmentFallbackIterator,
+  entryKey: string,
+  hints: number[],
+): Candidate | null {
+  const { primaryFontKey, primaryFont, weight, fontSize, slant } = ctx;
+  const family = entryKey.slice("webfont:".length);
+  let state = it.segmentedWebfonts.get(entryKey);
+  if (state == null) {
+    state = {
+      faces: webfontVariantsInDeclarationOrder(
+        family,
+        weight,
+        fontSize,
+        slant,
+        entryKey === primaryFontKey ? ctx.variationSettings : undefined,
+        ctx.stretch,
+      ),
+      index: 0,
+    };
+    it.segmentedWebfonts.set(entryKey, state);
+  }
+  while (state.index < state.faces.length) {
+    let v = state.faces[state.index++];
+    const ranges = v.webfontUnicodeRange;
+    if (ranges != null && !hints.some((cp) => unicodeRangeCovers(ranges, cp))) continue;
+    const isPrimaryInstance =
+      entryKey === primaryFontKey && v.webfontDeclarationOrder === primaryFont.webfontDeclarationOrder;
+    if (isPrimaryInstance) v = primaryFont;
+    const face = hbFaceFor(v, entryKey, weight, fontSize, slant, undefined);
+    const cand: Candidate = {
+      key: entryKey,
+      font: v,
+      face,
+      isPrimary: entryKey === primaryFontKey,
+      mechanism: "declared-family",
+      clampRanges: ranges ?? null,
+    };
+    const identity = candidateIdentity(cand);
+    const subsetted = v.webfontUnicodeRange != null;
+    if (!subsetted) {
+      if (it.returnedFaces.has(identity)) continue;
+      it.returnedFaces.add(identity);
+    }
+    // Every contributing partition of the declared webfont family
+    // remains primary for CSS axis/feature application. The
+    // concrete-instance check above is narrower: it only decides
+    // when the caller's already-instanced Font object can be reused.
+    return noteFirstCandidate(it, cand);
+  }
+  it.familyIndex++; // no (further) contributing variant for these hints
+  return null;
+}
+
+function nextPriorityCandidate(
+  ctx: ShapedSplitContext,
+  it: SegmentFallbackIterator,
+  hints: number[],
+): Candidate | null {
+  const { weight, fontSize, slant, lang } = ctx;
+  // `kFallbackPriorityFonts` is one-shot and owns the first hint,
+  // ahead of `UniqueSystemFontForHintList`. A miss proceeds to the
+  // ordinary system stage; it never retries another priority face.
+  it.stage = "system";
+  _priorityAsked++;
+  const hint = hints[0];
+  const key =
+    it.effectivePriority === "emoji" || it.effectivePriority === "emoji-vs"
+      ? resolveColorEmojiKeyForCp(hint, weight, fontSize, slant, lang)
+      : resolveSystemFallbackKeyForCp(
+          hint,
+          weight,
+          slant,
+          fontSize,
+          ctx.primaryFontKey,
+          ctx.systemUiPrimary,
+          lang,
+          ctx.stretch,
+          "text",
+          ctx.semanticContext.declaredFamily,
+          ctx.opts?.fallbackRawSlope,
+          ctx.opts?.fallbackOrientation,
+        );
+  if (key == null) return null;
+  const font = getFontInstance(key, weight, fontSize, slant);
+  if (font == null) return null;
+  const cand = fallbackCandidateFor(ctx, key, font, false, null, "priority-emoji");
+  const identity = candidateIdentity(cand);
+  if (it.returnedFaces.has(identity)) return null;
+  it.returnedFaces.add(identity);
+  noteFirstCandidate(it, cand);
+  _priorityAnswered++;
+  return cand;
+}
+
+function nextSystemCandidate(ctx: ShapedSplitContext, it: SegmentFallbackIterator, hints: number[]): Candidate | null {
+  const { primaryFont, primaryFontKey, weight, fontSize, slant, fontVariantEmoji } = ctx;
+  // kSystemFonts = `UniqueSystemFontForHintList`: ONE hint character,
+  // asked at most once. A duplicate answer recurses into Next with
+  // the same (now-consumed) hint, which returns nothing — so both
+  // "already asked" and "duplicate answer" advance to last-resort.
+  if (hints.length === 0) {
+    it.stage = "lastResort";
+    return null;
+  }
+  const hint = hints[chooseHintIndex(hints)];
+  if (hint === 0 || it.previouslyAskedHints.has(hint)) {
+    it.stage = "lastResort";
+    return null;
+  }
+  it.previouslyAskedHints.add(hint);
+  // Explicit VS source priorities win over CSS for the whole item.
+  // The post-reset pass ignores the selector during glyph lookup but
+  // preserves this iterator's source/effective priority, as Blink's
+  // FontFallbackIterator::Reset does.
+  const effFve: FontVariantEmojiOverride | undefined = it.ignoreVS
+    ? undefined
+    : it.seg.sourcePriority === "emoji-vs"
+      ? "emoji"
+      : it.seg.sourcePriority === "text-vs"
+        ? "text"
+        : fontVariantEmoji;
+  const res = resolveFontForCodepoint(
+    hint,
+    primaryFont,
+    primaryFontKey,
+    weight,
+    fontSize,
+    slant,
+    ctx.variationSettings,
+    ctx.lang,
+    ctx.fontKeyChain,
+    ctx.systemUiPrimary,
+    ctx.stretch,
+    effFve,
+    ctx.fontFamily,
+    ctx.opts?.fallbackRawSlope,
+    ctx.opts?.fallbackOrientation,
+    ctx.semanticContext,
+  );
+  if (!res.covered) {
+    it.stage = "lastResort";
+    return null;
+  }
+  const font =
+    res.fontOverride ?? (res.key === primaryFontKey ? primaryFont : getFontInstance(res.key, weight, fontSize, slant));
+  if (font == null) {
+    it.stage = "lastResort";
+    return null;
+  }
+  // `res.decomposed` is coverage evidence for the selected face, not
+  // an alternate commit operation. HarfBuzz shapes the ORIGINAL
+  // queued source range below and owns whether canonical pieces are
+  // emitted (`hb-ot-shape-normalize.cc:108-200`).
+  const cand = fallbackCandidateFor(ctx, res.key, font, false, null, "system-resolver");
+  const identity = candidateIdentity(cand);
+  if (it.returnedFaces.has(identity)) {
+    it.stage = "lastResort";
+    return null;
+  }
+  it.returnedFaces.add(identity);
+  return noteFirstCandidate(it, cand);
+}
+
+function nextLastResortCandidate(ctx: ShapedSplitContext, it: SegmentFallbackIterator): Candidate | null {
+  // "we only have the last resort font left" —
+  // `font_fallback_iterator.cc:143-157`: the stage advances to
+  // kFirstCandidateForNotdefGlyph BEFORE the last-resort face is
+  // returned, and the face is still deduped (a Times primary skips
+  // straight to the first candidate).
+  it.stage = "firstCandidate";
+  for (const key of lastResortKeys(ctx.semanticContext)) {
+    const inst = getFontInstance(
+      key,
+      ctx.weight,
+      ctx.fontSize,
+      ctx.slant,
+      undefined,
+      100,
+      false,
+      undefined,
+      ctx.semanticContext,
+    );
+    if (inst == null) continue;
+    const cand = fallbackCandidateFor(ctx, key, inst, false, null, "last-resort");
+    const identity = candidateIdentity(cand);
+    if (it.returnedFaces.has(identity)) break; // duplicate → first candidate
+    it.returnedFaces.add(identity);
+    return noteFirstCandidate(it, cand);
+  }
+  return null;
+}
+
+// Contract check: the assignment must tile [0, text.length) exactly.
+function assertAssignmentsTileSource(assignments: Assignment[], length: number): void {
   let cursor = 0;
   for (const a of assignments) {
     if (a.start !== cursor) throw new Error(`cluster assignments do not tile source at ${cursor}`);
     cursor = a.end;
   }
-  if (cursor !== text.length) throw new Error(`cluster assignments end at ${cursor}, expected ${text.length}`);
+  if (cursor !== length) throw new Error(`cluster assignments end at ${cursor}, expected ${length}`);
+}
+
+// Assemble contiguous, source-ordered runs; merge adjacent same-font spans
+// only INSIDE one shaping item. Blink resolves bidi first and splits an
+// InlineItem whenever a logical bidi run ends (`InlineNode::SegmentBidiRuns`,
+// inline_node.cc:1411-1435, Chromium rev 7d859f27). Its shaping scan then
+// refuses to cross an item whose resolved direction or RunSegmenter data
+// differs (`ShouldBreakShapingBeforeText`, :470-490). `segments` is our
+// combined mirror of those bidi + script + source-priority items. Dropping that identity here
+// made adjacent items that selected the same face become one FontRun; the
+// downstream embedded shaper consequently applied only the first item's
+// direction to the whole merged text.
+function assembleShapedFontRuns(
+  ctx: ShapedSplitContext,
+  assignments: Assignment[],
+  segments: ShapedSplitSegment[],
+): FontRun[] {
+  const { text } = ctx;
+  assignments.sort((a, b) => a.start - b.start);
+  assertAssignmentsTileSource(assignments, text.length);
 
   const runs: FontRun[] = [];
   let segmentIndex = 0;
@@ -1198,12 +1352,12 @@ function splitShapedInner(
     run.font = harfbuzzShapedRunOverride(
       run.font,
       run.fontKey,
-      weight,
-      fontSize,
-      slant,
-      run.isPrimary ? variationSettings : undefined,
+      ctx.weight,
+      ctx.fontSize,
+      ctx.slant,
+      run.isPrimary ? ctx.variationSettings : undefined,
       run.text,
-      opts?.features,
+      ctx.opts?.features,
     );
   }
   return runs;
