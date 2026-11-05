@@ -274,7 +274,17 @@ export async function buildJsRevealAnimation(
   const restTree = await captureElementTreeSelfContained(page, "body", { x: 0, y: 0, width, height });
   cullElementsOutsideViewBox(restTree, width, height, undefined, 0, 1);
   const rootBg = restTree[0]?.styles?.rootBgComputed;
-  const restSnap = await captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch(() => null);
+  // A failed snapshot is survivable (the reveal falls back to a crossfade) but must not be silent:
+  // it is the difference between an in-place motion tween and a dissolve.
+  const snapshotTarget = (phase: "rest" | "settled") =>
+    captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch((error: unknown) => {
+      log(
+        `  jsReveal: could not snapshot ${phase} styles of "${spec.selector}" ` +
+          `(${error instanceof Error ? error.message : String(error)}) — a motion mutation will crossfade instead of tweening`,
+      );
+      return null;
+    });
+  const restSnap = await snapshotTarget("rest");
   const renderRest = (): string =>
     elementTreeToSvgInner(restTree, width, height, `${framePrefix}s0-`, true, 2, false, opts.realText === true);
 
@@ -299,7 +309,7 @@ export async function buildJsRevealAnimation(
     // classification → an intra-frame tween on the tagged element.
     let tweened = false;
     if (!summary.structural && restSnap != null) {
-      const afterSnap = await captureStyleSnapshot(page, spec.selector, HOVER_DIFF_PROPERTIES).catch(() => null);
+      const afterSnap = await snapshotTarget("settled");
       const diff = afterSnap != null ? diffHoverSnapshots(restSnap, afterSnap) : null;
       if (diff != null && classifyHoverTransition(diff) === "motion") {
         const anims = synthMutationTween(diff, JS_REVEAL_ANIM_ID, spec.crossfadeMs);

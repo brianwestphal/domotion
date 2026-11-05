@@ -32,6 +32,43 @@ export function icuAcquireWorkerArgs(workerPath: string, target: IcuCompanionTar
     : [workerPath, JSON.stringify(target)];
 }
 
+/**
+ * Decode the download worker's argv target (the JSON `icuAcquireWorkerArgs` wrote), or `null` when
+ * it is missing, not JSON, or not the expected shape. The worker writes files at these paths, so a
+ * malformed argument exits 2 instead of reaching `downloadIcuCompanion` with `undefined` fields.
+ */
+export function parseIcuCompanionTarget(raw: string | undefined): IcuCompanionTarget | null {
+  if (raw == null) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (value == null || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const nonEmpty = (field: unknown): field is string => typeof field === "string" && field !== "";
+  const fields = ["executableAsset", "dataAsset", "directory", "executablePath", "dataPath"] as const;
+  if (!fields.every((key) => nonEmpty(record[key]))) return null;
+  const assets = record.runtimeAssets;
+  if (!Array.isArray(assets)) return null;
+  const runtimeAssets: Array<{ asset: string; path: string }> = [];
+  for (const item of assets as unknown[]) {
+    if (item == null || typeof item !== "object") return null;
+    const { asset, path: assetPath } = item as Record<string, unknown>;
+    if (!nonEmpty(asset) || !nonEmpty(assetPath)) return null;
+    runtimeAssets.push({ asset, path: assetPath });
+  }
+  return {
+    executableAsset: record.executableAsset as string,
+    dataAsset: record.dataAsset as string,
+    directory: record.directory as string,
+    executablePath: record.executablePath as string,
+    dataPath: record.dataPath as string,
+    runtimeAssets,
+  };
+}
+
 export function icuAssetStem(platform: NodeJS.Platform, arch: string): string | null {
   if (platform === "darwin" && (arch === "arm64" || arch === "x64")) return `domotion-icu-darwin-${arch}`;
   if (platform === "linux" && (arch === "arm64" || arch === "x64")) return `domotion-icu-linux-${arch}`;
@@ -173,9 +210,9 @@ export function __resetIcuAcquireStateForTest(): void {
 const isWorker =
   process.argv[1] != null && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 if (isWorker) {
-  const raw = process.argv[2];
-  if (raw == null) process.exit(2);
-  downloadIcuCompanion(JSON.parse(raw) as IcuCompanionTarget)
+  const target = parseIcuCompanionTarget(process.argv[2]);
+  if (target == null) process.exit(2);
+  downloadIcuCompanion(target)
     .then((ok) => process.exit(ok ? 0 : 1))
     .catch(() => process.exit(1));
 }

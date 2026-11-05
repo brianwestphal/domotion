@@ -10,6 +10,7 @@ import {
   formatConfigIssues,
   installShutdownHandlers,
   loadInputIntoPage,
+  openInBrowser,
   parseNonNegativeInt,
   parsePort,
   parsePositiveInt,
@@ -38,6 +39,19 @@ describe("openInBrowser", () => {
 
   it("inherits Vitest's no-open environment in the real test process", () => {
     expect(shouldOpenInBrowser()).toBe(false);
+  });
+
+  it("refuses anything but a local server root URL before it could reach cmd's re-parsing", async () => {
+    await expect(openInBrowser("http://127.0.0.1:4321/")).resolves.toBeUndefined();
+    for (const url of [
+      "http://127.0.0.1:4321/&calc.exe",
+      "http://127.0.0.1:4321/^|whoami",
+      "https://example.com/",
+      "http://localhost:4321/",
+      "http://127.0.0.1:4321",
+    ]) {
+      await expect(openInBrowser(url)).rejects.toThrow(/refusing a non-local-server URL/);
+    }
   });
 });
 

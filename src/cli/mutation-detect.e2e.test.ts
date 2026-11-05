@@ -127,6 +127,37 @@ describeBrowser("MutationObserver JS-change harness (DM-1564)", () => {
     }
   }, 60_000);
 
+  it("logs, rather than silently swallowing, a settled-style snapshot that fails", async () => {
+    // The handler swaps the class the selector matches on, so after the (attribute-only) mutation
+    // the selector finds nothing and the settled snapshot throws. The reveal still falls back to a
+    // crossfade, but the log must say why it did not tween.
+    const swapPath = join(dir, "swap.html");
+    writeFileSync(
+      swapPath,
+      `<!doctype html><html><body style="margin:0;height:200px"><button class="idle" style="transform:none">Go</button>` +
+        `<script>document.querySelector('.idle').addEventListener('mouseover', function () {` +
+        `this.className = 'active'; this.style.transform = 'translateX(40px)'; });</script></body></html>`,
+    );
+    const ctx = await browser!.newContext({ viewport: { width: 400, height: 200 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`file://${swapPath}`, { waitUntil: "networkidle" });
+      const lines: string[] = [];
+      const res = await buildJsRevealAnimation(page, resolveJsRevealSpec({ selector: ".idle", holdMs: 400 }), {
+        width: 400,
+        height: 200,
+        framePrefix: "jr0_",
+        log: (msg) => lines.push(msg),
+      });
+      expect(res.summary.structural).toBe(false);
+      expect(lines.join("\n")).toMatch(
+        /could not snapshot settled styles of "\.idle" \([\s\S]*matched no element[\s\S]*\) — a motion mutation will crossfade/,
+      );
+    } finally {
+      await ctx.close();
+    }
+  }, 60_000);
+
   it("emits real text inside each JS-reveal state when requested", async () => {
     const ctx = await browser!.newContext({ viewport: { width: 400, height: 260 } });
     try {

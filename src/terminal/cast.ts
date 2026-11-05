@@ -74,7 +74,13 @@ export function parseCast(text: string): ParsedCast {
     if (typeof raw.width !== "number" || typeof raw.height !== "number") {
       throw new Error("cast: header is missing numeric width/height");
     }
-    header = { version: 2, width: raw.width, height: raw.height, title: raw.title };
+    // `title` is optional in asciinema v2 but, when present, is a string; it flows into the
+    // rendered terminal chrome, so a number/object/array must not pass through as-is.
+    const title: unknown = raw.title;
+    if (title !== undefined && title !== null && typeof title !== "string") {
+      throw new Error(`cast: header title must be a string, got ${Array.isArray(title) ? "array" : typeof title}`);
+    }
+    header = { version: 2, width: raw.width, height: raw.height, title: title ?? undefined };
   } catch (e) {
     if (e instanceof Error && e.message.startsWith("cast:")) throw e;
     throw new Error(`cast: header line is not valid JSON: ${(e as Error).message}`);

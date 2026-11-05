@@ -144,7 +144,10 @@ itself needs:
   pre-install it: `launchChromium()` (`src/capture/index.ts`) catches the
   missing-browser launch error, runs `npx playwright install chromium`
   (stdio inherited so progress is visible), and retries — falling back to a
-  clear "run it manually" message if the auto-install fails. First-run
+  clear "run it manually" message if the auto-install fails. The install runs
+  as an awaited child process, so a library caller's event loop keeps running,
+  and it is killed after `CHROMIUM_INSTALL_TIMEOUT_MS` (10 minutes) so a
+  wedged download cannot hang the command forever. First-run
   `capture` / `animate` therefore works from a cold machine, at the cost of a
   one-time browser download.
 

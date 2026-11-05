@@ -96,7 +96,14 @@ export function shouldOpenInBrowser(
   return interactive || env.DOMOTION_OPEN_BROWSER === "1";
 }
 
+/** The only URL shape `openInBrowser` launches: a local server root as `startLocalServer` prints it. */
+const LOCAL_SERVER_URL = /^http:\/\/127\.0\.0\.1:\d+\/$/;
+
 export async function openInBrowser(url: string): Promise<void> {
+  // On Windows the URL goes through `cmd /c start`, and cmd re-parses `&`, `|` and `^` inside
+  // its arguments, so argv form is no protection against injection. Every caller passes a local
+  // server's own root URL; refuse anything else before it can reach a shell.
+  if (!LOCAL_SERVER_URL.test(url)) throw new Error(`openInBrowser: refusing a non-local-server URL: ${url}`);
   // Test code must never steal focus by launching the user's real browser.
   // Keep this guard here, at the final shared side-effect boundary, so a new
   // caller cannot bypass it by forgetting its own `--no-open` flag. Vitest

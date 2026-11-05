@@ -14,6 +14,7 @@
  */
 
 import type { Page } from "@playwright/test";
+import { withTimeout } from "./with-timeout.js";
 
 /** Wait for all `@font-face` fonts on the page to finish loading. Uses
  *  the CSS Font Loading API (`document.fonts.ready`), which Chromium
@@ -75,10 +76,7 @@ export async function waitForSettled(page: Page, opts?: { networkIdle?: boolean;
   const timeoutMs = opts?.timeoutMs ?? 5000;
   const guard = async <T>(p: Promise<T>): Promise<T | undefined> => {
     try {
-      return await Promise.race([
-        p,
-        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
-      ]);
+      return await withTimeout(p, timeoutMs);
     } catch {
       return undefined;
     }

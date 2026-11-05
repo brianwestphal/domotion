@@ -67,13 +67,20 @@ export function checkLocalRequest(req: IncomingMessage, port: number): LocalRequ
  * for the local `svg-review`, `svg-scrubber` and Studio servers (DM-1434). Every
  * request first passes `checkLocalRequest`: a foreign `Host`, a cross-origin
  * `Origin` or a non-JSON state-changing body is answered 403 / 415 before the
- * handler runs. The handler may be sync or async; a rejected async handler is
- * swallowed here, so each server wraps its own try/catch for per-request error
- * responses.
+ * handler runs. The handler may be sync or async. Servers answer their own
+ * per-request errors (`createRouter` does), but a handler that still throws or
+ * rejects is answered here through `errorResponseFor` (500 unless it threw an
+ * `HttpError`) (or has its half-written response ended) rather
+ * than escaping as an unhandled rejection that would crash the process. A
+ * server `error` event after listening is reported through `onServerError`
+ * (default: one line on stderr) instead of being left unhandled.
  */
 export async function startLocalServer(
   handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>,
   port = 0,
+  onServerError: (error: Error) => void = (error) => {
+    process.stderr.write(`local server error: ${error.message}\n`);
+  },
 ): Promise<LocalServer> {
   const server = createServer((req, res) => {
     const rejection = checkLocalRequest(req, req.socket.localPort ?? port);
@@ -81,11 +88,18 @@ export async function startLocalServer(
       sendJson(res, rejection.status, { error: rejection.message });
       return;
     }
-    void handler(req, res);
+    // `new Promise` + `then` turns a synchronous throw into a rejection too.
+    new Promise<void>((resolve) => resolve(handler(req, res))).catch((error: unknown) => {
+      const response = errorResponseFor(error);
+      if (!res.headersSent) sendJson(res, response.status, response.body);
+      else res.end();
+    });
   });
   const boundPort = await new Promise<number>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", () => {
+      server.off("error", reject);
+      server.on("error", onServerError);
       const addr = server.address();
       resolve(addr != null && typeof addr === "object" ? addr.port : port);
     });

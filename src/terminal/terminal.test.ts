@@ -56,6 +56,16 @@ describe("parseCast (asciinema v2)", () => {
     expect(() => parseCast("")).toThrow(/empty/);
     expect(() => parseCast(JSON.stringify({ version: 2 }))).toThrow(/width\/height/);
   });
+
+  it("validates the optional header title instead of passing any JSON value through", () => {
+    const header = (title: unknown) => JSON.stringify({ version: 2, width: 80, height: 24, title });
+    expect(parseCast(header("Demo")).header.title).toBe("Demo");
+    expect(parseCast(JSON.stringify({ version: 2, width: 80, height: 24 })).header.title).toBeUndefined();
+    expect(parseCast(header(null)).header.title).toBeUndefined();
+    expect(() => parseCast(header(42))).toThrow("cast: header title must be a string, got number");
+    expect(() => parseCast(header(["a"]))).toThrow("cast: header title must be a string, got array");
+    expect(() => parseCast(header({ a: 1 }))).toThrow("cast: header title must be a string, got object");
+  });
 });
 
 describe("resolveThemeSpec (custom themes, DM-1225)", () => {

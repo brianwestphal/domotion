@@ -2605,6 +2605,20 @@ describe("animate --text-mode arg handling (DM-FJZQ34)", () => {
     }
   });
 
+  it("a malformed config names its path instead of surfacing a bare JSON.parse error", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-animate-badjson-"));
+    try {
+      const configPath = join(dir, "broken.json");
+      writeFileSync(configPath, "{ not json");
+      const error = (await runAnimate([configPath], "").catch((e: unknown) => e)) as Error;
+      expect(error.name).toBe("UsageError");
+      expect(error.message).toContain(`animate: config ${configPath} is not valid JSON: `);
+      await expect(runAnimate([dir], "")).rejects.toThrow(`animate: config is a directory, not a file: ${dir}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("no --text-mode leaves the render-text mode untouched", async () => {
     const prev = getRenderTextMode();
     setRenderTextMode("paths");

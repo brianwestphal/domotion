@@ -1,6 +1,5 @@
 /** CLI parsing and process-level browser lifecycle for `domotion animate`. */
 
-import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { launchChromium } from "../capture/index.js";
@@ -12,7 +11,7 @@ import { launchChromium } from "../capture/index.js";
 import { setRenderTextMode, RENDER_TEXT_MODES, isRenderTextMode } from "../render/index.js";
 import { loadBrand, type Brand } from "../templates/brand.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
-import { makeLogger, parseIntFlag, UsageError } from "./common.js";
+import { errorMessage, makeLogger, parseIntFlag, readInputFile, UsageError } from "./common.js";
 import { composeAnimateConfig, validateAnimateConfig } from "./animate-orchestrator.js";
 import { writeAnimateArtifact } from "./animate-artifact.js";
 import { logAnimateDebugBundle, writeAnimateDebugActual } from "./animate-debug.js";
@@ -56,8 +55,14 @@ export function parseAnimateArgs(args: string[]) {
     );
   }
   const configPath = resolve(positionals[0]);
-  if (!existsSync(configPath)) throw new UsageError(`animate: config not found: ${configPath}`);
-  const cfg = validateAnimateConfig(JSON.parse(readFileSync(configPath, "utf8")) as unknown);
+  let rawConfig: unknown;
+  try {
+    rawConfig = JSON.parse(readInputFile(configPath, "animate: config"));
+  } catch (e) {
+    if (e instanceof UsageError) throw e;
+    throw new UsageError(`animate: config ${configPath} is not valid JSON: ${errorMessage(e)}`);
+  }
+  const cfg = validateAnimateConfig(rawConfig);
   const configDir = dirname(configPath);
   if (values["auto-compress"] === true) cfg.autoCompress = true;
   if (values["no-auto-compress"] === true) cfg.autoCompress = false;

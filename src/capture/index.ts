@@ -9,7 +9,7 @@
  * the `domotion-svg/capture` subpath re-export.
  */
 
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import sharp from "sharp";
 import {
   chromium,
@@ -219,9 +219,10 @@ export interface CaptureOptions {
  * `@playwright/test` directly when you want a frictionless first-run
  * experience for users of your tool.
  *
- * The install step is `npx playwright install chromium` and runs synchronously
- * (stdout / stderr inherited) so the user sees its progress. Subsequent calls
- * are a normal `chromium.launch()` with no overhead.
+ * The install step is `npx playwright install chromium`, run as an awaited child
+ * process (stdout / stderr inherited, so the user sees its progress) with a
+ * `CHROMIUM_INSTALL_TIMEOUT_MS` deadline. Subsequent calls are a normal
+ * `chromium.launch()` with no overhead.
  */
 export async function launchChromium(opts?: LaunchOptions): Promise<Browser> {
   // Keep automation non-interactive by construction. Callers that genuinely
@@ -233,18 +234,42 @@ export async function launchChromium(opts?: LaunchOptions): Promise<Browser> {
     if (!isMissingBrowserError(err)) throw err;
 
     console.error("[domotion] Chromium binary not found — installing via 'npx playwright install chromium'…");
-    const result = spawnSync("npx", ["playwright", "install", "chromium"], {
-      stdio: "inherit",
-      shell: process.platform === "win32",
-    });
-    if (result.status !== 0) {
-      throw new Error(
-        "[domotion] Failed to auto-install Playwright Chromium. " +
-          "Run 'npx playwright install chromium' manually and try again.",
-      );
-    }
+    await installPlaywrightChromium();
     return chromium.launch(launchOptions);
   }
+}
+
+/** Ceiling for the first-run browser download (a slow link takes minutes; a wedged one never ends). */
+export const CHROMIUM_INSTALL_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Run the Playwright browser install asynchronously (so a library caller's event loop keeps
+ * running) with inherited stdio and a hard deadline. Resolves on exit 0; otherwise rejects with
+ * the manual-install instruction, naming a timeout when the deadline killed it. The command is
+ * injectable for tests only.
+ */
+export async function installPlaywrightChromium(
+  timeoutMs = CHROMIUM_INSTALL_TIMEOUT_MS,
+  command: { file: string; args: string[] } = { file: "npx", args: ["playwright", "install", "chromium"] },
+): Promise<void> {
+  const failure = (reason: string) =>
+    new Error(
+      `[domotion] Failed to auto-install Playwright Chromium (${reason}). ` +
+        "Run 'npx playwright install chromium' manually and try again.",
+    );
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command.file, command.args, {
+      stdio: "inherit",
+      shell: process.platform === "win32" && command.file === "npx",
+      timeout: timeoutMs,
+    });
+    child.once("error", (error) => reject(failure(error.message)));
+    child.once("exit", (code, signal) => {
+      if (code === 0) resolve();
+      else if (signal != null && child.killed) reject(failure(`timed out after ${timeoutMs} ms`));
+      else reject(failure(signal != null ? `killed by ${signal}` : `exit code ${String(code)}`));
+    });
+  });
 }
 
 function isMissingBrowserError(err: unknown): boolean {

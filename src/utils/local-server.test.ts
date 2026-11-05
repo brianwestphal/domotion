@@ -184,6 +184,66 @@ describe("createRouter", () => {
   });
 });
 
+describe("startLocalServer error handling", () => {
+  it("answers a handler that throws or rejects instead of leaking an unhandled rejection", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    const local = await startLocalServer((req, res) => {
+      if (req.url === "/sync") throw new Error("sync boom");
+      if (req.url === "/http") return Promise.reject(new HttpError(409, "stale"));
+      if (req.url === "/late") {
+        res.writeHead(200, { "content-type": "text/plain" });
+        res.write("partial");
+        return Promise.reject(new Error("late boom"));
+      }
+      return Promise.reject(new Error("async boom"));
+    });
+    try {
+      const sync = await fetch(new URL("/sync", local.url));
+      expect([sync.status, await sync.json()]).toEqual([500, { error: "sync boom" }]);
+      const rejected = await fetch(new URL("/async", local.url));
+      expect([rejected.status, await rejected.json()]).toEqual([500, { error: "async boom" }]);
+      const http = await fetch(new URL("/http", local.url));
+      expect([http.status, await http.json()]).toEqual([409, { error: "stale" }]);
+      const late = await fetch(new URL("/late", local.url));
+      expect([late.status, await late.text()]).toEqual([200, "partial"]);
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      await local.close();
+    }
+  });
+
+  it("reports a post-listen server error instead of leaving it unhandled", async () => {
+    const seen: string[] = [];
+    const local = await startLocalServer(
+      (_req, res) => sendJson(res, 200, {}),
+      0,
+      (error) => seen.push(error.message),
+    );
+    try {
+      expect(local.server.listenerCount("error")).toBe(1);
+      local.server.emit("error", new Error("late failure"));
+      expect(seen).toEqual(["late failure"]);
+    } finally {
+      await local.close();
+    }
+  });
+
+  it("still rejects when the port cannot be bound", async () => {
+    const first = await startLocalServer((_req, res) => sendJson(res, 200, {}));
+    try {
+      await expect(startLocalServer((_req, res) => sendJson(res, 200, {}), first.port)).rejects.toMatchObject({
+        code: "EADDRINUSE",
+      });
+    } finally {
+      await first.close();
+    }
+  });
+});
+
 describe("checkLocalRequest (cross-site guard)", () => {
   const PORT = 4321;
   const req = (method: string, headers: Record<string, string>) =>

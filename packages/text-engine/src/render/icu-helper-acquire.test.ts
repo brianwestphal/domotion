@@ -5,6 +5,7 @@ import {
   icuAcquireWorkerArgs,
   icuAssetStem,
   icuCacheDir,
+  parseIcuCompanionTarget,
   resolveIcuCompanionTarget,
 } from "./icu-helper-acquire.js";
 
@@ -48,5 +49,23 @@ describe("ICU companion acquisition (DM-2254)", () => {
     expect(icuAcquireWorkerArgs("/pkg/dist/render/icu-helper-acquire.js", target)[0]).toBe(
       "/pkg/dist/render/icu-helper-acquire.js",
     );
+  });
+
+  it("round-trips the worker argv target and refuses a malformed one", () => {
+    const target = resolveIcuCompanionTarget({ platform: "linux", arch: "x64", cacheDir: "/cache" })!;
+    const argv = icuAcquireWorkerArgs("/pkg/dist/render/icu-helper-acquire.js", target);
+    expect(parseIcuCompanionTarget(argv[argv.length - 1])).toEqual(target);
+    for (const raw of [
+      undefined,
+      "not json",
+      "null",
+      "[]",
+      JSON.stringify({ ...target, dataPath: 3 }),
+      JSON.stringify({ ...target, directory: "" }),
+      JSON.stringify({ ...target, runtimeAssets: "x" }),
+      JSON.stringify({ ...target, runtimeAssets: [{ asset: "a" }] }),
+    ]) {
+      expect(parseIcuCompanionTarget(raw)).toBeNull();
+    }
   });
 });

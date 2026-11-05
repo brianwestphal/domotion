@@ -519,7 +519,13 @@ function containerToMuxer(container: string): string {
 
 /** Locate a usable ffmpeg; throws with per-platform install guidance if absent. */
 export function findFfmpeg(ffmpegPath: string): string {
-  const probe = spawnSync(ffmpegPath, ["-version"], { encoding: "utf-8" });
+  // A version probe answers in milliseconds; the deadline only stops a wedged binary (or a
+  // `--ffmpeg` path that isn't ffmpeg and waits on stdin) from hanging the CLI forever.
+  const probe = spawnSync(ffmpegPath, ["-version"], {
+    encoding: "utf-8",
+    timeout: 15_000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   if (probe.status === 0) return ffmpegPath;
   throw new Error(
     `ffmpeg not found (tried "${ffmpegPath}"). svg-to-video shells out to ffmpeg; install it and retry:\n` +

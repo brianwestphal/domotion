@@ -18,7 +18,7 @@
 
 import { parseArgs } from "node:util";
 import { resolve, extname, basename } from "node:path";
-import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { type Browser } from "@playwright/test";
@@ -136,6 +136,7 @@ export async function executeReview(flags: ReviewFlags | { help: true }): Promis
   }
 
   const tmp = mkdtempSync(resolve(tmpdir(), "svg-review-"));
+  const removeScratch = (): void => rmSync(tmp, { recursive: true, force: true });
   const expectedPng = flags.expected;
   const ext = extname(flags.actual).toLowerCase();
   let actualPng: string;
@@ -177,6 +178,10 @@ export async function executeReview(flags: ReviewFlags | { help: true }): Promis
       label: basename(flags.actual),
       port: flags.port,
     });
+    // The server read every asset into memory at startup, so the scratch dir (rasterized
+    // actual.png, diff.png, placeholder actual.svg) is no longer needed and would otherwise be
+    // left in the OS temp dir after every run.
+    removeScratch();
 
     process.stdout.write(`svg-review: ${server.url}\n`);
     if (flags.open) await openInBrowser(server.url);
@@ -193,6 +198,7 @@ export async function executeReview(flags: ReviewFlags | { help: true }): Promis
       /* never resolves; SIGINT exits the process */
     });
   } catch (e) {
+    removeScratch();
     await browser.close().catch(() => {
       /* ignore */
     });

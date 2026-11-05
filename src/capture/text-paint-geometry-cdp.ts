@@ -6,6 +6,7 @@ import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
 import type { CapturedElement, CapturedTextPaintQuad, CaptureWarning } from "./types.js";
 import { probeFailureWarning } from "./probe-failure.js";
+import { withTimeout } from "../utils/with-timeout.js";
 import { buildCapturedTextPaintGeometry, type ProtocolTextNodeGeometry } from "./text-fragment-geometry.js";
 import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
 
@@ -282,7 +283,7 @@ async function settleFrames(frames: readonly PreparedFrame[]): Promise<void> {
               requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
             }),
         ).catch(() => undefined);
-        await Promise.race([settle, new Promise<void>((resolve) => setTimeout(resolve, 1_000))]);
+        await withTimeout(settle, 1_000);
       }),
   );
 }
