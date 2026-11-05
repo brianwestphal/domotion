@@ -43,7 +43,7 @@ Skia `62efacd37737505732dbe3d8daa62abd679626a1`.
 .sw:checked { background: #16a34a; }
 ```
 
-Before this work, `renderCheckbox` and `renderRadio` always overlaid the UA-default 13×13 blue-tinted square / circle, ignoring the host's author-styled border + background. Toggle switches got the checkbox treatment, producing a checkmark icon in a 44×24 box rather than a pill with a thumb.
+Before this work, the (since-removed) `renderCheckbox` and `renderRadio` helpers always overlaid the UA-default 13×13 blue-tinted square / circle, ignoring the host's author-styled border + background. Toggle switches got the checkbox treatment, producing a checkmark icon in a 44×24 box rather than a pill with a thumb.
 
 ## Capture
 
@@ -75,10 +75,13 @@ The source boundary is explicit:
 
 ## Render
 
-`checkablePseudoFactsOwnIndicator` activates only for checkbox/radio hosts whose
+`renderInputControl` (`src/render/form-controls.ts`) emits nothing for a
+structural checkbox/radio host: there is no generic tick, dot, or switch-thumb
+synthesis on the render side at all. The ownership predicate
+`checkablePseudoFactsOwnIndicator` (true only for checkbox/radio hosts whose
 resolved appearance is `none` or `base` and whose `pseudoFragments` field is
-authoritative (including `[]`). `renderCheckbox` and `renderRadio` then emit no
-generic tick, dot, or switch thumb. `src/render/pseudo-fragments.ts` paints the
+authoritative, including `[]`) is exported for the unit and browser tests that
+pin the capture contract; the renderer does not branch on it. `src/render/pseudo-fragments.ts` paints the
 captured text, box, gradient/image, transform, radius, and selected-font facts
 in Blink order: `::checkmark`, `::before`, host children, then `::after`, with
 the existing positioned/z-index slots where applicable. A uniform solid
@@ -91,9 +94,12 @@ continue through Chromium native-control capture.
 
 ## Compatibility boundary
 
-The former fixed tick/dot/pill heuristic remains only for old serialized trees
-where `pseudoFragments` is `undefined`. It is never selected when modern
-capture explicitly reports records or an empty set. Protocol ambiguity follows
+The former fixed tick/dot/pill heuristic has been removed entirely. An old
+serialized tree where `pseudoFragments` is `undefined` therefore renders a
+structural checkbox/radio with its host background and border only — no
+indicator. Modern capture always reports records or an explicit empty set, so
+this affects only replays of trees serialized before the pseudo-fragment
+capture contract. Protocol ambiguity follows
 the generated-pseudo fail-closed raster/warning contract in docs 176 and 178;
 it does not revive generic synthesis.
 

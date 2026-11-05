@@ -262,8 +262,12 @@ reproduce the painted cap top to within 0.5 px on every one. Fixture:
   primary-font ascent, followed by `ToPixelSnappedRect` edge snapping
   (DM-2192). Disclosure triangles follow the physical inline/block direction
   for horizontal, vertical, sideways, and RTL writing directions.
-  _Custom_ `@counter-style`-resolved markers still fall back to the UA decimal
-  style on the render side (DM-770).
+  _Custom_ `@counter-style` markers are resolved at capture time: when
+  `list-style-type` names an author counter style and `::marker` has no
+  `content` override, `src/capture/script/walker/lists-counters.ts` computes
+  the symbol with `counter-style-resolver.ts` (cyclic, fixed, numeric,
+  alphabetic, symbolic, additive, plus prefix/suffix/pad/negative/range/
+  fallback/extends) and stores it as the marker content (DM-770).
 - **`::placeholder`** — input placeholder text routes through the form-
   controls renderer (`src/render/form-controls.ts`), not the pseudo path.
 - **`::details-content`** (Chrome 131+) — styles the disclosure body of an open

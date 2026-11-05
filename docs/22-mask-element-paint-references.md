@@ -21,7 +21,8 @@ aliases: ["docs/22-mask-element-paint-references.md", "doc-22"]
 > `-webkit-canvas()` (JS canvas API) and the Houdini `paint()` worklet. There is
 > **no launch flag** that enables `element()`.
 >
-> Consequence: `discoverMasks` never records a `maskRaster` for an `element()`
+> Consequence: the mask handler in `src/capture/script/walker/masks-clips.ts`
+> (`createMasksClipsHandler`) never records a `maskRasters[]` entry for an `element()`
 > ref (its `cs.maskImage` gate is `none`), so the capture/render path below
 > **never runs through real Chromium capture**, and the `mask-element-ref` feature
 > fixture is a **vacuous pass** (both Chrome and Domotion render the consumer

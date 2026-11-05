@@ -94,7 +94,7 @@ The per-named-function mapping above (`rotate(30deg)` → `rotate(30)`, `scale(2
 
 - Implementation ticket: "SK-???: apply CSS 2D transforms to SVG rendered groups".
 - "Untransformed box capture for accuracy" — for higher fidelity, capture the pre-transform box (via temporary `style.transform = none` round-trip in CAPTURE_SCRIPT) so the visual is exact rather than approximate.
-- "3D transform downgrade" — defer until a real test surfaces, but document the warning + 2D-projection path.
+- ~~"3D transform downgrade"~~ — shipped differently: static 3D transforms are measured as border-plane corners, and projective / preserve-3d / backface paint takes an atomic Chromium subtree snapshot rather than a lossy 2D projection (see the 3D bullets under Edge cases above, [doc 162](162-inline-svg-3d-transform-audit.md), and [doc 186](186-animated-3d-frame-state-parity.md)).
 
 ## Acceptance criteria
 

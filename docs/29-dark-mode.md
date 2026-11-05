@@ -95,7 +95,7 @@ Both fields are read inside the CAPTURE_SCRIPT (so the resolution happens in-pag
 
 ### Transparent-root fallback
 
-`tests/real-world.tsx`'s `'#ffffff'` fallback is replaced by reading the captured tree's `rootBgComputed`. The renderer's transparent-root handling (the `<rect width=… height=… fill="#ffffff"/>` emitted at the SVG root) honors the same field. When `rootBgComputed` is missing — older captures, or captures from before this change — fall back to `#ffffff` for `light` and `#1c1c1c` for `dark`.
+`tests/real-world.tsx`'s `'#ffffff'` fallback is replaced by reading the captured tree's `rootBgComputed`. The renderer's transparent-root handling (the `<rect width=… height=… fill="…"/>` emitted at the SVG root) honors the same field. _(As shipped:)_ the renderer's `transparentRootBgRect` (`src/render/element-tree-to-svg.ts`) emits a rect only when `rootBgComputed` is a painted color and returns `""` otherwise — it has **no** `#ffffff` / `#1c1c1c` fallback, so an older capture without the field keeps a transparent SVG root. The scheme-aware `#ffffff` light / `#1c1c1c` dark default lives only in the `tests/real-world.tsx` harness's body-bg fallback.
 
 The captured value is **whatever Chromium resolved**, including:
 
@@ -178,7 +178,7 @@ This doc fans out into the following sub-tickets:
 
 1. **DM-455a — Capture-side propagation**: add `rootColorScheme` + `rootBgComputed` to the CAPTURE_SCRIPT, surface them on the captured tree, and emit `color-scheme="dark"` on the root `<svg>` from `elementTreeToSvg`.
 2. **DM-455b — Form-controls dark palette**: empirical probe of Chromium's painted dark stock controls on macOS, hardcode the values into a `STOCK_DARK` table in `src/render/form-controls.ts`, dispatch via `stockPalette(scheme)`. New dark-mode form-control fixture for calibration.
-3. **DM-455c — Transparent-root fallback**: renderer's transparent-root path consumes `rootBgComputed`; `tests/real-world.tsx` body-bg fallback consumes `rootBgComputed`. Hardcoded `#ffffff` only fires when the field is missing.
+3. **DM-455c — Transparent-root fallback**: renderer's transparent-root path consumes `rootBgComputed` (and emits nothing when it is missing); `tests/real-world.tsx` body-bg fallback consumes `rootBgComputed`, and only that harness falls back to a hardcoded `#ffffff` / `#1c1c1c` when the field is missing.
 4. **DM-455d — Real-world suite re-evaluation**: drop the `colorScheme: 'light'` force in `tests/real-world.tsx`, re-run the suite, and verify the diff is dominated by typography drift, not bg-color inversion.
 
 ## Acceptance criteria

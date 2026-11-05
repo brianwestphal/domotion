@@ -32,7 +32,7 @@ Other cases Phase 2 covers:
 
 - **Static off-viewBox content** — an element captured at `y = 1800` of a 600-tall frame because its parent had `overflow: visible`. The renderer faithfully emits it; it's never visible but currently always rasterized.
 - **Intra-frame `translate*` animations on smaller elements** — a toast that slides in from `translateY(-100px)` to `translateY(0px)` is off-viewBox before the animation runs.
-- **Future actual-scroll transitions** — if `scroll` is ever made geometrically scroll between frames (currently it's an opacity-only fade-with-tail; see [Open question 2](#open-questions) below), the same machinery handles it.
+- **Scroll transitions between frames** — the `scroll` transition is now a geometric alias of `push-up` (`src/animation/transition-schema.ts` normalizes it to a vertical push), so the same machinery handles it. _(Historical: when this doc was written it was an opacity-only fade-with-tail.)_
 
 ## Inputs
 
@@ -146,7 +146,7 @@ The composition-time pre-pass is O(elements) for static analysis, O(elements × 
 ## Resolved design choices (per DM-603 feedback)
 
 1. **Always-on.** Trust coalescing + gzip to keep output size bounded. No opt-in flag.
-2. **Scope = ALL drawing in our SVGs**, not specific transitions. The user's exact framing: _"this optimization isn't related to any particular transition type or animation type, it should be for ALL drawing within our svgs. Large SVGs trying to render too much at once get slow / choppy."_ The current `scroll` transition is "probably wrong" but is out of scope here — `translateY` / `translateX` intra-frame animations are the supported scroll mechanism.
+2. **Scope = ALL drawing in our SVGs**, not specific transitions. The user's exact framing: _"this optimization isn't related to any particular transition type or animation type, it should be for ALL drawing within our svgs. Large SVGs trying to render too much at once get slow / choppy."_ The `scroll` transition was "probably wrong" at the time (it has since become an alias of `push-up`) and was out of scope here — `translateY` / `translateX` intra-frame animations are the supported scroll mechanism.
 3. **Non-linear easing**: cubic-bezier extrema are bounded continuously from
    the polynomial derivative (including control-point overshoot); CSS step
    discontinuities become explicit clock partitions. Unsupported timing syntax
@@ -236,7 +236,7 @@ overflow-visible child paint; a parent's own box can never narrow its subtree.
 
 ## Follow-ups (filed separately, if needed)
 
-- **Geometric scroll between frames** — if/when we want the `scroll` transition to actually translate (it currently doesn't; out of scope per DM-603 feedback). The cull machinery here would extend trivially.
+- ~~**Geometric scroll between frames**~~ — done: the `scroll` transition now translates as an alias of `push-up` (`src/animation/transition-schema.ts`).
 - **Container-level hide (vs leaf-level)** — if measurement shows leaf-level coalescing isn't enough.
 - **Bbox-area threshold** — if profiling shows tiny elements dominate the keyframes-block count and matter for bundle size.
 - **Independent full live oracle** — DM-2462 owns the broad global-timeline

@@ -144,9 +144,12 @@ the static platform tables and are absent from `platformFontKeys()`.
 - **Collection files**: Noto CJK and the Windows `.ttc` faces need a
   `postscriptName` to select the member. Windows entries hardcode it; Linux
   entries take it from `fc-match`'s `%{postscriptname}`.
-- **No regression on macOS**: the `darwin` branch is `FONT_PATHS[key] ?? null`,
-  byte-for-byte the old behavior, so the existing painted-output baselines are
-  untouched.
+- **No regression on macOS**: the `darwin` branch looks up `FONT_PATHS[key] ?? null`,
+  the old table. Since then, `resolveFontSpec` (`packages/text-engine/src/render/font-spec.ts`)
+  passes every platform's result through `relocateMissingSpec`: when the declared
+  file is absent and the entry names a PostScript face, it takes the path the
+  native helper reports for that face (a no-op when the file exists or no helper
+  is available).
 
 ## Acceptance criteria
 
@@ -176,4 +179,6 @@ state:
   all three platforms (macOS CoreText, Linux fontconfig, Windows DirectWrite; see
   `docs/80-cross-platform-system-fallback-resolver.md`).
 - Remaining roadmap (tracked locally): a Noto desktop-Linux profile refinement and
-  promoting the Linux/Windows visual gates to required CI checks.
+  promoting the Windows visual gate to a required CI check. (The Linux feature-suite
+  fidelity gate, "Linux fidelity regression", is already a required status check on
+  `main`; the Windows workflow stays manual-dispatch.)

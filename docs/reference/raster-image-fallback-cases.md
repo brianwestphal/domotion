@@ -339,7 +339,7 @@ Doc: [28-conic-gradient.md](../28-conic-gradient.md).
 
 ### C2. `mask-image: element(#id)` paint references
 
-> ⚠️ **Dormant — Chromium does not support CSS `element()` (DM-1450).** Verified on Chromium 147: `element()` parse-rejects (`CSS.supports` false, computed `maskImage: none`), so Chrome paints the consumer unmasked and `discoverMasks` never records a `maskRaster`. This fallback therefore never fires through real capture today (the `mask-element-ref` fixture is a vacuous pass). It's a Firefox-only feature; no Chrome flag enables it. The code is kept (spec-correct, synthetic-input-tested) but is not a live path. See [22-mask-element-paint-references.md](../22-mask-element-paint-references.md).
+> ⚠️ **Dormant — Chromium does not support CSS `element()` (DM-1450).** Verified on Chromium 147: `element()` parse-rejects (`CSS.supports` false, computed `maskImage: none`), so Chrome paints the consumer unmasked and the capture-side mask handler (`createMasksClipsHandler` in `src/capture/script/walker/masks-clips.ts`) never records a `maskRasters[]` entry. This fallback therefore never fires through real capture today (the `mask-element-ref` fixture is a vacuous pass). It's a Firefox-only feature; no Chrome flag enables it. The code is kept (spec-correct, synthetic-input-tested) but is not a live path. See [22-mask-element-paint-references.md](../22-mask-element-paint-references.md).
 
 Trigger: CSS `mask-image: element(#some-id)` referencing the _painted_ output of another DOM element (not a `<mask>` fragment — that's covered by [21-mask-fragment-references.md](../21-mask-fragment-references.md)).
 

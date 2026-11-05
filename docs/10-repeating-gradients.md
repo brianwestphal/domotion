@@ -77,7 +77,7 @@ When `gradient.repeating === true`:
 
 ## Render changes — `renderRange` background layering
 
-When both a gradient image and a non-transparent track background color are captured, `renderRange` paints the color rect first and overlays the gradient. Without this, repeating gradients with `transparent` stops show through to `TRACK_BG` (gray) instead of the author's solid color.
+When both a gradient image and a non-transparent track background color are captured, `renderRange` paints the color rect first and overlays the gradient. Without this, repeating gradients with `transparent` stops would show through to whatever is beneath the track instead of the author's solid color. (There is no `TRACK_BG` gray default any more: an unstyled track background paints `fill="none"` in `src/render/form-controls.ts`.)
 
 ## Edge cases / out of scope
 

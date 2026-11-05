@@ -48,7 +48,7 @@ The browser fetches only the partitions whose declared range covers a codepoint 
 
 Domotion's webfont registry stores variants keyed by `(family, weight, italic)` only. Pre-DM-557 there was no `unicode-range` filtering at pick time:
 
-1. **DM-517 (`pickWebfontVariant`)**: the module-private no-codepoint picker prefers a Latin-covering variant with a range-mismatch penalty of `1e7` before scoring stretch, style, and weight. Worked for Latin-only text but had no per-codepoint awareness — non-Latin runs in a partitioned family fell to system fonts.
+1. **DM-517 (`pickWebfontVariant`)**: the exported no-codepoint picker prefers a Latin-covering variant with a range-mismatch penalty of `1e7` before scoring stretch, style, and weight. Worked for Latin-only text but had no per-codepoint awareness — non-Latin runs in a partitioned family fell to system fonts.
 2. **DM-557 (`pickWebfontVariantForCodepoint`)**: this doc. Filters variants by `unicodeRangeCovers(v.unicodeRange, codepoint)` then scores stretch, italic, and weight. Wired into the run-splitter in `textToPathMarkup` so a mixed-script run (Latin + Cyrillic + Greek in the same `<p>`) routes each codepoint to the matching partition before falling through to the system fallback chain.
 
 ## API
@@ -66,7 +66,7 @@ interface WebfontVariant {
 
 Two pickers consult it:
 
-- `pickWebfontVariant(family, weight, fontSize, slant, variationSettings?, stretch?)` — module-private Latin-bias scorer. Returns the primary variant for the family when no codepoint context is known (e.g., the fast-path single-font lookup before run-splitting).
+- `pickWebfontVariant(family, weight, fontSize, slant, variationSettings?, stretch?)` — exported Latin-bias scorer (in `packages/text-engine/src/render/webfont-registry.ts`). Returns the primary variant for the family when no codepoint context is known (e.g., the fast-path single-font lookup before run-splitting).
 - `pickWebfontVariantForCodepoint(family, weight, fontSize, slant, codepoint, variationSettings?, stretch?)` — exported codepoint filter + stretch/style/weight scorer. Returns null when no registered variant covers the codepoint; the caller then falls through to the system fallback chain.
 
 ## Run-splitter integration
@@ -82,7 +82,7 @@ DM-557 inserts a step between (1) and (2) for primary fonts that come from the w
 2. **NEW**: Primary is `webfont:<family>` but doesn't cover `cp` → `pickWebfontVariantForCodepoint(family, …, cp)`. If a variant covers `cp`, use it.
 3. Otherwise → system fallback chain.
 
-The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontInstance)` rather than just `fontKey`. A Latin-partition Geist run and a Cyrillic-partition Geist run share the same `webfont:geist` key but use different `FontInstance` objects, so they form separate runs even though their key matches. Each run shapes through its own `font.layout(runText)`.
+The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontInstance)` rather than just `fontKey`. A Latin-partition Geist run and a Cyrillic-partition Geist run share the same `webfont:geist` key but use different `FontInstance` objects, so they form separate runs even though their key matches. Each run is shaped separately against its own instance by the production HarfBuzz pass (`harfbuzzShapedRunOverride`; see [doc 115](115-production-harfbuzz-shaping.md)).
 
 ## Behavior at the edges
 
@@ -98,7 +98,7 @@ The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontIn
 
 ## Cross-platform note
 
-`unicode-range` parsing and the picker are both pure JavaScript — no platform-specific paths. The cross-platform calibration concern (AGENTS.md §"Platform support") doesn't apply here. The downstream font rasterisation (fontkit `font.layout()` + `getVariation()`) is the same code path for system fonts.
+`unicode-range` parsing and the picker are both pure JavaScript — no platform-specific paths. The cross-platform calibration concern (AGENTS.md §"Platform support") doesn't apply here. The downstream path (HarfBuzz shaping per [doc 115](115-production-harfbuzz-shaping.md), fontkit `getVariation()` for the axis instance and outlines) is the same code path used for system fonts.
 
 ## What's NOT in scope
 

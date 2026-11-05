@@ -88,7 +88,7 @@ The output SVG is fully self-contained (no fragment refs to dangle) and stays ve
 
 Some `<use>` refs point at an UNRESOLVABLE target — an external file (`<use href="./icons.svg#foo"/>`), or a fragment whose `getElementById` returns null / resolves outside the captured root. (CSS-animated subtrees are NOT in this set: per "Today's behavior" they now resolve via (A), baking the t=0 computed paint declaratively rather than rasterizing.) For an unresolvable ref the SVG element can fall back to `page.screenshot({ clip: svg-rect, omitBackground: true })` and emit as `<image>` (same pattern as doc 17 / doc 22).
 
-This loses vector scalability for those cases but is a strict improvement over emitting a dangling reference. (In the shipped code an external / unresolved ref is simply left in place — the dangling ref doesn't paint — rather than being raster-substituted; the rasterization fallback below is the designed escalation for it.)
+This loses vector scalability for those cases but is a strict improvement over emitting a dangling reference. (In the shipped code, per "Today's behavior" above, an external reference that cannot be inlined faithfully — load/parse failure, cross-origin or non-http(s) URL, unsupported stylesheet rules, an over-deep or over-wide chain, or a reference without a fragment id — promotes the host `<svg>` to Chromium raster ownership with an `inline-svg` warning (`src/capture/script/walker/inline-svg.ts`). Only a reference to an element that does not exist is left dangling, because Chromium paints nothing for it either.)
 
 ## Detection rules
 

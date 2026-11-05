@@ -246,7 +246,7 @@ remains see-through). Validated by the visual fixture `iframe-canvas-bg-fill` (0
 into every accessible frame, locates the rid'd target across `page.frames()`,
 and marks the target + each enclosing `<iframe>` element up the chain
 (`frameElement()`), so an inner-frame target shows through and is isolated for
-the clipped screenshot. `discoverMasks` resolves the `element(#id)` target
+the clipped screenshot. The capture-side mask handler (`src/capture/script/walker/masks-clips.ts`) resolves the `element(#id)` target
 against `el.ownerDocument` (inner targets too). Validated directly in
 `tests/iframe-inner-element-mask.e2e.test.ts` (a synthetic mask-raster pointed at
 an inner-iframe element; both a top-document overlay and an in-frame sibling are
