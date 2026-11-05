@@ -12,7 +12,7 @@ code:
     "tools/background-clip-text-native-gate.ts",
     "tools/background-clip-text-oracle.ts",
   ]
-aliases: ["docs/228-background-clip-text-native-parity.md"]
+aliases: ["docs/272-background-clip-text-native-parity.md", "docs/228-background-clip-text-native-parity.md"]
 ---
 
 # 228 — Native `background-clip:text` parity

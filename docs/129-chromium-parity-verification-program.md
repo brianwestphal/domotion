@@ -120,7 +120,7 @@ is a hypothesis until this audit identifies the source-backed mismatch.
 
 ### Decision-level oracles
 
-Extend the staged model already established by docs 107, 108, 112, 116, 120,
+Extend the staged model already established by docs 107, 108, 112, 270, 120,
 127, and 128. Prioritize any matrix area still marked `visual-only`, then the
 explicit gaps in `partial-stage-gate` and `documented-classifier` areas. The
 initial geometry/order/replaced and raster-activation audits have exact stage

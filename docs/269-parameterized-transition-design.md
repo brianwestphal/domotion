@@ -13,7 +13,7 @@ code:
     "src/animation/transition-schema.test.ts",
     "tests/compose-animate-frames.e2e.test.ts",
   ]
-aliases: ["docs/115-parameterized-transition-design.md"]
+aliases: ["docs/269-parameterized-transition-design.md", "docs/115-parameterized-transition-design.md"]
 ---
 
 # 115 — Parameterized transition design

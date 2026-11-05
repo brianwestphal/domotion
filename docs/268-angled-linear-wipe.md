@@ -14,7 +14,7 @@ code:
     "src/animation/animator.test.ts",
     "tests/compose-animate-frames.e2e.test.ts",
   ]
-aliases: ["docs/114-angled-linear-wipe.md"]
+aliases: ["docs/268-angled-linear-wipe.md", "docs/114-angled-linear-wipe.md"]
 ---
 
 # 114 — Angled linear wipe

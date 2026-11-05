@@ -5,7 +5,7 @@
  * Domotion leg: textSegments emitted by the production CAPTURE_SCRIPT.
  * The two paths share only the live DOM; no expected record is cloned into the
  * actual record. Blink source anchor: chromium 7d859f27, core/layout/inline and
- * platform/fonts/shaping. Capture representation boundary: docs 116 and 120.
+ * platform/fonts/shaping. Capture representation boundary: docs 270 and 120.
  */
 import { type Page } from "@playwright/test";
 import { withBrowser } from "./lib/browser.js";

@@ -77,7 +77,7 @@ top via an animated `clip-path` and RESTS fully revealed (identity clip).
 - **`wipe`** — a linear reveal. It defaults to left→right (`inset(0 100% 0 0)`
   → `inset(0 0 0 0)`). `wipeAngle` rotates the direction clockwise from that
   default (`90` = top→bottom); arbitrary angles use fixed-eight-vertex sampled
-  `polygon()` clips. See doc 114.
+  `polygon()` clips. See doc 268.
 - **`iris`** — an expanding circle from the center: `circle(0px at cx cy)` →
   `circle(Rpx at cx cy)`, where `R = ⌈hypot(w/2, h/2)⌉` (reaches the farthest
   corner). Rests fully open.
@@ -329,7 +329,7 @@ cross-family boundaries end to end.
   `emitSlideFrame`, `emitRevealFrame`, the zoom `entranceScale` + `shine` sweep in
   the crossfade branch) and the `shine` overlay (`renderShineOverlay`). The clock
   wipe's polygon math is `clockWipeClip` (DM-1547); the angled linear wipe is
-  `linearWipeClip` ([doc 114](114-angled-linear-wipe.md)).
+  `linearWipeClip` ([doc 268](268-angled-linear-wipe.md)).
   `src/animation/animator.ts` is the stable public facade over it.
 - `src/animation/shine.ts` — the shared `buildShineSweep` helper.
 - `src/animation/easing.ts` — `springEasingFn` / `springLinearEasing`.

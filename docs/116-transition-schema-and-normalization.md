@@ -24,7 +24,7 @@ aliases: ["docs/116-transition-schema-and-normalization.md"]
 
 # 116 — Transition schema and compatibility normalization
 
-DM-2070 ships the foundation proposed in doc 115: one transition contract and one compatibility normalizer shared by every authoring surface.
+DM-2070 ships the foundation proposed in doc 269: one transition contract and one compatibility normalizer shared by every authoring surface.
 
 ## Contract
 

@@ -1973,22 +1973,6 @@
       "file": "113-cluster-granularity-fallback.md"
     },
     {
-      "id": "requirements/angled-linear-wipe",
-      "title": "114 — Angled linear wipe",
-      "kind": "contract",
-      "status": "current",
-      "owners": ["rendering"],
-      "platforms": [],
-      "code": [
-        "schemas/animate-config.schema.json",
-        "src/animation/animator.ts",
-        "src/animation/svg-generator.ts",
-        "src/animation/animator.test.ts",
-        "tests/compose-animate-frames.e2e.test.ts"
-      ],
-      "file": "114-angled-linear-wipe.md"
-    },
-    {
       "id": "requirements/exact-shaping-oracle",
       "title": "Exact shaping oracle",
       "kind": "evidence",
@@ -2006,21 +1990,6 @@
       "file": "114-exact-shaping-oracle.md"
     },
     {
-      "id": "requirements/parameterized-transition-design",
-      "title": "115 — Parameterized transition design",
-      "kind": "contract",
-      "status": "current",
-      "owners": ["animation"],
-      "platforms": [],
-      "code": [
-        "src/animation/animator.ts",
-        "src/animation/transition-schema.ts",
-        "src/animation/transition-schema.test.ts",
-        "tests/compose-animate-frames.e2e.test.ts"
-      ],
-      "file": "115-parameterized-transition-design.md"
-    },
-    {
       "id": "requirements/production-harfbuzz-shaping",
       "title": "Production HarfBuzz shaping",
       "kind": "contract",
@@ -2029,16 +1998,6 @@
       "platforms": ["macos", "linux", "windows"],
       "code": ["packages/text-engine/src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"],
       "file": "115-production-harfbuzz-shaping.md"
-    },
-    {
-      "id": "requirements/layout-stage-parity",
-      "title": "Text layout and SVG placement parity",
-      "kind": "evidence",
-      "status": "current",
-      "owners": ["layout", "platform-release"],
-      "platforms": [],
-      "code": ["tools/layout-stage-matrix.ts", "tools/layout-stage-oracle.ts", "tests/layout-stage-matrix.test.ts"],
-      "file": "116-layout-stage-parity.md"
     },
     {
       "id": "requirements/transition-schema-and-normalization",
@@ -2550,20 +2509,6 @@
       "platforms": ["macos", "linux", "windows"],
       "code": ["tools/shaped-origin-oracle.ts"],
       "file": "151-shaped-origin-oracle.md"
-    },
-    {
-      "id": "requirements/mathml-italic-token-oracle",
-      "title": "MathML italic-token logical oracle",
-      "kind": "evidence",
-      "status": "current",
-      "owners": ["text-fonts", "platform-release"],
-      "platforms": ["linux"],
-      "code": [
-        "src/capture/script/walker/text-segments.ts",
-        "src/capture/types.ts",
-        "tests/mathml-italic-token.e2e.test.ts"
-      ],
-      "file": "152-mathml-italic-token-oracle.md"
     },
     {
       "id": "requirements/source-owned-text-failure-boundary",
@@ -3731,20 +3676,6 @@
       "file": "227-multi-face-font-feature-value-environments.md"
     },
     {
-      "id": "requirements/background-clip-text-native-parity",
-      "title": "228 — Native background-clip:text parity",
-      "kind": "evidence",
-      "status": "current",
-      "owners": ["text-fonts", "paint-effects", "platform-release", "product-tooling"],
-      "platforms": ["macos", "linux", "windows"],
-      "code": [
-        ".github/workflows/background-clip-text-native-parity.yml",
-        "tools/background-clip-text-native-gate.ts",
-        "tools/background-clip-text-oracle.ts"
-      ],
-      "file": "228-background-clip-text-native-parity.md"
-    },
-    {
       "id": "requirements/pre-navigation-raf-capture-ownership",
       "title": "228 — Pre-navigation rAF capture ownership",
       "kind": "contract",
@@ -4311,6 +4242,75 @@
       "platforms": ["macos", "linux", "windows"],
       "code": ["tools/lib/report.ts", "tools/conformance-report-schemas.ts"],
       "file": "267-tool-report-envelope.md"
+    },
+    {
+      "id": "requirements/angled-linear-wipe",
+      "title": "114 — Angled linear wipe",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["rendering"],
+      "platforms": [],
+      "code": [
+        "schemas/animate-config.schema.json",
+        "src/animation/animator.ts",
+        "src/animation/svg-generator.ts",
+        "src/animation/animator.test.ts",
+        "tests/compose-animate-frames.e2e.test.ts"
+      ],
+      "file": "268-angled-linear-wipe.md"
+    },
+    {
+      "id": "requirements/parameterized-transition-design",
+      "title": "115 — Parameterized transition design",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["animation"],
+      "platforms": [],
+      "code": [
+        "src/animation/animator.ts",
+        "src/animation/transition-schema.ts",
+        "src/animation/transition-schema.test.ts",
+        "tests/compose-animate-frames.e2e.test.ts"
+      ],
+      "file": "269-parameterized-transition-design.md"
+    },
+    {
+      "id": "requirements/layout-stage-parity",
+      "title": "Text layout and SVG placement parity",
+      "kind": "evidence",
+      "status": "current",
+      "owners": ["layout", "platform-release"],
+      "platforms": [],
+      "code": ["tools/layout-stage-matrix.ts", "tools/layout-stage-oracle.ts", "tests/layout-stage-matrix.test.ts"],
+      "file": "270-layout-stage-parity.md"
+    },
+    {
+      "id": "requirements/mathml-italic-token-oracle",
+      "title": "MathML italic-token logical oracle",
+      "kind": "evidence",
+      "status": "current",
+      "owners": ["text-fonts", "platform-release"],
+      "platforms": ["linux"],
+      "code": [
+        "src/capture/script/walker/text-segments.ts",
+        "src/capture/types.ts",
+        "tests/mathml-italic-token.e2e.test.ts"
+      ],
+      "file": "271-mathml-italic-token-oracle.md"
+    },
+    {
+      "id": "requirements/background-clip-text-native-parity",
+      "title": "228 — Native background-clip:text parity",
+      "kind": "evidence",
+      "status": "current",
+      "owners": ["text-fonts", "paint-effects", "platform-release", "product-tooling"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        ".github/workflows/background-clip-text-native-parity.yml",
+        "tools/background-clip-text-native-gate.ts",
+        "tools/background-clip-text-oracle.ts"
+      ],
+      "file": "272-background-clip-text-native-parity.md"
     },
     {
       "id": "handbook/animation-and-interaction",

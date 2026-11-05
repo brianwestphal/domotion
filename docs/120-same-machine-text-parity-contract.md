@@ -85,7 +85,7 @@ gates actually emit is:
 **There is no `explicit-unsupported` verdict class.** Unsupported input is
 handled upstream of the verdicts: it is classified by a production capture
 diagnostic or an explicit source-owned raster reservation (see
-[doc 116](116-layout-stage-parity.md)), so the gate sees a labeled, non-silent
+[doc 270](270-layout-stage-parity.md)), so the gate sees a labeled, non-silent
 boundary rather than an unsupported verdict. Silent approximation remains a
 failure.
 

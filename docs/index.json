@@ -2856,26 +2856,6 @@
       }
     },
     {
-      "file": "114-angled-linear-wipe.md",
-      "metadata": {
-        "id": "requirements/angled-linear-wipe",
-        "title": "114 — Angled linear wipe",
-        "kind": "contract",
-        "status": "current",
-        "owners": ["rendering"],
-        "platforms": [],
-        "tickets": ["DM-2041"],
-        "code": [
-          "schemas/animate-config.schema.json",
-          "src/animation/animator.ts",
-          "src/animation/svg-generator.ts",
-          "src/animation/animator.test.ts",
-          "tests/compose-animate-frames.e2e.test.ts"
-        ],
-        "aliases": ["docs/114-angled-linear-wipe.md"]
-      }
-    },
-    {
       "file": "114-exact-shaping-oracle.md",
       "metadata": {
         "id": "requirements/exact-shaping-oracle",
@@ -2897,25 +2877,6 @@
       }
     },
     {
-      "file": "115-parameterized-transition-design.md",
-      "metadata": {
-        "id": "requirements/parameterized-transition-design",
-        "title": "115 — Parameterized transition design",
-        "kind": "contract",
-        "status": "current",
-        "owners": ["animation"],
-        "platforms": [],
-        "tickets": ["DM-2070", "DM-2071", "DM-2072"],
-        "code": [
-          "src/animation/animator.ts",
-          "src/animation/transition-schema.ts",
-          "src/animation/transition-schema.test.ts",
-          "tests/compose-animate-frames.e2e.test.ts"
-        ],
-        "aliases": ["docs/115-parameterized-transition-design.md"]
-      }
-    },
-    {
       "file": "115-production-harfbuzz-shaping.md",
       "metadata": {
         "id": "requirements/production-harfbuzz-shaping",
@@ -2927,20 +2888,6 @@
         "tickets": ["DM-2619"],
         "code": ["packages/text-engine/src/render/text-to-path.ts", "tests/multilingual-message-shaping.e2e.test.ts"],
         "aliases": ["docs/115-production-harfbuzz-shaping.md"]
-      }
-    },
-    {
-      "file": "116-layout-stage-parity.md",
-      "metadata": {
-        "id": "requirements/layout-stage-parity",
-        "title": "Text layout and SVG placement parity",
-        "kind": "evidence",
-        "status": "current",
-        "owners": ["layout", "platform-release"],
-        "platforms": [],
-        "tickets": ["DM-2498"],
-        "code": ["tools/layout-stage-matrix.ts", "tools/layout-stage-oracle.ts", "tests/layout-stage-matrix.test.ts"],
-        "aliases": ["docs/116-layout-stage-parity.md"]
       }
     },
     {
@@ -3619,24 +3566,6 @@
         "tickets": ["DM-2329", "DM-2444", "DM-2445"],
         "code": ["tools/shaped-origin-oracle.ts"],
         "aliases": ["docs/151-shaped-origin-oracle.md", "doc-151"]
-      }
-    },
-    {
-      "file": "152-mathml-italic-token-oracle.md",
-      "metadata": {
-        "id": "requirements/mathml-italic-token-oracle",
-        "title": "MathML italic-token logical oracle",
-        "kind": "evidence",
-        "status": "current",
-        "owners": ["text-fonts", "platform-release"],
-        "platforms": ["linux"],
-        "tickets": ["DM-2441", "DM-2511", "DM-2512"],
-        "code": [
-          "src/capture/script/walker/text-segments.ts",
-          "src/capture/types.ts",
-          "tests/mathml-italic-token.e2e.test.ts"
-        ],
-        "aliases": ["docs/152-mathml-italic-token-oracle.md"]
       }
     },
     {
@@ -5128,24 +5057,6 @@
       }
     },
     {
-      "file": "228-background-clip-text-native-parity.md",
-      "metadata": {
-        "id": "requirements/background-clip-text-native-parity",
-        "title": "228 — Native background-clip:text parity",
-        "kind": "evidence",
-        "status": "current",
-        "owners": ["text-fonts", "paint-effects", "platform-release", "product-tooling"],
-        "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2530", "DM-31KJ0F"],
-        "code": [
-          ".github/workflows/background-clip-text-native-parity.yml",
-          "tools/background-clip-text-native-gate.ts",
-          "tools/background-clip-text-oracle.ts"
-        ],
-        "aliases": ["docs/228-background-clip-text-native-parity.md"]
-      }
-    },
-    {
       "file": "228-pre-navigation-raf-capture-ownership.md",
       "metadata": {
         "id": "requirements/pre-navigation-raf-capture-ownership",
@@ -5854,6 +5765,95 @@
       }
     },
     {
+      "file": "268-angled-linear-wipe.md",
+      "metadata": {
+        "id": "requirements/angled-linear-wipe",
+        "title": "114 — Angled linear wipe",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["rendering"],
+        "platforms": [],
+        "tickets": ["DM-2041"],
+        "code": [
+          "schemas/animate-config.schema.json",
+          "src/animation/animator.ts",
+          "src/animation/svg-generator.ts",
+          "src/animation/animator.test.ts",
+          "tests/compose-animate-frames.e2e.test.ts"
+        ],
+        "aliases": ["docs/268-angled-linear-wipe.md", "docs/114-angled-linear-wipe.md"]
+      }
+    },
+    {
+      "file": "269-parameterized-transition-design.md",
+      "metadata": {
+        "id": "requirements/parameterized-transition-design",
+        "title": "115 — Parameterized transition design",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["animation"],
+        "platforms": [],
+        "tickets": ["DM-2070", "DM-2071", "DM-2072"],
+        "code": [
+          "src/animation/animator.ts",
+          "src/animation/transition-schema.ts",
+          "src/animation/transition-schema.test.ts",
+          "tests/compose-animate-frames.e2e.test.ts"
+        ],
+        "aliases": ["docs/269-parameterized-transition-design.md", "docs/115-parameterized-transition-design.md"]
+      }
+    },
+    {
+      "file": "270-layout-stage-parity.md",
+      "metadata": {
+        "id": "requirements/layout-stage-parity",
+        "title": "Text layout and SVG placement parity",
+        "kind": "evidence",
+        "status": "current",
+        "owners": ["layout", "platform-release"],
+        "platforms": [],
+        "tickets": ["DM-2498"],
+        "code": ["tools/layout-stage-matrix.ts", "tools/layout-stage-oracle.ts", "tests/layout-stage-matrix.test.ts"],
+        "aliases": ["docs/270-layout-stage-parity.md", "docs/116-layout-stage-parity.md"]
+      }
+    },
+    {
+      "file": "271-mathml-italic-token-oracle.md",
+      "metadata": {
+        "id": "requirements/mathml-italic-token-oracle",
+        "title": "MathML italic-token logical oracle",
+        "kind": "evidence",
+        "status": "current",
+        "owners": ["text-fonts", "platform-release"],
+        "platforms": ["linux"],
+        "tickets": ["DM-2441", "DM-2511", "DM-2512"],
+        "code": [
+          "src/capture/script/walker/text-segments.ts",
+          "src/capture/types.ts",
+          "tests/mathml-italic-token.e2e.test.ts"
+        ],
+        "aliases": ["docs/271-mathml-italic-token-oracle.md", "docs/152-mathml-italic-token-oracle.md"]
+      }
+    },
+    {
+      "file": "272-background-clip-text-native-parity.md",
+      "metadata": {
+        "id": "requirements/background-clip-text-native-parity",
+        "title": "228 — Native background-clip:text parity",
+        "kind": "evidence",
+        "status": "current",
+        "owners": ["text-fonts", "paint-effects", "platform-release", "product-tooling"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-2530", "DM-31KJ0F"],
+        "code": [
+          ".github/workflows/background-clip-text-native-parity.yml",
+          "tools/background-clip-text-native-gate.ts",
+          "tools/background-clip-text-oracle.ts"
+        ],
+        "aliases": ["docs/272-background-clip-text-native-parity.md", "docs/228-background-clip-text-native-parity.md"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6159,9 +6159,9 @@
     "111": ["requirements/family-match-conformance-windows"],
     "112": ["requirements/decoration-geometry-oracle"],
     "113": ["requirements/cluster-granularity-fallback"],
-    "114": ["requirements/angled-linear-wipe", "requirements/exact-shaping-oracle"],
-    "115": ["requirements/parameterized-transition-design", "requirements/production-harfbuzz-shaping"],
-    "116": ["requirements/layout-stage-parity", "requirements/transition-schema-and-normalization"],
+    "114": ["requirements/exact-shaping-oracle", "requirements/angled-linear-wipe"],
+    "115": ["requirements/production-harfbuzz-shaping", "requirements/parameterized-transition-design"],
+    "116": ["requirements/transition-schema-and-normalization", "requirements/layout-stage-parity"],
     "117": ["requirements/parameterized-built-in-transitions"],
     "118": ["requirements/custom-transition-recipes"],
     "119": ["requirements/degraded-font-resolution"],
@@ -6197,7 +6197,7 @@
     "149": ["requirements/macos-terminal-raster-evidence"],
     "150": ["requirements/font-size-space-oracle"],
     "151": ["requirements/shaped-origin-oracle"],
-    "152": ["requirements/mathml-italic-token-oracle", "requirements/source-owned-text-failure-boundary"],
+    "152": ["requirements/source-owned-text-failure-boundary", "requirements/mathml-italic-token-oracle"],
     "153": ["requirements/pingfang-live-descriptor-oracle"],
     "154": ["requirements/mathml-helper-ink-evidence"],
     "155": ["requirements/animated-viewbox-culling-audit"],
@@ -6272,7 +6272,7 @@
     "225": ["requirements/fragmented-collapsed-table-ownership"],
     "226": ["requirements/wrapped-decoration-fragment-ownership"],
     "227": ["requirements/multi-face-font-feature-value-environments"],
-    "228": ["requirements/background-clip-text-native-parity", "requirements/pre-navigation-raf-capture-ownership"],
+    "228": ["requirements/pre-navigation-raf-capture-ownership", "requirements/background-clip-text-native-parity"],
     "229": ["requirements/live-replaced-media-frame-ownership"],
     "231": ["requirements/authenticated-animated-image-byte-ownership"],
     "232": ["requirements/opt-in-authenticated-animated-image-byte-collector"],
@@ -6306,6 +6306,11 @@
     "265": ["requirements/capture-boundary-lifecycle"],
     "266": ["requirements/tool-command-boundary"],
     "267": ["requirements/tool-report-envelope"],
+    "268": ["requirements/angled-linear-wipe"],
+    "269": ["requirements/parameterized-transition-design"],
+    "270": ["requirements/layout-stage-parity"],
+    "271": ["requirements/mathml-italic-token-oracle"],
+    "272": ["requirements/background-clip-text-native-parity"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

@@ -152,9 +152,16 @@ async function generatedArtifacts(entries) {
       !["proposed", "superseded", "retired"].includes(entry.metadata.status),
   );
   for (const entry of entries) {
+    // A renumbered document keeps its former `docs/<old-number>-<slug>.md` path as an
+    // alias, so its old number stays resolvable here alongside the current one.
+    const numbers = new Set();
     const number = entry.file.split("/").pop().match(numberedDocument)?.[1];
-    if (number == null) continue;
-    (historicalNumbers[number] ??= []).push(entry.metadata.id);
+    if (number != null) numbers.add(number);
+    for (const alias of entry.metadata.aliases) {
+      const former = /^docs\/([^/]+\.md)$/.exec(alias)?.[1]?.match(numberedDocument)?.[1];
+      if (former != null) numbers.add(former);
+    }
+    for (const value of numbers) (historicalNumbers[value] ??= []).push(entry.metadata.id);
   }
   const json = await formatWithPrettier(JSON.stringify({ schemaVersion: 1, entries, historicalNumbers }), {
     ...prettierConfig,
@@ -232,7 +239,16 @@ const errors = [];
 const entries = [];
 const ids = new Map();
 const aliases = new Map();
+const numbers = new Map();
 for (const filename of files()) {
+  // Two files sharing a number make prose like "see doc 116" ambiguous. Renumber the
+  // newer one and keep its old path as an alias instead.
+  const number = filename.split("/").pop().match(numberedDocument)?.[1];
+  if (number != null) {
+    if (numbers.has(number))
+      errors.push(`${filename}: duplicate document number ${number} also used by ${numbers.get(number)}`);
+    else numbers.set(number, filename);
+  }
   const path = resolve(docsRoot, filename);
   const source = readFileSync(path, "utf8");
   let { metadata, body } = parseDocument(filename, source);
