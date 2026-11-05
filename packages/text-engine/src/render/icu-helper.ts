@@ -153,6 +153,15 @@ export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, I
           return out;
         })
       : missingRequested;
+  // Build the answer BEFORE the memo is trimmed. Eviction is FIFO over insertion order, so trimming
+  // first drops the oldest rows: for a batch larger than MAX_MEMO_ROWS those are this request's own
+  // earliest rows, and for a request made against a saturated memo they can be the very hits it was
+  // about to read.
+  const result = new Map<number, IcuCodepointProperties>();
+  for (const cp of requested) {
+    const row = memo.get(cp);
+    if (row != null) result.set(cp, row);
+  }
   const executable = missing.length > 0 && isIcuHelperAvailable() ? resolveHelper() : undefined;
   if (missing.length > 0 && executable != null) {
     const proc = spawnSync(executable, [], {
@@ -166,16 +175,23 @@ export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, I
     });
     const response = proc.status === 0 ? parseIcuResponse(proc.stdout) : null;
     if (response != null) {
-      for (const row of response.properties) memo.set(row.cp, row);
+      const wanted = new Set(requested);
+      for (const row of response.properties) {
+        memo.set(row.cp, row);
+        if (wanted.has(row.cp)) result.set(row.cp, row);
+      }
       while (memo.size > MAX_MEMO_ROWS) memo.delete(memo.keys().next().value!);
     }
   }
-  const result = new Map<number, IcuCodepointProperties>();
-  for (const cp of requested) {
-    const row = memo.get(cp);
-    if (row != null) result.set(cp, row);
-  }
   return result;
+}
+
+/** Upper bound on memoized ICU rows; exported for the eviction regression tests. */
+export const ICU_MEMO_MAX_ROWS = MAX_MEMO_ROWS;
+
+/** Number of memoized ICU rows; for tests and memory diagnostics. */
+export function icuMemoSize(): number {
+  return memo.size;
 }
 
 export function icuCodepointProperties(cp: number): IcuCodepointProperties | undefined {
