@@ -70,6 +70,11 @@ describe("scanActiveFontFaceRules over the document", () => {
       "Adopted",
     ]);
     expect(scan.crossOriginSheetUrls).toEqual([]);
+    // Chrome's own answer: document.fonts lists the CSS-connected faces of
+    // exactly the active rules.
+    expect(await page.evaluate(() => Array.from(document.fonts, (f) => f.family))).toEqual(
+      scan.rules.map((r) => r.family),
+    );
   });
 
   it("registers a webfont declared inside a matching @media block", async () => {
@@ -92,4 +97,37 @@ describe("scanActiveFontFaceRules over the document", () => {
     await resolveLocalFaceAliases(page, faces);
     expect(faces.map((f) => [f.family, f.resolvedLocalName])).toEqual([["Alias", "Monaco"]]);
   });
+
+  // The preferred stylesheet set: Blink keeps a titled sheet only when its
+  // title is the document's preferred set name, which the first titled
+  // <style>, titled non-alternate <link rel=stylesheet>, or
+  // <meta http-equiv=default-style> sets; an untitled alternate sheet is never
+  // active (CSSStyleSheet::CanBeActivated, css_style_sheet.cc:686-711).
+  // Chrome's own answer is `document.fonts`, which lists the CSS-connected
+  // faces of exactly the active rules; each case asserts the scan agrees with
+  // it. A fresh page per case: the preferred name survives `setContent`.
+  const titledCases: Record<string, string> = {
+    "first titled sheet wins": `<link rel=stylesheet title=A href="${css(face("LinkA"))}">
+      <link rel=stylesheet title=B href="${css(face("LinkB"))}">
+      <style title=A>${face("StyleA")}</style><style title=C>${face("StyleC")}</style><style>${face("Untitled")}</style>`,
+    "untitled alternate is inactive, titled alternate needs the preferred name": `
+      <link rel="alternate stylesheet" href="${css(face("AltUntitled"))}">
+      <link rel="alternate stylesheet" title=X href="${css(face("AltX"))}"><style>${face("Plain")}</style>`,
+    "meta default-style names the set": `<meta http-equiv="Default-Style" content="Y">
+      <style title=X>${face("StyleX")}</style><style title=Y>${face("StyleY")}</style>`,
+    "a titled style sets the name an alternate link then matches": `<style title=Z>${face("StyleZ")}</style>
+      <link rel="alternate stylesheet" title=Z href="${css(face("AltZ"))}">
+      <link rel=stylesheet title=W href="${css(face("LinkW"))}">`,
+  };
+  for (const [label, body] of Object.entries(titledCases)) {
+    it(`titled / alternate sheets: ${label}`, async () => {
+      const fresh = await browser.newPage();
+      await fresh.setContent(`<!doctype html>${body}<p>x</p>`);
+      const scan = await evaluateInFrame(fresh, scanActiveFontFaceRules, null);
+      const chrome = await fresh.evaluate(() => Array.from(document.fonts, (f) => f.family));
+      expect(scan.rules.map((r) => r.family)).toEqual(chrome);
+      expect(chrome.length).toBeGreaterThan(0);
+      await fresh.close();
+    });
+  }
 });

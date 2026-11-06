@@ -20,10 +20,28 @@
  *   (resolver/scoped_style_resolver.cc:83-106) feeds the `FontFaceCache` from
  *   document-scope sheets only, so shadow-tree sheets are not walked.
  *
+ * - Titled and alternate sheets: `CanBeActivated` also drops a sheet whose
+ *   title is not the document's preferred stylesheet set name, and an
+ *   alternate sheet with no title. That name is never exposed through CSSOM;
+ *   Blink sets it ONCE, to the first of (`StyleEngine::
+ *   SetPreferredStylesheetSetNameIfNotSet`, style_engine.cc:2649-2656): a
+ *   titled `<style>` outside a shadow tree when its sheet is created
+ *   (style_engine.cc:1208-1213); a titled, non-alternate `rel=stylesheet`
+ *   `<link>` (html/link_style.cc:278-281, :393-398); a
+ *   `<meta http-equiv="default-style">` with non-empty content
+ *   (loader/http_equiv.cc:39-40, :103-106 → style_engine.cc:2658-2662). It is
+ *   reconstructed here from those owner elements in tree order, which is the
+ *   order the parser creates them. Not recoverable from the DOM, and so not
+ *   mirrored: a name set by an element since removed or inserted out of tree
+ *   order by script, a name surviving `document.open()` (Playwright's
+ *   `setContent`) from the replaced document, and a `<link>` enabled via
+ *   script (`IsEnabledViaScript`, which exempts it from the title check).
+ *   `CSSStyleSheet::IsAlternate` (css_style_sheet.cc:676-682) is a substring
+ *   test of the owner's `rel` attribute for "alternate".
+ *
  * Media lists evaluate through the frame's `matchMedia` and supports
  * conditions through `CSS.supports`, the same evaluators Blink's CSSOM uses for
- * the document. Not mirrored: `CanBeActivated`'s preferred-stylesheet-set
- * check for titled / alternate sheets, which CSSOM does not expose.
+ * the document.
  *
  * `scanActiveFontFaceRules` is serialized into the page by `evaluateInFrame`,
  * so it must stay self-contained: no imports, no module-scope references.
@@ -96,8 +114,40 @@ export function scanActiveFontFaceRules(input: ActiveFontFaceRuleScanInput): Act
       }
     }
   };
+  // The document's preferred stylesheet set name (see the header); null when
+  // no element set it. Only document sheets consult it.
+  let preferredSetName: string | null = null;
+  if (input == null) {
+    for (const el of Array.from(document.querySelectorAll("style[title], link[title], meta[http-equiv]"))) {
+      const tag = el.localName;
+      if (tag === "style") {
+        const title = el.getAttribute("title") ?? "";
+        if (title !== "" && (el as HTMLStyleElement).sheet != null) preferredSetName = title;
+      } else if (tag === "link") {
+        const link = el as HTMLLinkElement;
+        const title = link.getAttribute("title") ?? "";
+        if (title !== "" && link.relList.contains("stylesheet") && !link.relList.contains("alternate")) {
+          preferredSetName = title;
+        }
+      } else if (tag === "meta") {
+        const equiv = (el.getAttribute("http-equiv") ?? "").toLowerCase();
+        const content = el.getAttribute("content") ?? "";
+        if (equiv === "default-style" && content !== "") preferredSetName = content;
+      }
+      if (preferredSetName != null) break;
+    }
+  }
+  const canBeActivated = function (sheet: CSSStyleSheet): boolean {
+    if (sheet.disabled) return false;
+    const owner = sheet.ownerNode;
+    if (owner == null || !(owner instanceof Element)) return true;
+    const title = sheet.title ?? "";
+    if (title !== "" && title !== preferredSetName) return false;
+    if (title === "" && (owner.getAttribute("rel") ?? "").includes("alternate")) return false;
+    return true;
+  };
   const walkSheet = function (sheet: CSSStyleSheet): void {
-    if (sheet.disabled) return;
+    if (!canBeActivated(sheet)) return;
     if (!mediaMatches(sheet.media.mediaText)) return;
     let list: CSSRuleList;
     try {
