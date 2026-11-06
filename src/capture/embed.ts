@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { captureWarningSink } from "./warnings.js";
 import { parseDataUri } from "../utils/data-uri.js";
+import { invokeSynchronousCallback, type SynchronousCallback } from "../render/text-engine.js";
 
 /** True for an absolute http(s) URL — the ones `embedRemoteImages` fetches and
  *  the data-URI pass-through leaves untouched. */
@@ -105,12 +106,17 @@ export function resizedVariantsFor(tree: readonly CapturedElement[], url: string
   return owner?.resized ?? _resizedDataUriCache;
 }
 
-/** Run one synchronous render with `tree`'s credential scopes active. */
-export function withEmbeddedImageScopes<T>(tree: readonly CapturedElement[], render: () => T): T {
+/** Run one synchronous render with `tree`'s credential scopes active. A
+ *  Promise-like callback result is rejected (and the prior scopes restored):
+ *  the scopes are process-global and cannot stay active across an `await`. */
+export function withEmbeddedImageScopes<F extends () => unknown>(
+  tree: readonly CapturedElement[],
+  render: SynchronousCallback<F>,
+): ReturnType<F> {
   const previous = activeImageScopes;
   activeImageScopes = imageScopesForTree(tree);
   try {
-    return render();
+    return invokeSynchronousCallback("withEmbeddedImageScopes", render);
   } finally {
     activeImageScopes = previous;
   }
@@ -208,13 +214,17 @@ function validateHiDPIFactor(n: number): void {
   }
 }
 
-/** Run one synchronous render lookup scope and restore the previous factor. */
-export function withActiveHiDPIFactor<T>(n: number, render: () => T): T {
+/** Run one synchronous render lookup scope and restore the previous factor.
+ *  Promise-like callback results are rejected, as for `withEmbeddedImageScopes`. */
+export function withActiveHiDPIFactor<F extends () => unknown>(
+  n: number,
+  render: SynchronousCallback<F>,
+): ReturnType<F> {
   validateHiDPIFactor(n);
   const previous = _activeHiDPIFactor;
   _activeHiDPIFactor = n;
   try {
-    return render();
+    return invokeSynchronousCallback("withActiveHiDPIFactor", render);
   } finally {
     _activeHiDPIFactor = previous;
   }

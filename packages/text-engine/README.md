@@ -9,16 +9,16 @@ The supported package entry point is the session/document/run API exported from
 `@domotion/text-engine`. The exports map also publishes focused integration
 subpaths, each an explicit named-export list (`src/<subpath>.ts`):
 
-| Subpath                 | Owns                                                                                                                                                                             |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@domotion/text-engine` | `TextEngineSession`, `withTextEngineDocument`, run/document/artifact types                                                                                                       |
-| `./font-resolution`     | family-key and face lookup, webfont and local-alias registries, render-text mode, glyph-definition and embedded-font generation state                                            |
-| `./text`                | text-to-path emission, bidi levels, visual-text semantics, decoration/ink and emphasis-mark metrics, stretchy-fence and radical glyphs                                           |
-| `./capture`             | page-context-safe helpers shared with the in-page capture script (CSS `font-family` stack parsing/serialization, emoji-presentation detection); must stay free of Node built-ins |
-| `./helpers`             | native glyph-helper and ICU companion acquisition                                                                                                                                |
-| `./format`              | the SVG number/escape/attribute formatting primitives the engine emits with                                                                                                      |
-| `./diagnostics`         | render-phase profiling counters and text-emitter transition recording                                                                                                            |
-| `./testing`             | **unstable**: everything root oracles, probes, fixture tooling and root tests need that production does not — see below                                                          |
+| Subpath                 | Owns                                                                                                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@domotion/text-engine` | `TextEngineSession`, `withTextEngineDocument`, run/document/artifact types, and the synchronous-scope guard (`invokeSynchronousCallback` / `SynchronousCallback`) root scopes reuse |
+| `./font-resolution`     | family-key and face lookup, webfont and local-alias registries, render-text mode, glyph-definition and embedded-font generation state                                               |
+| `./text`                | text-to-path emission, bidi levels, visual-text semantics, decoration/ink and emphasis-mark metrics, stretchy-fence and radical glyphs                                              |
+| `./capture`             | page-context-safe helpers shared with the in-page capture script (CSS `font-family` stack parsing/serialization, emoji-presentation detection); must stay free of Node built-ins    |
+| `./helpers`             | native glyph-helper and ICU companion acquisition                                                                                                                                   |
+| `./format`              | the SVG number/escape/attribute formatting primitives the engine emits with                                                                                                         |
+| `./diagnostics`         | render-phase profiling counters and text-emitter transition recording                                                                                                               |
+| `./testing`             | **unstable**: everything root oracles, probes, fixture tooling and root tests need that production does not — see below                                                             |
 
 The stable subpaths are sized to exactly what Domotion's root production code
 imports; nothing else. `./testing` is the single unstable entry point. It holds

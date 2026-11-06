@@ -15,4 +15,6 @@ export {
   type TextEngineSession,
   type TextEngineSessionOptions,
   withTextEngineDocument,
+  invokeSynchronousCallback,
+  type SynchronousCallback,
 } from "@domotion/text-engine";

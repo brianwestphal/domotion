@@ -24,3 +24,7 @@ export {
   type TextEngineSessionOptions,
   withTextEngineDocument,
 } from "./render/text-engine.js";
+// The synchronous-scope contract every engine `with*` guard enforces (DM-2637).
+// Root adapters that own their own process-global scopes reuse it so the async
+// rejection rule lives in one place.
+export { invokeSynchronousCallback, type SynchronousCallback } from "./render/synchronous-scope.js";

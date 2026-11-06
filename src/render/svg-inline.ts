@@ -23,6 +23,7 @@
 
 import { esc, r } from "./format.js";
 import { computeViewportMatrix, parsePreserveAspectRatio, type ViewBox } from "./svg-viewport-matrix.js";
+import { invokeSynchronousCallback, type SynchronousCallback } from "./text-engine.js";
 
 export interface SvgOpeningTag {
   start: number;
@@ -473,12 +474,18 @@ export function getFlattenNestedSvg(): boolean {
  * setting afterward even if `fn` throws. Prefer this (or the `flattenNestedSvg`
  * render option) to the bare setter: the flag is process-global, so a setter call
  * that is not paired with a reset leaks into every later render in the process.
+ * The callback must be synchronous: an async callback would see the flag
+ * restored before its awaited work runs, so Promise-like results are rejected
+ * at the type boundary and at runtime (the shared text-engine scope contract).
  */
-export function withFlattenNestedSvg<T>(enabled: boolean, fn: () => T): T {
+export function withFlattenNestedSvg<F extends () => unknown>(
+  enabled: boolean,
+  fn: SynchronousCallback<F>,
+): ReturnType<F> {
   const previous = flattenNestedSvgEnabled;
   flattenNestedSvgEnabled = enabled;
   try {
-    return fn();
+    return invokeSynchronousCallback("withFlattenNestedSvg", fn);
   } finally {
     flattenNestedSvgEnabled = previous;
   }

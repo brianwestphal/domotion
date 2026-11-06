@@ -78,7 +78,11 @@ Otherwise the source bytes are kept untouched. Two reasons:
 Renderer lookups run inside a synchronous `withActiveHiDPIFactor` scope. The
 scope validates that its factor is finite and positive, supports nesting, and
 restores the previous factor in `finally`; a successful or failed render
-therefore cannot change the lookup factor used by the next render.
+therefore cannot change the lookup factor used by the next render. The callback
+must be synchronous: a Promise-like result is rejected with a `TypeError` (and
+the previous factor restored), because the factor cannot stay scoped across an
+`await`. `withEmbeddedImageScopes` follows the same contract; both reuse the
+text-engine's synchronous-scope guard.
 
 ### Output format
 
