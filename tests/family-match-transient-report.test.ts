@@ -60,13 +60,37 @@ describe("family-match transient report", () => {
     expect(() => readFamilyMatchTransientReport(path, "family-match-conformance-linux")).toThrow();
   });
 
+  it.each(["0", "-1", "2.5", "x"])("rejects --max-families %s before any work", (value) => {
+    const result = spawnSync(
+      process.execPath,
+      ["--import", "tsx", "tools/family-match-conformance.ts", `--max-families=${value}`],
+      { cwd: process.cwd(), encoding: "utf8", timeout: 60_000 },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("--max-families requires a positive integer");
+  });
+
   it.skipIf(process.platform !== "darwin")(
     "preserves the macOS CLI stdout and writes a nested report",
     () => {
       const path = tempFile();
       const result = spawnSync(
         process.execPath,
-        ["--import", "tsx", "tools/family-match-conformance.ts", "--json", "--json-path", path, "--allow", "100000"],
+        // DM-4NGYSE: this checks the CLI's stdout and nested-report contract, not
+        // conformance, so it scores a small family slice. The full sweep took
+        // ~115 s against the 120 s spawn budget and failed under any load.
+        [
+          "--import",
+          "tsx",
+          "tools/family-match-conformance.ts",
+          "--json",
+          "--json-path",
+          path,
+          "--allow",
+          "100000",
+          "--max-families",
+          "40",
+        ],
         { cwd: process.cwd(), encoding: "utf8", timeout: 120_000, maxBuffer: 64 * 1024 * 1024 },
       );
       expect(result.status, result.stderr.slice(-2_000)).toBe(0);

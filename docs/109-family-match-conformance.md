@@ -154,6 +154,9 @@ macOS only, and unlike its Linux and Windows siblings it has **no committed
 baseline and no CI job**: run it locally with `npm run fonts:family-match`
 (`--json` prints the report, `--allow <n>` tolerates up to `n` misses;
 the full result is written to `tests/output/family-match-conformance.json`).
+`--max-families <n>` scores only the first `n` installed families. That is a
+quick smoke run of the CLI and report pipeline, which the unit test uses; it is
+not a conformance measurement.
 Blink runs different code for this step on each platform, and a
 number from one platform says nothing about another. The sibling oracles now
 exist: doc 110 (Linux — the fontconfig `matchFamilyName` transcription,

@@ -21,6 +21,7 @@
  *   npm run fonts:family-match -- --json  # machine-readable report
  *   npm run fonts:family-match -- --json-path out/nested/report.json
  *   npm run fonts:family-match -- --allow 12   # tolerate up to N misses
+ *   npm run fonts:family-match -- --max-families 20   # score only the first N installed families (a quick smoke run; NOT a conformance measurement)
  *
  * macOS only: it scores the macOS helper's `familyMatch` query, which is a
  * transcription of Blink's `BestStyleMatchForFamilyNS` / `BetterChoiceCT`
@@ -108,12 +109,17 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
     json: { type: "boolean" },
     "json-path": { type: "string" },
     allow: { type: "string" },
+    "max-families": { type: "string" },
   });
   const asJson = values.json === true;
   const jsonPath = values["json-path"] == null ? "tests/output/family-match-conformance.json" : values["json-path"];
   if (jsonPath === "") throw new Error("--json-path requires a path");
   const allow = values.allow == null ? 0 : Number(values.allow);
   if (!Number.isSafeInteger(allow) || allow < 0) throw new Error("--allow requires a nonnegative integer");
+  const maxFamilies = values["max-families"] == null ? Infinity : Number(values["max-families"]);
+  if (maxFamilies !== Infinity && (!Number.isSafeInteger(maxFamilies) || maxFamilies < 1)) {
+    throw new Error("--max-families requires a positive integer");
+  }
 
   if (process.platform !== "darwin") {
     console.error("family-match conformance is macOS-only (it scores the CoreText/AppKit matcher).");
@@ -129,7 +135,9 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 
   // Our side: one helper invocation per family carrying all nine weights.
   const cases: { family: string; css: number; ours: string; names: Set<string> }[] = [];
-  for (const family of installedFamilies()) {
+  // `--max-families` bounds the run for a smoke test of the CLI and report
+  // pipeline. The full sweep is the conformance measurement.
+  for (const family of installedFamilies().slice(0, maxFamilies)) {
     let results: { found: boolean; postscriptName?: string; candidates?: { name: string }[] }[];
     try {
       const out = execFileSync(bin, {
