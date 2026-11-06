@@ -90,6 +90,16 @@ describe("cross-origin @font-face parsing through Chromium", () => {
     ]);
   });
 
+  it("evaluates @media and @supports conditions as Blink's RuleSet::AddChildRules does", async () => {
+    const out = await parse(`
+      @media print { @font-face { font-family: PrintOnly; src: url(p.woff2); } }
+      @media screen and (min-width: 1px) { @font-face { font-family: Screen; src: url(s.woff2); } }
+      @supports (not-a-property: 1) { @font-face { font-family: Unsupported; src: url(u.woff2); } }
+      @supports (display: grid) { @media print { @font-face { font-family: NestedPrint; src: url(np.woff2); } } }
+      @container (min-width: 1px) { @font-face { font-family: InContainer; src: url(c.woff2); } }`);
+    expect(out.map((r) => r.family)).toEqual(["Screen", "InContainer"]);
+  });
+
   it("returns nothing for CSS without usable @font-face rules", async () => {
     expect(await parse("body { color: red; }")).toEqual([]);
     expect(await parse(`@font-face { src: url(x.woff2); }`)).toEqual([]);

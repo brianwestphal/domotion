@@ -4,8 +4,9 @@
  * A cross-origin sheet throws on `cssRules` access from the page, so the Node
  * side fetches its text. The text is then parsed by Chromium itself, not by a
  * hand-written scanner: the page receives it in a constructed `CSSStyleSheet`
- * (`replaceSync`) and reads each `CSSFontFaceRule`'s descriptors from CSSOM,
- * exactly as the same-origin walker does.
+ * (`replaceSync`) and walked by `scanActiveFontFaceRules`, the same walker the
+ * same-origin sheets go through, so both paths keep exactly the rules Blink
+ * adds to the document's font-face set.
  *
  * That is what makes the descriptor values Blink's (Chromium 7d859f27):
  *
@@ -22,7 +23,13 @@
  * The previous scanner took the FIRST declaration of each descriptor with a
  * regex and split values at any `;` or `}`, including ones inside strings.
  */
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
+import {
+  scanActiveFontFaceRules,
+  type ActiveFontFaceRule,
+  type FontFaceDescriptorText,
+} from "./active-font-face-rules.js";
+import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
 
 /** One discovered `@font-face` rule with a fetchable `url()` source. */
@@ -38,72 +45,26 @@ export type FaceRule = {
   stretch?: string;
 };
 
-/** The CSSOM serialization of one `@font-face` rule's descriptors ("" = absent or invalid). */
-export interface FontFaceDescriptorText {
-  family: string;
-  weight: string;
-  style: string;
-  stretch: string;
-  unicodeRange: string;
-  src: string;
-}
+export type { FontFaceDescriptorText } from "./active-font-face-rules.js";
 
 /**
- * Parse `cssText` with Chromium's CSS parser in `page` and return the
- * descriptors of every `@font-face` rule, including rules nested in grouping
- * rules (`@media`, `@supports`, `@layer`, …), in document order.
- *
- * Grouping-rule conditions are not evaluated, matching the scanner this
- * replaces. `@import` rules are ignored by `replaceSync`. Returns [] when the
- * page cannot construct the sheet.
+ * Parse `cssText` with Chromium's CSS parser in `frame` and return the
+ * descriptors of every ACTIVE `@font-face` rule in document order, decided by
+ * the same walker the same-origin sheets go through
+ * (`scanActiveFontFaceRules`): `@media` / `@supports` conditions are
+ * evaluated as Blink's `RuleSet::AddChildRules` does. `@import` rules are
+ * dropped by `replaceSync`. Returns [] when the frame cannot construct the sheet.
  */
 export async function readFontFaceDescriptorsFromCssText(
-  page: Page,
+  frame: Page | Frame,
   cssText: string,
   baseUrl: string,
-): Promise<FontFaceDescriptorText[]> {
+): Promise<ActiveFontFaceRule[]> {
   try {
-    return await page.evaluate(
-      ({ text, base }) => {
-        let sheet: CSSStyleSheet;
-        try {
-          sheet = new CSSStyleSheet({ baseURL: base });
-        } catch {
-          sheet = new CSSStyleSheet();
-        }
-        sheet.replaceSync(text);
-        const found: Array<{
-          family: string;
-          weight: string;
-          style: string;
-          stretch: string;
-          unicodeRange: string;
-          src: string;
-        }> = [];
-        const walk = (rules: CSSRuleList): void => {
-          for (const rule of Array.from(rules)) {
-            if (rule instanceof CSSFontFaceRule) {
-              const s = rule.style;
-              found.push({
-                family: s.getPropertyValue("font-family"),
-                weight: s.getPropertyValue("font-weight"),
-                style: s.getPropertyValue("font-style"),
-                // Chrome also serializes the descriptor under the spec's newer
-                // `font-width` name.
-                stretch: s.getPropertyValue("font-stretch") || s.getPropertyValue("font-width"),
-                unicodeRange: s.getPropertyValue("unicode-range"),
-                src: s.getPropertyValue("src"),
-              });
-            } else if (rule instanceof CSSGroupingRule) {
-              walk(rule.cssRules);
-            }
-          }
-        };
-        walk(sheet.cssRules);
-        return found;
-      },
-      { text: cssText, base: baseUrl },
-    );
+    const scan = await evaluateInFrame(frame, scanActiveFontFaceRules, {
+      cssTexts: [{ text: cssText, base: baseUrl }],
+    });
+    return scan.rules;
   } catch {
     return [];
   }
@@ -177,10 +138,49 @@ export function faceRuleFromFontFaceDescriptors(d: FontFaceDescriptorText, baseU
   };
 }
 
+/** An `@font-face` whose `src` has no fetchable `url()` but names `local()` faces. */
+export type LocalFace = {
+  kind: "local";
+  family: string;
+  localNames: string[];
+  weight: string;
+  style: string;
+  resolvedLocalName: string | null;
+};
+
+/**
+ * Turn a rule with no fetchable `url()` source into a `LocalFace` when its
+ * `src` names `local()` faces (null otherwise). `resolvedLocalName` starts
+ * null; discovery fills it from a page-side width probe.
+ */
+export function localFaceFromFontFaceDescriptors(d: FontFaceDescriptorText): LocalFace | null {
+  const family = d.family
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
+  if (family === "") return null;
+  const localNames = Array.from(d.src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g))
+    .map((mm) => mm[1].trim())
+    .filter((n) => n !== "");
+  if (localNames.length === 0) return null;
+  return {
+    kind: "local",
+    family,
+    localNames,
+    weight: d.weight.trim(),
+    style: d.style.trim() || "normal",
+    resolvedLocalName: null,
+  };
+}
+
 /** Chromium-parsed `@font-face` rules of a fetched cross-origin stylesheet. */
-export async function parseCrossOriginFontFaceRules(page: Page, cssText: string, baseUrl: string): Promise<FaceRule[]> {
+export async function parseCrossOriginFontFaceRules(
+  frame: Page | Frame,
+  cssText: string,
+  baseUrl: string,
+): Promise<FaceRule[]> {
   const out: FaceRule[] = [];
-  for (const descriptors of await readFontFaceDescriptorsFromCssText(page, cssText, baseUrl)) {
+  for (const descriptors of await readFontFaceDescriptorsFromCssText(frame, cssText, baseUrl)) {
     const rule = faceRuleFromFontFaceDescriptors(descriptors, baseUrl);
     if (rule != null) out.push(rule);
   }

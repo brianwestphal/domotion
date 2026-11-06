@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { faceRuleFromFontFaceDescriptors, type FontFaceDescriptorText } from "./capture/cross-origin-font-face.js";
+import {
+  faceRuleFromFontFaceDescriptors,
+  localFaceFromFontFaceDescriptors,
+  type FontFaceDescriptorText,
+} from "./capture/cross-origin-font-face.js";
 
 // DM-545: cross-origin stylesheets throw on `cssRules` access from the page
 // context, so we fetch them server-side. Chromium parses the fetched text in
@@ -94,5 +98,27 @@ describe("faceRuleFromFontFaceDescriptors", () => {
       BASE,
     );
     expect(out?.unicodeRange).toBeUndefined();
+  });
+});
+
+describe("localFaceFromFontFaceDescriptors", () => {
+  it("collects the local() names of a rule with no url() source", () => {
+    expect(
+      localFaceFromFontFaceDescriptors(
+        descriptors({ family: '"Alias"', weight: "700", src: 'local("Menlo"), local(Monaco)' }),
+      ),
+    ).toEqual({
+      kind: "local",
+      family: "Alias",
+      localNames: ["Menlo", "Monaco"],
+      weight: "700",
+      style: "normal",
+      resolvedLocalName: null,
+    });
+  });
+
+  it("returns null without a family or without local() entries", () => {
+    expect(localFaceFromFontFaceDescriptors(descriptors({ src: 'local("Menlo")' }))).toBeNull();
+    expect(localFaceFromFontFaceDescriptors(descriptors({ family: "A", src: "url(a.eot)" }))).toBeNull();
   });
 });

@@ -80,9 +80,15 @@ import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element
 import { resetLastCaptureWarnings } from "./warnings.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { assertCapturedTreeShape } from "./tree-shape.js";
-import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
 import { fetchFontSourceBytes } from "./font-source-bytes.js";
-import { parseCrossOriginFontFaceRules, type FaceRule } from "./cross-origin-font-face.js";
+import { scanActiveFontFaceRules, type ActiveFontFaceRule } from "./active-font-face-rules.js";
+import {
+  faceRuleFromFontFaceDescriptors,
+  localFaceFromFontFaceDescriptors,
+  readFontFaceDescriptorsFromCssText,
+  type FaceRule,
+  type LocalFace,
+} from "./cross-origin-font-face.js";
 import type {
   CapturedElement,
   CapturedFrameScrollState,
@@ -631,24 +637,18 @@ export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: (
  * Should be called AFTER `await page.evaluate(() => document.fonts.ready)`
  * — otherwise late-loading fonts may not be in `document.styleSheets` yet.
  *
- * Cross-origin stylesheets whose `cssRules` throw a SecurityError are silently
- * skipped (we can't enumerate their rules from JS). Same-origin sheets and
- * inline `<style>` blocks always work.
+ * Only ACTIVE rules count, as Blink decides them (active-font-face-rules.ts):
+ * nested `@media` / `@supports` conditions and `@import` conditions are
+ * evaluated, `@layer` / `@container` / `@scope` / `@starting-style` blocks are
+ * entered, disabled or media-mismatched sheets are skipped, and adopted sheets
+ * are included. Cross-origin sheets whose `cssRules` throw are fetched
+ * Node-side and their text walked the same way.
  *
  * Caller is responsible for `clearWebfonts()` between captures if needed.
  * No-op when the page declares no `@font-face` rules.
  */
-// Node-side discovered-font item shapes (the page.evaluate body declares its
-// own structurally-identical inline copies; these are the Node-side types).
+// Node-side discovered-font item shapes.
 type ResourceUrl = { kind: "resource"; url: string };
-type LocalFace = {
-  kind: "local";
-  family: string;
-  localNames: string[];
-  weight: string;
-  style: string;
-  resolvedLocalName: string | null;
-};
 type DiscoveredItem = FaceRule | LocalFace | ResourceUrl;
 /** One row of the report returned by discoverAndRegisterWebfonts. */
 type WebfontRegisterReport = {
@@ -805,6 +805,63 @@ async function registerDiscoveredFont(
     });
   }
 }
+/**
+ * Identify which `local()` candidate Chrome actually resolved each alias face
+ * to, by comparing rendered widths, and record it as `resolvedLocalName`.
+ *
+ * Chrome's local() lookup only matches a font's full name or PostScript name
+ * (CSS Fonts 4 §11.2), not its CSS family name, so `local("Menlo")` fails to
+ * match and the @font-face resolves to the next candidate. To find which one,
+ * render the alias face and compare its width to each candidate rendered by
+ * DIRECT family-name lookup (which does match installed system fonts). A
+ * sample of common monospace + serif glyphs ('mIw0') gives enough horizontal
+ * divergence between candidates to disambiguate even closely related faces.
+ */
+export async function resolveLocalFaceAliases(page: Page, faces: LocalFace[]): Promise<void> {
+  if (faces.length === 0) return;
+  const resolved = await evaluateInFrame(
+    page,
+    (items: Array<{ family: string; weight: string; style: string; localNames: string[] }>) => {
+      // Defined inline: the callback is serialized into the page.
+      const probeWidthInline = function (familyExpr: string, weight: string, style: string, sample: string): number {
+        const span = document.createElement("span");
+        span.style.cssText =
+          "position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre";
+        span.style.fontFamily = familyExpr;
+        span.style.fontWeight = weight;
+        span.style.fontStyle = style;
+        span.textContent = sample;
+        document.body.appendChild(span);
+        const w = span.getBoundingClientRect().width;
+        document.body.removeChild(span);
+        return w;
+      };
+      // Strip a trailing weight/style suffix from a local() candidate so the
+      // direct family-name probe hits the installed family ("Georgia Italic"
+      // → "Georgia"); the alias rule's descriptors already pick the variant.
+      const stripVariantSuffixInline = function (n: string): string {
+        return n
+          .replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "")
+          .trim();
+      };
+      const sample = "mIw0";
+      return items.map((item) => {
+        const aliasW = probeWidthInline(`"${item.family}"`, item.weight, item.style, sample);
+        for (const cand of item.localNames) {
+          const candW = probeWidthInline(`"${stripVariantSuffixInline(cand)}"`, item.weight, item.style, sample);
+          // Tolerate sub-px FP noise; match if widths agree within 0.05px.
+          if (Math.abs(candW - aliasW) < 0.05) return cand;
+        }
+        return null;
+      });
+    },
+    faces.map(({ family, weight, style, localNames }) => ({ family, weight, style, localNames })),
+  );
+  faces.forEach((face, i) => {
+    face.resolvedLocalName = resolved[i] ?? null;
+  });
+}
+
 export async function discoverAndRegisterWebfonts(
   page: Page,
   observedFontUrls: Iterable<string> = [],
@@ -812,9 +869,9 @@ export async function discoverAndRegisterWebfonts(
 ): Promise<WebfontRegisterReport[]> {
   // Two-pass discovery:
   //
-  //   1. Same-origin `@font-face` rules — gives us the CSS-declared family
-  //      name verbatim. Cross-origin sheets (Google Fonts, etc.) throw a
-  //      SecurityError on cssRules access and are skipped here.
+  //   1. `@font-face` rules — gives us the CSS-declared family name
+  //      verbatim. Cross-origin sheets (Google Fonts, etc.) throw a
+  //      SecurityError on cssRules access; their text is fetched below.
   //
   //   2. Resource-based fallback — every font URL the browser actually
   //      fetched. Cross-origin entries don't appear in
@@ -828,227 +885,45 @@ export async function discoverAndRegisterWebfonts(
   // Pass 1 names match CSS exactly (good when authors rename a face);
   // pass 2 catches fonts that pass 1 missed and uses the font's internal
   // name (good for Google Fonts which keep names in sync).
-  const fromPage = await evaluateInFrame(page, () => {
-    interface FaceRule {
-      kind: "font-face";
-      family: string;
-      weight: string;
-      style: string;
-      styleDesc: string;
-      url: string;
-      urls?: string[];
-      /** The CSSOM serialization of the descriptor, parsed Node-side. */
-      unicodeRangeText?: string;
-      stretch?: string;
+  //
+  // Which `@font-face` rules count is decided by ONE page-side walker,
+  // `scanActiveFontFaceRules`, for same-origin sheets and fetched cross-origin
+  // text alike: Blink's `RuleSet::AddChildRules` decision (see
+  // active-font-face-rules.ts). Both paths then share the Node-side
+  // descriptor conversion below.
+  const scan = await evaluateInFrame(page, scanActiveFontFaceRules, null);
+  const discovered: DiscoveredItem[] = [];
+  const pendingLocals: LocalFace[] = [];
+  const seen = new Set<string>();
+  const addRule = (rule: ActiveFontFaceRule): void => {
+    const face = faceRuleFromFontFaceDescriptors(rule, rule.baseUrl);
+    if (face != null) {
+      for (const u of face.urls ?? [face.url]) seen.add(u);
+      discovered.push(face);
+      return;
     }
-    interface ResourceUrl {
-      kind: "resource";
-      url: string;
+    // No url() — but src may carry one or more local() entries. Register an
+    // alias to the matching system font (DM-303). Without this,
+    // `font-family: Foo` where Foo is declared via
+    // @font-face { src: local("Georgia") } falls through the family chain to
+    // the next name and renders in the wrong face.
+    const local = localFaceFromFontFaceDescriptors(rule);
+    if (local != null) {
+      discovered.push(local);
+      pendingLocals.push(local);
     }
-    interface LocalFace {
-      kind: "local";
-      family: string;
-      localNames: string[];
-      weight: string;
-      style: string;
-      resolvedLocalName: string | null;
-    }
-    const out: (FaceRule | LocalFace | ResourceUrl)[] = [];
-    const seenUrls = new Set<string>();
-    // DM-545: stylesheets whose `cssRules` access threw (cross-origin without
-    // CORS). The Node side fetches their text and parses `@font-face` rules
-    // server-side. Without this, sites that serve their CSS from a CDN
-    // different from the page origin (Stripe → b.stripecdn.com, Apple → many
-    // sub-CDNs, …) miss every CSS-declared font-family alias and the
-    // resource-fallback registers under fontkit's internal `familyName` —
-    // which for license-protected fonts (Sohne) is often a copyright string.
-    const crossOriginSheetUrls: string[] = [];
-
-    // Width-probe helpers are defined inline below as needed. We avoid hoisting
-    // them into named arrow consts because tsx wraps such names in __name(...)
-    // calls (a runtime helper for stack traces) that isn't available inside
-    // page.evaluate's serialized context. (DM-445 — original symptom: the
-    // entire discovery throws "ReferenceError: __name is not defined".)
-    const probeWidthInline = function (familyExpr: string, weight: string, style: string, sample: string): number {
-      const span = document.createElement("span");
-      span.style.cssText =
-        "position:absolute;left:-9999px;top:-9999px;visibility:hidden;font-size:16px;line-height:1;white-space:pre";
-      span.style.fontFamily = familyExpr;
-      span.style.fontWeight = weight;
-      span.style.fontStyle = style;
-      span.textContent = sample;
-      document.body.appendChild(span);
-      const w = span.getBoundingClientRect().width;
-      document.body.removeChild(span);
-      return w;
-    };
-    // Strip trailing weight/style suffix from a local() candidate so the
-    // direct family-name probe hits the installed family. e.g. "Georgia
-    // Italic" → "Georgia". The font-style / font-weight descriptors of the
-    // alias rule already set the right variant, so the probe gets the same
-    // face Chrome's local() lookup would reach.
-    const stripVariantSuffixInline = function (n: string): string {
-      return n
-        .replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "")
-        .trim();
-    };
-    for (const sheet of Array.from(document.styleSheets)) {
-      let cssRules: CSSRuleList;
-      try {
-        cssRules = sheet.cssRules;
-      } catch {
-        // Cross-origin sheet — record its URL so the Node side can fetch and
-        // parse it for @font-face rules. (DM-545)
-        if (sheet.href) crossOriginSheetUrls.push(sheet.href);
-        continue;
-      }
-      for (const rule of Array.from(cssRules)) {
-        if (rule.constructor.name !== "CSSFontFaceRule") continue;
-        const r = rule as CSSFontFaceRule;
-        const family = r.style
-          .getPropertyValue("font-family")
-          .trim()
-          .replace(/^["']|["']$/g, "");
-        // The RAW `font-weight` DESCRIPTOR. Empty string = auto/absent — kept
-        // distinct from a declared "400": an auto descriptor lets a variable
-        // face's own wght range bound the instancing, while a declared value
-        // (even "normal"/"400") PINS the axis to the descriptor clamp
-        // (Blink's RangeSetFromAuto vs SetExplicitly split). The legacy
-        // numeric collapse for report rows happens Node-side
-        // (`parseWeightDescriptor`, which maps "" to 400).
-        const weight = r.style.getPropertyValue("font-weight") || "";
-        const styleRaw = r.style.getPropertyValue("font-style") || "";
-        const style = styleRaw || "normal";
-        // The RAW `font-style` DESCRIPTOR, mirroring `weight` just above —
-        // empty string = auto/absent, kept distinct from `style`'s
-        // "normal" default so the Node-side registry can tell "declared
-        // normal" apart from "no descriptor at all" for the webfont
-        // synthetic-italic rule's variable-`slnt`-axis exemption.
-        const styleDesc = styleRaw;
-        // The `font-stretch` DESCRIPTOR (Chrome also serializes it under the
-        // spec's newer `font-width` name). Empty string = auto/absent — the
-        // registry then treats the face's selection capabilities as normal
-        // width and lets a variable face's own wdth range bound the instancing
-        // (Blink's RangeSetFromAuto branch).
-        const stretchDesc = r.style.getPropertyValue("font-stretch") || r.style.getPropertyValue("font-width") || "";
-        const src = r.style.getPropertyValue("src");
-        // DM-513: parse ALL `url(...) format(...)` pairs and return them in
-        // priority order (woff2 > woff > ttf/otf > unknown). Sites like
-        // Slashdot list legacy `eot`/`svg` (fontkit can't parse) alongside
-        // `woff` — without ordering, we'd grab the eot, fail to register,
-        // and lose every `::before` icon glyph. The Node side iterates the
-        // ranked list and uses the first URL whose response fontkit parses.
-        const srcEntries: { url: string; format: string }[] = [];
-        const urlRe = /url\(\s*["']?([^"')]+)["']?\s*\)(?:\s*format\(\s*["']?([^"')]+)["']?\s*\))?/g;
-        let urlMatch;
-        while ((urlMatch = urlRe.exec(src)) !== null) {
-          srcEntries.push({ url: urlMatch[1], format: (urlMatch[2] ?? "").toLowerCase() });
-        }
-        const formatRank = (fmt: string, url: string): number => {
-          const lower = fmt.toLowerCase();
-          if (/embedded-opentype|svg/.test(lower)) return -1;
-          if (lower.includes("woff2") || /\.woff2(\?|$)/i.test(url)) return 4;
-          if (lower === "woff" || /\.woff(\?|$)/i.test(url)) return 3;
-          if (/truetype|opentype/.test(lower) || /\.(ttf|otf)(\?|$)/i.test(url)) return 2;
-          if (/\.eot(\?|$)/i.test(url) || /\.svg(\?|$)/i.test(url)) return -1;
-          return 1;
-        };
-        const rankedUrls: string[] = srcEntries
-          .map((e) => ({ url: e.url, rank: formatRank(e.format, e.url) }))
-          .filter((e) => e.rank >= 0)
-          .sort((a, b) => b.rank - a.rank)
-          .map((e) => e.url);
-        const m = rankedUrls.length > 0 ? [src, rankedUrls[0]] : null;
-        if (m == null) {
-          // No url() — but src may carry one or more local() entries. Capture
-          // the local names so the Node side can register an alias to the
-          // matching system font (DM-303). Without this, `font-family: Foo`
-          // where Foo is declared via @font-face { src: local("Georgia") }
-          // falls through the family chain to the next name and renders in
-          // the wrong face.
-          const locals = Array.from(src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g))
-            .map((mm) => mm[1].trim())
-            .filter((n) => n !== "");
-          if (locals.length > 0) {
-            // Probe to identify which local() candidate Chrome actually
-            // resolved this alias to. A sample of common monospace + serif
-            // glyphs ('mIw0') gives us enough horizontal divergence between
-            // candidates to disambiguate even closely-related faces.
-            const sample = "mIw0";
-            // Chrome's local() lookup only matches a font's full name or
-            // PostScript name (per CSS Fonts 4 §11.2), not its CSS family
-            // name. So `local("Menlo")` (a family name) fails to match —
-            // but the @font-face still resolves to the next candidate. To
-            // figure out which one, render the alias face and compare its
-            // width to each candidate via DIRECT family-name lookup (which
-            // does match installed system fonts).
-            const aliasW = probeWidthInline(`"${family}"`, weight, style, sample);
-            let resolved: string | null = null;
-            for (const cand of locals) {
-              const candW = probeWidthInline(`"${stripVariantSuffixInline(cand)}"`, weight, style, sample);
-              // Tolerate sub-px FP noise; match if widths agree within 0.05px.
-              if (Math.abs(candW - aliasW) < 0.05) {
-                resolved = cand;
-                break;
-              }
-            }
-            out.push({ kind: "local", family, localNames: locals, weight, style, resolvedLocalName: resolved });
-          }
-          continue;
-        }
-        const base = sheet.href ?? document.baseURI;
-        let absUrl: string;
-        try {
-          absUrl = new URL(m[1], base).href;
-        } catch {
-          continue;
-        }
-        // Resolve the full ranked URL list to absolute URLs for the Node-side
-        // iterator (DM-513). The first entry IS `absUrl`; the rest are
-        // fallback candidates the Node side tries if fontkit rejects a
-        // higher-priority URL's bytes.
-        const absUrls: string[] = [];
-        for (const ru of rankedUrls) {
-          try {
-            absUrls.push(new URL(ru, base).href);
-          } catch {
-            /* skip */
-          }
-        }
-        for (const u of absUrls) seenUrls.add(u);
-        // Serialized by CSSOM, so it is already a valid, normalized list (an
-        // invalid descriptor was dropped by the CSS parser and reads as "").
-        // Parsed Node-side by the one shared parser.
-        const unicodeRangeText = r.style.getPropertyValue("unicode-range") || "";
-        out.push({
-          kind: "font-face",
-          family,
-          weight,
-          style,
-          styleDesc,
-          url: absUrl,
-          urls: absUrls,
-          unicodeRangeText,
-          ...(stretchDesc !== "" ? { stretch: stretchDesc } : {}),
-        });
-      }
-    }
-
-    for (const entry of performance.getEntriesByType("resource") as PerformanceResourceTiming[]) {
-      if (!/\.(woff2?|ttf|otf)(\?|$)/i.test(entry.name)) continue;
-      if (seenUrls.has(entry.name)) continue;
-      seenUrls.add(entry.name);
-      out.push({ kind: "resource", url: entry.name });
-    }
-    return { entries: out, seenUrls: Array.from(seenUrls), crossOriginSheetUrls };
-  });
-  const discovered: DiscoveredItem[] = fromPage.entries.map((entry) => {
-    if (entry.kind !== "font-face") return entry;
-    const { unicodeRangeText, ...rule } = entry;
-    const unicodeRange = parseUnicodeRangeDescriptor(unicodeRangeText ?? "");
-    return unicodeRange != null ? { ...rule, unicodeRange } : rule;
-  });
-  const seen = new Set(fromPage.seenUrls);
+  };
+  for (const rule of scan.rules) addRule(rule);
+  const resourceUrls = await evaluateInFrame(page, () =>
+    (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
+      .map((entry) => entry.name)
+      .filter((name) => /\.(woff2?|ttf|otf)(\?|$)/i.test(name)),
+  );
+  for (const url of resourceUrls) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    discovered.push({ kind: "resource", url });
+  }
   // DM-545: fetch each cross-origin stylesheet text and parse `@font-face`
   // rules server-side. Cross-origin sheets throw on `cssRules` access from
   // the page context, so without this the page-side walker misses every
@@ -1058,7 +933,7 @@ export async function discoverAndRegisterWebfonts(
   // ran in this scenario registers under fontkit's internal `familyName`,
   // which for license-protected fonts (Sohne) is a copyright string —
   // unmatchable against the CSS-declared `font-family: sohne-var` query.
-  for (const sheetUrl of fromPage.crossOriginSheetUrls) {
+  for (const sheetUrl of scan.crossOriginSheetUrls) {
     let cssText: string;
     try {
       if (/^(data|file):/i.test(sheetUrl)) {
@@ -1076,16 +951,12 @@ export async function discoverAndRegisterWebfonts(
       continue;
     }
     // Chromium parses the text (last valid declaration per descriptor wins),
-    // not a regex scanner; see cross-origin-font-face.ts.
-    for (const face of await parseCrossOriginFontFaceRules(page, cssText, sheetUrl)) {
-      // De-dupe by all URLs in the ranked list — we may have already seen
-      // this src via the resource-fallback (whose entry registers under the
-      // wrong name); having BOTH a font-face entry (correct name) AND a
-      // resource entry (file's internal name) is fine — both will be tried.
-      for (const u of face.urls ?? [face.url]) seen.add(u);
-      discovered.push(face);
-    }
+    // not a regex scanner; see cross-origin-font-face.ts. Having BOTH a
+    // font-face entry (correct name) AND a resource entry (the file's internal
+    // name) for one URL is fine — both will be tried.
+    for (const rule of await readFontFaceDescriptorsFromCssText(page, cssText, sheetUrl)) addRule(rule);
   }
+  await resolveLocalFaceAliases(page, pendingLocals);
   for (const url of observedFontUrls) {
     if (seen.has(url)) continue;
     seen.add(url);

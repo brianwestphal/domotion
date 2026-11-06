@@ -479,6 +479,7 @@ export const FEATURES: FeatureEntry[] = [
       "packages/text-engine/src/render/webfont-unicode-range.test.ts",
       "src/webfont-unicode-range.test.ts",
       "src/cross-origin-font-face.test.ts",
+      "src/capture/font-source-bytes.test.ts",
     ],
   },
   {
