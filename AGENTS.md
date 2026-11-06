@@ -119,6 +119,7 @@ pueue-wait-cond "$ID" --timeout 10m --fail-on-error \
 ```
 
 - **`pueue add` inherits the current directory** (`-w` overrides), so a task sees the repo it was queued from.
+- **Never wrap a task in `sh -c '…'`.** `pueue add` joins its arguments with spaces and runs the result through `sh -c` itself, so the quotes are lost: `pueue add -- sh -c 'npx tsx script.ts'` runs `sh -c npx tsx script.ts`, which starts `npx` with no arguments. `npm exec` with no command opens an interactive shell, and `tsx` with no script opens a REPL. Both then wait forever on the task's stdin pipe, with no output — the "pueue-queued tsx hangs at startup" symptom. Write the command directly (`pueue add -- npx tsx script.ts --flag`); for pipes or `&&`, pass the whole command as ONE quoted argument (`pueue add -- 'npx tsx script.ts | tail -1 && echo ok'`), which pueue hands to its own `sh -c` intact.
 - **`--after <id>`** chains without a round trip — queue the gate `--after` the build and let the daemon sequence them.
 - **`pueue-wait-cond` durations** are seconds by default and accept `ms`, `s`, `m`, or `h`; its condition subprocesses have their own 30-second default ceiling (`--condition-timeout` overrides it). Use `--json` when a script needs a stable result instead of human progress output.
 - **`pueue follow <id>`** is `tail -f`; **`pueue kill <id>`** stops one; **`pueue clean`** clears finished tasks.
