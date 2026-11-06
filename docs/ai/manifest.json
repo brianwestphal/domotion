@@ -488,7 +488,10 @@
       "code": [
         "packages/text-engine/src/render/text-to-path.ts",
         "packages/text-engine/src/render/webfont-unicode-range.test.ts",
-        "src/webfont-unicode-range.test.ts"
+        "src/webfont-unicode-range.test.ts",
+        "src/capture/unicode-range.ts",
+        "src/capture/unicode-range.test.ts",
+        "tests/unicode-range-descriptor.e2e.test.ts"
       ],
       "file": "30-webfont-unicode-range.md"
     },

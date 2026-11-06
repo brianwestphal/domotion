@@ -5,12 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: []
-tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557"]
+tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y"]
 code:
   [
     "packages/text-engine/src/render/text-to-path.ts",
     "packages/text-engine/src/render/webfont-unicode-range.test.ts",
     "src/webfont-unicode-range.test.ts",
+    "src/capture/unicode-range.ts",
+    "src/capture/unicode-range.test.ts",
+    "tests/unicode-range-descriptor.e2e.test.ts",
   ]
 aliases: ["docs/30-webfont-unicode-range.md", "doc-30"]
 ---
@@ -64,6 +67,16 @@ interface WebfontVariant {
 }
 ```
 
+### Descriptor parsing
+
+One parser, `parseUnicodeRangeDescriptor` in `src/capture/unicode-range.ts`, reads every `unicode-range` value. It has no imports and uses no Node or DOM API, so the bundled CAPTURE_SCRIPT (the line-clamp ellipsis probe in `src/capture/script/line-clamp.ts`) imports it directly. The page-side `@font-face` walker returns the CSSOM serialization (`CSSFontFaceRule.style.getPropertyValue("unicode-range")`), and Node parses it with the same function. Before this, three separate copies used `parseInt`, so they accepted trailing garbage such as `U+41zz` and reversed ranges.
+
+The parser transcribes Blink (Chromium `7d859f27`, 2026-06-27). The tokenizer is `CSSTokenizer::LetterU` + `ConsumeUnicodeRange` (`core/css/parser/css_tokenizer.cc:117-123`, `:437-468`): `u`/`U`, `+`, up to six hex digits, then either `?` wildcards filling the remaining six-digit budget or `-` and one to six hex digits. The descriptor parser is `ConsumeFontFaceUnicodeRange` (`core/css/parser/at_rule_descriptor_parser.cc:63-82`) plus the end-of-stream check at `:427`. It takes a comma-separated list of such tokens. The whole descriptor is invalid when an entry is not a token, an entry is empty, anything follows a token before the next comma, or `start > end || end > 0x10FFFF`.
+
+An invalid descriptor is dropped, so the face keeps the initial value U+0-10FFFF. The parser returns `undefined` for an invalid value as well as an empty one, and the registry reads `undefined` as full coverage.
+
+`tests/unicode-range-descriptor.e2e.test.ts` uses Chromium as the oracle. It feeds a corpus of valid and malformed values through a real `@font-face` rule and requires the parser to accept and reject the same values, with the same intervals.
+
 Two pickers consult it:
 
 - `pickWebfontVariant(family, weight, fontSize, slant, variationSettings?, stretch?)` — exported Latin-bias scorer (in `packages/text-engine/src/render/webfont-registry.ts`). Returns the primary variant for the family when no codepoint context is known (e.g., the fast-path single-font lookup before run-splitting).
@@ -93,7 +106,8 @@ The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontIn
 ## Verification
 
 - `packages/text-engine/src/render/webfont-unicode-range.test.ts` — covers `pickWebfontVariantForCodepoint` directly. Tests cover: codepoint covered by exactly one variant, ASCII routing to Latin partition, return-null when no variant covers, single-non-partitioned variant covers everything (CSS default range), italic + weight scoring among multiple covering variants, unregistered family.
-- `src/webfont-unicode-range.test.ts` — covers the capture-side `parseUnicodeRangeDescriptor` that produces the ranges the registry consumes.
+- `src/webfont-unicode-range.test.ts` and `src/capture/unicode-range.test.ts` cover the capture-side `parseUnicodeRangeDescriptor`, which produces the ranges the registry consumes. The second carries Blink's own tokenizer cases plus the reversed, out-of-range, empty-entry and trailing-garbage rejections.
+- `tests/unicode-range-descriptor.e2e.test.ts` checks the parser's accept and reject verdicts and intervals against Chromium's CSS parser.
 - The run-splitter integration is exercised end-to-end whenever real-world tests run against pages that load partitioned families. Stripe, Framer, NYT, Resend, Apple all use Google Fonts or their own partition pipelines.
 
 ## Cross-platform note

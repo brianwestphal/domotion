@@ -8,6 +8,7 @@
 // model of the feature.
 
 import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
+import { parseUnicodeRangeDescriptor, unicodeRangeIntervalsCover } from "../unicode-range.js";
 import type { TextSegment } from "../types.js";
 
 type ClampChar = {
@@ -231,20 +232,11 @@ const primaryFontHasEllipsis = (doc: Document, cs: CSSStyleDeclaration): boolean
   for (const face of doc.fonts) {
     if ((face.family || "").replace(/^['"]|['"]$/g, "").toLowerCase() !== primary) continue;
     sawMatchingFace = true;
-    const range = face.unicodeRange || "U+0-10FFFF";
-    const covers = range.split(",").some((part) => {
-      const match = /U\+([0-9a-f?]+)(?:-([0-9a-f]+))?/i.exec(part.trim());
-      if (match == null) return false;
-      if (match[1].includes("?")) {
-        const lo = Number.parseInt(match[1].replace(/\?/g, "0"), 16);
-        const hi = Number.parseInt(match[1].replace(/\?/g, "f"), 16);
-        return 0x2026 >= lo && 0x2026 <= hi;
-      }
-      const lo = Number.parseInt(match[1], 16);
-      const hi = match[2] == null ? lo : Number.parseInt(match[2], 16);
-      return 0x2026 >= lo && 0x2026 <= hi;
-    });
-    if (covers) return true;
+    // `FontFace.unicodeRange` is the CSSOM serialization of a parsed (valid)
+    // descriptor; the shared parser reads it, and its `undefined` (absent or
+    // invalid) is the initial value U+0-10FFFF.
+    const ranges = parseUnicodeRangeDescriptor(face.unicodeRange || "");
+    if (ranges == null || unicodeRangeIntervalsCover(ranges, 0x2026)) return true;
   }
   return !sawMatchingFace;
 };

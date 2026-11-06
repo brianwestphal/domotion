@@ -78,6 +78,7 @@ import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element
 import { resetLastCaptureWarnings } from "./warnings.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { assertCapturedTreeShape } from "./tree-shape.js";
+import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
 import type {
   CapturedElement,
   CapturedFrameScrollState,
@@ -111,6 +112,7 @@ import { createCaptureDebugArtifacts, type CaptureDebugArtifacts } from "./debug
 
 export { createCapturedTreeEnvelope, promoteCapturedSubtree };
 export { installCaptureRafClock } from "./raf-clock.js";
+export { parseUnicodeRangeDescriptor } from "./unicode-range.js";
 export type { CaptureRafClockHandle, CaptureRafTargetState, StableCaptureRafState } from "./raf-clock.js";
 export type {
   ReplacedMediaDimensions,
@@ -814,7 +816,8 @@ export async function discoverAndRegisterWebfonts(
       styleDesc: string;
       url: string;
       urls?: string[];
-      unicodeRange?: Array<[number, number]>;
+      /** The CSSOM serialization of the descriptor, parsed Node-side. */
+      unicodeRangeText?: string;
       stretch?: string;
     }
     interface ResourceUrl {
@@ -829,34 +832,6 @@ export async function discoverAndRegisterWebfonts(
       style: string;
       resolvedLocalName: string | null;
     }
-    // Parse a CSS `unicode-range` descriptor value into inclusive [from, to]
-    // intervals. Accepts the three forms in CSS Fonts 4 §4.5: single codepoint
-    // (`U+26`), interval (`U+0-7F`), and wildcard (`U+4??`). Returns `null`
-    // when the value is missing/unparseable so the caller treats the variant
-    // as covering the default range U+0..U+10FFFF.
-    const parseUnicodeRangeInline = function (value: string): Array<[number, number]> | undefined {
-      const v = value.trim();
-      if (v === "") return undefined;
-      const out: Array<[number, number]> = [];
-      for (const raw of v.split(",")) {
-        const tok = raw.trim().replace(/^U\+/i, "");
-        if (tok === "") continue;
-        if (tok.includes("?")) {
-          const lo = parseInt(tok.replace(/\?/g, "0"), 16);
-          const hi = parseInt(tok.replace(/\?/g, "F"), 16);
-          if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
-        } else if (tok.includes("-")) {
-          const [a, b] = tok.split("-");
-          const lo = parseInt(a, 16);
-          const hi = parseInt(b, 16);
-          if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
-        } else {
-          const cp = parseInt(tok, 16);
-          if (Number.isFinite(cp)) out.push([cp, cp]);
-        }
-      }
-      return out.length > 0 ? out : undefined;
-    };
     const out: (FaceRule | LocalFace | ResourceUrl)[] = [];
     const seenUrls = new Set<string>();
     // DM-545: stylesheets whose `cssRules` access threw (cross-origin without
@@ -1020,7 +995,10 @@ export async function discoverAndRegisterWebfonts(
           }
         }
         for (const u of absUrls) seenUrls.add(u);
-        const unicodeRange = parseUnicodeRangeInline(r.style.getPropertyValue("unicode-range") || "");
+        // Serialized by CSSOM, so it is already a valid, normalized list (an
+        // invalid descriptor was dropped by the CSS parser and reads as "").
+        // Parsed Node-side by the one shared parser.
+        const unicodeRangeText = r.style.getPropertyValue("unicode-range") || "";
         out.push({
           kind: "font-face",
           family,
@@ -1029,7 +1007,7 @@ export async function discoverAndRegisterWebfonts(
           styleDesc,
           url: absUrl,
           urls: absUrls,
-          unicodeRange,
+          unicodeRangeText,
           ...(stretchDesc !== "" ? { stretch: stretchDesc } : {}),
         });
       }
@@ -1043,7 +1021,12 @@ export async function discoverAndRegisterWebfonts(
     }
     return { entries: out, seenUrls: Array.from(seenUrls), crossOriginSheetUrls };
   });
-  const discovered: DiscoveredItem[] = fromPage.entries;
+  const discovered: DiscoveredItem[] = fromPage.entries.map((entry) => {
+    if (entry.kind !== "font-face") return entry;
+    const { unicodeRangeText, ...rule } = entry;
+    const unicodeRange = parseUnicodeRangeDescriptor(unicodeRangeText ?? "");
+    return unicodeRange != null ? { ...rule, unicodeRange } : rule;
+  });
   const seen = new Set(fromPage.seenUrls);
   // DM-545: fetch each cross-origin stylesheet text and parse `@font-face`
   // rules server-side. Cross-origin sheets throw on `cssRules` access from
@@ -1275,42 +1258,6 @@ function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
     unicodeRange,
     ...(stretch != null ? { stretch } : {}),
   };
-}
-
-/**
- * Parse a CSS `unicode-range` descriptor value (CSS Fonts 4 §4.5) into a list
- * of inclusive `[from, to]` codepoint intervals. Accepts the three forms:
- * single (`U+26`), interval (`U+0-7F`), and wildcard (`U+4??`). Multiple
- * ranges are comma-separated. Returns `undefined` for empty / unparseable
- * input — callers treat that as the CSS default coverage (U+0..U+10FFFF).
- *
- * This is the Node-side twin of the in-page parser inlined inside
- * `discoverAndRegisterWebfonts`'s `page.evaluate` body. The page-side copy
- * can't import from here (it runs in the browser context), but the logic must
- * stay aligned — covered by tests on this exported version.
- */
-export function parseUnicodeRangeDescriptor(value: string): Array<[number, number]> | undefined {
-  const v = value.trim();
-  if (v === "") return undefined;
-  const out: Array<[number, number]> = [];
-  for (const raw of v.split(",")) {
-    const tok = raw.trim().replace(/^U\+/i, "");
-    if (tok === "") continue;
-    if (tok.includes("?")) {
-      const lo = parseInt(tok.replace(/\?/g, "0"), 16);
-      const hi = parseInt(tok.replace(/\?/g, "F"), 16);
-      if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
-    } else if (tok.includes("-")) {
-      const [a, b] = tok.split("-");
-      const lo = parseInt(a, 16);
-      const hi = parseInt(b, 16);
-      if (Number.isFinite(lo) && Number.isFinite(hi)) out.push([lo, hi]);
-    } else {
-      const cp = parseInt(tok, 16);
-      if (Number.isFinite(cp)) out.push([cp, cp]);
-    }
-  }
-  return out.length > 0 ? out : undefined;
 }
 
 function parseWeightDescriptor(value: string): number {
