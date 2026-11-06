@@ -16,11 +16,15 @@ const RESTRICTION_LABEL: Record<EmbeddedFontEmbeddingRestriction["restrictions"]
 
 /** The warning text for one restricted source face. */
 export function describeEmbeddingRestriction(r: EmbeddedFontEmbeddingRestriction): string {
-  const face = r.postscriptName ?? r.path.split(/[\\/]/).pop() ?? r.path;
   const fsType = `0x${r.fsType.toString(16).padStart(4, "0")}`;
   const kinds = r.restrictions.map((kind) => RESTRICTION_LABEL[kind]).join(", ");
+  const subject =
+    r.source === "webfont"
+      ? `embedded webfont "${r.postscriptName ?? r.familyName ?? "unnamed"}"` +
+        (r.familyName != null && r.postscriptName != null ? ` (font family "${r.familyName}")` : "")
+      : `embedded font "${r.postscriptName ?? r.path.split(/[\\/]/).pop() ?? r.path}" (${r.path}#${r.faceIndex})`;
   return (
-    `embedded font "${face}" (${r.path}#${r.faceIndex}) declares OS/2 fsType ${fsType} (${kinds}); ` +
+    `${subject} declares OS/2 fsType ${fsType} (${kinds}); ` +
     `Domotion embedded a subset of it anyway. Check the font's license, or render with --text-mode paths ` +
     `to emit glyph outlines instead of an embedded font.`
   );

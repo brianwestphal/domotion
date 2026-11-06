@@ -9,13 +9,22 @@ import type { CaptureWarning } from "../capture/types.js";
 
 const engine = vi.hoisted(() => ({
   css: "",
-  pending: [] as Array<{
-    path: string;
-    faceIndex: number;
-    postscriptName: string | null;
-    fsType: number;
-    restrictions: Array<"restricted-license" | "bitmap-only">;
-  }>,
+  pending: [] as Array<
+    | {
+        path: string;
+        faceIndex: number;
+        postscriptName: string | null;
+        fsType: number;
+        restrictions: Array<"restricted-license" | "bitmap-only">;
+      }
+    | {
+        source: "webfont";
+        postscriptName: string | null;
+        familyName: string | null;
+        fsType: number;
+        restrictions: Array<"restricted-license" | "bitmap-only">;
+      }
+  >,
 }));
 
 vi.mock("@domotion/text-engine/font-resolution", async (importOriginal) => {
@@ -112,6 +121,19 @@ describe("root getEmbeddedFontFaceCss embedding-restriction warnings", () => {
     expect(withRenderWarningSink(sink, () => getEmbeddedFontFaceCss())).toBe(engine.css);
     expect(sink).toEqual([]);
     expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("names a webfont by its PostScript and family names, since it has no path", () => {
+    const base = { source: "webfont" as const, fsType: 0x0002, restrictions: ["restricted-license" as const] };
+    expect(describeEmbeddingRestriction({ ...base, postscriptName: "Brand-Regular", familyName: "Brand" })).toMatch(
+      /^embedded webfont "Brand-Regular" \(font family "Brand"\) declares OS\/2 fsType 0x0002 \(Restricted License embedding\); Domotion embedded a subset/,
+    );
+    expect(describeEmbeddingRestriction({ ...base, postscriptName: null, familyName: "Brand" })).toContain(
+      'embedded webfont "Brand" declares',
+    );
+    expect(describeEmbeddingRestriction({ ...base, postscriptName: null, familyName: null })).toContain(
+      'embedded webfont "unnamed" declares',
+    );
   });
 
   it("names a face by its file name when the source has no PostScript name, on either separator", () => {

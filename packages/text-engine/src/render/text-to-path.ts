@@ -29,7 +29,7 @@ import { computedFontSize } from "./font-instance.js";
 import type { DarwinFontCacheOptions } from "./darwin-font-data-lifetime.js";
 import { esc as escAttr, formatNumberLoose } from "./format.js";
 import { visualTextSemantics } from "./text-semantics.js";
-import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
+import { trackGlyphInEmbedFont, webfontEmbeddingSourceFor } from "./embedded-font-builder.js";
 import { OBLIQUE_SHEAR, resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass } from "./embolden-outline.js";
 // DM-1984: the two "does this face need a synthetic bold / oblique?" predicates
 // live in one module because BOTH render modes ask them. Re-exported below so
@@ -4054,6 +4054,7 @@ function buildEmbeddedRunSegment(
     nativeCursiveOriginCss: cursive.nativeCursiveOriginCss,
     instanceKey,
     hintedSource: srcInfo,
+    webfontSource: webfontEmbeddingSourceFor(run.font),
     shearFactor,
     targetStrikeCommandsBySize,
     ordinaryTextRenderingAttr,
@@ -4094,6 +4095,7 @@ interface EmbeddedGlyphWalkPlan {
   nativeCursiveOriginCss: number;
   instanceKey: string;
   hintedSource: ReturnType<typeof getFontSourceInfo>;
+  webfontSource: ReturnType<typeof webfontEmbeddingSourceFor>;
   shearFactor: number;
   targetStrikeCommandsBySize: Map<number, Map<number, PathCommand[]>> | null;
   ordinaryTextRenderingAttr: string;
@@ -4274,6 +4276,7 @@ function walkEmbeddedRunGlyphs(
           weight,
           shearFactor: plan.shearFactor,
           hintedSource: plan.hintedSource,
+          webfontSource: plan.webfontSource,
           targetStrike: targetStrikeActive,
           runToken: run,
         },

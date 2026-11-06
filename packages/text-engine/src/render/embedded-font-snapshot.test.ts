@@ -297,6 +297,7 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
       "subsetAttempt",
       "subsetAttempts",
       "unitsPerEm",
+      "webfontSources",
       "weightMax",
       "weightMin",
     ]);

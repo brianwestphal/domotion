@@ -97,7 +97,7 @@ export {
   registerHbBufferSource,
   type ShapeResult,
 } from "./render/harfbuzz-shaper.js";
-export { hbSubsetRetainGids, injectPuaCmap } from "./render/hb-subset.js";
+export { hbSubsetRetainGids, injectPuaCmap, sfntOs2FsType, withOs2FsType } from "./render/hb-subset.js";
 export { assetNameFor } from "./render/helper-acquire.js";
 export {
   helperAvailabilityContract,

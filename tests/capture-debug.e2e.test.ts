@@ -1,8 +1,9 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { runCapture } from "../src/cli/capture.js";
+import { restrictedEmbeddingFont } from "../src/test-support/restricted-embedding-font.js";
 
 const dir = mkdtempSync(join(tmpdir(), "domotion-capture-debug-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -47,5 +48,26 @@ describe("capture debug reproduction bundle", () => {
     );
     await runCapture([html, "--quiet", "--width", "160", "--height", "60", "-o", output], "");
     expect(readFileSync(output, "utf8")).toContain("<svg");
+  });
+
+  it("reports a restricted-embedding @font-face webfont in warnings.json", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    writeFileSync(join(dir, "restricted.ttf"), restrictedEmbeddingFont());
+    const html = join(dir, "webfont.html");
+    writeFileSync(
+      html,
+      `<!doctype html><style>@font-face{font-family:"Restricted Fixture";src:url(restricted.ttf)}html,body{margin:0}body{background:#fff;font:24px "Restricted Fixture"}</style><div>Rag</div>`,
+    );
+    await runCapture(
+      [html, "--quiet", "--debug", "--width", "200", "--height", "70", "-o", join(dir, "webfont.svg")],
+      "",
+    );
+    const warnings = JSON.parse(readFileSync(join(dir, "webfont.debug", "warnings.json"), "utf8")) as Array<{
+      feature: string;
+      detail: string;
+    }>;
+    expect(warnings.filter((warning) => warning.feature === "embedded-font-fstype").map((w) => w.detail)).toEqual([
+      expect.stringContaining('embedded webfont "IBMPlexSerif-Regular"') as unknown,
+    ]);
   });
 });

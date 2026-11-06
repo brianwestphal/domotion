@@ -6,10 +6,11 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 
 // Studio's interactive compiler reads the embedded-font CSS from the text
 // engine's document artifacts, bypassing the root CSS wrapper that reports
-// restricted-embedding faces. The engine reports those faces only for
-// path-backed system fonts, and no portable host font declares a restricted
-// OS/2 fsType, so this e2e substitutes only the engine's consuming drain and
-// runs the real compiler against real Chromium.
+// restricted-embedding faces. The shared Studio fixture page uses no
+// restricted font, so this e2e substitutes only the engine's consuming drain
+// and runs the real compiler against real Chromium. Real restricted-webfont
+// detection is covered end to end by tests/animate-debug-warnings.e2e.test.ts
+// and tests/capture-debug.e2e.test.ts.
 const engine = vi.hoisted(() => ({
   pending: [] as Array<{
     path: string;

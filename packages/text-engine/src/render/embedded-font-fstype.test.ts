@@ -3,7 +3,8 @@
 // table; the svg2ttf rebuild writes `fsType` 0 unless the source value is
 // carried over. `fsType` is metadata only (Chromium does not read it for
 // webfonts; OTS only normalizes its bits), so these tests assert the bytes.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -18,6 +19,7 @@ import {
   snapshotEmbeddedFonts,
   takeEmbeddedFontEmbeddingRestrictions,
   trackGlyphInEmbedFont,
+  webfontEmbeddingSourceFor,
 } from "./embedded-font-builder.js";
 import { injectPuaCmap, sfntOs2FsType, withOs2FsType, hbSubsetRetainGids } from "./hb-subset.js";
 import { buildStaticHintedFont, wrapInTtc } from "./synth-test-fonts.js";
@@ -197,7 +199,9 @@ describe("embedding-restriction notices", () => {
     clearEmbeddedFontBuilder();
     track("r|w=400", fontPath("restricted.ttf"), 0, "Restricted-Regular");
     getBuiltEmbeddedFontFaceCss();
-    expect(takeEmbeddedFontEmbeddingRestrictions().map((r) => r.faceIndex)).toEqual([0]);
+    expect(takeEmbeddedFontEmbeddingRestrictions().map((r) => (r.source === "webfont" ? null : r.faceIndex))).toEqual([
+      0,
+    ]);
   });
 
   it("produces the same CSS whether or not the notices are drained", () => {
@@ -229,12 +233,14 @@ describe("embedding-restriction notices", () => {
     track("ttc0|w=400", fontPath("collection.ttc"), 0);
     track("ttc1|w=400", fontPath("collection.ttc"), 1);
     getBuiltEmbeddedFontFaceCss();
-    expect(takeEmbeddedFontEmbeddingRestrictions().map((r) => [r.path, r.faceIndex, r.fsType, r.restrictions])).toEqual(
-      [
-        [fontPath("bitmap.ttf"), 0, 0x0200, ["bitmap-only"]],
-        [fontPath("collection.ttc"), 1, FS_TYPE_RESTRICTED, ["restricted-license"]],
-      ],
-    );
+    expect(
+      takeEmbeddedFontEmbeddingRestrictions().map((r) =>
+        r.source === "webfont" ? [null] : [r.path, r.faceIndex, r.fsType, r.restrictions],
+      ),
+    ).toEqual([
+      [fontPath("bitmap.ttf"), 0, 0x0200, ["bitmap-only"]],
+      [fontPath("collection.ttc"), 1, FS_TYPE_RESTRICTED, ["restricted-license"]],
+    ]);
   });
 
   it("reports faces from the svg2ttf control arm too", () => {
@@ -259,5 +265,102 @@ describe("embedding-restriction notices", () => {
     restoreEmbeddedFonts(snapshotEmbeddedFonts());
     getBuiltEmbeddedFontFaceCss();
     expect(takeEmbeddedFontEmbeddingRestrictions()).toHaveLength(1);
+  });
+});
+
+// DM-N4Y9T1: a webfont is registered from its downloaded bytes and has no
+// on-disk path, so it never reached the path-keyed source-face check. Its
+// permission bits come from fontkit's parsed OS/2 table instead.
+describe("webfont embedding-restriction notices", () => {
+  const fixture = readFileSync(
+    fileURLToPath(new URL("../../assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf", import.meta.url)),
+  );
+  /** A registry-shaped webfont instance: the fontkit face plus its `@font-face` bytes. */
+  function webfont(fsType: number): { webfontBuffer: Buffer; postscriptName?: string; familyName?: string } {
+    const buffer = withOs2FsType(fixture, fsType);
+    const font = fontkit.create(buffer) as unknown as {
+      webfontBuffer: Buffer;
+      postscriptName?: string;
+      familyName?: string;
+    };
+    font.webfontBuffer = buffer;
+    return font;
+  }
+  function trackWebfont(key: string, font: ReturnType<typeof webfont>): void {
+    trackGlyphInEmbedFont(key, 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      webfontSource: webfontEmbeddingSourceFor(font),
+    });
+  }
+
+  beforeEach(() => clearEmbeddedFontBuilder());
+  afterEach(() => clearEmbeddedFontBuilder());
+
+  it("reads a webfont's permission bits from fontkit's decoded OS/2 table", () => {
+    expect(webfontEmbeddingSourceFor(webfont(0x0002))).toEqual(
+      expect.objectContaining({ postscriptName: "IBMPlexSerif-Regular", familyName: "IBM Plex Serif", fsType: 0x0002 }),
+    );
+    expect(webfontEmbeddingSourceFor(webfont(0x0304))?.fsType).toBe(0x0304);
+    expect(webfontEmbeddingSourceFor(webfont(0))?.fsType).toBe(0);
+    // Not a webfont: no bytes, no record.
+    expect(webfontEmbeddingSourceFor({ postscriptName: "X" })).toBeNull();
+    expect(webfontEmbeddingSourceFor(null)).toBeNull();
+  });
+
+  it("reports a restricted webfont once per generation, however many entries and instances use its bytes", () => {
+    const font = webfont(0x0002);
+    const sameBytes = fontkit.create(font.webfontBuffer) as unknown as ReturnType<typeof webfont>;
+    sameBytes.webfontBuffer = font.webfontBuffer;
+    trackWebfont("wf|w=400", font);
+    trackWebfont("wf|w=700", sameBytes);
+    getBuiltEmbeddedFontFaceCss();
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([
+      {
+        source: "webfont",
+        postscriptName: "IBMPlexSerif-Regular",
+        familyName: "IBM Plex Serif",
+        fsType: 0x0002,
+        restrictions: ["restricted-license"],
+      },
+    ]);
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([]);
+    // A re-registration (a later frame's rediscovery) is a new Buffer of the same bytes: still one face.
+    const reRegistered = webfont(0x0002);
+    expect(reRegistered.webfontBuffer).not.toBe(font.webfontBuffer);
+    trackWebfont("wf|w=400", reRegistered);
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([]);
+    clearEmbeddedFontBuilder();
+    trackWebfont("wf|w=400", font);
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toHaveLength(1);
+  });
+
+  it("ignores installable and least-restrictive webfonts, and keeps bitmap-only ones", () => {
+    trackWebfont("ok|w=400", webfont(0));
+    trackWebfont("print|w=400", webfont(0x0006)); // Restricted + Preview & Print: not restricted
+    trackWebfont("bitmap|w=400", webfont(0x0200));
+    expect(takeEmbeddedFontEmbeddingRestrictions().map((r) => [r.source, r.fsType, r.restrictions])).toEqual([
+      ["webfont", 0x0200, ["bitmap-only"]],
+    ]);
+  });
+
+  it("restates a single webfont's fsType in the svg2ttf rebuild instead of svg2ttf's 0", () => {
+    trackWebfont("wf-bytes|w=400", webfont(0x0002));
+    const bytes = decodeFirstFont(getBuiltEmbeddedFontFaceCss());
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({ selectedBuilder: "svg2ttf" }));
+    expect(sfntOs2FsType(bytes)).toBe(0x0002);
+  });
+
+  it("keeps svg2ttf's 0 when two webfonts with different permissions share one entry", () => {
+    trackWebfont("mixed|w=400", webfont(0x0002));
+    trackWebfont("mixed|w=400", webfont(0));
+    expect(sfntOs2FsType(decodeFirstFont(getBuiltEmbeddedFontFaceCss()))).toBe(0);
+  });
+
+  it("forgets a discarded trial's webfont on snapshot rollback", () => {
+    const marker = snapshotEmbeddedFonts();
+    trackWebfont("trial|w=400", webfont(0x0002));
+    restoreEmbeddedFonts(marker);
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([]);
   });
 });

@@ -39,6 +39,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import svg2ttf from "svg2ttf";
 import { shearPathCommands } from "./embolden-outline.js";
+import { hbShapingBaseOf } from "./harfbuzz-shaper.js";
 import { invokeSynchronousCallback, type SynchronousCallback } from "./synchronous-scope.js";
 import {
   appendGlyphCopy,
@@ -129,6 +130,7 @@ export interface PathCommand {
  *   - `weightMin`/`weightMax` — widened monotonically as weights are tracked
  *   - `hintedSourceDisqualified` — latches false → true
  *   - `sourceFaces`       — append-only Map, distinct source faces seen
+ *   - `webfontSources`    — append-only Map, distinct webfont faces seen
  *
  * The remaining fields (`cssFamily`, `unitsPerEm`, `ascender`, `descender`,
  * `italic`, `hintedSource`) are written once at entry creation and never
@@ -188,6 +190,12 @@ export interface BuilderEntry {
    * (`takeEmbeddedFontEmbeddingRestrictions`), never by the font build.
    */
   sourceFaces: Map<string, HintedSource>;
+  /**
+   * Every `@font-face` webfont whose glyphs joined this entry, keyed by its
+   * per-buffer id. A webfont has no on-disk path, so it never appears in
+   * `sourceFaces`; this is its counterpart for the embedding-permission notice.
+   */
+  webfontSources: Map<string, WebfontEmbeddingSource>;
   /** Stable diagnostic reasons accumulated while glyphs/runs join this entry. */
   hintedSourceDisqualificationReasons: Set<HintedSourceDisqualificationReason>;
   /** Distinct shaped runs that contributed glyph occurrences to this entry. */
@@ -314,6 +322,8 @@ function cloneBuilderEntry(entry: BuilderEntry): BuilderEntry {
     runIds: new Set(entry.runIds),
     // HintedSource records are written once and never mutated, so sharing them is safe.
     sourceFaces: new Map(entry.sourceFaces),
+    // WebfontEmbeddingSource records are immutable too.
+    webfontSources: new Map(entry.webfontSources),
     buildDiagnostic:
       entry.buildDiagnostic == null
         ? null
@@ -401,6 +411,8 @@ export function trackGlyphInEmbedFont(
     weight: number;
     shearFactor?: number;
     hintedSource?: HintedSource | null;
+    /** The run's `@font-face` source when it is a webfont (`webfontEmbeddingSourceFor`). */
+    webfontSource?: WebfontEmbeddingSource | null;
     targetStrike?: boolean;
     runToken?: object;
   } = { italic: false, weight: 400 },
@@ -422,6 +434,7 @@ export function trackGlyphInEmbedFont(
       hintedSourceDisqualified: false,
       hintedSourceDisqualificationReasons: new Set(),
       sourceFaces: new Map(),
+      webfontSources: new Map(),
       runIds: new Set(),
       glyphOccurrenceCount: 0,
       buildDiagnostic: null,
@@ -468,6 +481,10 @@ export function trackGlyphInEmbedFont(
   if (glyphSource?.faceIndex != null) {
     const faceKey = hintedOutlineGuardKey(glyphSource.path, glyphSource.faceIndex);
     if (!entry.sourceFaces.has(faceKey)) entry.sourceFaces.set(faceKey, glyphSource);
+  }
+  const webfontSource = variant.webfontSource;
+  if (webfontSource != null && !entry.webfontSources.has(webfontSource.id)) {
+    entry.webfontSources.set(webfontSource.id, webfontSource);
   }
   entry.glyphOccurrenceCount++;
   if (variant.runToken != null) entry.runIds.add(variant.runToken);
@@ -771,7 +788,11 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
     `<missing-glyph horiz-adv-x="${Math.round(entry.unitsPerEm / 2)}"/>` +
     glyphEls.join("") +
     `</font></defs></svg>`;
-  const out = withSourceFsType(Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer), entry.hintedSource);
+  const out = withSourceFsType(
+    Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer),
+    entry.hintedSource,
+    entry.webfontSources,
+  );
   entry.buildDiagnostic = diagnosticFor(entry, instanceKey, "svg2ttf", sfntTableTags(out), out);
   return out;
 }
@@ -783,15 +804,24 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
  * fallback say the same thing rather than advertise a permission the source did
  * not grant.
  *
- * Only an entry with one known source face (`hintedSource` with a face index)
- * has a single `fsType` to carry. Glyphs assembled from helper-extracted
+ * Only an entry with one known source face (`hintedSource` with a face index,
+ * or exactly one webfont and no file source) has a single `fsType` to carry. Glyphs assembled from helper-extracted
  * outlines without one keep svg2ttf's 0. The field is metadata: Chromium does
  * not read it for webfonts (no use in Blink's font code, Chromium 7d859f27),
  * and OTS only normalizes its bits, so rendering is unchanged.
  */
-function withSourceFsType(out: Buffer, source: HintedSource | null): Buffer {
-  if (source?.faceIndex == null) return out;
-  const fsType = sourceFaceFsType(source.path, source.faceIndex);
+function withSourceFsType(
+  out: Buffer,
+  source: HintedSource | null,
+  webfontSources: ReadonlyMap<string, WebfontEmbeddingSource>,
+): Buffer {
+  let fsType: number | null = null;
+  if (source?.faceIndex != null) fsType = sourceFaceFsType(source.path, source.faceIndex);
+  else if (source == null && webfontSources.size === 1) {
+    // A webfont entry has no file source; its one `@font-face` face's
+    // permission bits come from fontkit's decoded OS/2 table.
+    fsType = [...webfontSources.values()][0].fsType;
+  }
   return fsType == null ? out : withOs2FsType(out, fsType);
 }
 
@@ -828,13 +858,105 @@ function sourceFaceFsType(path: string, faceIndex: number): number | null {
 export type EmbeddingRestrictionKind = "restricted-license" | "bitmap-only";
 
 /** One source face, embedded in this render, whose `fsType` restricts embedding. */
-export interface EmbeddedFontEmbeddingRestriction {
+export type EmbeddedFontEmbeddingRestriction = EmbeddedFileFaceRestriction | EmbeddedWebfontRestriction;
+
+/** A restricted on-disk (system or registered-file) face. */
+export interface EmbeddedFileFaceRestriction {
+  /** Absent on records from before webfonts were reported; means `"file"`. */
+  source?: "file";
   path: string;
   faceIndex: number;
   postscriptName: string | null;
   /** The raw OS/2 `fsType` value read from the source face. */
   fsType: number;
   restrictions: EmbeddingRestrictionKind[];
+}
+
+/** A restricted `@font-face` webfont, which has no on-disk path. */
+export interface EmbeddedWebfontRestriction {
+  source: "webfont";
+  postscriptName: string | null;
+  familyName: string | null;
+  /** The OS/2 `fsType` permission bits fontkit decodes (1-3, 8, 9); reserved bits read as 0. */
+  fsType: number;
+  restrictions: EmbeddingRestrictionKind[];
+}
+
+/** The embedding-permission facts of one registered webfont buffer. */
+export interface WebfontEmbeddingSource {
+  /** Content hash of the `@font-face` bytes, for once-per-generation reporting. */
+  readonly id: string;
+  readonly postscriptName: string | null;
+  readonly familyName: string | null;
+  /** Null when the face has no readable OS/2 table. */
+  readonly fsType: number | null;
+}
+
+/** The fontkit-decoded OS/2 `fsType` bitfield (fontkit keeps the flags, not the raw value). */
+interface FontkitFsTypeFlags {
+  noEmbedding?: boolean;
+  viewOnly?: boolean;
+  editable?: boolean;
+  noSubsetting?: boolean;
+  bitmapOnly?: boolean;
+}
+
+const webfontEmbeddingSources = new WeakMap<Buffer, WebfontEmbeddingSource>();
+
+/**
+ * The embedding-permission facts for a run font resolved through the webfont
+ * registry (it carries the `@font-face` bytes as `webfontBuffer`, directly or
+ * on the instance a HarfBuzz shaping proxy wraps), or null for any other font.
+ * Memoized per buffer and identified by content, so every instance, weight and
+ * re-registration of one `@font-face` file reports as one face. `fsType` comes from fontkit's
+ * parsed OS/2 table, which also covers WOFF and WOFF2 buffers; fontkit exposes
+ * the permission bits as flags, so the value is rebuilt from bits 1-3, 8 and 9.
+ */
+export function webfontEmbeddingSourceFor(
+  font:
+    | {
+        webfontBuffer?: Buffer;
+        postscriptName?: string | null;
+        familyName?: string | null;
+        "OS/2"?: unknown;
+      }
+    | null
+    | undefined,
+): WebfontEmbeddingSource | null {
+  if (font == null) return null;
+  // Production runs shape through a HarfBuzz proxy over the registry's
+  // instance, and the proxy does not carry the `@font-face` bytes.
+  font = hbShapingBaseOf(font);
+  const buffer = font.webfontBuffer;
+  if (buffer == null) return null;
+  const cached = webfontEmbeddingSources.get(buffer);
+  if (cached != null) return cached;
+  let fsType: number | null = null;
+  try {
+    const os2 = font["OS/2"] as { fsType?: FontkitFsTypeFlags | number } | undefined;
+    const raw = os2?.fsType;
+    if (typeof raw === "number") fsType = raw;
+    else if (raw != null && typeof raw === "object") {
+      fsType =
+        (raw.noEmbedding === true ? 0x0002 : 0) |
+        (raw.viewOnly === true ? 0x0004 : 0) |
+        (raw.editable === true ? 0x0008 : 0) |
+        (raw.noSubsetting === true ? 0x0100 : 0) |
+        (raw.bitmapOnly === true ? 0x0200 : 0);
+    }
+  } catch {
+    fsType = null; // fontkit parses tables lazily; an unreadable OS/2 is no permission statement
+  }
+  const source: WebfontEmbeddingSource = {
+    // Content-addressed: a multi-frame capture rediscovers and re-registers the
+    // same `@font-face` file as a new Buffer, and must still report one face.
+    id: `webfont#${createHash("sha256").update(buffer).digest("hex")}`,
+    postscriptName: typeof font.postscriptName === "string" ? font.postscriptName : null,
+    familyName: typeof font.familyName === "string" ? font.familyName : null,
+    fsType,
+  };
+  webfontEmbeddingSources.set(buffer, source);
+  return source;
 }
 
 /**
@@ -882,6 +1004,19 @@ export function takeEmbeddedFontEmbeddingRestrictions(): EmbeddedFontEmbeddingRe
         faceIndex: source.faceIndex,
         postscriptName: source.postscriptName ?? null,
         fsType,
+        restrictions,
+      });
+    }
+    for (const [id, source] of entry.webfontSources) {
+      if (reportedRestrictedFaces.has(id) || source.fsType == null) continue;
+      const restrictions = embeddingRestrictionsForFsType(source.fsType);
+      if (restrictions.length === 0) continue;
+      reportedRestrictedFaces.add(id);
+      out.push({
+        source: "webfont",
+        postscriptName: source.postscriptName,
+        familyName: source.familyName,
+        fsType: source.fsType,
         restrictions,
       });
     }

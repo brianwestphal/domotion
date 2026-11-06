@@ -158,7 +158,8 @@
           "SK-1124",
           "DM-WP5Q5V",
           "DM-YARPB4",
-          "DM-ZXVES8"
+          "DM-ZXVES8",
+          "DM-N4Y9T1"
         ],
         "code": [
           "packages/text-engine/src/render/darwin-named-family-identity.test.ts",
