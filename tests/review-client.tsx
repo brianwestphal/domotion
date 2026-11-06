@@ -587,22 +587,6 @@ function SuiteSummary() {
   );
 }
 
-// DM-1731: opt-in kerf dev diagnostics — `?kerfdev` turns on the 2.0
-// warnings (value-only re-renders that could be fully bound; stale bindings)
-// during development. Query-gated: production review sessions stay silent.
-declare global {
-  interface Window {
-    KERF_DEV?: boolean;
-    KERF_DEV_WARN_VALUE_ONLY_RERENDER?: boolean;
-    KERF_DEV_WARN_STALE_BINDING?: boolean;
-  }
-}
-if (location.search.includes("kerfdev")) {
-  window.KERF_DEV = true;
-  window.KERF_DEV_WARN_VALUE_ONLY_RERENDER = true;
-  window.KERF_DEV_WARN_STALE_BINDING = true;
-}
-
 // ── Mounts ──
 
 mount(cardsEl, () => (
