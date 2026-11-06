@@ -21,6 +21,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { z } from "zod";
+import { formatIssues } from "../utils/zod-issues.js";
 // DM-W7FHMJ: brand tokens are written into template `<style>` blocks and a
 // captured page's `:root{…}`, so they take the same plain-CSS-value check.
 import { cssValue } from "./builtin/shared.js";
@@ -86,10 +87,7 @@ export function loadBrand(path: string): Brand {
   }
   const result = brandSchema.safeParse(parsed);
   if (!result.success) {
-    const issues = result.error.issues
-      .map((i) => `${i.path.length > 0 ? i.path.join(".") : "(root)"}: ${i.message}`)
-      .join("; ");
-    throw new Error(`brand: invalid brand file ${path} — ${issues}`);
+    throw new Error(`brand: invalid brand file ${path} — ${formatIssues(result.error.issues)}`);
   }
   const brand = result.data;
   if (brand.logo != null && brand.logo !== "" && !isAbsolute(brand.logo) && !/^https?:\/\//i.test(brand.logo)) {

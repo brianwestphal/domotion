@@ -23,6 +23,7 @@ import { composeAnimateConfig, type AnimateConfig } from "../cli/animate.js";
 import type { CaptureToSvgParams, Template, TemplateOutput, TemplateRenderContext } from "./types.js";
 import type { SafeInset } from "./formats.js";
 import type { Brand } from "./brand.js";
+import { formatIssues } from "../utils/zod-issues.js";
 
 const MOBILE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)";
 
@@ -73,10 +74,7 @@ async function captureToSvg(
 export function validateTemplateParams<P>(template: Template<P>, raw: unknown): P {
   const result = template.paramsSchema.safeParse(normalizeTemplateAliases(template, raw));
   if (result.success) return result.data;
-  const issues = result.error.issues
-    .map((i) => `${i.path.length > 0 ? i.path.join(".") : "(root)"}: ${i.message}`)
-    .join("; ");
-  throw new Error(`template "${template.name}": invalid params — ${issues}`);
+  throw new Error(`template "${template.name}": invalid params — ${formatIssues(result.error.issues)}`);
 }
 
 /** Resolve legacy keys without wrapping the ZodObject used by CLI and JSON Schema tooling. */

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Locator, Page } from "@playwright/test";
 import { z } from "zod";
 import { runActions, type AnimateAction } from "../cli/animate-orchestrator.js";
+import { formatIssuePath } from "../utils/zod-issues.js";
 import {
   studioSemanticTrackSchema,
   type StudioSemanticEvent,
@@ -45,8 +46,7 @@ export function compileStudioSemanticTracks(
   const parsed = z.array(studioSemanticTrackSchema).safeParse(rawTracks);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    const suffix = issue.path.map((part) => (typeof part === "number" ? `[${part}]` : `.${String(part)}`)).join("");
-    throw new StudioInteractionError(`${basePath}${suffix}`, issue.message);
+    throw new StudioInteractionError(formatIssuePath(issue.path, basePath), issue.message);
   }
 
   const seenIds = new Set<string>();

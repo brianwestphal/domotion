@@ -7,6 +7,7 @@ import { launchChromium } from "../capture/index.js";
 import { runSvgToVideo } from "../cli/svg-to-video-core.js";
 import { applyStudioAnnotationCommand } from "./annotations.js";
 import { validateStudioProject } from "./project.js";
+import { formatIssues } from "../utils/zod-issues.js";
 import { studioAnnotationTargetSchema, studioIdSchema, type StudioProject } from "./project-schema.js";
 
 export const STUDIO_VIDEO_REVIEW_DIMENSIONS = [
@@ -318,7 +319,7 @@ async function decide(
   const parsed = decisionSchema.safeParse(raw);
   if (!parsed.success)
     throw new StudioVideoReviewError(
-      `AI video review returned an invalid decision: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`,
+      `AI video review returned an invalid decision: ${formatIssues(parsed.error.issues, "$")}`,
     );
   return parsed.data;
 }

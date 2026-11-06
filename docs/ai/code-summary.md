@@ -165,7 +165,9 @@ deviation for box, inline, control, and text shadows.
 - `src/utils/` holds cross-cutting runtime helpers (the one Node-side `data:`
   URL decoder is `data-uri.ts`; the one SVG intrinsic-size reader is
   `src/animation/svg-meta.ts`; SVG text/attribute escaping goes through
-  `src/render/format.ts` `esc`); checked-in generated
+  `src/render/format.ts` `esc`, and fixed-precision SVG/CSS numbers through
+  its `formatNumber`; every zod validation message formats its issue paths
+  through `zod-issues.ts`); checked-in generated
   source lives beside its owner (`packages/text-engine/src/generated/` for the
   MathML operator dictionary, `src/capture/script.generated.ts`, and the
   `*.bundle.generated.ts` clients); `src/test-support/` contains reusable test

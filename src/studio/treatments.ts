@@ -7,6 +7,7 @@ import { parseSvgIntrinsicSize } from "../animation/svg-meta.js";
 import { wrapInDeviceChrome } from "../render/device-chrome.js";
 import { esc } from "../render/format.js";
 import type { Brand } from "../templates/brand.js";
+import { formatIssues } from "../utils/zod-issues.js";
 import {
   studioTreatmentsSchema,
   type StudioTreatment,
@@ -58,9 +59,7 @@ const defaultTiming = (): StudioTreatmentTiming => ({
 export function resolveStudioTreatmentPlan(raw: unknown, brand: Brand = {}): StudioTreatmentPlan {
   const parsed = studioTreatmentsSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new StudioTreatmentError(
-      `invalid Studio treatment: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`,
-    );
+    throw new StudioTreatmentError(`invalid Studio treatment: ${formatIssues(parsed.error.issues, "$")}`);
   }
   const layers: StudioTreatmentLayerPrimitive[] = [];
   const masks: StudioTreatmentMaskPrimitive[] = [];

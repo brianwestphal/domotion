@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { StoryboardConfig, StoryboardScene } from "../cli/storyboard.js";
 import { validateStoryboardConfig } from "../cli/storyboard.js";
+import { formatIssuePath } from "../utils/zod-issues.js";
 import {
   STUDIO_PROJECT_FORMAT,
   STUDIO_PROJECT_SCHEMA_ID,
@@ -27,14 +28,6 @@ export class StudioProjectValidationError extends Error {
   }
 }
 
-function formatPath(path: readonly PropertyKey[]): string {
-  let out = "$";
-  for (const part of path) {
-    out += typeof part === "number" ? `[${part}]` : `.${String(part)}`;
-  }
-  return out;
-}
-
 function unsupportedVersionIssue(raw: unknown): StudioProjectValidationIssue | null {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw) || !("version" in raw)) return null;
   const version = (raw as { version?: unknown }).version;
@@ -54,7 +47,7 @@ export function validateStudioProject(raw: unknown, source = "studio project"): 
   if (!parsed.success) {
     throw new StudioProjectValidationError(
       parsed.error.issues.map((issue) => ({
-        path: formatPath(issue.path),
+        path: formatIssuePath(issue.path, "$"),
         message: issue.message,
         code: issue.code,
       })),

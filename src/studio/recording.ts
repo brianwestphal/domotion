@@ -8,6 +8,7 @@ import { studioPageSelectorFor } from "./page-script/selector.js";
 import { installStudioRecorderInPage, type BrowserRecorderOptions } from "./page-script/recorder.js";
 import { compileStudioSemanticTracks } from "./interactions.js";
 import { validateStudioProject } from "./project.js";
+import { formatIssuePath } from "../utils/zod-issues.js";
 import {
   studioIdSchema,
   studioSceneSchema,
@@ -343,7 +344,9 @@ function validateImportedScene(raw: unknown, project: StudioProject, phase: stri
   const parsed = studioSceneSchema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    throw new StudioRecordingError(`AI ${phase} scene is invalid at $.${issue.path.join(".")}: ${issue.message}`);
+    throw new StudioRecordingError(
+      `AI ${phase} scene is invalid at ${formatIssuePath(issue.path, "$")}: ${issue.message}`,
+    );
   }
   const scene = parsed.data;
   if (project.scenes.some((candidate) => candidate.id === scene.id))

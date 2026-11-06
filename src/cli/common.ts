@@ -15,6 +15,7 @@ import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
 import { setChromiumAutoInstallDefault } from "../capture/chromium-auto-install.js";
 import { gzipSvg } from "../post-processing/index.js";
+import { formatIssues, type ValidationIssueLike } from "../utils/zod-issues.js";
 
 const execFileP = promisify(execFile);
 
@@ -174,19 +175,12 @@ export function errorMessage(error: unknown): string {
 
 /**
  * Render every issue of a zod validation failure on one line, `path: message`
- * separated by `; `, with array indexes as `[n]`. Showing them all lets a user fix
- * a config in one round trip instead of one error per run.
+ * separated by `; `, with array indexes as `[n]` (the shared formatter in
+ * `src/utils/zod-issues.ts`). Showing them all lets a user fix a config in one
+ * round trip instead of one error per run.
  */
-export function formatConfigIssues(err: { issues: ReadonlyArray<{ path: PropertyKey[]; message: string }> }): string {
-  return err.issues
-    .map((issue) => {
-      const path = issue.path
-        .map((seg) => (typeof seg === "number" ? `[${seg}]` : `.${String(seg)}`))
-        .join("")
-        .replace(/^\./, "");
-      return path === "" ? issue.message : `${path}: ${issue.message}`;
-    })
-    .join("; ");
+export function formatConfigIssues(err: { issues: readonly ValidationIssueLike[] }): string {
+  return formatIssues(err.issues);
 }
 
 /** iPhone user agent for `--mobile` captures (one string for every verb that emulates a phone). */

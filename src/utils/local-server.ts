@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import type { z } from "zod";
+import { formatIssues } from "./zod-issues.js";
 
 export interface LocalServer {
   server: Server;
@@ -181,10 +182,7 @@ export async function readJsonBody<T>(
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    const message = parsed.error.issues
-      .map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`)
-      .join("; ");
-    throw new HttpError(400, `invalid request: ${message}`);
+    throw new HttpError(400, `invalid request: ${formatIssues(parsed.error.issues)}`);
   }
   return parsed.data;
 }

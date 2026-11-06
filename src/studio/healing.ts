@@ -11,6 +11,7 @@ import {
 import { StudioProjectCompileError } from "./compile.js";
 import type { StudioInteractionEvidence } from "./interaction-observer.js";
 import { validateStudioProject } from "./project.js";
+import { formatIssuePath } from "../utils/zod-issues.js";
 import type { StudioProject } from "./project-schema.js";
 
 export type StudioAutomationPhase = "heal" | "review";
@@ -163,8 +164,9 @@ function validateAiDecision<T>(schema: z.ZodType<T>, raw: unknown, phase: Studio
   const parsed = schema.safeParse(raw);
   if (parsed.success) return parsed.data;
   const issue = parsed.error.issues[0];
-  const path = issue.path.length === 0 ? "$" : `$.${issue.path.join(".")}`;
-  throw new StudioHealingError(`AI ${phase} decision is invalid at ${path}: ${issue.message}`);
+  throw new StudioHealingError(
+    `AI ${phase} decision is invalid at ${formatIssuePath(issue.path, "$")}: ${issue.message}`,
+  );
 }
 
 function hash(value: unknown): string {
