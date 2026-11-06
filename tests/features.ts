@@ -1112,6 +1112,20 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // SVGImage::DrawInternal clips every SVG image frame to its destination
+    // rect (core/svg/graphics/svg_image.cc:548, chromium 7d859f27), whatever
+    // the root's `overflow`: content outside the viewBox of an
+    // `overflow="visible"` (or `overflow: visible`) image never paints outside
+    // the drawn image, including under `object-fit: contain` in a wider box.
+    name: "image-svg-overflow-visible-clip",
+    html: `<div style="padding:30px 50px;background:#e2e8f0;display:flex;gap:60px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" overflow="visible"><rect width="80" height="80" fill="#2563eb"/><rect x="-40" y="25" width="160" height="30" fill="#ed1234"/><circle cx="40" cy="-10" r="20" fill="#16a34a"/></svg>')}" style="display:block;width:80px;height:80px">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" style="overflow:visible"><rect width="80" height="80" fill="#0ea5e9"/><rect x="-40" y="25" width="160" height="30" fill="#f59e0b"/></svg>')}" style="display:block;width:160px;height:80px;background:#0f172a;object-fit:contain">
+    </div>`,
+    width: 480,
+    height: 140,
+  },
+  {
     name: "replaced-canvas-overlay",
     html: `<div style="padding:20px;"><div style="position:relative;width:200px;height:100px;"><canvas id="c3" width="200" height="100" style="display:block;background:#444;position:absolute;left:0;top:0;z-index:1;"></canvas><div style="position:absolute;left:60px;top:30px;width:80px;height:40px;background:rgba(220,38,38,0.7);z-index:10;"></div></div></div><script>(function(){var c=document.getElementById('c3').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);c.fillRect(150,50,30,30);})();</script>`,
     width: 240,

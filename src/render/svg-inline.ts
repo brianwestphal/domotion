@@ -355,18 +355,16 @@ function mappedViewBoxRect(viewBox: ViewBox, m: AffineMatrix): Rect {
 }
 
 /**
- * Wrap `content` (the root box's markup, viewport mapping included) in the
- * root's `transform`, applied about the concrete object rect's center, and clip
- * the result to the drawn image: `SVGImage::DrawInternal` always clips to its
- * destination rect before drawing the frame (`core/svg/graphics/svg_image.cc:549`),
- * whatever the root's `overflow`. The clip is the placement (content) box
- * intersected with the concrete object rect: the object rect is smaller for
- * `object-fit: contain`, the content box for `cover`.
+ * Clip `content` to the drawn image: `SVGImage::DrawInternal` always clips to
+ * its destination rect before drawing the frame
+ * (`core/svg/graphics/svg_image.cc:548`, chromium 7d859f27), whatever the
+ * root's `overflow`. The clip is the placement (content) box intersected with
+ * the concrete object rect: the object rect is smaller for `object-fit:
+ * contain`, the content box for `cover`. A Chromium probe confirms both an
+ * `overflow="visible"` root drawn at the image box and a `contain` image
+ * clipped to its object rect inside a wider content box.
  */
-function applyImageRootTransform(content: string, transform: string, p: InlineSvgPlacement, object: Rect): string {
-  const f = (n: number): string => Number(n.toFixed(6)).toString();
-  const cx = object.x + object.w / 2;
-  const cy = object.y + object.h / 2;
+function clipToImage(content: string, p: InlineSvgPlacement, object: Rect): string {
   const x0 = Math.max(p.x, object.x);
   const y0 = Math.max(p.y, object.y);
   const x1 = Math.min(p.x + p.w, object.x + object.w);
@@ -374,7 +372,41 @@ function applyImageRootTransform(content: string, transform: string, p: InlineSv
   const clipId = `${p.idPrefix}vclip-img`;
   return (
     `<clipPath id="${clipId}"><rect x="${r(x0)}" y="${r(y0)}" width="${r(Math.max(0, x1 - x0))}" height="${r(Math.max(0, y1 - y0))}"/></clipPath>` +
-    `<g clip-path="url(#${clipId})"><g transform="translate(${f(cx)} ${f(cy)}) ${transform} translate(${f(-cx)} ${f(-cy)})">${content}</g></g>`
+    `<g clip-path="url(#${clipId})">${content}</g>`
+  );
+}
+
+/**
+ * Wrap `content` (the root box's markup, viewport mapping included) in the
+ * root's `transform`, applied about the concrete object rect's center, and clip
+ * the result to the drawn image ({@link clipToImage}).
+ */
+function applyImageRootTransform(content: string, transform: string, p: InlineSvgPlacement, object: Rect): string {
+  const f = (n: number): string => Number(n.toFixed(6)).toString();
+  const cx = object.x + object.w / 2;
+  const cy = object.y + object.h / 2;
+  return clipToImage(
+    `<g transform="translate(${f(cx)} ${f(cy)}) ${transform} translate(${f(-cx)} ${f(-cy)})">${content}</g>`,
+    p,
+    object,
+  );
+}
+
+/** Whether the root `<svg>` sets `overflow: visible` (attribute or style). */
+function rootOverflowVisible(attrs: string): boolean {
+  return /\boverflow\s*=\s*["']?\s*visible/i.test(attrs) || /\boverflow\s*:\s*visible/i.test(attrs);
+}
+
+/** Whether the concrete object rect leaves part of the placement box uncovered
+ *  (`object-fit: contain` / `scale-down`), so the root viewport's own clip at
+ *  the placement box is wider than the drawn image. */
+function objectInsetFromPlacement(p: InlineSvgPlacement, object: Rect): boolean {
+  const eps = 1e-6;
+  return (
+    object.x > p.x + eps ||
+    object.y > p.y + eps ||
+    object.x + object.w < p.x + p.w - eps ||
+    object.y + object.h < p.y + p.h - eps
   );
 }
 
@@ -530,11 +562,16 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
     `<svg${rootAttrs}` +
     ` x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"` +
     ` viewBox="${viewBox}" preserveAspectRatio="${p.par}">`;
-  if (rootTransform == null) return open + body;
   const rect = resolveViewBoxRect(tag.attributes, p.intrinsic);
   const matrix = rect == null ? null : computeViewportMatrix(p, rect, parsePreserveAspectRatio(p.par));
   const object = rect != null && matrix != null ? mappedViewBoxRect(rect, matrix) : p;
-  return applyImageRootTransform(open + body, rootTransform, p, object);
+  if (rootTransform != null) return applyImageRootTransform(open + body, rootTransform, p, object);
+  // The nested viewport clips to the placement box, which equals the drawn
+  // image only when the object rect covers it and overflow is not visible.
+  if (rootOverflowVisible(tag.attributes) || objectInsetFromPlacement(p, object)) {
+    return clipToImage(open + body, p, object);
+  }
+  return open + body;
 }
 
 // ── DM-K0S6ZS: opt-in nested-SVG FLATTENING ────────────────────────────────
@@ -699,20 +736,21 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
   const group = `<g${groupAttrs} transform="${m}">${body}</g>`;
 
   // A nested `<svg>` clips to its viewport (overflow:hidden default); a `<g>`
-  // does not. Add a rect clip at the placement rect unless overflow is visible.
-  const overflowVisible = /\boverflow\s*=\s*["']?\s*visible/i.test(attrs) || /\boverflow\s*:\s*visible/i.test(attrs);
+  // does not. Add a rect clip at the placement rect unless overflow is
+  // visible; the drawn-image clip applies either way.
   const rootTransform = rootSvgTransformAttribute(attrs);
-  if (overflowVisible) {
+  const object = mappedViewBoxRect(viewBox, matrix);
+  if (rootOverflowVisible(attrs)) {
     return rootTransform == null
-      ? group
-      : applyImageRootTransform(group, rootTransform, p, mappedViewBoxRect(viewBox, matrix));
+      ? clipToImage(group, p, object)
+      : applyImageRootTransform(group, rootTransform, p, object);
   }
   const clipId = `${p.idPrefix}vclip`;
   const clipped =
     `<clipPath id="${clipId}"><rect x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"/></clipPath>` +
     `<g clip-path="url(#${clipId})">${group}</g>`;
-  if (rootTransform == null) return clipped;
+  if (rootTransform == null) return objectInsetFromPlacement(p, object) ? clipToImage(clipped, p, object) : clipped;
   // The root box's own clip moves with the root transform (it is inside it);
   // the `<img>` box clip does not.
-  return applyImageRootTransform(clipped, rootTransform, p, mappedViewBoxRect(viewBox, matrix));
+  return applyImageRootTransform(clipped, rootTransform, p, object);
 }

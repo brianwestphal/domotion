@@ -146,7 +146,12 @@ describe("inlineImgSvg — img src=svg → positioned native <svg> (DM-1588)", (
   it("keeps the source viewBox and re-declares x/y/width/height/preserveAspectRatio", () => {
     const src = `<svg width="50px" height="50px" viewBox="0 0 50 50"><rect width="50" height="50"/></svg>`;
     const out = inlineImgSvg(src, P)!;
-    expect(out.startsWith("<svg")).toBe(true);
+    // `meet` leaves an 80x80 object rect inside the 100x80 box: Blink clips the
+    // image to that rect (svg_image.cc:548), the nested viewport only to the box.
+    expect(out.startsWith(`<clipPath id="P-vclip-img"><rect x="20" y="20" width="80" height="80"/></clipPath>`)).toBe(
+      true,
+    );
+    expect(out).toContain(`<g clip-path="url(#P-vclip-img)"><svg`);
     expect(out).toContain(`viewBox="0 0 50 50"`);
     expect(out).toContain(`x="10" y="20" width="100" height="80"`);
     expect(out).toContain(`preserveAspectRatio="xMidYMid meet"`);
@@ -187,7 +192,7 @@ describe("inlineImgSvg — img src=svg → positioned native <svg> (DM-1588)", (
 
   it("drops an XML declaration / leading content before the root <svg>", () => {
     const src = `<?xml version="1.0"?>\n<svg viewBox="0 0 10 10"><rect/></svg>`;
-    const out = inlineImgSvg(src, P)!;
+    const out = inlineImgSvg(src, { ...P, w: 80 })!;
     expect(out.startsWith("<svg")).toBe(true);
     expect(out).not.toContain("<?xml");
   });
@@ -545,9 +550,40 @@ describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {
     expect(out).toContain(`d="M2 2h20v20H2z"`);
   });
 
-  it("omits the clip when the source sets overflow:visible", () => {
-    const out = flattenImgSvg(`<svg viewBox="0 0 24 24" overflow="visible"><path d="M0 0h1v1z"/></svg>`, place);
-    expect(out).not.toBeNull();
+  // SVGImage::DrawInternal clips every frame to its destination rect
+  // (core/svg/graphics/svg_image.cc:548, chromium 7d859f27), whatever the
+  // root's overflow; a Chromium probe confirms content outside the viewBox of
+  // an overflow="visible" image is not painted outside the image box.
+  it("clips an overflow:visible source to the drawn image instead of omitting the clip", () => {
+    for (const root of [` overflow="visible"`, ` style="overflow: visible"`]) {
+      const out = flattenImgSvg(`<svg viewBox="0 0 24 24"${root}><path d="M0 0h1v1z"/></svg>`, place)!;
+      expect(
+        out.startsWith(`<clipPath id="svgimg0vclip-img"><rect x="4" y="8" width="16" height="16"/></clipPath>`),
+      ).toBe(true);
+      expect(out).toContain(`<g clip-path="url(#svgimg0vclip-img)"><g`);
+      expect(out).not.toContain(`id="svgimg0vclip"`);
+    }
+  });
+
+  it("clips an overflow:visible nested <svg> to the drawn image", () => {
+    const out = inlineImgSvg(`<svg viewBox="0 0 24 24" overflow="visible"><path d="M0 0h1v1z"/></svg>`, place)!;
+    expect(
+      out.startsWith(`<clipPath id="svgimg0vclip-img"><rect x="4" y="8" width="16" height="16"/></clipPath>`),
+    ).toBe(true);
+    expect(out).toContain(`<g clip-path="url(#svgimg0vclip-img)"><svg overflow="visible"`);
+  });
+
+  it("clips a contain-fitted image to its object rect, not the wider placement box", () => {
+    const wide = { ...place, w: 32 };
+    const nested = inlineImgSvg(`<svg viewBox="0 0 24 24"><path d="M0 0h1v1z"/></svg>`, wide)!;
+    expect(nested).toContain(`<rect x="12" y="8" width="16" height="16"/>`);
+    const flat = flattenImgSvg(`<svg viewBox="0 0 24 24"><path d="M0 0h1v1z"/></svg>`, wide)!;
+    expect(flat).toContain(`<clipPath id="svgimg0vclip-img"><rect x="12" y="8" width="16" height="16"/></clipPath>`);
+  });
+
+  it("adds no image clip when the object rect fills the placement box", () => {
+    const out = inlineImgSvg(`<svg viewBox="0 0 24 24"><path d="M0 0h1v1z"/></svg>`, place)!;
+    expect(out.startsWith("<svg")).toBe(true);
     expect(out).not.toContain("clipPath");
   });
 

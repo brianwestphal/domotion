@@ -68,6 +68,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 
 - [x] **svg-inline**: Inline SVG elements are cloned as self-contained vectors; CSS-only clip/mask effects preserve native fill-box, stroke-box, and view-box resolution (DM-2328)
 - [x] **image-svg-root-transform** (doc 96): an outermost `<svg transform>` applies as a CSS transform about the root box's center — composed around the concrete object rect and clipped to the drawn image for `<img>` SVG documents (nested and `--flatten-nested-svg` output), and applied once through the captured element transform for DOM-inline SVG.
+- [x] **image-svg-overflow-visible-clip** (doc 96): an `<img>` SVG whose root sets `overflow: visible` is clipped to the drawn image (content box intersected with the concrete object rect), as Blink's `SVGImage::DrawInternal` clips every frame to its destination rect.
 - [x] **clip-path-url-reference-ownership** (DM-2362, docs 39/130): bare same-document/external URL clips preserve HTML border/object-bounding-box and SVG forced-fill ownership; Blink-invalid URL-plus-box declarations stay inactive, including stale captured trees and nested frames.
 
 ### Masks
