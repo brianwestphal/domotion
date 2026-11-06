@@ -19,6 +19,7 @@
 import { signal, computed, effect, mount, delegate } from "kerfjs";
 import { EmptyState } from "@kerfjs/ui/empty-state";
 import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { Select } from "@kerfjs/ui/select";
 import { StateBanner } from "@kerfjs/ui/state-banner";
 import { ToolbarControlGroup } from "@kerfjs/ui/toolbar-control-group";
 import {
@@ -35,6 +36,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide";
+import { selectValue, setSelectValue } from "../kerf-ui-select.js";
 import { KERF_UI_DARK_THEME_CSS } from "../kerf-ui-theme.js";
 import { postBlob, postJson } from "../utils/post-json.js";
 import { fitRectToAspect, constrainResizeToAspect } from "./crop.js";
@@ -78,16 +80,16 @@ body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-ser
 .row2{justify-content:space-between}
 .grp{display:flex;align-items:center;gap:8px}
 .tool-panel{margin:0}.tool-panel summary{display:none;cursor:pointer;color:#c7d2fe;font-weight:600}.tool-panel>.grp{margin-top:0}
-button{background:#262a35;color:#e7e9ee;border:1px solid #333845;border-radius:7px;padding:6px 11px;cursor:pointer;font:inherit}
-button:hover{background:#2f3543}button:disabled{opacity:.45;cursor:default}
-button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #9bb4ff;outline-offset:2px}
+button:where(:not(.kui-select__trigger)){background:#262a35;color:#e7e9ee;border:1px solid #333845;border-radius:7px;padding:6px 11px;cursor:pointer;font:inherit}
+button:where(:not(.kui-select__trigger)):hover{background:#2f3543}button:where(:not(.kui-select__trigger)):disabled{opacity:.45;cursor:default}
+button:where(:not(.kui-select__trigger)):focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #9bb4ff;outline-offset:2px}
 button.primary{background:#3a63d8;border-color:#3a63d8}button.primary:hover{background:#4a73e8}
 .play{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px}
 .play svg{display:block}
 .iconbtn{display:inline-grid;place-items:center;padding:6px 8px;min-width:32px}
 .with-icon{display:inline-flex;align-items:center;gap:6px}
 .bar button [data-lucide]{width:16px;height:16px}
-select,input[type=number]{background:#1c1f27;color:#e7e9ee;border:1px solid #333845;border-radius:6px;padding:5px 7px;font:inherit}
+input[type=number]{background:#1c1f27;color:#e7e9ee;border:1px solid #333845;border-radius:6px;padding:5px 7px;font:inherit}
 input[type=number]{width:84px}
 .scrub-wrap{position:relative;flex:1;min-width:200px;display:flex;align-items:center;height:24px}
 .scrub{width:100%;position:relative;z-index:2;margin:0;background:transparent}
@@ -136,7 +138,7 @@ a.dl{display:none}
 [data-scrubber-embedded] .drop,[data-scrubber-embedded] .file-input,[data-scrubber-embedded] .crop-controls,[data-scrubber-embedded] .export-wrap{display:none}
 [data-scrubber-embedded] .svg-host svg{filter:none}
 [data-scrubber-embedded] .bar{padding:8px 10px}
-@media (pointer:coarse){button,select,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}.transport{height:auto}}
+@media (pointer:coarse){button,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}.transport{height:auto}}
 @media (max-width:640px){
   .bar{padding:10px}.row:first-child{display:grid;grid-template-columns:auto auto 1fr}.row:first-child .scrub-wrap{grid-column:1/-1;grid-row:2}.row:first-child .time{grid-column:1/-1;min-width:0;text-align:left}
   .row2{align-items:stretch}.tool-panel{width:100%;border-top:1px solid #2a2e38;padding-top:6px}.tool-panel summary{display:block;min-height:44px;line-height:44px}.tool-panel>.grp{flex-wrap:wrap;padding-bottom:6px}
@@ -145,6 +147,22 @@ a.dl{display:none}
 `;
 
 const ZOOM_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 4];
+const SPEEDS = ["0.1", "0.25", "0.5", "1", "1.5", "2", "4"] as const;
+const SPEED_CHOICES = SPEEDS.map((v) => ({ value: v, label: `${v}x` }));
+const CROP_ASPECT_CHOICES = [
+  { value: "free", label: "Free" },
+  { value: "1", label: "1:1" },
+  { value: "1.7778", label: "16:9" },
+  { value: "1.3333", label: "4:3" },
+  { value: "orig", label: "Original" },
+];
+const CATEGORY_CHOICES = ["bug", "issue", "feature", "task", "investigation"].map((c) => ({ value: c, label: c }));
+
+/** The zoom-preset Select's value for a zoom percentage: its preset, or "custom". */
+function zoomPresetValue(zoomPct: number): string {
+  const preset = ZOOM_PRESETS.find((z) => Math.round(z * 100) === zoomPct);
+  return preset == null ? "custom" : String(preset);
+}
 
 // Icons come from lucide through @kerfjs/ui LucideIcon (decorative; every
 // icon-only button carries its own aria-label). Imported by name so only these
@@ -196,6 +214,8 @@ const cropTick = signal(0);
 // "orig" (the SVG's intrinsic w:h, resolved live in `cropAspectRatio`). Reset to
 // "free" whenever crop mode turns off or a new SVG loads.
 const cropAspect = signal<string>("free");
+/** The issue-ticket category; the category Select is controlled by it. */
+const ticketCategory = signal<string>("bug");
 
 // DM-1445/DM-1449: review mode. `reviewMode` is fixed at load (the server sets
 // it in the bootstrap when launched with --review). `regions` is the list of
@@ -326,13 +346,15 @@ function render() {
               {ICON_STEP_FORWARD}
             </button>
           </ToolbarControlGroup>
-          <select data-action="speed" disabled={!svgLoaded.value}>
-            {["0.1", "0.25", "0.5", "1", "1.5", "2", "4"].map((v) => (
-              <option value={v} selected={parseFloat(v) === speed.value}>
-                {v}x
-              </option>
-            ))}
-          </select>
+          <Select
+            name="speed"
+            ariaLabel="Playback speed"
+            size="compact"
+            triggerWidth="fit-content"
+            value={SPEEDS.find((v) => parseFloat(v) === speed.value) ?? "1"}
+            choices={SPEED_CHOICES}
+            disabled={!svgLoaded.value}
+          />
           <div class="scrub-wrap">
             {svgLoaded.value && dur > 0 && trackW.value > 0 && (
               <>
@@ -418,20 +440,20 @@ function render() {
               >
                 {ICON_ZOOM_OUT}
               </button>
-              <select data-action="zoompreset" title="zoom" disabled={!svgLoaded.value}>
-                {ZOOM_PRESETS.map((z) => (
-                  <option value={String(z)} selected={Math.round(z * 100) === zoomPct}>
-                    {Math.round(z * 100)}%
-                  </option>
-                ))}
-                {!ZOOM_PRESETS.some((z) => Math.round(z * 100) === zoomPct) && (
-                  <option value="custom" selected={true}>
-                    {zoomPct}%
-                  </option>
-                )}
-                <option value="fit">Fit</option>
-                <option value="fill">Fill</option>
-              </select>
+              <Select
+                name="zoompreset"
+                ariaLabel="Zoom"
+                size="compact"
+                triggerWidth="fit-content"
+                value={zoomPresetValue(zoomPct)}
+                choices={[
+                  ...ZOOM_PRESETS.map((z) => ({ value: String(z), label: `${Math.round(z * 100)}%` })),
+                  ...(zoomPresetValue(zoomPct) === "custom" ? [{ value: "custom", label: `${zoomPct}%` }] : []),
+                  { value: "fit", label: "Fit" },
+                  { value: "fill", label: "Fill" },
+                ]}
+                disabled={!svgLoaded.value}
+              />
               <button
                 type="button"
                 class="iconbtn"
@@ -467,23 +489,15 @@ function render() {
             </button>
             {/* DM-1107: aspect-ratio lock for the crop rect. Only meaningful while
                 crop mode is on — disabled otherwise. */}
-            <select data-action="cropaspect" title="crop aspect ratio" disabled={!svgLoaded.value || !cropMode.value}>
-              <option value="free" selected={cropAspect.value === "free"}>
-                Free
-              </option>
-              <option value="1" selected={cropAspect.value === "1"}>
-                1:1
-              </option>
-              <option value="1.7778" selected={cropAspect.value === "1.7778"}>
-                16:9
-              </option>
-              <option value="1.3333" selected={cropAspect.value === "1.3333"}>
-                4:3
-              </option>
-              <option value="orig" selected={cropAspect.value === "orig"}>
-                Original
-              </option>
-            </select>
+            <Select
+              name="cropaspect"
+              ariaLabel="Crop aspect ratio"
+              size="compact"
+              triggerWidth="fit-content"
+              value={cropAspect.value}
+              choices={CROP_ASPECT_CHOICES}
+              disabled={!svgLoaded.value || !cropMode.value}
+            />
           </div>
           <div class="grp export-wrap">
             <button
@@ -516,11 +530,15 @@ function render() {
                   placeholder="Issue title"
                   disabled={!svgLoaded.value}
                 />
-                <select data-action="rv-category" title="ticket category" disabled={!svgLoaded.value}>
-                  {["bug", "issue", "feature", "task", "investigation"].map((c) => (
-                    <option value={c}>{c}</option>
-                  ))}
-                </select>
+                <Select
+                  name="rv-category"
+                  ariaLabel="Ticket category"
+                  size="compact"
+                  triggerWidth="fit-content"
+                  value={ticketCategory.value}
+                  choices={CATEGORY_CHOICES}
+                  disabled={!svgLoaded.value}
+                />
                 <button
                   class={regionMode.value ? "iconbtn active" : "iconbtn"}
                   data-action="rv-region"
@@ -1178,7 +1196,6 @@ async function exportVideo(): Promise<void> {
 async function saveTicket(): Promise<void> {
   const titleEl = app.querySelector<HTMLInputElement>(".rv-title");
   const noteEl = app.querySelector<HTMLTextAreaElement>(".rv-note");
-  const catEl = app.querySelector<HTMLSelectElement>("[data-action=rv-category]");
   const title = (titleEl?.value ?? "").trim();
   if (title === "") {
     ticketStatus.value = { kind: "err", msg: "Enter an issue title first." };
@@ -1191,7 +1208,7 @@ async function saveTicket(): Promise<void> {
     const { path, framePng } = await postJson<{ path: string; framePng?: string | null }>("/ticket", {
       title,
       note: noteEl?.value ?? "",
-      category: catEl?.value ?? "bug",
+      category: ticketCategory.value,
       svgPath,
       svgName,
       frameTimeMs: playhead.value,
@@ -1318,8 +1335,11 @@ void delegate(app, "input", "[data-action=scrub]", (e, target) => {
   playhead.value = (parseFloat((target as HTMLInputElement).value) / 1000) * (durationMs.value || 1);
   seekAll(playhead.value);
 });
-void delegate(app, "change", "[data-action=speed]", (e, target) => {
-  speed.value = parseFloat((target as HTMLInputElement).value) || 1;
+void delegate(app, "change", "kui-select[name=speed]", (e, target) => {
+  speed.value = parseFloat(selectValue(target)) || 1;
+});
+void delegate(app, "change", "kui-select[name=rv-category]", (e, target) => {
+  ticketCategory.value = selectValue(target) || "bug";
 });
 void delegate(app, "change", "[data-action=inn]", (e, target) => {
   rangeStart.value = Math.max(
@@ -1341,22 +1361,26 @@ void delegate(app, "change", "[data-action=rv-attach]", (e, target) => {
 }); // DM-1449
 // DM-1107: pick a crop aspect-ratio lock. Snap the existing crop box to the new
 // ratio immediately so the constraint is visible before the next drag.
-void delegate(app, "change", "[data-action=cropaspect]", (e, target) => {
-  cropAspect.value = (target as HTMLSelectElement).value;
+void delegate(app, "change", "kui-select[name=cropaspect]", (e, target) => {
+  cropAspect.value = selectValue(target);
   const ar = cropAspectRatio();
   if (ar != null && cropRect.value != null) {
     const n = svgNaturalSize();
     cropRect.value = fitRectToAspect(cropRect.value, ar, n.w, n.h);
   }
 });
-void delegate(app, "change", "[data-action=zoompreset]", (e, target) => {
-  const v = (target as HTMLSelectElement).value;
+void delegate(app, "change", "kui-select[name=zoompreset]", (e, target) => {
+  const v = selectValue(target);
   panX.value = 0;
   panY.value = 0; // re-center on an explicit preset pick
   if (v === "fit" || v === "fill") {
     zoomMode = v;
     fitZoomKeep();
   } else if (v !== "custom") setZoom(parseFloat(v));
+  // "Fit" / "Fill" are actions, not zoom levels: show the resulting level, as
+  // the re-rendered value does, even when the re-render produces the same
+  // markup as before the pick and so leaves the control alone.
+  setSelectValue(target, zoomPresetValue(Math.round(zoom.value * 100)));
 });
 
 // Drag the in/out range markers along the timeline. Pointer-capture the tick at

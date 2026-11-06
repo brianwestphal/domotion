@@ -4362,6 +4362,8 @@
       "platforms": [],
       "code": [
         "src/kerf-ui-theme.ts",
+        "src/kerf-ui-select.ts",
+        "src/test-support/kerf-select.ts",
         "scripts/bundle-kerf-client.mjs",
         "src/review/client.tsx",
         "src/scrubber/client.tsx",

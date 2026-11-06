@@ -5,6 +5,7 @@ import { computed, delegate, mount, signal } from "kerfjs";
 import { EmptyState } from "@kerfjs/ui/empty-state";
 import { LoadingSpinner } from "@kerfjs/ui/loading-spinner";
 import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { Select } from "@kerfjs/ui/select";
 import { SegmentedControl } from "@kerfjs/ui/segmented-control";
 import { StateBanner } from "@kerfjs/ui/state-banner";
 import {
@@ -19,6 +20,7 @@ import {
   Save,
   Undo2,
 } from "lucide";
+import { selectValue } from "../kerf-ui-select.js";
 import { KERF_UI_DARK_THEME_CSS } from "../kerf-ui-theme.js";
 import { postJson } from "../utils/post-json.js";
 import {
@@ -158,11 +160,11 @@ const CSS = `
 :root{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e8edf7;background:#090d16;font-synthesis:none}
 *{box-sizing:border-box}
 body{margin:0;min-width:320px;min-height:100vh;background:radial-gradient(circle at 30% -20%,#27365f 0,transparent 42%),#090d16;color:#e8edf7}
-button,input,textarea,select{font:inherit}
-button{border:1px solid #37445d;border-radius:9px;background:#182238;color:#e8edf7;padding:8px 13px;cursor:pointer}
-button:hover{background:#22304c}button:disabled{opacity:.5;cursor:default}.primary{background:#4d6df3;border-color:#6e87ff}.primary:hover{background:#5d7cff}
-button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #8fa5ff;outline-offset:2px}
-input,textarea,select{width:100%;border:1px solid #34415a;border-radius:9px;background:#0d1423;color:#f6f8fc;padding:9px 11px}
+button,input,textarea{font:inherit}
+button:where(:not(.kui-select__trigger)){border:1px solid #37445d;border-radius:9px;background:#182238;color:#e8edf7;padding:8px 13px;cursor:pointer}
+button:where(:not(.kui-select__trigger)):hover{background:#22304c}button:where(:not(.kui-select__trigger)):disabled{opacity:.5;cursor:default}.primary{background:#4d6df3;border-color:#6e87ff}.primary:hover{background:#5d7cff}
+button:where(:not(.kui-select__trigger)):focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #8fa5ff;outline-offset:2px}
+input,textarea{width:100%;border:1px solid #34415a;border-radius:9px;background:#0d1423;color:#f6f8fc;padding:9px 11px}
 textarea{min-height:74px;resize:vertical}.app{min-height:100vh;display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr)}
 .rail{border-right:1px solid #263149;background:rgba(9,13,22,.82);backdrop-filter:blur(20px);padding:24px;display:flex;flex-direction:column;gap:22px}
 .brand{display:flex;align-items:center;gap:11px}.mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#7690ff,#9f70ff);font-weight:900;color:white;box-shadow:0 10px 30px #5f65ff44}
@@ -264,6 +266,46 @@ function sourceDefault(kind: SceneSourceKind): string {
   if (kind === "svg") return "scene.svg";
   return "session.cast";
 }
+
+const TIMELINE_SNAP_CHOICES = [1, 10, 25, 50, 100, 250].map((value) => ({
+  value: String(value),
+  label: `${value} ms`,
+}));
+const SOURCE_KIND_CHOICES = (["template", "url", "file", "svg", "cast"] as const).map((kind) => ({
+  value: kind,
+  label: kind,
+}));
+const COMPOSITION_SOURCE_CHOICES = [{ value: "composition", label: "composition" }];
+const FIT_CHOICES = (["center", "contain", "cover"] as const).map((fit) => ({ value: fit, label: fit }));
+// Widened to string: a project may carry a transition type this list does not offer.
+const TRANSITION_CHOICES: readonly { value: string; label: string }[] = (
+  [
+    "cut",
+    "crossfade",
+    "push-left",
+    "push-right",
+    "push-up",
+    "push-down",
+    "wipe",
+    "iris",
+    "zoom-in",
+    "zoom-out",
+    "shine",
+  ] as const
+).map((transition) => ({ value: transition, label: transition }));
+const CINEMATIC_PRESET_CHOICES = [
+  { value: "none", label: "None" },
+  { value: "browser-chrome", label: "Browser chrome" },
+  { value: "device-frame", label: "Phone frame" },
+  { value: "zoom-pan", label: "Focus zoom" },
+  { value: "spotlight", label: "Spotlight" },
+  { value: "title-card", label: "Title card" },
+];
+/** A scene whose treatments match no preset shows this disabled, selected choice. */
+const CINEMATIC_PRESET_CHOICES_WITH_CUSTOM = [
+  ...CINEMATIC_PRESET_CHOICES,
+  { value: "custom", label: "Custom treatments", disabled: true },
+];
 
 function cinematicPreset(scene: StudioScene): string {
   const treatments = scene.treatments ?? [];
@@ -504,13 +546,13 @@ function render() {
                       </label>
                       <label class="field">
                         <span>Snap</span>
-                        <select data-field="timeline-snap" aria-label="Timeline snap">
-                          {[1, 10, 25, 50, 100, 250].map((value) => (
-                            <option value={String(value)} selected={timelineSnapMs.value === value}>
-                              {value} ms
-                            </option>
-                          ))}
-                        </select>
+                        <Select
+                          name="timeline-snap"
+                          ariaLabel="Timeline snap"
+                          triggerWidth="fill"
+                          value={String(timelineSnapMs.value)}
+                          choices={TIMELINE_SNAP_CHOICES}
+                        />
                       </label>
                       <button
                         data-action="timeline-earlier"
@@ -619,32 +661,27 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
         </label>
         <label class="field">
           <span>Narrative beat</span>
-          <select data-field="scene-beat" aria-label={`Scene ${index + 1} narrative beat`}>
-            <option value="">Unassigned</option>
-            {current.narrative.beats.map((beat) => (
-              <option value={beat.id} data-key={beat.id} selected={scene.narrativeBeatIds?.[0] === beat.id}>
-                {beat.title}
-              </option>
-            ))}
-          </select>
+          <Select
+            name="scene-beat"
+            ariaLabel={`Scene ${index + 1} narrative beat`}
+            triggerWidth="fill"
+            value={scene.narrativeBeatIds?.[0] ?? ""}
+            choices={[
+              { value: "", label: "Unassigned" },
+              ...current.narrative.beats.map((beat) => ({ value: beat.id, label: beat.title })),
+            ]}
+          />
         </label>
         <label class="field">
           <span>Source type</span>
-          <select
-            data-field="scene-source-kind"
-            aria-label={`Scene ${index + 1} source type`}
+          <Select
+            name="scene-source-kind"
+            ariaLabel={`Scene ${index + 1} source type`}
+            triggerWidth="fill"
+            value={scene.render.kind === "composition" ? "composition" : sourceKind(scene)}
+            choices={scene.render.kind === "composition" ? COMPOSITION_SOURCE_CHOICES : SOURCE_KIND_CHOICES}
             disabled={scene.render.kind === "composition"}
-          >
-            {scene.render.kind === "composition" ? (
-              <option selected>composition</option>
-            ) : (
-              (["template", "url", "file", "svg", "cast"] as const).map((kind) => (
-                <option value={kind} selected={sourceKind(scene) === kind}>
-                  {kind}
-                </option>
-              ))
-            )}
-          </select>
+          />
         </label>
         <label class="field span2">
           <span>Source</span>
@@ -701,40 +738,23 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
         </label>
         <label class="field">
           <span>Fit</span>
-          <select data-field="scene-fit" aria-label={`Scene ${index + 1} fit`}>
-            {(["center", "contain", "cover"] as const).map((fit) => (
-              <option value={fit} selected={(scenePresentation(scene).fit ?? "center") === fit}>
-                {fit}
-              </option>
-            ))}
-          </select>
+          <Select
+            name="scene-fit"
+            ariaLabel={`Scene ${index + 1} fit`}
+            triggerWidth="fill"
+            value={scenePresentation(scene).fit ?? "center"}
+            choices={FIT_CHOICES}
+          />
         </label>
         <label class="field">
           <span>Transition</span>
-          <select data-field="scene-transition" aria-label={`Scene ${index + 1} transition`}>
-            {(
-              [
-                "cut",
-                "crossfade",
-                "push-left",
-                "push-right",
-                "push-up",
-                "push-down",
-                "wipe",
-                "iris",
-                "zoom-in",
-                "zoom-out",
-                "shine",
-              ] as const
-            ).map((transition) => (
-              <option
-                value={transition}
-                selected={(scenePresentation(scene).transition?.type ?? "crossfade") === transition}
-              >
-                {transition}
-              </option>
-            ))}
-          </select>
+          <Select
+            name="scene-transition"
+            ariaLabel={`Scene ${index + 1} transition`}
+            triggerWidth="fill"
+            value={scenePresentation(scene).transition?.type ?? "crossfade"}
+            choices={TRANSITION_CHOICES}
+          />
         </label>
         <label class="field">
           <span>Transition duration (ms)</span>
@@ -748,31 +768,15 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
         </label>
         <label class="field">
           <span>Cinematic preset</span>
-          <select data-field="scene-preset" aria-label={`Scene ${index + 1} cinematic preset`}>
-            <option value="none" selected={cinematicPreset(scene) === "none"}>
-              None
-            </option>
-            <option value="browser-chrome" selected={cinematicPreset(scene) === "browser-chrome"}>
-              Browser chrome
-            </option>
-            <option value="device-frame" selected={cinematicPreset(scene) === "device-frame"}>
-              Phone frame
-            </option>
-            <option value="zoom-pan" selected={cinematicPreset(scene) === "zoom-pan"}>
-              Focus zoom
-            </option>
-            <option value="spotlight" selected={cinematicPreset(scene) === "spotlight"}>
-              Spotlight
-            </option>
-            <option value="title-card" selected={cinematicPreset(scene) === "title-card"}>
-              Title card
-            </option>
-            {cinematicPreset(scene) === "custom" && (
-              <option value="custom" selected disabled>
-                Custom treatments
-              </option>
-            )}
-          </select>
+          <Select
+            name="scene-preset"
+            ariaLabel={`Scene ${index + 1} cinematic preset`}
+            triggerWidth="fill"
+            value={cinematicPreset(scene)}
+            choices={
+              cinematicPreset(scene) === "custom" ? CINEMATIC_PRESET_CHOICES_WITH_CUSTOM : CINEMATIC_PRESET_CHOICES
+            }
+          />
         </label>
       </div>
       <div class="scene-meta">
@@ -1108,16 +1112,16 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
           </label>
           <label class="field scene-select">
             <span>Scope</span>
-            <select data-field="annotation-scene" aria-label="Annotation scope">
-              <option value="" selected={annotationScene.value === ""}>
-                Whole project
-              </option>
-              {current.scenes.map((scene) => (
-                <option value={scene.id} data-key={scene.id} selected={annotationScene.value === scene.id}>
-                  {scene.title ?? scene.id}
-                </option>
-              ))}
-            </select>
+            <Select
+              name="annotation-scene"
+              ariaLabel="Annotation scope"
+              triggerWidth="fill"
+              value={annotationScene.value}
+              choices={[
+                { value: "", label: "Whole project" },
+                ...current.scenes.map((scene) => ({ value: scene.id, label: scene.title ?? scene.id })),
+              ]}
+            />
           </label>
           <label class="field">
             <span>Reviewer</span>
@@ -1747,11 +1751,7 @@ void delegate(app, "click", "[data-action]", (_event, target) => {
  * project). Returns false when the field is not a project field, or when its
  * beat or scene target no longer exists, so the caller discards the clone.
  */
-function applyProjectFieldInput(
-  next: StudioProject,
-  field: string | undefined,
-  control: HTMLInputElement | HTMLTextAreaElement,
-): boolean {
+function applyProjectFieldInput(next: StudioProject, field: string | undefined, control: StudioFieldControl): boolean {
   if (field === "narrative-title") {
     next.narrative.title = control.value;
     return true;
@@ -1799,7 +1799,7 @@ function applyProjectFieldInput(
 }
 
 /** Moves one scene action to the start time typed into `scene-action-at`. */
-function changeSceneActionAt(scene: StudioScene, control: HTMLInputElement | HTMLSelectElement): void {
+function changeSceneActionAt(scene: StudioScene, control: StudioFieldControl): void {
   const action = control.closest<HTMLElement>("[data-event-id]");
   const trackId = action?.dataset.trackId;
   const eventId = action?.dataset.eventId;
@@ -1819,7 +1819,7 @@ function changeSceneActionAt(scene: StudioScene, control: HTMLInputElement | HTM
 function changeSceneTiming(
   scene: StudioScene,
   field: "scene-duration" | "scene-trim-start" | "scene-trim-end",
-  control: HTMLInputElement | HTMLSelectElement,
+  control: StudioFieldControl,
 ): void {
   const number = control.value.trim() === "" ? undefined : Number(control.value);
   if (number != null && (!Number.isFinite(number) || number < (field === "scene-trim-start" ? 0 : 1))) {
@@ -1841,7 +1841,7 @@ function changeSceneTiming(
 }
 
 /** Applies a `scene-transition-duration` change. */
-function changeSceneTransitionDuration(scene: StudioScene, control: HTMLInputElement | HTMLSelectElement): void {
+function changeSceneTransitionDuration(scene: StudioScene, control: StudioFieldControl): void {
   const duration = Number(control.value);
   if (!Number.isFinite(duration) || duration < 0) {
     setFailure(new Error("Transition duration must be non-negative."));
@@ -1852,12 +1852,32 @@ function changeSceneTransitionDuration(scene: StudioScene, control: HTMLInputEle
   applyAuthoring(updateScenePresentation(scene, { transition }));
 }
 
+/**
+ * The value-bearing part of a Studio form control. A native input carries its
+ * field in `data-field`; a kerf `Select` root (`<kui-select>`) takes no data
+ * attribute, so its `name` is its field.
+ */
+interface StudioFieldControl {
+  readonly value: string;
+  closest<E extends Element = Element>(selectors: string): E | null;
+}
+const STUDIO_FIELD_SELECTOR = "[data-field], kui-select[name]";
+function studioField(target: Element): { field: string | undefined; control: StudioFieldControl } {
+  if (target.localName === "kui-select") {
+    return {
+      field: target.getAttribute("name") ?? undefined,
+      control: {
+        value: selectValue(target),
+        closest: <E extends Element = Element>(selectors: string) => target.closest<E>(selectors),
+      },
+    };
+  }
+  const control = target as HTMLInputElement | HTMLTextAreaElement;
+  return { field: control.dataset.field, control };
+}
+
 /** Dispatches one scene-scoped `change` event by its `data-field`. */
-function changeSceneField(
-  scene: StudioScene,
-  field: string | undefined,
-  control: HTMLInputElement | HTMLSelectElement,
-): void {
+function changeSceneField(scene: StudioScene, field: string | undefined, control: StudioFieldControl): void {
   if (field === "scene-action-at") {
     changeSceneActionAt(scene, control);
     return;
@@ -1922,9 +1942,8 @@ function changeSceneField(
   }
 }
 
-void delegate(app, "input", "[data-field]", (_event, target) => {
-  const control = target as HTMLInputElement | HTMLTextAreaElement;
-  const field = control.dataset.field;
+void delegate(app, "input", STUDIO_FIELD_SELECTOR, (_event, target) => {
+  const { field, control } = studioField(target);
   if (field === "timeline-zoom") {
     timelineZoom.value = Number(control.value);
     return;
@@ -1996,9 +2015,8 @@ void delegate(app, "input", "[data-field]", (_event, target) => {
   message.value = "";
 });
 
-void delegate(app, "change", "[data-field]", (_event, target) => {
-  const control = target as HTMLInputElement | HTMLSelectElement;
-  const field = control.dataset.field;
+void delegate(app, "change", STUDIO_FIELD_SELECTOR, (_event, target) => {
+  const { field, control } = studioField(target);
   const current = project.value;
   const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
   const scene = current?.scenes.find((candidate) => candidate.id === sceneId);

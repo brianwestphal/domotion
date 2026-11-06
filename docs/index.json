@@ -5913,9 +5913,11 @@
         "status": "current",
         "owners": ["product-tooling"],
         "platforms": [],
-        "tickets": ["DM-QW1NMD", "DM-HRBJ8M"],
+        "tickets": ["DM-QW1NMD", "DM-HRBJ8M", "DM-2PA7G8"],
         "code": [
           "src/kerf-ui-theme.ts",
+          "src/kerf-ui-select.ts",
+          "src/test-support/kerf-select.ts",
           "scripts/bundle-kerf-client.mjs",
           "src/review/client.tsx",
           "src/scrubber/client.tsx",

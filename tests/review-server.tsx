@@ -71,6 +71,7 @@ import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance
 import { createReviewPrefetchState } from "./review-prefetch-state.js";
 import { KERF_UI_DARK_THEME_CSS } from "../src/kerf-ui-theme.js";
 import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { Select } from "@kerfjs/ui/select";
 import { StateBanner } from "@kerfjs/ui/state-banner";
 import { Toolbar } from "@kerfjs/ui/toolbar";
 import { RefreshCw, TriangleAlert } from "lucide";
@@ -850,8 +851,7 @@ const REVIEW_CSS = `
   body > header h1 { margin: 0; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .controls, .suite-summary { padding: 0 8px; }
   .controls { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; }
-  .controls label { font-size: 13px; color: #8b949e; }
-  .controls select { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; padding: 4px 8px; border-radius: 4px; }
+  .controls label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #8b949e; }
   .controls label.toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
   .controls label.toggle input { margin: 0; cursor: pointer; }
   body.hide-live-svg .live-svg { display: none; }
@@ -883,8 +883,7 @@ const REVIEW_CSS = `
   .region-caption-text { fill: #e6edf3; font-family: ui-monospace, monospace; font-size: 14px; dominant-baseline: alphabetic; pointer-events: none; }
   .skip-note { font-size: 12px; color: #8b949e; font-style: italic; padding: 10px 0; }
   .comment { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 8px; font: inherit; resize: vertical; min-height: 54px; }
-  .classification-label { display: grid; gap: 5px; margin-bottom: 8px; color: #8b949e; font-size: 12px; font-weight: 600; }
-  .logical-classification { width: 100%; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; padding: 7px 8px; font: inherit; }
+  .card .logical-classification { margin-bottom: 8px; }
   .stage-evidence { margin: 8px 0; padding: 8px; border: 1px solid #30363d; border-radius: 4px; color: #8b949e; font-size: 12px; }
   .stage-evidence summary { cursor: pointer; color: #c9d1d9; font-weight: 600; }
   .stage-evidence ul { margin: 6px 0 0; padding-left: 20px; }
@@ -977,7 +976,14 @@ async function bundleClient(): Promise<string> {
 // inlined once in `<head>`, ahead of the theme tokens and REVIEW_CSS, so the
 // page's own rules win the cascade. Keep this list in step with the
 // `@kerfjs/ui/*` imports in this file and in review-client.tsx.
-const KERF_UI_STYLESHEETS = ["foundation", "toolbar", "lucide-icon", "state-banner", "loading-spinner"] as const;
+const KERF_UI_STYLESHEETS = [
+  "foundation",
+  "toolbar",
+  "lucide-icon",
+  "state-banner",
+  "loading-spinner",
+  "select",
+] as const;
 async function bundleKerfUiCss(): Promise<string> {
   const result = await esbuild.build({
     stdin: {
@@ -999,6 +1005,26 @@ async function bundleKerfUiCss(): Promise<string> {
 function safeJsonForScript(payload: unknown): string {
   return JSON.stringify(payload).replace(/</g, "\\u003c");
 }
+
+// The client re-renders nothing here: the header is server-rendered once, and
+// review-client.tsx keeps each Select in step with its signal.
+const FILTER_CHOICES = [
+  { value: "fail", label: "Failing" },
+  { value: "all", label: "All" },
+  { value: "pass", label: "Passing" },
+];
+const SUITE_CHOICES = [
+  { value: "all", label: "All suites" },
+  ...["features", "showcase", "html-test", "html-test-unicode", "real-world"].map((v) => ({ value: v, label: v })),
+];
+const SORT_CHOICES = [
+  { value: "verdict-desc", label: "Verdict (worst first)" },
+  { value: "coverage-desc", label: "Coverage % (largest first)" },
+  { value: "regions-desc", label: "Regions (most first)" },
+  { value: "diff-desc", label: "Avg diff % (worst first)" },
+  { value: "diff-asc", label: "Avg diff % (best first)" },
+  { value: "name", label: "Name (A→Z)" },
+];
 
 function Layout({
   manifest,
@@ -1036,13 +1062,18 @@ function Layout({
                 reloads with ?source=<id> (the client wires the onchange). */}
             <label>
               Source:{" "}
-              <select id="source">
-                {manifest.sources.map((s) => (
-                  <option value={s.id} selected={s.id === manifest.activeSource} disabled={!s.present}>
-                    {`${s.label}${s.present ? "" : " (no data)"}`}
-                  </option>
-                ))}
-              </select>
+              <Select
+                name="source"
+                ariaLabel="Source"
+                size="compact"
+                triggerWidth="fit-content"
+                value={manifest.activeSource}
+                choices={manifest.sources.map((s) => ({
+                  value: s.id,
+                  label: `${s.label}${s.present ? "" : " (no data)"}`,
+                  disabled: !s.present,
+                }))}
+              />
             </label>
             {/* DM-1665: re-pull the latest CI run's metadata for the active source. */}
             <button
@@ -1066,33 +1097,36 @@ function Layout({
             )}
             <label>
               Filter:{" "}
-              <select id="filter">
-                <option value="fail">Failing</option>
-                <option value="all">All</option>
-                <option value="pass">Passing</option>
-              </select>
+              <Select
+                name="filter"
+                ariaLabel="Filter"
+                size="compact"
+                triggerWidth="fit-content"
+                value="fail"
+                choices={FILTER_CHOICES}
+              />
             </label>
             <label>
               Suite:{" "}
-              <select id="suite">
-                <option value="all">All suites</option>
-                <option value="features">features</option>
-                <option value="showcase">showcase</option>
-                <option value="html-test">html-test</option>
-                <option value="html-test-unicode">html-test-unicode</option>
-                <option value="real-world">real-world</option>
-              </select>
+              <Select
+                name="suite"
+                ariaLabel="Suite"
+                size="compact"
+                triggerWidth="fit-content"
+                value="all"
+                choices={SUITE_CHOICES}
+              />
             </label>
             <label>
               Sort:{" "}
-              <select id="sort">
-                <option value="verdict-desc">Verdict (worst first)</option>
-                <option value="coverage-desc">Coverage % (largest first)</option>
-                <option value="regions-desc">Regions (most first)</option>
-                <option value="diff-desc">Avg diff % (worst first)</option>
-                <option value="diff-asc">Avg diff % (best first)</option>
-                <option value="name">Name (A→Z)</option>
-              </select>
+              <Select
+                name="sort"
+                ariaLabel="Sort"
+                size="compact"
+                triggerWidth="fit-content"
+                value="verdict-desc"
+                choices={SORT_CHOICES}
+              />
             </label>
             <label className="toggle">
               <input type="checkbox" id="show-live-svg" /> Live SVG

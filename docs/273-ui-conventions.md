@@ -5,10 +5,12 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-QW1NMD", "DM-HRBJ8M"]
+tickets: ["DM-QW1NMD", "DM-HRBJ8M", "DM-2PA7G8"]
 code:
   [
     "src/kerf-ui-theme.ts",
+    "src/kerf-ui-select.ts",
+    "src/test-support/kerf-select.ts",
     "scripts/bundle-kerf-client.mjs",
     "src/review/client.tsx",
     "src/scrubber/client.tsx",
@@ -27,9 +29,9 @@ The design philosophy, accessibility contract and component-selection guidance a
 
 ## Component subset
 
-The tools use kerf-ui's `Toolbar`, `ToolbarControlGroup`, `LucideIcon`, `StateBanner`, `EmptyState`, `LoadingSpinner` and `SegmentedControl`. Each is imported from its own subpath (`@kerfjs/ui/toolbar`, …), never from the root barrel.
+The tools use kerf-ui's `Toolbar`, `ToolbarControlGroup`, `LucideIcon`, `StateBanner`, `EmptyState`, `LoadingSpinner`, `SegmentedControl` and `Select`. Each is imported from its own subpath (`@kerfjs/ui/toolbar`, …), never from the root barrel.
 
-kerfjs, `@kerfjs/ui` and `eslint-plugin-kerfjs` are pinned to the exact 5.0 beta `5.0.0-beta.125` until 5.0 is released stable. Under kerf-ui 5 none of these components depends on Web Awesome, and `@awesome.me/webawesome` is not installed. Web Awesome components stay out: they are an optional kerf-ui integration, and Web Awesome's default icon library builds Font Awesome CDN URLs, which would break the pages' self-contained, offline contract. Native `<select>` elements remain for now, and the browser tests drive them with `selectOption`.
+kerfjs, `@kerfjs/ui` and `eslint-plugin-kerfjs` are pinned to the exact 5.0 beta `5.0.0-beta.125` until 5.0 is released stable. Under kerf-ui 5 none of these components depends on Web Awesome, and `@awesome.me/webawesome` is not installed. Web Awesome components stay out: they are an optional kerf-ui integration, and Web Awesome's default icon library builds Font Awesome CDN URLs, which would break the pages' self-contained, offline contract. Every choice control is a kerf-ui `Select`; no tool renders a native `<select>`.
 
 **Bundle sizes.** Upgrading from kerfjs 4.4 / kerf-ui 4.4.1 to the 5.0 beta grew the three shipped bundles as follows (JavaScript including the folded CSS string; "minified" is an esbuild `minify` pass over the shipped unminified bundle):
 
@@ -40,6 +42,39 @@ kerfjs, `@kerfjs/ui` and `eslint-plugin-kerfjs` are pinned to the exact 5.0 beta
 | Studio (`src/studio`)         | 785.2 KB | 837.1 KB (+51.9) | 451.4 KB     | 486.5 KB (+35.2)  |
 
 Most of the growth is the kerfjs 5 runtime itself, which now builds on `@preact/signals-core`.
+
+## Select
+
+Every choice control in the tools is a kerf-ui `Select`:
+
+- the `demos:review` harness: result source, filter, suite, sort and each card's logical-stage classification;
+- svg-scrubber: playback speed, zoom preset, crop aspect ratio and ticket category;
+- Studio: timeline snap, and each scene's narrative beat, source type, fit, transition and cinematic preset, plus the annotation scope.
+
+svg-review has no choice control and does not load Select support.
+
+kerf-ui 5's `Select` renders a light-DOM `<kui-select>` root with a native trigger `<button role="combobox">` and a top-layer `role="listbox"` popup. It draws its caret and check marks as inline SVG and does not use Web Awesome, so no icon library is registered and the pages make no network request. `tests/kerf-client-uis.e2e.test.ts` loads every tool, opens a Select, chooses an option, and fails on any request that leaves the local server.
+
+- **Registration.** A client that renders a `Select` imports `src/kerf-ui-select.ts`, which imports `@kerfjs/ui/select/register` once and exports `selectValue` / `setSelectValue`. The register module defines the form-associated `kui-select` element and announces each choice with bubbling `input` and `change` events.
+- **Wiring.** `Select` takes no `id` or `data-*` hook, so its `name` identifies it: delegates match `kui-select[name=…]` and read the element's `value`. Studio's field dispatcher treats a `kui-select`'s `name` as its `data-field`.
+- **Controlled values.** Every Select's `value` comes from state, and its change handler writes that state, so a re-render never resets a choice the person made. The scrubber's ticket category, uncontrolled as a native `<select>`, is now a signal. A pick whose re-render cannot change the markup (choosing "Fit", which shows the level it computes) sets the element's value directly with `setSelectValue`.
+- **Unavailable choices** use the per-choice `disabled` flag: the harness's sources with no data, and Studio's "Custom treatments" preset, which names the current state but cannot be chosen.
+- **Names.** A toolbar Select is named by `ariaLabel`; the harness keeps its visible "Source:" / "Filter:" text in a wrapping `<label>`. The classification Select uses the `label` prop, which renders kerf-ui's stacked label.
+- **Size.** Toolbar Selects use `size="compact"` and `triggerWidth="fit-content"`; Studio's form fields use `triggerWidth="fill"`.
+- **Page CSS.** The scrubber and Studio style bare `button` elements. Those rules now read `button:where(:not(.kui-select__trigger))`, so they skip the Select trigger and keep their original specificity.
+- **Tests.** Playwright's `selectOption` and `inputValue` work only on native controls. Browser tests use `src/test-support/kerf-select.ts` (`chooseKerfSelectOption`, `kerfSelectValue`, `kerfSelectOptionValues`), which opens the trigger and clicks an option as a person does. Address a Select by `getByRole("combobox", { name })` or `kui-select[name=…]`, not `getByLabel`: the listbox carries the same accessible name, so `getByLabel` matches two elements.
+
+**Bundle size.** Measured against the native-`<select>` builds on the same 5.0 beta (same method as above):
+
+| Bundle       | native `<select>` raw | kerf `Select` raw | native minified | kerf `Select` minified |
+| ------------ | --------------------- | ----------------- | --------------- | ---------------------- |
+| svg-review   | 99.4 KB               | 99.4 KB (+0)      | 69.1 KB         | 69.1 KB (+0)           |
+| svg-scrubber | 235.2 KB              | 354.8 KB (+119.6) | 149.1 KB        | 207.7 KB (+58.6)       |
+| Studio       | 837.1 KB              | 956.6 KB (+119.4) | 486.5 KB        | 545.0 KB (+58.5)       |
+
+The growth is `select/register` (the Select controller, which also wires kerf-ui popup menus and help tags), its floating-ui positioning, and the Select CSS. kerf-ui 4's Web Awesome Select would have added about 216 KB minified and needed a bundled icon library to stay offline.
+
+**Known issue.** In a scrolled page the popup can open on the wrong side, with too little height. kerf-ui positions it against `document.documentElement` with fixed positioning, and that boundary is offset by the scroll distance. Studio, whose page scrolls, shows it most; at phone width the popup collapsed to a few pixels. Until kerf-ui bounds the popup by the viewport, `src/kerf-ui-select.ts` injects a temporary floor on the popup's height. CSS lets `min-height` win over the inline `max-height`, and the floor grows with the option count but stays under the real row height (2.5 rem per option, capped at `min(15rem, 40vh)`), so a short list never gains empty space. Remove the floor when the upstream fix lands.
 
 Icons come from the [`lucide`](https://lucide.dev) package, imported by name (`import { Play } from "lucide"`) so only the referenced icon nodes are bundled, and rendered through `LucideIcon`. Icon-only buttons carry an `aria-label`; the icon itself is decorative.
 

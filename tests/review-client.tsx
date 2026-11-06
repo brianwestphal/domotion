@@ -20,11 +20,13 @@
 import { signal, computed, each, effect, mount, delegate } from "kerfjs";
 import { LoadingSpinner } from "@kerfjs/ui/loading-spinner";
 import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { Select } from "@kerfjs/ui/select";
 import { StateBanner } from "@kerfjs/ui/state-banner";
 import { CircleAlert } from "lucide";
 
 import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./review-region-overlay.js";
 import { LOGICAL_CLASSIFICATIONS } from "../src/review/logical-classification.js";
+import { selectValue, setSelectValue } from "../src/kerf-ui-select.js";
 import { applyLightboxAspect, createLightboxOverlayBinding } from "../src/review/lightbox.js";
 import type { RelevantStageEvidence } from "../src/review/stage-evidence.js";
 
@@ -89,6 +91,10 @@ interface ReviewManifest {
 const manifestEl = document.getElementById("manifest-data");
 if (manifestEl == null) throw new Error("manifest-data <script> missing");
 const MANIFEST = JSON.parse(manifestEl.textContent ?? "{}") as ReviewManifest;
+const CLASSIFICATION_CHOICES = [
+  { value: "", label: "Classify this residual…" },
+  ...Object.entries(LOGICAL_CLASSIFICATIONS).map(([value, item]) => ({ value, label: item.label })),
+];
 
 // DM-1660: images are served per-source at /img/<source>/<suite>/<file>.
 const IMG_BASE = `/img/${MANIFEST.activeSource}`;
@@ -104,12 +110,13 @@ function savedClassification(suite: string, name: string): string {
 
 // The source selector reloads the page with ?source=<id> (server re-renders with
 // that source's manifest). Guard against reloading to the same source.
-const sourceEl = document.getElementById("source") as HTMLSelectElement | null;
+const sourceEl = document.querySelector("kui-select[name=source]");
 if (sourceEl != null) {
   sourceEl.addEventListener("change", () => {
-    if (sourceEl.value === MANIFEST.activeSource) return;
+    const source = selectValue(sourceEl);
+    if (source === "" || source === MANIFEST.activeSource) return;
     const u = new URL(location.href);
-    u.searchParams.set("source", sourceEl.value);
+    u.searchParams.set("source", source);
     location.href = u.toString();
   });
 }
@@ -241,9 +248,11 @@ document.getElementById("refresh-source")?.addEventListener("click", () => {
   void refreshSource(true);
 });
 
-const filterEl = document.getElementById("filter") as HTMLSelectElement;
-const suiteEl = document.getElementById("suite") as HTMLSelectElement;
-const sortEl = document.getElementById("sort") as HTMLSelectElement;
+// Server-rendered kerf Selects (tests/review-server.tsx); the header is never
+// morphed, so listening on the elements directly is safe.
+const filterEl = document.querySelector("kui-select[name=filter]")!;
+const suiteEl = document.querySelector("kui-select[name=suite]")!;
+const sortEl = document.querySelector("kui-select[name=sort]")!;
 const cardsEl = document.getElementById("cards") as HTMLElement;
 const statsEl = document.getElementById("stats") as HTMLElement;
 const summaryEl = document.getElementById("suite-summary") as HTMLElement;
@@ -525,19 +534,13 @@ function Card({ r }: { r: ReviewTest }) {
           )}
         </details>
       )}
-      <label className="classification-label">
-        Logical-stage classification
-        <select className="logical-classification">
-          <option value="" selected={persistedClassification === ""}>
-            Classify this residual…
-          </option>
-          {Object.entries(LOGICAL_CLASSIFICATIONS).map(([value, item]) => (
-            <option value={value} selected={persistedClassification === value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        name="logical-classification"
+        label="Logical-stage classification"
+        className="logical-classification"
+        value={persistedClassification}
+        choices={CLASSIFICATION_CHOICES}
+      />
       <textarea
         className="comment"
         placeholder="What evidence supports this classification? The ticket will include it, the images, metrics, and selected regions."
@@ -701,13 +704,13 @@ document.addEventListener("keydown", (e) => {
 // ── Filter selects ──
 
 filterEl.addEventListener("change", () => {
-  filterS.value = filterEl.value as Filter;
+  filterS.value = selectValue(filterEl) as Filter;
 });
 suiteEl.addEventListener("change", () => {
-  suiteS.value = suiteEl.value as Suite;
+  suiteS.value = selectValue(suiteEl) as Suite;
 });
 sortEl.addEventListener("change", () => {
-  sortS.value = sortEl.value as Sort;
+  sortS.value = selectValue(sortEl) as Sort;
 });
 
 // ── Live-SVG toggle (DM-632) ──
@@ -812,12 +815,14 @@ void delegate(cardsEl, "click", ".file-btn", (_event, target) => {
   void fileTicket(target as HTMLButtonElement);
 });
 
-void delegate(cardsEl, "change", ".logical-classification", (_event, target) => {
-  const select = target as HTMLSelectElement;
-  const card = select.closest<HTMLElement>(".card");
+void delegate(cardsEl, "change", "kui-select.logical-classification", (_event, target) => {
+  const card = target.closest<HTMLElement>(".card");
   if (card == null) return;
   try {
-    localStorage.setItem(classificationKey(card.dataset["suite"] ?? "", card.dataset["name"] ?? ""), select.value);
+    localStorage.setItem(
+      classificationKey(card.dataset["suite"] ?? "", card.dataset["name"] ?? ""),
+      selectValue(target),
+    );
   } catch {
     /* best effort */
   }
@@ -829,11 +834,11 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
   const name = card.dataset["name"] ?? "";
   const suite = card.dataset["suite"] ?? "";
   const commentEl = card.querySelector<HTMLTextAreaElement>(".comment");
-  const classificationEl = card.querySelector<HTMLSelectElement>(".logical-classification");
+  const classificationEl = card.querySelector("kui-select.logical-classification");
   const msg = card.querySelector<HTMLElement>(".status-msg");
   if (commentEl == null || classificationEl == null || msg == null) return;
   const comment = commentEl.value.trim();
-  const classification = classificationEl.value;
+  const classification = selectValue(classificationEl);
   const overlay = overlayByCard.get(card);
   const regions: Rect[] = overlay != null ? overlay.getRegions() : [];
   msg.className = "status-msg";
@@ -841,7 +846,7 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
   if (classification === "") {
     msg.className = "status-msg err";
     msg.textContent = "Choose a logical-stage classification before filing.";
-    classificationEl.focus();
+    classificationEl.querySelector<HTMLElement>('[role="combobox"]')?.focus();
     return;
   }
   btn.disabled = true;
@@ -857,7 +862,7 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
     msg.className = "status-msg ok";
     msg.textContent = `Filed ${json.ticket_number ?? ""}${regions.length > 0 ? ` (with ${regions.length} region${regions.length === 1 ? "" : "s"})` : ""}`;
     commentEl.value = "";
-    classificationEl.value = "";
+    setSelectValue(classificationEl, "");
     try {
       localStorage.removeItem(classificationKey(suite, name));
     } catch {

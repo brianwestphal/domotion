@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
+import { createServer as createNetServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { startBrowserCoverage, writeBrowserCoverage } from "../src/test-support/browser-coverage.js";
 import { startReviewServer } from "../src/review/server.js";
+import { startStudioServer } from "../src/studio/server.js";
+import { chooseKerfSelectOption, kerfSelectOptionValues, kerfSelectValue } from "../src/test-support/kerf-select.js";
 
 // DM-1798: browser-side guard for the two UIs that use kerf's RUNTIME rather
 // than just its SSR JSX — `tests/review-client.tsx` (signal / computed /
@@ -186,9 +189,13 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       await expectKerfUiStyled(page, ".kui-toolbar", "display", "grid");
       const keys = (): Promise<string[]> =>
         page.$$eval("[data-key]", (ns) => ns.map((n) => (n as HTMLElement).dataset.key!));
-      const pick = async (id: string, i: number): Promise<void> => {
-        const opts = await page.$$eval(`#${id} option`, (os) => os.map((o) => (o as HTMLOptionElement).value));
-        await page.selectOption(`#${id}`, opts[i]);
+      // The filter / suite / sort controls are kerf-ui Selects (control →
+      // state: choosing an option drives the list signals).
+      const pick = async (name: string, i: number): Promise<void> => {
+        const select = page.locator(`kui-select[name=${name}]`);
+        const opts = await kerfSelectOptionValues(select);
+        await chooseKerfSelectOption(select, opts[i]!);
+        expect(await kerfSelectValue(select)).toBe(opts[i]);
         await page.waitForTimeout(350);
       };
 
@@ -211,14 +218,16 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       expect(rejected.status()).toBe(400);
       expect(((await rejected.json()) as { error: string }).error).toContain("Invalid logical-stage classification");
 
-      await firstCard.locator(".logical-classification").selectOption("logical-defect");
-      expect(await firstCard.locator(".logical-classification").inputValue()).toBe("logical-defect");
+      await chooseKerfSelectOption(firstCard.locator("kui-select.logical-classification"), "logical-defect");
+      expect(await kerfSelectValue(firstCard.locator("kui-select.logical-classification"))).toBe("logical-defect");
       const bravoCard = page.locator('.card[data-name="bravo-fixture"]');
       await expect.poll(() => bravoCard.locator(".stage-evidence").textContent()).toContain("box.paint");
-      await bravoCard.locator(".logical-classification").selectOption("paint-compositing");
+      await chooseKerfSelectOption(bravoCard.locator("kui-select.logical-classification"), "paint-compositing");
+      // State → control: the persisted classification is rendered back into
+      // the Select after a reload.
       await page.reload({ waitUntil: "networkidle" });
       await expect
-        .poll(() => page.locator('.card[data-name="bravo-fixture"] .logical-classification').inputValue())
+        .poll(() => kerfSelectValue(page.locator('.card[data-name="bravo-fixture"] kui-select.logical-classification')))
         .toBe("paint-compositing");
 
       // A card that survives a REORDER must keep its DOM node AND still be
@@ -343,12 +352,139 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       await page.waitForTimeout(300);
       expect(await page.locator('[data-action="croptoggle"]').getAttribute("aria-pressed")).not.toBe(pressed);
 
+      // kerf-ui Selects, in both directions.
+      const zoomSelect = page.locator("kui-select[name=zoompreset]");
+      const zoomText = (): Promise<string> => zoomSelect.locator("[role=combobox]").innerText();
+      // Control → state: picking 100% then 200% doubles the rendered SVG.
+      const svgWidth = async (): Promise<number> => (await page.locator(".svg-host > svg").boundingBox())!.width;
+      await chooseKerfSelectOption(zoomSelect, "1");
+      await page.waitForTimeout(200);
+      const at100 = await svgWidth();
+      await chooseKerfSelectOption(zoomSelect, "2");
+      await page.waitForTimeout(200);
+      expect(await kerfSelectValue(zoomSelect)).toBe("2");
+      expect((await svgWidth()) / at100).toBeCloseTo(2, 1);
+      // State → control: the zoom-in button (not the Select) sets 250%, which
+      // is no preset, so the Select grows a "custom" choice and shows it.
+      await page.locator('[data-action="zoomin"]').click();
+      await expect.poll(() => kerfSelectValue(zoomSelect)).toBe("custom");
+      expect(await zoomText()).toContain("250%");
+      // "Fit" is an action, not a level: the Select then shows the level it chose.
+      await chooseKerfSelectOption(zoomSelect, "fit");
+      await page.waitForTimeout(200);
+      expect(await kerfSelectValue(zoomSelect)).not.toBe("fit");
+      expect(await zoomText()).toMatch(/\d+%/);
+
+      // Crop aspect: control → state while crop mode is on, then the crop
+      // toggle (state) resets the lock and disables the control.
+      const aspectSelect = page.locator("kui-select[name=cropaspect]");
+      if ((await page.locator('[data-action="croptoggle"]').getAttribute("aria-pressed")) !== "true") {
+        await page.locator('[data-action="croptoggle"]').click();
+      }
+      await chooseKerfSelectOption(aspectSelect, "1");
+      expect(await kerfSelectValue(aspectSelect)).toBe("1");
+      await page.locator('[data-action="croptoggle"]').click();
+      await expect.poll(() => kerfSelectValue(aspectSelect)).toBe("free");
+      expect(await aspectSelect.locator("[role=combobox]").isDisabled()).toBe(true);
+
+      // Speed: control → state → control (the render re-derives the value).
+      const speedSelect = page.locator("kui-select[name=speed]");
+      await chooseKerfSelectOption(speedSelect, "2");
+      await page.locator('[data-action="play"]').click();
+      await page.waitForTimeout(150);
+      await page.locator('[data-action="play"]').click();
+      expect(await kerfSelectValue(speedSelect)).toBe("2");
+      expect(await speedSelect.locator("[role=combobox]").innerText()).toContain("2x");
+
       expect(errors).toEqual([]);
     } finally {
       await writeBrowserCoverage(page, "scrubber-client", coverage);
       await page.close();
     }
   }, 180_000);
+
+  // Every tool page must stay self-contained and offline. kerf-ui Selects draw
+  // their caret and check icons as inline SVG; Web Awesome (whose default icon
+  // library fetches from the Font Awesome CDN) is not used. Load each UI, open
+  // a Select and choose an option, and require that no request leaves the
+  // local server.
+  it("no UI makes a request off localhost while loading or using a Select", async () => {
+    const offHost: string[] = [];
+    const watchRequests = (page: Page, ui: string): void => {
+      page.on("request", (request) => {
+        const url = new URL(request.url());
+        if (["data:", "blob:", "about:"].includes(url.protocol)) return;
+        if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) offHost.push(`${ui}: ${request.url()}`);
+      });
+    };
+    const exercise = async (ui: string, url: string, ready: string, selectName: string | null): Promise<void> => {
+      const page = await browser!.newPage();
+      watchRequests(page, ui);
+      try {
+        await page.goto(url, { waitUntil: "networkidle" });
+        await page.waitForSelector(ready, { timeout: 30_000 });
+        if (selectName != null) {
+          const select = page.locator(`kui-select[name=${selectName}]`).first();
+          const values = await kerfSelectOptionValues(select);
+          const target = values.find((v) => v !== "") ?? values[0]!;
+          await chooseKerfSelectOption(select, target);
+          await page.waitForLoadState("networkidle");
+        }
+      } finally {
+        await page.close();
+      }
+    };
+
+    // The harness listens on a fixed default port, which the earlier harness
+    // test's server still holds; give this one a free port.
+    const port = await new Promise<number>((res, rej) => {
+      const probe = createNetServer();
+      probe.once("error", rej);
+      probe.listen(0, "127.0.0.1", () => {
+        const address = probe.address();
+        probe.close(() => res(typeof address === "object" && address != null ? address.port : 0));
+      });
+    });
+    const harness = await startServer("tests/review-server.tsx", ["--port", String(port)], {
+      REVIEW_OUTPUT_DIR: fixtureRoot,
+      REVIEW_NO_OPEN: "1",
+    });
+    expect(harness, "review server failed to start").not.toBeNull();
+    servers.push(harness!.proc);
+    await exercise("demos:review", harness!.url, "[data-key]", "sort");
+
+    const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
+    const scrubber = await startServer("src/cli/scrubber.ts", [svg, "--no-open"]);
+    expect(scrubber, "scrubber failed to start").not.toBeNull();
+    servers.push(scrubber!.proc);
+    await exercise("svg-scrubber", scrubber!.url, '[data-action="scrub"]:not([disabled])', "speed");
+
+    const review = await startReviewServer({
+      expectedPng: join(fixtureRoot, "alpha-fixture-expected.png"),
+      actualPng: join(fixtureRoot, "alpha-fixture-actual.png"),
+      diffPng: join(fixtureRoot, "alpha-fixture-diff.png"),
+      actualSvg: join(fixtureRoot, "alpha-fixture.svg"),
+      label: "network-fixture",
+    });
+    try {
+      // svg-review renders no Select; it is still held to the offline contract.
+      await exercise("svg-review", review.url, "#issue-text", null);
+    } finally {
+      await review.close();
+    }
+
+    const studio = await startStudioServer({
+      workspaceRoot: ROOT,
+      initialProjectPath: "tests/fixtures/studio/treatments-showcase.project.json",
+    });
+    try {
+      await exercise("Studio", studio.url, "[data-scene-id]", "scene-fit");
+    } finally {
+      await studio.close();
+    }
+
+    expect(offHost).toEqual([]);
+  }, 240_000);
 
   it("scrubber reports an export server error without a blocking dialog", async () => {
     const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");

@@ -15,6 +15,7 @@ import {
 import { htmlWrapper, seekTo, screenshot } from "../cli/svg-to-video-core.js";
 import { studioContentRevisionId } from "./authoring.js";
 import { startBrowserCoverage, writeBrowserCoverage } from "../test-support/browser-coverage.js";
+import { chooseKerfSelectOption, kerfSelectValue } from "../test-support/kerf-select.js";
 
 const PREVIEW_TIME = "2026-09-06T04:00:00.000Z";
 
@@ -191,8 +192,13 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await secondScene
       .getByLabel("Scene 2 generation instructions")
       .fill("Inspect the live DOM and computed CSS before capture, then keep the cursor deliberate.");
-    await secondScene.getByLabel("Scene 2 narrative beat").selectOption({ label: "Payoff" });
-    await secondScene.getByLabel("Scene 2 source type").selectOption("svg");
+    await chooseKerfSelectOption(secondScene.getByRole("combobox", { name: "Scene 2 narrative beat", exact: true }), {
+      label: "Payoff",
+    });
+    await chooseKerfSelectOption(
+      secondScene.getByRole("combobox", { name: "Scene 2 source type", exact: true }),
+      "svg",
+    );
     await testPage
       .locator("[data-scene-id]")
       .nth(1)
@@ -203,9 +209,15 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await secondScene.getByLabel("Scene 2 trim start").press("Tab");
     await secondScene.getByLabel("Scene 2 trim end").fill("1200");
     await secondScene.getByLabel("Scene 2 trim end").press("Tab");
-    await secondScene.getByLabel("Scene 2 fit").selectOption("cover");
-    await secondScene.getByLabel("Scene 2 transition", { exact: true }).selectOption("push-left");
-    await secondScene.getByLabel("Scene 2 cinematic preset").selectOption("browser-chrome");
+    await chooseKerfSelectOption(secondScene.getByRole("combobox", { name: "Scene 2 fit", exact: true }), "cover");
+    await chooseKerfSelectOption(
+      secondScene.getByRole("combobox", { name: "Scene 2 transition", exact: true }),
+      "push-left",
+    );
+    await chooseKerfSelectOption(
+      secondScene.getByRole("combobox", { name: "Scene 2 cinematic preset", exact: true }),
+      "browser-chrome",
+    );
     await secondScene.getByRole("button", { name: "Regenerate scene" }).click();
     await expect
       .poll(() => testPage.locator(".notice").getByRole("status").textContent())
@@ -222,11 +234,16 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByLabel("Scene 2 title").waitFor();
     expect(await testPage.getByLabel("Scene 2 source", { exact: true }).inputValue()).toBe("source/payoff.svg");
     expect(await testPage.getByLabel("Scene 2 duration").inputValue()).toBe("1000");
-    expect(await testPage.getByLabel("Scene 2 fit").inputValue()).toBe("cover");
-    expect(await testPage.getByLabel("Scene 2 cinematic preset").inputValue()).toBe("browser-chrome");
+    expect(await kerfSelectValue(testPage.getByRole("combobox", { name: "Scene 2 fit", exact: true }))).toBe("cover");
+    expect(
+      await kerfSelectValue(testPage.getByRole("combobox", { name: "Scene 2 cinematic preset", exact: true })),
+    ).toBe("browser-chrome");
 
     await testPage.getByLabel("New review note").fill("Pause on the highlighted control.");
-    await testPage.getByLabel("Annotation scope").selectOption("scene-opening");
+    await chooseKerfSelectOption(
+      testPage.getByRole("combobox", { name: "Annotation scope", exact: true }),
+      "scene-opening",
+    );
     await testPage.getByLabel("Annotation start time").fill("420");
     await testPage.getByLabel("Annotation end time").fill("780");
     await testPage.getByLabel("Annotation region x").fill("24");
@@ -430,7 +447,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       input.value = "1.50";
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    await scrubber.locator("[data-action=zoompreset]").selectOption("1.5");
+    await chooseKerfSelectOption(scrubber.locator("kui-select[name=zoompreset]"), "1.5");
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:01.00 / 0:02.00");
     await testPage.waitForTimeout(150);
 
@@ -444,7 +461,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:01.00 / 0:02.00");
     expect(await scrubber.locator("[data-action=inn]").inputValue()).toBe("0.25");
     expect(await scrubber.locator("[data-action=outn]").inputValue()).toBe("1.50");
-    expect(await scrubber.locator("[data-action=zoompreset]").inputValue()).toBe("1.5");
+    expect(await kerfSelectValue(scrubber.locator("kui-select[name=zoompreset]"))).toBe("1.5");
 
     const regenerated = animatedPreview("#ffaa22", 1200, 50);
     writeFileSync(join(generatedDir, "opening.svg"), regenerated);
@@ -471,7 +488,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
 
     await testPage.getByRole("button", { name: "Scene 1", exact: true }).click();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:01.20");
-    await scrubber.locator("[data-action=zoompreset]").selectOption("1");
+    await chooseKerfSelectOption(scrubber.locator("kui-select[name=zoompreset]"), "1");
     await scrubber.getByRole("button", { name: "center" }).click();
     await scrubber.locator("[data-action=scrub]").evaluate((element) => {
       const input = element as HTMLInputElement;
