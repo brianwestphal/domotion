@@ -3976,7 +3976,7 @@
         "status": "current",
         "owners": ["text-fonts", "paint-effects"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634"],
+        "tickets": ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634", "DM-CVTZNR"],
         "code": [
           "src/capture/input-value-geometry.ts",
           "src/capture/native-control-decoration.ts",
@@ -3984,9 +3984,11 @@
           "src/capture/pseudo-style-cdp.ts",
           "src/capture/script/index.ts",
           "src/capture/script/walker/form-controls.ts",
+          "src/capture/script/walker/input-value.test.ts",
           "src/capture/script/walker/input-value.ts",
           "src/render/form-controls.test.ts",
           "src/render/form-controls.ts",
+          "tests/input-value-geometry.e2e.test.ts",
           "tests/native-control-decoration.e2e.test.ts",
           "tests/select-display-geometry.e2e.test.ts"
         ],

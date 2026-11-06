@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634"]
+tickets: ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634", "DM-CVTZNR"]
 code:
   [
     "src/capture/input-value-geometry.ts",
@@ -14,9 +14,11 @@ code:
     "src/capture/pseudo-style-cdp.ts",
     "src/capture/script/index.ts",
     "src/capture/script/walker/form-controls.ts",
+    "src/capture/script/walker/input-value.test.ts",
     "src/capture/script/walker/input-value.ts",
     "src/render/form-controls.test.ts",
     "src/render/form-controls.ts",
+    "tests/input-value-geometry.e2e.test.ts",
     "tests/native-control-decoration.e2e.test.ts",
     "tests/select-display-geometry.e2e.test.ts",
   ]
@@ -89,21 +91,46 @@ chevron/calendar/clock/cancel/spin substitute and capture emits a named
 ### Single-line input value geometry
 
 `pseudo-style-cdp.ts` pierces the input's closed UA shadow tree in the same
-source frame used for control pseudo capture. It admits only one non-empty text
-node candidate, one host quad, and one text FragmentItem quad. Both quads must
-be finite, positive-area, and axis-aligned within 0.05 CSS px. The compact
-record stores the host width/height, text height, and translation-invariant
-text-top offset; it does not store a platform font metric guess.
+source frame used for control pseudo capture. It admits only one painted
+non-empty text node candidate, one host quad, and one text FragmentItem quad.
+A text node whose content quads CDP refuses or returns empty paints nothing and
+is not a candidate: this is how a filled input's placeholder looks, because
+Blink keeps the `#placeholder` div with inline `display: none`
+(`TextControlElement::UpdatePlaceholderVisibility`, `text_control_element.cc:295-307`
+at chromium `7d859f27`). Both quads must be finite, positive-area, and
+axis-aligned within 0.05 CSS px. The compact record stores the host
+width/height, text height, and translation-invariant text-top offset; it does
+not store a platform font metric guess.
 
 The synchronous input walker consumes that offset only for a single-line
 `input` with the authenticated source tag, finite dimensions, and a current
 host width/height matching the recorded box within 0.05 CSS px. That last check
 proves the CDP and DOM-walk geometry remained in the same axis-aligned scale.
-Multiple labels (file/temporal compound controls), multiple quads, rotation or
-skew, invalid values, or a changed host box omit the authority. The renderer
-then retains the legacy line-height/font-box estimate for compatibility rather
-than choosing an arbitrary closed-shadow candidate. Textareas keep their
-separate measured per-line path.
+A uniformly scaled host passes, because both sides see the same transformed
+box. Any other outcome omits the authority, and the walker keeps the
+line-height/font-box estimate rather than choosing an arbitrary closed-shadow
+candidate. Textareas keep their separate measured per-line path.
+
+The estimate is not silent. Capture stores a named rejection on the host, and
+the walker emits one `input-value-geometry` capture warning per rejected input
+(`closed-shadow value text quad rejected (<reason>); value text top estimated
+from line-height and font metrics`). The reasons are:
+
+| Reason                  | Meaning                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| `multiple-text-labels`  | More than one painted text node, so no candidate is the editing value.                                 |
+| `text-quad-unavailable` | The only text node had no content quads.                                                               |
+| `host-quad-unavailable` | CDP refused the host's own content quads.                                                              |
+| `non-axis-aligned-quad` | The host or text quad is rotated or skewed, or the text spans more than one quad.                      |
+| `host-box-changed`      | The live host box no longer matches the recorded quad (relayout, or a transform the walk neutralized). |
+| `invalid-record`        | The stored record is missing a finite dimension or offset.                                             |
+
+Skipped input types (file, temporal, color, range, and the other native-chrome
+types) never reach the value walker, so their compound labels do not warn. An
+input with no record at all (a capture run without the CDP pass) also stays
+silent. The maintainer chose this policy over silent estimation and over a
+Chromium raster of every rejected value area (option B of the requirements
+audit's closed-shadow question, 2026-11).
 
 This procedure is identical on macOS, Linux, and Windows and contains no
 platform constants. DM-2628 ratified the exact-pixel effect on Linux's

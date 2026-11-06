@@ -85,8 +85,9 @@ The structural helpers now require their source inputs:
   surfaces or author backgrounds;
 - single-line input value text may use Chromium's closed-UA-shadow FragmentItem
   top only when its one axis-aligned quad and same-frame host dimensions pass
-  the validation contract in doc 171; rejected or old records retain the
-  metric-based compatibility estimate;
+  the validation contract in doc 171; a rejected record retains the
+  metric-based compatibility estimate and emits a named
+  `input-value-geometry` capture warning;
 - search cancel, number spin, and temporal picker glyphs are exact decoration
   surfaces, not renderer drawings; and
 - summary disclosure paint is owned by the source-recorded generic list-marker

@@ -79,9 +79,11 @@ import type { CapturedElement, TextSegment } from "../../types.js";
 
 type ValueTextGeometry = {
   source: "chromium-ua-shadow-text-quad-v1";
-  hostWidth: number;
-  hostHeight: number;
-  textTopOffset: number;
+  hostWidth?: number;
+  hostHeight?: number;
+  textTopOffset?: number;
+  /** Set when capture rejected the closed-shadow quad; see input-value-geometry.ts. */
+  rejected?: string;
 };
 type TextLine = { text: string; xOffsets: number[]; top: number; bottom: number; left: number; right: number };
 
@@ -91,8 +93,12 @@ export const createInputValueHandler = ({
   measureFontMetrics,
   fontFamilyStackFor,
   valueTextGeometryKey,
+  warn,
+  shortSelector,
 }: {
   vp: { x: number; y: number };
+  warn: (sel: string, feature: string, detail: string) => void;
+  shortSelector: (el: Element) => string;
   normColor: (color: string) => string;
   measureFontMetrics: (cs: CSSStyleDeclaration) => { ascent: number; descent: number };
   fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => CapturedElement["placeholderFontFamilyStack"];
@@ -212,16 +218,49 @@ export const createInputValueHandler = ({
       typeof valueTextGeometryKey === "string" && valueTextGeometryKey !== ""
         ? (el as unknown as Record<string, ValueTextGeometry | undefined>)[valueTextGeometryKey]
         : null;
-    if (
-      tag === "input" &&
-      usedTextGeometry?.source === "chromium-ua-shadow-text-quad-v1" &&
-      isFinite(usedTextGeometry.hostWidth) &&
-      isFinite(usedTextGeometry.hostHeight) &&
-      isFinite(usedTextGeometry.textTopOffset) &&
-      Math.abs(rect.width - usedTextGeometry.hostWidth) <= 0.05 &&
-      Math.abs(rect.height - usedTextGeometry.hostHeight) <= 0.05
-    ) {
-      textTop = rect.top - vp.y + usedTextGeometry.textTopOffset;
+    if (tag === "input" && usedTextGeometry?.source === "chromium-ua-shadow-text-quad-v1") {
+      // Capture-script discipline: the record crossed a CDP boundary, so read
+      // each field defensively instead of trusting its declared type.
+      const hostWidth = usedTextGeometry.hostWidth;
+      const hostHeight = usedTextGeometry.hostHeight;
+      const textTopOffset = usedTextGeometry.textTopOffset;
+      let rejected: string | null = typeof usedTextGeometry.rejected === "string" ? usedTextGeometry.rejected : null;
+      if (
+        rejected == null &&
+        !(
+          typeof hostWidth === "number" &&
+          typeof hostHeight === "number" &&
+          typeof textTopOffset === "number" &&
+          isFinite(hostWidth) &&
+          isFinite(hostHeight) &&
+          isFinite(textTopOffset)
+        )
+      ) {
+        rejected = "invalid-record";
+      }
+      if (
+        rejected == null &&
+        !(
+          Math.abs(rect.width - (hostWidth as number)) <= 0.05 && Math.abs(rect.height - (hostHeight as number)) <= 0.05
+        )
+      ) {
+        // The CDP quad and this DOM walk no longer see the same axis-aligned
+        // border box (a scale/rotation between them, or a relayout).
+        rejected = "host-box-changed";
+      }
+      if (rejected == null) {
+        textTop = rect.top - vp.y + (textTopOffset as number);
+      } else {
+        // Keep the line-height/font-box estimate above, but make the
+        // approximation visible: the used FragmentItem top was not proven.
+        warn(
+          shortSelector(el),
+          "input-value-geometry",
+          "closed-shadow value text quad rejected (" +
+            rejected +
+            "); value text top estimated from line-height and font metrics",
+        );
+      }
     }
 
     // DM-991: textareas produce per-line textSegments via a soft-wrap probe

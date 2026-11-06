@@ -200,6 +200,8 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     measureFontMetrics: _measureFontMetrics,
     fontFamilyStackFor: _fontFamilyStackFor,
     valueTextGeometryKey: args.inputValuePropertyKey,
+    warn,
+    shortSelector,
   });
   const { finalizeLineClampText } = createLineClampHandler({
     vp,

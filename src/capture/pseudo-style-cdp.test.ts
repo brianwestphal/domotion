@@ -5,7 +5,7 @@ import {
   hasAuthorPseudoOrigin,
   resolvedControlPseudoStyle,
 } from "./pseudo-style-cdp.js";
-import { capturedInputValueTextGeometry } from "./input-value-geometry.js";
+import { capturedInputValueTextGeometry, classifyInputValueTextGeometry } from "./input-value-geometry.js";
 
 describe("Chromium-resolved control pseudo capture", () => {
   it("retains the closed-shadow input text top as a host-relative used offset", () => {
@@ -22,6 +22,30 @@ describe("Chromium-resolved control pseudo capture", () => {
       textHeight: 20,
     });
     expect(capturedInputValueTextGeometry([[0, 0, 10, 1, 9, 10, 0, 10]], [[1, 1, 8, 1, 8, 9, 1, 9]])).toBeNull();
+  });
+
+  it("names every closed-shadow value-text rejection instead of dropping it silently", () => {
+    const host = [[0, 0, 60, 0, 60, 30, 0, 30]];
+    const text = [[10, 5, 40, 5, 40, 25, 10, 25]];
+    const rejected = (reason: string) => ({ source: "chromium-ua-shadow-text-quad-v1", rejected: reason });
+    expect(classifyInputValueTextGeometry(host, [text])).toEqual({
+      source: "chromium-ua-shadow-text-quad-v1",
+      hostWidth: 60,
+      hostHeight: 30,
+      textTopOffset: 5,
+      textHeight: 20,
+    });
+    // A refused (hidden placeholder) text node is not a painted label.
+    expect(classifyInputValueTextGeometry(host, [null, text])).toMatchObject({ textTopOffset: 5 });
+    expect(classifyInputValueTextGeometry(host, [text, text])).toEqual(rejected("multiple-text-labels"));
+    expect(classifyInputValueTextGeometry(host, [null])).toEqual(rejected("text-quad-unavailable"));
+    expect(classifyInputValueTextGeometry(host, [])).toEqual(rejected("text-quad-unavailable"));
+    expect(classifyInputValueTextGeometry(null, [text])).toEqual(rejected("host-quad-unavailable"));
+    // Rotated/skewed host, or a text node split across two fragments.
+    expect(classifyInputValueTextGeometry([[0, 0, 10, 1, 9, 10, 0, 10]], [text])).toEqual(
+      rejected("non-axis-aligned-quad"),
+    );
+    expect(classifyInputValueTextGeometry(host, [[text[0], text[0]]])).toEqual(rejected("non-axis-aligned-quad"));
   });
 
   it("maps Blink UA-shadow pseudo identities, including the id-only range thumb", () => {

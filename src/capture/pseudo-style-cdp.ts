@@ -31,7 +31,11 @@ import {
   effectiveAppearanceForControl,
   type CdpMatchedStylesLike,
 } from "./effective-appearance.js";
-import { capturedInputValueTextGeometry, type CapturedInputValueTextGeometry } from "./input-value-geometry.js";
+import {
+  classifyInputValueTextGeometry,
+  type CapturedInputValueTextGeometry,
+  type RejectedInputValueTextGeometry,
+} from "./input-value-geometry.js";
 import type { CapturedScrollbarPseudoStyle } from "./types.js";
 
 export const CONTROL_PSEUDO_KINDS = [
@@ -577,7 +581,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
   const hostObjectIdsByNode = new Map<number, string>();
   const hostObjectIds = new Set<string>();
   const authorStyleSheetIds = new Set<string>();
-  const inputValueTextQuads = new Map<number, number[][][]>();
+  const inputValueTextQuads = new Map<number, (number[][] | null)[]>();
   const inputValueHosts = new Map<number, CdpNode>();
   let nextHostId = 1;
 
@@ -636,7 +640,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
 
   const storeInputValueGeometry = async (
     hostNodeId: number,
-    geometry: CapturedInputValueTextGeometry,
+    geometry: CapturedInputValueTextGeometry | RejectedInputValueTextGeometry,
   ): Promise<void> => {
     await ensureHost(hostNodeId);
     const hostObjectId = hostObjectIdsByNode.get(hostNodeId);
@@ -684,12 +688,17 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
               backendNodeId: node.backendNodeId,
             })
             .catch(() => null);
-          if (measured?.quads != null) {
-            const candidates = inputValueTextQuads.get(uaHost.nodeId) ?? [];
-            candidates.push(measured.quads);
-            inputValueTextQuads.set(uaHost.nodeId, candidates);
-            inputValueHosts.set(uaHost.nodeId, uaHost);
-          }
+          // A refused or empty quad list is not a painted label, so it never
+          // counts as a candidate. The case that matters is a filled input's
+          // placeholder: Blink keeps its `#placeholder` div with inline
+          // `display: none` (`TextControlElement::UpdatePlaceholderVisibility`,
+          // text_control_element.cc:295-307 at 7d859f27), and CDP answers its
+          // text with no quads. It is recorded as `null` so a host whose only
+          // text was refused names that rejection instead of vanishing.
+          const candidates = inputValueTextQuads.get(uaHost.nodeId) ?? [];
+          candidates.push(measured?.quads != null && measured.quads.length > 0 ? measured.quads : null);
+          inputValueTextQuads.set(uaHost.nodeId, candidates);
+          inputValueHosts.set(uaHost.nodeId, uaHost);
         }
         const kind = controlPseudoKindForNode(attributesOf(node), uaHost.nodeName, attributesOf(uaHost), node.nodeName);
         if (kind != null) {
@@ -771,20 +780,24 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     await visit(documentResult.root as CdpNode, null);
 
     for (const [hostNodeId, candidates] of inputValueTextQuads) {
-      // File/temporal controls can expose multiple independent labels. The
-      // input-value walker does not own those surfaces; fail closed instead of
-      // guessing which text row is the editing value.
-      if (candidates.length !== 1) continue;
       const host = inputValueHosts.get(hostNodeId);
       if (host == null) continue;
-      const hostMeasured = await session
-        .send("DOM.getContentQuads", {
-          backendNodeId: host.backendNodeId,
-        })
-        .catch(() => null);
-      if (hostMeasured?.quads == null) continue;
-      const geometry = capturedInputValueTextGeometry(hostMeasured.quads, candidates[0]);
-      if (geometry != null) await storeInputValueGeometry(hostNodeId, geometry);
+      // Multiple labels (file/temporal compound controls) never authorize a
+      // value top, so skip the host quad round trip for them.
+      const hostMeasured =
+        candidates.filter((quads) => quads != null).length === 1
+          ? await session
+              .send("DOM.getContentQuads", {
+                backendNodeId: host.backendNodeId,
+              })
+              .catch(() => null)
+          : null;
+      // Rejections are stored too: the walker keeps its line-height estimate
+      // for these hosts and reports the named reason as a capture warning.
+      await storeInputValueGeometry(
+        hostNodeId,
+        classifyInputValueTextGeometry(hostMeasured?.quads ?? null, candidates),
+      );
     }
 
     // `::-webkit-resizer` has no UA-shadow DOM node: Blink resolves its style
