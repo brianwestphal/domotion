@@ -50,6 +50,7 @@ import {
   type TextAddressTarget,
 } from "./text-address.js";
 import { renderTextAsPath } from "../render/text-to-path.js";
+import { formatNumber } from "../render/format.js";
 import { withRenderTextMode } from "../render/font-resolution.js";
 import { cssValueForStyle } from "./css-value-input.js";
 
@@ -333,7 +334,7 @@ function pct(ms: number, totalMs: number): string {
 }
 
 function num(n: number): string {
-  return Number(n.toFixed(2)).toString();
+  return formatNumber(n, 2);
 }
 
 /**

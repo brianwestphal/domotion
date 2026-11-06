@@ -89,3 +89,22 @@ describe("trimAnimatedSvg — window-slice + re-base (DM-1041)", () => {
     expect(out.slicedCss + out.slicedSmil + out.shiftedCss + out.shiftedSmil).toBe(0);
   });
 });
+
+describe("trimAnimatedSvg — number formatting of synthesized values", () => {
+  const smil = (values: string): string =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle r="4"><animateTransform attributeName="transform" type="translate" values="${values}" keyTimes="0;0.5;1" dur="4s" repeatCount="indefinite"/></circle></svg>`;
+
+  it("writes a boundary value that rounds to zero as 0, never -0", () => {
+    // The hand-rolled formatter this module used to carry turned -0.00001 into
+    // "-0" (toFixed → "-0.0000" → trailing zeros stripped).
+    const r = trimAnimatedSvg(smil("-0.00001,0;-0.00001,0;-0.00001,0"), 1000, 3000, 4000);
+    expect(r.svg).toMatch(/values="0,0;/);
+    expect(r.svg).not.toContain("-0,");
+  });
+
+  it("refuses to write a non-finite synthesized value instead of emitting NaN", () => {
+    // 1e999 parses to Infinity; interpolating it yields NaN, which the old
+    // formatter wrote straight into `values`.
+    expect(() => trimAnimatedSvg(smil("1e999,0;1e999,0;1e999,0"), 1000, 3000, 4000)).toThrow(RangeError);
+  });
+});

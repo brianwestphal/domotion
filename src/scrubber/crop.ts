@@ -77,7 +77,15 @@ export function cropSvgViewBox(svg: string, crop: CropRect): string {
   return svg.slice(0, m.index) + rebuilt + svg.slice(m.index + openTag.length);
 }
 
-/** Trim trailing-zero noise from a number for compact attribute output. */
+/**
+ * Trim trailing-zero noise from a number for compact attribute output.
+ *
+ * Deliberately not the shared `formatNumber`: this module is also bundled into
+ * the scrubber's browser client, its `Math.round(n * 1000) / 1000` rounds some
+ * half-way values differently from `toFixed(3)`, and a crop rect built from a
+ * pointer drag falls back to `0` on a non-finite coordinate rather than
+ * failing the request.
+ */
 function num(n: number): string {
   return Number.isFinite(n) ? String(Math.round(n * 1000) / 1000) : "0";
 }

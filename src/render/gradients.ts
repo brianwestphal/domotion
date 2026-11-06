@@ -14,6 +14,7 @@
  */
 
 import { splitTopLevelCommas } from "./css-tokens.js";
+import { formatNumber } from "./format.js";
 import {
   buildLinearGradientDef as buildSharedLinearGradientDef,
   buildRadialGradientDef as buildSharedRadialGradientDef,
@@ -814,7 +815,7 @@ export function computeLegacyRadialGeometry(
 // ── Internals ──────────────────────────────────────────────────────────────
 
 function num(n: number): string {
-  return Number(n.toFixed(3)).toString();
+  return formatNumber(n, 3);
 }
 
 /** Parse a CSS gradient angle token. Returns degrees, or null if not an angle. */

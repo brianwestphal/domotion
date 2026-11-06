@@ -5,6 +5,8 @@
  * - `esc(s)` — escape an arbitrary string for use as SVG attribute text.
  * - `stopFmt(n)` — four-decimal-place number formatter for gradient stop offsets
  *   (the extra precision keeps multi-stop gradients from snapping).
+ * - `formatNumber(n, decimals)` — the shared fixed-precision formatter behind
+ *   `stopFmt` and the root package's CSS/SVG number writers.
  */
 
 export function r(n: number): string {
@@ -51,8 +53,25 @@ export function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Format a number for SVG/CSS markup: rounded to `decimals` places with
+ * `toFixed`, trailing zeros trimmed, and negative zero written as `0` (the
+ * `Number(...)` round trip turns `"-0.0000"` into `-0`, which stringifies as
+ * `"0"`). Magnitudes of 1e21 and above keep `toFixed`'s exponent form.
+ *
+ * A non-finite value throws instead of writing `NaN` / `Infinity` into the
+ * output: neither is a valid SVG or CSS number, so emitting one silently
+ * produces a document whose attribute or declaration a renderer drops.
+ */
+export function formatNumber(n: number, decimals: number): string {
+  if (!Number.isFinite(n)) {
+    throw new RangeError(`formatNumber: cannot write the non-finite value ${String(n)} into SVG/CSS markup`);
+  }
+  return Number(n.toFixed(decimals)).toString();
+}
+
 export function stopFmt(n: number): string {
-  return Number(n.toFixed(4)).toString();
+  return formatNumber(n, 4);
 }
 
 /**

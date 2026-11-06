@@ -31,6 +31,8 @@
  * spanning multiple periods. Pure + DOM-free so it unit-tests without a browser.
  */
 
+import { formatNumber } from "../render/format.js";
+
 export interface TrimResult {
   svg: string;
   /** CSS animation rules / SMIL elements window-SLICED to the loop window. */
@@ -45,13 +47,14 @@ const SMIL_TAGS = "animate|animateTransform|animateMotion|animateColor|set";
 
 // ── small formatters ────────────────────────────────────────────────────────
 
+// The shared formatter writes a tiny negative as `0` (never `-0`) and throws on
+// a non-finite value; the hand-rolled copy this replaced emitted both `-0` and
+// `NaN` into the trimmed SVG.
 function num(n: number): string {
-  if (Number.isInteger(n)) return String(n);
-  return n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  return formatNumber(n, 4);
 }
 function secs(ms: number): string {
-  const s = num(ms / 1000);
-  return `${s === "" || s === "-0" ? "0" : s}s`;
+  return `${num(ms / 1000)}s`;
 }
 
 /** Parse a SMIL/CSS clock-value ("1.85s", "500ms", "2") to ms, or null. */

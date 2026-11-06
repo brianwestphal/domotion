@@ -28,6 +28,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { formatNumber } from "../render/format.js";
 import { hitTestTopmost } from "../render/paint-order.js";
 import { cursorGlyphSvg } from "./cursor-glyphs.js";
 import { cssValueForStyle } from "./css-value-input.js";
@@ -543,5 +544,5 @@ function macosCursorPath(scale: number): string {
 }
 
 function num(n: number): string {
-  return Number(n.toFixed(2)).toString();
+  return formatNumber(n, 2);
 }

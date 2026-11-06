@@ -3,4 +3,4 @@
  * primitives the engine emits with, shared so root SVG output formats
  * identically.
  */
-export { esc, r, rootSvgA11y, stopFmt } from "./render/format.js";
+export { esc, formatNumber, r, rootSvgA11y, stopFmt } from "./render/format.js";
