@@ -144,6 +144,28 @@ describeBrowser("DM-2382: Blink-authoritative control pseudo cascade", () => {
     }
   });
 
+  it("captures a meter bar's non-uniform border sides and box-shadow", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 400, height: 80 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0} meter{appearance:none;display:block;width:300px;height:32px;margin:10px 20px}
+        #sides::-webkit-meter-bar{border-style:solid dashed;border-width:2px 6px;border-color:rgb(220,38,38) rgb(22,163,74);box-shadow:0 3px 6px rgb(15,23,42)}
+      </style><meter id="sides" value="60" max="100" data-domotion-anim="sides"></meter>`);
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 80 });
+      const styles = byAnimId(tree, "sides")?.styles;
+      expect(styles?.meterBarBorder).toBeUndefined();
+      expect(styles?.meterBarBorderSides).toEqual({
+        top: { width: "2px", style: "solid", color: "rgb(220, 38, 38)" },
+        right: { width: "6px", style: "dashed", color: "rgb(22, 163, 74)" },
+        bottom: { width: "2px", style: "solid", color: "rgb(220, 38, 38)" },
+        left: { width: "6px", style: "dashed", color: "rgb(22, 163, 74)" },
+      });
+      expect(styles?.meterBarBoxShadow).toBe("rgb(15, 23, 42) 0px 3px 6px 0px");
+    } finally {
+      await page.close();
+    }
+  });
+
   it("uses Blink winners across specificity, importance, origins, layers, scopes, conditions, and tree scopes", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 920, height: 720 } });
     try {

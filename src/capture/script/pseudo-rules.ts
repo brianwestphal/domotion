@@ -7,6 +7,8 @@
 // @scope, conditional rules, adopted sheets, or shadow tree scopes. This page
 // helper now performs only a non-mutating host-id lookup.
 
+import type { CapturedScrollbarPseudoStyle } from "../types.js";
+
 const _emptyPseudo = {
   matched: false,
   width: "",
@@ -19,7 +21,8 @@ const _emptyPseudo = {
   boxShadow: "",
 };
 
-type PseudoStyle = typeof _emptyPseudo;
+// Blink's final sides ride along only when they are not uniform (pseudo-style-cdp.ts).
+type PseudoStyle = typeof _emptyPseudo & { borderSides?: CapturedScrollbarPseudoStyle["borderSides"] };
 export const createPseudoRules = (
   stylesByHost: Record<string, Record<string, PseudoStyle>> | null | undefined,
   propertyKey: string | null | undefined,

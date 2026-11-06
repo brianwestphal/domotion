@@ -1055,8 +1055,12 @@ export interface CapturedStyles {
   meterBarBg?: string;
   meterBarBgImage?: string;
   meterBarRadius?: string;
-  /** Uniform computed border of `::-webkit-meter-bar` (`"1px solid rgba(…)"`), or absent. */
+  /** Uniform computed border of `::-webkit-meter-bar` (`"1px dashed rgba(…)"`), or absent. */
   meterBarBorder?: string;
+  /** Blink's four final `::-webkit-meter-bar` border sides, present only when they are not uniform. */
+  meterBarBorderSides?: CapturedScrollbarPseudoStyle["borderSides"];
+  /** Computed `::-webkit-meter-bar` `box-shadow` list, or absent for `none`. */
+  meterBarBoxShadow?: string;
   /**
    * Used border-box rects of the closed-UA-shadow `::-webkit-meter-bar` and
    * of the value element inside it, in the captured viewport's paint space.

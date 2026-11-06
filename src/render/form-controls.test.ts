@@ -950,7 +950,17 @@ describe("source-owned structural <meter> geometry (DM-1156 / DM-2458)", () => {
     expect(rects[0].rx).toBe("4");
   });
 
+  const meterDefCtx = () => {
+    const defsParts: string[] = [];
+    let n = 0;
+    return {
+      defsParts,
+      defCtx: { idPrefix: "t", defsParts, gradientCache: new Map<string, string>(), nextGradId: () => `m${n++}` },
+    };
+  };
+
   it("derives the fallback grid from the host content box", () => {
+    const { defCtx } = meterDefCtx();
     const svg = renderFormControl(
       makeMeter({
         borderTopWidth: "2px",
@@ -964,20 +974,19 @@ describe("source-owned structural <meter> geometry (DM-1156 / DM-2458)", () => {
         meterBarBorder: "2px solid rgb(220, 38, 38)",
       }),
       "",
+      defCtx,
     );
     const [track, border, value] = rectAttrs(svg);
     // Content box 520×8 at (268,104); middle row inset floor(8/4)=2 → 520×4 at y=106.
     expect([track.x, track.y, track.width, track.height]).toEqual(["268", "106", "520", "4"]);
-    expect(border.stroke).toBe("rgb(220, 38, 38)");
+    expect(border.stroke).toBe("rgb(220,38,38)");
     // Value sits inside the 2px bar border: 516 wide content, ratio 0.9.
     expect([value.x, value.y, value.height]).toEqual(["270", "108", "0"]);
     expect(parseFloat(value.width)).toBeCloseTo(464.4, 5);
   });
 
   it("paints the captured bar and value rects, the bar border, and clips the value to the bar", () => {
-    const defsParts: string[] = [];
-    let n = 0;
-    const defCtx = { idPrefix: "t", defsParts, gradientCache: new Map<string, string>(), nextGradId: () => `m${n++}` };
+    const { defCtx, defsParts } = meterDefCtx();
     const svg = renderFormControl(
       makeMeter({
         meterBarRadius: "20px",
@@ -989,12 +998,65 @@ describe("source-owned structural <meter> geometry (DM-1156 / DM-2458)", () => {
       defCtx,
     );
     const [track, border, value] = rectAttrs(svg);
+    // Corner overlap scales the 20px radius to the 4px half-height (circular).
     expect([track.x, track.y, track.width, track.height, track.rx]).toEqual(["264", "104", "528", "8", "4"]);
-    expect(border).toMatchObject({ fill: "none", stroke: "rgba(118, 118, 118, 0.3)", "stroke-width": "1" });
+    expect(border).toMatchObject({ fill: "none", stroke: "rgba(118,118,118,0.3)", "stroke-width": "1" });
     expect([border.x, border.y, border.width, border.height, border.rx]).toEqual(["264.5", "104.5", "527", "7", "3.5"]);
     expect([value.x, value.y, value.width, value.height]).toEqual(["265", "105", "300", "6"]);
     expect(value["clip-path"]).toBe("url(#m0)");
-    expect(defsParts.join("")).toContain('<rect x="265" y="105" width="526" height="6" rx="3" />');
+    expect(defsParts.join("")).toContain('<rect x="265" y="105" width="526" height="6" rx="3"');
+  });
+
+  const capturedBar = {
+    meterBarGeometry: { x: 264, y: 104, width: 528, height: 12 },
+    meterValueGeometry: { x: 268, y: 106, width: 300, height: 8 },
+  };
+
+  it("paints a non-solid uniform bar border through the general border painter", () => {
+    const { defCtx } = meterDefCtx();
+    const svg = renderFormControl(makeMeter({ ...capturedBar, meterBarBorder: "2px dashed rgb(1, 2, 3)" }), "", defCtx);
+    expect(svg).toMatch(/<line [^>]*stroke="rgb\(1,2,3\)"[^>]*stroke-dasharray=/);
+    expect(svg).not.toMatch(/fill="none" stroke="rgb\(1,2,3\)"/);
+  });
+
+  it("paints non-uniform bar border sides and pulls the value clip in by each side", () => {
+    const { defCtx, defsParts } = meterDefCtx();
+    const svg = renderFormControl(
+      makeMeter({
+        ...capturedBar,
+        meterBarBorderSides: {
+          top: { width: "2px", style: "solid", color: "rgb(220, 38, 38)" },
+          right: { width: "4px", style: "solid", color: "rgb(37, 99, 235)" },
+          bottom: { width: "2px", style: "solid", color: "rgb(220, 38, 38)" },
+          left: { width: "4px", style: "solid", color: "rgb(37, 99, 235)" },
+        },
+      }),
+      "",
+      defCtx,
+    );
+    expect(svg).toContain('fill="rgb(220,38,38)"');
+    expect(svg).toContain('fill="rgb(37,99,235)"');
+    // Padding box: 528 − 4 − 4 wide, 12 − 2 − 2 tall, at (268, 106).
+    expect(defsParts.join("")).toContain('<rect x="268" y="106" width="520" height="8" rx="0"');
+  });
+
+  it("paints the bar's outer and inset box-shadows around its background", () => {
+    const { defCtx } = meterDefCtx();
+    const svg = renderFormControl(
+      makeMeter({
+        ...capturedBar,
+        meterBarBoxShadow: "rgb(0, 0, 0) 0px 2px 4px 0px, rgb(255, 255, 255) 0px 1px 2px 0px inset",
+      }),
+      "",
+      defCtx,
+    );
+    const outer = svg.indexOf('fill="rgb(0,0,0)"');
+    const background = svg.indexOf('fill="rgb(12, 34, 56)"');
+    const inset = svg.indexOf("rgb(255,255,255)");
+    expect(outer).toBeGreaterThanOrEqual(0);
+    expect(background).toBeGreaterThan(outer);
+    expect(inset).toBeGreaterThan(background);
+    expect(svg.indexOf('fill="rgb(78, 90, 12)"')).toBeGreaterThan(inset);
   });
 });
 

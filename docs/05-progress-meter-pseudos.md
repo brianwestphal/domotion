@@ -9,6 +9,7 @@ tickets:
   [
     "DM-1156",
     "DM-5SAT08",
+    "DM-9XMXE5",
     "SK-1092",
     "SK-1125",
     "SK-1126",
@@ -179,3 +180,16 @@ html.css's gray bar gradient and the green/yellow/red value gradients. The
 the host _has_ an effective native appearance
 (`SelectorChecker`, `core/css/selector_checker.cc:3174-3181`), which takes the
 native raster route instead. Fixture: `meter-styled-bar-grid-row`.
+
+The bar is an ordinary box in Blink's `BoxPainter`, so `renderMeter` paints it
+in that order: outer box-shadow, background, inset box-shadow, border, then the
+overflow-clipped value. The shadow and border are not meter-specific: capture
+records the bar's uniform border (`meterBarBorder`, with its style), Blink's
+final per-side record when the sides differ (`meterBarBorderSides`) and the
+computed `box-shadow` (`meterBarBoxShadow`), and the renderer runs a synthetic
+box at the bar's captured rect through the general `paintBoxShadow` /
+`paintInsetBoxShadow` / `paintBorder` painters, so dashed, dotted, double,
+3D-bevel and mixed per-side borders follow the same rules as any element. The
+value clip is the bar's padding box with each corner pulled in by its adjacent
+border widths. Pseudo lengths are not rescaled under CSS `zoom`. Fixture:
+`meter-bar-border-shadow`.

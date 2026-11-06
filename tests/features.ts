@@ -818,6 +818,18 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // A structural meter's ::-webkit-meter-bar is an ordinary box in Blink's
+    // BoxPainter: outer shadow, background, inset shadow, border, then the
+    // overflow-clipped value. Its border and shadow go through the general
+    // box painters: a dashed uniform border, non-uniform per-side widths and
+    // colors (the value clip pulls in by each side), a double border, and an
+    // outer + inset box-shadow pair.
+    name: "meter-bar-border-shadow",
+    html: `<style>.mw{background:#f8fafc;padding:1px 0}meter{appearance:none;display:block;width:300px;height:32px;margin:14px 20px}meter::-webkit-meter-bar{background:#e2e8f0;border-radius:0}meter::-webkit-meter-optimum-value{background:#2563eb}meter.da::-webkit-meter-bar{border:2px dashed #0f172a}meter.ps::-webkit-meter-bar{border-style:solid;border-width:2px 6px;border-color:#dc2626 #16a34a}meter.db::-webkit-meter-bar{border:6px double #7c3aed;border-radius:6px}meter.sh::-webkit-meter-bar{border:0;border-radius:4px;box-shadow:0 3px 6px rgba(15,23,42,.45),inset 0 2px 3px rgba(0,0,0,.35)}</style><div class="mw"><meter class="da" value="60" max="100"></meter><meter class="ps" value="45" max="100"></meter><meter class="db" value="70" max="100"></meter><meter class="sh" value="35" max="100"></meter></div>`,
+    width: 350,
+    height: 220,
+  },
+  {
     name: "gradient-hint-border-image",
     html: `<div style="padding:20px;background:#fff"><div style="width:300px;height:80px;border:16px solid transparent;border-image-source:linear-gradient(to top right,transparent 0%,20%,#ef4444 100%);border-image-slice:1"></div></div>`,
     width: 380,

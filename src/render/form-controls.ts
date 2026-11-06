@@ -9,14 +9,16 @@ import { emitGaussianBlurFilter } from "./gaussian-blur.js";
  */
 
 import { renderWarn } from "./render-warn.js";
-import { isPaintedColor } from "../utils/transparent-background.js";
+import { isPaintedColor, TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import type { CapturedElement } from "../capture/types.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { isWholeHostNativeAppearance } from "../capture/effective-appearance.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { paintBoxShadow, paintInsetBoxShadow } from "./box-shadow-paint.js";
-import { parseCornerRadii } from "./borders.js";
+import { insetCornerRadii, parseCornerRadii, roundedRectSvg } from "./borders.js";
+import { paintBorder } from "./border-paint.js";
+import type { PaintCtx } from "./element-tree-to-svg.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { esc, r } from "./format.js";
 import { parseColor } from "./colors.js";
@@ -314,15 +316,44 @@ function meterBarGeom(el: CapturedElement): {
   const inset = Math.floor(contentH / 4);
   const trackRect = { x: contentX, y: contentY + inset, w: contentW, h: Math.max(0, contentH - inset * 2) };
   if (ratio <= 0) return { trackRect, valueRect: null, valueBgImage };
-  const barBorder = parseBorderShorthand(s.meterBarBorder)?.width ?? 0;
-  const innerW = Math.max(0, trackRect.w - barBorder * 2);
+  const bw = meterBarBorderWidths(s);
+  const innerW = Math.max(0, trackRect.w - bw.left - bw.right);
   const width = innerW * ratio;
-  const x = s.direction === "rtl" ? trackRect.x + barBorder + innerW - width : trackRect.x + barBorder;
+  const x = s.direction === "rtl" ? trackRect.x + bw.left + innerW - width : trackRect.x + bw.left;
   return {
     trackRect,
-    valueRect: { x, y: trackRect.y + barBorder, w: width, h: Math.max(0, trackRect.h - barBorder * 2) },
+    valueRect: { x, y: trackRect.y + bw.top, w: width, h: Math.max(0, trackRect.h - bw.top - bw.bottom) },
     valueBgImage,
   };
+}
+
+type MeterBarBorderSide = { width: string; style: string; color: string };
+
+/**
+ * Blink's final `::-webkit-meter-bar` border sides: the per-side record when
+ * the sides differ, otherwise the uniform `"<width> <style> <color>"` record
+ * repeated. `null` when the bar has no border.
+ */
+function meterBarBorderSides(
+  s: CapturedElement["styles"],
+): { top: MeterBarBorderSide; right: MeterBarBorderSide; bottom: MeterBarBorderSide; left: MeterBarBorderSide } | null {
+  if (s.meterBarBorderSides != null) return s.meterBarBorderSides;
+  const m = /^(\S+)\s+(\S+)\s+(.+)$/.exec(s.meterBarBorder?.trim() ?? "");
+  if (m == null) return null;
+  const side = { width: m[1], style: m[2], color: m[3] };
+  return { top: side, right: side, bottom: side, left: side };
+}
+
+function meterBarBorderWidths(s: CapturedElement["styles"]): {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+} {
+  const sides = meterBarBorderSides(s);
+  const w = (side: MeterBarBorderSide | undefined): number =>
+    side == null || side.style === "none" || side.style === "hidden" ? 0 : Math.max(0, parseFloat(side.width) || 0);
+  return { top: w(sides?.top), right: w(sides?.right), bottom: w(sides?.bottom), left: w(sides?.left) };
 }
 export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer: string; w: number; h: number }> {
   const s = el.styles;
@@ -973,14 +1004,70 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const geometry = meterBarGeom(el);
   const track = geometry.trackRect;
   const parts: string[] = [];
-  // CSS scales every corner radius down together when they overflow the box
-  // (css-backgrounds "Corner Overlap"); a bare SVG rx/ry clamps each axis on
-  // its own and would turn the UA bar's 20px radius into an ellipse.
-  const radius = Math.max(0, Math.min(parseFloat(s.meterBarRadius ?? "") || 0, track.w / 2, track.h / 2));
-  const border = parseBorderShorthand(s.meterBarBorder);
-  const borderWidth = border == null ? 0 : Math.min(border.width, track.w / 2, track.h / 2);
-  const trackShape = (fill: string, attrs = ""): string =>
-    `${indent}<rect x="${r(track.x)}" y="${r(track.y)}" width="${r(track.w)}" height="${r(track.h)}" rx="${r(radius)}" fill="${fill}"${attrs} />`;
+  // The bar is an ordinary box in Blink (BoxPainter): outer shadow,
+  // background, inset shadow, border, then its overflow-clipped child value.
+  // Its shadow and border go through the same painters as an element's box,
+  // on a synthetic box carrying the bar's captured final longhands.
+  const radiusPx = `${Math.max(0, parseFloat(s.meterBarRadius ?? "") || 0)}px`;
+  const sides = meterBarBorderSides(s);
+  const bw = meterBarBorderWidths(s);
+  const barBox: CapturedElement = {
+    ...el,
+    x: track.x,
+    y: track.y,
+    width: track.w,
+    height: track.h,
+    children: [],
+    fieldsetLegendNotch: undefined,
+    styles: {
+      ...s,
+      borderImageSource: "none",
+      borderCollapse: "separate",
+      collapsedBorderRects: undefined,
+      borderTopWidth: `${bw.top}px`,
+      borderRightWidth: `${bw.right}px`,
+      borderBottomWidth: `${bw.bottom}px`,
+      borderLeftWidth: `${bw.left}px`,
+      borderTopStyle: sides?.top.style ?? "none",
+      borderRightStyle: sides?.right.style ?? "none",
+      borderBottomStyle: sides?.bottom.style ?? "none",
+      borderLeftStyle: sides?.left.style ?? "none",
+      borderTopColor: sides?.top.color ?? TRANSPARENT_BLACK,
+      borderRightColor: sides?.right.color ?? TRANSPARENT_BLACK,
+      borderBottomColor: sides?.bottom.color ?? TRANSPARENT_BLACK,
+      borderLeftColor: sides?.left.color ?? TRANSPARENT_BLACK,
+      borderRadius: radiusPx,
+      borderTopLeftRadius: radiusPx,
+      borderTopRightRadius: radiusPx,
+      borderBottomRightRadius: radiusPx,
+      borderBottomLeftRadius: radiusPx,
+      cornerTopLeftShape: undefined,
+      cornerTopRightShape: undefined,
+      cornerBottomRightShape: undefined,
+      cornerBottomLeftShape: undefined,
+      boxShadow: s.meterBarBoxShadow ?? "none",
+    },
+  };
+  // parseCornerRadii applies CSS corner-overlap scaling, so the UA-sized
+  // radius on a short bar stays circular instead of an SVG rx/ry ellipse.
+  const corners = parseCornerRadii(barBox.styles, track.w, track.h);
+  const paintCtx: PaintCtx | null =
+    defCtx == null
+      ? null
+      : {
+          svgParts: parts,
+          defsParts: defCtx.defsParts,
+          idPrefix: defCtx.idPrefix,
+          nextClipId: () => defCtx.nextGradId(),
+          // Only renderBorderImage reads the shared counter, and the bar never
+          // carries a border-image.
+          peekClipIdx: () => 0,
+          advanceClipIdx: () => undefined,
+          emittedTextCtm: new WeakMap(),
+        };
+  if (paintCtx != null) paintBoxShadow(paintCtx, barBox, corners, indent);
+  const trackShape = (fill: string): string =>
+    `${indent}${roundedRectSvg(track.x, track.y, track.w, track.h, corners, `fill="${fill}"`)}`;
   const trackColor = capturedPseudoColor(s.meterBarBg);
   const trackFills = gradientLayerFills(s.meterBarBgImage, track, defCtx, "::-webkit-meter-bar");
   const trackGradient = trackFills.fills.at(-1) ?? null;
@@ -988,14 +1075,9 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(...underlayerShapes(trackFills, trackColor, trackShape));
     parts.push(trackShape(trackGradient ?? trackColor!));
   }
-  if (border != null && borderWidth > 0) {
-    // Blink paints the bar's border in its own box phase, before the child
-    // value (which overflow clips to the padding box); a uniform border is a
-    // stroke centered half a width inside the border box.
-    const half = borderWidth / 2;
-    parts.push(
-      `${indent}<rect x="${r(track.x + half)}" y="${r(track.y + half)}" width="${r(Math.max(0, track.w - borderWidth))}" height="${r(Math.max(0, track.h - borderWidth))}" rx="${r(Math.max(0, radius - half))}" fill="none" stroke="${border.color}" stroke-width="${r(borderWidth)}" />`,
-    );
+  if (paintCtx != null) {
+    paintInsetBoxShadow(paintCtx, barBox, corners, indent);
+    paintBorder(paintCtx, barBox, indent, corners, track.w, track.h, 0, null, false, false, new Set<CapturedElement>());
   }
   if (geometry.valueRect != null) {
     const valueRect = geometry.valueRect;
@@ -1003,24 +1085,24 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const valueGradient = valueFills.fills.at(-1) ?? null;
     if (valueColor != null || valueGradient != null) {
       // html.css gives the bar `overflow: hidden`, so the value paints inside
-      // the bar's rounded padding box (outer radius minus the border width).
+      // the bar's rounded padding box (outer radii pulled in by each border).
       const inner = {
-        x: track.x + borderWidth,
-        y: track.y + borderWidth,
-        w: Math.max(0, track.w - borderWidth * 2),
-        h: Math.max(0, track.h - borderWidth * 2),
+        x: track.x + bw.left,
+        y: track.y + bw.top,
+        w: Math.max(0, track.w - bw.left - bw.right),
+        h: Math.max(0, track.h - bw.top - bw.bottom),
       };
-      const innerRadius = Math.max(0, radius - borderWidth);
+      const innerCorners = insetCornerRadii(corners, bw.top, bw.right, bw.bottom, bw.left);
       let clipAttr = "";
       let valueRadius = 0;
       if (defCtx != null) {
         const clipId = defCtx.nextGradId();
         defCtx.defsParts.push(
-          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(inner.x)}" y="${r(inner.y)}" width="${r(inner.w)}" height="${r(inner.h)}" rx="${r(innerRadius)}" /></clipPath>`,
+          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">${roundedRectSvg(inner.x, inner.y, inner.w, inner.h, innerCorners, "")}</clipPath>`,
         );
         clipAttr = ` clip-path="url(#${clipId})"`;
       } else {
-        valueRadius = Math.min(innerRadius, valueRect.w / 2, valueRect.h / 2);
+        valueRadius = Math.min(innerCorners.tl.h, valueRect.w / 2, valueRect.h / 2);
       }
       const valueShape = (fill: string): string =>
         `${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(valueRadius)}" fill="${fill}"${clipAttr} />`;

@@ -286,6 +286,9 @@ export const createFormControlsHandler = ({
       out.meterBarBgImage = bar.matched && bar.backgroundImage !== "" ? gradientImage(bar.backgroundImage) : undefined;
       out.meterBarRadius = bar.matched && bar.borderRadius !== "" ? bar.borderRadius : undefined;
       out.meterBarBorder = bar.matched && bar.border !== "" ? bar.border : undefined;
+      out.meterBarBorderSides = bar.matched ? bar.borderSides : undefined;
+      out.meterBarBoxShadow =
+        bar.matched && bar.boxShadow !== "" && bar.boxShadow !== "none" ? bar.boxShadow : undefined;
       out.meterOptimumBg = opt.matched && opt.backgroundColor !== "" ? normColor(opt.backgroundColor) : undefined;
       out.meterOptimumBgImage =
         opt.matched && opt.backgroundImage !== "" ? gradientImage(opt.backgroundImage) : undefined;
