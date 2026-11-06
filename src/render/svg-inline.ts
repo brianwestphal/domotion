@@ -279,6 +279,12 @@ function extractViewBox(attrs: string): string | null {
   return vb === "" ? null : vb;
 }
 
+/** Serialize a numeric viewBox for a `viewBox` attribute. */
+function formatViewBox(v: ViewBox): string {
+  const f = (n: number): string => formatNumberLoose(n, 6);
+  return `${f(v.minX)} ${f(v.minY)} ${f(v.width)} ${f(v.height)}`;
+}
+
 /** Remove the given attributes (case-insensitive names) from a `<svg>` tag's
  *  attribute string, so the caller can re-declare them. */
 function stripAttrs(attrs: string, names: string[]): string {
@@ -569,6 +575,70 @@ export interface InlineSvgPlacement {
   intrinsic?: { w: number; h: number } | null;
   /** Unique per-document prefix for namespacing the SVG's internal ids. */
   idPrefix: string;
+  /**
+   * The placement rect is the `<img>`'s concrete object rect, which Blink uses
+   * as the SVG image document's viewport: `ImagePainter` asks for the image at
+   * `dest_rect.size` (`core/paint/image_painter.cc:218`), `SVGImage` lays the
+   * root out at that container size (`core/svg/graphics/svg_image.cc:463`),
+   * and the root's own viewBox / preserveAspectRatio map the content into it.
+   * A valid root viewBox therefore maps with the ROOT's preserveAspectRatio
+   * (default `xMidYMid meet`), never a stretch derived from object-fit; without
+   * one Blink synthesizes a viewBox from the root's width/height resolved
+   * against the viewport and a `none` preserveAspectRatio
+   * (`SVGSVGElement::CurrentViewBoxRect` / `CurrentPreserveAspectRatio`,
+   * `core/svg/svg_svg_element.cc:598-626`, chromium 7d859f27). The drawn image
+   * (its clip and the root transform's reference box) is the placement rect.
+   * `par` is ignored when set.
+   */
+  documentViewport?: boolean;
+  /** The `<img>`'s effective zoom (CSS px per SVG user unit for a synthesized
+   *  viewport-relative viewBox); used with `documentViewport`. Defaults to 1. */
+  zoom?: number;
+}
+
+/** A root `<svg>` length attribute resolved against the image viewport
+ *  dimension `viewport` (user units): an absolute length, a percentage of the
+ *  viewport, or the `100%` initial value when absent or unparseable. */
+function resolveViewportLength(attrs: string, name: string, viewport: number): number {
+  const v = parseSvgAttributes(attrs)
+    ?.find((token) => token.name.toLowerCase() === name)
+    ?.value.trim();
+  if (v != null) {
+    const pct = /^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)%$/i.exec(v);
+    if (pct != null) return (parseFloat(pct[1]) / 100) * viewport;
+    const n = parseFloat(v);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return viewport;
+}
+
+/**
+ * The viewBox and preserveAspectRatio an `<img>` SVG document maps into its
+ * viewport `p` (see {@link InlineSvgPlacement.documentViewport}). Null when no
+ * non-empty coordinate system results.
+ */
+function resolveDocumentViewport(
+  attrs: string,
+  p: InlineSvgPlacement,
+): { viewBox: ViewBox; viewBoxAttr: string; par: string } | null {
+  const own = resolveViewBoxRect(attrs, null, true);
+  if (own != null) {
+    const parAttr = parseSvgAttributes(attrs)
+      ?.find((token) => token.name.toLowerCase() === "preserveaspectratio")
+      ?.value.trim();
+    const parsed = parsePreserveAspectRatio(parAttr ?? null);
+    return {
+      viewBox: own,
+      viewBoxAttr: extractViewBox(attrs) ?? formatViewBox(own),
+      par: `${parsed.align} ${parsed.meetOrSlice}`,
+    };
+  }
+  const zoom = p.zoom != null && Number.isFinite(p.zoom) && p.zoom > 0 ? p.zoom : 1;
+  const width = resolveViewportLength(attrs, "width", p.w / zoom);
+  const height = resolveViewportLength(attrs, "height", p.h / zoom);
+  if (!(width > 0) || !(height > 0)) return null;
+  const viewBox = { minX: 0, minY: 0, width, height };
+  return { viewBox, viewBoxAttr: formatViewBox(viewBox), par: "none" };
 }
 
 /**
@@ -589,9 +659,12 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
   if (tag == null) return null;
   let attrs = tag.attributes;
 
+  const doc = p.documentViewport === true ? resolveDocumentViewport(attrs, p) : null;
+  if (p.documentViewport === true && doc == null) return null;
+  const par = doc?.par ?? p.par;
   // Resolve a coordinate system: the SVG's own viewBox, else one synthesized
   // from its absolute width/height, else from the <img> intrinsic size.
-  let viewBox = extractViewBox(attrs);
+  let viewBox = doc == null ? extractViewBox(attrs) : doc.viewBoxAttr;
   if (viewBox == null) {
     let vw = readLengthAttr(attrs, "width");
     let vh = readLengthAttr(attrs, "height");
@@ -603,9 +676,11 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
     viewBox = `0 0 ${r(vw)} ${r(vh)}`;
   }
 
-  const rect = resolveViewBoxRect(tag.attributes, p.intrinsic);
-  const matrix = rect == null ? null : computeViewportMatrix(p, rect, parsePreserveAspectRatio(p.par));
-  const object = rect != null && matrix != null ? mappedViewBoxRect(rect, matrix) : p;
+  const rect = doc?.viewBox ?? resolveViewBoxRect(tag.attributes, p.intrinsic);
+  const matrix = rect == null ? null : computeViewportMatrix(p, rect, parsePreserveAspectRatio(par));
+  // The drawn image: the document viewport itself, else the viewBox as the
+  // object-fit-derived preserveAspectRatio maps it into the content box.
+  const object = doc != null ? p : rect != null && matrix != null ? mappedViewBoxRect(rect, matrix) : p;
   // An `<img>` document root's own transform is composed outside the viewport
   // below (a nested `<svg transform>` would rotate about the output origin).
   const rootTransform = imageRootTransform(attrs, object, "<img> svg");
@@ -629,7 +704,7 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
   const open =
     `<svg${rootAttrs}` +
     ` x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"` +
-    ` viewBox="${viewBox}" preserveAspectRatio="${p.par}">`;
+    ` viewBox="${viewBox}" preserveAspectRatio="${par}">`;
   if (rootTransform != null) return applyImageRootTransform(open + body, rootTransform, p, object);
   // The nested viewport clips to the placement box, which equals the drawn
   // image only when the object rect covers it and overflow is not visible.
@@ -684,15 +759,23 @@ export function withFlattenNestedSvg<F extends () => unknown>(
 
 /** Resolve the source SVG's numeric viewBox (own viewBox, else synthesized from
  *  absolute width/height, else the `<img>` intrinsic size), or null. */
-function resolveViewBoxRect(attrs: string, intrinsic?: { w: number; h: number } | null): ViewBox | null {
+function resolveViewBoxRect(
+  attrs: string,
+  intrinsic?: { w: number; h: number } | null,
+  viewBoxOnly = false,
+): ViewBox | null {
   const vbStr = extractViewBox(attrs);
   if (vbStr != null) {
-    const nums = vbStr.split(/[\s,]+/).map(Number);
+    const nums = vbStr
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
     if (nums.length === 4 && nums.every((n) => Number.isFinite(n)) && nums[2] > 0 && nums[3] > 0) {
       return { minX: nums[0], minY: nums[1], width: nums[2], height: nums[3] };
     }
     return null;
   }
+  if (viewBoxOnly) return null;
   let vw = readLengthAttr(attrs, "width");
   let vh = readLengthAttr(attrs, "height");
   if ((vw == null || vh == null) && intrinsic != null && intrinsic.w > 0 && intrinsic.h > 0) {
@@ -780,9 +863,11 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
 
   if (!isSvgSafeToFlatten(bodySource)) return null;
 
-  const viewBox = resolveViewBoxRect(attrs, p.intrinsic);
+  const doc = p.documentViewport === true ? resolveDocumentViewport(attrs, p) : null;
+  const viewBox = p.documentViewport === true ? (doc?.viewBox ?? null) : resolveViewBoxRect(attrs, p.intrinsic);
   if (viewBox == null) return null;
-  const matrix = computeViewportMatrix({ x: p.x, y: p.y, w: p.w, h: p.h }, viewBox, parsePreserveAspectRatio(p.par));
+  const par = doc?.par ?? p.par;
+  const matrix = computeViewportMatrix({ x: p.x, y: p.y, w: p.w, h: p.h }, viewBox, parsePreserveAspectRatio(par));
   if (matrix == null) return null;
 
   // Namespace ids/classes exactly as the nested path does (DM-1588 / DM-1593).
@@ -803,7 +888,7 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
   // A nested `<svg>` clips to its viewport (overflow:hidden default); a `<g>`
   // does not. Add a rect clip at the placement rect unless overflow is
   // visible; the drawn-image clip applies either way.
-  const object = mappedViewBoxRect(viewBox, matrix);
+  const object = doc != null ? { x: p.x, y: p.y, w: p.w, h: p.h } : mappedViewBoxRect(viewBox, matrix);
   const rootTransform = imageRootTransform(attrs, object, "<img> svg");
   if (rootOverflowVisible(attrs)) {
     return rootTransform == null

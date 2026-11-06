@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN"]
+tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG"]
 code:
   [
     "src/capture/embed.ts",
@@ -106,8 +106,12 @@ dimensions only for the object-fit calculation.
 
 All `object-fit` values take the native path:
 
-- `fill` (default), `contain`, `cover`, and `scale-down` place the nested `<svg>` at the content box with a `preserveAspectRatio` derived from `object-fit` / `object-position` (the standard branch).
-- **`object-fit: none`** (DM-1592) places the nested `<svg>` at the SVG's **intrinsic size** (`el.imageIntrinsic`), positioned by `object-position` inside the content box and clipped to it — the native counterpart of the raster intrinsic-size branch. Since `iw×ih` _is_ the SVG's intrinsic size, its own viewBox maps 1:1 and `preserveAspectRatio="xMidYMid meet"` (the SVG default) keeps that exact with no distortion. Falls back to the raster `<image>` when the source isn't SVG or has no coordinate system.
+- **With an intrinsic size** (every SVG `<img>` Chromium loads reports a non-zero `naturalWidth`/`naturalHeight`), `paintImage` computes Blink's concrete object rect for the `object-fit` / `object-position` pair (`computeObjectFitRect`, mirroring `LayoutReplaced::ComputeObjectFitAndPositionRect`) and places the nested `<svg>` there, clipped to the content box. That rect is the SVG image document's **viewport**: `ImagePainter` requests the image at `dest_rect.size` (`core/paint/image_painter.cc:218`) and `SVGImage` lays the root out at that container size (`core/svg/graphics/svg_image.cc:463`, Chromium `7d859f27`). Inside it the root maps its content exactly as a standalone document would (`InlineSvgPlacement.documentViewport`):
+  - a valid root `viewBox` maps with the **root's own `preserveAspectRatio`** (default `xMidYMid meet`), so an `object-fit: fill` box whose aspect differs from the viewBox letterboxes (or, for `slice`, crops) instead of stretching, and content outside the viewBox but inside the object rect still paints;
+  - without a valid viewBox, Blink synthesizes one from the root `width`/`height` (a missing or percentage value resolves against the viewport) and a `none` `preserveAspectRatio` (`SVGSVGElement::CurrentViewBoxRect` / `CurrentPreserveAspectRatio`, `core/svg/svg_svg_element.cc:598-626`), so such an SVG does stretch to the object rect.
+    The drawn-image clip and the root transform's reference box are the object rect itself. Fixture: `image-svg-root-preserve-aspect-ratio`.
+- **Without an intrinsic size** (a source Chromium never reported dimensions for), the nested `<svg>` is placed at the content box with a `preserveAspectRatio` derived from `object-fit` / `object-position` (`preserveAspectRatioFor`).
+- **`object-fit: none`** (DM-1592) is the intrinsic-size case of the first bullet: the object rect is the SVG's intrinsic size, positioned by `object-position` inside the content box and clipped to it. Falls back to the raster `<image>` when the source isn't SVG or has no coordinate system.
 
 ## Id + class namespacing
 

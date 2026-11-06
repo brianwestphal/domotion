@@ -269,6 +269,74 @@ describe("paintImage — object-fit: none SVG img inlines natively at intrinsic 
   });
 });
 
+describe("<img> SVG document viewport: the root preserveAspectRatio maps the viewBox into the object rect", () => {
+  // Blink lays the SVG image document out at the concrete object rect
+  // (SVGImage container size) and maps a valid root viewBox with the root's
+  // OWN preserveAspectRatio; without one it synthesizes a viewBox from the
+  // root width/height (viewport-relative) and a `none` preserveAspectRatio.
+  const D = { x: 10, y: 20, w: 200, h: 80, par: "none", documentViewport: true, idPrefix: "D-" };
+
+  it("letterboxes a square viewBox in a wide box with the default xMidYMid meet", () => {
+    const src = `<svg viewBox="0 0 100 100" width="100" height="100"><rect width="100" height="100"/></svg>`;
+    const out = inlineImgSvg(src, D)!;
+    expect(out).toContain(
+      `x="10" y="20" width="200" height="80" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"`,
+    );
+    // The drawn image is the whole viewport: no extra clip to the mapped viewBox.
+    expect(out).not.toContain("vclip-img");
+    expect(out.startsWith("<svg")).toBe(true);
+  });
+
+  it("honors the root's own preserveAspectRatio, ignoring the placement par", () => {
+    const src = `<svg viewBox="0 0 100 100" preserveAspectRatio="xMinYMax slice"><rect/></svg>`;
+    expect(inlineImgSvg(src, { ...D, par: "xMidYMid meet" })).toContain(`preserveAspectRatio="xMinYMax slice"`);
+    const none = `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><rect/></svg>`;
+    expect(inlineImgSvg(none, D)).toContain(`preserveAspectRatio="none meet"`);
+  });
+
+  it("synthesizes a viewBox from absolute width/height with a none mapping when there is no viewBox", () => {
+    const out = inlineImgSvg(`<svg width="80" height="40"><rect/></svg>`, D)!;
+    expect(out).toContain(`viewBox="0 0 80 40" preserveAspectRatio="none"`);
+  });
+
+  it("resolves a missing or percentage width/height against the viewport (unzoomed)", () => {
+    expect(inlineImgSvg(`<svg><rect/></svg>`, D)).toContain(`viewBox="0 0 200 80" preserveAspectRatio="none"`);
+    expect(inlineImgSvg(`<svg><rect/></svg>`, { ...D, zoom: 2 })).toContain(`viewBox="0 0 100 40"`);
+    expect(inlineImgSvg(`<svg width="50%" height="40"><rect/></svg>`, D)).toContain(`viewBox="0 0 100 40"`);
+    // An invalid viewBox is ignored like an absent one.
+    expect(inlineImgSvg(`<svg viewBox="0 0 0 10" width="20" height="10"><rect/></svg>`, D)).toContain(
+      `viewBox="0 0 20 10" preserveAspectRatio="none"`,
+    );
+  });
+
+  it("clips an overflow-visible root to the viewport and uses it as the root transform box", () => {
+    const vis = inlineImgSvg(`<svg viewBox="0 0 100 100" overflow="visible"><rect/></svg>`, D)!;
+    expect(vis).toContain(`<clipPath id="D-vclip-img"><rect x="10" y="20" width="200" height="80"/></clipPath>`);
+    const rot = inlineImgSvg(`<svg viewBox="0 0 100 100" transform="rotate(90)"><rect/></svg>`, D)!;
+    // Rotation about the viewport center (110, 60), not the letterboxed square's.
+    expect(rot).toContain(`translate(110 60) rotate(90) translate(-110 -60)`);
+  });
+
+  it("flattenImgSvg maps with the root preserveAspectRatio too", () => {
+    const out = flattenImgSvg(`<svg viewBox="0 0 100 100"><rect width="100" height="100"/></svg>`, D)!;
+    // meet: scale 0.8, centered → tx = 10 + (200 - 80) / 2 = 70, ty = 20.
+    expect(out).toContain(`transform="matrix(0.8 0 0 0.8 70 20)"`);
+    expect(out).toContain(`<rect x="10" y="20" width="200" height="80"/>`);
+  });
+
+  it("paintImage letterboxes an object-fit: fill SVG <img> whose box aspect differs from the viewBox", () => {
+    const svg = `<svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#00f"/></svg>`;
+    const el = imgEl(SVG_URI(svg));
+    el.width = 200;
+    el.height = 80;
+    (el as { imageIntrinsic?: { w: number; h: number } }).imageIntrinsic = { w: 150, h: 150 };
+    const out = elementTreeToSvgInner([el], 300, 200);
+    expect(out).toMatch(
+      /<svg[^>]*x="10" y="10" width="200" height="80" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"/,
+    );
+  });
+});
+
 describe("prefixSvgClasses — namespace CSS class names in <style>-bearing SVGs (DM-1593)", () => {
   it("prefixes class selectors in <style> and matching class= attributes", () => {
     const svg =

@@ -1156,6 +1156,29 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // Blink lays an `<img>` SVG document out at the concrete object rect
+    // (ImagePainter requests the image at dest_rect.size,
+    // core/paint/image_painter.cc:218; SVGImage sizes the root to it,
+    // core/svg/graphics/svg_image.cc:463, chromium 7d859f27). A valid root
+    // viewBox then maps with the root's OWN preserveAspectRatio, so a box
+    // whose aspect differs from the viewBox letterboxes (or slices) instead of
+    // stretching, and content outside the viewBox but inside the object rect
+    // still paints. Without a viewBox, Blink synthesizes one from the root
+    // width/height with preserveAspectRatio none (svg_svg_element.cc:598-626),
+    // so that SVG does stretch. Covers fill / contain / cover / none.
+    name: "image-svg-root-preserve-aspect-ratio",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;flex-wrap:wrap;gap:12px;width:560px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#2563eb"/><circle cx="50" cy="50" r="30" fill="#ed1234"/><circle cx="-30" cy="50" r="20" fill="#16a34a"/></svg>')}" style="display:block;width:200px;height:80px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" preserveAspectRatio="xMinYMax slice"><rect width="100" height="100" fill="#0ea5e9"/><rect width="50" height="50" fill="#f59e0b"/><rect x="50" y="50" width="50" height="50" fill="#7c3aed"/></svg>')}" style="display:block;width:80px;height:120px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#22c55e"/><circle cx="50" cy="50" r="40" fill="#fde047"/></svg>')}" style="display:block;width:140px;height:100px;background:#0f172a;object-fit:contain">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="80" viewBox="0 0 100 100" preserveAspectRatio="xMaxYMin meet"><rect width="100" height="100" fill="#db2777"/><circle cx="50" cy="50" r="30" fill="#e2e8f0"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:cover">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="45" viewBox="0 0 100 100"><rect width="100" height="100" fill="#059669"/><circle cx="50" cy="50" r="30" fill="#fde047"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:none;object-position:20% 70%">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="#c2410c"/><circle cx="20" cy="20" r="16" fill="#fde047"/></svg>')}" style="display:block;width:160px;height:60px;background:#0f172a">
+    </div>`,
+    width: 600,
+    height: 290,
+  },
+  {
     name: "replaced-canvas-overlay",
     html: `<div style="padding:20px;"><div style="position:relative;width:200px;height:100px;"><canvas id="c3" width="200" height="100" style="display:block;background:#444;position:absolute;left:0;top:0;z-index:1;"></canvas><div style="position:absolute;left:60px;top:30px;width:80px;height:40px;background:rgba(220,38,38,0.7);z-index:10;"></div></div></div><script>(function(){var c=document.getElementById('c3').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);c.fillRect(150,50,30,30);})();</script>`,
     width: 240,

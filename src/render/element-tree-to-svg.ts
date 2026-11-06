@@ -530,13 +530,15 @@ function paintImage(
         `<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`,
       );
     }
-    // DM-1592: an SVG source under `object-fit: none` inlines as a native
-    // `<svg>` at its intrinsic size (iw×ih), positioned by object-position and
-    // clipped to the content box — the object-fit:none counterpart of the
-    // standard-branch native path (DM-1588). iw×ih IS the SVG's intrinsic size,
-    // so its own viewBox maps 1:1; `xMidYMid meet` (the SVG default) keeps that
-    // exact with no distortion. Falls back to the raster `<image>` when the
-    // source isn't SVG or has no usable coordinate system.
+    // DM-1592: an SVG source inlines as a native `<svg>` whose viewport is the
+    // concrete object rect, positioned by object-position and clipped to the
+    // content box (the counterpart of the standard-branch native path,
+    // DM-1588). That rect is the SVG image document's viewport in Blink, so
+    // the root's own viewBox + preserveAspectRatio map the content into it:
+    // an `<img>` box whose aspect differs from the viewBox letterboxes the
+    // content (`xMidYMid meet` by default) instead of stretching it (see
+    // `InlineSvgPlacement.documentViewport`). Falls back to the raster
+    // `<image>` when the source isn't SVG or has no usable coordinate system.
     const svgTextNone = resolveSvgSource(el.imageSrc);
     let inlinedNone: string | null = null;
     if (svgTextNone != null) {
@@ -548,6 +550,8 @@ function paintImage(
         w: iw,
         h: ih,
         par: "none",
+        documentViewport: true,
+        zoom: effectiveZoom,
         intrinsic: el.imageIntrinsic,
         idPrefix: ctx.nextClipId("svgimg"),
       };
