@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
+import { keyframeStops, offsetEmbeddedAnimatedSvgTimeline } from "./embed-timeline.js";
 
 /** Minimal animated-SVG document mimicking a nested cast's `<style>`. */
 function castDoc(periodS: number): string {
@@ -183,5 +183,64 @@ describe("offsetEmbeddedAnimatedSvgTimeline", () => {
     expect(ln0).toContain("20%");
     expect(ln0).toContain("40%");
     expect(ln0).not.toContain("60%");
+  });
+});
+
+// DM-DSGTGZ: the stop scan used this regex, which backtracks quadratically on a
+// long digit/dot run not followed by `%`. It stays here only as the oracle.
+const regexStops = (inner: string) =>
+  [...inner.matchAll(/(from|to|[\d.]+%(?:\s*,\s*[\d.]+%)*)\s*\{([^{}]*)\}/g)].map((m) => ({
+    selector: m[1],
+    decls: m[2],
+  }));
+
+describe("keyframeStops (DM-DSGTGZ)", () => {
+  const realistic = [
+    "",
+    " 0% { opacity: 0 } 50% { opacity: 1 } 100% { opacity: 0 } ",
+    "from{transform:none}to{transform:scale(2)}",
+    "0%, 49.999% { visibility: visible }\n 50% ,\t100% { visibility: hidden }",
+    "0%,100%{opacity:1}12.5%{opacity:.5}",
+    "x10%{a:b} auto{c:d} .5%{e:f} 1.2.3%{g:h} %{i:j} ,5%{k:l} 5%,{m:n}",
+    "0%{a:b",
+    "0%{ {a:b} } 10%{c:d}",
+  ];
+  function* exhaustive(alphabet: string, maxLength: number): Generator<string> {
+    let layer = [""];
+    for (let length = 1; length <= maxLength; length++) {
+      const next: string[] = [];
+      for (const prefix of layer) for (const ch of alphabet) next.push(prefix + ch);
+      yield* next;
+      layer = next;
+    }
+  }
+  function* random(count: number): Generator<string> {
+    let state = 11;
+    const nextInt = (n: number) => {
+      state = (state * 1103515245 + 12345) & 0x7fffffff;
+      return state % n;
+    };
+    const alphabet = "{}{}0.5%%,, \ntofrm;a";
+    for (let index = 0; index < count; index++) {
+      let s = "";
+      const length = nextInt(48);
+      for (let j = 0; j < length; j++) s += alphabet[nextInt(alphabet.length)];
+      yield s;
+    }
+  }
+
+  it("returns exactly the old stop regex's matches", () => {
+    for (const inner of [...realistic, ...exhaustive("{}1.%, t", 6), ...random(20_000)]) {
+      expect(keyframeStops(inner), JSON.stringify(inner)).toEqual(regexStops(inner));
+    }
+  });
+
+  // The old regex took 5.1 s on 40 KB of `1` and 2.9 s on `1%,` x 13K.
+  it("stays linear on long digit/dot and percent-list runs", () => {
+    const started = performance.now();
+    expect(keyframeStops(`${"1".repeat(400_000)} 0%{a:b}`)).toEqual([{ selector: "0%", decls: "a:b" }]);
+    expect(keyframeStops(`${"1%,".repeat(130_000)}`)).toEqual([]);
+    expect(keyframeStops(`${"1%,".repeat(130_000)}2%{a:b}`)[0].selector.length).toBe(130_000 * 3 + 2);
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 });

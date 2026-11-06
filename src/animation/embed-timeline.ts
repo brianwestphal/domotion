@@ -44,6 +44,7 @@
  */
 
 import { fmt, clampPct } from "./svg-meta.js";
+import { flatCssBlocks } from "../utils/flat-css-blocks.js";
 
 /**
  * How an embedded layer's own timeline maps onto its container's master loop
@@ -125,12 +126,65 @@ function tokenizeEntry(entry: string): string[] {
 }
 
 /**
+ * The keyframe stops in a `@keyframes` body: each flat `selector { decls }`
+ * block whose prelude ends in a stop selector (`from`, `to`, or a
+ * comma-separated `N%` list), with that selector and the raw declarations.
+ *
+ * DM-DSGTGZ: this was `/(from|to|[\d.]+%(?:\s*,\s*[\d.]+%)*)\s*\{([^{}]*)\}/g`,
+ * which retries a long digit/dot run not followed by `%` from every offset —
+ * quadratic, 5 s for 40 KB. Every match of that regex ends a flat block, and
+ * its leftmost start is the longest suffix of the block's prelude (before
+ * trailing whitespace) that is a stop selector, so one linear block scan plus
+ * a right-to-left suffix read returns the same matches.
+ */
+export function keyframeStops(inner: string): { selector: string; decls: string }[] {
+  const stops: { selector: string; decls: string }[] = [];
+  for (const block of flatCssBlocks(inner)) {
+    const selector = stopSelectorSuffix(block.prelude);
+    if (selector != null) stops.push({ selector, decls: block.body });
+  }
+  return stops;
+}
+
+const isCssRegexSpace = (ch: string): boolean => /\s/.test(ch);
+const isDigitOrDot = (code: number): boolean => code === 0x2e || (code >= 0x30 && code <= 0x39);
+
+/** Start of a `[\d.]+%` that ends just before `end`, or -1. */
+function percentStartBefore(text: string, end: number): number {
+  if (end < 1 || text.charCodeAt(end - 1) !== 0x25 /* % */) return -1;
+  let start = end - 1;
+  while (start > 0 && isDigitOrDot(text.charCodeAt(start - 1))) start--;
+  return start === end - 1 ? -1 : start;
+}
+
+/** The longest suffix of `prelude` (ignoring trailing whitespace) matching
+ *  `from|to|[\d.]+%(?:\s*,\s*[\d.]+%)*`, or null. */
+function stopSelectorSuffix(prelude: string): string | null {
+  let end = prelude.length;
+  while (end > 0 && isCssRegexSpace(prelude[end - 1])) end--;
+  if (prelude.endsWith("from", end)) return prelude.slice(end - 4, end);
+  if (prelude.endsWith("to", end)) return prelude.slice(end - 2, end);
+  let start = percentStartBefore(prelude, end);
+  if (start < 0) return null;
+  for (;;) {
+    let k = start;
+    while (k > 0 && isCssRegexSpace(prelude[k - 1])) k--;
+    if (k < 1 || prelude[k - 1] !== ",") break;
+    k--;
+    while (k > 0 && isCssRegexSpace(prelude[k - 1])) k--;
+    const previous = percentStartBefore(prelude, k);
+    if (previous < 0) break;
+    start = previous;
+  }
+  return prelude.slice(start, end);
+}
+
+/**
  * Remap a single `@keyframes` block's stop percentages into the sub-window and
  * add the leading / trailing hold stops. `inner` is the block body (the stops);
  * returns the rewritten body.
  */
 function remapKeyframeBody(inner: string, offsetPct: number, scale: number, freezeBeforeWrap: boolean): string {
-  const stopRe = /(from|to|[\d.]+%(?:\s*,\s*[\d.]+%)*)\s*\{([^{}]*)\}/g;
   const rules: { selectors: number[]; decls: string }[] = [];
   let firstDecls: string | null = null;
   let lastDecls: string | null = null;
@@ -138,10 +192,9 @@ function remapKeyframeBody(inner: string, offsetPct: number, scale: number, free
   let minOrig = Infinity;
   let maxOrig = -Infinity;
   let maxBeforeWrap = -Infinity;
-  let m: RegExpExecArray | null;
-  while ((m = stopRe.exec(inner)) != null) {
-    const selector = m[1];
-    const decls = m[2].trim();
+  for (const stop of keyframeStops(inner)) {
+    const selector = stop.selector;
+    const decls = stop.decls.trim();
     const selectors: number[] = [];
     for (const sel of selector.split(",")) {
       const s = sel.trim();
