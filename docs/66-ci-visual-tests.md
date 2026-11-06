@@ -18,6 +18,7 @@ tickets:
     "DM-9JP366",
     "DM-779QKV",
     "DM-JEMQA6",
+    "DM-ZMS0TB",
   ]
 code:
   [
@@ -420,7 +421,7 @@ registered — and, on a cache hit (which skips the source page and so webfont
 discovery), only that. A miss records every registration discovery made (the
 fetched bytes and descriptors, or the `local()` alias) in the entry's
 `webfonts` field, and a hit replays them into the fixture's session; an entry
-without the field is a miss. The shared compare-page
+without the field is a miss. The real-world suite (`tests/real-world.tsx`) gives each site the same per-job session, for both the single-tree render and the scroll composer (`composeScrollSvg`'s `textEngineSession` option), so pooled sites no longer pick up each other's same-named webfonts. The shared compare-page
 lock releases after a failed comparison; worker page recovery reports a closed
 context as an error. Both behaviors have isolated transition tests.
 

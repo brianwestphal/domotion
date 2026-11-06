@@ -35,7 +35,7 @@ import { isTransparentBackground } from "../utils/transparent-background.js";
 import { cssValueForStyle } from "../animation/css-value-input.js";
 import { getEmbeddedFontFaceCss } from "../render/embedded-font-css.js";
 import { getGlyphDefs, getRenderTextMode, type RenderTextMode } from "../render/font-resolution.js";
-import { withTextEngineDocument } from "../render/text-engine.js";
+import { withTextEngineDocument, type TextEngineSession } from "../render/text-engine.js";
 import { withOptionalRenderWarningSink } from "../render/render-warn.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
@@ -128,6 +128,13 @@ export interface ScrollComposerOptions {
    * `warnings` option). Omit to keep the global fallback.
    */
   warnings?: CaptureWarning[];
+  /**
+   * Render in this text-engine session, so the composition sees exactly the
+   * webfonts registered into it (`discoverAndRegisterWebfonts(page, urls,
+   * session)`) instead of the process-global registry. Omit to keep the
+   * ambient registry, which is what a one-capture-per-process CLI run uses.
+   */
+  textEngineSession?: TextEngineSession;
 }
 
 function iframeIdentities(tree: readonly CapturedElement[]): Array<{
@@ -529,7 +536,7 @@ export function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollC
   const renderTextMode: RenderTextMode = opts.renderText ?? getRenderTextMode();
   // One explicit text-engine document owns generation state, text mode, and
   // the renderer fallback cache across every segment.
-  return withTextEngineDocument({ generation: "reset", renderTextMode }, () =>
+  return withTextEngineDocument({ session: opts.textEngineSession, generation: "reset", renderTextMode }, () =>
     withOptionalRenderWarningSink(opts.warnings, () =>
       composeScrollSvgBody(composedSegments, opts, {
         axis,

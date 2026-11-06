@@ -44,6 +44,7 @@ import {
 import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
+import { createTextEngineSession, withTextEngineDocument } from "../src/render/text-engine.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPattern, type ScrollSegmentCapture } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
@@ -464,6 +465,13 @@ async function runJob(
   // misses them entirely. The listener fires for every fetched resource;
   // we filter to font-shaped URLs.
   const fontUrls = new Set<string>();
+  // This site's own text-engine session. The worker pool runs every site in
+  // one process, and the legacy webfont registry is process-global and never
+  // cleared here, so a site used to render with the union of every earlier
+  // site's webfonts, a same-named family (`Inter`, `sohne-var`) from another
+  // site included, depending on run order. Discovery registers into this
+  // session and both render paths below run inside it.
+  const fontSession = createTextEngineSession();
   page.on("requestfinished", (req) => {
     const url = req.url();
     if (/\.(woff2?|ttf|otf)(\?|$)/i.test(url)) {
@@ -557,7 +565,7 @@ async function runJob(
     // subsequent rasterize pass — fragile, not worth the marginal
     // 0.5-1pp diff improvement. Order alone is the robust fix.
     try {
-      await discoverAndRegisterWebfonts(page, fontUrls);
+      await discoverAndRegisterWebfonts(page, fontUrls, fontSession);
     } catch {
       /* best-effort */
     }
@@ -710,7 +718,10 @@ async function runJob(
     }
     // DM-549: rasterize conic-gradient layers (no-op when tree has none).
     await rasterizeConicGradients(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
-    const svgInner = elementTreeToSvgInner(cap.tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI);
+    const tree = cap.tree;
+    const svgInner = withTextEngineDocument({ session: fontSession, generation: "reset" }, () =>
+      elementTreeToSvgInner(tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI),
+    ).value;
     // DM-554: when document.body is transparent, prefer the captured tree's
     // `rootBgComputed` (Chromium-resolved `<html>` bg, which handles author-
     // set roots AND the UA default per scheme — `#ffffff` for light,
@@ -778,6 +789,7 @@ async function runJob(
         viewportH: viewport.height,
         bgColor: bodyBg,
         hiDPIFactor: resizeOpts.hiDPI,
+        textEngineSession: fontSession,
       });
     } else {
       svgDoc =
