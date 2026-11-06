@@ -23,7 +23,7 @@
 
 import type { ScrollSegmentCapture } from "./executor.js";
 import { capturedScrollOwnerBindingSha256, validateCapturedFrameScrollState } from "../capture/frame-scroll-state.js";
-import type { CapturedElement, CapturedFrameScrollState } from "../capture/types.js";
+import type { CapturedElement, CapturedFrameScrollState, CaptureWarning } from "../capture/types.js";
 import {
   childOverflowClipGeometry,
   elementTreeToSvgInner,
@@ -34,6 +34,7 @@ import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { getEmbeddedFontFaceCss, getGlyphDefs, type RenderTextMode } from "../render/font-resolution.js";
 import { withTextEngineDocument } from "../render/text-engine.js";
+import { withOptionalRenderWarningSink } from "../render/render-warn.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { extractFixedSubtrees, dedupeFixedAcrossSegments } from "./hoist-fixed.js";
 import { extractStickyWindows, type StickyOverlay } from "./hoist-sticky.js";
@@ -116,6 +117,12 @@ export interface ScrollComposerOptions {
    * this flag (MVP scope).
    */
   renderText?: RenderTextMode;
+  /**
+   * Append the composition's render-degradation warnings to this array instead
+   * of the process-global last-capture buffer (see `elementTreeToSvg`'s
+   * `warnings` option). Omit to keep the global fallback.
+   */
+  warnings?: CaptureWarning[];
 }
 
 function iframeIdentities(tree: readonly CapturedElement[]): Array<{
@@ -513,18 +520,20 @@ export function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollC
   // One explicit text-engine document owns generation state, text mode, and
   // the renderer fallback cache across every segment.
   return withTextEngineDocument({ generation: "reset", renderTextMode }, () =>
-    composeScrollSvgBody(composedSegments, opts, {
-      axis,
-      W,
-      VH,
-      bg,
-      paintBg,
-      hiDPIFactor,
-      chunkSize,
-      staticUnderlay: elementScroll?.staticUnderlay,
-      staticForegroundLayers: elementScroll?.staticForegroundLayers,
-      elementOwnerClips: elementScroll?.ownerClips,
-    }),
+    withOptionalRenderWarningSink(opts.warnings, () =>
+      composeScrollSvgBody(composedSegments, opts, {
+        axis,
+        W,
+        VH,
+        bg,
+        paintBg,
+        hiDPIFactor,
+        chunkSize,
+        staticUnderlay: elementScroll?.staticUnderlay,
+        staticForegroundLayers: elementScroll?.staticForegroundLayers,
+        elementOwnerClips: elementScroll?.ownerClips,
+      }),
+    ),
   ).value;
 }
 

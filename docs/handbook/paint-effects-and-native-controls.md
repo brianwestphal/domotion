@@ -50,8 +50,13 @@ aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
    unclipped, a `mask-image` whose resource graph cannot be rewritten, an
    approximated gradient, text replaced by a boundary marker) it calls
    `renderWarn(feature, detail)` (`src/render/render-warn.ts`): one `[domotion]`
-   line on stderr plus a `CaptureWarning` on the capture warnings sink, so
-   `getLastCaptureWarnings()` and the composite result report it. Renderer
+   line on stderr plus a `CaptureWarning` on the active render's warning sink.
+   `elementTreeToSvg(..., { warnings })` and `composeScrollSvg({ warnings })`
+   open a synchronous `withRenderWarningSink` scope so a tree's render warnings
+   stay with the caller's array; outside any scope the warning falls back to the
+   process-global last-capture buffer that `getLastCaptureWarnings()` and the
+   CLI's `--warnings` report. Without that scope, rendering an earlier capture's
+   tree after a later capture attributed the warnings to the later one. Renderer
    fallbacks for missing measurements (default font size, fallback ascent) are
    named in `src/render/text-defaults.ts`.
 

@@ -15,7 +15,7 @@ export function radicalUsesDisplayStyle(mathStyle: string | undefined, parentDis
  * Uses Playwright to inspect DOM elements and recreate them as native SVG.
  */
 
-import { renderWarn } from "./render-warn.js";
+import { renderWarn, withOptionalRenderWarningSink } from "./render-warn.js";
 import { fontSizeOrDefault, LEGACY_MARKER_ASCENT_RATIO } from "./text-defaults.js";
 import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-background.js";
 import { parseDataUri } from "../utils/data-uri.js";
@@ -101,6 +101,7 @@ import type {
   CapturedBackgroundImage,
   CapturedElement,
   CapturedTreeInput,
+  CaptureWarning,
   MaskFragmentDef,
   MaskFragmentReference,
   MaskRasterRef,
@@ -4575,6 +4576,13 @@ export function elementTreeToSvg(
      * call only (see `setFlattenNestedSvg`); the previous setting is restored
      * afterward. Omit to use the current process setting. */
     flattenNestedSvg?: boolean;
+    /** Append this render's degradation warnings (a mask dropped, a clip
+     * skipped, text replaced by a boundary marker, …) to this array instead of
+     * the process-global last-capture buffer. Pass the capture's own
+     * `warnings` (from `captureElementTreeWithWarnings`) to keep a tree's
+     * render warnings with its capture when several captures are in flight.
+     * Omit to keep the global fallback (`getLastCaptureWarnings()`). */
+    warnings?: CaptureWarning[];
   },
 ): string {
   const renderNode = (): string => {
@@ -4597,7 +4605,8 @@ export function elementTreeToSvg(
     });
   };
   const flatten = opts?.flattenNestedSvg;
-  const render = flatten == null ? renderNode : (): string => withFlattenNestedSvg(flatten, renderNode);
+  const flattened = flatten == null ? renderNode : (): string => withFlattenNestedSvg(flatten, renderNode);
+  const render = (): string => withOptionalRenderWarningSink(opts?.warnings, flattened);
   return opts?.renderTextMode != null
     ? withTextEngineDocument({ generation: "continue", renderTextMode: opts.renderTextMode }, render).value
     : render();

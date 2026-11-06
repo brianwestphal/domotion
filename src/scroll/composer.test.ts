@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import type { CapturedElement } from "../capture/types.js";
+import type { CapturedElement, CaptureWarning } from "../capture/types.js";
+import { getLastCaptureWarnings, resetLastCaptureWarnings } from "../capture/warnings.js";
 import type { ScrollSegmentCapture } from "./executor.js";
 import { composeScrollSvg, splitElementScrollStaticLayers } from "./composer.js";
 import type { Easing } from "./pattern.js";
@@ -979,5 +980,34 @@ describe("composeScrollSvg — renderText mode (DM-N8QM80)", () => {
       viewportH: 200,
     });
     expect(svg).toContain("@font-face");
+  });
+});
+
+// Render degradations during a scroll composition go to the caller's sink, not
+// to whichever capture finished last in the process.
+describe("composeScrollSvg — warnings option", () => {
+  const clipped = (): CapturedElement =>
+    el({
+      tag: "div",
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 30,
+      styles: { clipPath: "xywh(0px 0px 10px 10px)" },
+    } as Partial<CapturedElement> & { tag: string; x: number; y: number });
+
+  it("routes render warnings to the sink and leaves the last-capture buffer untouched", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const last = { selector: "p", feature: "last-capture", detail: "unrelated" };
+    resetLastCaptureWarnings([last]);
+    const sink: CaptureWarning[] = [];
+    try {
+      composeScrollSvg([makeSeg(0, 0, 100, [clipped()])], { viewportW: 200, viewportH: 100, warnings: sink });
+      expect(sink.map((w) => w.feature)).toContain("clip-path");
+      expect(getLastCaptureWarnings()).toEqual([last]);
+    } finally {
+      resetLastCaptureWarnings([]);
+      vi.restoreAllMocks();
+    }
   });
 });

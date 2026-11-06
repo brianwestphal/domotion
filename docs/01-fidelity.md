@@ -303,8 +303,11 @@ for (const w of getLastCaptureWarnings()) {
 completed capture. Repeated reads and `logCaptureWarnings()` cannot be changed
 by mutating a prior result. Concurrent captures must use
 `captureElementTreeWithWarnings()` and thread its explicit warnings array into
-later embed passes; the module-global snapshot deliberately does not identify
-which overlapping capture finished first.
+later embed passes and renders (`elementTreeToSvg(tree, w, h, { warnings })`,
+`composeScrollSvg(segments, { warnings })`); the module-global snapshot
+deliberately does not identify which overlapping capture finished first, and a
+render without a `warnings` array appends its degradation warnings to that
+global.
 
 Each warning has:
 
