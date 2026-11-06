@@ -43,20 +43,21 @@ succeeded.
 
 ### Known lower-third backdrop raster variation
 
-On macOS 27.0.1 with Node 22.23.2 and Playwright 1.59.1, repeated renders of
-`examples/output/templates/brand-acme-lower-third.svg` produced two Chromium
-backdrop-snapshot PNG states. Across 12 renders in one browser and two in fresh
-browsers, the SVG outside the PNG was byte-identical. The decoded 294×89 RGB
-snapshot differed only at `(4, 87)` relative to its top-left corner: the
-committed `(19, 26, 40)` alternated with `(20, 26, 41)`. This is a one-pixel,
-one-level paint variation in Chromium-owned evidence, not a change to the
-template's SVG geometry or content.
+The lower-third templates (`lower-third-dark`, `lower-third-light`,
+`brand-acme-lower-third`) embed Chromium's `backdrop-filter` raster as an
+`effect-surface` PNG. That raster jitters by one channel level at the banner's
+rounded clip between runs of identical code. Measured on macOS in 2026-11: 1–6
+pixels, each off by one level, all at the bottom-left corner. The jitter
+persists with a fresh browser per example and with a single raster thread, and
+both variants are faithful Chromium paint.
 
-For this exact environment, retain the committed asset when regeneration
-changes only that pixel. Compare the decoded PNG pixels and require the rest of
-the SVG to match before applying this narrow tolerance. Any other changed
-pixel, dimension, SVG markup, or platform/browser version needs a new visual
-review; do not normalize the raster or silently accept a broader difference.
+`examples/templates-demo.ts` writes its outputs through `writeStableSvg`
+(`examples/stable-output.ts`). It keeps the committed file when the only
+difference is effect-surface PNGs of the same size and format whose decoded
+pixels differ by at most one level per channel, and it prints `Kept` instead of
+`Wrote`. Any other change still produces a diff that needs review: SVG markup,
+a dimension, a different surface count, or a larger pixel difference. The
+library itself does not normalize these rasters.
 
 ## 2. Approve the launch surfaces
 

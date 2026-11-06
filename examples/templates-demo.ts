@@ -23,7 +23,7 @@
  * Usage: npx tsx examples/templates-demo.ts
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   launchChromium,
@@ -49,6 +49,7 @@ import {
   type Template,
 } from "../src/index.js";
 import { optimizeSvg } from "./shared.js";
+import { writeStableSvg } from "./stable-output.js";
 
 const OUT_DIR = resolve("examples/output/templates");
 const SAMPLE_APP = resolve("examples/templates/sample-app.html");
@@ -533,8 +534,12 @@ async function main(): Promise<void> {
       });
       const optimized = optimizeSvg(svg);
       const out = resolve(OUT_DIR, `${ex.file}.svg`);
-      writeFileSync(out, optimized);
-      process.stdout.write(`Wrote ${out} (${(optimized.length / 1024).toFixed(1)} KB, ${width}×${height})\n`);
+      // Backdrop-filter rasters carry 1-level Chromium jitter between runs; keep
+      // the committed file when that is the only change (see stable-output.ts).
+      const outcome = writeStableSvg(out, optimized);
+      process.stdout.write(
+        `${outcome === "kept" ? "Kept" : "Wrote"} ${out} (${(optimized.length / 1024).toFixed(1)} KB, ${width}×${height})\n`,
+      );
     }
   } finally {
     await browser.close();
