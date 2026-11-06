@@ -137,6 +137,39 @@ describe("captured DOM inline <svg> flattening (DM-7AN9AH)", () => {
     }
   }, 30_000);
 
+  // A root style transform, transform-origin and the individual transform
+  // properties apply to an `<img>` SVG root like the attribute does
+  // (ComputedStyle::ApplyTransform, core/style/computed_style.cc:1429, chromium
+  // 7d859f27). Before the fix the nested path left them on the nested <svg>
+  // (about the output origin) and the flattened path dropped them.
+  it("an <img> SVG root style transform and transform-origin paint like Chrome, nested and flattened", async () => {
+    const roots = [
+      `style="transform: rotate(30deg) scale(0.9); transform-origin: 20% 0"`,
+      `transform="rotate(-25)" transform-origin="right bottom"`,
+      `style="translate: 8px 10%; rotate: 15deg; scale: 0.8"`,
+    ];
+    const body = roots
+      .map((root, i) => {
+        const icon =
+          `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" ${root}>` +
+          `<rect width="100" height="40" fill="#e11"/><rect y="60" width="40" height="40" fill="#13e"/></svg>`;
+        return `<img style="position:absolute;left:${20 + i * 125}px;top:50px" width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(icon)}">`;
+      })
+      .join("");
+    const dir = mkdtempSync(join(tmpdir(), "dm-ws4eep-"));
+    await source.setContent(`<!doctype html><style>html,body{margin:0;background:#fff}</style>${body}`);
+    await source.waitForLoadState("networkidle");
+    const exp = join(dir, "expected.png");
+    writeFileSync(exp, await source.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
+    const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: W, height: H });
+    for (const flatten of [false, true]) {
+      const actual = join(dir, `actual-${flatten}.png`);
+      writeFileSync(actual, await shoot(render(tree, flatten)));
+      const cmp = await comparePngs(out, exp, actual, join(dir, `diff-${flatten}.png`));
+      expect(cmp.regionCount, `flatten=${flatten}`).toBe(0);
+    }
+  }, 30_000);
+
   it("an unsafe source (inner <style> element selector) stays a nested <svg>", async () => {
     // NB: the capture pre-resolves viewport-relative `%` to absolute, so `%` is
     // NOT the unsafe case for captured content. An inner <style> with an element

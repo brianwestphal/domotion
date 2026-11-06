@@ -1112,6 +1112,22 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // An `<img>` SVG root's CSS transform inputs beyond the attribute: a style
+    // `transform` (deg units), a `transform-origin` attribute or declaration,
+    // and the individual translate / rotate / scale properties, composed as
+    // ComputedStyle::ApplyTransform does (core/style/computed_style.cc:1429,
+    // chromium 7d859f27) about the concrete object rect and clipped to it.
+    name: "image-svg-root-style-transform",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" style="transform: rotate(30deg)"><rect width="100" height="40" fill="#ed1234"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" style="transform: rotate(-20deg) scale(1.1); transform-origin: 0 0"><rect width="100" height="40" fill="#0ea5e9"/><rect y="60" width="40" height="40" fill="#22c55e"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" transform="rotate(25)" transform-origin="right bottom"><rect width="100" height="40" fill="#f59e0b"/><rect y="60" width="40" height="40" fill="#7c3aed"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" style="translate: 10px 10%; rotate: 15deg; scale: 0.8"><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#059669"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 480,
+    height: 130,
+  },
+  {
     // SVGImage::DrawInternal clips every SVG image frame to its destination
     // rect (core/svg/graphics/svg_image.cc:548, chromium 7d859f27), whatever
     // the root's `overflow`: content outside the viewBox of an

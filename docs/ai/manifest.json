@@ -1598,6 +1598,8 @@
         "src/cli/index.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/resolve-svg-source.test.ts",
+        "src/render/svg-image-root-transform.test.ts",
+        "src/render/svg-image-root-transform.ts",
         "src/render/svg-inline.test.ts",
         "src/render/svg-inline.ts",
         "tests/inline-svg-text-presentation.e2e.test.ts",

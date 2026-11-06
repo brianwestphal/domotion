@@ -29,6 +29,8 @@ import {
   type ViewBox,
 } from "./svg-viewport-matrix.js";
 import { invokeSynchronousCallback, type SynchronousCallback } from "./text-engine.js";
+import { resolveImageRootTransform, type ResolvedImageRootTransform } from "./svg-image-root-transform.js";
+import { renderWarn } from "./render-warn.js";
 
 export interface SvgOpeningTag {
   start: number;
@@ -295,7 +297,7 @@ function stripAttrs(attrs: string, names: string[]): string {
  *  declarations, the viewport-only `overflow`, and the transform family (the
  *  group's own `transform` holds the viewport matrix, so keeping the root's
  *  would emit a duplicate attribute). The root's own transform is not lost:
- *  see `rootSvgTransformAttribute` for where each path applies it. */
+ *  see `imageRootTransform` for where each path applies it. */
 const FLATTENED_ROOT_DROPPED_ATTRS = [
   "x",
   "y",
@@ -313,28 +315,61 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
 ];
 
 /**
- * The root `<svg>`'s `transform` attribute, or null when it is absent or empty.
+ * The root `<svg>`'s CSS transform for an `<img>` SVG document, resolved about
+ * its transform origin against the concrete object rect `box`, or null when
+ * the root has none.
  *
  * Blink (chromium 7d859f27): `SVGSVGElement` is an `SVGTransformableElement`,
  * whose `transform` attribute is a presentation attribute for the CSS
  * `transform` property (`core/svg/svg_transformable_element.cc:38-41, 50-52`).
  * The outermost `<svg>` is laid out as `LayoutSVGRoot`, a CSS replaced box, so
- * the transform applies to that box like any CSS transform, about the initial
- * `transform-origin: 50% 50%` — the UA rule that sets `0 0`
- * (`core/css/svg.css:88-90`) only matches an svg whose parent is an SVG element.
+ * the transform applies to that box like any CSS transform: a root `style`
+ * `transform`, the individual `translate` / `rotate` / `scale` properties and
+ * `transform-origin` (attribute or style) all apply, about the initial
+ * `transform-origin: 50% 50%`. See `resolveImageRootTransform` for the
+ * composition and its sources.
  *
  * - A DOM-inline `<svg>`: capture already records Blink's resolved transform as
  *   the element's CSS transform (applied by the renderer's wrapper group) and
  *   neutralizes the attribute, so the inlined markup must NOT apply it again.
  * - The document root of an `<img>` SVG image: nothing else applies it, so the
- *   `<img>` paths compose it around the concrete object rect's center
+ *   `<img>` paths compose it around the resolved origin
  *   ({@link applyImageRootTransform}) and clip the result to the image box.
+ *
+ * A declaration the resolver cannot express exactly (`calc()`, font-relative
+ * units, a 3D function) falls back to the `transform` attribute alone about
+ * the box center, with a named warning.
  */
-function rootSvgTransformAttribute(attrs: string): string | null {
-  const value = parseSvgAttributes(attrs)
-    ?.find((token) => token.name.toLowerCase() === "transform")
-    ?.value.trim();
-  return value == null || value === "" ? null : value;
+function imageRootTransform(attrs: string, box: Rect, slot: string): ResolvedImageRootTransform | null {
+  const tokens = parseSvgAttributes(attrs) ?? [];
+  const attr = (name: string): string | null =>
+    tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
+  const style = new Map<string, string>();
+  const styleText = attr("style");
+  if (styleText != null) {
+    for (const declaration of splitStyleDeclarations(styleText)) {
+      const colon = declaration.indexOf(":");
+      if (colon < 0) continue;
+      const value = declaration
+        .slice(colon + 1)
+        .replace(/!\s*important\s*$/i, "")
+        .trim();
+      style.set(declaration.slice(0, colon).trim().toLowerCase(), value);
+    }
+  }
+  const transformAttr = attr("transform");
+  const resolved = resolveImageRootTransform(
+    { transformAttr, transformOriginAttr: attr("transform-origin"), style },
+    box,
+  );
+  if (resolved !== "unsupported") return resolved;
+  renderWarn(
+    "svg-image-root-transform",
+    `${slot} root transform uses a value that cannot be resolved exactly; only its transform attribute is applied`,
+    slot,
+  );
+  const fallback = resolveImageRootTransform({ transformAttr, transformOriginAttr: null, style: new Map() }, box);
+  return fallback === "unsupported" ? null : fallback;
 }
 
 interface Rect {
@@ -378,15 +413,19 @@ function clipToImage(content: string, p: InlineSvgPlacement, object: Rect): stri
 
 /**
  * Wrap `content` (the root box's markup, viewport mapping included) in the
- * root's `transform`, applied about the concrete object rect's center, and clip
- * the result to the drawn image ({@link clipToImage}).
+ * root's transform, applied about its resolved origin, and clip the result to
+ * the drawn image ({@link clipToImage}).
  */
-function applyImageRootTransform(content: string, transform: string, p: InlineSvgPlacement, object: Rect): string {
+function applyImageRootTransform(
+  content: string,
+  root: ResolvedImageRootTransform,
+  p: InlineSvgPlacement,
+  object: Rect,
+): string {
   const f = (n: number): string => Number(n.toFixed(6)).toString();
-  const cx = object.x + object.w / 2;
-  const cy = object.y + object.h / 2;
+  const { x: cx, y: cy } = root.origin;
   return clipToImage(
-    `<g transform="translate(${f(cx)} ${f(cy)}) ${transform} translate(${f(-cx)} ${f(-cy)})">${content}</g>`,
+    `<g transform="translate(${f(cx)} ${f(cy)}) ${root.transform} translate(${f(-cx)} ${f(-cy)})">${content}</g>`,
     p,
     object,
   );
@@ -448,10 +487,35 @@ const FLATTENED_ROOT_DROPPED_STYLE_PROPS = new Set([
   "overflow",
 ]);
 
-/** Remove {@link FLATTENED_ROOT_DROPPED_STYLE_PROPS} from a `style` attribute
- *  value. Splits on `;` outside quotes, parentheses and character entities, so
- *  `url("data:…;…")` and `&quot;Helvetica Neue&quot;` stay intact. */
+/** Remove {@link FLATTENED_ROOT_DROPPED_STYLE_PROPS} from a `style` attribute value. */
 function stripViewportOnlyStyleDeclarations(style: string): string {
+  return stripStyleProperties(style, FLATTENED_ROOT_DROPPED_STYLE_PROPS);
+}
+
+/** The transform-family properties an `<img>` root's composed transform replaces. */
+const IMAGE_ROOT_TRANSFORM_STYLE_PROPS = new Set([
+  "transform",
+  "rotate",
+  "scale",
+  "translate",
+  "transform-origin",
+  "transform-box",
+]);
+
+/** Remove the declarations of `properties` from a `style` attribute value. */
+function stripStyleProperties(style: string, properties: ReadonlySet<string>): string {
+  return splitStyleDeclarations(style)
+    .filter((declaration) => {
+      const colon = declaration.indexOf(":");
+      return !properties.has((colon < 0 ? declaration : declaration.slice(0, colon)).trim().toLowerCase());
+    })
+    .join(";");
+}
+
+/** Split a `style` attribute value into its trimmed, non-empty declarations.
+ *  Splits on `;` outside quotes, parentheses and character entities, so
+ *  `url("data:…;…")` and `&quot;Helvetica Neue&quot;` stay intact. */
+function splitStyleDeclarations(style: string): string[] {
   const declarations: string[] = [];
   let depth = 0;
   let quote: string | null = null;
@@ -476,12 +540,20 @@ function stripViewportOnlyStyleDeclarations(style: string): string {
     }
     const declaration = style.slice(start, i).trim();
     start = i + 1;
-    if (declaration === "") continue;
-    const colon = declaration.indexOf(":");
-    const property = (colon < 0 ? declaration : declaration.slice(0, colon)).trim().toLowerCase();
-    if (!FLATTENED_ROOT_DROPPED_STYLE_PROPS.has(property)) declarations.push(declaration);
+    if (declaration !== "") declarations.push(declaration);
   }
-  return declarations.join(";");
+  return declarations;
+}
+
+/** `attrs` without the root transform family: the `transform` and
+ *  `transform-origin` attributes and the matching `style` declarations. */
+function stripImageRootTransformAttrs(attrs: string): string {
+  const stripped = stripAttrs(attrs, ["transform", "transform-origin"]);
+  const style = parseSvgAttributes(stripped)?.find((token) => token.name.toLowerCase() === "style");
+  if (style == null) return stripped;
+  const declarations = stripStyleProperties(style.value, IMAGE_ROOT_TRANSFORM_STYLE_PROPS);
+  const replacement = declarations === "" ? "" : ` style="${declarations.replace(/"/g, "&quot;")}"`;
+  return stripped.slice(0, style.start) + replacement + stripped.slice(style.end);
 }
 
 export interface InlineSvgPlacement {
@@ -531,19 +603,15 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
     viewBox = `0 0 ${r(vw)} ${r(vh)}`;
   }
 
-  // An `<img>` document root's own `transform` is composed outside the viewport
+  const rect = resolveViewBoxRect(tag.attributes, p.intrinsic);
+  const matrix = rect == null ? null : computeViewportMatrix(p, rect, parsePreserveAspectRatio(p.par));
+  const object = rect != null && matrix != null ? mappedViewBoxRect(rect, matrix) : p;
+  // An `<img>` document root's own transform is composed outside the viewport
   // below (a nested `<svg transform>` would rotate about the output origin).
-  const rootTransform = rootSvgTransformAttribute(attrs);
+  const rootTransform = imageRootTransform(attrs, object, "<img> svg");
+  if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
   // Strip the attrs we re-declare (keep xmlns / class / style / role / etc.).
-  attrs = stripAttrs(attrs, [
-    "x",
-    "y",
-    "width",
-    "height",
-    "viewBox",
-    "preserveAspectRatio",
-    ...(rootTransform != null ? ["transform"] : []),
-  ]);
+  attrs = stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio"]);
   // Namespace ids: the root tag's own attrs (a root `id`/`url(#…)` is rare but
   // legal) and the whole body (defs + references).
   let rootAttrs = prefixSvgIds(attrs, p.idPrefix).replace(/\s+$/, "");
@@ -562,9 +630,6 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
     `<svg${rootAttrs}` +
     ` x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"` +
     ` viewBox="${viewBox}" preserveAspectRatio="${p.par}">`;
-  const rect = resolveViewBoxRect(tag.attributes, p.intrinsic);
-  const matrix = rect == null ? null : computeViewportMatrix(p, rect, parsePreserveAspectRatio(p.par));
-  const object = rect != null && matrix != null ? mappedViewBoxRect(rect, matrix) : p;
   if (rootTransform != null) return applyImageRootTransform(open + body, rootTransform, p, object);
   // The nested viewport clips to the placement box, which equals the drawn
   // image only when the object rect covers it and overflow is not visible.
@@ -738,8 +803,8 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
   // A nested `<svg>` clips to its viewport (overflow:hidden default); a `<g>`
   // does not. Add a rect clip at the placement rect unless overflow is
   // visible; the drawn-image clip applies either way.
-  const rootTransform = rootSvgTransformAttribute(attrs);
   const object = mappedViewBoxRect(viewBox, matrix);
+  const rootTransform = imageRootTransform(attrs, object, "<img> svg");
   if (rootOverflowVisible(attrs)) {
     return rootTransform == null
       ? clipToImage(group, p, object)

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { getLastCaptureWarnings, resetLastCaptureWarnings } from "../capture/warnings.js";
 import {
   inlineImgSvg,
   flattenImgSvg,
@@ -497,6 +498,35 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
     expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
     expect(readSvgOpeningTag(out)?.raw).not.toMatch(/\btransform=/);
     expect(out.endsWith(`</svg></g></g>`)).toBe(true);
+  });
+
+  // A root style transform overrides the attribute; transform-origin (attribute
+  // or style) moves the pivot; the individual properties compose before it
+  // (ComputedStyle::ApplyTransform, core/style/computed_style.cc:1429, chromium
+  // 7d859f27).
+  it("inlineImgSvg composes a root style transform about its transform-origin and strips it from the nested <svg>", () => {
+    const out = inlineImgSvg(
+      icon(` transform="rotate(10)" style="fill: red; transform: rotate(30deg); transform-origin: 0 0; rotate: 5deg"`),
+      place,
+    )!;
+    expect(out).toContain(`<g transform="translate(50 50) rotate(5) rotate(30) translate(-50 -50)"><svg`);
+    const nested = readSvgOpeningTag(out.slice(out.indexOf("<svg")))!.raw;
+    expect(nested).not.toMatch(/\btransform=|transform:|transform-origin|rotate:/);
+    expect(nested).toContain(`style="fill: red"`);
+  });
+
+  it("flattenImgSvg honors a root transform-origin attribute", () => {
+    const out = flattenImgSvg(icon(` transform="rotate(30)" transform-origin="right bottom"`), place)!;
+    expect(out).toContain(`<g transform="translate(150 150) rotate(30) translate(-150 -150)">`);
+  });
+
+  it("falls back to the transform attribute about the center, with a warning, for an unresolvable style value", () => {
+    resetLastCaptureWarnings([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const out = inlineImgSvg(icon(` transform="rotate(30)" style="transform-origin: calc(10px + 5%)"`), place)!;
+    warn.mockRestore();
+    expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
+    expect(getLastCaptureWarnings()).toEqual([expect.objectContaining({ feature: "svg-image-root-transform" })]);
   });
 
   it("uses the concrete object rect (object-fit: contain) for the origin and the image clip", () => {

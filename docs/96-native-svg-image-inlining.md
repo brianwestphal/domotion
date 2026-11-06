@@ -15,6 +15,8 @@ code:
     "src/cli/index.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/resolve-svg-source.test.ts",
+    "src/render/svg-image-root-transform.test.ts",
+    "src/render/svg-image-root-transform.ts",
     "src/render/svg-inline.test.ts",
     "src/render/svg-inline.ts",
     "tests/inline-svg-text-presentation.e2e.test.ts",
@@ -79,6 +81,8 @@ An outermost `<svg>`'s `transform` attribute is a presentation attribute for the
 - **DOM-inline `<svg>`.** Capture records Blink's resolved transform as the element's CSS transform, which the renderer's wrapper group applies. It also neutralizes the attribute with an inline `style="transform: translate(0px)"`. The nested output therefore keeps the attribute inert. The flattened group drops the attribute, and the carried `style` loses its transform-family declarations as described above, so the transform is applied once, by the wrapper.
 - **`<img src="*.svg">`.** Nothing else applies the root transform, so both the nested and the flattened output wrap the root's markup in `<g transform="translate(c) T translate(-c)">`, where `c` is the center of the concrete object rect (the viewBox mapped into the placement). The result is clipped to the content box intersected with that rect, because `SVGImage::DrawInternal` clips every frame to its destination rect (`core/svg/graphics/svg_image.cc:548`) whatever the root's `overflow`. The root box's own overflow clip stays inside the transform. Before this, the nested `<svg transform>` rotated about the output origin and the flattened output dropped the transform.
 
+  The root's other CSS transform inputs apply the same way (`src/render/svg-image-root-transform.ts`). A `style` `transform` overrides the attribute (an author declaration beats a presentation attribute). The individual `translate`, `rotate` and `scale` properties compose before it, in the order `ComputedStyle::ApplyTransform` uses (`core/style/computed_style.cc:1429-1490`): origin, translate, rotate, scale, transform, minus origin. `transform-origin` is also a presentation attribute (`core/svg/svg_element.cc:381`), and a `style` declaration overrides it; it moves the pivot from the default `50% 50%`. Percentages resolve against the concrete object rect. `transform-box` needs no handling: for a CSS box every value resolves to the content box or border box (`ComputedStyle::UsedTransformBox`, `core/style/computed_style.cc:1372`), and both equal the object rect for an image root, which has no border or padding. The nested output strips these attributes and declarations from the nested `<svg>`. A value outside the supported 2D subset (`calc()`, font-relative units, a 3D function, an axis form of `rotate`) falls back to the `transform` attribute alone about the box center, with a `svg-image-root-transform` warning. Fixture: `image-svg-root-style-transform`.
+
 **The drawn-image clip.** `SVGImage::DrawInternal` clips every SVG image frame to its destination rect before drawing it (`core/svg/graphics/svg_image.cc:548`, Chromium `7d859f27`), whatever the root's `overflow`. Both `<img>` paths therefore clip to the content box intersected with the concrete object rect (`clipToImage` in `src/render/svg-inline.ts`) when the root sets `overflow="visible"` or `overflow: visible`, and when the object rect is inset from the placement box (an aspect-preserving `par` such as `object-fit: contain`), where the nested viewport's own clip at the placement box would be wider than the drawn image. A Chromium probe confirms that content outside the viewBox of an `overflow="visible"` image does not paint outside the image box, and that a `contain` image is clipped to its object rect inside a wider content box. Icons whose object rect fills the placement box keep their output unchanged. Fixture: `image-svg-overflow-visible-clip`.
 
 Capture also bakes the resolved text presentation onto each DOM-inline `<text>` as inline declarations, because none of it survives outside the page cascade: `font-family`, `font-size`, `font-weight`, `font-style`, `font-stretch` (written as its keyword), `font-variant-numeric`, `text-anchor`, `dominant-baseline`, `letter-spacing` and `word-spacing`. A nested `<tspan>` or `<textPath>` carries only the values that differ from its parent's. This bake lives in `bakeSvgTextPresentation` (called from `walkBake`) in `src/capture/script/walker/inline-svg.ts`.
@@ -134,6 +138,7 @@ All `object-fit` values take the native path:
 
 - `src/capture/embed.ts` — `resolveSvgSource`.
 - `src/render/svg-inline.ts` — `prefixSvgIds`, `prefixSvgClasses`, `inlineImgSvg`, `flattenImgSvg`, and the internal `setFlattenNestedSvg` / `getFlattenNestedSvg` / `withFlattenNestedSvg` controls (+ the `InlineSvgPlacement` shape).
+- `src/render/svg-image-root-transform.ts` — `resolveImageRootTransform`: an `<img>` SVG root's CSS transform inputs as an SVG transform list and origin.
 - `src/cli/capture.ts` and `src/cli/index.ts` — the opt-in `--flatten-nested-svg` flag and help text.
 - `src/render/element-tree-to-svg.ts` — `paintImage` native-SVG branch.
 - `src/cli/animate-orchestrator.ts` — `namespaceSvgIds` now delegates to the shared `prefixSvgIds`.
