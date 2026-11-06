@@ -152,7 +152,14 @@ working. `src/utils/local-server.e2e.test.ts` drives Chromium from a second
 loopback origin and proves a cross-site save, scrubber ticket write and
 rebinding read are refused with no side effect. The guard does not
 authenticate other local processes or users; any program on the machine that
-can open the port can still call the API.
+can open the port can still call the API. That boundary is deliberate. A
+per-launch token embedded in the page would not close it, because any local
+program can request the page and read the token, since only browsers are
+restricted by the Host and Origin checks. A process running as the same user
+can already read the project files and the AI adapter's credentials directly.
+Another OS user on a shared machine is the only remaining gap, and covering it
+would take a launch-URL token with a cookie checked on every route. That is out
+of scope for a developer tool you launch yourself.
 
 ## First visual workflow
 
