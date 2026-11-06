@@ -700,6 +700,62 @@ function rebuildSfnt(sfntVersion: number, tables: Record<string, Buffer>): Buffe
   return font;
 }
 
+/** Byte offset of the `fsType` field inside an OS/2 table (all versions):
+ *  `version`, `xAvgCharWidth`, `usWeightClass`, `usWidthClass`, then `fsType`. */
+const OS2_FS_TYPE_OFFSET = 8;
+
+/** Offset of a table inside the face at `faceIndex` (TTC-aware), or -1. */
+function sfntTableOffset(fontBytes: Buffer, faceIndex: number, wanted: string): { offset: number; length: number } {
+  if (fontBytes.length < 12) return { offset: -1, length: 0 };
+  let dirOff = 0;
+  if (fontBytes.toString("latin1", 0, 4) === "ttcf") {
+    const count = fontBytes.readUInt32BE(8);
+    if (faceIndex < 0 || faceIndex >= count || 12 + faceIndex * 4 + 4 > fontBytes.length) {
+      return { offset: -1, length: 0 };
+    }
+    dirOff = fontBytes.readUInt32BE(12 + faceIndex * 4);
+  }
+  if (dirOff + 12 > fontBytes.length) return { offset: -1, length: 0 };
+  const numTables = fontBytes.readUInt16BE(dirOff + 4);
+  for (let i = 0; i < numTables; i++) {
+    const entry = dirOff + 12 + i * 16;
+    if (entry + 16 > fontBytes.length) break;
+    if (fontBytes.toString("latin1", entry, entry + 4) !== wanted) continue;
+    return { offset: fontBytes.readUInt32BE(entry + 8), length: fontBytes.readUInt32BE(entry + 12) };
+  }
+  return { offset: -1, length: 0 };
+}
+
+/** The OS/2 `fsType` (embedding permissions) of the face at `faceIndex`, or
+ *  null when the face has no OS/2 table. */
+export function sfntOs2FsType(fontBytes: Buffer, faceIndex = 0): number | null {
+  const { offset, length } = sfntTableOffset(fontBytes, faceIndex, "OS/2");
+  if (offset < 0 || length < OS2_FS_TYPE_OFFSET + 2 || offset + OS2_FS_TYPE_OFFSET + 2 > fontBytes.length) return null;
+  return fontBytes.readUInt16BE(offset + OS2_FS_TYPE_OFFSET);
+}
+
+/** A copy of the bare sfnt `fontBytes` whose OS/2 `fsType` is `fsType`, with
+ *  the table checksums and `head.checkSumAdjustment` rebuilt. Returns the input
+ *  unchanged when it has no OS/2 table or already carries that value.
+ *
+ *  Used where a rebuilt font would otherwise state a permission its source did
+ *  not: svg2ttf always writes 0 ("installable"). The value is metadata only.
+ *  Chromium never reads it for webfonts, and OTS only normalizes its bits. */
+export function withOs2FsType(fontBytes: Buffer, fsType: number): Buffer {
+  if (sfntOs2FsType(fontBytes) === fsType || sfntOs2FsType(fontBytes) == null) return fontBytes;
+  const numTables = fontBytes.readUInt16BE(4);
+  const tables: Record<string, Buffer> = {};
+  for (let i = 0; i < numTables; i++) {
+    const o = 12 + i * 16;
+    const tag = fontBytes.toString("latin1", o, o + 4);
+    const off = fontBytes.readUInt32BE(o + 8);
+    const len = fontBytes.readUInt32BE(o + 12);
+    tables[tag] = Buffer.from(fontBytes.subarray(off, off + len));
+  }
+  tables["OS/2"].writeUInt16BE(fsType, OS2_FS_TYPE_OFFSET);
+  return rebuildSfnt(fontBytes.readUInt32BE(0), tables);
+}
+
 /** The only tables the embedded `<text>` pipeline needs. The PUA stream does
  *  ZERO shaping in the consumer browser (fontkit already shaped at capture
  *  time) and every glyph gets an explicit x — so GSUB/GPOS/GDEF/kern are dead

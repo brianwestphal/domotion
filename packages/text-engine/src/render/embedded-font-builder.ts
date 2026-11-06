@@ -47,6 +47,8 @@ import {
   injectPuaCmap,
   resetHbSubsetAttemptDiagnostics,
   sfntHasSubsettableOutlines,
+  sfntOs2FsType,
+  withOs2FsType,
   type HbSubsetAttemptDiagnostic,
 } from "./hb-subset.js";
 
@@ -592,6 +594,9 @@ function determinizeFontTimestamps(bytes: Buffer): void {
  */
 const hintedOutlineGuardMemo = new Map<string, boolean>();
 const hintedOutlineGuardKey = (path: string, faceIndex: number): string => `${path}#${faceIndex}`;
+/** Source OS/2 `fsType` per (path, face index), for `withSourceFsType`; same
+ *  lifetime as the outline-guard memo. */
+const sourceFsTypeMemo = new Map<string, number | null>();
 
 /** The remembered verdict, or `undefined` when this face has not been asked. */
 function hintedOutlineGuard(path: string, faceIndex: number): boolean | undefined {
@@ -607,6 +612,7 @@ function rememberHintedOutlineGuard(path: string, faceIndex: number, verdict: bo
 /** Forget every hinted-outline guard verdict (font-environment invalidation). */
 export function clearHintedOutlineGuardMemo(): void {
   hintedOutlineGuardMemo.clear();
+  sourceFsTypeMemo.clear();
 }
 
 /** Test-only: the memo is process-global, so a test that asserts read counts
@@ -666,6 +672,12 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
         throw new Error("source has no subsettable outlines (memoized)");
       }
       const bytes = readFileSync(entry.hintedSource.path);
+      // Remember the source fsType from this same read, so an svg2ttf fallback
+      // below (`withSourceFsType`) never reads the file a second time.
+      sourceFsTypeMemo.set(
+        hintedOutlineGuardKey(entry.hintedSource.path, srcFaceIndex),
+        sfntOs2FsType(bytes, srcFaceIndex),
+      );
       if (
         !rememberHintedOutlineGuard(
           entry.hintedSource.path,
@@ -742,9 +754,39 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
     `<missing-glyph horiz-adv-x="${Math.round(entry.unitsPerEm / 2)}"/>` +
     glyphEls.join("") +
     `</font></defs></svg>`;
-  const out = Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer);
+  const out = withSourceFsType(Buffer.from(svg2ttf(svgFont, { ts: 0 }).buffer), entry.hintedSource);
   entry.buildDiagnostic = diagnosticFor(entry, instanceKey, "svg2ttf", sfntTableTags(out), out);
   return out;
+}
+
+/**
+ * Carry the source face's OS/2 `fsType` (embedding permissions) into an svg2ttf
+ * rebuild, which otherwise always writes 0 ("installable"). The hb-subset path
+ * keeps the source OS/2 table, so it already carries the value; this makes the
+ * fallback say the same thing rather than advertise a permission the source did
+ * not grant.
+ *
+ * Only an entry with one known source face (`hintedSource` with a face index)
+ * has a single `fsType` to carry. Glyphs assembled from helper-extracted
+ * outlines without one keep svg2ttf's 0. The field is metadata: Chromium does
+ * not read it for webfonts (no use in Blink's font code, Chromium 7d859f27),
+ * and OTS only normalizes its bits, so rendering is unchanged.
+ */
+function withSourceFsType(out: Buffer, source: HintedSource | null): Buffer {
+  if (source?.faceIndex == null) return out;
+  // Memoized like the outline guard: a pure function of (path, face index) over
+  // an immutable font file, and the read can be tens of megabytes.
+  const key = hintedOutlineGuardKey(source.path, source.faceIndex);
+  let fsType = sourceFsTypeMemo.get(key);
+  if (fsType === undefined) {
+    try {
+      fsType = sfntOs2FsType(readFileSync(source.path), source.faceIndex);
+    } catch {
+      fsType = null;
+    }
+    sourceFsTypeMemo.set(key, fsType);
+  }
+  return fsType == null ? out : withOs2FsType(out, fsType);
 }
 
 function sfntTableTags(fontBytes: Buffer): string[] {
