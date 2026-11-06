@@ -29,6 +29,7 @@ import { basename, extname } from "node:path";
 import { startLocalServer, sendBuffer } from "../utils/local-server.js";
 import { REVIEW_CLIENT_JS } from "./client.bundle.generated.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
+import { KERF_UI_DARK_THEME_CSS } from "../kerf-ui-theme.js";
 
 export interface ReviewServerInputs {
   /** Absolute path to the PNG of what Chromium painted. */
@@ -67,9 +68,9 @@ function renderShell(label: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>svg-review · ${safeLabel}</title>
-<style>
-  body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 16px; background: #0d1117; color: #e6edf3; }
-  h1 { font-size: 16px; margin: 0 0 12px; }
+<style>${KERF_UI_DARK_THEME_CSS}
+  body { font: 14px/1.4 var(--kui-font-sans, system-ui, sans-serif); margin: 0; padding: 16px; background: #0d1117; color: #e6edf3; }
+  h1 { font-size: 16px; margin: 0 0 12px; overflow-wrap: anywhere; }
   .imgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   figure { margin: 0; position: relative; background: #161b22; border: 1px solid #30363d; padding: 8px; }
   figure img { display: block; width: 100%; height: auto; cursor: zoom-in; }
@@ -77,17 +78,22 @@ function renderShell(label: string): string {
   figure[role="button"]:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid #79c0ff; outline-offset: 3px; }
   #issue-panel { margin-top: 16px; }
   #issue-panel textarea { width: 100%; min-height: 120px; background: #0b0f14; color: #e6edf3; border: 1px solid #30363d; font: 12px/1.4 ui-monospace, monospace; padding: 8px; box-sizing: border-box; }
-  #issue-panel button { background: #238636; color: white; border: 0; padding: 6px 12px; font: inherit; cursor: pointer; border-radius: 4px; }
+  #issue-panel button { display: inline-flex; align-items: center; gap: 6px; background: #238636; color: white; border: 0; padding: 6px 12px; font: inherit; cursor: pointer; border-radius: 4px; }
+  #issue-panel button svg, #lightbox-close svg { width: 16px; height: 16px; }
   #issue-panel a { color: #58a6ff; }
+  .issue-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; }
+  #copy-status:empty { display: none; }
+  #copy-status .kui-state-banner { border-radius: 6px; }
   .hint { opacity: 0.7; font-size: 12px; }
   .region-list { margin-top: 12px; }
+  .region-list .region-empty { width: 100%; min-height: 0; margin: 0; padding: 16px; border: 1px dashed #30363d; border-radius: 6px; }
   .region-list .region-row { display: grid; grid-template-columns: 32px 1fr; gap: 8px; margin-bottom: 6px; }
   .region-list input[type="text"] { background: #0b0f14; color: #e6edf3; border: 1px solid #30363d; padding: 4px 6px; font: inherit; }
 
   /* Lightbox + region overlay (mirrored from tests/review.css). */
   #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000; display: none; align-items: flex-start; justify-content: center; overflow: auto; padding: 24px; }
   #lightbox.open { display: flex; }
-  #lightbox-close { position: fixed; top: 16px; right: 16px; z-index: 2; min-width: 44px; min-height: 44px; border: 1px solid #8b949e; border-radius: 6px; background: #21262d; color: #fff; font: inherit; cursor: pointer; }
+  #lightbox-close { position: fixed; top: 16px; right: 16px; z-index: 2; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid #8b949e; border-radius: 6px; background: #21262d; color: #fff; font: inherit; cursor: pointer; }
   #lightbox .region-stage { position: relative; display: inline-block; }
   #lightbox img { display: block; max-width: none; max-height: none; user-select: none; cursor: crosshair; }
   /* DM-976: when the lightbox image is taller than wide, scale it to the
@@ -117,8 +123,8 @@ function renderShell(label: string): string {
 <div id="issue-panel">
   <h2 style="font-size: 14px; margin: 16px 0 6px;">Annotated regions</h2>
   <button id="add-region-btn" type="button">Add centered region</button>
-  <div class="region-list" id="region-list"><p class="hint">(none yet — drag on any image above)</p></div>
-  <h2 style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text</h2><div><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
+  <div class="region-list" id="region-list"></div>
+  <h2 style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text</h2><div class="issue-actions"><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
   <textarea id="issue-text" readonly></textarea>
   <p class="hint">After clicking <em>Open a new GitHub issue</em>, paste the text above into the issue body and attach <code>expected.png</code> and <code>actual.svg</code>.</p>
 </div>

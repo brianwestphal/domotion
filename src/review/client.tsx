@@ -16,10 +16,31 @@
  * the DOM scaffolding; this script wires interactivity. We do reuse
  * `enableRegionOverlays()` which already handles drag-add / resize /
  * delete on the figures' SVG overlays.
+ *
+ * Chrome comes from `@kerfjs/ui` (docs/273-ui-conventions.md): button icons
+ * via `LucideIcon`, the empty region list via `EmptyState`, and the copy
+ * outcome via `StateBanner`. Components are rendered to escaped strings with
+ * `.toString()`; their CSS is prepended to `<head>` by the bundle prologue
+ * (scripts/bundle-kerf-client.mjs).
  */
 
+import type { IconNode } from "lucide";
+import { CircleCheck, ClipboardCopy, SquareDashedMousePointer, SquareDashedPlus, TriangleAlert, X } from "lucide";
+import { EmptyState } from "@kerfjs/ui/empty-state";
+import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { StateBanner } from "@kerfjs/ui/state-banner";
 import { enableRegionOverlays, type Rect } from "./region-overlay.js";
 import { applyLightboxAspect, createLightboxOverlayBinding } from "./lightbox.js";
+
+/** Escaped markup for a button whose visible label follows a decorative icon. */
+function iconLabel(icon: IconNode, name: string, text: string): string {
+  return (
+    <>
+      <LucideIcon icon={icon} name={name} />
+      <span>{text}</span>
+    </>
+  ).toString();
+}
 
 declare global {
   interface Window {
@@ -67,10 +88,14 @@ function rebuildRegionList(): void {
   const regions = snapshotRegions();
   regionList.innerHTML = "";
   if (regions.length === 0) {
-    const p = document.createElement("p");
-    p.className = "hint";
-    p.textContent = "(none yet — drag on any image above)";
-    regionList.appendChild(p);
+    regionList.innerHTML = (
+      <EmptyState
+        className="region-empty"
+        icon={<LucideIcon icon={SquareDashedMousePointer} name="square-dashed-mouse-pointer" />}
+        title="No regions yet"
+        detail="Drag on any image above, or add a centered region."
+      />
+    ).toString();
     rebuildIssueText();
     return;
   }
@@ -164,19 +189,46 @@ function rebuildIssueText(): void {
   fileLink.href = `https://github.com/brianwestphal/domotion/issues/new?title=${encodeURIComponent(title)}`;
 }
 
+// Static chrome upgrades: decorative icons ahead of the existing text labels,
+// so each control's accessible name is unchanged.
+const COPY_LABEL = iconLabel(ClipboardCopy, "clipboard-copy", copyBtnLabel ?? "Copy issue text");
+copyBtn.innerHTML = COPY_LABEL;
+addRegionBtn.innerHTML = iconLabel(SquareDashedPlus, "square-dashed-plus", "Add centered region");
+
+/**
+ * `#copy-status` stays the pre-existing polite live region (a region created
+ * at insertion time is not reliably announced), so the banner is swapped in
+ * inside it rather than replacing it.
+ */
+function showCopyStatus(tone: "success" | "warning", title: string): void {
+  copyStatus.innerHTML = (
+    <StateBanner
+      tone={tone}
+      icon={
+        tone === "success" ? (
+          <LucideIcon icon={CircleCheck} name="circle-check" />
+        ) : (
+          <LucideIcon icon={TriangleAlert} name="triangle-alert" />
+        )
+      }
+      title={title}
+    />
+  ).toString();
+}
+
 copyBtn.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(issueText.value);
-    copyBtn.textContent = "Copied";
-    copyStatus.textContent = "Issue text copied.";
+    copyBtn.innerHTML = iconLabel(CircleCheck, "circle-check", "Copied");
+    showCopyStatus("success", "Issue text copied.");
     setTimeout(() => {
-      copyBtn.textContent = copyBtnLabel;
+      copyBtn.innerHTML = COPY_LABEL;
     }, 1500);
   } catch {
     // Fallback: select the textarea so the user can Cmd/Ctrl+C manually.
     issueText.focus();
     issueText.select();
-    copyStatus.textContent = "Copy was unavailable. The issue text is selected; press Control+C or Command+C.";
+    showCopyStatus("warning", "Copy was unavailable. The issue text is selected; press Control+C or Command+C.");
   }
 });
 
@@ -188,7 +240,9 @@ addRegionBtn.addEventListener("click", () => {
   overlay.addRegion({ x: w / 4, y: h / 4, w: w / 2, h: h / 2 });
 });
 
-rebuildIssueText();
+// Render the initial (empty-state) region list and issue text; the rAF poll
+// only rebuilds when the rect set changes from this point on.
+rebuildRegionList();
 
 // ── Lightbox: click to enlarge, arrow keys cycle expected/actual/diff ──
 
@@ -269,6 +323,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+lightboxClose.innerHTML = iconLabel(X, "x", "Close");
 lightboxClose.addEventListener("click", closeLightbox);
 
 // Close on background click only — the overlay stops propagation on

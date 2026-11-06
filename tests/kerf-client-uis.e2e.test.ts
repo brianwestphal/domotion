@@ -282,6 +282,10 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     try {
       await page.goto(server.url, { waitUntil: "networkidle" });
       await expect.poll(() => page.locator("#issue-text").inputValue()).toContain("coverage-fixture");
+      // The empty region list is a client-rendered kerf-ui EmptyState whose
+      // CSS arrives through the bundle's <head> prologue.
+      await expectKerfUiStyled(page, ".region-list .kui-empty-state", "display", "grid");
+      expect(await page.locator("style[data-kerf-ui]").count(), "one kerf-ui stylesheet").toBe(1);
     } finally {
       await writeBrowserCoverage(page, "review-client", coverage);
       await page.close();

@@ -79,7 +79,8 @@ A single review card, similar in layout to one card in `tests/review-server
   to delete. Rects sync across the three figures because they share the
   same source-PNG dimensions.
 - **Add a region without a pointer**: the side panel's "Add centered region"
-  button adds a region covering the middle half of the image.
+  button adds a region covering the middle half of the image. Until a region
+  exists, the list shows a "No regions yet" empty state.
 - **Caption each region**: the side panel ("Annotated regions") lists one row
   per region with a single-line `<input>` for a freeform description (e.g.
   "border-radius too tight on this corner", "emoji missing tofu fallback").
@@ -92,7 +93,15 @@ A single review card, similar in layout to one card in `tests/review-server
   The panel also has a "Copy issue text" button and an "Open a new GitHub
   issue →" link to <https://github.com/brianwestphal/domotion/issues/new>
   with the title (`Domotion render fidelity: <label>`) pre-filled via the URL
-  `?title=` parameter.
+  `?title=` parameter. The copy outcome is reported in a status banner next to
+  the button: success, or a warning that the text was selected for a manual
+  copy when the Clipboard API is unavailable.
+- **Chrome from `@kerfjs/ui`**: the icons on the panel and lightbox buttons
+  (`LucideIcon`), the empty region list (`EmptyState`) and the copy status
+  (`StateBanner`) are kerf-ui components rendered by the client. Their CSS is
+  folded into `/client.js` at build time, so the page stays one HTML shell plus
+  one script with no network access. See
+  [doc 273](273-ui-conventions.md) for the subset and theme rules.
 
 ## Issue Markdown output
 
@@ -149,7 +158,9 @@ reminds the user to paste the text into the issue body and attach
   captured images (doc 240, "Cross-site request guard").
 - `src/review/client.tsx` — the page-side script. Reuses
   `src/review/region-overlay.ts` for drawing/resizing rects and adds the
-  Markdown-builder + clipboard-copy panel.
+  Markdown-builder + clipboard-copy panel. `scripts/build-review-client.mjs`
+  bundles it through `scripts/bundle-kerf-client.mjs` into
+  `client.bundle.generated.ts`.
 - `bin` entry in `package.json` → `svg-review: dist/cli/review.js`.
 
 ## What's intentionally out of scope
