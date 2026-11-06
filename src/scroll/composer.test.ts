@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { getRenderTextMode, setRenderTextMode, type RenderTextMode } from "../render/font-resolution.js";
 
 import type { CapturedElement, CaptureWarning } from "../capture/types.js";
 import { getLastCaptureWarnings, resetLastCaptureWarnings } from "../capture/warnings.js";
@@ -980,6 +982,64 @@ describe("composeScrollSvg — renderText mode (DM-N8QM80)", () => {
       viewportH: 200,
     });
     expect(svg).toContain("@font-face");
+  });
+});
+
+// Without an explicit `renderText` the composer follows the process-wide mode,
+// like `elementTreeToSvg`. It used to hard-default to embedded-font, so a
+// `setRenderTextMode("paths" | "system-font")` caller got embedded-font scroll
+// output.
+describe("composeScrollSvg — process-wide render mode precedence", () => {
+  const word = (text: string): CapturedElement =>
+    el({
+      tag: "div",
+      x: 10,
+      y: 30,
+      width: text.length * 8,
+      height: 19,
+      text,
+      fontAscent: 11.5,
+      fontDescent: 3,
+      textSegments: [
+        { text, x: 10, y: 30, width: text.length * 8, height: 19, xOffsets: [...text].map((_, i) => 10 + i * 8) },
+      ],
+    } as Partial<CapturedElement> & { tag: string; x: number; y: number });
+  const compose = (renderText?: RenderTextMode): string =>
+    composeScrollSvg([makeSeg(0, 0, 300, [word("ModeScroll")])], {
+      viewportW: 400,
+      viewportH: 200,
+      ...(renderText != null ? { renderText } : {}),
+    });
+  const ORIGINAL = getRenderTextMode();
+  afterEach(() => setRenderTextMode(ORIGINAL));
+
+  it("follows setRenderTextMode('paths') when renderText is omitted, and leaves the mode set", () => {
+    setRenderTextMode("paths");
+    const svg = compose();
+    expect(svg).not.toContain("@font-face");
+    expect(svg).toMatch(/<path /);
+    expect(getRenderTextMode()).toBe("paths");
+  });
+
+  it("follows setRenderTextMode('system-font') when renderText is omitted", () => {
+    setRenderTextMode("system-font");
+    const svg = compose();
+    expect(svg).toMatch(/<text [^>]*font-family=/);
+    expect(svg).not.toContain("@font-face");
+  });
+
+  it("an explicit renderText still wins over the process-wide mode, and the process mode is restored", () => {
+    setRenderTextMode("paths");
+    expect(compose("embedded-font")).toContain("@font-face");
+    expect(getRenderTextMode()).toBe("paths");
+    setRenderTextMode("embedded-font");
+    expect(compose("paths")).not.toContain("@font-face");
+    expect(getRenderTextMode()).toBe("embedded-font");
+  });
+
+  it("the default process mode keeps embedded-font output (CLI behavior unchanged)", () => {
+    setRenderTextMode("embedded-font");
+    expect(compose()).toContain("@font-face");
   });
 });
 

@@ -55,8 +55,10 @@ not control.
 - **`capture --scroll`:** `--text-mode` passes the selected mode to the scroll
   composer's `renderText` option for every segment.
 - **API (scoped):** `elementTreeToSvg(tree, w, h, { renderTextMode: "system-font" })`
-  applies the mode through one `withTextEngineDocument` transaction and
-  restores the prior process state afterward. See doc 262.
+  and `composeScrollSvg(segments, { renderText: "system-font" })` apply the mode
+  through one `withTextEngineDocument` transaction and restore the prior process
+  state afterward. See doc 262. Both use the same precedence: the explicit
+  option, else the process-wide mode below, else `embedded-font`.
 - **API (process-global):** `setRenderTextMode("system-font")` /
   `withRenderTextMode("system-font", fn)`. The mode is a render-side
   process-global; prefer `withRenderTextMode` for a scoped change so a temporary

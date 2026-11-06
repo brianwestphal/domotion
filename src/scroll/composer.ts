@@ -32,7 +32,12 @@ import {
 import { roundedRectSvg } from "../render/borders.js";
 import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
-import { getEmbeddedFontFaceCss, getGlyphDefs, type RenderTextMode } from "../render/font-resolution.js";
+import {
+  getEmbeddedFontFaceCss,
+  getGlyphDefs,
+  getRenderTextMode,
+  type RenderTextMode,
+} from "../render/font-resolution.js";
 import { withTextEngineDocument } from "../render/text-engine.js";
 import { withOptionalRenderWarningSink } from "../render/render-warn.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
@@ -105,7 +110,10 @@ export interface ScrollComposerOptions {
    */
   chunkSize?: number;
   /**
-   * DM-652: text rendering mode. Default `"embedded-font"` emits `<text>`
+   * DM-652: text rendering mode. Omitted, the composer uses the process-wide
+   * mode (`setRenderTextMode`, whose own default is `"embedded-font"`) — the
+   * same precedence as `elementTreeToSvg`: explicit `renderText` > process-wide
+   * mode > `"embedded-font"`. `"embedded-font"` emits `<text>`
    * elements with a single `@font-face` per used webfont — much faster
    * in WebKit (≈1.84× perf gain + 4.5× smaller file on text-heavy
    * fixtures per DM-651) and visually equivalent in Chromium. `"paths"`
@@ -507,8 +515,11 @@ export function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollC
   const elementScroll = isolateElementScrollOwner(segments);
   const composedSegments = elementScroll?.segments ?? segments;
 
-  // DM-652: arm the text-render lifecycle. Default is "embedded-font" —
-  // the per-segment text renderer emits `<text>` runs against a single
+  // DM-652: arm the text-render lifecycle. An explicit `renderText` wins;
+  // otherwise the process-wide mode applies (its default is "embedded-font"),
+  // matching `elementTreeToSvg`. A hard "embedded-font" default here used to
+  // override a caller's `setRenderTextMode`. Embedded-font mode has the
+  // per-segment text renderer emit `<text>` runs against a single
   // @font-face per used webfont, ~2× faster in WebKit and ~5× smaller
   // SVG payload than the legacy glyph-path output, visually equivalent
   // in Chromium. Callers that need per-pixel Chromium parity (e.g.
@@ -516,7 +527,7 @@ export function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollC
   // is module-global so every segment's `elementTreeToSvg` call shares
   // the same `@font-face` registry; we collect everything into one
   // top-level <style> block at the bottom of this function.
-  const renderTextMode: RenderTextMode = opts.renderText ?? "embedded-font";
+  const renderTextMode: RenderTextMode = opts.renderText ?? getRenderTextMode();
   // One explicit text-engine document owns generation state, text mode, and
   // the renderer fallback cache across every segment.
   return withTextEngineDocument({ generation: "reset", renderTextMode }, () =>

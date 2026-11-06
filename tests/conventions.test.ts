@@ -129,6 +129,9 @@ describe("project conventions", () => {
       "getEmbeddedFontFaceCss",
       "getGlyphDefs",
       "withRenderTextMode",
+      // The scroll composer defaults its `renderText` to the process-wide mode,
+      // the same precedence as `elementTreeToSvg`.
+      "getRenderTextMode",
       "RenderTextMode",
       "registerWebfont",
       "registerLocalFontAlias",
