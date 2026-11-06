@@ -458,6 +458,81 @@ it("flattenImgSvg never emits a duplicate transform attribute from a root transf
   expect(out).toContain('fill="red"');
 });
 
+// A root `<svg transform>` is a CSS transform on the outermost svg box, about
+// its center (Blink: svg_transformable_element.cc maps the attribute to CSS
+// `transform`; svg.css's `transform-origin: 0 0` rule does not match an
+// outermost svg). Probed in Chromium: an `<img>` SVG rotates about the image
+// center and is clipped to the drawn image; a DOM-inline svg's transform is
+// already applied by the capture's element transform.
+describe("root <svg transform> (outermost-svg transform parity)", () => {
+  const icon = (extra: string): string =>
+    `<svg viewBox="0 0 100 100" width="100" height="100"${extra}><rect width="100" height="40" fill="red"/></svg>`;
+  const place = { x: 50, y: 50, w: 100, h: 100, par: "none", idPrefix: "p-" };
+
+  it("a flattened group drops the root's transform-origin / transform-box attributes too", () => {
+    expect(flattenedRootGroupAttributes(` transform-origin="center" transform-box="view-box" fill="red"`)).toBe(
+      ` fill="red"`,
+    );
+  });
+
+  it("flattenImgSvg composes the root transform about the image center, outside the viewport, clipped to the image", () => {
+    const out = flattenImgSvg(icon(` transform="rotate(30)"`), place)!;
+    expect(out).toBe(
+      `<clipPath id="p-vclip-img"><rect x="50" y="50" width="100" height="100"/></clipPath>` +
+        `<g clip-path="url(#p-vclip-img)"><g transform="translate(100 100) rotate(30) translate(-100 -100)">` +
+        `<clipPath id="p-vclip"><rect x="50" y="50" width="100" height="100"/></clipPath>` +
+        `<g clip-path="url(#p-vclip)"><g transform="matrix(1 0 0 1 50 50)"><rect width="100" height="40" fill="red"/></g></g>` +
+        `</g></g>`,
+    );
+  });
+
+  it("inlineImgSvg moves the root transform off the nested <svg> and applies it about the image center", () => {
+    const out = inlineImgSvg(icon(` transform="rotate(30)"`), place)!;
+    expect(out.startsWith(`<clipPath id="p-vclip-img">`)).toBe(true);
+    expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
+    expect(readSvgOpeningTag(out)?.raw).not.toMatch(/\btransform=/);
+    expect(out.endsWith(`</svg></g></g>`)).toBe(true);
+  });
+
+  it("uses the concrete object rect (object-fit: contain) for the origin and the image clip", () => {
+    // 100x100 viewBox contained in a 160x100 box, left-aligned → object rect x=50..150, not the box center 130.
+    const contain = { x: 50, y: 50, w: 160, h: 100, par: "xMinYMid meet", idPrefix: "c-" };
+    const out = flattenImgSvg(icon(` transform="scale(0.5)"`), contain)!;
+    expect(out).toContain(`<rect x="50" y="50" width="100" height="100"/></clipPath><g clip-path="url(#c-vclip-img)">`);
+    expect(out).toContain(`translate(100 100) scale(0.5) translate(-100 -100)`);
+  });
+
+  it("overflow: visible still clips to the drawn image when a root transform applies", () => {
+    const out = flattenImgSvg(icon(` overflow="visible" transform="rotate(10)"`), place)!;
+    expect(out).toContain(`id="p-vclip-img"`);
+    expect(out).not.toContain(`id="p-vclip"`);
+  });
+
+  it("an icon without a root transform is unchanged", () => {
+    expect(inlineImgSvg(icon(""), place)).not.toContain("vclip-img");
+    expect(flattenImgSvg(icon(""), place)).not.toContain("vclip-img");
+  });
+
+  it("a flattened DOM-inline svg keeps its viewport matrix: the capture's neutralizing style no longer overrides it", () => {
+    const el = {
+      tag: "svg",
+      text: "",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      children: [],
+      svgContent: `<svg viewBox="0 0 100 100" transform="rotate(30)" style="transform: translate(0px); overflow: hidden;" width="100" height="100"><rect width="100" height="40" fill="red"/></svg>`,
+      styles: { ...BASE_STYLES } as CapturedElement["styles"],
+    } as unknown as CapturedElement;
+    const out = elementTreeToSvg([el], 120, 120, { flattenNestedSvg: true });
+    const group = out.match(/<g[^>]*transform="matrix\([^"]*\)"[^>]*>/)?.[0];
+    expect(group).toBeDefined();
+    expect(group).not.toMatch(/style="[^"]*transform/);
+    expect(group).not.toMatch(/rotate\(30\)/);
+  });
+});
+
 describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {
   const place = { x: 4, y: 8, w: 16, h: 16, par: "xMidYMid meet", idPrefix: "svgimg0" };
 

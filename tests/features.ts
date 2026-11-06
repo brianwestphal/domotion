@@ -1049,6 +1049,22 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // An outermost `<svg transform>` is a CSS transform on the root box, about
+    // its center (Blink maps the attribute to CSS `transform`; svg.css's
+    // `transform-origin: 0 0` rule never matches an outermost svg). In an
+    // `<img>` it rotates/scales the drawn image about the concrete object
+    // rect's center and is clipped to that rect; on a DOM-inline svg the
+    // capture records it as the element's own CSS transform.
+    name: "image-svg-root-transform",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:12px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" transform="rotate(30)"><rect width="100" height="40" fill="#ed1234"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:100px;height:100px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" transform="translate(20 -10) rotate(-15) scale(1.2)"><rect width="100" height="40" fill="#0ea5e9"/><rect y="60" width="40" height="40" fill="#22c55e"/></svg>')}" style="display:block;width:160px;height:100px;background:#0f172a;object-fit:contain;object-position:left center">
+      <svg width="100" height="100" viewBox="0 0 100 100" transform="rotate(30)"><rect width="100" height="40" fill="#f59e0b"/><rect y="60" width="40" height="40" fill="#7c3aed"/></svg>
+    </div>`,
+    width: 460,
+    height: 140,
+  },
+  {
     name: "replaced-canvas-overlay",
     html: `<div style="padding:20px;"><div style="position:relative;width:200px;height:100px;"><canvas id="c3" width="200" height="100" style="display:block;background:#444;position:absolute;left:0;top:0;z-index:1;"></canvas><div style="position:absolute;left:60px;top:30px;width:80px;height:40px;background:rgba(220,38,38,0.7);z-index:10;"></div></div></div><script>(function(){var c=document.getElementById('c3').getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,200,100);c.fillStyle='#000';c.fillRect(20,20,30,30);c.fillRect(150,50,30,30);})();</script>`,
     width: 240,

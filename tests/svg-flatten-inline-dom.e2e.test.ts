@@ -103,6 +103,40 @@ describe("captured DOM inline <svg> flattening (DM-7AN9AH)", () => {
     expect((await comparePngs(out, exp, fl, join(dir, "diff-chrome.png"))).regionCount).toBe(0);
   }, 30_000);
 
+  // An outermost `<svg transform>` attribute is a CSS transform on the root box,
+  // about its center. On a DOM-inline svg the capture applies it through the
+  // element's own transform; in an `<img>` SVG document nothing else does, so the
+  // inlined output composes it around the image center and clips to the image.
+  it("a root transform attribute paints like Chrome for DOM-inline and <img> SVG, nested and flattened", async () => {
+    const icon =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" transform="rotate(30)">` +
+      `<rect width="100" height="40" fill="#e11"/><rect y="60" width="40" height="40" fill="#13e"/></svg>`;
+    const dir = mkdtempSync(join(tmpdir(), "dm-qm88gv-"));
+    const file = (name: string, bytes: Buffer) => {
+      const path = join(dir, name);
+      writeFileSync(path, bytes);
+      return path;
+    };
+    const sources = {
+      inline: `<div style="position:absolute;left:60px;top:50px">${icon}</div>`,
+      img: `<img style="position:absolute;left:60px;top:50px" width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(icon)}">`,
+    };
+    for (const [kind, body] of Object.entries(sources)) {
+      await source.setContent(`<!doctype html><style>html,body{margin:0;background:#fff}</style>${body}`);
+      await source.waitForLoadState("networkidle");
+      const exp = file(`${kind}-expected.png`, await source.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
+      const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: W, height: H });
+      for (const flatten of [false, true]) {
+        const actual = file(`${kind}-${flatten}.png`, await shoot(render(tree, flatten)));
+        // Before the fix: the <img> case rotated about the output origin (nested)
+        // or not at all (flattened), and the flattened inline case lost its
+        // placement — each a large region.
+        const cmp = await comparePngs(out, exp, actual, join(dir, `${kind}-${flatten}-diff.png`));
+        expect(cmp.regionCount, `${kind} flatten=${flatten}`).toBe(0);
+      }
+    }
+  }, 30_000);
+
   it("an unsafe source (inner <style> element selector) stays a nested <svg>", async () => {
     // NB: the capture pre-resolves viewport-relative `%` to absolute, so `%` is
     // NOT the unsafe case for captured content. An inner <style> with an element
