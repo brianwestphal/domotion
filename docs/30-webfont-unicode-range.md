@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: []
-tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y"]
+tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y", "DM-687YPX"]
 code:
   [
     "packages/text-engine/src/render/text-to-path.ts",
@@ -14,6 +14,9 @@ code:
     "src/capture/unicode-range.ts",
     "src/capture/unicode-range.test.ts",
     "tests/unicode-range-descriptor.e2e.test.ts",
+    "src/capture/cross-origin-font-face.ts",
+    "src/cross-origin-font-face.test.ts",
+    "tests/cross-origin-font-face.e2e.test.ts",
   ]
 aliases: ["docs/30-webfont-unicode-range.md", "doc-30"]
 ---
@@ -56,7 +59,7 @@ Domotion's webfont registry stores variants keyed by `(family, weight, italic)` 
 
 ## API
 
-`unicode-range` is captured from each `@font-face` rule (both same-origin via the page-side walker and cross-origin via the server-side `parseFontFaceRulesFromCssText`, DM-545) and stored on the registered variant:
+`unicode-range` is captured from each `@font-face` rule and stored on the registered variant. Same-origin rules come from the page-side walker. A cross-origin stylesheet (which throws on `cssRules`) is fetched Node-side and its text is parsed by Chromium itself, in a constructed `CSSStyleSheet` in the page (`src/capture/cross-origin-font-face.ts`), so both paths read the descriptors from CSSOM. Each descriptor therefore takes Blink's value, the last valid declaration: `CSSParserImpl::ConsumeFontFaceRule` builds the value set through `FilterProperties`, which keeps the last declaration per descriptor (`core/css/parser/css_parser_impl.cc:263-307`, `:1519-1555`), and `AtRuleDescriptorParser::ParseFontFaceDescriptor` drops an invalid value (`at_rule_descriptor_parser.cc:346-430`), both at Chromium 7d859f27. An earlier regex scanner took the first declaration instead and split values at a `;` or `}` inside a string.
 
 ```ts
 interface WebfontVariant {

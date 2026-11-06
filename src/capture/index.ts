@@ -80,6 +80,7 @@ import { resetLastCaptureWarnings } from "./warnings.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { assertCapturedTreeShape } from "./tree-shape.js";
 import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
+import { parseCrossOriginFontFaceRules, type FaceRule } from "./cross-origin-font-face.js";
 import type {
   CapturedElement,
   CapturedFrameScrollState,
@@ -610,17 +611,6 @@ export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: (
  */
 // Node-side discovered-font item shapes (the page.evaluate body declares its
 // own structurally-identical inline copies; these are the Node-side types).
-type FaceRule = {
-  kind: "font-face";
-  family: string;
-  weight: string;
-  style: string;
-  styleDesc: string;
-  url: string;
-  urls?: string[];
-  unicodeRange?: Array<[number, number]>;
-  stretch?: string;
-};
 type ResourceUrl = { kind: "resource"; url: string };
 type LocalFace = {
   kind: "local";
@@ -1047,7 +1037,9 @@ export async function discoverAndRegisterWebfonts(
     } catch {
       continue;
     }
-    for (const face of parseFontFaceRulesFromCssText(cssText, sheetUrl)) {
+    // Chromium parses the text (last valid declaration per descriptor wins),
+    // not a regex scanner; see cross-origin-font-face.ts.
+    for (const face of await parseCrossOriginFontFaceRules(page, cssText, sheetUrl)) {
       // De-dupe by all URLs in the ranked list — we may have already seen
       // this src via the resource-fallback (whose entry registers under the
       // wrong name); having BOTH a font-face entry (correct name) AND a
@@ -1148,117 +1140,6 @@ async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
   } catch {
     return buf; // fall through: register the WOFF2 anyway, variations just won't work
   }
-}
-
-/**
- * DM-545: parse `@font-face` rules out of a raw CSS text fetched server-side.
- * Used for cross-origin stylesheets that the page-side `cssRules` walker can't
- * read. Tolerant scanner — handles top-level `@font-face` and rules nested
- * inside any number of `@media` / `@supports` / `@layer` / `@container`
- * blocks (recurses through balanced braces). Returns the same FaceRule shape
- * the page-side walker emits so the downstream registration loop is uniform.
- *
- * Not a full CSS parser — comment-stripping handles `/* … *​/`, but exotic
- * inputs (custom properties holding @font-face strings, CSSOM-injected rules
- * that never serialized back to text) aren't covered. Adequate for the
- * mainstream marketing-site case that motivated the change.
- */
-export function parseFontFaceRulesFromCssText(cssText: string, baseUrl: string): FaceRule[] {
-  const stripped = cssText.replace(/\/\*[\s\S]*?\*\//g, "");
-  const out: FaceRule[] = [];
-  const re = /@font-face\s*\{/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(stripped)) !== null) {
-    const start = m.index + m[0].length;
-    let depth = 1;
-    let i = start;
-    while (i < stripped.length && depth > 0) {
-      const c = stripped[i];
-      if (c === "{") depth++;
-      else if (c === "}") depth--;
-      i++;
-    }
-    if (depth !== 0) break;
-    const body = stripped.substring(start, i - 1);
-    const rule = parseFontFaceBody(body, baseUrl);
-    if (rule != null) out.push(rule);
-  }
-  return out;
-}
-
-function parseFontFaceBody(body: string, baseUrl: string): FaceRule | null {
-  const familyMatch = /font-family\s*:\s*([^;}]+)/i.exec(body);
-  if (familyMatch == null) return null;
-  const family = familyMatch[1]
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .trim();
-  if (family === "") return null;
-  // The raw `font-weight` descriptor; "" = auto/absent (kept distinct from a
-  // declared "400" — only a declared value pins a variable face's wght axis).
-  const weight = /font-weight\s*:\s*([^;}]+)/i.exec(body)?.[1].trim() ?? "";
-  const styleMatch = /font-style\s*:\s*([^;}]+)/i.exec(body)?.[1].trim();
-  const style = styleMatch ?? "normal";
-  // The RAW `font-style` descriptor, kept separate from `style` above for the
-  // same reason `weight` is kept separate from `parseWeightDescriptor`'s
-  // collapse — see the call-site comment in `registerDiscoveredFont`.
-  const styleDesc = styleMatch ?? "";
-  // The `font-stretch` descriptor (or its spec-renamed `font-width` form).
-  // Undefined = auto/absent; the registry then treats the face's selection
-  // capabilities as normal width and instancing clamps to the font's own
-  // wdth axis range (Blink's RangeSetFromAuto branch).
-  const stretch = /font-(?:stretch|width)\s*:\s*([^;}]+)/i.exec(body)?.[1].trim() || undefined;
-  const urMatch = /unicode-range\s*:\s*([^;}]+)/i.exec(body);
-  const unicodeRange = urMatch != null ? parseUnicodeRangeDescriptor(urMatch[1]) : undefined;
-  const srcMatch = /src\s*:\s*([\s\S]+?)(?:;|$)/i.exec(body);
-  if (srcMatch == null) return null;
-  const src = srcMatch[1];
-  const srcEntries: { url: string; format: string }[] = [];
-  const urlRe = /url\(\s*["']?([^"')]+)["']?\s*\)(?:\s*format\(\s*["']?([^"')]+)["']?\s*\))?/g;
-  let um: RegExpExecArray | null;
-  while ((um = urlRe.exec(src)) !== null) {
-    srcEntries.push({ url: um[1], format: (um[2] ?? "").toLowerCase() });
-  }
-  if (srcEntries.length === 0) return null;
-  // Same ranking as the page-side walker (woff2 > woff > ttf/otf, skip
-  // eot/svg). Keeping the two ranks identical means the Node-side iterator
-  // tries URLs in the same order whether they came from the page-side or
-  // server-side path.
-  const formatRank = (fmt: string, url: string): number => {
-    const lower = fmt.toLowerCase();
-    if (/embedded-opentype|svg/.test(lower)) return -1;
-    if (lower.includes("woff2") || /\.woff2(\?|$)/i.test(url)) return 4;
-    if (lower === "woff" || /\.woff(\?|$)/i.test(url)) return 3;
-    if (/truetype|opentype/.test(lower) || /\.(ttf|otf)(\?|$)/i.test(url)) return 2;
-    if (/\.eot(\?|$)/i.test(url) || /\.svg(\?|$)/i.test(url)) return -1;
-    return 1;
-  };
-  const ranked = srcEntries
-    .map((e) => ({ url: e.url, rank: formatRank(e.format, e.url) }))
-    .filter((e) => e.rank >= 0)
-    .sort((a, b) => b.rank - a.rank)
-    .map((e) => e.url);
-  if (ranked.length === 0) return null;
-  const absUrls: string[] = [];
-  for (const u of ranked) {
-    try {
-      absUrls.push(new URL(u, baseUrl).href);
-    } catch {
-      /* skip */
-    }
-  }
-  if (absUrls.length === 0) return null;
-  return {
-    kind: "font-face",
-    family,
-    weight,
-    style,
-    styleDesc,
-    url: absUrls[0],
-    urls: absUrls,
-    unicodeRange,
-    ...(stretch != null ? { stretch } : {}),
-  };
 }
 
 function parseWeightDescriptor(value: string): number {

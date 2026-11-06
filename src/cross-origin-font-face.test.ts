@@ -1,123 +1,98 @@
 import { describe, expect, it } from "vitest";
-import { parseFontFaceRulesFromCssText } from "./capture/index.js";
+import { faceRuleFromFontFaceDescriptors, type FontFaceDescriptorText } from "./capture/cross-origin-font-face.js";
 
 // DM-545: cross-origin stylesheets throw on `cssRules` access from the page
-// context, so we fetch them server-side and parse `@font-face` rules with
-// this helper. Sites affected (verified): Stripe (b.stripecdn.com), and
-// likely most marketing sites whose CSS is served from a different host
-// than the page.
+// context, so we fetch them server-side. Chromium parses the fetched text in
+// the page (tests/cross-origin-font-face.e2e.test.ts covers that half, where
+// the last valid declaration of each descriptor wins). These cases cover the
+// Node-side step from the CSSOM descriptor serialization to a FaceRule.
 
-describe("parseFontFaceRulesFromCssText", () => {
-  const BASE = "https://cdn.example.com/css/site.css";
+const BASE = "https://cdn.example.com/css/site.css";
 
-  it("returns empty list for CSS with no @font-face rules", () => {
-    expect(parseFontFaceRulesFromCssText("body { color: red; }", BASE)).toEqual([]);
-  });
+function descriptors(d: Partial<FontFaceDescriptorText>): FontFaceDescriptorText {
+  return { family: "", weight: "", style: "", stretch: "", unicodeRange: "", src: "", ...d };
+}
 
-  it("parses a single top-level @font-face rule with a single src url()", () => {
-    const css = `@font-face { font-family: "MyFont"; src: url("/fonts/myfont.woff2"); }`;
-    const out = parseFontFaceRulesFromCssText(css, BASE);
-    expect(out).toHaveLength(1);
-    expect(out[0].family).toBe("MyFont");
+describe("faceRuleFromFontFaceDescriptors", () => {
+  it("keeps absent weight and style distinct from declared values", () => {
+    const out = faceRuleFromFontFaceDescriptors(
+      descriptors({ family: '"MyFont"', src: 'url("/fonts/myfont.woff2")' }),
+      BASE,
+    );
     // Absent descriptor stays "" (auto) — kept distinct from a declared "400",
     // because only a declared value pins a variable face's wght axis (Blink's
-    // RangeSetFromAuto vs SetExplicitly split). The legacy numeric collapse
-    // (parseWeightDescriptor) maps "" to 400 for report rows.
-    expect(out[0].weight).toBe(""); // auto/absent
-    expect(out[0].style).toBe("normal"); // default
-    expect(out[0].url).toBe("https://cdn.example.com/fonts/myfont.woff2");
-    expect(out[0].urls).toEqual(["https://cdn.example.com/fonts/myfont.woff2"]);
+    // RangeSetFromAuto vs SetExplicitly split).
+    expect(out).toEqual({
+      kind: "font-face",
+      family: "MyFont",
+      weight: "",
+      style: "normal",
+      styleDesc: "",
+      url: "https://cdn.example.com/fonts/myfont.woff2",
+      urls: ["https://cdn.example.com/fonts/myfont.woff2"],
+      unicodeRange: undefined,
+    });
   });
 
-  it("parses font-weight, font-style, and unicode-range descriptors", () => {
-    const css = `
-      @font-face {
-        font-family: "Geist";
-        font-weight: 400;
-        font-style: italic;
-        src: url("/g.woff2") format("woff2");
-        unicode-range: U+0000-00FF, U+0131;
-      }`;
-    const out = parseFontFaceRulesFromCssText(css, BASE);
-    expect(out).toHaveLength(1);
-    expect(out[0].family).toBe("Geist");
-    expect(out[0].weight).toBe("400");
-    expect(out[0].style).toBe("italic");
-    expect(out[0].unicodeRange).toEqual([
-      [0x0000, 0x00ff],
-      [0x0131, 0x0131],
-    ]);
+  it("carries font-weight, font-style, font-stretch and unicode-range", () => {
+    const out = faceRuleFromFontFaceDescriptors(
+      descriptors({
+        family: "Geist",
+        weight: "400",
+        style: "italic",
+        stretch: "75%",
+        unicodeRange: "U+0-FF, U+131",
+        src: 'url("/g.woff2") format("woff2")',
+      }),
+      BASE,
+    );
+    expect(out).toEqual(
+      expect.objectContaining({
+        family: "Geist",
+        weight: "400",
+        style: "italic",
+        styleDesc: "italic",
+        stretch: "75%",
+        unicodeRange: [
+          [0x0000, 0x00ff],
+          [0x0131, 0x0131],
+        ],
+      }),
+    );
   });
 
-  it("ranks src urls woff2 > woff > ttf/otf, skipping eot/svg", () => {
-    const css = `@font-face {
-      font-family: "sdicon";
-      src: url("/sdicon.eot"),
-           url("/sdicon.eot?#iefix") format("embedded-opentype"),
-           url("/sdicon.woff") format("woff"),
-           url("/sdicon.ttf") format("truetype"),
-           url("/sdicon.svg#sdicon") format("svg");
-    }`;
-    const out = parseFontFaceRulesFromCssText(css, BASE);
-    expect(out).toHaveLength(1);
-    // woff first (woff2 not present), then ttf. eot/svg dropped.
-    expect(out[0].urls).toEqual(["https://cdn.example.com/sdicon.woff", "https://cdn.example.com/sdicon.ttf"]);
+  it("ranks src urls woff2 > woff > ttf/otf and skips eot/svg suffixes", () => {
+    const out = faceRuleFromFontFaceDescriptors(
+      descriptors({
+        family: "sdicon",
+        src: 'url("/sdicon.eot"), url("/sdicon.ttf") format("truetype"), url("/sdicon.woff") format("woff"), url("/sdicon.svg#sdicon") format("svg")',
+      }),
+      BASE,
+    );
+    expect(out?.urls).toEqual(["https://cdn.example.com/sdicon.woff", "https://cdn.example.com/sdicon.ttf"]);
   });
 
-  it("recurses into @media-nested @font-face (Stripe pattern)", () => {
-    const css = `
-      @media (min-width: 600px) {
-        @font-face {
-          font-family: sohne-var;
-          src: url(/sohne.woff2) format("woff2-variations");
-          font-weight: 1 1000;
-        }
-      }`;
-    const out = parseFontFaceRulesFromCssText(css, BASE);
-    expect(out).toHaveLength(1);
-    expect(out[0].family).toBe("sohne-var");
-    expect(out[0].weight).toBe("1 1000");
-    expect(out[0].url).toBe("https://cdn.example.com/sohne.woff2");
+  it("resolves relative urls against the stylesheet and keeps reserved characters inside a string url", () => {
+    const out = faceRuleFromFontFaceDescriptors(
+      descriptors({ family: "MyFont", src: 'url("./fonts/x;}.woff2") format("woff2"), local("MyFont")' }),
+      BASE,
+    );
+    expect(out?.urls).toEqual(["https://cdn.example.com/css/fonts/x;%7D.woff2"]);
   });
 
-  it("strips CSS comments before parsing (no false positives in /* @font-face */ comment)", () => {
-    const css = `
-      /* @font-face { font-family: "ShouldNotMatch"; src: url("nope.woff2"); } */
-      @font-face { font-family: "Real"; src: url("real.woff2"); }
-    `;
-    const out = parseFontFaceRulesFromCssText(css, BASE);
-    expect(out).toHaveLength(1);
-    expect(out[0].family).toBe("Real");
+  it("returns null without a family, without a url() source, or with only unresolvable urls", () => {
+    expect(faceRuleFromFontFaceDescriptors(descriptors({ src: 'url("x.woff2")' }), BASE)).toBeNull();
+    expect(faceRuleFromFontFaceDescriptors(descriptors({ family: "X" }), BASE)).toBeNull();
+    expect(faceRuleFromFontFaceDescriptors(descriptors({ family: "X", src: 'local("X")' }), BASE)).toBeNull();
+    expect(faceRuleFromFontFaceDescriptors(descriptors({ family: "X", src: 'url("x.eot")' }), BASE)).toBeNull();
+    expect(faceRuleFromFontFaceDescriptors(descriptors({ family: "X", src: 'url("//[")' }), BASE)).toBeNull();
   });
 
-  it("handles unquoted family names and resolves relative urls against the base", () => {
-    const css = `@font-face { font-family: MyFont; src: url(./fonts/x.woff2); }`;
-    const out = parseFontFaceRulesFromCssText(css, "https://cdn.example.com/css/site.css");
-    expect(out).toHaveLength(1);
-    expect(out[0].family).toBe("MyFont");
-    expect(out[0].url).toBe("https://cdn.example.com/css/fonts/x.woff2");
-  });
-
-  it("returns multiple rules when the CSS declares many @font-face entries", () => {
-    const css = `
-      @font-face { font-family: A; src: url(a.woff2); }
-      @font-face { font-family: B; src: url(b.woff2); font-weight: 700; }
-      @font-face { font-family: C; src: url(c.woff2); font-style: italic; }
-    `;
-    const out = parseFontFaceRulesFromCssText(css, BASE);
-    expect(out).toHaveLength(3);
-    expect(out.map((r) => r.family)).toEqual(["A", "B", "C"]);
-    expect(out[1].weight).toBe("700");
-    expect(out[2].style).toBe("italic");
-  });
-
-  it("skips a rule with no parseable src (all eot/svg)", () => {
-    const css = `@font-face { font-family: X; src: url(x.eot), url(x.svg#x) format("svg"); }`;
-    expect(parseFontFaceRulesFromCssText(css, BASE)).toEqual([]);
-  });
-
-  it("skips a rule missing font-family", () => {
-    const css = `@font-face { src: url(x.woff2); }`;
-    expect(parseFontFaceRulesFromCssText(css, BASE)).toEqual([]);
+  it("reads an invalid unicode-range serialization as the initial value", () => {
+    const out = faceRuleFromFontFaceDescriptors(
+      descriptors({ family: "X", src: 'url("x.woff2")', unicodeRange: "U+41zz" }),
+      BASE,
+    );
+    expect(out?.unicodeRange).toBeUndefined();
   });
 });

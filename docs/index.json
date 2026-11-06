@@ -829,14 +829,17 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": [],
-        "tickets": ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y"],
+        "tickets": ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y", "DM-687YPX"],
         "code": [
           "packages/text-engine/src/render/text-to-path.ts",
           "packages/text-engine/src/render/webfont-unicode-range.test.ts",
           "src/webfont-unicode-range.test.ts",
           "src/capture/unicode-range.ts",
           "src/capture/unicode-range.test.ts",
-          "tests/unicode-range-descriptor.e2e.test.ts"
+          "tests/unicode-range-descriptor.e2e.test.ts",
+          "src/capture/cross-origin-font-face.ts",
+          "src/cross-origin-font-face.test.ts",
+          "tests/cross-origin-font-face.e2e.test.ts"
         ],
         "aliases": ["docs/30-webfont-unicode-range.md", "doc-30"]
       }
