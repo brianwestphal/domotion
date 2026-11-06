@@ -33,11 +33,11 @@ kerfjs, `@kerfjs/ui` and `eslint-plugin-kerfjs` are pinned to the exact 5.0 beta
 
 **Bundle sizes.** Upgrading from kerfjs 4.4 / kerf-ui 4.4.1 to the 5.0 beta grew the three shipped bundles as follows (JavaScript including the folded CSS string; "minified" is an esbuild `minify` pass over the shipped unminified bundle):
 
-| Bundle | 4.4 raw | 5.0 beta raw | 4.4 minified | 5.0 beta minified |
-| --- | --- | --- | --- | --- |
-| svg-review (`src/review`) | 65.0 KB | 99.4 KB (+34.3) | 42.7 KB | 69.1 KB (+26.5) |
-| svg-scrubber (`src/scrubber`) | 161.7 KB | 235.2 KB (+73.5) | 93.4 KB | 149.1 KB (+55.7) |
-| Studio (`src/studio`) | 785.2 KB | 837.1 KB (+51.9) | 451.4 KB | 486.5 KB (+35.2) |
+| Bundle                        | 4.4 raw  | 5.0 beta raw     | 4.4 minified | 5.0 beta minified |
+| ----------------------------- | -------- | ---------------- | ------------ | ----------------- |
+| svg-review (`src/review`)     | 65.0 KB  | 99.4 KB (+34.3)  | 42.7 KB      | 69.1 KB (+26.5)   |
+| svg-scrubber (`src/scrubber`) | 161.7 KB | 235.2 KB (+73.5) | 93.4 KB      | 149.1 KB (+55.7)  |
+| Studio (`src/studio`)         | 785.2 KB | 837.1 KB (+51.9) | 451.4 KB     | 486.5 KB (+35.2)  |
 
 Most of the growth is the kerfjs 5 runtime itself, which now builds on `@preact/signals-core`.
 

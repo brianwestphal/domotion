@@ -49,7 +49,8 @@ export async function bundleKerfClient({ entry, format = "iife", sourcemap = fal
   // a checkout whose node_modules entries are symlinks into another directory
   // would regenerate every bundle with different bytes. Anchor those paths at
   // their `node_modules/` segment: the output must depend only on the sources.
-  const normalizePathComments = (text) => text.replace(/^(\s*(?:\/\/|\/\*) )[^\s*]*?node_modules\//gmu, "$1node_modules/");
+  const normalizePathComments = (text) =>
+    text.replace(/^(\s*(?:\/\/|\/\*) )[^\s*]*?node_modules\//gmu, "$1node_modules/");
   css = normalizePathComments(css);
   const prologue =
     css === ""
