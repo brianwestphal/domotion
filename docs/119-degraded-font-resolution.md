@@ -90,6 +90,17 @@ browser-side probe is present.
 transport from the persistent channel to one-shot processes and must preserve
 answers exactly.
 
+Each one-shot process is bounded, 120 s by default. A positive integer
+`DOMOTION_HELPER_ONE_SHOT_TIMEOUT_MS` overrides the bound; both unit-test
+configs set it to 10 s, below their 30 s test timeout. A request that reaches
+the bound writes a `glyph helper one-shot request stalled` line to stderr. The
+line names the attempt, pid, elapsed time, query types and counts, and the
+opened fonts. Every caller degrades on a helper error behind a bare `catch`, so
+stderr is the only place a stall can be seen. The request is retried once; a
+second stall fails the call, and the caller degrades as for any other helper
+error. Stalls observed so far have been transient: the next request answered in
+milliseconds.
+
 ## Test contract
 
 `static-chain-degraded-net.test.ts` proves the critical ordering invariant and

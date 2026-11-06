@@ -28,6 +28,11 @@ export default defineConfig({
     // removes this variable for its focused persistent-channel coverage.
     env: {
       DOMOTION_HELPER_NO_SERVE: "1",
+      // Bound each one-shot helper process below the 30 s test timeout. A
+      // stalled spawnSync blocks the worker's event loop, so at the 120 s
+      // default Vitest could only report its own timeout, after the fact.
+      // The transport retries a stall once, so the worst case is 2 × 10 s.
+      DOMOTION_HELPER_ONE_SHOT_TIMEOUT_MS: "10000",
       // Defense in depth: even a test that spawns a server-backed CLI without
       // its `--no-open` flag must not launch the user's desktop browser.
       DOMOTION_NO_OPEN: "1",

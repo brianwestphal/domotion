@@ -11,6 +11,11 @@ export default defineConfig({
     globalSetup: [resolve(fileURLToPath(new URL(".", import.meta.url)), "vitest.global.ts")],
     env: {
       DOMOTION_HELPER_NO_SERVE: "1",
+      // Bound each one-shot helper process below the 30 s test timeout. A
+      // stalled spawnSync blocks the worker's event loop, so at the 120 s
+      // default Vitest could only report its own timeout, after the fact.
+      // The transport retries a stall once, so the worst case is 2 × 10 s.
+      DOMOTION_HELPER_ONE_SHOT_TIMEOUT_MS: "10000",
       DOMOTION_NO_OPEN: "1",
     },
     testTimeout: 30_000,

@@ -123,11 +123,45 @@ function fdOf(stream: unknown): number | undefined {
 /** Upper bound for one one-shot helper process. Ordinary requests take
  *  milliseconds; the largest glyph batches take seconds. */
 const DEFAULT_ONE_SHOT_TIMEOUT_MS = 120_000;
-let ONE_SHOT_TIMEOUT_MS = DEFAULT_ONE_SHOT_TIMEOUT_MS;
+let oneShotTimeoutOverrideMs: number | undefined;
 
 /** Test-only: shorten the one-shot bound; call with no argument to restore it. */
 export function __setOneShotTimeoutForTest(ms?: number): void {
-  ONE_SHOT_TIMEOUT_MS = ms ?? DEFAULT_ONE_SHOT_TIMEOUT_MS;
+  oneShotTimeoutOverrideMs = ms;
+}
+
+/** The bound for one one-shot attempt: a test override, else a positive
+ *  integer `DOMOTION_HELPER_ONE_SHOT_TIMEOUT_MS`, else the default. Read per
+ *  call so a test runner's `env` block applies. The unit configs set it below
+ *  their 30 s test timeout: at the 120 s default a stalled child outlived the
+ *  test that issued it, and Vitest could report only its own timeout. */
+export function oneShotTimeoutMs(): number {
+  if (oneShotTimeoutOverrideMs != null) return oneShotTimeoutOverrideMs;
+  const raw = process.env.DOMOTION_HELPER_ONE_SHOT_TIMEOUT_MS;
+  const parsed = raw == null ? NaN : Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_ONE_SHOT_TIMEOUT_MS;
+}
+
+/** One-shot attempts per request. A stall has so far been transient (the
+ *  same request answers in milliseconds on the next call), so a request that
+ *  hits the bound is retried once before the call fails. */
+const ONE_SHOT_ATTEMPTS = 2;
+
+/** Describes a request well enough to reproduce it from a CI log: query types
+ *  with their counts, and each opened font's name or path. */
+export function describeHelperRequest(request: HelperRequest): string {
+  const counts = new Map<string, number>();
+  for (const query of request.queries) counts.set(query.type, (counts.get(query.type) ?? 0) + 1);
+  const queries = [...counts].map(([type, n]) => (n === 1 ? type : `${type}×${n}`)).join(",");
+  const fonts = request.fonts
+    .map(
+      (font) =>
+        font.postscriptName ??
+        font.fontPath ??
+        (font.fontData != null ? "<inline data>" : font.systemUI ? "<system UI>" : font.ref),
+    )
+    .join(", ");
+  return `queries ${queries || "none"}; fonts [${fonts}]`;
 }
 
 let _pipeSeq = 0;
@@ -462,28 +496,47 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
   }
   // Fallback: original one-shot spawnSync.
   const invocation = __helperInvocationForTest(bin);
-  const proc = spawnSync(invocation.command, invocation.args, {
-    input: JSON.stringify(request),
-    encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024,
-    // A spawnSync that never returns blocks the event loop, so no caller-side
-    // timer can fire: a unit-suite worker once sat 18 minutes at 0% CPU with a
-    // one-shot child still waiting for EOF on its stdin. Bound the call so a
-    // stall becomes an error naming the request instead of a silent hang.
-    timeout: ONE_SHOT_TIMEOUT_MS,
-  });
-  profAccum("helper-spawnSync", profNow() - _t0);
-  if (proc.error != null || proc.status !== 0) {
+  const input = JSON.stringify(request);
+  const timeoutMs = oneShotTimeoutMs();
+  for (let attempt = 1; ; attempt++) {
+    const started = Date.now();
+    const proc = spawnSync(invocation.command, invocation.args, {
+      input,
+      encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
+      // A spawnSync that never returns blocks the event loop, so no caller-side
+      // timer can fire: a unit-suite worker once sat 18 minutes at 0% CPU with a
+      // one-shot child still waiting for EOF on its stdin. Bound the call so a
+      // stall becomes an error naming the request instead of a silent hang.
+      timeout: timeoutMs,
+    });
+    profAccum("helper-spawnSync", profNow() - _t0);
+    if (proc.error == null && proc.status === 0) {
+      return parseHelperResponse(proc.stdout, { helperPath: bin ?? null, transport: "one-shot" });
+    }
+    const timedOut = (proc.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
     const cause =
       proc.signal != null
-        ? `killed by ${proc.signal}${(proc.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT" ? ` after ${ONE_SHOT_TIMEOUT_MS} ms` : ""}`
+        ? `killed by ${proc.signal}${timedOut ? ` after ${timeoutMs} ms` : ""}`
         : proc.error != null
           ? String(proc.error)
           : `exit ${proc.status}`;
+    if (timedOut) {
+      // Every caller degrades on a helper error behind a bare `catch`, so the
+      // thrown message alone never reaches a log. Report the stall here, where
+      // it cannot be swallowed, with enough to attribute and reproduce it.
+      process.stderr.write(
+        `domotion: glyph helper one-shot request stalled (attempt ${attempt}/${ONE_SHOT_ATTEMPTS}, ` +
+          `pid ${proc.pid ?? "?"}, ${Date.now() - started} ms, bound ${timeoutMs} ms, helper ${bin}; ` +
+          `${describeHelperRequest(request)}; ${input.length} request bytes, ` +
+          `${proc.stdout?.length ?? 0} response bytes before the kill)` +
+          `${attempt < ONE_SHOT_ATTEMPTS ? " — retrying" : ""}\n`,
+      );
+      if (attempt < ONE_SHOT_ATTEMPTS) continue;
+    }
     const queries = request.queries.map((query) => query.type).join(",");
     throw new Error(`glyph helper failed (${cause}; one-shot, queries ${queries}): ${proc.stderr ?? ""}`);
   }
-  return parseHelperResponse(proc.stdout, { helperPath: bin ?? null, transport: "one-shot" });
 }
 
 /**
