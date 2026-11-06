@@ -213,8 +213,8 @@ animate config (JSON):
                            inset rides through to any "template" frame (page frames
                            only get resized). See docs/90-format-on-capture.md.
         --width/--height <n> Override the config canvas on one/both axes.
-        --debug              Write one shared HAR plus per-frame source PNG/tree
-                             artifacts next to the output.
+        --debug              Write one shared HAR, warnings.json, and per-frame
+                             source PNG/tree artifacts next to the output.
         --debug-dir <path>   Override the animation debug-bundle directory.
         --optimize | --no-optimize | --quiet
 

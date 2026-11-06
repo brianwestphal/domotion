@@ -3,6 +3,7 @@ import {
   type EmbeddedFontEmbeddingRestriction,
   takeEmbeddedFontEmbeddingRestrictions,
 } from "./font-resolution.js";
+import type { CaptureWarning } from "../capture/types.js";
 import { renderWarn } from "./render-warn.js";
 
 /** Render-warning feature id for a restricted-embedding source face. */
@@ -38,8 +39,24 @@ export function describeEmbeddingRestriction(r: EmbeddedFontEmbeddingRestriction
  */
 export function getEmbeddedFontFaceCss(): string {
   const css = buildEmbeddedFontFaceCss();
-  for (const restriction of takeEmbeddedFontEmbeddingRestrictions()) {
-    renderWarn(EMBEDDED_FONT_FSTYPE_WARNING, describeEmbeddingRestriction(restriction));
-  }
+  reportEmbeddedFontEmbeddingRestrictions();
   return css;
+}
+
+/**
+ * Drain the active text-engine generation's not-yet-reported restricted source
+ * faces and report each as an `embedded-font-fstype` render warning. Callers
+ * that read the engine's `artifacts().embeddedFontFaceCss` directly (Studio's
+ * interactive compiler) call this instead of the CSS wrapper above. Each
+ * warning goes to `sink` when given, else to the active render-warning sink
+ * or the capture-warnings global, and is also returned.
+ */
+export function reportEmbeddedFontEmbeddingRestrictions(sink?: CaptureWarning[]): CaptureWarning[] {
+  const reported: CaptureWarning[] = [];
+  for (const restriction of takeEmbeddedFontEmbeddingRestrictions()) {
+    const detail = describeEmbeddingRestriction(restriction);
+    renderWarn(EMBEDDED_FONT_FSTYPE_WARNING, detail, "", sink);
+    reported.push({ selector: "", feature: EMBEDDED_FONT_FSTYPE_WARNING, detail });
+  }
+  return reported;
 }

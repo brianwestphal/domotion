@@ -43,6 +43,10 @@ populates it with five core artifacts (and a sixth when `--format` is set):
 | `warnings.json`      | the capture and render warnings, as `CaptureWarning` records (written for every `--debug` run, with or without `--warnings`) | see which degradations the render reported, including restricted-embedding font faces ([doc 03](03-font-family-chain.md)) |
 | `safe-area.json`     | safe-area geometry when `--format` is given                                                                                  | reproduce the chosen output framing                                                                                       |
 
+`domotion animate --debug` writes the same `warnings.json` for a whole
+multi-frame run, with each record tagged by the composed frame it arose in
+([doc 237](237-animate-debug-reproduction-bundles.md)).
+
 The final log line of a `--debug` run tells the user exactly which
 `svg-review` invocation will open the bundle:
 

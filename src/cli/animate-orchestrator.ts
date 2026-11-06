@@ -98,9 +98,11 @@ import { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animat
 export { autoCompressRuns, compressMarkedRuns, wasAutoCollapsed } from "./animate-compression.js";
 import {
   prepareAnimateDebugBundle,
+  writeAnimateDebugWarnings,
   writeEmbeddedAnimateDebugFrame,
   writeLiveAnimateDebugFrame,
 } from "./animate-debug.js";
+import { startCaptureWarningCollector } from "../capture/warnings.js";
 import {
   applyReadyWaits,
   loadInputIntoPage,
@@ -2985,6 +2987,10 @@ export async function composeAnimateFrames(
     ...(runBrand != null ? { brand: runBrand } : {}),
     ...(debugDir != null ? { recordHarPath: join(debugDir, "capture.har") } : {}),
   });
+  // Debug bundles keep every frame's capture and render warnings: each capture
+  // replaces the warnings global, so reading it once at the end would keep only
+  // the last frame's.
+  const warningCollector = debugDir != null ? startCaptureWarningCollector() : null;
   try {
     const { page, tracker } = session;
     const frames: AnimationFrame[] = [];
@@ -3039,6 +3045,10 @@ export async function composeAnimateFrames(
 
     for (let i = 0; i < cfg.frames.length; i++) {
       const fc = cfg.frames[i];
+      // Anything raised since the last drain (e.g. the previous frame's
+      // magic-move bridge render) still belongs to the previous frame.
+      warningCollector?.drain();
+      warningCollector?.setFrame(i);
       // DM-84TS9P: source selection is a typed stage boundary. Embedded frames
       // bypass the live page; live frames receive an explicit load/continue
       // decision while this loop retains browser-session and transition state.
@@ -3156,7 +3166,10 @@ export async function composeAnimateFrames(
 
     // DM-839: collect the embedded-font @font-face rules accumulated across all
     // frames once, for the animator's top-level <style>.
+    warningCollector?.drain();
+    warningCollector?.setFrame(null);
     const fontFaceCss = getEmbeddedFontFaceCss();
+    if (warningCollector != null && debugDir != null) writeAnimateDebugWarnings(debugDir, warningCollector.stop());
     // DM-1137: return the assembled config instead of rendering it here — the
     // render lives in `composeAnimateConfig` so callers can mutate frames first.
     return {
@@ -3172,6 +3185,8 @@ export async function composeAnimateFrames(
       ...(textTracks.length > 0 ? { textTracks } : {}),
     };
   } finally {
+    // Idempotent: removes the observer when composition failed before writing.
+    warningCollector?.stop();
     await session.close();
   }
 }

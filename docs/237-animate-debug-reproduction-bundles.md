@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["animation"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2636"]
+tickets: ["DM-2636", "DM-J4WX7N"]
 code:
   [
     "src/cli/animate-command.ts",
@@ -13,6 +13,8 @@ code:
     "src/cli/animate-orchestrator.ts",
     "src/cli/animate-capture-session.ts",
     "src/cli/debug-bundle.ts",
+    "src/capture/warnings.ts",
+    "tests/animate-debug-warnings.e2e.test.ts",
     "tests/animate-debug.e2e.test.ts",
   ]
 aliases: ["docs/237-animate-debug-reproduction-bundles.md", "doc-237"]
@@ -43,6 +45,7 @@ implicit. Capture and animate share this validation and naming helper.
 demo.debug/
   capture.har
   actual.svg
+  warnings.json
   frames/
     000/
       expected.png
@@ -58,6 +61,18 @@ demo.debug/
   context is closed explicitly before the CLI returns so the HAR is flushed.
 - `actual.svg` is the final plain SVG text after optional optimization. It stays
   plain XML even when the requested delivery artifact is `.svgz` or stdout.
+- `warnings.json` is every capture and render warning of the run, as
+  `CaptureWarning` records (`selector`, `feature`, `detail`) plus a `frame`
+  field: the zero-based composed frame index the warning arose in, or `null`
+  for a run-level warning. The restricted-embedding `embedded-font-fstype`
+  warning ([doc 03](03-font-family-chain.md)) is run-level, because the final
+  embedded-font CSS is built once after every frame (a debug run with an
+  embedded cast/template frame builds it earlier, for that frame's raster, and
+  the warning is then tagged with that frame). Each capture replaces the
+  process-wide "last capture" warnings buffer, so the run collects every buffer
+  before it is replaced instead of reading it once at the end. The file is
+  always written, as `[]` when nothing was reported. It mirrors the single
+  capture bundle's `warnings.json` ([doc 55](55-debug-mode-capture.md)).
 - `expected.png` is a 1× Chromium screenshot at the configured animation canvas
   size. For a DOM-backed frame it records the live page after readiness and
   actions. For an embedded cast/template frame it records the exact nested SVG

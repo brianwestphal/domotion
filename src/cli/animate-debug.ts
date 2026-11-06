@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Page } from "@playwright/test";
-import type { CapturedElement } from "../capture/types.js";
+import type { CapturedElement, CaptureWarning } from "../capture/types.js";
 
 /** Ensure programmatic `ComposeAnimateOptions.debugDir` callers need no setup. */
 export function prepareAnimateDebugBundle(debugDir: string): void {
@@ -95,11 +95,24 @@ export function writeAnimateDebugActual(debugDir: string, svg: string): void {
   writeFileSync(join(debugDir, "actual.svg"), svg);
 }
 
+/**
+ * Store the run's capture and render warnings, each tagged with the composed
+ * frame index it arose in (`null` for run-level warnings such as the final
+ * embedded-font CSS build's restricted-embedding faces).
+ */
+export function writeAnimateDebugWarnings(
+  debugDir: string,
+  warnings: ReadonlyArray<CaptureWarning & { frame: number | null }>,
+): void {
+  writeFileSync(join(debugDir, "warnings.json"), JSON.stringify(warnings, null, 2));
+}
+
 export function logAnimateDebugBundle(debugDir: string, log: (message: string) => void): void {
   log(
     `Debug bundle written:\n` +
       `  ${join(debugDir, "capture.har")}          (shared Playwright HAR)\n` +
       `  ${join(debugDir, "actual.svg")}           (final produced animation)\n` +
+      `  ${join(debugDir, "warnings.json")}        (capture and render warnings, by frame)\n` +
       `  ${join(debugDir, "frames", "NNN", "expected.png")}    (Chromium source pixels per frame)\n` +
       `  ${join(debugDir, "frames", "NNN", "captured-tree.json")} (raw tree per frame; null for compound/embedded frames)`,
   );

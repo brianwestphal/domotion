@@ -28,8 +28,12 @@ vi.mock("@domotion/text-engine/font-resolution", async (importOriginal) => {
   };
 });
 
-const { describeEmbeddingRestriction, EMBEDDED_FONT_FSTYPE_WARNING, getEmbeddedFontFaceCss } =
-  await import("./embedded-font-css.js");
+const {
+  describeEmbeddingRestriction,
+  EMBEDDED_FONT_FSTYPE_WARNING,
+  getEmbeddedFontFaceCss,
+  reportEmbeddedFontEmbeddingRestrictions,
+} = await import("./embedded-font-css.js");
 const { withRenderWarningSink } = await import("./render-warn.js");
 
 describe("root getEmbeddedFontFaceCss embedding-restriction warnings", () => {
@@ -78,6 +82,29 @@ describe("root getEmbeddedFontFaceCss embedding-restriction warnings", () => {
       }),
     ]);
     expect(console.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a drained restriction to an explicit sink over the active one, and returns it", () => {
+    // Studio's interactive compiler reads the engine's CSS artifacts directly and
+    // drains the restrictions through this helper (DM-J4WX7N).
+    engine.pending = [
+      { path: "/fonts/R.ttf", faceIndex: 0, postscriptName: "R", fsType: 0x0200, restrictions: ["bitmap-only"] },
+    ];
+    const active: CaptureWarning[] = [];
+    const explicit: CaptureWarning[] = [];
+    const reported = withRenderWarningSink(active, () => reportEmbeddedFontEmbeddingRestrictions(explicit));
+    expect(active).toEqual([]);
+    expect(explicit).toEqual(reported);
+    expect(reported).toEqual([
+      expect.objectContaining({
+        selector: "",
+        feature: EMBEDDED_FONT_FSTYPE_WARNING,
+        detail: expect.stringContaining("bitmap embedding only"),
+      }),
+    ]);
+    // consumed: a second drain reports nothing
+    expect(reportEmbeddedFontEmbeddingRestrictions(explicit)).toEqual([]);
+    expect(console.warn).toHaveBeenCalledTimes(1);
   });
 
   it("emits nothing when no embedded face is restricted", () => {

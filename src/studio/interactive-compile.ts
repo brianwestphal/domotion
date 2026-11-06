@@ -8,10 +8,11 @@ import {
   createCapturedTreeEnvelope,
   discoverAndRegisterWebfonts,
 } from "../capture/index.js";
-import type { CapturedElement } from "../capture/types.js";
+import type { CapturedElement, CaptureWarning } from "../capture/types.js";
 import { openAnimateCaptureSession } from "../cli/animate-capture-session.js";
 import { applyReadyWaits, loadInputIntoPage } from "../cli/common.js";
 import type { StoryboardScene } from "../cli/storyboard.js";
+import { reportEmbeddedFontEmbeddingRestrictions } from "../render/embedded-font-css.js";
 import { elementTreeToSvgInner } from "../render/index.js";
 import { createTextEngineSession, withTextEngineDocument, type TextEngineSession } from "../render/text-engine.js";
 import { cullElementsOutsideViewBox } from "../tree-ops/index.js";
@@ -80,6 +81,12 @@ export interface StudioInteractiveSegment {
   evidenceSha256: string;
   evidence: readonly StudioInteractionEvidence[];
   cursor: StudioCursorChoreography;
+  /**
+   * Render warnings raised while synthesizing this segment's SVG, today the
+   * `embedded-font-fstype` warning for each embedded source face whose OS/2
+   * fsType restricts embedding. Also written to the evidence JSON when present.
+   */
+  warnings: readonly CaptureWarning[];
 }
 
 export interface CompileStudioInteractiveProjectResult {
@@ -459,6 +466,7 @@ async function compileLiveSegment(
   durationMs: number;
   evidence: StudioInteractionEvidence[];
   cursor: StudioCursorChoreography;
+  warnings: CaptureWarning[];
 }> {
   if (scene.render.kind !== "storyboard" || scene.render.recipe.capture == null) {
     throw new StudioProjectCompileError(
@@ -537,6 +545,7 @@ async function compileLiveSegment(
     const groups = scheduledGroups(plan, cursor);
     const authoredDuration = scene.render.recipe.duration ?? 0;
     await runScenePhase(project, scene, sceneIndex, page, "beforeCompile", options.runSceneHook);
+    const warnings: CaptureWarning[] = [];
     const { svg, durationMs } = withTextEngineDocument(
       { session: textEngineSession, generation: "continue" },
       (document) => {
@@ -549,6 +558,10 @@ async function compileLiveSegment(
           Math.max(authoredDuration, plan.durationMs + cursor.timeOffsetMs, cursor.durationMs + DEFAULT_STATE_TAIL_MS),
         );
         const artifacts = document.artifacts();
+        // The engine's artifacts carry the embedded-font CSS but not its
+        // warnings: drain this generation's restricted source faces here, as
+        // the root CSS wrapper does for every other render path.
+        reportEmbeddedFontEmbeddingRestrictions(warnings);
         return {
           durationMs,
           svg: generateAnimatedSvg({
@@ -569,7 +582,10 @@ async function compileLiveSegment(
     options.log?.(
       `Generated interactive Studio segment "${scene.id}": ${states.length} captured states, ${durationMs}ms`,
     );
-    return { svg, durationMs, evidence, cursor };
+    for (const warning of warnings) {
+      options.log?.(`Warning (${warning.feature}) in Studio segment "${scene.id}": ${warning.detail}`);
+    }
+    return { svg, durationMs, evidence, cursor, warnings };
   } catch (cause) {
     // A short post-failure observation window lets delayed application state
     // become visible to the AI without guessing how long the authored action
@@ -647,6 +663,7 @@ export async function compileStudioInteractiveProject(
           sourceRevisionId: project.review.headRevisionId,
           observations: compiled.evidence,
           cursor: compiled.cursor,
+          ...(compiled.warnings.length > 0 ? { warnings: compiled.warnings } : {}),
         },
         null,
         2,
@@ -699,6 +716,7 @@ export async function compileStudioInteractiveProject(
         evidenceSha256,
         evidence: compiled.evidence,
         cursor: compiled.cursor,
+        warnings: compiled.warnings,
       });
 
       const recipe = scene.render.kind === "storyboard" ? scene.render.recipe : undefined;

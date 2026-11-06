@@ -3827,6 +3827,8 @@
         "src/cli/animate-orchestrator.ts",
         "src/cli/animate-capture-session.ts",
         "src/cli/debug-bundle.ts",
+        "src/capture/warnings.ts",
+        "tests/animate-debug-warnings.e2e.test.ts",
         "tests/animate-debug.e2e.test.ts"
       ],
       "file": "237-animate-debug-reproduction-bundles.md"
@@ -3937,6 +3939,7 @@
         "src/studio/interactive-compile.ts",
         "src/studio/interactive-compile.test.ts",
         "src/studio/interactive-compile.e2e.test.ts",
+        "src/studio/interactive-compile-warnings.e2e.test.ts",
         "src/studio/compile.ts",
         "src/studio/interactions.ts",
         "src/studio/interaction-observer.ts",

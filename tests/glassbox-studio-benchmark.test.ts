@@ -155,6 +155,7 @@ describe("Glassbox Studio acceptance benchmark", () => {
           evidenceSha256: "b".repeat(64),
           evidence,
           cursor: { overlay: { events: [] }, interactions: [], timeOffsetMs: 0, durationMs: 0 },
+          warnings: [],
         },
       ],
     };

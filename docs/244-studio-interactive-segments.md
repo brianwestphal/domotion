@@ -5,12 +5,13 @@ kind: "contract"
 status: "current"
 owners: ["studio", "capture", "animation"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2685", "DM-QYTRKQ"]
+tickets: ["DM-2685", "DM-QYTRKQ", "DM-J4WX7N"]
 code:
   [
     "src/studio/interactive-compile.ts",
     "src/studio/interactive-compile.test.ts",
     "src/studio/interactive-compile.e2e.test.ts",
+    "src/studio/interactive-compile-warnings.e2e.test.ts",
     "src/studio/compile.ts",
     "src/studio/interactions.ts",
     "src/studio/interaction-observer.ts",
@@ -79,6 +80,19 @@ while scroll/scrollend are per-frame events
 therefore treats observer sequence and lifecycle phase as authoritative,
 settles through animation frames, and captures Chromium's resulting geometry;
 it does not reconstruct layout or font/glyph decisions itself.
+
+## Render warnings
+
+The compiler reads the segment's embedded-font CSS from the text engine's
+document artifacts, which bypasses the root CSS wrapper that reports each
+embedded source face whose OS/2 `fsType` restricts embedding
+([doc 03](03-font-family-chain.md)). It therefore drains those faces itself,
+in the same document, right after reading the artifacts. Each becomes an
+`embedded-font-fstype` warning: logged through `options.log`, printed to
+stderr like every render warning, returned on the segment as
+`StudioInteractiveSegment.warnings`, and written to the segment's evidence
+JSON as `warnings` (the key is omitted when there are none, so evidence bytes
+are unchanged for unrestricted fonts). The embedded output is unchanged.
 
 ## Replaceable artifacts and ordinary composition
 

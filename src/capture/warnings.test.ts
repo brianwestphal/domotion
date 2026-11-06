@@ -4,6 +4,7 @@ import {
   getLastCaptureWarnings,
   logCaptureWarnings,
   resetLastCaptureWarnings,
+  startCaptureWarningCollector,
 } from "./warnings.js";
 import type { CaptureWarning } from "./types.js";
 
@@ -87,5 +88,53 @@ describe("capture warnings buffer", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     logCaptureWarnings();
     expect(err).not.toHaveBeenCalled();
+  });
+});
+
+describe("capture warning collector (multi-frame debug bundles)", () => {
+  const w = (feature: string): CaptureWarning => ({ selector: "", feature, detail: feature });
+
+  it("ignores warnings present before it starts, then keeps every capture's warnings across buffer resets", () => {
+    resetLastCaptureWarnings([w("stale")]);
+    const collector = startCaptureWarningCollector();
+    collector.setFrame(0);
+    resetLastCaptureWarnings([w("capture-0")]); // frame 0's capture
+    captureWarningSink().push(w("render-0")); // its render, on the global
+    collector.drain();
+    collector.setFrame(1);
+    captureWarningSink().push(w("late-0-attributed-to-1")); // after the label moved
+    resetLastCaptureWarnings([w("capture-1")]); // retires the buffer: drained, not lost
+    collector.drain();
+    collector.drain(); // repeated drain adds nothing
+    collector.setFrame(null);
+    captureWarningSink().push(w("run-level"));
+    expect(collector.stop().map(({ frame, feature }) => [frame, feature])).toEqual([
+      [0, "capture-0"],
+      [0, "render-0"],
+      [1, "late-0-attributed-to-1"],
+      [1, "capture-1"],
+      [null, "run-level"],
+    ]);
+  });
+
+  it("stops observing: a later reset neither throws nor reaches the stopped collector", () => {
+    const collector = startCaptureWarningCollector();
+    resetLastCaptureWarnings([w("a")]);
+    const first = collector.stop();
+    expect(first.map((x) => x.feature)).toEqual(["a"]);
+    resetLastCaptureWarnings([w("b")]);
+    expect(first.map((x) => x.feature)).toEqual(["a"]);
+    expect(collector.stop().map((x) => x.feature)).toEqual(["a"]); // idempotent
+  });
+
+  it("runs independent collectors side by side over an empty-then-refilled buffer", () => {
+    resetLastCaptureWarnings([]);
+    const outer = startCaptureWarningCollector();
+    resetLastCaptureWarnings([]);
+    const inner = startCaptureWarningCollector();
+    resetLastCaptureWarnings([w("x")]);
+    expect(inner.stop().map((x) => x.feature)).toEqual(["x"]);
+    captureWarningSink().push(w("y"));
+    expect(outer.stop().map((x) => x.feature)).toEqual(["x", "y"]);
   });
 });
