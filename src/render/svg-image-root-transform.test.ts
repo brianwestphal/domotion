@@ -55,13 +55,74 @@ describe("resolveImageRootTransform", () => {
     });
   });
 
+  it("resolves calc(), absolute and font-relative lengths", () => {
+    expect(resolve({ transform: "rotate(calc(10deg + 5deg))" })).toMatchObject({ transform: "rotate(15)" });
+    expect(resolve({ transform: "translate(calc(50% - 2 * 5px), calc((1in - 6px) / 2))" })).toMatchObject({
+      transform: "translate(40 45)",
+    });
+    expect(resolve({ transform: "translate(1em, 0.5rem)" })).toMatchObject({ transform: "translate(16 8)" });
+    expect(
+      resolveImageRootTransform(
+        {
+          transformAttr: null,
+          transformOriginAttr: null,
+          style: new Map([["transform", "translate(2em)"]]),
+          fontSize: 10,
+        },
+        box,
+      ),
+    ).toMatchObject({ transform: "translate(20 0)" });
+    expect(resolve({ transform: "scale(calc(1 / 2))" })).toMatchObject({ transform: "scale(0.5 0.5)" });
+    expect(resolve({ transform: "rotate(30deg)", "transform-origin": "calc(50%) 1em" })).toMatchObject({
+      origin: { x: 60, y: 36 },
+    });
+  });
+
+  // A flat picture with no perspective shows only the 2D affine part of a 3D
+  // matrix (CSS Transforms 2 matrices).
+  it("flattens 3D functions and the axis forms of rotate without perspective", () => {
+    const cos60 = "0.5";
+    expect(resolve({ transform: "rotateX(60deg)" })).toMatchObject({ transform: `matrix(1 0 0 ${cos60} 0 0)` });
+    expect(resolve({ transform: "rotateY(60deg)" })).toMatchObject({ transform: `matrix(${cos60} 0 0 1 0 0)` });
+    expect(resolve({ transform: "rotate3d(0, 0, 1, 90deg)" })).toMatchObject({ transform: "matrix(0 1 -1 0 0 0)" });
+    expect(
+      resolve({ transform: "translate3d(5px, 10%, 40px) scale3d(2, 3, 4) translateZ(9px) scaleZ(2)" }),
+    ).toMatchObject({
+      transform: "matrix(2 0 0 3 5 5)",
+    });
+    expect(resolve({ transform: "matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 7,8,9,1)" })).toMatchObject({
+      transform: "matrix(1 0 0 1 7 8)",
+    });
+    expect(resolve({ transform: "perspective(none) rotate(10deg)" })).toMatchObject({ transform: "rotate(10)" });
+    expect(resolve({ rotate: "x 60deg" })).toMatchObject({ transform: `matrix(1 0 0 ${cos60} 0 0)` });
+    expect(resolve({ rotate: "0 0 -1 30deg" })).toMatchObject({ transform: "rotate(-30)" });
+    expect(resolve({ translate: "1px 2px 3px", scale: "2 2 5" })).toMatchObject({
+      transform: "matrix(2 0 0 2 1 2)",
+    });
+    // 3D factors couple through z: rotateX after translateZ moves y.
+    expect(resolve({ transform: "rotateX(90deg) translateZ(10px)" })).toMatchObject({
+      transform: "matrix(1 0 0 0 0 -10)",
+    });
+  });
+
   it("reports unsupported values instead of guessing", () => {
-    expect(resolve({ transform: "rotate(calc(10deg + 5deg))" })).toBe("unsupported");
-    expect(resolve({ transform: "translate(1em)" })).toBe("unsupported");
-    expect(resolve({ transform: "rotateX(10deg)" })).toBe("unsupported");
-    expect(resolve({ rotate: "1 0 0 10deg" })).toBe("unsupported");
-    expect(resolve({ translate: "1px 2px 3px" })).toBe("unsupported");
-    expect(resolve({ transform: "rotate(30deg)", "transform-origin": "calc(50%)" })).toBe("unsupported");
+    expect(resolve({ transform: "perspective(100px) rotateY(10deg)" })).toBe("unsupported");
+    expect(resolve({ transform: "matrix3d(1,0,0,0.01, 0,1,0,0, 0,0,1,0, 0,0,0,1)" })).toBe("unsupported");
+    expect(resolve({ transform: "translate(1ex)" })).toBe("unsupported");
+    expect(resolve({ transform: "translate(10vw)" })).toBe("unsupported");
+    expect(resolve({ transform: "rotate(calc(10deg + 5px))" })).toBe("unsupported");
+    expect(resolve({ translate: "1px 2px 3%" })).toBe("unsupported");
+    expect(
+      resolveImageRootTransform(
+        {
+          transformAttr: null,
+          transformOriginAttr: null,
+          style: new Map([["transform", "translate(1em)"]]),
+          fontSize: null,
+        },
+        box,
+      ),
+    ).toBe("unsupported");
   });
 });
 
@@ -72,6 +133,7 @@ describe("resolveTransformOrigin", () => {
     expect(resolveTransformOrigin("bottom right", box)).toEqual({ x: 110, y: 70 });
     expect(resolveTransformOrigin("25% 10px", box)).toEqual({ x: 35, y: 30 });
     expect(resolveTransformOrigin("center top 4px", box)).toEqual({ x: 60, y: 20 });
-    expect(resolveTransformOrigin("1em", box)).toBeNull();
+    expect(resolveTransformOrigin("1em", box)).toEqual({ x: 26, y: 45 });
+    expect(resolveTransformOrigin("1em", box, null)).toBeNull();
   });
 });

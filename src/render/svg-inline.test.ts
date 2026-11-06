@@ -591,7 +591,7 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
   it("falls back to the transform attribute about the center, with a warning, for an unresolvable style value", () => {
     resetLastCaptureWarnings([]);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const out = inlineImgSvg(icon(` transform="rotate(30)" style="transform-origin: calc(10px + 5%)"`), place)!;
+    const out = inlineImgSvg(icon(` transform="rotate(30)" style="transform-origin: 2ex"`), place)!;
     warn.mockRestore();
     expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
     expect(getLastCaptureWarnings()).toEqual([expect.objectContaining({ feature: "svg-image-root-transform" })]);

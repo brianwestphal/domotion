@@ -409,6 +409,30 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
   "transform-box",
 ];
 
+/** Whether any `<style>` sheet declares `font-size` or the `font` shorthand. */
+function sheetMaySetFontSize(svgText: string): boolean {
+  for (const m of svgText.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
+    if (/(?:^|[;{\s])font(?:-size)?\s*:/i.test(m[1])) return true;
+  }
+  return false;
+}
+
+/**
+ * The root's computed font-size in px for `em` / `rem` in its transform: the
+ * style declaration over the `font-size` presentation attribute, else the
+ * initial `medium` (16px). Null when it cannot be known exactly (a relative
+ * or keyword value, or a sheet that might set it).
+ */
+function rootFontSize(attrValue: string | null, styleValue: string | null, hasSheets: boolean): number | null {
+  const value = styleValue ?? attrValue;
+  if (value == null) return hasSheets ? null : 16;
+  const m = /^\s*([-+]?(?:\d+\.?\d*|\.\d+))(px|pt|pc|in|cm|mm)?\s*$/i.exec(value);
+  if (m == null) return null;
+  const factor: Record<string, number> = { px: 1, pt: 4 / 3, pc: 16, in: 96, cm: 96 / 2.54, mm: 96 / 25.4 };
+  const n = Number(m[1]) * factor[(m[2] ?? "px").toLowerCase()];
+  return n >= 0 ? n : null;
+}
+
 /**
  * The root `<svg>`'s CSS transform for an `<img>` SVG document, resolved about
  * its transform origin against the concrete object rect `box`, or null when
@@ -440,6 +464,7 @@ function imageRootTransform(
   box: Rect,
   slot: string,
   sheet: ReadonlyMap<string, CascadedDeclaration> | null = null,
+  hasSheets = false,
 ): ResolvedImageRootTransform | null {
   const tokens = parseSvgAttributes(attrs) ?? [];
   const attr = (name: string): string | null =>
@@ -470,7 +495,12 @@ function imageRootTransform(
   }
   const transformAttr = attr("transform");
   const resolved = resolveImageRootTransform(
-    { transformAttr, transformOriginAttr: attr("transform-origin"), style },
+    {
+      transformAttr,
+      transformOriginAttr: attr("transform-origin"),
+      style,
+      fontSize: rootFontSize(attr("font-size"), inline.get("font-size")?.value ?? null, hasSheets),
+    },
     box,
   );
   if (resolved !== "unsupported") return resolved;
@@ -701,6 +731,14 @@ export interface InlineSvgPlacement {
   zoom?: number;
 }
 
+/** The SVG image document's viewport in its own CSS px, for `@media`: the
+ *  placement rect when it is the concrete object rect, unknown otherwise. */
+function imageViewport(p: InlineSvgPlacement): { w: number; h: number } | null {
+  if (p.documentViewport !== true) return null;
+  const zoom = p.zoom != null && Number.isFinite(p.zoom) && p.zoom > 0 ? p.zoom : 1;
+  return { w: p.w / zoom, h: p.h / zoom };
+}
+
 /**
  * The image's `<style>` sheets cascaded onto its root's transform family
  * (`cascadeRootStylesheetTransform`), with the source rewritten so the inlined
@@ -711,15 +749,22 @@ export interface InlineSvgPlacement {
 function rootSheetTransform(
   svgText: string,
   tag: SvgOpeningTag,
+  p: InlineSvgPlacement,
 ): { declarations: ReadonlyMap<string, CascadedDeclaration> | null; source: string } {
   const tokens = parseSvgAttributes(tag.attributes) ?? [];
   const attr = (name: string): string | null =>
     tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
-  const sheet = cascadeRootStylesheetTransform(svgText, tag.end, {
-    tag: tag.name,
-    id: attr("id"),
-    className: attr("class"),
-  });
+  const sheet = cascadeRootStylesheetTransform(
+    svgText,
+    tag.end,
+    {
+      tag: tag.name,
+      id: attr("id"),
+      className: attr("class"),
+      attributes: tokens.map((token): [string, string] => [token.name, token.value]),
+    },
+    imageViewport(p),
+  );
   if (sheet === "unsupported") {
     renderWarn(
       "svg-image-root-transform",
@@ -793,7 +838,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   let attrs = tag.attributes;
-  const sheet = rootSheetTransform(sourceText, tag);
+  const sheet = rootSheetTransform(sourceText, tag, p);
   const svgText = sheet.source;
 
   const doc = p.documentViewport === true ? resolveDocumentViewport(attrs, p) : null;
@@ -820,7 +865,13 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   const object = doc != null ? p : rect != null && matrix != null ? mappedViewBoxRect(rect, matrix) : p;
   // An `<img>` document root's own transform is composed outside the viewport
   // below (a nested `<svg transform>` would rotate about the output origin).
-  const rootTransform = imageRootTransform(attrs, object, "<img> svg", sheet.declarations);
+  const rootTransform = imageRootTransform(
+    attrs,
+    object,
+    "<img> svg",
+    sheet.declarations,
+    sheetMaySetFontSize(svgText),
+  );
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
   // Strip the attrs we re-declare (keep xmlns / class / style / role / etc.).
   attrs = stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio"]);
@@ -1000,7 +1051,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   const attrs = tag.attributes;
-  const sheet = rootSheetTransform(sourceText, tag);
+  const sheet = rootSheetTransform(sourceText, tag, p);
   const svgText = sheet.source;
   const rawBody = svgText.slice(tag.end);
   // Drop a trailing `</svg>` (and anything after) so we emit only the children.
@@ -1036,7 +1087,13 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
   // does not. Add a rect clip at the placement rect unless overflow is
   // visible; the drawn-image clip applies either way.
   const object = doc != null ? { x: p.x, y: p.y, w: p.w, h: p.h } : mappedViewBoxRect(viewBox, matrix);
-  const rootTransform = imageRootTransform(attrs, object, "<img> svg", sheet.declarations);
+  const rootTransform = imageRootTransform(
+    attrs,
+    object,
+    "<img> svg",
+    sheet.declarations,
+    sheetMaySetFontSize(svgText),
+  );
   if (rootOverflowVisible(attrs)) {
     return rootTransform == null
       ? clipToImage(group, p, object)

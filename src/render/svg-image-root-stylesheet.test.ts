@@ -3,10 +3,16 @@ import { cascadeRootStylesheetTransform } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 import { inlineImgSvg, flattenImgSvg, readSvgOpeningTag } from "./svg-inline.js";
 
-function cascade(svg: string) {
+function cascade(svg: string, viewport: { w: number; h: number } | null = null) {
   const tag = readSvgOpeningTag(svg)!;
-  const attr = (name: string): string | null => new RegExp(`\\b${name}="([^"]*)"`).exec(tag.attributes)?.[1] ?? null;
-  return cascadeRootStylesheetTransform(svg, tag.end, { tag: tag.name, id: attr("id"), className: attr("class") });
+  const attributes = [...tag.attributes.matchAll(/([\w:-]+)="([^"]*)"/g)].map((m): [string, string] => [m[1], m[2]]);
+  const attr = (name: string): string | null => attributes.find(([n]) => n === name)?.[1] ?? null;
+  return cascadeRootStylesheetTransform(
+    svg,
+    tag.end,
+    { tag: tag.name, id: attr("id"), className: attr("class"), attributes },
+    viewport,
+  );
 }
 
 const valueOf = (r: ReturnType<typeof cascade>, prop: string): string | undefined =>
@@ -54,11 +60,49 @@ describe("cascadeRootStylesheetTransform", () => {
     expect(valueOf(r, "scale")).toBe("2");
   });
 
-  it("is unsupported for an undecidable compound or a transform inside an at-rule", () => {
-    expect(cascade(`<svg><style>svg[width] { transform: rotate(1deg) }</style><rect/></svg>`)).toBe("unsupported");
-    expect(cascade(`<svg><style>svg:hover { transform: rotate(1deg) }</style><rect/></svg>`)).toBe("unsupported");
+  it("decides attribute selectors, :not / :is / :where and never-matching dynamic pseudo-classes", () => {
+    const svg = (rule: string) => `<svg width="90" data-k="a b" lang="en-US"><style>${rule}</style><rect/></svg>`;
+    expect(valueOf(cascade(svg(`svg[width] { transform: rotate(1deg) }`)), "transform")).toBe("rotate(1deg)");
+    expect(valueOf(cascade(svg(`[data-k~="b"][lang|=en] { rotate: 2deg }`)), "rotate")).toBe("2deg");
+    expect(valueOf(cascade(svg(`[width^="9"][width$="0"][width*="0"] { scale: 3 }`)), "scale")).toBe("3");
+    expect(valueOf(cascade(svg(`[lang="EN-us" i] { scale: 4 }`)), "scale")).toBe("4");
+    expect(cascade(svg(`svg[height] { transform: rotate(1deg) }`))).toBeNull();
+    expect(cascade(svg(`svg:hover { transform: rotate(1deg) }`))).toBeNull();
+    expect(valueOf(cascade(svg(`svg:not(:hover, .x) { rotate: 5deg }`)), "rotate")).toBe("5deg");
+    expect(cascade(svg(`svg:not([width]) { rotate: 5deg }`))).toBeNull();
+    expect(valueOf(cascade(svg(`:is(g svg, svg[data-k]) { rotate: 6deg }`)), "rotate")).toBe("6deg");
+    // :where() adds no specificity; :is() takes its argument's.
+    const order = svg(
+      `:where(svg[width]) { rotate: 1deg } svg { rotate: 2deg } :is([width]) { scale: 1 } svg { scale: 2 }`,
+    );
+    expect(valueOf(cascade(order), "rotate")).toBe("2deg");
+    expect(valueOf(cascade(order), "scale")).toBe("1");
+  });
+
+  it("evaluates @media against the image viewport and strips non-matching blocks too", () => {
+    const svg = `<svg><style>@media (min-width: 150px) { svg { rotate: 1deg } } @media (max-width: 150px) and (orientation: landscape) { svg { scale: 2 } } @media (100px < width <= 200px), print { svg { translate: 3px } }</style><rect/></svg>`;
+    const narrow = cascade(svg, { w: 120, h: 80 });
+    if (narrow == null || narrow === "unsupported") throw new Error("expected a cascade");
+    expect(narrow.declarations.get("rotate")).toBeUndefined();
+    expect(narrow.declarations.get("scale")?.value).toBe("2");
+    expect(narrow.declarations.get("translate")?.value).toBe("3px");
+    expect(narrow.source).not.toMatch(/rotate|scale|translate/);
+    expect(narrow.source).toContain("@media (min-width: 150px) { svg {} }");
+    expect(valueOf(cascade(svg, { w: 300, h: 80 }), "rotate")).toBe("1deg");
+    // Without a known viewport, or with an unsupported feature, it is undecidable.
+    expect(cascade(svg)).toBe("unsupported");
     expect(
-      cascade(`<svg><style>@media (min-width: 1px) { svg { transform: rotate(1deg) } }</style><rect/></svg>`),
+      cascade(`<svg><style>@media (prefers-color-scheme: dark) { svg { rotate: 1deg } }</style></svg>`, { w: 1, h: 1 }),
+    ).toBe("unsupported");
+  });
+
+  it("is unsupported for an undecidable compound or a transform inside another at-rule", () => {
+    expect(cascade(`<svg><style>svg:first-child { transform: rotate(1deg) }</style><rect/></svg>`)).toBe("unsupported");
+    expect(cascade(`<svg><style>svg:nth-child(1) { transform: rotate(1deg) }</style><rect/></svg>`)).toBe(
+      "unsupported",
+    );
+    expect(
+      cascade(`<svg><style>@supports (display: grid) { svg { transform: rotate(1deg) } }</style><rect/></svg>`),
     ).toBe("unsupported");
   });
 

@@ -21,10 +21,18 @@
  *   The root of an SVG image has no border or padding, so every value
  *   resolves to the concrete object rect, which is what callers pass as `box`.
  *
- * Only the 2D subset is resolved: px lengths and percentages, the four angle
- * units, and the 2D transform functions. Anything else (`calc()`, font-relative
- * units, 3D functions, an axis form of `rotate`) returns `"unsupported"`, so
- * the caller can keep its previous output rather than paint a guess.
+ * Values: px, absolute units, percentages, `em` / `rem` (against the root's
+ * font-size, which is also the document root's), the four angle units, and
+ * `calc()` over them. Every transform function is resolved, the 3D ones
+ * included. The image root paints into a flat picture with no perspective,
+ * so a 3D matrix without perspective terms flattens exactly to its 2D affine
+ * part: the rasterizer maps (x, y, 0, 1) through the 4x4 matrix, and the z
+ * row and column never reach the screen. The functions are composed with
+ * the matrices of the CSS Transforms 2 spec, which Blink's `TransformOperations`
+ * build. `perspective(<length>)`, or a `matrix3d` with perspective terms, is
+ * projective and cannot be expressed as an SVG transform. That case, and
+ * `ex` / `ch` / viewport units, return `"unsupported"`, so the caller keeps
+ * its previous output instead of painting a guess.
  */
 import { formatNumberLoose } from "./format.js";
 
@@ -35,6 +43,9 @@ export interface ImageRootTransformInputs {
   transformOriginAttr: string | null;
   /** The root's `style` declarations, property names lowercased, last wins. */
   style: ReadonlyMap<string, string>;
+  /** The root's computed font-size in px for `em` / `rem`; null when it cannot
+   *  be known exactly. Defaults to 16 (the initial `medium`). */
+  fontSize?: number | null;
 }
 
 export interface ResolvedImageRootTransform {
@@ -51,60 +62,367 @@ interface Box {
 }
 
 const NUMBER = "[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?";
-const LENGTH_RE = new RegExp(`^(${NUMBER})(px|%)?$`, "i");
-const ANGLE_RE = new RegExp(`^(${NUMBER})(deg|grad|rad|turn)?$`, "i");
-const NUMBER_PCT_RE = new RegExp(`^(${NUMBER})(%)?$`);
 
 const f = (n: number): string => formatNumberLoose(n, 6);
 
+/** Resolution context: the percentage basis and the root's font-size (null
+ *  when it cannot be known exactly, which makes `em` / `rem` unresolvable). */
+interface ValueContext {
+  basis: number;
+  fontSize: number | null;
+}
+
+type ValueKind = "length" | "angle" | "number";
+
+const LENGTH_UNITS: Record<string, number> = {
+  px: 1,
+  in: 96,
+  cm: 96 / 2.54,
+  mm: 96 / 25.4,
+  q: 96 / 101.6,
+  pt: 4 / 3,
+  pc: 16,
+};
+const ANGLE_UNITS: Record<string, number> = { deg: 1, grad: 0.9, turn: 360, rad: 180 / Math.PI };
+
+/** A resolved operand: `dim` is false for a plain number, true for a value of
+ *  the requested kind (already converted to px / degrees / a factor). */
+interface Operand {
+  value: number;
+  dim: boolean;
+}
+
+/**
+ * Evaluate one value of `kind`: a dimension, a percentage, a bare number, or a
+ * `calc()` (with nested parentheses / `calc()`) over them. Lengths resolve to
+ * px (a percentage against `ctx.basis`), angles to degrees, and numbers (a
+ * scale factor, where a percentage is a fraction) to plain numbers. Returns
+ * null for anything else.
+ */
+function evaluate(token: string, kind: ValueKind, ctx: ValueContext): number | null {
+  const src = token.trim();
+  let pos = 0;
+  const peek = (): string => {
+    while (pos < src.length && /\s/.test(src[pos])) pos++;
+    return src[pos] ?? "";
+  };
+  const atom = (): Operand | null => {
+    const c = peek();
+    if (c === "(") {
+      pos++;
+      const v = sum();
+      if (v == null || peek() !== ")") return null;
+      pos++;
+      return v;
+    }
+    if (/^calc\(/i.test(src.slice(pos))) {
+      pos += 4;
+      return atom();
+    }
+    const m = new RegExp(`^(${NUMBER})(%|[a-zA-Z]+)?`).exec(src.slice(pos));
+    if (m == null) return null;
+    pos += m[0].length;
+    const n = Number(m[1]);
+    const unit = m[2]?.toLowerCase();
+    if (unit == null) return { value: n, dim: false };
+    if (unit === "%") {
+      if (kind === "length") return { value: (n / 100) * ctx.basis, dim: true };
+      if (kind === "number") return { value: n / 100, dim: false };
+      return null;
+    }
+    if (kind === "length") {
+      if (unit in LENGTH_UNITS) return { value: n * LENGTH_UNITS[unit], dim: true };
+      if ((unit === "em" || unit === "rem") && ctx.fontSize != null) return { value: n * ctx.fontSize, dim: true };
+      return null;
+    }
+    if (kind === "angle" && unit in ANGLE_UNITS) return { value: n * ANGLE_UNITS[unit], dim: true };
+    return null;
+  };
+  const unary = (): Operand | null => {
+    const c = peek();
+    if ((c === "-" || c === "+") && !/[\d.]/.test(src[pos + 1] ?? "")) {
+      pos++;
+      const v = unary();
+      return v == null ? null : { value: c === "-" ? -v.value : v.value, dim: v.dim };
+    }
+    return atom();
+  };
+  const product = (): Operand | null => {
+    let left = unary();
+    while (left != null) {
+      const c = peek();
+      if (c !== "*" && c !== "/") break;
+      pos++;
+      const right = unary();
+      if (right == null) return null;
+      if (c === "*") {
+        if (left.dim && right.dim) return null;
+        left = { value: left.value * right.value, dim: left.dim || right.dim };
+      } else {
+        if (right.dim || right.value === 0) return null;
+        left = { value: left.value / right.value, dim: left.dim };
+      }
+    }
+    return left;
+  };
+  // In calc(), `+` / `-` must be surrounded by whitespace; a sign glued to a
+  // number belongs to that number.
+  const sum = (): Operand | null => {
+    let left = product();
+    while (left != null) {
+      const c = peek();
+      if ((c !== "+" && c !== "-") || !/\s/.test(src[pos - 1] ?? "") || !/\s/.test(src[pos + 1] ?? "")) break;
+      pos++;
+      const right = product();
+      if (right == null || right.dim !== left.dim) return null;
+      left = { value: left.value + (c === "+" ? right.value : -right.value), dim: left.dim };
+    }
+    return left;
+  };
+  const isCalc = /^calc\(/i.test(src);
+  const result = isCalc ? atom() : unary();
+  if (result == null || peek() !== "" || !Number.isFinite(result.value)) return null;
+  if (kind === "number") return result.dim ? null : result.value;
+  // A bare number is only valid as a zero length / angle (outside calc()).
+  if (!result.dim) return !isCalc && result.value === 0 ? 0 : null;
+  return result.value;
+}
+
 /** A `<length-percentage>` in px; a bare 0 is a valid length. */
-function lengthPx(token: string, basis: number): number | null {
-  const m = LENGTH_RE.exec(token.trim());
-  if (m == null) return null;
-  const value = Number(m[1]);
-  if (!Number.isFinite(value)) return null;
-  if (m[2] == null) return value === 0 ? 0 : null;
-  return m[2] === "%" ? (value / 100) * basis : value;
+function lengthOf(token: string, basis: number, fontSize: number | null): number | null {
+  return evaluate(token, "length", { basis, fontSize });
 }
 
 /** An `<angle>` in degrees; a bare 0 is a valid angle. */
 function angleDeg(token: string): number | null {
-  const m = ANGLE_RE.exec(token.trim());
-  if (m == null) return null;
-  const value = Number(m[1]);
-  if (!Number.isFinite(value)) return null;
-  const unit = m[2]?.toLowerCase();
-  if (unit == null) return value === 0 ? 0 : null;
-  if (unit === "deg") return value;
-  if (unit === "grad") return value * 0.9;
-  if (unit === "turn") return value * 360;
-  return value * (180 / Math.PI);
+  return evaluate(token, "angle", { basis: 0, fontSize: null });
 }
 
 /** A scale factor: a `<number>` or a `<percentage>`. */
 function scaleFactor(token: string): number | null {
-  const m = NUMBER_PCT_RE.exec(token.trim());
-  if (m == null) return null;
-  const value = Number(m[1]);
-  if (!Number.isFinite(value)) return null;
-  return m[2] === "%" ? value / 100 : value;
+  return evaluate(token, "number", { basis: 0, fontSize: null });
 }
 
 function plainNumber(token: string): number | null {
-  const m = new RegExp(`^(${NUMBER})$`).exec(token.trim());
-  return m == null ? null : Number(m[1]);
+  return evaluate(token, "number", { basis: 0, fontSize: null });
+}
+
+/** Split on top-level commas (or whitespace), respecting parentheses. */
+function splitTopLevel(raw: string, comma: boolean): string[] | null {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i <= raw.length; i++) {
+    const ch = raw[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (depth < 0) return null;
+    const sep = i === raw.length || (depth === 0 && (comma ? ch === "," : /\s/.test(ch)));
+    if (!sep) continue;
+    const part = raw.slice(start, i).trim();
+    start = i + 1;
+    if (comma && part === "") return null;
+    if (part !== "") parts.push(part);
+  }
+  return depth === 0 ? parts : null;
 }
 
 /** Split function arguments on commas; CSS transform functions are comma-separated. */
 function commaArgs(raw: string): string[] | null {
-  const parts = raw.split(",").map((part) => part.trim());
-  return parts.some((part) => part === "") ? null : parts;
+  return splitTopLevel(raw, true);
+}
+
+/** A 4x4 matrix in CSS `matrix3d()` (column-major) order. */
+type M4 = number[];
+
+/** The 2D affine part of a 4x4 matrix as an SVG `matrix()`, or null when it
+ *  has perspective terms (projective, not expressible in SVG). */
+function flatten(m: M4): string | null {
+  const eps = 1e-12;
+  if (Math.abs(m[3]) > eps || Math.abs(m[7]) > eps || Math.abs(m[11]) > eps || Math.abs(m[15] - 1) > eps) return null;
+  return `matrix(${[m[0], m[1], m[4], m[5], m[12], m[13]].map(f).join(" ")})`;
+}
+
+/** `rotate3d(x, y, z, a)` per CSS Transforms 2 §12; a zero axis is identity. */
+function rotate3d(x: number, y: number, z: number, deg: number): M4 | null {
+  const len = Math.hypot(x, y, z);
+  if (len === 0) return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  [x, y, z] = [x / len, y / len, z / len];
+  const half = (deg * Math.PI) / 360;
+  const sc = Math.sin(half) * Math.cos(half);
+  const sq = Math.sin(half) ** 2;
+  return [
+    1 - 2 * (y * y + z * z) * sq,
+    2 * (x * y * sq + z * sc),
+    2 * (x * z * sq - y * sc),
+    0,
+    2 * (x * y * sq - z * sc),
+    1 - 2 * (x * x + z * z) * sq,
+    2 * (y * z * sq + x * sc),
+    0,
+    2 * (x * z * sq + y * sc),
+    2 * (y * z * sq - x * sc),
+    1 - 2 * (x * x + y * y) * sq,
+    0,
+    0,
+    0,
+    0,
+    1,
+  ];
+}
+
+/** A 3D factor kept as a 4x4 matrix until the whole list is composed: its
+ *  2D part alone is not enough once another 3D factor couples through z. */
+function m4Token(m: M4): string {
+  return `m4(${m.join(",")})`;
+}
+
+/** Column-major 4x4 product `a · b`. */
+function multiply(a: M4, b: M4): M4 {
+  const out: number[] = new Array<number>(16).fill(0);
+  for (let col = 0; col < 4; col++)
+    for (let row = 0; row < 4; row++) for (let k = 0; k < 4; k++) out[col * 4 + row] += a[k * 4 + row] * b[col * 4 + k];
+  return out;
+}
+
+/** One function of a resolved list (this module's own output) as a 4x4 matrix. */
+function tokenToM4(name: string, args: number[]): M4 | null {
+  const affine = (a: number, b: number, c: number, d: number, e: number, f2: number): M4 => [
+    a,
+    b,
+    0,
+    0,
+    c,
+    d,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    e,
+    f2,
+    0,
+    1,
+  ];
+  const rad = (deg: number): number => (deg * Math.PI) / 180;
+  switch (name) {
+    case "m4":
+      return args.length === 16 ? args : null;
+    case "matrix":
+      return args.length === 6 ? affine(args[0], args[1], args[2], args[3], args[4], args[5]) : null;
+    case "translate":
+      return affine(1, 0, 0, 1, args[0] ?? 0, args[1] ?? 0);
+    case "scale":
+      return affine(args[0], 0, 0, args[1] ?? args[0], 0, 0);
+    case "rotate": {
+      const r = rad(args[0]);
+      return affine(Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0);
+    }
+    case "skewX":
+      return affine(1, 0, Math.tan(rad(args[0])), 1, 0, 0);
+    case "skewY":
+      return affine(1, Math.tan(rad(args[0])), 0, 1, 0, 0);
+    default:
+      return null;
+  }
+}
+
+/** Compose a resolved list that holds 3D factors into one flattened
+ *  `matrix()`, or null when the product is projective. */
+function composeFlattened(list: string): string | null {
+  let m: M4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  for (const fn of list.matchAll(/([a-zA-Z0-9]+)\(([^)]*)\)/g)) {
+    const factor = tokenToM4(
+      fn[1],
+      fn[2]
+        .split(/[\s,]+/)
+        .filter(Boolean)
+        .map(Number),
+    );
+    if (factor == null) return null;
+    m = multiply(m, factor);
+  }
+  return flatten(m);
+}
+
+function translate3d(x: number, y: number, z: number): M4 {
+  return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+}
+
+function scale3d(x: number, y: number, z: number): M4 {
+  return [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1];
+}
+
+/** A 3D transform function as a flattened SVG `matrix()`, or null. */
+function css3dFunctionToSvg(name: string, args: string[], box: Box, fontSize: number | null): string | null {
+  const len = (token: string, basis: number): number | null => lengthOf(token, basis, fontSize);
+  const nums = (tokens: string[]): number[] | null => {
+    const out = tokens.map(plainNumber);
+    return out.some((v) => v == null) ? null : (out as number[]);
+  };
+  let m: M4 | null = null;
+  switch (name) {
+    case "translate3d": {
+      if (args.length !== 3) return null;
+      const [x, y, z] = [len(args[0], box.w), len(args[1], box.h), len(args[2], 0)];
+      if (x == null || y == null || z == null || /%/.test(args[2])) return null;
+      m = translate3d(x, y, z);
+      break;
+    }
+    case "translatez": {
+      const z = args.length === 1 && !/%/.test(args[0]) ? len(args[0], 0) : null;
+      if (z == null) return null;
+      m = translate3d(0, 0, z);
+      break;
+    }
+    case "scale3d": {
+      const v = args.length === 3 ? args.map(scaleFactor) : null;
+      if (v == null || v.some((n) => n == null)) return null;
+      m = scale3d(v[0]!, v[1]!, v[2]!);
+      break;
+    }
+    case "scalez": {
+      const z = args.length === 1 ? scaleFactor(args[0]) : null;
+      if (z == null) return null;
+      m = scale3d(1, 1, z);
+      break;
+    }
+    case "rotatex":
+    case "rotatey": {
+      const a = args.length === 1 ? angleDeg(args[0]) : null;
+      if (a == null) return null;
+      m = name === "rotatex" ? rotate3d(1, 0, 0, a) : rotate3d(0, 1, 0, a);
+      break;
+    }
+    case "rotate3d": {
+      if (args.length !== 4) return null;
+      const axis = nums(args.slice(0, 3));
+      const a = angleDeg(args[3]);
+      if (axis == null || a == null) return null;
+      m = rotate3d(axis[0], axis[1], axis[2], a);
+      break;
+    }
+    case "matrix3d": {
+      m = args.length === 16 ? nums(args) : null;
+      break;
+    }
+    case "perspective": {
+      // `perspective(none)` is the identity; a length is projective.
+      if (args.length === 1 && args[0].toLowerCase() === "none") return "";
+      return null;
+    }
+    default:
+      return null;
+  }
+  return m == null ? null : m4Token(m);
 }
 
 /** One CSS `<transform-function>` as an SVG transform, or null when unsupported. */
-function cssFunctionToSvg(name: string, raw: string, box: Box): string | null {
+function cssFunctionToSvg(name: string, raw: string, box: Box, fontSize: number | null): string | null {
   const args = commaArgs(raw);
   if (args == null) return null;
+  const lengthPx = (token: string, basis: number): number | null => lengthOf(token, basis, fontSize);
   const tan = (deg: number): number => Math.tan((deg * Math.PI) / 180);
   switch (name) {
     case "translate": {
@@ -160,60 +478,90 @@ function cssFunctionToSvg(name: string, raw: string, box: Box): string | null {
       return m.some((v) => v == null || !Number.isFinite(v)) ? null : `matrix(${m.map((v) => f(v!)).join(" ")})`;
     }
     default:
-      return null;
+      return css3dFunctionToSvg(name, args, box, fontSize);
   }
 }
 
 /** A CSS `transform` value (`none` or a function list) as an SVG list. */
-function cssTransformList(value: string, box: Box): string | null | "unsupported" {
+function cssTransformList(value: string, box: Box, fontSize: number | null): string | null | "unsupported" {
   const source = value.trim();
   if (source === "" || source.toLowerCase() === "none") return null;
-  const fnRe = /([a-zA-Z0-9]+)\(([^()]*)\)/g;
-  if (/\S/.test(source.replace(fnRe, " "))) return "unsupported";
+  const fns = splitTopLevel(source, false);
+  if (fns == null) return "unsupported";
   const out: string[] = [];
-  for (const m of source.matchAll(fnRe)) {
-    const svg = cssFunctionToSvg(m[1].toLowerCase(), m[2], box);
+  for (const fn of fns) {
+    const m = /^([a-zA-Z0-9]+)\(([\s\S]*)\)$/.exec(fn);
+    if (m == null) return "unsupported";
+    const svg = cssFunctionToSvg(m[1].toLowerCase(), m[2], box, fontSize);
     if (svg == null) return "unsupported";
-    out.push(svg);
+    if (svg !== "") out.push(svg);
   }
-  return out.join(" ");
+  return out.length === 0 ? null : out.join(" ");
 }
 
 function spaceArgs(value: string): string[] {
-  return value.trim().split(/\s+/).filter(Boolean);
+  return splitTopLevel(value.trim(), false) ?? [value.trim()];
 }
 
-/** The individual `translate` property (`none` | `<lp> [<lp>]`; a z length is 3D). */
-function translateProperty(value: string, box: Box): string | null | "unsupported" {
+/** The individual `translate` property (`none` | `<lp> [<lp> [<length>]]`). */
+function translateProperty(value: string, box: Box, fontSize: number | null): string | null | "unsupported" {
   const parts = spaceArgs(value);
   if (parts.length === 1 && parts[0].toLowerCase() === "none") return null;
-  if (parts.length < 1 || parts.length > 2) return "unsupported";
-  const x = lengthPx(parts[0], box.w);
-  const y = parts.length === 2 ? lengthPx(parts[1], box.h) : 0;
-  return x == null || y == null ? "unsupported" : `translate(${f(x)} ${f(y)})`;
+  if (parts.length < 1 || parts.length > 3) return "unsupported";
+  const x = lengthOf(parts[0], box.w, fontSize);
+  const y = parts.length >= 2 ? lengthOf(parts[1], box.h, fontSize) : 0;
+  if (x == null || y == null) return "unsupported";
+  if (parts.length === 3) {
+    // `translate` is the outermost factor (ComputedStyle::ApplyTransform), so
+    // its z offset never reaches x / y without perspective.
+    if (/%/.test(parts[2]) || lengthOf(parts[2], 0, fontSize) == null) return "unsupported";
+  }
+  return `translate(${f(x)} ${f(y)})`;
 }
 
-/** The individual `rotate` property (`none` | `<angle>` | `z <angle>`). */
+/** The individual `rotate` property (`none` | `<angle>` | `[x | y | z | <n>{3}] <angle>`). */
 function rotateProperty(value: string): string | null | "unsupported" {
   const parts = spaceArgs(value);
   if (parts.length === 1 && parts[0].toLowerCase() === "none") return null;
-  const angle =
-    parts.length === 1
-      ? angleDeg(parts[0])
-      : parts.length === 2 && parts[0].toLowerCase() === "z"
-        ? angleDeg(parts[1])
-        : null;
-  return angle == null ? "unsupported" : `rotate(${f(angle)})`;
+  if (parts.length === 1) {
+    const angle = angleDeg(parts[0]);
+    return angle == null ? "unsupported" : `rotate(${f(angle)})`;
+  }
+  // The axis may come before or after the angle.
+  const angleFirst = angleDeg(parts[0]) != null && parts.length > 1 && angleDeg(parts[parts.length - 1]) == null;
+  const angleToken = angleFirst ? parts[0] : parts[parts.length - 1];
+  const axisTokens = angleFirst ? parts.slice(1) : parts.slice(0, -1);
+  const angle = angleDeg(angleToken);
+  if (angle == null) return "unsupported";
+  let axis: number[] | null = null;
+  if (axisTokens.length === 1) {
+    const k = axisTokens[0].toLowerCase();
+    axis = k === "x" ? [1, 0, 0] : k === "y" ? [0, 1, 0] : k === "z" ? [0, 0, 1] : null;
+  } else if (axisTokens.length === 3) {
+    const v = axisTokens.map(plainNumber);
+    axis = v.some((n) => n == null) ? null : (v as number[]);
+  }
+  if (axis == null) return "unsupported";
+  if (axis[0] === 0 && axis[1] === 0 && axis[2] !== 0) return `rotate(${f(axis[2] > 0 ? angle : -angle)})`;
+  const m = rotate3d(axis[0], axis[1], axis[2], angle);
+  return m == null ? "unsupported" : m4Token(m);
 }
 
-/** The individual `scale` property (`none` | `<n-p> [<n-p>]`; a z factor is 3D). */
+/** The individual `scale` property (`none` | `<n-p> [<n-p> [<n-p>]]`). */
 function scaleProperty(value: string): string | null | "unsupported" {
   const parts = spaceArgs(value);
   if (parts.length === 1 && parts[0].toLowerCase() === "none") return null;
-  if (parts.length < 1 || parts.length > 2) return "unsupported";
+  if (parts.length < 1 || parts.length > 3) return "unsupported";
   const x = scaleFactor(parts[0]);
-  const y = parts.length === 2 ? scaleFactor(parts[1]) : x;
-  return x == null || y == null ? "unsupported" : `scale(${f(x)} ${f(y)})`;
+  const y = parts.length >= 2 ? scaleFactor(parts[1]) : x;
+  if (x == null || y == null) return "unsupported";
+  if (parts.length === 3) {
+    // A z factor matters once a later 3D factor (in `transform`) moves along z.
+    const z = scaleFactor(parts[2]);
+    if (z == null) return "unsupported";
+    if (z !== 1) return m4Token(scale3d(x, y, z));
+  }
+  return `scale(${f(x)} ${f(y)})`;
 }
 
 /**
@@ -221,7 +569,11 @@ function scaleProperty(value: string): string | null | "unsupported" {
  * ignored). One value sets x (or y, for `top`/`bottom`) with the other axis at
  * `center`; two values may come in either order when they are keywords.
  */
-export function resolveTransformOrigin(value: string, box: Box): { x: number; y: number } | null {
+export function resolveTransformOrigin(
+  value: string,
+  box: Box,
+  fontSize: number | null = 16,
+): { x: number; y: number } | null {
   const parts = spaceArgs(value).map((part) => part.toLowerCase());
   if (parts.length < 1 || parts.length > 3) return null;
   const xKeyword: Record<string, number> = { left: 0, center: 0.5, right: 1 };
@@ -233,10 +585,10 @@ export function resolveTransformOrigin(value: string, box: Box): { x: number; y:
   } else if (first in yKeyword && !(first in xKeyword) && (second in xKeyword || second === "center")) {
     [first, second] = [second, first];
   }
-  const x = first in xKeyword ? xKeyword[first] * box.w : lengthPx(first, box.w);
-  const y = second in yKeyword ? yKeyword[second] * box.h : lengthPx(second, box.h);
+  const x = first in xKeyword ? xKeyword[first] * box.w : lengthOf(first, box.w, fontSize);
+  const y = second in yKeyword ? yKeyword[second] * box.h : lengthOf(second, box.h, fontSize);
   if (x == null || y == null) return null;
-  if (parts.length === 3 && lengthPx(parts[2], 0) == null) return null;
+  if (parts.length === 3 && (/%/.test(parts[2]) || lengthOf(parts[2], 0, fontSize) == null)) return null;
   return { x: box.x + x, y: box.y + y };
 }
 
@@ -250,8 +602,9 @@ export function resolveImageRootTransform(
   box: Box,
 ): ResolvedImageRootTransform | null | "unsupported" {
   const parts: string[] = [];
+  const fontSize = inputs.fontSize === undefined ? 16 : inputs.fontSize;
   const individual: Array<[string, (value: string) => string | null | "unsupported"]> = [
-    ["translate", (value) => translateProperty(value, box)],
+    ["translate", (value) => translateProperty(value, box, fontSize)],
     ["rotate", rotateProperty],
     ["scale", scaleProperty],
   ];
@@ -264,10 +617,19 @@ export function resolveImageRootTransform(
   }
   const styleTransform = inputs.style.get("transform");
   if (styleTransform != null) {
-    const svg = cssTransformList(styleTransform, box);
+    const svg = cssTransformList(styleTransform, box, fontSize);
     if (svg === "unsupported") return "unsupported";
     if (svg != null) parts.push(svg);
-  } else if (inputs.transformAttr != null && inputs.transformAttr.trim() !== "") {
+  }
+  // A 3D factor couples with any other 3D factor through z, so the CSS parts
+  // are composed as 4x4 matrices and flattened once. (The SVG attribute is
+  // 2D and comes last, and a 2D factor never reads the z column.)
+  if (parts.some((part) => part.includes("m4("))) {
+    const flat = composeFlattened(parts.join(" "));
+    if (flat == null) return "unsupported";
+    parts.splice(0, parts.length, flat);
+  }
+  if (styleTransform == null && inputs.transformAttr != null && inputs.transformAttr.trim() !== "") {
     // SVG transform-list syntax is already a valid SVG `transform` value.
     parts.push(inputs.transformAttr.trim());
   }
@@ -276,7 +638,7 @@ export function resolveImageRootTransform(
   const origin =
     originValue == null || originValue.trim() === ""
       ? { x: box.x + box.w / 2, y: box.y + box.h / 2 }
-      : resolveTransformOrigin(originValue, box);
+      : resolveTransformOrigin(originValue, box, fontSize);
   if (origin == null) return "unsupported";
   return { transform: parts.join(" "), origin };
 }

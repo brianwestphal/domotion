@@ -1204,6 +1204,23 @@ export const tests: FeatureTest[] = [
     height: 304,
   },
   {
+    // Root transform values beyond the 2D px subset: calc(), em lengths
+    // (against the root's 16px font-size), 3D functions and the axis form of
+    // `rotate`, flattened exactly because the image root paints into a flat
+    // picture with no perspective. The last image also needs selectors
+    // decided against the root (an attribute selector, `:not(:hover)`) and
+    // `@media` evaluated against the image viewport (the 90px object rect).
+    name: "image-svg-root-transform-values",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" style="transform: translate(calc(10% - 0.5em), 0.25em) rotate(calc(0.05turn + 3deg))"><rect width="100" height="40" fill="#ed1234"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" style="transform: rotateX(55deg) rotateZ(15deg)"><rect width="100" height="40" fill="#0ea5e9"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" style="rotate: 1 1 0 50deg; transform: translate3d(4px, 0, 30px) scale3d(0.9, 0.9, 3)"><rect width="100" height="40" fill="#f59e0b"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" data-tilt="left" width="90" height="90" viewBox="0 0 100 100"><style>svg[data-tilt="left"]:not(:hover) { rotate: y 50deg } @media (max-width: 100px) { svg { transform: rotate(-20deg) } } @media (min-width: 101px) { svg { transform: scale(0.3) } }</style><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 480,
+    height: 130,
+  },
+  {
     // Blink gives each SVG image its own document, so the image's author
     // sheets reach only its own elements and `:root` means the image root.
     // Inlined, the sheets are scoped to the nested root: the first image's
