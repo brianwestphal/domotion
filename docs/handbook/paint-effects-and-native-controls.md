@@ -56,7 +56,11 @@ aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
    stay with the caller's array; outside any scope the warning falls back to the
    process-global last-capture buffer that `getLastCaptureWarnings()` and the
    CLI's `--warnings` report. Without that scope, rendering an earlier capture's
-   tree after a later capture attributed the warnings to the later one. Renderer
+   tree after a later capture attributed the warnings to the later one.
+   `DemoRecorder` scopes each render (and passes the same array to its async
+   remote-image and conic-tile pre-passes) and exposes the result as
+   `recorder.getLastCaptureWarnings()`; the CLI pipelines keep the global
+   fallback (see doc 01). Renderer
    fallbacks for missing measurements (default font size, fallback ascent) are
    named in `src/render/text-defaults.ts`.
 

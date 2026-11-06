@@ -29,6 +29,7 @@ import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
+import { withRenderWarningSink } from "../render/render-warn.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
 import { registerLocalFontAlias, registerWebfont } from "../render/font-resolution.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
@@ -377,6 +378,8 @@ export class DemoRecorder {
   private animatedImageStaticFrameRecords: AnimatedImageStaticFrameRecord[] = [];
   private frozenAnimatedImageResizeRecords: FrozenAnimatedImageResizeRecord[] = [];
   private readonly textEngineSession: TextEngineSession = createTextEngineSession();
+  /** This recorder's most recent capture + render warnings (see `getLastCaptureWarnings`). */
+  private lastWarnings: CaptureWarning[] = [];
 
   constructor(baseUrl: string, opts: CaptureOptions) {
     this.baseUrl = baseUrl;
@@ -483,9 +486,15 @@ export class DemoRecorder {
    * `captureCurrent` (viewport) and `captureFullPage` (scrollable) differ only in
    * the height, so they both funnel through here.
    */
-  private async renderCapturedTree(tree: CapturedElement[], height: number, idPrefix: string): Promise<string> {
+  private async renderCapturedTree(
+    tree: CapturedElement[],
+    warnings: CaptureWarning[],
+    height: number,
+    idPrefix: string,
+  ): Promise<string> {
     if (this.selfContained)
       await embedRemoteImages(tree, {
+        warnings,
         timeoutMs: this.embedRemoteImagesTimeoutMs,
         retries: this.embedRemoteImagesRetries,
         retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
@@ -502,20 +511,39 @@ export class DemoRecorder {
     // DM-2327: captureElementTree already asked this live Chromium page to
     // paint conic tiles. Fill only missing entries with the historical CPU
     // approximation so direct-tree/helper-absent use remains non-fatal.
-    await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor });
+    await rasterizeConicGradients(tree, { hiDPIFactor: this.embedRemoteImagesHiDPIFactor, warnings });
     // DM-839/DM-1338/DM-1435: reset the generation-scoped caches (embedded-font
     // builder + paths-mode glyph registry) so this capture's `@font-face` block /
     // <defs> contain only its own fonts/glyphs (the renderer repopulates them
     // during elementTreeToSvg, emitting into this frame's <defs>).
-    return withTextEngineDocument({ session: this.textEngineSession, generation: "reset" }, () =>
-      elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2),
+    // The render's own degradations join this capture's warnings rather than the
+    // process-global last-capture buffer, which another recorder's overlapping
+    // capture may have replaced while this one awaited the pre-passes above.
+    const svgContent = withTextEngineDocument({ session: this.textEngineSession, generation: "reset" }, () =>
+      withRenderWarningSink(warnings, () =>
+        elementTreeToSvgInner(tree, this.width, height, idPrefix, true, this.embedRemoteImagesHiDPIFactor ?? 2),
+      ),
     ).value;
+    this.lastWarnings = warnings;
+    return svgContent;
+  }
+
+  /**
+   * Warnings from this recorder's most recent `captureCurrent` / `captureUrl` /
+   * `captureFullPage`: unsupported features met during capture, remote-image
+   * embed failures, and render-side degradations. Scoped to this recorder, so
+   * two recorders running in one process never see each other's warnings (the
+   * package-level `getLastCaptureWarnings()` reflects whichever capture in the
+   * process finished last). Returns a frozen copy.
+   */
+  getLastCaptureWarnings(): ReadonlyArray<Readonly<CaptureWarning>> {
+    return Object.freeze(this.lastWarnings.map((warning) => Object.freeze({ ...warning })));
   }
 
   /** Capture the current page state as SVG content. */
   async captureCurrent(idPrefix = ""): Promise<string> {
     if (this.page == null) throw new Error("Call init() first");
-    const tree = await captureElementTree(
+    const { tree, warnings } = await captureElementTreeWithWarnings(
       this.page,
       "body",
       {
@@ -526,7 +554,7 @@ export class DemoRecorder {
       },
       { crossOriginFrames: this.captureCrossOriginFrames },
     );
-    return this.renderCapturedTree(tree, this.height, idPrefix);
+    return this.renderCapturedTree(tree, warnings, this.height, idPrefix);
   }
 
   /**
@@ -536,7 +564,7 @@ export class DemoRecorder {
   async captureFullPage(idPrefix = ""): Promise<{ svgContent: string; pageHeight: number }> {
     if (this.page == null) throw new Error("Call init() first");
     const pageHeight = await this.page.evaluate(() => document.body.scrollHeight);
-    const tree = await captureElementTree(
+    const { tree, warnings } = await captureElementTreeWithWarnings(
       this.page,
       "body",
       {
@@ -547,7 +575,7 @@ export class DemoRecorder {
       },
       { crossOriginFrames: this.captureCrossOriginFrames },
     );
-    const svgContent = await this.renderCapturedTree(tree, pageHeight, idPrefix);
+    const svgContent = await this.renderCapturedTree(tree, warnings, pageHeight, idPrefix);
     return { svgContent, pageHeight };
   }
 

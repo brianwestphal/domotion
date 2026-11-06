@@ -310,6 +310,16 @@ deliberately does not identify which overlapping capture finished first, and a
 render without a `warnings` array appends its degradation warnings to that
 global.
 
+`DemoRecorder` threads that array itself: each `captureCurrent()` /
+`captureUrl()` / `captureFullPage()` keeps its capture warnings, remote-image
+embed failures, conic-tile pre-pass warnings and render warnings together, and
+`recorder.getLastCaptureWarnings()` returns that recorder's frozen copy, so two
+recorders in one process never see each other's warnings. The CLI pipelines
+(`animate`, `storyboard`, terminal, templates, Studio's interactive compile) do
+not expose per-capture warnings; they render each tree right after capturing it
+and deliberately keep the global fallback, which together with the `[domotion]`
+stderr line is their warning contract.
+
 Each warning has:
 
 - `selector`: a short CSS-selectorish path (up to 5 ancestors) identifying the element.

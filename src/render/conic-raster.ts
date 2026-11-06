@@ -18,7 +18,7 @@ import { renderWarn } from "./render-warn.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { _conicTileCache } from "./raster-tile-cache.js";
 import { collectFormControlConicTiles } from "./form-controls.js";
-import type { CapturedElement } from "../capture/types.js";
+import type { CaptureWarning, CapturedElement } from "../capture/types.js";
 import { type RGBA, parseColor } from "./colors.js";
 import { parseConicGradient, type ConicGradient, type ConicStop, type PosValue } from "./gradients.js";
 import { cyclicBackgroundLayer } from "./image-pattern.js";
@@ -32,6 +32,13 @@ export interface RasterizeConicOptions {
    * Values < 1 are clamped to 1.
    */
   hiDPIFactor?: number;
+  /**
+   * Append this pass's `conic-gradient` render warnings here instead of the
+   * process-global last-capture buffer. This pass awaits, so it cannot rely on a
+   * synchronous `withRenderWarningSink` scope; `DemoRecorder` passes the capture's
+   * own warning array.
+   */
+  warnings?: CaptureWarning[];
 }
 
 const DEFAULT_HIDPI_FACTOR = 2;
@@ -69,7 +76,12 @@ export async function rasterizeConicGradients(
     if (gradient == null) {
       if (!warnedFailures.has(layerText)) {
         warnedFailures.add(layerText);
-        renderWarn("conic-gradient", `could not parse conic-gradient; the layer will paint nothing: ${layerText}`);
+        renderWarn(
+          "conic-gradient",
+          `could not parse conic-gradient; the layer will paint nothing: ${layerText}`,
+          "",
+          options.warnings,
+        );
       }
       return;
     }
@@ -134,7 +146,12 @@ export async function rasterizeConicGradients(
       rememberConicTile(layerText, sizeKey, dataUri);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      renderWarn("conic-gradient", `conic tile ${sizeKey} could not be rasterized: ${reason}; layer: ${layerText}`);
+      renderWarn(
+        "conic-gradient",
+        `conic tile ${sizeKey} could not be rasterized: ${reason}; layer: ${layerText}`,
+        "",
+        options.warnings,
+      );
     }
   });
   await Promise.all(tasks);

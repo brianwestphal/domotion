@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { rasterizeConic, resolveConicStops } from "./conic-raster.js";
 import { parseConicGradient } from "./gradients.js";
 import { capturedTree } from "../test-support/captured-fixtures.js";
+import type { CaptureWarning } from "../capture/types.js";
 
 function pixel(buf: Buffer, w: number, x: number, y: number): { r: number; g: number; b: number; a: number } {
   const i = (y * w + x) * 4;
@@ -340,6 +341,39 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
       expect(conicWarnings[0]).toContain(broken);
     } finally {
       console.warn = orig;
+    }
+  });
+
+  it("routes its warnings to an explicit sink instead of the last-capture global", async () => {
+    const { rasterizeConicGradients } = await import("./conic-raster.js");
+    const { _conicTileCache } = await import("./element-tree-to-svg.js");
+    const { getLastCaptureWarnings, resetLastCaptureWarnings } = await import("../capture/warnings.js");
+    _conicTileCache.clear();
+    resetLastCaptureWarnings([]);
+    const originalWarn = console.warn;
+    console.warn = () => undefined;
+    try {
+      const broken = "conic-gradient(still not a gradient)";
+      const tree = capturedTree([
+        { tag: "div", x: 0, y: 0, width: 50, height: 50, styles: { backgroundImage: broken }, children: [] },
+      ]);
+      const sink: CaptureWarning[] = [];
+      await rasterizeConicGradients(tree, { hiDPIFactor: 2, warnings: sink });
+      expect(sink).toEqual([
+        {
+          selector: "",
+          feature: "conic-gradient",
+          detail: `could not parse conic-gradient; the layer will paint nothing: ${broken}`,
+        },
+      ]);
+      expect(getLastCaptureWarnings()).toEqual([]);
+
+      // Without a sink the global fallback is unchanged.
+      await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
+      expect(getLastCaptureWarnings().map((warning) => warning.feature)).toEqual(["conic-gradient"]);
+    } finally {
+      console.warn = originalWarn;
+      resetLastCaptureWarnings([]);
     }
   });
 

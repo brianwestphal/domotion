@@ -47,8 +47,12 @@ export function withOptionalRenderWarningSink<T>(sink: CaptureWarning[] | undefi
  * any such scope, to the capture warnings global so the CLI and single-capture callers
  * (`getLastCaptureWarnings()`) still see it. Before this each site chose its own prefix and only
  * some warned at all; the silent ones returned null / "" and looked like "nothing to paint".
+ *
+ * `sink` is for asynchronous render pre-passes (the conic-gradient rasterizer), which run across
+ * an `await` and so cannot sit inside a synchronous `withRenderWarningSink` scope: an explicit
+ * sink wins over the active scope and the global.
  */
-export function renderWarn(feature: string, detail: string, selector = ""): void {
+export function renderWarn(feature: string, detail: string, selector = "", sink?: CaptureWarning[]): void {
   console.warn(`[domotion] ${detail}`);
-  captureWarningSink(activeRenderWarningSink ?? undefined).push({ selector, feature, detail });
+  captureWarningSink(sink ?? activeRenderWarningSink ?? undefined).push({ selector, feature, detail });
 }
