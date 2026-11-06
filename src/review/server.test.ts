@@ -59,6 +59,16 @@ describe("startReviewServer", () => {
     expect(res.status).toBe(404);
   });
 
+  it("names the issue link by its rendered label in the filing hint", async () => {
+    srv = await startReviewServer(fixtureDir());
+    const html = await (await fetch(srv.url)).text();
+    const linkLabel = /<a id="file-link"[^>]*>([^<]*?)\s*→<\/a>/.exec(html)?.[1];
+    expect(linkLabel).toBe("Open a new GitHub issue");
+    const hint = /<p class="hint">After clicking <em>([^<]*)<\/em>/.exec(html)?.[1];
+    expect(hint).toBe(linkLabel);
+    expect(html).toContain('<button id="copy-btn">Copy issue text</button>');
+  });
+
   it("throws at startup if an asset is missing (fail fast, before listening)", async () => {
     const f = fixtureDir();
     rmSync(f.diffPng, { force: true });

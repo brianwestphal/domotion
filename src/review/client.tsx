@@ -45,6 +45,8 @@ const overlay = enableRegionOverlays(card);
 const regionList = document.getElementById("region-list")!;
 const issueText = document.getElementById("issue-text") as HTMLTextAreaElement;
 const copyBtn = document.getElementById("copy-btn") as HTMLButtonElement;
+// The server-rendered label ("Copy issue text"); the button returns to it after flashing "Copied".
+const copyBtnLabel = copyBtn.textContent;
 const copyStatus = document.getElementById("copy-status")!;
 const addRegionBtn = document.getElementById("add-region-btn") as HTMLButtonElement;
 const fileLink = document.getElementById("file-link") as HTMLAnchorElement;
@@ -168,7 +170,7 @@ copyBtn.addEventListener("click", async () => {
     copyBtn.textContent = "Copied";
     copyStatus.textContent = "Issue text copied.";
     setTimeout(() => {
-      copyBtn.textContent = "Copy";
+      copyBtn.textContent = copyBtnLabel;
     }, 1500);
   } catch {
     // Fallback: select the textarea so the user can Cmd/Ctrl+C manually.

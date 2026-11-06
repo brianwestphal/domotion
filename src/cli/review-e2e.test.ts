@@ -140,6 +140,16 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       expect(fileHref).toContain("github.com/brianwestphal/domotion/issues/new");
       expect(fileHref).toContain("bg-conic-checkerboard.svg");
 
+      // The copy button flashes "Copied" and then returns to its own label, not a shortened one.
+      await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(url).origin });
+      const copyBtn = page.locator("#copy-btn");
+      expect(await copyBtn.textContent()).toBe("Copy issue text");
+      await copyBtn.click();
+      await expect.poll(() => copyBtn.textContent()).toBe("Copied");
+      expect(await page.locator("#copy-status").textContent()).toBe("Issue text copied.");
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(issueText);
+      await expect.poll(() => copyBtn.textContent(), { timeout: 5_000 }).toBe("Copy issue text");
+
       await writeBrowserCoverage(page, "review-client-production", coverage);
       await closeBrowserSafely(browser);
     } catch (e) {
