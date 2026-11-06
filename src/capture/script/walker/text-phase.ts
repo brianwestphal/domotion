@@ -6,6 +6,7 @@
 
 import type { CapturedElement, PseudoBox, TextSegment } from "../../types.js";
 import type { PseudoSegment } from "./pseudo-inject.js";
+import type { TextCaptureResult } from "./text-segments.js";
 
 type CaptureTextSegment = TextSegment & { fontDescent?: number };
 type TextLocals = {
@@ -30,17 +31,6 @@ type InputCapture =
       placeholderFontFamily?: string;
       placeholderFontFamilyStack?: CapturedElement["placeholderFontFamilyStack"];
     } & TextLocals);
-type TextCapture = { text: string; textSegments: CaptureTextSegment[]; lineClampTextFragments?: boolean } & (
-  | { textLeft?: undefined }
-  | {
-      textLeft: number;
-      textTop: number;
-      textWidth: number;
-      textHeight: number;
-      fontAscent: number;
-      fontDescent: number;
-    }
-);
 type PseudoCapture = { pseudoSegments: PseudoSegment[]; pseudoBoxes: PseudoBox[] };
 type InjectedCapture = TextLocals & { pseudoImages: CapturedElement["pseudoImages"] };
 
@@ -48,7 +38,7 @@ export const createTextPhaseHandler = (ctx: {
   capturePseudoContent: (el: Element, cs: CSSStyleDeclaration, rect: DOMRect, snapshot: unknown) => PseudoCapture;
   _counterSnapshot: unknown;
   captureInputValue: (el: Element, cs: CSSStyleDeclaration, tag: string, rect: DOMRect) => InputCapture;
-  captureTextSegments: (el: Element, cs: CSSStyleDeclaration) => TextCapture;
+  captureTextSegments: (el: Element, cs: CSSStyleDeclaration) => TextCaptureResult;
   injectPseudoSegments: (
     el: Element,
     pseudoSegments: PseudoSegment[],

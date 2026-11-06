@@ -13,7 +13,7 @@ import type { TextSegment } from "../types.js";
 
 type ClampChar = {
   node: Node;
-  owner: HTMLElement;
+  owner: Element;
   ch: string;
   left: number;
   right: number;
@@ -22,7 +22,7 @@ type ClampChar = {
 };
 type ClampLine = { blockOffset: number; chars: ClampChar[] };
 type ClampContext = {
-  root: HTMLElement;
+  root: Element;
   clampCount: number;
   writingMode: string;
   lines: ClampLine[];
@@ -124,7 +124,7 @@ export const blinkLineClampLineIsVisible = (logicalLineIndex: number, clampCount
 
 const VERTICAL_WRITING_RE = /^(?:vertical|sideways)-/;
 
-const collectTextCharacters = (root: HTMLElement, vertical: boolean): ClampChar[] => {
+const collectTextCharacters = (root: Element, vertical: boolean): ClampChar[] => {
   const chars: ClampChar[] = [];
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node != null; node = walker.nextNode()) {
@@ -183,7 +183,7 @@ const groupLogicalLines = (chars: ClampChar[], writingMode: string): ClampLine[]
 // has a clamp-owned scroll extent while the latter expands to all lines.  The
 // clone keeps the real subtree/styles/font fallback, so this is a behavioral
 // platform query rather than a fixture-derived dimension threshold.
-const behaviorallyClampsInClone = (el: HTMLElement, cs: CSSStyleDeclaration, writingMode: string): boolean => {
+const behaviorallyClampsInClone = (el: Element, cs: CSSStyleDeclaration, writingMode: string): boolean => {
   const parent = el.parentNode;
   if (parent == null) return false;
   const clone = el.cloneNode(true) as HTMLElement;
@@ -292,10 +292,10 @@ export const createLineClampHandler = ({
   effectiveZoomFor: (el: Element) => number;
   fontFamilyStackFor: (el: Element, family: string) => TextSegment["fontFamilyStack"];
 }) => {
-  const contexts = new WeakMap<HTMLElement, ClampContext | null>();
+  const contexts = new WeakMap<Element, ClampContext | null>();
   let probeSequence = 0;
 
-  const analyzeRoot = (el: HTMLElement, cs: CSSStyleDeclaration): ClampContext | null => {
+  const analyzeRoot = (el: Element, cs: CSSStyleDeclaration): ClampContext | null => {
     if (contexts.has(el)) return contexts.get(el) ?? null;
     const parsed = parseBlinkLineClampCount(cs.webkitLineClamp || "");
     if (parsed == null || cs.webkitBoxOrient !== "vertical" || cs.display !== "flow-root") {
@@ -404,8 +404,8 @@ export const createLineClampHandler = ({
     return context;
   };
 
-  const nearestContext = (el: HTMLElement): ClampContext | null => {
-    for (let cursor: HTMLElement | null = el; cursor != null; cursor = cursor.parentElement) {
+  const nearestContext = (el: Element): ClampContext | null => {
+    for (let cursor: Element | null = el; cursor != null; cursor = cursor.parentElement) {
       const context = contexts.has(cursor) ? contexts.get(cursor) : analyzeRoot(cursor, getComputedStyle(cursor));
       if (context != null) return context;
     }
@@ -428,7 +428,7 @@ export const createLineClampHandler = ({
   };
 
   const finalizeLineClampText = <T extends { textSegments?: TextSegment[] }>(
-    el: HTMLElement,
+    el: Element,
     cs: CSSStyleDeclaration,
     result: T,
   ) => {

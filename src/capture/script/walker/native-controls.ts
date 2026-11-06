@@ -14,17 +14,12 @@ import type { CaptureScriptArgs, TextSegment } from "../../types.js";
 import { nativeControlDecorationKinds } from "../../native-control-decoration.js";
 import { normalizePseudoShadowPhase } from "./capture-phases.js";
 import type { NativeDecorationRef } from "./capture-phases.js";
+import type { TextCaptureResult } from "./text-segments.js";
 
 type NativeHostElement = HTMLInputElement & Omit<HTMLSelectElement, "type">;
 type PseudoFragmentFact = {
   typography?: { fontFamily?: string; fontFamilyStack?: TextSegment["fontFamilyStack"] };
   pseudo: string;
-};
-type TextCapture = {
-  text?: string;
-  textSegments: Array<TextSegment & { fontDescent?: number }>;
-  fontAscent?: number;
-  fontDescent?: number;
 };
 
 export const createNativeControlsHandler = (ctx: {
@@ -32,7 +27,7 @@ export const createNativeControlsHandler = (ctx: {
   vp: { x: number; y: number };
   warn: (selector: string, category: string, message: string) => void;
   normColor: (color: string) => string;
-  captureTextSegments: (el: Element, cs: CSSStyleDeclaration) => TextCapture;
+  captureTextSegments: (el: Element, cs: CSSStyleDeclaration) => TextCaptureResult;
   _effectiveZoomFor: (el: Element) => number;
   _fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => TextSegment["fontFamilyStack"];
   _measureFontMetrics: (cs: CSSStyleDeclaration) => { ascent: number; descent: number };
@@ -189,7 +184,7 @@ export const createNativeControlsHandler = (ctx: {
       const _statusText = _statusNode && _statusStyle && captureTextSegments(_statusNode, _statusStyle);
       if (_statusText && Array.isArray(_statusText.textSegments)) {
         for (let _fsi = 0; _fsi < _statusText.textSegments.length; _fsi++) {
-          const _seg = _statusText.textSegments[_fsi];
+          const _seg: TextSegment & { fontDescent?: number } = _statusText.textSegments[_fsi];
           if (_seg.fontAscent != null) _seg.fontAscent *= _paintScale;
           if (_seg.fontDescent != null) _seg.fontDescent *= _paintScale;
           if (_seg.fontSize != null) _seg.fontSize *= _paintScale;
@@ -237,8 +232,9 @@ export const createNativeControlsHandler = (ctx: {
                 fontFamilyStack: _fontFamilyStackFor(el, _statusStyle.fontFamily, "::file-selector-status"),
                 fontWeight: _statusStyle.fontWeight,
                 fontStyle: _statusStyle.fontStyle,
-                fontAscent: (_statusText.fontAscent || 0) * _paintScale,
-                fontDescent: (_statusText.fontDescent || 0) * _paintScale,
+                // The envelope metrics exist only when a character painted (textLeft set).
+                fontAscent: ((_statusText.textLeft != null && _statusText.fontAscent) || 0) * _paintScale,
+                fontDescent: ((_statusText.textLeft != null && _statusText.fontDescent) || 0) * _paintScale,
                 color: normColor(_statusStyle.color),
                 writingMode: _statusStyle.writingMode,
                 textOrientation: _statusStyle.textOrientation,

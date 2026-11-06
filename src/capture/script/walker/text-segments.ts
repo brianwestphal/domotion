@@ -41,17 +41,31 @@ type TextLine = {
   sourceText?: string;
   xOffsets?: number[];
 };
-type TextCaptureResult = {
+/**
+ * The text-node walker's result. The host's text envelope (`textLeft` …
+ * `fontDescent`) is measured together from the same character rects and font
+ * metrics, so it is either entirely present or entirely absent (no painted
+ * character). `lineClampTextFragments` is set by `finalizeLineClampText`.
+ */
+export type TextCaptureResult = {
   applied: boolean;
   text: string;
   textSegments: TextSegment[];
-  textLeft?: number;
-  textTop?: number;
-  textWidth?: number;
-  textHeight?: number;
-  fontAscent?: number;
-  fontDescent?: number;
-};
+  lineClampTextFragments?: boolean;
+} & (
+  | { textLeft?: undefined }
+  | {
+      textLeft: number;
+      textTop: number;
+      textWidth: number;
+      textHeight: number;
+      fontAscent: number;
+      fontDescent: number;
+    }
+);
+
+/** `lang` is an HTMLElement IDL attribute; MathML and SVG elements read as undefined. */
+const elementLang = (el: Element): string | undefined => (el as Element & { lang?: string }).lang;
 type Metrics = { ascent: number; descent: number };
 type TextServices = {
   vp: Viewport;
@@ -59,7 +73,7 @@ type TextServices = {
   rasterCandidates: (text: string, variant?: string) => Array<{ start: number; end: number }>;
   normColor: (color: string) => string;
   markGetsDottedCircle: (cp: number, ch: string, font: string) => boolean;
-  finalizeLineClampText?: (el: HTMLElement, cs: CSSStyleDeclaration, result: TextCaptureResult) => TextCaptureResult;
+  finalizeLineClampText?: (el: Element, cs: CSSStyleDeclaration, result: TextCaptureResult) => TextCaptureResult;
   fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => TextSegment["fontFamilyStack"];
   sourceTextNodeIndexFor?: (node: Node) => number | undefined;
 };
@@ -342,7 +356,7 @@ export const captureVerticalTextSegments = (
     measureFontMetrics,
     sourceTextNodeIndexFor,
   }: Pick<TextServices, "vp" | "measureFontMetrics" | "sourceTextNodeIndexFor">,
-  el: HTMLElement,
+  el: Element,
   cs: CSSStyleDeclaration,
 ): TextCaptureResult => {
   const wm = cs.writingMode;
@@ -380,7 +394,7 @@ export const captureVerticalTextSegments = (
     const mapped = transformTextWithSourceSpans(
       sourceRaw,
       tt,
-      (cs as CSSStyleDeclaration & { lang?: string }).lang || el.lang || "",
+      (cs as CSSStyleDeclaration & { lang?: string }).lang || elementLang(el) || "",
     );
     const raw = mapped.map((part) => part.rendered).join("");
     if (!raw.trim()) continue;
@@ -560,7 +574,7 @@ export const buildFirstLetterTextSegment = (
   firstLetterChars: TextChar[],
   flStyle: CSSStyleDeclaration,
   hasInitialLetter: boolean,
-  el: HTMLElement,
+  el: Element,
   cs: CSSStyleDeclaration,
 ) => {
   const styledText = firstLetterChars.map((c) => c.ch).join("");
@@ -823,7 +837,7 @@ const buildTextSegmentsHandler = ({
   fontFamilyStackFor,
   sourceTextNodeIndexFor,
 }: TextServices) => {
-  const finishLineClamp = (el: HTMLElement, cs: CSSStyleDeclaration, result: TextCaptureResult) =>
+  const finishLineClamp = (el: Element, cs: CSSStyleDeclaration, result: TextCaptureResult) =>
     finalizeLineClampText == null ? result : finalizeLineClampText(el, cs, result);
   const sourceMappingForChars = sourceMappingForTextChars;
   // DM-990: Unicode `Vertical_Orientation` property (UAX #50) for
@@ -848,7 +862,7 @@ const buildTextSegmentsHandler = ({
   // `yOffsets[]` (per char) so the renderer can emit each char at its
   // captured position, wrapping rotated chars in a `<g transform=
   // "rotate(90, …)">`.
-  const captureVertical = (el: HTMLElement, cs: CSSStyleDeclaration) =>
+  const captureVertical = (el: Element, cs: CSSStyleDeclaration) =>
     captureVerticalTextSegments({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs);
 
   // DM-989: build the styled ::first-letter TextSegment from the chars selected
@@ -861,7 +875,7 @@ const buildTextSegmentsHandler = ({
     firstLetterChars: TextChar[],
     flStyle: CSSStyleDeclaration,
     hasInitialLetter: boolean,
-    el: HTMLElement,
+    el: Element,
     cs: CSSStyleDeclaration,
   ) =>
     buildFirstLetterTextSegment(
@@ -873,7 +887,7 @@ const buildTextSegmentsHandler = ({
       cs,
     );
 
-  const captureTextSegments = (el: HTMLElement, cs: CSSStyleDeclaration): TextCaptureResult => {
+  const captureTextSegments = (el: Element, cs: CSSStyleDeclaration): TextCaptureResult => {
     // DM-990: dispatch vertical writing-mode elements to the column-
     // grouping capture path. The horizontal walker below groups chars
     // by `top` which puts every char of a vertical column into a
@@ -984,7 +998,7 @@ const buildTextSegmentsHandler = ({
       const mapped = transformTextWithSourceSpans(
         sourceRaw,
         tt,
-        (cs as CSSStyleDeclaration & { lang?: string }).lang || el.lang || "",
+        (cs as CSSStyleDeclaration & { lang?: string }).lang || elementLang(el) || "",
       );
       const raw = mapped.map((part) => part.rendered).join("");
       if (!raw.trim()) continue;
@@ -1354,7 +1368,7 @@ const buildTextSegmentsHandler = ({
           flLineStyle.textTransform,
           (flLineStyle as CSSStyleDeclaration & { lang?: string }).lang ||
             (cs as CSSStyleDeclaration & { lang?: string }).lang ||
-            el.lang ||
+            elementLang(el) ||
             "",
         );
         firstSeg.text = firstLineMap

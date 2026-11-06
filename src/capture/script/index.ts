@@ -279,13 +279,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     capturePseudoContent: capturePseudoContent as Parameters<typeof createTextPhaseHandler>[0]["capturePseudoContent"],
     _counterSnapshot,
     captureInputValue: captureInputValue as Parameters<typeof createTextPhaseHandler>[0]["captureInputValue"],
-    // The producer returns the flat TextCaptureResult (optional geometry
-    // fields); the consumers declare the narrower discriminated TextCapture
-    // and an Element parameter. Reconciling the two shapes is tracked as a
-    // follow-up; until then this is the one seam between them.
-    captureTextSegments: captureTextSegments as unknown as Parameters<
-      typeof createTextPhaseHandler
-    >[0]["captureTextSegments"],
+    captureTextSegments,
     injectPseudoSegments,
     _effectiveZoomFor,
     _measureFontMetrics,
@@ -295,10 +289,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     vp,
     warn,
     normColor,
-    // Same producer/consumer shape seam as createTextPhaseHandler above.
-    captureTextSegments: captureTextSegments as unknown as Parameters<
-      typeof createNativeControlsHandler
-    >[0]["captureTextSegments"],
+    captureTextSegments,
     _effectiveZoomFor,
     _fontFamilyStackFor,
     _measureFontMetrics,
