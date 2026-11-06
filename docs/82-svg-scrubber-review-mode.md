@@ -142,7 +142,7 @@ so the visual context rides along with the ticket.
   render failure is non-fatal (the ticket is still written, `framePng: null`).
 - **`src/scrubber/client.tsx`** — the review panel + the drag-to-draw region
   overlay (a sibling of the crop overlay, sharing its SVG-unit ↔ stage-px
-  math), and `saveTicket()` (POST → status line). **DM-1449:** the overlay holds
+  math), and `saveTicket()` (POST → a `StateBanner` reporting saving, success or the error). **DM-1449:** the overlay holds
   a `regions` array (rebuilds one `.region-box` per region + the live drag) and
   stays armed across drags; the "Attach frame" checkbox sends `attachFrame` +
   the SVG markup so the server can render the frame.

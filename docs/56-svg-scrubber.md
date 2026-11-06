@@ -41,7 +41,9 @@ svg-scrubber [file.svg] [--port <n>] [--no-open]
 ```
 
 - `file.svg` (optional) preloads an SVG into the UI; otherwise drag-drop or use
-  the file picker in the browser.
+  the file picker in the browser. With nothing loaded, the stage shows a
+  drop-target empty state whose **Choose SVG file** button (or a click anywhere
+  on the drop area) opens the picker.
 - `--port <n>` binds the local server to a fixed port (default: an OS-assigned
   free port on `127.0.0.1`).
 - `--no-open` prints the URL instead of auto-opening the browser.
@@ -55,23 +57,30 @@ spreads three groups across the width (`space-between`) — **range** controls o
 the left, **zoom / pan** controls in the middle, the **Export** button on the
 right.
 
-| Control      | Behavior                                                                                                                                                                                                                                                                                                                           |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Play / pause | Space, or the play/pause button (a Lucide play/pause icon). The scrubber thumb advances while playing.                                                                                                                                                                                                                             |
-| Frame step   | `←` / `→` step one 30 fps frame; hold **Shift** to step 1 ms.                                                                                                                                                                                                                                                                      |
-| Speed        | 0.1x–4x select; affects playback only, not the underlying timeline.                                                                                                                                                                                                                                                                |
-| Scrub        | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range; the ticks are **draggable** along the track to set the in/out points.                                                                                                                                             |
-| Range        | **In** / **Out** set the in/out points to the playhead (or type seconds, or drag the ticks). **loop** loops playback over `[in, out]`. **Reset** restores the full loop.                                                                                                                                                           |
-| Zoom / pan   | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **+** / **-** buttons step zoom; **Center** resets the pan. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
-| Crop         | A **crop** toggle (lucide crop icon) overlays a draggable crop rectangle with 8 resize handles on the stage; the chosen region is baked into every export. Disabling resets the crop. See **doc 57**.                                                                                                                              |
-| Export       | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). Each honors the crop rect when crop mode is on (doc 57). Export failures appear in a nonblocking status line; embedded previews also send an error event to Studio.                                     |
+| Control      | Behavior                                                                                                                                                                                                                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Play / pause | Space, or the play/pause button (a Lucide play/pause icon). Previous frame, play/pause and next frame form one grouped transport control. The scrubber thumb advances while playing.                                                                                                                                                            |
+| Frame step   | `←` / `→` step one 30 fps frame; hold **Shift** to step 1 ms.                                                                                                                                                                                                                                                                                   |
+| Speed        | 0.1x–4x select; affects playback only, not the underlying timeline.                                                                                                                                                                                                                                                                             |
+| Scrub        | The timeline slider seeks the playhead and pauses. A shaded band + **in**/**out** ticks mark the selected range; the ticks are **draggable** along the track to set the in/out points.                                                                                                                                                          |
+| Range        | **In** / **Out** set the in/out points to the playhead (or type seconds, or drag the ticks). **loop** loops playback over `[in, out]`. **Reset** restores the full loop.                                                                                                                                                                        |
+| Zoom / pan   | Plain mouse-wheel pans the stage; **Ctrl/⌘ + wheel** (or trackpad pinch) zooms about the cursor; the **Zoom in** / **Zoom out** buttons step zoom; **Center** resets the pan. The zoom dropdown picks a fixed level (10/25/50/75/100/150/200/400 %) or **Fit** (contain) / **Fill** (cover); a preset re-centers. Loading an SVG starts at Fit. |
+| Crop         | A **crop** toggle (lucide crop icon) overlays a draggable crop rectangle with 8 resize handles on the stage; the chosen region is baked into every export. Disabling resets the crop. See **doc 57**.                                                                                                                                           |
+| Export       | A single **Export** button opens a popup with **Frame (PNG)**, **Trim (SVG)**, and **Range (MP4)** (each described below). Each honors the crop rect when crop mode is on (doc 57). Export failures appear in a nonblocking error banner; embedded previews also send an error event to Studio.                                                 |
 
 The UI is built with **kerfjs** (signals + `mount` + `delegate`); the loaded SVG
 sits in a `data-morph-skip` host so the reactive re-render never touches it,
 while its animations, the zoom/pan transform, and the scrubber thumb position
 are driven imperatively (kerf preserves a touched input's value, so the thumb is
-set on the element directly). No emoji are used — labels are plain text and the
-play/pause control is a Lucide SVG icon.
+set on the element directly). No emoji are used — labels are plain text and
+icon-only buttons carry an `aria-label`.
+
+The chrome comes from `@kerfjs/ui` ([doc 273](273-ui-conventions.md)). The
+transport is a `ToolbarControlGroup`, icons are lucide icons rendered through
+`LucideIcon`, the drop target is an `EmptyState`, and operation errors and
+review save results are `StateBanner`s. The speed, zoom, crop-aspect and
+category pickers stay native `<select>` elements. The kerf-ui CSS is folded into
+`/client.js` at build time, so the page needs no network access.
 
 ## How playback works
 

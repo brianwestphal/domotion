@@ -17,6 +17,25 @@
  */
 
 import { signal, computed, effect, mount, delegate } from "kerfjs";
+import { EmptyState } from "@kerfjs/ui/empty-state";
+import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { StateBanner } from "@kerfjs/ui/state-banner";
+import { ToolbarControlGroup } from "@kerfjs/ui/toolbar-control-group";
+import {
+  CircleAlert,
+  CircleCheck,
+  Crop,
+  Download,
+  FileUp,
+  LocateFixed,
+  Pause,
+  Play,
+  StepBack,
+  StepForward,
+  ZoomIn,
+  ZoomOut,
+} from "lucide";
+import { KERF_UI_DARK_THEME_CSS } from "../kerf-ui-theme.js";
 import { postBlob, postJson } from "../utils/post-json.js";
 import { fitRectToAspect, constrainResizeToAspect } from "./crop.js";
 import {
@@ -52,7 +71,8 @@ body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-ser
 .drop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
   gap:10px;color:#9aa0ad;border:2px dashed #2a2e38;margin:18px;border-radius:12px;text-align:center;padding:24px;
   background:rgba(14,15,19,.7);cursor:pointer;width:calc(100% - 36px);font:inherit}
-.drop.over{border-color:#5b8cff;color:#cdd5ff;background:#161b2b}
+.drop.over{border-color:#5b8cff;color:#cdd5ff;background:#161b2b;--kui-empty-state-foreground:#cdd5ff}
+.drop .kui-empty-state{min-height:0}
 .bar{background:#15171c;border-top:1px solid #23262f;padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .row2{justify-content:space-between}
@@ -64,7 +84,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 button.primary{background:#3a63d8;border-color:#3a63d8}button.primary:hover{background:#4a73e8}
 .play{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px}
 .play svg{display:block}
-.iconbtn{padding:6px 8px;min-width:32px}
+.iconbtn{display:inline-grid;place-items:center;padding:6px 8px;min-width:32px}
+.with-icon{display:inline-flex;align-items:center;gap:6px}
+.bar button [data-lucide]{width:16px;height:16px}
 select,input[type=number]{background:#1c1f27;color:#e7e9ee;border:1px solid #333845;border-radius:6px;padding:5px 7px;font:inherit}
 input[type=number]{width:84px}
 .scrub-wrap{position:relative;flex:1;min-width:200px;display:flex;align-items:center;height:24px}
@@ -105,9 +127,8 @@ a.dl{display:none}
 .review{background:#12141a;border:1px solid #2a2e38;border-radius:8px;padding:8px;flex-direction:column;align-items:stretch;gap:8px}
 .rv-title{flex:1;min-width:180px;background:#1c1f27;color:#e7e9ee;border:1px solid #333845;border-radius:6px;padding:6px 8px;font:inherit}
 .rv-note{width:100%;min-height:46px;resize:vertical;background:#1c1f27;color:#e7e9ee;border:1px solid #333845;border-radius:6px;padding:6px 8px;font:inherit}
-.rv-status{font-size:12px;color:#8a90a0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rv-status.ok{color:#7fd88f}.rv-status.err{color:#ff8a8a}
-.operation-status{padding:6px 12px;color:#ff8a8a;font-size:13px}
+.rv-status{border-radius:6px;overflow-wrap:anywhere}
+.operation-status{margin:0 14px 10px;border-radius:8px;overflow-wrap:anywhere}
 .region-layer{position:absolute;inset:0;z-index:7;display:none;touch-action:none;cursor:crosshair}
 .region-box{position:absolute;outline:2px solid #ff5b8a;background:rgba(255,91,138,.14);pointer-events:none}
 .region-box::after{content:"issue region";position:absolute;top:-18px;left:0;font-size:10px;color:#ff8fb0;font-weight:600;white-space:nowrap}
@@ -115,9 +136,9 @@ a.dl{display:none}
 [data-scrubber-embedded] .drop,[data-scrubber-embedded] .file-input,[data-scrubber-embedded] .crop-controls,[data-scrubber-embedded] .export-wrap{display:none}
 [data-scrubber-embedded] .svg-host svg{filter:none}
 [data-scrubber-embedded] .bar{padding:8px 10px}
-@media (pointer:coarse){button,select,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}}
+@media (pointer:coarse){button,select,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}.transport{height:auto}}
 @media (max-width:640px){
-  .bar{padding:10px}.row:first-child{display:grid;grid-template-columns:auto auto auto auto 1fr}.row:first-child .scrub-wrap{grid-column:1/-1;grid-row:2}.row:first-child .time{grid-column:1/-1;min-width:0;text-align:left}
+  .bar{padding:10px}.row:first-child{display:grid;grid-template-columns:auto auto 1fr}.row:first-child .scrub-wrap{grid-column:1/-1;grid-row:2}.row:first-child .time{grid-column:1/-1;min-width:0;text-align:left}
   .row2{align-items:stretch}.tool-panel{width:100%;border-top:1px solid #2a2e38;padding-top:6px}.tool-panel summary{display:block;min-height:44px;line-height:44px}.tool-panel>.grp{flex-wrap:wrap;padding-bottom:6px}
   .row2>.grp{min-height:44px}.export-wrap{margin-left:auto}.review-panel>.review{border:0;padding:6px 0 0}
 }
@@ -125,71 +146,20 @@ a.dl{display:none}
 
 const ZOOM_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 4];
 
-// Lucide play / pause icons (MIT) inlined so no icon dependency is pulled in.
-const ICON_PLAY = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <polygon points="6 3 20 12 6 21 6 3" />
-  </svg>
-);
-const ICON_PAUSE = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <rect x="14" y="4" width="4" height="16" rx="1" />
-    <rect x="6" y="4" width="4" height="16" rx="1" />
-  </svg>
-);
-// Lucide "dot" — used for the reset-pan-to-center button.
-const ICON_DOT = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <circle cx="12.1" cy="12.1" r="1" />
-  </svg>
-);
-// Lucide "crop" — toggles crop mode (DM-1104).
-const ICON_CROP = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M6 2v14a2 2 0 0 0 2 2h14" />
-    <path d="M18 22V8a2 2 0 0 0-2-2H2" />
-  </svg>
-);
+// Icons come from lucide through @kerfjs/ui LucideIcon (decorative; every
+// icon-only button carries its own aria-label). Imported by name so only these
+// icon nodes are bundled.
+const ICON_PLAY = <LucideIcon icon={Play} name="play" />;
+const ICON_PAUSE = <LucideIcon icon={Pause} name="pause" />;
+const ICON_STEP_BACK = <LucideIcon icon={StepBack} name="step-back" />;
+const ICON_STEP_FORWARD = <LucideIcon icon={StepForward} name="step-forward" />;
+const ICON_ZOOM_OUT = <LucideIcon icon={ZoomOut} name="zoom-out" />;
+const ICON_ZOOM_IN = <LucideIcon icon={ZoomIn} name="zoom-in" />;
+// Reset-pan-to-center.
+const ICON_CENTER = <LucideIcon icon={LocateFixed} name="locate-fixed" />;
+// Toggles crop mode (DM-1104).
+const ICON_CROP = <LucideIcon icon={Crop} name="crop" />;
+const ICON_EXPORT = <LucideIcon icon={Download} name="download" />;
 
 function fmt(ms: number): string {
   const s = ms / 1000;
@@ -259,8 +229,10 @@ let embeddedSourceKey: string | null = null;
 
 if (embeddedMode) document.documentElement.dataset.scrubberEmbedded = "true";
 
+// Appended after the @kerfjs/ui stylesheet the bundle prologue prepended, so the
+// shared dark tokens and the page's own rules win the cascade.
 const head = document.createElement("style");
-head.textContent = CSS;
+head.textContent = KERF_UI_DARK_THEME_CSS + CSS;
 document.head.append(head);
 
 // ── render ──────────────────────────────────────────────────────────────────
@@ -304,43 +276,56 @@ function render() {
         <div class="crop-layer" data-crop-layer data-morph-skip style="display:none"></div>
         {/* DM-1445: review region overlay host — drag-to-draw a rectangle. */}
         <div class="region-layer" data-region-layer data-morph-skip style="display:none"></div>
+        {/* The whole drop surface stays clickable (`data-drop` on the wrapper);
+            the EmptyState's action button is the keyboard path to the picker. */}
         {(!svgLoaded.value || dragging.value) && (
-          <button type="button" class={dragging.value ? "drop over" : "drop"} data-drop aria-describedby="drop-help">
-            Drop an animated SVG here
-            <span class="muted" id="drop-help">
-              or press Enter to choose a file
-            </span>
-          </button>
+          <div class={dragging.value ? "drop over" : "drop"} data-drop>
+            <EmptyState
+              icon={<LucideIcon icon={FileUp} name="file-up" />}
+              title="Drop an animated SVG here"
+              detail="or choose a file from your computer"
+              action={
+                <button type="button" class="primary" data-drop>
+                  Choose SVG file
+                </button>
+              }
+            />
+          </div>
         )}
       </div>
       <div class="bar">
         <div class="row">
-          <button
-            class="iconbtn"
-            data-action="step-back"
-            aria-label="Previous frame"
-            title="previous frame"
-            disabled={!svgLoaded.value}
-          >
-            ←
-          </button>
-          <button
-            class="play primary"
-            data-action="play"
-            aria-label={playing.value ? "Pause" : "Play"}
-            disabled={!svgLoaded.value}
-          >
-            {playing.value ? ICON_PAUSE : ICON_PLAY}
-          </button>
-          <button
-            class="iconbtn"
-            data-action="step-forward"
-            aria-label="Next frame"
-            title="next frame"
-            disabled={!svgLoaded.value}
-          >
-            →
-          </button>
+          <ToolbarControlGroup label="Playback" className="transport">
+            <button
+              type="button"
+              class="iconbtn"
+              data-action="step-back"
+              aria-label="Previous frame"
+              title="previous frame"
+              disabled={!svgLoaded.value}
+            >
+              {ICON_STEP_BACK}
+            </button>
+            <button
+              type="button"
+              class="play primary"
+              data-action="play"
+              aria-label={playing.value ? "Pause" : "Play"}
+              disabled={!svgLoaded.value}
+            >
+              {playing.value ? ICON_PAUSE : ICON_PLAY}
+            </button>
+            <button
+              type="button"
+              class="iconbtn"
+              data-action="step-forward"
+              aria-label="Next frame"
+              title="next frame"
+              disabled={!svgLoaded.value}
+            >
+              {ICON_STEP_FORWARD}
+            </button>
+          </ToolbarControlGroup>
           <select data-action="speed" disabled={!svgLoaded.value}>
             {["0.1", "0.25", "0.5", "1", "1.5", "2", "4"].map((v) => (
               <option value={v} selected={parseFloat(v) === speed.value}>
@@ -423,8 +408,15 @@ function render() {
           <details class="tool-panel" open={innerWidth > COLLAPSED_PANEL_MAX_WIDTH}>
             <summary>Crop</summary>
             <div class="grp">
-              <button class="iconbtn" data-action="zoomout" title="zoom out" disabled={!svgLoaded.value}>
-                -
+              <button
+                type="button"
+                class="iconbtn"
+                data-action="zoomout"
+                title="zoom out"
+                aria-label="Zoom out"
+                disabled={!svgLoaded.value}
+              >
+                {ICON_ZOOM_OUT}
               </button>
               <select data-action="zoompreset" title="zoom" disabled={!svgLoaded.value}>
                 {ZOOM_PRESETS.map((z) => (
@@ -440,17 +432,25 @@ function render() {
                 <option value="fit">Fit</option>
                 <option value="fill">Fill</option>
               </select>
-              <button class="iconbtn" data-action="zoomin" title="zoom in" disabled={!svgLoaded.value}>
-                +
+              <button
+                type="button"
+                class="iconbtn"
+                data-action="zoomin"
+                title="zoom in"
+                aria-label="Zoom in"
+                disabled={!svgLoaded.value}
+              >
+                {ICON_ZOOM_IN}
               </button>
               <button
+                type="button"
                 class="iconbtn"
                 data-action="center"
                 title="reset pan to center"
                 aria-label="center"
                 disabled={!svgLoaded.value}
               >
-                {ICON_DOT}
+                {ICON_CENTER}
               </button>
             </div>
           </details>
@@ -486,8 +486,14 @@ function render() {
             </select>
           </div>
           <div class="grp export-wrap">
-            <button class="primary" data-action="exporttoggle" disabled={!svgLoaded.value || busy.value}>
-              Export
+            <button
+              type="button"
+              class="primary with-icon"
+              data-action="exporttoggle"
+              disabled={!svgLoaded.value || busy.value}
+            >
+              {ICON_EXPORT}
+              <span>Export</span>
             </button>
             {exportMenuOpen.value && (
               <div class="export-menu" data-export-menu>
@@ -560,18 +566,33 @@ function render() {
                 disabled={!svgLoaded.value}
               ></textarea>
               {ticketStatus.value.msg !== "" && (
-                <div class={`rv-status ${ticketStatus.value.kind}`} role="status" aria-live="polite">
-                  {ticketStatus.value.msg}
-                </div>
+                <StateBanner
+                  className={`rv-status ${ticketStatus.value.kind}`}
+                  tone={
+                    ticketStatus.value.kind === "ok" ? "success" : ticketStatus.value.kind === "err" ? "danger" : "info"
+                  }
+                  icon={
+                    ticketStatus.value.kind === "ok" ? (
+                      <LucideIcon icon={CircleCheck} name="circle-check" />
+                    ) : ticketStatus.value.kind === "err" ? (
+                      <LucideIcon icon={CircleAlert} name="circle-alert" />
+                    ) : undefined
+                  }
+                  title={ticketStatus.value.msg}
+                />
               )}
             </div>
           </details>
         )}
       </div>
+      {/* Operation failures (load, export, embed commands) — always errors. */}
       {operationStatus.value !== "" && (
-        <div class="operation-status" role="status" aria-live="polite">
-          {operationStatus.value}
-        </div>
+        <StateBanner
+          className="operation-status"
+          tone="danger"
+          icon={<LucideIcon icon={CircleAlert} name="circle-alert" />}
+          title={operationStatus.value}
+        />
       )}
     </div>
   );
@@ -1171,12 +1192,12 @@ async function saveTicket(): Promise<void> {
   const catEl = app.querySelector<HTMLSelectElement>("[data-action=rv-category]");
   const title = (titleEl?.value ?? "").trim();
   if (title === "") {
-    ticketStatus.value = { kind: "err", msg: "⚠ enter an issue title first" };
+    ticketStatus.value = { kind: "err", msg: "Enter an issue title first." };
     return;
   }
   const { s, e } = rangeSE();
   savingTicket.value = true;
-  ticketStatus.value = { kind: "", msg: "saving…" };
+  ticketStatus.value = { kind: "", msg: "Saving…" };
   try {
     const { path, framePng } = await postJson<{ path: string; framePng?: string | null }>("/ticket", {
       title,
@@ -1192,7 +1213,7 @@ async function saveTicket(): Promise<void> {
       attachFrame: attachFrame.value,
       svg: attachFrame.value ? svgText : undefined,
     });
-    ticketStatus.value = { kind: "ok", msg: `✓ wrote ${path}${framePng ? ` (+ frame PNG)` : ""}` };
+    ticketStatus.value = { kind: "ok", msg: `Wrote ${path}${framePng ? ` (+ frame PNG)` : ""}` };
     // Reset for the next issue (keep the SVG / range / playhead as-is).
     if (titleEl) titleEl.value = "";
     if (noteEl) noteEl.value = "";
@@ -1201,7 +1222,7 @@ async function saveTicket(): Promise<void> {
     regionMode.value = false;
     regionTick.value++;
   } catch (err) {
-    ticketStatus.value = { kind: "err", msg: `⚠ ${err instanceof Error ? err.message : "save failed"}` };
+    ticketStatus.value = { kind: "err", msg: err instanceof Error ? err.message : "Save failed." };
   } finally {
     savingTicket.value = false;
   }

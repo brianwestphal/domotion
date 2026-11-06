@@ -304,6 +304,10 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     try {
       await page.goto(started!.url, { waitUntil: "networkidle" });
       await page.waitForSelector('[data-action="scrub"]:not([disabled])', { timeout: 20_000 });
+      // The transport is a kerf-ui ToolbarControlGroup; its CSS rides in the
+      // pre-built bundle's <head> prologue.
+      // (Not `display`: as a flex item of the bar row it is blockified to `flex`.)
+      await expectKerfUiStyled(page, ".transport.kui-toolbar-control-group", "border-top-left-radius", "999px");
 
       // A bound attribute driven by a signal the click handler flips.
       const label = (): Promise<string | null> => page.locator('[data-action="play"]').getAttribute("aria-label");
