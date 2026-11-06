@@ -2118,7 +2118,7 @@ function wrapTypingTextPx(text: string, maxWidthPx: number, advOf: (ch: string) 
 
 // Default overlay timings/metrics, applied when the overlay omits them.
 const DEFAULT_TYPING_DELAY_MS = 300;
-const DEFAULT_TYPING_SPEED_CPS = 60;
+const DEFAULT_TYPING_MS_PER_CHAR = 60; // `overlay.speed` is a per-keystroke delay in ms (doc 93)
 const DEFAULT_OVERLAY_FONT_SIZE = 14;
 /**
  * Monospace cell advance as a fraction of font size — the FALLBACK estimate,
@@ -2774,7 +2774,7 @@ function renderTypingOverlay(
   totalSec: number,
 ): { svgMarkup: string; css: string } {
   const delay = overlay.delay ?? DEFAULT_TYPING_DELAY_MS;
-  const speed = overlay.speed ?? DEFAULT_TYPING_SPEED_CPS;
+  const speed = overlay.speed ?? DEFAULT_TYPING_MS_PER_CHAR;
   const fontSize = overlay.fontSize ?? DEFAULT_OVERLAY_FONT_SIZE;
   // DM-1558: the family the reveal measures + paints. Defaults to the monospace
   // field stack; an author `fontFamily` (e.g. the captured field's own family)
