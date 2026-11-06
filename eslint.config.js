@@ -83,10 +83,10 @@ export default [
   {
     // No `any` outside the fontkit / bidi-js boundary (AGENTS.md § Quality gates). Core `no-restricted-syntax`
     // on the `TSAnyKeyword` node, so no typescript-eslint plugin is needed. It covers shipped source, its unit
-    // tests, `tests/` and `tools/`. The two allowlisted files ARE the fontkit boundary (they wrap fontkit's
-    // untyped `Font` objects); a one-off boundary use elsewhere takes a line-level disable with its reason.
-    // fontkit itself is declared untyped (`declare module "fontkit"`), so a value read from it is already
-    // `any` without spelling the keyword. A partial test fixture is cast through `unknown` to the real type.
+    // tests, `tests/` and `tools/`, with no file-level exceptions: fontkit is declared untyped
+    // (`declare module "fontkit"`), and its face objects are read through the typed facade in
+    // `packages/text-engine/src/render/fontkit-facade.ts` instead of `any`. A one-off boundary use elsewhere takes
+    // a line-level disable with its reason. A partial test fixture is cast through `unknown` to the real type.
     files: [
       "src/**/*.ts",
       "src/**/*.tsx",
@@ -97,7 +97,7 @@ export default [
       "tools/**/*.ts",
       "tools/**/*.tsx",
     ],
-    ignores: ["**/*.d.ts", "packages/text-engine/src/render/font-instance.ts", "src/capture/emoji.ts"],
+    ignores: ["**/*.d.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",

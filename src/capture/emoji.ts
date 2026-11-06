@@ -39,7 +39,22 @@ import { capturedTextSegmentFontFeatures, parseFontVariationSettings } from "../
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
-let _aceFont: any = null;
+
+/** The fontkit sbix surface this module reads: a glyph's per-strike PNG. */
+interface SbixGlyph {
+  id: number;
+  /** Throws for a strike the glyph does not carry. */
+  getImageForSize(ppem: number): { data?: Uint8Array | null } | null | undefined;
+}
+interface EmojiFace {
+  glyphForCodePoint(codePoint: number): SbixGlyph | null | undefined;
+}
+/** `openSync` on the `.ttc` yields a collection; a test opener may hand back a bare face. */
+type EmojiFontContainer = EmojiFace | { fonts: EmojiFace[] };
+/** fontkit is declared untyped (`declare module "fontkit"`); this is the typed view of the one call made here. */
+const emojiFontkit: { openSync(path: string): EmojiFontContainer } = fontkit;
+
+let _aceFont: EmojiFace | null = null;
 /** True once the font's presence is a settled answer: opened, or definitively
  *  unavailable (wrong platform / file absent). An open that THREW is not settled
  *  until it has failed `ACE_OPEN_ATTEMPTS` times, so one transient failure (fd
@@ -71,20 +86,25 @@ export function clearEmojiCaches(): void {
 const EMOJI_SBIX_MIN_ASPECT = 0.4;
 
 /** Test seam: replaces the platform gate and the fontkit open. Null restores the real one. */
-let _aceOpenerForTest: (() => any) | null = null;
-export function __setEmojiFontOpenerForTest(opener: (() => any) | null): void {
+let _aceOpenerForTest: (() => unknown) | null = null;
+export function __setEmojiFontOpenerForTest(opener: (() => unknown) | null): void {
   _aceOpenerForTest = opener;
 }
 
-function loadAppleColorEmojiFont(): any {
+function loadAppleColorEmojiFont(): EmojiFace | null {
   if (_aceFontLoaded) return _aceFont;
   if (_aceOpenerForTest == null && (process.platform !== "darwin" || !existsSync(APPLE_COLOR_EMOJI_PATH))) {
     _aceFontLoaded = true;
     return null;
   }
   try {
-    const opened = _aceOpenerForTest != null ? _aceOpenerForTest() : (fontkit as any).openSync(APPLE_COLOR_EMOJI_PATH);
-    _aceFont = opened == null ? null : opened.fonts != null ? opened.fonts[0] : opened;
+    // A test opener returns a hand-built stand-in; it is trusted to match `EmojiFontContainer`.
+    const opened =
+      _aceOpenerForTest != null
+        ? (_aceOpenerForTest() as EmojiFontContainer | null | undefined)
+        : emojiFontkit.openSync(APPLE_COLOR_EMOJI_PATH);
+    const members = opened == null ? undefined : (opened as { fonts?: EmojiFace[] | null }).fonts;
+    _aceFont = opened == null ? null : members != null ? members[0] : (opened as EmojiFace);
     _aceFontLoaded = true;
   } catch (error) {
     _aceOpenFailures++;
@@ -99,7 +119,7 @@ function loadAppleColorEmojiFont(): any {
 
 /** One strike's PNG bytes, or null. `getImageForSize` throws for a strike the glyph does
  *  not carry, which is an ordinary answer here rather than an error. */
-function strikeImage(g: any, ppem: number): { buf: Buffer; ppem: number } | null {
+function strikeImage(g: SbixGlyph, ppem: number): { buf: Buffer; ppem: number } | null {
   try {
     const img = g.getImageForSize(ppem);
     if (img != null && img.data != null && img.data.length > 0) {
@@ -151,7 +171,7 @@ function extractEmojiBitmap(codepoint: number, paintedWidthPx: number): { buf: B
     if (_aceFontLoaded) _sbixCache.set(cacheKey, null);
     return null;
   }
-  let g: any;
+  let g: SbixGlyph | null | undefined;
   try {
     g = font.glyphForCodePoint(codepoint);
   } catch (error) {

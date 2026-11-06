@@ -1,5 +1,5 @@
 /** Mechanical extraction from font-resolution.ts; preserve resolver behavior. */
-import * as fontkit from "fontkit";
+import { fontkit, isFontkitCollection, type FontkitContainer, type FontkitFont } from "./fontkit-facade.js";
 import { hostPlatform } from "./host-platform.js";
 import { isTransientFsError, retrySync } from "./sync-retry.js";
 import { parseCssFontFamilyEntries } from "../font-family-stack.js";
@@ -454,11 +454,8 @@ function buildCoverageBitset(path: string, faceIndex: number): Uint8Array | null
     const opened = fontkit.openSync(path);
     // A collection exposes `fonts`; `faceIndex` is the PHYSICAL member index,
     // which is what the array is ordered by.
-    // fontkit is untyped (`declare module "fontkit"`), so `opened` is `any`;
-    // these structural views are the fontkit boundary.
-    const collection = (opened as { fonts?: unknown[] }).fonts;
-    const face = Array.isArray(collection) ? collection[faceIndex] : opened;
-    const cps = (face as { characterSet?: number[] } | undefined)?.characterSet;
+    const face: FontkitFont | undefined = isFontkitCollection(opened) ? opened.fonts[faceIndex] : opened;
+    const cps = face?.characterSet;
     if (!Array.isArray(cps) || cps.length === 0) return null;
     const bits = new Uint8Array(0x110000 >> 3);
     for (const c of cps) {
@@ -1009,7 +1006,7 @@ function instantiateResolvedFont(
   // member is picked; the first sub-font stands in if it is missing (defensive
   // against OS font updates renaming members).
   const openedFace = openFontkitFace(spec.path, { postscriptName: spec.postscriptName, faceIndex: spec.faceIndex });
-  let font: any = openedFace?.face ?? null;
+  const font: FontkitFont | null = openedFace?.face ?? null;
   // The collection member index feeds hb-subset's hb_face_create.
   const faceIndex = openedFace?.faceIndex ?? 0;
   // Whether `font` is the face `spec.postscriptName` names. False when a
@@ -1346,7 +1343,7 @@ function instantiateHelperRescueFont(request: ResolvedFontRequest): FontInstance
 /** The fontkit tier: instance the face, read its style traits, and record its source. */
 function instantiateFontkitFont(
   request: ResolvedFontRequest,
-  font: any,
+  font: FontkitFont,
   faceIndex: number,
   nameMatched: boolean,
 ): FontInstance {
@@ -1370,7 +1367,7 @@ interface FontkitVariation {
 }
 
 /** Apply the platform's variation-axis rule to a fontkit face (macOS declared, Linux system, or CSS-valued). */
-function instantiateFontkitVariation(request: ResolvedFontRequest, font: any): FontkitVariation {
+function instantiateFontkitVariation(request: ResolvedFontRequest, font: FontkitFont): FontkitVariation {
   const { spec, weight, fontSize, slant, variationSettings, wdthStretch, effectiveKey, systemUiPrimary } = request;
   // On macOS, only the `system-ui` face takes CSS-valued weight/width AXIS
   // pins (`MatchSystemUIFont` sets wght/wdth variations clamped to the axis
@@ -1458,7 +1455,7 @@ function instantiateFontkitVariation(request: ResolvedFontRequest, font: any): F
 }
 
 /** The CoreText identity of a `system-ui` instance, which fontkit's `getVariation` does not rename. */
-function stampDarwinSystemUiIdentity(request: ResolvedFontRequest, instance: FontInstance, font: any): void {
+function stampDarwinSystemUiIdentity(request: ResolvedFontRequest, instance: FontInstance, font: FontkitFont): void {
   const { spec, weight, fontSize, slant, stretch, variationSettings, effectiveKey, systemUiPrimary } = request;
   // Fontkit keeps SFNS.ttf's default `.SFNS-Regular` PostScript name after
   // `getVariation`, even when the CSS system-ui route has instanced its wght
@@ -1504,7 +1501,7 @@ function stampDarwinSystemUiIdentity(request: ResolvedFontRequest, instance: Fon
 function applyFaceWeightTraits(
   request: ResolvedFontRequest,
   instance: FontInstance,
-  font: any,
+  font: FontkitFont,
   variation: FontkitVariation,
 ): void {
   const { spec } = request;
@@ -1566,7 +1563,7 @@ function applyFaceWeightTraits(
 }
 
 /** On macOS, the bold and italic traits CoreText reports, which Blink tests instead of OS/2 bits. */
-function applyDarwinCoreTextTraits(request: ResolvedFontRequest, instance: FontInstance, font: any): void {
+function applyDarwinCoreTextTraits(request: ResolvedFontRequest, instance: FontInstance, font: FontkitFont): void {
   const { key } = request;
   // ...but on macOS, ASK CORETEXT, because OS/2 bit 5 is not the same fact and
   // this was shipped as though it were. Blink tests
@@ -1636,7 +1633,7 @@ function applyInstancedWeightCorrection(instance: FontInstance): void {
 }
 
 /** Italic angle, slant axis presence, and whether routing picked the family's italic cut. */
-function applyFaceSlantTraits(request: ResolvedFontRequest, instance: FontInstance, font: any): void {
+function applyFaceSlantTraits(request: ResolvedFontRequest, instance: FontInstance, font: FontkitFont): void {
   const { routedItalicCut } = request;
   // DM-1695: expose the face's italic angle + whether a slnt axis carried the
   // slant, for the embedded-font faux-italic decision. Read from the ORIGINAL
@@ -1659,7 +1656,7 @@ function applyFaceSlantTraits(request: ResolvedFontRequest, instance: FontInstan
 function recordFontkitFontSource(
   request: ResolvedFontRequest,
   instance: FontInstance,
-  font: any,
+  font: FontkitFont,
   faceIndex: number,
   nameMatched: boolean,
 ): void {
@@ -1877,7 +1874,10 @@ export interface FileFaceInfo {
  *  English entry, which includes these Apple system fonts. The underlying
  *  `fvar.instance[]` records are fine, so read those and resolve the
  *  `postscriptNameID` through the name table directly. */
-function findNamedInstanceAxes(member: any, postscriptName: string): Record<string, number> | null {
+function findNamedInstanceAxes(
+  member: FontkitFont | null | undefined,
+  postscriptName: string,
+): Record<string, number> | null {
   const instances = member?.fvar?.instance;
   const axisRecords = member?.fvar?.axis;
   if (!Array.isArray(instances) || !Array.isArray(axisRecords)) return null;
@@ -1914,7 +1914,7 @@ function findNamedInstanceAxes(member: any, postscriptName: string): Record<stri
  *  fontkit's `namedVariations` accessor is bypassed (it throws on Apple system
  *  faces whose instance name records carry no English entry). */
 function enumerateNamedInstances(
-  member: any,
+  member: FontkitFont | null | undefined,
 ): Array<{ postscriptName: string; coords: Record<string, number> }> | null {
   const instances = member?.fvar?.instance;
   const axisRecords = member?.fvar?.axis;
@@ -1996,8 +1996,8 @@ export function makeFontkitShaper(
     } | null)
   | undefined {
   if (path === "") return undefined;
-  let font: any | null | undefined; // undefined = not yet opened, null = unopenable
-  const open = (): any | null => {
+  let font: FontkitFont | null | undefined; // undefined = not yet opened, null = unopenable
+  const open = (): FontkitFont | null => {
     if (font !== undefined) return font;
     // TTC: the requested member, exactly as `getFontInstance` selects it.
     font = openFontkitFace(path, { postscriptName, variations })?.face ?? null;
@@ -2013,12 +2013,18 @@ export function makeFontkitShaper(
     // DirectWrite helper has no shape query. Preserve the renderer's exact
     // OpenType request here; otherwise metadata can correctly suppress
     // synthetic small caps while shaping still silently drops smcp/c2sc.
-    const run: any = f.layout(text, features, script, language, direction);
-    const glyphs: any[] = run?.glyphs ?? [];
-    const positions: any[] = run?.positions ?? [];
+    const run: Partial<ReturnType<FontkitFont["layout"]>> & { direction?: string } = f.layout(
+      text,
+      features,
+      script,
+      language,
+      direction,
+    );
+    const glyphs = run?.glyphs ?? [];
+    const positions = run?.positions ?? [];
     if (glyphs.length === 0 || glyphs.length !== positions.length) return null;
     return {
-      ids: glyphs.map((g) => g.id as number),
+      ids: glyphs.map((g) => g.id),
       positions: positions.map((p) => ({
         xAdvance: p.xAdvance ?? 0,
         yAdvance: p.yAdvance ?? 0,
@@ -2048,7 +2054,11 @@ export function makeFontkitShaper(
  * several codepoints and correctly reports the first one's index, and a mark
  * consumes its own.
  */
-function deriveClusters(text: string, glyphs: any[], direction?: string): number[] {
+function deriveClusters(
+  text: string,
+  glyphs: ReadonlyArray<{ codePoints?: number[] } | undefined>,
+  direction?: string,
+): number[] {
   // Code-unit index of each codepoint — NOT the codepoint's ordinal, because
   // astral characters occupy two units and the cluster map is in units.
   const unitOf: number[] = [];
@@ -2069,29 +2079,18 @@ function deriveClusters(text: string, glyphs: any[], direction?: string): number
 
 export const fileFaceInfoCache = new Map<string, FileFaceInfo>();
 
-function openFontkitFileRecovering(path: string): any {
+function openFontkitFileRecovering(path: string): FontkitContainer {
   return retrySync(() => fontkit.openSync(path), { shouldRetry: isTransientFsError });
 }
 
-/** The fontkit face object as far as this module reads it. The library's own
- *  typings do not cover collections or variation, so this is the one place the
- *  untyped boundary is named; callers below see this shape instead of `any`. */
-interface FontkitFace {
-  postscriptName?: string;
-  familyName?: string;
-  glyphForCodePoint?: (cp: number) => unknown;
-  getVariation?: (axes: Record<string, number>) => FontkitFace | undefined;
-  [key: string]: unknown;
-}
-
 interface OpenedFontkitFace {
-  face: FontkitFace;
+  face: FontkitFont;
   /** Member index within a collection (0 for a single-face file). */
   faceIndex: number;
   /** False when the requested PostScript name was absent and member zero stands in. */
   nameMatched: boolean;
   /** The opened container, for callers that must look at sibling members. */
-  container: any;
+  container: FontkitContainer;
 }
 
 /**
@@ -2107,18 +2106,18 @@ export function openFontkitFace(
   path: string,
   options: { postscriptName?: string; faceIndex?: number; variations?: Record<string, number> } = {},
 ): OpenedFontkitFace | null {
-  let container: any;
+  let container: FontkitContainer;
   try {
     container = openFontkitFileRecovering(path);
   } catch {
     return null;
   }
   if (container == null) return null;
-  let face: any = container;
+  let face: FontkitFont | null | undefined;
   let faceIndex = 0;
   let nameMatched = true;
   const { postscriptName, faceIndex: requested } = options;
-  if (Array.isArray(container.fonts)) {
+  if (isFontkitCollection(container)) {
     face =
       requested != null && requested >= 0 && requested < container.fonts.length
         ? container.fonts[requested]
@@ -2129,15 +2128,14 @@ export function openFontkitFace(
     // a NEW object, so indexOf() is always -1 (which once silently subset
     // member 0 of NotoSansArmenian.ttc, the BLACK weight).
     const ps = face?.postscriptName;
-    const idx = ps != null ? container.fonts.findIndex((m: any) => m?.postscriptName === ps) : -1;
+    const idx = ps != null ? container.fonts.findIndex((m) => m?.postscriptName === ps) : -1;
     faceIndex = idx >= 0 ? idx : 0;
     if (requested == null && postscriptName != null && ps !== postscriptName) nameMatched = false;
-  } else if (
-    postscriptName != null &&
-    container.postscriptName != null &&
-    container.postscriptName !== postscriptName
-  ) {
-    nameMatched = false;
+  } else {
+    face = container;
+    if (postscriptName != null && container.postscriptName != null && container.postscriptName !== postscriptName) {
+      nameMatched = false;
+    }
   }
   if (face == null) return null;
   const { variations } = options;
@@ -2148,11 +2146,15 @@ export function openFontkitFace(
       /* keep the base face */
     }
   }
-  return { face: face as FontkitFace, faceIndex, nameMatched, container };
+  return { face, faceIndex, nameMatched, container };
 }
 
 /** The `FileFaceInfo` describing one physical face (a collection member or a whole single-face file). */
-function describeFileFace(member: any, faceIndex: number, extra: Partial<FileFaceInfo> = {}): FileFaceInfo {
+function describeFileFace(
+  member: FontkitFont | undefined,
+  faceIndex: number,
+  extra: Partial<FileFaceInfo> = {},
+): FileFaceInfo {
   const axes = member?.variationAxes;
   return {
     faceIndex,
@@ -2176,15 +2178,14 @@ export function resolveFaceInfoForFile(
   try {
     // Not `openFontkitFace`: that swallows an open failure into null, and this resolver must tell an
     // unreadable file (not cached, see the catch below) from a readable one that lacks the name.
-    const opened: any = openFontkitFileRecovering(path);
-    if (opened?.fonts != null && Array.isArray(opened.fonts)) {
+    const opened = openFontkitFileRecovering(path);
+    if (isFontkitCollection(opened)) {
       if (preferredFaceIndex != null && preferredFaceIndex >= 0 && preferredFaceIndex < opened.fonts.length) {
         result = describeFileFace(opened.fonts[preferredFaceIndex], preferredFaceIndex);
       } else {
         // Match by postscriptName — getFont() returns a NEW object, so indexOf()
         // is always -1 (see the same fix in getFontInstance).
-        const idx =
-          postscriptName != null ? opened.fonts.findIndex((m: any) => m?.postscriptName === postscriptName) : -1;
+        const idx = postscriptName != null ? opened.fonts.findIndex((m) => m?.postscriptName === postscriptName) : -1;
         if (idx >= 0) {
           result = describeFileFace(opened.fonts[idx], idx);
         } else if (postscriptName == null) {
@@ -3027,7 +3028,7 @@ export function __clearGlyphFallbackCachesForTest(): void {
  * of always producing the registered base instance.
  */
 export function applyVariationAxes(
-  font: any,
+  font: FontkitFont,
   weight: number,
   fontSize: number,
   slant: number,
@@ -3201,12 +3202,13 @@ export function applyVariationAxes(
  *   identical out-of-range instances share one embedded entry) so the hinting-preserving embedded subset
  *   can pin the SAME location when it instances the source file with hb-subset.
  */
-// `font` is `any` at the fontkit boundary, like every other reader of `getVariation` / `variationAxes` here.
-function instantiateVariation(font: any, axes: Record<string, number>): FontInstance | null {
+function instantiateVariation(font: FontkitFont, axes: Record<string, number>): FontInstance | null {
+  if (font.getVariation == null) return null;
   let instance: FontInstance;
   try {
-    instance = font.getVariation!({ ...axes });
-    if ((instance as any).unitsPerEm == null) return null;
+    instance = font.getVariation({ ...axes });
+    // A WOFF2 instance's getter throws here, or yields undefined (see above).
+    if ((instance as Partial<FontInstance>).unitsPerEm == null) return null;
   } catch {
     return null;
   }
