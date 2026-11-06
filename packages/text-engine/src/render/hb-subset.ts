@@ -33,7 +33,7 @@ const HB_SUBSET_FLAGS_NOTDEF_OUTLINE = 0x40;
  *  pinned, leaving a variation program for the consumer to reopen. */
 const HB_SUBSET_FLAGS_DOWNGRADE_CFF2 = 0x4000;
 
-interface HbSubsetExports {
+export interface HbSubsetExports {
   memory: WebAssembly.Memory;
   malloc(n: number): number;
   free(p: number): void;
@@ -121,9 +121,25 @@ function hb(): HbSubsetExports {
   const wasmPath = fileURLToPath(new URL("../../vendor/harfbuzzjs/dist/harfbuzz-subset.wasm", import.meta.url));
   const mod = new WebAssembly.Module(readFileSync(wasmPath));
   const inst = new WebAssembly.Instance(mod, {});
-  cachedExports = inst.exports as unknown as HbSubsetExports;
+  const real = inst.exports as unknown as HbSubsetExports;
+  cachedExports = exportsDecoratorForTest != null ? exportsDecoratorForTest(real) : real;
   cachedInstanceId = nextInstanceId++;
   return cachedExports;
+}
+
+let exportsDecoratorForTest: ((real: HbSubsetExports) => HbSubsetExports) | null = null;
+
+/** Test-only fault-injection seam: every WASM instance created after this call
+ *  is passed through `decorate`, which may wrap individual exports (for
+ *  example make `malloc` return null on the first instance only) so the
+ *  transient-retry path in `hbSubsetRetainGids` can be driven deterministically.
+ *  Also drops the cached instance so the next subset sees the decorator. Pass
+ *  null to restore the real exports. */
+export function __setHbSubsetExportsDecoratorForTest(
+  decorate: ((real: HbSubsetExports) => HbSubsetExports) | null,
+): void {
+  exportsDecoratorForTest = decorate;
+  resetHbSubsetWasmInstance();
 }
 
 /** Test/oracle seam and operational recovery boundary. The next subset call
