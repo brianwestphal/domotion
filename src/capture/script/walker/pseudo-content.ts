@@ -183,6 +183,48 @@ export const pickPseudoQuoteChar = (forEl: Element, isOpen: boolean) => {
   return isOpen ? tokens[pairIndex * 2] : tokens[pairIndex * 2 + 1];
 };
 
+/** Strips one matching pair of CSS string quotes; anything else is returned as is. */
+const unquoteCssString = (value: string): string =>
+  (value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))
+    ? value.slice(1, -1)
+    : value;
+
+/**
+ * Resolves one `counter(...)` / `counters(...)` token starting at `index`
+ * against the element's counter snapshot. Returns null when the token has no
+ * closing parenthesis, so the caller skips a single character as before.
+ */
+const readPseudoCounterToken = <E>(
+  content: string,
+  index: number,
+  el: E,
+  counterSnapshot: CounterSnapshot<E>,
+  pseudo: string,
+  resolveCounterValue: ((style: string, value: number) => string | null | undefined) | undefined,
+): { text: string; next: number } | null => {
+  const plural = content.startsWith("counters(", index);
+  const open = index + (plural ? "counters(".length : "counter(".length);
+  const close = content.indexOf(")", open);
+  if (close < 0) return null;
+  const args = content
+    .slice(open, close)
+    .split(",")
+    .map((value) => unquoteCssString(value.trim()));
+  const style = plural ? args[2] : args[1];
+  const format = (value: number) => {
+    if (style == null || style === "" || resolveCounterValue == null) return String(value);
+    return resolveCounterValue(style, value) ?? String(value);
+  };
+  const captured = counterSnapshot.get(el);
+  const snapshot = Array.isArray(captured) ? captured : (captured?.[pseudo] ?? captured?.element ?? []);
+  const matches = snapshot.filter((entry) => entry.name === args[0]).map((entry) => format(entry.value));
+  const text = plural ? (matches.length > 0 ? matches.join(args[1] ?? "") : format(0)) : (matches.at(-1) ?? format(0));
+  return { text, next: close + 1 };
+};
+
+/** Keywords that consume quote-nesting state without emitting text. */
+const SILENT_QUOTE_KEYWORDS = ["no-open-quote", "no-close-quote"];
+
 export const parsePseudoContentValue = <E extends { getAttribute(name: string): string | null }>({
   content,
   el,
@@ -210,60 +252,44 @@ export const parsePseudoContentValue = <E extends { getAttribute(name: string): 
       if (end < 0) break;
       text += content.slice(index + 1, end);
       index = end + 1;
-    } else if (content.startsWith("attr(", index)) {
+      continue;
+    }
+    if (content.startsWith("attr(", index)) {
       const end = content.indexOf(")", index);
       if (end < 0) break;
       text += el.getAttribute(content.slice(index + 5, end).trim()) || "";
       index = end + 1;
-    } else if (content.startsWith("url(", index)) {
+      continue;
+    }
+    if (content.startsWith("url(", index)) {
       const end = content.indexOf(")", index);
       if (end < 0) break;
-      let url = content.slice(index + 4, end).trim();
-      if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'")))
-        url = url.slice(1, -1);
-      imageUrl = url;
+      imageUrl = unquoteCssString(content.slice(index + 4, end).trim());
       index = end + 1;
-    } else if (content.startsWith("counter(", index) || content.startsWith("counters(", index)) {
-      const plural = content.startsWith("counters(", index);
-      const open = index + (plural ? "counters(".length : "counter(".length);
-      const close = content.indexOf(")", open);
-      if (close < 0) {
+      continue;
+    }
+    if (content.startsWith("counter(", index) || content.startsWith("counters(", index)) {
+      const counter = readPseudoCounterToken(content, index, el, counterSnapshot, pseudo, resolveCounterValue);
+      if (counter == null) {
         index++;
         continue;
       }
-      const args = content
-        .slice(open, close)
-        .split(",")
-        .map((value) => {
-          const trimmed = value.trim();
-          return (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-            (trimmed.startsWith("'") && trimmed.endsWith("'"))
-            ? trimmed.slice(1, -1)
-            : trimmed;
-        });
-      const style = plural ? args[2] : args[1];
-      const format = (value: number) => {
-        if (style == null || style === "" || resolveCounterValue == null) return String(value);
-        return resolveCounterValue(style, value) ?? String(value);
-      };
-      const captured = counterSnapshot.get(el);
-      const snapshot = Array.isArray(captured) ? captured : (captured?.[pseudo] ?? captured?.element ?? []);
-      const matches = snapshot.filter((entry) => entry.name === args[0]).map((entry) => format(entry.value));
-      text += plural ? (matches.length > 0 ? matches.join(args[1] ?? "") : format(0)) : (matches.at(-1) ?? format(0));
-      index = close + 1;
-    } else if (content.startsWith("open-quote", index)) {
+      text += counter.text;
+      index = counter.next;
+      continue;
+    }
+    if (content.startsWith("open-quote", index)) {
       text += pickQuoteChar(el, true);
       index += "open-quote".length;
-    } else if (content.startsWith("close-quote", index)) {
+      continue;
+    }
+    if (content.startsWith("close-quote", index)) {
       text += pickQuoteChar(el, false);
       index += "close-quote".length;
-    } else if (content.startsWith("no-open-quote", index)) {
-      index += "no-open-quote".length;
-    } else if (content.startsWith("no-close-quote", index)) {
-      index += "no-close-quote".length;
-    } else {
-      index++;
+      continue;
     }
+    const silent = SILENT_QUOTE_KEYWORDS.find((keyword) => content.startsWith(keyword, index));
+    index += silent != null ? silent.length : 1;
   }
   return { text, imageUrl };
 };
