@@ -5871,6 +5871,28 @@
       }
     },
     {
+      "file": "273-ui-conventions.md",
+      "metadata": {
+        "id": "requirements/ui-conventions",
+        "title": "273 — UI conventions for Domotion's browser tools",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["product-tooling"],
+        "platforms": [],
+        "tickets": ["DM-QW1NMD"],
+        "code": [
+          "src/kerf-ui-theme.ts",
+          "scripts/bundle-kerf-client.mjs",
+          "src/review/client.tsx",
+          "src/scrubber/client.tsx",
+          "src/studio/client.tsx",
+          "tests/review-client.tsx",
+          "tests/review-server.tsx"
+        ],
+        "aliases": ["docs/273-ui-conventions.md", "doc-273"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6328,6 +6350,7 @@
     "270": ["requirements/layout-stage-parity"],
     "271": ["requirements/mathml-italic-token-oracle"],
     "272": ["requirements/background-clip-text-native-parity"],
+    "273": ["requirements/ui-conventions"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

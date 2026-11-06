@@ -72,6 +72,23 @@ function watchErrors(page: Page): string[] {
   return errors;
 }
 
+/**
+ * DM-QW1NMD: each UI renders `@kerfjs/ui` components whose stylesheet is
+ * delivered out of band (inlined by the server, or prepended to `<head>` by
+ * the pre-built bundle). Assert one package-owned computed style so a broken
+ * CSS pipeline fails here instead of shipping unstyled markup, and that the
+ * page pins the dark color scheme over the package's `light dark` default.
+ */
+async function expectKerfUiStyled(page: Page, selector: string, property: string, expected: string): Promise<void> {
+  const actual = await page
+    .locator(selector)
+    .first()
+    .evaluate((el, prop) => getComputedStyle(el).getPropertyValue(prop), property);
+  expect(actual, `${selector} is missing @kerfjs/ui styling`).toBe(expected);
+  const scheme = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+  expect(scheme, "page must pin color-scheme: dark over the kerf-ui foundation").toBe("dark");
+}
+
 let browser: Browser | null = null;
 const servers: ChildProcess[] = [];
 afterAll(async () => {
@@ -164,6 +181,9 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     try {
       await page.goto(started!.url, { waitUntil: "networkidle" });
       await page.waitForSelector("[data-key]", { timeout: 20_000 });
+      // The SSR'd @kerfjs/ui Toolbar must arrive with the package stylesheet
+      // (inlined by the server), not as unstyled markup.
+      await expectKerfUiStyled(page, ".kui-toolbar", "display", "grid");
       const keys = (): Promise<string[]> =>
         page.$$eval("[data-key]", (ns) => ns.map((n) => (n as HTMLElement).dataset.key!));
       const pick = async (id: string, i: number): Promise<void> => {

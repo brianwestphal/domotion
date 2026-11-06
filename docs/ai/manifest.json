@@ -4330,6 +4330,24 @@
       "file": "272-background-clip-text-native-parity.md"
     },
     {
+      "id": "requirements/ui-conventions",
+      "title": "273 — UI conventions for Domotion's browser tools",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["product-tooling"],
+      "platforms": [],
+      "code": [
+        "src/kerf-ui-theme.ts",
+        "scripts/bundle-kerf-client.mjs",
+        "src/review/client.tsx",
+        "src/scrubber/client.tsx",
+        "src/studio/client.tsx",
+        "tests/review-client.tsx",
+        "tests/review-server.tsx"
+      ],
+      "file": "273-ui-conventions.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

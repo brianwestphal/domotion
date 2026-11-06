@@ -149,6 +149,10 @@ deviation for box, inline, control, and text shadows.
   to Glassbox's README hero asset.
 - `src/post-processing/` exports the self-contained SVG to raster or video.
 - `src/review/` and `src/scrubber/` provide local review and timeline UIs.
+  These clients, Studio and the `demos:review` harness use the `@kerfjs/ui`
+  non-Web-Awesome subset. `scripts/bundle-kerf-client.mjs` folds its CSS into
+  each pre-built bundle, and `src/kerf-ui-theme.ts` holds the shared dark
+  tokens (doc 273).
 - `tests/html-test-suite.tsx` coordinates the broad HTML fixture sweep;
   `tests/html-test/` owns its cache, fixture tables, text evidence, compare
   lock, worker page recovery, and index renderer. Shared page timeouts and

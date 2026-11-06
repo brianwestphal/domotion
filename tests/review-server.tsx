@@ -69,6 +69,11 @@ import { classifyLinuxUnicodeFixtureEvidence } from "../src/review/linux-unicode
 import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-builder.js";
 import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import { createReviewPrefetchState } from "./review-prefetch-state.js";
+import { KERF_UI_DARK_THEME_CSS } from "../src/kerf-ui-theme.js";
+import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { StateBanner } from "@kerfjs/ui/state-banner";
+import { Toolbar } from "@kerfjs/ui/toolbar";
+import { RefreshCw, TriangleAlert } from "lucide";
 import * as esbuild from "esbuild";
 
 // ── Paths ──
@@ -835,19 +840,22 @@ async function attachFileToTicket(settings: Settings, ticketId: number, filePath
 // ── Review page ──
 
 const REVIEW_CSS = `
-  :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0d1117; color: #e6edf3; }
-  header { position: sticky; top: 0; z-index: 10; background: #161b22; border-bottom: 1px solid #30363d; padding: 14px 24px; }
-  header h1 { margin: 0 0 8px; font-size: 18px; }
-  .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  body { margin: 0; font: 14px/1.45 var(--kui-font-sans); background: #0d1117; color: #e6edf3; }
+  /* The kerf-ui Toolbar supplies the title row's 1rem inline padding; the
+     header adds 8px so content lines up at 24px like the card grid. */
+  header { position: sticky; top: 0; z-index: 10; background: #161b22; border-bottom: 1px solid #30363d; padding: 4px 8px 12px; }
+  header h1 { margin: 0; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .controls, .suite-summary { padding: 0 16px; }
+  .controls { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; }
   .controls label { font-size: 13px; color: #8b949e; }
   .controls select { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; padding: 4px 8px; border-radius: 4px; }
   .controls label.toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
   .controls label.toggle input { margin: 0; cursor: pointer; }
   body.hide-live-svg .live-svg { display: none; }
-  .stats { margin-left: auto; font-size: 13px; color: #8b949e; text-align: right; }
-  main { padding: 20px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(620px, 1fr)); gap: 16px; }
+  .stats { font-size: 13px; color: #8b949e; text-align: right; white-space: nowrap; }
+  main { padding: 20px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(620px, 100%), 1fr)); gap: 16px; }
+  @media (max-width: 42rem) { main { padding: 16px 12px; } }
   .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 14px; }
   .card.pass { opacity: 0.7; }
   .card.skipped { opacity: 0.5; }
@@ -882,6 +890,7 @@ const REVIEW_CSS = `
   .stage-evidence .failed { color: #ffa198; }
   .stage-evidence .missing { color: #d4a82b; }
   .actions { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
+  .file-btn { white-space: nowrap; flex: none; }
   .file-btn { background: #238636; color: #fff; border: none; padding: 7px 14px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 13px; }
   .file-btn:hover { background: #2ea043; }
   .file-btn:disabled { background: #3a3a3a; cursor: wait; }
@@ -916,14 +925,15 @@ const REVIEW_CSS = `
   .chunk-imgs figure { margin: 0; background: #0d1117; border: 1px solid #30363d; border-radius: 3px; overflow: hidden; cursor: zoom-in; }
   .chunk-imgs img { display: block; width: 100%; height: auto; }
   /* DM-1665: async loading feedback. */
-  .refresh-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; width: 28px; height: 28px; font-size: 15px; cursor: pointer; line-height: 1; }
-    .platform-warn { color: #f0883e; background: rgba(240,136,62,0.12); border: 1px solid rgba(240,136,62,0.4); border-radius: 6px; padding: 2px 8px; font-size: 12px; white-space: nowrap; }
+  .refresh-btn { display: inline-grid; place-items: center; background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; width: 28px; height: 28px; padding: 0; font-size: 15px; cursor: pointer; }
   .refresh-btn:hover { background: #30363d; color: #fff; }
+  .refresh-btn:focus-visible { outline: var(--kui-focus-ring); outline-offset: 1px; }
+  .refresh-btn svg { width: 15px; height: 15px; }
+  .platform-warn { margin: 10px 16px 0; border-radius: 6px; }
   #load-overlay { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(13,17,23,0.92); color: #e6edf3; font-size: 15px; text-align: center; padding: 24px; }
   #load-overlay .msg { max-width: 560px; }
-  #load-overlay.error { color: #ffa198; }
-  .spinner { width: 40px; height: 40px; border: 4px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  #load-overlay .kui-loading-spinner { font-size: 40px; color: #58a6ff; }
+  #load-overlay .kui-state-banner { max-width: 560px; border-radius: 6px; text-align: left; }
   /* Per-image: pulse a placeholder until the <img> loads; red note on failure. */
   .imgs figure:not(.img-loaded):not(.img-failed), .chunk-imgs figure:not(.img-loaded):not(.img-failed) { position: relative; min-height: 90px; animation: imgpulse 1.2s ease-in-out infinite; }
   @keyframes imgpulse { 0%,100% { background: #0d1117; } 50% { background: #161d27; } }
@@ -948,9 +958,36 @@ async function bundleClient(): Promise<string> {
     jsx: "automatic",
     jsxImportSource: "kerfjs",
     logLevel: "warning",
+    // @kerfjs/ui subpaths pull in their CSS under the browser condition, so
+    // esbuild emits a sibling .css output. It is discarded here: the page
+    // inlines every kerf-ui stylesheet it needs once, via bundleKerfUiCss().
+    outdir: "review-client-out",
   });
-  if (result.outputFiles.length === 0) throw new Error("esbuild produced no output");
-  return result.outputFiles[0].text;
+  const js = result.outputFiles.find((f) => f.path.endsWith(".js"));
+  if (js == null) throw new Error("esbuild produced no output");
+  return js.text;
+}
+
+// DM-QW1NMD: the harness page renders @kerfjs/ui components both in the
+// server-rendered shell (Toolbar, StateBanner, LucideIcon) and in the client
+// (LoadingSpinner and StateBanner in the source-fetch overlay). Their
+// stylesheets are resolved through the package's public CSS exports and
+// inlined once in `<head>`, ahead of the theme tokens and REVIEW_CSS, so the
+// page's own rules win the cascade. Keep this list in step with the
+// `@kerfjs/ui/*` imports in this file and in review-client.tsx.
+const KERF_UI_STYLESHEETS = ["foundation", "toolbar", "lucide-icon", "state-banner", "loading-spinner"] as const;
+async function bundleKerfUiCss(): Promise<string> {
+  const result = await esbuild.build({
+    stdin: {
+      contents: KERF_UI_STYLESHEETS.map((name) => `@import "@kerfjs/ui/${name}.css";`).join("\n"),
+      loader: "css",
+      resolveDir: PROJECT_ROOT,
+    },
+    bundle: true,
+    write: false,
+    logLevel: "warning",
+  });
+  return result.outputFiles[0]?.text ?? "";
 }
 
 // Inline JSON inside a `<script>` is unsafe if the payload contains the
@@ -961,18 +998,37 @@ function safeJsonForScript(payload: unknown): string {
   return JSON.stringify(payload).replace(/</g, "\\u003c");
 }
 
-function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifestJson: string }) {
+function Layout({
+  manifest,
+  manifestJson,
+  kerfUiCss,
+}: {
+  manifest: ReviewManifest;
+  manifestJson: string;
+  kerfUiCss: string;
+}) {
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>SVG Demo Test Review</title>
-        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constant */}
-        <style>{raw(REVIEW_CSS)}</style>
+        {/* Package CSS first, then the shared dark theme tokens, then the page's
+            own rules — later stylesheets win the cascade. */}
+        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- CSS bundled at server start from the @kerfjs/ui package's own stylesheets */}
+        <style data-kerf-ui="">{raw(kerfUiCss)}</style>
+        {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constants */}
+        <style>{raw(KERF_UI_DARK_THEME_CSS + REVIEW_CSS)}</style>
       </head>
       <body>
         <header>
-          <h1>SVG Demo Test Review</h1>
+          <Toolbar
+            label="Review summary"
+            divider={false}
+            className="review-toolbar"
+            leading={<h1>SVG Demo Test Review</h1>}
+            trailing={<span className="stats" id="stats"></span>}
+          />
           <div className="controls">
             {/* DM-1660: toggle the result source (local macOS + the 3 CI platforms).
                 Options a source hasn't been populated for are disabled. Changing it
@@ -988,23 +1044,15 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
               </select>
             </label>
             {/* DM-1665: re-pull the latest CI run's metadata for the active source. */}
-            <button id="refresh-source" className="refresh-btn" title="Re-fetch the latest CI run for this source">
-              ↻
+            <button
+              type="button"
+              id="refresh-source"
+              className="refresh-btn"
+              title="Re-fetch the latest CI run for this source"
+              aria-label="Refresh source"
+            >
+              <LucideIcon icon={RefreshCw} name="refresh-cw" />
             </button>
-            {/* DM-1802: a LOCAL source holding another platform's artifacts —
-                e.g. a container run wrote Linux results into tests/output/.
-                Say so, rather than leaving it to be inferred from per-platform
-                failure signatures. */}
-            {manifest.platformMismatch != null ? (
-              <span
-                className="platform-warn"
-                title="Re-run the suite on this host to regenerate, or use the platform-specific output dir (DOMOTION_OUTPUT_DIR)"
-              >
-                {`⚠ these artifacts were produced on ${manifest.platformMismatch.manifest}, not ${manifest.platformMismatch.host}`}
-              </span>
-            ) : (
-              ""
-            )}
             {manifest.activationEvidence != null ? (
               <span
                 className="activation-evidence"
@@ -1048,8 +1096,22 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
             <label className="toggle">
               <input type="checkbox" id="show-live-svg" /> Live SVG
             </label>
-            <span className="stats" id="stats"></span>
           </div>
+          {/* DM-1802: a LOCAL source holding another platform's artifacts —
+              e.g. a container run wrote Linux results into tests/output/.
+              Say so, rather than leaving it to be inferred from per-platform
+              failure signatures. */}
+          {manifest.platformMismatch != null ? (
+            <StateBanner
+              className="platform-warn"
+              tone="warning"
+              icon={<LucideIcon icon={TriangleAlert} name="triangle-alert" />}
+              title={`These artifacts were produced on ${manifest.platformMismatch.manifest}, not ${manifest.platformMismatch.host}.`}
+              detail="Re-run the suite on this host, or set DOMOTION_OUTPUT_DIR."
+            />
+          ) : (
+            ""
+          )}
           <div className="suite-summary" id="suite-summary"></div>
         </header>
         <main id="cards"></main>
@@ -1075,9 +1137,9 @@ function Layout({ manifest, manifestJson }: { manifest: ReviewManifest; manifest
   );
 }
 
-function renderReviewPage(manifest: ReviewManifest): string {
+function renderReviewPage(manifest: ReviewManifest, kerfUiCss: string): string {
   const manifestJson = safeJsonForScript(manifest);
-  return `<!DOCTYPE html>\n${(<Layout manifest={manifest} manifestJson={manifestJson} />).toString()}`;
+  return `<!DOCTYPE html>\n${(<Layout manifest={manifest} manifestJson={manifestJson} kerfUiCss={kerfUiCss} />).toString()}`;
 }
 
 // ── Regions (DM-572 / DM-573) ──
@@ -1154,7 +1216,7 @@ async function main(): Promise<void> {
   const port = portIdx >= 0 ? parseInt(args[portIdx + 1], 10) : 4175;
 
   const settings = loadSettings();
-  const clientJs = await bundleClient();
+  const [clientJs, kerfUiCss] = await Promise.all([bundleClient(), bundleKerfUiCss()]);
   // DM-1660: the default source is the first PRESENT one (prefer local-macos).
   const defaultSource = (SOURCES.find((s) => sourceIsPresent(s.root)) ?? SOURCES[0]).id;
   if (!SOURCES.some((s) => sourceIsPresent(s.root))) {
@@ -1183,7 +1245,7 @@ async function main(): Promise<void> {
         // DM-1734: viewing a CI source also kicks the background shard prefetch
         // so images arrive progressively rather than per-first-view.
         startShardPrefetch(src);
-        send(res, 200, "text/html; charset=utf-8", renderReviewPage(loadManifest(src)));
+        send(res, 200, "text/html; charset=utf-8", renderReviewPage(loadManifest(src), kerfUiCss));
         return;
       }
 

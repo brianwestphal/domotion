@@ -18,6 +18,10 @@
  *    classList toggle plus an `<img src>` swap.
  */
 import { signal, computed, each, effect, mount, delegate } from "kerfjs";
+import { LoadingSpinner } from "@kerfjs/ui/loading-spinner";
+import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { StateBanner } from "@kerfjs/ui/state-banner";
+import { CircleAlert } from "lucide";
 
 import { enableRegionOverlays, serializeRegions, type OverlayHandle, type Rect } from "./review-region-overlay.js";
 import { LOGICAL_CLASSIFICATIONS } from "../src/review/logical-classification.js";
@@ -122,8 +126,26 @@ function showOverlay(msg: string, opts: { spinner?: boolean; error?: boolean } =
     document.body.appendChild(el);
   }
   el.className = opts.error ? "error" : "";
-  el.innerHTML = `${opts.spinner !== false && !opts.error ? '<div class="spinner"></div>' : ""}<div class="msg"></div>`;
-  (el.querySelector(".msg") as HTMLElement).textContent = msg;
+  // kerf-ui markup is rendered to an escaped string; `msg` is auto-escaped as
+  // a JSX text child / prop, so no user text reaches innerHTML unescaped.
+  el.innerHTML = (
+    opts.error === true ? (
+      <StateBanner
+        tone="danger"
+        urgency="alert"
+        icon={<LucideIcon icon={CircleAlert} name="circle-alert" />}
+        title={msg}
+        className="msg"
+      />
+    ) : (
+      <>
+        {opts.spinner !== false ? <LoadingSpinner label="Loading results" /> : ""}
+        <div className="msg" role="status">
+          {msg}
+        </div>
+      </>
+    )
+  ).toString();
   return el;
 }
 const activeLabel = MANIFEST.sources.find((s) => s.id === MANIFEST.activeSource)?.label ?? MANIFEST.activeSource;
