@@ -19,6 +19,7 @@ import { paintBoxShadow, paintInsetBoxShadow } from "./box-shadow-paint.js";
 import { parseCornerRadii } from "./borders.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { esc, r } from "./format.js";
+import { parseColor } from "./colors.js";
 import { blinkSymbolMarkerGeometry, disclosureTriangle } from "./list-marker-geometry.js";
 import { fontSizeOrDefault } from "./text-defaults.js";
 import { renderMultiSegmentText } from "./text.js";
@@ -108,15 +109,18 @@ function gradientLayerFills(
   rect: { x: number; y: number; w: number; h: number },
   ctx: DefCtx | undefined,
   slot: string,
-): string[] {
-  if (ctx == null || bgImage == null || bgImage === "" || bgImage === "none") return [];
+): LayerFills {
+  if (ctx == null || bgImage == null || bgImage === "" || bgImage === "none")
+    return { fills: [], bottomOccludes: false };
   const layers = splitTopLevelCommas(bgImage)
     .map((layer) => layer.trim())
     .filter((layer) => layer !== "" && layer !== "none");
   const fills: string[] = [];
+  let bottomOccludes = false;
   for (let i = layers.length - 1; i >= 0; i--) {
     const fill = gradientFillFor(layers[i], rect, ctx);
     if (fill != null) {
+      if (i === layers.length - 1) bottomOccludes = gradientKnownToBeOpaque(layers[i]);
       fills.push(fill);
       continue;
     }
@@ -126,23 +130,46 @@ function gradientLayerFills(
       slot,
     );
   }
-  return fills;
+  return { fills, bottomOccludes };
+}
+
+/** A pseudo's renderable gradient layers, in paint order, plus whether the
+ *  bottom (last-listed) layer hides the background color. */
+interface LayerFills {
+  fills: string[];
+  bottomOccludes: boolean;
 }
 
 /**
- * The shapes painted BELOW a multi-layer pseudo's top layer: the background
- * color (when painted and not already emitted by the caller) and then every
- * lower gradient layer, each in the same geometry as the top shape. Empty for
- * a single layer, which keeps the single-layer emit unchanged.
+ * Blink's `CSSGradientValue::KnownToBeOpaque` (core/css/css_gradient_value.cc:922,
+ * Chromium 7d859f27): a gradient is opaque when every color stop (hints
+ * excluded) resolves to an opaque color.
  */
-function underlayerShapes(
-  fills: readonly string[],
-  baseColor: string | null,
-  shape: (fill: string) => string,
-): string[] {
-  if (fills.length < 2) return [];
+function gradientKnownToBeOpaque(layer: string): boolean {
+  const grad = parseGradient(layer);
+  if (grad == null || grad.stops.length === 0) return false;
+  return grad.stops.every((stop) => (parseColor(stop.color)?.a ?? 0) >= 1);
+}
+
+/**
+ * The shapes painted BELOW a pseudo's top layer: the background color and then
+ * every lower gradient layer, each in the same geometry as the top shape.
+ * Blink paints the color under the fill layers (`BoxPainterBase::PaintFillLayers`,
+ * core/paint/box_painter_base.cc:59-85, Chromium 7d859f27) on the bottom layer,
+ * unless that layer's image occludes it: `should_paint_color` requires
+ * `!layer.ImageOccludesNextLayers()` (box_painter_base.cc:697-700), which for a
+ * default source-over, normal-blend, tiling layer is `KnownToBeOpaque`
+ * (core/style/fill_layer.cc:445-464). The pseudo slots do not capture
+ * `background-repeat` / `background-blend-mode`, so the initial `repeat` /
+ * `normal` values are assumed. `baseColor` is null when the caller paints the
+ * color itself or the pseudo has none. Empty when there are no layers, since
+ * the caller then fills the top shape with the color directly.
+ */
+function underlayerShapes(layers: LayerFills, baseColor: string | null, shape: (fill: string) => string): string[] {
+  const { fills } = layers;
+  if (fills.length === 0) return [];
   const out: string[] = [];
-  if (baseColor != null && isPaintedColor(baseColor)) out.push(shape(baseColor));
+  if (baseColor != null && isPaintedColor(baseColor) && !layers.bottomOccludes) out.push(shape(baseColor));
   for (const fill of fills.slice(0, -1)) out.push(shape(fill));
   return out;
 }
@@ -535,21 +562,13 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     );
   parts.push(...trackShadow("outer"));
   const trackFills = gradientLayerFills(s.rangeTrackBgImage, trackRect, defCtx, "::-webkit-slider-runnable-track");
-  const trackGradFill = trackFills.at(-1) ?? null;
-  // CSS background layering: when both a gradient image and a background
-  // color are declared, the color paints first and the gradient overlays.
-  // For opaque non-repeating gradients this is invisible, but a repeating
-  // gradient with transparent stops (e.g. tick-marks track) reveals the
-  // color between stripes (DM-275).
-  if (trackGradFill != null && styledTrack && isPaintedColor(s.rangeTrackBg)) {
-    parts.push(
-      `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`,
-    );
-  }
+  const trackGradFill = trackFills.fills.at(-1) ?? null;
   const trackLayerShape = (fill: string): string =>
     `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${fill}" />`;
-  // The background color is already painted above whenever a gradient exists.
-  parts.push(...underlayerShapes(trackFills, null, trackLayerShape));
+  // CSS background layering: the color paints under the gradient layers, so
+  // a repeating gradient with transparent stops (e.g. a tick-marks track)
+  // reveals it between stripes (DM-275).
+  parts.push(...underlayerShapes(trackFills, styledTrack ? (s.rangeTrackBg ?? null) : null, trackLayerShape));
   const trackFill = trackGradFill ?? trackBgColor;
   const trackStroke = trackBorder == null ? "" : ` stroke="${trackBorder.color}" stroke-width="${trackBorder.width}"`;
   parts.push(
@@ -567,7 +586,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
     const thumbRect = { x: thumbCx - thumbW / 2, y: thumbCy - thumbH / 2, w: thumbW, h: thumbH };
     const thumbFills = gradientLayerFills(s.rangeThumbBgImage, thumbRect, defCtx, "::-webkit-slider-thumb");
-    const thumbFill = thumbFills.at(-1) ?? thumbBgColor;
+    const thumbFill = thumbFills.fills.at(-1) ?? thumbBgColor;
     const strokeAttrs = thumbBorder != null ? ` stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}"` : "";
     const thumbShadow = (kind: "outer" | "inset"): string[] =>
       pseudoBoxShadowMarkup(
@@ -597,7 +616,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
     const thumbRect = { x: thumbCx - halfThumb, y: thumbCy - halfThumb, w: thumbW, h: thumbW };
     const thumbFills = gradientLayerFills(s.rangeThumbBgImage, thumbRect, defCtx, "::-webkit-slider-thumb");
-    const thumbFill = thumbFills.at(-1) ?? thumbBgColor;
+    const thumbFill = thumbFills.fills.at(-1) ?? thumbBgColor;
     // Outer shadows paint below the thumb (CSS paint order: shadow ->
     // background -> border). A spread-only shadow is the "donut ring" author
     // pattern (`box-shadow: 0 0 0 Npx <color>`, stacked rings included); the
@@ -662,7 +681,7 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
   };
   if (swatchRect.w <= 0 || swatchRect.h <= 0) return "";
   const swatchFills = gradientLayerFills(s.colorSwatchBgImage, swatchRect, defCtx, "::-webkit-color-swatch");
-  const swatchGrad = swatchFills.at(-1) ?? null;
+  const swatchGrad = swatchFills.fills.at(-1) ?? null;
   const value = /^#[0-9a-f]{6}$/i.test(s.inputValue ?? "") ? s.inputValue : undefined;
   const swatchFill = swatchGrad ?? (s.colorSwatchBg != null && s.colorSwatchBg !== "" ? s.colorSwatchBg : value);
   if (swatchFill == null) return "";
@@ -864,7 +883,7 @@ function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): s
   const parts: string[] = [];
   const trackColor = capturedPseudoColor(el.styles.progressBarBg);
   const trackFills = gradientLayerFills(el.styles.progressBarBgImage, trackRect, defCtx, "::-webkit-progress-bar");
-  const trackGradient = trackFills.at(-1) ?? null;
+  const trackGradient = trackFills.fills.at(-1) ?? null;
   if (trackColor != null || trackGradient != null) {
     const radius = Math.max(0, parseFloat(el.styles.progressBarRadius ?? "") || 0);
     parts.push(
@@ -887,7 +906,7 @@ function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): s
       defCtx,
       "::-webkit-progress-value",
     );
-    const valueGradient = valueFills.at(-1) ?? null;
+    const valueGradient = valueFills.fills.at(-1) ?? null;
     if (valueColor != null || valueGradient != null) {
       const radius = Math.max(0, parseFloat(el.styles.progressValueRadius ?? "") || 0);
       parts.push(
@@ -927,7 +946,7 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const radius = Math.max(0, parseFloat(s.meterBarRadius ?? "") || 0);
   const trackColor = capturedPseudoColor(s.meterBarBg);
   const trackFills = gradientLayerFills(s.meterBarBgImage, geometry.trackRect, defCtx, "::-webkit-meter-bar");
-  const trackGradient = trackFills.at(-1) ?? null;
+  const trackGradient = trackFills.fills.at(-1) ?? null;
   if (trackColor != null || trackGradient != null) {
     parts.push(
       ...underlayerShapes(
@@ -944,7 +963,7 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   if (geometry.valueRect != null) {
     const valueRect = geometry.valueRect;
     const valueFills = gradientLayerFills(geometry.valueBgImage, valueRect, defCtx, "meter value pseudo");
-    const valueGradient = valueFills.at(-1) ?? null;
+    const valueGradient = valueFills.fills.at(-1) ?? null;
     if (valueColor != null || valueGradient != null) {
       parts.push(
         ...underlayerShapes(

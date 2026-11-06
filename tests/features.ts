@@ -775,6 +775,20 @@ export const tests: FeatureTest[] = [
     height: 80,
   },
   {
+    // A form-control pseudo with ONE translucent gradient layer paints its
+    // background color underneath (BoxPainterBase::PaintFillLayers,
+    // core/paint/box_painter_base.cc:59-85, Chromium 7d859f27): progress bar
+    // and value, color swatch, and rect and circle slider thumbs. The second
+    // progress value has an opaque gradient, which occludes the color
+    // (box_painter_base.cc:697-700). The meter sites are unit-tested only: a
+    // styled meter bar has a separate geometry defect (bar painted across the
+    // full host height).
+    name: "form-control-pseudo-gradient-over-color",
+    html: `<style>progress{appearance:none;display:block;width:300px;height:16px;margin:10px 20px}progress::-webkit-progress-bar{background:#1e3a8a linear-gradient(transparent,rgba(255,255,255,.5))}progress::-webkit-progress-value{background:#dc2626 linear-gradient(rgba(255,255,255,.6),transparent)}progress.op::-webkit-progress-value{background:#000 linear-gradient(#f59e0b,#16a34a)}input[type=color]{appearance:none;display:block;width:80px;height:36px;margin:10px 20px;padding:0;border:0}input[type=color]::-webkit-color-swatch-wrapper{padding:4px}input[type=color]::-webkit-color-swatch{border:0;background-image:linear-gradient(90deg,transparent,rgba(255,255,255,.8))}input.t{appearance:none;display:block;width:300px;height:30px;margin:6px 20px}input.t::-webkit-slider-runnable-track{height:8px;background:#cbd5e1}input.t::-webkit-slider-thumb{appearance:none;width:26px;height:26px;margin-top:-9px;border-radius:50%;background:#2563eb linear-gradient(rgba(255,255,255,.7),transparent)}input.sq::-webkit-slider-thumb{width:18px;border-radius:3px;background:#059669 linear-gradient(transparent,rgba(0,0,0,.5))}</style><progress value="60" max="100"></progress><progress class="op" value="40" max="100"></progress><input type="color" value="#e11d48"><input class="t" type="range" value="35"><input class="t sq" type="range" value="65">`,
+    width: 350,
+    height: 220,
+  },
+  {
     name: "gradient-hint-border-image",
     html: `<div style="padding:20px;background:#fff"><div style="width:300px;height:80px;border:16px solid transparent;border-image-source:linear-gradient(to top right,transparent 0%,20%,#ef4444 100%);border-image-slice:1"></div></div>`,
     width: 380,

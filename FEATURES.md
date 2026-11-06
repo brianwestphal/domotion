@@ -60,6 +60,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **range-pseudo-box-shadow** (doc 04): slider track and thumb `box-shadow` lists (offset, blur, spread rings, inset) paint through the general box-shadow painters.
 - [x] **box-shadow-inset-offset-only** (doc 01): an inset `box-shadow` with an offset but zero blur and zero spread paints a hard crescent on plain, bordered and rounded boxes and on a range thumb.
 - [x] **range-multilayer-pseudo-background** (doc 07): a form-control pseudo `background-image` list paints every gradient layer bottom-to-top over the background color; a non-gradient layer is omitted with a named warning.
+- [x] **form-control-pseudo-gradient-over-color** (doc 07): a form-control pseudo with one translucent gradient layer paints its background color underneath (progress, color swatch, slider thumbs); an opaque bottom gradient occludes the color, as in Blink.
 - [x] **comp-code-block**: Code block with monospace, background, border
 - [ ] **comp-nav**: Navigation bar with logo and links
 

@@ -427,14 +427,95 @@ describe("multi-layer form-control pseudo backgrounds", () => {
       defCtx,
     );
     const fills = [...svg.matchAll(/fill="([^"]+)"/g)].map((m) => m[1]);
-    // color, then the LAST-listed (bottom) layer, then the first-listed (top).
-    expect(fills.slice(0, 3)).toEqual(["rgb(10, 20, 30)", "url(#tgrad0)", "url(#tgrad1)"]);
+    // The LAST-listed (bottom) layer, then the first-listed (top). The opaque
+    // bottom gradient occludes the color, which Blink therefore does not paint
+    // (box_painter_base.cc:697-700, Chromium 7d859f27).
+    expect(fills.slice(0, 2)).toEqual(["url(#tgrad0)", "url(#tgrad1)"]);
+    expect(fills).not.toContain("rgb(10, 20, 30)");
     const defs = defsParts.join("\n");
     expect(defs).toMatch(/id="tgrad0"[^\n]*rgb\(255,0,0\)/);
     expect(defs).toMatch(/id="tgrad1"[^\n]*rgba\(255,255,255,0\.3\)/);
   });
 
-  it("keeps the single-layer emit unchanged", () => {
+  it("paints the color under a translucent bottom layer of a list", () => {
+    const { ctx: defCtx } = ctx();
+    const svg = renderFormControl(
+      progress({
+        progressBarBg: "rgb(10, 20, 30)",
+        progressBarBgImage:
+          "linear-gradient(rgba(255, 255, 255, 0.3), transparent), linear-gradient(rgb(255, 0, 0), rgba(0, 0, 255, 0.5))",
+      }),
+      "",
+      defCtx,
+    );
+    const fills = [...svg.matchAll(/fill="([^"]+)"/g)].map((m) => m[1]);
+    expect(fills.slice(0, 3)).toEqual(["rgb(10, 20, 30)", "url(#tgrad0)", "url(#tgrad1)"]);
+  });
+
+  // Blink paints the color under a single translucent gradient layer too
+  // (BoxPainterBase::PaintFillLayers, box_painter_base.cc:59-85, Chromium
+  // 7d859f27), at every pseudo site.
+  it("paints the color under a single translucent gradient layer", () => {
+    const { ctx: defCtx } = ctx();
+    const svg = renderFormControl(
+      progress({
+        progressBarBg: "rgb(10, 20, 30)",
+        progressBarBgImage: "linear-gradient(transparent, rgba(255, 0, 0, 0.5))",
+        progressValueBg: "rgb(0, 128, 0)",
+        progressValueBgImage: "linear-gradient(rgba(255, 255, 255, 0.4), transparent)",
+      }),
+      "",
+      defCtx,
+    );
+    const fills = [...svg.matchAll(/fill="([^"]+)"/g)].map((m) => m[1]);
+    expect(fills).toEqual(["rgb(10, 20, 30)", "url(#tgrad0)", "rgb(0, 128, 0)", "url(#tgrad1)"]);
+  });
+
+  it("paints the color under single translucent meter bar and value layers", () => {
+    const { ctx: defCtx } = ctx();
+    const meter = {
+      tag: "meter",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 16,
+      children: [],
+      styles: {
+        effectiveAppearance: "none",
+        meterValue: 0.7,
+        meterBarBg: "rgb(15, 118, 110)",
+        meterBarBgImage: "linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.5))",
+        meterOptimumBg: "rgb(124, 58, 237)",
+        meterOptimumBgImage: "linear-gradient(rgba(255, 255, 255, 0.55), transparent)",
+      },
+    } as unknown as CapturedElement;
+    const fills = [...renderFormControl(meter, "", defCtx).matchAll(/fill="([^"]+)"/g)].map((m) => m[1]);
+    expect(fills).toEqual(["rgb(15, 118, 110)", "url(#tgrad0)", "rgb(124, 58, 237)", "url(#tgrad1)"]);
+  });
+
+  it("paints the color-swatch color under a single translucent swatch layer", () => {
+    const { ctx: defCtx } = ctx();
+    const swatch = {
+      tag: "input",
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 36,
+      children: [],
+      styles: {
+        effectiveAppearance: "none",
+        inputType: "color",
+        inputValue: "#e11d48",
+        colorSwatchWrapperPadding: "4px",
+        colorSwatchBg: "rgb(225, 29, 72)",
+        colorSwatchBgImage: "linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8))",
+      },
+    } as unknown as CapturedElement;
+    const fills = [...renderFormControl(swatch, "", defCtx).matchAll(/fill="([^"]+)"/g)].map((m) => m[1]);
+    expect(fills.slice(-2)).toEqual(["rgb(225, 29, 72)", "url(#tgrad0)"]);
+  });
+
+  it("does not paint the color under a single opaque gradient layer, which occludes it", () => {
     const { ctx: defCtx } = ctx();
     const svg = renderFormControl(
       progress({
