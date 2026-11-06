@@ -109,7 +109,18 @@ describe("resolveImageRootTransform", () => {
     expect(resolve({ transform: "perspective(100px) rotateY(10deg)" })).toBe("unsupported");
     expect(resolve({ transform: "matrix3d(1,0,0,0.01, 0,1,0,0, 0,0,1,0, 0,0,0,1)" })).toBe("unsupported");
     expect(resolve({ transform: "translate(1ex)" })).toBe("unsupported");
-    expect(resolve({ transform: "translate(10vw)" })).toBe("unsupported");
+    expect(resolve({ transform: "translate(10vw)" })).toBe("unsupported"); // no viewport known
+    expect(
+      resolveImageRootTransform(
+        {
+          transformAttr: null,
+          transformOriginAttr: null,
+          style: new Map([["transform", "translate(10vw, calc(50vh - 2vmin)) rotate(calc(1deg * 0))"]]),
+          viewport: { w: 200, h: 80 },
+        },
+        box,
+      ),
+    ).toMatchObject({ transform: "translate(20 38.4) rotate(0)" });
     expect(resolve({ transform: "rotate(calc(10deg + 5px))" })).toBe("unsupported");
     expect(resolve({ translate: "1px 2px 3%" })).toBe("unsupported");
     expect(
@@ -134,6 +145,6 @@ describe("resolveTransformOrigin", () => {
     expect(resolveTransformOrigin("25% 10px", box)).toEqual({ x: 35, y: 30 });
     expect(resolveTransformOrigin("center top 4px", box)).toEqual({ x: 60, y: 20 });
     expect(resolveTransformOrigin("1em", box)).toEqual({ x: 26, y: 45 });
-    expect(resolveTransformOrigin("1em", box, null)).toBeNull();
+    expect(resolveTransformOrigin("1em", box, { fontSize: null, viewport: null })).toBeNull();
   });
 });

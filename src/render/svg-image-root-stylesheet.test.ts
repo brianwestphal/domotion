@@ -96,11 +96,35 @@ describe("cascadeRootStylesheetTransform", () => {
     ).toBe("unsupported");
   });
 
+  it("decides structural pseudo-classes for the sibling-less document root", () => {
+    const svg = (rule: string, body = "<rect/>") => `<svg><style>${rule}</style>${body}</svg>`;
+    for (const pc of [
+      "first-child",
+      "last-child",
+      "only-child",
+      "first-of-type",
+      "last-of-type",
+      "only-of-type",
+      "scope",
+    ]) {
+      expect(valueOf(cascade(svg(`svg:${pc} { rotate: 1deg }`)), "rotate")).toBe("1deg");
+    }
+    expect(valueOf(cascade(svg(`svg:nth-child(odd) { rotate: 2deg }`)), "rotate")).toBe("2deg");
+    expect(valueOf(cascade(svg(`svg:nth-last-of-type(-n + 3) { rotate: 3deg }`)), "rotate")).toBe("3deg");
+    expect(cascade(svg(`svg:nth-child(2n) { rotate: 4deg }`))).toBeNull();
+    expect(valueOf(cascade(svg(`svg:nth-child(1 of svg) { rotate: 5deg }`)), "rotate")).toBe("5deg");
+    expect(cascade(svg(`svg:nth-child(1 of rect) { rotate: 6deg }`))).toBeNull();
+    expect(cascade(svg(`svg:empty { rotate: 7deg }`))).toBeNull();
+    expect(valueOf(cascade(`<svg><style>svg:empty { rotate: 8deg }</style> </svg>`), "rotate")).toBe(undefined);
+    // nth-child(… of S) adds the MOST specific selector of S, matching or not
+    // (CSSSelector::Specificity, core/css/css_selector.cc:233-236): svg.x
+    // makes it (0,2,2), beating svg:first-child (0,1,1).
+    const spec = svg(`svg:nth-child(1 of svg.x, svg) { scale: 1 } svg:first-child { scale: 2 }`);
+    expect(valueOf(cascade(spec), "scale")).toBe("1");
+  });
+
   it("is unsupported for an undecidable compound or a transform inside another at-rule", () => {
-    expect(cascade(`<svg><style>svg:first-child { transform: rotate(1deg) }</style><rect/></svg>`)).toBe("unsupported");
-    expect(cascade(`<svg><style>svg:nth-child(1) { transform: rotate(1deg) }</style><rect/></svg>`)).toBe(
-      "unsupported",
-    );
+    expect(cascade(`<svg><style>svg:has(rect) { transform: rotate(1deg) }</style><rect/></svg>`)).toBe("unsupported");
     expect(
       cascade(`<svg><style>@supports (display: grid) { svg { transform: rotate(1deg) } }</style><rect/></svg>`),
     ).toBe("unsupported");

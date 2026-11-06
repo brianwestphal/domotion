@@ -1221,6 +1221,24 @@ export const tests: FeatureTest[] = [
     height: 130,
   },
   {
+    // An `<img>` SVG is its own document: its `@media` queries see the image
+    // viewport (the object rect, svg_image.cc:463-473), its root is the
+    // sibling-less document element for :first-child / :nth-child / :only-of-type
+    // (selector_checker.cc:476-486, nth_index_cache.cc:148), and viewport units
+    // in its root transform resolve against that viewport (chromium 7d859f27).
+    // Inlined, none of that may follow the output document's viewport or the
+    // nested root's siblings.
+    name: "image-svg-document-context",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><style>@media (max-width: 100px) { rect { fill: #16a34a } } @media (min-width: 101px) { circle { fill: #ed1234 } }</style><rect x="10" y="10" width="80" height="35" fill="#64748b"/><circle cx="50" cy="72" r="18" fill="#64748b"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><style>@media (max-width: 100px) { rect { fill: #16a34a } } @media (min-width: 101px) { circle { fill: #ed1234 } }</style><rect x="10" y="10" width="80" height="35" fill="#64748b"/><circle cx="50" cy="72" r="18" fill="#64748b"/></svg>')}" style="display:block;width:180px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><style>svg:first-child > rect { fill: #f59e0b } :root:nth-child(2n) circle { fill: #2563eb } svg:only-of-type circle { stroke: #fff; stroke-width: 4 }</style><rect x="10" y="10" width="80" height="35" fill="#64748b"/><circle cx="50" cy="72" r="18" fill="#64748b"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" style="transform: translate(10vw, -5vh) rotate(calc(10deg + 2deg))"><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#0ea5e9"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 550,
+    height: 130,
+  },
+  {
     // Blink gives each SVG image its own document, so the image's author
     // sheets reach only its own elements and `:root` means the image root.
     // Inlined, the sheets are scoped to the nested root: the first image's

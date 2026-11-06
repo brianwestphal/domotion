@@ -30,9 +30,11 @@
  * row and column never reach the screen. The functions are composed with
  * the matrices of the CSS Transforms 2 spec, which Blink's `TransformOperations`
  * build. `perspective(<length>)`, or a `matrix3d` with perspective terms, is
- * projective and cannot be expressed as an SVG transform. That case, and
- * `ex` / `ch` / viewport units, return `"unsupported"`, so the caller keeps
- * its previous output instead of painting a guess.
+ * projective and cannot be expressed as an SVG transform. Viewport units
+ * resolve against the image viewport (the object rect) when the caller knows
+ * it. Projective transforms, `ex` / `ch` and the other font-metric units
+ * return `"unsupported"`, so the caller keeps its previous output instead of
+ * painting a guess.
  */
 import { formatNumberLoose } from "./format.js";
 
@@ -46,6 +48,15 @@ export interface ImageRootTransformInputs {
   /** The root's computed font-size in px for `em` / `rem`; null when it cannot
    *  be known exactly. Defaults to 16 (the initial `medium`). */
   fontSize?: number | null;
+  /** The image viewport (the concrete object rect in the image's CSS px) for
+   *  `vw` / `vh` / `vmin` / `vmax`; null when unknown. */
+  viewport?: { w: number; h: number } | null;
+}
+
+/** What font- and viewport-relative lengths resolve against. */
+export interface LengthEnv {
+  fontSize: number | null;
+  viewport: { w: number; h: number } | null;
 }
 
 export interface ResolvedImageRootTransform {
@@ -67,9 +78,8 @@ const f = (n: number): string => formatNumberLoose(n, 6);
 
 /** Resolution context: the percentage basis and the root's font-size (null
  *  when it cannot be known exactly, which makes `em` / `rem` unresolvable). */
-interface ValueContext {
+interface ValueContext extends LengthEnv {
   basis: number;
-  fontSize: number | null;
 }
 
 type ValueKind = "length" | "angle" | "number";
@@ -133,6 +143,13 @@ function evaluate(token: string, kind: ValueKind, ctx: ValueContext): number | n
     if (kind === "length") {
       if (unit in LENGTH_UNITS) return { value: n * LENGTH_UNITS[unit], dim: true };
       if ((unit === "em" || unit === "rem") && ctx.fontSize != null) return { value: n * ctx.fontSize, dim: true };
+      // Viewport units resolve against the image document's viewport, the
+      // container (object rect) size (svg_image.cc:463-473).
+      const vp = ctx.viewport;
+      if (vp != null) {
+        const per = { vw: vp.w, vh: vp.h, vmin: Math.min(vp.w, vp.h), vmax: Math.max(vp.w, vp.h) }[unit];
+        if (per != null) return { value: (n * per) / 100, dim: true };
+      }
       return null;
     }
     if (kind === "angle" && unit in ANGLE_UNITS) return { value: n * ANGLE_UNITS[unit], dim: true };
@@ -189,22 +206,22 @@ function evaluate(token: string, kind: ValueKind, ctx: ValueContext): number | n
 }
 
 /** A `<length-percentage>` in px; a bare 0 is a valid length. */
-function lengthOf(token: string, basis: number, fontSize: number | null): number | null {
-  return evaluate(token, "length", { basis, fontSize });
+function lengthOf(token: string, basis: number, env: LengthEnv): number | null {
+  return evaluate(token, "length", { basis, ...env });
 }
 
 /** An `<angle>` in degrees; a bare 0 is a valid angle. */
 function angleDeg(token: string): number | null {
-  return evaluate(token, "angle", { basis: 0, fontSize: null });
+  return evaluate(token, "angle", { basis: 0, fontSize: null, viewport: null });
 }
 
 /** A scale factor: a `<number>` or a `<percentage>`. */
 function scaleFactor(token: string): number | null {
-  return evaluate(token, "number", { basis: 0, fontSize: null });
+  return evaluate(token, "number", { basis: 0, fontSize: null, viewport: null });
 }
 
 function plainNumber(token: string): number | null {
-  return evaluate(token, "number", { basis: 0, fontSize: null });
+  return evaluate(token, "number", { basis: 0, fontSize: null, viewport: null });
 }
 
 /** Split on top-level commas (or whitespace), respecting parentheses. */
@@ -355,8 +372,8 @@ function scale3d(x: number, y: number, z: number): M4 {
 }
 
 /** A 3D transform function as a flattened SVG `matrix()`, or null. */
-function css3dFunctionToSvg(name: string, args: string[], box: Box, fontSize: number | null): string | null {
-  const len = (token: string, basis: number): number | null => lengthOf(token, basis, fontSize);
+function css3dFunctionToSvg(name: string, args: string[], box: Box, env: LengthEnv): string | null {
+  const len = (token: string, basis: number): number | null => lengthOf(token, basis, env);
   const nums = (tokens: string[]): number[] | null => {
     const out = tokens.map(plainNumber);
     return out.some((v) => v == null) ? null : (out as number[]);
@@ -419,10 +436,10 @@ function css3dFunctionToSvg(name: string, args: string[], box: Box, fontSize: nu
 }
 
 /** One CSS `<transform-function>` as an SVG transform, or null when unsupported. */
-function cssFunctionToSvg(name: string, raw: string, box: Box, fontSize: number | null): string | null {
+function cssFunctionToSvg(name: string, raw: string, box: Box, env: LengthEnv): string | null {
   const args = commaArgs(raw);
   if (args == null) return null;
-  const lengthPx = (token: string, basis: number): number | null => lengthOf(token, basis, fontSize);
+  const lengthPx = (token: string, basis: number): number | null => lengthOf(token, basis, env);
   const tan = (deg: number): number => Math.tan((deg * Math.PI) / 180);
   switch (name) {
     case "translate": {
@@ -478,12 +495,12 @@ function cssFunctionToSvg(name: string, raw: string, box: Box, fontSize: number 
       return m.some((v) => v == null || !Number.isFinite(v)) ? null : `matrix(${m.map((v) => f(v!)).join(" ")})`;
     }
     default:
-      return css3dFunctionToSvg(name, args, box, fontSize);
+      return css3dFunctionToSvg(name, args, box, env);
   }
 }
 
 /** A CSS `transform` value (`none` or a function list) as an SVG list. */
-function cssTransformList(value: string, box: Box, fontSize: number | null): string | null | "unsupported" {
+function cssTransformList(value: string, box: Box, env: LengthEnv): string | null | "unsupported" {
   const source = value.trim();
   if (source === "" || source.toLowerCase() === "none") return null;
   const fns = splitTopLevel(source, false);
@@ -492,7 +509,7 @@ function cssTransformList(value: string, box: Box, fontSize: number | null): str
   for (const fn of fns) {
     const m = /^([a-zA-Z0-9]+)\(([\s\S]*)\)$/.exec(fn);
     if (m == null) return "unsupported";
-    const svg = cssFunctionToSvg(m[1].toLowerCase(), m[2], box, fontSize);
+    const svg = cssFunctionToSvg(m[1].toLowerCase(), m[2], box, env);
     if (svg == null) return "unsupported";
     if (svg !== "") out.push(svg);
   }
@@ -504,17 +521,17 @@ function spaceArgs(value: string): string[] {
 }
 
 /** The individual `translate` property (`none` | `<lp> [<lp> [<length>]]`). */
-function translateProperty(value: string, box: Box, fontSize: number | null): string | null | "unsupported" {
+function translateProperty(value: string, box: Box, env: LengthEnv): string | null | "unsupported" {
   const parts = spaceArgs(value);
   if (parts.length === 1 && parts[0].toLowerCase() === "none") return null;
   if (parts.length < 1 || parts.length > 3) return "unsupported";
-  const x = lengthOf(parts[0], box.w, fontSize);
-  const y = parts.length >= 2 ? lengthOf(parts[1], box.h, fontSize) : 0;
+  const x = lengthOf(parts[0], box.w, env);
+  const y = parts.length >= 2 ? lengthOf(parts[1], box.h, env) : 0;
   if (x == null || y == null) return "unsupported";
   if (parts.length === 3) {
     // `translate` is the outermost factor (ComputedStyle::ApplyTransform), so
     // its z offset never reaches x / y without perspective.
-    if (/%/.test(parts[2]) || lengthOf(parts[2], 0, fontSize) == null) return "unsupported";
+    if (/%/.test(parts[2]) || lengthOf(parts[2], 0, env) == null) return "unsupported";
   }
   return `translate(${f(x)} ${f(y)})`;
 }
@@ -572,7 +589,7 @@ function scaleProperty(value: string): string | null | "unsupported" {
 export function resolveTransformOrigin(
   value: string,
   box: Box,
-  fontSize: number | null = 16,
+  env: LengthEnv = { fontSize: 16, viewport: null },
 ): { x: number; y: number } | null {
   const parts = spaceArgs(value).map((part) => part.toLowerCase());
   if (parts.length < 1 || parts.length > 3) return null;
@@ -585,10 +602,10 @@ export function resolveTransformOrigin(
   } else if (first in yKeyword && !(first in xKeyword) && (second in xKeyword || second === "center")) {
     [first, second] = [second, first];
   }
-  const x = first in xKeyword ? xKeyword[first] * box.w : lengthOf(first, box.w, fontSize);
-  const y = second in yKeyword ? yKeyword[second] * box.h : lengthOf(second, box.h, fontSize);
+  const x = first in xKeyword ? xKeyword[first] * box.w : lengthOf(first, box.w, env);
+  const y = second in yKeyword ? yKeyword[second] * box.h : lengthOf(second, box.h, env);
   if (x == null || y == null) return null;
-  if (parts.length === 3 && (/%/.test(parts[2]) || lengthOf(parts[2], 0, fontSize) == null)) return null;
+  if (parts.length === 3 && (/%/.test(parts[2]) || lengthOf(parts[2], 0, env) == null)) return null;
   return { x: box.x + x, y: box.y + y };
 }
 
@@ -602,9 +619,12 @@ export function resolveImageRootTransform(
   box: Box,
 ): ResolvedImageRootTransform | null | "unsupported" {
   const parts: string[] = [];
-  const fontSize = inputs.fontSize === undefined ? 16 : inputs.fontSize;
+  const env: LengthEnv = {
+    fontSize: inputs.fontSize === undefined ? 16 : inputs.fontSize,
+    viewport: inputs.viewport ?? null,
+  };
   const individual: Array<[string, (value: string) => string | null | "unsupported"]> = [
-    ["translate", (value) => translateProperty(value, box, fontSize)],
+    ["translate", (value) => translateProperty(value, box, env)],
     ["rotate", rotateProperty],
     ["scale", scaleProperty],
   ];
@@ -617,7 +637,7 @@ export function resolveImageRootTransform(
   }
   const styleTransform = inputs.style.get("transform");
   if (styleTransform != null) {
-    const svg = cssTransformList(styleTransform, box, fontSize);
+    const svg = cssTransformList(styleTransform, box, env);
     if (svg === "unsupported") return "unsupported";
     if (svg != null) parts.push(svg);
   }
@@ -638,7 +658,7 @@ export function resolveImageRootTransform(
   const origin =
     originValue == null || originValue.trim() === ""
       ? { x: box.x + box.w / 2, y: box.y + box.h / 2 }
-      : resolveTransformOrigin(originValue, box, fontSize);
+      : resolveTransformOrigin(originValue, box, env);
   if (origin == null) return "unsupported";
   return { transform: parts.join(" "), origin };
 }

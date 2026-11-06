@@ -40,7 +40,8 @@
  * `selector:not([data-domotion-image-root])`; the inlined root carries that
  * attribute whenever the image has a sheet (see `svg-image-style-scope.ts`).
  */
-import { IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
+import { evaluateMediaQueryList } from "./svg-image-media.js";
+import { anPlusBMatches, IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 
 /** The CSS properties that make up the root's transform. */
 export const ROOT_TRANSFORM_PROPERTIES: ReadonlySet<string> = new Set([
@@ -92,6 +93,29 @@ const NEVER_MATCHING_PSEUDOS = new Set([
   "any-link",
   "-webkit-any-link",
 ]);
+
+/**
+ * A parameterless structural pseudo-class decided for the image root, or null
+ * when `name` is not one. The root is the document element and has no
+ * element siblings, so `IsFirstChild` / `IsLastChild` / the `-of-type` forms
+ * all hold (`core/css/selector_checker.cc:476-486, 2348-2420`); `:scope` in
+ * a document-scoped sheet is the document element (`CheckPseudoScope`,
+ * selector_checker.cc:3644-3654); `:empty` asks whether the root has no
+ * element child and no non-whitespace text (selector_checker.cc:2310),
+ * chromium 7d859f27.
+ */
+function rootStructuralPseudo(name: string, root: RootFacts): boolean | null {
+  if (/^(?:first|last|only)-(?:child|of-type)$/.test(name) || name === "scope") return true;
+  if (name === "empty") {
+    const close = root.body.toLowerCase().lastIndexOf("</svg>");
+    const content = (close >= 0 ? root.body.slice(0, close) : root.body)
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/<\?[\s\S]*?\?>/g, "");
+    if (/<[a-zA-Z]/.test(content)) return false;
+    return !/\S/.test(content.replace(/<!\[CDATA\[|\]\]>/g, ""));
+  }
+  return null;
+}
 
 /** Index of the `)` matching the `(` at `open`, respecting strings, or -1. */
 function matchParen(s: string, open: number): number {
@@ -196,7 +220,7 @@ function parseCompound(selector: string, root: RootFacts): SimpleCompound | null
     out.extraSpec = [out.extraSpec[0] + spec[0], out.extraSpec[1] + spec[1], out.extraSpec[2] + spec[2]];
   };
   let i = 0;
-  let first = true;
+  let firstToken = true;
   while (i < s.length) {
     if (s[i] === "[") {
       const m = ATTR_RE.exec(s.slice(i));
@@ -206,23 +230,47 @@ function parseCompound(selector: string, root: RootFacts): SimpleCompound | null
       if (!attributeMatches(m[1], m[2], value, m[6], root)) out.extraMatch = false;
       addSpec([0, 1, 0]);
       i += m[0].length;
-      first = false;
+      firstToken = false;
       continue;
     }
     const pseudo = /^:([-a-zA-Z]+)(\()?/.exec(s.slice(i));
     if (pseudo != null && pseudo[1].toLowerCase() !== "root") {
       const name = pseudo[1].toLowerCase();
       if (pseudo[2] == null) {
-        if (!NEVER_MATCHING_PSEUDOS.has(name)) return null;
-        out.extraMatch = false;
+        const structural = rootStructuralPseudo(name, root);
+        if (structural == null && !NEVER_MATCHING_PSEUDOS.has(name)) return null;
+        if (structural !== true) out.extraMatch = false;
         addSpec([0, 1, 0]);
         i += pseudo[0].length;
-        first = false;
+        firstToken = false;
         continue;
       }
       const open = i + pseudo[0].length - 1;
       const close = matchParen(s, open);
       if (close < 0) return null;
+      if (/^nth-(?:last-)?(?:child|of-type)$/.test(name)) {
+        // The root is child index 1 among no element siblings
+        // (`NthIndexCache::NthChildIndex`, core/dom/nth_index_cache.cc:148).
+        const inner = s.slice(open + 1, close);
+        const ofMatch = /^([\s\S]*?)\s+of\s+([\s\S]+)$/i.exec(inner);
+        if (ofMatch != null && !name.endsWith("child")) return null;
+        const first = anPlusBMatches((ofMatch?.[1] ?? inner).trim(), 1);
+        if (first == null) return null;
+        let spec: [number, number, number] = [0, 1, 0];
+        let ofMatches = true;
+        if (ofMatch != null) {
+          const ofArgs = decideSelectorArgs(ofMatch[2], root);
+          if (ofArgs == null) return null;
+          ofMatches = ofArgs.some((a) => a.match);
+          const inner2 = maxSpec(ofArgs.map((a) => a.spec));
+          spec = [inner2[0], inner2[1] + 1, inner2[2]];
+        }
+        if (!first || !ofMatches) out.extraMatch = false;
+        addSpec(spec);
+        i = close + 1;
+        firstToken = false;
+        continue;
+      }
       const args = decideSelectorArgs(s.slice(open + 1, close), root);
       if (args == null) return null;
       const any = args.some((a) => a.match);
@@ -234,20 +282,20 @@ function parseCompound(selector: string, root: RootFacts): SimpleCompound | null
         if (name !== "where") addSpec(maxSpec(args.map((a) => a.spec)));
       } else return null;
       i = close + 1;
-      first = false;
+      firstToken = false;
       continue;
     }
     COMPOUND_TOKEN_RE.lastIndex = i;
     const m = COMPOUND_TOKEN_RE.exec(s);
     if (m == null) return null;
     if (m[1] != null) {
-      if (!first) return null; // a type selector only leads a compound
+      if (!firstToken) return null; // a type selector only leads a compound
       out.type = m[1].toLowerCase();
     } else if (m[2] != null) out.ids.push(m[2]);
     else if (m[3] != null) out.classes.push(m[3]);
     else out.root = true;
     i = COMPOUND_TOKEN_RE.lastIndex;
-    first = false;
+    firstToken = false;
   }
   return out;
 }
@@ -552,110 +600,4 @@ function compareSpec(a: [number, number, number], b: [number, number, number]): 
 function compareCascade(a: CascadedDeclaration, b: CascadedDeclaration): number {
   if (a.important !== b.important) return a.important ? 1 : -1;
   return compareSpec(a.specificity, b.specificity) || a.order - b.order;
-}
-
-/**
- * Evaluate an `@media` query list against the SVG image's viewport (CSS px):
- * Blink sizes the image document's frame view to the container size
- * (`SVGImage::PaintRecordForCurrentFrame`, `core/svg/graphics/svg_image.cc:472`,
- * chromium 7d859f27), so width / height features see the concrete object
- * rect. Supports the `all` / `screen` media types, `not` / `only`, `and`, and
- * the width / height / orientation / aspect-ratio features in both the
- * `min-` / `max-` and the range forms. Null when any part is outside that set.
- */
-export function evaluateMediaQueryList(list: string, vp: { w: number; h: number }): boolean | null {
-  const queries = list.split(",").map((q) => q.trim());
-  let any = false;
-  for (const q of queries) {
-    const r = evaluateMediaQuery(q, vp);
-    if (r == null) return null;
-    any ||= r;
-  }
-  return any;
-}
-
-function evaluateMediaQuery(query: string, vp: { w: number; h: number }): boolean | null {
-  let q = query.trim();
-  if (q === "") return true;
-  let negate = false;
-  const lead = /^(not|only)\s+/i.exec(q);
-  if (lead != null) {
-    negate = lead[1].toLowerCase() === "not";
-    q = q.slice(lead[0].length);
-  }
-  const parts = q.split(/\s+and\s+/i).map((p) => p.trim());
-  let result = true;
-  for (const [index, part] of parts.entries()) {
-    if (!part.startsWith("(")) {
-      if (index !== 0) return null;
-      const type = part.toLowerCase();
-      if (type === "print" || type === "speech") result = false;
-      else if (type !== "all" && type !== "screen") return null;
-      continue;
-    }
-    const r = evaluateMediaFeature(part, vp);
-    if (r == null) return null;
-    result &&= r;
-  }
-  return negate ? !result : result;
-}
-
-function mediaLength(token: string): number | null {
-  const m = /^([-+]?(?:\d+\.?\d*|\.\d+))(px|in|cm|mm|pt|pc)?$/i.exec(token.trim());
-  if (m == null) return null;
-  const n = Number(m[1]);
-  if (m[2] == null) return n === 0 ? 0 : null;
-  const factor: Record<string, number> = { px: 1, in: 96, cm: 96 / 2.54, mm: 96 / 25.4, pt: 4 / 3, pc: 16 };
-  return n * factor[m[2].toLowerCase()];
-}
-
-function mediaRatio(token: string): number | null {
-  const m = /^\s*(\d+(?:\.\d+)?)\s*(?:\/\s*(\d+(?:\.\d+)?))?\s*$/.exec(token);
-  if (m == null) return null;
-  const den = m[2] == null ? 1 : Number(m[2]);
-  return den === 0 ? null : Number(m[1]) / den;
-}
-
-function evaluateMediaFeature(part: string, vp: { w: number; h: number }): boolean | null {
-  const inner = /^\(([\s\S]*)\)$/.exec(part.trim())?.[1].trim();
-  if (inner == null) return null;
-  const valueOf = (feature: string): number | null =>
-    feature === "width" ? vp.w : feature === "height" ? vp.h : feature === "aspect-ratio" ? vp.w / vp.h : null;
-  const parse = (feature: string, token: string): number | null =>
-    feature === "aspect-ratio" ? mediaRatio(token) : mediaLength(token);
-  const colon = /^([-a-z]+)\s*:\s*([\s\S]+)$/i.exec(inner);
-  if (colon != null) {
-    const name = colon[1].toLowerCase();
-    if (name === "orientation") {
-      const v = colon[2].trim().toLowerCase();
-      if (v !== "portrait" && v !== "landscape") return null;
-      return vp.h >= vp.w === (v === "portrait");
-    }
-    const m = /^(min-|max-)?(width|height|aspect-ratio)$/.exec(name);
-    if (m == null) return null;
-    const actual = valueOf(m[2]);
-    const target = parse(m[2], colon[2]);
-    if (actual == null || target == null) return null;
-    return m[1] === "min-" ? actual >= target : m[1] === "max-" ? actual <= target : actual === target;
-  }
-  // Range syntax: `(width >= 100px)`, `(100px < width <= 300px)`.
-  const tokens = inner.split(/\s*(<=|>=|<|>|=)\s*/);
-  if (tokens.length !== 3 && tokens.length !== 5) return null;
-  const cmp = (a: number, op: string, b: number): boolean =>
-    op === "<" ? a < b : op === "<=" ? a <= b : op === ">" ? a > b : op === ">=" ? a >= b : a === b;
-  const feature = (tokens.length === 3 ? [tokens[0], tokens[2]] : [tokens[2]]).find((t) =>
-    /^(width|height|aspect-ratio)$/i.test(t),
-  );
-  if (feature == null) return null;
-  const name = feature.toLowerCase();
-  const actual = valueOf(name);
-  if (actual == null) return null;
-  const operand = (t: string): number | null => (t.toLowerCase() === name ? actual : parse(name, t));
-  for (let k = 0; k + 2 < tokens.length; k += 2) {
-    const a = operand(tokens[k]);
-    const b = operand(tokens[k + 2]);
-    if (a == null || b == null) return null;
-    if (!cmp(a, tokens[k + 1], b)) return false;
-  }
-  return true;
 }

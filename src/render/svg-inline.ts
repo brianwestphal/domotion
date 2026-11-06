@@ -465,6 +465,7 @@ function imageRootTransform(
   slot: string,
   sheet: ReadonlyMap<string, CascadedDeclaration> | null = null,
   hasSheets = false,
+  viewport: { w: number; h: number } | null = null,
 ): ResolvedImageRootTransform | null {
   const tokens = parseSvgAttributes(attrs) ?? [];
   const attr = (name: string): string | null =>
@@ -500,6 +501,7 @@ function imageRootTransform(
       transformOriginAttr: attr("transform-origin"),
       style,
       fontSize: rootFontSize(attr("font-size"), inline.get("font-size")?.value ?? null, hasSheets),
+      viewport,
     },
     box,
   );
@@ -871,6 +873,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     "<img> svg",
     sheet.declarations,
     sheetMaySetFontSize(svgText),
+    imageViewport(p),
   );
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
   // Strip the attrs we re-declare (keep xmlns / class / style / role / etc.).
@@ -893,7 +896,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     // An inlined `<style>` belongs to the whole output document; scope its
     // selectors to this image (its own document in Blink).
     rootAttrs += ` ${IMAGE_ROOT_ATTR}="${p.idPrefix}"`;
-    body = scopeImageStyleSheets(body, p.idPrefix);
+    body = scopeImageStyleSheets(body, p.idPrefix, imageViewport(p));
   }
 
   const open =
@@ -1093,6 +1096,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     "<img> svg",
     sheet.declarations,
     sheetMaySetFontSize(svgText),
+    imageViewport(p),
   );
   if (rootOverflowVisible(attrs)) {
     return rootTransform == null

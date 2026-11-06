@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_ROOT_ATTR, scopeImageStyleSheets, scopeSelectorList } from "./svg-image-style-scope.js";
+import { anPlusBMatches, IMAGE_ROOT_ATTR, scopeImageStyleSheets, scopeSelectorList } from "./svg-image-style-scope.js";
 import { inlineImgSvg } from "./svg-inline.js";
 
 const R = `[${IMAGE_ROOT_ATTR}="P-"]`;
@@ -69,5 +69,40 @@ describe("inlineImgSvg scopes its sheets to the image", () => {
 
   it("leaves a sheet-free SVG without the marker", () => {
     expect(inlineImgSvg(`<svg viewBox="0 0 10 10"><rect/></svg>`, P)).not.toContain(IMAGE_ROOT_ATTR);
+  });
+});
+
+describe("image-document answers frozen for the inlined root", () => {
+  it("gives the root its sibling-less answer for structural pseudo-classes, keeping specificity", () => {
+    expect(scopeSelectorList("svg:first-child", "P-")).toBe(`svg:is(:first-child, ${R})${W}`);
+    expect(scopeSelectorList(":scope > rect", "P-")).toBe(`${R}${W} > rect${W}`);
+    expect(scopeSelectorList("rect:nth-child(odd)", "P-")).toBe(`rect:is(:nth-child(odd), ${R})${W}`);
+    expect(scopeSelectorList("svg:nth-child(2n)", "P-")).toBe(`svg:nth-child(2n):not(:where(${R}))${W}`);
+    expect(scopeSelectorList("svg:nth-child(1 of :root)", "P-")).toBe(
+      `svg:is(:nth-child(1 of ${R}), ${R}:is(${R}))${W}`,
+    );
+    expect(scopeSelectorList("rect:not(:last-of-type)", "P-")).toBe(`rect:not(:is(:last-of-type, ${R}))${W}`);
+    expect(scopeSelectorList(`[title=":first-child"]`, "P-")).toBe(`[title=":first-child"]${W}`);
+    expect(scopeSelectorList("text::first-line", "P-")).toBe(`text${W}::first-line`);
+  });
+
+  it("evaluates An+B for index 1", () => {
+    expect(anPlusBMatches("odd", 1)).toBe(true);
+    expect(anPlusBMatches("even", 1)).toBe(false);
+    expect(anPlusBMatches("-n + 3", 1)).toBe(true);
+    expect(anPlusBMatches("3n-2", 1)).toBe(true);
+    expect(anPlusBMatches("n+2", 1)).toBe(false);
+    expect(anPlusBMatches("1", 1)).toBe(true);
+    expect(anPlusBMatches("foo", 1)).toBeNull();
+  });
+
+  it("freezes @media against the image viewport and warns when it cannot", () => {
+    const css = `<style>@media (max-width: 100px) { rect { fill: green } } @media (min-width: 30em) { circle { fill: red } } @media (hover: hover) { path { fill: blue } }</style>`;
+    const out = scopeImageStyleSheets(css, "P-", { w: 90, h: 90 });
+    expect(out).toContain(`@media all { rect${W} { fill: green } }`);
+    expect(out).toContain(`@media not all { circle${W} { fill: red } }`);
+    expect(out).toContain(`@media (hover: hover) { path${W} { fill: blue } }`);
+    // Without a known viewport the query is left to the output document.
+    expect(scopeImageStyleSheets(css, "P-")).toContain(`@media (max-width: 100px) { rect${W}`);
   });
 });
