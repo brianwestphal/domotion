@@ -156,7 +156,21 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     const save = testPage.getByRole("button", { name: "Save" });
     expect(await save.isEnabled()).toBe(true);
     await save.click();
-    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Saved glassbox.studio.json");
+    await expect
+      .poll(() => testPage.locator(".notice").getByRole("status").textContent())
+      .toContain("Saved glassbox.studio.json");
+    // DM-QW1NMD: the notice is a kerf-ui StateBanner whose CSS rides in the
+    // pre-built bundle's <head> prologue; the page stylesheet now lives in
+    // <head> too, so its quoted font stack is no longer escaped away.
+    const chrome = await testPage.evaluate(() => ({
+      banner: getComputedStyle(document.querySelector(".notice .kui-state-banner")!).display,
+      tone: document.querySelector(".notice .kui-state-banner")!.getAttribute("data-tone"),
+      scheme: getComputedStyle(document.documentElement).colorScheme,
+      font: getComputedStyle(document.body).fontFamily,
+      kerfUiSheets: document.querySelectorAll("style[data-kerf-ui]").length,
+    }));
+    expect(chrome).toMatchObject({ banner: "grid", tone: "success", scheme: "dark", kerfUiSheets: 1 });
+    expect(chrome.font).toContain("Inter");
     await testPage.getByText("Saved", { exact: true }).waitFor();
 
     await testPage.locator('[data-field="narrative-title"]').fill("Unsaved temporary title");
@@ -193,7 +207,9 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await secondScene.getByLabel("Scene 2 transition", { exact: true }).selectOption("push-left");
     await secondScene.getByLabel("Scene 2 cinematic preset").selectOption("browser-chrome");
     await secondScene.getByRole("button", { name: "Regenerate scene" }).click();
-    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Generated glassbox.studio.json");
+    await expect
+      .poll(() => testPage.locator(".notice").getByRole("status").textContent())
+      .toContain("Generated glassbox.studio.json");
     await testPage.frameLocator("[data-scrubber-frame]").locator(".svg-host svg").waitFor();
     expect(generationInputs.at(-1)).toMatchObject({
       selection: { kind: "scene" },
@@ -218,12 +234,16 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByLabel("Annotation region width").fill("180");
     await testPage.getByLabel("Annotation region height").fill("72");
     await testPage.getByRole("button", { name: "Add annotation" }).click();
-    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Added annotation");
+    await expect
+      .poll(() => testPage.locator(".notice").getByRole("status").textContent())
+      .toContain("Added annotation");
     const annotation = testPage.locator("[data-annotation-id]").first();
     await annotation.getByText("Scene scene-opening · point 420ms · 420–780ms · 1 region").waitFor();
     await annotation.locator("textarea").fill("Pause longer on the highlighted control.");
     await annotation.getByRole("button", { name: "Save note" }).click();
-    await expect.poll(() => testPage.getByRole("status").textContent()).toContain("Updated annotation");
+    await expect
+      .poll(() => testPage.locator(".notice").getByRole("status").textContent())
+      .toContain("Updated annotation");
     await annotation.locator("textarea").fill("Resolve this edited draft without losing it.");
     await annotation.getByRole("button", { name: "Resolve", exact: true }).click();
     await annotation.getByRole("button", { name: "Reopen note", exact: true }).waitFor();
@@ -464,7 +484,19 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       element.style.display = "block";
       element.style.transform = "none";
     });
-    const embeddedPng = await scrubber.locator(".svg-host svg").screenshot({ omitBackground: true });
+    // Clip the screenshot at the pixel-snapped position rather than taking an
+    // element screenshot. Studio's text metrics (its real font stack, once the
+    // page stylesheet stopped being HTML-escaped) can leave the preview iframe
+    // at a fractional layout offset; Chromium paints the frame snapped to whole
+    // pixels, but an element screenshot clips the fractional rect, so the
+    // 60px-tall SVG would straddle 61 rows.
+    const embeddedSvg = scrubber.locator(".svg-host svg");
+    await embeddedSvg.scrollIntoViewIfNeeded();
+    const embeddedBox = (await embeddedSvg.boundingBox())!;
+    const embeddedPng = await testPage.screenshot({
+      omitBackground: true,
+      clip: { x: Math.round(embeddedBox.x), y: Math.round(embeddedBox.y), width: 100, height: 60 },
+    });
     const exportPage = await context.newPage();
     try {
       await exportPage.setViewportSize({ width: 100, height: 60 });

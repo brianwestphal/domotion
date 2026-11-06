@@ -185,6 +185,20 @@ button entry point routes through cohesive timeline, authoring, preview,
 project, and annotation handlers; each handler owns one workflow while the
 shared busy/error wrapper remains the single async boundary.
 
+The chrome comes from `@kerfjs/ui` ([doc 273](273-ui-conventions.md)):
+
+- status, success and error messages render as a `StateBanner` (errors use an
+  alert live region; validation issues are listed under the banner);
+- an unselected Scrubber preview shows an `EmptyState`;
+- the busy preview refresh shows a `LoadingSpinner`;
+- the project actions carry decorative lucide icons through `LucideIcon`, with
+  their text labels unchanged.
+
+The kerf-ui CSS is folded into `/client.js` at build time. The page stylesheet
+is installed in `<head>`, outside the `mount()` tree: a `<style>` child in JSX
+is text-escaped, which used to drop quoted font names, so the page fell back to
+the browser's serif font.
+
 ## Verification
 
 `src/studio/app-projects.test.ts` covers POSIX/Windows path boundaries, valid
