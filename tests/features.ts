@@ -742,6 +742,17 @@ export const tests: FeatureTest[] = [
     height: 80,
   },
   {
+    // Slider pseudo box-shadows paint through the general box-shadow
+    // painters, as Blink paints any box (box_painter_base.cc, Chromium
+    // 7d859f27): an offset + blur drop shadow and an inset highlight on the
+    // thumb, a stacked spread-only ring pair on the second thumb, and an
+    // inset groove plus an offset outer shadow on the track.
+    name: "range-pseudo-box-shadow",
+    html: `<style>input.sh{appearance:none;display:block;width:300px;height:32px;margin:16px 20px}input.sh::-webkit-slider-runnable-track{height:12px;border-radius:6px;background:#e2e8f0;box-shadow:inset 0 2px 3px rgba(0,0,0,.45),0 3px 0 #94a3b8}input.sh::-webkit-slider-thumb{appearance:none;width:24px;height:24px;margin-top:-6px;border-radius:50%;background:#2563eb;box-shadow:0 4px 6px rgba(0,0,0,.5),inset 0 -3px 3px rgba(0,0,0,.4)}input.ring::-webkit-slider-thumb{box-shadow:0 0 0 2px #fff,0 0 0 5px #16a34a}</style><input class="sh" type="range" value="30"><input class="sh ring" type="range" value="70">`,
+    width: 350,
+    height: 120,
+  },
+  {
     // A control pseudo with a background-image LIST paints every layer over
     // its background color, last-listed first (BoxPainterBase::PaintFillLayers,
     // Chromium 7d859f27): a translucent stripe layer over a base gradient on

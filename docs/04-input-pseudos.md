@@ -53,7 +53,7 @@ Requirements for honoring author CSS on `<input>` shadow-DOM pseudos in Domotion
 
 `CapturedElement` already has `progressBarBg` / `progressBarBgImage` / `progressBarRadius` and analogous fields for `<progress>` and `<meter>`. Mirror that structure for input pseudos:
 
-- `rangeTrackBg`, `rangeTrackBgImage`, `rangeTrackRadius`, `rangeTrackHeight`, `rangeTrackBorder`. (A `rangeTrackBoxShadow` field was planned but never added: track `box-shadow` is not captured or rendered.)
+- `rangeTrackBg`, `rangeTrackBgImage`, `rangeTrackRadius`, `rangeTrackHeight`, `rangeTrackBorder`, `rangeTrackBoxShadow`.
 - `rangeThumbBg`, `rangeThumbBgImage`, `rangeThumbRadius`, `rangeThumbWidth`, `rangeThumbHeight`, `rangeThumbBorder`, `rangeThumbBoxShadow`.
 - `colorSwatchBg`, `colorSwatchRadius`, `colorSwatchBorder`.
 - `numberSpinButtonBg`, `numberSpinButtonBorder` (less commonly styled — capture but apply only when distinct). **Captured only:** no renderer reads them (see the SK-1222 / SK-1223 note below).
@@ -92,7 +92,7 @@ Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this on
 >
 > - A range is **author-styled** only when the captured pseudo fields say so: `rangeTrackBg` present ⇒ styled track, `rangeThumbWidth` present ⇒ styled thumb, with geometry taken from the captured `rangeTrackHeight` / `rangeThumbWidth` / `rangeThumbHeight` / `rangeThumbRadius` (there are no fixed fallbacks). An unstyled track paints `fill="none"`.
 > - A native (UA-default) range takes the Chromium raster route (`formControlRenderRoute` → `native-raster`), not a synthesized shape ([doc 182](182-native-control-fallback-retirement.md)).
-> - Thumb `box-shadow` (`rangeThumbBoxShadow`) is rendered through `parseSpreadOnlyShadows`: only zero-offset, zero-blur **spread** shadows paint, as concentric rings behind the thumb; offset, blur, and inset shadows are skipped. Track `box-shadow` is not captured and does not paint. Neither goes through the general `parseBoxShadow` + filter pipeline.
+> - Thumb and track `box-shadow` (`rangeThumbBoxShadow`, `rangeTrackBoxShadow`) paint through the general box-shadow painters in `src/render/box-shadow-paint.ts`, the same ones element boxes use, on the pseudo's border box with its resolved corner radius and border width. Blink paints a pseudo's shadows with the same `BoxPainterBase::PaintNormalBoxShadow` / `PaintInsetBoxShadow` code as any box (`core/paint/box_painter_base.cc`, Chromium 7d859f27): outer shadows (offset, blur, spread; stacked spread-only "donut" rings stay concentric circles on a round thumb) paint below the background, inset shadows above it, clipped to the padding box. Fixture: `range-pseudo-box-shadow`.
 
 Original plan, kept for history: `renderRange()` emitted a fixed-style track + thumb and was to (1) use captured track/thumb fills when different from the UA default, (2) use `rangeTrackHeight` for the track, (3) use `rangeThumbWidth/Height` for the thumb, and (4) route `box-shadow` through `parseBoxShadow`.
 

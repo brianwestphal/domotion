@@ -15,6 +15,8 @@ import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { isWholeHostNativeAppearance } from "../capture/effective-appearance.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { parseBoxShadow } from "./box-shadow.js";
+import { paintBoxShadow, paintInsetBoxShadow } from "./box-shadow-paint.js";
+import { parseCornerRadii } from "./borders.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { esc, r } from "./format.js";
 import { blinkSymbolMarkerGeometry, disclosureTriangle } from "./list-marker-geometry.js";
@@ -143,6 +145,40 @@ function underlayerShapes(
   if (baseColor != null && isPaintedColor(baseColor)) out.push(shape(baseColor));
   for (const fill of fills.slice(0, -1)) out.push(shape(fill));
   return out;
+}
+
+/**
+ * Paint a slider pseudo box's `box-shadow` list through the general box-shadow
+ * painters, exactly as for an element's border box: Blink paints a pseudo's
+ * shadows with the same `BoxPainterBase::PaintNormalBoxShadow` /
+ * `PaintInsetBoxShadow` code as any box (`box_painter_base.cc`, Chromium
+ * 7d859f27), outer shadows before the background and inset shadows after it,
+ * inside the padding box. Offset, blur, spread and inset all apply.
+ */
+function pseudoBoxShadowMarkup(
+  kind: "outer" | "inset",
+  boxShadow: string | undefined,
+  box: { x: number; y: number; w: number; h: number },
+  radius: number,
+  borderWidth: number,
+  indent: string,
+  defCtx: DefCtx | undefined,
+): string[] {
+  if (defCtx == null || boxShadow == null || boxShadow === "" || boxShadow === "none") return [];
+  const bw = `${borderWidth}px`;
+  const shadowBox = {
+    x: box.x,
+    y: box.y,
+    width: box.w,
+    height: box.h,
+    styles: { boxShadow, borderTopWidth: bw, borderRightWidth: bw, borderBottomWidth: bw, borderLeftWidth: bw },
+  };
+  const corners = parseCornerRadii({ borderRadius: `${radius}px` }, box.w, box.h);
+  const svgParts: string[] = [];
+  const ctx = { svgParts, defsParts: defCtx.defsParts, nextClipId: () => defCtx.nextGradId() };
+  if (kind === "outer") paintBoxShadow(ctx, shadowBox, corners, indent);
+  else paintInsetBoxShadow(ctx, shadowBox, corners, indent);
+  return svgParts;
 }
 
 /**
@@ -498,6 +534,18 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     trackRect = { x: elL, y: trackY, w: elW, h: trackThickness };
   }
 
+  const trackBorder = parseBorderShorthand(s.rangeTrackBorder);
+  const trackShadow = (kind: "outer" | "inset"): string[] =>
+    pseudoBoxShadowMarkup(
+      kind,
+      s.rangeTrackBoxShadow,
+      trackRect,
+      Math.min(trackR, trackRect.w / 2, trackRect.h / 2),
+      trackBorder?.width ?? 0,
+      indent,
+      defCtx,
+    );
+  parts.push(...trackShadow("outer"));
   const trackFills = gradientLayerFills(s.rangeTrackBgImage, trackRect, defCtx, "::-webkit-slider-runnable-track");
   const trackGradFill = trackFills.at(-1) ?? null;
   // CSS background layering: when both a gradient image and a background
@@ -515,11 +563,13 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // The background color is already painted above whenever a gradient exists.
   parts.push(...underlayerShapes(trackFills, null, trackLayerShape));
   const trackFill = trackGradFill ?? trackBgColor;
-  const trackBorder = parseBorderShorthand(s.rangeTrackBorder);
   const trackStroke = trackBorder == null ? "" : ` stroke="${trackBorder.color}" stroke-width="${trackBorder.width}"`;
   parts.push(
     `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${trackFill}"${trackStroke} />`,
   );
+  // Inset shadows are clipped to the padding box, so painting them after the
+  // path-centered border stroke cannot overlap it.
+  parts.push(...trackShadow("inset"));
   // Parse the captured author thumb border (e.g. "2px solid white"). A missing
   // border remains missing; native thumbs never reach this branch.
   const thumbBorder = parseBorderShorthand(s.rangeThumbBorder);
@@ -531,6 +581,17 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const thumbFills = gradientLayerFills(s.rangeThumbBgImage, thumbRect, defCtx, "::-webkit-slider-thumb");
     const thumbFill = thumbFills.at(-1) ?? thumbBgColor;
     const strokeAttrs = thumbBorder != null ? ` stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}"` : "";
+    const thumbShadow = (kind: "outer" | "inset"): string[] =>
+      pseudoBoxShadowMarkup(
+        kind,
+        s.rangeThumbBoxShadow,
+        thumbRect,
+        Math.min(thumbRadius, thumbW / 2, thumbH / 2),
+        thumbBorder?.width ?? 0,
+        indent,
+        defCtx,
+      );
+    parts.push(...thumbShadow("outer"));
     parts.push(
       ...underlayerShapes(
         thumbFills,
@@ -542,32 +603,24 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     parts.push(
       `${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}"${strokeAttrs} />`,
     );
+    parts.push(...thumbShadow("inset"));
   } else if (styledThumb) {
     const halfThumb = thumbW / 2;
     const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
     const thumbRect = { x: thumbCx - halfThumb, y: thumbCy - halfThumb, w: thumbW, h: thumbW };
     const thumbFills = gradientLayerFills(s.rangeThumbBgImage, thumbRect, defCtx, "::-webkit-slider-thumb");
     const thumbFill = thumbFills.at(-1) ?? thumbBgColor;
-    // Donut-effect outer ring (DM-319). When the thumb pseudo has a
-    // `box-shadow: 0 0 0 Npx <color>` (spread-only inset-less shadow), Chrome
-    // paints an extra ring of width N around the thumb's outer edge — the
-    // visible "green outer ring" on the tick-marks slider. Layering matches
-    // CSS paint order: shadow (bottom) → background-fill → border (top).
+    // Outer shadows paint below the thumb (CSS paint order: shadow ->
+    // background -> border). A spread-only shadow is the "donut ring" author
+    // pattern (`box-shadow: 0 0 0 Npx <color>`, stacked rings included); the
+    // general painter outsets the full-radius corners, so it stays a circle.
     // SVG's `stroke` is path-centered, so to keep the border drawn ENTIRELY
     // inside the thumb's box (Chrome's behavior), we shrink the inner-fill
-    // circle's path radius by `borderWidth/2` and add the same back to the
-    // stroke width — that puts the stroke band between r=halfThumb-border and
-    // r=halfThumb, leaving the outer-ring band (halfThumb..halfThumb+spread)
-    // free for the box-shadow.
-    // CSS paints the FIRST box-shadow on top; for spread-only outer rings a
-    // larger spread sits further back, so draw largest-spread first and let the
-    // smaller rings (and the thumb fill below) over-paint — yielding concentric
-    // bands (DM-1240: stacked `0 0 0 1px white, 0 0 0 3px blue`).
-    const rings = parseSpreadOnlyShadows(s.rangeThumbBoxShadow).sort((a, b) => b.spread - a.spread);
-    for (const ring of rings) {
-      const ringR = halfThumb + ring.spread;
-      parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(ringR)}" fill="${ring.color}" />`);
-    }
+    // circle's path radius by `borderWidth/2`, putting the stroke band between
+    // r=halfThumb-border and r=halfThumb.
+    const thumbShadow = (kind: "outer" | "inset"): string[] =>
+      pseudoBoxShadowMarkup(kind, s.rangeThumbBoxShadow, thumbRect, halfThumb, thumbBorder?.width ?? 0, indent, defCtx);
+    parts.push(...thumbShadow("outer"));
     // Lower layers fill the whole border box; the top shape's border stroke
     // still paints over them.
     parts.push(
@@ -585,54 +638,9 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     } else {
       parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${thumbFill}" />`);
     }
+    parts.push(...thumbShadow("inset"));
   }
   return parts.join("\n");
-}
-
-/**
- * Parse a CSS `box-shadow` value into the spread-only rings it contains.
- * Each ring has the form `<color> 0px 0px 0px <Npx>` or `0px 0px 0px <Npx>
- * <color>` (Chrome canonicalizes either author syntax to the color-first form).
- * Used by `renderRange` to detect the donut-ring author pattern
- *   `box-shadow: 0 0 0 1px <color>`  (and stacked variants like
- *   `0 0 0 1px white, 0 0 0 3px blue`, DM-1240) on `::-webkit-slider-thumb`
- * (DM-319). Returns one `{ spread, color }` per spread-only shadow in source
- * order; a comma-separated list yields multiple rings, and non-spread-only
- * shadows (offset / blur / inset) are skipped. Empty when none qualify.
- */
-export function parseSpreadOnlyShadows(value: string | undefined): Array<{ spread: number; color: string }> {
-  if (value == null || value === "" || value === "none") return [];
-  // Split the shadow LIST on top-level commas (parens in `rgb(...)` are nested,
-  // so track depth and only split at depth 0).
-  const items: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < value.length; i++) {
-    const c = value[i];
-    if (c === "(") depth++;
-    else if (c === ")") depth--;
-    else if (c === "," && depth === 0) {
-      items.push(value.slice(start, i));
-      start = i + 1;
-    }
-  }
-  items.push(value.slice(start));
-  const rings: Array<{ spread: number; color: string }> = [];
-  // Per item: optional color prefix, four <length> tokens (x / y / blur /
-  // spread), optional color suffix.
-  const re =
-    /^\s*(?:(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+)\s+)?(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(rgba?\([^)]+\)|#[0-9a-fA-F]+|\w+))?\s*$/;
-  for (const item of items) {
-    const m = re.exec(item.trim());
-    if (m == null) continue;
-    const color = m[1] ?? m[6];
-    if (color == null || color === "" || /^(?:inset|none)$/i.test(color)) continue;
-    if (parseFloat(m[2]) !== 0 || parseFloat(m[3]) !== 0 || parseFloat(m[4]) !== 0) continue; // offset/blur ⇒ not a ring
-    const spread = parseFloat(m[5]);
-    if (!isFinite(spread) || spread <= 0) continue;
-    rings.push({ spread, color });
-  }
-  return rings;
 }
 
 /** Parse a CSS `border` shorthand like `"2px solid white"` into a width/color

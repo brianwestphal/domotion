@@ -365,6 +365,7 @@ export const createFormControlsHandler = ({
       out.rangeTrackBorder = styledTrack && ts.border !== "" ? ts.border : undefined;
       out.rangeThumbBorder = styledThumb && ms.border !== "" ? ms.border : undefined;
       out.rangeThumbBoxShadow = styledThumb && ms.boxShadow !== "" ? ms.boxShadow : undefined;
+      out.rangeTrackBoxShadow = styledTrack && ts.boxShadow !== "" ? ts.boxShadow : undefined;
     }
 
     // ::file-selector-button — read directly via getComputedStyle (not the

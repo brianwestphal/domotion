@@ -1173,10 +1173,12 @@ export interface CapturedStyles {
   rangeTrackBorder?: string;
   /** ::-webkit-slider-thumb border shorthand (DM-273). */
   rangeThumbBorder?: string;
-  /** ::-webkit-slider-thumb box-shadow (DM-319). Used for the donut-ring
-   *  effect: `box-shadow: 0 0 0 Npx <color>` paints an outer ring of width
-   *  N around the thumb. We only render the spread-only form. */
+  /** ::-webkit-slider-thumb computed box-shadow list, painted through the
+   *  general outer/inset box-shadow pipeline on the thumb's border box. */
   rangeThumbBoxShadow?: string;
+  /** ::-webkit-slider-runnable-track computed box-shadow list, painted the
+   *  same way on the track's border box. */
+  rangeTrackBoxShadow?: string;
   /** ::-webkit-color-swatch pseudo styles (SK-1223). */
   colorSwatchBg?: string;
   colorSwatchBgImage?: string;

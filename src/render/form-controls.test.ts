@@ -11,7 +11,6 @@ import {
   checkablePseudoFactsOwnIndicator,
   renderFileSelectorOutsetShadow,
   renderFormControl,
-  parseSpreadOnlyShadows,
   collectFormControlConicTiles,
 } from "./form-controls.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -615,29 +614,100 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
   });
 });
 
-describe("parseSpreadOnlyShadows — slider-thumb donut rings (DM-1240)", () => {
-  it("parses a single spread-only ring (the DM-319 pattern)", () => {
-    expect(parseSpreadOnlyShadows("rgb(0, 200, 0) 0px 0px 0px 2px")).toEqual([{ spread: 2, color: "rgb(0, 200, 0)" }]);
+describe("range pseudo box-shadow through the general painter", () => {
+  const defCtx = () => {
+    const defsParts: string[] = [];
+    let n = 0;
+    return {
+      defsParts,
+      ctx: { idPrefix: "t", defsParts, gradientCache: new Map<string, string>(), nextGradId: () => `tgrad${n++}` },
+    };
+  };
+  const range = (styles: Record<string, unknown>): CapturedElement =>
+    ({
+      tag: "input",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 40,
+      children: [],
+      styles: {
+        effectiveAppearance: "none",
+        inputType: "range",
+        inputValue: "50",
+        inputMin: "0",
+        inputMax: "100",
+        rangeTrackBg: "rgb(200, 200, 200)",
+        rangeTrackHeight: "8px",
+        rangeTrackRadius: "4px",
+        rangeThumbBg: "rgb(30, 64, 175)",
+        rangeThumbWidth: "20px",
+        rangeThumbHeight: "20px",
+        rangeThumbRadius: "10px",
+        ...styles,
+      },
+    }) as unknown as CapturedElement;
+  const order = (svg: string, ...needles: string[]): number[] => needles.map((needle) => svg.indexOf(needle));
+
+  it("keeps stacked spread-only thumb rings concentric, largest below", () => {
+    const { ctx } = defCtx();
+    const svg = renderFormControl(
+      range({ rangeThumbBoxShadow: "rgb(255, 255, 255) 0px 0px 0px 1px, rgb(0, 0, 255) 0px 0px 0px 3px" }),
+      "",
+      ctx,
+    );
+    const [blue, white, thumb] = order(
+      svg,
+      'fill="rgb(0,0,255)"',
+      'fill="rgb(255,255,255)"',
+      'fill="rgb(30, 64, 175)"',
+    );
+    expect(blue).toBeGreaterThan(-1);
+    expect(blue).toBeLessThan(white);
+    expect(white).toBeLessThan(thumb);
+    // 20px thumb + 3px spread on each side = 26px, fully rounded.
+    expect(svg).toMatch(/width="26" height="26" rx="13"/);
   });
 
-  it("parses a stacked multi-shadow list into multiple rings in source order", () => {
-    expect(parseSpreadOnlyShadows("rgb(255, 255, 255) 0px 0px 0px 1px, rgb(0, 0, 255) 0px 0px 0px 3px")).toEqual([
-      { spread: 1, color: "rgb(255, 255, 255)" },
-      { spread: 3, color: "rgb(0, 0, 255)" },
-    ]);
+  it("paints offset + blur thumb shadows with a Gaussian filter below the thumb", () => {
+    const { ctx, defsParts } = defCtx();
+    const svg = renderFormControl(range({ rangeThumbBoxShadow: "rgba(0, 0, 0, 0.5) 0px 2px 4px 0px" }), "", ctx);
+    expect(defsParts.join("")).toContain("feGaussianBlur");
+    expect(svg.indexOf('filter="url(#tgrad')).toBeGreaterThan(-1);
+    expect(svg.indexOf('filter="url(#tgrad')).toBeLessThan(svg.indexOf('fill="rgb(30, 64, 175)"'));
   });
 
-  it("skips shadows with a non-zero offset or blur (not rings) but keeps the spread-only ones", () => {
-    // A soft drop shadow (offset+blur) is not a ring; the spread-only one is.
-    expect(parseSpreadOnlyShadows("rgba(0, 0, 0, 0.4) 0px 2px 4px 0px, rgb(0, 128, 0) 0px 0px 0px 2px")).toEqual([
-      { spread: 2, color: "rgb(0, 128, 0)" },
-    ]);
+  it("paints an inset thumb shadow above the thumb, clipped to its padding box", () => {
+    const { ctx, defsParts } = defCtx();
+    const svg = renderFormControl(range({ rangeThumbBoxShadow: "rgb(255, 0, 0) 0px -3px 2px 0px inset" }), "", ctx);
+    expect(defsParts.join("")).toContain("<clipPath");
+    expect(svg.indexOf('fill-rule="evenodd"')).toBeGreaterThan(svg.indexOf('fill="rgb(30, 64, 175)"'));
   });
 
-  it("returns [] for none / inset / empty", () => {
-    expect(parseSpreadOnlyShadows("none")).toEqual([]);
-    expect(parseSpreadOnlyShadows(undefined)).toEqual([]);
-    expect(parseSpreadOnlyShadows("inset 0px 0px 0px 2px red")).toEqual([]);
+  it("paints the captured track box-shadow: outer below, inset above the track", () => {
+    const { ctx } = defCtx();
+    const svg = renderFormControl(
+      range({ rangeTrackBoxShadow: "rgb(0, 128, 0) 0px 2px 0px 0px, rgb(255, 0, 0) 0px 1px 2px 0px inset" }),
+      "",
+      ctx,
+    );
+    const [outer, track, inset] = order(svg, 'fill="rgb(0,128,0)"', 'fill="rgb(200, 200, 200)"', 'fill-rule="evenodd"');
+    expect(outer).toBeGreaterThan(-1);
+    expect(outer).toBeLessThan(track);
+    expect(inset).toBeGreaterThan(track);
+  });
+
+  it("paints a centered pure-blur inset glow as a blurred inner ring", () => {
+    const { ctx } = defCtx();
+    const svg = renderFormControl(range({ rangeThumbBoxShadow: "rgb(255, 0, 0) 0px 0px 4px 0px inset" }), "", ctx);
+    expect(svg).toMatch(/fill="none" stroke="rgb\(255,0,0\)" stroke-width="2"/);
+  });
+
+  it("emits nothing extra without a shadow", () => {
+    const { ctx } = defCtx();
+    const svg = renderFormControl(range({}), "", ctx);
+    expect(svg).not.toContain("filter=");
+    expect(svg).not.toContain("evenodd");
   });
 });
 
