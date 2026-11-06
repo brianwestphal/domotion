@@ -1311,8 +1311,8 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": [],
-        "tickets": ["DM-883", "DM-889"],
-        "code": ["src/cli/capture.ts", "src/cli/common.ts", "tests/real-world.tsx"],
+        "tickets": ["DM-883", "DM-889", "DM-Z0VPN1"],
+        "code": ["src/cli/capture.ts", "src/cli/common.ts", "src/capture/har-fetcher.ts", "tests/real-world.tsx"],
         "aliases": ["docs/48-har-source.md", "doc-48"]
       }
     },

@@ -80,7 +80,7 @@ import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element
 import { resetLastCaptureWarnings } from "./warnings.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { assertCapturedTreeShape } from "./tree-shape.js";
-import { fetchFontSourceBytes } from "./font-source-bytes.js";
+import { fetchFontSourceBytes, type FontHttpGetter } from "./font-source-bytes.js";
 import { scanActiveFontFaceRules, type ActiveFontFaceRule } from "./active-font-face-rules.js";
 import {
   faceRuleFromFontFaceDescriptors,
@@ -684,6 +684,15 @@ export type WebfontRegistration =
 export interface DiscoverWebfontsOptions {
   /** Called once for every registration that succeeded, in registration order. */
   onRegister?: (registration: WebfontRegistration) => void;
+  /**
+   * Fetches the bytes of an http(s) font source or cross-origin stylesheet.
+   * Defaults to the page's browser-context request API. That API is not
+   * intercepted by `BrowserContext.route` / `routeFromHAR`, so a HAR replay
+   * passes a getter that serves the archive (`createHarHttpGetter` in
+   * `har-fetcher.ts`); otherwise discovery would download from the live
+   * network while Chrome painted the archived bytes.
+   */
+  httpGet?: FontHttpGetter;
 }
 
 /**
@@ -727,6 +736,7 @@ async function registerDiscoveredFont(
   item: DiscoveredItem,
   page: Page,
   report: WebfontRegisterReport[],
+  httpGet: FontHttpGetter,
   textEngineSession?: TextEngineSession,
   onRegister?: (registration: WebfontRegistration) => void,
 ): Promise<void> {
@@ -775,9 +785,9 @@ async function registerDiscoveredFont(
   let registered = false;
   for (const candidateUrl of candidates) {
     try {
-      // data: and file: sources never reach Playwright's request API, which
-      // rejects both protocols (see font-source-bytes.ts).
-      const fetched = await fetchFontSourceBytes(candidateUrl, (u) => page.context().request.get(u), page.url());
+      // data: and file: sources never reach the http getter (Playwright's
+      // request API rejects both protocols; see font-source-bytes.ts).
+      const fetched = await fetchFontSourceBytes(candidateUrl, httpGet, page.url());
       if (!fetched.ok) {
         lastError = fetched.error;
         continue;
@@ -1004,14 +1014,11 @@ export async function discoverAndRegisterWebfonts(
   // Fetch one sheet's text: Playwright's request API for http(s), and the
   // local reader for data: / file: (a `file:` page's own `file:` sheets are
   // opaque-origin to Chrome, so they land here too).
+  const httpGet: FontHttpGetter = options.httpGet ?? ((u) => page.context().request.get(u));
   const fetchSheetText = async (sheetUrl: string): Promise<string | null> => {
     try {
-      if (/^(data|file):/i.test(sheetUrl)) {
-        const fetched = await fetchFontSourceBytes(sheetUrl, (u) => page.context().request.get(u), page.url());
-        return fetched.ok ? fetched.body.toString("utf8") : null;
-      }
-      const resp = await page.context().request.get(sheetUrl);
-      return resp.ok() ? await resp.text() : null;
+      const fetched = await fetchFontSourceBytes(sheetUrl, httpGet, page.url());
+      return fetched.ok ? fetched.body.toString("utf8") : null;
     } catch {
       return null;
     }
@@ -1046,7 +1053,7 @@ export async function discoverAndRegisterWebfonts(
 
   const report: WebfontRegisterReport[] = [];
   for (const item of discovered) {
-    await registerDiscoveredFont(item, page, report, textEngineSession, options.onRegister);
+    await registerDiscoveredFont(item, page, report, httpGet, textEngineSession, options.onRegister);
   }
   return report;
 }

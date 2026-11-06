@@ -119,7 +119,7 @@ flowchart TD
   A5 -.-> C0
 ```
 
-**Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts` (source bytes via `fetchFontSourceBytes` in `src/capture/font-source-bytes.ts`: `data:` decoded locally, `file:` read from disk for a `file:` page, everything else through the browser request API);
+**Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts` (source bytes via `fetchFontSourceBytes` in `src/capture/font-source-bytes.ts`: `data:` decoded locally, `file:` read from disk for a `file:` page, everything else through an injectable http getter that defaults to the browser request API; a HAR replay — `domotion capture page.har` and the real-world suite — passes `createHarHttpGetter` from `src/capture/har-fetcher.ts` so the bytes come from the archive Chrome painted, since `routeFromHAR` does not intercept the request API);
 `resetGeneration` / `snapshotGeneration` / `restoreGeneration` in
 `packages/text-engine/src/render/generation.ts`, invoked by
 `withTextEngineDocument` in `packages/text-engine/src/render/text-engine.ts`;

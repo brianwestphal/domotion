@@ -39,6 +39,7 @@ import {
   discoverAndRegisterWebfonts,
   injectBrandVariables,
 } from "../capture/index.js";
+import { createHarHttpGetter, loadHarArchive } from "../capture/har-fetcher.js";
 import { parseCrossOriginAllowlist } from "../capture/script/cross-origin.js";
 import { loadBrand } from "../templates/brand.js";
 import {
@@ -349,8 +350,18 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
     // draws with the real webfont glyphs instead of a system substitute.
     clearWebfonts();
     clearCaptureGenerationCaches();
+    // A HAR replay serves discovery's Node-side fetches from the archive too:
+    // the request API they otherwise use is not routed, so it would download
+    // fonts from the live network (failing strict offline replay, or returning
+    // bytes Chrome never painted) with the same notFound policy as the page.
+    const httpGet = har
+      ? createHarHttpGetter(loadHarArchive(input), {
+          notFound: values["har-fallback"] === true ? "fallback" : "abort",
+          fallback: (u) => ctx.request.get(u),
+        })
+      : undefined;
     await timed(log, `  registered webfonts (${tracker.urls.size})`, () =>
-      discoverAndRegisterWebfonts(page, tracker.urls),
+      discoverAndRegisterWebfonts(page, tracker.urls, undefined, { httpGet }),
     );
     tracker.detach();
 

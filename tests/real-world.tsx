@@ -44,6 +44,7 @@ import {
 import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
+import { createHarHttpGetter, loadHarArchive } from "../src/capture/har-fetcher.js";
 import { createTextEngineSession, withTextEngineDocument } from "../src/render/text-engine.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPattern, type ScrollSegmentCapture } from "../src/scroll/executor.js";
@@ -452,6 +453,20 @@ async function runJob(
     notFound: "fallback",
   });
 
+  // Discovery downloads font and cross-origin stylesheet bytes Node-side
+  // through the context's request API, which routeFromHAR does not intercept.
+  // On a replay, serve those fetches from the same archive (falling through to
+  // the network like the route's `notFound: 'fallback'`), so discovery gets the
+  // bytes Chrome painted rather than whatever the live URL returns today. A
+  // record run has no archive yet (it is written on context close), so it
+  // keeps the default request API.
+  const harFontGetter = harExists
+    ? createHarHttpGetter(loadHarArchive(harPath), {
+        notFound: "fallback",
+        fallback: (u) => context.request.get(u),
+      })
+    : undefined;
+
   const page = await context.newPage();
   // DM-479: standardize per-page Playwright operation timeouts at 90 s.
   page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
@@ -565,7 +580,7 @@ async function runJob(
     // subsequent rasterize pass — fragile, not worth the marginal
     // 0.5-1pp diff improvement. Order alone is the robust fix.
     try {
-      await discoverAndRegisterWebfonts(page, fontUrls, fontSession);
+      await discoverAndRegisterWebfonts(page, fontUrls, fontSession, { httpGet: harFontGetter });
     } catch {
       /* best-effort */
     }

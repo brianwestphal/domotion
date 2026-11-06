@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-883", "DM-889"]
-code: ["src/cli/capture.ts", "src/cli/common.ts", "tests/real-world.tsx"]
+tickets: ["DM-883", "DM-889", "DM-Z0VPN1"]
+code: ["src/cli/capture.ts", "src/cli/common.ts", "src/capture/har-fetcher.ts", "tests/real-world.tsx"]
 aliases: ["docs/48-har-source.md", "doc-48"]
 ---
 
@@ -71,7 +71,23 @@ change. No new dependency.
    replay so the capture is fully deterministic (every asset must be in the
    HAR). A `--har-fallback` flag flips `notFound` to `"fallback"` to let missing
    assets hit the live network (hybrid mode).
-4. **Everything downstream is unchanged** — `--selector`, `--width/--height`,
+4. **Webfont discovery reads the same archive.** `discoverAndRegisterWebfonts`
+   fetches font bytes and cross-origin stylesheet text Node-side, and its
+   default getter (Playwright's `APIRequestContext`) is not intercepted by
+   `routeFromHAR`: routes apply only to requests the page makes. Without help,
+   a strict replay would download every font from the live network (failing
+   once a deployment URL is gone, or returning bytes Chrome never painted). The
+   capture path therefore passes `createHarHttpGetter`
+   (`src/capture/har-fetcher.ts`), which serves those fetches from the archive
+   with Playwright's own HAR lookup (`HarBackend._harFindResponse` /
+   `_loadContent` in `playwright-core`): exact URL + method (fragment
+   removed), first candidate on a tie, recorded 3xx `Location` redirects
+   followed, bodies from the `_file` sidecar beside the `.har` or from
+   `content.text` (base64 when `encoding: "base64"`). An unmatched URL fails
+   the candidate under the default `notFound: "abort"` and goes to the network
+   under `--har-fallback`. `tests/real-world.tsx` uses the same getter (with
+   fallback) whenever it replays an existing HAR.
+5. **Everything downstream is unchanged** — `--selector`, `--width/--height`,
    `--scroll`, `--wait*`, color-scheme, optimize, etc. operate on the replayed
    page exactly as they do for a live URL.
 

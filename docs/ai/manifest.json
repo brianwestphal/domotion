@@ -803,7 +803,7 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": [],
-      "code": ["src/cli/capture.ts", "src/cli/common.ts", "tests/real-world.tsx"],
+      "code": ["src/cli/capture.ts", "src/cli/common.ts", "src/capture/har-fetcher.ts", "tests/real-world.tsx"],
       "file": "48-har-source.md"
     },
     {
