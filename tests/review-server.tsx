@@ -842,11 +842,13 @@ async function attachFileToTicket(settings: Settings, ticketId: number, filePath
 const REVIEW_CSS = `
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.45 var(--kui-font-sans); background: #0d1117; color: #e6edf3; }
-  /* The kerf-ui Toolbar supplies the title row's 1rem inline padding; the
-     header adds 8px so content lines up at 24px like the card grid. */
-  header { position: sticky; top: 0; z-index: 10; background: #161b22; border-bottom: 1px solid #30363d; padding: 4px 8px 12px; }
-  header h1 { margin: 0; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .controls, .suite-summary { padding: 0 16px; }
+  /* The kerf-ui Toolbar supplies the title row's 8px inline padding; the
+     page header adds 16px so content lines up at 24px like the card grid.
+     "body > header", not "header": kerf-ui 5 renders the Toolbar itself as a
+     <header>, which must not pick up the page header's border and padding. */
+  body > header { position: sticky; top: 0; z-index: 10; background: #161b22; border-bottom: 1px solid #30363d; padding: 4px 16px 12px; }
+  body > header h1 { margin: 0; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .controls, .suite-summary { padding: 0 8px; }
   .controls { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; }
   .controls label { font-size: 13px; color: #8b949e; }
   .controls select { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; padding: 4px 8px; border-radius: 4px; }
@@ -1024,7 +1026,6 @@ function Layout({
         <header>
           <Toolbar
             label="Review summary"
-            divider={false}
             className="review-toolbar"
             leading={<h1>SVG Demo Test Review</h1>}
             trailing={<span className="stats" id="stats"></span>}

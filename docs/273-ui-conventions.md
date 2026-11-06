@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-QW1NMD"]
+tickets: ["DM-QW1NMD", "DM-HRBJ8M"]
 code:
   [
     "src/kerf-ui-theme.ts",
@@ -27,9 +27,19 @@ The design philosophy, accessibility contract and component-selection guidance a
 
 ## Component subset
 
-Only kerf-ui's **non-Web-Awesome** components are used: `Toolbar`, `ToolbarControlGroup`, `ToolbarText`, `LucideIcon`, `StateBanner`, `EmptyState`, `LoadingSpinner`, `PageHeader` and similar. Each is imported from its own subpath (`@kerfjs/ui/toolbar`, …), never from the root barrel.
+The tools use kerf-ui's `Toolbar`, `ToolbarControlGroup`, `LucideIcon`, `StateBanner`, `EmptyState`, `LoadingSpinner` and `SegmentedControl`. Each is imported from its own subpath (`@kerfjs/ui/toolbar`, …), never from the root barrel.
 
-**Kerf `Select` and every Web Awesome component are excluded.** Measured with esbuild (IIFE, es2022, browser conditions), the subset adds about 15 KB of JavaScript and 30 KB of CSS before minification to a kerf bundle, with no network access. Adding `@kerfjs/ui/select` and its `select/register` instead adds about 321 KB raw (216 KB minified). Its Web Awesome icon code also builds `https://ka-f.fontawesome.com/…` URLs, which would make the shipped pages fetch from a CDN and break their self-contained, offline contract. Native `<select>` elements stay everywhere, and the browser tests drive them with `selectOption`.
+kerfjs, `@kerfjs/ui` and `eslint-plugin-kerfjs` are pinned to the exact 5.0 beta `5.0.0-beta.125` until 5.0 is released stable. Under kerf-ui 5 none of these components depends on Web Awesome, and `@awesome.me/webawesome` is not installed. Web Awesome components stay out: they are an optional kerf-ui integration, and Web Awesome's default icon library builds Font Awesome CDN URLs, which would break the pages' self-contained, offline contract. Native `<select>` elements remain for now, and the browser tests drive them with `selectOption`.
+
+**Bundle sizes.** Upgrading from kerfjs 4.4 / kerf-ui 4.4.1 to the 5.0 beta grew the three shipped bundles as follows (JavaScript including the folded CSS string; "minified" is an esbuild `minify` pass over the shipped unminified bundle):
+
+| Bundle | 4.4 raw | 5.0 beta raw | 4.4 minified | 5.0 beta minified |
+| --- | --- | --- | --- | --- |
+| svg-review (`src/review`) | 65.0 KB | 99.4 KB (+34.3) | 42.7 KB | 69.1 KB (+26.5) |
+| svg-scrubber (`src/scrubber`) | 161.7 KB | 235.2 KB (+73.5) | 93.4 KB | 149.1 KB (+55.7) |
+| Studio (`src/studio`) | 785.2 KB | 837.1 KB (+51.9) | 451.4 KB | 486.5 KB (+35.2) |
+
+Most of the growth is the kerfjs 5 runtime itself, which now builds on `@preact/signals-core`.
 
 Icons come from the [`lucide`](https://lucide.dev) package, imported by name (`import { Play } from "lucide"`) so only the referenced icon nodes are bundled, and rendered through `LucideIcon`. Icon-only buttons carry an `aria-label`; the icon itself is decorative.
 
@@ -37,7 +47,7 @@ Icons come from the [`lucide`](https://lucide.dev) package, imported by name (`i
 
 `@kerfjs/ui` and `lucide` are **devDependencies**. Every shipped use is compiled into a pre-built bundle string (`src/{review,scrubber,studio}/client.bundle.generated.ts`), so consumers of the npm package install nothing new and the shipped servers never import either package at runtime.
 
-`scripts/bundle-kerf-client.mjs` is the shared esbuild step. Under the `browser` export condition each kerf-ui subpath pulls in its own CSS, which esbuild emits as a second output. The script folds that CSS back into the JavaScript as a one-line prologue that prepends a `<style data-kerf-ui>` element to `<head>` before any client code runs, so each page is still one HTML shell plus one `/client.js`. Because the package CSS is prepended, each page's own stylesheet comes later in the cascade and overrides package defaults without specificity tricks. The prologue sits on the bundle's first line, so inline source maps used for browser coverage keep their line numbers.
+`scripts/bundle-kerf-client.mjs` is the shared esbuild step. It anchors esbuild's per-module path comments at their `node_modules/` segment, so a checkout whose dependencies are symlinked from elsewhere regenerates byte-identical bundles. Under the `browser` export condition each kerf-ui subpath pulls in its own CSS, which esbuild emits as a second output. The script folds that CSS back into the JavaScript as a one-line prologue that prepends a `<style data-kerf-ui>` element to `<head>` before any client code runs, so each page is still one HTML shell plus one `/client.js`. Because the package CSS is prepended, each page's own stylesheet comes later in the cascade and overrides package defaults without specificity tricks. The prologue sits on the bundle's first line, so inline source maps used for browser coverage keep their line numbers.
 
 The local harness renders kerf-ui components on the server too, so it inlines the stylesheets it needs (`KERF_UI_STYLESHEETS` in `tests/review-server.tsx`) in `<head>` and discards the client bundle's copy. Keep that list in step with the harness's `@kerfjs/ui/*` imports.
 
@@ -55,6 +65,7 @@ Only public `--kui-*` tokens are set, never kerf-ui's private descendant rules. 
 
 - **Domain UI stays bespoke.** The review cards, region overlays, lightbox, scrubber timeline/range track, crop layer, Studio forms and the multitrack timeline have no kerf-ui equivalent and keep their own markup and CSS. kerf-ui supplies the chrome around them: toolbars, icon buttons, status banners, empty and loading states.
 - **Behavior hooks are unchanged.** Every `data-action`, `id` and class that a delegate, a test or a downstream tool reads was preserved through the migration. A kerf-ui component that needs a hook receives it through its `className` or `action` prop. The one consolidation is Studio's preview selector: a controlled `SegmentedControl` gives all of its segments one `action`, so the former `preview-story` / `preview-scene` pair became `preview-select` with the choice in `data-segment-value` (doc 240). Only the Studio delegate read the old names, and the tests address the segments by their unchanged accessible names.
+- **Page element selectors must not reach kerf-ui markup.** kerf-ui 5 renders `Toolbar` as a `<header>` element, so the harness's former bare `header { … }` rule gave the toolbar a second border and padding. Scope page rules for structural elements to the page's own element (`body > header`), not the tag.
 - **Page CSS goes in `<head>`, never in a JSX `<style>` child.** kerf escapes text children, so quotes become `&quot;` and `>` becomes `&gt;` inside the stylesheet. Studio lost its whole font stack this way and rendered in the browser's serif font until the migration moved its stylesheet into a `<head>` element created outside the `mount()` tree.
 - **`EmptyState` is a status region.** kerf-ui renders it with `role="status"`, so a page can hold more than one status region. Tests that read "the" status message scope the query to their container (for example `.notice` in Studio) rather than taking the page's only `status` role.
 - **Status messages use `StateBanner`.** Operation results, save outcomes and validation errors render as a `StateBanner` whose tone follows the message kind (`info`, `success`, `warning`, `danger`). Live-region semantics (`role="status"`/`"alert"`) come from the banner's `urgency`.

@@ -43,10 +43,17 @@ export async function bundleKerfClient({ entry, format = "iife", sourcemap = fal
   if (jsFile == null) throw new Error(`esbuild produced no JavaScript for ${entry}`);
   // esbuild appends a `/*# sourceMappingURL */` comment to inline-sourcemapped
   // CSS; strip it — the CSS is injected as text, not loaded from a URL.
-  const css = cssFile != null ? cssFile.text.replace(/\/\*# sourceMappingURL=[^*]*\*\/\s*$/u, "").trimEnd() : "";
+  let css = cssFile != null ? cssFile.text.replace(/\/\*# sourceMappingURL=[^*]*\*\/\s*$/u, "").trimEnd() : "";
+  // esbuild heads each bundled module (and each input stylesheet) with a
+  // `// <path>` / `/* <path> */` comment relative to the working directory, so
+  // a checkout whose node_modules entries are symlinks into another directory
+  // would regenerate every bundle with different bytes. Anchor those paths at
+  // their `node_modules/` segment: the output must depend only on the sources.
+  const normalizePathComments = (text) => text.replace(/^(\s*(?:\/\/|\/\*) )[^\s*]*?node_modules\//gmu, "$1node_modules/");
+  css = normalizePathComments(css);
   const prologue =
     css === ""
       ? ""
       : `(()=>{const s=document.createElement("style");s.setAttribute("data-kerf-ui","");s.textContent=${JSON.stringify(css)};document.head.prepend(s);})();`;
-  return { js: prologue + jsFile.text, css };
+  return { js: prologue + normalizePathComments(jsFile.text), css };
 }

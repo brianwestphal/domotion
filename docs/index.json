@@ -5904,7 +5904,7 @@
         "status": "current",
         "owners": ["product-tooling"],
         "platforms": [],
-        "tickets": ["DM-QW1NMD"],
+        "tickets": ["DM-QW1NMD", "DM-HRBJ8M"],
         "code": [
           "src/kerf-ui-theme.ts",
           "scripts/bundle-kerf-client.mjs",

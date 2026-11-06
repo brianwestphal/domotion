@@ -169,7 +169,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       font: getComputedStyle(document.body).fontFamily,
       kerfUiSheets: document.querySelectorAll("style[data-kerf-ui]").length,
     }));
-    expect(chrome).toMatchObject({ banner: "grid", tone: "success", scheme: "dark", kerfUiSheets: 1 });
+    expect(chrome).toMatchObject({ banner: "flex", tone: "success", scheme: "dark", kerfUiSheets: 1 });
     expect(chrome.font).toContain("Inter");
     await testPage.getByText("Saved", { exact: true }).waitFor();
 
