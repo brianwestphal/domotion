@@ -137,8 +137,8 @@ describe("Glassbox Studio acceptance benchmark", () => {
         changes: [],
         mutations: [],
         signals: [],
-        hoverDiff: { changed: false, entries: [] },
-        suggestedSynthesis: "cut" as const,
+        hoverDiff: { paint: [], motion: [] },
+        suggestedSynthesis: "none" as const,
       }));
     const candidate = {
       svg: "<svg/>",

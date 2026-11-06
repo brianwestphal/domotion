@@ -5,8 +5,8 @@ describe("real-world capture timeout", () => {
   it("quiesces active HAR routes before closing their context", async () => {
     const calls: string[] = [];
     const context = {
-      unrouteAll: vi.fn(async (options: { behavior?: string }) => {
-        calls.push(`unroute:${options.behavior}`);
+      unrouteAll: vi.fn(async (options?: { behavior?: "default" | "wait" | "ignoreErrors" }) => {
+        calls.push(`unroute:${options?.behavior}`);
       }),
       close: vi.fn(async (options?: { reason?: string }) => {
         calls.push(`close:${options?.reason}`);

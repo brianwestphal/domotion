@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   FREE_SANS_NOBLE_PACKAGE,
   LINUX_MATHML_GREEK_SUBSETS,
-  LINUX_MATHML_GREEK_TOKENS,
   linuxMathmlGreekCellSha256,
   validateLinuxMathmlGreekPreterminalEvidence,
 } from "../tools/linux-mathml-greek-raster-contract.js";

@@ -59,7 +59,11 @@ describe("inline SVG real-text layer (DM-1775)", () => {
     const diffPath = join(tempRoot, "diff.png");
     await outputPage.setContent(`<body style="margin:0">${ordinary}</body>`);
     await outputPage.screenshot({ path: ordinaryPath });
-    expect(await outputPage.evaluate(() => window.find("Searchable source title"))).toBe(false);
+    expect(
+      await outputPage.evaluate(() =>
+        (window as typeof window & { find(text: string): boolean }).find("Searchable source title"),
+      ),
+    ).toBe(false);
     await outputPage.setContent(`<body style="margin:0">${searchable}</body>`);
     await outputPage.screenshot({ path: searchablePath });
     const comparison = await comparePngs(outputPage, ordinaryPath, searchablePath, diffPath);
@@ -67,7 +71,11 @@ describe("inline SVG real-text layer (DM-1775)", () => {
     expect(comparison.strictRegionCount).toBe(0);
     expect(comparison.nonAaPixels).toBe(0);
 
-    expect(await outputPage.evaluate(() => window.find("Searchable source title"))).toBe(true);
+    expect(
+      await outputPage.evaluate(() =>
+        (window as typeof window & { find(text: string): boolean }).find("Searchable source title"),
+      ),
+    ).toBe(true);
     const copied = await outputPage.evaluate(() => {
       const runs = [...document.querySelectorAll("[data-domotion-real-text-run]")];
       const first = runs[0]?.firstChild;

@@ -302,14 +302,15 @@ function probeRows(): AnimatedImageTruthProbeRow[] {
       begin,
       finish,
       transactionUnchanged: requiredCase.expected !== "reject-drift",
-      publicBody: isAuthorized
-        ? {
-            transport: begin.body.transport,
-            base64EncodedByProtocol: begin.body.base64EncodedByProtocol,
-            byteLength: begin.body.byteLength,
-            sha256: begin.body.sha256,
-          }
-        : null,
+      publicBody:
+        begin.outcome === "authorized"
+          ? {
+              transport: begin.body.transport,
+              base64EncodedByProtocol: begin.body.base64EncodedByProtocol,
+              byteLength: begin.body.byteLength,
+              sha256: begin.body.sha256,
+            }
+          : null,
       deniedInspectorBodyDiscarded: !isAuthorized,
       activation: {
         sourceReferences: requirement.sourceReferences,

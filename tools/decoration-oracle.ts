@@ -1645,6 +1645,16 @@ export {
   lengthPx,
   normalizedTypoDescent,
 };
-export type { CaseSpec, PageMeasure, Bar, Prediction, SvgBar, LegResult, ParsedDecoLine, ParsedSvgDecorations };
+export type {
+  CaseSpec,
+  PageMeasure,
+  Bar,
+  MeasuredBar,
+  Prediction,
+  SvgBar,
+  LegResult,
+  ParsedDecoLine,
+  ParsedSvgDecorations,
+};
 
 if (isMain(import.meta.url)) await runMain(() => main());

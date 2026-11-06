@@ -137,6 +137,7 @@ export function environmentConflicts(shards) {
 }
 
 export function mergeShards(shards, opts = {}) {
+  /** @type {Record<string, number>} */
   const summary = {};
   const byStack = {};
   const byPair = {};

@@ -1,7 +1,14 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { chromium, type Browser } from "@playwright/test";
 
 type BrowserLauncher = () => Promise<Pick<Browser, "close">>;
+
+/** The one `spawnSync` call shape the preflight makes, so a test can stand in for it. */
+export type PreflightRunner = (
+  command: string,
+  args: string[],
+  options: { encoding: "utf8" },
+) => Pick<SpawnSyncReturns<string>, "status" | "stderr" | "error">;
 
 /** Fail the E2E process before test collection can turn launch errors into no-ops. */
 export async function verifyRequiredE2EBrowser(
@@ -19,7 +26,7 @@ export async function verifyRequiredE2EBrowser(
   await browser.close();
 }
 
-export function runRequiredE2EBrowserPreflight(run: typeof spawnSync = spawnSync): void {
+export function runRequiredE2EBrowserPreflight(run: PreflightRunner = spawnSync): void {
   // Keep Playwright's launch outside Vite's module runner in Vitest 5.
   const result = run(
     process.execPath,

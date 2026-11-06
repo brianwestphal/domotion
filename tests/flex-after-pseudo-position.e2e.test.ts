@@ -26,8 +26,10 @@ const BOX_HTML =
   `width:8px;height:8px;border-top:2px solid;border-right:2px solid}</style>` +
   `<div class="host">Account</div>`;
 
-function findSummaryAfter(tree: CapturedElement[]) {
-  let hit: { rect: { x: number; width: number }; el: CapturedElement } | null = null;
+type SummaryAfterHit = { rect: { x: number; width: number }; el: CapturedElement };
+
+function findSummaryAfter(tree: CapturedElement[]): SummaryAfterHit | null {
+  let hit: SummaryAfterHit | null = null;
   const visit = (nodes: CapturedElement[]): void => {
     for (const n of nodes) {
       if (n.tag === "summary") {
@@ -38,7 +40,7 @@ function findSummaryAfter(tree: CapturedElement[]) {
           return;
         }
       }
-      if (n.children) visit(n.children as CapturedElement[]);
+      if (n.children) visit(n.children);
       if (hit) return;
     }
   };

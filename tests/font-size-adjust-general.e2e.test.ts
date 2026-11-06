@@ -54,7 +54,7 @@ describeBrowser("font-size-adjust metrics across selected families", () => {
     ['"Definitely Missing Font"', "0.8", ""],
   ] as const)(
     "case %#: matches %s with %s and %s text %s",
-    async (family, sizeAdjust, extraStyle, requestedText) => {
+    async (family: string, sizeAdjust: string, extraStyle: string, requestedText?: string) => {
       const text = requestedText ?? "MMMMxxxx";
       const page = await env!.browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
       const svgPage = await env!.browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });

@@ -28,6 +28,7 @@ function groupOf(specifier) {
 
 const GROUP_NAMES = ["Node built-in", "package", "local"];
 
+/** @type {import("eslint").Rule.RuleModule} */
 export default {
   meta: {
     type: "layout",

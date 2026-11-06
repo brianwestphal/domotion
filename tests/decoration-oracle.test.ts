@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  type MeasuredBar,
   buildCases,
   compareBars,
   compareBarCenters,
@@ -52,12 +53,9 @@ describe("DM-2501 decoration coordinate ownership", () => {
 
   it("keeps the 0.3px geometry envelope strict against a one-pixel origin mutation", () => {
     const expected = [{ top: 134, height: 1 }];
-    expect(compareBars(expected, [{ top: 134, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(
-      true,
-    );
-    expect(compareBars(expected, [{ top: 135, height: 1, x0: 0, x1: 10, segments: [] }], 0.3, "rule", "svg").ok).toBe(
-      false,
-    );
+    const measured = (top: number): MeasuredBar[] => [{ top, height: 1, x0: 0, x1: 10, segments: [] }];
+    expect(compareBars(expected, measured(134), 0.3, "rule", "svg").ok).toBe(true);
+    expect(compareBars(expected, measured(135), 0.3, "rule", "svg").ok).toBe(false);
   });
 });
 

@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": ".",
+    "allowJs": true,
+    "checkJs": false,
+    "lib": ["ES2024", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "src/globals.d.ts",
+    "src/post-processing/wawoff2.d.ts",
+    "src/render/svg2ttf.d.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

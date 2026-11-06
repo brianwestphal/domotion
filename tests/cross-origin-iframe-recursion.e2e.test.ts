@@ -194,14 +194,17 @@ describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
         expect(iframe?.replacedSnapshot).toBeUndefined();
         expect(iframe && subtreeHasText(iframe, INNER_TEXT)).toBe(true);
         iframeYs.push(iframe!.y);
+        // Each child browsing context is captured once per segment: native
+        // recursion must not duplicate a frame's authenticated identity.
         const ids: string[] = [];
         const walk = (nodes: CapturedElement[]) => {
           for (const node of nodes) {
-            if (node.id) ids.push(node.id);
+            if (node.frameScrollIdentity != null) ids.push(node.frameScrollIdentity.frameId);
             walk(node.children ?? []);
           }
         };
         walk(segment.tree);
+        expect(ids.length).toBeGreaterThan(0);
         expect(new Set(ids).size).toBe(ids.length);
       }
       expect(iframeYs[0]! - iframeYs[1]!).toBeCloseTo(40, 1);

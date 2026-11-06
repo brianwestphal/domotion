@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 // The production coverage orchestrator is plain Node ESM so it can run before
 // any TypeScript loader is installed.
-// @ts-expect-error The tested .mjs helper intentionally has no declaration file.
 import { formatCoverageSummary, summarizeCoverage } from "../tools/coverage-summary.mjs";
 
 function file(statements: number[], branches: number[][], functions: number[]) {

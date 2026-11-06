@@ -1,11 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  captureElementTree,
-  elementTreeToSvgInner,
-  launchChromium,
-  type CapturedElement,
-  type TextSegment,
-} from "../src/index.js";
+import { captureElementTree, elementTreeToSvgInner, launchChromium, type CapturedElement } from "../src/index.js";
+import type { TextSegment } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-2161: Blink's LayoutNG fragment tree is already exposed by CSSOM

@@ -27,7 +27,7 @@ describe("feature fixture state boundary", () => {
     // Another worker's fixture rendering text in paths mode registers defs.
     const registerForeignDef = () =>
       withRenderTextMode("paths", () =>
-        renderTextAsPath("A", 0, 16, { fontSize: 16, fontFamily: "ForeignFixture", fill: "#000" }),
+        renderTextAsPath("A", 0, 16, { fontSize: 16, fontFamily: "ForeignFixture", fontWeight: 400, fill: "#000" }),
       );
     resetFeatureFixtureState(new Set());
     expect(registerWebfont("ForeignFixture", 400, "normal", font)).toBe(true);

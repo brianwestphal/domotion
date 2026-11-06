@@ -48,17 +48,11 @@ import {
   embedRemoteImages,
 } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
+import type { CapturedElement, CaptureWarning } from "../src/capture/types.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { type EmbeddedFontBuildDiagnostic } from "../src/render/font-resolution.js";
 import { type FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
-import {
-  comparePngs,
-  MIN_REGION_AREA,
-  REGION_DILATE_PX,
-  SIGNIFICANT_PIXEL_DIST,
-  TILE_PX,
-  type DiffVerdict,
-} from "../src/review/compare-pngs.js";
+import { comparePngs, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { waitForSettled } from "../src/utils/wait-events.js";
 import { newHarnessPage } from "./harness-constants.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
@@ -415,7 +409,7 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
   }> = [];
   let bodyBg = "#ffffff";
   let err: string | undefined;
-  let capWarnings: Array<{ selector: string; feature: string; detail: string }> = [];
+  let capWarnings: CaptureWarning[] = [];
 
   // DM-1004: when RENDER_SKIPPED=0 and the fixture is in SKIP_TESTS, bail
   // before any rendering work. Saves ~3–5 s per skipped fixture on batch
@@ -491,14 +485,14 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // navigation (no way around that — it's how we render the SVG).
     const srcBytes = readFileSync(srcPath);
     const cacheKey = expectedCache.key(srcBytes, fixtureHeight);
-    let cap: { tree: unknown[]; warnings: Array<{ selector: string; feature: string; detail: string }> } | null = null;
+    let cap: { tree: CapturedElement[]; warnings: CaptureWarning[] } | null = null;
     // Targeted descriptor evidence must come from this run's live browser.
     const requiresLiveUnicodeEvidence = TEXT_EVIDENCE_SELECTION?.fixture === name;
     const meta = requiresLiveUnicodeEvidence ? null : expectedCache.read(cacheKey, expectedPath);
     if (requiresLiveUnicodeEvidence) expectedCache.stats.misses++;
     if (meta?.tree != null) {
       bodyBg = meta.bodyBg;
-      cap = { tree: meta.tree as unknown[], warnings: meta.warnings ?? [] };
+      cap = { tree: meta.tree, warnings: meta.warnings ?? [] };
       capWarnings = cap.warnings;
       expectedFromCache = true;
     }

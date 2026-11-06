@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
 import { prepareFrameScrollCapture } from "../src/capture/frame-scroll-state.js";
+import type { ControlPseudoKind, ResolvedPseudoStyleCapture } from "../src/capture/pseudo-style-cdp.js";
 import { prepareCapturedScrollbarSets } from "../src/capture/scrollbar-capture.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -85,7 +86,11 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
           return originalEvaluate(expression as string, argument);
         },
       });
-      const options = { propertyKey: "", stylesByHost: {}, dynamicScrollbarKinds: new Set<string>() };
+      const options: Pick<ResolvedPseudoStyleCapture, "propertyKey" | "stylesByHost" | "dynamicScrollbarKinds"> = {
+        propertyKey: "",
+        stylesByHost: {},
+        dynamicScrollbarKinds: new Set<ControlPseudoKind>(),
+      };
       let failed: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>>;
       try {
         failed = await prepareCapturedScrollbarSets(page, "body", { x: 0, y: 0, width: 240, height: 180 }, options);
@@ -151,14 +156,14 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         const topFacts = await page.locator("#target").evaluate(
           (element, propertyKey) => ({
             authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
-            status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
+            status: (element as (HTMLElement | SVGElement) & Record<string, { status?: string }>)[propertyKey]?.status,
           }),
           prepared.propertyKey,
         );
         const childFacts = await child.locator("#target").evaluate(
           (element, propertyKey) => ({
             authoredName: (globalThis as typeof globalThis & { __name?: unknown }).__name,
-            status: (element as Element & Record<string, { status?: string }>)[propertyKey]?.status,
+            status: (element as (HTMLElement | SVGElement) & Record<string, { status?: string }>)[propertyKey]?.status,
           }),
           prepared.propertyKey,
         );

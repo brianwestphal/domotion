@@ -53,7 +53,7 @@ function wrap(body: string): string {
   const doc = (
     <html>
       <head>
-        <meta charset="utf-8" />
+        <meta charSet="utf-8" />
         {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constant */}
         <style>{raw(CSS)}</style>
       </head>

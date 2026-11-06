@@ -44,7 +44,7 @@ async function faces(page: Page): Promise<{ face: string; locale: string }[]> {
     const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
     const cells = await page.locator(".c").evaluateAll((elements) =>
       elements.map((element) => ({
-        locale: getComputedStyle(element).webkitLocale,
+        locale: (getComputedStyle(element) as CSSStyleDeclaration & { webkitLocale: string }).webkitLocale,
         glyphCount: Array.from(element.textContent ?? "").length,
       })),
     );

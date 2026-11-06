@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CDPSession, Page } from "@playwright/test";
-import { ChromeOracle, reassertPlaywrightMacFontFamilies, type StackSpec } from "../tools/font-conformance.js";
+import { ChromeOracle, reassertPlaywrightMacFontFamilies, type StackDescriptor } from "../tools/font-conformance.js";
 
-const serif: StackSpec = { fontFamily: "serif", fontSize: 32, fontWeight: 400, fontStyle: "normal" };
-const sans: StackSpec = { ...serif, fontFamily: "sans-serif" };
+const serif: StackDescriptor = { fontFamily: "serif", fontSize: 32, fontWeight: 400, fontStyle: "normal" };
+const sans: StackDescriptor = { ...serif, fontFamily: "sans-serif" };
 
 function fakeOracle(
   reuseDocument: boolean,

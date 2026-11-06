@@ -139,7 +139,8 @@ describe("our side is name-blind and geometry-live", () => {
   });
 
   it("reports ONE PostScript name at every axis location — the blindness itself", () => {
-    const names = [null, { wght: 800 }, { wdth: 75 }].map((axes) => ourFaceFor(family, fontSize, axes).postscriptName);
+    const locations: (Record<string, number> | null)[] = [null, { wght: 800 }, { wdth: 75 }];
+    const names = locations.map((axes) => ourFaceFor(family, fontSize, axes).postscriptName);
     expect(names[0]).not.toBeNull();
     expect(new Set(names).size).toBe(1);
   });

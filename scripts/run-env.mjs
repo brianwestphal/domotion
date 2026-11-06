@@ -323,7 +323,24 @@ export function playwrightVersion() {
   return null;
 }
 
-/** Gather the real environment on this machine. */
+/**
+ * Gather the real environment on this machine. A caller that passes its own
+ * observed `chromium` build gets the record synchronously; otherwise the record
+ * is a promise, because the browser build has to be measured by launching it.
+ *
+ * @overload
+ * @param {{withInventory?: boolean, chromium: string|null, corpusIdentity?: string|null}} options
+ * @returns {RunEnv}
+ */
+/**
+ * @overload
+ * @param {{withInventory?: boolean, chromium?: undefined, corpusIdentity?: string|null}} [options]
+ * @returns {Promise<RunEnv>}
+ */
+/**
+ * @param {{withInventory?: boolean, chromium?: string|null, corpusIdentity?: string|null}} [options]
+ * @returns {RunEnv|Promise<RunEnv>}
+ */
 export function captureRunEnv({ withInventory = true, chromium, corpusIdentity } = {}) {
   let osRelease = null;
   let pwVersion = null;

@@ -30,6 +30,11 @@ export function repoPathForPackedPath(packedPath) {
   return null;
 }
 
+/**
+ * @param {readonly string[]} packedPaths
+ * @param {(repoPath: string) => boolean} isIgnored
+ * @returns {string[]}
+ */
 export function packIgnoredArtifactProblems(packedPaths, isIgnored) {
   const problems = [];
   for (const packedPath of packedPaths) {

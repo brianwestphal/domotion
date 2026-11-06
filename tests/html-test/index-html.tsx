@@ -81,7 +81,7 @@ function IndexLayout({ results }: { results: TestResult[] }) {
   return (
     <html>
       <head>
-        <meta charset="utf-8" />
+        <meta charSet="utf-8" />
         <title>domotion html-test results</title>
         {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- static CSS string constant */}
         <style>{raw(INDEX_CSS)}</style>

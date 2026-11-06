@@ -101,8 +101,8 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
         });
         return Object.fromEntries(
           targetIds.map((id) => {
-            const node = document.getElementById(id)! as SVGGraphicsElement;
-            const parent = node.parentElement! as SVGGraphicsElement;
+            const node = document.querySelector<SVGGraphicsElement>(`#${CSS.escape(id)}`)!;
+            const parent = node.parentNode as SVGGraphicsElement;
             return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];
           }),
         );
@@ -153,8 +153,8 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
           targetIds
             .filter((id) => id !== "use-row")
             .map((id) => {
-              const node = document.getElementById(id)! as SVGGraphicsElement;
-              const parent = node.parentElement! as SVGGraphicsElement;
+              const node = document.querySelector<SVGGraphicsElement>(`#${CSS.escape(id)}`)!;
+              const parent = node.parentNode as SVGGraphicsElement;
               return [id, matrix(parent.getCTM()!.inverse().multiply(node.getCTM()!))];
             }),
         );
@@ -165,7 +165,7 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
 
       const useSource = await source.locator("#use-row").evaluate((node) => {
         const rect = node.getBoundingClientRect();
-        const root = node.ownerSVGElement!.getBoundingClientRect();
+        const root = (node as SVGGraphicsElement).ownerSVGElement!.getBoundingClientRect();
         const scale = root.width / 520;
         return {
           x: (rect.x - root.x) / scale,
@@ -271,7 +271,7 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
       );
       const facts = await page.locator("#target").evaluate((node) => {
         const target = node as SVGGraphicsElement;
-        const parent = target.parentElement as SVGGraphicsElement;
+        const parent = target.parentNode as SVGGraphicsElement;
         const used = parent.getCTM()!.inverse().multiply(target.getCTM()!);
         const computed = getComputedStyle(target).transform;
         const matrix3d = new DOMMatrix(computed);
@@ -286,7 +286,7 @@ describeBrowser("Blink-used affine freeze for cloned inline SVG graphics (DM-247
           const target = node as SVGGraphicsElement;
           target.removeAttribute("style");
           target.setAttribute("transform", value);
-          const parent = target.parentElement as SVGGraphicsElement;
+          const parent = target.parentNode as SVGGraphicsElement;
           const actual = parent.getCTM()!.inverse().multiply(target.getCTM()!);
           return { a: actual.a, b: actual.b, c: actual.c, d: actual.d, e: actual.e, f: actual.f };
         }, transform);

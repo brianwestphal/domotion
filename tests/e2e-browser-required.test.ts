@@ -1,8 +1,11 @@
-import type { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { runRequiredE2EBrowserPreflight, verifyRequiredE2EBrowser } from "./e2e-browser-required.global.js";
+import {
+  runRequiredE2EBrowserPreflight,
+  verifyRequiredE2EBrowser,
+  type PreflightRunner,
+} from "./e2e-browser-required.global.js";
 
 describe("required Chromium E2E preflight", () => {
   it("fails instead of allowing browser-unavailable suites to report green", async () => {
@@ -24,13 +27,13 @@ describe("required Chromium E2E preflight", () => {
   });
 
   it("checks Chromium in a child process and rejects a failed launch", () => {
-    const run = vi.fn<typeof spawnSync>(() => ({ status: 0, stderr: "" }) as ReturnType<typeof spawnSync>);
+    const run = vi.fn<PreflightRunner>(() => ({ status: 0, stderr: "" }));
     runRequiredE2EBrowserPreflight(run);
     expect(run).toHaveBeenCalledWith(process.execPath, expect.arrayContaining(["-e"]), {
       encoding: "utf8",
     });
 
-    run.mockReturnValue({ status: 1, stderr: "browser unavailable" } as ReturnType<typeof spawnSync>);
+    run.mockReturnValue({ status: 1, stderr: "browser unavailable" });
     expect(() => runRequiredE2EBrowserPreflight(run)).toThrowError(
       expect.objectContaining({ cause: "browser unavailable" }),
     );

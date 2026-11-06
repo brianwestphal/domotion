@@ -170,7 +170,7 @@ describeBrowser("Blink-owned vertical orientation capture (DM-2525)", () => {
       );
 
       const live = await page.evaluate(
-        (ids): Promise<Record<string, LiveFixture>> => {
+        (ids): Record<string, LiveFixture> => {
           const result: Record<string, LiveFixture> = {};
           for (const id of ids) {
             const element = document.getElementById(id)!;

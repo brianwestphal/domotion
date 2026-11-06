@@ -1,16 +1,16 @@
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { CapturedElement, CaptureWarning } from "../../src/capture/types.js";
 import { captureFlagsCacheToken, expectedCachePlatformDir } from "../harness-browsers.js";
-// @ts-ignore -- this diagnostic tool has no type declarations
 import { inventoryDocument } from "../../tools/font-inventory.mjs";
-// @ts-ignore -- this environment helper has no type declarations
 import { playwrightVersion } from "../../scripts/run-env.mjs";
 
 export interface ExpectedCacheMeta {
   bodyBg: string;
-  tree?: unknown;
-  warnings?: Array<{ selector: string; feature: string; detail: string }>;
+  /** The captured tree as this cache serialized it; key changes invalidate a stale shape. */
+  tree?: CapturedElement[];
+  warnings?: CaptureWarning[];
 }
 
 function hashFileOrEmpty(path: string): string {

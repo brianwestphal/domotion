@@ -57,11 +57,17 @@ import {
   type ChromeFace,
   type OurFace,
   type ResolvedStack,
+  type StackDescriptor,
   type StackSpec,
   type StackCorpus,
   type SweepOperations,
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
+
+/** A resolved stack carrying only the fields an orchestration test reads. */
+function resolvedStackFixture(fields: Partial<ResolvedStack>): ResolvedStack {
+  return fields as ResolvedStack;
+}
 
 describe("CJK canonical singleton coverage", () => {
   it("normalizes compatibility ideographs and excludes unrelated or unchanged scalars", () => {
@@ -184,7 +190,7 @@ describe("OracleStabilityGuard", () => {
 });
 
 describe("supplementary PUA oracle face sentinel", () => {
-  const spec: StackSpec = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
+  const spec: StackDescriptor = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
   const tofu: OurFace = { key: "sysfb:Helvetica", path: null, postscriptName: "Helvetica-Bold", covered: false };
   const helvetica: ChromeFace[] = [{ familyName: "Helvetica", postScriptName: "Helvetica-Bold", glyphCount: 1 }];
   const arial: ChromeFace[] = [{ familyName: "Arial", postScriptName: "Arial-BoldMT", glyphCount: 1 }];
@@ -264,6 +270,8 @@ describe("font conformance command selection", () => {
     fontSize: 16,
     fontWeight: 400,
     fontStyle: "normal",
+    fixtures: 1,
+    example: `${fontFamily}.html`,
   }));
 
   it("guards foreign harvested corpora while accepting portable and explicitly foreign corpora", () => {
@@ -295,6 +303,7 @@ describe("font conformance command selection", () => {
       fontWeight: 400,
       fontStyle: "normal",
       fontStretch: "150%",
+      fixtures: 1,
       example: "rule v2: serif extra-expanded keyword",
     };
     const corpus: StackCorpus = { generatedAt: "test", platform: "any", sources: [], stacks: [target, ...stacks] };
@@ -309,7 +318,7 @@ describe("font conformance command selection", () => {
 describe("sweepStack orchestration", () => {
   it("keeps Linux locale scope, batch reset cadence, and answer order", async () => {
     const events: string[] = [];
-    const spec: StackSpec = { fontFamily: "A", fontSize: 16, fontWeight: 400, fontStyle: "normal", lang: "ja" };
+    const spec: StackDescriptor = { fontFamily: "A", fontSize: 16, fontWeight: 400, fontStyle: "normal", lang: "ja" };
     const opts = parseArgs(["--range", "0041-0043", "--batch", "1", "--reset-every", "2"]);
     const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
     const operations: SweepOperations = {
@@ -317,10 +326,10 @@ describe("sweepStack orchestration", () => {
       selectScope: (lang) => {
         events.push(`scope:${lang}`);
       },
-      prepare: (() => {
+      prepare: () => {
         events.push("prepare");
-        return { chain: ["A"], primaryKey: "A" };
-      }) as SweepOperations["prepare"],
+        return resolvedStackFixture({ chain: ["A"], primaryKey: "A" });
+      },
       reset: () => {
         events.push("reset");
       },
@@ -374,13 +383,13 @@ describe("sweepStack orchestration", () => {
   it("primes one sparse low-byte batch before any scalar resolution", async () => {
     const codepoints = Array.from({ length: 20 }, (_, i) => (i + 1) << 8);
     const events: string[] = [];
-    const spec: StackSpec = { fontFamily: "A", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
+    const spec: StackDescriptor = { fontFamily: "A", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
     const opts = parseArgs(["--sample-byte", "00", "--batch", "20"]);
     const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
     const operations: SweepOperations = {
       platform: "darwin",
       selectScope: () => {},
-      prepare: (() => ({ chain: ["A"], primaryKey: "A" })) as SweepOperations["prepare"],
+      prepare: () => resolvedStackFixture({ chain: ["A"], primaryKey: "A" }),
       reset: () => {},
       primeCodepoints: (cps) => events.push(`icu:${cps.join(",")}`),
       faceFor: ((cp: number) => {
@@ -409,14 +418,14 @@ describe("sweepStack orchestration", () => {
 
   it("stops before resolving or recording a batch whose oracle donors changed", async () => {
     const events: string[] = [];
-    const spec: StackSpec = { fontFamily: "serif", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
+    const spec: StackDescriptor = { fontFamily: "serif", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
     const opts = parseArgs(["--range", "0041-0043", "--batch", "1"]);
     const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
     const guard = new OracleStabilityGuard();
     const operations: SweepOperations = {
       platform: "darwin",
       selectScope: () => {},
-      prepare: (() => ({ chain: ["serif"], primaryKey: "serif" })) as SweepOperations["prepare"],
+      prepare: () => resolvedStackFixture({ chain: ["serif"], primaryKey: "serif" }),
       reset: () => {},
       faceFor: ((cp: number) => {
         events.push(`ours:${cp}`);
@@ -446,13 +455,13 @@ describe("sweepStack orchestration", () => {
 
   it("rejects the first changed PUA batch without adding browser asks or recording it", async () => {
     const events: string[] = [];
-    const spec: StackSpec = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
+    const spec: StackDescriptor = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
     const opts = parseArgs(["--range", "0041-0041", "--batch", "1"]);
     const tally = new SweepTally(10, opts.lang, false, { entries: [], hits: [] });
     const operations: SweepOperations = {
       platform: "darwin",
       selectScope: () => {},
-      prepare: (() => ({ chain: ["sysfb:Helvetica"], primaryKey: "sysfb:Helvetica" })) as SweepOperations["prepare"],
+      prepare: () => resolvedStackFixture({ chain: ["sysfb:Helvetica"], primaryKey: "sysfb:Helvetica" }),
       reset: () => {},
       primeCodepoints: () => {},
       chromeFaceCoversCodepoint: () => false,
@@ -488,7 +497,7 @@ const ours = (o: Partial<OurFace>): OurFace => ({ key: "x", path: null, postscri
 const chrome = (o: Partial<ChromeFace>): ChromeFace => ({ familyName: "", glyphCount: 1, ...o });
 
 describe("sweep state transitions", () => {
-  const spec: StackSpec = { fontFamily: "sans-serif", fontSize: 13, fontWeight: 400, fontStyle: "normal" };
+  const spec: StackDescriptor = { fontFamily: "sans-serif", fontSize: 13, fontWeight: 400, fontStyle: "normal" };
 
   it("keys the full stack and its effective locale", () => {
     expect(stackKey(spec, "en")).not.toBe(stackKey({ ...spec, fontWeight: 700 }, "en"));
@@ -663,7 +672,12 @@ describe("sweep state transitions", () => {
 
   it("builds bounded report and readable summary from the same tally", () => {
     const opts = parseArgs([]);
-    const corpus: StackCorpus = { generatedAt: "corpus-digest", platform: "darwin", sources: [], stacks: [spec] };
+    const corpus: StackCorpus = {
+      generatedAt: "corpus-digest",
+      platform: "darwin",
+      sources: [],
+      stacks: [{ ...spec, fixtures: 1, example: "report.html" }],
+    };
     const tally = new SweepTally(0, "en", false, { entries: [], hits: [] });
     tally.record(
       spec,

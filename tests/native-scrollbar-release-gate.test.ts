@@ -257,7 +257,6 @@ describe("native scrollbar six-role release adjudicator", () => {
   });
   it("allows hosted image patch rollover only when stable identity and logical rows agree", () => {
     const reports = complete();
-    const proposal = reports[0];
     const validation = reports[1];
     validation.provenance.runnerImageVersion = "20260901.2";
     validation.host.release = "26.6.0";

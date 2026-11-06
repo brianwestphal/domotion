@@ -43,10 +43,9 @@ function nativeMatrix(): NativePaletteRow[] {
 }
 
 function order(first: "base2" | "base3", captured: string): ProductionOrderEvidence {
-  const second = first === "base2" ? "base3" : "base2";
   const source = first === "base2" ? [sha("a"), sha("b")] : [sha("b"), sha("a")];
   return {
-    order: [first, second],
+    order: first === "base2" ? ["base2", "base3"] : ["base3", "base2"],
     sourcePngSha256: source,
     sourceOpaqueColors: [
       ["red", "magenta"],
@@ -57,6 +56,7 @@ function order(first: "base2" | "base3", captured: string): ProductionOrderEvide
     capturedUniquePngCount: 1,
     svgImageCount: 2,
     captureHasFontPaletteFact: false,
+    capturedPaletteRecords: [],
     selectedRepresentation: "colr",
     warnings: [],
     svg: "<image/><image/>",

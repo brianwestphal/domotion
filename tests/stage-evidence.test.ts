@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { relevantStageEvidence } from "../src/review/stage-evidence.js";
+import { relevantStageEvidence, type StageEvidenceManifest } from "../src/review/stage-evidence.js";
 import { classifyLinuxUnicodeFixtureEvidence } from "../src/review/linux-unicode-evidence.js";
 import type { EmbeddedFontBuildDiagnostic } from "../src/render/embedded-font-builder.js";
 import type { FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
@@ -196,7 +196,7 @@ describe("demo-review stage evidence", () => {
         affectedRunCount: 1,
       },
     ] as EmbeddedFontBuildDiagnostic[];
-    const manifest = {
+    const manifest: StageEvidenceManifest = {
       schemaVersion: 1,
       generatedAt: "2026-08-31T00:00:00Z",
       sourceRevision: "abc",
@@ -213,7 +213,7 @@ describe("demo-review stage evidence", () => {
           areas: ["text.font-selection", "text.shaping"],
         },
       ],
-    } as const;
+    };
     const fixtureEvidence = classifyLinuxUnicodeFixtureEvidence({
       platform: "linux",
       suite: "html-test-unicode",

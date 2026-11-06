@@ -94,7 +94,8 @@ async function main(argv: string[]) {
     console.error('usage: stage-attribution.mts <report.json> [shard] | --family "<stack>" [shard]');
     return 2;
   }
-  const report = reportPath == null ? { meta: {}, mismatches: [] } : readAttributionReport(reportPath);
+  const report: ReturnType<typeof readAttributionReport> =
+    reportPath == null ? { meta: { stackPrimaries: [] }, mismatches: [] } : readAttributionReport(reportPath);
 
   const spec = report.meta.stackPrimaries?.[0];
   const fontFamily = familyOverride ?? spec?.fontFamily;

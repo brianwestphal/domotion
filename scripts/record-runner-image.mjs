@@ -22,7 +22,7 @@ import { playwrightVersion as readPlaywrightVersion } from "./run-env.mjs";
 
 /**
  * Pure: derive the image id from already-gathered inputs.
- * @param {{imageOS?: string, runnerArch?: string, osRelease?: Record<string,string>|null, playwrightVersion?: string|null}} inputs
+ * @param {{imageOS?: string, runnerArch?: string, osRelease?: Record<string,string>|null, playwrightVersion?: string|null, platform?: string|null}} [inputs]
  * @returns {string} lowercased `<image>-<arch>` (never an empty string)
  */
 export function computeRunnerImage(inputs = {}) {
@@ -52,7 +52,11 @@ export function computeRunnerImage(inputs = {}) {
   return `${pw}${codename}-${arch}`.toLowerCase();
 }
 
-/** Parse the subset of /etc/os-release we use (KEY=VALUE, optionally quoted). */
+/**
+ * Parse the subset of /etc/os-release we use (KEY=VALUE, optionally quoted).
+ * @param {string} text
+ * @returns {Record<string, string>}
+ */
 export function parseOsRelease(text) {
   const out = {};
   for (const line of String(text).split("\n")) {

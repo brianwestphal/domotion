@@ -82,9 +82,9 @@ describeBrowser("animate --real-text (DM-6SQXGF)", () => {
           s && s.removeAllRanges();
         };
         sel();
-        const first = window.find("FirstFrameWord");
+        const first = (window as typeof window & { find(text: string): boolean }).find("FirstFrameWord");
         sel();
-        const second = window.find("SecondFrameWord");
+        const second = (window as typeof window & { find(text: string): boolean }).find("SecondFrameWord");
         sel();
         return { first, second };
       });

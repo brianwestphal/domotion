@@ -11,11 +11,11 @@ import {
   faceFor,
   ourFaceFor,
   prepareStack,
-  type StackSpec,
+  type StackDescriptor,
 } from "../tools/font-conformance.js";
 
 const cps = [0x2f800, 0x2f900, 0x2fa00];
-const stack: StackSpec = { fontFamily: "system-ui", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
+const stack: StackDescriptor = { fontFamily: "system-ui", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
 
 type ProbeCell = { cp: number; lang: string; text?: string };
 

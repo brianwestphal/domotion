@@ -10,7 +10,6 @@ import {
 } from "../tools/linux-unicode-mutation-report.js";
 import {
   LINUX_UNICODE_RASTER_FLOOR_FIXTURES,
-  hasLinuxUnicodeFaceMutationEvidence,
   hasLinuxUnicodeHelperOffFaceMutationEvidence,
 } from "../src/review/linux-unicode-evidence.js";
 

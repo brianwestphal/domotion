@@ -112,6 +112,7 @@ function isStaticEnumeration(receiver) {
   return node.type === "Identifier" && /^[A-Z][A-Z0-9_]*$/.test(node.name);
 }
 
+/** @type {import("eslint").Rule.RuleModule} */
 export default {
   meta: {
     type: "problem",

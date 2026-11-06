@@ -11,6 +11,12 @@ const LIVE_STATUSES = new Set(["current", "partial"]);
  * the machine manifest and every generated owner packet. Historical records
  * intentionally retain old paths, so the existence contract applies only to
  * current/partial metadata.
+ *
+ * @param {string} filename
+ * @param {{status?: unknown, code?: unknown} | null | undefined} metadata
+ * @param {string} projectRoot
+ * @param {(path: string) => boolean} [pathExists]
+ * @returns {string[]}
  */
 export function documentationCodePathErrors(filename, metadata, projectRoot, pathExists = existsSync) {
   if (!LIVE_STATUSES.has(metadata?.status) || !Array.isArray(metadata?.code)) return [];

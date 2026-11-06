@@ -43,7 +43,7 @@ describeBrowser("wrapped decoration FragmentItem capture", () => {
           );
           expect(native.length).toBeGreaterThan(1);
           const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 360, height: 300 });
-          const captured = flatten(tree).find((element) => element.styles.textDecorationLine.includes("underline"));
+          const captured = flatten(tree).find((element) => element.styles.textDecorationLine?.includes("underline"));
           expect(captured?.inlineFragments).toEqual(native);
         } finally {
           await context.close();

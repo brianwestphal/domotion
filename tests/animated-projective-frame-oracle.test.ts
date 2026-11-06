@@ -41,6 +41,11 @@ const observation: AnimatedProjectiveFrameObservation = {
     residual: expected.sourceResidual,
     nonAffine: true,
     ownsRasterBoundary: true,
+    // A lone html-box plane: its own preserve-3d is used, with no grouping
+    // property flattening it.
+    usedPreserve3d: true,
+    groupingReasons: [],
+    preserve3dLayoutApplicable: true,
     computed,
   },
   ownerId: "rotate3d-plane",

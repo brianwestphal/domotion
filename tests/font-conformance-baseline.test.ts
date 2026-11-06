@@ -382,7 +382,14 @@ describe("mergeShards", () => {
   it("retains each producer's donor signatures without making them a baseline slice input", () => {
     const signatures = [{ scope: "en", lang: "en", faces: ["serif=Times-Roman"] }];
     const m = mergeShards(
-      [{ name: "s1", report: report({ meta: { ...report().meta, oracleDonorSignatures: signatures } }) }],
+      [
+        {
+          name: "s1",
+          report: report({
+            meta: { ...(report().meta as Record<string, unknown>), oracleDonorSignatures: signatures },
+          }),
+        },
+      ],
       {
         expected: 1,
       },

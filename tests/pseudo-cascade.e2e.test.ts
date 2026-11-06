@@ -199,7 +199,7 @@ describeBrowser("DM-2382: Blink-authoritative control pseudo cascade", () => {
       try {
         const hostId = await page.evaluate((key) => {
           const input = document.querySelector("slider-shell")!.shadowRoot!.querySelector("input")!;
-          return (input as Element & Record<string, string>)[key];
+          return (input as HTMLInputElement & Record<string, string>)[key];
         }, shadowCapture.propertyKey);
         expect(shadowCapture.stylesByHost[hostId]?.thumb?.backgroundColor).toBe("rgb(69, 249, 71)");
       } finally {

@@ -43,7 +43,6 @@
 
 import type { Browser } from "@playwright/test";
 import { openOwnedBrowser } from "../tools/lib/browser.js";
-// @ts-ignore -- shared inventory module has no declaration file
 import { inventoryDocument } from "../tools/font-inventory.mjs";
 
 /** Parse a whitespace-separated flag list; `undefined`/blank ⇒ no flags. */

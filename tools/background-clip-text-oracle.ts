@@ -184,7 +184,10 @@ function directedDistance(
   return { max, misses };
 }
 
-export interface BackgroundClipTextOracleRow {
+// Type aliases rather than interfaces: the native gate reads this report and
+// its rows through passthrough schemas whose inferred types carry a string
+// index signature, and only an alias is implicitly assignable to one.
+export type BackgroundClipTextOracleRow = {
   dpr: number;
   capturedUrlLayers: number;
   alphaMasks: number;
@@ -198,9 +201,9 @@ export interface BackgroundClipTextOracleRow {
   unmatchedRenderedEdges: number;
   structuralErrors: string[];
   pass: boolean;
-}
+};
 
-export interface BackgroundClipTextOracleReport {
+export type BackgroundClipTextOracleReport = {
   schemaVersion: 2;
   chromiumVersion: string;
   chromiumExecutable: string;
@@ -225,7 +228,7 @@ export interface BackgroundClipTextOracleReport {
   requiredStates: readonly string[];
   rows: BackgroundClipTextOracleRow[];
   verdict: "source-exact" | "source-drift";
-}
+};
 
 export async function runBackgroundClipTextOracle(
   dprs: number[] = [1, 2],

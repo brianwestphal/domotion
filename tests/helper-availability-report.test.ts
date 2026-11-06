@@ -23,7 +23,7 @@ const absent = helperAvailabilityContract({
   explicitlyDisabled: true,
   implementationIdentity: "test-helper-v1",
 });
-const wrap = (data: Record<string, unknown>) => ({
+const wrap = <T extends object>(data: T) => ({
   schemaVersion: 1,
   tool,
   generatedAt: new Date().toISOString(),

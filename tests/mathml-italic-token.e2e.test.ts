@@ -17,7 +17,6 @@ import { setRenderTextMode } from "../src/render/text-to-path.js";
 import {
   LINUX_MATHML_GREEK_TOKENS,
   validateLinuxMathmlGreekTokenEvidence,
-  type LinuxMathmlGreekTokenEvidence,
 } from "../tools/linux-mathml-greek-raster-contract.js";
 import { tests as featureTests } from "./features.js";
 
@@ -447,7 +446,9 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
           glyphs: onRun.glyphs,
         });
       }
-      const linuxProjection: LinuxMathmlGreekTokenEvidence[] = LINUX_MATHML_GREEK_TOKENS.map((expected) => {
+      // Unvalidated candidate evidence: the validator parses it against the
+      // exact Linux schema, so off Linux it is expected to report problems.
+      const linuxProjection = LINUX_MATHML_GREEK_TOKENS.map((expected) => {
         const source = sourceRows[expected.id]!;
         const node = nodes[expected.id]!;
         const run = enabled[expected.id]!.preterminal.run;
@@ -460,8 +461,8 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
           transformed: node.text.trim(),
           sourceCodePoint: cp(source.source),
           transformedCodePoint: cp(node.text.trim()),
-          textTransform: source.textTransform as "math-auto",
-          computedFontStyle: source.fontStyle as "normal",
+          textTransform: source.textTransform,
+          computedFontStyle: source.fontStyle,
           geometry: {
             x: node.textLeft ?? source.rect.x,
             y: textTop,

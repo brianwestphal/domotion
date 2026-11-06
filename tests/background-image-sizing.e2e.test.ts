@@ -68,9 +68,13 @@ describeBrowser("authoritative URL background image sizing capture", () => {
     const png16Path = path.join(dir, "wide-16.png");
     const source = sharp({ create: { width: 384, height: 128, channels: 3, background: { r: 8, g: 145, b: 178 } } });
     await Promise.all([
-      source.clone().png({ bitdepth: 8 }).toFile(png8Path),
-      source.clone().png({ bitdepth: 16 }).toFile(png16Path),
+      source.clone().png().toFile(png8Path),
+      // sharp has no PNG `bitdepth` option; a 16-bit PNG comes from the
+      // 16-bit pipeline colourspace.
+      source.clone().toColourspace("rgb16").png().toFile(png16Path),
     ]);
+    expect((await sharp(png8Path).metadata()).depth).toBe("uchar");
+    expect((await sharp(png16Path).metadata()).depth).toBe("ushort");
     await writeFile(
       htmlPath,
       `<div id="target" style="width:200px;height:200px;background-image:url(wide-8.png),url(wide-16.png);background-size:cover"></div>`,

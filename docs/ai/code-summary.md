@@ -221,6 +221,11 @@ plus controlled-healing browser passes.
   and CLI contract are pinned by `tests/font-conformance-synthetic-workflow.test.ts`
   and `tests/synthetic-baseline-dispatch.test.ts`.
 - `tsconfig.tools.json` typechecks `tools/**` as part of `npm run typecheck`.
+- `tsconfig.tests.json` typechecks `tests/**` as part of `npm run typecheck`
+  (pinned by `tests/tests-typecheck.test.ts`). It sets `allowJs` without
+  `checkJs`, so the plain-JS `scripts/*.mjs`, `tools/*.mjs` and
+  `eslint-rules/*.js` helpers that tests import are typed from their source
+  and JSDoc instead of as an implicit `any`.
   `tools/lib/cli.d.mts` types `parseFlags` / `flag` by the declared schema;
   `stringFlag` serves helpers that take a flag name at runtime.
 - `tools/lib/browser.ts` owns TypeScript tool browsers, while

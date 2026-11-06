@@ -172,9 +172,9 @@ describeBrowser("source-owned summary disclosure marker (DM-2457)", () => {
           "nested-child",
           "exclusive-a",
           "exclusive-b",
-        ];
+        ] as const;
         for (const id of shown) expect(byId.get(id)?.summaryMarkerGeometry, id).toBeDefined();
-        for (const id of ["none", "transparent", "flex"])
+        for (const id of ["none", "transparent", "flex"] as const)
           expect(byId.get(id)?.summaryMarkerGeometry, id).toBeUndefined();
         expect(byId.get("closed")!.summaryMarkerGeometry).toMatchObject({
           listStyleType: "disclosure-closed",

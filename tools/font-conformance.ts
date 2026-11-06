@@ -283,6 +283,14 @@ export interface StackSpec {
 }
 
 /**
+ * The face-selection request a stack describes, without the corpus bookkeeping
+ * (`fixtures`, `example`) that only the harvested corpus carries. Everything
+ * that resolves, probes or keys a stack reads only these fields, so it accepts
+ * a hand-written descriptor as well as a corpus entry.
+ */
+export type StackDescriptor = Omit<StackSpec, "fixtures" | "example">;
+
+/**
  * Bumped only when the digest's INPUTS change — see `harvestedCorpusIdentity`.
  *
  * v2 added `font-variant-alternates` and `font-variant-emoji` to the question
@@ -678,7 +686,7 @@ export function slantForStyle(style: string): number {
 }
 
 export interface ResolvedStack {
-  spec: StackSpec;
+  spec: StackDescriptor;
   chain: string[];
   primaryKey: string;
   primary: NonNullable<ReturnType<typeof getFontInstance>>;
@@ -738,7 +746,7 @@ export function parseVariationSettings(value: string | undefined): Record<string
   return Object.keys(out).length > 0 ? out : null;
 }
 
-export function prepareStack(spec: StackSpec, lang?: string): ResolvedStack | null {
+export function prepareStack(spec: StackDescriptor, lang?: string): ResolvedStack | null {
   // A per-stack language mirrors each probe cell's `lang`; otherwise the CLI
   // default mirrors the probe page's `<html lang>`. The renderer resolves the
   // settings-mapped generics per content script (Playwright's forScripts
@@ -977,7 +985,7 @@ export function cjkCanonicalRendererFace(cp: number, rs: ResolvedStack, ours: Ou
  * for as long as it did — the answer looked stable because the question was
  * never asked.
  */
-export function probePageHtml(cps: number[], spec: StackSpec, lang: string): string {
+export function probePageHtml(cps: number[], spec: StackDescriptor, lang: string): string {
   return (
     `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style id="oracle-probe-style">` +
     probePageCss(spec) +
@@ -989,7 +997,7 @@ function probeCellsHtml(cps: number[], lang: string): string {
   return cps.map((cp) => `<i class=c lang="${lang}">&#x${cp.toString(16)};</i>`).join("");
 }
 
-function probePageCss(spec: StackSpec): string {
+function probePageCss(spec: StackDescriptor): string {
   // The computed `font-family` is already valid CSS and goes into a <style>
   // element, not an attribute — so it is embedded verbatim. Rewriting its
   // quotes would corrupt any family name that legitimately contains one.
@@ -1242,7 +1250,7 @@ export function chromeFaceCoversCodepoint(face: ChromeFace, cp: number): boolean
  * to Arial in the middle of Plane 16 PUA. Restricting the check to this route
  * avoids treating a different stack's intentional PUA font as oracle drift. */
 export function assertSupplementaryPuaOracleFace(
-  spec: StackSpec,
+  spec: StackDescriptor,
   cp: number,
   faces: ChromeFace[],
   ours: OurFace,
@@ -1385,7 +1393,7 @@ export class ChromeOracle {
    * Uses `A` — covered by every primary in the corpus — so the answer is the
    * primary itself and not a fallback decision.
    */
-  async resolvedPrimary(spec: StackSpec): Promise<string | null> {
+  async resolvedPrimary(spec: StackDescriptor): Promise<string | null> {
     const faces = await this.facesFor([0x41], spec);
     if (this.preferenceReplay != null) {
       await this.assertStable(
@@ -1424,7 +1432,7 @@ export class ChromeOracle {
    * only the measured cells and change the CSS when the stack changes. The
    * sequence of font questions stays stack order then ascending codepoint.
    * One bounded retry handles an overloaded 8,000-cell layout. */
-  private async layOutBatch(cps: number[], spec: StackSpec): Promise<void> {
+  private async layOutBatch(cps: number[], spec: StackDescriptor): Promise<void> {
     const css = probePageCss(spec);
     const firstBatch = this.probeCss == null;
     const render = async () => {
@@ -1472,7 +1480,7 @@ export class ChromeOracle {
     this.probeCss = css;
   }
 
-  async facesFor(cps: number[], spec: StackSpec): Promise<ChromeFace[][]> {
+  async facesFor(cps: number[], spec: StackDescriptor): Promise<ChromeFace[][]> {
     if (this.preferenceReplay != null) {
       await this.prepareMeasurement(
         `before macOS Page preference replay ${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}` +
@@ -1960,7 +1968,7 @@ export function parseArgs(argv: string[]): Options {
 // ---------------------------------------------------------------------------
 
 /** The complete CSS signature is the unit of per-stack comparison. */
-export function stackKey(spec: StackSpec, defaultLang: string): string {
+export function stackKey(spec: StackDescriptor, defaultLang: string): string {
   return (
     `${spec.fontFamily} @${spec.fontSize}/${spec.fontWeight}/${spec.fontStyle}` +
     (spec.fontStretch != null && spec.fontStretch !== "100%" ? `/${spec.fontStretch}` : "") +
@@ -2137,7 +2145,7 @@ export class SweepTally {
     readonly allowlist: CompiledAllowlist,
   ) {}
 
-  record(spec: StackSpec, cp: number, chromeFaces: ChromeFace[], ours: OurFace): void {
+  record(spec: StackDescriptor, cp: number, chromeFaces: ChromeFace[], ours: OurFace): void {
     const chrome = primaryChromeFace(chromeFaces);
     if (chrome != null) {
       const face = chrome.postScriptName ?? chrome.familyName;
@@ -2485,7 +2493,7 @@ const sweepOperations: SweepOperations = {
 };
 
 export async function sweepStack(
-  spec: StackSpec,
+  spec: StackDescriptor,
   stackIndex: number,
   stackCount: number,
   universe: number[],

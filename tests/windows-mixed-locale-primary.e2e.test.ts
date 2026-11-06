@@ -2,11 +2,11 @@ import { chromium } from "@playwright/test";
 import { isGlyphHelperAvailable, setSessionGenericFamilyOverrides } from "@domotion/text-engine/testing";
 import { describe, expect, it } from "vitest";
 import { probeSessionGenericFamilies } from "../src/capture/generic-font-probe.js";
-import { ChromeOracle, ourFaceFor, prepareStack, type StackSpec } from "../tools/font-conformance.js";
+import { ChromeOracle, ourFaceFor, prepareStack, type StackDescriptor } from "../tools/font-conformance.js";
 
 const describeWindows = process.platform === "win32" && isGlyphHelperAvailable() ? describe : describe.skip;
 
-const japanese: StackSpec = {
+const japanese: StackDescriptor = {
   fontFamily: "serif",
   fontSize: 16,
   fontWeight: 400,
@@ -14,7 +14,7 @@ const japanese: StackSpec = {
   fontStretch: "100%",
   lang: "ja",
 };
-const english: StackSpec = { ...japanese, fontStretch: "150%", lang: "en" };
+const english: StackDescriptor = { ...japanese, fontStretch: "150%", lang: "en" };
 
 describeWindows("Windows mixed-locale primary in one document", () => {
   it("resolves the English face after a Japanese face was shaped", async () => {

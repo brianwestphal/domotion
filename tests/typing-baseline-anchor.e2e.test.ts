@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
-import type { Page } from "@playwright/test";
 import { launchChromium } from "../src/capture/index.js";
 import { generateAnimatedSvg, resolveOverlays } from "../src/animation/index.js";
 import { htmlWrapper, seekTo } from "../src/cli/svg-to-video-core.js";

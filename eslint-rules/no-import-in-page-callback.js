@@ -20,6 +20,7 @@ function isTypeOnlyImport(def) {
   return spec?.importKind === "type" || decl?.importKind === "type";
 }
 
+/** @type {import("eslint").Rule.RuleModule} */
 export default {
   meta: {
     type: "problem",

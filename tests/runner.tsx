@@ -84,7 +84,7 @@ function FixturePage({ body, bodyStyle }: { body: string; bodyStyle?: string }) 
   return (
     <html>
       <head>
-        <meta charset="utf-8" />
+        <meta charSet="utf-8" />
         <style>
           {/* eslint-disable-next-line kerfjs/no-raw-with-dynamic-arg -- bodyStyle is a fixture literal from tests/features.ts; no untrusted input */}
           {raw(
@@ -103,7 +103,7 @@ function SvgRenderPage({ svgUrl, width, height }: { svgUrl: string; width: numbe
   return (
     <html>
       <head>
-        <meta charset="utf-8" />
+        <meta charSet="utf-8" />
         <style>{raw(`* { margin: 0; } body { overflow: hidden; }`)}</style>
       </head>
       <body>

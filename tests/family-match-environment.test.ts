@@ -1,7 +1,6 @@
 import { release } from "node:os";
 import { describe, expect, it } from "vitest";
 import { familyMatchEnvironment, fontconfigVersionResult } from "../tools/family-match-environment.js";
-// @ts-ignore -- shared inventory module has no declaration file
 import { inventoryDocument } from "../tools/font-inventory.mjs";
 
 describe("family-match environment producer", () => {

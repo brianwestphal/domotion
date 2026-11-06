@@ -7,7 +7,7 @@ import {
   probePageHtml,
   type ChromeFace,
   type OurFace,
-  type StackSpec,
+  type StackDescriptor,
 } from "../tools/font-conformance.js";
 
 describe("macOS supplementary PUA oracle sentinel", () => {
@@ -33,7 +33,7 @@ describe("macOS supplementary PUA oracle sentinel", () => {
         const cdp = await page.context().newCDPSession(page);
         await cdp.send("DOM.enable");
         await cdp.send("CSS.enable");
-        const spec: StackSpec = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
+        const spec: StackDescriptor = { fontFamily: "sans-serif", fontSize: 32, fontWeight: 700, fontStyle: "normal" };
         const tofu: OurFace = { key: "sysfb:Helvetica", path: null, postscriptName: "Helvetica-Bold", covered: false };
         const ask = async (cp: number): Promise<ChromeFace[]> => {
           await page.setContent(probePageHtml([cp], spec, "en"));

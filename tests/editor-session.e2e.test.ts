@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import type { Page } from "@playwright/test";
 import { launchChromium } from "../src/capture/index.js";
 import { generateAnimatedSvg } from "../src/animation/index.js";
 import { composeAnimateFrames, validateAnimateConfig } from "../src/cli/animate.js";

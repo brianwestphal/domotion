@@ -6,8 +6,8 @@ import {
   elementTreeToSvgInner,
   launchChromium,
   type CapturedElement,
-  type TextSegment,
 } from "../src/index.js";
+import type { TextSegment } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-2417 browser matrix.  These are capture-contract assertions rather than
