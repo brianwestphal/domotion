@@ -1733,6 +1733,186 @@ void delegate(app, "click", "[data-action]", (_event, target) => {
     handleAnnotationClick(context);
 });
 
+/**
+ * Applies a project-model `input` edit to `next` (a clone of the current
+ * project). Returns false when the field is not a project field, or when its
+ * beat or scene target no longer exists, so the caller discards the clone.
+ */
+function applyProjectFieldInput(
+  next: StudioProject,
+  field: string | undefined,
+  control: HTMLInputElement | HTMLTextAreaElement,
+): boolean {
+  if (field === "narrative-title") {
+    next.narrative.title = control.value;
+    return true;
+  }
+  if (field === "narrative-summary") {
+    next.narrative.summary = control.value || undefined;
+    return true;
+  }
+  if (field === "narrative-objective") {
+    next.narrative.objective = control.value || undefined;
+    return true;
+  }
+  if (field === "narrative-audience") {
+    next.narrative.audience = control.value || undefined;
+    return true;
+  }
+  if (field === "narrative-tone") {
+    next.narrative.tone = control.value || undefined;
+    return true;
+  }
+  if (field === "beat-title" || field === "beat-summary") {
+    const beatId = (control.closest("[data-beat-id]") as HTMLElement | null)?.dataset.beatId;
+    const beat = next.narrative.beats.find((candidate) => candidate.id === beatId);
+    if (beat == null) return false;
+    if (field === "beat-title") beat.title = control.value;
+    else beat.summary = control.value || undefined;
+    return true;
+  }
+  if (field === "scene-title") {
+    // A missing scene still commits the unchanged clone, as it always has.
+    const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
+    const scene = next.scenes.find((candidate) => candidate.id === sceneId);
+    if (scene != null) scene.title = control.value || undefined;
+    return true;
+  }
+  if (field === "scene-description" || field === "scene-generation") {
+    const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
+    const scene = next.scenes.find((candidate) => candidate.id === sceneId);
+    if (scene == null) return false;
+    if (field === "scene-description") scene.description = control.value || undefined;
+    else scene.generationInstructions = control.value || undefined;
+    return true;
+  }
+  return false;
+}
+
+/** Moves one scene action to the start time typed into `scene-action-at`. */
+function changeSceneActionAt(scene: StudioScene, control: HTMLInputElement | HTMLSelectElement): void {
+  const action = control.closest<HTMLElement>("[data-event-id]");
+  const trackId = action?.dataset.trackId;
+  const eventId = action?.dataset.eventId;
+  const atMs = Number(control.value);
+  if (!Number.isFinite(atMs) || atMs < 0) {
+    setFailure(new Error("Action timing must be non-negative."));
+    return;
+  }
+  const tracks = structuredClone(scene.tracks ?? []);
+  const event = tracks.find((track) => track.id === trackId)?.events.find((candidate) => candidate.id === eventId);
+  if (event == null) return;
+  event.atMs = atMs;
+  applyAuthoring({ kind: "scene.update", sceneId: scene.id, patch: { tracks } });
+}
+
+/** Applies a `scene-duration`, `scene-trim-start` or `scene-trim-end` change. */
+function changeSceneTiming(
+  scene: StudioScene,
+  field: "scene-duration" | "scene-trim-start" | "scene-trim-end",
+  control: HTMLInputElement | HTMLSelectElement,
+): void {
+  const number = control.value.trim() === "" ? undefined : Number(control.value);
+  if (number != null && (!Number.isFinite(number) || number < (field === "scene-trim-start" ? 0 : 1))) {
+    setFailure(new Error(`${field === "scene-duration" ? "Duration" : "Trim"} is outside its valid range.`));
+    return;
+  }
+  const recipe = { ...scenePresentation(scene) };
+  if (field === "scene-duration") recipe.duration = number;
+  else if (field === "scene-trim-start") recipe.trimStart = number;
+  else recipe.trimEnd = number;
+  if (recipe.trimEnd != null && recipe.trimStart != null) {
+    if (recipe.trimEnd <= recipe.trimStart) {
+      setFailure(new Error("Trim end must be after trim start."));
+      return;
+    }
+    recipe.duration = recipe.trimEnd - recipe.trimStart;
+  }
+  applyAuthoring(updateScenePresentation(scene, recipe));
+}
+
+/** Applies a `scene-transition-duration` change. */
+function changeSceneTransitionDuration(scene: StudioScene, control: HTMLInputElement | HTMLSelectElement): void {
+  const duration = Number(control.value);
+  if (!Number.isFinite(duration) || duration < 0) {
+    setFailure(new Error("Transition duration must be non-negative."));
+    return;
+  }
+  const previous = scenePresentation(scene).transition;
+  const transition = previous == null ? { type: "crossfade" as const, duration } : { ...previous, duration };
+  applyAuthoring(updateScenePresentation(scene, { transition }));
+}
+
+/** Dispatches one scene-scoped `change` event by its `data-field`. */
+function changeSceneField(
+  scene: StudioScene,
+  field: string | undefined,
+  control: HTMLInputElement | HTMLSelectElement,
+): void {
+  if (field === "scene-action-at") {
+    changeSceneActionAt(scene, control);
+    return;
+  }
+  if (field === "scene-beat") {
+    applyAuthoring({
+      kind: "scene.update",
+      sceneId: scene.id,
+      patch: { narrativeBeatIds: control.value === "" ? [] : [control.value] },
+    });
+    return;
+  }
+  if (field === "scene-source-kind") {
+    const kind = control.value as SceneSourceKind;
+    applyAuthoring(replaceSceneRecipe(scene, replaceSource(scene, kind, sourceDefault(kind))));
+    return;
+  }
+  if (field === "scene-source-value") {
+    const value = control.value.trim();
+    if (value === "") {
+      setFailure(new Error("A scene source is required."));
+      return;
+    }
+    applyAuthoring(replaceSceneRecipe(scene, replaceSource(scene, sourceKind(scene), value)));
+    return;
+  }
+  if (field === "scene-selector") {
+    const recipe = storyboardRecipe(scene);
+    if (recipe.capture == null) return;
+    applyAuthoring(
+      updateSceneRecipe(scene, { capture: { ...recipe.capture, selector: control.value.trim() || "body" } }),
+    );
+    return;
+  }
+  if (field === "scene-duration" || field === "scene-trim-start" || field === "scene-trim-end") {
+    changeSceneTiming(scene, field, control);
+    return;
+  }
+  if (field === "scene-fit") {
+    applyAuthoring(updateScenePresentation(scene, { fit: control.value as StoryboardRecipe["fit"] }));
+    return;
+  }
+  if (field === "scene-transition") {
+    const previous = scenePresentation(scene).transition;
+    const transition = {
+      type: control.value,
+      duration: previous?.duration ?? STUDIO_DEFAULT_TRANSITION_DURATION_MS,
+    } as StoryboardRecipe["transition"];
+    applyAuthoring(updateScenePresentation(scene, { transition }));
+    return;
+  }
+  if (field === "scene-transition-duration") {
+    changeSceneTransitionDuration(scene, control);
+    return;
+  }
+  if (field === "scene-preset" && control.value !== "custom") {
+    applyAuthoring({
+      kind: "scene.update",
+      sceneId: scene.id,
+      patch: { treatments: presetTreatments(scene, control.value) },
+    });
+  }
+}
+
 void delegate(app, "input", "[data-field]", (_event, target) => {
   const control = target as HTMLInputElement | HTMLTextAreaElement;
   const field = control.dataset.field;
@@ -1796,28 +1976,7 @@ void delegate(app, "input", "[data-field]", (_event, target) => {
   const current = project.value;
   if (current == null) return;
   const next = structuredClone(current);
-  if (field === "narrative-title") next.narrative.title = control.value;
-  else if (field === "narrative-summary") next.narrative.summary = control.value || undefined;
-  else if (field === "narrative-objective") next.narrative.objective = control.value || undefined;
-  else if (field === "narrative-audience") next.narrative.audience = control.value || undefined;
-  else if (field === "narrative-tone") next.narrative.tone = control.value || undefined;
-  else if (field === "beat-title" || field === "beat-summary") {
-    const beatId = (control.closest("[data-beat-id]") as HTMLElement | null)?.dataset.beatId;
-    const beat = next.narrative.beats.find((candidate) => candidate.id === beatId);
-    if (beat == null) return;
-    if (field === "beat-title") beat.title = control.value;
-    else beat.summary = control.value || undefined;
-  } else if (field === "scene-title") {
-    const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
-    const scene = next.scenes.find((candidate) => candidate.id === sceneId);
-    if (scene != null) scene.title = control.value || undefined;
-  } else if (field === "scene-description" || field === "scene-generation") {
-    const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
-    const scene = next.scenes.find((candidate) => candidate.id === sceneId);
-    if (scene == null) return;
-    if (field === "scene-description") scene.description = control.value || undefined;
-    else scene.generationInstructions = control.value || undefined;
-  } else return;
+  if (!applyProjectFieldInput(next, field, control)) return;
   project.value = next;
   dirty.value = true;
   generation.value = {
@@ -1835,85 +1994,7 @@ void delegate(app, "change", "[data-field]", (_event, target) => {
   const sceneId = (control.closest("[data-scene-id]") as HTMLElement | null)?.dataset.sceneId;
   const scene = current?.scenes.find((candidate) => candidate.id === sceneId);
   if (current == null || scene == null) return;
-  if (field === "scene-action-at") {
-    const action = control.closest<HTMLElement>("[data-event-id]");
-    const trackId = action?.dataset.trackId;
-    const eventId = action?.dataset.eventId;
-    const atMs = Number(control.value);
-    if (!Number.isFinite(atMs) || atMs < 0) {
-      setFailure(new Error("Action timing must be non-negative."));
-      return;
-    }
-    const tracks = structuredClone(scene.tracks ?? []);
-    const event = tracks.find((track) => track.id === trackId)?.events.find((candidate) => candidate.id === eventId);
-    if (event == null) return;
-    event.atMs = atMs;
-    applyAuthoring({ kind: "scene.update", sceneId: scene.id, patch: { tracks } });
-  } else if (field === "scene-beat") {
-    applyAuthoring({
-      kind: "scene.update",
-      sceneId: scene.id,
-      patch: { narrativeBeatIds: control.value === "" ? [] : [control.value] },
-    });
-  } else if (field === "scene-source-kind") {
-    const kind = control.value as SceneSourceKind;
-    applyAuthoring(replaceSceneRecipe(scene, replaceSource(scene, kind, sourceDefault(kind))));
-  } else if (field === "scene-source-value") {
-    const value = control.value.trim();
-    if (value === "") {
-      setFailure(new Error("A scene source is required."));
-      return;
-    }
-    applyAuthoring(replaceSceneRecipe(scene, replaceSource(scene, sourceKind(scene), value)));
-  } else if (field === "scene-selector") {
-    const recipe = storyboardRecipe(scene);
-    if (recipe.capture == null) return;
-    applyAuthoring(
-      updateSceneRecipe(scene, { capture: { ...recipe.capture, selector: control.value.trim() || "body" } }),
-    );
-  } else if (field === "scene-duration" || field === "scene-trim-start" || field === "scene-trim-end") {
-    const number = control.value.trim() === "" ? undefined : Number(control.value);
-    if (number != null && (!Number.isFinite(number) || number < (field === "scene-trim-start" ? 0 : 1))) {
-      setFailure(new Error(`${field === "scene-duration" ? "Duration" : "Trim"} is outside its valid range.`));
-      return;
-    }
-    const recipe = { ...scenePresentation(scene) };
-    if (field === "scene-duration") recipe.duration = number;
-    else if (field === "scene-trim-start") recipe.trimStart = number;
-    else recipe.trimEnd = number;
-    if (recipe.trimEnd != null && recipe.trimStart != null) {
-      if (recipe.trimEnd <= recipe.trimStart) {
-        setFailure(new Error("Trim end must be after trim start."));
-        return;
-      }
-      recipe.duration = recipe.trimEnd - recipe.trimStart;
-    }
-    applyAuthoring(updateScenePresentation(scene, recipe));
-  } else if (field === "scene-fit") {
-    applyAuthoring(updateScenePresentation(scene, { fit: control.value as StoryboardRecipe["fit"] }));
-  } else if (field === "scene-transition") {
-    const previous = scenePresentation(scene).transition;
-    const transition = {
-      type: control.value,
-      duration: previous?.duration ?? STUDIO_DEFAULT_TRANSITION_DURATION_MS,
-    } as StoryboardRecipe["transition"];
-    applyAuthoring(updateScenePresentation(scene, { transition }));
-  } else if (field === "scene-transition-duration") {
-    const duration = Number(control.value);
-    if (!Number.isFinite(duration) || duration < 0) {
-      setFailure(new Error("Transition duration must be non-negative."));
-      return;
-    }
-    const previous = scenePresentation(scene).transition;
-    const transition = previous == null ? { type: "crossfade" as const, duration } : { ...previous, duration };
-    applyAuthoring(updateScenePresentation(scene, { transition }));
-  } else if (field === "scene-preset" && control.value !== "custom") {
-    applyAuthoring({
-      kind: "scene.update",
-      sceneId: scene.id,
-      patch: { treatments: presetTreatments(scene, control.value) },
-    });
-  }
+  changeSceneField(scene, field, control);
 });
 
 void delegate(app, "click", "[data-timeline-id]", (event, target) => {
