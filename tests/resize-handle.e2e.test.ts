@@ -149,6 +149,28 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
     expect(rows[1].browser).toEqual(rows[0].browser);
   });
 
+  it("captures at a viewport smaller than the probe box without cropping the measured corner", async () => {
+    // A 160x60 viewport used to crop the 64px probe's corner and fail every capture with
+    // "platform-resizer probe returned 16x12.8", even on a page with no resizer at all.
+    const large = await env!.browser.newPage({ viewport: { width: 360, height: 240 } });
+    const small = await env!.browser.newPage({ viewport: { width: 160, height: 60 } });
+    try {
+      const reference = await measureBlinkPlatformResizer(large);
+      await small.setContent(`<style>html,body{margin:0;background:white}#box{
+        position:absolute;left:4px;top:4px;width:120px;height:50px;resize:both;overflow:hidden
+      }</style><div id="box" data-domotion-anim="box"></div>`);
+      const metrics = await measureBlinkPlatformResizer(small);
+      expect(metrics.themeThickness).toBe(reference.themeThickness);
+      expect(small.viewportSize()).toEqual({ width: 160, height: 60 });
+      expect(await small.locator("[data-domotion-resizer-probe]").count()).toBe(0);
+      const tree = await captureElementTree(small, "body", { x: 0, y: 0, width: 160, height: 60 });
+      expect(byAnimId(tree, "box")!.resizeHandle!.width).toBe(reference.themeThickness);
+    } finally {
+      await large.close();
+      await small.close();
+    }
+  });
+
   it("measures the platform theme when strict CSP blocks the in-page probe", async () => {
     // Browser.newPage() intentionally exercises Playwright's owned-context
     // path: a fallback page cannot be opened through page.context().newPage().

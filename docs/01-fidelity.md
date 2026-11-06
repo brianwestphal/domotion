@@ -137,6 +137,10 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
       the fixed CornerRect. Platform corner thickness is measured from the
       active Chromium `ScrollbarTheme`, so macOS overlay/legacy, Aura, and Windows
       values are not collapsed to a hard-coded constant; DPR is divided out.
+      The 64 px probe box needs a viewport at least that large, so a smaller
+      capture viewport (for example 160 x 60) re-runs the probe in an isolated
+      page of the same context widened to fit, rather than cropping the corner
+      it measures (DM-4S0WYN).
 
 ### Visual / paint
 

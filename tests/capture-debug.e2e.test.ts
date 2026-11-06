@@ -37,4 +37,15 @@ describe("capture debug reproduction bundle", () => {
       );
     }
   });
+
+  it("captures at a viewport smaller than the platform-resizer probe", async () => {
+    const html = join(dir, "small.html");
+    const output = join(dir, "small.svg");
+    writeFileSync(
+      html,
+      `<!doctype html><style>html,body{margin:0}body{background:#fff;font:24px sans-serif}</style><div>debug</div>`,
+    );
+    await runCapture([html, "--quiet", "--width", "160", "--height", "60", "-o", output], "");
+    expect(readFileSync(output, "utf8")).toContain("<svg");
+  });
 });

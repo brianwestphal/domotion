@@ -1515,6 +1515,9 @@ export interface BlinkPlatformResizerMetrics {
   scaleFromDIP: number;
 }
 
+/** CSS-px side of the resizer probe box; it must fit the probed page's viewport. */
+const RESIZER_PROBE_SIZE = 64;
+
 const blinkPlatformResizerMetricsByPage = new WeakMap<Page, Promise<BlinkPlatformResizerMetrics>>();
 
 /**
@@ -1530,7 +1533,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
 
   const runProbe = async (probePage: Page): Promise<BlinkPlatformResizerMetrics> => {
     const token = `domotion-resizer-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const probeSize = 64;
+    const probeSize = RESIZER_PROBE_SIZE;
     const position = await evaluateInFrame(
       probePage,
       ({ token, probeSize }) => {
@@ -1546,12 +1549,25 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
           x: window.scrollX,
           y: window.scrollY,
           scaleFromDIP: window.visualViewport?.scale ?? 1,
+          // The scrollbar-excluded layout viewport: the screenshot below is
+          // clipped to it, so a smaller viewport would crop the probe's
+          // bottom-right corner and scale the recovered size.
+          clientWidth: document.documentElement.clientWidth,
+          clientHeight: document.documentElement.clientHeight,
         };
       },
       { token, probeSize },
     );
 
     try {
+      if (
+        (typeof position.clientWidth === "number" && position.clientWidth < probeSize) ||
+        (typeof position.clientHeight === "number" && position.clientHeight < probeSize)
+      ) {
+        throw new Error(
+          `Chromium platform-resizer probe needs a ${probeSize}x${probeSize} viewport; this page's is ${position.clientWidth}x${position.clientHeight}`,
+        );
+      }
       const png = await probePage.screenshot({
         clip: { x: position.x, y: position.y, width: probeSize, height: probeSize },
         type: "png",
@@ -1601,7 +1617,8 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
       return await runProbe(page);
     } catch (pageError) {
       // A strict page CSP can reject both the temporary style element and the
-      // probe's inline layout declarations. The platform theme belongs to the
+      // probe's inline layout declarations, and a viewport smaller than the
+      // probe box would crop the corner it measures. The platform theme belongs to the
       // BrowserContext, so retry in a clean about:blank page from that same
       // context; retain the captured page's viewport scale for the stroke leg.
       const capturedScale = await page.evaluate(() => window.visualViewport?.scale ?? 1).catch(() => 1);
@@ -1621,6 +1638,16 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
         });
       }
       try {
+        // The isolated page samples only the context's theme, so it can be
+        // resized freely: a capture viewport smaller than the probe (for
+        // example 160x60) must not crop the corner it measures.
+        const isolatedViewport = isolated.viewportSize();
+        if (isolatedViewport != null && (isolatedViewport.width < RESIZER_PROBE_SIZE || isolatedViewport.height < RESIZER_PROBE_SIZE)) {
+          await isolated.setViewportSize({
+            width: Math.max(isolatedViewport.width, RESIZER_PROBE_SIZE),
+            height: Math.max(isolatedViewport.height, RESIZER_PROBE_SIZE),
+          });
+        }
         const fallback = await runProbe(isolated);
         return {
           themeThickness: fallback.themeThickness,
