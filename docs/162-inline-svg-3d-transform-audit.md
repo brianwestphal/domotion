@@ -145,11 +145,18 @@ descendants, and nested replaced snapshots are thereby suppressed together.
 Missing CDP geometry is treated as an explicit unknown and promotes a measured
 paint-bearing plane rather than selecting six matrix entries.
 
-The renderer's last fallback remains unsafe for a vector SVG-child route. If no
-`transformSubtreeRaster` is present, `src/render/transforms.ts` projects a
-computed `matrix3d()` by selecting only m11, m12, m21, m22, m41, and m42. That
-is neither Blink's SVG-child affine flattening nor perspective division; it is
-an unexplained submatrix approximation.
+The renderer's last fallback no longer selects six entries from a projective
+matrix. If no `transformSubtreeRaster` is present, `src/render/transforms.ts`
+projects a computed `matrix3d()` onto the z=0 plane the way Skia's
+`SkM44::asM33()` does (keep m11, m12, m14, m21, m22, m24, m41, m42, m44; drop
+the z row and column). That projection is an SVG affine exactly when
+m14 = m24 = 0, after dividing the constant w = m44 out of the six entries. Any
+other `matrix3d()` (a perspective term, or m44 = 0) has no affine:
+`cssTransformToSvg` returns no transform for it, and the renderer hides the
+element's subtree with a `projective-transform` warning instead of painting a
+guessed affine or the untransformed box. Capture normally gives such content a
+`transformSubtreeRaster`, so this path only protects hand-built, pre-contract,
+or owner-less trees.
 
 ## Pinned source decision
 

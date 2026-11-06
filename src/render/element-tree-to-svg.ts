@@ -82,7 +82,7 @@ import {
   usedOverflowClipMargin,
   type OverflowClipMarginGeometry,
 } from "./overflow-clip.js";
-import { cssTransformToSvg } from "./transforms.js";
+import { cssTransformToSvg, isProjectiveCssTransform } from "./transforms.js";
 import { firstCssFunctionToken, parseCssUrl, splitTopLevelCommas } from "./css-tokens.js";
 import {
   buildLinearGradientDef as buildExactLinearGradientDef,
@@ -2690,6 +2690,19 @@ function computeGroupWrapperAttrs(
   const transformAttr = hasProjectiveTransform
     ? `matrix(${projective[0]} ${projective[3]} ${projective[1]} ${projective[4]} ${projective[2]} ${projective[5]})`
     : svgTransformForElement(el);
+  // A projective matrix3d with no Chromium-owned surface (hand-built or
+  // pre-contract trees; capture normally hands these to
+  // `transformSubtreeRaster`) has no SVG affine. Fail closed: hide the
+  // subtree and say so, rather than painting a six-entry guess or the
+  // untransformed box.
+  const unownedProjective = !hasProjectiveTransform && isProjectiveCssTransform(el.styles.transform);
+  if (unownedProjective) {
+    renderWarn(
+      "projective-transform",
+      `projective matrix3d() transform on <${el.tag}> has no SVG affine and no captured Chromium surface; the element is omitted`,
+      el.tag,
+    );
+  }
   // DM-516: per CSS Compositing 1, an element with `isolation: isolate` (or
   // any implicit-isolation creator: `opacity < 1`, position+z-index SC root,
   // contain:paint, transform, filter…) must form an isolated group for
@@ -2730,7 +2743,8 @@ function computeGroupWrapperAttrs(
     transformAttr !== "" ||
     hasProjectiveTransform ||
     needsIsolation ||
-    needsCullWrapper;
+    needsCullWrapper ||
+    unownedProjective;
   const groupAttrs: string[] = [];
   if (transformAttr !== "") groupAttrs.push(`transform="${transformAttr}"`);
   // Opacity is a unitless compositor coefficient, not geometry. One-decimal
@@ -2772,7 +2786,7 @@ function computeGroupWrapperAttrs(
   if (filterCss !== "" && !needsFilterOuter) styleParts.push(`filter:${filterCss}`);
   if (blendCss !== "" && !filterInsideBlend) styleParts.push(`mix-blend-mode:${blendCss}`);
   if (needsIsolation && !filterInsideBlend) styleParts.push("isolation:isolate");
-  if (el.displayNone === true) styleParts.push("display:none");
+  if (el.displayNone === true || unownedProjective) styleParts.push("display:none");
   // DM-486: HTML-escape the style attribute value. Chromium normalizes
   // `filter: url(#id)` to `url("#id")` (with quotes) — emitting that raw
   // produced `style="filter:url("#id")"` and broke the SVG parser.

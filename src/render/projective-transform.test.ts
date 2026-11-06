@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { getLastCaptureWarnings, resetLastCaptureWarnings } from "../capture/warnings.js";
 import type { CapturedElement } from "../capture/types.js";
 import { elementTreeToSvg } from "./element-tree-to-svg.js";
 
@@ -145,5 +146,38 @@ describe("atomic projective raster emission", () => {
     const svg = elementTreeToSvg([unpromoted], 200, 120);
     expect(svg).toContain("live-clone");
     expect(svg).not.toContain(deadDataUri);
+  });
+});
+
+describe("unowned projective matrix3d fails closed", () => {
+  const persp = "matrix3d(0.642788, 0, 0.766044, -0.00383022, 0, 1, 0, 0, -0.766044, 0, 0.642788, 0, 0, 0, 0, 1)";
+  const hostWith = (transform: string): CapturedElement =>
+    ({
+      tag: "div",
+      text: "",
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 50,
+      children: [],
+      styles: { ...styles, transform, transformOrigin: "50px 25px" },
+    }) as CapturedElement;
+
+  it("hides the subtree and warns instead of painting a six-entry affine", () => {
+    resetLastCaptureWarnings([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const svg = elementTreeToSvg([hostWith(persp)], 200, 120);
+    warn.mockRestore();
+    expect(svg).toContain("display:none");
+    expect(svg).not.toContain("matrix(0.64279");
+    expect(getLastCaptureWarnings().some((w) => w.feature === "projective-transform")).toBe(true);
+  });
+
+  it("keeps an affine matrix3d as a visible vector transform", () => {
+    resetLastCaptureWarnings([]);
+    const svg = elementTreeToSvg([hostWith("matrix3d(2,0,0,0, 0,2,0,0, 0,0,1,0, 10,20,0,1)")], 200, 120);
+    expect(svg).toContain("matrix(2 0 0 2 10 20)");
+    expect(svg).not.toContain("display:none");
+    expect(getLastCaptureWarnings().some((w) => w.feature === "projective-transform")).toBe(false);
   });
 });
