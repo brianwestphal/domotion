@@ -684,17 +684,21 @@ function paintBackgroundColor(
   const out: string[] = [];
   if (useInlineFragments) {
     // background painted per-fragment in renderInlineFragments above
-  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > INVISIBLE_ALPHA && !backgroundColorClipsToText(el)) {
-    out.push(`${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`);
   } else if (!suppressEmptyCell && el.styles.frostedBgFallback != null) {
     // DM-476: backdrop-filter has no SVG equivalent, so when this element
     // would have read as a frosted-glass surface in Chromium (transparent
     // bg + non-trivial backdrop-filter), paint the captured body-bg color as
     // an opaque fill so the element at least covers what's behind it. See
-    // docs/19-frosted-backdrop-fallback.md.
+    // docs/19-frosted-backdrop-fallback.md. This branch is reached only when
+    // no Chromium backdrop raster was retained (a retained one ends the box
+    // phase first). Capture alone decides the threshold (background alpha
+    // <= 0.1): whenever it stored a fallback, the fallback is used, so a
+    // 0.01 < alpha <= 0.1 background no longer keeps its barely-there color.
     out.push(
       `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${el.styles.frostedBgFallback}"`)}`,
     );
+  } else if (!suppressEmptyCell && bgColor != null && bgColor.a > INVISIBLE_ALPHA && !backgroundColorClipsToText(el)) {
+    out.push(`${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`);
   }
   return out;
 }

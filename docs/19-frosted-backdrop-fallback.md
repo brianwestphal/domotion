@@ -79,7 +79,8 @@ When no raster can be retained and an element has both:
 1. `backdrop-filter` non-trivial (`!== 'none' && !== ''`), AND
 2. An effectively-transparent `background-color` (alpha ≤ 0.1),
 
-Domotion paints a **synthesized solid background** in place of the missing
+Domotion paints a **synthesized solid background** (in place of the
+near-transparent background color) instead of the missing
 source-surface effect. The synthesized fill is only a terminal fallback; it is
 not used after an exact or partial Chromium crop succeeds.
 
@@ -105,7 +106,9 @@ If the body itself reports a transparent background (`rgba(0, 0, 0, 0)`), fall b
 
 2. **CapturedElement.styles** — add `frostedBgFallback?: string` to the `Styles` interface.
 
-3. **Renderer** (`renderElement` in `elementTreeToSvg`) — after computing `bgColor`, the real background-color is painted whenever `bgColor.a > 0.01` (`paintBackgroundColor`, `src/render/element-tree-to-svg.ts`); only in the `else` (null or alpha ≤ 0.01) AND with `el.styles.frostedBgFallback` set does the renderer paint the fallback `<rect>` (respecting `border-radius`) before any background-image layers. Note the two thresholds differ by design: capture _stores_ `frostedBgFallback` at alpha ≤ 0.1 (`src/capture/script/walker/borders-backgrounds.ts`), but the renderer only _substitutes_ it below 0.01 — so a background-color with 0.01 < alpha ≤ 0.1 keeps its (barely-there) real translucent color rather than the fallback.
+3. **Renderer** (`renderElement` in `elementTreeToSvg`) — when no Chromium backdrop raster was retained and `el.styles.frostedBgFallback` is set, `paintBackgroundColor` (`src/render/element-tree-to-svg.ts`) paints the fallback `<rect>` (respecting `border-radius`) in place of the background color, before any background-image layers. Otherwise it paints the real background color when `bgColor.a > 0.01`. A retained raster ends the box paint phase first, so the fallback never paints under a Chromium crop.
+
+There is one threshold: capture stores `frostedBgFallback` when the background alpha is ≤ 0.1 (`src/capture/script/walker/borders-backgrounds.ts`), and the renderer uses the stored fallback whenever it is present. The renderer used to substitute only below alpha 0.01, so a background with 0.01 < alpha ≤ 0.1 kept its barely visible real color, and the stored fill was dead data. This path runs only after the Chromium crop fails, and that failure is already reported as a `status: "unavailable"` warning. The heuristic has no Chromium counterpart, so it only needs to be internally consistent. The maintainer chose to unify the threshold (option B of the 2026-11 requirements audit) rather than document the split or retire the fill.
 
 ## Remaining limits
 
