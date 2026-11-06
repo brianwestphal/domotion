@@ -123,3 +123,41 @@ describe("image-document answers frozen for the inlined root", () => {
     expect(scopeImageStyleSheets(css, "P-")).toContain(`@media (prefers-color-scheme: dark) { rect${W}`);
   });
 });
+
+describe("cascade layer names stay per image", () => {
+  it("namespaces top-level layer blocks and statements, keeping sublayers and anonymous layers", () => {
+    const css =
+      `<style>@layer a, b.c; @layer b { @layer c, d; rect { fill: red } } @layer { circle { fill: blue } } ` +
+      `@media (hover: hover) { @layer e { path {} } } @layer a { @layer f { g {} } } @layer z;</style>`;
+    const out = scopeImageStyleSheets(css, "P-");
+    expect(out).toContain(`@layer P-a, P-b.c;`);
+    expect(out).toContain(`@layer P-b { @layer c, d; rect${W} { fill: red } }`);
+    expect(out).toContain(`@layer { circle${W} { fill: blue } }`);
+    expect(out).toContain(`@media not all { @layer P-e { path${W} {} } }`);
+    expect(out).toContain(`@layer P-a { @layer f { g${W} {} } }`);
+    expect(out).toContain(`@layer P-z;</style>`);
+  });
+
+  it("namespaces an @import layer() name", () => {
+    const out = scopeImageStyleSheets(
+      `<style>@import url(a.css) layer(base); @import url(b.css) layer; rect {}</style>`,
+      "P-",
+    );
+    expect(out).toContain(`@import url(a.css) layer(P-base);`);
+    expect(out).toContain(`@import url(b.css) layer;`);
+  });
+
+  it("gives two inlined images with opposite layer orders distinct layers", () => {
+    const P = { x: 0, y: 0, w: 100, h: 100, par: "xMidYMid meet" };
+    const a = inlineImgSvg(`<svg viewBox="0 0 10 10"><style>@layer a, b;</style><rect/></svg>`, {
+      ...P,
+      idPrefix: "A-",
+    })!;
+    const b = inlineImgSvg(`<svg viewBox="0 0 10 10"><style>@layer b, a;</style><rect/></svg>`, {
+      ...P,
+      idPrefix: "B-",
+    })!;
+    expect(a).toContain(`@layer A-a, A-b;`);
+    expect(b).toContain(`@layer B-b, B-a;`);
+  });
+});

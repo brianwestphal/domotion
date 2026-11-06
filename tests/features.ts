@@ -1276,6 +1276,22 @@ export const tests: FeatureTest[] = [
     height: 130,
   },
   {
+    // Each SVG image has its own document and so its own cascade layer order.
+    // Inlined, every image's layers would join the output document's one
+    // layer map, where same-named layers from different sheets merge and take
+    // the first declaration's order (cascade_layer_map.cc). The second image
+    // declares `b, a` after the first declared `a, b`; each image's later
+    // layer must still win, so every rect paints green.
+    name: "image-svg-layer-scope",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>@layer a, b; @layer a { rect { fill: #dc2626 } } @layer b { rect { fill: #16a34a } }</style><rect x="15" y="15" width="70" height="70"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>@layer b, a; @layer a { rect { fill: #16a34a } } @layer b { rect { fill: #dc2626 } }</style><rect x="15" y="15" width="70" height="70"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>@layer b { rect { fill: #dc2626 } } @media all { @layer a { rect { fill: #16a34a } } }</style><rect x="15" y="15" width="70" height="70"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 360,
+    height: 130,
+  },
+  {
     // An `<img>` SVG document's own author sheets cascade onto its root like
     // any author rule, so `svg { transform }`, `:root { transform-origin }`,
     // `#id` / `.class` rules apply to the image, ranked by importance, the

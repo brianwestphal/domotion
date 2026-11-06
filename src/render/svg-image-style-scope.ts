@@ -19,7 +19,8 @@
  * Conditional group rules (`@media`, `@supports`, `@layer`, `@container`,
  * `@scope`) are scoped recursively; other at-rules (`@font-face`,
  * `@keyframes`, `@page`, `@import`, …) carry no element selectors and are left
- * alone.
+ * alone. Top-level cascade layer names gain the image's prefix, so each image
+ * keeps its own layer order (`namespaceLayerNames`).
  */
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import { renderWarn } from "./render-warn.js";
@@ -66,6 +67,7 @@ function scopeRules(
   scope: string,
   viewport: { w: number; h: number } | null,
   env: ImageMediaEnv,
+  inLayer: boolean,
 ): string {
   let out = "";
   let cursor = start;
@@ -73,18 +75,30 @@ function scopeRules(
   while (i < end) {
     const brace = clean.indexOf("{", i);
     const semi = clean.indexOf(";", i);
-    if (brace < 0 || brace >= end) break;
-    const prelude = clean.slice(i, brace);
+    // A trailing block-less at-rule has no `{` after it.
+    const blockAt = brace < 0 || brace >= end ? end : brace;
+    const prelude = clean.slice(i, blockAt);
     const trimmed = prelude.trim();
-    if (trimmed.startsWith("@") && semi >= 0 && semi < brace) {
-      i = semi + 1; // block-less at-rule
+    if (trimmed.startsWith("@") && semi >= 0 && semi < blockAt) {
+      // A block-less at-rule. An `@layer a, b;` statement or an
+      // `@import … layer(a)` outside every layer names top-level layers,
+      // which join the output document's one layer map once inlined.
+      const statement = clean.slice(i, semi).trim();
+      const renamed = inLayer ? null : namespaceLayerStatement(statement, scope);
+      if (renamed != null) {
+        const lead = prelude.length - prelude.trimStart().length;
+        out += css.slice(cursor, i + lead) + renamed;
+        cursor = semi;
+      }
+      i = semi + 1;
       continue;
     }
+    if (blockAt === end) break;
     const close = blockEnd(clean, brace);
     if (trimmed.startsWith("@")) {
       const name = /^@([-\w]+)/.exec(trimmed)?.[1].toLowerCase() ?? "";
       if (GROUP_AT_RULES.has(name)) {
-        const inner = scopeRules(css, clean, brace + 1, close - 1, scope, viewport, env);
+        const inner = scopeRules(css, clean, brace + 1, close - 1, scope, viewport, env, inLayer || name === "layer");
         // An image sheet's `@media` sees the image viewport, not the output
         // document's: decide it now and freeze the answer.
         const matches = name === "media" ? evaluateMediaQueryList(trimmed.slice(6), viewport, env) : null;
@@ -96,10 +110,13 @@ function scopeRules(
           );
         }
         const lead = prelude.length - prelude.trimStart().length;
+        const layerNames = name === "layer" && !inLayer ? trimmed.slice(6).trim() : "";
         const head =
-          matches == null
-            ? css.slice(cursor, brace + 1)
-            : `${css.slice(cursor, i + lead)}@media ${matches ? "all" : "not all"} {`;
+          matches != null
+            ? `${css.slice(cursor, i + lead)}@media ${matches ? "all" : "not all"} {`
+            : layerNames !== ""
+              ? `${css.slice(cursor, i + lead)}@layer ${namespaceLayerNames(layerNames, scope)} {`
+              : css.slice(cursor, brace + 1);
         out += head + inner + "}";
         cursor = close;
       }
@@ -113,6 +130,40 @@ function scopeRules(
     i = close;
   }
   return out + css.slice(cursor, end);
+}
+
+/**
+ * Namespace the top-level cascade layer names of one image.
+ *
+ * Blink builds one `CascadeLayerMap` per tree scope from every active sheet,
+ * and layers with the same name from different sheets are the same layer
+ * (`CascadeLayerMap::CascadeLayerMap` / `AddLayers`, core/css/cascade_layer_map.cc:15-60,
+ * chromium 7d859f27). The image's sheets lived in the image document's own
+ * map; inlined, they join the output document's, where another image that
+ * declares the same names in a different order would reorder this image's
+ * layers (the merged order is first declaration across all sheets). Prefixing
+ * the first segment of each name keeps every image's layers to itself and
+ * keeps the image's own order. Sublayer names inside a layer block are
+ * relative to it and stay as written; anonymous layers are always distinct.
+ */
+function namespaceLayerNames(list: string, scope: string): string {
+  return list
+    .split(",")
+    .map((name) => {
+      const trimmed = name.trim();
+      return trimmed === "" ? name : `${scope}${trimmed}`;
+    })
+    .join(", ");
+}
+
+/** `@layer a, b` or `@import … layer(a)` with its names namespaced, or null. */
+function namespaceLayerStatement(statement: string, scope: string): string | null {
+  const layer = /^@layer\s+([\s\S]+)$/i.exec(statement);
+  if (layer != null) return `@layer ${namespaceLayerNames(layer[1], scope)}`;
+  if (!/^@import\b/i.test(statement)) return null;
+  const fn = /\blayer\(\s*([^()]*?)\s*\)/i.exec(statement);
+  if (fn == null || fn[1] === "") return null;
+  return `${statement.slice(0, fn.index)}layer(${scope}${fn[1]})${statement.slice(fn.index + fn[0].length)}`;
 }
 
 /** Split on a top-level separator predicate, respecting strings, escapes and brackets. */
@@ -310,6 +361,6 @@ export function scopeImageStyleSheets(
   env: ImageMediaEnv = {},
 ): string {
   return markup.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
-    return open + scopeRules(css, blankNoise(css), 0, css.length, scope, viewport, env) + close;
+    return open + scopeRules(css, blankNoise(css), 0, css.length, scope, viewport, env, false) + close;
   });
 }
