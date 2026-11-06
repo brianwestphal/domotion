@@ -8,6 +8,7 @@ platforms: ["macos"]
 tickets:
   [
     "DM-1156",
+    "DM-5SAT08",
     "SK-1092",
     "SK-1125",
     "SK-1126",
@@ -20,7 +21,13 @@ tickets:
     "SK-1225",
     "SK-1226",
   ]
-code: ["src/capture/types.ts", "src/render/form-controls.ts"]
+code:
+  [
+    "src/capture/types.ts",
+    "src/capture/pseudo-style-cdp.ts",
+    "src/capture/script/walker/native-controls.ts",
+    "src/render/form-controls.ts",
+  ]
 aliases: ["docs/05-progress-meter-pseudos.md", "doc-05"]
 ---
 
@@ -140,3 +147,35 @@ center 14px) while the track pseudo fills full height. The value gradient maps
 to that inset box (matters for the `meter.tall` vertical gradient). Box tops are
 snapped to the pixel grid (`Math.round(el.y)`) so edges land crisply. With both
 fixes `06-forms-style-progress-meter.html` renders clean (0 regions).
+
+## Structural meter bar geometry (current)
+
+The "track fills full height" observation above was wrong for the structural
+(`appearance: none`) route. Blink lays the bar out in the middle row of the
+inner element's grid (`core/html/resources/html.css:1364-1386`, Chromium
+7d859f27):
+
+- `meter::-webkit-meter-inner-element { display: grid; grid-template-rows: 1fr [line1] 2fr [line2] 1fr }`
+- `meter::-webkit-meter-bar { grid-row: line1 / line2; block-size: 100%; position: absolute; overflow: hidden }`
+
+So the bar is the middle half of the host's content box, and the value element
+is its percentage inline-size inside the bar's content box. The bar's
+`overflow: hidden` clips the value to the bar's rounded padding box.
+
+Capture does not re-derive the grid. The CDP prepass
+(`src/capture/pseudo-style-cdp.ts`) retains the closed-UA-shadow bar and value
+nodes, and the capture script reads their used border-box rects into
+`meterBarGeometry` / `meterValueGeometry` (paint-space coordinates, LayoutUnit
+precision). `renderMeter` paints the bar there, strokes its uniform border
+(`meterBarBorder`), and clips the value to the bar's padding box. A capture
+without those fields falls back to the content-box grid arithmetic.
+
+The meter part styles (bar, and the active value pseudo) are captured even when
+no author rule matched, because a structural meter paints the UA rules too:
+html.css's gray bar gradient and the green/yellow/red value gradients. The
+`meter::-webkit-meter-bar:-internal-shadow-host-has-non-auto-appearance` rule
+(`#efefef`, a thin translucent border, a 20px radius) does **not** apply to an
+`appearance: none` meter: despite its name, the pseudo-class matches only when
+the host _has_ an effective native appearance
+(`SelectorChecker`, `core/css/selector_checker.cc:3174-3181`), which takes the
+native raster route instead. Fixture: `meter-styled-bar-grid-row`.

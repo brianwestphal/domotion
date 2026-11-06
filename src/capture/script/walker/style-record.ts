@@ -43,6 +43,7 @@ type StyleRecordScope = {
   _selectDisplayTextGeometry?: CapturedStyles["selectDisplayTextGeometry"];
   _capturedFontFamilyStack: NonNullable<CapturedStyles["fontFamilyStack"]>;
   _fileSelectorCapture?: Partial<CapturedStyles>;
+  _meterPartGeometry?: Pick<CapturedStyles, "meterBarGeometry" | "meterValueGeometry">;
 };
 
 export const createStyleRecordBuilder = (ctx: {
@@ -105,6 +106,7 @@ export const createStyleRecordBuilder = (ctx: {
       _selectDisplayTextGeometry,
       _capturedFontFamilyStack,
       _fileSelectorCapture,
+      _meterPartGeometry,
     } = scope;
     return {
       // Border + background + outline + box-shadow fields — see
@@ -252,6 +254,7 @@ export const createStyleRecordBuilder = (ctx: {
       ...captureFormControls(el, cs, tag),
       selectDisplayTextGeometry: _selectDisplayTextGeometry,
       ..._fileSelectorCapture,
+      ..._meterPartGeometry,
       // ComputedStyle::EffectiveAppearance after Blink's author-style
       // adjustment. This is distinct from the computed `appearance`
       // longhand and lets later decoration ownership split at the exact

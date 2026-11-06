@@ -1055,6 +1055,18 @@ export interface CapturedStyles {
   meterBarBg?: string;
   meterBarBgImage?: string;
   meterBarRadius?: string;
+  /** Uniform computed border of `::-webkit-meter-bar` (`"1px solid rgba(…)"`), or absent. */
+  meterBarBorder?: string;
+  /**
+   * Used border-box rects of the closed-UA-shadow `::-webkit-meter-bar` and
+   * of the value element inside it, in the captured viewport's paint space.
+   * Blink places the bar in the middle row of the inner element's
+   * `1fr [line1] 2fr [line2] 1fr` grid (core/html/resources/html.css), so the
+   * bar is not the host box; the value's rect is its percentage inline-size
+   * inside the bar's content box.
+   */
+  meterBarGeometry?: { x: number; y: number; width: number; height: number };
+  meterValueGeometry?: { x: number; y: number; width: number; height: number };
   meterOptimumBg?: string;
   meterOptimumBgImage?: string;
   meterSuboptimumBg?: string;

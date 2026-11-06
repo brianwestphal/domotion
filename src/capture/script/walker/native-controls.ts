@@ -123,6 +123,34 @@ export const createNativeControlsHandler = (ctx: {
         }
       }
     }
+    // A styled meter's bar and value are closed-UA-shadow children laid out
+    // by html.css's `1fr [line1] 2fr [line2] 1fr` grid (the bar spans the
+    // middle row; the value is its percentage inline-size inside the bar's
+    // content box). The CDP prepass retains both nodes; read Blink's used
+    // rects instead of re-deriving the grid from host metrics.
+    let _meterPartGeometry;
+    if (tag === "meter") {
+      const _partRect = (_node: Node | undefined) => {
+        if (!(_node instanceof Element) || !_node.isConnected) return undefined;
+        const _r = _node.getBoundingClientRect();
+        return { x: _r.left - vp.x, y: _r.top - vp.y, width: _r.width, height: _r.height };
+      };
+      let _barNode: Node | undefined;
+      let _valueNode: Node | undefined;
+      for (let _mi = 0; _mi < _nativeDecorationRefs.length; _mi++) {
+        const _entry = _nativeDecorationRefs[_mi];
+        if (_entry == null) continue;
+        if (_entry.kind === "meter-bar") _barNode = _entry.node;
+        else if (
+          _entry.kind === "meter-optimum" ||
+          _entry.kind === "meter-suboptimum" ||
+          _entry.kind === "meter-even-less-good"
+        )
+          _valueNode = _entry.node;
+      }
+      const _bar = _partRect(_barNode);
+      if (_bar != null) _meterPartGeometry = { meterBarGeometry: _bar, meterValueGeometry: _partRect(_valueNode) };
+    }
     let _fileSelectorButtonAppearance;
     for (let _fri = 0; _fri < _nativeDecorationRefs.length; _fri++) {
       const _fileRef = _nativeDecorationRefs[_fri];
@@ -269,6 +297,7 @@ export const createNativeControlsHandler = (ctx: {
       _nativeDecorationParts,
       _nativeDecorationUnavailableReason,
       _selectDisplayTextGeometry,
+      _meterPartGeometry,
     };
   };
   return { captureNativeControlState };

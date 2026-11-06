@@ -91,6 +91,13 @@ interface ComputedProperty {
   value: string;
 }
 
+const METER_PART_KINDS: ReadonlySet<ControlPseudoKind> = new Set([
+  "meter-bar",
+  "meter-optimum",
+  "meter-suboptimum",
+  "meter-even-less-good",
+]);
+
 const PSEUDO_ID_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
   "-webkit-slider-runnable-track": "track",
   "-webkit-slider-thumb": "thumb",
@@ -775,7 +782,8 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
             kind === "calendar-picker-indicator" ||
             kind === "select-inner" ||
             kind === "file-selector-button" ||
-            kind === "file-selector-status"
+            kind === "file-selector-status" ||
+            METER_PART_KINDS.has(kind)
           ) {
             // Retain the actual closed-shadow Element, not just its computed
             // style. The later isolation pass needs Chromium's used rect and
@@ -789,7 +797,12 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
           // avoidable protocol failure surface.
           if (kind === "file-selector-status") return;
           matched ??= await session.send("CSS.getMatchedStylesForNode", { nodeId: node.nodeId });
-          if (hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {
+          // A structural (appearance:none) meter paints its bar and value from
+          // the UA rules too (html.css's gray bar and green/yellow/red value
+          // gradients), so their final computed style is captured even when no
+          // author rule matched. A native-appearance meter terminates at its
+          // host raster and never reads these facts.
+          if (METER_PART_KINDS.has(kind) || hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {
             computed ??= await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId });
             await store(uaHost.nodeId, kind, computed.computedStyle);
           }

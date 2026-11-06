@@ -87,7 +87,12 @@
       "status": "current",
       "owners": ["rendering"],
       "platforms": ["macos"],
-      "code": ["src/capture/types.ts", "src/render/form-controls.ts"],
+      "code": [
+        "src/capture/types.ts",
+        "src/capture/pseudo-style-cdp.ts",
+        "src/capture/script/walker/native-controls.ts",
+        "src/render/form-controls.ts"
+      ],
       "file": "05-progress-meter-pseudos.md"
     },
     {

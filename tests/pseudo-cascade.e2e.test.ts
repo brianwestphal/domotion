@@ -115,6 +115,35 @@ describeBrowser("DM-2382: Blink-authoritative control pseudo cascade", () => {
     }
   });
 
+  it("captures a structural meter's bar in the middle grid row and its UA paint without author rules", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 400, height: 120 } });
+    try {
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0} meter{appearance:none;display:block;width:300px;height:16px;margin:10px 20px}
+        #styled::-webkit-meter-bar{background-color:rgb(15,118,110);border:2px solid rgb(220,38,38)}
+      </style>
+      <meter id="styled" value="60" max="100" data-domotion-anim="styled"></meter>
+      <meter id="ua" value="60" max="100" data-domotion-anim="ua"></meter>`);
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 400, height: 120 });
+      const styled = byAnimId(tree, "styled")?.styles;
+      // html.css: the bar spans `1fr [line1] 2fr [line2] 1fr`'s middle row,
+      // i.e. y 14..22 of a 16px host at y=10; the value fills 60% of the
+      // bar's content box inside its 2px border (296 × 0.6 = 177.6, floored
+      // to Blink's 1/64 px LayoutUnit).
+      expect(styled?.meterBarGeometry).toEqual({ x: 20, y: 14, width: 300, height: 8 });
+      expect(styled?.meterValueGeometry).toEqual({ x: 22, y: 16, width: 177.59375, height: 4 });
+      expect(styled?.meterBarBorder).toBe("2px solid rgb(220, 38, 38)");
+      const ua = byAnimId(tree, "ua")?.styles;
+      expect(ua?.meterBarGeometry).toEqual({ x: 20, y: 40, width: 300, height: 8 });
+      // No author rule matched, yet the UA bar/value gradients are captured.
+      expect(ua?.meterBarBgImage).toMatch(/^linear-gradient/);
+      expect(ua?.meterOptimumBgImage).toMatch(/^linear-gradient/);
+      expect(ua?.meterBarBorder).toBeUndefined();
+    } finally {
+      await page.close();
+    }
+  });
+
   it("uses Blink winners across specificity, importance, origins, layers, scopes, conditions, and tree scopes", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 920, height: 720 } });
     try {

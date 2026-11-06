@@ -207,6 +207,7 @@
         "platforms": ["macos"],
         "tickets": [
           "DM-1156",
+          "DM-5SAT08",
           "SK-1092",
           "SK-1125",
           "SK-1126",
@@ -219,7 +220,12 @@
           "SK-1225",
           "SK-1226"
         ],
-        "code": ["src/capture/types.ts", "src/render/form-controls.ts"],
+        "code": [
+          "src/capture/types.ts",
+          "src/capture/pseudo-style-cdp.ts",
+          "src/capture/script/walker/native-controls.ts",
+          "src/render/form-controls.ts"
+        ],
         "aliases": ["docs/05-progress-meter-pseudos.md", "doc-05"]
       }
     },

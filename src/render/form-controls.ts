@@ -266,6 +266,16 @@ function progressBarGeom(el: CapturedElement): { trackRect: FcRect; valueRect: F
   return { trackRect, valueRect: { x, y: el.y, w: width, h: el.height } };
 }
 
+/**
+ * `<meter>` bar + value rects. Blink lays `::-webkit-meter-bar` out in the
+ * middle row of the inner element's `1fr [line1] 2fr [line2] 1fr` grid
+ * (`meter::-webkit-meter-inner-element` / `meter::-webkit-meter-bar`,
+ * core/html/resources/html.css:1364-1386, Chromium 7d859f27), so the bar is
+ * the middle half of the host's content box, and the value element is its
+ * percentage inline-size inside the bar's content box. Capture reads both used
+ * rects from the retained closed-UA-shadow nodes; the grid arithmetic below
+ * only serves captures that predate that field.
+ */
 function meterBarGeom(el: CapturedElement): {
   trackRect: FcRect;
   valueRect: FcRect | null;
@@ -283,15 +293,34 @@ function meterBarGeom(el: CapturedElement): {
   const distance = Math.abs(region(value) - region(optimum));
   const valueBgImage =
     distance === 0 ? s.meterOptimumBgImage : distance === 1 ? s.meterSuboptimumBgImage : s.meterEvenLessGoodBgImage;
-  const trackRect = { x: el.x, y: el.y, w: el.width, h: el.height };
+  const capturedBar = s.meterBarGeometry;
+  if (capturedBar != null) {
+    const trackRect = { x: capturedBar.x, y: capturedBar.y, w: capturedBar.width, h: capturedBar.height };
+    const v = s.meterValueGeometry;
+    const valueRect = v != null && v.width > 0 && v.height > 0 ? { x: v.x, y: v.y, w: v.width, h: v.height } : null;
+    return { trackRect, valueRect, valueBgImage };
+  }
+  const px = (value: string | undefined): number => Math.max(0, parseFloat(value ?? "") || 0);
+  const contentX = el.x + px(s.borderLeftWidth) + px(s.paddingLeft);
+  const contentY = el.y + px(s.borderTopWidth) + px(s.paddingTop);
+  const contentW = Math.max(
+    0,
+    el.width - px(s.borderLeftWidth) - px(s.borderRightWidth) - px(s.paddingLeft) - px(s.paddingRight),
+  );
+  const contentH = Math.max(
+    0,
+    el.height - px(s.borderTopWidth) - px(s.borderBottomWidth) - px(s.paddingTop) - px(s.paddingBottom),
+  );
+  const inset = Math.floor(contentH / 4);
+  const trackRect = { x: contentX, y: contentY + inset, w: contentW, h: Math.max(0, contentH - inset * 2) };
   if (ratio <= 0) return { trackRect, valueRect: null, valueBgImage };
-  // html.css owns the structural meter's 1fr/2fr/1fr block-axis grid.
-  const inset = Math.floor(el.height / 4);
-  const width = el.width * ratio;
-  const x = s.direction === "rtl" ? el.x + el.width - width : el.x;
+  const barBorder = parseBorderShorthand(s.meterBarBorder)?.width ?? 0;
+  const innerW = Math.max(0, trackRect.w - barBorder * 2);
+  const width = innerW * ratio;
+  const x = s.direction === "rtl" ? trackRect.x + barBorder + innerW - width : trackRect.x + barBorder;
   return {
     trackRect,
-    valueRect: { x, y: el.y + inset, w: width, h: Math.max(0, el.height - inset * 2) },
+    valueRect: { x, y: trackRect.y + barBorder, w: width, h: Math.max(0, trackRect.h - barBorder * 2) },
     valueBgImage,
   };
 }
@@ -942,22 +971,30 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
         ? capturedPseudoColor(s.meterSuboptimumBg)
         : capturedPseudoColor(s.meterEvenLessGoodBg);
   const geometry = meterBarGeom(el);
+  const track = geometry.trackRect;
   const parts: string[] = [];
-  const radius = Math.max(0, parseFloat(s.meterBarRadius ?? "") || 0);
+  // CSS scales every corner radius down together when they overflow the box
+  // (css-backgrounds "Corner Overlap"); a bare SVG rx/ry clamps each axis on
+  // its own and would turn the UA bar's 20px radius into an ellipse.
+  const radius = Math.max(0, Math.min(parseFloat(s.meterBarRadius ?? "") || 0, track.w / 2, track.h / 2));
+  const border = parseBorderShorthand(s.meterBarBorder);
+  const borderWidth = border == null ? 0 : Math.min(border.width, track.w / 2, track.h / 2);
+  const trackShape = (fill: string, attrs = ""): string =>
+    `${indent}<rect x="${r(track.x)}" y="${r(track.y)}" width="${r(track.w)}" height="${r(track.h)}" rx="${r(radius)}" fill="${fill}"${attrs} />`;
   const trackColor = capturedPseudoColor(s.meterBarBg);
-  const trackFills = gradientLayerFills(s.meterBarBgImage, geometry.trackRect, defCtx, "::-webkit-meter-bar");
+  const trackFills = gradientLayerFills(s.meterBarBgImage, track, defCtx, "::-webkit-meter-bar");
   const trackGradient = trackFills.fills.at(-1) ?? null;
   if (trackColor != null || trackGradient != null) {
+    parts.push(...underlayerShapes(trackFills, trackColor, trackShape));
+    parts.push(trackShape(trackGradient ?? trackColor!));
+  }
+  if (border != null && borderWidth > 0) {
+    // Blink paints the bar's border in its own box phase, before the child
+    // value (which overflow clips to the padding box); a uniform border is a
+    // stroke centered half a width inside the border box.
+    const half = borderWidth / 2;
     parts.push(
-      ...underlayerShapes(
-        trackFills,
-        trackColor,
-        (fill) =>
-          `${indent}<rect x="${r(geometry.trackRect.x)}" y="${r(geometry.trackRect.y)}" width="${r(geometry.trackRect.w)}" height="${r(geometry.trackRect.h)}" rx="${r(radius)}" fill="${fill}" />`,
-      ),
-    );
-    parts.push(
-      `${indent}<rect x="${r(geometry.trackRect.x)}" y="${r(geometry.trackRect.y)}" width="${r(geometry.trackRect.w)}" height="${r(geometry.trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`,
+      `${indent}<rect x="${r(track.x + half)}" y="${r(track.y + half)}" width="${r(Math.max(0, track.w - borderWidth))}" height="${r(Math.max(0, track.h - borderWidth))}" rx="${r(Math.max(0, radius - half))}" fill="none" stroke="${border.color}" stroke-width="${r(borderWidth)}" />`,
     );
   }
   if (geometry.valueRect != null) {
@@ -965,17 +1002,30 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const valueFills = gradientLayerFills(geometry.valueBgImage, valueRect, defCtx, "meter value pseudo");
     const valueGradient = valueFills.fills.at(-1) ?? null;
     if (valueColor != null || valueGradient != null) {
-      parts.push(
-        ...underlayerShapes(
-          valueFills,
-          valueColor,
-          (fill) =>
-            `${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(Math.min(radius, valueRect.h / 2))}" fill="${fill}" />`,
-        ),
-      );
-      parts.push(
-        `${indent}<rect x="${r(geometry.valueRect.x)}" y="${r(geometry.valueRect.y)}" width="${r(geometry.valueRect.w)}" height="${r(geometry.valueRect.h)}" rx="${r(Math.min(radius, geometry.valueRect.h / 2))}" fill="${valueGradient ?? valueColor!}" />`,
-      );
+      // html.css gives the bar `overflow: hidden`, so the value paints inside
+      // the bar's rounded padding box (outer radius minus the border width).
+      const inner = {
+        x: track.x + borderWidth,
+        y: track.y + borderWidth,
+        w: Math.max(0, track.w - borderWidth * 2),
+        h: Math.max(0, track.h - borderWidth * 2),
+      };
+      const innerRadius = Math.max(0, radius - borderWidth);
+      let clipAttr = "";
+      let valueRadius = 0;
+      if (defCtx != null) {
+        const clipId = defCtx.nextGradId();
+        defCtx.defsParts.push(
+          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${r(inner.x)}" y="${r(inner.y)}" width="${r(inner.w)}" height="${r(inner.h)}" rx="${r(innerRadius)}" /></clipPath>`,
+        );
+        clipAttr = ` clip-path="url(#${clipId})"`;
+      } else {
+        valueRadius = Math.min(innerRadius, valueRect.w / 2, valueRect.h / 2);
+      }
+      const valueShape = (fill: string): string =>
+        `${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(valueRadius)}" fill="${fill}"${clipAttr} />`;
+      parts.push(...underlayerShapes(valueFills, valueColor, valueShape));
+      parts.push(valueShape(valueGradient ?? valueColor!));
     }
   }
   return parts.join("\n");

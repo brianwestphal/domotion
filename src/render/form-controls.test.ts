@@ -684,9 +684,10 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
       },
     } as unknown as CapturedElement;
     const tiles = collectFormControlConicTiles(el);
-    expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 200, h: 24 }); // track
-    // value=0.6 in [low,high] same region as optimum ⇒ "optimum" pseudo; styled value rect:
-    // top=12 fullH=24 vInset=6 valueH=12, valueW=200·0.6=120.
+    // The bar spans the middle grid row: inset floor(24/4)=6 → 200×12.
+    expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 200, h: 12 }); // track
+    // value=0.6 in [low,high] same region as optimum ⇒ "optimum" pseudo; value
+    // fills the bar's content box: 200·0.6=120 × 12.
     expect(tiles).toContainEqual({ layer: "conic-gradient(green, yellow)", w: 120, h: 12 });
   });
 });
@@ -923,24 +924,77 @@ describe("source-owned structural <meter> geometry (DM-1156 / DM-2458)", () => {
   });
 
   it("keeps the captured author radius", () => {
-    const svg = renderFormControl(makeMeter({ meterBarRadius: "8px" }), "");
+    const svg = renderFormControl(makeMeter({ meterBarRadius: "3px" }), "");
     expect(svg).not.toContain('stroke="rgb(203,203,203)"');
-    // The pill track keeps its author radius.
-    expect(svg).toContain('rx="8"');
+    // The track keeps its author radius (below the half-height clamp).
+    expect(svg).toContain('rx="3"');
   });
 
-  it("uses Blink html.css's structural 1fr/2fr/1fr value grid", () => {
-    // The source-owned structural pseudo uses the center half of the track: for a
-    // 16px meter the value spans the center 8px (inset 4 top/bottom), not the
-    // full height. Snapped box top = round(y) = 100, inset 4 → value y = 104.
+  const rectAttrs = (svg: string) =>
+    [...svg.matchAll(/<rect ([^>]*)\/>/g)].map((m) =>
+      Object.fromEntries([...m[1].matchAll(/([\w-]+)="([^"]*)"/g)].map((a) => [a[1], a[2]])),
+    );
+
+  it("places the bar in Blink html.css's middle 1fr/2fr/1fr grid row when no rect was captured", () => {
+    // meter::-webkit-meter-bar spans grid rows line1..line2 of the inner
+    // element's `1fr [line1] 2fr [line2] 1fr` grid: for a 16px meter both the
+    // bar and the value span the center 8px (y 104..112), not the host height.
     const svg = renderFormControl(makeMeter({ meterBarRadius: "8px" }), "");
-    const rects = [...svg.matchAll(/<rect[^>]*y="([\d.]+)"[^>]*height="([\d.]+)"[^>]*\/>/g)];
-    // Two rects: the full-height track (y=100 h=16) and the inset value (y=104 h=8).
-    const track = rects.find((m) => m[2] === "16");
-    const value = rects.find((m) => m[2] === "8");
-    expect(track).toBeDefined();
-    expect(value).toBeDefined();
-    expect(parseFloat(value![1])).toBe(104);
+    const rects = rectAttrs(svg);
+    expect(rects).toHaveLength(2);
+    expect(rects.map((a) => [a.y, a.height])).toEqual([
+      ["104", "8"],
+      ["104", "8"],
+    ]);
+    // The 8px radius is clamped to half the 8px bar height.
+    expect(rects[0].rx).toBe("4");
+  });
+
+  it("derives the fallback grid from the host content box", () => {
+    const svg = renderFormControl(
+      makeMeter({
+        borderTopWidth: "2px",
+        borderBottomWidth: "2px",
+        borderLeftWidth: "2px",
+        borderRightWidth: "2px",
+        paddingTop: "2px",
+        paddingBottom: "2px",
+        paddingLeft: "2px",
+        paddingRight: "2px",
+        meterBarBorder: "2px solid rgb(220, 38, 38)",
+      }),
+      "",
+    );
+    const [track, border, value] = rectAttrs(svg);
+    // Content box 520×8 at (268,104); middle row inset floor(8/4)=2 → 520×4 at y=106.
+    expect([track.x, track.y, track.width, track.height]).toEqual(["268", "106", "520", "4"]);
+    expect(border.stroke).toBe("rgb(220, 38, 38)");
+    // Value sits inside the 2px bar border: 516 wide content, ratio 0.9.
+    expect([value.x, value.y, value.height]).toEqual(["270", "108", "0"]);
+    expect(parseFloat(value.width)).toBeCloseTo(464.4, 5);
+  });
+
+  it("paints the captured bar and value rects, the bar border, and clips the value to the bar", () => {
+    const defsParts: string[] = [];
+    let n = 0;
+    const defCtx = { idPrefix: "t", defsParts, gradientCache: new Map<string, string>(), nextGradId: () => `m${n++}` };
+    const svg = renderFormControl(
+      makeMeter({
+        meterBarRadius: "20px",
+        meterBarBorder: "1px solid rgba(118, 118, 118, 0.3)",
+        meterBarGeometry: { x: 264, y: 104, width: 528, height: 8 },
+        meterValueGeometry: { x: 265, y: 105, width: 300, height: 6 },
+      }),
+      "",
+      defCtx,
+    );
+    const [track, border, value] = rectAttrs(svg);
+    expect([track.x, track.y, track.width, track.height, track.rx]).toEqual(["264", "104", "528", "8", "4"]);
+    expect(border).toMatchObject({ fill: "none", stroke: "rgba(118, 118, 118, 0.3)", "stroke-width": "1" });
+    expect([border.x, border.y, border.width, border.height, border.rx]).toEqual(["264.5", "104.5", "527", "7", "3.5"]);
+    expect([value.x, value.y, value.width, value.height]).toEqual(["265", "105", "300", "6"]);
+    expect(value["clip-path"]).toBe("url(#m0)");
+    expect(defsParts.join("")).toContain('<rect x="265" y="105" width="526" height="6" rx="3" />');
   });
 });
 
