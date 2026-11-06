@@ -45,6 +45,16 @@ describe("compare — overlay markup (DM-1533)", () => {
     expect(m).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
 
+  it("takes the attribute-safe color grammar for the divider accent, which reaches the output SVG", () => {
+    for (const accent of ['red" onload="x', "red;opacity:0", "a&b"]) {
+      expect(compareParamsSchema.safeParse({ before: "a.png", after: "b.png", accent }).success).toBe(false);
+    }
+    const ok = compareOverlayMarkup(
+      parse({ before: "a.png", after: "b.png", mode: "slide", accent: "rgb(255, 0, 0)" }),
+    );
+    expect(ok).toContain('fill="rgb(255, 0, 0)"');
+  });
+
   it("wipe mode emits NO divider; slide mode emits a divider line + keyframes", () => {
     const wipe = compareOverlayMarkup(parse({ before: "a.png", after: "b.png", mode: "wipe" }));
     expect(wipe).not.toContain("cmp-div");

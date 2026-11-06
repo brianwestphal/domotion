@@ -896,6 +896,15 @@ describe("subscribe generation (pure, no browser) — DM-1278", () => {
     expect(buildSubscribeHtml(parse({ name: "X", showBell: false }))).not.toMatch(/class="sub-bell"/);
   });
 
+  it("escapes the accent where it lands in the filled bell's presentation attributes", () => {
+    // `accent` is a cssValue(): quotes pass (legitimate in some `<style>` values), so
+    // the attribute site must escape them rather than let one end the attribute.
+    const accent = 'red" onload="x';
+    const html = buildSubscribeHtml(parse({ name: "X", accent, clickAfterMs: 1500 }));
+    expect(html).toContain('fill="red&quot; onload=&quot;x" stroke="red&quot; onload=&quot;x"');
+    expect(html).not.toContain('fill="red" onload');
+  });
+
   it("uses a dark card under the dark theme", () => {
     const dark = buildSubscribeHtml(parse({ name: "X", theme: "dark" }));
     expect(dark).toContain("#1f2430"); // dark card bg

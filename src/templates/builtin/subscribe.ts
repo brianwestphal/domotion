@@ -57,8 +57,10 @@ export function buildSubscribeHtml(p: SubscribeParams, safeInset?: SafeInset): s
   const initial = (p.avatarText ?? p.name.trim().charAt(0)).toUpperCase() || "•";
   const click = p.clickAfterMs > 0;
   const bellStroke = dark ? "#e5e7eb" : "#334155";
+  // `accent` is a `cssValue()` (quotes allowed for the `<style>` uses), so escape it
+  // where it lands in a presentation attribute.
   const bellSvg = (fill: string, stroke: string) =>
-    `<svg width="26" height="26" viewBox="0 0 24 24" fill="${fill}" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    `<svg width="26" height="26" viewBox="0 0 24 24" fill="${escapeHtml(fill)}" stroke="${escapeHtml(stroke)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
      </svg>`;
 

@@ -200,9 +200,16 @@ and is **projected to CLI flags** + a JSON Schema.
   gradient or font stack) should not be able to close the block. The built-ins
   declare those fields with `cssValue()` from `src/templates/builtin/shared.ts`,
   which rejects braces, angle brackets and line breaks at validation time and
-  leaves every accepted value unchanged. Text that ends up in the page body is
-  HTML-escaped by the template instead; file paths placed in attributes are
-  attribute-escaped.
+  leaves every accepted value unchanged. `cssValue()` still allows `;`, `\` and
+  quotes, which legitimate `<style>` values need (`url("data:…;utf8,…")`, quoted
+  font families). So where such a value is also written into an attribute
+  (`fill="…"`, `stroke="…"`, `font-family="…"`), the template HTML-escapes it at
+  that site. A color that reaches the template's **output** SVG markup directly
+  (the `compare` divider `accent`) uses the stricter attribute-safe
+  `cssColorInputSchema` instead (no quotes, `;`, `\` or `&`), as do color lists
+  written into inline `style` attributes (`background-loop` and `chart`
+  `colors`). Text that ends up in the page body is HTML-escaped by the template
+  instead; file paths placed in attributes are attribute-escaped.
 
 ## `durationMs` — play nicely in animate configs
 

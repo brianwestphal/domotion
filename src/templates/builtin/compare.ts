@@ -17,6 +17,7 @@ import { join, resolve, extname } from "node:path";
 import { z } from "zod";
 import { CARD_FONT_STACK, cssValue, msSchema, sizeSchema } from "./shared.js";
 import { composeAnimatedLayers, type CompositeLayerAnimation } from "../../animation/index.js";
+import { cssColorInputSchema } from "../../animation/css-value-input.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { escapeAttr, escapeHtml } from "../../utils/escapeHtml.js";
 import { formatScaleFactor, type SafeInset } from "../formats.js";
@@ -32,7 +33,9 @@ export const compareParamsSchema = z.object({
   direction: z.enum(DIRECTIONS).default("right").describe("Direction the reveal travels: right | left | down | up."),
   beforeLabel: z.string().optional().describe("Caption badge for the before visual (bottom-left)."),
   afterLabel: z.string().optional().describe("Caption badge for the after visual (bottom-right)."),
-  accent: cssValue().default("#ffffff").describe("Divider line color (slide mode)."),
+  // The divider color lands in a `fill="…"` attribute of the composite's OUTPUT
+  // SVG (not the capture page), so it takes the attribute-safe color grammar.
+  accent: cssColorInputSchema.default("#ffffff").describe("Divider line color (slide mode)."),
   fontFamily: cssValue().default(CARD_FONT_STACK).describe("Label font."),
   durationMs: msSchema(1600, "Reveal duration in ms."),
   holdMs: msSchema(3200, "Total on-screen time in ms."),
@@ -184,7 +187,7 @@ function dividerMarkup(p: CompareParams): string {
     return (
       `<style>@keyframes ${name}{0%{transform:translateX(${fromX}px)}${endPct.toFixed(2)}%,100%{transform:translateX(${toX}px)}}` +
       `.${name}{animation:${anim}}</style>` +
-      `<rect class="${name}" x="-3" y="0" width="6" height="${H}" fill="${p.accent}"/>`
+      `<rect class="${name}" x="-3" y="0" width="6" height="${H}" fill="${escapeHtml(p.accent)}"/>`
     );
   }
   const fromY = p.direction === "down" ? 0 : H;
@@ -192,7 +195,7 @@ function dividerMarkup(p: CompareParams): string {
   return (
     `<style>@keyframes ${name}{0%{transform:translateY(${fromY}px)}${endPct.toFixed(2)}%,100%{transform:translateY(${toY}px)}}` +
     `.${name}{animation:${anim}}</style>` +
-    `<rect class="${name}" x="0" y="-3" width="${W}" height="6" fill="${p.accent}"/>`
+    `<rect class="${name}" x="0" y="-3" width="${W}" height="6" fill="${escapeHtml(p.accent)}"/>`
   );
 }
 
