@@ -18,10 +18,9 @@ import { fileURLToPath } from "node:url";
 import { type BrowserContext, type Page } from "@playwright/test";
 import { raw } from "kerfjs";
 import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
-import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
+import { captureElementTree, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
-import { withRenderTextMode } from "../src/render/text-to-path.js";
-import { resetFeatureFixtureState } from "./feature-fixture-state.js";
+import { renderFixtureSvgInner, resetFeatureFixtureState } from "./feature-fixture-state.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { comparePngs, passes, type CompareResult, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { HINTING_FLOOR_PCT, newHarnessPage } from "./harness-constants.js";
@@ -223,7 +222,9 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // the live Chromium paint, and embedded `<text>` carries an inherent sub-
   // pixel-kerning drift (xOffsets aren't forwarded, to keep the glyph atlas
   // cacheable). Same convention the scroll composer documents for diffing.
-  const svgContent = withRenderTextMode("paths", () => elementTreeToSvgInner(tree, width, height));
+  // `renderFixtureSvgInner` starts the paths-mode generation inside the
+  // synchronous render so concurrent workers' glyph defs cannot leak in.
+  const svgContent = renderFixtureSvgInner(tree, width, height);
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);
 
