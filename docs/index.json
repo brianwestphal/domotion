@@ -1675,7 +1675,8 @@
           "DM-1844",
           "DM-EBRC7F",
           "DM-9JP366",
-          "DM-779QKV"
+          "DM-779QKV",
+          "DM-JEMQA6"
         ],
         "code": [
           ".github/workflows/fast-visual-tests.yml",

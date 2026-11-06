@@ -1,16 +1,44 @@
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { WebfontRegistration } from "../../src/capture/index.js";
 import type { CapturedElement, CaptureWarning } from "../../src/capture/types.js";
 import { captureFlagsCacheToken, expectedCachePlatformDir } from "../harness-browsers.js";
 import { inventoryDocument } from "../../tools/font-inventory.mjs";
 import { playwrightVersion } from "../../scripts/run-env.mjs";
+
+/** A `WebfontRegistration` with its bytes base64-encoded for the JSON entry. */
+export type SerializedWebfontRegistration =
+  | (Omit<Extract<WebfontRegistration, { kind: "webfont" }>, "bytes"> & { bytes: string })
+  | Extract<WebfontRegistration, { kind: "local-alias" }>;
 
 export interface ExpectedCacheMeta {
   bodyBg: string;
   /** The captured tree as this cache serialized it; key changes invalidate a stale shape. */
   tree?: CapturedElement[];
   warnings?: CaptureWarning[];
+  /**
+   * Every registration webfont discovery made on the miss. A hit skips the
+   * source page, so it replays these into the fixture's own text-engine
+   * session; without them the render would depend on whatever earlier
+   * fixtures left in a shared registry. An entry without the field is a miss.
+   */
+  webfonts?: SerializedWebfontRegistration[];
+}
+
+/**
+ * Bumped whenever an entry's shape gains a field a hit depends on, so older
+ * entries become misses instead of hits that silently lack it.
+ * v2: `webfonts` (per-fixture webfont replay).
+ */
+export const EXPECTED_CACHE_FORMAT = "v2";
+
+export function serializeWebfontRegistrations(registrations: WebfontRegistration[]): SerializedWebfontRegistration[] {
+  return registrations.map((r) => (r.kind === "webfont" ? { ...r, bytes: r.bytes.toString("base64") } : r));
+}
+
+export function deserializeWebfontRegistrations(registrations: SerializedWebfontRegistration[]): WebfontRegistration[] {
+  return registrations.map((r) => (r.kind === "webfont" ? { ...r, bytes: Buffer.from(r.bytes, "base64") } : r));
 }
 
 function hashFileOrEmpty(path: string): string {
@@ -54,7 +82,7 @@ export function createExpectedCache(options: {
       return createHash("sha256")
         .update(htmlBytes)
         .update(
-          `|${width}x${height}@${dpr}x|${version}|${scriptHash}|${nodeHash}|${fontDigest}${captureFlagsCacheToken(options.env)}`,
+          `|${EXPECTED_CACHE_FORMAT}|${width}x${height}@${dpr}x|${version}|${scriptHash}|${nodeHash}|${fontDigest}${captureFlagsCacheToken(options.env)}`,
         )
         .digest("hex");
     },
@@ -70,7 +98,7 @@ export function createExpectedCache(options: {
       if (existsSync(png) && existsSync(metaPath)) {
         try {
           const meta = JSON.parse(readFileSync(metaPath, "utf8")) as ExpectedCacheMeta;
-          if (meta.tree != null) {
+          if (meta.tree != null && Array.isArray(meta.webfonts)) {
             copyFileSync(png, expectedPath);
             this.stats.hits++;
             return meta;

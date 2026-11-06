@@ -6,7 +6,19 @@ status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
 tickets:
-  ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844", "DM-EBRC7F", "DM-9JP366", "DM-779QKV"]
+  [
+    "DM-1216",
+    "DM-1217",
+    "DM-1660",
+    "DM-1661",
+    "DM-1665",
+    "DM-1790",
+    "DM-1844",
+    "DM-EBRC7F",
+    "DM-9JP366",
+    "DM-779QKV",
+    "DM-JEMQA6",
+  ]
 code:
   [
     ".github/workflows/fast-visual-tests.yml",
@@ -400,8 +412,16 @@ fixture's webfonts during its awaits nor add glyph defs to its `<defs>`.
 accepted-diff entries are exported from `tests/html-test/tables.ts`; a unit test
 checks every table key against the installed HTML and Unicode fixture checkouts.
 The expected-PNG cache in `tests/html-test/cache.ts` keys on source, viewport,
-browser version, capture code, font inventory, and capture flags. It preserves
-the earlier screenshot only for an exact key match. The shared compare-page
+browser version, capture code, font inventory, capture flags, and an entry
+format version. It preserves the earlier screenshot only for an exact key match.
+Each fixture renders in its own text-engine session, so it sees exactly its own
+`@font-face` webfonts: the worker pool shares one process, and the legacy
+process-global registry used to hand a fixture whatever earlier fixtures had
+registered — and, on a cache hit (which skips the source page and so webfont
+discovery), only that. A miss records every registration discovery made (the
+fetched bytes and descriptors, or the `local()` alias) in the entry's
+`webfonts` field, and a hit replays them into the fixture's session; an entry
+without the field is a miss. The shared compare-page
 lock releases after a failed comparison; worker page recovery reports a closed
 context as an error. Both behaviors have isolated transition tests.
 

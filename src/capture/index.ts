@@ -662,6 +662,62 @@ type WebfontRegisterReport = {
 };
 
 /**
+ * One registration webfont discovery made, in a form that can be replayed
+ * without the page: the fetched (woff2-decoded) bytes plus the descriptors, or
+ * a local() alias. Visual harnesses persist these next to a cached capture so a
+ * cache hit renders with the same webfonts as the miss that produced it.
+ */
+export type WebfontRegistration =
+  | {
+      kind: "webfont";
+      family: string;
+      weight: number;
+      style: string;
+      bytes: Buffer;
+      unicodeRange?: Array<[number, number]>;
+      stretch?: string;
+      weightDesc?: string;
+      styleDesc?: string;
+    }
+  | { kind: "local-alias"; family: string; key: string; weight: number; italic: boolean };
+
+export interface DiscoverWebfontsOptions {
+  /** Called once for every registration that succeeded, in registration order. */
+  onRegister?: (registration: WebfontRegistration) => void;
+}
+
+/**
+ * Apply one registration to `textEngineSession` (or, without one, to the
+ * legacy process-global registry). Returns false when fontkit cannot parse a
+ * webfont's bytes; a local alias always applies.
+ */
+export function applyWebfontRegistration(
+  registration: WebfontRegistration,
+  textEngineSession?: TextEngineSession,
+): boolean {
+  if (registration.kind === "local-alias") {
+    const { family, key, weight, italic } = registration;
+    if (textEngineSession == null) registerLocalFontAlias(family, key, weight, italic);
+    else registerTextEngineLocalFontAlias(textEngineSession, family, key, weight, italic);
+    return true;
+  }
+  const { family, weight, style, bytes, unicodeRange, stretch, weightDesc, styleDesc } = registration;
+  return textEngineSession == null
+    ? registerWebfont(family, weight, style, bytes, unicodeRange, stretch, weightDesc, styleDesc)
+    : registerTextEngineWebfont(
+        textEngineSession,
+        family,
+        weight,
+        style,
+        bytes,
+        unicodeRange,
+        stretch,
+        weightDesc,
+        styleDesc,
+      );
+}
+
+/**
  * Register ONE discovered font item: a local() alias, or a fetched
  * @font-face/resource URL (trying each ranked candidate until one fetches and
  * fontkit parses). Pushes a report row. Extracted verbatim from
@@ -672,7 +728,13 @@ async function registerDiscoveredFont(
   page: Page,
   report: WebfontRegisterReport[],
   textEngineSession?: TextEngineSession,
+  onRegister?: (registration: WebfontRegistration) => void,
 ): Promise<void> {
+  const apply = (registration: WebfontRegistration): boolean => {
+    if (!applyWebfontRegistration(registration, textEngineSession)) return false;
+    onRegister?.(registration);
+    return true;
+  };
   if (item.kind === "local") {
     // The page-side probe identified which local() candidate Chrome
     // actually resolved the alias to (by comparing rendered widths). We
@@ -697,8 +759,7 @@ async function registerDiscoveredFont(
     for (const localName of candidates) {
       const key = systemFontKeyForLocalName(localName);
       if (key != null) {
-        if (textEngineSession == null) registerLocalFontAlias(item.family, key, declaredWeight, declaredItalic);
-        else registerTextEngineLocalFontAlias(textEngineSession, item.family, key, declaredWeight, declaredItalic);
+        apply({ kind: "local-alias", family: item.family, key, weight: declaredWeight, italic: declaredItalic });
         break;
       }
     }
@@ -743,9 +804,17 @@ async function registerDiscoveredFont(
         // — a real distinction for the webfont synthetic-italic rule's
         // variable-`slnt`-axis exemption (`webfontSyntheticItalic`), which
         // only reaches an AUTO descriptor.
-        const registeredFace = (
-          textEngineSession == null ? registerWebfont : registerTextEngineWebfont.bind(null, textEngineSession)
-        )(item.family, weightNum, item.style, buf, item.unicodeRange, item.stretch, item.weight, item.styleDesc);
+        const registeredFace = apply({
+          kind: "webfont",
+          family: item.family,
+          weight: weightNum,
+          style: item.style,
+          bytes: buf,
+          unicodeRange: item.unicodeRange,
+          stretch: item.stretch,
+          weightDesc: item.weight,
+          styleDesc: item.styleDesc,
+        });
         if (!registeredFace) {
           lastError = "fontkit could not parse";
           continue;
@@ -765,15 +834,13 @@ async function registerDiscoveredFont(
           continue;
         }
         if (
-          !(textEngineSession == null
-            ? registerWebfont(meta.family, meta.weight, meta.italic ? "italic" : "normal", buf)
-            : registerTextEngineWebfont(
-                textEngineSession,
-                meta.family,
-                meta.weight,
-                meta.italic ? "italic" : "normal",
-                buf,
-              ))
+          !apply({
+            kind: "webfont",
+            family: meta.family,
+            weight: meta.weight,
+            style: meta.italic ? "italic" : "normal",
+            bytes: buf,
+          })
         ) {
           lastError = "fontkit could not parse";
           continue;
@@ -866,6 +933,7 @@ export async function discoverAndRegisterWebfonts(
   page: Page,
   observedFontUrls: Iterable<string> = [],
   textEngineSession?: TextEngineSession,
+  options: DiscoverWebfontsOptions = {},
 ): Promise<WebfontRegisterReport[]> {
   // Two-pass discovery:
   //
@@ -964,7 +1032,9 @@ export async function discoverAndRegisterWebfonts(
   }
 
   const report: WebfontRegisterReport[] = [];
-  for (const item of discovered) await registerDiscoveredFont(item, page, report, textEngineSession);
+  for (const item of discovered) {
+    await registerDiscoveredFont(item, page, report, textEngineSession, options.onRegister);
+  }
   return report;
 }
 

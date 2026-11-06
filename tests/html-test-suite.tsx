@@ -31,14 +31,12 @@ import { createHash } from "node:crypto";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type BrowserContext, type Page } from "@playwright/test";
+import { isGlyphHelperAvailable, profReset, profSnapshot } from "@domotion/text-engine/testing";
 import {
-  isGlyphHelperAvailable,
-  profReset,
-  profSnapshot,
-  getEmbeddedFontBuildDiagnostics,
-  resetGeneration,
-} from "@domotion/text-engine/testing";
-import { createExpectedCache } from "./html-test/cache.js";
+  createExpectedCache,
+  deserializeWebfontRegistrations,
+  serializeWebfontRegistrations,
+} from "./html-test/cache.js";
 import { createCompareLock } from "./html-test/compare-lock.js";
 import { parseTextEvidenceSelection, renderWithTextEvidence } from "./html-test/evidence.js";
 import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
@@ -48,9 +46,14 @@ import {
   elementTreeToSvgInner,
   embedRemoteImages,
 } from "../src/render/element-tree-to-svg.js";
-import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
+import {
+  applyWebfontRegistration,
+  discoverAndRegisterWebfonts,
+  type WebfontRegistration,
+} from "../src/capture/index.js";
 import type { CapturedElement, CaptureWarning } from "../src/capture/types.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
+import { createTextEngineSession, withTextEngineDocument } from "../src/render/text-engine.js";
 import { type EmbeddedFontBuildDiagnostic } from "../src/render/font-resolution.js";
 import { type FixtureTextRunProvenance } from "../src/render/text-run-provenance.js";
 import { comparePngs, SIGNIFICANT_PIXEL_DIST, TILE_PX, type DiffVerdict } from "../src/review/compare-pngs.js";
@@ -491,11 +494,21 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     const requiresLiveUnicodeEvidence = TEXT_EVIDENCE_SELECTION?.fixture === name;
     const meta = requiresLiveUnicodeEvidence ? null : expectedCache.read(cacheKey, expectedPath);
     if (requiresLiveUnicodeEvidence) expectedCache.stats.misses++;
+    // Each fixture renders with exactly its own webfonts, in its own
+    // text-engine session. The worker pool shares one process, so the legacy
+    // process-global registry would hand a fixture whatever earlier fixtures
+    // registered (leaking by family name) — and on a cache hit, which skips
+    // discovery, ONLY that. A miss records its registrations into the cache
+    // entry; a hit replays them.
+    const fontSession = createTextEngineSession();
+    let webfontRegistrations: WebfontRegistration[] = [];
     if (meta?.tree != null) {
       bodyBg = meta.bodyBg;
       cap = { tree: meta.tree, warnings: meta.warnings ?? [] };
       capWarnings = cap.warnings;
       expectedFromCache = true;
+      webfontRegistrations = deserializeWebfontRegistrations(meta.webfonts ?? []);
+      for (const registration of webfontRegistrations) applyWebfontRegistration(registration, fontSession);
     }
 
     timer.mark("cache-check");
@@ -625,7 +638,9 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       // `font-family: "MyFamily"` declared via @font-face render in the
       // chain-fallback face (`serif` → Times) instead of the local() target.
       try {
-        await discoverAndRegisterWebfonts(w.page);
+        await discoverAndRegisterWebfonts(w.page, [], fontSession, {
+          onRegister: (registration) => webfontRegistrations.push(registration),
+        });
       } catch {
         /* best-effort */
       }
@@ -638,7 +653,12 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       timer.mark("capture-tree");
 
       // Cache before later mutating passes so the serialized tree stays small.
-      expectedCache.write(cacheKey, expectedPath, { bodyBg, tree: cap.tree, warnings: cap.warnings });
+      expectedCache.write(cacheKey, expectedPath, {
+        bodyBg,
+        tree: cap.tree,
+        warnings: cap.warnings,
+        webfonts: serializeWebfontRegistrations(webfontRegistrations),
+      });
       timer.mark("cache-write");
     }
     // DM-512: demos always emit self-contained SVGs.
@@ -654,18 +674,18 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // [box + markup]. Safe because elementTreeToSvgInner never awaits — no
     // other worker interleaves between reset and snapshot.
     if (DEMO_TIMING) profReset();
-    // Every fixture owns one generation. Without this reset the builder report
-    // is worker-cumulative and a workerSeq subtraction is required to guess
-    // which subset belonged to this row.
-    resetGeneration();
-    const textRender = renderWithTextEvidence(
-      name,
-      () => elementTreeToSvgInner(cap.tree, WIDTH, fixtureHeight),
-      TEXT_EVIDENCE_SELECTION,
+    // Every fixture owns one generation (`generation: "reset"`). Without it the
+    // builder report is worker-cumulative and a workerSeq subtraction is
+    // required to guess which subset belonged to this row. The document runs in
+    // the fixture's own session, so only its webfonts are registered.
+    const tree = cap.tree;
+    const textDocument = withTextEngineDocument({ session: fontSession, generation: "reset" }, () =>
+      renderWithTextEvidence(name, () => elementTreeToSvgInner(tree, WIDTH, fixtureHeight), TEXT_EVIDENCE_SELECTION),
     );
+    const textRender = textDocument.value;
     const svgContent = textRender.result;
     textRunEvidence = textRender.evidence;
-    embeddedFontBuilds = getEmbeddedFontBuildDiagnostics();
+    embeddedFontBuilds = textDocument.artifacts.embeddedFontDiagnostics;
     const renderProf = DEMO_TIMING ? profSnapshot() : {};
     const xlinkAttr = svgContent.includes("xlink:") ? ` xmlns:xlink="http://www.w3.org/1999/xlink"` : "";
     const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"${xlinkAttr} viewBox="0 0 ${WIDTH} ${fixtureHeight}" width="${WIDTH}" height="${fixtureHeight}"><rect width="${WIDTH}" height="${fixtureHeight}" fill="${bodyBg}" />${svgContent}</svg>`;
