@@ -1,7 +1,11 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg } from "../src/index.js";
 import { clearEmbeddedFonts, clearGlyphDefs } from "../src/render/index.js";
+import { comparePngs } from "../src/review/compare-pngs.js";
 
 // DM-7AN9AH: captured DOM inline `<svg>` flattens to a `<g transform>` when opt-in
 // is on, renders identically to the nested `<svg>` baseline, and falls back to the
@@ -52,6 +56,51 @@ describe("captured DOM inline <svg> flattening (DM-7AN9AH)", () => {
 
     const [a, b] = [await shoot(nested), await shoot(flat)];
     expect(a.equals(b)).toBe(true); // identical paint
+  }, 30_000);
+
+  it("a CSS-rotated inline <svg> keeps its placement and rotation when flattened (DM-KDGVCN)", async () => {
+    // Kerf's ProgressRing: the <svg> carries `rotate: -90deg`. Capture neutralizes
+    // the root's own transform on the clone (`transform:translate(0);rotate:none…`)
+    // because the renderer applies it outside the SVG; carried onto the flattened
+    // <g>, that CSS `transform` overrode the group's viewport matrix and every
+    // ring collapsed onto its group origin.
+    await source.setContent(
+      `<!doctype html><style>html,body{margin:0;background:#fff}` +
+        `.row{display:flex;gap:16px;padding:20px}.ring{width:48px;height:48px;rotate:-90deg}</style>` +
+        `<div class="row">` +
+        [0.25, 0.5, 0.75]
+          .map(
+            (p) =>
+              `<svg class="ring" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" fill="none" stroke="#ddd" stroke-width="4"/>` +
+              `<circle cx="18" cy="18" r="15" fill="none" stroke="#c33" stroke-width="4" stroke-dasharray="${(p * 94.25).toFixed(2)} 94.25"/></svg>`,
+          )
+          .join("") +
+        `</div>`,
+    );
+    const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: W, height: H });
+    const nested = render(tree, false);
+    const flat = render(tree, true);
+    expect(flat).not.toMatch(/<svg[^>]*viewBox="0 0 36 36"/); // flattened
+    for (const tag of flat.match(/<g [^>]*transform="matrix\([^>]*>/g) ?? []) {
+      expect(tag).not.toMatch(/style="[^"]*\b(?:transform|rotate|scale|translate)\s*:/);
+    }
+    const [expected, a, b] = [
+      await source.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }),
+      await shoot(nested),
+      await shoot(flat),
+    ];
+    // A rotated viewport matrix vs a nested viewport differs only in edge
+    // anti-aliasing, so grade with the suites' region metric, not byte equality.
+    // Before the fix every ring painted at its group origin (many regions).
+    const dir = mkdtempSync(join(tmpdir(), "dm-kdgvcn-"));
+    const file = (name: string, bytes: Buffer) => {
+      const path = join(dir, name);
+      writeFileSync(path, bytes);
+      return path;
+    };
+    const [exp, nest, fl] = [file("expected.png", expected), file("nested.png", a), file("flat.png", b)];
+    expect((await comparePngs(out, nest, fl, join(dir, "diff-nested.png"))).regionCount).toBe(0);
+    expect((await comparePngs(out, exp, fl, join(dir, "diff-chrome.png"))).regionCount).toBe(0);
   }, 30_000);
 
   it("an unsafe source (inner <style> element selector) stays a nested <svg>", async () => {

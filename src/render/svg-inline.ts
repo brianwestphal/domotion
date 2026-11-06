@@ -314,7 +314,67 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
  * fell back to the serif default.
  */
 export function flattenedRootGroupAttributes(rootAttrs: string): string {
-  return stripAttrs(rootAttrs, FLATTENED_ROOT_DROPPED_ATTRS).replace(/\s+$/, "");
+  const kept = stripAttrs(rootAttrs, FLATTENED_ROOT_DROPPED_ATTRS);
+  const tokens = parseSvgAttributes(kept);
+  const style = tokens?.find((token) => token.name.toLowerCase() === "style");
+  if (style == null) return kept.replace(/\s+$/, "");
+  const declarations = stripViewportOnlyStyleDeclarations(style.value);
+  const replacement = declarations === "" ? "" : ` style="${declarations.replace(/"/g, "&quot;")}"`;
+  return (kept.slice(0, style.start) + replacement + kept.slice(style.end)).replace(/\s+$/, "");
+}
+
+/** CSS properties a flattened group must not inherit from the root's `style`.
+ *  DM-KDGVCN: capture neutralizes the DOM root's own transform on the clone
+ *  (`transform:translate(0);rotate:none;scale:none;translate:none`), because the
+ *  renderer applies the element's transform outside the SVG. On the nested
+ *  `<svg>` that is inert, but on the flattened `<g>` a CSS `transform` overrides
+ *  the group's `transform` presentation attribute, the viewport matrix, and
+ *  collapses the content onto the origin. `overflow` only means something on a
+ *  viewport, and the group's clip replaces it. */
+const FLATTENED_ROOT_DROPPED_STYLE_PROPS = new Set([
+  "transform",
+  "rotate",
+  "scale",
+  "translate",
+  "transform-origin",
+  "transform-box",
+  "overflow",
+]);
+
+/** Remove {@link FLATTENED_ROOT_DROPPED_STYLE_PROPS} from a `style` attribute
+ *  value. Splits on `;` outside quotes, parentheses and character entities, so
+ *  `url("data:…;…")` and `&quot;Helvetica Neue&quot;` stay intact. */
+function stripViewportOnlyStyleDeclarations(style: string): string {
+  const declarations: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let start = 0;
+  for (let i = 0; i <= style.length; i++) {
+    const ch = style[i];
+    if (i < style.length) {
+      if (quote != null) {
+        if (ch === quote) quote = null;
+        continue;
+      }
+      // The value is raw attribute text, so `&quot;` and friends end in `;`.
+      const entity = ch === "&" ? /^&(?:#\d+|#x[\da-f]+|[a-z]+);/i.exec(style.slice(i)) : null;
+      if (entity != null) {
+        i += entity[0].length - 1;
+        continue;
+      }
+      if (ch === '"' || ch === "'") quote = ch;
+      else if (ch === "(") depth++;
+      else if (ch === ")") depth = Math.max(0, depth - 1);
+      if (ch !== ";" || depth > 0) continue;
+    }
+    const declaration = style.slice(start, i).trim();
+    start = i + 1;
+    if (declaration === "") continue;
+    const colon = declaration.indexOf(":");
+    const property = (colon < 0 ? declaration : declaration.slice(0, colon)).trim().toLowerCase();
+    if (!FLATTENED_ROOT_DROPPED_STYLE_PROPS.has(property)) declarations.push(declaration);
+  }
+  return declarations.join(";");
 }
 
 export interface InlineSvgPlacement {

@@ -421,8 +421,21 @@ describe("flattenedRootGroupAttributes (DM-97E2CN)", () => {
   it("keeps inheritable presentation, class, style and a11y attributes", () => {
     const attrs = ` class="gauge" viewBox="0 0 100 60" fill="red" font-family="Helvetica, sans-serif" style="overflow: hidden;" role="img" width="200" height="120"`;
     expect(flattenedRootGroupAttributes(attrs)).toBe(
-      ` class="gauge" fill="red" font-family="Helvetica, sans-serif" style="overflow: hidden;" role="img"`,
+      ` class="gauge" fill="red" font-family="Helvetica, sans-serif" role="img"`,
     );
+  });
+
+  it("drops transform-family and overflow declarations from the root style (DM-KDGVCN)", () => {
+    const attrs = ` aria-hidden="true" style="transform:translate(0);rotate:none;scale:none;translate:none;overflow:visible;opacity:0.5" fill="red"`;
+    expect(flattenedRootGroupAttributes(attrs)).toBe(` aria-hidden="true" style="opacity:0.5" fill="red"`);
+  });
+
+  it("keeps entity-quoted and url() declarations intact, and drops an emptied style", () => {
+    const attrs = ` style="font-family: &quot;Helvetica Neue&quot;, sans-serif; mask-image: url(&quot;data:image/svg+xml;base64,AAAA&quot;); transform: none"`;
+    expect(flattenedRootGroupAttributes(attrs)).toBe(
+      ` style="font-family: &quot;Helvetica Neue&quot;, sans-serif;mask-image: url(&quot;data:image/svg+xml;base64,AAAA&quot;)"`,
+    );
+    expect(flattenedRootGroupAttributes(` class="x" style="transform: translate(0)"`)).toBe(` class="x"`);
   });
 
   it("drops viewport, namespace and transform attributes the group must not carry", () => {
