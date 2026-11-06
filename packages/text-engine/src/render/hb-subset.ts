@@ -121,6 +121,8 @@ function hb(): HbSubsetExports {
   const wasmPath = fileURLToPath(new URL("../../vendor/harfbuzzjs/dist/harfbuzz-subset.wasm", import.meta.url));
   const mod = new WebAssembly.Module(readFileSync(wasmPath));
   const inst = new WebAssembly.Instance(mod, {});
+  // WebAssembly boundary: `exports` is typed as an untyped export record; the
+  // vendored module's C ABI is what HbSubsetExports describes.
   const real = inst.exports as unknown as HbSubsetExports;
   cachedExports = exportsDecoratorForTest != null ? exportsDecoratorForTest(real) : real;
   cachedInstanceId = nextInstanceId++;

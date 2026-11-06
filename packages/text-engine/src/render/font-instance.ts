@@ -78,6 +78,12 @@ export interface WebfontSynthesisFace {
 }
 
 export interface FontInstance {
+  /** The clamped variation-axis location `instantiateVariation` applied to
+   *  this fontkit instance, keyed by axis tag. Absent on a static face, on the
+   *  default master, and on native-helper instances. The shaper and the
+   *  embedded-subset builder read it so they pin the same location the
+   *  outlines came from. */
+  _appliedVariationAxes?: Record<string, number>;
   /** Used-size / computed-size ratio for font-size-adjust outline subsets. */
   fontSizeAdjustScale?: number;
   /** Physical SFNT table directory when fontkit opened the face. Native-helper
@@ -448,9 +454,11 @@ function buildCoverageBitset(path: string, faceIndex: number): Uint8Array | null
     const opened = fontkit.openSync(path);
     // A collection exposes `fonts`; `faceIndex` is the PHYSICAL member index,
     // which is what the array is ordered by.
-    const collection = (opened as unknown as { fonts?: unknown[] }).fonts;
+    // fontkit is untyped (`declare module "fontkit"`), so `opened` is `any`;
+    // these structural views are the fontkit boundary.
+    const collection = (opened as { fonts?: unknown[] }).fonts;
     const face = Array.isArray(collection) ? collection[faceIndex] : opened;
-    const cps = (face as unknown as { characterSet?: number[] } | undefined)?.characterSet;
+    const cps = (face as { characterSet?: number[] } | undefined)?.characterSet;
     if (!Array.isArray(cps) || cps.length === 0) return null;
     const bits = new Uint8Array(0x110000 >> 3);
     for (const c of cps) {
@@ -1619,8 +1627,7 @@ function applyInstancedWeightCorrection(instance: FontInstance): void {
   // all read `naturalWeight: 400, faceIsBoldTrait: false`, the unchanged
   // default.)
   if (instance.hasWeightAxis === true) {
-    const appliedWght = (instance as unknown as { _appliedVariationAxes?: Record<string, number> })
-      ._appliedVariationAxes?.wght;
+    const appliedWght = instance._appliedVariationAxes?.wght;
     if (typeof appliedWght === "number" && appliedWght >= 1 && appliedWght <= 1000) {
       instance.naturalWeight = appliedWght;
       instance.faceIsBoldTrait = appliedWght >= 600;
@@ -1671,7 +1678,7 @@ function recordFontkitFontSource(
   // pin everything to defaults so the consumer browser can't re-vary an axis we
   // didn't); null when the file is static (no pinning needed).
   const fileIsVariable = font?.variationAxes != null && Object.keys(font.variationAxes).length > 0;
-  const appliedAxes = (instance as unknown as { _appliedVariationAxes?: Record<string, number> })._appliedVariationAxes;
+  const appliedAxes = instance._appliedVariationAxes;
   // DM-1925: the fontkit path needs the same AAT tracking DM-1916 gave the
   // native-helper path, and for the faces that matter most — `sf-pro`,
   // `sf-pro-italic`, `sf-pro-text` and `sf-hebrew` carry `trak` + `STAT` and
@@ -3203,7 +3210,7 @@ function instantiateVariation(font: any, axes: Record<string, number>): FontInst
   } catch {
     return null;
   }
-  (instance as any)._appliedVariationAxes = clampAxesToFvarRange({ ...axes }, font.variationAxes ?? {});
+  instance._appliedVariationAxes = clampAxesToFvarRange({ ...axes }, font.variationAxes ?? {});
   return instance;
 }
 

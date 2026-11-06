@@ -75,6 +75,7 @@ interface MetaResult {
   traitItalic?: boolean;
 }
 
+// eslint-disable-next-line no-restricted-syntax -- untyped JSON from the native helper process; each test's assertions are its schema.
 function callHelper(request: unknown): { results: any[] } {
   const proc = spawnSync(HELPER, [], {
     input: JSON.stringify(request),
@@ -123,7 +124,7 @@ function parseDCommands(d: string) {
 // Assert the helper's outline matches fontkit's command-for-command within a
 // numeric tolerance (both emit exact design-unit integers, so this is tight).
 function expectOutlineParity(fontPath: string, cp: number) {
-  const font = fontkit.openSync(fontPath) as any;
+  const font = fontkit.openSync(fontPath);
   const fk = font.glyphForCodePoint(cp);
   const helper = helperGlyph(fontPath, cp);
 

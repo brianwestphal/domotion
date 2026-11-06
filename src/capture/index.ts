@@ -56,6 +56,7 @@ import { prepareCollapsedBorderFragmentRecords } from "./collapsed-border-fragme
 import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
+  isProjectivePaintQuad,
   projectiveQuadResidual,
   type ProjectiveComputedState,
   type ProjectivePaintNodeFact,
@@ -1537,16 +1538,12 @@ async function measureProjectivePaintQuads(
           const backendNodeId = described.node.backendNodeId;
           const content = await cdp.send("DOM.getContentQuads", { backendNodeId });
           const contentQuad =
-            content.quads.length === 1 && content.quads[0].length === 8 && content.quads[0].every(Number.isFinite)
-              ? (content.quads[0] as unknown as ProjectivePaintQuad)
-              : null;
+            content.quads.length === 1 && isProjectivePaintQuad(content.quads[0]) ? content.quads[0] : null;
           let borderQuad: ProjectivePaintQuad | null = null;
           try {
             const box = await cdp.send("DOM.getBoxModel", { backendNodeId });
             const border = box.model.border;
-            if (border.length === 8 && border.every(Number.isFinite)) {
-              borderQuad = border as unknown as ProjectivePaintQuad;
-            }
+            if (isProjectivePaintQuad(border)) borderQuad = border;
           } catch {
             /* SVG graphics nodes need not expose a CSS box model. */
           }
@@ -1835,7 +1832,7 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
           async (key) => {
             type PseudoImageIntrinsic = { url: string; width: number; height: number };
             type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>>;
-            const targets = (globalThis as unknown as Record<string, Element[]>)[key];
+            const targets = (globalThis as typeof globalThis & Record<string, Element[]>)[key];
             const cssUrl = (content: string): string | null => {
               const match = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)/i.exec(content);
               const raw = match?.[1] ?? match?.[2] ?? match?.[3];
@@ -1890,10 +1887,10 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
             await evaluateInFrame(
               frame,
               (key) => {
-                const targets = (globalThis as unknown as Record<string, Element[]>)[key];
+                const targets = (globalThis as typeof globalThis & Record<string, Element[]>)[key];
                 for (const target of targets ?? []) {
                   try {
-                    delete (target as unknown as Record<string, unknown>)[key];
+                    delete (target as typeof target & Record<string, unknown>)[key];
                   } catch {}
                 }
               },
@@ -1924,7 +1921,7 @@ async function primeMaskImageIntrinsics(page: Page): Promise<{ dispose(): Promis
         await evaluateInFrame(
           frame,
           async (registryKey) => {
-            const targets = (globalThis as unknown as Record<string, Element[]>)[registryKey];
+            const targets = (globalThis as typeof globalThis & Record<string, Element[]>)[registryKey];
 
             const splitLayers = (value: string): string[] => {
               const out: string[] = [];
@@ -2039,7 +2036,7 @@ async function primeMaskImageIntrinsics(page: Page): Promise<{ dispose(): Promis
             await evaluateInFrame(
               frame,
               (registryKey) => {
-                const targets = (globalThis as unknown as Record<string, Element[]>)[registryKey];
+                const targets = (globalThis as typeof globalThis & Record<string, Element[]>)[registryKey];
                 for (const target of targets ?? []) {
                   try {
                     delete (target as Element & { __domotionMaskIntrinsic?: unknown }).__domotionMaskIntrinsic;
@@ -2469,7 +2466,7 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
           }
         }
       }
-      const mi = cs.maskImage || (cs as unknown as { webkitMaskImage?: string }).webkitMaskImage || "";
+      const mi = cs.maskImage || (cs as typeof cs & { webkitMaskImage?: string }).webkitMaskImage || "";
       if (mi !== "" && mi !== "none") {
         const m = EXT.exec(mi);
         if (m != null) {
@@ -2526,7 +2523,7 @@ async function inlineExternalSvgRefs(page: Page): Promise<void> {
         // Override just the image longhand; mask-mode/size/position/repeat stay
         // from the original CSS so DM-493's same-document path reads them.
         hit.el.style.maskImage = `url(#${localId})`;
-        (hit.el.style as unknown as { webkitMaskImage?: string }).webkitMaskImage = `url(#${localId})`;
+        (hit.el.style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage = `url(#${localId})`;
       }
     }
   });

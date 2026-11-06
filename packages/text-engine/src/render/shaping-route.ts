@@ -655,7 +655,7 @@ export function webfontShapingFace(
   // prevent (every glyph wrong, not subtly off). Falling back to fontkit here
   // loses the disable, which is the lesser failure and the pre-existing one.
   if (bytes.length >= 4 && bytes.readUInt32BE(0) === 0x74746366 /* 'ttcf' */) return null;
-  const applied = (base as unknown as { _appliedVariationAxes?: Record<string, number> })._appliedVariationAxes;
+  const applied = base._appliedVariationAxes;
   return { path: registerHbBufferSource(bytes), faceIndex: 0, axes: applied ?? null };
 }
 

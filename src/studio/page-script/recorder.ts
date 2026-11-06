@@ -12,7 +12,7 @@ export function installStudioRecorderInPage(
   options: BrowserRecorderOptions,
   selectorFor: (element: Element) => string,
 ): void {
-  const root = globalThis as unknown as Record<string, unknown>;
+  const root = globalThis as typeof globalThis & Record<string, unknown>;
   // Keep the browser payload self-contained: Playwright serializes this
   // function without module-scope constants.
   const redactedValue = "[REDACTED]";

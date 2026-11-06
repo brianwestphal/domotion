@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectInlineFragments } from "./fragmentation.js";
+import { capturedElement } from "../../../test-support/captured-fixtures.js";
 
 describe("detectInlineFragments", () => {
   it("captures decoration-only wrapped inline boxes", () => {
@@ -9,7 +10,7 @@ describe("detectInlineFragments", () => {
         { left: 12.25, top: 42.25, width: 54, height: 18 },
       ],
     };
-    const captured: any = {
+    const captured = capturedElement({
       styles: {
         backgroundColor: "transparent",
         backgroundImage: "none",
@@ -21,7 +22,7 @@ describe("detectInlineFragments", () => {
         textDecorationLine: "underline",
         boxDecorationBreak: "slice",
       },
-    };
+    });
     detectInlineFragments(
       el as unknown as Element,
       { display: "inline" } as CSSStyleDeclaration,
@@ -44,7 +45,7 @@ describe("detectInlineFragments", () => {
     const el = {
       getClientRects: () => [rect(32, 608, 58, 78), rect(32, 668, 760, 38), rect(32, 676, 30, 78)],
     };
-    const captured: any = {
+    const captured = capturedElement({
       styles: {
         backgroundColor: "rgb(248, 250, 252)",
         backgroundImage: "none",
@@ -54,7 +55,7 @@ describe("detectInlineFragments", () => {
         borderLeftWidth: "2px",
         boxDecorationBreak: "slice",
       },
-    };
+    });
 
     detectInlineFragments(
       el as unknown as Element,

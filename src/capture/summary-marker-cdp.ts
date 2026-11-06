@@ -135,7 +135,7 @@ async function markerStyle(page: Page, key: string, index: number): Promise<Mark
         const context = canvas.getContext("2d");
         if (context == null || !Number.isFinite(fontSize) || fontSize <= 0) return null;
         context.font = `${marker.fontStyle} ${marker.fontWeight} ${fontSize * effectiveZoom}px ${marker.fontFamily}`;
-        const drawing = context as unknown as {
+        const drawing = context as Omit<typeof context, "fontStretch" | "fontKerning" | "fontVariantCaps"> & {
           fontStretch?: string;
           fontKerning?: string;
           fontVariantCaps?: string;
@@ -208,11 +208,11 @@ export async function captureSummaryMarkerGeometry(
     await withCdpSession(page, async (session) => {
       await Promise.all([session.send("DOM.enable"), session.send("Runtime.enable")]);
       await session.send("DOM.getDocument", { depth: -1, pierce: true });
-      const snapshot = (await session.send("DOMSnapshot.captureSnapshot", {
+      const snapshot: SnapshotResult = await session.send("DOMSnapshot.captureSnapshot", {
         computedStyles: [],
         includeDOMRects: true,
         includePaintOrder: true,
-      })) as unknown as SnapshotResult;
+      });
       for (const candidate of candidates) {
         const index = candidate._summaryMarkerSourceNodeIndex!;
         delete candidate._summaryMarkerSourceNodeIndex;

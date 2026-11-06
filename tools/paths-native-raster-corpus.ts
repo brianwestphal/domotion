@@ -246,7 +246,7 @@ function sha256(bytes: Uint8Array): string {
 }
 
 function tableTags(bytes: Buffer): string[] {
-  const opened: any = fontkit.create(bytes);
+  const opened = fontkit.create(bytes);
   return Object.keys(opened.directory?.tables ?? {}).sort();
 }
 
@@ -272,7 +272,7 @@ export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixt
     }
     let bytes: Buffer = upstream;
     if (fixture.derive === "drop-glyf-hinting") {
-      const opened: any = fontkit.create(upstream);
+      const opened = fontkit.create(upstream);
       const gids = [
         0,
         ...new Set([...fixture.text].map((character) => opened.glyphForCodePoint(character.codePointAt(0)!).id)),
@@ -288,7 +288,7 @@ export function loadPathsRasterFixtures(fontRoot: string): LoadedPathsRasterFixt
       if (!tables.includes(tag)) throw new Error(`${fixture.technology}: required ${tag} table is absent`);
     for (const tag of fixture.forbiddenTables ?? [])
       if (tables.includes(tag)) throw new Error(`${fixture.technology}: forbidden ${tag} table is present`);
-    const opened: any = fontkit.create(bytes);
+    const opened = fontkit.create(bytes);
     for (const character of fixture.text) {
       if (opened.glyphForCodePoint(character.codePointAt(0)!).id === 0)
         throw new Error(`${fixture.technology}: fixture does not cover ${JSON.stringify(character)}`);

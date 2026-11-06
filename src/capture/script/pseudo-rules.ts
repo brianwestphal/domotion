@@ -52,7 +52,7 @@ export const createPseudoRules = (
 
   const resolvePseudo = (el: Element, kind: string): PseudoStyle => {
     if (propertyKey == null || propertyKey === "" || stylesByHost == null) return _emptyPseudo;
-    const hostId = (el as unknown as Record<string, string | undefined>)[propertyKey];
+    const hostId = (el as typeof el & Record<string, string | undefined>)[propertyKey];
     if (hostId == null) return _emptyPseudo;
     return stylesByHost[hostId] && stylesByHost[hostId][kind] ? stylesByHost[hostId][kind] : _emptyPseudo;
   };

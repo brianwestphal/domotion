@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rasterizeConic, resolveConicStops } from "./conic-raster.js";
 import { parseConicGradient } from "./gradients.js";
+import { capturedTree } from "../test-support/captured-fixtures.js";
 
 function pixel(buf: Buffer, w: number, x: number, y: number): { r: number; g: number; b: number; a: number } {
   const i = (y * w + x) * 4;
@@ -141,9 +142,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     _conicTileCache.clear();
 
     // Minimal captured-tree shape with a conic-gradient bg layer.
-    const tree: any = [
+    const tree = capturedTree([
       {
-        tagName: "div",
+        tag: "div",
         x: 0,
         y: 0,
         width: 24,
@@ -154,9 +155,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
         },
         children: [],
       },
-    ];
+    ]);
 
-    await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
+    await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
 
     const layer = "repeating-conic-gradient(#ddd 0 25%, white 0 50%)";
     const sizeCache = _conicTileCache.get(layer);
@@ -171,10 +172,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     const { _conicTileCache, elementTreeToSvg } = await import("./element-tree-to-svg.js");
     _conicTileCache.clear();
     const layer = "conic-gradient(red, blue)";
-    const tree: any = [
+    const tree = capturedTree([
       {
         tag: "div",
-        tagName: "div",
         text: "",
         x: 0,
         y: 0,
@@ -189,7 +189,7 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
         },
         children: [],
       },
-    ];
+    ]);
 
     await rasterizeConicGradients(tree);
     expect([...(_conicTileCache.get(layer)?.keys() ?? [])]).toEqual(["40x30"]);
@@ -209,10 +209,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
       "conic-gradient(black, white)",
       "conic-gradient(cyan, magenta)",
     ];
-    const tree: any = [
+    const tree = capturedTree([
       {
         tag: "div",
-        tagName: "div",
         text: "",
         x: 0,
         y: 0,
@@ -227,7 +226,7 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
         },
         children: [],
       },
-    ];
+    ]);
 
     await rasterizeConicGradients(tree);
     expect(layers.map((layer) => [...(_conicTileCache.get(layer)?.keys() ?? [])])).toEqual([
@@ -250,12 +249,12 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
 
     const layer = "conic-gradient(red, blue)";
     // Three sibling elements all painting the same conic.
-    const tree: any = [
-      { tagName: "div", x: 0, y: 0, width: 100, height: 100, styles: { backgroundImage: layer }, children: [] },
-      { tagName: "div", x: 0, y: 100, width: 100, height: 100, styles: { backgroundImage: layer }, children: [] },
-      { tagName: "div", x: 0, y: 200, width: 100, height: 100, styles: { backgroundImage: layer }, children: [] },
-    ];
-    await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
+    const tree = capturedTree([
+      { tag: "div", x: 0, y: 0, width: 100, height: 100, styles: { backgroundImage: layer }, children: [] },
+      { tag: "div", x: 0, y: 100, width: 100, height: 100, styles: { backgroundImage: layer }, children: [] },
+      { tag: "div", x: 0, y: 200, width: 100, height: 100, styles: { backgroundImage: layer }, children: [] },
+    ]);
+    await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
     const sizeCache = _conicTileCache.get(layer);
     // All three consumers have the same rect (100×100, default size=auto so
     // tile == element) — cache should have exactly one entry.
@@ -270,9 +269,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
 
     const layer =
       "conic-gradient(from 45deg, rgb(56, 189, 248), rgb(129, 140, 248), rgb(244, 114, 182), rgb(56, 189, 248))";
-    const tree: any = [
+    const tree = capturedTree([
       {
-        tagName: "div",
+        tag: "div",
         x: 0,
         y: 0,
         width: 120,
@@ -287,7 +286,7 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
         ],
         children: [],
       },
-    ];
+    ]);
 
     await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
 
@@ -299,9 +298,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     const { _conicTileCache } = await import("./element-tree-to-svg.js");
     _conicTileCache.clear();
 
-    const tree: any = [
+    const tree = capturedTree([
       {
-        tagName: "div",
+        tag: "div",
         x: 0,
         y: 0,
         width: 100,
@@ -311,8 +310,8 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
         },
         children: [],
       },
-    ];
-    await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
+    ]);
+    await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
     expect(_conicTileCache.size).toBe(0);
   });
 
@@ -330,11 +329,11 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
       // A syntactically-broken conic that parseConicGradient rejects, painted by
       // two sibling consumers (same layer at the same tile size) — must warn ONCE.
       const broken = "conic-gradient(this is not a gradient)";
-      const tree: any = [
-        { tagName: "div", x: 0, y: 0, width: 50, height: 50, styles: { backgroundImage: broken }, children: [] },
-        { tagName: "div", x: 0, y: 50, width: 50, height: 50, styles: { backgroundImage: broken }, children: [] },
-      ];
-      await rasterizeConicGradients(tree as any, { hiDPIFactor: 2 });
+      const tree = capturedTree([
+        { tag: "div", x: 0, y: 0, width: 50, height: 50, styles: { backgroundImage: broken }, children: [] },
+        { tag: "div", x: 0, y: 50, width: 50, height: 50, styles: { backgroundImage: broken }, children: [] },
+      ]);
+      await rasterizeConicGradients(tree, { hiDPIFactor: 2 });
       expect(_conicTileCache.size).toBe(0); // nothing cached for the broken layer
       const conicWarnings = warnings.filter((w) => w.includes("could not parse conic-gradient"));
       expect(conicWarnings).toHaveLength(1);
@@ -353,9 +352,9 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
     console.warn = (message?: unknown) => warnings.push(String(message));
     try {
       await rasterizeConicGradients(
-        [
+        capturedTree([
           {
-            tagName: "div",
+            tag: "div",
             x: 0,
             y: 0,
             width: 40,
@@ -363,7 +362,7 @@ describe("rasterizeConicGradients pre-pass + buildConicGradientDef end-to-end (D
             styles: { backgroundImage: "conic-gradient(red, blue)", backgroundSize: "40px" },
             children: [],
           },
-        ] as any,
+        ]),
         { hiDPIFactor: Number.POSITIVE_INFINITY },
       );
       expect(warnings).toHaveLength(1);

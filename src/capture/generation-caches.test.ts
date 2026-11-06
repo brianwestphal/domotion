@@ -4,28 +4,30 @@ import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { _advancedGradientTileCache, _conicTileCache } from "../render/raster-tile-cache.js";
 import { _dataUriCache, _resizedDataUriCache } from "./embed.js";
 import { clearCaptureGenerationCaches } from "./generation-caches.js";
+import type { CapturedElement } from "./types.js";
+import { capturedTree } from "../test-support/captured-fixtures.js";
 
 const LAYER = "repeating-conic-gradient(#ddd 0 25%, white 0 50%)";
 const STALE = "data:image/png;base64,c3RhbGU=";
-const tree = (): any => [
-  {
-    tag: "div",
-    tagName: "div",
-    text: "",
-    x: 0,
-    y: 0,
-    width: 24,
-    height: 24,
-    styles: {
-      backgroundImage: LAYER,
-      backgroundSize: "24px 24px",
-      backgroundColor: "transparent",
-      color: "black",
-      borderColor: "transparent",
+const tree = (): CapturedElement[] =>
+  capturedTree([
+    {
+      tag: "div",
+      text: "",
+      x: 0,
+      y: 0,
+      width: 24,
+      height: 24,
+      styles: {
+        backgroundImage: LAYER,
+        backgroundSize: "24px 24px",
+        backgroundColor: "transparent",
+        color: "black",
+        borderColor: "transparent",
+      },
+      children: [],
     },
-    children: [],
-  },
-];
+  ]);
 
 afterEach(() => {
   clearCaptureGenerationCaches();

@@ -599,7 +599,7 @@ const prepareSnapshotTargetInPage = (rid: string): boolean => {
   };
   type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
   const stateKey = "__domotionReplacedSnapshotState";
-  const host = globalThis as unknown as {
+  const host = globalThis as typeof globalThis & {
     __domotionReplacedSnapshotState?: SnapshotState;
   };
   const previous = host[stateKey];
@@ -689,7 +689,7 @@ const suppressAncestorClipsInPage = (): boolean => {
   };
   type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
   const stateKey = "__domotionReplacedSnapshotState";
-  const host = globalThis as unknown as {
+  const host = globalThis as typeof globalThis & {
     __domotionReplacedSnapshotState?: SnapshotState;
   };
   const state = host[stateKey];
@@ -771,7 +771,7 @@ const shiftSnapshotTargetInPage = ({ dx, dy }: { dx: number; dy: number }): void
   };
   type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
   const stateKey = "__domotionReplacedSnapshotState";
-  const host = globalThis as unknown as {
+  const host = globalThis as typeof globalThis & {
     __domotionReplacedSnapshotState?: SnapshotState;
   };
   const state = host[stateKey];
@@ -825,7 +825,7 @@ const restoreSnapshotStateInPage = (): void => {
   };
   type SnapshotState = { target: HTMLElement; saved: SavedElement[] };
   const stateKey = "__domotionReplacedSnapshotState";
-  const host = globalThis as unknown as {
+  const host = globalThis as typeof globalThis & {
     __domotionReplacedSnapshotState?: SnapshotState;
   };
   const state = host[stateKey];

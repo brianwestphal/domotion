@@ -309,7 +309,7 @@ const buildCapturedRasters = (d: ElementCaptureDeps, f: ElementFacts, nextBackdr
       rect,
       cs,
       vp,
-      _projectiveNodeIndex: d.projectiveNodeIndex as unknown as Map<Element, number>,
+      _projectiveNodeIndex: d.projectiveNodeIndex,
       sel,
       tag,
       el,
@@ -323,7 +323,7 @@ const buildCapturedRasters = (d: ElementCaptureDeps, f: ElementFacts, nextBackdr
       rect,
       vp,
       sel,
-      _projectiveNodeIndex: d.projectiveNodeIndex as unknown as Map<Element, number>,
+      _projectiveNodeIndex: d.projectiveNodeIndex,
       el,
     }),
     // DM-2171: backdrop-filter samples already-painted content behind this

@@ -13,7 +13,13 @@ import {
   resolveFontVariantFeatures,
 } from "./text.js";
 import { setRenderTextMode } from "./text-to-path.js";
-import type { CapturedElement } from "../capture/types.js";
+import type { CapturedElement, TextSegment } from "../capture/types.js";
+import {
+  capturedElement,
+  capturedSegment,
+  capturedStyles,
+  type DeepPartial,
+} from "../test-support/captured-fixtures.js";
 
 // DM-839: embedded-font is the production default render mode, but these tests
 // assert the glyph-PATH renderer's `<text transform="scale(...)">` / baseline
@@ -56,7 +62,7 @@ describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
   // overlay emits the bitmap at em-square size centered in the rect so the
   // <image> dims match Chrome's painted region instead of being stretched
   // out to the full line-box.
-  const seg: any = {
+  const seg = capturedSegment({
     text: "😀",
     x: 347.7,
     y: 695.4,
@@ -69,7 +75,7 @@ describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
         dataUri: "data:image/png;base64,iVBORw0KGgo=",
       },
     ],
-  };
+  });
 
   it("emits the bitmap at the captured rect coords + dims (DM-401 / DM-411 / DM-414)", () => {
     // The screenshot was captured from Chrome's actual paint at this rect,
@@ -86,14 +92,17 @@ describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
   });
 
   it("ignores fontSize for sizing — the captured rect dims are authoritative", () => {
-    const segWithFs: any = { ...seg, fontSize: 32 };
+    const segWithFs = { ...seg, fontSize: 32 };
     const out = rasterGlyphOverlays(segWithFs, 16, "ct1");
     expect(out).toContain('width="23"');
     expect(out).toContain('height="25"');
   });
 
   it("returns empty when there are no resolved dataUris", () => {
-    const empty: any = { ...seg, rasterGlyphs: [{ charIndex: 0, rect: seg.rect, dataUri: undefined }] };
+    const empty = capturedSegment({
+      ...seg,
+      rasterGlyphs: [{ charIndex: 0, rect: seg.rasterGlyphs![0].rect, dataUri: undefined }],
+    });
     expect(rasterGlyphOverlays(empty, 22, "ct1")).toBe("");
   });
 
@@ -105,7 +114,7 @@ describe("rasterGlyphOverlays — emoji bitmap sizing (DM-381)", () => {
 describe("selected raster glyphs retain shaped advances (DM-2410)", () => {
   const text = "❤️ ⚡️ VS16 wins";
   const xOffsets = [16, 16, 41, 46, 46, 72, 78, 95, 111, 126, 142, 149, 170, 178, 194];
-  const styles = {
+  const styles = capturedStyles({
     color: "rgb(230,237,243)",
     fontSize: "24px",
     fontFamily: "Helvetica",
@@ -116,7 +125,7 @@ describe("selected raster glyphs retain shaped advances (DM-2410)", () => {
     textDecorationLine: "none",
     textDecorationColor: "currentcolor",
     textDecorationStyle: "solid",
-  } as any;
+  });
   const segment = {
     text,
     x: 16,
@@ -126,8 +135,8 @@ describe("selected raster glyphs retain shaped advances (DM-2410)", () => {
     fontAscent: 23,
     xOffsets,
   };
-  const element = (rasterGlyphs?: any[]): CapturedElement =>
-    ({
+  const element = (rasterGlyphs?: TextSegment["rasterGlyphs"]): CapturedElement =>
+    capturedElement({
       tag: "div",
       x: 16,
       y: 20,
@@ -141,7 +150,7 @@ describe("selected raster glyphs retain shaped advances (DM-2410)", () => {
       text,
       textSegments: [{ ...segment, rasterGlyphs }],
       styles,
-    }) as any;
+    });
 
   it.skipIf(!MACOS_FONTS)("keeps the original whole sequence in vector shaping while overlays own only paint", () => {
     const render = (el: CapturedElement) =>
@@ -194,7 +203,7 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
   // the pseudo seg in this case, and the renderer reads seg.color /
   // seg.fontSize / seg.fontWeight / seg.fontAscent so all per-pseudo
   // overrides flow through.
-  const baseStyles = {
+  const baseStyles = capturedStyles({
     color: "rgb(0,0,0)",
     fontSize: "16px",
     fontFamily: "-apple-system, sans-serif",
@@ -204,10 +213,10 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
     textDecorationLine: "none",
     textDecorationColor: "currentcolor",
     textDecorationStyle: "solid",
-  } as any;
+  });
 
-  const makeEl = (seg: any): CapturedElement =>
-    ({
+  const makeEl = (seg: DeepPartial<TextSegment>): CapturedElement =>
+    capturedElement({
       tag: "span",
       x: 100,
       y: 50,
@@ -221,7 +230,7 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
       text: seg.text,
       textSegments: [seg],
       styles: baseStyles,
-    }) as any;
+    });
 
   it.skipIf(!MACOS_FONTS)("renders the pseudo's own color, not the host's color", () => {
     const seg = {
@@ -281,7 +290,7 @@ describe("renderSingleLineText — pseudo-only segment positioning (DM-495)", ()
       fontAscent: 9,
     };
     // Host fontSize is 16, pseudo is 11 — output should reflect 11px scale.
-    const elWithLargerHost = { ...makeEl(seg), styles: { ...baseStyles, fontSize: "16px" } } as any;
+    const elWithLargerHost = capturedElement({ ...makeEl(seg), styles: { ...baseStyles, fontSize: "16px" } });
     const outAt11 = renderSingleLineText({
       el: elWithLargerHost,
       idPrefix: "t",

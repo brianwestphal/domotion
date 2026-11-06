@@ -390,7 +390,7 @@ function sourceLines(lines: string, flip: boolean): string {
 }
 
 function faceFacts(path: string): FaceFacts {
-  const font = fontkit.create(readFileSync(path)) as any;
+  const font = fontkit.create(readFileSync(path));
   return {
     unitsPerEm: font.unitsPerEm,
     underlineThickness: font.underlineThickness,

@@ -173,7 +173,7 @@ export async function inspectStudioHealingPage(page: Page, maxCandidates = 250):
   await page.evaluate(`globalThis[${JSON.stringify(HEALING_SELECTOR_KEY)}] = (${studioPageSelectorFor.toString()})`);
   const pending = page.locator("body *").evaluateAll(
     (elements, { limit, selectorKey }) => {
-      const root = globalThis as unknown as Record<string, unknown>;
+      const root = globalThis as typeof globalThis & Record<string, unknown>;
       const selector = root[selectorKey] as ((element: Element, mode: "healing") => string) | undefined;
       delete root[selectorKey];
       if (typeof selector !== "function") throw new Error("Studio healing selector helper is unavailable");
@@ -229,7 +229,7 @@ export async function inspectStudioHealingPage(page: Page, maxCandidates = 250):
   );
   const raw = await pending.finally(() =>
     page
-      .evaluate((key) => delete (globalThis as unknown as Record<string, unknown>)[key], HEALING_SELECTOR_KEY)
+      .evaluate((key) => delete (globalThis as typeof globalThis & Record<string, unknown>)[key], HEALING_SELECTOR_KEY)
       .catch(() => {}),
   );
   return {

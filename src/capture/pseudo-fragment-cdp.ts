@@ -227,7 +227,10 @@ async function setupFrame(
             // every retained baseline. Set the accepted core shorthand first,
             // then the extended TextDrawingStyles longhands when available.
             context.font = `${style.fontStyle} ${style.fontWeight} ${paintFontSize}px ${style.fontFamily}`;
-            const drawing = context as unknown as {
+            const drawing = context as Omit<
+              typeof context,
+              "fontStretch" | "fontKerning" | "fontVariantCaps" | "letterSpacing" | "wordSpacing"
+            > & {
               fontStretch?: string;
               fontKerning?: string;
               fontVariantCaps?: string;
@@ -849,7 +852,10 @@ export async function addShapedAdvances(
       if (context == null) return [];
       context.font = `${style.fontStyle} ${style.fontWeight} ${Number.parseFloat(style.fontSize) * zoom}px ${style.fontFamily}`;
       context.direction = style.direction === "rtl" ? "rtl" : "ltr";
-      const spacing = context as unknown as {
+      const spacing = context as Omit<
+        typeof context,
+        "fontStretch" | "fontKerning" | "fontVariantCaps" | "letterSpacing" | "wordSpacing"
+      > & {
         fontStretch?: string;
         fontKerning?: string;
         fontVariantCaps?: string;
@@ -1196,11 +1202,11 @@ export async function preparePseudoFragmentGeometry(
           playbackRate = undefined;
         }
         await evaluateInFrame(page, () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-        const snapshot = (await session.send("DOMSnapshot.captureSnapshot", {
+        const snapshot: SnapshotResult = await session.send("DOMSnapshot.captureSnapshot", {
           computedStyles: [],
           includePaintOrder: true,
           includeDOMRects: true,
-        })) as unknown as SnapshotResult;
+        });
         for (const candidate of candidates) {
           if (candidate.backendNodeId == null) {
             const reason = "computed generated content had no correlatable Chromium pseudo backend node";

@@ -28,7 +28,7 @@ type PseudoFragmentRegistry = {
   indexByElement?: WeakMap<Element, number>;
   factsByElement?: Array<CapturedElement["pseudoFragments"]>;
 };
-type CaptureWindow = Record<string, unknown>;
+type CaptureWindow = Window & typeof globalThis & Record<string, unknown>;
 type Viewport = CaptureScriptArgs["viewport"];
 
 /** Lazily allocated per-root (document / shadow root) reference scopes. */
@@ -57,7 +57,7 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
     if (typeof args.textPaintGeometryKey !== "string" || args.textPaintGeometryKey === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
     return view != null
-      ? ((view as unknown as CaptureWindow)[args.textPaintGeometryKey] as TextPaintRegistry | undefined)
+      ? ((view as CaptureWindow)[args.textPaintGeometryKey] as TextPaintRegistry | undefined)
       : undefined;
   }
   function textPaintElementIndexFor(el: Element) {
@@ -79,7 +79,7 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
   function textPaintSourceTextNodeIndexFor(node: Node) {
     var registry =
       node != null && node.ownerDocument != null
-        ? ((node.ownerDocument.defaultView as unknown as CaptureWindow | null)?.[args.textPaintGeometryKey ?? ""] as
+        ? ((node.ownerDocument.defaultView as CaptureWindow | null)?.[args.textPaintGeometryKey ?? ""] as
             TextPaintRegistry | undefined)
         : undefined;
     return registry != null && registry.indexByTextNode != null ? registry.indexByTextNode.get(node) : undefined;
@@ -89,7 +89,7 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
     var registry =
       view != null
-        ? ((view as unknown as CaptureWindow)[args.pseudoFragmentKey] as PseudoFragmentRegistry | undefined)
+        ? ((view as CaptureWindow)[args.pseudoFragmentKey] as PseudoFragmentRegistry | undefined)
         : undefined;
     var index = registry != null && registry.indexByElement != null ? registry.indexByElement.get(el) : undefined;
     return registry != null && index != null && registry.factsByElement != null

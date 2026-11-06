@@ -169,8 +169,8 @@ export async function resolveAnchoredOverlays<T extends AnchorableOverlay>(
           // stack traces; that helper isn't in page.evaluate's serialized scope, so
           // polyfill it before the first named const below constructs (the same
           // footgun the webfont-discovery evaluate documents in capture/index.ts).
-          if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
-            (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
+          if (typeof (window as typeof window & { __name?: unknown }).__name === "undefined") {
+            (window as typeof window & { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
           }
           const el = document.querySelector(sel);
           if (el == null) return null;

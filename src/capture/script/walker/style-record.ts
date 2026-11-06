@@ -57,7 +57,7 @@ export const createStyleRecordBuilder = (ctx: {
   _fontFeatureValuesFor: (doc: Document) => FontFeatureValueTables;
   _resolveFontPalette: (el: Element, cs: CSSStyleDeclaration) => CapturedStyles["fontPaletteIdentity"];
   _resolveShadowFontPalettes: (el: Element) => CapturedStyles["shadowFontPaletteIdentities"];
-  _transformRelatedBox: Map<Element, boolean>;
+  _transformRelatedBox: WeakMap<Element, boolean>;
   captureBackgroundAttachment: (
     el: Element,
     cs: CSSStyleDeclaration,

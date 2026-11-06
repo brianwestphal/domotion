@@ -47,7 +47,7 @@ export function createPageRegistry<Value>(page: Page, name: string): PageRegistr
     try {
       await target.evaluate(
         ({ property, result }) => {
-          (globalThis as unknown as Record<string, unknown>)[property] = result;
+          (globalThis as typeof globalThis & Record<string, unknown>)[property] = result;
         },
         { property: key, result: value },
       );
@@ -60,7 +60,10 @@ export function createPageRegistry<Value>(page: Page, name: string): PageRegistr
     key,
     tag,
     read(target) {
-      return target.evaluateHandle((property) => (globalThis as unknown as Record<string, Value>)[property], key);
+      return target.evaluateHandle(
+        (property) => (globalThis as typeof globalThis & Record<string, Value>)[property],
+        key,
+      );
     },
     async dispose() {
       if (disposed) return;
@@ -69,7 +72,7 @@ export function createPageRegistry<Value>(page: Page, name: string): PageRegistr
         [...tagged].map((target) =>
           target
             .evaluate((property) => {
-              delete (globalThis as unknown as Record<string, unknown>)[property];
+              delete (globalThis as typeof globalThis & Record<string, unknown>)[property];
             }, key)
             .catch(() => undefined),
         ),

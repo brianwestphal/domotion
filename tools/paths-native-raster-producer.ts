@@ -36,11 +36,13 @@ export async function producePathsRasterRows(
   const rows: PathsRasterRow[] = [];
   const artifactPaths = new Set<string>();
   for (const raw of rawInput) {
-    const candidate = structuredClone(raw) as Record<string, any>;
+    // Untrusted observation JSON; pathsRasterRowSchema.parse below is what types it.
+    const candidate = structuredClone(raw) as Record<string, unknown>;
     const id = typeof candidate.id === "string" ? candidate.id : "row";
     const bytes: Partial<Record<"nativeArtifact" | "pathsArtifact", Buffer>> = {};
     for (const role of ["nativeArtifact", "pathsArtifact"] as const) {
-      const artifact = candidate[role];
+      const artifact = candidate[role] as
+        { path?: string; width?: unknown; height?: unknown; sha256?: string } | null | undefined;
       if (artifact?.path == null) throw new Error(`${id}: missing ${role}.path`);
       const file = artifactFile(root, id, role, artifact.path);
       if (artifactPaths.has(file)) throw new Error(`${id}: ${role} reuses another evidence artifact`);

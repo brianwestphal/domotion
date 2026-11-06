@@ -140,7 +140,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
         completed: child.status != null,
         exitCode: child.status,
         fingerprint: parityEnvironment({
-          chromium: String((report && (report as any).meta?.chromium) || "unavailable"),
+          chromium: String(report?.meta.chromium || "unavailable"),
           launchFlags: [],
           deviceScaleFactor: 1,
           zoom: 1,

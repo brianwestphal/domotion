@@ -27,15 +27,9 @@ const HTML =
   `</style></head><body><table class="tbl">` +
   `<tr><td class="a">A</td><td class="b">B</td><td class="c">C</td></tr></table></body></html>`;
 
-interface Node {
-  tag?: string;
-  text?: string;
-  styles?: Record<string, string | undefined>;
-  children?: Node[];
-}
-function find(tree: CapturedElement[], pred: (n: Node) => boolean): Node | null {
-  let hit: Node | null = null;
-  const visit = (nodes: Node[]): void => {
+function find(tree: CapturedElement[], pred: (n: CapturedElement) => boolean): CapturedElement | null {
+  let hit: CapturedElement | null = null;
+  const visit = (nodes: CapturedElement[]): void => {
     for (const n of nodes) {
       if (hit) return;
       if (pred(n)) {
@@ -45,7 +39,7 @@ function find(tree: CapturedElement[], pred: (n: Node) => boolean): Node | null 
       if (n.children) visit(n.children);
     }
   };
-  visit(tree as Node[]);
+  visit(tree);
   return hit;
 }
 
@@ -78,7 +72,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const block = find(tree, (node) => node.tag === "td" && node.text === "Label")!;
       const table = find(tree, (node) => node.tag === "table")!;
-      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      const rects = table.styles.collapsedBorderRects!;
 
       // CSSOM inherits `collapse` into the authored block, but Blink does not
       // make that ordinary box a cell in the collapsed edge graph.
@@ -113,9 +107,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       });
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const table = find(tree, (node) => node.tag === "table")!;
-      const dashed = ((table.styles as any).collapsedBorderRects as Array<any>).filter(
-        (rect) => rect.style === "dashed",
-      );
+      const dashed = table.styles.collapsedBorderRects!.filter((rect) => rect.style === "dashed");
 
       expect(dashed.length).toBeGreaterThan(0);
       expect(dashed.every((rect) => rect.x >= geometry.left - 2 && rect.x + rect.width <= geometry.right + 2)).toBe(
@@ -143,7 +135,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       expect(cellB, "captured cell B").toBeTruthy();
       expect(table, "captured table").toBeTruthy();
 
-      const rects = (table!.styles as any).collapsedBorderRects as Array<any>;
+      const rects = table!.styles.collapsedBorderRects!;
       // The A|B shared edge: B's 8px red wins over A's 2px blue (width), but the
       // winner is painted once by the table rather than assigned to either cell.
       expect(rects).toContainEqual(
@@ -175,7 +167,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const table = find(tree, (n) => n.tag === "table")!;
-      const right = ((table.styles as any).collapsedBorderRects as Array<any>).filter(
+      const right = table.styles.collapsedBorderRects!.filter(
         (rect) => rect.axis === "column" && (rect.color === "rgb(255, 0, 0)" || rect.color === "rgb(0, 128, 0)"),
       );
       expect(right).toHaveLength(2);
@@ -202,7 +194,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const table = find(tree, (n) => n.tag === "table")!;
-      const right = ((table.styles as any).collapsedBorderRects as Array<any>).filter(
+      const right = table.styles.collapsedBorderRects!.filter(
         (rect) => rect.axis === "column" && (rect.color === "rgb(255, 0, 0)" || rect.color === "rgb(0, 128, 0)"),
       );
       expect(right).toHaveLength(2);
@@ -222,7 +214,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const table = find(tree, (n) => n.tag === "table")!;
-      const bottom = ((table.styles as any).collapsedBorderRects as Array<any>).filter(
+      const bottom = table.styles.collapsedBorderRects!.filter(
         (rect) => rect.axis === "row" && (rect.color === "rgb(255, 0, 0)" || rect.color === "rgb(0, 128, 0)"),
       );
       expect(bottom).toHaveLength(2);
@@ -242,7 +234,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       );
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
       const table = find(tree, (n) => n.tag === "table")!;
-      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      const rects = table.styles.collapsedBorderRects!;
       expect(rects.some((rect) => rect.width === 7 && rect.color === "rgb(255, 0, 0)")).toBe(true);
       expect(rects.some((rect) => rect.width === 5 && rect.style === "dashed" && rect.color === "rgb(0, 128, 0)")).toBe(
         true,
@@ -271,7 +263,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       expect(sourceFragments.length).toBeGreaterThan(1);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 260 });
       const table = find(tree, (n) => n.tag === "table")!;
-      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      const rects = table.styles.collapsedBorderRects!;
       for (const fragment of sourceFragments) {
         expect(rects.some((rect) => rect.x < fragment.right && rect.x + rect.width > fragment.left)).toBe(true);
       }
@@ -319,7 +311,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
       expect(fragments.length).toBeGreaterThan(1);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 260 });
       const table = find(tree, (n) => n.tag === "table")!;
-      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      const rects = table.styles.collapsedBorderRects!;
       expect(rects.some((rect) => rect.axis === "column" && rect.height > 0)).toBe(true);
       // Blink skips the inline edge at both ends of a continued row; there is
       // no synthetic full/half horizontal border at those fragmentainer cuts.
@@ -357,7 +349,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
 
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 1000, height: 300 });
       const table = find(tree, (n) => n.tag === "table")!;
-      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      const rects = table.styles.collapsedBorderRects!;
       const empty = fragments.table[3];
       expect(rects.some((rect) => rect.x < empty.right && rect.x + rect.width > empty.left)).toBe(false);
 
@@ -405,18 +397,19 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
 
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 1100, height: 260 });
       const table = find(capture.tree, (n) => n.tag === "table")!;
-      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
-      const record = (table.styles as any).collapsedBorderFragmentRecord;
+      const rects = table.styles.collapsedBorderRects!;
+      const record = table.styles.collapsedBorderFragmentRecord!;
       expect(rects.length).toBeGreaterThan(0);
       expect(record).toMatchObject({ schemaVersion: 2, status: "authenticated" });
-      const sections = record.tableFragments.flatMap((fragment: any) => fragment.sectionFragments);
-      expect(sections.filter((section: any) => section.repeatRole.endsWith("header"))).toHaveLength(cssom.table.length);
-      expect(sections.filter((section: any) => section.repeatRole.endsWith("footer"))).toHaveLength(cssom.table.length);
+      if (record.status !== "authenticated") throw new Error(`fragment record unavailable: ${record.status}`);
+      const sections = record.tableFragments.flatMap((fragment) => fragment.sectionFragments);
+      expect(sections.filter((section) => section.repeatRole.endsWith("header"))).toHaveLength(cssom.table.length);
+      expect(sections.filter((section) => section.repeatRole.endsWith("footer"))).toHaveLength(cssom.table.length);
       expect(
         sections
-          .filter((section: any) => section.repeatRole !== "non-repeated")
+          .filter((section) => section.repeatRole !== "non-repeated")
           .every(
-            (section: any) =>
+            (section) =>
               section.occurrenceOwnership === "source-clone-plus-per-fragment-hit-test" &&
               section.repeatEligibility != null &&
               section.reservedCollapsedEdgeSpace != null,
@@ -454,7 +447,7 @@ describeBrowser("DM-1260: border-collapse conflict resolution", () => {
 
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 420, height: 1700 });
       const table = find(tree, (n) => n.tag === "table")!;
-      const rects = (table.styles as any).collapsedBorderRects as Array<any>;
+      const rects = table.styles.collapsedBorderRects!;
       for (const fragment of fragments.section) {
         expect(
           rects.some(

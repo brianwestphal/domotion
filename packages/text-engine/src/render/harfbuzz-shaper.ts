@@ -56,15 +56,11 @@ export interface ShapeResult {
 // a face: macOS ships most system families as `.ttc` collections, and the cut we
 // resolve is usually not the first member (see `faceIndexForPostScriptName`).
 interface HbEntry {
-  font: {
-    glyphToPath(id: number): string;
-    /** hb_font_get_nominal_glyph — undefined when the cmap has no entry. */
-    nominalGlyph(unicode: number): number | undefined;
-    /** hb_font_get_variation_glyph — the cmap-14 sequence lookup Blink's
-     *  variation-selector handling consults; undefined when the face carries no
-     *  glyph for (base, selector). */
-    variationGlyph(unicode: number, variationSelector: number): number | undefined;
-  };
+  /** The vendored harfbuzzjs font. Besides shaping, callers use `glyphToPath`,
+   *  `nominalGlyph` (hb_font_get_nominal_glyph, undefined when the cmap has no
+   *  entry) and `variationGlyph` (hb_font_get_variation_glyph, the cmap-14
+   *  sequence lookup Blink's variation-selector handling consults). */
+  font: hb.Font;
   pathCache: Map<number, PathCommand[]>;
 }
 const hbFontCache = new Map<string, HbEntry | null>();
@@ -215,7 +211,7 @@ function getHbEntry(fontPath: string, faceIndex: number | null): HbEntry | null 
     if (count > 0 && faceIndex >= 0 && faceIndex < count) {
       const face = new hb.Face(blob, faceIndex);
       const font = new hb.Font(face);
-      entry = { font: font as unknown as HbEntry["font"], pathCache: new Map() };
+      entry = { font, pathCache: new Map() };
     }
   } catch {
     entry = null; // unreadable / non-file path — caller falls back to normal shaping
@@ -403,13 +399,13 @@ export function harfbuzzShapeRun(
   // a ptem left over from a previous run would silently track this one at the
   // wrong size. Passing 0 for an absent size restores "no tracking", which is
   // what HarfBuzz does with an unset ptem.
-  (font as unknown as { setPtem(p: number): void }).setPtem(fontSizePx != null && fontSizePx > 0 ? fontSizePx : 0);
+  font.setPtem(fontSizePx != null && fontSizePx > 0 ? fontSizePx : 0);
   // Same reasoning as ptem: the font is cached per (file, face index) and shared
   // across runs, so the axis location is state crossing that boundary. An empty
   // list resets every axis to its default, which is what a static face — or a
   // caller with no location — must see, rather than the previous run's.
   const varList = axes == null ? [] : Object.entries(axes).map(([tag, v]) => new hb.Variation(tag, v));
-  (font as unknown as { setVariations(v: hb.Variation[]): void }).setVariations(varList);
+  font.setVariations(varList);
   // harfbuzzjs frees the buffer's WASM memory automatically via a
   // FinalizationRegistry (no manual destroy/free); this only fires for the rare
   // divergent codepoints, so the per-call allocation is negligible.
@@ -456,7 +452,7 @@ export function harfbuzzShapeRun(
       if (parsed != null) hbFeatures.push(parsed);
     }
   }
-  hb.shape(font as unknown as hb.Font, buf, hbFeatures);
+  hb.shape(font, buf, hbFeatures);
   const infos = buf.getGlyphInfosAndPositions();
   const glyphs: ShapedGlyph[] = [];
   const positions: ShapeResult["positions"] = [];

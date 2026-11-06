@@ -313,8 +313,8 @@ function expectedGlyphs(
   loaded: LoadedPathsRasterFixture,
   cell: PathsRasterMatrixCell,
 ): PathsRasterRow["expectedLogical"]["glyphs"] {
-  const base: any = fontkit.create(loaded.bytes);
-  const outlineFace: any =
+  const base = fontkit.create(loaded.bytes);
+  const outlineFace =
     Object.keys(cell.variationAxes).length > 0 && typeof base.getVariation === "function"
       ? base.getVariation(cell.variationAxes)
       : base;

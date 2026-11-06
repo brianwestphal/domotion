@@ -93,7 +93,7 @@ function installedFamilies(): string[] {
   for (const p of FONT_DIRS.flatMap((d) => fontFiles(d))) {
     try {
       // `any` at the fontkit boundary, as everywhere else in this repo.
-      const f: any = fontkit.openSync(p);
+      const f = fontkit.openSync(p);
       for (const face of (f.fonts ?? [f]) as { familyName?: string }[]) {
         if (face?.familyName) families.add(face.familyName);
       }

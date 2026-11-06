@@ -291,7 +291,7 @@ export function selectBackgroundCandidate(
 
 async function collectBackgroundTargets(frame: Frame): Promise<CollectedBackgroundTarget[]> {
   return evaluateInFrame(frame, () => {
-    const host = globalThis as unknown as {
+    const host = globalThis as typeof globalThis & {
       __domotionBackgroundImageTargets?: Element[];
     };
     for (const prior of host.__domotionBackgroundImageTargets ?? []) {
@@ -358,7 +358,7 @@ async function hydrateBackgroundTargets(
         ratio: { width: number; height: number } | null;
         warning?: string;
       };
-      const host = globalThis as unknown as {
+      const host = globalThis as typeof globalThis & {
         __domotionBackgroundImageTargets?: Element[];
       };
 
@@ -688,7 +688,7 @@ export async function primeBackgroundImageSizing(
         frames.map(async (frame) => {
           try {
             await evaluateInFrame(frame, () => {
-              const host = globalThis as unknown as {
+              const host = globalThis as typeof globalThis & {
                 __domotionBackgroundImageTargets?: Element[];
               };
               for (const target of host.__domotionBackgroundImageTargets ?? []) {

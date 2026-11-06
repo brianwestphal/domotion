@@ -628,7 +628,7 @@ async function runJob(
         }
         // No-op future setTimeout / setInterval. Don't touch rAF.
         try {
-          const noop = (() => 0) as any;
+          const noop = (() => 0) as unknown as typeof window.setTimeout;
           window.setTimeout = noop;
           window.setInterval = noop;
         } catch {

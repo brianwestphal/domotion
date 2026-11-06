@@ -1947,7 +1947,7 @@ describe("commandsFor (per-glyph fallback routing)", () => {
   (canRunPositive ? it : it.skip)("fetches a glyph's outline from the helper when fontkit hands back empty", () => {
     // Real Helvetica glyph id for 'H' (fontkit decodes it fine — we fake the
     // "empty" to exercise the fallback path the same way a partial font would).
-    const col = fontkit2.openSync(HELVETICA) as any;
+    const col = fontkit2.openSync(HELVETICA);
     const f = col.getFont != null ? col.getFont("Helvetica") : col;
     const hId = f.glyphForCodePoint(0x48).id;
     const fallback = commandsFor({ path: { commands: [] }, id: hId, codePoints: [0x48] }, "helvetica", 400, 16, 0);
@@ -2026,7 +2026,7 @@ describe("embedded-font mode: per-glyph helper fallback (DM-892)", () => {
     const css = getEmbeddedFontFaceCss();
     const b64 = /base64,([A-Za-z0-9+/=]+)"\)/.exec(css)?.[1];
     expect(b64).toBeTruthy();
-    const ttf = fontkit.create(Buffer.from(b64!, "base64")) as any;
+    const ttf = fontkit.create(Buffer.from(b64!, "base64"));
     return ttf.glyphForCodePoint(pua);
   }
 
@@ -2052,7 +2052,7 @@ describe("embedded-font mode: per-glyph helper fallback (DM-892)", () => {
   const HELPER = "packages/text-engine/tools/macos-glyph-extractor/domotion-glyph-paths";
   const canRun = process.platform === "darwin" && existsSync(HELVETICA) && existsSync(HELPER);
   (canRun ? it : it.skip)("bakes the helper outline into the embedded TTF when fontkit hands back empty", () => {
-    const col = fontkit2.openSync(HELVETICA) as any;
+    const col = fontkit2.openSync(HELVETICA);
     const f = col.getFont != null ? col.getFont("Helvetica") : col;
     const h = f.glyphForCodePoint(0x48);
     // Fake the "empty" the same way the paths-mode DM-891 test does, then run
@@ -4457,7 +4457,7 @@ describe("renderTextAsPath: embedded-font emits custom-built TTFs (DM-655)", () 
     const b64Match = /base64,([A-Za-z0-9+/=]+)"\)/.exec(css);
     expect(b64Match).not.toBeNull();
     const ttf = Buffer.from(b64Match![1], "base64");
-    const reparsed = fontkit.create(ttf) as any;
+    const reparsed = fontkit.create(ttf);
     expect(reparsed.numGlyphs).toBeGreaterThan(1); // notdef + per-shaped-glyph
     const cps = puaCodepointsFromMarkup(out!);
     expect(cps.length).toBeGreaterThan(0);

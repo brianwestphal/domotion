@@ -300,7 +300,9 @@ function buildWebfontSynthesisFace(
   weightCaps: readonly [number, number] | undefined,
   styleCaps: readonly [number, number] | undefined,
 ): WebfontSynthesisFace {
-  const f = font as unknown as {
+  // A webfont instance is fontkit-backed, so it also carries fontkit's
+  // `variationAxes` and the full OS/2 table beyond the FontInstance surface.
+  const f = font as FontInstance & {
     variationAxes?: Record<string, { min?: number; max?: number }>;
     "OS/2"?: { usWeightClass?: number; fsSelection?: number | { italic?: boolean } };
   };

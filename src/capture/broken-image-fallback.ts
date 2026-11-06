@@ -480,6 +480,8 @@ export async function captureBrokenImageFallbackFacts(
   const visit = (nodes: CapturedElement[]): void => {
     for (const element of nodes) {
       if (element.tag === "img" && element.brokenImageFallback != null) {
+        // The capture script parks its raw probe record in this field; this pass
+        // validates it and replaces it with the finished CapturedBrokenImageFallback.
         targets.push({ element, probe: element.brokenImageFallback as unknown as ProbeRecord });
       }
       visit(element.children ?? []);
@@ -524,7 +526,7 @@ export async function captureBrokenImageFallbackFacts(
             depth: -1,
             pierce: true,
           });
-          const host = described.node as unknown as CdpNode;
+          const host: CdpNode = described.node;
           const shadow = (host.shadowRoots ?? []).find((root) => root.shadowRootType === "user-agent") ?? null;
           const hostBox =
             (await readBox(session, host.backendNodeId, viewport)) ??

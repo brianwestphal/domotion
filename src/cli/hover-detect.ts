@@ -218,7 +218,7 @@ export async function captureStyleSnapshot(
         const el = elements[i];
         const cs = getComputedStyle(el);
         const styles: Record<string, string> = {};
-        for (const p of args.properties) styles[p] = (cs as unknown as Record<string, string>)[p];
+        for (const p of args.properties) styles[p] = (cs as typeof cs & Record<string, string>)[p];
         const r = el.getBoundingClientRect();
         out.push({
           key: i === 0 ? "" : String(i - 1),

@@ -25,7 +25,7 @@ export const captureScrollbarRecord = ({
 }): CapturedScrollbarSet | undefined => {
   const _record =
     typeof args.scrollbarPropertyKey === "string" && args.scrollbarPropertyKey !== ""
-      ? (el as unknown as Record<string, CapturedScrollbarSet | undefined>)[args.scrollbarPropertyKey]
+      ? (el as typeof el & Record<string, CapturedScrollbarSet | undefined>)[args.scrollbarPropertyKey]
       : undefined;
   if (
     _record == null &&
@@ -56,7 +56,7 @@ export const captureNativeControlRaster = ({
   _effectiveAppearance: string | null;
   cs: CSSStyleDeclaration;
   vp: ViewportOrigin;
-  _projectiveNodeIndex: Map<Element, number>;
+  _projectiveNodeIndex: WeakMap<Element, number>;
   sel: string;
   tag: string;
   el: Element;
@@ -116,7 +116,7 @@ export const captureNativeControlDecorationRaster = ({
   _nativeDecorationUnavailableReason: string | undefined;
   sel: string;
   _missingNativeDecorationKinds: string[];
-  _projectiveNodeIndex: Map<Element, number>;
+  _projectiveNodeIndex: WeakMap<Element, number>;
   el: Element;
 }) => {
   if (_nativeDecorationKinds.length === 0 || rect.width <= 0 || rect.height <= 0) return undefined;

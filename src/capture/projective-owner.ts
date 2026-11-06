@@ -10,6 +10,11 @@
 
 export type ProjectivePaintQuad = readonly [number, number, number, number, number, number, number, number];
 
+/** Whether a CDP quad (`DOM.getContentQuads` / `DOM.getBoxModel`) is eight finite coordinates. */
+export function isProjectivePaintQuad(quad: readonly number[]): quad is ProjectivePaintQuad {
+  return quad.length === 8 && quad.every(Number.isFinite);
+}
+
 export interface ProjectiveOwnershipNode {
   /** Parent node index, or null at the selected capture root. */
   parent: number | null;

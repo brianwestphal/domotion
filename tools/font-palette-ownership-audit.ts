@@ -142,7 +142,7 @@ export function readPaletteSourceFacts(path = FONT_PALETTE_FIXTURE): PaletteSour
   const digest = sha256(bytes);
   if (digest !== FONT_PALETTE_FIXTURE_SHA256)
     throw new Error(`font-palette fixture SHA-256 ${digest} != ${FONT_PALETTE_FIXTURE_SHA256}`);
-  const font: any = fontkit.create(bytes);
+  const font = fontkit.create(bytes);
   const cpal = font.CPAL;
   const colr = font.COLR;
   if (cpal?.version !== 1 || colr?.version !== 0) throw new Error("font-palette fixture must carry CPAL v1 + COLR v0");
@@ -398,8 +398,8 @@ async function nativeRows(
     const rules = await page.evaluate(() =>
       Array.from(document.styleSheets)
         .flatMap((sheet) => Array.from(sheet.cssRules))
-        .filter((rule) => rule.constructor.name === "CSSFontPaletteValuesRule")
-        .map((rule: any) => ({
+        .filter((rule): rule is CSSFontPaletteValuesRule => rule.constructor.name === "CSSFontPaletteValuesRule")
+        .map((rule) => ({
           name: rule.name,
           fontFamily: rule.fontFamily,
           basePalette: rule.basePalette,

@@ -69,6 +69,7 @@ interface MetaResult {
   strikeoutThickness?: number;
 }
 
+// eslint-disable-next-line no-restricted-syntax -- untyped JSON from the native helper process; each test's assertions are its schema.
 function callHelper(request: unknown): { results: any[] } {
   const proc = spawnSync(HELPER, [], {
     input: JSON.stringify(request),
@@ -332,7 +333,7 @@ describeHelper("CoreText glyph extractor", () => {
     const meta = response.results[0] as MetaResult;
     const ctH = (response.results[1] as { glyphs: GlyphResult[] }).glyphs[0];
 
-    const collection = fontkit.openSync("/System/Library/Fonts/Helvetica.ttc") as any;
+    const collection = fontkit.openSync("/System/Library/Fonts/Helvetica.ttc");
     const helvetica = collection.getFont != null ? collection.getFont("Helvetica") : collection;
     const fkGlyph = helvetica.glyphForCodePoint(0x48);
     const fkAdvancePoints = (fkGlyph.advanceWidth * SIZE) / meta.unitsPerEm;

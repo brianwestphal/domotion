@@ -6222,7 +6222,7 @@ function readableMathFont(font: FontInstance): ReadableMathFont | null {
   let opened: ReadableMathFont | null = null;
   try {
     const file = fontkit.openSync(source.path);
-    const faces = (file as unknown as { fonts?: unknown[] }).fonts;
+    const faces = (file as { fonts?: unknown[] }).fonts;
     const face = (Array.isArray(faces) ? faces[source.faceIndex] : file) as ReadableMathFont | undefined;
     const variable = face as ReadableMathFont & {
       getVariation?: (axes: Record<string, number>) => ReadableMathFont | null;

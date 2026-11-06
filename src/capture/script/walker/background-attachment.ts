@@ -137,7 +137,7 @@ export const createBackgroundAttachmentHandler = ({
     // merely from scroll range.
     const scrollbarSet =
       typeof scrollbarPropertyKey === "string" && scrollbarPropertyKey !== ""
-        ? (el as unknown as Record<string, CapturedScrollbarSet | undefined>)[scrollbarPropertyKey]
+        ? (el as typeof el & Record<string, CapturedScrollbarSet | undefined>)[scrollbarPropertyKey]
         : undefined;
     if (scrollbarSet != null && scrollbarSet.overlay === false) {
       const verticalScrollbar = scrollbarSet.vertical;

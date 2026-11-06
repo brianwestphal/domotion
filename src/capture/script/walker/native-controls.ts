@@ -77,7 +77,7 @@ export const createNativeControlsHandler = (ctx: {
     };
     const _appearanceFacts =
       typeof args.effectiveAppearancePropertyKey === "string" && args.effectiveAppearancePropertyKey !== ""
-        ? (el as unknown as Record<string, (AuthorControlStyleFacts & { reason?: string }) | undefined>)[
+        ? (el as typeof el & Record<string, (AuthorControlStyleFacts & { reason?: string }) | undefined>)[
             args.effectiveAppearancePropertyKey
           ]
         : undefined;
@@ -92,8 +92,8 @@ export const createNativeControlsHandler = (ctx: {
     const _nativeDecorationRefs: NativeDecorationRef[] =
       typeof args.nativeDecorationPropertyKey === "string" &&
       args.nativeDecorationPropertyKey !== "" &&
-      Array.isArray((el as unknown as Record<string, unknown>)[args.nativeDecorationPropertyKey])
-        ? (el as unknown as Record<string, NativeDecorationRef[]>)[args.nativeDecorationPropertyKey]
+      Array.isArray((el as typeof el & Record<string, unknown>)[args.nativeDecorationPropertyKey])
+        ? (el as typeof el & Record<string, NativeDecorationRef[]>)[args.nativeDecorationPropertyKey]
         : [];
     // A closed select's displayed option is not a source-DOM text node. Blink
     // paints it through `-internal-select-inner-element` in the UA shadow

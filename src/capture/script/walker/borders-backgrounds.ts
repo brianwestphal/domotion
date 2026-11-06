@@ -651,10 +651,10 @@ const createPhysicalBordersReader =
       order,
       w:
         parseFloat(
-          physicalComputedPaintLength((cs as unknown as Record<string, string>)["border" + side + "Width"], zoom),
+          physicalComputedPaintLength((cs as typeof cs & Record<string, string>)["border" + side + "Width"], zoom),
         ) || 0,
-      style: collapsedBorderStyle((cs as unknown as Record<string, string>)["border" + side + "Style"]),
-      color: normColor((cs as unknown as Record<string, string>)["border" + side + "Color"], cs.color),
+      style: collapsedBorderStyle((cs as typeof cs & Record<string, string>)["border" + side + "Style"]),
+      color: normColor((cs as typeof cs & Record<string, string>)["border" + side + "Color"], cs.color),
     });
     return { top: one("Top"), right: one("Right"), bottom: one("Bottom"), left: one("Left") };
   };

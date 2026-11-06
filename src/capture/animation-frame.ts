@@ -117,7 +117,7 @@ async function seekDocumentFrame(
         targetIdentity: string;
       };
       const failures: string[] = [];
-      const root = document.documentElement as unknown as { __domotionSeekSettled?: boolean } | null;
+      const root = document.documentElement as (HTMLElement & { __domotionSeekSettled?: boolean }) | null;
 
       const elementIdentity = (element: Element | null): string => {
         if (element == null) return "none";
@@ -237,7 +237,9 @@ async function seekDocumentFrame(
           failures.push(`animation[${index}] has an inactive or unresolved timeline`);
           continue;
         }
-        const progress = currentTime as unknown as ProgressTime;
+        // A progress-based timeline reports a CSSUnitValue (`unit: "percent"`);
+        // the lib types `currentTime` only as the wider CSSNumericValue.
+        const progress: ProgressTime = currentTime as CSSUnitValue;
         if (progress.unit !== "percent" || !Number.isFinite(progress.value)) {
           failures.push(`animation[${index}] exposed unsupported progress time ${progress.toString()}`);
           continue;
@@ -330,7 +332,7 @@ async function seekDocumentFrame(
       }
       for (let index = 0; index < progressAnimations.length; index++) {
         const fact = progressAnimations[index];
-        const currentTime = fact.animation.currentTime as unknown as ProgressTime | number | null;
+        const currentTime = fact.animation.currentTime as CSSUnitValue | number | null;
         if (
           currentTime == null ||
           typeof currentTime === "number" ||

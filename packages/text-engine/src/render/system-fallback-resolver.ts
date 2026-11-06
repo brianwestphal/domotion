@@ -1177,6 +1177,8 @@ function fontFileCoversCodepoint(path: string, postscriptName: string | undefine
   try {
     return (
       typeof opened.face.glyphForCodePoint === "function" &&
+      // fontkit boundary: the untyped face was just checked to expose
+      // `glyphForCodePoint`, the one FontInstance member glyphIdForCp reads.
       glyphIdForCp(opened.face as unknown as FontInstance, cp) !== 0
     );
   } catch {

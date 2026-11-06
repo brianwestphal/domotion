@@ -499,11 +499,9 @@ export async function measureRepeatOccurrences(
           const intrinsicScroll =
             typeof nativeScrollTo === "function" &&
             Function.prototype.toString.call(nativeScrollTo).includes("[native code]");
-          const scrollInstant = nativeScrollTo as unknown as (options: {
-            left: number;
-            top: number;
-            behavior: "instant";
-          }) => void;
+          // Pin the options overload: `.call` on the overloaded lib signature
+          // would otherwise resolve to the `(x, y)` form.
+          const scrollInstant: (options: ScrollToOptions) => void = nativeScrollTo;
           const savedScrollX = window.scrollX;
           const savedScrollY = window.scrollY;
           const rects = (element: Element): Rect[] =>

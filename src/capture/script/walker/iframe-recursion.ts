@@ -79,9 +79,10 @@ export const createIframeRecursionHandler = (ctx: {
       // Element. Unlike reading a property through contentWindow, this remains
       // available for an inaccessible cross-origin child and can therefore
       // identify the raster boundary without crossing the Same-Origin Policy.
-      var child = (el as unknown as Record<string, FrameAuthority | undefined>)[_frameScrollKey];
+      var child = (el as typeof el & Record<string, FrameAuthority | undefined>)[_frameScrollKey];
       var parentView = el.ownerDocument && el.ownerDocument.defaultView;
-      var parent = parentView && (parentView as unknown as Record<string, FrameAuthority | undefined>)[_frameScrollKey];
+      var parent =
+        parentView && (parentView as typeof parentView & Record<string, FrameAuthority | undefined>)[_frameScrollKey];
       if (child == null || parent == null) return null;
       if (child.source !== "chromium-cdp-frame-scroll-v1" || parent.source !== "chromium-cdp-frame-scroll-v1")
         return null;
@@ -96,7 +97,7 @@ export const createIframeRecursionHandler = (ctx: {
         // navigation during the async prepasses can only become a raster.
         var childView = el.contentWindow;
         var liveChild =
-          childView && (childView as unknown as Record<string, FrameAuthority | undefined>)[_frameScrollKey];
+          childView && (childView as typeof childView & Record<string, FrameAuthority | undefined>)[_frameScrollKey];
         if (
           liveChild == null ||
           liveChild.token !== child.token ||

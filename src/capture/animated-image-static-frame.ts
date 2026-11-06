@@ -128,7 +128,7 @@ export async function freezeAuthenticatedAnimatedImageFrames(
           }): Decoder;
           isTypeSupported(type: string): Promise<boolean>;
         };
-        const ImageDecoderCtor = (globalThis as unknown as { ImageDecoder?: Constructor }).ImageDecoder;
+        const ImageDecoderCtor = (globalThis as typeof globalThis & { ImageDecoder?: Constructor }).ImageDecoder;
         const hash = async (bytes: Uint8Array) =>
           [...new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer))]
             .map((byte) => byte.toString(16).padStart(2, "0"))

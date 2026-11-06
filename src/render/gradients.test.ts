@@ -8,6 +8,8 @@ import {
   parseLegacyWebkitGradient,
   parseLinearGradient,
   parseRadialGradient,
+  type LinearGradient,
+  type RadialGradient,
 } from "./gradients.js";
 import {
   buildLinearGradientDef as buildBackgroundLinearGradientDef,
@@ -52,7 +54,7 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
     expect(g).not.toBeNull();
     expect(g!.kind).toBe("linear");
     expect((g as { angleDeg: number }).angleDeg).toBe(135);
-    expect(buildLinearGradientDef(g as any, "legacy", { x: 10, y: 20, w: 200, h: 80 })).toContain(
+    expect(buildLinearGradientDef(g as LinearGradient, "legacy", { x: 10, y: 20, w: 200, h: 80 })).toContain(
       'x1="10" y1="20" x2="210" y2="100"',
     );
   });
@@ -61,11 +63,11 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
     const percent = parseGradient(
       "-webkit-gradient(linear, 10% 25%, 80% 75%, from(red), color-stop(75%, lime), to(blue))",
     )!;
-    expect(buildLinearGradientDef(percent as any, "p", { x: 5, y: 7, w: 300, h: 120 })).toContain(
+    expect(buildLinearGradientDef(percent as LinearGradient, "p", { x: 5, y: 7, w: 300, h: 120 })).toContain(
       'x1="35" y1="37" x2="245" y2="97"',
     );
     const numbers = parseGradient("-webkit-gradient(linear, 12 8, 112 48, from(red), to(blue))")!;
-    expect(buildLinearGradientDef(numbers as any, "q", { x: 20, y: 30, w: 400, h: 200 })).toContain(
+    expect(buildLinearGradientDef(numbers as LinearGradient, "q", { x: 20, y: 30, w: 400, h: 200 })).toContain(
       'x1="32" y1="38" x2="132" y2="78"',
     );
     expect(parseGradient("-webkit-gradient(linear, 12px 8px, 112px 48px, from(red), to(blue))")).toBeNull();
@@ -86,7 +88,7 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
   it("preserves Blink's degenerate endpoint record instead of substituting modern geometry", () => {
     const g = parseGradient("-webkit-gradient(linear, 50% 50%, 50% 50%, from(red), to(blue))");
     expect(g?.kind).toBe("linear");
-    expect(buildLinearGradientDef(g as any, "degenerate", { x: 10, y: 20, w: 200, h: 80 })).toContain(
+    expect(buildLinearGradientDef(g as LinearGradient, "degenerate", { x: 10, y: 20, w: 200, h: 80 })).toContain(
       'x1="110" y1="60" x2="110" y2="60"',
     );
   });
@@ -108,7 +110,7 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
       ["blue", 1],
       ["yellow", 1.2],
     ]);
-    const svg = buildLinearGradientDef(g as any, "clamped", { x: 0, y: 0, w: 200, h: 80 });
+    const svg = buildLinearGradientDef(g as LinearGradient, "clamped", { x: 0, y: 0, w: 200, h: 80 });
     expect(
       [...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]),
     ).toEqual([
@@ -124,7 +126,7 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
       "-webkit-gradient(radial, 10% 25%, 5, 80% 75%, 40, from(red), color-stop(.5, lime), to(blue))",
     )!;
     expect(g.kind).toBe("radial");
-    const svg = buildRadialGradientDef(g as any, "legacy-r", { x: 5, y: 7, w: 300, h: 120 });
+    const svg = buildRadialGradientDef(g as RadialGradient, "legacy-r", { x: 5, y: 7, w: 300, h: 120 });
     expect(svg).toContain('fx="35" fy="37" fr="5" cx="245" cy="97" r="40"');
     expect(svg).not.toContain("spreadMethod");
   });
@@ -133,7 +135,7 @@ describe("convertLegacyWebkitGradient: legacy -webkit-gradient(linear, ...)", ()
     const g = parseLegacyWebkitGradient(
       "-webkit-gradient(radial, 80% 75%, 40, 10% 25%, 5, from(red), color-stop(.25, lime), to(blue))",
     )!;
-    const svg = buildRadialGradientDef(g as any, "legacy-shrink", { x: 5, y: 7, w: 300, h: 120 });
+    const svg = buildRadialGradientDef(g as RadialGradient, "legacy-shrink", { x: 5, y: 7, w: 300, h: 120 });
     expect(svg).toContain('fx="35" fy="37" fr="5" cx="245" cy="97" r="40"');
     expect(
       [...svg.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"/g)].map((match) => [Number(match[1]), match[2]]),
@@ -416,7 +418,7 @@ describe("buildLinearGradientDef: repeating domains", () => {
     const g = parseGradient(
       "repeating-linear-gradient(90deg, transparent 0px, transparent calc(10% - 1px), rgb(148, 163, 184) calc(10% - 1px), rgb(148, 163, 184) 10%)",
     )!;
-    const svg = buildLinearGradientDef(g as any, "g0", { x: 0, y: 0, w: 100, h: 6 });
+    const svg = buildLinearGradientDef(g as LinearGradient, "g0", { x: 0, y: 0, w: 100, h: 6 });
     const stopCount = (svg.match(/<stop /g) || []).length;
     expect(stopCount).toBe(4);
     expect(svg).toContain('id="g0"');

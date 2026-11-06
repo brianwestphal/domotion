@@ -50,6 +50,7 @@ interface GlyphResult {
   rasterRepresentation?: "sbix" | "colr" | "bitmap" | "svg";
 }
 
+// eslint-disable-next-line no-restricted-syntax -- untyped JSON from the native helper process; each test's assertions are its schema.
 function callHelper(request: unknown): { results: any[] } {
   const proc = spawnSync(HELPER, [], {
     input: JSON.stringify(request),
@@ -140,7 +141,7 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
     });
 
     it("extracts the H outline matching fontkit (validates y-up + line mapping)", () => {
-      const font = fontkit.openSync(ARIAL!) as any;
+      const font = fontkit.openSync(ARIAL!);
       const fk = font.glyphForCodePoint(0x48);
       const H = helperGlyph(ARIAL!, 0x48);
 
@@ -443,9 +444,11 @@ describeHelper("persistent --serve-pipe transport on Windows (DM-1889)", () => {
 // Skia does not hand DirectWrite's answers straight through, and both of the
 // things it does in between were missing here until they were transcribed.
 describeHelper("Skia's MapCharacters arguments and simulation stripping", () => {
+  // eslint-disable-next-line no-restricted-syntax -- one helper result row (see callHelper).
   function fallback(cps: number[], extra: Record<string, unknown> = {}): any {
     return callHelper({ fonts: [], queries: [{ type: "fallback", cps, ...extra }] }).results[0];
   }
+  // eslint-disable-next-line no-restricted-syntax -- one helper result row (see callHelper).
   function family(name: string, extra: Record<string, unknown> = {}): any {
     return callHelper({ fonts: [], queries: [{ type: "family", name, ...extra }] }).results[0];
   }
@@ -540,9 +543,11 @@ describeHelper("Skia's MapCharacters arguments and simulation stripping", () => 
   // otherwise pass every fixture silently. Digits are where it could bite.
   it("resolves digit codepoints identically under every numeral-shaping locale", () => {
     const digits = [0x30, 0x39, 0x660, 0x669, 0x6f0, 0x6f9, 0x966, 0x96f, 0xe50, 0xe59];
-    const reference = fallback(digits, { locale: "en-us" }).fonts.map((f: any) => f.postscriptName ?? null);
+    const reference = fallback(digits, { locale: "en-us" }).fonts.map(
+      (f: { postscriptName?: string }) => f.postscriptName ?? null,
+    );
     for (const locale of ["ar", "hi", "th", "und-Zsye"]) {
-      const got = fallback(digits, { locale }).fonts.map((f: any) => f.postscriptName ?? null);
+      const got = fallback(digits, { locale }).fonts.map((f: { postscriptName?: string }) => f.postscriptName ?? null);
       expect(got, `locale ${locale}`).toEqual(reference);
     }
   });

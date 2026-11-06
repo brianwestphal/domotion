@@ -53,7 +53,7 @@ export function readColrv1SourceFacts(path = COLRV1_FIXTURE): Colrv1SourceFacts 
   const bytes = readFileSync(resolve(path));
   const digest = sha256(bytes);
   if (digest !== COLRV1_SHA256) throw new Error(`COLRv1 fixture SHA-256 ${digest} != ${COLRV1_SHA256}`);
-  const font: any = fontkit.create(bytes);
+  const font = fontkit.create(bytes);
   if (font.COLR?.version !== 1 || font.CPAL?.version !== 1) throw new Error("fixture must carry COLR v1 + CPAL v1");
   const glyphId = font.glyphForCodePoint(COLRV1_CODEPOINT).id;
   if (glyphId === 0) throw new Error("COLRv1 discriminator maps to .notdef");

@@ -9,6 +9,8 @@ import {
 } from "../tools/linux-mathml-greek-raster-contract.js";
 import { exactLinuxMathmlGreekPreterminal } from "./test-support/linux-mathml-greek-evidence.js";
 
+type PreterminalEvidence = ReturnType<typeof exactLinuxMathmlGreekPreterminal>;
+
 describe("DM-2512 Linux MathML Greek source contract", () => {
   it("pins the independently authenticated Noble package, font, subsets, and cell", () => {
     expect(FREE_SANS_NOBLE_PACKAGE.version).toBe("20211204+svn4273-2");
@@ -25,54 +27,55 @@ describe("DM-2512 Linux MathML Greek source contract", () => {
   it.each([
     [
       "math-auto scalar",
-      (value: any) => {
+      (value: PreterminalEvidence) => {
         value.tokens[0].transformed = "α";
       },
     ],
     [
       "selected face",
-      (value: any) => {
-        value.tokens[0].nativeFace.familyName = "Fallback Sans";
+      (value: PreterminalEvidence) => {
+        // Hostile write: widen the pinned literal so the wrong family can be stored.
+        (value.tokens[0].nativeFace as { familyName: string }).familyName = "Fallback Sans";
       },
     ],
     [
       "source gid",
-      (value: any) => {
+      (value: PreterminalEvidence) => {
         value.tokens[0].glyph.gid++;
       },
     ],
     [
       "source outline",
-      (value: any) => {
+      (value: PreterminalEvidence) => {
         value.tokens[0].glyph.outlineSha256 = "f".repeat(64);
       },
     ],
     [
       "capture-owned baseline",
-      (value: any) => {
+      (value: PreterminalEvidence) => {
         value.tokens[0].geometry.baseline++;
       },
     ],
     [
       "capture-owned matrix",
-      (value: any) => {
+      (value: PreterminalEvidence) => {
         value.tokens[0].geometry.matrix[4] = 0.25;
       },
     ],
     [
       "package bytes",
-      (value: any) => {
-        value.package.sha256 = "f".repeat(64);
+      (value: PreterminalEvidence) => {
+        (value.package as { sha256: string }).sha256 = "f".repeat(64);
       },
     ],
     [
       "isolated inventory",
-      (value: any) => {
+      (value: PreterminalEvidence) => {
         value.inventory.entries.push(value.inventory.entries[0]);
       },
     ],
   ])("rejects hostile %s mutation", (_label, mutate) => {
-    const value: any = structuredClone(exactLinuxMathmlGreekPreterminal());
+    const value = structuredClone(exactLinuxMathmlGreekPreterminal());
     mutate(value);
     expect(validateLinuxMathmlGreekPreterminalEvidence(value)).not.toEqual([]);
   });

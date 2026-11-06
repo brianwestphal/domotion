@@ -208,7 +208,8 @@ export async function recordStudioInteractions(
     await page
       .evaluate(
         ({ key }) => {
-          const value = (globalThis as unknown as Record<string, unknown>)[key] as { stop?: () => void } | undefined;
+          const value = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
+            { stop?: () => void } | undefined;
           value?.stop?.();
         },
         { key: recorderKey },

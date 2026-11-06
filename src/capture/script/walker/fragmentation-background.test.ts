@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { detectInlineFragments } from "./fragmentation.js";
+import type { CapturedElement } from "../../types.js";
+import { capturedElement } from "../../../test-support/captured-fixtures.js";
 
 const rect = (left: number, top: number, width: number, height: number) => ({
   left,
@@ -9,8 +11,8 @@ const rect = (left: number, top: number, width: number, height: number) => ({
   height,
 });
 
-function capturedWithUrlBackground(): any {
-  return {
+function capturedWithUrlBackground(): CapturedElement {
+  return capturedElement({
     styles: {
       backgroundColor: "rgba(0, 0, 0, 0)",
       backgroundImage: 'url("data:image/png;base64,AA==")',
@@ -20,7 +22,7 @@ function capturedWithUrlBackground(): any {
       borderLeftWidth: "0px",
       boxDecorationBreak: "slice",
     },
-  };
+  });
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -77,7 +79,7 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     );
 
     expect(
-      captured.inlineFragments.map((fragment: any) => ({
+      captured.inlineFragments!.map((fragment) => ({
         offset: fragment.backgroundOffsetInStitchedBox,
         area: fragment.backgroundPositioningArea,
       })),
@@ -104,7 +106,7 @@ describe("fragmented background positioning capture (DM-2365)", () => {
       captured,
     );
 
-    expect(captured.inlineFragments[1]).toMatchObject({
+    expect(captured.inlineFragments?.[1]).toMatchObject({
       backgroundOffsetInStitchedBox: { x: 0, y: 25 },
       backgroundPositioningArea: { x: 35, y: -13, width: 14, height: 70 },
     });
@@ -133,7 +135,7 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     );
 
     expect(horizontalCapture.fragmentAxis).toBe("block");
-    expect(horizontalCapture.inlineFragments[1]).toMatchObject({
+    expect(horizontalCapture.inlineFragments?.[1]).toMatchObject({
       backgroundOffsetInStitchedBox: { x: 0, y: 40 },
       backgroundPositioningArea: { x: 100, y: -20, width: 70, height: 100 },
     });
@@ -156,7 +158,7 @@ describe("fragmented background positioning capture (DM-2365)", () => {
     );
 
     expect(
-      verticalCapture.inlineFragments.map((fragment: any) => ({
+      verticalCapture.inlineFragments!.map((fragment) => ({
         offset: fragment.backgroundOffsetInStitchedBox,
         area: fragment.backgroundPositioningArea,
       })),

@@ -13,6 +13,7 @@ import sharp from "sharp";
 import { _dataUriCache, _resizedDataUriCache, embedResizedDataUri } from "../render/element-tree-to-svg.js";
 import { embedOriginalDataUri, embedRemoteImages, withEmbeddedImageScopes } from "../capture/embed.js";
 import type { CapturedElement } from "../capture/types.js";
+import { capturedTree } from "../test-support/captured-fixtures.js";
 import { resizeEmbeddedImages } from "./resize-embedded-images.js";
 
 // Build a minimal CapturedElement. Only the fields the resize walker reads
@@ -343,7 +344,7 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
     const animated = await sharp({
       create: { width: 200, height: 200, channels: 4, background: { r: 220, g: 0, b: 0, alpha: 1 } },
       pages: 2,
-    } as any)
+    })
       .gif()
       .toBuffer()
       .catch(async () => {
@@ -433,18 +434,18 @@ describe("DM-539 resizeEmbeddedImages — core pre-pass", () => {
 describe("resizeEmbeddedImages failure isolation", () => {
   it("does not pin a corrupt source under its size key, so a later valid source is resized", async () => {
     const url = "https://example.test/flaky.png";
-    const tree = (): any => [
-      {
-        tagName: "img",
-        x: 0,
-        y: 0,
-        width: 100,
-        height: 100,
-        imageSrc: url,
-        styles: {},
-        children: [],
-      },
-    ];
+    const tree = (): CapturedElement[] =>
+      capturedTree([
+        {
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          imageSrc: url,
+          styles: {},
+          children: [],
+        },
+      ]);
     _dataUriCache.set(url, "data:image/png;base64,bm90LWEtcG5n");
     await resizeEmbeddedImages(tree(), { hiDPIFactor: 1 });
     expect(embedResizedDataUri(url, 100, 100, 1)).toBe("data:image/png;base64,bm90LWEtcG5n");

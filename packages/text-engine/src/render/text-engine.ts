@@ -192,24 +192,37 @@ function createDocument(session: TextEngineSession, renderTextMode: RenderTextMo
   return document;
 }
 
+/**
+ * Brand a callback whose result is the caller's own generic `T` as synchronous.
+ * `SynchronousCallback` proves "not Promise-like" from a concrete return type,
+ * which an unresolved type parameter cannot supply, so this one cast stands in
+ * for that proof; the public entry points constrain `T` through
+ * `TextEngineDocumentCallback`, and `invokeSynchronousCallback` still rejects a
+ * Promise-like result at run time.
+ */
+function synchronous<T>(callback: () => T): SynchronousCallback<() => T> {
+  return callback as unknown as SynchronousCallback<() => T>;
+}
+
 function runScoped<T>(
   document: TextEngineDocument,
   request: TextEngineDocumentRequest,
   render: TextEngineDocumentCallback<T>,
 ): T {
   const invoke = (): T =>
-    invokeSynchronousCallback("withTextEngineDocument", (() => render(document)) as unknown as SynchronousCallback<
-      () => T
-    >);
+    invokeSynchronousCallback(
+      "withTextEngineDocument",
+      synchronous(() => render(document)),
+    );
   const withFamilies = (): T =>
     request.genericFamilies == null
       ? invoke()
-      : withSessionGenericFamilyOverrides(request.genericFamilies, invoke as unknown as SynchronousCallback<() => T>);
+      : withSessionGenericFamilyOverrides(request.genericFamilies, synchronous(invoke));
   const withBaseline = (): T =>
     request.baselinePolicy === "suppress"
-      ? document.withBaselineSnappingSuppressed(withFamilies as unknown as SynchronousCallback<() => T>)
+      ? document.withBaselineSnappingSuppressed(synchronous(withFamilies))
       : withFamilies();
-  return withRenderTextMode(document.renderTextMode, withBaseline as unknown as SynchronousCallback<() => T>);
+  return withRenderTextMode(document.renderTextMode, synchronous(withBaseline));
 }
 
 /**
@@ -260,16 +273,19 @@ export function withTextEngineDocument<T>(
   const document = createDocument(session, mode);
   let artifacts: TextEngineArtifacts | null = null;
   try {
-    const value = withFontRendererSession(state.renderer, (() => {
-      beginCharacterFallbackDocument();
-      activeDocument = document;
-      try {
-        return runScoped(document, request, render);
-      } finally {
-        activeDocument = null;
-        endCharacterFallbackDocument();
-      }
-    }) as unknown as SynchronousCallback<() => T>);
+    const value = withFontRendererSession(
+      state.renderer,
+      synchronous(() => {
+        beginCharacterFallbackDocument();
+        activeDocument = document;
+        try {
+          return runScoped(document, request, render);
+        } finally {
+          activeDocument = null;
+          endCharacterFallbackDocument();
+        }
+      }),
+    );
     artifacts = collectArtifacts();
     completed = true;
     return { value, artifacts };

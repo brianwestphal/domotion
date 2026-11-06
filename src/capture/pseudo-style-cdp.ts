@@ -290,16 +290,17 @@ function resolvedBorderRadius(properties: ReadonlyMap<string, string>): string {
     propertyValue(properties, "border-bottom-left-radius"),
   ] as const;
   if (rawCorners.every((corner) => corner === "")) return "";
-  const horizontal = rawCorners.map((corner) => corner.trim().split(/\s+/)[0] || "0px") as unknown as [
-    string,
-    string,
-    string,
-    string,
+  const mapCorners = (pick: (corner: string) => string): [string, string, string, string] => [
+    pick(rawCorners[0]),
+    pick(rawCorners[1]),
+    pick(rawCorners[2]),
+    pick(rawCorners[3]),
   ];
-  const vertical = rawCorners.map((corner) => {
+  const horizontal = mapCorners((corner) => corner.trim().split(/\s+/)[0] || "0px");
+  const vertical = mapCorners((corner) => {
     const parts = corner.trim().split(/\s+/);
     return parts[1] || parts[0] || "0px";
-  }) as unknown as [string, string, string, string];
+  });
   const horizontalText = compressQuad(horizontal);
   const verticalText = compressQuad(vertical);
   return horizontalText === verticalText ? horizontalText : `${horizontalText} / ${verticalText}`;

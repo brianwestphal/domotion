@@ -216,7 +216,7 @@ export const createInputValueHandler = ({
     // scale/rotation between the retained quad and this neutral capture.
     const usedTextGeometry =
       typeof valueTextGeometryKey === "string" && valueTextGeometryKey !== ""
-        ? (el as unknown as Record<string, ValueTextGeometry | undefined>)[valueTextGeometryKey]
+        ? (el as typeof el & Record<string, ValueTextGeometry | undefined>)[valueTextGeometryKey]
         : null;
     if (tag === "input" && usedTextGeometry?.source === "chromium-ua-shadow-text-quad-v1") {
       // Capture-script discipline: the record crossed a CDP boundary, so read

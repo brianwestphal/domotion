@@ -701,21 +701,31 @@ interface SourcePaintPosition {
   layoutOrder: number;
 }
 
+/** The DOMSnapshot fields this audit reads. `attributes` is also accepted in
+ * the rare-data `{ index, value }` form some protocol revisions use. */
+interface LooseDomSnapshot {
+  documents?: Array<{
+    layout?: { nodeIndex?: number[]; paintOrders?: number[] };
+    nodes?: { backendNodeId?: number[]; attributes?: number[][] | { index: number[]; value: number[][] } };
+  }>;
+  strings?: string[];
+}
+
 /** Independent DOMSnapshot paint-order facts, before Domotion mutates the page. */
 async function sourcePaintOrderFacts(page: Page): Promise<Record<string, boolean | null>> {
   const cdp = await page.context().newCDPSession(page);
   try {
-    const snapshot = (await cdp.send("DOMSnapshot.captureSnapshot", {
+    const snapshot: LooseDomSnapshot = await cdp.send("DOMSnapshot.captureSnapshot", {
       computedStyles: [],
       includePaintOrder: true,
       includeDOMRects: true,
-    })) as any;
+    });
     const document = snapshot.documents?.[0];
     const strings: string[] = snapshot.strings ?? [];
     const positions = new Map<number, SourcePaintPosition>();
     for (let index = 0; index < (document?.layout?.nodeIndex?.length ?? 0); index++) {
-      const nodeIndex = document.layout.nodeIndex[index] as number;
-      const paintOrder = document.layout.paintOrders?.[index] as number | undefined;
+      const nodeIndex = document!.layout!.nodeIndex![index];
+      const paintOrder = document!.layout!.paintOrders?.[index];
       if (paintOrder != null && !positions.has(nodeIndex)) positions.set(nodeIndex, { paintOrder, layoutOrder: index });
     }
     const attributeRows = new Map<number, number[]>();
@@ -724,7 +734,7 @@ async function sourcePaintOrderFacts(page: Page): Promise<Record<string, boolean
       for (let index = 0; index < attributes.length; index++) attributeRows.set(index, attributes[index]);
     } else {
       for (let index = 0; index < (attributes?.index?.length ?? 0); index++)
-        attributeRows.set(attributes.index[index], attributes.value[index]);
+        attributeRows.set(attributes!.index[index], attributes!.value[index]);
     }
     const byAnimId = new Map<string, SourcePaintPosition>();
     for (let nodeIndex = 0; nodeIndex < (document?.nodes?.backendNodeId?.length ?? 0); nodeIndex++) {

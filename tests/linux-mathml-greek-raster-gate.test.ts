@@ -166,14 +166,14 @@ describe("DM-2512 Linux MathML Greek logical-first gate", () => {
   it("reauthenticates PNG bytes, dimensions, residuals, and the exact logical seam", async () => {
     const { root, row } = await exactRow("proposal", "a");
     await expect(reauthenticateLinuxMathmlGreekRows([row], root)).resolves.toHaveLength(1);
-    const mutated: any = structuredClone(row);
+    const mutated = structuredClone(row);
     mutated.nativeArtifact.sha256 = "f".repeat(64);
     await expect(reauthenticateLinuxMathmlGreekRows([mutated], root)).rejects.toThrow(/SHA-256 is unauthenticated/);
   });
 
   it("rejects a self-consistent wrong logical witness before raster eligibility", async () => {
     const { row } = await exactRow("proposal", "a");
-    const wrong: any = structuredClone(row);
+    const wrong = structuredClone(row);
     wrong.preterminal.tokens[0].glyph.gid++;
     wrong.pathsLogical.tokens[0].glyph.gid++;
     wrong.hintingControl.tokens[0].glyph.gid++;
@@ -188,7 +188,7 @@ describe("DM-2512 Linux MathML Greek logical-first gate", () => {
     expect(adjudicateLinuxMathmlGreekRows([proposal, validation], { schemaVersion: 1, entries: [] }).verdict).toBe(
       "incomplete-independent-evidence",
     );
-    const inert: any = structuredClone(proposal);
+    const inert = structuredClone(proposal);
     inert.hintingOffArtifact = inert.nativeArtifact;
     inert.hintingOffResidual.changedPixels = 0;
     inert.hintingOffResidual.totalChannelDelta = 0;

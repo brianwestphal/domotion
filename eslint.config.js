@@ -81,18 +81,23 @@ export default [
     rules: { "domotion/import-group-order": "error", "domotion/no-import-in-page-callback": "error" },
   },
   {
-    // No `any` in shipped source outside the fontkit / bidi-js boundary (AGENTS.md § Quality gates). Core
-    // `no-restricted-syntax` on the `TSAnyKeyword` node, so no typescript-eslint plugin is needed. The two
-    // allowlisted files ARE the fontkit boundary (they wrap fontkit's untyped `Font` objects); a one-off
-    // boundary use elsewhere takes a line-level disable with its reason. Tests and tools are not covered.
-    files: ["src/**/*.ts", "src/**/*.tsx", "packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
-    ignores: [
-      "**/*.test.ts",
-      "**/*.test.tsx",
-      "**/*.d.ts",
-      "packages/text-engine/src/render/font-instance.ts",
-      "src/capture/emoji.ts",
+    // No `any` outside the fontkit / bidi-js boundary (AGENTS.md § Quality gates). Core `no-restricted-syntax`
+    // on the `TSAnyKeyword` node, so no typescript-eslint plugin is needed. It covers shipped source, its unit
+    // tests, `tests/` and `tools/`. The two allowlisted files ARE the fontkit boundary (they wrap fontkit's
+    // untyped `Font` objects); a one-off boundary use elsewhere takes a line-level disable with its reason.
+    // fontkit itself is declared untyped (`declare module "fontkit"`), so a value read from it is already
+    // `any` without spelling the keyword. A partial test fixture is cast through `unknown` to the real type.
+    files: [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "packages/*/src/**/*.ts",
+      "packages/*/src/**/*.tsx",
+      "tests/**/*.ts",
+      "tests/**/*.tsx",
+      "tools/**/*.ts",
+      "tools/**/*.tsx",
     ],
+    ignores: ["**/*.d.ts", "packages/text-engine/src/render/font-instance.ts", "src/capture/emoji.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",

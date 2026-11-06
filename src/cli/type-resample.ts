@@ -156,8 +156,8 @@ async function measureCaret(
       // evaluate only worked under tsx because the webfont-discovery evaluate had
       // already polyfilled `window.__name` on the same page — standalone callers
       // of buildTypeResampleAnimation hit "__name is not defined".)
-      if (typeof (window as unknown as { __name?: unknown }).__name === "undefined") {
-        (window as unknown as { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
+      if (typeof (window as typeof window & { __name?: unknown }).__name === "undefined") {
+        (window as typeof window & { __name: (fn: unknown) => unknown }).__name = (fn) => fn;
       }
       const el = document.querySelector(sel);
       if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return null;

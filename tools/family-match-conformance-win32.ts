@@ -117,7 +117,7 @@ function installedFamilies(): Map<string, Set<string>> {
     if (![".ttf", ".otf", ".ttc", ".otc"].includes(extname(entry).toLowerCase())) continue;
     try {
       // `any` at the fontkit boundary, as everywhere else in this repo.
-      const opened: any = fontkit.openSync(join(FONT_DIR, entry));
+      const opened = fontkit.openSync(join(FONT_DIR, entry));
       for (const face of opened.fonts ?? [opened]) {
         add(face?.familyName, face?.postscriptName);
         const name16 = face?.name?.records?.preferredFamily?.en;

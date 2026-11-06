@@ -189,6 +189,8 @@ export const parsePseudoContentValue = <E extends { getAttribute(name: string): 
   counterSnapshot,
   pseudo,
   resolveCounterValue,
+  // The default reads the live element; unit callers that pass a structural
+  // stand-in for E always supply their own pickQuoteChar.
   pickQuoteChar = (element: E, isOpen: boolean) => pickPseudoQuoteChar(element as unknown as Element, isOpen),
 }: {
   content: string;

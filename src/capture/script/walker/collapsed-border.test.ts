@@ -14,19 +14,22 @@ import {
 } from "./collapsed-border.js";
 
 const b = (style: string, w: number, source: string) => ({ style, w, source });
+/** The winning source, or undefined for a hidden / absent winner. */
+const sourceOf = (result: ReturnType<typeof winner>): string | undefined =>
+  result != null && "source" in result ? String(result.source) : undefined;
 
 describe("Blink collapsed-border precedence (DM-2245)", () => {
   it("lets hidden suppress every visible width and ignores none", () => {
     expect(winner([b("solid", 40, "cell"), b("hidden", 1, "row")])).toEqual({ hidden: true });
-    expect((winner([b("none", 99, "cell"), b("solid", 2, "table")]) as any)?.source).toBe("table");
+    expect(sourceOf(winner([b("none", 99, "cell"), b("solid", 2, "table")]))).toBe("table");
   });
   it("compares width before style, then uses Blink's style enum", () => {
-    expect((winner([b("double", 2, "cell"), b("dotted", 3, "row")]) as any)?.source).toBe("row");
-    expect((winner([b("dashed", 4, "row"), b("solid", 4, "section")]) as any)?.source).toBe("section");
+    expect(sourceOf(winner([b("double", 2, "cell"), b("dotted", 3, "row")]))).toBe("row");
+    expect(sourceOf(winner([b("dashed", 4, "row"), b("solid", 4, "section")]))).toBe("section");
   });
   it("retains the first merge source and directional cell on exact ties", () => {
     const sources = ["earlier-cell", "later-cell", "row", "row-group", "column", "column-group", "table"];
-    expect((winner(sources.map((source) => b("solid", 8, source))) as any)?.source).toBe("earlier-cell");
+    expect(sourceOf(winner(sources.map((source) => b("solid", 8, source))))).toBe("earlier-cell");
   });
 });
 

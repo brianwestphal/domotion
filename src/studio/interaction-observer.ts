@@ -340,7 +340,7 @@ async function beginObservation(
   await page.evaluate(`globalThis[${JSON.stringify(DOM_PATH_KEY)}] = (${studioPageDomPath.toString()})`);
   const pending = page.evaluate(
     async ({ target, related, options, key, pathKey, properties }) => {
-      const root = globalThis as unknown as Record<string, unknown>;
+      const root = globalThis as typeof globalThis & Record<string, unknown>;
       if (root[key] != null) throw new Error("a Studio interaction observation is already active");
       const domPath = root[pathKey] as ((node: Node) => string) | undefined;
       delete root[pathKey];
@@ -380,7 +380,7 @@ async function beginObservation(
         const style = getComputedStyle(element);
         const styles: Record<string, string> = {};
         for (const property of properties)
-          styles[property] = (style as unknown as Record<string, string>)[property] ?? "";
+          styles[property] = (style as typeof style & Record<string, string>)[property] ?? "";
         const pseudos: Record<string, Record<string, string>> = {};
         for (const pseudo of ["::before", "::after", "::marker", "::placeholder", "::file-selector-button"]) {
           const value = getComputedStyle(element, pseudo);
@@ -589,7 +589,7 @@ async function beginObservation(
   );
   await pending.finally(() =>
     page
-      .evaluate((key) => delete (globalThis as unknown as Record<string, unknown>)[key], DOM_PATH_KEY)
+      .evaluate((key) => delete (globalThis as typeof globalThis & Record<string, unknown>)[key], DOM_PATH_KEY)
       .catch(() => {}),
   );
 }
@@ -597,7 +597,7 @@ async function beginObservation(
 async function finishObservation(page: Page, settleMs: number, debounceMs: number): Promise<RawObservation> {
   return page.evaluate(
     async ({ key, settleMs, debounceMs }) => {
-      const root = globalThis as unknown as Record<string, unknown>;
+      const root = globalThis as typeof globalThis & Record<string, unknown>;
       const state = root[key] as
         | {
             started: number;
@@ -699,7 +699,7 @@ export async function observeStudioInteraction(
     await Promise.all([target.dispose(), ...related.map((handle) => handle.dispose())]);
     await page
       .evaluate((key) => {
-        const root = globalThis as unknown as Record<string, unknown>;
+        const root = globalThis as typeof globalThis & Record<string, unknown>;
         const state = root[key] as
           { observers?: MutationObserver[]; eventTypes?: string[]; listener?: EventListener } | undefined;
         for (const observer of state?.observers ?? []) observer.disconnect();

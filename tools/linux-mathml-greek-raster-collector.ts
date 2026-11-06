@@ -221,7 +221,7 @@ function outlineIdentity(
 }
 
 function verifyFontAndSubsets(fontBytes: Buffer): { hinted: Buffer; unhinted: Buffer } {
-  const opened: any = fontkit.create(fontBytes);
+  const opened = fontkit.create(fontBytes);
   const metadata = {
     familyName: opened.familyName,
     postscriptName: opened.postscriptName,
@@ -266,7 +266,7 @@ function verifyFontAndSubsets(fontBytes: Buffer): { hinted: Buffer; unhinted: Bu
 function assertSubset(bytes: Buffer, expected: { byteLength: number; sha256: string }, label: string): void {
   if (bytes.length !== expected.byteLength || sha256(bytes) !== expected.sha256)
     throw new Error(`${label} FreeSans subset identity drifted`);
-  const opened: any = fontkit.create(bytes);
+  const opened = fontkit.create(bytes);
   for (const token of LINUX_MATHML_GREEK_TOKENS) {
     const glyph = opened.getGlyph(token.glyph.gid);
     const actual = { gid: glyph.id, advanceX: glyph.advanceWidth, ...outlineIdentity(glyph.path.commands) };
@@ -359,7 +359,7 @@ async function sourceEvidence(
     LINUX_MATHML_GREEK_TOKENS.map((token) => token.id),
   );
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height });
-  const opened: any = fontkit.create(fontBytes);
+  const opened = fontkit.create(fontBytes);
   const tokens = LINUX_MATHML_GREEK_TOKENS.map((expected) => {
     const node = byAnimId(tree, expected.id);
     if (node == null) throw new Error(`${expected.id}: capture tree omitted MathML token`);

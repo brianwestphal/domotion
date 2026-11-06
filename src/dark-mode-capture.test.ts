@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rootSvgColorSchemeAttr, transparentRootBgRect, wrapSvg } from "./render/element-tree-to-svg.js";
 import type { CapturedElement } from "./capture/types.js";
+import { capturedStyles } from "./test-support/captured-fixtures.js";
 
 // DM-552: capture-side propagation of `rootColorScheme` and `rootBgComputed`
 // stamped on the captured tree's root element by CAPTURE_SCRIPT, plus the
@@ -18,7 +19,7 @@ function makeRoot(overrides: { rootColorScheme?: "light" | "dark"; rootBgCompute
     width: 100,
     height: 100,
     children: [],
-    styles: {
+    styles: capturedStyles({
       backgroundColor: "rgb(255,255,255)",
       borderColor: "rgb(0,0,0)",
       borderWidth: "0",
@@ -46,20 +47,13 @@ function makeRoot(overrides: { rootColorScheme?: "light" | "dark"; rootBgCompute
       fontStyle: "normal",
       lineHeight: "20px",
       letterSpacing: "normal",
-      textAlign: "left",
       textTransform: "none",
-      textDecoration: "none",
       textDecorationLine: "none",
       textDecorationStyle: "solid",
       textDecorationColor: "rgb(0,0,0)",
       textDecorationThickness: "auto",
-      textIndent: "0",
       textShadow: "none",
-      textWrap: "wrap",
       whiteSpace: "normal",
-      wordBreak: "normal",
-      overflowWrap: "normal",
-      verticalAlign: "baseline",
       backgroundImage: "none",
       backgroundSize: "auto",
       backgroundPosition: "0% 0%",
@@ -69,22 +63,15 @@ function makeRoot(overrides: { rootColorScheme?: "light" | "dark"; rootBgCompute
       backgroundOrigin: "padding-box",
       opacity: "1",
       position: "static",
-      top: "auto",
-      left: "auto",
-      right: "auto",
-      bottom: "auto",
       display: "block",
       flexDirection: "row",
-      visibility: "visible",
       zIndex: "auto",
       transform: "none",
       transformOrigin: "50% 50%",
       writingMode: "horizontal-tb",
       textOrientation: "mixed",
-      cursor: "auto",
-      pointerEvents: "auto",
       ...overrides,
-    } as any,
+    }),
   };
 }
 
