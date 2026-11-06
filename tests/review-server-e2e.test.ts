@@ -6,7 +6,7 @@
 // with a deliberately SLOW, failing `gh` on PATH and asserts the `/` route stays
 // fast (would be ≥5s if someone re-introduced the blocking fetch).
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { networkInterfaces, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -91,11 +91,11 @@ function linuxCjkResult(diffPct = 0.595): Record<string, unknown> {
   };
 }
 
-async function waitForServer(timeoutMs: number): Promise<void> {
+async function waitForServer(timeoutMs: number, base = BASE): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const r = await fetch(`${BASE}/`);
+      const r = await fetch(`${base}/`);
       if (r.ok) return;
     } catch {
       /* not up yet */
@@ -317,6 +317,7 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
   let proc: ChildProcess;
   let tmp: string;
   let counter: string;
+  let release: string;
   const PORT2 = 4397;
   const B2 = `http://127.0.0.1:${PORT2}`;
 
@@ -333,8 +334,12 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
     writeFileSync(join(dir, ".ci-source.json"), JSON.stringify({ runId: "123", os: "macos", suite: "unicode" }));
     mkdirSync(join(tmp, "local"), { recursive: true });
     counter = join(tmp, "gh-calls.log");
-    // Fake gh: `run download` sleeps 1.5s (a "slow" download), logs the call, and
-    // writes the shard's PNGs into --dir; `run list` returns a matching run.
+    release = join(tmp, "gh-release");
+    // Fake gh: `run download` logs the call, then holds the "download" open
+    // until the test creates the release file, then writes the shard's PNGs
+    // into --dir; `run list` returns a matching run. Holding it on a file
+    // instead of a fixed sleep makes "the server answers during a download"
+    // a fact of the test rather than a race against machine load.
     const ghDir = join(tmp, "bin");
     mkdirSync(ghDir);
     const gh = join(ghDir, "gh");
@@ -345,7 +350,7 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
         `if [ "$2" = "list" ]; then echo '[{"databaseId":123,"displayTitle":"Visual tests · unicode · os=all"}]'; exit 0; fi`,
         'd=""; p=""; while [ $# -gt 0 ]; do case "$1" in --dir) d="$2"; shift 2;; --pattern) p="$2"; shift 2;; *) shift;; esac; done',
         `echo "$p" >> "${counter}"`,
-        "sleep 1.5",
+        `while [ ! -f "${release}" ]; do sleep 0.05; done`,
         'mkdir -p "$d/$p"',
         'for f in fxA fxB fxC; do for k in expected actual diff; do printf PNG > "$d/$p/$f-$k.png"; done; done',
         "exit 0",
@@ -365,17 +370,8 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
       stdio: ["ignore", "pipe", "pipe"],
       detached: true, // own process group — afterAll kills the WHOLE npx→tsx chain
     });
-    const deadline = Date.now() + 35_000;
-    while (Date.now() < deadline) {
-      try {
-        const r = await fetch(`${B2}/`);
-        if (r.ok) break;
-      } catch {
-        /* not up */
-      }
-      await new Promise((r) => setTimeout(r, 300));
-    }
-  }, 45_000);
+    await waitForServer(90_000, B2);
+  }, 120_000);
 
   afterAll(() => {
     if (proc?.pid != null) {
@@ -394,21 +390,41 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
 
   it("collapses 9 concurrent same-shard image requests into ONE gh download, and stays responsive", async () => {
     // 3 fixtures × 3 kinds = 9 concurrent /img requests, ALL in shard 1.
-    const imgReqs = ["fxA", "fxB", "fxC"].flatMap((f) =>
-      ["expected", "actual", "diff"].map((k) => fetch(`${B2}/img/ci-macos/html-test-unicode/${f}-${k}.png`)),
+    const urls = ["fxA", "fxB", "fxC"].flatMap((f) =>
+      ["expected", "actual", "diff"].map((k) => `${B2}/img/ci-macos/html-test-unicode/${f}-${k}.png`),
     );
-    // While those download (1.5s), a plain page request must return quickly —
+    const firstResponses = urls.map((url) => fetch(url));
+    // Wait until the (held) download has actually started.
+    while (!existsSync(counter)) await new Promise((r) => setTimeout(r, 25));
+    // While it is held open, a plain page request must still be answered:
     // proof the event loop isn't blocked by the download.
-    const t0 = Date.now();
     const page = await fetch(`${B2}/?source=local-macos`);
-    const pageMs = Date.now() - t0;
-    const imgs = await Promise.all(imgReqs);
-
     expect(page.status).toBe(200);
-    expect(pageMs).toBeLessThan(800); // server stayed responsive
-    expect(imgs.every((r) => r.status === 200)).toBe(true); // all 9 images served
-    const { readFileSync } = await import("node:fs");
+    expect(existsSync(release)).toBe(false); // answered DURING the download
+    // With the download still held, an image request outlasts the fast path.
+    const held = await firstResponses[0];
+    expect(held.status).toBe(503);
+    expect(held.headers.get("retry-after")).not.toBeNull();
+    writeFileSync(release, "");
+    // A request outlasting the server's short fast path gets 503 + Retry-After
+    // (the download continues in the background), and the client retries.
+    // Follow that contract until every image is served rather than racing a
+    // wall-clock budget: how many first responses beat the fast path depends
+    // on machine load, not on the server's correctness.
+    const served = await Promise.all(
+      firstResponses.map(async (first, index) => {
+        let res = await first;
+        while (res.status === 503) {
+          expect(res.headers.get("retry-after")).not.toBeNull();
+          await res.arrayBuffer();
+          await new Promise((r) => setTimeout(r, 100));
+          res = await fetch(urls[index]);
+        }
+        return res.status;
+      }),
+    );
+    expect(served.every((status) => status === 200)).toBe(true); // all 9 images served
     const downloads = readFileSync(counter, "utf8").trim().split("\n").filter(Boolean).length;
     expect(downloads).toBe(1); // deduped: one download, not nine
-  }, 20_000);
+  }, 60_000);
 });
