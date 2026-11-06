@@ -1171,6 +1171,23 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // An `<img>` SVG document's own author sheets cascade onto its root like
+    // any author rule, so `svg { transform }`, `:root { transform-origin }`,
+    // `#id` / `.class` rules apply to the image, ranked by importance, the
+    // style attribute, specificity, then order (CSS Cascade 4). The root is
+    // then transformed as in image-svg-root-style-transform.
+    name: "image-svg-root-stylesheet-transform",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg { transform: rotate(20deg) }</style><rect width="100" height="40" fill="#ed1234"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" transform="rotate(15)"><style>:root { transform-origin: 0 0 }</style><rect width="100" height="40" fill="#0ea5e9"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" id="r" width="90" height="90" viewBox="0 0 100 100" style="transform: rotate(30deg)"><style>#r { transform: scale(0.6) } svg { transform-origin: 100% 100% }</style><rect width="100" height="40" fill="#f59e0b"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" class="c" width="90" height="90" viewBox="0 0 100 100" style="transform: scale(0.5)"><style>.c { transform: rotate(-25deg) !important; } rect.c { fill: #fde047 }</style><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#2563eb"/><rect class="c" x="70" y="70" width="20" height="20"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style><![CDATA[ svg { transform: rotate(10deg) } /* later rule wins */ svg { transform: rotate(-12deg); scale: 0.9 } ]]></style><g><rect width="100" height="40" fill="#059669"/><rect y="60" width="40" height="40" fill="#2563eb"/></g></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 590,
+    height: 130,
+  },
+  {
     // Blink lays an `<img>` SVG document out at the concrete object rect
     // (ImagePainter requests the image at dest_rect.size,
     // core/paint/image_painter.cc:218; SVGImage sizes the root to it,

@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG"]
+tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG", "DM-JZR5T6"]
 code:
   [
     "src/capture/embed.ts",
@@ -15,6 +15,8 @@ code:
     "src/cli/index.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/resolve-svg-source.test.ts",
+    "src/render/svg-image-root-stylesheet.test.ts",
+    "src/render/svg-image-root-stylesheet.ts",
     "src/render/svg-image-root-transform.test.ts",
     "src/render/svg-image-root-transform.ts",
     "src/render/svg-inline.test.ts",
@@ -82,6 +84,8 @@ An outermost `<svg>`'s `transform` attribute is a presentation attribute for the
 - **`<img src="*.svg">`.** Nothing else applies the root transform, so both the nested and the flattened output wrap the root's markup in `<g transform="translate(c) T translate(-c)">`, where `c` is the center of the concrete object rect (the viewBox mapped into the placement). The result is clipped to the content box intersected with that rect, because `SVGImage::DrawInternal` clips every frame to its destination rect (`core/svg/graphics/svg_image.cc:548`) whatever the root's `overflow`. The root box's own overflow clip stays inside the transform. Before this, the nested `<svg transform>` rotated about the output origin and the flattened output dropped the transform.
 
   The root's other CSS transform inputs apply the same way (`src/render/svg-image-root-transform.ts`). A `style` `transform` overrides the attribute (an author declaration beats a presentation attribute). The individual `translate`, `rotate` and `scale` properties compose before it, in the order `ComputedStyle::ApplyTransform` uses (`core/style/computed_style.cc:1429-1490`): origin, translate, rotate, scale, transform, minus origin. `transform-origin` is also a presentation attribute (`core/svg/svg_element.cc:381`), and a `style` declaration overrides it; it moves the pivot from the default `50% 50%`. Percentages resolve against the concrete object rect. `transform-box` needs no handling: for a CSS box every value resolves to the content box or border box (`ComputedStyle::UsedTransformBox`, `core/style/computed_style.cc:1372`), and both equal the object rect for an image root, which has no border or padding. The nested output strips these attributes and declarations from the nested `<svg>`. A value outside the supported 2D subset (`calc()`, font-relative units, a 3D function, an axis form of `rotate`) falls back to the `transform` attribute alone about the box center, with a `svg-image-root-transform` warning. Fixture: `image-svg-root-style-transform`.
+
+  The image's own `<style>` sheets cascade onto the root too (`src/render/svg-image-root-stylesheet.ts`): Blink treats the SVG image document's author sheets like any author rule, so `svg { transform: … }`, `:root { transform-origin: 0 0 }` or a `#id` / `.class` rule matching the root transforms the image. The root of an SVG image has no parent or element siblings, so a selector with a combinator never matches it; a combinator-free compound of a type (`svg`, `*`), `#id`, `.class` and `:root` is matched against the root's tag, id and classes. Declarations are ranked by the CSS cascade: `!important` first, then the style attribute over any selector at equal importance, then specificity, then source order. The applied transform-family declarations are removed from the inlined sheet, because an inlined `<style>` applies to the whole output document, including the nested root and the outer document root. A selector that also reaches other elements of the image (`*`, `svg` when the image nests `<svg>` elements, or a class another element carries) keeps its declarations for them as `selector:not([data-domotion-image-root])`, and the nested root carries that attribute. A transform-family declaration that could reach the root through a selector this cannot decide (an attribute selector or another pseudo-class) or inside an at-rule (`@media`) leaves the sheet's transform unapplied, with a `svg-image-root-transform` warning. Fixture: `image-svg-root-stylesheet-transform`.
 
 **The drawn-image clip.** `SVGImage::DrawInternal` clips every SVG image frame to its destination rect before drawing it (`core/svg/graphics/svg_image.cc:548`, Chromium `7d859f27`), whatever the root's `overflow`. Both `<img>` paths therefore clip to the content box intersected with the concrete object rect (`clipToImage` in `src/render/svg-inline.ts`) when the root sets `overflow="visible"` or `overflow: visible`, and when the object rect is inset from the placement box (an aspect-preserving `par` such as `object-fit: contain`), where the nested viewport's own clip at the placement box would be wider than the drawn image. A Chromium probe confirms that content outside the viewBox of an `overflow="visible"` image does not paint outside the image box, and that a `contain` image is clipped to its object rect inside a wider content box. Icons whose object rect fills the placement box keep their output unchanged. Fixture: `image-svg-overflow-visible-clip`.
 

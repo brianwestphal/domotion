@@ -2385,7 +2385,7 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG"],
+        "tickets": ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG", "DM-JZR5T6"],
         "code": [
           "src/capture/embed.ts",
           "src/capture/script/walker/inline-svg.ts",
@@ -2394,6 +2394,8 @@
           "src/cli/index.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/resolve-svg-source.test.ts",
+          "src/render/svg-image-root-stylesheet.test.ts",
+          "src/render/svg-image-root-stylesheet.ts",
           "src/render/svg-image-root-transform.test.ts",
           "src/render/svg-image-root-transform.ts",
           "src/render/svg-inline.test.ts",

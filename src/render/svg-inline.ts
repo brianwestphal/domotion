@@ -31,6 +31,11 @@ import {
 import { invokeSynchronousCallback, type SynchronousCallback } from "./text-engine.js";
 import { resolveImageRootTransform, type ResolvedImageRootTransform } from "./svg-image-root-transform.js";
 import { renderWarn } from "./render-warn.js";
+import {
+  cascadeRootStylesheetTransform,
+  IMAGE_ROOT_MARKER,
+  type CascadedDeclaration,
+} from "./svg-image-root-stylesheet.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
@@ -346,22 +351,38 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
  * units, a 3D function) falls back to the `transform` attribute alone about
  * the box center, with a named warning.
  */
-function imageRootTransform(attrs: string, box: Rect, slot: string): ResolvedImageRootTransform | null {
+function imageRootTransform(
+  attrs: string,
+  box: Rect,
+  slot: string,
+  sheet: ReadonlyMap<string, CascadedDeclaration> | null = null,
+): ResolvedImageRootTransform | null {
   const tokens = parseSvgAttributes(attrs) ?? [];
   const attr = (name: string): string | null =>
     tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
-  const style = new Map<string, string>();
+  // The author cascade over the root's transform family: an `!important`
+  // declaration beats a normal one, and at equal importance the style
+  // attribute beats any selector (CSS Cascade 4 §6.1); between sheet rules the
+  // cascade module already kept the highest specificity, then the last.
+  const inline = new Map<string, { value: string; important: boolean }>();
   const styleText = attr("style");
   if (styleText != null) {
     for (const declaration of splitStyleDeclarations(styleText)) {
       const colon = declaration.indexOf(":");
       if (colon < 0) continue;
-      const value = declaration
-        .slice(colon + 1)
-        .replace(/!\s*important\s*$/i, "")
-        .trim();
-      style.set(declaration.slice(0, colon).trim().toLowerCase(), value);
+      const raw = declaration.slice(colon + 1).trim();
+      const important = /!\s*important\s*$/i.test(raw);
+      const value = raw.replace(/!\s*important\s*$/i, "").trim();
+      const name = declaration.slice(0, colon).trim().toLowerCase();
+      const previous = inline.get(name);
+      if (previous == null || important || !previous.important) inline.set(name, { value, important });
     }
+  }
+  const style = new Map<string, string>();
+  for (const [name, decl] of sheet ?? []) style.set(name, decl.value);
+  for (const [name, decl] of inline) {
+    const fromSheet = sheet?.get(name);
+    if (fromSheet == null || decl.important || !fromSheet.important) style.set(name, decl.value);
   }
   const transformAttr = attr("transform");
   const resolved = resolveImageRootTransform(
@@ -596,6 +617,36 @@ export interface InlineSvgPlacement {
   zoom?: number;
 }
 
+/**
+ * The image's `<style>` sheets cascaded onto its root's transform family
+ * (`cascadeRootStylesheetTransform`), with the source rewritten so the inlined
+ * sheets do not apply those declarations again. A sheet the cascade cannot
+ * decide exactly keeps the previous behavior (attributes and inline style
+ * only) with a `svg-image-root-transform` warning.
+ */
+function rootSheetTransform(
+  svgText: string,
+  tag: SvgOpeningTag,
+): { declarations: ReadonlyMap<string, CascadedDeclaration> | null; source: string; markRoot: boolean } {
+  const tokens = parseSvgAttributes(tag.attributes) ?? [];
+  const attr = (name: string): string | null =>
+    tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
+  const sheet = cascadeRootStylesheetTransform(svgText, tag.end, {
+    tag: tag.name,
+    id: attr("id"),
+    className: attr("class"),
+  });
+  if (sheet === "unsupported") {
+    renderWarn(
+      "svg-image-root-transform",
+      "<img> svg root transform from an internal <style> sheet uses a selector or at-rule that cannot be resolved exactly; the sheet's transform is not applied",
+      "<img> svg",
+    );
+    return { declarations: null, source: svgText, markRoot: false };
+  }
+  return sheet == null ? { declarations: null, source: svgText, markRoot: false } : sheet;
+}
+
 /** A root `<svg>` length attribute resolved against the image viewport
  *  dimension `viewport` (user units): an absolute length, a percentage of the
  *  viewport, or the `100%` initial value when absent or unparseable. */
@@ -654,10 +705,12 @@ function resolveDocumentViewport(
  * `<img>` scales the source — but as live vector geometry, so it stays crisp at
  * any zoom.
  */
-export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | null {
-  const tag = readSvgOpeningTag(svgText);
+export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
+  const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   let attrs = tag.attributes;
+  const sheet = rootSheetTransform(sourceText, tag);
+  const svgText = sheet.source;
 
   const doc = p.documentViewport === true ? resolveDocumentViewport(attrs, p) : null;
   if (p.documentViewport === true && doc == null) return null;
@@ -683,13 +736,14 @@ export function inlineImgSvg(svgText: string, p: InlineSvgPlacement): string | n
   const object = doc != null ? p : rect != null && matrix != null ? mappedViewBoxRect(rect, matrix) : p;
   // An `<img>` document root's own transform is composed outside the viewport
   // below (a nested `<svg transform>` would rotate about the output origin).
-  const rootTransform = imageRootTransform(attrs, object, "<img> svg");
+  const rootTransform = imageRootTransform(attrs, object, "<img> svg", sheet.declarations);
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
   // Strip the attrs we re-declare (keep xmlns / class / style / role / etc.).
   attrs = stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio"]);
   // Namespace ids: the root tag's own attrs (a root `id`/`url(#…)` is rare but
   // legal) and the whole body (defs + references).
   let rootAttrs = prefixSvgIds(attrs, p.idPrefix).replace(/\s+$/, "");
+  if (sheet.markRoot) rootAttrs += ` ${IMAGE_ROOT_MARKER}=""`;
   let body = prefixSvgIds(svgText.slice(tag.end), p.idPrefix);
   // DM-1593: also namespace CSS class names — but ONLY when the SVG carries a
   // `<style>` block (the only way a class can affect rendering, so the common
@@ -852,10 +906,12 @@ export function isSvgSafeToFlatten(body: string): boolean {
  * {@link isSvgSafeToFlatten}). Emits a rect clip at the placement rect unless the
  * source sets `overflow: visible`, since a `<g>` (unlike a viewport) does not clip.
  */
-export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | null {
-  const tag = readSvgOpeningTag(svgText);
+export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
+  const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   const attrs = tag.attributes;
+  const sheet = rootSheetTransform(sourceText, tag);
+  const svgText = sheet.source;
   const rawBody = svgText.slice(tag.end);
   // Drop a trailing `</svg>` (and anything after) so we emit only the children.
   const closeIdx = rawBody.toLowerCase().lastIndexOf("</svg>");
@@ -889,7 +945,7 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
   // does not. Add a rect clip at the placement rect unless overflow is
   // visible; the drawn-image clip applies either way.
   const object = doc != null ? { x: p.x, y: p.y, w: p.w, h: p.h } : mappedViewBoxRect(viewBox, matrix);
-  const rootTransform = imageRootTransform(attrs, object, "<img> svg");
+  const rootTransform = imageRootTransform(attrs, object, "<img> svg", sheet.declarations);
   if (rootOverflowVisible(attrs)) {
     return rootTransform == null
       ? clipToImage(group, p, object)
