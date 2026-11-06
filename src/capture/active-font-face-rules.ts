@@ -64,7 +64,12 @@ export interface ActiveFontFaceRule extends FontFaceDescriptorText {
 
 export interface ActiveFontFaceRuleScan {
   rules: ActiveFontFaceRule[];
-  /** Active sheets whose `cssRules` threw (cross-origin): fetch and rescan their text. */
+  /**
+   * Sheets to fetch and rescan as text: for the document, active sheets whose
+   * `cssRules` threw (cross-origin); for CSS-text input, the absolute URLs of
+   * its active `@import` rules, in order (their rules precede the importing
+   * sheet's own, as in `RuleSet::AddRulesFromSheet`).
+   */
   crossOriginSheetUrls: string[];
 }
 
@@ -76,6 +81,12 @@ export function scanActiveFontFaceRules(input: ActiveFontFaceRuleScanInput): Act
   const crossOriginSheetUrls: string[] = [];
   const mediaMatches = function (mediaText: string): boolean {
     return mediaText.trim() === "" || window.matchMedia(mediaText).matches;
+  };
+  // `AddRulesFromSheet` follows an import only when `IsSupported()` (its
+  // `supports()` condition) and its media list matches.
+  const importIsActive = function (imp: CSSImportRule & { supportsText?: string | null }): boolean {
+    if (imp.supportsText != null && !CSS.supports(imp.supportsText)) return false;
+    return mediaMatches(imp.media.mediaText);
   };
   const walkRules = function (list: CSSRuleList, base: string): void {
     for (const rule of Array.from(list)) {
@@ -94,10 +105,8 @@ export function scanActiveFontFaceRules(input: ActiveFontFaceRuleScanInput): Act
           baseUrl: base,
         });
       } else if (kind === "CSSImportRule") {
-        const imp = rule as CSSImportRule & { supportsText?: string | null };
-        if (imp.supportsText != null && !CSS.supports(imp.supportsText)) continue;
-        if (!mediaMatches(imp.media.mediaText)) continue;
-        if (imp.styleSheet != null) walkSheet(imp.styleSheet);
+        const imp = rule as CSSImportRule;
+        if (importIsActive(imp) && imp.styleSheet != null) walkSheet(imp.styleSheet);
       } else if (kind === "CSSMediaRule") {
         const media = rule as CSSMediaRule;
         if (mediaMatches(media.media.mediaText)) walkRules(media.cssRules, base);
@@ -163,6 +172,35 @@ export function scanActiveFontFaceRules(input: ActiveFontFaceRuleScanInput): Act
     for (const sheet of document.adoptedStyleSheets) walkSheet(sheet);
   } else {
     for (const { text, base } of input.cssTexts) {
+      // A constructed sheet drops `@import`, so read the imports from a
+      // parse in an inert document (no browsing context: nothing is fetched,
+      // nothing applies to the page). Its `<base>` resolves relative hrefs
+      // against the importing sheet, as `StyleRuleImport::RequestStyleSheet`
+      // does with the parent sheet's base URL (style_rule_import.cc:168-174).
+      try {
+        const inert = document.implementation.createHTMLDocument("");
+        const baseElement = inert.createElement("base");
+        baseElement.href = base;
+        inert.head.append(baseElement);
+        const style = inert.createElement("style");
+        style.textContent = text;
+        inert.head.append(style);
+        const parsed = style.sheet;
+        if (parsed != null) {
+          for (const rule of Array.from(parsed.cssRules)) {
+            if (rule.constructor.name !== "CSSImportRule") continue;
+            const imp = rule as CSSImportRule;
+            if (!importIsActive(imp)) continue;
+            try {
+              crossOriginSheetUrls.push(new URL(imp.href, base).href);
+            } catch {
+              /* an unresolvable href loads nothing */
+            }
+          }
+        }
+      } catch {
+        /* imports are best-effort; the sheet's own rules are still walked */
+      }
       let sheet: CSSStyleSheet;
       try {
         sheet = new CSSStyleSheet({ baseURL: base });
@@ -170,7 +208,6 @@ export function scanActiveFontFaceRules(input: ActiveFontFaceRuleScanInput): Act
         sheet = new CSSStyleSheet();
       }
       try {
-        // `replaceSync` drops `@import` rules (constructed sheets cannot import).
         sheet.replaceSync(text);
       } catch {
         continue;

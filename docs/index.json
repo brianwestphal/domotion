@@ -159,7 +159,8 @@
           "DM-WP5Q5V",
           "DM-YARPB4",
           "DM-ZXVES8",
-          "DM-N4Y9T1"
+          "DM-N4Y9T1",
+          "DM-07G0FG"
         ],
         "code": [
           "packages/text-engine/src/render/darwin-named-family-identity.test.ts",
@@ -167,6 +168,7 @@
           "src/capture/font-source-bytes.ts",
           "src/capture/active-font-face-rules.ts",
           "tests/active-font-face-rules.e2e.test.ts",
+          "tests/cross-origin-font-face-import.e2e.test.ts",
           "tests/darwin-named-family-identity.e2e.test.ts",
           "tests/new-york-optical-cut.e2e.test.ts"
         ],

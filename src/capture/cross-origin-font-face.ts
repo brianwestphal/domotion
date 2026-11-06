@@ -27,6 +27,7 @@ import type { Frame, Page } from "@playwright/test";
 import {
   scanActiveFontFaceRules,
   type ActiveFontFaceRule,
+  type ActiveFontFaceRuleScan,
   type FontFaceDescriptorText,
 } from "./active-font-face-rules.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
@@ -52,22 +53,29 @@ export type { FontFaceDescriptorText } from "./active-font-face-rules.js";
  * descriptors of every ACTIVE `@font-face` rule in document order, decided by
  * the same walker the same-origin sheets go through
  * (`scanActiveFontFaceRules`): `@media` / `@supports` conditions are
- * evaluated as Blink's `RuleSet::AddChildRules` does. `@import` rules are
- * dropped by `replaceSync`. Returns [] when the frame cannot construct the sheet.
+ * evaluated as Blink's `RuleSet::AddChildRules` does. The scan also lists the
+ * absolute URLs of the text's active `@import` rules, for the caller to fetch
+ * and scan in turn. Returns an empty scan when the frame cannot parse it.
  */
+export async function scanFontFaceCssText(
+  frame: Page | Frame,
+  cssText: string,
+  baseUrl: string,
+): Promise<ActiveFontFaceRuleScan> {
+  try {
+    return await evaluateInFrame(frame, scanActiveFontFaceRules, { cssTexts: [{ text: cssText, base: baseUrl }] });
+  } catch {
+    return { rules: [], crossOriginSheetUrls: [] };
+  }
+}
+
+/** The active `@font-face` descriptors of `cssText` (see `scanFontFaceCssText`); imports are not followed. */
 export async function readFontFaceDescriptorsFromCssText(
   frame: Page | Frame,
   cssText: string,
   baseUrl: string,
 ): Promise<ActiveFontFaceRule[]> {
-  try {
-    const scan = await evaluateInFrame(frame, scanActiveFontFaceRules, {
-      cssTexts: [{ text: cssText, base: baseUrl }],
-    });
-    return scan.rules;
-  } catch {
-    return [];
-  }
+  return (await scanFontFaceCssText(frame, cssText, baseUrl)).rules;
 }
 
 /**

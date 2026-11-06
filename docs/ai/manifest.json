@@ -67,6 +67,7 @@
         "src/capture/font-source-bytes.ts",
         "src/capture/active-font-face-rules.ts",
         "tests/active-font-face-rules.e2e.test.ts",
+        "tests/cross-origin-font-face-import.e2e.test.ts",
         "tests/darwin-named-family-identity.e2e.test.ts",
         "tests/new-york-optical-cut.e2e.test.ts"
       ],

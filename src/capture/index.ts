@@ -85,7 +85,7 @@ import { scanActiveFontFaceRules, type ActiveFontFaceRule } from "./active-font-
 import {
   faceRuleFromFontFaceDescriptors,
   localFaceFromFontFaceDescriptors,
-  readFontFaceDescriptorsFromCssText,
+  scanFontFaceCssText,
   type FaceRule,
   type LocalFace,
 } from "./cross-origin-font-face.js";
@@ -1001,29 +1001,42 @@ export async function discoverAndRegisterWebfonts(
   // ran in this scenario registers under fontkit's internal `familyName`,
   // which for license-protected fonts (Sohne) is a copyright string —
   // unmatchable against the CSS-declared `font-family: sohne-var` query.
-  for (const sheetUrl of scan.crossOriginSheetUrls) {
-    let cssText: string;
+  // Fetch one sheet's text: Playwright's request API for http(s), and the
+  // local reader for data: / file: (a `file:` page's own `file:` sheets are
+  // opaque-origin to Chrome, so they land here too).
+  const fetchSheetText = async (sheetUrl: string): Promise<string | null> => {
     try {
       if (/^(data|file):/i.test(sheetUrl)) {
-        // A `file:` page's own `file:` sheets are opaque-origin to Chrome, so
-        // they land here too; Playwright's request API rejects both protocols.
         const fetched = await fetchFontSourceBytes(sheetUrl, (u) => page.context().request.get(u), page.url());
-        if (!fetched.ok) continue;
-        cssText = fetched.body.toString("utf8");
-      } else {
-        const resp = await page.context().request.get(sheetUrl);
-        if (!resp.ok()) continue;
-        cssText = await resp.text();
+        return fetched.ok ? fetched.body.toString("utf8") : null;
       }
+      const resp = await page.context().request.get(sheetUrl);
+      return resp.ok() ? await resp.text() : null;
     } catch {
-      continue;
+      return null;
     }
-    // Chromium parses the text (last valid declaration per descriptor wins),
-    // not a regex scanner; see cross-origin-font-face.ts. Having BOTH a
-    // font-face entry (correct name) AND a resource entry (the file's internal
-    // name) for one URL is fine — both will be tried.
-    for (const rule of await readFontFaceDescriptorsFromCssText(page, cssText, sheetUrl)) addRule(rule);
-  }
+  };
+  // Chromium parses the text (last valid declaration per descriptor wins),
+  // not a regex scanner; see cross-origin-font-face.ts. Having BOTH a
+  // font-face entry (correct name) AND a resource entry (the file's internal
+  // name) for one URL is fine — both will be tried. A fetched sheet's active
+  // @import rules are followed first, since an imported sheet's rules precede
+  // the importer's own (`RuleSet::AddRulesFromSheet`, rule_set.cc:1294-1330).
+  // `ancestors` is the import chain: like `StyleRuleImport::RequestStyleSheet`
+  // (style_rule_import.cc:176-187, Chromium 7d859f27), an import of a URL
+  // already in its own chain (ignoring the fragment) is not loaded.
+  const scanFetchedSheet = async (sheetUrl: string, ancestors: string[]): Promise<void> => {
+    const withoutFragment = sheetUrl.replace(/#.*$/, "");
+    if (ancestors.includes(withoutFragment)) return;
+    const cssText = await fetchSheetText(sheetUrl);
+    if (cssText == null) return;
+    const fetched = await scanFontFaceCssText(page, cssText, sheetUrl);
+    for (const imported of fetched.crossOriginSheetUrls) {
+      await scanFetchedSheet(imported, [...ancestors, withoutFragment]);
+    }
+    for (const rule of fetched.rules) addRule(rule);
+  };
+  for (const sheetUrl of scan.crossOriginSheetUrls) await scanFetchedSheet(sheetUrl, []);
   await resolveLocalFaceAliases(page, pendingLocals);
   for (const url of observedFontUrls) {
     if (seen.has(url)) continue;
