@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG", "DM-JZR5T6", "DM-KA02KF"]
+tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG", "DM-JZR5T6", "DM-KA02KF", "DM-JGBC33"]
 code:
   [
     "src/capture/embed.ts",
@@ -15,6 +15,7 @@ code:
     "src/cli/index.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/resolve-svg-source.test.ts",
+    "src/render/svg-image-natural-sizing.test.ts",
     "src/render/svg-image-root-stylesheet.test.ts",
     "src/render/svg-image-root-stylesheet.ts",
     "src/render/svg-image-root-transform.test.ts",
@@ -112,7 +113,7 @@ dimensions only for the object-fit calculation.
 
 All `object-fit` values take the native path:
 
-- **With an intrinsic size** (every SVG `<img>` Chromium loads reports a non-zero `naturalWidth`/`naturalHeight`), `paintImage` computes Blink's concrete object rect for the `object-fit` / `object-position` pair (`computeObjectFitRect`, mirroring `LayoutReplaced::ComputeObjectFitAndPositionRect`) and places the nested `<svg>` there, clipped to the content box. That rect is the SVG image document's **viewport**: `ImagePainter` requests the image at `dest_rect.size` (`core/paint/image_painter.cc:218`) and `SVGImage` lays the root out at that container size (`core/svg/graphics/svg_image.cc:463`, Chromium `7d859f27`). Inside it the root maps its content exactly as a standalone document would (`InlineSvgPlacement.documentViewport`):
+- **With an intrinsic size** (every SVG `<img>` Chromium loads reports a non-zero `naturalWidth`/`naturalHeight`), `paintImage` computes Blink's concrete object rect for the `object-fit` / `object-position` pair and places the nested `<svg>` there, clipped to the content box. For an SVG source the rect comes from Blink's **natural sizing info**, not from `naturalWidth`/`naturalHeight`, which report a concrete size resolved against the 300x150 default (a viewBox-only square reports 150x150). `svgImageNaturalSizing` (`src/render/svg-inline.ts`) mirrors `LayoutSVGRoot::UnscaledNaturalSizingInfo` (`core/layout/svg/layout_svg_root.cc:74-103`): the natural width/height come from absolute `width`/`height` attributes (a percentage, including the initial `100%`, is no dimension), and the ratio comes from that size when it is non-empty, else from the viewBox. Following `SVGImage::GetNaturalDimensions` (`core/svg/graphics/svg_image.cc:236-262`), everything is cleared when a dimension is missing and the root's `preserveAspectRatio` is `none`. `computeObjectFitRectFromNaturalSizing` (`src/render/element-tree-to-svg.ts`) transcribes `LayoutReplaced::ComputeObjectFitAndPositionRect` (`core/layout/layout_replaced.cc:422-482`) with `ConcreteObjectSize` (`core/layout/natural_sizing_info.cc:56-100`). So `none` / `scale-down` on a ratio-only SVG resolve a contain size against the content box, and an SVG with no size and no ratio fills the content box for every value. A root length in font- or viewport-relative units or a math function keeps the captured concrete size. Fixture: `image-svg-natural-sizing-object-fit`. Raster images keep `computeObjectFitRect` over the captured size. That rect is the SVG image document's **viewport**: `ImagePainter` requests the image at `dest_rect.size` (`core/paint/image_painter.cc:218`) and `SVGImage` lays the root out at that container size (`core/svg/graphics/svg_image.cc:463`, Chromium `7d859f27`). Inside it the root maps its content exactly as a standalone document would (`InlineSvgPlacement.documentViewport`):
   - a valid root `viewBox` maps with the **root's own `preserveAspectRatio`** (default `xMidYMid meet`), so an `object-fit: fill` box whose aspect differs from the viewBox letterboxes (or, for `slice`, crops) instead of stretching, and content outside the viewBox but inside the object rect still paints;
   - without a valid viewBox, Blink synthesizes one from the root `width`/`height` (a missing or percentage value resolves against the viewport) and a `none` `preserveAspectRatio` (`SVGSVGElement::CurrentViewBoxRect` / `CurrentPreserveAspectRatio`, `core/svg/svg_svg_element.cc:598-626`), so such an SVG does stretch to the object rect.
     The drawn-image clip and the root transform's reference box are the object rect itself. Fixture: `image-svg-root-preserve-aspect-ratio`.

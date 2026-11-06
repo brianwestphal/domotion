@@ -1608,6 +1608,7 @@
         "src/cli/index.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/resolve-svg-source.test.ts",
+        "src/render/svg-image-natural-sizing.test.ts",
         "src/render/svg-image-root-stylesheet.test.ts",
         "src/render/svg-image-root-stylesheet.ts",
         "src/render/svg-image-root-transform.test.ts",

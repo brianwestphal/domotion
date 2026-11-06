@@ -156,6 +156,84 @@ export function editSvgOpeningTagAttributes(
   );
 }
 
+/** Blink's natural sizing info for an SVG image (`NaturalSizingInfo`). */
+export interface SvgNaturalSizing {
+  /** Natural size in CSS px (unzoomed); a missing dimension is 0. */
+  size: { w: number; h: number };
+  /** Natural aspect ratio, or null when there is none. */
+  ratio: { w: number; h: number } | null;
+  hasWidth: boolean;
+  hasHeight: boolean;
+}
+
+const ABSOLUTE_UNIT_PX: Record<string, number> = {
+  "": 1,
+  px: 1,
+  in: 96,
+  cm: 96 / 2.54,
+  mm: 96 / 25.4,
+  q: 96 / 101.6,
+  pt: 4 / 3,
+  pc: 16,
+};
+
+/** An SVG root `width`/`height` attribute as Blink's `IntrinsicWidth` reads
+ *  it: null when absent (initial `100%`) or a percentage, a px value
+ *  otherwise, `"unknown"` for a value this cannot resolve exactly (font- or
+ *  viewport-relative units, math functions). */
+function rootIntrinsicLength(attrs: string, name: string): number | null | "unknown" {
+  const v = parseSvgAttributes(attrs)
+    ?.find((token) => token.name.toLowerCase() === name)
+    ?.value.trim();
+  if (v == null || v === "") return null;
+  const m = /^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)([a-z%]*)$/i.exec(v);
+  if (m == null) return "unknown";
+  const unit = m[2].toLowerCase();
+  if (unit === "%") return null;
+  const factor = ABSOLUTE_UNIT_PX[unit];
+  if (factor == null) return "unknown";
+  return Math.max(0, Number(m[1]) * factor);
+}
+
+/**
+ * The natural sizing info Blink uses for an `<img>` SVG's object-fit, from the
+ * root's attributes: `LayoutSVGRoot::UnscaledNaturalSizingInfo`
+ * (`core/layout/svg/layout_svg_root.cc:74-103`) takes the natural width/height
+ * from the `width`/`height` attributes (none for a percentage, including the
+ * initial `100%`), the ratio from that size when it is non-empty and from the
+ * viewBox otherwise; `SVGImage::GetNaturalDimensions`
+ * (`core/svg/graphics/svg_image.cc:236-262`, chromium 7d859f27) clears it all
+ * when a dimension is missing and the root's `preserveAspectRatio` is `none`.
+ * This differs from `naturalWidth`/`naturalHeight`, which report a concrete
+ * size resolved against the 300x150 default object size. Null when the source
+ * has no root or a length cannot be resolved exactly.
+ */
+export function svgImageNaturalSizing(svgText: string): SvgNaturalSizing | null {
+  const tag = readSvgOpeningTag(svgText);
+  if (tag == null) return null;
+  const width = rootIntrinsicLength(tag.attributes, "width");
+  const height = rootIntrinsicLength(tag.attributes, "height");
+  if (width === "unknown" || height === "unknown") return null;
+  const size = { w: width ?? 0, h: height ?? 0 };
+  const hasWidth = width != null;
+  const hasHeight = height != null;
+  let ratio: { w: number; h: number } | null = null;
+  if (size.w > 0 && size.h > 0) ratio = { ...size };
+  else {
+    const vb = resolveViewBoxRect(tag.attributes, null, true);
+    if (vb != null) ratio = { w: vb.width, h: vb.height };
+  }
+  if (!hasWidth || !hasHeight) {
+    const par = parseSvgAttributes(tag.attributes)
+      ?.find((token) => token.name.toLowerCase() === "preserveaspectratio")
+      ?.value.trim();
+    if (parsePreserveAspectRatio(par ?? null).align === "none") {
+      return { size: { w: 0, h: 0 }, ratio: null, hasWidth: false, hasHeight: false };
+    }
+  }
+  return { size, ratio, hasWidth, hasHeight };
+}
+
 /** Every `id` declared anywhere in an SVG document (root tag included). */
 function svgDocumentIds(svg: string): Set<string> {
   const ids = new Set<string>();

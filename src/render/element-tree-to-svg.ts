@@ -115,6 +115,8 @@ import {
   prefixSvgIds,
   readSvgOpeningTag,
   svgRootAttribute,
+  svgImageNaturalSizing,
+  type SvgNaturalSizing,
 } from "./svg-inline.js";
 import { computeViewportMatrix, parsePreserveAspectRatio } from "./svg-viewport-matrix.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
@@ -465,19 +467,37 @@ function paintImage(
           w: intrinsic.w * effectiveZoom,
           h: intrinsic.h * effectiveZoom,
         };
+  // An SVG image's object-fit uses Blink's natural sizing info (which may be
+  // a ratio alone, one dimension, or nothing), not the concrete size
+  // `naturalWidth`/`naturalHeight` report against the 300x150 default.
+  const svgSourceText = intrinsic != null ? resolveSvgSource(el.imageSrc) : null;
+  const svgNatural = svgSourceText != null ? svgImageNaturalSizing(svgSourceText) : null;
   const objectRect =
-    paintIntrinsic != null && paintIntrinsic.w > 0 && paintIntrinsic.h > 0
-      ? computeObjectFitRect(
+    svgNatural != null
+      ? computeObjectFitRectFromNaturalSizing(
           contentX,
           contentY,
           contentW,
           contentH,
-          paintIntrinsic.w,
-          paintIntrinsic.h,
+          {
+            ...svgNatural,
+            size: { w: svgNatural.size.w * effectiveZoom, h: svgNatural.size.h * effectiveZoom },
+          },
           fit,
           el.styles.objectPosition,
         )
-      : null;
+      : paintIntrinsic != null && paintIntrinsic.w > 0 && paintIntrinsic.h > 0
+        ? computeObjectFitRect(
+            contentX,
+            contentY,
+            contentW,
+            contentH,
+            paintIntrinsic.w,
+            paintIntrinsic.h,
+            fit,
+            el.styles.objectPosition,
+          )
+        : null;
   // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
   // image must clip to the rounded content area — otherwise a 40×40
   // `border-radius: 50%` avatar paints as a square photo. Build a
@@ -4777,6 +4797,72 @@ export function computeObjectFitRect(
     width: objectWidth,
     height: objectHeight,
   };
+}
+
+/**
+ * `computeObjectFitRect` for a replaced element whose natural sizing may be
+ * partial (an SVG image with only a ratio, only a width, or nothing at all) —
+ * a transcription of `LayoutReplaced::ComputeObjectFitAndPositionRect`
+ * (`core/layout/layout_replaced.cc:422-482`) with `ConcreteObjectSize`
+ * (`core/layout/natural_sizing_info.cc:56-100`), chromium 7d859f27. `natural`
+ * is in output px (already zoomed).
+ */
+export function computeObjectFitRectFromNaturalSizing(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  natural: SvgNaturalSizing,
+  fit: string | undefined,
+  position: string | undefined,
+): { x: number; y: number; width: number; height: number } {
+  const mode = (fit ?? "fill").trim();
+  const ratio = natural.ratio != null && natural.ratio.w > 0 && natural.ratio.h > 0 ? natural.ratio : null;
+  const intrinsicEmpty = !(natural.size.w > 0 && natural.size.h > 0);
+  let objectWidth = width;
+  let objectHeight = height;
+  if (mode !== "fill" && !(intrinsicEmpty && ratio == null)) {
+    let none = mode === "none";
+    if (mode === "contain" || mode === "cover" || mode === "scale-down") {
+      if (ratio != null) {
+        // PhysicalSize::FitToAspectRatio: shrink for contain / scale-down,
+        // grow for cover.
+        const widthFromHeight = (height * ratio.w) / ratio.h;
+        if (mode === "cover" ? widthFromHeight >= width : widthFromHeight <= width) {
+          objectWidth = widthFromHeight;
+        } else {
+          objectHeight = (width * ratio.h) / ratio.w;
+        }
+      }
+      none = mode === "scale-down" && !(objectWidth <= natural.size.w);
+    }
+    if (none) {
+      const concrete = intrinsicEmpty ? concreteObjectSize(natural, width, height) : natural.size;
+      objectWidth = concrete.w;
+      objectHeight = concrete.h;
+    }
+  }
+  const [horizontal, vertical] = splitComputedObjectPosition(position ?? "50% 50%");
+  return {
+    x: x + resolveObjectPositionAxis(horizontal, width - objectWidth),
+    y: y + resolveObjectPositionAxis(vertical, height - objectHeight),
+    width: objectWidth,
+    height: objectHeight,
+  };
+}
+
+/** `ConcreteObjectSize` against a default object size (`natural_sizing_info.cc:56`). */
+function concreteObjectSize(n: SvgNaturalSizing, defaultW: number, defaultH: number): { w: number; h: number } {
+  const ratio = n.ratio != null && n.ratio.w > 0 && n.ratio.h > 0 ? n.ratio : null;
+  if (n.hasWidth && n.hasHeight) return n.size;
+  if (n.hasWidth) return { w: n.size.w, h: ratio == null ? defaultH : (n.size.w * ratio.h) / ratio.w };
+  if (n.hasHeight) return { w: ratio == null ? defaultW : (n.size.h * ratio.w) / ratio.h, h: n.size.h };
+  if (ratio != null) {
+    const solutionW = (defaultH * ratio.w) / ratio.h;
+    if (solutionW <= defaultW) return { w: solutionW, h: defaultH };
+    return { w: defaultW, h: (defaultW * ratio.h) / ratio.w };
+  }
+  return { w: defaultW, h: defaultH };
 }
 
 function splitComputedObjectPosition(position: string): [string, string] {

@@ -1183,6 +1183,27 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // An SVG image's object-fit uses Blink's natural sizing info, not the
+    // concrete naturalWidth/naturalHeight (resolved against 300x150): a
+    // viewBox alone is a ratio (object-fit:none/scale-down resolve a contain
+    // size against the content box), a width or height alone is one natural
+    // dimension, and a missing dimension with preserveAspectRatio="none" or
+    // no viewBox leaves no ratio (LayoutSVGRoot::UnscaledNaturalSizingInfo,
+    // SVGImage::GetNaturalDimensions, LayoutReplaced::
+    // ComputeObjectFitAndPositionRect, chromium 7d859f27).
+    name: "image-svg-natural-sizing-object-fit",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;flex-wrap:wrap;gap:12px;width:300px;box-sizing:border-box;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#2563eb"/><circle cx="50" cy="50" r="35" fill="#fde047"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:none">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#16a34a"/><circle cx="50" cy="50" r="35" fill="#fde047"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:scale-down;object-position:0 0">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><rect width="100" height="100" fill="#db2777"/><circle cx="50" cy="50" r="35" fill="#fde047"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:contain">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" viewBox="0 0 100 50"><rect width="100" height="50" fill="#f59e0b"/><circle cx="50" cy="25" r="20" fill="#0f172a"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:none;object-position:10% 20%">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" height="30"><rect width="100" height="100" fill="#0ea5e9"/><circle cx="20" cy="15" r="12" fill="#ed1234"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:none">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#7c3aed"/><circle cx="50" cy="50" r="35" fill="#fde047"/></svg>')}" style="display:block;width:120px;height:80px;background:#0f172a;object-fit:cover">
+    </div>`,
+    width: 300,
+    height: 304,
+  },
+  {
     // Blink gives each SVG image its own document, so the image's author
     // sheets reach only its own elements and `:root` means the image root.
     // Inlined, the sheets are scoped to the nested root: the first image's
