@@ -370,7 +370,12 @@ jobs:
         env:
           HTML_TEST_CORPUS_IDENTITY: parity-corpus-v2:67ffe95242c8e7e1ed467507c08c4362b09af47edf291cbc4746d1417cbef630
       - name: Verify raster fallback pixel content
+        id: raster_fallback
         if: matrix.shard == 1
+        # Windows has no other run of these six files, so the result blocks the
+        # job, but only after the shard and its evidence uploads below have run
+        # (see "Fail on raster fallback regression"). macOS and Linux already
+        # block on them in the full e2e lanes, so their copies stay advisory.
         continue-on-error: true
         run: npx vitest run --config vitest.e2e.config.ts tests/raster-fallback-content.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/effective-appearance.e2e.test.ts tests/native-control-decoration.e2e.test.ts tests/conic-chromium-raster.e2e.test.ts src/capture/backdrop-isolation.e2e.test.ts
       - name: Run shard ${{ matrix.shard }}/${{ needs.setup.outputs.windows_total }}
@@ -420,6 +425,12 @@ jobs:
           name: results-windows-shard${{ matrix.shard }}
           path: tests/output/${{ inputs.suite == 'unicode' && 'html-test-unicode' || 'html-test' }}/
           if-no-files-found: warn
+      - name: Fail on raster fallback regression
+        if: ${{ always() && matrix.shard == 1 && steps.raster_fallback.outcome == 'failure' }}
+        shell: bash
+        run: |
+          echo "::error::Raster fallback pixel-content gates failed on Windows (see the 'Verify raster fallback pixel content' step)."
+          exit 1
 
   aggregate:
     # The merge consumes setup's enabled-OS flags and matrix totals in

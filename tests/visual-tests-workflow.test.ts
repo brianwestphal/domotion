@@ -203,6 +203,22 @@ describe("visual-tests.yml provides the native glyph helper", () => {
     }
   });
 
+  it("blocks the Windows job on the raster diagnostic after its evidence is uploaded (DM-E7KSTM)", () => {
+    // Windows has no other run of the six raster-fallback files, so a failure
+    // there must fail the job; the gate runs last so the shard still renders and
+    // uploads. macOS and Linux block on them in their full e2e lanes instead.
+    const job = jobs["test-windows"];
+    expect(job).toMatch(/name: Verify raster fallback pixel content\n\s+id: raster_fallback/);
+    const upload = job.indexOf("name: results-windows-shard");
+    const gate = job.indexOf("name: Fail on raster fallback regression");
+    expect(gate, "the Windows job must carry the blocking gate").toBeGreaterThan(upload);
+    expect(job.slice(gate)).toContain("steps.raster_fallback.outcome == 'failure'");
+    expect(job.slice(gate)).toContain("exit 1");
+    for (const name of ["test-macos", "test-linux"]) {
+      expect(jobs[name], `${name} stays advisory`).not.toContain("Fail on raster fallback regression");
+    }
+  });
+
   it("uploads incomplete-run evidence before reporting aggregate failure", () => {
     const job = jobs.aggregate;
     const merge = job.indexOf("Merge + write Step Summary");
