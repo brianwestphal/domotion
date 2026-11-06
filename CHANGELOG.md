@@ -4,9 +4,41 @@ All notable changes to **Domotion** are documented in this file.
 
 ## Unreleased
 
+## [0.35.0] - 2026-11-06
+
 **⚠️ Breaking Changes**
 
 - **`launchChromium()` no longer downloads Chromium for library callers by default:** when Playwright's Chromium is missing, the library now rejects with an error that names `npx playwright install chromium` instead of starting a network download into the Playwright cache. Pass `launchChromium({ autoInstall: true })` to keep the old behavior. The `domotion`, `svg-to-image`, `svg-to-video`, `svg-review`, `svg-scrubber` and `domotion-studio` commands still install it automatically on first use.
+
+**⚠️ Breaking Changes**
+
+- **`launchChromium()` no longer downloads Chromium for library callers by default.** If the browser is missing, it now fails instead of running `npx playwright install chromium`. The published CLIs still install it automatically. To migrate, pass `launchChromium({ autoInstall: true })` (new `LaunchChromiumOptions` type) or install Chromium ahead of time.
+- **Animation config values are now validated before they reach the SVG.** Easing must be a built-in preset name or a valid CSS easing function. Animation `from` / `to` / `transformOrigin`, overlay and caret colors, and canvas backgrounds must be valid CSS values. Configs that put free text in these fields now fail validation; replace them with valid CSS.
+- **`withFlattenNestedSvg`, `withEmbeddedImageScopes` and `withActiveHiDPIFactor` now reject async callbacks.** Their type rejects them at compile time and they throw a `TypeError` at runtime. Move any awaited work outside the scope.
+
+**🚀 Features**
+
+- Range slider track and thumb `box-shadow`s now render in full, including offset, blur and inset shadows. Previously only plain spread rings were drawn, and track shadows were ignored.
+- New `withRenderWarningSink(sink, fn)` collects a render's warnings for that call only, so they aren't credited to whatever capture ran last.
+- Capture now warns when it falls back to an estimated text position for a single-line input's value.
+- Studio's `capture.compile`, `render.preview` and `render.video` agent tools accept an optional `projectDigest`, which guards against acting on a stale project.
+- svg-review, svg-scrubber and Studio have refreshed controls: icon buttons, status banners, empty states and loading spinners. The scrubber's zoom buttons also gained accessible labels.
+
+**🐛 Fixes**
+
+- Every layer of a multi-layer `background-image` now paints on slider, progress, meter and color-swatch pseudos, instead of falling back to a flat color.
+- A `::before` / `::after` with a perspective transform now renders as a Chromium-painted image (with a warning) instead of disappearing silently.
+- A perspective `matrix3d()` transform no longer paints as a wrong flat transform. The element is hidden with a projective-transform warning instead.
+- A root inline `<svg transform>` is now applied once, around the center of the root box.
+- Fixed a 0.34.0 regression where flattened inline SVGs lost their placement when the element had a CSS transform.
+- The frosted-backdrop fallback fill now applies whenever capture stores one. Backgrounds with alpha between 0.01 and 0.1 previously kept their near-invisible color.
+- `@font-face` `unicode-range` parsing now follows Chromium. Malformed or reversed ranges, values past U+10FFFF and empty list entries are no longer accepted.
+- If the hinted-subset step fails, embedded fonts now keep the source font's embedding permission (`fsType`) instead of claiming "installable".
+- Removed the false `text-align: justify` fidelity warning. Justified text was already reproduced exactly.
+- `composeScrollSvg` now uses the process-wide text mode when `renderText` is omitted, matching `elementTreeToSvg`.
+- `executeCapture` and `executeAnimate` now restore the process-wide text mode and nested-SVG flattening setting when they finish, so the next in-process capture starts clean.
+- svg-scrubber trim no longer writes a negative zero (`-0`) into the trimmed SVG.
+- svg-review's filing hint now names the real "Open a new GitHub issue" link, and the copy button returns to its own label after "Copied".
 
 ## [0.34.0] - 2026-11-06
 
