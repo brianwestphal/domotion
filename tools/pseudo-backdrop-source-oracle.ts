@@ -111,7 +111,7 @@ export function pseudoBackdropFixtureHtml(): string {
     #after-text::after{content:"IMG";display:inline-block;width:82px;height:49px;padding:10px;margin:17px 0 0 38px}
     #positioned::before,#negative::before,#zoom::before,#ancestor-root::before,#none::before{content:"";position:absolute;left:20px;top:15px;width:93px;height:57px}
     #positioned::before{z-index:auto}.case-negative #negative{z-index:0}#negative::before{z-index:-1}#positive::after{content:"+";position:absolute;left:27px;top:18px;width:92px;height:56px;padding:12px;z-index:3}
-    .case-ancestor-root .ancestor{opacity:.73}.case-zoom .ancestor{zoom:1.25}.case-zoom .host{left:11px;top:9px}
+    .case-ancestor-root .ancestor{opacity:.73;background:repeating-linear-gradient(90deg,#2bd4ff 0 9px,#101820 9px 18px)}.case-zoom .ancestor{zoom:1.25}.case-zoom .host{left:11px;top:9px}
     #nested-outer::before{content:"";position:absolute;left:6px;top:7px;width:118px;height:67px}
     #nested-outer .host-child{left:35px;top:24px;width:78px;height:47px;background:transparent;border:0}
     #nested-inner::after{content:"";position:absolute;left:31px;top:23px;width:82px;height:48px}
