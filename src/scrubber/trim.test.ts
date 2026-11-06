@@ -108,3 +108,20 @@ describe("trimAnimatedSvg — number formatting of synthesized values", () => {
     expect(() => trimAnimatedSvg(smil("1e999,0;1e999,0;1e999,0"), 1000, 3000, 4000)).toThrow(RangeError);
   });
 });
+
+// DM-NEV5JJ: the keyframe-stop parser used `/([^{}]+)\{([^{}]*)\}/g`, which
+// backtracks quadratically through a long brace-free run inside a keyframes
+// body that is not a stop's declaration block (40 KB took 5-6 s).
+describe("trimAnimatedSvg keyframe parsing stays linear (DM-NEV5JJ)", () => {
+  it("slices a keyframes body carrying a long brace-free run quickly", () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg"><style>
+@keyframes fv-0 { 0% { opacity: 0 } 100% { opacity: 1 } ${" ".repeat(400_000)}}
+.box { animation: fv-0 4s infinite; }
+</style><rect class="box" width="10" height="10"/></svg>`;
+    const started = performance.now();
+    const r = trimAnimatedSvg(svg, 1000, 3000, 4000);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(r.slicedCss).toBe(1);
+    expect(r.svg.includes("@keyframes fv-0 {0% { opacity: 0.25 } 100% { opacity: 0.75 }}")).toBe(true);
+  });
+});

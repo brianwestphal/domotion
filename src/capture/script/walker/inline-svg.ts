@@ -16,6 +16,7 @@ import {
   svgAffineMaxPointError,
 } from "../../svg-affine-freeze.js";
 import type { SvgAffineMatrix } from "../../svg-affine-freeze.js";
+import { replaceFlatCssBlocks } from "../../../utils/flat-css-blocks.js";
 import {
   composeUseTransform,
   isActiveSvgTransformValue,
@@ -605,13 +606,15 @@ const namespaceExternalCopy = (root: SVGElement, prefix: string): void => {
       if (value !== attr.value) node.setAttribute(attr.name, value);
     }
     if (node.localName === "style") {
-      node.textContent = (node.textContent || "")
-        .replace(/url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/g, (_all, quote, ref) => `url(${quote}#${mapped(ref)}${quote})`)
-        .replace(
-          /([^{}]*)(\{[^{}]*\})/g,
-          (_rule, selectors, body) =>
-            selectors.replace(/#([\w:.-]+)/g, (_all: string, ref: string) => `#${mapped(ref)}`) + body,
-        );
+      // Linear flat-block scan: the old `/([^{}]*)(\{[^{}]*\})/g` was quadratic in
+      // any long brace-free run that is not a flat block's body.
+      node.textContent = replaceFlatCssBlocks(
+        (node.textContent || "").replace(
+          /url\(\s*(['"]?)#([^)'"\s]+)\1\s*\)/g,
+          (_all, quote, ref) => `url(${quote}#${mapped(ref)}${quote})`,
+        ),
+        (selectors, body) => selectors.replace(/#([\w:.-]+)/g, (_all: string, ref: string) => `#${mapped(ref)}`) + body,
+      );
     }
   }
 };

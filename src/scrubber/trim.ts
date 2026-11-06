@@ -32,6 +32,7 @@
  */
 
 import { formatNumber } from "../render/format.js";
+import { flatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface TrimResult {
   svg: string;
@@ -137,17 +138,15 @@ interface CssFrame {
 
 function parseKeyframes(body: string): CssFrame[] {
   const frames: CssFrame[] = [];
-  const re = /([^{}]+)\{([^{}]*)\}/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(body)) != null) {
+  for (const rule of flatCssBlocks(body, { nonEmptyPrelude: true })) {
     const decls = new Map<string, string>();
-    for (const d of m[2].split(";")) {
+    for (const d of rule.body.split(";")) {
       const i = d.indexOf(":");
       if (i < 0) continue;
       const k = d.slice(0, i).trim();
       if (k) decls.set(k, d.slice(i + 1).trim());
     }
-    for (const sel of m[1].split(",")) {
+    for (const sel of rule.prelude.split(",")) {
       const s = sel.trim();
       let at: number | null = null;
       if (s === "from") at = 0;

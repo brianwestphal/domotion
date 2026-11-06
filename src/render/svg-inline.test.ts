@@ -687,3 +687,23 @@ describe("editSvgRootAttributes escapes set values for XML", () => {
     expect(out).toBe('<svg viewBox="0 0 1 1" aria-label="a&lt;b &amp; &quot;c&quot;"></svg>');
   });
 });
+
+// DM-NEV5JJ: the `<style>` selector scans used `/([^{}]*)(\{[^{}]*\})/g` and
+// `/([^{}]+)\{[^{}]*\}/g`, which backtrack quadratically through a long
+// brace-free run that is not a flat block's body (here a data-URI `@import`
+// after the last rule): 40 KB took 5-6 s per scan.
+describe("SVG <style> selector scans stay linear on long brace-free runs (DM-NEV5JJ)", () => {
+  const css = `.cls-1{fill:#a}#g{stroke:url(#a)} @import url("data:text/css;base64,${"QUJD".repeat(100_000)}");`;
+  const svg = `<style>${css}</style><g id="g" class="cls-1"/>`;
+
+  it("prefixSvgIds, prefixSvgClasses and isSvgSafeToFlatten finish quickly with the same rewrite", () => {
+    const started = performance.now();
+    const ids = prefixSvgIds(svg, "P-");
+    const classes = prefixSvgClasses(svg, "P-");
+    const safe = isSvgSafeToFlatten(svg);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(ids.includes(".cls-1{fill:#a}#P-g{stroke:url(#a)}")).toBe(true);
+    expect(classes.includes(".P-cls-1{fill:#a}#g{")).toBe(true);
+    expect(safe).toBe(true);
+  });
+});

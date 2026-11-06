@@ -31,6 +31,7 @@ import {
 import { invokeSynchronousCallback, type SynchronousCallback } from "./text-engine.js";
 import { resolveImageRootTransform, type ResolvedImageRootTransform } from "./svg-image-root-transform.js";
 import { renderWarn } from "./render-warn.js";
+import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
   start: number;
@@ -207,9 +208,9 @@ export function prefixSvgIds(svg: string, prefix: string): string {
     /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
     (_m, open: string, css: string, close: string) =>
       open +
-      css.replace(
-        /([^{}]*)(\{[^{}]*\})/g,
-        (_rule, selectors: string, body: string) =>
+      replaceFlatCssBlocks(
+        css,
+        (selectors, body) =>
           selectors.replace(/#(-?[_a-zA-Z][-_a-zA-Z0-9:.]*)/g, (_s, id: string) => `#${mapped(id)}`) + body,
       ) +
       close,
@@ -239,10 +240,9 @@ export function prefixSvgClasses(svg: string, prefix: string): string {
   let out = svg;
   // (a) class selectors inside <style> … </style>, selector-portion only.
   out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
-    const rewritten = css.replace(
-      /([^{}]*)(\{[^{}]*\})/g,
-      (_r, sel: string, block: string) =>
-        sel.replace(/\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)/g, (_c, name: string) => `.${prefix}${name}`) + block,
+    const rewritten = replaceFlatCssBlocks(
+      css,
+      (sel, block) => sel.replace(/\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)/g, (_c, name: string) => `.${prefix}${name}`) + block,
     );
     return open + rewritten + close;
   });
@@ -731,8 +731,8 @@ function hasUnscopableStyleSelector(body: string): boolean {
   if (styleBlocks == null) return false;
   for (const block of styleBlocks) {
     const css = block.replace(/<style\b[^>]*>/i, "").replace(/<\/style>/i, "");
-    for (const rule of css.matchAll(/([^{}]+)\{[^{}]*\}/g)) {
-      for (const selector of rule[1].split(",")) {
+    for (const rule of flatCssBlocks(css, { nonEmptyPrelude: true })) {
+      for (const selector of rule.prelude.split(",")) {
         // Strip class/id tokens and combinators/whitespace; anything left over
         // (a bare element name, `*`, `[attr]`, `:pseudo`) is unscopable.
         const remainder = selector

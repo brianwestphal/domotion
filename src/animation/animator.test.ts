@@ -2519,6 +2519,16 @@ describe("duplicate animation offsets", () => {
     expect(out).toContain("0% { opacity: 1; content: 'a;b'; transform: scale(1); }");
     expect((out.match(/(?:^|\s)0% \{/g) ?? []).length).toBe(1);
   });
+
+  // DM-NEV5JJ: the stop scan used `/([^{}]+)\{([^{}]*)\}/g`, quadratic in a long
+  // brace-free run that is not a stop's declaration block (40 KB took 5-6 s).
+  it("stays linear on a long brace-free run inside a keyframes body", () => {
+    const css = `<style>@keyframes fv-0{0%{opacity:0}0%{opacity:1}${" ".repeat(400_000)}}</style>`;
+    const started = performance.now();
+    const out = consolidateKeyframeOffsets(css);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(out).toBe("<style>@keyframes fv-0 { 0% { opacity: 1; } }</style>");
+  });
 });
 
 describe("angled linear wipe (DM-2041)", () => {

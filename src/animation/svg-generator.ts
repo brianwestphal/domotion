@@ -49,6 +49,7 @@ import { barCaretHeightPx, caretShapeRect, type CaretShape } from "./caret-metri
 import { textTrackMarkup, type ResolvedTextTrack } from "./caret-track.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { escapeRegExp } from "../utils/escape-regexp.js";
+import { flatCssBlocks } from "../utils/flat-css-blocks.js";
 import { normalizeTransition, type NormalizedTransitionPlan, type Transition } from "./transition-schema.js";
 import { cssEasingForStyle } from "./easing-input.js";
 import {
@@ -1524,11 +1525,9 @@ export function consolidateKeyframeOffsets(svg: string): string {
     if (!/^(?:fv-|fd-|ov-.+-vis$)/.test(name)) return whole;
     const stops = new Map<number, Map<string, string>>();
     let duplicate = false;
-    const rules = /([^{}]+)\{([^{}]*)\}/g;
-    let rule: RegExpExecArray | null;
-    while ((rule = rules.exec(inner)) != null) {
-      const declarations = splitCssDeclarations(rule[2]);
-      for (const rawSelector of rule[1].split(",")) {
+    for (const rule of flatCssBlocks(inner, { nonEmptyPrelude: true })) {
+      const declarations = splitCssDeclarations(rule.body);
+      for (const rawSelector of rule.prelude.split(",")) {
         const selector = rawSelector.trim();
         const offset =
           selector === "from"
