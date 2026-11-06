@@ -27,6 +27,7 @@ export type {
   CaptureElementTreeOptions,
   CaptureElementTreeDebugResult,
   CaptureElementTreeResult,
+  LaunchChromiumOptions,
 } from "./index.js";
 export { assembleCaptureDebugBundle } from "./debug-bundle.js";
 export type { AssembleCaptureDebugBundleOptions, CaptureDebugArtifacts, CaptureDebugBundle } from "./debug-bundle.js";

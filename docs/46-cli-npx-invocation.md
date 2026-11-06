@@ -145,11 +145,20 @@ itself needs:
   missing-browser launch error, runs `npx playwright install chromium`
   (stdio inherited so progress is visible), and retries — falling back to a
   clear "run it manually" message if the auto-install fails. The install runs
-  as an awaited child process, so a library caller's event loop keeps running,
-  and it is killed after `CHROMIUM_INSTALL_TIMEOUT_MS` (10 minutes) so a
-  wedged download cannot hang the command forever. First-run
-  `capture` / `animate` therefore works from a cold machine, at the cost of a
-  one-time browser download.
+  as an awaited child process, so the event loop keeps running, and it is
+  killed after `CHROMIUM_INSTALL_TIMEOUT_MS` (10 minutes) so a wedged download
+  cannot hang the command forever. First-run `capture` / `animate` therefore
+  works from a cold machine, at the cost of a one-time browser download.
+- **Auto-install is a CLI behavior, not a library default.** Every published
+  bin starts through `runBin` (`src/cli/common.ts`), which turns the
+  process-wide default on (`setChromiumAutoInstallDefault(true)` in
+  `src/capture/chromium-auto-install.ts`). A library caller that imports
+  `launchChromium` — directly, or through an API that launches a browser for it
+  such as `renderTemplateToSvg` — gets no download: a missing browser rejects
+  with an error naming `npx playwright install chromium`. An embedding
+  application must be able to refuse a network download into the shared
+  Playwright cache, so the download happens only when it passes
+  `launchChromium({ autoInstall: true })`.
 
 ## Caveats
 

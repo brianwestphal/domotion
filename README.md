@@ -56,7 +56,8 @@ npx domotion capture https://example.com -o example.svg
 Open `example.svg` in a browser. You should see a self-contained, scalable
 capture of the page with no external fonts, images, or scripts.
 
-Domotion installs Playwright's Chromium binary on first use. CI jobs can run
+The CLI installs Playwright's Chromium binary on first use (the scripting API
+does so only when you pass `launchChromium({ autoInstall: true })`). CI jobs can run
 `npx playwright install chromium` ahead of time to keep capture runtime
 predictable. For a zero-install trial, run
 `npx -p domotion-svg domotion capture https://example.com -o example.svg`.

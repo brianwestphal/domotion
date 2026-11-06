@@ -51,7 +51,7 @@ await browser.close();
 live page in, a standalone SVG file out.
 
 ```ts
-function launchChromium(opts?: LaunchOptions): Promise<Browser>;
+function launchChromium(opts?: LaunchOptions & { autoInstall?: boolean }): Promise<Browser>;
 function captureElementTree(
   page: Page,
   selector?: string, // default "body"
@@ -70,12 +70,13 @@ function elementTreeToSvg(
 ): string;
 ```
 
-`launchChromium` launches Chromium via Playwright, auto-installing the browser
-binary on first use if it's missing (it shells out to
-`npx playwright install chromium` and inherits stdout/stderr so the user sees
-progress). Use this instead of importing `chromium` from `@playwright/test`
-directly when you want a frictionless first-run experience; `opts` is forwarded
-to Playwright's `chromium.launch()`.
+`launchChromium` launches headless Chromium via Playwright; `opts` is forwarded
+to Playwright's `chromium.launch()`. If the browser binary is missing, it
+rejects with an error naming `npx playwright install chromium`, so your
+application never starts a download it did not ask for. Pass
+`autoInstall: true` for a frictionless first run: it shells out to
+`npx playwright install chromium` (inheriting stdout/stderr so the user sees
+progress) and retries. The `domotion` command-line tools always auto-install.
 
 `captureElementTree` walks the DOM of a live page into a serializable element
 tree — the intermediate representation every renderer consumes. Warnings about

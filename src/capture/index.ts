@@ -20,6 +20,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { primeExternalSvgUseDocuments } from "./external-svg-use.js";
+import { chromiumAutoInstallDefault } from "./chromium-auto-install.js";
 import { createPageRegistry } from "./page-registry.js";
 import { browserCallbackExpression, evaluateInFrame } from "./evaluate-in-frame.js";
 declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").browserImageNaturalSize;
@@ -213,25 +214,44 @@ export interface CaptureOptions {
   animatedImageFrames?: StrictAnimatedImageFrameRequest[];
 }
 
+/** `launchChromium` options: Playwright's `LaunchOptions` plus Domotion's install policy. */
+export interface LaunchChromiumOptions extends LaunchOptions {
+  /**
+   * Download Playwright's Chromium (`npx playwright install chromium`) and retry when the binary
+   * is missing. Defaults to `false` for library callers, so an embedding application never
+   * triggers a network download into the Playwright cache it did not ask for; the published
+   * command-line tools enable it at startup. When `false`, a missing browser rejects with an
+   * error naming the install command.
+   */
+  autoInstall?: boolean;
+}
+
 /**
- * Launch Chromium via Playwright, auto-installing the browser binary on first
- * use if it's missing. Use this instead of importing `chromium` from
- * `@playwright/test` directly when you want a frictionless first-run
- * experience for users of your tool.
+ * Launch headless Chromium via Playwright with the defaults Domotion expects.
  *
- * The install step is `npx playwright install chromium`, run as an awaited child
- * process (stdout / stderr inherited, so the user sees its progress) with a
- * `CHROMIUM_INSTALL_TIMEOUT_MS` deadline. Subsequent calls are a normal
- * `chromium.launch()` with no overhead.
+ * When the browser binary is missing and `autoInstall` is on, the install step is
+ * `npx playwright install chromium`, run as an awaited child process (stdout / stderr inherited,
+ * so the user sees its progress) with a `CHROMIUM_INSTALL_TIMEOUT_MS` deadline, followed by one
+ * retry. `autoInstall` is off by default for library callers and on for the CLIs (see
+ * `src/capture/chromium-auto-install.ts`); with it off, a missing browser rejects with the
+ * manual-install instruction.
  */
-export async function launchChromium(opts?: LaunchOptions): Promise<Browser> {
+export async function launchChromium(opts?: LaunchChromiumOptions): Promise<Browser> {
+  const { autoInstall = chromiumAutoInstallDefault(), ...playwrightOptions } = opts ?? {};
   // Keep automation non-interactive by construction. Callers that genuinely
   // need a headed diagnostic must opt into `headless: false` explicitly.
-  const launchOptions: LaunchOptions = { headless: true, ...opts };
+  const launchOptions: LaunchOptions = { headless: true, ...playwrightOptions };
   try {
     return await chromium.launch(launchOptions);
   } catch (err) {
     if (!isMissingBrowserError(err)) throw err;
+    if (!autoInstall) {
+      throw new Error(
+        "[domotion] Playwright Chromium is not installed. Run 'npx playwright install chromium', " +
+          "or pass { autoInstall: true } to launchChromium() to download it automatically.",
+        { cause: err },
+      );
+    }
 
     console.error("[domotion] Chromium binary not found — installing via 'npx playwright install chromium'…");
     await installPlaywrightChromium();

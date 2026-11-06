@@ -4,6 +4,10 @@ All notable changes to **Domotion** are documented in this file.
 
 ## Unreleased
 
+**⚠️ Breaking Changes**
+
+- **`launchChromium()` no longer downloads Chromium for library callers by default:** when Playwright's Chromium is missing, the library now rejects with an error that names `npx playwright install chromium` instead of starting a network download into the Playwright cache. Pass `launchChromium({ autoInstall: true })` to keep the old behavior. The `domotion`, `svg-to-image`, `svg-to-video`, `svg-review`, `svg-scrubber` and `domotion-studio` commands still install it automatically on first use.
+
 ## [0.34.0] - 2026-11-06
 
 **🚀 Features**

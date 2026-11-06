@@ -13,6 +13,7 @@ import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
+import { setChromiumAutoInstallDefault } from "../capture/chromium-auto-install.js";
 import { gzipSvg } from "../post-processing/index.js";
 
 const execFileP = promisify(execFile);
@@ -220,6 +221,8 @@ export async function runBin<O>(spec: {
   helpOnEmpty?: boolean;
   autoHelp?: boolean;
 }): Promise<void> {
+  // A command-line run may download Playwright's Chromium on first use; library callers must opt in.
+  setChromiumAutoInstallDefault(true);
   const argv = spec.argv ?? process.argv.slice(2);
   if (
     spec.autoHelp !== false &&
