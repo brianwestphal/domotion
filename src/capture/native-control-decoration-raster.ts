@@ -378,6 +378,11 @@ async function materializeDecorationCrop(
  * Hide the document, neutralize each host's structural paint, re-show only the
  * retained decoration parts, and verify every owner's identity, geometry, and
  * interaction state still match the CDP pre-pass.
+ *
+ * Each row takes one of three routes, written as methods on the in-page
+ * `helpers` object: the select arrow, the file-selector exact part box, and
+ * the generic closed-shadow parts. They share the identity, 0.25px rect and
+ * interaction-state checks defined on the same object.
  */
 const isolateDecorationsInPage = ({
   sourceNodeKey,
@@ -393,12 +398,13 @@ const isolateDecorationsInPage = ({
     entries: RestoreEntry[];
     activeElement: Element | null;
   };
+  type InteractionState = { focus: boolean; hover: boolean; active: boolean };
   const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
   const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;
   const restoreState = pageGlobal[restoreKey] as RestoreState;
   const restore = restoreState.entries;
   const initialActiveElement = restoreState.activeElement;
-  const interactionStates = rows.map((row) => {
+  const interactionStates = rows.map((row): InteractionState | null => {
     const host = row.index == null ? null : (sourceNodes?.[row.index] ?? null);
     return host instanceof HTMLElement
       ? {
@@ -445,28 +451,48 @@ const isolateDecorationsInPage = ({
       this.set(host, "text-shadow", "none");
       this.set(host, "outline", "none");
     },
-  };
-
-  for (const element of Array.from(document.querySelectorAll("*"))) {
-    helpers.set(element as HTMLElement, "visibility", "hidden");
-  }
-  for (const canvas of [document.documentElement, document.body]) {
-    if (canvas != null) helpers.set(canvas, "background", "transparent");
-  }
-
-  const result = rows.map((row, rowIndex) => {
-    const host = row.index == null ? null : (sourceNodes?.[row.index] ?? null);
-    if (!(host instanceof HTMLElement) || !host.isConnected) {
-      return { connected: false, fingerprintMatches: false, reason: "host detached or lost source correlation" };
-    }
-    const retained = (host as HTMLElement & Record<string, unknown>)[decorationNodeKey] as RetainedPart[] | undefined;
-    helpers.neutralizeHostPaint(host);
-
-    if (row.selectArrow) {
+    /** Whether no edge or extent of a used rect is more than 0.25px off the pre-pass rect. */
+    rectWithin(rect: DOMRect, left: number, top: number, width: number, height: number): boolean {
+      // Written as "no edge is off by more than 0.25px" so a NaN coordinate
+      // passes here, exactly as the original inline checks let it through.
+      return !(
+        Math.abs(rect.left - left) > 0.25 ||
+        Math.abs(rect.top - top) > 0.25 ||
+        Math.abs(rect.width - width) > 0.25 ||
+        Math.abs(rect.height - height) > 0.25
+      );
+    },
+    /** The retained part node, if it is still the same connected part inside this host's shadow root. */
+    ownedPart(host: HTMLElement, retained: RetainedPart[] | undefined, expected: DecorationPart): HTMLElement | null {
+      const entry = retained?.[expected.index];
+      const node = entry?.node;
+      if (!(node instanceof HTMLElement) || !node.isConnected || entry?.kind !== expected.kind) return null;
+      const root = node.getRootNode();
+      return root instanceof ShadowRoot && root.host === host ? node : null;
+    },
+    /** Whether focus, hover, active and the document's active element are what they were before isolation. */
+    interactionUnchanged(host: HTMLElement, initial: InteractionState | null): boolean {
+      return (
+        initial != null &&
+        document.activeElement === initialActiveElement &&
+        host.matches(":focus") === initial.focus &&
+        host.matches(":hover") === initial.hover &&
+        host.matches(":active") === initial.active
+      );
+    },
+    mismatch(reason: string): IsolationFact {
+      return { connected: true, fingerprintMatches: false, reason };
+    },
+    isolateSelectArrow(
+      host: HTMLElement,
+      row: IsolationRow,
+      retained: RetainedPart[] | undefined,
+      initial: InteractionState | null,
+    ): IsolationFact {
       const used = getComputedStyle(host);
-      helpers.set(host, "box-sizing", used.boxSizing);
-      helpers.set(host, "width", used.width);
-      helpers.set(host, "height", used.height);
+      this.set(host, "box-sizing", used.boxSizing);
+      this.set(host, "width", used.width);
+      this.set(host, "height", used.height);
       // Keep widths/radii/padding and `color`: SetupMenuListArrow consumes
       // those exact values. Only suppress the CSS-owned host surfaces and
       // the selected text. Inline background/border declarations retain
@@ -478,166 +504,104 @@ const isolateDecorationsInPage = ({
       // and padding inputs unchanged.
       for (const expected of row.parts ?? []) {
         if (expected.kind !== "select-inner") continue;
-        const entry = retained?.[expected.index];
-        const node = entry?.node;
-        const root = node?.getRootNode();
-        if (
-          !(node instanceof HTMLElement) ||
-          !node.isConnected ||
-          entry?.kind !== expected.kind ||
-          !(root instanceof ShadowRoot) ||
-          root.host !== host ||
-          node.parentNode == null
-        ) {
-          return { connected: true, fingerprintMatches: false, reason: "select inner owner identity changed" };
-        }
-        const rect = node.getBoundingClientRect();
-        if (
-          Math.abs(rect.left - expected.x) > 0.25 ||
-          Math.abs(rect.top - expected.y) > 0.25 ||
-          Math.abs(rect.width - expected.width) > 0.25 ||
-          Math.abs(rect.height - expected.height) > 0.25
-        ) {
-          return { connected: true, fingerprintMatches: false, reason: "select inner used rect changed" };
+        const node = this.ownedPart(host, retained, expected);
+        if (node == null || node.parentNode == null) return this.mismatch("select inner owner identity changed");
+        if (!this.rectWithin(node.getBoundingClientRect(), expected.x, expected.y, expected.width, expected.height)) {
+          return this.mismatch("select inner used rect changed");
         }
         restore.push({ type: "node", node, parent: node.parentNode, nextSibling: node.nextSibling });
         node.remove();
       }
-      const frozenRect = host.getBoundingClientRect();
-      if (
-        Math.abs(frozenRect.left - row.hostRect.left) > 0.25 ||
-        Math.abs(frozenRect.top - row.hostRect.top) > 0.25 ||
-        Math.abs(frozenRect.width - row.hostRect.width) > 0.25 ||
-        Math.abs(frozenRect.height - row.hostRect.height) > 0.25
-      ) {
-        return {
-          connected: true,
-          fingerprintMatches: false,
-          reason: "select host geometry changed during arrow isolation",
-        };
+      const { left, top, width, height } = row.hostRect;
+      if (!this.rectWithin(host.getBoundingClientRect(), left, top, width, height)) {
+        return this.mismatch("select host geometry changed during arrow isolation");
       }
-      const initial = interactionStates[rowIndex];
-      if (
-        initial == null ||
-        document.activeElement !== initialActiveElement ||
-        host.matches(":focus") !== initial.focus ||
-        host.matches(":hover") !== initial.hover ||
-        host.matches(":active") !== initial.active
-      ) {
-        return {
-          connected: true,
-          fingerprintMatches: false,
-          reason: "select interaction state changed during isolation",
-        };
+      if (!this.interactionUnchanged(host, initial)) {
+        return this.mismatch("select interaction state changed during isolation");
       }
       return { connected: true, fingerprintMatches: true };
-    }
-
-    if (row.exactPartBox) {
+    },
+    isolateFileSelector(
+      host: HTMLElement,
+      row: IsolationRow,
+      retained: RetainedPart[] | undefined,
+      initial: InteractionState | null,
+    ): IsolationFact {
       let buttonFound = false;
       let statusFound = false;
       for (const expected of row.parts ?? []) {
-        const entry = retained?.[expected.index];
-        const node = entry?.node;
-        if (
-          !(node instanceof HTMLElement) ||
-          !node.isConnected ||
-          entry?.kind !== expected.kind ||
-          !(node.getRootNode() instanceof ShadowRoot) ||
-          (node.getRootNode() as ShadowRoot).host !== host
-        ) {
-          return { connected: true, fingerprintMatches: false, reason: `${expected.kind} identity changed` };
-        }
-        const rect = node.getBoundingClientRect();
-        if (
-          Math.abs(rect.left - expected.x) > 0.25 ||
-          Math.abs(rect.top - expected.y) > 0.25 ||
-          Math.abs(rect.width - expected.width) > 0.25 ||
-          Math.abs(rect.height - expected.height) > 0.25
-        ) {
-          return { connected: true, fingerprintMatches: false, reason: `${expected.kind} used rect changed` };
+        const node = this.ownedPart(host, retained, expected);
+        if (node == null) return this.mismatch(`${expected.kind} identity changed`);
+        if (!this.rectWithin(node.getBoundingClientRect(), expected.x, expected.y, expected.width, expected.height)) {
+          return this.mismatch(`${expected.kind} used rect changed`);
         }
         if (expected.kind === "file-selector-button") {
           buttonFound = true;
           const used = getComputedStyle(node);
-          helpers.set(node, "visibility", "visible");
+          this.set(node, "visibility", "visible");
           // Host text-fill is transparent only to remove the sibling
           // filename. Restore the real child label from its own used
           // color without altering state, font, geometry, or theme paint.
-          helpers.set(node, "-webkit-text-fill-color", used.color);
+          this.set(node, "-webkit-text-fill-color", used.color);
         } else if (expected.kind === "file-selector-status") {
           statusFound = true;
-          helpers.set(node, "visibility", "hidden");
+          this.set(node, "visibility", "hidden");
         }
       }
-      if (!buttonFound || !statusFound) {
-        return {
-          connected: true,
-          fingerprintMatches: false,
-          reason: "file-selector button/status topology changed",
-        };
-      }
-      const initial = interactionStates[rowIndex];
-      if (
-        initial == null ||
-        document.activeElement !== initialActiveElement ||
-        host.matches(":focus") !== initial.focus ||
-        host.matches(":hover") !== initial.hover ||
-        host.matches(":active") !== initial.active
-      ) {
-        return {
-          connected: true,
-          fingerprintMatches: false,
-          reason: "file input interaction state changed during isolation",
-        };
+      if (!buttonFound || !statusFound) return this.mismatch("file-selector button/status topology changed");
+      if (!this.interactionUnchanged(host, initial)) {
+        return this.mismatch("file input interaction state changed during isolation");
       }
       return { connected: true, fingerprintMatches: true };
-    }
+    },
+    isolateClosedShadowParts(
+      host: HTMLElement,
+      row: IsolationRow,
+      retained: RetainedPart[] | undefined,
+      initial: InteractionState | null,
+    ): IsolationFact {
+      for (const expected of row.parts ?? []) {
+        const node = this.ownedPart(host, retained, expected);
+        if (node == null) return this.mismatch(`${expected.kind} identity changed`);
+        const rect = node.getBoundingClientRect();
+        const numbers = [rect.left, rect.top, rect.width, rect.height];
+        if (
+          !numbers.every(Number.isFinite) ||
+          rect.width <= 0 ||
+          rect.height <= 0 ||
+          !this.rectWithin(rect, expected.x, expected.y, expected.width, expected.height)
+        ) {
+          return this.mismatch(`${expected.kind} used rect changed`);
+        }
+        // Other computed part state—opacity, resource, appearance, hover,
+        // active, readonly—remains untouched and therefore authoritative.
+        this.set(node, "visibility", "visible");
+      }
+      if (!this.interactionUnchanged(host, initial)) {
+        return this.mismatch("control interaction state changed during isolation");
+      }
+      return { connected: true, fingerprintMatches: true };
+    },
+  };
 
-    for (const expected of row.parts ?? []) {
-      const entry = retained?.[expected.index];
-      const node = entry?.node;
-      if (
-        !(node instanceof HTMLElement) ||
-        !node.isConnected ||
-        entry?.kind !== expected.kind ||
-        !(node.getRootNode() instanceof ShadowRoot) ||
-        (node.getRootNode() as ShadowRoot).host !== host
-      ) {
-        return { connected: true, fingerprintMatches: false, reason: `${expected.kind} identity changed` };
-      }
-      const rect = node.getBoundingClientRect();
-      const numbers = [rect.left, rect.top, rect.width, rect.height];
-      if (
-        !numbers.every(Number.isFinite) ||
-        rect.width <= 0 ||
-        rect.height <= 0 ||
-        Math.abs(rect.left - expected.x) > 0.25 ||
-        Math.abs(rect.top - expected.y) > 0.25 ||
-        Math.abs(rect.width - expected.width) > 0.25 ||
-        Math.abs(rect.height - expected.height) > 0.25
-      ) {
-        return { connected: true, fingerprintMatches: false, reason: `${expected.kind} used rect changed` };
-      }
-      // Other computed part state—opacity, resource, appearance, hover,
-      // active, readonly—remains untouched and therefore authoritative.
-      helpers.set(node, "visibility", "visible");
+  for (const element of Array.from(document.querySelectorAll("*"))) {
+    helpers.set(element as HTMLElement, "visibility", "hidden");
+  }
+  for (const canvas of [document.documentElement, document.body]) {
+    if (canvas != null) helpers.set(canvas, "background", "transparent");
+  }
+
+  const result = rows.map((row, rowIndex): IsolationFact => {
+    const host = row.index == null ? null : (sourceNodes?.[row.index] ?? null);
+    if (!(host instanceof HTMLElement) || !host.isConnected) {
+      return { connected: false, fingerprintMatches: false, reason: "host detached or lost source correlation" };
     }
+    const retained = (host as HTMLElement & Record<string, unknown>)[decorationNodeKey] as RetainedPart[] | undefined;
+    helpers.neutralizeHostPaint(host);
     const initial = interactionStates[rowIndex];
-    if (
-      initial == null ||
-      document.activeElement !== initialActiveElement ||
-      host.matches(":focus") !== initial.focus ||
-      host.matches(":hover") !== initial.hover ||
-      host.matches(":active") !== initial.active
-    ) {
-      return {
-        connected: true,
-        fingerprintMatches: false,
-        reason: "control interaction state changed during isolation",
-      };
-    }
-    return { connected: true, fingerprintMatches: true };
+    if (row.selectArrow) return helpers.isolateSelectArrow(host, row, retained, initial);
+    if (row.exactPartBox) return helpers.isolateFileSelector(host, row, retained, initial);
+    return helpers.isolateClosedShadowParts(host, row, retained, initial);
   });
   void document.documentElement.getBoundingClientRect();
   return result;
@@ -661,6 +625,28 @@ const restoreDecorationIsolationInPage = ({
   const pageGlobal = globalThis as typeof globalThis & Record<string, unknown>;
   const state = pageGlobal[key] as RestoreState | undefined;
   const failures: string[] = [];
+  // Object methods, not named functions: see the note in isolateDecorationsInPage.
+  // These mirror its `rectWithin` / `ownedPart`; the two callbacks run as
+  // separate serialized functions and cannot share code.
+  const helpers = {
+    rectWithin(rect: DOMRect, left: number, top: number, width: number, height: number): boolean {
+      // Written as "no edge is off by more than 0.25px" so a NaN coordinate
+      // passes here, exactly as the original inline checks let it through.
+      return !(
+        Math.abs(rect.left - left) > 0.25 ||
+        Math.abs(rect.top - top) > 0.25 ||
+        Math.abs(rect.width - width) > 0.25 ||
+        Math.abs(rect.height - height) > 0.25
+      );
+    },
+    ownedPart(host: HTMLElement, retained: RetainedPart[] | undefined, expected: DecorationPart): HTMLElement | null {
+      const entry = retained?.[expected.index];
+      const node = entry?.node;
+      if (!(node instanceof HTMLElement) || !node.isConnected || entry?.kind !== expected.kind) return null;
+      const root = node.getRootNode();
+      return root instanceof ShadowRoot && root.host === host ? node : null;
+    },
+  };
   for (let index = (state?.entries.length ?? 0) - 1; index >= 0; index--) {
     const entry = state!.entries[index];
     if (entry.type === "node") {
@@ -712,36 +698,18 @@ const restoreDecorationIsolationInPage = ({
       failures.push("host lost source correlation during restore");
       continue;
     }
-    const hostRect = host.getBoundingClientRect();
-    if (
-      Math.abs(hostRect.left - row.hostRect.left) > 0.25 ||
-      Math.abs(hostRect.top - row.hostRect.top) > 0.25 ||
-      Math.abs(hostRect.width - row.hostRect.width) > 0.25 ||
-      Math.abs(hostRect.height - row.hostRect.height) > 0.25
-    ) {
+    const { left, top, width, height } = row.hostRect;
+    if (!helpers.rectWithin(host.getBoundingClientRect(), left, top, width, height)) {
       failures.push("host geometry did not restore exactly");
     }
     const retained = (host as HTMLElement & Record<string, unknown>)[decorationNodeKey] as RetainedPart[] | undefined;
     for (const expected of row.parts ?? []) {
-      const entry = retained?.[expected.index];
-      const node = entry?.node;
-      if (
-        !(node instanceof HTMLElement) ||
-        !node.isConnected ||
-        entry?.kind !== expected.kind ||
-        !(node.getRootNode() instanceof ShadowRoot) ||
-        (node.getRootNode() as ShadowRoot).host !== host
-      ) {
+      const node = helpers.ownedPart(host, retained, expected);
+      if (node == null) {
         failures.push(`${expected.kind} identity did not restore`);
         continue;
       }
-      const rect = node.getBoundingClientRect();
-      if (
-        Math.abs(rect.left - expected.x) > 0.25 ||
-        Math.abs(rect.top - expected.y) > 0.25 ||
-        Math.abs(rect.width - expected.width) > 0.25 ||
-        Math.abs(rect.height - expected.height) > 0.25
-      ) {
+      if (!helpers.rectWithin(node.getBoundingClientRect(), expected.x, expected.y, expected.width, expected.height)) {
         failures.push(`${expected.kind} geometry did not restore exactly`);
       }
     }
