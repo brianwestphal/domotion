@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
-import { checkablePseudoFactsOwnIndicator, renderFormControl } from "../src/render/form-controls.js";
+import { renderFormControl } from "../src/render/form-controls.js";
+import { checkablePseudoFactsOwnIndicator } from "../src/test-support/checkable-pseudo-contract.js";
 
 function flatten(tree: CapturedElement[]): CapturedElement[] {
   return tree.flatMap((element) => [element, ...flatten(element.children ?? [])]);

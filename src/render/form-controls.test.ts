@@ -7,12 +7,8 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { getLastCaptureWarnings, resetLastCaptureWarnings } from "../capture/warnings.js";
-import {
-  checkablePseudoFactsOwnIndicator,
-  renderFileSelectorOutsetShadow,
-  renderFormControl,
-  collectFormControlConicTiles,
-} from "./form-controls.js";
+import { renderFileSelectorOutsetShadow, renderFormControl, collectFormControlConicTiles } from "./form-controls.js";
+import { checkablePseudoFactsOwnIndicator } from "../test-support/checkable-pseudo-contract.js";
 import type { CapturedElement } from "../capture/types.js";
 
 describe("source-owned checkable indicators (DM-2459)", () => {

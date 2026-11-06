@@ -180,6 +180,7 @@
       "code": [
         "src/capture/pseudo-fragment-cdp.ts",
         "src/render/pseudo-fragments.ts",
+        "src/test-support/checkable-pseudo-contract.ts",
         "tests/checkable-pseudo-indicators.e2e.test.ts",
         "tools/pseudo-fragment-render-oracle.ts"
       ],

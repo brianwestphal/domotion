@@ -10,6 +10,7 @@ code:
   [
     "src/capture/pseudo-fragment-cdp.ts",
     "src/render/pseudo-fragments.ts",
+    "src/test-support/checkable-pseudo-contract.ts",
     "tests/checkable-pseudo-indicators.e2e.test.ts",
     "tools/pseudo-fragment-render-oracle.ts",
   ]
@@ -80,8 +81,9 @@ structural checkbox/radio host: there is no generic tick, dot, or switch-thumb
 synthesis on the render side at all. The ownership predicate
 `checkablePseudoFactsOwnIndicator` (true only for checkbox/radio hosts whose
 resolved appearance is `none` or `base` and whose `pseudoFragments` field is
-authoritative, including `[]`) is exported for the unit and browser tests that
-pin the capture contract; the renderer does not branch on it. `src/render/pseudo-fragments.ts` paints the
+authoritative, including `[]`) lives in `src/test-support/checkable-pseudo-contract.ts`
+for the unit and browser tests that pin the capture contract; it does not ship,
+and the renderer does not branch on it. `src/render/pseudo-fragments.ts` paints the
 captured text, box, gradient/image, transform, radius, and selected-font facts
 in Blink order: `::checkmark`, `::before`, host children, then `::after`, with
 the existing positioned/z-index slots where applicable. A uniform solid
@@ -99,7 +101,12 @@ serialized tree where `pseudoFragments` is `undefined` therefore renders a
 structural checkbox/radio with its host background and border only — no
 indicator. Modern capture always reports records or an explicit empty set, so
 this affects only replays of trees serialized before the pseudo-fragment
-capture contract. Protocol ambiguity follows
+capture contract. Such a tree's authored `::before` / `::after` indicator still
+paints through the legacy `pseudoBoxes` / `textSegments` renderer paths (doc
+176, "Legacy boundary"); only the removed host-geometry tick/dot/pill guess is
+gone, and it is not restored for old trees: it was an approximation of paint
+Chromium never produced from host geometry, which the parity policy removes
+rather than keeps. Protocol ambiguity follows
 the generated-pseudo fail-closed raster/warning contract in docs 176 and 178;
 it does not revive generic synthesis.
 

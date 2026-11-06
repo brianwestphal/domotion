@@ -10,7 +10,8 @@ import { pseudoFragmentRenderOutcome } from "./pseudo-fragment-render-report.js"
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
-import { checkablePseudoFactsOwnIndicator, renderFormControl } from "../src/render/form-controls.js";
+import { renderFormControl } from "../src/render/form-controls.js";
+import { checkablePseudoFactsOwnIndicator } from "../src/test-support/checkable-pseudo-contract.js";
 import { pseudoFragmentIsUnpainted, pseudoFragmentRecordErrors } from "../src/render/pseudo-fragments.js";
 
 const WIDTH = 820;

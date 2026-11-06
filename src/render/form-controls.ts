@@ -443,18 +443,6 @@ function renderInputControl(el: CapturedElement, indent: string, defCtx?: DefCtx
   return "";
 }
 
-/**
- * Modern capture explicitly records the generated-pseudo ownership decision,
- * including an empty array when no indicator paints.  For structural
- * appearance:none/base checkables that fact is authoritative: ::before,
- * ::after, or ::checkmark paints through the pseudo pipeline, and the generic
- * host-geometry approximation must not be layered on top.
- */
-export function checkablePseudoFactsOwnIndicator(el: CapturedElement): boolean {
-  const appearance = el.styles.effectiveAppearance ?? el.styles.inputAppearance;
-  return (appearance === "none" || appearance === "base") && Array.isArray(el.pseudoFragments);
-}
-
 function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): string {
   // Structural ranges consume the captured used track/thumb pseudo styles.
   // Native slider appearances terminate at the route guard above.
