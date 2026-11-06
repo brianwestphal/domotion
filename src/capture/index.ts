@@ -81,6 +81,7 @@ import { resetLastCaptureWarnings } from "./warnings.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { assertCapturedTreeShape } from "./tree-shape.js";
 import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
+import { fetchFontSourceBytes } from "./font-source-bytes.js";
 import { parseCrossOriginFontFaceRules, type FaceRule } from "./cross-origin-font-face.js";
 import type {
   CapturedElement,
@@ -713,13 +714,14 @@ async function registerDiscoveredFont(
   let registered = false;
   for (const candidateUrl of candidates) {
     try {
-      const resp = await page.context().request.get(candidateUrl);
-      if (!resp.ok()) {
-        lastError = `HTTP ${resp.status()}`;
+      // data: and file: sources never reach Playwright's request API, which
+      // rejects both protocols (see font-source-bytes.ts).
+      const fetched = await fetchFontSourceBytes(candidateUrl, (u) => page.context().request.get(u), page.url());
+      if (!fetched.ok) {
+        lastError = fetched.error;
         continue;
       }
-      const fetched = Buffer.from(await resp.body());
-      const buf = await ensureNonWoff2(fetched);
+      const buf = await ensureNonWoff2(fetched.body);
 
       if (item.kind === "font-face") {
         // Verify fontkit can actually parse the bytes before registering;
@@ -1059,9 +1061,17 @@ export async function discoverAndRegisterWebfonts(
   for (const sheetUrl of fromPage.crossOriginSheetUrls) {
     let cssText: string;
     try {
-      const resp = await page.context().request.get(sheetUrl);
-      if (!resp.ok()) continue;
-      cssText = await resp.text();
+      if (/^(data|file):/i.test(sheetUrl)) {
+        // A `file:` page's own `file:` sheets are opaque-origin to Chrome, so
+        // they land here too; Playwright's request API rejects both protocols.
+        const fetched = await fetchFontSourceBytes(sheetUrl, (u) => page.context().request.get(u), page.url());
+        if (!fetched.ok) continue;
+        cssText = fetched.body.toString("utf8");
+      } else {
+        const resp = await page.context().request.get(sheetUrl);
+        if (!resp.ok()) continue;
+        cssText = await resp.text();
+      }
     } catch {
       continue;
     }

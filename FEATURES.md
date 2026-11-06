@@ -17,6 +17,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **text-inline-mixed**: Mixed inline content (prose with inline code spans)
 - [x] **text-pre-multiline**: Preformatted multiline text (`<pre>` with `white-space: pre`)
 - [x] **text-font-stretch-underline**: CSS `font-stretch` end to end — condensed/expanded cut selection for declared families (Blink's trait-based style matcher), the `wdth` variation axis on the macOS `system-ui` face and variable webfonts, and decoration metrics resolved on the same width-matched face as the glyphs
+- [x] **text-webfont-font-face**: `@font-face` webfonts whose `src` is a `data:` URL (self-contained HTML) are discovered, decoded locally and registered, so the SVG paints the same webfont glyphs Chrome does; `file:` sources of a `file:` page are read from disk
 - [x] **mathml-radical-inherited-math-style** (doc 264): nested rows, fractions, and authored `math-style` overrides select the radical's normal or compact OpenType MATH vertical gap from its computed style
 
 ### Backgrounds & Colors

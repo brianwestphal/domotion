@@ -7,6 +7,7 @@
  * Usage: npx tsx tests/features.ts [--only feature-name]
  */
 
+import { FIXTURE_FONT_CSS, FIXTURE_MONO_STACK, FIXTURE_SERIF_STACK } from "./fixture-fonts.js";
 import { runFeatureTests, type FeatureTest } from "./runner.js";
 
 export const tests: FeatureTest[] = [
@@ -1993,6 +1994,20 @@ export const tests: FeatureTest[] = [
     </div>`,
     width: 700,
     height: 220,
+  },
+  {
+    // `@font-face` sources given as `data:` URLs — how self-contained HTML
+    // embeds a font. Playwright's request API rejects the data: protocol, so
+    // webfont discovery used to report both faces as failed and the SVG fell
+    // back to the system serif / monospace while Chrome painted the webfonts.
+    // Single-quoted style attributes: the stacks contain double quotes.
+    name: "text-webfont-font-face",
+    html: `<style>${FIXTURE_FONT_CSS}</style><div style="background:#fff;color:#111;padding:20px;font-size:32px;">
+      <div style='font-family:${FIXTURE_SERIF_STACK};'>Hamburgefonstiv serif</div>
+      <div style='font-family:${FIXTURE_MONO_STACK};'>Hamburgefonstiv mono</div>
+    </div>`,
+    width: 600,
+    height: 140,
   },
   {
     // DM-1973: the declared-family WEIGHT-SCORING rung, which no other fixture

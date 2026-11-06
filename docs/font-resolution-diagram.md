@@ -119,7 +119,7 @@ flowchart TD
   A5 -.-> C0
 ```
 
-**Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts`;
+**Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts` (source bytes via `fetchFontSourceBytes` in `src/capture/font-source-bytes.ts`: `data:` decoded locally, `file:` read from disk for a `file:` page, everything else through the browser request API);
 `resetGeneration` / `snapshotGeneration` / `restoreGeneration` in
 `packages/text-engine/src/render/generation.ts`, invoked by
 `withTextEngineDocument` in `packages/text-engine/src/render/text-engine.ts`;
