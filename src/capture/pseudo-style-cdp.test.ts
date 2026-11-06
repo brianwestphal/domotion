@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   controlPseudoKindForNode,
+  blockPreludes,
   dynamicScrollbarPseudoKindsFromCss,
   hasAuthorPseudoOrigin,
   resolvedControlPseudoStyle,
@@ -93,6 +94,34 @@ describe("Chromium-resolved control pseudo capture", () => {
       `,
     ]);
     expect([...kinds].sort()).toEqual(["scrollbar-button", "scrollbar-thumb", "scrollbar-track-piece"]);
+  });
+
+  it("splits block preludes exactly like the brace regex it replaced", () => {
+    const samples = [
+      "",
+      "a{b}",
+      "  .x::-webkit-scrollbar:hover { color: red }\n@media (x) { .y { z: 1 } }",
+      "{}{}  {",
+      "}}}a{",
+      "no braces at all",
+      "a{b{c}d}e{",
+    ];
+    for (const text of samples) {
+      expect(blockPreludes(text), JSON.stringify(text)).toEqual([...text.matchAll(/([^{}]+)\{/g)].map((m) => m[1]));
+    }
+  });
+
+  // DM-BYYQMS: a large brace-free declaration body (a data-URI webfont) made the
+  // old `/([^{}]+)\{/g` scan quadratic; captures of such a page took 10-20 s.
+  it("scans a stylesheet with a large data-URI declaration in linear time", () => {
+    const payload = "A".repeat(400_000);
+    const css = `@font-face { font-family: F; src: url(data:font/ttf;base64,${payload}) }
+      .box::-webkit-scrollbar-thumb:hover { background: red }`;
+    const started = performance.now();
+    const kinds = dynamicScrollbarPseudoKindsFromCss([css]);
+    // The quadratic scan needs minutes here; the linear one, milliseconds.
+    expect(performance.now() - started).toBeLessThan(2_000);
+    expect([...kinds]).toEqual(["scrollbar-thumb"]);
   });
 
   it("serializes final longhands after Blink resolves shorthand/longhand competition", () => {

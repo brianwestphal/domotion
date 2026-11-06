@@ -131,6 +131,32 @@ const DYNAMIC_SCROLLBAR_STATE =
   /:(?:horizontal|vertical|decrement|increment|start|end|double-button|single-button|no-button|corner-present|window-inactive|hover|active|enabled|disabled)\b/i;
 
 /**
+ * Every non-empty run of text between braces that opens a block (`{`): the
+ * selector or at-rule prelude in front of each block.
+ *
+ * DM-BYYQMS: this used to be `text.matchAll(/([^{}]+)\{/g)`. A run of brace-free
+ * text that is NOT followed by `{` (a declaration block's body, such as a
+ * `src: url(data:font/ttf;base64,…)` webfont) makes that pattern backtrack
+ * through the whole run from every starting offset, which is quadratic in the
+ * run's length. A page carrying two ~50 KB data-URI fonts spent 10-20 s of
+ * every capture here. This single pass is linear.
+ */
+export function blockPreludes(text: string): string[] {
+  const preludes: string[] = [];
+  let start = 0;
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    if (code === 0x7b /* { */) {
+      if (index > start) preludes.push(text.slice(start, index));
+      start = index + 1;
+    } else if (code === 0x7d /* } */) {
+      start = index + 1;
+    }
+  }
+  return preludes;
+}
+
+/**
  * Identify scrollbar pseudo kinds whose final style depends on an anonymous
  * instance state that stable CDP cannot query. This is detection only: the
  * capture path never tries to replay the author cascade. A matching part is
@@ -141,8 +167,7 @@ export function dynamicScrollbarPseudoKindsFromCss(styleSheetTexts: readonly str
   const pseudo = /::-webkit-scrollbar(?:-track-piece|-button|-thumb|-track|-corner)?/gi;
   for (const rawText of styleSheetTexts) {
     const text = rawText.replace(/\/\*[\s\S]*?\*\//g, "");
-    for (const block of text.matchAll(/([^{}]+)\{/g)) {
-      const selectorText = block[1] ?? "";
+    for (const selectorText of blockPreludes(text)) {
       for (const match of selectorText.matchAll(pseudo)) {
         const suffix = selectorText.slice((match.index ?? 0) + match[0].length);
         if (!DYNAMIC_SCROLLBAR_STATE.test(suffix)) continue;
