@@ -48,10 +48,13 @@ not control.
   `embedded-font`. An unknown value is rejected at the CLI boundary.
 - **`animate` CLI:** `domotion animate config.json --text-mode system-font`
   selects the mode for every frame of an animated capture. The mode is a
-  render-side process-global set once before the animate pipeline runs, so it
+  render-side process-global set when the animate execution begins, so it
   threads through the multi-frame flipbook, compressed-states runs, and the
   `--scroll` composer (which the `capture` CLI already routes through the same
-  global). Same accepted values and CLI-boundary rejection as `capture`.
+  global). Same accepted values and CLI-boundary rejection as `capture`. Both
+  `executeCapture` and `executeAnimate` restore the previous mode when the
+  execution settles (success or failure), so an in-process caller's next
+  render does not inherit it (`src/cli/process-render-settings.ts`).
 - **`capture --scroll`:** `--text-mode` passes the selected mode to the scroll
   composer's `renderText` option for every segment.
 - **API (scoped):** `elementTreeToSvg(tree, w, h, { renderTextMode: "system-font" })`

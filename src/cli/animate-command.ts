@@ -8,7 +8,8 @@ import { launchChromium } from "../capture/index.js";
 // circular-import TDZ that breaks the storyboard-schema build. Routing through
 // `../render/index.js` (rather than `../render/font-resolution.js` directly)
 // also keeps to the font-subsystem import boundary (DM-1980 / DM-FJZQ34).
-import { setRenderTextMode, RENDER_TEXT_MODES, isRenderTextMode } from "../render/index.js";
+import { RENDER_TEXT_MODES, isRenderTextMode } from "../render/index.js";
+import { withProcessRenderSettings } from "./process-render-settings.js";
 import { loadBrand, type Brand } from "../templates/brand.js";
 import { resolveFormat, type SafeInset } from "../templates/formats.js";
 import { errorMessage, makeLogger, parseIntFlag, readInputFile, UsageError } from "./common.js";
@@ -93,14 +94,20 @@ export async function runAnimate(args: string[], help: string): Promise<void> {
   await executeAnimate(parsed);
 }
 
-export async function executeAnimate(
-  parsed: Exclude<ReturnType<typeof parseAnimateArgs>, { help: true }>,
-): Promise<void> {
-  const { values, cfg, configPath, configDir, safeInset, brand } = parsed;
-  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
-    setRenderTextMode(values["text-mode"]);
-  }
+type ParsedAnimate = Exclude<ReturnType<typeof parseAnimateArgs>, { help: true }>;
 
+export async function executeAnimate(parsed: ParsedAnimate): Promise<void> {
+  // The text mode is a process-global render setting: applied for this
+  // execution only and restored when it settles (see process-render-settings).
+  const textMode = parsed.values["text-mode"];
+  await withProcessRenderSettings(
+    typeof textMode === "string" && isRenderTextMode(textMode) ? { renderTextMode: textMode } : {},
+    () => runAnimateExecution(parsed),
+  );
+}
+
+async function runAnimateExecution(parsed: ParsedAnimate): Promise<void> {
+  const { values, cfg, configPath, configDir, safeInset, brand } = parsed;
   const log = makeLogger(values.quiet === true);
   const outputArg = values.output ?? cfg.output;
   const { debug, debugDir } = setupDebugBundle("animate", values.debug, values["debug-dir"], outputArg, log);

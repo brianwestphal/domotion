@@ -24,7 +24,6 @@ import {
   clearEmbeddedFonts,
   clearGlyphDefs,
   clearWebfonts,
-  setRenderTextMode,
   getRenderTextMode,
   RENDER_TEXT_MODES,
   isRenderTextMode,
@@ -33,7 +32,7 @@ import { embedRemoteImages } from "../capture/embed.js";
 import { compressEmbeddedFontsToWoff2, optimizeSvg } from "../post-processing/index.js";
 import { logCaptureWarnings } from "../capture/warnings.js";
 import { resolveFormat, safeAreaGuideSvg, formatNames, type ResolvedFormat } from "../templates/index.js";
-import { setFlattenNestedSvg } from "../render/svg-inline.js";
+import { withProcessRenderSettings } from "./process-render-settings.js";
 import {
   attachWebfontTracker,
   crossOriginFramesLaunchArgs,
@@ -256,17 +255,25 @@ export async function runCapture(args: string[], help: string): Promise<void> {
   await executeCapture(parsed);
 }
 
-export async function executeCapture(
-  parsed: Exclude<ReturnType<typeof parseCaptureArgs>, { help: true }>,
-): Promise<void> {
-  const { values, flags, input, har, fmt, svgz, pattern, speed, brand } = parsed;
-  // The mode is process-global and applies only once execution begins.
-  if (typeof values["text-mode"] === "string" && isRenderTextMode(values["text-mode"])) {
-    setRenderTextMode(values["text-mode"]);
-  }
-  // Flatten inlined SVG images only for this one-shot execution.
-  if (values["flatten-nested-svg"] === true) setFlattenNestedSvg(true);
+type ParsedCapture = Exclude<ReturnType<typeof parseCaptureArgs>, { help: true }>;
 
+export async function executeCapture(parsed: ParsedCapture): Promise<void> {
+  const { values } = parsed;
+  // The text mode and nested-SVG flattening are process-global render
+  // settings. They apply only once execution begins and are restored when it
+  // settles, so an in-process caller's next capture does not inherit them.
+  const textMode = values["text-mode"];
+  await withProcessRenderSettings(
+    {
+      ...(typeof textMode === "string" && isRenderTextMode(textMode) ? { renderTextMode: textMode } : {}),
+      ...(values["flatten-nested-svg"] === true ? { flattenNestedSvg: true } : {}),
+    },
+    () => runCaptureExecution(parsed),
+  );
+}
+
+async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
+  const { values, flags, input, har, fmt, svgz, pattern, speed, brand } = parsed;
   const log = makeLogger(values.quiet === true);
   const { debug, debugDir } = setupDebugBundle("capture", values.debug, values["debug-dir"], flags.output, log);
   // DM-1442: opt-in cross-origin iframe recursion launches Chromium with web
