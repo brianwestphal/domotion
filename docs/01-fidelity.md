@@ -178,6 +178,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [~] border-image — URL and gradient sources use shared nine-piece slice, snapped destination, and repeat/round/space tiling geometry; see [doc 263](263-nine-piece-image-paint.md). Other source forms remain tracked by SK-466.
 - [x] outline (style/width/color/offset, including dashed/dotted/double) — SK-1111 / DM-2355
 - [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113
+  - An inset shadow paints whenever any of its offset, blur or spread is non-zero. An offset-only inset (`inset 0 -3px 0 …`) is an unblurred crescent, because Blink's `BoxPainterBase::PaintInsetBoxShadow` has no blur/spread early-out (`core/paint/box_painter_base.cc:526-571`, Chromium 7d859f27). Fixture: `box-shadow-inset-offset-only`.
 - [x] text-shadow: x/y offset + blur, multi-layered — SK-1113
 - [x] opacity (element-level, applies to whole subtree)
 - [x] filter (blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate, sepia, chained); CSS `url(#filter)` references preserve captured inline SVG filter graphs and evaluate them in the HTML element's local reference-box coordinate space, including coordinate-sensitive `feTurbulence` / `feDisplacementMap` chains. HTML reference graphs containing `feConvolveMatrix` use the narrow Chromium-painted surface boundary in doc 148 because their input is Blink's raster `SourceGraphic`; native SVG convolution and non-convolution URL graphs remain vector.

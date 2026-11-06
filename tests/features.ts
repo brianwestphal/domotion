@@ -753,6 +753,17 @@ export const tests: FeatureTest[] = [
     height: 120,
   },
   {
+    // An inset shadow with an offset but zero blur and zero spread paints a
+    // hard crescent: Blink's PaintInsetBoxShadow has no blur/spread early-out
+    // (core/paint/box_painter_base.cc:526-571, Chromium 7d859f27). Covers a
+    // plain box, a rounded box with two stacked offset insets, and a range
+    // thumb with the common "pressed bottom edge" inset.
+    name: "box-shadow-inset-offset-only",
+    html: `<style>.b{display:inline-block;width:110px;height:56px;margin:14px 10px;background:#60a5fa;vertical-align:top}.r{border-radius:14px;background:#fbbf24;box-shadow:inset 6px 0 0 #b45309,inset 0 -4px 0 rgba(0,0,0,.35)}input.p{appearance:none;display:block;width:300px;height:32px;margin:6px 10px}input.p::-webkit-slider-runnable-track{height:10px;border-radius:5px;background:#cbd5e1}input.p::-webkit-slider-thumb{appearance:none;width:26px;height:26px;margin-top:-8px;border-radius:50%;background:#2563eb;box-shadow:inset 0 -3px 0 rgba(0,0,0,.4)}</style><div class="b" style="box-shadow:inset 0 -5px 0 rgba(0,0,0,.4)"></div><div class="b r"></div><div class="b" style="border:3px solid #1e3a8a;box-shadow:inset -4px 4px 0 #f43f5e"></div><input class="p" type="range" value="40">`,
+    width: 420,
+    height: 140,
+  },
+  {
     // A control pseudo with a background-image LIST paints every layer over
     // its background color, last-listed first (BoxPainterBase::PaintFillLayers,
     // Chromium 7d859f27): a translucent stripe layer over a base gradient on

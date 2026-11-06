@@ -58,6 +58,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **comp-input-value**: Native `<input>` element with value attribute
 - [x] **native-control-decoration-split** (DM-2455, doc 171): styled select/temporal/search/number hosts and value text remain structural while exact Chromium menulist-arrow and closed-shadow picker/cancel/spin layers are isolated into fail-closed transparent overlays; base-select remains fully vector.
 - [x] **range-pseudo-box-shadow** (doc 04): slider track and thumb `box-shadow` lists (offset, blur, spread rings, inset) paint through the general box-shadow painters.
+- [x] **box-shadow-inset-offset-only** (doc 01): an inset `box-shadow` with an offset but zero blur and zero spread paints a hard crescent on plain, bordered and rounded boxes and on a range thumb.
 - [x] **range-multilayer-pseudo-background** (doc 07): a form-control pseudo `background-image` list paints every gradient layer bottom-to-top over the background color; a non-gradient layer is omitted with a named warning.
 - [x] **comp-code-block**: Code block with monospace, background, border
 - [ ] **comp-nav**: Navigation bar with logo and links

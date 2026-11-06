@@ -105,7 +105,12 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
   for (let si = shadows.length - 1; si >= 0; si--) {
     const sh = shadows[si];
     if (!sh.inset) continue;
-    if (sh.spread === 0 && sh.blur === 0) continue;
+    // Blink has no blur/spread early-out (BoxPainterBase::PaintInsetBoxShadow,
+    // core/paint/box_painter_base.cc:526-571, Chromium 7d859f27): it clips to
+    // the padding box and draws the hole shifted by the offset, so an
+    // offset-only inset (`inset 0 -3px 0 …`) paints a hard crescent. Only an
+    // all-zero shadow has an empty paint, because its hole is the clip.
+    if (sh.x === 0 && sh.y === 0 && sh.spread === 0 && sh.blur === 0) continue;
     if (ibW <= 0 || ibH <= 0) continue;
 
     const shadowColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
