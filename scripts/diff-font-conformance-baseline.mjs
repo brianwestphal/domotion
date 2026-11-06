@@ -67,6 +67,36 @@ export function parseBaselineArgs(args, env = process.env) {
 }
 
 /**
+ * Warnings about the macOS MobileAsset (downloadable) font set. NEVER reasons
+ * to withhold a verdict.
+ *
+ * CoreText serves faces such as PingFang from
+ * `/System/Library/AssetsV2/com_apple_MobileAsset_Font<N>/`, which the font
+ * inventory digest (part of the comparability key above) does not read. That
+ * digest is deliberately left alone, so committed baselines stay comparable;
+ * this record rides beside it. It is warn-only for two reasons: a baseline
+ * that predates the record must keep its verdict, and whether hosted runners
+ * download assets on demand — which would churn the digest run to run — is
+ * exactly what the record is there to measure. A field absent on either side
+ * produces no warning.
+ *
+ * @returns {string[]}
+ */
+export function fontAssetWarnings(runMeta, baseMeta) {
+  const out = [];
+  for (const note of runMeta?.fontAssetNotes ?? []) out.push(`run: ${note}`);
+  const a = runMeta?.fontAssets?.digest;
+  const b = baseMeta?.fontAssets?.digest;
+  if (a != null && b != null && a !== b) {
+    out.push(
+      `MobileAsset font digest: run ${a} (${runMeta.fontAssets.count ?? "?"} entries), ` +
+        `baseline ${b} (${baseMeta.fontAssets.count ?? "?"} entries)`,
+    );
+  }
+  return out;
+}
+
+/**
  * Is this run comparable with that baseline?
  *
  * Returns a list of human-readable reasons it is not; empty means it is.
@@ -280,6 +310,9 @@ export function formatRunHeader(run, label) {
     `| distinct disagreeing routes | ${routes.toLocaleString()} |`,
     `| runner image | \`${run.meta?.image ?? "?"}\` |`,
     `| font inventory | \`${run.meta?.fontInventory?.digest ?? "?"}\` (${run.meta?.fontInventory?.count ?? "?"} entries) |`,
+    ...(run.meta?.fontAssets != null
+      ? [`| MobileAsset fonts | \`${run.meta.fontAssets.digest}\` (${run.meta.fontAssets.count ?? "?"} entries) |`]
+      : []),
     `| Unicode / ICU | ${run.meta?.unicode ?? "?"} / ${run.meta?.icu ?? "?"} |`,
     `| Chromium | \`${run.meta?.chromium ?? "?"}\` |`,
     `| corpus | \`${run.meta?.corpus?.file ?? "?"}\` |`,
@@ -377,6 +410,15 @@ function main() {
   }
 
   const base = JSON.parse(readFileSync(baselinePath, "utf8"));
+  const assetWarnings = fontAssetWarnings(run.meta, base.meta);
+  if (assetWarnings.length > 0) {
+    md.push(
+      `> ⚠️ **macOS downloadable fonts moved.** The verdict below still stands, but a Chrome-side move may be this:`,
+      "",
+      ...assetWarnings.map((w) => `> - ${w}`),
+      "",
+    );
+  }
   const reasons = comparability(run.meta, base.meta);
   if (reasons.length > 0) {
     md.push(

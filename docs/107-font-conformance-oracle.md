@@ -7,6 +7,7 @@ owners: ["text-fonts", "platform-release"]
 platforms: ["macos", "linux", "windows"]
 tickets:
   [
+    "DM-C15ZXR",
     "DM-Q9BAAJ",
     "DM-1858",
     "DM-1905",
@@ -1113,6 +1114,10 @@ Three fields close that, all in the report's `meta`:
 The comparator reads them back and names the stack directly — `` `sans-serif@32/700/normal`: `Helvetica-Bold` → `Arial-BoldMT` `` — plus the machine that measured it. A baseline captured before these existed says so rather than staying silent.
 
 None of it can fail a sweep: `fontInventory` swallows its own errors, because diagnostic metadata that breaks the instrument is worse than no metadata.
+
+**macOS downloadable fonts are recorded beside the inventory, warn-only.** The inventory digest reads `/System/Library/Fonts`, `/Library/Fonts` and `~/Library/Fonts`; CoreText also serves faces such as PingFang from MobileAsset bundles under `/System/Library/AssetsV2/com_apple_MobileAsset_Font<N>/`, which it cannot see (measured on a dev Mac: an asset installed mid-session moved Chrome's paint with the inventory digest unchanged; doc 66). `scripts/ci-font-conformance-shard.sh` therefore writes `font-assets.json` (`tools/font-inventory.mjs --assets`) before the sweep and `font-assets-after.json` on exit, including a dead shard's exit. `scripts/merge-font-conformance-shards.mjs` folds them into `meta.fontAssets` (null when shards disagree) and `meta.fontAssetNotes` (a shard split, or a shard whose set changed during its own sweep, i.e. CoreText downloaded an asset on demand). The comparator prints those notes, and a run-vs-baseline digest change, as a warning banner above the verdict and never withholds it.
+
+It is deliberately outside the comparability key: not in `fontInventory.digest`, not in `envConflicts`, and not in `parityEnvironment`, which the comparator matches as whole JSON. Any of those would have made every committed baseline NOT COMPARABLE, and whether hosted runners fetch assets on demand, which would churn the digest run to run, is what the before/after record is there to measure. Every baseline seeded before this record carries no `fontAssets` and produces no warning.
 
 The name list alone could not have served, and it is worth knowing why: across the two runs above it was **byte-identical** (291 faces both times), because every face involved was already in use on some other stack. Only the distribution moved. That is also why the original decision to store keys rather than counts — on the reasoning that counts "would churn the diff on every run" — turned out to be the wrong trade: measured, only five faces' counts moved between those runs, and every one was the oracle changing its mind.
 

@@ -136,6 +136,47 @@ export function environmentConflicts(shards) {
   return conflicts;
 }
 
+/**
+ * Fold the per-shard macOS MobileAsset font records (`font-assets.json` before
+ * the sweep, `font-assets-after.json` on exit; `tools/font-inventory.mjs
+ * --assets`).
+ *
+ * CoreText also serves faces from downloadable MobileAsset bundles that the
+ * font inventory cannot see — a PingFang asset installed mid-session once moved
+ * Chrome's paint on a dev Mac with the inventory digest unchanged. This record
+ * is deliberately NOT one of `ENV_FIELDS`: a split here would turn the merge's
+ * outcome into "error" and the comparator into a refusal, and whether hosted
+ * runners fetch assets on demand (which would churn it run to run) is exactly
+ * what this record exists to find out. It produces notes, never a refusal.
+ *
+ * @param {Array<{name: string, report: object|null, env?: object|null}>} shards
+ * @returns {{fontAssets: {digest: string, count: number|null, source: string|null}|null, fontAssetNotes: string[]}}
+ */
+export function foldFontAssets(shards) {
+  const present = (shards ?? []).filter((s) => s != null && s.report != null && s.env?.fontAssets?.digest != null);
+  const notes = [];
+  const byDigest = new Map();
+  for (const s of present) {
+    const d = s.env.fontAssets.digest;
+    if (!byDigest.has(d)) byDigest.set(d, []);
+    byDigest.get(d).push(s.name);
+    const after = s.env.fontAssetsAfter?.digest;
+    if (after != null && after !== d) {
+      notes.push(`shard ${s.name}: the MobileAsset font set changed during the sweep (${d} -> ${after})`);
+    }
+  }
+  if (byDigest.size > 1) {
+    const parts = [...byDigest.entries()].map(([d, names]) => `${d} (${names.sort().join(", ")})`);
+    notes.unshift(`shards disagree on the MobileAsset font digest: ${parts.join(" vs ")}`);
+  }
+  const first = present[0]?.env.fontAssets ?? null;
+  const fontAssets =
+    first == null || byDigest.size !== 1
+      ? null
+      : { digest: first.digest, count: first.count ?? null, source: first.source ?? null };
+  return { fontAssets, fontAssetNotes: notes };
+}
+
 export function mergeShards(shards, opts = {}) {
   /** @type {Record<string, number>} */
   const summary = {};
@@ -207,6 +248,7 @@ export function mergeShards(shards, opts = {}) {
   const expected = opts.expected ?? shards.length;
   const merged = missingShards.length === 0 && shards.length >= expected;
   const envConflicts = environmentConflicts(shards);
+  const { fontAssets, fontAssetNotes } = foldFontAssets(shards);
 
   return {
     meta: {
@@ -231,6 +273,9 @@ export function mergeShards(shards, opts = {}) {
         codepoints: sum(cpsByCpShard.values()),
       },
       fontInventory: opts.fontInventory ?? null,
+      /** macOS MobileAsset fonts; null when unrecorded or the shards disagree. Warn-only. */
+      fontAssets,
+      fontAssetNotes,
       parityEnvironment: meta?.parityEnvironment ?? null,
       rotationRevision: meta?.rotationRevision ?? null,
       rotationOrdinal: meta?.rotationOrdinal ?? null,
@@ -336,6 +381,8 @@ function main() {
       env: {
         image: readShardFile(name, "runner-image.txt")?.trim() || null,
         fontInventory: inventoryOf(readShardFile(name, "font-inventory.json")),
+        fontAssets: inventoryOf(readShardFile(name, "font-assets.json")),
+        fontAssetsAfter: inventoryOf(readShardFile(name, "font-assets-after.json")),
       },
     };
   });

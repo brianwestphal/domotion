@@ -177,3 +177,51 @@ describe("the macOS shard restarts only diagnosed oracle drift", () => {
     expect(existsSync(join(outDir, "oracle-attempts.json"))).toBe(false);
   });
 });
+
+// DM-C15ZXR: the shard records the macOS MobileAsset fonts before the sweep and
+// again on exit, so its artifact shows whether the sweep itself made CoreText
+// download one. The after-record must be written on the failure path too.
+describe("the shard records MobileAsset fonts before and after the sweep", () => {
+  function run(npxExit: number) {
+    const dir = mkdtempSync(join(tmpdir(), "fc-shard-assets-"));
+    const log = join(dir, "calls.log");
+    writeFileSync(join(dir, "node"), `#!/bin/sh\necho "node $*" >> "${log}"\nexit 0\n`);
+    writeFileSync(
+      join(dir, "npx"),
+      `#!/bin/sh\necho "npx" >> "${log}"\nwhile [ "$#" -gt 0 ]; do if [ "$1" = "--out" ]; then out="$2"; break; fi; shift; done\nmkdir -p "$out"\n[ ${npxExit} -le 1 ] && printf "{}\\n" > "$out/report.json" && printf "ok\\n" > "$out/summary.txt"\nexit ${npxExit}\n`,
+    );
+    chmodSync(join(dir, "node"), 0o755);
+    chmodSync(join(dir, "npx"), 0o755);
+    const outDir = join(dir, "out");
+    const result = spawnSync("bash", [SCRIPT], {
+      cwd: ROOT,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH ?? ""}`,
+        SHARD: "1",
+        TOTAL: "1",
+        OUT_DIR: outDir,
+        RUNNER_OS: "Linux",
+      },
+    });
+    return { result, calls: readFileSync(log, "utf8").trim().split("\n"), outDir };
+  }
+
+  it("records before the sweep and after it, in that order", () => {
+    const { result, calls, outDir } = run(1);
+    expect(result.status).toBe(0);
+    const before = calls.indexOf(`node tools/font-inventory.mjs --assets ${outDir}/font-assets.json`);
+    const sweep = calls.indexOf("npx");
+    const after = calls.indexOf(`node tools/font-inventory.mjs --assets ${outDir}/font-assets-after.json`);
+    expect(before).toBeGreaterThanOrEqual(0);
+    expect(sweep).toBeGreaterThan(before);
+    expect(after).toBeGreaterThan(sweep);
+  });
+
+  it("still records after a dead shard, and keeps its exit code", () => {
+    const { result, calls, outDir } = run(3);
+    expect(result.status).toBe(3);
+    expect(calls).toContain(`node tools/font-inventory.mjs --assets ${outDir}/font-assets-after.json`);
+  });
+});

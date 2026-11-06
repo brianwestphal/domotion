@@ -21,6 +21,13 @@
 #   font-inventory.json  which fonts were installed on it
 # A rotation of either invalidates the baseline, and the comparator says so
 # instead of reading the move as a regression.
+#
+# It also records the macOS MobileAsset (downloadable) fonts, which the
+# inventory cannot see, twice: font-assets.json before the sweep and
+# font-assets-after.json on exit. CoreText can install an asset (PingFang, for
+# one) when a face is first requested, so a difference between the two means
+# the sweep itself changed the font set under the oracle. These are WARN-only
+# downstream: they are deliberately not part of the baseline comparability key.
 set -uo pipefail
 
 OUT_DIR="${OUT_DIR:-tests/output/font-conformance}"
@@ -61,6 +68,10 @@ esac
 
 node scripts/record-runner-image.mjs "$OUT_DIR/runner-image.txt"
 node tools/font-inventory.mjs "$OUT_DIR/font-inventory.json"
+node tools/font-inventory.mjs --assets "$OUT_DIR/font-assets.json"
+# On every exit path, including a dead shard: the after-record is what shows
+# whether the sweep itself triggered a download.
+trap 'node tools/font-inventory.mjs --assets "$OUT_DIR/font-assets-after.json" >/dev/null 2>&1 || true' EXIT
 
 # Exit 1 means "mismatches found" and must NOT cancel the sibling shards — the
 # aggregate re-derives the verdict from the merged reports. Anything else means

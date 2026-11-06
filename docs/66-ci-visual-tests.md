@@ -306,8 +306,7 @@ tools/font-inventory.mjs --assets`) lists those files as
 because Apple ships a new font version as a new asset directory under the same
 file name. It is deliberately **not** folded into `inventoryDocument().digest`:
 every committed darwin font-conformance baseline is keyed on that digest, and CI
-runners that fetch assets on demand would churn it. The conformance oracle
-therefore still cannot see an asset change.
+runners that fetch assets on demand would churn it. The font-conformance shards record the asset set before and after each sweep and the comparator warns, never refuses, when it moves (doc 107).
 
 Local visual runs record both. `tests/local-run-env.ts` writes
 `runEnv: { chromium, osRelease, fontInventory: {digest,count}, fontAssets:

@@ -2694,6 +2694,7 @@
         "owners": ["text-fonts", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
         "tickets": [
+          "DM-C15ZXR",
           "DM-Q9BAAJ",
           "DM-1858",
           "DM-1905",

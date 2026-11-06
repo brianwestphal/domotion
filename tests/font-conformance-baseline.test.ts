@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   environmentConflicts,
+  foldFontAssets,
   mergeShards,
   readFontShardReport,
   sliceOf,
@@ -29,6 +30,7 @@ import {
   baselineUpdateReview,
   compareAgainstBaseline,
   comparability,
+  fontAssetWarnings,
   formatRunHeader,
   oracleMovement,
   parseBaselineArgs,
@@ -751,5 +753,80 @@ describe("resolverAnswersMatch", () => {
   it("does not fabricate comparability for legacy or empty reports", () => {
     expect(resolverAnswersMatch(undefined, { a: "abc" })).toEqual({ comparable: false, same: false });
     expect(resolverAnswersMatch({}, {})).toEqual({ comparable: false, same: false });
+  });
+});
+
+/**
+ * DM-C15ZXR: macOS MobileAsset (downloadable) fonts. CoreText serves faces such
+ * as PingFang from asset bundles the font inventory digest cannot see, so the
+ * shard records them separately. These pin that the record is WARN-only: it
+ * never enters `envConflicts`, never makes a run NOT COMPARABLE, and leaves
+ * every committed baseline (none of which carries it) comparable.
+ */
+describe("macOS MobileAsset font record (DM-C15ZXR)", () => {
+  const assetShard = (name: string, before: string | null, after: string | null = before) => ({
+    name,
+    report: report(),
+    env: {
+      image: "macos26-arm64",
+      fontInventory: { digest: "inv" },
+      fontAssets: before == null ? null : { digest: before, count: 2, source: "assets" },
+      fontAssetsAfter: after == null ? null : { digest: after, count: 2, source: "assets" },
+    },
+  });
+
+  it("folds agreeing shards into one record with no notes", () => {
+    expect(foldFontAssets([assetShard("s1", "aaaa"), assetShard("s2", "aaaa")])).toEqual({
+      fontAssets: { digest: "aaaa", count: 2, source: "assets" },
+      fontAssetNotes: [],
+    });
+  });
+
+  it("notes a shard split and records no single digest, without an envConflict", () => {
+    const shards = [assetShard("s1", "aaaa"), assetShard("s2", "bbbb")];
+    const folded = foldFontAssets(shards);
+    expect(folded.fontAssets).toBeNull();
+    expect(folded.fontAssetNotes[0]).toMatch(/shards disagree.*aaaa \(s1\).*bbbb \(s2\)/);
+    expect(environmentConflicts(shards)).toEqual([]);
+    const doc = mergeShards(shards);
+    expect(doc.meta.envConflicts).toEqual([]);
+    expect(doc.meta.fontAssetNotes).toHaveLength(1);
+  });
+
+  it("notes a shard whose asset set changed during its own sweep", () => {
+    const folded = foldFontAssets([assetShard("s1", "aaaa", "cccc")]);
+    expect(folded.fontAssets?.digest).toBe("aaaa");
+    expect(folded.fontAssetNotes).toEqual([
+      "shard s1: the MobileAsset font set changed during the sweep (aaaa -> cccc)",
+    ]);
+  });
+
+  it("is null and silent when no shard recorded it (every artifact before this change)", () => {
+    expect(foldFontAssets([assetShard("s1", null), { name: "s2", report: null }])).toEqual({
+      fontAssets: null,
+      fontAssetNotes: [],
+    });
+  });
+
+  it("warns on a run-vs-baseline digest change but stays comparable", () => {
+    const base = JSON.parse(readFileSync(join(import.meta.dirname, "baselines/font-conformance-macos.json"), "utf8"));
+    const runMeta = { ...base.meta, fontAssets: { digest: "bbbb", count: 3 } };
+    const baseMeta = { ...base.meta, fontAssets: { digest: "aaaa", count: 2 } };
+    expect(comparability(runMeta, baseMeta)).toEqual([]);
+    expect(fontAssetWarnings(runMeta, baseMeta)).toEqual([
+      "MobileAsset font digest: run bbbb (3 entries), baseline aaaa (2 entries)",
+    ]);
+  });
+
+  it("keeps the committed macOS baseline comparable and silent when only the run carries the record", () => {
+    const base = JSON.parse(readFileSync(join(import.meta.dirname, "baselines/font-conformance-macos.json"), "utf8"));
+    expect(base.meta.fontAssets).toBeUndefined();
+    const runMeta = { ...base.meta, fontAssets: { digest: "aaaa", count: 2 }, fontAssetNotes: [] };
+    expect(comparability(runMeta, base.meta)).toEqual([]);
+    expect(fontAssetWarnings(runMeta, base.meta)).toEqual([]);
+  });
+
+  it("surfaces the run's own notes as warnings", () => {
+    expect(fontAssetWarnings({ fontAssetNotes: ["shard s1: changed"] }, {})).toEqual(["run: shard s1: changed"]);
   });
 });
