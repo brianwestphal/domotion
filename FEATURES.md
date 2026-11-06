@@ -74,6 +74,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 
 - [x] **text-bg-clip-gradient** (DM-462): `background-clip: text` + `-webkit-text-fill-color: transparent` — gradient fills the glyph shapes via SVG `<mask>` over the bg-color rect
 - [x] **pseudo-filter-functions** (DM-2367, doc 38): generated empty/text/image paint supports blur, drop-shadow, brightness, contrast, grayscale, hue-rotate, invert, opacity, saturate, sepia, and ordered lists through Chromium's native SVG CSS-filter pipeline; identity/none, transform, clip, stack slot, zoom, DPR, and filter-stripped mutation controls are browser-gated.
+- [x] **pseudo-before-projective-transform** (doc 38): a projective `perspective(…) rotateY(…)` on a generated pseudo becomes one isolated Chromium-painted pseudo surface with a named warning; affine pseudo transforms stay vector.
 
 ### Replaced elements (rasterized as static snapshot — DM-457)
 

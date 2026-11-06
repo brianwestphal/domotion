@@ -15,6 +15,7 @@ import { resolveCharOrientation } from "../vertical-orientation.js";
 import type { CapturedElement, CapturedPseudoFragmentSet, CapturedTextPaintAffine } from "../capture/types.js";
 import type { Point, PseudoBoxFragment, PseudoTextFragment, Rect } from "../capture/pseudo-fragment-protocol.js";
 import { esc, r } from "./format.js";
+import { renderWarn } from "./render-warn.js";
 import { visualTextSemantics } from "./real-text-layer.js";
 import {
   mergeFeatureLists,
@@ -602,7 +603,16 @@ export function renderPseudoFragmentRecord(
     );
   }
   const errors = pseudoFragmentRecordErrors(record);
-  if (errors.length > 0) return `<g ${attrs} data-domotion-pseudo-boundary="${esc(errors.join("; "))}"/>`;
+  if (errors.length > 0) {
+    // Current capture converts such records to a terminal raster; a replayed
+    // or hand-built tree can still carry one, and its omission must be named.
+    renderWarn(
+      "generated-pseudo-fragment-geometry",
+      `${record.pseudo} omitted: exact pseudo geometry is not vector-paintable (${errors.join("; ")}) and no Chromium surface was captured`,
+      record.pseudo,
+    );
+    return `<g ${attrs} data-domotion-pseudo-boundary="${esc(errors.join("; "))}"/>`;
+  }
 
   const matrices = record.boxFragments.map((box) => pseudoFragmentAffine(box)!);
   const pieces: string[] = [];

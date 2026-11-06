@@ -1233,6 +1233,16 @@ export const tests: FeatureTest[] = [
     height: 80,
   },
   {
+    // A perspective transform on a generated pseudo paints a trapezoid that no
+    // SVG affine can express. The capture prepass must hand it to one isolated
+    // Chromium-painted pseudo surface; it used to stay an "exact" record that
+    // the renderer refused, so the pseudo vanished as an empty group.
+    name: "pseudo-before-projective-transform",
+    html: `<style>.p3d{position:relative;width:200px;height:120px;margin:30px;background:#ddd}.p3d::before{content:'';position:absolute;left:40px;top:20px;width:120px;height:80px;background:#e33;transform:perspective(200px) rotateY(50deg)}</style><div class="p3d"></div>`,
+    width: 300,
+    height: 200,
+  },
+  {
     // DM-782: text-content `::before` with `background: linear-gradient(...)`
     // and white glyph text — the "gradient badge / pill / chip" pattern
     // (`32-real-world-pricing-table` MOST POPULAR badge). Previously the

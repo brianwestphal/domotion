@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { getLastCaptureWarnings, resetLastCaptureWarnings } from "../capture/warnings.js";
 
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../capture/types.js";
 import {
@@ -200,6 +201,24 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     const collapsedQuad = record();
     collapsedQuad.boxFragments[0].physicalQuad[1] = { ...collapsedQuad.boxFragments[0].physicalQuad[0] };
     expect(pseudoFragmentRecordErrors(collapsedQuad)).toContain("box 0 has collapsed/non-affine geometry");
+  });
+
+  it("names a perspective (trapezoid) box quad it cannot paint instead of omitting it silently", () => {
+    const trapezoid = record();
+    const quad = trapezoid.boxFragments[0].physicalQuad;
+    quad[2] = { x: quad[2].x - 6, y: quad[2].y - 4 };
+    expect(pseudoFragmentRecordErrors(trapezoid)).toContain("box 0 has collapsed/non-affine geometry");
+    resetLastCaptureWarnings([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const markup = renderPseudoFragmentRecord(trapezoid);
+    warn.mockRestore();
+    expect(markup).toContain("data-domotion-pseudo-boundary");
+    expect(getLastCaptureWarnings()).toEqual([
+      expect.objectContaining({
+        feature: "generated-pseudo-fragment-geometry",
+        detail: expect.stringContaining("no Chromium surface was captured"),
+      }),
+    ]);
   });
 
   it("uses per-fragment slice ownership and retained text/image visual order", () => {

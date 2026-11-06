@@ -34,6 +34,7 @@ import type {
 } from "./types.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { probeFailureWarning } from "./probe-failure.js";
+import { pseudoFragmentRecordErrors } from "../render/pseudo-fragments.js";
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
 import { parseFontVariationSettings } from "../render/text.js";
 
@@ -1310,6 +1311,32 @@ export async function preparePseudoFragmentGeometry(
               fragments: [],
               terminalRaster,
             };
+          }
+          // Blink builds the same transform node for a pseudo's layout object
+          // as for an element (paint_property_tree_builder.cc, Chromium
+          // 7d859f27), so a perspective transform paints a trapezoid. Its
+          // box quads then satisfy no SVG affine, and the renderer would
+          // refuse the record as a silent empty group. Apply the renderer's
+          // own invariants here and hand any failing record to one isolated
+          // Chromium-painted surface instead, as projective host elements are.
+          const recordErrors = record.status === "exact" ? pseudoFragmentRecordErrors(record) : [];
+          if (recordErrors.length > 0) {
+            const reason = `exact pseudo geometry is not vector-paintable (${recordErrors.join("; ")})`;
+            const terminalRaster = await isolate(candidate);
+            record = {
+              ...record,
+              status: "terminal-raster",
+              reason,
+              contentItems: [],
+              boxFragments: [],
+              fragments: [],
+              terminalRaster,
+            };
+            warnings.push({
+              selector: candidate.selector,
+              feature: FEATURE,
+              detail: `${reason}; retained one isolated Chromium-painted pseudo surface`,
+            });
           }
           if (record.status === "exact") {
             const representations = pseudoBitmapRepresentations(record);

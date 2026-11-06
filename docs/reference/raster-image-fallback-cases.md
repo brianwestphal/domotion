@@ -51,7 +51,7 @@ Doc: [38-pseudo-element-paint.md](../38-pseudo-element-paint.md). Tickets: SK-10
 
 ### P1. Source-owned generated pseudo surfaces and bitmap text
 
-Trigger: the Chromium pseudo-fragment prepass cannot correlate a generated pseudo to a backend node, cannot decode exact painted geometry, detects generated URL-image ink beyond the pseudo's layout slot, or fails its protocol prepass. `src/capture/pseudo-fragment-cdp.ts` records a `status: "terminal-raster"` pseudo and isolates its Chromium-painted surface. An exact record whose selected pseudo-text glyph is bitmap-owned instead receives `bitmapTextRaster`; a visible pseudo with `backdrop-filter` may also receive its own `backdropFilterRaster`.
+Trigger: the Chromium pseudo-fragment prepass cannot correlate a generated pseudo to a backend node, cannot decode exact painted geometry, decodes geometry that fails the renderer's vector invariants (`pseudoFragmentRecordErrors` — for example a projective `perspective(…) rotateY(…)` transform whose box quad is a trapezoid), detects generated URL-image ink beyond the pseudo's layout slot, or fails its protocol prepass. `src/capture/pseudo-fragment-cdp.ts` records a `status: "terminal-raster"` pseudo and isolates its Chromium-painted surface. An exact record whose selected pseudo-text glyph is bitmap-owned instead receives `bitmapTextRaster`; a visible pseudo with `backdrop-filter` may also receive its own `backdropFilterRaster`.
 
 Why: the terminal cases lack enough authoritative geometry to reconstruct the pseudo as vectors. Bitmap text requires Chromium's selected glyph paint, while a pseudo backdrop filter samples earlier page paint. These are per-pseudo ownership boundaries, so the surrounding host and other fragments remain structural.
 

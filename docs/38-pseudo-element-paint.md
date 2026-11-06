@@ -236,12 +236,26 @@ variants — differing size, sink, font, weight and line-height — and they
 reproduce the painted cap top to within 0.5 px on every one. Fixture:
 `24-deep-initial-letter` in the `html-test` suite.
 
+## 3D transforms on generated pseudos
+
+Blink builds the same transform node for a pseudo's layout object as for an
+element (`paint_property_tree_builder.cc`, Chromium 7d859f27), and the
+source-owned pseudo record carries Chromium's physical box quads. A 3D
+transform whose quads still map the box by an affine (`rotate(…)`, or
+`perspective(…) translateZ(0) rotateZ(…)`) stays vector: the renderer
+derives the exact SVG `matrix(…)` from the quads. A projective transform
+(`perspective(…) rotateY(…)`) paints a trapezoid that no SVG affine can
+express. The capture prepass (`src/capture/pseudo-fragment-cdp.ts`) applies
+the renderer's own record invariants (`pseudoFragmentRecordErrors`) and turns
+such a record into one isolated Chromium-painted pseudo surface
+(`status: "terminal-raster"`) with a `generated-pseudo-fragment-geometry`
+warning, the same boundary projective host elements get through
+`transformSubtreeRaster`. A replayed or hand-built tree that still carries a
+non-paintable exact record renders an empty boundary group with a render
+warning, never silently. Fixture: `pseudo-before-projective-transform`.
+
 ## What's NOT honored (known gaps)
 
-- **3D transforms** — `rotateX/Y/Z(…)`, `perspective(…)`, `translateZ(…)`.
-  The captured matrix is the resolved 2D `matrix(...)` form; 3D content
-  collapses to its 2D projection per CSS spec, so `rotateX(…)` looks
-  axis-aligned in Domotion's output. Filed as a follow-up.
 - **`::first-line`** — partially supported via the multi-segment override
   path (the first segment of a paragraph carries the pseudo's font / weight /
   variant overrides).
