@@ -7,14 +7,15 @@
 // fast (would be ≥5s if someone re-introduced the blocking fetch).
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { request as httpRequest } from "node:http";
+import { networkInterfaces, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 const SERVER = resolve(fileURLToPath(import.meta.url), "..", "review-server.tsx");
 const PORT = 4396;
-const BASE = `http://localhost:${PORT}`;
+const BASE = `http://127.0.0.1:${PORT}`;
 const LINUX_CJK_FIXTURE = "4E00-9FFF-cjk-unified-ideographs.30";
 
 function linuxCjkResult(diffPct = 0.595): Record<string, unknown> {
@@ -247,6 +248,61 @@ describe("review-server async loading (DM-1665)", () => {
     expect(ms).toBeGreaterThan(3500); // it DID invoke the slow gh (unlike `/`)
   }, 25_000);
 
+  // The harness's POST routes file Hot Sheet tickets and run `gh`; it must bind loopback only
+  // and refuse cross-site / DNS-rebound requests with the shared `checkLocalRequest` guard.
+  it("refuses a foreign Host, a cross-origin POST and a text/plain POST before routing", async () => {
+    const raw = (method: string, path: string, headers: Record<string, string>, body = "") =>
+      new Promise<{ status: number; body: string }>((resolveRequest, reject) => {
+        const req = httpRequest({ host: "127.0.0.1", port: PORT, method, path, headers }, (res) => {
+          let text = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk: string) => (text += chunk));
+          res.on("end", () => resolveRequest({ status: res.statusCode ?? 0, body: text }));
+        });
+        req.on("error", reject);
+        req.end(body);
+      });
+    const json = JSON.stringify({ source: "local", suite: "features", name: "x", comment: "", regions: [] });
+
+    const rebound = await raw("GET", "/", { host: `evil.example:${PORT}` });
+    expect(rebound.status).toBe(403);
+    expect(rebound.body).toContain("refused request for host");
+
+    const crossOrigin = await raw(
+      "POST",
+      "/api/file-ticket",
+      { host: `127.0.0.1:${PORT}`, origin: "https://evil.example", "content-type": "application/json" },
+      json,
+    );
+    expect(crossOrigin.status).toBe(403);
+    expect(crossOrigin.body).toContain("refused cross-origin request");
+
+    const simple = await raw(
+      "POST",
+      "/api/file-ticket",
+      { host: `127.0.0.1:${PORT}`, "content-type": "text/plain" },
+      json,
+    );
+    expect(simple.status).toBe(415);
+
+    // Same-origin control: the page's own Origin and JSON body reach the route (400 = route-level validation).
+    const sameOrigin = await raw(
+      "POST",
+      "/api/file-ticket",
+      { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, "content-type": "application/json" },
+      json,
+    );
+    expect(sameOrigin.status).toBe(400);
+  });
+
+  it("listens on loopback only", async () => {
+    const lan = Object.values(networkInterfaces())
+      .flat()
+      .find((iface) => iface != null && iface.family === "IPv4" && !iface.internal);
+    if (lan == null) return; // no non-loopback IPv4 interface to probe on this host
+    await expect(fetch(`http://${lan.address}:${PORT}/`, { signal: AbortSignal.timeout(3000) })).rejects.toThrow();
+  });
+
   it("returns 404 (not a hang) for an uncached image with no run pointer", async () => {
     const res = await fetch(`${BASE}/img/ci-macos/html-test-unicode/nope-expected.png`);
     expect(res.status).toBe(404);
@@ -262,7 +318,7 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
   let tmp: string;
   let counter: string;
   const PORT2 = 4397;
-  const B2 = `http://localhost:${PORT2}`;
+  const B2 = `http://127.0.0.1:${PORT2}`;
 
   beforeAll(async () => {
     tmp = mkdtempSync(join(tmpdir(), "review-dedup-"));

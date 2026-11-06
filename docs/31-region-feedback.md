@@ -100,6 +100,10 @@ Keyboard navigation:
 
 - After submit, the rectangles are cleared from the review-tool overlay (they live in the comment text now; the UI canvas is the editor, not the archive).
 
+### Local-only server
+
+Filing a ticket and refreshing a CI source are state-changing (they write Hot Sheet tickets and run `gh`), so the review server listens on `127.0.0.1` only and opens `http://127.0.0.1:<port>/`. Every request first passes the same cross-site guard the published local servers use (`checkLocalRequest` in `src/utils/local-server.ts`, doc 240 "Cross-site request guard"): a `Host` other than `127.0.0.1:<port>` / `localhost:<port>` answers 403, a POST with a foreign `Origin` answers 403, and a POST that is not `application/json` answers 415. The page's own requests send JSON from its own origin and are unaffected.
+
 ### Iteration consumes the regions
 
 The cropper is available as a manual CLI step. The reviewer runs

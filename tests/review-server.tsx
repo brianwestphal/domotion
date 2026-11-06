@@ -54,6 +54,7 @@ const execFileAsync = promisify(execFile);
 const GH_OPTS = { maxBuffer: 32 * 1024 * 1024 } as const;
 import { raw } from "kerfjs";
 import { openInBrowser } from "../src/cli/common.js";
+import { checkLocalRequest } from "../src/utils/local-server.js";
 import {
   formatLogicalClassification,
   LOGICAL_CLASSIFICATIONS,
@@ -1162,8 +1163,16 @@ async function main(): Promise<void> {
   }
 
   const server = createServer(async (req, res) => {
+    // The POST routes file Hot Sheet tickets and run `gh`, so the harness takes the same
+    // cross-site guard as the published local servers: a foreign Host (DNS rebinding), a
+    // cross-origin Origin, or a non-JSON state-changing body is refused before routing.
+    const rejection = checkLocalRequest(req, req.socket.localPort ?? port);
+    if (rejection != null) {
+      sendJson(res, rejection.status, { error: rejection.message });
+      return;
+    }
     try {
-      const url = new URL(req.url ?? "/", `http://localhost:${port}`);
+      const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
 
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
         const src = sourceById(url.searchParams.get("source") ?? defaultSource).id;
@@ -1397,8 +1406,9 @@ async function main(): Promise<void> {
     }
   });
 
-  server.listen(port, () => {
-    const url = `http://localhost:${port}/`;
+  // Loopback only: listening on every interface would expose the ticket-filing routes to the LAN.
+  server.listen(port, "127.0.0.1", () => {
+    const url = `http://127.0.0.1:${port}/`;
     const manifest = loadManifest(defaultSource);
     const failing = manifest.tests.filter((r) => !r.pass && !r.skipped).length;
     const skipped = manifest.tests.filter((r) => r.skipped).length;
