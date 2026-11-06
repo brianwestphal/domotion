@@ -1652,7 +1652,10 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
         // resized freely: a capture viewport smaller than the probe (for
         // example 160x60) must not crop the corner it measures.
         const isolatedViewport = isolated.viewportSize();
-        if (isolatedViewport != null && (isolatedViewport.width < RESIZER_PROBE_SIZE || isolatedViewport.height < RESIZER_PROBE_SIZE)) {
+        if (
+          isolatedViewport != null &&
+          (isolatedViewport.width < RESIZER_PROBE_SIZE || isolatedViewport.height < RESIZER_PROBE_SIZE)
+        ) {
           await isolated.setViewportSize({
             width: Math.max(isolatedViewport.width, RESIZER_PROBE_SIZE),
             height: Math.max(isolatedViewport.height, RESIZER_PROBE_SIZE),

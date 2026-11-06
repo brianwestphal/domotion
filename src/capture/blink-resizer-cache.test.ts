@@ -111,7 +111,13 @@ describe("measureBlinkPlatformResizer promise cache", () => {
     const resized: Array<{ width: number; height: number }> = [];
     let isolatedViewport = { width: 160, height: 60 };
     const isolated = {
-      evaluate: async () => ({ x: 0, y: 0, scaleFromDIP: 3, clientWidth: isolatedViewport.width, clientHeight: isolatedViewport.height }),
+      evaluate: async () => ({
+        x: 0,
+        y: 0,
+        scaleFromDIP: 3,
+        clientWidth: isolatedViewport.width,
+        clientHeight: isolatedViewport.height,
+      }),
       screenshot: async () => png,
       viewportSize: () => isolatedViewport,
       setViewportSize: async (size: { width: number; height: number }) => {
@@ -124,7 +130,9 @@ describe("measureBlinkPlatformResizer promise cache", () => {
     const page = {
       evaluate: async (fn: unknown) => {
         // the in-page probe returns its viewport; the captured-scale read returns a number
-        return String(fn).includes("clientWidth") ? { x: 0, y: 0, scaleFromDIP: 2, clientWidth: 160, clientHeight: 60 } : 2;
+        return String(fn).includes("clientWidth")
+          ? { x: 0, y: 0, scaleFromDIP: 2, clientWidth: 160, clientHeight: 60 }
+          : 2;
       },
       screenshot: async () => {
         screenshots++;
