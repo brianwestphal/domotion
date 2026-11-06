@@ -239,6 +239,9 @@ function ids(spec: AuditCase): { caseId: string; wrapperId: string; targetId: st
   };
 }
 
+/** The case's paint beneath every backdrop owner: outside the wrapper, so never part of a root subtree. */
+export const underAnimId = (spec: Pick<AuditCase, "id">): string => `bd-${spec.id}-under`;
+
 function standardMarkup(spec: AuditCase, index: number): string {
   const { caseId, wrapperId, targetId, targetAnim } = ids(spec);
   const column = index % COLUMNS;
@@ -262,7 +265,7 @@ function standardMarkup(spec: AuditCase, index: number): string {
     const canvasClose = kind === "scroll" ? "</div>" : "";
     contents = `${canvasOpen}<div class="inner-under"></div><div id="${targetId}" class="target primary" data-domotion-anim="${targetAnim}" style="${positionStyle};${spec.targetCss ?? ""}"><div class="vector" data-domotion-anim="bd-${spec.id}-vector"></div></div><div class="later" data-domotion-anim="bd-${spec.id}-later"></div>${canvasClose}`;
   }
-  return `<section id="${caseId}" class="case case-${spec.id}" data-audit-case="${spec.id}" data-domotion-anim="${caseId}"><div class="under"></div><div id="${wrapperId}" class="wrapper" style="${spec.wrapperCss ?? ""}"${wrapperAttributes}>${contents}</div></section>`;
+  return `<section id="${caseId}" class="case case-${spec.id}" data-audit-case="${spec.id}" data-domotion-anim="${caseId}"><div class="under" data-domotion-anim="${underAnimId(spec)}"></div><div id="${wrapperId}" class="wrapper" style="${spec.wrapperCss ?? ""}"${wrapperAttributes}>${contents}</div></section>`;
 }
 
 /** Deterministic, font-free transition corpus. */
@@ -527,6 +530,38 @@ function cloneTree(tree: CapturedElement[]): CapturedElement[] {
   return structuredClone(tree);
 }
 
+/**
+ * Remove the vector paint that lies beneath every backdrop owner (each case's
+ * `.under` layer) from a cloned tree, returning how many layers were removed.
+ *
+ * The over-capture comparison runs with this paint knocked out of BOTH arms.
+ * An atomic owner (a relative-effect terminal patch or an isolated Backdrop
+ * Root composite) replaces its whole root subtree with one image whose pixels
+ * left unchanged by the owner are transparent, so the vector underlay shows
+ * through them. Against a faithful underlay, an opaque final-composite crop is
+ * then pixel-identical to the correct patch, and the full-render comparison
+ * can only discriminate where the renderer's underlay is wrong. With the
+ * underlay removed, a raster that baked in the paint beneath its owner is the
+ * only remaining source of that paint, so the mutation is visible by
+ * construction, independent of the renderer's underlay fidelity.
+ */
+export function knockOutBeneathOwnerPaint(tree: CapturedElement[]): number {
+  const beneath = new Set(BACKDROP_CASES.map(underAnimId));
+  let removed = 0;
+  const prune = (elements: CapturedElement[]): CapturedElement[] =>
+    elements.filter((element) => {
+      if (element.animId != null && beneath.has(element.animId)) {
+        removed++;
+        return false;
+      }
+      if (element.children != null) element.children = prune(element.children);
+      return true;
+    });
+  const kept = prune(tree);
+  tree.splice(0, tree.length, ...kept);
+  return removed;
+}
+
 async function replaceBackdropRastersWithFinalCrops(
   tree: CapturedElement[],
   sourcePng: Buffer,
@@ -595,7 +630,20 @@ export interface BackdropAuditRow {
   ownerGeometry: OwnerGeometryEvidence;
   productionEquivalent: boolean;
   underCapture: { applicable: boolean; comparison: PixelComparison; discriminated: boolean };
-  overCapture: { applicable: boolean; comparison: PixelComparison; discriminated: boolean };
+  /**
+   * `comparison` is made with the paint beneath every owner knocked out of
+   * both arms; `fullRenderComparison` is the unmodified-render diagnostic,
+   * which cannot discriminate atomic owners against a faithful underlay.
+   * `wrongRasterControl` re-applies the mutation to an already over-captured
+   * tree and must not discriminate.
+   */
+  overCapture: {
+    applicable: boolean;
+    comparison: PixelComparison;
+    fullRenderComparison: PixelComparison;
+    discriminated: boolean;
+    wrongRasterControl: { comparison: PixelComparison; discriminated: boolean };
+  };
   vectorOrder: {
     sourceTargetBeforeLaterPaint: boolean | null;
     rasterBeforeTargetVector: boolean | null;
@@ -831,17 +879,42 @@ export async function runBackdropSourceSurfaceAudit(
         const overTree = cloneTree(capture.tree);
         await replaceBackdropRastersWithFinalCrops(overTree, sourcePng, dpr);
         const overSvg = elementTreeToSvg(overTree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
+        // Over-capture is judged with the paint beneath every owner knocked
+        // out of both arms (see knockOutBeneathOwnerPaint). The negative
+        // control treats the over-captured tree as production: re-applying the
+        // mutation to an already over-captured raster must read as inert.
+        const knockoutTree = cloneTree(capture.tree);
+        const knockedOut = knockOutBeneathOwnerPaint(knockoutTree);
+        if (knockedOut !== BACKDROP_CASES.length)
+          blockers.push(
+            `DPR${dpr}:over-capture knockout removed ${knockedOut}/${BACKDROP_CASES.length} beneath-owner layers`,
+          );
+        const knockoutSvg = elementTreeToSvg(knockoutTree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
+        const overKnockoutTree = cloneTree(overTree);
+        knockOutBeneathOwnerPaint(overKnockoutTree);
+        const overKnockoutSvg = elementTreeToSvg(overKnockoutTree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
+        const controlTree = cloneTree(overTree);
+        await replaceBackdropRastersWithFinalCrops(controlTree, sourcePng, dpr);
+        knockOutBeneathOwnerPaint(controlTree);
+        const controlSvg = elementTreeToSvg(controlTree, BACKDROP_VIEWPORT.width, BACKDROP_VIEWPORT.height);
         // One page is reused serially: setContent calls on the same page are
         // navigations and therefore cannot safely overlap.
         const renderedPng = await renderSvg(renderPage, svg);
         const underPng = await renderSvg(renderPage, underSvg);
         const overPng = await renderSvg(renderPage, overSvg);
-        const [sourceImage, renderedImage, underImage, overImage] = await Promise.all([
-          decodePng(sourcePng),
-          decodePng(renderedPng),
-          decodePng(underPng),
-          decodePng(overPng),
-        ]);
+        const knockoutPng = await renderSvg(renderPage, knockoutSvg);
+        const overKnockoutPng = await renderSvg(renderPage, overKnockoutSvg);
+        const controlPng = await renderSvg(renderPage, controlSvg);
+        const [sourceImage, renderedImage, underImage, overImage, knockoutImage, overKnockoutImage, controlImage] =
+          await Promise.all([
+            decodePng(sourcePng),
+            decodePng(renderedPng),
+            decodePng(underPng),
+            decodePng(overPng),
+            decodePng(knockoutPng),
+            decodePng(overKnockoutPng),
+            decodePng(controlPng),
+          ]);
 
         for (const spec of BACKDROP_CASES) {
           const caseFacts = facts[spec.id];
@@ -862,7 +935,9 @@ export async function runBackdropSourceSurfaceAudit(
             ? (unionRects(owners.map((owner) => owner.rect)) ?? caseFacts.rect)
             : caseFacts.rect;
           const underComparison = compareDecodedRegion(renderedImage, underImage, mutationRect, dpr);
-          const overComparison = compareDecodedRegion(renderedImage, overImage, mutationRect, dpr);
+          const overFullRenderComparison = compareDecodedRegion(renderedImage, overImage, mutationRect, dpr);
+          const overComparison = compareDecodedRegion(knockoutImage, overKnockoutImage, mutationRect, dpr);
+          const wrongRasterComparison = compareDecodedRegion(overKnockoutImage, controlImage, mutationRect, dpr);
           const sourceEdgeResidual = classifySourceEdgeResidual(sourceImage, renderedImage, caseFacts.rect, dpr);
           const geometryChecks = owners.filter((owner) => owner.source !== "generated-pseudo");
           const exactGeometryOwners = geometryChecks.filter(
@@ -907,6 +982,8 @@ export async function runBackdropSourceSurfaceAudit(
             findings.push("under-capture mutation did not move output");
           if (rasterApplicable && !mutationDiscriminates(overComparison))
             findings.push("over-capture mutation did not move output");
+          if (rasterApplicable && mutationDiscriminates(wrongRasterComparison))
+            findings.push("over-capture negative control moved output for an already over-captured raster");
           const rasterBeforeLaterPaint = !rasterApplicable
             ? null
             : atomicComposite && laterAt < 0
@@ -938,7 +1015,10 @@ export async function runBackdropSourceSurfaceAudit(
             caseFacts.targetBackdropFilter !== "none" &&
             caseNode != null &&
             ownerGeometry.exact &&
-            (!rasterApplicable || (mutationDiscriminates(underComparison) && mutationDiscriminates(overComparison))) &&
+            (!rasterApplicable ||
+              (mutationDiscriminates(underComparison) &&
+                mutationDiscriminates(overComparison) &&
+                !mutationDiscriminates(wrongRasterComparison))) &&
             (!rasterApplicable || spec.kind === "pseudo" || vectorOrder.rasterBeforeTargetVector != null) &&
             (spec.kind === "pseudo" || vectorOrder.matchesSourceSiblingOrder != null);
           rows.push({
@@ -970,7 +1050,12 @@ export async function runBackdropSourceSurfaceAudit(
             overCapture: {
               applicable: rasterApplicable,
               comparison: overComparison,
+              fullRenderComparison: overFullRenderComparison,
               discriminated: rasterApplicable && mutationDiscriminates(overComparison),
+              wrongRasterControl: {
+                comparison: wrongRasterComparison,
+                discriminated: rasterApplicable && mutationDiscriminates(wrongRasterComparison),
+              },
             },
             vectorOrder,
             findings,
@@ -984,6 +1069,9 @@ export async function runBackdropSourceSurfaceAudit(
           writeFileSync(`${artifactDir}/rendered-dpr${dpr}.png`, renderedPng);
           writeFileSync(`${artifactDir}/under-capture-dpr${dpr}.png`, underPng);
           writeFileSync(`${artifactDir}/over-capture-dpr${dpr}.png`, overPng);
+          writeFileSync(`${artifactDir}/knockout-dpr${dpr}.png`, knockoutPng);
+          writeFileSync(`${artifactDir}/over-capture-knockout-dpr${dpr}.png`, overKnockoutPng);
+          writeFileSync(`${artifactDir}/over-capture-control-dpr${dpr}.png`, controlPng);
           writeFileSync(`${artifactDir}/rendered-dpr${dpr}.svg`, svg);
         }
       } finally {
@@ -1015,6 +1103,8 @@ export async function runBackdropSourceSurfaceAudit(
           gaps.push(`${row.id}:no-surface mutation inert`);
         if (row.overCapture.applicable && !row.overCapture.discriminated)
           gaps.push(`${row.id}:final-composite mutation inert`);
+        if (row.overCapture.applicable && row.overCapture.wrongRasterControl.discriminated)
+          gaps.push(`${row.id}:final-composite negative control moved`);
         if (row.vectorOrder.rasterBeforeTargetVector === false) gaps.push(`${row.id}:backdrop/vector order drift`);
         if (row.vectorOrder.matchesSourceSiblingOrder === false) gaps.push(`${row.id}:backdrop/sibling order drift`);
         return gaps;

@@ -29,6 +29,19 @@ describe("live backdrop source-surface transitions", () => {
     expect(report.rows.filter((row) => row.actualRasterOwners > 0).every((row) => row.overCapture.discriminated)).toBe(
       true,
     );
+    // Negative control: re-applying the over-capture mutation to an already
+    // over-captured raster must not move the knocked-out comparison.
+    expect(
+      report.rows
+        .filter((row) => row.actualRasterOwners > 0)
+        .every((row) => !row.overCapture.wrongRasterControl.discriminated),
+    ).toBe(true);
+    // The atomic owners are exactly the rows whose full-render comparison
+    // cannot discriminate against a faithful underlay; the knockout must.
+    for (const id of ["transform", "mask", "blend-root"]) {
+      for (const row of report.rows.filter((candidate) => candidate.id === id))
+        expect(row.overCapture.discriminated, `DPR${row.dpr}:${id}`).toBe(true);
+    }
     expect(report.rows.every((row) => row.vectorOrder.rasterBeforeTargetVector !== false)).toBe(true);
     expect(
       report.rows.filter((row) => row.id !== "pseudo").every((row) => row.vectorOrder.matchesSourceSiblingOrder),

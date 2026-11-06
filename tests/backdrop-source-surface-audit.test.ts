@@ -10,13 +10,16 @@ import {
   backdropAuditFixtureHtml,
   backdropRootReasons,
   classifySourceEdgeResidual,
+  knockOutBeneathOwnerPaint,
   mutationDiscriminates,
   nearestBackdropRoot,
   rasterOwnerGeometryMatchesHost,
+  underAnimId,
   unionRects,
   type DecodedImage,
   type BackdropStyleFacts,
 } from "../tools/backdrop-source-surface-audit.js";
+import type { CapturedElement } from "../src/capture/types.js";
 
 const style = (overrides: Partial<BackdropStyleFacts> = {}): BackdropStyleFacts => ({
   id: "node",
@@ -84,6 +87,43 @@ describe("DM-2357 backdrop source-surface model", () => {
     expect(fixture).toContain("#bd-pseudo-target::before");
     expect(fixture).toContain('data-domotion-anim="bd-nested-outer"');
     expect(fixture).toContain('data-domotion-anim="bd-overlap-secondary"');
+  });
+
+  it("tags every case's beneath-owner layer so over-capture can knock it out", () => {
+    const fixture = backdropAuditFixtureHtml();
+    for (const spec of BACKDROP_CASES)
+      expect(fixture).toContain(`<div class="under" data-domotion-anim="${underAnimId(spec)}"></div>`);
+  });
+
+  it("knocks out only the beneath-owner layers, at any depth, and reports how many", () => {
+    const node = (animId: string | undefined, children: CapturedElement[] = []): CapturedElement =>
+      ({ tag: "div", animId, children }) as unknown as CapturedElement;
+    const tree = [
+      node("stage", [
+        node("bd-plain-case", [node("bd-plain-under"), node(undefined, [node("bd-plain-target")])]),
+        node("bd-mask-case", [node(undefined, [node("bd-mask-under")]), node("bd-mask-later")]),
+        node("bd-unknown-under"),
+      ]),
+      node("bd-transform-under"),
+    ];
+    expect(knockOutBeneathOwnerPaint(tree)).toBe(3);
+    const remaining: string[] = [];
+    const walk = (elements: CapturedElement[]): void => {
+      for (const element of elements) {
+        if (element.animId != null) remaining.push(element.animId);
+        walk(element.children ?? []);
+      }
+    };
+    walk(tree);
+    expect(remaining).toEqual([
+      "stage",
+      "bd-plain-case",
+      "bd-plain-target",
+      "bd-mask-case",
+      "bd-mask-later",
+      "bd-unknown-under",
+    ]);
+    expect(knockOutBeneathOwnerPaint(tree)).toBe(0);
   });
 
   it("requires both spatial movement and a material channel delta from mutations", () => {

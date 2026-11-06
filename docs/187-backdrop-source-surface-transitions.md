@@ -123,7 +123,10 @@ For each DPR the audit:
     target with no usable backdrop input;
   - **over-capture:** replace the isolated surface with the final Chromium
     target crop, deliberately baking semi-transparent descendants/later paint
-    that the SVG then paints again.
+    that the SVG then paints again. This comparison is now made with the paint
+    beneath every owner knocked out of both arms, so it discriminates atomic
+    owners by construction; see
+    [doc 195](195-strict-ordinary-backdrop-ownership.md).
 
 A pixel is changed when any channel differs by more than four codes. The 1%
 changed-pixel classification is a diagnostic boundary, not a release tolerance;

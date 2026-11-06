@@ -96,6 +96,30 @@ opaque final crop can equal the correct sparse surface inside the target while
 still swallowing other owner paint; the full-owner comparison exposes that
 over-capture.
 
+Both final-composite arms are rendered with the paint beneath every owner (the
+fixture's `.under` layer, which lies outside every wrapper and so outside every
+root subtree) knocked out. An atomic owner replaces its whole root subtree with
+one image. The target's own background, border, and descendants are baked into
+that image, and pixels the owner leaves unchanged are transparent, so the
+vector underlay shows through them. Against a faithful underlay, an opaque final
+crop is therefore pixel-identical to the correct patch. The unmodified-render
+comparison can discriminate only where the renderer paints the underlay wrongly.
+
+That dependence on a render defect was not hypothetical. The full-render
+over-capture mutation moved 7–23% of the transform, mask, and blend-root owners
+only while the renderer missed the fixture's offset-only inset box-shadow. Once
+that shadow painted, the mutation moved 0.06–2.4%. With the beneath-owner paint
+removed from both arms, a raster that baked that paint in is its only remaining
+source, so the mutation discriminates by construction. At DPR 1 it moves 27%
+(transform), 27% (mask), and 100% (blend root).
+
+The unmodified-render number is kept as `overCapture.fullRenderComparison` for
+diagnosis. A negative control (`overCapture.wrongRasterControl`) treats the
+over-captured tree as production and re-applies the mutation. The control must
+read as inert, which shows that the knocked-out comparison cannot move for a
+raster that is already over-captured. The under-capture (no-surface) mutation is
+still compared on the unmodified render.
+
 ## Native DPR result
 
 The local macOS arm64 Chromium 147 run produced `source-exact`, no blockers,
