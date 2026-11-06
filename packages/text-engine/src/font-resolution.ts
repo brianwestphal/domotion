@@ -5,7 +5,11 @@
  * generation state. Sized to what root production code imports; the resolver
  * internals the root oracles probe live on `./testing`.
  */
-export { type EmbeddedFontBuildDiagnostic } from "./render/embedded-font-builder.js";
+export {
+  type EmbeddedFontBuildDiagnostic,
+  type EmbeddedFontEmbeddingRestriction,
+  takeEmbeddedFontEmbeddingRestrictions,
+} from "./render/embedded-font-builder.js";
 export {
   clearEmbeddedFonts,
   clearGlyphDefs,

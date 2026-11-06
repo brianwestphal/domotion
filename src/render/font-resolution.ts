@@ -4,7 +4,10 @@ export {
   clearGlyphDefs,
   clearWebfonts,
   type EmbeddedFontBuildDiagnostic,
+  type EmbeddedFontEmbeddingRestriction,
   type FontVariantEmojiOverride,
+  // The raw engine build. Production renders call the warning-reporting wrapper
+  // in `embedded-font-css.ts` instead; it is the only importer of this name.
   getEmbeddedFontFaceCss,
   getFontInstance,
   getGlyphDefs,
@@ -21,6 +24,7 @@ export {
   type SessionGenericFamilyOverrides,
   setRenderTextMode,
   snapshotGeneration,
+  takeEmbeddedFontEmbeddingRestrictions,
   truncateGlyphDefs,
   withRenderTextMode,
 } from "@domotion/text-engine/font-resolution";

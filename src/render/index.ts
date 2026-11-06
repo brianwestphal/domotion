@@ -18,11 +18,13 @@ export {
   getRenderTextMode,
   withRenderTextMode,
   clearEmbeddedFonts,
-  getEmbeddedFontFaceCss,
   type RenderTextMode,
   RENDER_TEXT_MODES,
   isRenderTextMode,
 } from "./font-resolution.js";
+// The warning-reporting wrapper over the engine build: a restricted-embedding
+// source face becomes a render warning (doc 03).
+export { getEmbeddedFontFaceCss } from "./embedded-font-css.js";
 
 // Deliberate boundary for the independently testable browser-faithful text
 // engine. Keep lifecycle/state coordination behind this facade; the lower

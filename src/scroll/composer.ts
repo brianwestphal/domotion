@@ -33,12 +33,8 @@ import { roundedRectSvg } from "../render/borders.js";
 import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
 import { cssValueForStyle } from "../animation/css-value-input.js";
-import {
-  getEmbeddedFontFaceCss,
-  getGlyphDefs,
-  getRenderTextMode,
-  type RenderTextMode,
-} from "../render/font-resolution.js";
+import { getEmbeddedFontFaceCss } from "../render/embedded-font-css.js";
+import { getGlyphDefs, getRenderTextMode, type RenderTextMode } from "../render/font-resolution.js";
 import { withTextEngineDocument } from "../render/text-engine.js";
 import { withOptionalRenderWarningSink } from "../render/render-warn.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";

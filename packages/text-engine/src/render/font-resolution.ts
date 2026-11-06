@@ -1,7 +1,16 @@
 /** Compatibility barrel for font resolution. Implementation lives in focused modules. */
 export type { BlinkGenericFamily } from "../font-family-stack.js";
-export { getEmbeddedFontBuildDiagnostics, withHintedSubsetEnabled } from "./embedded-font-builder.js";
-export type { EmbeddedFontBuildDiagnostic, HintedSourceDisqualificationReason } from "./embedded-font-builder.js";
+export {
+  getEmbeddedFontBuildDiagnostics,
+  takeEmbeddedFontEmbeddingRestrictions,
+  withHintedSubsetEnabled,
+} from "./embedded-font-builder.js";
+export type {
+  EmbeddedFontBuildDiagnostic,
+  EmbeddedFontEmbeddingRestriction,
+  EmbeddingRestrictionKind,
+  HintedSourceDisqualificationReason,
+} from "./embedded-font-builder.js";
 export { restoreEmbeddedFonts, snapshotEmbeddedFonts } from "./embedded-font-builder.js";
 export type { EmbeddedFontSnapshot } from "./embedded-font-builder.js";
 export * from "./win-font-fallback.js";

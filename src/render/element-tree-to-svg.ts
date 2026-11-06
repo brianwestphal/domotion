@@ -21,12 +21,8 @@ import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-backgrou
 import { parseDataUri } from "../utils/data-uri.js";
 import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { measureTruncationMarker, renderRadicalGlyph, renderTextAsPath } from "./text-to-path.js";
-import {
-  getEmbeddedFontFaceCss,
-  getGlyphDefs,
-  type RenderTextMode,
-  type SessionGenericFamilyOverrides,
-} from "./font-resolution.js";
+import { getEmbeddedFontFaceCss } from "./embedded-font-css.js";
+import { getGlyphDefs, type RenderTextMode, type SessionGenericFamilyOverrides } from "./font-resolution.js";
 import { activeTextEngineDocument, withTextEngineDocument } from "./text-engine.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import type { DefCtx } from "./form-controls.js";

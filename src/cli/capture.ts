@@ -30,7 +30,7 @@ import {
 } from "../render/index.js";
 import { embedRemoteImages } from "../capture/embed.js";
 import { compressEmbeddedFontsToWoff2, optimizeSvg } from "../post-processing/index.js";
-import { logCaptureWarnings } from "../capture/warnings.js";
+import { getLastCaptureWarnings, logCaptureWarnings } from "../capture/warnings.js";
 import { resolveFormat, safeAreaGuideSvg, formatNames, type ResolvedFormat } from "../templates/index.js";
 import { withProcessRenderSettings } from "./process-render-settings.js";
 import {
@@ -500,6 +500,11 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
       // and attach to an issue.
       const { copyFileSync } = await import("node:fs");
       copyFileSync(outPath, `${debugDir}/actual.svg`);
+      // The capture and render warnings (dropped CSS features, render
+      // degradations, restricted-embedding font faces) belong in the
+      // reproduction bundle too, whether or not `--warnings` printed them.
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(`${debugDir}/warnings.json`, JSON.stringify(getLastCaptureWarnings(), null, 2));
     }
     // DM-1538: when a `--format` was chosen, surface its resolved safe-area inset
     // in the debug bundle (informational — a raw capture doesn't reflow to it, but
@@ -528,6 +533,7 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
           `  ${debugDir}/expected.png         (Chrome screenshot of source)\n` +
           `  ${debugDir}/actual.svg           (copy of the produced SVG)\n` +
           `  ${debugDir}/captured-tree.json   (intermediate element tree)\n` +
+          `  ${debugDir}/warnings.json        (capture and render warnings)\n` +
           `Review with: svg-review --expected ${debugDir}/expected.png --actual ${debugDir}/actual.svg`,
       );
     }

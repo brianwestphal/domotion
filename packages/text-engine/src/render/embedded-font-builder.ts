@@ -128,6 +128,7 @@ export interface PathCommand {
  *   - `nextPua`           — monotonically incremented allocation cursor
  *   - `weightMin`/`weightMax` — widened monotonically as weights are tracked
  *   - `hintedSourceDisqualified` — latches false → true
+ *   - `sourceFaces`       — append-only Map, distinct source faces seen
  *
  * The remaining fields (`cssFamily`, `unitsPerEm`, `ascender`, `descender`,
  * `italic`, `hintedSource`) are written once at entry creation and never
@@ -179,6 +180,14 @@ export interface BuilderEntry {
   hintedSource: HintedSource | null;
   /** Set once any glyph disqualifies the entry from the hinted path (see above). */
   hintedSourceDisqualified: boolean;
+  /**
+   * Every distinct physical source face (path + known face index) whose glyphs
+   * joined this entry, keyed `path#faceIndex`. Usually one face; more only when
+   * a per-glyph fallback mixed files into one entry (which also disqualifies the
+   * hinted path). Read by the embedding-permission notice
+   * (`takeEmbeddedFontEmbeddingRestrictions`), never by the font build.
+   */
+  sourceFaces: Map<string, HintedSource>;
   /** Stable diagnostic reasons accumulated while glyphs/runs join this entry. */
   hintedSourceDisqualificationReasons: Set<HintedSourceDisqualificationReason>;
   /** Distinct shaped runs that contributed glyph occurrences to this entry. */
@@ -244,6 +253,7 @@ const PUA_END = 0xf8ff;
 export function clearEmbeddedFontBuilder(): void {
   builderRegistry.clear();
   builderIdCounter = 0;
+  reportedRestrictedFaces.clear();
   resetHbSubsetAttemptDiagnostics();
 }
 
@@ -302,6 +312,8 @@ function cloneBuilderEntry(entry: BuilderEntry): BuilderEntry {
     puaForGlyphId: new Map(entry.puaForGlyphId),
     hintedSourceDisqualificationReasons: new Set(entry.hintedSourceDisqualificationReasons),
     runIds: new Set(entry.runIds),
+    // HintedSource records are written once and never mutated, so sharing them is safe.
+    sourceFaces: new Map(entry.sourceFaces),
     buildDiagnostic:
       entry.buildDiagnostic == null
         ? null
@@ -409,6 +421,7 @@ export function trackGlyphInEmbedFont(
       hintedSource: variant.hintedSource ?? null,
       hintedSourceDisqualified: false,
       hintedSourceDisqualificationReasons: new Set(),
+      sourceFaces: new Map(),
       runIds: new Set(),
       glyphOccurrenceCount: 0,
       buildDiagnostic: null,
@@ -452,6 +465,10 @@ export function trackGlyphInEmbedFont(
     entry.hintedSourceDisqualificationReasons.add("source-axis-disagreement");
   }
   entry.hintedSourceDisqualified = entry.hintedSourceDisqualificationReasons.size > 0;
+  if (glyphSource?.faceIndex != null) {
+    const faceKey = hintedOutlineGuardKey(glyphSource.path, glyphSource.faceIndex);
+    if (!entry.sourceFaces.has(faceKey)) entry.sourceFaces.set(faceKey, glyphSource);
+  }
   entry.glyphOccurrenceCount++;
   if (variant.runToken != null) entry.runIds.add(variant.runToken);
   if (variant.weight < entry.weightMin) entry.weightMin = variant.weight;
@@ -774,19 +791,102 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
  */
 function withSourceFsType(out: Buffer, source: HintedSource | null): Buffer {
   if (source?.faceIndex == null) return out;
-  // Memoized like the outline guard: a pure function of (path, face index) over
-  // an immutable font file, and the read can be tens of megabytes.
-  const key = hintedOutlineGuardKey(source.path, source.faceIndex);
+  const fsType = sourceFaceFsType(source.path, source.faceIndex);
+  return fsType == null ? out : withOs2FsType(out, fsType);
+}
+
+/**
+ * The source face's OS/2 `fsType`, or null when the file has no OS/2 table or
+ * cannot be read. Memoized like the outline guard: a pure function of (path,
+ * face index) over an immutable font file, and the read can be tens of
+ * megabytes. The hb-subset attempt seeds the memo from the bytes it already
+ * read, so the common path never reads a file for this.
+ */
+function sourceFaceFsType(path: string, faceIndex: number): number | null {
+  const key = hintedOutlineGuardKey(path, faceIndex);
   let fsType = sourceFsTypeMemo.get(key);
   if (fsType === undefined) {
     try {
-      fsType = sfntOs2FsType(readFileSync(source.path), source.faceIndex);
+      fsType = sfntOs2FsType(readFileSync(path), faceIndex);
     } catch {
       fsType = null;
     }
     sourceFsTypeMemo.set(key, fsType);
   }
-  return fsType == null ? out : withOs2FsType(out, fsType);
+  return fsType;
+}
+
+// ── Embedding-permission notices ──
+//
+// The maintainer's policy for a source face whose OS/2 `fsType` restricts
+// embedding is: warn, and keep embedding. Rendering never changes (Chromium does
+// not read `fsType` for webfonts either; Blink's font code has no use of it at
+// 7d859f27, and OTS only normalizes the bits). The root renderer turns each
+// notice into one render warning that points at `--text-mode paths`.
+
+/** Why a source face's `fsType` restricts embedding. */
+export type EmbeddingRestrictionKind = "restricted-license" | "bitmap-only";
+
+/** One source face, embedded in this render, whose `fsType` restricts embedding. */
+export interface EmbeddedFontEmbeddingRestriction {
+  path: string;
+  faceIndex: number;
+  postscriptName: string | null;
+  /** The raw OS/2 `fsType` value read from the source face. */
+  fsType: number;
+  restrictions: EmbeddingRestrictionKind[];
+}
+
+/**
+ * Classify an OS/2 `fsType` per the OpenType OS/2 specification:
+ *
+ * - Bits 0–3 are the usage permissions. Bit 1 (0x0002) is Restricted License
+ *   embedding. Version 3+ fonts set at most one of these bits; older fonts may
+ *   set several, and then the least restrictive one applies — so a face that
+ *   also sets Preview & Print (0x0004) or Editable (0x0008) is not restricted.
+ * - Bit 9 (0x0200) is Bitmap embedding only: outlines may not be embedded,
+ *   which is exactly what an embedded subset does.
+ *
+ * Bit 8 (0x0100, no subsetting) is deliberately not reported; the maintainer's
+ * policy names only the two cases above.
+ */
+export function embeddingRestrictionsForFsType(fsType: number): EmbeddingRestrictionKind[] {
+  const kinds: EmbeddingRestrictionKind[] = [];
+  if ((fsType & 0x0002) !== 0 && (fsType & 0x000c) === 0) kinds.push("restricted-license");
+  if ((fsType & 0x0200) !== 0) kinds.push("bitmap-only");
+  return kinds;
+}
+
+/** Faces already reported in this generation, keyed `path#faceIndex`. */
+const reportedRestrictedFaces = new Set<string>();
+
+/**
+ * Return each restricted source face embedded by the builder that has not been
+ * returned yet in this generation, and mark it returned. Consuming on purpose:
+ * a generation can build its `@font-face` CSS more than once (per frame, or a
+ * speculative variant), and the caller should warn once per face per render.
+ * `clearEmbeddedFontBuilder()` starts a new generation and forgets the set.
+ */
+export function takeEmbeddedFontEmbeddingRestrictions(): EmbeddedFontEmbeddingRestriction[] {
+  const out: EmbeddedFontEmbeddingRestriction[] = [];
+  for (const entry of builderRegistry.values()) {
+    for (const [faceKey, source] of entry.sourceFaces) {
+      if (reportedRestrictedFaces.has(faceKey) || source.faceIndex == null) continue;
+      const fsType = sourceFaceFsType(source.path, source.faceIndex);
+      if (fsType == null) continue;
+      const restrictions = embeddingRestrictionsForFsType(fsType);
+      if (restrictions.length === 0) continue;
+      reportedRestrictedFaces.add(faceKey);
+      out.push({
+        path: source.path,
+        faceIndex: source.faceIndex,
+        postscriptName: source.postscriptName ?? null,
+        fsType,
+        restrictions,
+      });
+    }
+  }
+  return out;
 }
 
 function sfntTableTags(fontBytes: Buffer): string[] {

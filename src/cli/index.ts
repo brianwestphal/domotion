@@ -149,7 +149,7 @@ capture options:
       --debug              Write a reproduction bundle next to the output
                            (.debug/ folder with capture.har, expected.png
                            Chromium screenshot, actual.svg copy, and the
-                           captured-tree JSON). Pair with svg-review to
+                           captured-tree JSON, plus warnings.json). Pair with svg-review to
                            file render-fidelity bug reports.
       --debug-dir <path>   Override the .debug/ folder location.
 

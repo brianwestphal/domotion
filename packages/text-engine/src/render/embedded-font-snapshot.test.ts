@@ -293,6 +293,7 @@ describe("snapshotEmbeddedFonts / restoreEmbeddedFonts — state rollback surfac
       "nextPua",
       "puaForGlyphId",
       "runIds",
+      "sourceFaces",
       "subsetAttempt",
       "subsetAttempts",
       "unitsPerEm",

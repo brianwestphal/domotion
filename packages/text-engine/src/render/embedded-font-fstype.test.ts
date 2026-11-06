@@ -11,8 +11,12 @@ import * as fontkit from "fontkit";
 import {
   clearEmbeddedFontBuilder,
   clearHintedOutlineGuardMemo,
+  embeddingRestrictionsForFsType,
   getBuiltEmbeddedFontFaceCss,
   getEmbeddedFontBuildDiagnostics,
+  restoreEmbeddedFonts,
+  snapshotEmbeddedFonts,
+  takeEmbeddedFontEmbeddingRestrictions,
   trackGlyphInEmbedFont,
 } from "./embedded-font-builder.js";
 import { injectPuaCmap, sfntOs2FsType, withOs2FsType, hbSubsetRetainGids } from "./hb-subset.js";
@@ -124,5 +128,136 @@ describe("embedded-font svg2ttf fallback carries the source fsType", () => {
       hintedSource: { path: join(dir, "missing.ttf"), faceIndex: 0, variationAxes: null },
     });
     expect(sfntOs2FsType(decodeFirstFont(getBuiltEmbeddedFontFaceCss()))).toBe(0);
+  });
+});
+
+// DM-DJKYRC policy (maintainer's choice): warn, and keep embedding. A source
+// face declaring Restricted License (0x0002) or bitmap-only (0x0200) embedding
+// is reported once per face per generation; the embedded bytes do not change.
+describe("embedding-restriction notices", () => {
+  it("classifies fsType per the OpenType OS/2 usage-permission rules", () => {
+    expect(embeddingRestrictionsForFsType(0x0000)).toEqual([]);
+    expect(embeddingRestrictionsForFsType(0x0002)).toEqual(["restricted-license"]);
+    // Pre-v3 fonts may set several usage bits; the least restrictive applies.
+    expect(embeddingRestrictionsForFsType(0x0006)).toEqual([]);
+    expect(embeddingRestrictionsForFsType(0x000a)).toEqual([]);
+    expect(embeddingRestrictionsForFsType(0x0004)).toEqual([]);
+    expect(embeddingRestrictionsForFsType(0x0008)).toEqual([]);
+    expect(embeddingRestrictionsForFsType(0x0200)).toEqual(["bitmap-only"]);
+    expect(embeddingRestrictionsForFsType(0x0204)).toEqual(["bitmap-only"]);
+    expect(embeddingRestrictionsForFsType(0x0202)).toEqual(["restricted-license", "bitmap-only"]);
+    // No-subsetting (bit 8) is outside the chosen policy.
+    expect(embeddingRestrictionsForFsType(0x0100)).toEqual([]);
+  });
+
+  let dir: string;
+  const fontPath = (name: string): string => join(dir, name);
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "domotion-fstype-notice-"));
+    writeFileSync(fontPath("restricted.ttf"), fontWithFsType(FS_TYPE_RESTRICTED));
+    writeFileSync(fontPath("bitmap.ttf"), fontWithFsType(0x0200));
+    writeFileSync(fontPath("installable.ttf"), fontWithFsType(0));
+    writeFileSync(fontPath("preview.ttf"), fontWithFsType(0x0006));
+    writeFileSync(fontPath("collection.ttc"), wrapInTtc([fontWithFsType(0), fontWithFsType(FS_TYPE_RESTRICTED)]));
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  beforeEach(() => {
+    clearEmbeddedFontBuilder();
+    clearHintedOutlineGuardMemo();
+  });
+
+  const track = (key: string, path: string, faceIndex: number | null, postscriptName?: string): void => {
+    trackGlyphInEmbedFont(key, 1000, 800, -200, 1, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path, faceIndex, variationAxes: null, postscriptName },
+    });
+  };
+
+  it("reports a restricted face once per generation and again after a reset", () => {
+    track("r|w=400", fontPath("restricted.ttf"), 0, "Restricted-Regular");
+    track("r|w=700", fontPath("restricted.ttf"), 0, "Restricted-Regular");
+    const css = getBuiltEmbeddedFontFaceCss();
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([
+      {
+        path: fontPath("restricted.ttf"),
+        faceIndex: 0,
+        postscriptName: "Restricted-Regular",
+        fsType: FS_TYPE_RESTRICTED,
+        restrictions: ["restricted-license"],
+      },
+    ]);
+    // A second build in the same generation (another frame) does not re-report.
+    expect(getBuiltEmbeddedFontFaceCss()).toBe(css);
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([]);
+    // Rendering is unchanged: the default hinted build still carries the source value.
+    expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({ selectedBuilder: "hb-subset" }));
+    expect(sfntOs2FsType(decodeFirstFont(css))).toBe(FS_TYPE_RESTRICTED);
+    // A new generation reports it again.
+    clearEmbeddedFontBuilder();
+    track("r|w=400", fontPath("restricted.ttf"), 0, "Restricted-Regular");
+    getBuiltEmbeddedFontFaceCss();
+    expect(takeEmbeddedFontEmbeddingRestrictions().map((r) => r.faceIndex)).toEqual([0]);
+  });
+
+  it("produces the same CSS whether or not the notices are drained", () => {
+    track("r|w=400", fontPath("restricted.ttf"), 0);
+    const drained = getBuiltEmbeddedFontFaceCss();
+    takeEmbeddedFontEmbeddingRestrictions();
+    clearEmbeddedFontBuilder();
+    track("r|w=400", fontPath("restricted.ttf"), 0);
+    expect(getBuiltEmbeddedFontFaceCss()).toBe(drained);
+  });
+
+  it("ignores installable, least-restrictive, and unknown-face sources", () => {
+    track("i|w=400", fontPath("installable.ttf"), 0);
+    track("p|w=400", fontPath("preview.ttf"), 0);
+    track("u|w=400", fontPath("restricted.ttf"), null);
+    track("m|w=400", fontPath("missing.ttf"), 0);
+    getBuiltEmbeddedFontFaceCss();
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([]);
+  });
+
+  it("reports bitmap-only faces, TTC members by index, and every face mixed into one entry", () => {
+    // One entry whose glyphs came from two files (a per-glyph fallback).
+    track("mixed|w=400", fontPath("installable.ttf"), 0);
+    trackGlyphInEmbedFont("mixed|w=400", 1000, 800, -200, 2, TRI, 600, {
+      italic: false,
+      weight: 400,
+      hintedSource: { path: fontPath("bitmap.ttf"), faceIndex: 0, variationAxes: null },
+    });
+    track("ttc0|w=400", fontPath("collection.ttc"), 0);
+    track("ttc1|w=400", fontPath("collection.ttc"), 1);
+    getBuiltEmbeddedFontFaceCss();
+    expect(takeEmbeddedFontEmbeddingRestrictions().map((r) => [r.path, r.faceIndex, r.fsType, r.restrictions])).toEqual(
+      [
+        [fontPath("bitmap.ttf"), 0, 0x0200, ["bitmap-only"]],
+        [fontPath("collection.ttc"), 1, FS_TYPE_RESTRICTED, ["restricted-license"]],
+      ],
+    );
+  });
+
+  it("reports faces from the svg2ttf control arm too", () => {
+    process.env.DOMOTION_HINTED_SUBSET = "0";
+    try {
+      track("r|w=400", fontPath("restricted.ttf"), 0);
+      getBuiltEmbeddedFontFaceCss();
+      expect(getEmbeddedFontBuildDiagnostics()[0]).toEqual(expect.objectContaining({ selectedBuilder: "svg2ttf" }));
+      expect(takeEmbeddedFontEmbeddingRestrictions()).toHaveLength(1);
+    } finally {
+      delete process.env.DOMOTION_HINTED_SUBSET;
+    }
+  });
+
+  it("forgets a discarded trial's face on snapshot rollback and keeps a restored one", () => {
+    const marker = snapshotEmbeddedFonts();
+    track("r|w=400", fontPath("restricted.ttf"), 0);
+    restoreEmbeddedFonts(marker);
+    getBuiltEmbeddedFontFaceCss();
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toEqual([]);
+    track("r|w=400", fontPath("restricted.ttf"), 0);
+    restoreEmbeddedFonts(snapshotEmbeddedFonts());
+    getBuiltEmbeddedFontFaceCss();
+    expect(takeEmbeddedFontEmbeddingRestrictions()).toHaveLength(1);
   });
 });
