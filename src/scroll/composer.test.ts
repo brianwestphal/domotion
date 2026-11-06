@@ -771,6 +771,16 @@ describe("composeScrollSvg: background color", () => {
     expect(svg).not.toContain('fill="rgb(255, 255, 255)"');
   });
 
+  it("refuses a background that would break out of its fill attribute (DM-W7FHMJ)", () => {
+    expect(() =>
+      composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], {
+        viewportW: 800,
+        viewportH: 600,
+        bgColor: 'red"/><script>alert(1)</script>',
+      }),
+    ).toThrow(/Invalid scroll background/);
+  });
+
   it("explicit transparent bgColor paints no background rect", () => {
     const svg = composeScrollSvg([segWithRootBg("rgb(255, 255, 255)")], {
       viewportW: 800,

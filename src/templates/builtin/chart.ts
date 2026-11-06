@@ -17,6 +17,7 @@ import type { Template, TemplateOutput, TemplateRenderContext } from "../types.j
 import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";
 import { formatScaleFactor, type SafeInset } from "../formats.js";
 import { escapeHtml } from "../../utils/escapeHtml.js";
+import { cssColorInputSchema } from "../../animation/css-value-input.js";
 
 const CHART_TYPES = ["column", "bar", "line", "pie", "donut"] as const;
 export type ChartType = (typeof CHART_TYPES)[number];
@@ -61,7 +62,10 @@ export const chartParamsSchema = z.object({
     .default("grouped")
     .describe("Multi-series bars: side-by-side (grouped) or stacked."),
   title: z.string().optional().describe("Chart title shown above the plot."),
+  // DM-W7FHMJ: each color lands in a `fill="…"` / `style="background:…"`
+  // attribute of the generated page, so markup, quotes and `;` are rejected.
   colors: stringsSchema
+    .pipe(z.array(cssColorInputSchema))
     .default(DEFAULT_COLORS)
     .describe("Colors: per-series when multi-series, else per-bar (comma-separated or array)."),
   max: z.coerce
@@ -579,7 +583,7 @@ const CHART_BODIES: Record<ChartBodyKind, ChartBody> = {
       const paths = plan.slices
         .map(
           (s, i) =>
-            `<path class="ch-pie-slice ch-pie-slice-${i}" d="${s.path}" fill="${s.color}" stroke="${p.background}" stroke-width="2"/>`,
+            `<path class="ch-pie-slice ch-pie-slice-${i}" d="${s.path}" fill="${s.color}" stroke="${escapeHtml(p.background)}" stroke-width="2"/>`,
         )
         .join("");
       return `<div class="ch-pie-wrap"><svg width="${p.width}" height="${p.height}" viewBox="0 0 ${p.width} ${p.height}"><g class="ch-pie-group">${paths}</g></svg></div>`;
@@ -621,7 +625,7 @@ const CHART_BODIES: Record<ChartBodyKind, ChartBody> = {
           const dots = l.dots
             .map(
               (d, i) =>
-                `<circle class="ch-dot ch-dot-${l.seriesIdx}-${i}" cx="${d.cx}" cy="${d.cy}" r="6" fill="${l.color}" stroke="${p.background}" stroke-width="3"/>`,
+                `<circle class="ch-dot ch-dot-${l.seriesIdx}-${i}" cx="${d.cx}" cy="${d.cy}" r="6" fill="${l.color}" stroke="${escapeHtml(p.background)}" stroke-width="3"/>`,
             )
             .join("");
           return `<g class="ch-reveal ch-reveal-${l.seriesIdx}">${area}<polyline points="${l.points}" fill="none" stroke="${l.color}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>${dots}</g>`;

@@ -51,6 +51,12 @@ import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payl
 import { escapeRegExp } from "../utils/escape-regexp.js";
 import { normalizeTransition, type NormalizedTransitionPlan, type Transition } from "./transition-schema.js";
 import { cssEasingForStyle } from "./easing-input.js";
+import {
+  cssAnimationValueForStyle,
+  cssIdentForStyle,
+  cssValueForStyle,
+  type AnimationValueProperty,
+} from "./css-value-input.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -2016,7 +2022,9 @@ function generateAnimatedSvgBody(config: AnimationConfig): string {
   // Canvas background rect — only when a non-transparent background is given.
   // Default (none / transparent) emits nothing so the SVG composites over the
   // host page, matching the single-frame `transparentRootBgRect` path (DM-554).
-  const bg = config.background;
+  // DM-W7FHMJ: author paint values are written into presentation attributes;
+  // `cssValueForStyle` throws on quotes, `<`, `&` and the other breakout characters.
+  const bg = config.background != null ? cssValueForStyle(config.background, "background") : undefined;
   const canvasBgRect =
     bg != null && !isTransparentBackground(bg) ? `  <rect width="${width}" height="${height}" fill="${bg}" />\n` : "";
   const a11y = rootSvgA11y(config.title, config.desc);
@@ -2643,7 +2651,7 @@ function buildTypingCaret(
   const cssRules: string[] = [];
   if (overlay.caret != null && overlay.caret !== false && caretSteps.length > 0) {
     const caretOpts = typeof overlay.caret === "object" ? overlay.caret : {};
-    const caretColor = caretOpts.color ?? color;
+    const caretColor = cssValueForStyle(caretOpts.color ?? color, "caret color");
     const caretW = caretOpts.width ?? 2;
     const caretShape: CaretShape = caretOpts.shape ?? "bar";
     const blinkMs = caretOpts.blinkMs ?? 530;
@@ -2791,7 +2799,7 @@ function renderTypingOverlay(
   // the clip non-empty so WebKit clips it too; 0.01px reveals no visible pixel.
   const hiddenW = "0.01px";
   const lineHeight = Math.round(fontSize * 1.35);
-  const color = overlay.color ?? "#e6edf3";
+  const color = cssValueForStyle(overlay.color ?? "#e6edf3", "overlay color");
   const typeStartMs = frameStart + delay;
   const id = `t${idBase}`;
 
@@ -2888,7 +2896,8 @@ function renderTypingOverlay(
   // of the wrap width; the legacy `bgColor` / `bgWidth` / `bgHeight` are the
   // deprecated fallbacks (`bgWidth` also fed the wrap above). Mask width
   // defaults to the wrap width, then to the longest typed line.
-  const maskColor = overlay.mask?.color ?? overlay.bgColor;
+  const rawMaskColor = overlay.mask?.color ?? overlay.bgColor;
+  const maskColor = rawMaskColor != null ? cssValueForStyle(rawMaskColor, "overlay mask color") : undefined;
   if (maskColor != null) {
     const bgW = overlay.mask?.width ?? wrapWidth ?? longestLineWidth + 8;
     const bgH = Math.max(overlay.mask?.height ?? overlay.bgHeight ?? fontSize + 6, lines.length * lineHeight + 6);
@@ -3090,7 +3099,7 @@ function renderBlinkOverlay(
 ): { svgMarkup: string; css: string } {
   const id = `blink${idBase}`;
   const period = overlay.periodMs ?? DEFAULT_BLINK_PERIOD_MS;
-  const color = overlay.color ?? "#e6edf3";
+  const color = cssValueForStyle(overlay.color ?? "#e6edf3", "overlay color");
   const startMs = frameStart + (overlay.delay ?? 0);
   const radiusAttr = overlay.radius != null ? ` rx="${overlay.radius}" ry="${overlay.radius}"` : "";
 
@@ -3147,11 +3156,12 @@ function renderInteractOverlay(
   const id = `ix${idBase}`;
   const treatment = overlay.treatment ?? "hover";
   const d = INTERACT_DEFAULTS[treatment];
-  const fill = overlay.fill ?? d.fill;
+  const fill = cssValueForStyle(overlay.fill ?? d.fill, "interact overlay fill");
   const fillOpacity = overlay.fillOpacity ?? d.fillOpacity;
   // `ring` defaults to the treatment ring (a focus ring for `focus`); an explicit
   // color adds one to any treatment, `"none"` forces it off.
-  const ring = overlay.ring ?? d.ring;
+  const rawRing = overlay.ring ?? d.ring;
+  const ring = rawRing != null ? cssValueForStyle(rawRing, "interact overlay ring") : undefined;
   const ringWidth = overlay.ringWidth ?? 2;
   const radius = overlay.radius ?? 6;
   const scaleTo = overlay.scale ?? d.scale;
@@ -3424,7 +3434,8 @@ function renderSvgOverlay(
   totalDuration: number,
   totalSec: number,
 ): { svgMarkup: string; css: string } {
-  const id = `ov-${idBase}-${overlay.animId}`;
+  // DM-W7FHMJ: the id is a class selector and keyframe name in the `<style>` block.
+  const id = `ov-${idBase}-${cssIdentForStyle(overlay.animId, "svg overlay animId")}`;
   const clipId = `${id}-clip`;
   const visibilityId = `${id}-vis`;
   // DM-1767: `delay` is the overlay's start knob (default 0 = appears with the
@@ -3556,8 +3567,24 @@ function buildIntraFrameAnimationCss(
       // value for that phase, composing all transform-family tracks into a
       // single `transform:` (two `transform:` decls would clobber each other)
       // and emitting other properties alongside.
-      type Track = { property: string; from: string; to: string; duration?: number; delay?: number; easing?: string };
-      const tracks: Track[] = [{ property: a.property, from: a.from, to: a.to }, ...(a.fuse ?? [])];
+      type Track = {
+        property: AnimationValueProperty;
+        from: string;
+        to: string;
+        duration?: number;
+        delay?: number;
+        easing?: string;
+      };
+      // DM-W7FHMJ: `from` / `to` / `transformOrigin` / `animId` land in this
+      // `<style>` block verbatim, so each is re-checked against its grammar here
+      // for direct API callers that bypass the config schemas (which apply the
+      // same rules); a value such as `0}</style><script>…` throws.
+      const animId = cssIdentForStyle(a.animId, "animation animId");
+      const tracks: Track[] = [{ property: a.property, from: a.from, to: a.to }, ...(a.fuse ?? [])].map((t) => ({
+        ...t,
+        from: cssAnimationValueForStyle(t.property, t.from, `"${t.property}" animation from`),
+        to: cssAnimationValueForStyle(t.property, t.to, `"${t.property}" animation to`),
+      }));
       const declFrom = composeAnimStop(tracks.map((t) => ({ property: t.property, val: t.from })));
       const declTo = composeAnimStop(tracks.map((t) => ({ property: t.property, val: t.to })));
       // DM-1297: SVG transforms are origin-(0,0); a `transformOrigin` makes a
@@ -3566,9 +3593,9 @@ function buildIntraFrameAnimationCss(
       // fill-box remains the backwards-compatible generated-group default.
       const originDecl =
         a.transformOrigin != null && a.transformOrigin !== ""
-          ? ` transform-box: ${a.transformBox ?? "fill-box"}; transform-origin: ${a.transformOrigin};`
+          ? ` transform-box: ${cssIdentForStyle(a.transformBox ?? "fill-box", "animation transformBox")}; transform-origin: ${cssValueForStyle(a.transformOrigin, "animation transformOrigin")};`
           : "";
-      const animName = `f${i}-${a.animId}-${ai}`;
+      const animName = `f${i}-${animId}-${ai}`;
       // DM-1517: when a fused track carries its OWN duration/delay/easing, the
       // tracks no longer share one `animation-timing-function`, so we can't emit
       // a from/to pair. Instead SAMPLE each track's eased value over its own
@@ -3621,7 +3648,7 @@ function buildIntraFrameAnimationCss(
         out.push(`    @keyframes ${animName} {
 ${body}
     }
-    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s linear infinite;${originDecl} }`);
+    .anim-${animId} { animation: ${animName} ${totalSec.toFixed(2)}s linear infinite;${originDecl} }`);
         continue;
       }
       if (a.repeat != null) {
@@ -3649,7 +3676,7 @@ ${body}
       0% { ${declFrom} }
       100% { ${declTo} }
     }
-    .anim-${a.animId} { animation: ${animName} ${a.duration}ms ${easing} ${startMs.toFixed(0)}ms ${iterations}${direction} both;${originDecl} }`);
+    .anim-${animId} { animation: ${animName} ${a.duration}ms ${easing} ${startMs.toFixed(0)}ms ${iterations}${direction} both;${originDecl} }`);
       } else {
         // One-shot: hold `from` until startPct, animate from→to during
         // [startPct, endPct], hold `to` afterwards, mapped onto the global scene
@@ -3660,7 +3687,7 @@ ${body}
       ${endPct.toFixed(3)}% { ${declTo} }
       100% { ${declTo} }
     }
-    .anim-${a.animId} { animation: ${animName} ${totalSec.toFixed(2)}s ${easing} infinite;${originDecl} }`);
+    .anim-${animId} { animation: ${animName} ${totalSec.toFixed(2)}s ${easing} infinite;${originDecl} }`);
       }
     }
   }

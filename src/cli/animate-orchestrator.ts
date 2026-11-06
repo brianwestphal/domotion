@@ -25,6 +25,7 @@ import {
   intraFrameAnimationSchema,
 } from "../animation/overlay-schema.js";
 import { resolveAnchoredOverlays, resolveAnchoredOverlaysInTree } from "../animation/resolve-overlays.js";
+import { animationValueInputSchema, cssColorInputSchema, refineAnimationValues } from "../animation/css-value-input.js";
 import {
   captureStyleSnapshot,
   classifyHoverTransition,
@@ -147,23 +148,28 @@ const scrollSchema = z.object({
 // (SSOT `intraFrameAnimationSchema`) with the resolved `animId` swapped for the
 // authoring `selector` (resolved against the captured DOM → `animId`), and the
 // `repeat` count tightened to a positive integer for config-author ergonomics.
-const frameAnimationSchema = intraFrameAnimationSchema.omit({ animId: true }).extend({
-  selector: z.string(),
-  // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
-  repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
-  // DM-1526: a named motion preset (fade-up / pop / slide-in-<dir> / wipe-in, …)
-  // can supply property/from/to/fuse/easing, so those become optional here — the
-  // preset fills them and any explicit field overrides. `easing` also accepts a
-  // named easing preset (spring / back-out / ease-out-quart / …). Expansion runs
-  // in `expandMotionPreset` before the animation is emitted.
-  property: intraFrameAnimationSchema.shape.property.optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
-  preset: z.string().optional().describe("Named motion preset supplying property/from/to/fuse/easing."),
-  presetDistance: z.coerce.number().optional().describe("Travel px for slide/fade presets."),
-  presetScaleFrom: z.coerce.number().optional().describe("Start scale for the `pop` preset."),
-  exit: z.boolean().optional().describe("Reverse the preset (animate the element OUT)."),
-});
+const frameAnimationSchema = intraFrameAnimationSchema
+  .omit({ animId: true })
+  .extend({
+    selector: z.string(),
+    // DM-869: loop the animation (blink / pulse). Positive integer or "infinite".
+    repeat: z.union([z.number().int().positive(), z.literal("infinite")]).optional(),
+    // DM-1526: a named motion preset (fade-up / pop / slide-in-<dir> / wipe-in, …)
+    // can supply property/from/to/fuse/easing, so those become optional here — the
+    // preset fills them and any explicit field overrides. `easing` also accepts a
+    // named easing preset (spring / back-out / ease-out-quart / …). Expansion runs
+    // in `expandMotionPreset` before the animation is emitted.
+    property: intraFrameAnimationSchema.shape.property.optional(),
+    from: animationValueInputSchema.optional(),
+    to: animationValueInputSchema.optional(),
+    preset: z.string().optional().describe("Named motion preset supplying property/from/to/fuse/easing."),
+    presetDistance: z.coerce.number().optional().describe("Travel px for slide/fade presets."),
+    presetScaleFrom: z.coerce.number().optional().describe("Start scale for the `pop` preset."),
+    exit: z.boolean().optional().describe("Reverse the preset (animate the element OUT)."),
+  })
+  // DM-W7FHMJ: `from` / `to` must match their property's grammar (a number for
+  // `opacity`, a length for `translate*`, …) because they land in `<style>` CSS.
+  .superRefine(refineAnimationValues);
 
 /**
  * DM-1526: expand a motion preset (if any) into concrete intra-frame animation
@@ -373,7 +379,7 @@ const termOptionsSchema = z.object({
   theme: termThemeSchema.optional(),
   mode: z.enum(["incremental", "full"]).optional(),
   cursor: z.enum(["block", "bar", "underline", "none"]).optional(),
-  cursorColor: z.string().optional(),
+  cursorColor: cssColorInputSchema.optional(),
   fontSize: z.number().optional(),
   fontFamily: z.string().optional(),
   padding: z.number().optional(),
@@ -566,7 +572,7 @@ const statesCaretSchema = z.union([
   z.boolean(),
   z.object({
     shape: z.enum(["bar", "block", "underscore"]).optional().describe("Caret shape (docs/97). Default bar."),
-    color: z.string().optional().describe("Caret color. Default #111111."),
+    color: cssColorInputSchema.optional().describe("Caret color. Default #111111."),
   }),
 ]);
 
@@ -599,7 +605,7 @@ const textTrackEventSchema = z.discriminatedUnion("type", [
     charStart: z.number().int().nonnegative(),
     charEnd: z.number().int().positive(),
     sweepMs: z.number().nonnegative().optional(),
-    color: z.string().optional(),
+    color: cssColorInputSchema.optional(),
     selector: z.string().optional(),
   }),
   /** Clear the most recent selection. */
@@ -614,13 +620,13 @@ const textTrackSchema = z
     /** Caret shape (docs/97): bar (default) / block / underscore. */
     shape: z.enum(["bar", "block", "underscore"]).optional(),
     /** Caret color. Default #111111. */
-    color: z.string().optional(),
+    color: cssColorInputSchema.optional(),
     /** Bar-caret width px (default 2). */
     barWidthPx: z.number().positive().optional(),
     /** Blink period ms (default 1060). */
     blinkMs: z.number().positive().optional(),
     /** Default selection fill (per-event `color` overrides). Default a translucent blue. */
-    selectionColor: z.string().optional(),
+    selectionColor: cssColorInputSchema.optional(),
     events: z.array(textTrackEventSchema).min(1, "must be a non-empty array"),
     /** DM-1763: by default a frame's track ENDS at that frame's cut — the CLI
      *  synthesizes a trailing `hide` (and `clearSelection` if a selection is
@@ -871,8 +877,8 @@ const frameSchema = z.object({
 // authoring shapes for its storyboard-level cursor track (DM-1554).
 export const cursorStyleSchema = z.object({
   scale: z.number().optional(),
-  color: z.string().optional(),
-  pulseColor: z.string().optional(),
+  color: cssColorInputSchema.optional(),
+  pulseColor: cssColorInputSchema.optional(),
   pulseRadius: z.number().optional(),
   pulseDurationMs: z.number().optional(),
 });

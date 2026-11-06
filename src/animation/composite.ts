@@ -37,6 +37,7 @@ import { offsetEmbeddedAnimatedSvgTimeline, type EmbeddedTimelineMode } from "./
 import { parseSvgIntrinsicSize, fmt, clampPct } from "./svg-meta.js";
 import { escapeRegExp } from "../utils/escape-regexp.js";
 import { cssEasingForStyle } from "./easing-input.js";
+import { cssAnimationValueForStyle, cssValueForStyle } from "./css-value-input.js";
 
 /** A layer-level animation: move / scale / fade / transform / resize-clip the whole layer. */
 export interface CompositeLayerAnimation {
@@ -300,11 +301,20 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
       const sPct = clampPct(((a.start ?? 0) / master) * 100);
       const ePct = clampPct((((a.start ?? 0) + (a.duration ?? master)) / master) * 100);
       const prop = a.property === "opacity" ? "opacity" : "transform";
-      const from = renderAnimValue(a.property, a.from);
-      const to = renderAnimValue(a.property, a.to);
+      // DM-W7FHMJ: `from` / `to` / `transformOrigin` land in this `<style>` block
+      // and the group's `style="…"`; re-check them for direct API callers.
+      const from = renderAnimValue(
+        a.property,
+        cssAnimationValueForStyle(a.property, a.from, `"${a.property}" layer animation from`),
+      );
+      const to = renderAnimValue(
+        a.property,
+        cssAnimationValueForStyle(a.property, a.to, `"${a.property}" layer animation to`),
+      );
       styleParts.push(`@keyframes ${name}{0%,${fmt(sPct)}%{${prop}:${from}}${fmt(ePct)}%,100%{${prop}:${to}}}`);
       groupDecls.push(`${name} ${fmt(masterSec)}s ${cssEasingForStyle(a.easing, "ease")} infinite`);
-      if (a.property !== "opacity" && transformOrigin == null) transformOrigin = a.transformOrigin ?? "0 0";
+      if (a.property !== "opacity" && transformOrigin == null)
+        transformOrigin = cssValueForStyle(a.transformOrigin ?? "0 0", "layer animation transformOrigin");
     });
     const groupStyle =
       groupDecls.length > 0
@@ -355,7 +365,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
   // zero-alpha hex, zero-alpha rgba()/hsla() — via the canonical predicate.
   const bg = isTransparentBackground(opts.background ?? "")
     ? ""
-    : `<rect width="${width}" height="${height}" fill="${opts.background}"/>`;
+    : `<rect width="${width}" height="${height}" fill="${cssValueForStyle(opts.background ?? "", "composite background")}"/>`;
 
   const defs = defsParts.join("");
   // DM-1331: the shared embedded-font block for `deferFonts` layers goes first in

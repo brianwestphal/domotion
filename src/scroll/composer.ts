@@ -32,6 +32,7 @@ import {
 import { roundedRectSvg } from "../render/borders.js";
 import { rootSvgA11y } from "../render/format.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
+import { cssValueForStyle } from "../animation/css-value-input.js";
 import {
   getEmbeddedFontFaceCss,
   getGlyphDefs,
@@ -505,7 +506,9 @@ export function composeScrollSvg(segments: ScrollSegmentCapture[], opts: ScrollC
   // fix use), not a hardcoded dark color. An explicit `opts.bgColor` still wins.
   // When the resolved background is transparent / absent we emit NO rect, so a
   // transparent capture stays transparent and composites over a host page.
-  const bg = opts.bgColor ?? segments[0]?.tree?.[0]?.styles?.rootBgComputed;
+  // DM-W7FHMJ: the background lands in `fill="…"`; reject breakout characters.
+  const rawBg = opts.bgColor ?? segments[0]?.tree?.[0]?.styles?.rootBgComputed;
+  const bg = rawBg != null ? cssValueForStyle(rawBg, "scroll background") : undefined;
   const paintBg = bg != null && !isTransparentBackground(bg);
   const hiDPIFactor = opts.hiDPIFactor ?? 2;
   const chunkSize = opts.chunkSize ?? 2;

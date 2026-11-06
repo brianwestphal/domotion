@@ -38,16 +38,26 @@ import { composeAnimatedLayers, type CompositeLayer } from "../animation/composi
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { UsageError, errorMessage, formatConfigIssues, readInputFile, writeSvgOutput } from "./common.js";
 import { easingInputSchema } from "../animation/easing-input.js";
+import {
+  animationValueInputSchema,
+  cssColorInputSchema,
+  refineAnimationValues,
+  transformOriginInputSchema,
+} from "../animation/css-value-input.js";
 
-export const compositeLayerAnimationSchema = z.object({
-  property: z.enum(["scale", "translateX", "translateY", "opacity", "transform", "clipScaleX", "clipScaleY"]),
-  from: z.union([z.string(), z.number()]),
-  to: z.union([z.string(), z.number()]),
-  start: z.number().nonnegative().optional(),
-  duration: z.number().positive().optional(),
-  easing: easingInputSchema.optional(),
-  transformOrigin: z.string().optional(),
-});
+export const compositeLayerAnimationSchema = z
+  .object({
+    property: z.enum(["scale", "translateX", "translateY", "opacity", "transform", "clipScaleX", "clipScaleY"]),
+    from: z.union([animationValueInputSchema, z.number()]),
+    to: z.union([animationValueInputSchema, z.number()]),
+    start: z.number().nonnegative().optional(),
+    duration: z.number().positive().optional(),
+    easing: easingInputSchema.optional(),
+    transformOrigin: transformOriginInputSchema.optional(),
+  })
+  // DM-W7FHMJ: `from` / `to` must match their property's grammar because they
+  // land in the output's `<style>` CSS.
+  .superRefine(refineAnimationValues);
 
 export const compositeLayerChromeSchema = z.object({
   device: z.enum(DEVICE_CHROMES).default("window"),
@@ -96,7 +106,7 @@ export const compositeConfigSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   output: z.string().optional(),
-  background: z.string().optional(),
+  background: cssColorInputSchema.optional(),
   duration: z.number().positive().optional(),
   layers: z.array(compositeLayerSchema).min(1),
 });

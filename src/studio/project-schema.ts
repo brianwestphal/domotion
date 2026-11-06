@@ -8,6 +8,7 @@ import {
 } from "../cli/composite.js";
 import { studioTreatmentsSchema, type StudioTreatment } from "./treatment-schema.js";
 import { brandSchema } from "../templates/brand.js";
+import { cssColorInputSchema } from "../animation/css-value-input.js";
 
 /** Durable file identity. The numeric version changes only through an explicit migration. */
 export const STUDIO_PROJECT_FORMAT = "domotion-studio-project" as const;
@@ -214,7 +215,7 @@ export const studioCompositionSchema: z.ZodType<StudioComposition> = z.lazy(() =
   z.strictObject({
     width: z.number().int().positive(),
     height: z.number().int().positive(),
-    background: z.string().optional(),
+    background: cssColorInputSchema.optional(),
     duration: z.number().positive().optional(),
     layers: z.array(studioLayerSchema).min(1),
   }),
@@ -431,7 +432,7 @@ export const studioArtifactSchema = z.strictObject({
 const canvasSchema = z.strictObject({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
-  background: z.string().optional(),
+  background: cssColorInputSchema.optional(),
   title: z.string().optional(),
   desc: z.string().optional(),
 });

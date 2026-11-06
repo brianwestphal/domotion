@@ -9,6 +9,7 @@
  */
 
 import { z } from "zod";
+import { cssColorInputSchema } from "../animation/css-value-input.js";
 
 export interface TerminalTheme {
   name: string;
@@ -46,9 +47,9 @@ export interface TerminalThemeSpec {
 export const terminalThemeSpecSchema: z.ZodType<TerminalThemeSpec> = z.object({
   extends: z.string().optional(),
   name: z.string().optional(),
-  bg: z.string().optional(),
-  fg: z.string().optional(),
-  ansi: z.array(z.string()).length(16).optional(),
+  bg: cssColorInputSchema.optional(),
+  fg: cssColorInputSchema.optional(),
+  ansi: z.array(cssColorInputSchema).length(16).optional(),
 });
 
 /** Default: a Catppuccin-Mocha-style palette (matches the existing terminal demos). */

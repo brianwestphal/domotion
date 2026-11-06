@@ -1,6 +1,7 @@
 /** Canonical transition authoring contract and compatibility normalization. */
 import { z } from "zod";
 import { easingInputSchema } from "./easing-input.js";
+import { cssColorInputSchema } from "./css-value-input.js";
 
 const duration = z.number().nonnegative();
 const easing = easingInputSchema.optional().describe("Named or CSS easing for the transition timeline.");
@@ -74,7 +75,7 @@ const shineParamsSchema = z
   .object({
     angle: z.number().min(-360).max(360).default(14),
     bandWidth: z.number().positive().max(2).default(0.28).describe("Band width as a fraction of viewport width."),
-    color: z.string().min(1).default("#ffffff"),
+    color: cssColorInputSchema.min(1).default("#ffffff"),
     opacity: z.number().min(0).max(1).default(0.55),
   })
   .strict();

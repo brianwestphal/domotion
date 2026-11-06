@@ -30,6 +30,7 @@
 import type { CapturedElement } from "../capture/types.js";
 import { hitTestTopmost } from "../render/paint-order.js";
 import { cursorGlyphSvg } from "./cursor-glyphs.js";
+import { cssValueForStyle } from "./css-value-input.js";
 
 export interface CursorStyle {
   /**
@@ -506,9 +507,12 @@ function buildPulseFragment(c: ResolvedClick, idx: number, uid: string, kf: stri
     secondaryHalf = `
     <path d="${halfPath}" fill="rgba(0,0,0,0.2)" opacity="0" style="animation:${halfName} ${totalSec}s linear infinite" />`;
   }
+  // DM-W7FHMJ: the pulse colors land in `stroke="…"`; reject breakout characters.
+  const pulseStrokeOuter = cssValueForStyle(c.style.pulseStrokeOuter, "cursor pulse color");
+  const pulseStroke = cssValueForStyle(c.style.pulseStroke, "cursor pulse color");
   return `    <g class="cursor-click cursor-click-${idx}">
-      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStrokeOuter}" stroke-width="2" opacity="0" style="${ringStyle(outerName)}" />
-      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${c.style.pulseStroke}" stroke-width="1" opacity="0" style="${ringStyle(innerName)}" />${secondaryHalf}
+      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${pulseStrokeOuter}" stroke-width="2" opacity="0" style="${ringStyle(outerName)}" />
+      <circle cx="${num(c.x)}" cy="${num(c.y)}" r="${r0}" fill="none" stroke="${pulseStroke}" stroke-width="1" opacity="0" style="${ringStyle(innerName)}" />${secondaryHalf}
     </g>`;
 }
 

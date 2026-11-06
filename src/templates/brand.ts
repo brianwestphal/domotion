@@ -21,22 +21,25 @@
 import { readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { z } from "zod";
+// DM-W7FHMJ: brand tokens are written into template `<style>` blocks and a
+// captured page's `:root{…}`, so they take the same plain-CSS-value check.
+import { cssValue } from "./builtin/shared.js";
 
 /** Palette tokens — all optional; a template uses each only where it has a slot. */
 export const brandPaletteSchema = z
   .object({
-    primary: z.string().optional().describe("Main brand color (buttons, accents, series 1)."),
-    accent: z.string().optional().describe("Secondary accent (highlights, bars, series 2)."),
-    background: z.string().optional().describe("Flat surface color behind content."),
-    text: z.string().optional().describe("Primary text / foreground color."),
-    muted: z.string().optional().describe("Secondary text color."),
+    primary: cssValue().optional().describe("Main brand color (buttons, accents, series 1)."),
+    accent: cssValue().optional().describe("Secondary accent (highlights, bars, series 2)."),
+    background: cssValue().optional().describe("Flat surface color behind content."),
+    text: cssValue().optional().describe("Primary text / foreground color."),
+    muted: cssValue().optional().describe("Secondary text color."),
   })
   .optional();
 
 /** Font tokens. `weights` is available for templates that pick a title/body weight. */
 export const brandFontSchema = z
   .object({
-    family: z.string().optional().describe("CSS font-family stack."),
+    family: cssValue().optional().describe("CSS font-family stack."),
     weights: z.array(z.coerce.number()).optional().describe("Font weights a template may pick from."),
   })
   .optional();
@@ -53,7 +56,7 @@ export const brandSchema = z.object({
   font: brandFontSchema,
   radius: z.coerce.number().optional().describe("Corner radius (px) for panels/cards."),
   logo: z.string().optional().describe("Logo asset (path/URL) for templates with a logo slot."),
-  background: z.string().optional().describe("Optional richer scene fill (overrides palette.background full-bleed)."),
+  background: cssValue().optional().describe("Optional richer scene fill (overrides palette.background full-bleed)."),
 });
 
 export type Brand = z.infer<typeof brandSchema>;

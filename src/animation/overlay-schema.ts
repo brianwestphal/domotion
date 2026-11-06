@@ -24,6 +24,7 @@
 
 import { z } from "zod";
 import { easingInputSchema } from "./easing-input.js";
+import { animationValueInputSchema, cssColorInputSchema, transformOriginInputSchema } from "./css-value-input.js";
 
 /**
  * DM-1767 (docs/104): the EXPLICIT per-overlay window end.
@@ -80,7 +81,7 @@ export const typingMaskSchema = z.object({
   /** Mask height in px. Grows beyond this if the wrapped text needs more lines. */
   height: z.number().optional(),
   /** Mask fill color. The mask only paints when this resolves (here or legacy `bgColor`). */
-  color: z.string().optional(),
+  color: cssColorInputSchema.optional(),
 });
 export type TypingMask = z.infer<typeof typingMaskSchema>;
 
@@ -122,7 +123,7 @@ export const typingOverlaySchema = z.object({
    *  proportional pairs like "AV" / "To" tighten. Off by default — the caret
    *  stays locked to the true edge either way. */
   kern: z.boolean().optional(),
-  color: z.string().optional(),
+  color: cssColorInputSchema.optional(),
   /** Delay from frame start before typing begins (ms). */
   delay: z.number().optional(),
   /** Speed per character (ms). */
@@ -155,7 +156,7 @@ export const typingOverlaySchema = z.object({
   /** DM-1134: the placeholder cover behind the text, sized independently of the wrap. */
   mask: typingMaskSchema.optional(),
   /** @deprecated DM-1134 — use `mask.color`. Background color to mask placeholder text. */
-  bgColor: z.string().optional(),
+  bgColor: cssColorInputSchema.optional(),
   /**
    * @deprecated DM-1134 — use `wrapWidth` (and `mask.width` for the cover).
    * Field width in px: feeds both the wrap width and the mask width.
@@ -173,7 +174,7 @@ export const typingOverlaySchema = z.object({
     .union([
       z.boolean(),
       z.object({
-        color: z.string().optional(),
+        color: cssColorInputSchema.optional(),
         width: z.number().optional(),
         blinkMs: z.number().optional(),
         // DM-1591: caret shape — `bar` (default thin bar), `block` (a translucent
@@ -301,7 +302,7 @@ export const blinkOverlaySchema = z.object({
   /** Full on/off cycle in ms (default 1000). */
   periodMs: z.number().optional(),
   /** Fill color (default a light gray). */
-  color: z.string().optional(),
+  color: cssColorInputSchema.optional(),
   /** Fill opacity when "on" (default 1). DM-1591: a `block` caret paints at 0.5
    *  so the glyph shows through. */
   fillOpacity: z.number().optional(),
@@ -334,7 +335,7 @@ export const shineOverlaySchema = z.object({
   /** Length of ONE sweep in ms (one-shot; ignored when `repeat` is set). Default 900. */
   duration: z.number().optional(),
   /** Highlight color. Default a soft white. */
-  color: z.string().optional(),
+  color: cssColorInputSchema.optional(),
   /** Peak opacity of the glint band (0–1). Default 0.55. */
   opacity: z.number().optional(),
   /** Band thickness in px. Default ~28% of `width`. */
@@ -389,12 +390,12 @@ export const interactOverlaySchema = z.object({
   treatment: z.enum(["hover", "focus", "press"]).optional(),
   /** Highlight / darken fill color. Defaults per treatment (a soft light fill for
    *  hover/focus, a translucent black for press). Set `"none"` to omit the fill. */
-  fill: z.string().optional(),
+  fill: cssColorInputSchema.optional(),
   /** Peak fill opacity (0–1). Default per treatment. */
   fillOpacity: z.number().optional(),
   /** Focus-ring stroke color. Defaults to a blue ring for `focus`, off otherwise.
    *  Set to a color to add a ring to any treatment; `"none"` to force it off. */
-  ring: z.string().optional(),
+  ring: cssColorInputSchema.optional(),
   /** Ring stroke width in px. Default 2. */
   ringWidth: z.number().optional(),
   /** Corner radius (px) of the fill + ring, to follow a rounded element. Default 6. */
@@ -456,9 +457,9 @@ export const intraFrameAnimationSchema = z.object({
   property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "scale", "clipPath"]),
   /** Start value (CSS string, e.g. `"0%"`, `"240px"`, `"0.3"`). For `scale`,
    *  a unitless factor (`"0.6"` -> `"1"`). */
-  from: z.string(),
+  from: animationValueInputSchema,
   /** End value (same syntax as `from`). */
-  to: z.string(),
+  to: animationValueInputSchema,
   /** Duration in ms. Must be ≤ the parent frame's `duration`. */
   duration: z.number(),
   /** CSS easing string. Default `linear`. */
@@ -472,7 +473,7 @@ export const intraFrameAnimationSchema = z.object({
    * the transform resolves about the element's OWN bounding box — e.g. a
    * center-origin scale-pop. Ignored for non-transform properties.
    */
-  transformOrigin: z.string().optional(),
+  transformOrigin: transformOriginInputSchema.optional(),
   /**
    * SVG reference box used to resolve `transformOrigin`. The generated
    * animation wrapper is an SVG `<g>`, so Blink resolves these through its
@@ -517,8 +518,8 @@ export const intraFrameAnimationSchema = z.object({
     .array(
       z.object({
         property: z.enum(["width", "height", "opacity", "transform", "translateX", "translateY", "scale", "clipPath"]),
-        from: z.string(),
-        to: z.string(),
+        from: animationValueInputSchema,
+        to: animationValueInputSchema,
         /** Override the primary's duration for this track (ms). Triggers sampling. */
         duration: z.number().optional(),
         /** Override the primary's delay for this track (ms). Triggers sampling. */

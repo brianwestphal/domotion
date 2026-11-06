@@ -167,6 +167,8 @@ the reveal / dolly SEGMENT only:
 
 `transition.easing` must be a preset name or a CSS `<easing-function>`; config validation rejects any other string, because the value is written into the output's `<style>` CSS.
 
+The shine `color` (on a `shine` transition, a custom recipe's `overlay`, or a `shine` overlay) is written into a `stop-color` attribute. It may not contain quotes, `<`, `>`, `{`, `}`, `;`, `\`, `&` or a line break. Config validation rejects such a value, and `buildShineSweep` throws on one.
+
 The easing is authored on the transition that DRIVES the next frame's entrance
 (the reveal / dolly plays on that successor). It's resolved through
 `resolveEasingPreset` and emitted as a per-keyframe `animation-timing-function`

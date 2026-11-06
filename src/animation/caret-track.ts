@@ -51,6 +51,7 @@ import {
 } from "./text-address.js";
 import { renderTextAsPath } from "../render/text-to-path.js";
 import { withRenderTextMode } from "../render/font-resolution.js";
+import { cssValueForStyle } from "./css-value-input.js";
 
 /** The standard caret blink period (ms) — the terminal cursor's 1.06 s cycle. */
 export const CARET_BLINK_MS = 1060;
@@ -212,7 +213,10 @@ export function resolveTextTrack(roots: CapturedElement[], spec: TextTrackSpec):
       selections.push({
         t: ev.t,
         sweepMs: Math.max(0, ev.sweepMs ?? 0),
-        color: ev.color ?? spec.selectionColor ?? DEFAULT_SELECTION_COLOR,
+        color: cssValueForStyle(
+          ev.color ?? spec.selectionColor ?? DEFAULT_SELECTION_COLOR,
+          "text track selection color",
+        ),
         rects: range.rects,
         charCount: range.charCount,
       });
@@ -228,7 +232,8 @@ export function resolveTextTrack(roots: CapturedElement[], spec: TextTrackSpec):
   }
   return {
     shape: spec.shape ?? "bar",
-    color: spec.color ?? "#111111",
+    // DM-W7FHMJ: the colors land in `fill="…"`; reject breakout characters.
+    color: cssValueForStyle(spec.color ?? "#111111", "text track color"),
     barWidthPx: spec.barWidthPx ?? DEFAULT_CARET_WIDTH_PX,
     blinkMs: spec.blinkMs ?? CARET_BLINK_MS,
     invert: spec.invert === true,

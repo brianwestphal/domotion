@@ -26,6 +26,7 @@ import { runSingleFrameGenerator } from "../run-single-frame.js";
 import type { AnimateConfig, Anims } from "../../cli/animate.js";
 import type { Template, TemplateOutput, TemplateRenderContext } from "../types.js";
 import { brandParams, brandBackground, brandSeriesColors, type Brand } from "../brand.js";
+import { cssColorInputSchema } from "../../animation/css-value-input.js";
 
 const VARIANTS = ["aurora", "orbs", "stars", "gradient-pan", "grid", "wave"] as const;
 export type BackgroundVariant = (typeof VARIANTS)[number];
@@ -54,7 +55,8 @@ const colorsSchema = z
     ),
     z.array(z.string()),
   ])
-  .pipe(z.array(z.string()).min(1))
+  // DM-W7FHMJ: each color lands in a generated `style="…"` attribute.
+  .pipe(z.array(cssColorInputSchema).min(1))
   .default(DEFAULT_COLORS);
 
 export const backgroundLoopParamsSchema = z.object({

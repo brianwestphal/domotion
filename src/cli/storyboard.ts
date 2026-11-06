@@ -45,6 +45,7 @@ import { parseArgs } from "node:util";
 import { resolve, dirname } from "node:path";
 import type { Browser } from "@playwright/test";
 import { z } from "zod";
+import { cssColorInputSchema } from "../animation/css-value-input.js";
 import { requireField } from "./require-field.js";
 import { loadTemplateRenderer } from "../templates/lazy-renderer.js";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
@@ -208,7 +209,7 @@ export const storyboardConfigSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   output: z.string().optional(),
-  background: z.string().optional(),
+  background: cssColorInputSchema.optional(),
   /** DM-1488: accessible name → role="img" + <title> on the root <svg>. */
   title: z.string().optional(),
   /** DM-1488: accessible long description → <desc> on the root <svg>. */

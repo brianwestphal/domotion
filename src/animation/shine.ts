@@ -22,6 +22,8 @@
  * can't double-transform it.
  */
 
+import { cssValueForStyle } from "./css-value-input.js";
+
 /** Accepts a numeric percent (`12.5`) or a percent string (`"12.5%"`). */
 export type Pctish = number | string;
 
@@ -82,7 +84,8 @@ export interface ShineSweepResult {
  */
 export function buildShineSweep(opts: ShineSweepOptions): ShineSweepResult {
   const { id, x, y, width, height, totalSec } = opts;
-  const color = opts.color ?? "#ffffff";
+  // DM-W7FHMJ: the color lands in `stop-color="…"`; reject breakout characters.
+  const color = cssValueForStyle(opts.color ?? "#ffffff", "shine color");
   const peak = opts.opacity ?? 0.55;
   const band = opts.bandWidth ?? Math.max(24, Math.round(width * 0.28));
   const skew = opts.skewDeg ?? 14;
