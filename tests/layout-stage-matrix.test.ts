@@ -11,10 +11,11 @@ describe("layout-stage declarative matrix", () => {
 
   it("classifies paint and diagnostic axes without relabeling logical states", () => {
     expect(layoutAxes.find((axis) => axis.id === "emphasis")?.verdict).toBe("paint");
-    expect(layoutAxes.find((axis) => axis.id === "justification")).toMatchObject({
-      verdict: "diagnostic",
-      diagnosticFeature: "text-align:justify",
-    });
+    // Justification expansion is in Chromium's laid-out ranges, so captured
+    // origins carry it: the axis agrees logically rather than hiding behind a
+    // capture diagnostic.
+    expect(layoutAxes.find((axis) => axis.id === "justification")?.verdict).toBe("logical");
+    expect(layoutAxes.filter((axis) => axis.verdict === "diagnostic")).toEqual([]);
     expect(layoutAxes.find((axis) => axis.id === "writingMode")?.verdict).toBe("logical");
     expect(layoutAxes.find((axis) => axis.id === "textCombine")?.verdict).toBe("logical");
   });

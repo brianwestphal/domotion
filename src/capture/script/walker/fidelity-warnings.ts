@@ -96,10 +96,11 @@ export const createFidelityWarnings = (ctx: FidelityWarningsContext) => {
     // <pattern><image> via buildConicGradientDef. The previous unconditional
     // warning fired even when the layer rendered correctly — moved to
     // the raster pipeline, which warns only when a tile cannot be produced.
-    // text-align: justify combined with wrapping — renderer doesn't space-stretch.
-    if (cs.textAlign === "justify") {
-      warn(sel, "text-align:justify", "path-mode renderer does not space-stretch justified text");
-    }
+    // No text-align: justify warning: per-character origins come from
+    // Chromium's laid-out ranges, which already include the justification
+    // expansion (shape_result_spacing.cc, Chromium 7d859f27), and the layout
+    // stage oracle gates that agreement. `system-font` mode is run-anchor-only
+    // by contract (doc 261) and loses every horizontal spacing input alike.
   };
   return { warnBeforeMaskDiscovery, warnAfterMaskDiscovery };
 };

@@ -115,8 +115,10 @@ export const layoutAxes: readonly LayoutAxis[] = [
   },
   {
     id: "justification",
-    verdict: "diagnostic",
-    diagnosticFeature: "text-align:justify",
+    // Justification expansion is part of Chromium's laid-out character ranges
+    // (shape_result_spacing.cc justification opportunities), so captured
+    // origins carry it and the axis must agree logically like any other.
+    verdict: "logical",
     values: values(
       ["start", "text-align:start"],
       ["center", "text-align:center"],

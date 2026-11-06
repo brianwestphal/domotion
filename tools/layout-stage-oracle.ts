@@ -265,9 +265,15 @@ async function main(args: string[]): Promise<number> {
         expectedById.set(fixture.id, expected);
         capturedById.set(fixture.id, actual);
         const delta = geometryDelta(expected, actual);
-        const diagnosticExpected =
-          fixture.axes.justification === "justify" || fixture.axes.justification === "justify-last";
-        const diagnosticObserved = raw.warnings?.some((warning) => warning.feature === "text-align:justify") === true;
+        // A diagnostic axis (none today) is proved by its named capture warning
+        // whenever the row requests one of its non-default values.
+        const diagnosticFeatures = layoutAxes
+          .filter((axis) => axis.verdict === "diagnostic" && fixture.axes[axis.id] !== defaults[axis.id])
+          .map((axis) => axis.diagnosticFeature);
+        const diagnosticExpected = diagnosticFeatures.length > 0;
+        const diagnosticObserved =
+          diagnosticExpected &&
+          diagnosticFeatures.every((feature) => raw.warnings?.some((warning) => warning.feature === feature) === true);
         const route = diagnosticExpected ? "diagnostic" : "logical";
         const pass = diagnosticExpected ? diagnosticObserved : delta <= tolerance;
         if (!pass) mismatches++;

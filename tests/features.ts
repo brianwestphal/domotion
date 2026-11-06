@@ -1233,6 +1233,17 @@ export const tests: FeatureTest[] = [
     height: 80,
   },
   {
+    // text-align: justify paints space-stretched interior lines and an
+    // unstretched last line; a mixed inline-bold / RTL Hebrew line exercises
+    // expansion across inline boundaries and bidi runs. The per-character
+    // origins come from Chromium's laid-out ranges, which already carry the
+    // justification expansion (shape_result_spacing.cc, Chromium 7d859f27).
+    name: "text-align-justify",
+    html: `<div style="padding:16px;background:#fff;color:#111;font:16px/22px Helvetica,Arial,sans-serif"><p style="margin:0;width:300px;text-align:justify">The quick brown fox jumps over the lazy dog while <b>bold words</b> and Hebrew <span lang="he">שלום עולם טוב</span> share one justified line. Last line stays short.</p></div>`,
+    width: 340,
+    height: 140,
+  },
+  {
     // A perspective transform on a generated pseudo paints a trapezoid that no
     // SVG affine can express. The capture prepass must hand it to one isolated
     // Chromium-painted pseudo surface; it used to stay an "exact" record that

@@ -116,6 +116,10 @@ RTL anchor and vertical-writing output in Chromium.
 - **Fonts must be present on the viewer.** Absent fonts fall back to whatever
   the viewer's browser chooses. This mode makes no fidelity guarantee.
 - **Positional drift** under font substitution, as above.
+- **No justification expansion.** A `text-align: justify` line is emitted as a
+  run anchored at its captured left edge, so the viewer does not re-stretch it
+  to the line width. The `paths` and `embedded-font` modes reproduce Chromium's
+  justified lines exactly from the captured per-character origins.
 - **Complex-script fidelity depends on the viewer's shaping**, not Domotion's:
   synthetic dotted circles, contextual joining, and mark positioning are
   produced by the viewer's own HarfBuzz over the source text, not reproduced
