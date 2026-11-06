@@ -33,6 +33,7 @@ export const captureImageElement = ({
   let imageBroken;
   let imageAlt;
   let brokenImageFallback;
+  let imageEmbeddingColorScheme: "light" | "dark" | undefined;
   if (tag === "img") {
     const img = el as HTMLImageElement;
     // currentSrc is the URL the browser actually resolved + loaded (from
@@ -49,6 +50,47 @@ export const captureImageElement = ({
     // the renderer can synthesize the same fallback.
     imageBroken = img.complete && img.naturalWidth === 0;
     imageAlt = img.alt || "";
+    // The color scheme an SVG image document sees as its preferred scheme:
+    // `LayoutImageResource::GetImage` passes `StyleEngine::
+    // ResolveColorSchemeForEmbedding(&img style)` to the SVG image
+    // (`core/layout/layout_image_resource.cc:227-233`, `core/css/
+    // style_engine.cc:4644-4656`, chromium 7d859f27). With no recognized
+    // scheme in the img's color-scheme flags that is the embedder document's
+    // preferred scheme; otherwise the img's used scheme
+    // (`ComputedStyleBuilder::SetUsedColorScheme`, `core/style/
+    // computed_style.cc:3139-3181`). A computed `normal` takes its flags
+    // from the first valid `<meta name=color-scheme>` (`ApplyColorSchemeValue`,
+    // `longhands_custom.cc:2582-2600`; `Document::ColorSchemeMetaChanged`,
+    // `core/dom/document.cc:8243-8260`). Forced darkening is a WebView
+    // setting and is off in this capture.
+    const ownerDoc = el.ownerDocument;
+    const ownerWin = ownerDoc.defaultView;
+    const prefersDark = ownerWin != null && ownerWin.matchMedia("(prefers-color-scheme: dark)").matches;
+    let schemeValue = (ownerWin != null ? ownerWin.getComputedStyle(el).colorScheme : "") || "normal";
+    if (schemeValue.trim().toLowerCase() === "normal") {
+      const metas = ownerDoc.documentElement != null ? ownerDoc.documentElement.getElementsByTagName("meta") : [];
+      for (let mi = 0; mi < metas.length; mi++) {
+        const meta = metas[mi];
+        if ((meta.getAttribute("name") || "").toLowerCase() !== "color-scheme") continue;
+        const content = (meta.getAttribute("content") || "").trim();
+        if (content !== "" && typeof CSS !== "undefined" && CSS.supports("color-scheme", content)) {
+          schemeValue = content;
+          break;
+        }
+      }
+    }
+    const schemeTokens = schemeValue.toLowerCase().split(/\s+/);
+    const hasDark = schemeTokens.indexOf("dark") >= 0;
+    const hasLight = schemeTokens.indexOf("light") >= 0;
+    const hasOnly = schemeTokens.indexOf("only") >= 0;
+    imageEmbeddingColorScheme =
+      !hasDark && !hasLight && !hasOnly
+        ? prefersDark
+          ? "dark"
+          : "light"
+        : (hasDark && prefersDark) || (hasDark && !hasLight)
+          ? "dark"
+          : "light";
     // Seed only light-DOM/source facts here. Closed UA-shadow ownership,
     // used geometry, text shaping/font facts, and AX semantics are attached
     // by the Node/CDP post-pass while the private live-node registry exists.
@@ -90,5 +132,13 @@ export const captureImageElement = ({
     // already reflects width/height attributes or the image's natural size.
     imageSrc = (el as HTMLInputElement).src;
   }
-  return { imageSrc, imageIntrinsic, imageEffectiveZoom, imageBroken, imageAlt, brokenImageFallback };
+  return {
+    imageSrc,
+    imageIntrinsic,
+    imageEffectiveZoom,
+    imageBroken,
+    imageAlt,
+    brokenImageFallback,
+    imageEmbeddingColorScheme,
+  };
 };

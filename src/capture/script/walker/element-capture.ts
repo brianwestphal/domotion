@@ -229,6 +229,7 @@ const buildCapturedContent = (d: ElementCaptureDeps, f: ElementFacts) => {
     imageSrc: f.image.imageSrc,
     imageIntrinsic: f.image.imageIntrinsic,
     imageEffectiveZoom: f.image.imageEffectiveZoom,
+    imageEmbeddingColorScheme: f.image.imageEmbeddingColorScheme,
     imageBroken: f.image.imageBroken,
     imageAlt: f.image.imageAlt,
     brokenImageFallback: f.image.brokenImageFallback,

@@ -97,12 +97,29 @@ describe("image-document answers frozen for the inlined root", () => {
   });
 
   it("freezes @media against the image viewport and warns when it cannot", () => {
-    const css = `<style>@media (max-width: 100px) { rect { fill: green } } @media (min-width: 30em) { circle { fill: red } } @media (hover: hover) { path { fill: blue } }</style>`;
+    const css = `<style>@media (max-width: 100px) { rect { fill: green } } @media (min-width: 30em) { circle { fill: red } } @media (prefers-reduced-motion: reduce) { path { fill: blue } }</style>`;
     const out = scopeImageStyleSheets(css, "P-", { w: 90, h: 90 });
     expect(out).toContain(`@media all { rect${W} { fill: green } }`);
     expect(out).toContain(`@media not all { circle${W} { fill: red } }`);
-    expect(out).toContain(`@media (hover: hover) { path${W} { fill: blue } }`);
+    expect(out).toContain(`@media (prefers-reduced-motion: reduce) { path${W} { fill: blue } }`);
     // Without a known viewport the query is left to the output document.
     expect(scopeImageStyleSheets(css, "P-")).toContain(`@media (max-width: 100px) { rect${W}`);
+  });
+
+  // The image page has no hover / pointer and sees the embedder's color scheme
+  // (ResolveColorSchemeForEmbedding), whatever the output document's are.
+  it("keeps a hex escape's terminating space inside its compound", () => {
+    expect(scopeSelectorList(`#\\31 a rect`, "P-")).toBe(`#\\31 a${W} rect${W}`);
+  });
+
+  it("freezes environment media features with the image document's answers", () => {
+    const css = `<style>@media (hover: hover) { path { fill: blue } } @media (prefers-color-scheme: dark) { rect { fill: white } }</style>`;
+    const dark = scopeImageStyleSheets(css, "P-", null, { preferredColorScheme: "dark" });
+    expect(dark).toContain(`@media not all { path${W} { fill: blue } }`);
+    expect(dark).toContain(`@media all { rect${W} { fill: white } }`);
+    const light = scopeImageStyleSheets(css, "P-", null, { preferredColorScheme: "light" });
+    expect(light).toContain(`@media not all { rect${W} { fill: white } }`);
+    // An unknown embedding scheme stays live.
+    expect(scopeImageStyleSheets(css, "P-")).toContain(`@media (prefers-color-scheme: dark) { rect${W}`);
   });
 });

@@ -31,7 +31,11 @@ import {
 import { invokeSynchronousCallback, type SynchronousCallback } from "./text-engine.js";
 import { resolveImageRootTransform, type ResolvedImageRootTransform } from "./svg-image-root-transform.js";
 import { renderWarn } from "./render-warn.js";
-import { cascadeRootStylesheetTransform, type CascadedDeclaration } from "./svg-image-root-stylesheet.js";
+import {
+  cascadeRootStylesheetTransform,
+  decodeXmlAttributeValue,
+  type CascadedDeclaration,
+} from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
@@ -455,9 +459,13 @@ function rootFontSize(attrValue: string | null, styleValue: string | null, hasSh
  *   `<img>` paths compose it around the resolved origin
  *   ({@link applyImageRootTransform}) and clip the result to the image box.
  *
- * A declaration the resolver cannot express exactly (`calc()`, font-relative
- * units, a 3D function) falls back to the `transform` attribute alone about
- * the box center, with a named warning.
+ * A projective transform (perspective that reaches the screen) returns
+ * `"projective"`: SVG transforms are affine, so the caller returns null and
+ * the `<img>` takes the `<image href="data:image/svg+xml">` path, whose SVG
+ * document applies the root transform itself. A declaration the resolver
+ * cannot express exactly (font-metric units, an unknown font-size) falls back
+ * to the `transform` attribute alone about the box center, with a named
+ * warning.
  */
 function imageRootTransform(
   attrs: string,
@@ -466,10 +474,16 @@ function imageRootTransform(
   sheet: ReadonlyMap<string, CascadedDeclaration> | null = null,
   hasSheets = false,
   viewport: { w: number; h: number } | null = null,
-): ResolvedImageRootTransform | null {
+): ResolvedImageRootTransform | null | "projective" {
   const tokens = parseSvgAttributes(attrs) ?? [];
-  const attr = (name: string): string | null =>
+  // The DOM value of an XML attribute: references expanded, whitespace
+  // normalized (raw when it names a DTD entity).
+  const rawAttr = (name: string): string | null =>
     tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
+  const attr = (name: string): string | null => {
+    const raw = rawAttr(name);
+    return raw == null ? null : (decodeXmlAttributeValue(raw) ?? raw);
+  };
   // The author cascade over the root's transform family: an `!important`
   // declaration beats a normal one, and at equal importance the style
   // attribute beats any selector (CSS Cascade 4 §6.1); between sheet rules the
@@ -494,7 +508,11 @@ function imageRootTransform(
     const fromSheet = sheet?.get(name);
     if (fromSheet == null || decl.important || !fromSheet.important) style.set(name, decl.value);
   }
-  const transformAttr = attr("transform");
+  // The transform attribute is re-emitted as attribute text, so it stays raw
+  // when decoding would expose markup characters (no transform list holds any).
+  const decodedTransform = attr("transform");
+  const transformAttr =
+    decodedTransform != null && /[<>&"']/.test(decodedTransform) ? rawAttr("transform") : decodedTransform;
   const resolved = resolveImageRootTransform(
     {
       transformAttr,
@@ -506,13 +524,14 @@ function imageRootTransform(
     box,
   );
   if (resolved !== "unsupported") return resolved;
+  // (`"projective"` passes through: the caller falls back to `<image>`.)
   renderWarn(
     "svg-image-root-transform",
     `${slot} root transform uses a value that cannot be resolved exactly; only its transform attribute is applied`,
     slot,
   );
   const fallback = resolveImageRootTransform({ transformAttr, transformOriginAttr: null, style: new Map() }, box);
-  return fallback === "unsupported" ? null : fallback;
+  return typeof fallback === "string" ? null : fallback;
 }
 
 interface Rect {
@@ -731,6 +750,10 @@ export interface InlineSvgPlacement {
   /** The `<img>`'s effective zoom (CSS px per SVG user unit for a synthesized
    *  viewport-relative viewBox); used with `documentViewport`. Defaults to 1. */
   zoom?: number;
+  /** The preferred color scheme the image document sees (Blink's
+   *  `ResolveColorSchemeForEmbedding` for the `<img>`), for
+   *  `prefers-color-scheme` in its sheets; unknown when absent. */
+  preferredColorScheme?: "light" | "dark";
 }
 
 /** The SVG image document's viewport in its own CSS px, for `@media`: the
@@ -766,6 +789,7 @@ function rootSheetTransform(
       attributes: tokens.map((token): [string, string] => [token.name, token.value]),
     },
     imageViewport(p),
+    { preferredColorScheme: p.preferredColorScheme ?? null },
   );
   if (sheet === "unsupported") {
     renderWarn(
@@ -875,6 +899,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     sheetMaySetFontSize(svgText),
     imageViewport(p),
   );
+  if (rootTransform === "projective") return null;
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
   // Strip the attrs we re-declare (keep xmlns / class / style / role / etc.).
   attrs = stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio"]);
@@ -896,7 +921,9 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     // An inlined `<style>` belongs to the whole output document; scope its
     // selectors to this image (its own document in Blink).
     rootAttrs += ` ${IMAGE_ROOT_ATTR}="${p.idPrefix}"`;
-    body = scopeImageStyleSheets(body, p.idPrefix, imageViewport(p));
+    body = scopeImageStyleSheets(body, p.idPrefix, imageViewport(p), {
+      preferredColorScheme: p.preferredColorScheme ?? null,
+    });
   }
 
   const open =
@@ -1098,6 +1125,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     sheetMaySetFontSize(svgText),
     imageViewport(p),
   );
+  if (rootTransform === "projective") return null;
   if (rootOverflowVisible(attrs)) {
     return rootTransform == null
       ? clipToImage(group, p, object)

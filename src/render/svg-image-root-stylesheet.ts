@@ -22,12 +22,21 @@
  *   which never match in an image document: it receives no input, focus or
  *   navigation.
  *
- * An `@media` block is evaluated against the image viewport (see
- * `evaluateMediaQueryList`). Anything else that could reach the root with a
- * transform-family declaration makes the result `unsupported`: a structural
- * pseudo-class, or another conditional group such as `@supports` or
- * `@container`. The caller then keeps its previous output and warns instead
- * of painting a guess.
+ * Attribute values and ids / classes are compared as the DOM holds them:
+ * CSS escapes in the selector are decoded, and the root's XML attribute values
+ * are normalized with their character references and predefined entities
+ * expanded (a DTD-defined entity leaves the answer undecided).
+ *
+ * Conditional groups:
+ * - `@media` is evaluated against the image document (`evaluateMediaQueryList`).
+ * - `@container` never matches the root: it has no ancestor container.
+ * - `@layer` blocks and statements order the cascade (CSS Cascade 5), with
+ *   unlayered rules last.
+ * Anything else that could reach the root with a transform-family declaration
+ * makes the result `unsupported`: a selector this module cannot decide (such
+ * as `:has()`), an undecided media query, or another group rule (`@supports`,
+ * `@scope`, `@starting-style`). The caller then keeps its previous output and
+ * warns instead of painting a guess.
  *
  * The returned `source` rewrites the sheets so the inlined markup does not
  * apply those declarations a second time (an inlined `<style>` applies to the
@@ -40,7 +49,7 @@
  * `selector:not([data-domotion-image-root])`; the inlined root carries that
  * attribute whenever the image has a sheet (see `svg-image-style-scope.ts`).
  */
-import { evaluateMediaQueryList } from "./svg-image-media.js";
+import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import { anPlusBMatches, IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 
 /** The CSS properties that make up the root's transform. */
@@ -59,6 +68,8 @@ export interface CascadedDeclaration {
   specificity: [number, number, number];
   /** Source order across all of the document's sheets. */
   order: number;
+  /** The declaration's cascade layer rank (unlayered is highest). */
+  layerRank?: number;
 }
 
 export interface RootStylesheetTransform {
@@ -135,7 +146,64 @@ function matchParen(s: string, open: number): number {
   return -1;
 }
 
-const IDENT = "-?(?:[_a-zA-Z]|[^\\x00-\\x7f])(?:[-_a-zA-Z0-9]|[^\\x00-\\x7f])*";
+// CSS Syntax §4.3.7: an escape is `\` + 1-6 hex digits (+ one whitespace), or
+// `\` + any other non-newline code point.
+const ESCAPE = "\\\\(?:[0-9a-fA-F]{1,6}[ \\t\\n\\r\\f]?|[^\\n\\r\\f0-9a-fA-F])";
+const IDENT = `-?(?:[_a-zA-Z]|[^\\x00-\\x7f]|${ESCAPE})(?:[-_a-zA-Z0-9]|[^\\x00-\\x7f]|${ESCAPE})*`;
+
+/** Decode CSS escapes (CSS Syntax §4.3.7 "consume an escaped code point";
+ *  §4.3.5: an escaped newline inside a string is a line continuation). */
+export function cssUnescape(text: string): string {
+  return text.replace(
+    /\\(?:([0-9a-fA-F]{1,6})(?:\r\n|[ \t\n\r\f])?|(\r\n|[\n\r\f])|([\s\S]))/g,
+    (_m, hex: string | undefined, newline: string | undefined, ch: string | undefined) => {
+      if (hex != null) {
+        const cp = parseInt(hex, 16);
+        return cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) ? "\ufffd" : String.fromCodePoint(cp);
+      }
+      return newline != null ? "" : (ch ?? "");
+    },
+  );
+}
+
+const XML_PREDEFINED: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+
+/** Expand character references and the predefined entities in XML text;
+ *  null when the text references any other entity, which only a DTD could
+ *  define, or a code point XML does not allow. */
+export function expandXmlReferences(text: string): string | null {
+  let undecidable = false;
+  const out = text.replace(
+    /&(?:#(\d+)|#x([0-9a-fA-F]+)|([A-Za-z_][\w.-]*));/g,
+    (whole: string, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
+      if (name != null) {
+        if (Object.hasOwn(XML_PREDEFINED, name)) return XML_PREDEFINED[name];
+        undecidable = true;
+        return whole;
+      }
+      const cp = dec != null ? Number(dec) : parseInt(hex ?? "", 16);
+      if (!(cp >= 1 && cp <= 0x10ffff) || (cp >= 0xd800 && cp <= 0xdfff)) {
+        undecidable = true; // not well-formed: no document at all
+        return whole;
+      }
+      return String.fromCodePoint(cp);
+    },
+  );
+  return undecidable ? null : out;
+}
+
+/**
+ * An XML attribute value as the parser hands it to the DOM (XML 1.0 §2.11,
+ * §3.3.3; libxml2 for an `image/svg+xml` document): line ends normalized, each
+ * literal whitespace character replaced by a space, then references expanded
+ * (see {@link expandXmlReferences}).
+ */
+export function decodeXmlAttributeValue(raw: string): string | null {
+  return expandXmlReferences(raw.replace(/\r\n?/g, "\n").replace(/[\t\n]/g, " "));
+}
+
+/** ASCII case folding, as Blink's case-insensitive attribute matching uses. */
+const asciiLower = (text: string): string => text.replace(/[A-Z]/g, (c) => c.toLowerCase());
 
 // `[ns|name op value flag]`; the name may carry an XML prefix (`xlink:href`).
 const ATTR_NAME = `${IDENT}(?::${IDENT})?`;
@@ -151,13 +219,15 @@ function attributeMatches(
   value: string,
   flag: string | undefined,
   root: RootFacts,
-): boolean {
-  const actual = root.attributes.get(name);
-  if (actual == null) return false;
+): boolean | null {
+  if (!root.attributes.has(name)) return false;
   if (op == null) return true;
+  const actual = root.attributes.get(name);
+  if (actual == null) return null; // a DTD-defined entity: the DOM value is unknown
+  // The `i` flag folds ASCII case only (Blink's EqualIgnoringAsciiCase).
   const fold = flag?.toLowerCase() === "i";
-  const a = fold ? actual.toLowerCase() : actual;
-  const v = fold ? value.toLowerCase() : value;
+  const a = fold ? asciiLower(actual) : actual;
+  const v = fold ? asciiLower(value) : value;
   switch (op) {
     case "=":
       return a === v;
@@ -192,8 +262,9 @@ function decideSelectorArgs(
       continue;
     }
     const c = parseCompound(selector, root);
-    if (c == null) return null;
-    out.push({ match: compoundMatchesRoot(c, root), spec: SPECIFICITY(c) });
+    const match = c == null ? null : compoundMatchesRoot(c, root);
+    if (c == null || match == null) return null;
+    out.push({ match, spec: SPECIFICITY(c) });
   }
   return out;
 }
@@ -225,9 +296,10 @@ function parseCompound(selector: string, root: RootFacts): SimpleCompound | null
     if (s[i] === "[") {
       const m = ATTR_RE.exec(s.slice(i));
       if (m == null) return null;
-      const value = m[3] ?? m[4] ?? m[5] ?? "";
-      if (/\\/.test(value)) return null; // CSS escapes in the value: not decoded here
-      if (!attributeMatches(m[1], m[2], value, m[6], root)) out.extraMatch = false;
+      const value = cssUnescape(m[3] ?? m[4] ?? m[5] ?? "");
+      const matched = attributeMatches(cssUnescape(m[1]), m[2], value, m[6], root);
+      if (matched == null) return null;
+      if (!matched) out.extraMatch = false;
       addSpec([0, 1, 0]);
       i += m[0].length;
       firstToken = false;
@@ -290,9 +362,9 @@ function parseCompound(selector: string, root: RootFacts): SimpleCompound | null
     if (m == null) return null;
     if (m[1] != null) {
       if (!firstToken) return null; // a type selector only leads a compound
-      out.type = m[1].toLowerCase();
-    } else if (m[2] != null) out.ids.push(m[2]);
-    else if (m[3] != null) out.classes.push(m[3]);
+      out.type = m[1] === "*" ? "*" : asciiLower(cssUnescape(m[1]));
+    } else if (m[2] != null) out.ids.push(cssUnescape(m[2]));
+    else if (m[3] != null) out.classes.push(cssUnescape(m[3]));
     else out.root = true;
     i = COMPOUND_TOKEN_RE.lastIndex;
     firstToken = false;
@@ -311,6 +383,12 @@ function hasCombinator(selector: string): boolean {
     if (quote != null) {
       if (ch === "\\") i++;
       else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "\\") {
+      // An escape, including the whitespace that ends a hex escape.
+      const hex = /^[0-9a-fA-F]{1,6}(?:\r\n|[ \t\n\r\f])?/.exec(s.slice(i + 1));
+      i += hex != null ? hex[0].length : 1;
       continue;
     }
     if (ch === '"' || ch === "'") quote = ch;
@@ -411,18 +489,23 @@ function blankNoise(css: string): string {
 
 interface RootFacts {
   tag: string;
-  id: string | null;
-  classes: Set<string>;
-  /** The root's attributes, by exact (case-sensitive, XML) name. */
-  attributes: Map<string, string>;
+  /** Null without an id; undefined when a DTD entity leaves it unknown. */
+  id: string | null | undefined;
+  /** Null when a DTD entity leaves the class list unknown. */
+  classes: Set<string> | null;
+  /** The root's attributes, by exact (case-sensitive, XML) name, with their
+   *  DOM values (null when a DTD entity leaves the value unknown). */
+  attributes: Map<string, string | null>;
   /** The image body (everything after the root's opening tag). */
   body: string;
 }
 
-function compoundMatchesRoot(c: SimpleCompound, root: RootFacts): boolean {
+function compoundMatchesRoot(c: SimpleCompound, root: RootFacts): boolean | null {
   if (c.type != null && c.type !== "*" && c.type !== root.tag) return false;
+  if (c.ids.length > 0 && root.id === undefined) return null;
   if (c.ids.some((id) => id !== root.id)) return false;
-  if (c.classes.some((cls) => !root.classes.has(cls))) return false;
+  if (c.classes.length > 0 && root.classes == null) return null;
+  if (c.classes.some((cls) => !root.classes!.has(cls))) return false;
   return c.extraMatch;
 }
 
@@ -432,10 +515,14 @@ function compoundIsRootExclusive(c: SimpleCompound, root: RootFacts): boolean {
   const bodyTags = root.body.match(/<([a-zA-Z][-\w:.]*)/g) ?? [];
   if (c.type === "svg" && !bodyTags.some((t) => /^<(?:[\w.-]+:)?svg$/i.test(t))) return true;
   if (c.classes.length > 0) {
-    const used = [...root.body.matchAll(/\bclass\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].flatMap((m) =>
-      (m[1] ?? m[2] ?? "").split(/\s+/),
+    const lists = [...root.body.matchAll(/\bclass\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].map((m) =>
+      decodeXmlAttributeValue(m[1] ?? m[2] ?? ""),
     );
-    if (!c.classes.some((cls) => used.includes(cls))) return true;
+    // A class list a DTD entity leaves unknown might carry any class.
+    if (lists.every((list) => list != null)) {
+      const used = lists.flatMap((list) => list!.split(/[ \t\n\f\r]+/));
+      if (!c.classes.some((cls) => used.includes(cls))) return true;
+    }
   }
   return bodyTags.length === 0;
 }
@@ -458,17 +545,25 @@ export function cascadeRootStylesheetTransform(
   rootTagEnd: number,
   root: { tag: string; id: string | null; className: string | null; attributes?: Array<[string, string]> },
   viewport: { w: number; h: number } | null = null,
+  env: ImageMediaEnv = {},
 ): RootStylesheetTransform | null | "unsupported" {
   const body = svgText.slice(rootTagEnd);
   if (!/<style[\s>]/i.test(body)) return null;
+  // The source carries raw attribute text; the DOM sees it decoded.
+  const id = root.id == null ? null : (decodeXmlAttributeValue(root.id) ?? undefined);
+  const className = root.className == null ? "" : decodeXmlAttributeValue(root.className);
   const facts: RootFacts = {
     tag: root.tag.toLowerCase(),
-    id: root.id,
-    classes: new Set((root.className ?? "").split(/\s+/).filter((c) => c !== "")),
-    attributes: new Map(root.attributes ?? []),
+    id,
+    // Class names split on ASCII whitespace (SpaceSplitString).
+    classes: className == null ? null : new Set(className.split(/[ \t\n\f\r]+/).filter((c) => c !== "")),
+    attributes: new Map((root.attributes ?? []).map(([name, value]) => [name, decodeXmlAttributeValue(value)])),
     body,
   };
-  const declarations = new Map<string, CascadedDeclaration>();
+  const candidates: Array<{ name: string; layer: string; declaration: CascadedDeclaration }> = [];
+  const layers = new CascadeLayers();
+  // CDATA sections of the sheet being processed (offsets into its text).
+  let cdataRegions: Array<[number, number]> = [];
   let order = 0;
   let unsupported = false;
   let changed = false;
@@ -478,7 +573,14 @@ export function cascadeRootStylesheetTransform(
   // apply to the root, but their root-matching transform declarations are
   // still removed, since the inlined sheet would otherwise evaluate the query
   // against the output document's viewport.
-  const processRange = (css: string, clean: string, start: number, stop: number, active: boolean): string => {
+  const processRange = (
+    css: string,
+    clean: string,
+    start: number,
+    stop: number,
+    active: boolean,
+    layer: string,
+  ): string => {
     let out = "";
     let cursor = start;
     let i = start;
@@ -488,7 +590,13 @@ export function cascadeRootStylesheetTransform(
       if (brace < 0 || brace >= stop) break;
       const preludeRaw = clean.slice(i, brace);
       if (preludeRaw.trim().startsWith("@") && semi >= 0 && semi < brace) {
-        i = semi + 1; // a block-less at-rule (@import / @charset / @namespace)
+        // A block-less at-rule (@import / @charset / @namespace), or a
+        // `@layer a, b;` statement, which fixes those layers' order.
+        const statement = /^@layer\s+([\s\S]+)$/i.exec(clean.slice(i, semi).trim());
+        if (statement != null) {
+          for (const name of statement[1].split(",")) layers.declare(layer, name.trim());
+        }
+        i = semi + 1;
         continue;
       }
       const end = matchBrace(clean, brace);
@@ -496,17 +604,40 @@ export function cascadeRootStylesheetTransform(
       const prelude = preludeRaw.trim();
       const block = clean.slice(brace + 1, end);
       if (prelude.startsWith("@")) {
-        const media = /^@media\b([\s\S]*)$/i.exec(prelude);
+        const name = /^@([-\w]+)/.exec(prelude)?.[1].toLowerCase() ?? "";
         const touchesTransform = /(?:^|[;{}])\s*(?:transform|transform-origin|translate|rotate|scale)\s*:/i.test(block);
-        if (media != null && touchesTransform) {
-          const matches = viewport == null ? null : evaluateMediaQueryList(media[1], viewport);
-          if (matches == null) unsupported = true;
-          else {
-            out += css.slice(cursor, brace + 1) + processRange(css, clean, brace + 1, end, active && matches) + "}";
+        // The block's rules for the root: `true` / `false` to apply them or
+        // not (their root transform declarations are removed either way, so
+        // the inlined sheet does not decide them again), null to give up.
+        let applies: boolean | null = null;
+        let innerLayer = layer;
+        if (name === "media") {
+          applies = evaluateMediaQueryList(prelude.slice(6), viewport, env);
+        } else if (name === "container") {
+          // A container query looks for a container from the element's
+          // flat-tree parent, or from the nearest size container among its
+          // ancestors (ContainerQueryEvaluator::DetermineStartingElement);
+          // the image root has neither, and no container means no match
+          // (EvalAndAdd, core/css/container_query_evaluator.cc:138-203,
+          // chromium 7d859f27).
+          applies = false;
+        } else if (name === "layer") {
+          // `@layer name { … }` or an anonymous `@layer { … }`.
+          const layerName = prelude.slice(6).trim();
+          innerLayer = layers.declare(layer, layerName === "" ? null : layerName);
+          applies = true;
+        }
+        if (applies != null) {
+          if (touchesTransform) {
+            const inner = processRange(css, clean, brace + 1, end, active && applies, innerLayer);
+            out += css.slice(cursor, brace + 1) + inner + "}";
             cursor = end + 1;
+          } else if (name === "layer") {
+            // Register nested layer names in order even without transforms.
+            processRange(css, clean, brace + 1, end, false, innerLayer);
           }
         } else if (touchesTransform) {
-          // Another conditional group (@supports / @layer / @container …).
+          // `@supports`, `@scope`, `@starting-style`, an undecided `@media` …
           unsupported = true;
         }
         i = end + 1;
@@ -522,18 +653,29 @@ export function cascadeRootStylesheetTransform(
       const selectors = splitSelectorList(prelude);
       const keepForOthers: string[] = [];
       let matchedSpec: [number, number, number] | null = null;
+      // Outside a CDATA section the sheet text is XML character data, so the
+      // DOM's selector text has its references expanded (`&amp;` is `&`).
+      const inCdata = cdataRegions.some(([from, to]) => i >= from && i < to);
       for (const selector of selectors) {
-        if (hasCombinator(selector)) {
+        const domSelector = inCdata ? selector : expandXmlReferences(selector);
+        if (domSelector == null) {
+          unsupported = true;
           keepForOthers.push(selector);
           continue;
         }
-        const compound = parseCompound(selector, facts);
+        if (hasCombinator(domSelector)) {
+          keepForOthers.push(selector);
+          continue;
+        }
+        const compound = parseCompound(domSelector, facts);
         if (compound == null) {
           unsupported = true;
           keepForOthers.push(selector);
           continue;
         }
-        if (!compoundMatchesRoot(compound, facts)) {
+        const rootMatch = compoundMatchesRoot(compound, facts);
+        if (rootMatch !== true) {
+          if (rootMatch == null) unsupported = true;
           keepForOthers.push(selector);
           continue;
         }
@@ -549,14 +691,16 @@ export function cascadeRootStylesheetTransform(
         for (const d of decls) {
           const current = order++;
           if (!active || !ROOT_TRANSFORM_PROPERTIES.has(d.name)) continue;
-          const candidate: CascadedDeclaration = {
-            value: d.value,
-            important: d.important,
-            specificity: matchedSpec,
-            order: current,
-          };
-          const previous = declarations.get(d.name);
-          if (previous == null || compareCascade(candidate, previous) > 0) declarations.set(d.name, candidate);
+          candidates.push({
+            name: d.name,
+            layer,
+            declaration: {
+              value: inCdata ? d.value : (expandXmlReferences(d.value) ?? d.value),
+              important: d.important,
+              specificity: matchedSpec,
+              order: current,
+            },
+          });
         }
         // Rebuild the rule: the other declarations for every selector, the
         // transform family only for selectors that do not reach the root.
@@ -581,11 +725,23 @@ export function cascadeRootStylesheetTransform(
 
   const rewrittenBody = body.replace(
     /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
-    (_whole, open: string, css: string, closeTag: string) =>
-      open + processRange(css, blankNoise(css), 0, css.length, true) + closeTag,
+    (_whole, open: string, css: string, closeTag: string) => {
+      cdataRegions = [...css.matchAll(/<!\[CDATA\[([\s\S]*?)(?:\]\]>|$)/g)].map((m): [number, number] => [
+        m.index,
+        m.index + m[0].length,
+      ]);
+      return open + processRange(css, blankNoise(css), 0, css.length, true, "") + closeTag;
+    },
   );
 
   if (unsupported) return "unsupported";
+  const declarations = new Map<string, CascadedDeclaration>();
+  const rank = layers.ranks();
+  for (const { name, layer, declaration } of candidates) {
+    declaration.layerRank = rank.get(layer) ?? 0;
+    const previous = declarations.get(name);
+    if (previous == null || compareCascade(declaration, previous) > 0) declarations.set(name, declaration);
+  }
   if (declarations.size === 0 && !changed) return null;
   return {
     declarations,
@@ -597,7 +753,54 @@ function compareSpec(a: [number, number, number], b: [number, number, number]): 
   return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }
 
+/** CSS Cascade 5 §6.1 within the author origin: importance, then cascade
+ *  layer (later layers win for normal declarations, earlier ones for
+ *  `!important`), then specificity, then order of appearance. */
 function compareCascade(a: CascadedDeclaration, b: CascadedDeclaration): number {
   if (a.important !== b.important) return a.important ? 1 : -1;
+  const layer = (a.layerRank ?? 0) - (b.layerRank ?? 0);
+  if (layer !== 0) return a.important ? -layer : layer;
   return compareSpec(a.specificity, b.specificity) || a.order - b.order;
+}
+
+/**
+ * The image document's cascade layers, in Blink's order: each layer's
+ * sublayers (in order of first declaration) come before the layer's own
+ * rules, and unlayered rules come last (CSS Cascade 5 §6.4.3;
+ * `CascadeLayer::ComputeLayerOrder` walks the layer tree in post-order,
+ * core/css/cascade_layer.cc, chromium 7d859f27).
+ */
+class CascadeLayers {
+  /** Child names per layer path ("" is the implicit outer, unlayered layer). */
+  private readonly children = new Map<string, string[]>([["", []]]);
+  private anonymous = 0;
+
+  /** Declare `name` (dotted, or null for an anonymous layer) inside `parent`;
+   *  returns the full path of the innermost layer. */
+  declare(parent: string, name: string | null): string {
+    const segments =
+      name == null ? [`\u0000anon${this.anonymous++}`] : name.split(".").map((n) => cssUnescape(n.trim()));
+    let path = parent;
+    for (const segment of segments) {
+      const child = path === "" ? segment : `${path}.${segment}`;
+      const siblings = this.children.get(path)!;
+      if (!siblings.includes(child)) {
+        siblings.push(child);
+        this.children.set(child, []);
+      }
+      path = child;
+    }
+    return path;
+  }
+
+  /** Rank per layer path: higher wins for normal declarations. */
+  ranks(): Map<string, number> {
+    const out = new Map<string, number>();
+    const visit = (path: string): void => {
+      for (const child of this.children.get(path) ?? []) visit(child);
+      out.set(path, out.size);
+    };
+    visit("");
+    return out;
+  }
 }

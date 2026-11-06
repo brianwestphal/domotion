@@ -105,9 +105,27 @@ describe("resolveImageRootTransform", () => {
     });
   });
 
+  // The plane maps through w = m14 x + m24 y + m44; it is projective only when
+  // w varies across it (or is not positive).
+  it("reports projective products, and flattens perspective that never reaches the plane", () => {
+    expect(resolve({ transform: "perspective(100px) rotateY(10deg)" })).toBe("projective");
+    expect(resolve({ transform: "matrix3d(1,0,0,0.01, 0,1,0,0, 0,0,1,0, 0,0,0,1)" })).toBe("projective");
+    expect(resolve({ transform: "matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)" })).toBe("projective");
+    expect(resolve({ rotate: "y 30deg", transform: "perspective(0px) rotateY(1deg)" })).toBe("projective");
+    // perspective() alone (or before a z translation) leaves w = 1 on the z = 0 plane.
+    expect(resolve({ transform: "perspective(100px)" })).toMatchObject({ transform: "matrix(1 0 0 1 0 0)" });
+    expect(resolve({ transform: "perspective(50px) rotate(90deg)" })).toMatchObject({
+      transform: "matrix(0 1 -1 0 0 0)",
+    });
+    // A uniform w divides out.
+    expect(resolve({ transform: "matrix3d(2,0,0,0, 0,2,0,0, 0,0,1,0, 4,6,0,2)" })).toMatchObject({
+      transform: "matrix(1 0 0 1 2 3)",
+    });
+    expect(resolve({ transform: "perspective(-1px)" })).toBe("unsupported");
+    expect(resolve({ transform: "perspective(10%)" })).toBe("unsupported");
+  });
+
   it("reports unsupported values instead of guessing", () => {
-    expect(resolve({ transform: "perspective(100px) rotateY(10deg)" })).toBe("unsupported");
-    expect(resolve({ transform: "matrix3d(1,0,0,0.01, 0,1,0,0, 0,0,1,0, 0,0,0,1)" })).toBe("unsupported");
     expect(resolve({ transform: "translate(1ex)" })).toBe("unsupported");
     expect(resolve({ transform: "translate(10vw)" })).toBe("unsupported"); // no viewport known
     expect(

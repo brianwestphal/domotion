@@ -29,12 +29,15 @@
  * part: the rasterizer maps (x, y, 0, 1) through the 4x4 matrix, and the z
  * row and column never reach the screen. The functions are composed with
  * the matrices of the CSS Transforms 2 spec, which Blink's `TransformOperations`
- * build. `perspective(<length>)`, or a `matrix3d` with perspective terms, is
- * projective and cannot be expressed as an SVG transform. Viewport units
- * resolve against the image viewport (the object rect) when the caller knows
- * it. Projective transforms, `ex` / `ch` and the other font-metric units
- * return `"unsupported"`, so the caller keeps its previous output instead of
- * painting a guess.
+ * build. A composed matrix whose w row varies across the plane (a
+ * `perspective(<length>)` followed by a rotation out of the plane, or a
+ * `matrix3d` with m14 / m24 terms) is projective and cannot be expressed as an
+ * SVG transform: the result is `"projective"`, and the caller routes the image
+ * to the `<image>` fallback, whose SVG document applies the transform itself.
+ * Viewport units resolve against the image viewport (the object rect) when the
+ * caller knows it. `ex` / `ch` and the other font-metric units return
+ * `"unsupported"`, so the caller keeps its previous output instead of painting
+ * a guess.
  */
 import { formatNumberLoose } from "./format.js";
 
@@ -252,12 +255,18 @@ function commaArgs(raw: string): string[] | null {
 /** A 4x4 matrix in CSS `matrix3d()` (column-major) order. */
 type M4 = number[];
 
-/** The 2D affine part of a 4x4 matrix as an SVG `matrix()`, or null when it
- *  has perspective terms (projective, not expressible in SVG). */
-function flatten(m: M4): string | null {
+/** The 2D mapping of a 4x4 matrix as an SVG `matrix()`, or `"projective"`.
+ *  The image root paints its z = 0 plane: a point (x, y, 0, 1) maps to
+ *  (m0 x + m4 y + m12, m1 x + m5 y + m13) / (m3 x + m7 y + m15), so the
+ *  z row and column (m2, m6, m8..m11, m14) never reach the screen. The
+ *  mapping is affine exactly when m3 = m7 = 0; a positive m15 then divides
+ *  out. Anything else (w varying across the plane, or w <= 0, which Blink
+ *  clips as behind the viewer) is projective. */
+function flatten(m: M4): string | "projective" {
   const eps = 1e-12;
-  if (Math.abs(m[3]) > eps || Math.abs(m[7]) > eps || Math.abs(m[11]) > eps || Math.abs(m[15] - 1) > eps) return null;
-  return `matrix(${[m[0], m[1], m[4], m[5], m[12], m[13]].map(f).join(" ")})`;
+  if (Math.abs(m[3]) > eps || Math.abs(m[7]) > eps || !(m[15] > eps)) return "projective";
+  const w = m[15];
+  return `matrix(${[m[0], m[1], m[4], m[5], m[12], m[13]].map((v) => f(v / w)).join(" ")})`;
 }
 
 /** `rotate3d(x, y, z, a)` per CSS Transforms 2 §12; a zero axis is identity. */
@@ -346,8 +355,8 @@ function tokenToM4(name: string, args: number[]): M4 | null {
 }
 
 /** Compose a resolved list that holds 3D factors into one flattened
- *  `matrix()`, or null when the product is projective. */
-function composeFlattened(list: string): string | null {
+ *  `matrix()`; `"projective"` when the product is, null on a malformed list. */
+function composeFlattened(list: string): string | "projective" | null {
   let m: M4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   for (const fn of list.matchAll(/([a-zA-Z0-9]+)\(([^)]*)\)/g)) {
     const factor = tokenToM4(
@@ -425,9 +434,16 @@ function css3dFunctionToSvg(name: string, args: string[], box: Box, env: LengthE
       break;
     }
     case "perspective": {
-      // `perspective(none)` is the identity; a length is projective.
-      if (args.length === 1 && args[0].toLowerCase() === "none") return "";
-      return null;
+      // `perspective(none)` is the identity. `perspective(<length [0,inf]>)`
+      // sets m34 = -1 / d, with d below 1px treated as 1px (CSS Transforms 2
+      // §13.1; Blink's `PerspectiveTransformOperation`). It only reaches the
+      // screen through a later factor that moves the plane along z.
+      if (args.length !== 1) return null;
+      if (args[0].toLowerCase() === "none") return "";
+      const d = /%/.test(args[0]) ? null : len(args[0], 0);
+      if (d == null || d < 0) return null;
+      m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, -1 / Math.max(d, 1), 0, 0, 0, 1];
+      break;
     }
     default:
       return null;
@@ -617,7 +633,7 @@ export function resolveTransformOrigin(
 export function resolveImageRootTransform(
   inputs: ImageRootTransformInputs,
   box: Box,
-): ResolvedImageRootTransform | null | "unsupported" {
+): ResolvedImageRootTransform | null | "unsupported" | "projective" {
   const parts: string[] = [];
   const env: LengthEnv = {
     fontSize: inputs.fontSize === undefined ? 16 : inputs.fontSize,
@@ -646,7 +662,7 @@ export function resolveImageRootTransform(
   // 2D and comes last, and a 2D factor never reads the z column.)
   if (parts.some((part) => part.includes("m4("))) {
     const flat = composeFlattened(parts.join(" "));
-    if (flat == null) return "unsupported";
+    if (flat == null || flat === "projective") return flat ?? "unsupported";
     parts.splice(0, parts.length, flat);
   }
   if (styleTransform == null && inputs.transformAttr != null && inputs.transformAttr.trim() !== "") {

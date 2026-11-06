@@ -2242,6 +2242,14 @@ export interface CapturedElement {
    * serialized trees default to 1.
    */
   imageEffectiveZoom?: number;
+  /**
+   * The preferred color scheme an `<img>`'s SVG image document sees, i.e.
+   * Blink's `StyleEngine::ResolveColorSchemeForEmbedding(&img style)`: the
+   * embedder's preferred scheme when the img's color-scheme flags are
+   * `normal`, else its used color scheme. Decides `prefers-color-scheme` in
+   * the image's own sheets. Absent on non-`<img>` elements and older trees.
+   */
+  imageEmbeddingColorScheme?: "light" | "dark";
   /** True when the <img> failed to load (`complete && naturalWidth === 0`).
    *  Legacy serialized-tree compatibility only; new live captures use
    *  `brokenImageFallback`. */

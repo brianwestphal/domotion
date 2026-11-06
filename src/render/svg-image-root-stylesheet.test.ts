@@ -3,7 +3,11 @@ import { cascadeRootStylesheetTransform } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 import { inlineImgSvg, flattenImgSvg, readSvgOpeningTag } from "./svg-inline.js";
 
-function cascade(svg: string, viewport: { w: number; h: number } | null = null) {
+function cascade(
+  svg: string,
+  viewport: { w: number; h: number } | null = null,
+  preferredColorScheme: "light" | "dark" | null = null,
+) {
   const tag = readSvgOpeningTag(svg)!;
   const attributes = [...tag.attributes.matchAll(/([\w:-]+)="([^"]*)"/g)].map((m): [string, string] => [m[1], m[2]]);
   const attr = (name: string): string | null => attributes.find(([n]) => n === name)?.[1] ?? null;
@@ -12,6 +16,7 @@ function cascade(svg: string, viewport: { w: number; h: number } | null = null) 
     tag.end,
     { tag: tag.name, id: attr("id"), className: attr("class"), attributes },
     viewport,
+    { preferredColorScheme },
   );
 }
 
@@ -121,6 +126,70 @@ describe("cascadeRootStylesheetTransform", () => {
     // makes it (0,2,2), beating svg:first-child (0,1,1).
     const spec = svg(`svg:nth-child(1 of svg.x, svg) { scale: 1 } svg:first-child { scale: 2 }`);
     expect(valueOf(cascade(spec), "scale")).toBe("1");
+  });
+
+  it("decides environment media features in the image document", () => {
+    const svg = `<svg><style>@media (prefers-color-scheme: dark) { svg { rotate: 1deg } } @media (hover: hover) { svg { scale: 2 } }</style><rect/></svg>`;
+    const dark = cascade(svg, null, "dark");
+    if (dark == null || dark === "unsupported") throw new Error("expected a cascade");
+    expect(dark.declarations.get("rotate")?.value).toBe("1deg");
+    expect(dark.declarations.get("scale")).toBeUndefined();
+    expect(dark.source).not.toMatch(/rotate|scale/);
+    expect(valueOf(cascade(svg, null, "light"), "rotate")).toBeUndefined();
+  });
+
+  // ContainerQueryEvaluator finds no container for the parentless root.
+  it("never applies @container rules to the root, and strips them", () => {
+    const r = cascade(
+      `<svg><style>@container (min-width: 0px) { svg { rotate: 9deg } } @container style(--x: 1) { :root { scale: 3 } }</style><rect/></svg>`,
+    );
+    if (r == null || r === "unsupported") throw new Error("expected a cascade");
+    expect(r.declarations.size).toBe(0);
+    expect(r.source).not.toMatch(/rotate|scale/);
+  });
+
+  // Cascade 5: later layers win, unlayered last; reversed for !important;
+  // a layer's sublayers precede its own rules; statements fix the order.
+  it("orders @layer blocks and statements in the cascade before specificity", () => {
+    const layered = (css: string) => cascade(`<svg id="r"><style>${css}</style><rect/></svg>`);
+    expect(valueOf(layered(`@layer a { #r { rotate: 1deg } } svg { rotate: 2deg }`), "rotate")).toBe("2deg");
+    expect(
+      valueOf(layered(`@layer b, a; @layer a { svg { rotate: 1deg } } @layer b { #r { rotate: 2deg } }`), "rotate"),
+    ).toBe("1deg");
+    expect(
+      valueOf(layered(`@layer a { svg { rotate: 1deg !important } } svg { rotate: 2deg !important }`), "rotate"),
+    ).toBe("1deg");
+    expect(valueOf(layered(`@layer a { svg { rotate: 1deg } @layer b { #r { rotate: 2deg } } }`), "rotate")).toBe(
+      "1deg",
+    );
+    expect(valueOf(layered(`@layer a.b { #r { rotate: 3deg } } @layer a { svg { rotate: 4deg } }`), "rotate")).toBe(
+      "4deg",
+    );
+    expect(valueOf(layered(`@layer { #r { rotate: 5deg } } @layer { svg { rotate: 6deg } }`), "rotate")).toBe("6deg");
+    const r = layered(`@layer a { svg { rotate: 1deg; fill: red } }`);
+    if (r == null || r === "unsupported") throw new Error("expected a cascade");
+    expect(r.source).toContain("@layer a { svg {fill: red} }");
+  });
+
+  it("compares selectors with CSS escapes against the root's decoded XML attribute values", () => {
+    const svg = (attrs: string, rule: string) => `<svg${attrs}><style>${rule}</style><rect/></svg>`;
+    expect(valueOf(cascade(svg(` data-k="a&amp;b"`, `[data-k="a&b"] { rotate: 1deg }`)), "rotate")).toBe("1deg");
+    expect(valueOf(cascade(svg(` data-k="&#x41;&#66;"`, `[data-k=AB] { rotate: 2deg }`)), "rotate")).toBe("2deg");
+    expect(valueOf(cascade(svg(` data-k="x"`, `[data-k="\\78"] { rotate: 3deg }`)), "rotate")).toBe("3deg");
+    expect(valueOf(cascade(svg(` id="1a"`, `#\\31 a { rotate: 4deg }`)), "rotate")).toBe("4deg");
+    expect(valueOf(cascade(svg(` class="a&#x2e;b"`, `.a\\.b { rotate: 5deg }`)), "rotate")).toBe("5deg");
+    // Literal whitespace in an XML attribute value becomes a space.
+    expect(valueOf(cascade(svg(` data-k="a	b"`, `[data-k="a b"] { rotate: 6deg }`)), "rotate")).toBe("6deg");
+    // The i flag folds ASCII only.
+    expect(valueOf(cascade(svg(` data-k="ABC"`, `[data-k="abc" i] { rotate: 7deg }`)), "rotate")).toBe("7deg");
+    // Sheet text outside CDATA is XML character data; inside CDATA it is literal.
+    expect(valueOf(cascade(svg(` data-k="a&amp;b"`, `[data-k="a&amp;b"] { rotate: 10deg }`)), "rotate")).toBe("10deg");
+    expect(
+      valueOf(cascade(svg(` data-k="a&amp;b"`, `<![CDATA[ [data-k="a&amp;b"] { rotate: 11deg } ]]>`)), "rotate"),
+    ).toBeUndefined();
+    // A DTD-defined entity leaves the value unknown.
+    expect(cascade(svg(` data-k="&ns;"`, `[data-k="x"] { rotate: 8deg }`))).toBe("unsupported");
+    expect(valueOf(cascade(svg(` data-k="&ns;"`, `[data-k] { rotate: 9deg }`)), "rotate")).toBe("9deg");
   });
 
   it("is unsupported for an undecidable compound or a transform inside another at-rule", () => {

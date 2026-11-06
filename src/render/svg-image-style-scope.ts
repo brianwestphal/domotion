@@ -21,7 +21,7 @@
  * `@keyframes`, `@page`, `@import`, …) carry no element selectors and are left
  * alone.
  */
-import { evaluateMediaQueryList } from "./svg-image-media.js";
+import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import { renderWarn } from "./render-warn.js";
 
 /** The attribute that identifies an inlined image root (value: its id prefix). */
@@ -65,6 +65,7 @@ function scopeRules(
   end: number,
   scope: string,
   viewport: { w: number; h: number } | null,
+  env: ImageMediaEnv,
 ): string {
   let out = "";
   let cursor = start;
@@ -83,11 +84,10 @@ function scopeRules(
     if (trimmed.startsWith("@")) {
       const name = /^@([-\w]+)/.exec(trimmed)?.[1].toLowerCase() ?? "";
       if (GROUP_AT_RULES.has(name)) {
-        const inner = scopeRules(css, clean, brace + 1, close - 1, scope, viewport);
+        const inner = scopeRules(css, clean, brace + 1, close - 1, scope, viewport, env);
         // An image sheet's `@media` sees the image viewport, not the output
         // document's: decide it now and freeze the answer.
-        const matches =
-          name === "media" && viewport != null ? evaluateMediaQueryList(trimmed.slice(6), viewport) : null;
+        const matches = name === "media" ? evaluateMediaQueryList(trimmed.slice(6), viewport, env) : null;
         if (name === "media" && matches == null) {
           renderWarn(
             "svg-image-sheet-media",
@@ -129,7 +129,10 @@ function splitTopLevel(text: string, isSeparator: (ch: string) => boolean): Arra
       continue;
     }
     if (ch === "\\") {
-      i++;
+      // An escape, including the whitespace that ends a hex escape (CSS
+      // Syntax §4.3.7), which is not a combinator.
+      const hex = /^[0-9a-fA-F]{1,6}(?:\r\n|[ \t\n\r\f])?/.exec(text.slice(i + 1));
+      i += hex != null ? hex[0].length : 1;
       continue;
     }
     if (ch === '"' || ch === "'") quote = ch;
@@ -304,8 +307,9 @@ export function scopeImageStyleSheets(
   markup: string,
   scope: string,
   viewport: { w: number; h: number } | null = null,
+  env: ImageMediaEnv = {},
 ): string {
   return markup.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
-    return open + scopeRules(css, blankNoise(css), 0, css.length, scope, viewport) + close;
+    return open + scopeRules(css, blankNoise(css), 0, css.length, scope, viewport, env) + close;
   });
 }

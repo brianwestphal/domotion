@@ -597,6 +597,19 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
     expect(getLastCaptureWarnings()).toEqual([expect.objectContaining({ feature: "svg-image-root-transform" })]);
   });
 
+  // SVG transforms are affine; a root transform whose perspective reaches the
+  // z = 0 plane leaves the image to the `<image href="data:image/svg+xml">`
+  // path, whose own SVG document applies it.
+  it("returns null for a projective root transform so the <img> takes the <image> fallback", () => {
+    const projective = icon(` style="transform: perspective(200px) rotateY(30deg)"`);
+    expect(inlineImgSvg(projective, place)).toBeNull();
+    expect(flattenImgSvg(projective, place)).toBeNull();
+    const sheet = `<svg viewBox="0 0 100 100"><style>svg { transform: perspective(200px) rotateX(20deg) }</style><rect width="10" height="10"/></svg>`;
+    expect(inlineImgSvg(sheet, place)).toBeNull();
+    // perspective() alone never reaches the plane: still inlined.
+    expect(inlineImgSvg(icon(` style="transform: perspective(200px)"`), place)).not.toBeNull();
+  });
+
   it("uses the concrete object rect (object-fit: contain) for the origin and the image clip", () => {
     // 100x100 viewBox contained in a 160x100 box, left-aligned → object rect x=50..150, not the box center 130.
     const contain = { x: 50, y: 50, w: 160, h: 100, par: "xMinYMid meet", idPrefix: "c-" };

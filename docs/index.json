@@ -2405,7 +2405,8 @@
           "DM-KA02KF",
           "DM-JGBC33",
           "DM-XMBY4P",
-          "DM-GZP5P2"
+          "DM-GZP5P2",
+          "DM-9JBJ9F"
         ],
         "code": [
           "src/capture/embed.ts",
@@ -2415,6 +2416,8 @@
           "src/cli/index.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/resolve-svg-source.test.ts",
+          "src/capture/script/walker/image-elements.ts",
+          "src/render/svg-image-media.test.ts",
           "src/render/svg-image-media.ts",
           "src/render/svg-image-natural-sizing.test.ts",
           "src/render/svg-image-root-stylesheet.test.ts",

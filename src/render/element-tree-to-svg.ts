@@ -574,6 +574,7 @@ function paintImage(
         zoom: effectiveZoom,
         intrinsic: el.imageIntrinsic,
         idPrefix: ctx.nextClipId("svgimg"),
+        preferredColorScheme: el.imageEmbeddingColorScheme,
       };
       inlinedNone =
         (getFlattenNestedSvg() ? flattenImgSvg(svgTextNone, placement) : null) ?? inlineImgSvg(svgTextNone, placement);
@@ -606,6 +607,7 @@ function paintImage(
         par,
         intrinsic: el.imageIntrinsic,
         idPrefix: ctx.nextClipId("svgimg"),
+        preferredColorScheme: el.imageEmbeddingColorScheme,
       };
       const inlined =
         (getFlattenNestedSvg() ? flattenImgSvg(svgText, placement) : null) ?? inlineImgSvg(svgText, placement);

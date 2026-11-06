@@ -7,26 +7,63 @@
  * viewport.
  */
 /**
- * Evaluate an `@media` query list against the SVG image's viewport (CSS px):
- * Blink sizes the image document's frame view to the container size
- * (`SVGImage::PaintRecordForCurrentFrame`, `core/svg/graphics/svg_image.cc:472`,
- * chromium 7d859f27), so width / height features see the concrete object
- * rect. Supports the `all` / `screen` media types, `not` / `only`, `and`, and
- * the width / height / orientation / aspect-ratio features in both the
- * `min-` / `max-` and the range forms. Null when any part is outside that set.
+ * The parts of the image document's media environment that come from its
+ * embedder rather than from source: today the preferred color scheme, which
+ * Blink's `LayoutImageResource::GetImage` resolves with
+ * `StyleEngine::ResolveColorSchemeForEmbedding` and hands to the image
+ * (`SVGImage::SetPreferredColorScheme`, `core/svg/graphics/svg_image.cc:306`).
+ * Null / absent when the capture did not record it.
  */
-export function evaluateMediaQueryList(list: string, vp: { w: number; h: number }): boolean | null {
+export interface ImageMediaEnv {
+  preferredColorScheme?: "light" | "dark" | null;
+}
+
+/**
+ * Evaluate an `@media` query list against the SVG image document.
+ *
+ * - Width / height / aspect-ratio / orientation see the image viewport (CSS
+ *   px): Blink sizes the image document's frame view to the container size
+ *   (`SVGImage::PaintRecordForCurrentFrame`, `core/svg/graphics/svg_image.cc:472`).
+ * - The image lives in a non-ordinary `Page` (`IsolatedSVGDocumentHost`,
+ *   `core/svg/graphics/isolated_svg_document_host.cc:105-125`) that copies only
+ *   fonts, animation policy, `prefersReducedMotion`, `preferredColorScheme`,
+ *   `inForcedColors` and accept-languages from an ordinary page's Settings
+ *   (`CopySettingsFrom`, :178-202), and never sees DevTools media overrides. So:
+ *   - `hover` / `pointer` and `any-hover` / `any-pointer` keep the Settings
+ *     defaults `kHoverNone` / `kPointerNone` and `HOVER_TYPE_NONE` /
+ *     `POINTER_TYPE_NONE` (`core/frame/settings.json5:748-777`);
+ *   - `prefers-contrast` and `prefers-reduced-transparency` keep
+ *     `no-preference` (settings.json5:1186-1209);
+ *   - `resolution` and `-webkit-device-pixel-ratio` are 1dppx:
+ *     `LocalFrame::DevicePixelRatio` is the page's inspector override (1,
+ *     `core/page/page.cc:276`) times the frame's layout zoom, 1 for a frame
+ *     with no parent (`core/frame/local_frame.cc:288-291, 1839-1846`).
+ *   - `prefers-color-scheme` is the embedder's resolved scheme (`env`).
+ *   - `prefers-reduced-motion` and `forced-colors` follow the ordinary page's
+ *     Settings, which a capture cannot observe while emulation overrides are
+ *     active, so they stay undecided.
+ * Feature semantics per `core/css/media_query_evaluator.cc` (chromium
+ * 7d859f27). Supports the `all` / `screen` media types, `not` / `only`,
+ * `and`, the `min-` / `max-` and range forms of the numeric features, and the
+ * boolean form of the environment features. Null when any part is outside
+ * that set.
+ */
+export function evaluateMediaQueryList(
+  list: string,
+  vp: { w: number; h: number } | null,
+  env: ImageMediaEnv = {},
+): boolean | null {
   const queries = list.split(",").map((q) => q.trim());
   let any = false;
   for (const q of queries) {
-    const r = evaluateMediaQuery(q, vp);
+    const r = evaluateMediaQuery(q, vp, env);
     if (r == null) return null;
     any ||= r;
   }
   return any;
 }
 
-function evaluateMediaQuery(query: string, vp: { w: number; h: number }): boolean | null {
+function evaluateMediaQuery(query: string, vp: { w: number; h: number } | null, env: ImageMediaEnv): boolean | null {
   let q = query.trim();
   if (q === "") return true;
   let negate = false;
@@ -45,7 +82,7 @@ function evaluateMediaQuery(query: string, vp: { w: number; h: number }): boolea
       else if (type !== "all" && type !== "screen") return null;
       continue;
     }
-    const r = evaluateMediaFeature(part, vp);
+    const r = evaluateMediaFeature(part, vp, env);
     if (r == null) return null;
     result &&= r;
   }
@@ -83,46 +120,144 @@ function mediaRatio(token: string): number | null {
   return den === 0 ? null : Number(m[1]) / den;
 }
 
-function evaluateMediaFeature(part: string, vp: { w: number; h: number }): boolean | null {
+/** A `<resolution>` in dppx (`dppx` / `x` / `dpi` / `dpcm`), with whether it
+ *  was given in dpcm (`EvalResolution` rounds those comparisons). */
+function mediaResolution(token: string): { dppx: number; dpcm: boolean } | null {
+  const m = /^([-+]?(?:\d+\.?\d*|\.\d+))(dppx|x|dpi|dpcm)$/i.exec(token.trim());
+  if (m == null) return null;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  const dppx = unit === "dpi" ? n / 96 : unit === "dpcm" ? (n * 2.54) / 96 : n;
+  return { dppx, dpcm: unit === "dpcm" };
+}
+
+/** The image document's device pixel ratio (see `evaluateMediaQueryList`). */
+const IMAGE_DPPX: number = 1;
+
+/** A discrete or boolean-context feature of the image document, or null when
+ *  it is not one decided here. `value` is null in the boolean context. */
+function discreteFeature(name: string, value: string | null, env: ImageMediaEnv): boolean | null {
+  const v = value?.trim().toLowerCase() ?? null;
+  const oneOf = (allowed: string[]): boolean => v != null && allowed.includes(v);
+  switch (name) {
+    case "prefers-color-scheme": {
+      // PrefersColorSchemeMediaFeatureEval: the boolean form is always true.
+      if (v == null) return true;
+      if (!oneOf(["light", "dark"])) return null;
+      const scheme = env.preferredColorScheme;
+      return scheme == null ? null : v === scheme;
+    }
+    case "hover":
+    case "any-hover":
+      // Primary kHoverNone; available HOVER_TYPE_NONE only.
+      if (v == null) return false;
+      return oneOf(["none", "hover"]) ? v === "none" : null;
+    case "pointer":
+    case "any-pointer":
+      if (v == null) return false;
+      return oneOf(["none", "coarse", "fine"]) ? v === "none" : null;
+    case "prefers-contrast":
+      if (v == null) return false;
+      return oneOf(["no-preference", "more", "less", "custom"]) ? v === "no-preference" : null;
+    case "prefers-reduced-transparency":
+      if (v == null) return false;
+      return oneOf(["no-preference", "reduce"]) ? v === "no-preference" : null;
+    case "resolution":
+    case "-webkit-device-pixel-ratio":
+      // EvalResolution: the boolean form is `!!actual_resolution`, and the
+      // image document's ratio is 1.
+      return v == null ? true : null;
+    default:
+      return null;
+  }
+}
+
+type NumericFeature = "width" | "height" | "aspect-ratio" | "resolution";
+
+function evaluateMediaFeature(part: string, vp: { w: number; h: number } | null, env: ImageMediaEnv): boolean | null {
   const inner = /^\(([\s\S]*)\)$/.exec(part.trim())?.[1].trim();
   if (inner == null) return null;
-  const valueOf = (feature: string): number | null =>
-    feature === "width" ? vp.w : feature === "height" ? vp.h : feature === "aspect-ratio" ? vp.w / vp.h : null;
-  const parse = (feature: string, token: string): number | null =>
-    feature === "aspect-ratio" ? mediaRatio(token) : mediaLength(token);
+  if (/^[-a-z]+$/i.test(inner)) return discreteFeature(inner.toLowerCase(), null, env);
+  // Viewport features are undecided when the image viewport is unknown.
+  const valueOf = (feature: NumericFeature): number | null =>
+    feature === "resolution"
+      ? IMAGE_DPPX
+      : vp == null
+        ? null
+        : feature === "width"
+          ? vp.w
+          : feature === "height"
+            ? vp.h
+            : vp.w / vp.h;
+  // A comparison `actual op target`; dpcm values compare at 2 decimals
+  // (EvalResolution, media_query_evaluator.cc:577-585).
+  const parse = (feature: NumericFeature, token: string): { value: number; round: boolean } | null => {
+    if (feature === "aspect-ratio") {
+      const r = mediaRatio(token);
+      return r == null ? null : { value: r, round: false };
+    }
+    if (feature === "resolution") {
+      const r = mediaResolution(token);
+      return r == null ? null : { value: r.dppx, round: r.dpcm };
+    }
+    const l = mediaLength(token);
+    return l == null ? null : { value: l, round: false };
+  };
+  const round2 = (n: number): number => Math.floor(0.5 + 100 * n) / 100;
+  const cmp = (a: number, op: string, b: number): boolean =>
+    op === "<" ? a < b : op === "<=" ? a <= b : op === ">" ? a > b : op === ">=" ? a >= b : a === b;
   const colon = /^([-a-z]+)\s*:\s*([\s\S]+)$/i.exec(inner);
   if (colon != null) {
     const name = colon[1].toLowerCase();
     if (name === "orientation") {
       const v = colon[2].trim().toLowerCase();
       if (v !== "portrait" && v !== "landscape") return null;
-      return vp.h >= vp.w === (v === "portrait");
+      return vp == null ? null : vp.h >= vp.w === (v === "portrait");
     }
-    const m = /^(min-|max-)?(width|height|aspect-ratio)$/.exec(name);
-    if (m == null) return null;
-    const actual = valueOf(m[2]);
-    const target = parse(m[2], colon[2]);
-    if (actual == null || target == null) return null;
-    return m[1] === "min-" ? actual >= target : m[1] === "max-" ? actual <= target : actual === target;
+    const px = /^-webkit-(min-|max-)?device-pixel-ratio$/.exec(name);
+    if (px != null) {
+      // DevicePixelRatioMediaFeatureEval takes a plain number.
+      const n = /^\s*([-+]?(?:\d+\.?\d*|\.\d+))\s*$/.exec(colon[2]);
+      if (n == null) return null;
+      const op = px[1] === "min-" ? ">=" : px[1] === "max-" ? "<=" : "=";
+      return cmp(IMAGE_DPPX, op, Number(n[1]));
+    }
+    const m = /^(min-|max-)?(width|height|aspect-ratio|resolution)$/.exec(name);
+    if (m == null) return discreteFeature(name, colon[2], env);
+    const feature = m[2] as NumericFeature;
+    const target = parse(feature, colon[2]);
+    const value = valueOf(feature);
+    if (target == null || value == null) return null;
+    const actual = target.round ? round2(value) : value;
+    const goal = target.round ? round2(target.value) : target.value;
+    return cmp(actual, m[1] === "min-" ? ">=" : m[1] === "max-" ? "<=" : "=", goal);
   }
   // Range syntax: `(width >= 100px)`, `(100px < width <= 300px)`.
   const tokens = inner.split(/\s*(<=|>=|<|>|=)\s*/);
   if (tokens.length !== 3 && tokens.length !== 5) return null;
-  const cmp = (a: number, op: string, b: number): boolean =>
-    op === "<" ? a < b : op === "<=" ? a <= b : op === ">" ? a > b : op === ">=" ? a >= b : a === b;
-  const feature = (tokens.length === 3 ? [tokens[0], tokens[2]] : [tokens[2]]).find((t) =>
-    /^(width|height|aspect-ratio)$/i.test(t),
+  const featureToken = (tokens.length === 3 ? [tokens[0], tokens[2]] : [tokens[2]]).find((t) =>
+    /^(width|height|aspect-ratio|resolution)$/i.test(t),
   );
-  if (feature == null) return null;
-  const name = feature.toLowerCase();
-  const actual = valueOf(name);
-  if (actual == null) return null;
-  const operand = (t: string): number | null => (t.toLowerCase() === name ? actual : parse(name, t));
-  for (let k = 0; k + 2 < tokens.length; k += 2) {
-    const a = operand(tokens[k]);
-    const b = operand(tokens[k + 2]);
-    if (a == null || b == null) return null;
-    if (!cmp(a, tokens[k + 1], b)) return false;
+  if (featureToken == null) return null;
+  const feature = featureToken.toLowerCase() as NumericFeature;
+  // Each operand: its value (the actual one for the feature) and whether it was
+  // given in dpcm, which rounds that one comparison.
+  const operands: Array<{ value: number; round: boolean }> = [];
+  for (let k = 0; k < tokens.length; k += 2) {
+    if (tokens[k].toLowerCase() === feature) {
+      const actual = valueOf(feature);
+      if (actual == null) return null;
+      operands.push({ value: actual, round: false });
+      continue;
+    }
+    const v = parse(feature, tokens[k]);
+    if (v == null) return null;
+    operands.push(v);
+  }
+  for (let k = 0; k + 1 < operands.length; k++) {
+    const round = operands[k].round || operands[k + 1].round;
+    const [a, b] = [operands[k].value, operands[k + 1].value].map((n) => (round ? round2(n) : n));
+    if (!cmp(a, tokens[2 * k + 1], b)) return false;
   }
   return true;
 }
