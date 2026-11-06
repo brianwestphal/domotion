@@ -41,6 +41,20 @@ through `src`. The later captured tree therefore cannot retain the animated
 source or decoder continuation. Errors are stable fail-closed codes and never
 contain source bytes, digests, URLs, or decoder exception text.
 
+The failure scope is the **whole capture**, not the failing request. In
+`captureUrl` (`src/capture/index.ts`), the doc 232 collector
+(`AuthenticatedAnimatedImageByteCollector.collect`,
+`src/capture/authenticated-animated-image-bytes.ts`) authenticates every
+request before any freeze starts. It throws `AnimatedImageByteCollectorError`
+on the first failing request: a missing owner (`strict-owner-not-found`), an
+ambiguous or unsupported owner, or any other stable code. No request is frozen
+in that case. `freezeAuthenticatedAnimatedImageFrames`
+(`src/capture/animated-image-static-frame.ts`) then processes the requests in
+order and throws `AnimatedImageStaticFrameError` on the first failing one. The
+owners it already replaced stay replaced in the live page, but `captureUrl`
+rejects, so no captured tree is produced. There is no partial result in which
+the failing request alone is skipped.
+
 SVG `<image href>` and ordinary computed CSS image slots shipped later under
 DM-2581 ([doc 236](236-strict-static-frames-for-svg-css-images.md)); generated
 pseudo and shadow image owners and `image-set()` still fail closed. Downstream

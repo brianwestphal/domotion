@@ -48,6 +48,25 @@ superset for no-clip: the masked group has no ink outside its own visual
 overflow, so this removes the artificial border-box intersection without
 changing observable pixels.
 
+The source argument (chromium `7d859f27`) is that only the painting area
+grows; nothing that places tiles reads it:
+
+- `background_image_geometry.cc:216-218` expands the no-clip destination rect
+  by `VisualOverflowOutsets()`. That is the layer's
+  `LocalBoundingBoxIncludingSelfPaintingDescendants()` relative to the border
+  box (`box_background_paint_context.cc:232-245`).
+- `background_image_geometry.cc:742-744` skips the paint-rect intersection for
+  no-clip, so the destination is not clipped back to the box.
+- `round` / `space` tile size and phase come from the **positioning** area
+  (`background_image_geometry.cc:547-634`), not from the destination rect.
+- In `SetNoRepeatX` / `SetNoRepeatY` (`background_image_geometry.cc:100-150`)
+  a full-size destination spaces tiles by the destination width, which pushes
+  the next tile outside the area whether that area is visual overflow or the
+  viewport.
+
+So enlarging the painting area past visual overflow changes no tile that
+falls inside the element's ink.
+
 ## Capture and emission contract
 
 `src/capture/script/walker/style-record.ts` (the page-context style record built for `src/capture/script/index.ts`) captures three independent facts:

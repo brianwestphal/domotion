@@ -54,12 +54,14 @@ success and failure. Old serialized trees without the record retain their
 previous crop and report `effect-space-unavailable`; exact materializations
 remain silent.
 
-`mix-blend-mode` remains a recorded root reason but is deliberately not
-neutralized. A viewport screenshot cannot isolate the blend-root's transparent
-local prior-device image, and changing the live blend to `normal` changed the
-blend row from roughly 21% drift to 100%. Keeping the pre-existing crop is the
-bounded, non-regressing fallback until the renderer can own an atomic root
-surface.
+In this doc-194 (non-strict) pass, `mix-blend-mode` remained a recorded root
+reason but was deliberately not neutralized. A viewport screenshot could not
+isolate the blend-root's transparent local prior-device image, and changing the
+live blend to `normal` moved the blend row from roughly 21% drift to 100%.
+Keeping the pre-existing crop was the bounded, non-regressing fallback until
+the renderer could own an atomic root surface. Retired by
+[doc 195](195-strict-ordinary-backdrop-ownership.md): blend roots now own one
+atomic root surface (`src/capture/backdrop-composite-raster.ts:61,71,528`).
 
 ## Unchanged-threshold browser result
 

@@ -128,7 +128,11 @@ vertical-*` run is emitted as **one** authored `<text>` carrying the captured
   the column's exact placement can drift when the viewer's font differs.
 - Text **decorations** (underline/line-through/overline) continue to be emitted
   as Domotion's geometric SVG lines, unchanged — they are computed outside the
-  text-emit funnel.
+  text-emit funnel. Decoration lines keep the capture host's geometry: their
+  x-extent, and any skip-ink gaps, come from the host's glyph advances. When
+  the viewer substitutes a font and the run reflows, underlines and
+  line-throughs no longer match the reflowed text's extent. This is part of the
+  positional-drift limitation.
 
 ## Relationship to the real-text layer (docs 260)
 

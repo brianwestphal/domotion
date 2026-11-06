@@ -55,7 +55,9 @@ re-resolves the owner and document and requires the complete logical record to
 match before returning an immutable byte copy. Fixed resource, per-body,
 aggregate, and redirect ceilings fail rather than truncate. Errors expose only
 stable reason codes; denied bytes, lengths, digests, URLs and protocol details
-are not included.
+are not included. The first failing request aborts the whole capture rather than
+just that request; see [doc 233](233-strict-animated-image-static-frame.md) for
+the failure scope.
 
 This component acquires bytes only. It does not instantiate `ImageDecoder`,
 select a frame, create PNG output, replace a source, retain playback, or change
