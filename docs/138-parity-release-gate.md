@@ -41,4 +41,6 @@ boundary after the full evidence sweep and human review.
 Dependency rolls additionally run `npm run stage:evidence:compare-roll`; see
 [doc 160](160-chromium-roll-differential-audit.md). A changed stage cannot be
 accepted from visual baselines alone: its review must identify upstream source,
-classify the delta, and name updated logical rows when semantics changed.
+classify the delta, and name updated logical rows when semantics changed. A
+stage classified `domotion-regression` blocks the roll until it is fixed and
+reclassified.

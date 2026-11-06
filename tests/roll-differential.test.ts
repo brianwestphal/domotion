@@ -22,6 +22,32 @@ describe("roll differential", () => {
       }).pass,
     ).toBe(true);
   });
+  it("blocks a roll while any reviewed stage is classified domotion-regression", () => {
+    const regression = {
+      sourceRefs: ["chromium/x.cc:10"],
+      updatedRows: ["row"],
+      classification: "domotion-regression" as const,
+    };
+    const blocked = compareRollArtifacts(artifact("old", 1), artifact("new", 2), {
+      reviewedAreas: { paint: regression },
+    });
+    expect(blocked.missingReviews).toEqual([]);
+    expect(blocked.regressions).toEqual(["paint"]);
+    expect(blocked.pass).toBe(false);
+    // Fail closed even when the regression is recorded for an area whose
+    // digest did not move: the review itself asserts a regression exists.
+    const unchanged = compareRollArtifacts(artifact("old", 1), artifact("new", 1), {
+      reviewedAreas: { paint: regression },
+    });
+    expect(unchanged.stageChanges).toEqual([]);
+    expect(unchanged.pass).toBe(false);
+    // Reclassifying after the fix clears the block.
+    expect(
+      compareRollArtifacts(artifact("old", 1), artifact("new", 2), {
+        reviewedAreas: { paint: { ...regression, classification: "upstream-drift" } },
+      }),
+    ).toMatchObject({ regressions: [], pass: true });
+  });
   it("rejects incomparable environments", () => {
     const n = artifact("new", 1);
     (n.environmentFingerprint.host as Record<string, unknown>).os = "darwin";

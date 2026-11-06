@@ -32,6 +32,8 @@ Only roll identity fields are ignored. Host, architecture, flags, fonts, locale,
 
 A changed stage blocks acceptance until its review cites upstream source and classifies the delta as `upstream-drift`, `domotion-regression`, or `no-semantic-change`. Semantic changes also require named updated oracle rows. Thus a new visual baseline cannot hide a logical regression: visuals support the decision only after the first changed stage is identified.
 
+A `domotion-regression` classification documents a regression; it never accepts one. The comparison lists every reviewed area with that classification in `regressions`, and `pass` stays false while the list is non-empty, even when the review cites source and names updated rows. The block also applies to a regression recorded for an area whose digest did not move. To clear it, fix the regression and reclassify the area (normally to `upstream-drift` or `no-semantic-change`). The maintainer chose this policy in the 2026-11 requirements audit (option B). The alternatives were to count a cited regression as reviewed, or to accept it behind a tracking reason.
+
 The `icu-harfbuzz-source-drift` payload is stricter. It fingerprints the full
 Chromium revision, Chromium's `README.chromium` HarfBuzz pin, the independently
 vendored HarfBuzz and ICU revisions, bundled `icudtl.dat`, every helper binary,

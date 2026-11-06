@@ -39,6 +39,12 @@ export interface RollComparison {
   stageChanges: Array<{ area: string; oldDigest: string; newDigest: string }>;
   visualChanges: Array<{ id: string; oldDigest: string | undefined; newDigest: string | undefined }>;
   missingReviews: string[];
+  /**
+   * Reviewed areas classified `domotion-regression`. A cited, row-backed review
+   * documents a regression; it does not accept one, so any entry here blocks
+   * `pass` until the regression is fixed and the area is reclassified.
+   */
+  regressions: string[];
   sourceDrift: SourceDriftVerdict | undefined;
   pass: boolean;
 }
@@ -69,6 +75,10 @@ export function compareRollArtifacts(oldRun: RollArtifact, newRun: RollArtifact,
         !x || x.sourceRefs.length === 0 || (x.classification !== "no-semantic-change" && x.updatedRows.length === 0)
       );
     });
+  const regressions = Object.entries(review?.reviewedAreas ?? {})
+    .filter(([, x]) => x.classification === "domotion-regression")
+    .map(([area]) => area)
+    .sort();
   const oldRaw = oldRun.reportPayloads?.["icu-harfbuzz-source-drift"];
   const newRaw = newRun.reportPayloads?.["icu-harfbuzz-source-drift"];
   const sourcePayloadMismatch = (oldRaw == null) !== (newRaw == null);
@@ -90,7 +100,8 @@ export function compareRollArtifacts(oldRun: RollArtifact, newRun: RollArtifact,
     stageChanges,
     visualChanges,
     missingReviews,
+    regressions,
     sourceDrift,
-    pass: environmentComparable && sourceComparable && missingReviews.length === 0,
+    pass: environmentComparable && sourceComparable && missingReviews.length === 0 && regressions.length === 0,
   };
 }

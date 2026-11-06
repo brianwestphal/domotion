@@ -39,6 +39,31 @@ describe("migrated tool commands", () => {
     expect(result.status).toBe(0);
     expect(JSON.parse(readFileSync(report, "utf8"))).toMatchObject({ pass: true, stageChanges: [] });
 
+    // A cited, row-backed review that classifies a stage as a Domotion
+    // regression still fails the roll (exit 1), naming the area.
+    const changed = join(root, "changed.json");
+    const review = join(root, "review.json");
+    writeFileSync(changed, JSON.stringify({ ...artifact, reports: [{ area: "text", status: "fail" }] }));
+    writeFileSync(
+      review,
+      JSON.stringify({
+        reviewedAreas: {
+          text: { sourceRefs: ["chromium/x.cc:1"], updatedRows: ["row"], classification: "domotion-regression" },
+        },
+      }),
+    );
+    const regression = spawnSync(
+      join(process.cwd(), "node_modules/.bin/tsx"),
+      ["tools/compare-roll-evidence.ts", "--old", before, "--new", changed, "--review", review, "--out", report],
+      { cwd: process.cwd(), encoding: "utf8" },
+    );
+    expect(regression.status).toBe(1);
+    expect(JSON.parse(readFileSync(report, "utf8"))).toMatchObject({
+      pass: false,
+      missingReviews: [],
+      regressions: ["text"],
+    });
+
     const invalid = spawnSync(
       join(process.cwd(), "node_modules/.bin/tsx"),
       ["tools/compare-roll-evidence.ts", "--old", before, "--new"],
