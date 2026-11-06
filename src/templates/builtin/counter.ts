@@ -26,6 +26,7 @@ import {
 } from "./text-card-common.js";
 import { planOdometer, planTimer, buildOdometerMarkup, type OdometerPlan } from "./odometer.js";
 import type { SafeInset } from "../formats.js";
+import { easingInputSchema } from "../../animation/easing-input.js";
 
 const MODES = ["count", "timer"] as const;
 const PADDING = 96;
@@ -40,7 +41,9 @@ export const counterParamsSchema = z.object({
   grouping: templateBoolean(false).describe("Insert a thousands separator (count mode)."),
   durationMs: msSchema(1600, "Roll duration in ms."),
   staggerMs: z.coerce.number().int().min(0).default(60).describe("Per-digit stagger (ms), cascading left→right."),
-  easing: z.string().default("cubic-bezier(0.22,1,0.36,1)").describe("CSS easing for the roll."),
+  easing: easingInputSchema
+    .default("cubic-bezier(0.22,1,0.36,1)")
+    .describe("Easing preset or CSS easing for the roll."),
   fontSize: z.coerce.number().int().positive().default(180).describe("Number font size in px."),
   theme: z.enum(THEMES).default("dark").describe('Base theme: "dark" | "light".'),
   background: cssValue().optional().describe("Background (CSS color/gradient). Defaults to the theme surface."),

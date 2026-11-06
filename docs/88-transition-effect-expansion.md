@@ -165,6 +165,8 @@ the reveal / dolly SEGMENT only:
 { "type": "zoom-in", "duration": 600, "easing": "spring-soft" }
 ```
 
+`transition.easing` must be a preset name or a CSS `<easing-function>`; config validation rejects any other string, because the value is written into the output's `<style>` CSS.
+
 The easing is authored on the transition that DRIVES the next frame's entrance
 (the reveal / dolly plays on that successor). It's resolved through
 `resolveEasingPreset` and emitted as a per-keyframe `animation-timing-function`

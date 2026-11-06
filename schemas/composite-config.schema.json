@@ -175,7 +175,9 @@
                   "exclusiveMinimum": 0
                 },
                 "easing": {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Easing preset (linear, spring-bouncy, spring-soft, ease, ease-in, ease-out, ease-in-out, ease-out-quad, ease-out-cubic, ease-out-quart, ease-out-expo, ease-in-cubic, ease-in-out-cubic, smooth, back-out, back-in, back-in-out, spring) or a CSS <easing-function>."
                 },
                 "transformOrigin": {
                   "type": "string"

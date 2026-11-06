@@ -506,7 +506,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "wipeAngle": {
                     "type": "number"
@@ -531,7 +532,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -553,7 +555,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -575,7 +578,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "wipeStartAngle": {
                     "type": "number"
@@ -603,7 +607,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -625,7 +630,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -695,7 +701,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "push": {
                     "anyOf": [
@@ -764,7 +771,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "reveal": {
                     "oneOf": [
@@ -908,7 +916,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "zoom": {
                     "type": "object",
@@ -969,7 +978,8 @@
                   },
                   "easing": {
                     "description": "Named or CSS easing for the transition timeline.",
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "custom": {
                     "type": "object",
@@ -3207,7 +3217,9 @@
                                 "type": "number"
                               },
                               "easing": {
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Easing preset (linear, spring-bouncy, spring-soft, ease, ease-in, ease-out, ease-in-out, ease-out-quad, ease-out-cubic, ease-out-quart, ease-out-expo, ease-in-cubic, ease-in-out-cubic, smooth, back-out, back-in, back-in-out, spring) or a CSS <easing-function>."
                               },
                               "delay": {
                                 "type": "number"
@@ -3234,7 +3246,9 @@
                                 "type": "number"
                               },
                               "easing": {
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Easing preset (linear, spring-bouncy, spring-soft, ease, ease-in, ease-out, ease-in-out, ease-out-quad, ease-out-cubic, ease-out-quart, ease-out-expo, ease-in-cubic, ease-in-out-cubic, smooth, back-out, back-in, back-in-out, spring) or a CSS <easing-function>."
                               },
                               "delay": {
                                 "type": "number"
@@ -4103,7 +4117,9 @@
                           "type": "number"
                         },
                         "easing": {
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Easing preset (linear, spring-bouncy, spring-soft, ease, ease-in, ease-out, ease-in-out, ease-out-quad, ease-out-cubic, ease-out-quart, ease-out-expo, ease-in-cubic, ease-in-out-cubic, smooth, back-out, back-in, back-in-out, spring) or a CSS <easing-function>."
                         },
                         "delay": {
                           "type": "number"
@@ -4130,7 +4146,9 @@
                           "type": "number"
                         },
                         "easing": {
-                          "type": "string"
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Easing preset (linear, spring-bouncy, spring-soft, ease, ease-in, ease-out, ease-in-out, ease-out-quad, ease-out-cubic, ease-out-quart, ease-out-expo, ease-in-cubic, ease-in-out-cubic, smooth, back-out, back-in, back-in-out, spring) or a CSS <easing-function>."
                         },
                         "delay": {
                           "type": "number"
@@ -4513,7 +4531,9 @@
                   "type": "number"
                 },
                 "easing": {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Easing preset (linear, spring-bouncy, spring-soft, ease, ease-in, ease-out, ease-in-out, ease-out-quad, ease-out-cubic, ease-out-quart, ease-out-expo, ease-in-cubic, ease-in-out-cubic, smooth, back-out, back-in, back-in-out, spring) or a CSS <easing-function>."
                 },
                 "transformOrigin": {
                   "type": "string"
@@ -4576,7 +4596,9 @@
                         "type": "number"
                       },
                       "easing": {
-                        "type": "string"
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Easing preset (linear, spring-bouncy, spring-soft, ease, ease-in, ease-out, ease-in-out, ease-out-quad, ease-out-cubic, ease-out-quart, ease-out-expo, ease-in-cubic, ease-in-out-cubic, smooth, back-out, back-in, back-in-out, spring) or a CSS <easing-function>."
                       }
                     },
                     "required": [

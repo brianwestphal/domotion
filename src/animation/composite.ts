@@ -36,6 +36,7 @@ import { namespaceEmbeddedAnimatedSvg } from "./embed-namespace.js";
 import { offsetEmbeddedAnimatedSvgTimeline, type EmbeddedTimelineMode } from "./embed-timeline.js";
 import { parseSvgIntrinsicSize, fmt, clampPct } from "./svg-meta.js";
 import { escapeRegExp } from "../utils/escape-regexp.js";
+import { cssEasingForStyle } from "./easing-input.js";
 
 /** A layer-level animation: move / scale / fade / transform / resize-clip the whole layer. */
 export interface CompositeLayerAnimation {
@@ -302,7 +303,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
       const from = renderAnimValue(a.property, a.from);
       const to = renderAnimValue(a.property, a.to);
       styleParts.push(`@keyframes ${name}{0%,${fmt(sPct)}%{${prop}:${from}}${fmt(ePct)}%,100%{${prop}:${to}}}`);
-      groupDecls.push(`${name} ${fmt(masterSec)}s ${a.easing ?? "ease"} infinite`);
+      groupDecls.push(`${name} ${fmt(masterSec)}s ${cssEasingForStyle(a.easing, "ease")} infinite`);
       if (a.property !== "opacity" && transformOrigin == null) transformOrigin = a.transformOrigin ?? "0 0";
     });
     const groupStyle =
@@ -342,7 +343,7 @@ export function composeAnimatedLayers(layers: CompositeLayer[], opts: ComposeLay
         `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect class="${token}clipper" x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}"${rad}/></clipPath>`,
       );
       styleParts.push(
-        `@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-origin:${fmt(ox)}px ${fmt(oy)}px;animation:${name} ${fmt(masterSec)}s ${anchor.easing ?? "ease"} infinite}`,
+        `@keyframes ${name}{0%,${fmt(sPct)}%{transform:${fromT}}${fmt(ePct)}%,100%{transform:${toT}}} .${token}clipper{transform-origin:${fmt(ox)}px ${fmt(oy)}px;animation:${name} ${fmt(masterSec)}s ${cssEasingForStyle(anchor.easing, "ease")} infinite}`,
       );
       clipAttr = ` clip-path="url(#${clipId})"`;
     }

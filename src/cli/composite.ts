@@ -37,6 +37,7 @@ import {
 import { composeAnimatedLayers, type CompositeLayer } from "../animation/composite.js";
 import { parseSvgIntrinsicSize, detectAnimationPeriodMs } from "../animation/svg-meta.js";
 import { UsageError, errorMessage, formatConfigIssues, readInputFile, writeSvgOutput } from "./common.js";
+import { easingInputSchema } from "../animation/easing-input.js";
 
 export const compositeLayerAnimationSchema = z.object({
   property: z.enum(["scale", "translateX", "translateY", "opacity", "transform", "clipScaleX", "clipScaleY"]),
@@ -44,7 +45,7 @@ export const compositeLayerAnimationSchema = z.object({
   to: z.union([z.string(), z.number()]),
   start: z.number().nonnegative().optional(),
   duration: z.number().positive().optional(),
-  easing: z.string().optional(),
+  easing: easingInputSchema.optional(),
   transformOrigin: z.string().optional(),
 });
 

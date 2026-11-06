@@ -1,8 +1,9 @@
 /** Canonical transition authoring contract and compatibility normalization. */
 import { z } from "zod";
+import { easingInputSchema } from "./easing-input.js";
 
 const duration = z.number().nonnegative();
-const easing = z.string().optional().describe("Named or CSS easing for the transition timeline.");
+const easing = easingInputSchema.optional().describe("Named or CSS easing for the transition timeline.");
 const originSchema = z
   .object({
     x: z.number().min(0).max(1).describe("Viewport-relative x coordinate: 0=left, 1=right."),

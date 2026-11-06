@@ -50,6 +50,7 @@ import { textTrackMarkup, type ResolvedTextTrack } from "./caret-track.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { escapeRegExp } from "../utils/escape-regexp.js";
 import { normalizeTransition, type NormalizedTransitionPlan, type Transition } from "./transition-schema.js";
+import { cssEasingForStyle } from "./easing-input.js";
 
 export interface AnimationFrame {
   /** SVG content for this frame (from dom-to-svg) */
@@ -365,7 +366,10 @@ function emitCrossfadeOrCutFrame(
     // timing function on the `enterStartPct` stop; the surrounding holds stay
     // linear. A sampled spring overshoots scale(1) (e.g. up to ~1.1) then rings
     // down — a visible pop — and rests at scale(1) (identity).
-    const esTf = entranceScale.easing != null ? ` animation-timing-function: ${entranceScale.easing};` : "";
+    const esTf =
+      entranceScale.easing != null
+        ? ` animation-timing-function: ${cssEasingForStyle(entranceScale.easing, "ease")};`
+        : "";
     keyframes.push(`
     @keyframes fz-${i} {
       0%, ${esBefore}% { transform: scale(${entranceScale.fromScale}); }
@@ -866,7 +870,8 @@ function emitRevealFrame(
     // there — leaving the surrounding holds linear. A sampled spring `linear(...)`
     // rings past full-reveal and back, so its overshoot shows as the wipe/iris
     // edge bouncing at the boundary before settling (rests at the identity clip).
-    const revealTf = revealEasing != null ? ` animation-timing-function: ${revealEasing};` : "";
+    const revealTf =
+      revealEasing != null ? ` animation-timing-function: ${cssEasingForStyle(revealEasing, "ease")};` : "";
     if (entranceReveal === "clock") {
       // DM-1547: the angular "clock hand" sweep — fixed-vertex `polygon()` frames
       // (see `clockWipeClip`) interpolated between the hidden f=0 start and the
@@ -1181,7 +1186,8 @@ function emitComposedFrame(
   if (needReveal) {
     const shape = entrance.reveal ?? "iris";
     const rBefore = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
-    const tf = entrance.easing != null ? ` animation-timing-function: ${entrance.easing};` : "";
+    const tf =
+      entrance.easing != null ? ` animation-timing-function: ${cssEasingForStyle(entrance.easing, "ease")};` : "";
     if (shape === "clock") {
       const cStart = entrance.clockStartDeg ?? 0;
       const cDir = entrance.clockDir ?? 1;
@@ -1242,7 +1248,8 @@ ${mid}
   if (needScale) {
     const from = entrance.fromScale ?? 1;
     const esBefore = padBefore(enterNum, KEYFRAME_EPSILON.slide, 2);
-    const tf = entrance.easing != null ? ` animation-timing-function: ${entrance.easing};` : "";
+    const tf =
+      entrance.easing != null ? ` animation-timing-function: ${cssEasingForStyle(entrance.easing, "ease")};` : "";
     keyframe += `
     @keyframes fz-${i} {
       0%, ${esBefore}% { transform: scale(${from}); }
@@ -3440,7 +3447,7 @@ function renderSvgOverlay(
   // duration ms, starting at frame start + delay.
   if (overlay.enter != null) {
     const e = overlay.enter;
-    const easing = e.easing ?? "ease-out";
+    const easing = cssEasingForStyle(e.easing, "ease-out");
     const enterDelay = e.delay ?? 0;
     const fromStr = offsetForDirection(e.from, overlay.width, overlay.height);
     // DM-1767: measured from the overlay's appear time, so `enter.delay` stays
@@ -3456,7 +3463,7 @@ function renderSvgOverlay(
   // Slide-out exit. Mirror of enter — translate from (0,0) to off-screen.
   if (overlay.exit != null) {
     const e = overlay.exit;
-    const easing = e.easing ?? "ease-in";
+    const easing = cssEasingForStyle(e.easing, "ease-in");
     const exitDelay = e.delay ?? 0;
     const toStr = offsetForDirection(e.from, overlay.width, overlay.height);
     const exitStart = overlayEnd - e.duration - exitDelay;
@@ -3536,7 +3543,7 @@ function buildIntraFrameAnimationCss(
     for (let ai = 0; ai < animations.length; ai++) {
       const a = animations[ai];
       const delay = a.delay ?? 0;
-      const easing = a.easing ?? "linear";
+      const easing = cssEasingForStyle(a.easing, "linear");
       const startMs = frameStartMs + delay;
       const endMs = startMs + a.duration;
       const startPct = (startMs / totalMs) * 100;

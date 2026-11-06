@@ -23,6 +23,7 @@
  */
 
 import { z } from "zod";
+import { easingInputSchema } from "./easing-input.js";
 
 /**
  * DM-1767 (docs/104): the EXPLICIT per-overlay window end.
@@ -61,7 +62,7 @@ const overlayWindowFields = {
 export const overlaySlideSchema = z.object({
   from: z.enum(["top", "bottom", "left", "right"]),
   duration: z.number(),
-  easing: z.string().optional(),
+  easing: easingInputSchema.optional(),
   delay: z.number().optional(),
 });
 export type OverlaySlide = z.infer<typeof overlaySlideSchema>;
@@ -461,7 +462,7 @@ export const intraFrameAnimationSchema = z.object({
   /** Duration in ms. Must be ≤ the parent frame's `duration`. */
   duration: z.number(),
   /** CSS easing string. Default `linear`. */
-  easing: z.string().optional(),
+  easing: easingInputSchema.optional(),
   /**
    * DM-1297: transform-origin for a `transform` / `scale` / `translate*`
    * animation (e.g. `"center"`, `"50% 50%"`, `"left top"`). SVG transforms are
@@ -523,7 +524,7 @@ export const intraFrameAnimationSchema = z.object({
         /** Override the primary's delay for this track (ms). Triggers sampling. */
         delay: z.number().optional(),
         /** Override the primary's easing for this track. Triggers sampling. */
-        easing: z.string().optional(),
+        easing: easingInputSchema.optional(),
       }),
     )
     .optional(),

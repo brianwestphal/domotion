@@ -170,7 +170,7 @@ Per-frame `animations` array:
 
 1. **Capture-side**: when the user supplies `animations`, resolve `selector` against the live DOM during the capture pass. Tag matching elements with stable per-element IDs (e.g. `data-anim-id="a0"`). Those IDs survive into the `CapturedElement` tree and into the rendered SVG output (as a `class="anim-a0"` or similar).
 2. **Render-side**: for each animation entry, emit a CSS `@keyframes` block targeting the tagged elements. The keyframe percentages map the animation's `delay` and `duration` against the global scene clock, gated by the frame's visibility window so the animation only runs when the frame is on screen.
-3. **Easing**: pass through as `animation-timing-function`. The merged-fast-path's step-end timing applies only to per-frame visibility classes; intra-frame animations get their own classes with their own easing.
+3. **Easing**: emitted as `animation-timing-function`. Every config easing (intra-frame animations and fused tracks, overlay `enter`/`exit`, transitions, composite layers, the `counter` template) must be an easing preset name or a CSS `<easing-function>` (a keyword, `cubic-bezier()`, `steps()` or `linear()`). A preset name resolves to its curve before emission. Anything else is rejected at config validation, and the emitters re-check it for direct API callers (`src/animation/easing-input.ts`), because a free-text easing lands in the output's `<style>` block and could close it. The merged-fast-path's step-end timing applies only to per-frame visibility classes; intra-frame animations get their own classes with their own easing.
 
 ### Constraints
 
