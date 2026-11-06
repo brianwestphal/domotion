@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatNumber, stopFmt } from "./format.js";
+import { formatNumber, formatNumberLoose, r, stopFmt } from "./format.js";
 
 describe("formatNumber", () => {
   it("trims trailing zeros and the bare decimal point", () => {
@@ -47,5 +47,32 @@ describe("formatNumber", () => {
     expect(stopFmt(0.123456)).toBe("0.1235");
     expect(stopFmt(-0.00001)).toBe("0");
     expect(() => stopFmt(Number.NaN)).toThrow(RangeError);
+  });
+});
+
+describe("formatNumberLoose", () => {
+  // The historical inline writer the renderer's geometry formatters used; the
+  // loose variant must stay byte-identical to it for every input, finite or not.
+  const historical = (n: number, k: number): string => Number(n.toFixed(k)).toString();
+  const samples = [0, -0, 1.5, 2, -0.00001, 0.1 + 0.2, 1.005, 2.5, -2.5, 1e21, 1e-7, 123.456789, -98.7654321];
+
+  it("matches the historical Number(n.toFixed(k)).toString() at every precision", () => {
+    for (const k of [1, 2, 3, 4, 6, 8]) {
+      for (const n of samples) {
+        expect(formatNumberLoose(n, k)).toBe(historical(n, k));
+        expect(formatNumber(n, k)).toBe(formatNumberLoose(n, k));
+      }
+    }
+  });
+
+  it("writes non-finite values the way the inline formatter did instead of throwing", () => {
+    expect(formatNumberLoose(Number.NaN, 3)).toBe("NaN");
+    expect(formatNumberLoose(Number.POSITIVE_INFINITY, 6)).toBe("Infinity");
+    expect(formatNumberLoose(Number.NEGATIVE_INFINITY, 2)).toBe("-Infinity");
+  });
+
+  it("is what r() formats with at one decimal", () => {
+    for (const n of samples) expect(r(n)).toBe(historical(n, 1));
+    expect(r(Number.NaN)).toBe("NaN");
   });
 });

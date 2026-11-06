@@ -1,8 +1,9 @@
 import { selectBestDashGap } from "./borders.js";
+import { formatNumberLoose } from "./format.js";
 /** Dash intervals repeat along the whole line, so the renderer's usual 0.1px
  * rounding would accumulate (and would erase Blink's 0.01 dotted epsilon). */
 function interval(n: number): string {
-  return Number(n.toFixed(3)).toString();
+  return formatNumberLoose(n, 3);
 }
 
 /** Blink `DashLengthRatio`, `DashGapRatio`, and `DashEffectFromStrokeStyle` in

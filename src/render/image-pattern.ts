@@ -10,14 +10,14 @@
 
 import type { CapturedBackgroundImage } from "../capture/types.js";
 import { embedResizedDataUri } from "../capture/embed.js";
-import { esc } from "./format.js";
+import { esc, formatNumberLoose } from "./format.js";
 
 const LAYOUT_UNIT_SCALE = 64;
 
 /** Preserve every 1/64 px LayoutUnit; the renderer-wide 0.1 px formatter is
  * intentionally too lossy for tile phase and dependent-axis rounding. */
 function layoutNumber(value: number): string {
-  return Number(value.toFixed(6)).toString();
+  return formatNumberLoose(value, 6);
 }
 
 type RawLayoutUnit = number;

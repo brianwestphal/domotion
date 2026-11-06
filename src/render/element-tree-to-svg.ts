@@ -27,7 +27,7 @@ import { activeTextEngineDocument, withTextEngineDocument } from "./text-engine.
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
 import type { DefCtx } from "./form-controls.js";
 import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-controls.js";
-import { r, esc, stopFmt, rootSvgA11y } from "./format.js";
+import { r, esc, formatNumberLoose, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, parseSameDocumentClipPathUrl } from "./clip-path.js";
 import { backgroundPositionOffsetPx, buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
 import { paintClipForLayer } from "./paint-clip-layers.js";
@@ -1084,7 +1084,7 @@ function flattenCapturedInlineSvg(
   );
   if (matrix == null) return null;
 
-  const mf = (n: number): string => Number(n.toFixed(6)).toString();
+  const mf = (n: number): string => formatNumberLoose(n, 6);
   const m = `matrix(${mf(matrix.a)} ${mf(matrix.b)} ${mf(matrix.c)} ${mf(matrix.d)} ${mf(matrix.e)} ${mf(matrix.f)})`;
   // DM-97E2CN: keep the root's inheritable presentation attributes (capture
   // bakes the page-cascade `font-family` / `fill` / `stroke` there) — `sized`

@@ -17,7 +17,7 @@ import {
 } from "./text-to-path.js";
 import { getRenderTextMode, type FontVariantEmojiOverride } from "./font-resolution.js";
 import type { FontSynthesisAllowance } from "./text-to-path.js";
-import { r, esc } from "./format.js";
+import { r, esc, formatNumberLoose } from "./format.js";
 import { wrapPseudoPaintEffects } from "./pseudo-filter.js";
 import type { CapturedElement, TextSegment } from "../capture/types.js";
 import { recordTextEmitterTransition } from "./text-run-provenance.js";
@@ -536,7 +536,7 @@ function emitWavyDecoration(
   // Decoration phase is a paint-coordinate invariant. Preserve capture's
   // sub-tenth-pixel fragment origin (not the renderer-wide 0.1px formatter),
   // especially after zoom/transforms where a 0.05px phase error is visible.
-  const wr = (n: number) => Number(n.toFixed(3)).toString();
+  const wr = (n: number): string => formatNumberLoose(n, 3);
   // Match Chromium's `decoration_line_painter.cc::MakeWave` + `WavyPath`:
   //   wavelength = 1 + 2 * round(2 * thickness + 0.5)
   //   cp_distance = 0.5 + round(3 * thickness + 0.5)

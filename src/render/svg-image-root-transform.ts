@@ -26,6 +26,7 @@
  * units, 3D functions, an axis form of `rotate`) returns `"unsupported"`, so
  * the caller can keep its previous output rather than paint a guess.
  */
+import { formatNumberLoose } from "./format.js";
 
 export interface ImageRootTransformInputs {
   /** The root's `transform` attribute (SVG transform-list syntax). */
@@ -54,7 +55,7 @@ const LENGTH_RE = new RegExp(`^(${NUMBER})(px|%)?$`, "i");
 const ANGLE_RE = new RegExp(`^(${NUMBER})(deg|grad|rad|turn)?$`, "i");
 const NUMBER_PCT_RE = new RegExp(`^(${NUMBER})(%)?$`);
 
-const f = (n: number): string => Number(n.toFixed(6)).toString();
+const f = (n: number): string => formatNumberLoose(n, 6);
 
 /** A `<length-percentage>` in px; a bare 0 is a valid length. */
 function lengthPx(token: string, basis: number): number | null {

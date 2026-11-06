@@ -21,7 +21,7 @@
  * exactly one place.
  */
 
-import { esc, r } from "./format.js";
+import { esc, formatNumberLoose, r } from "./format.js";
 import {
   computeViewportMatrix,
   parsePreserveAspectRatio,
@@ -422,7 +422,7 @@ function applyImageRootTransform(
   p: InlineSvgPlacement,
   object: Rect,
 ): string {
-  const f = (n: number): string => Number(n.toFixed(6)).toString();
+  const f = (n: number): string => formatNumberLoose(n, 6);
   const { x: cx, y: cy } = root.origin;
   return clipToImage(
     `<g transform="translate(${f(cx)} ${f(cy)}) ${root.transform} translate(${f(-cx)} ${f(-cy)})">${content}</g>`,
@@ -796,7 +796,7 @@ export function flattenImgSvg(svgText: string, p: InlineSvgPlacement): string | 
   // The `r()` px formatter rounds to 1 decimal — fine for coordinates but far
   // too coarse for the scale/skew components (0.6667 would round to 0.7, a ~5%
   // scale error). Use 6-decimal precision for the whole matrix.
-  const mf = (n: number): string => Number(n.toFixed(6)).toString();
+  const mf = (n: number): string => formatNumberLoose(n, 6);
   const m = `matrix(${mf(matrix.a)} ${mf(matrix.b)} ${mf(matrix.c)} ${mf(matrix.d)} ${mf(matrix.e)} ${mf(matrix.f)})`;
   const group = `<g${groupAttrs} transform="${m}">${body}</g>`;
 

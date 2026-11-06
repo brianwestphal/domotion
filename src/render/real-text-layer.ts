@@ -1,7 +1,7 @@
 /** Opt-in authored-text overlay for inline SVG consumers (DM-1775). */
 
 import type { CapturedElement, CapturedTextPaintAffine, TextSegment } from "../capture/types.js";
-import { esc, r } from "./format.js";
+import { esc, formatNumberLoose, r } from "./format.js";
 import {
   visualTextOnlyHiddenAttr,
   visualTextSemantics,
@@ -15,7 +15,7 @@ import {
 } from "./text-affine.js";
 
 /** Preserve Blink's 1/64px layout positions without carrying float noise. */
-const position = (value: number): string => Number(value.toFixed(3)).toString();
+const position = (value: number): string => formatNumberLoose(value, 3);
 
 /** Suppress duplicate run-level labels while a real-text layer owns semantics. */
 export function withRealTextLayerVisualSemantics<F extends () => unknown>(

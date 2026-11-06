@@ -8,7 +8,7 @@
 
 import { renderWarn } from "./render-warn.js";
 import { editSvgOpeningTagAttributes, readSvgOpeningTag, svgOpeningTagAttribute } from "./svg-inline.js";
-import { r, esc } from "./format.js";
+import { r, esc, formatNumberLoose } from "./format.js";
 import { embedOriginalDataUri, embedResizedDataUri } from "../capture/embed.js";
 import {
   ninePieceTileAxis,
@@ -43,7 +43,7 @@ import {
 // Mask-position resolves in Blink's 1/64px LayoutUnit space. The renderer's
 // general one-decimal formatter is intentionally compact, but throwing away
 // that precision here can move a high-DPR mask edge by a device pixel.
-const mr = (value: number): string => Number(value.toFixed(4)).toString();
+const mr = (value: number): string => formatNumberLoose(value, 4);
 
 /**
  * Rewrite a captured `<mask>` element's `outerHTML` so it can be safely

@@ -8,6 +8,7 @@
  * SVG emission. `shadeColor` is the HSL-domain lighten/darken used for border
  * groove / ridge / inset / outset bevels.
  */
+import { formatNumberLoose } from "./format.js";
 
 export interface RGBA {
   r: number;
@@ -121,7 +122,7 @@ export function parseColor(css: string): RGBA | null {
  */
 function colorAlphaStr(alpha: number): string {
   const clamped = Math.max(0, Math.min(1, alpha));
-  return Number(clamped.toFixed(6)).toString();
+  return formatNumberLoose(clamped, 6);
 }
 
 export function colorStr(c: RGBA): string {

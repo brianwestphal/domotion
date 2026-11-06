@@ -27,7 +27,7 @@ export type { GlyphRasterRepresentation } from "./glyph-helper.js";
 import { hostPlatform } from "./host-platform.js";
 import { computedFontSize } from "./font-instance.js";
 import type { DarwinFontCacheOptions } from "./darwin-font-data-lifetime.js";
-import { esc as escAttr } from "./format.js";
+import { esc as escAttr, formatNumberLoose } from "./format.js";
 import { visualTextSemantics } from "./text-semantics.js";
 import { trackGlyphInEmbedFont } from "./embedded-font-builder.js";
 import { OBLIQUE_SHEAR, resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass } from "./embolden-outline.js";
@@ -260,7 +260,7 @@ export function syntheticMarkCenteringOffsetPx(primaryFont: FontInstance, ch: st
  *  stretchy-fence markup). Named distinctly from the one-decimal `r` in
  *  `format.ts` so the precision is explicit at the call site (DM-1340). */
 export function r2(n: number): string {
-  return Number(n.toFixed(2)).toString();
+  return formatNumberLoose(n, 2);
 }
 
 // Deliberate compatibility surface. Historically this module used a blanket

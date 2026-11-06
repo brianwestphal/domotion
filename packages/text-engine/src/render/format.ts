@@ -7,10 +7,12 @@
  *   (the extra precision keeps multi-stop gradients from snapping).
  * - `formatNumber(n, decimals)` — the shared fixed-precision formatter behind
  *   `stopFmt` and the root package's CSS/SVG number writers.
+ * - `formatNumberLoose(n, decimals)` — the same digits without the finite check,
+ *   for hot render paths over captured geometry.
  */
 
 export function r(n: number): string {
-  return Number(n.toFixed(1)).toString();
+  return formatNumberLoose(n, 1);
 }
 
 /**
@@ -67,6 +69,20 @@ export function formatNumber(n: number, decimals: number): string {
   if (!Number.isFinite(n)) {
     throw new RangeError(`formatNumber: cannot write the non-finite value ${String(n)} into SVG/CSS markup`);
   }
+  return formatNumberLoose(n, decimals);
+}
+
+/**
+ * `formatNumber` without the finite check: identical output for every finite
+ * value, and a non-finite one is written as `NaN` / `Infinity` / `-Infinity`
+ * instead of throwing. This is the historical `Number(n.toFixed(k)).toString()`
+ * shape the renderer's coordinate, matrix, mask, dash and color-alpha writers
+ * used inline. Those run over captured geometry for every element, where one
+ * degenerate value would otherwise abort the whole capture rather than drop one
+ * attribute, so they keep that behavior. Prefer `formatNumber` for values that a
+ * schema or parser has already proven finite.
+ */
+export function formatNumberLoose(n: number, decimals: number): string {
   return Number(n.toFixed(decimals)).toString();
 }
 

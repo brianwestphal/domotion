@@ -40,7 +40,7 @@ import {
 } from "./text.js";
 import { selectDecorationFragment, type DecorationFragmentCarrier } from "./decoration-fragment-ownership.js";
 import { localeToScriptCodeForFontSelection } from "./generic-script-families.js";
-import { esc } from "./format.js";
+import { esc, formatNumberLoose } from "./format.js";
 import { visualTextOnlyHiddenAttr } from "./real-text-layer.js";
 
 /**
@@ -540,7 +540,7 @@ export function renderVerticalSystemFontText(el: CapturedElement, fillColor: str
   const first = el.textSegments[0];
   // Best-effort anchor: the block-start of the first captured column, with the
   // column centered on `x` (upright vertical glyphs sit centered on the x axis).
-  const n2 = (v: number): string => String(Number(v.toFixed(2)));
+  const n2 = (v: number): string => formatNumberLoose(v, 2);
   const x = first.x + fontSize / 2;
   const y = first.y ?? el.y;
   const family = capturedSegmentFontFamily(el, first);

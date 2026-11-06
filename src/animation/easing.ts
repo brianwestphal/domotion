@@ -8,6 +8,7 @@
  * animation — one timeline, immune to Firefox's off-main-thread desync
  * (docs/84). Pure functions, no I/O.
  */
+import { formatNumberLoose } from "../render/format.js";
 
 /** A normalized easing: progress `t` in [0,1] → eased output in [0,1]. */
 export type EasingFn = (t: number) => number;
@@ -77,7 +78,7 @@ export function resolveEasing(css: string | undefined): EasingFn {
 
 /** Round to at most 4 decimals and drop trailing zeros. */
 function fmt(n: number): string {
-  return Number(n.toFixed(4)).toString();
+  return formatNumberLoose(n, 4);
 }
 
 /**
