@@ -598,17 +598,6 @@ function render() {
   );
 }
 
-// DM-1730: opt-in kerf dev diagnostics — `?kerfdev` turns on the 2.0
-// warnings so coarse re-renders (a render that reads only signal values and
-// could be fully bound) and stale bindings surface in the console during
-// development. There is no separate dev bundle, so this is query-gated
-// rather than build-gated; production URLs stay silent.
-if (location.search.includes("kerfdev")) {
-  (globalThis as unknown as Record<string, unknown>).KERF_DEV = true;
-  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_VALUE_ONLY_RERENDER = true;
-  (globalThis as unknown as Record<string, unknown>).KERF_DEV_WARN_STALE_BINDING = true;
-}
-
 const app = document.getElementById("app")!;
 mount(app, render);
 
