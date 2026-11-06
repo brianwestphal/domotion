@@ -56,6 +56,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **comp-card-badge**: Card with inline badge (flex row with mixed components)
 - [x] **comp-input**: Form input with border and placeholder-style text
 - [x] **comp-input-value**: Native `<input>` element with value attribute
+- [x] **input-value-with-placeholder** (doc 171): a filled single-line `<input>` that also has a `placeholder` keeps the closed-shadow value top; Blink's hidden `#placeholder` text (no CDP quads) is not counted as a second text label.
 - [x] **native-control-decoration-split** (DM-2455, doc 171): styled select/temporal/search/number hosts and value text remain structural while exact Chromium menulist-arrow and closed-shadow picker/cancel/spin layers are isolated into fail-closed transparent overlays; base-select remains fully vector.
 - [x] **range-pseudo-box-shadow** (doc 04): slider track and thumb `box-shadow` lists (offset, blur, spread rings, inset) paint through the general box-shadow painters.
 - [x] **box-shadow-inset-offset-only** (doc 01): an inset `box-shadow` with an offset but zero blur and zero spread paints a hard crescent on plain, bordered and rounded boxes and on a range thumb.

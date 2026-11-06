@@ -327,6 +327,19 @@ export const tests: FeatureTest[] = [
     width: 300,
     height: 100,
   },
+  {
+    // A filled input that also has a placeholder keeps Blink's `#placeholder`
+    // div with inline `display: none` (TextControlElement::
+    // UpdatePlaceholderVisibility, text_control_element.cc:295-307, chromium
+    // 7d859f27). CDP answers that hidden text node with no quads; it must not
+    // count as a second text label, or the input loses the closed-shadow value
+    // top and falls back to the line-height estimate. Tall single-line inputs
+    // with no vertical padding make that estimate visibly wrong.
+    name: "input-value-with-placeholder",
+    html: `<style>.f{display:block;box-sizing:border-box;width:260px;height:42px;margin:10px 20px;padding:0 10px;border:1px solid #94a3b8;border-radius:6px;background:#fff;color:#0f172a;font:16px -apple-system,sans-serif;line-height:normal}</style><input class="f" value="Filled value" placeholder="Placeholder text"><input class="f" value="Ágÿ jumps" placeholder="x" style="height:56px;font-size:20px"><input class="f" type="email" value="name@example.com" placeholder="you@example.com">`,
+    width: 300,
+    height: 200,
+  },
   // DM-581: button-typed inputs (and buttons styled as flex with align-items:
   // center) center their value text vertically within the rect — not anchored
   // at content-box top like a plain text input. The framer-mobile-fold "Okay"
