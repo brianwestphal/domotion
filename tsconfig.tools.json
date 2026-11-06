@@ -8,6 +8,7 @@
   "include": [
     "tools/**/*.ts",
     "tools/**/*.tsx",
+    "tools/**/*.mts",
     "src/globals.d.ts",
     "src/post-processing/wawoff2.d.ts",
     "src/render/svg2ttf.d.ts"

@@ -43,16 +43,16 @@
 // does consult first. There the "static" row is parity, not interposition. The
 // no-counterpart-in-Blink claim is a macOS/Linux one.
 import { z } from "zod";
-import { isMain, parseCommand, runMain, shardFlag } from "./lib/cli.mjs";
-import { readFontConformanceReport } from "./conformance-report-schemas.js";
-import { resolveFontKey } from "../src/render/font-resolution.js";
-import { buildUniverse } from "./font-conformance.js";
 import {
   fallbackFontChain,
   resolveFont,
   resolveFontKeyChain,
   resolveFontForCodepoint,
 } from "@domotion/text-engine/testing";
+import { isMain, parseCommand, runMain, shardFlag } from "./lib/cli.mjs";
+import { readFontConformanceReport } from "./conformance-report-schemas.js";
+import { resolveFontKey } from "../src/render/font-resolution.js";
+import { buildUniverse } from "./font-conformance.js";
 
 const attributionReportSchema = z
   .object({

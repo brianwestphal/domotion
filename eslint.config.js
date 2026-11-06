@@ -59,7 +59,7 @@ export default [
     ],
   },
   {
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts"],
     languageOptions: {
       parser: tsParser,
       parserOptions: { ecmaFeatures: { jsx: true } },
@@ -76,7 +76,7 @@ export default [
   {
     // Node built-ins, then packages, then local modules. Group order only (never alphabetical): the
     // repo has import cycles whose behavior depends on local evaluation order.
-    files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs"],
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.js", "**/*.mjs"],
     plugins: { domotion },
     rules: { "domotion/import-group-order": "error", "domotion/no-import-in-page-callback": "error" },
   },
@@ -96,8 +96,9 @@ export default [
       "tests/**/*.tsx",
       "tools/**/*.ts",
       "tools/**/*.tsx",
+      "tools/**/*.mts",
     ],
-    ignores: ["**/*.d.ts"],
+    ignores: ["**/*.d.ts", "**/*.d.mts"],
     rules: {
       "no-restricted-syntax": [
         "error",

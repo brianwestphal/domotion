@@ -16,18 +16,33 @@ import { readFileSync } from "node:fs";
 import { win32FallbackChain } from "@domotion/text-engine/testing";
 import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
+interface CalibrationEntry {
+  hex: string;
+  ch?: string;
+  chromium?: string;
+  mapChars?: string;
+}
+
+interface CalibrationReport {
+  sampled?: number;
+  uniqueCps?: number;
+  summary?: unknown;
+  diverge?: CalibrationEntry[];
+  resolverTofu?: CalibrationEntry[];
+}
+
 async function main(argv: string[]) {
   const { positionals } = parseCommand(argv, {});
   if (positionals.length > 0) throw new Error("unexpected positional arguments");
   try {
     const IN = process.env.IN ?? "tools/scratch/win32-calib.json";
-    const data = JSON.parse(readFileSync(IN, "utf-8"));
+    const data = JSON.parse(readFileSync(IN, "utf-8")) as CalibrationReport;
 
     function staticRoutes(hex: string): string[] {
       return win32FallbackChain(parseInt(hex, 16));
     }
 
-    function annotate(entry: { hex: string }) {
+    function annotate(entry: CalibrationEntry) {
       const chain = staticRoutes(entry.hex);
       return { ...entry, staticChain: chain, staticMisses: chain.length === 0 };
     }
@@ -36,8 +51,8 @@ async function main(argv: string[]) {
     const resolverTofu = (data.resolverTofu ?? []).map(annotate);
 
     // The fidelity-relevant subset: cps the static table misses (resolver fires).
-    const divergeFires = diverge.filter((d: any) => d.staticMisses);
-    const tofuFires = resolverTofu.filter((d: any) => d.staticMisses);
+    const divergeFires = diverge.filter((d) => d.staticMisses);
+    const tofuFires = resolverTofu.filter((d) => d.staticMisses);
 
     console.log("=== DM-1424 win32 calibration refine ===");
     console.log(`sampled=${data.sampled} uniqueCps=${data.uniqueCps}`);

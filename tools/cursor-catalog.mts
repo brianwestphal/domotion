@@ -1,5 +1,5 @@
-import { withBrowser } from "./lib/browser.mjs";
 import { writeFileSync } from "node:fs";
+import { withBrowser } from "./lib/browser.mjs";
 import { CURSOR_CATEGORIES, cursorGlyphSvg } from "../src/animation/cursor-glyphs.js";
 import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
