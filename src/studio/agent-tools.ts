@@ -24,6 +24,15 @@ export const STUDIO_AGENT_TOOL_VERSION = 1 as const;
 const nonEmpty = z.string().trim().min(1);
 const pathField = nonEmpty.max(4096);
 const requestBase = { version: z.literal(STUDIO_AGENT_TOOL_VERSION) };
+const projectDigestSchema = z.string().regex(/^[a-f0-9]{64}$/i);
+/**
+ * Optional stale-base guard for the generation tools. When a host sends the
+ * digest its request was prepared against, a changed project returns
+ * `conflict` before the adapter runs, so an adapter-returned project can never
+ * be derived from a base the caller did not see. Omitting it keeps the
+ * host-owned reconciliation contract (doc 249).
+ */
+const generationDigest = { projectDigest: projectDigestSchema.optional() };
 
 const selectionSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("project") }),
@@ -107,6 +116,7 @@ export const studioAgentToolRequestSchema = z.discriminatedUnion("tool", [
   }),
   z.strictObject({
     ...requestBase,
+    ...generationDigest,
     tool: z.literal("capture.compile"),
     selection: selectionSchema.optional(),
     artifactDir: pathField,
@@ -114,6 +124,7 @@ export const studioAgentToolRequestSchema = z.discriminatedUnion("tool", [
   }),
   z.strictObject({
     ...requestBase,
+    ...generationDigest,
     tool: z.literal("render.preview"),
     selection: selectionSchema.optional(),
     outputPath: pathField,
@@ -121,6 +132,7 @@ export const studioAgentToolRequestSchema = z.discriminatedUnion("tool", [
   }),
   z.strictObject({
     ...requestBase,
+    ...generationDigest,
     tool: z.literal("render.video"),
     selection: selectionSchema.optional(),
     inputSvgPath: pathField,
@@ -662,6 +674,24 @@ export async function runStudioAgentTool(
         revisionId: result.revision.id,
       },
     });
+  }
+
+  if (
+    (request.tool === "capture.compile" || request.tool === "render.preview" || request.tool === "render.video") &&
+    request.projectDigest != null
+  ) {
+    const actualDigest = studioAgentProjectDigest(project);
+    if (request.projectDigest.toLowerCase() !== actualDigest) {
+      return response(
+        request.tool,
+        "conflict",
+        "The project changed after this generation request was prepared.",
+        project,
+        {
+          data: { expectedProjectDigest: request.projectDigest, actualProjectDigest: actualDigest },
+        },
+      );
+    }
   }
 
   if (request.tool === "capture.compile" || request.tool === "render.preview")

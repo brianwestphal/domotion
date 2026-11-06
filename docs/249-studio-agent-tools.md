@@ -66,7 +66,8 @@ Every response is compact and has one of four explicit states:
   carries a question, reason, and optional bounded choices.
 - `permission-required`: the host did not grant the exact named capability.
 - `conflict`: a `project.edit` or `annotation.apply` request has a stale project
-  digest, or destructive confirmation names a different digest.
+  digest, a generation request supplied a stale optional `projectDigest`, or a
+  destructive confirmation names a different digest.
 
 Generated artifacts report both a canonical absolute `path` and normalized
 `workspacePath`. The core verifies that they agree and remain within the
@@ -88,10 +89,18 @@ Authority is supplied only through `RunStudioAgentToolOptions`:
 - `project.edit` and `annotation.apply` require the SHA-256 project digest
   returned by a preceding tool call. A stale edit or annotation request returns
   `conflict` before changing the project.
-- `capture.compile`, `render.preview`, and `render.video` do not accept a project
-  digest. Their host adapters may return an updated project, so the host must
-  serialize or reconcile generation results with concurrent project changes
-  before persisting them.
+- `capture.compile`, `render.preview`, and `render.video` accept an optional
+  `projectDigest`. When it is present and differs from the digest of the
+  project the host supplied, the tool returns `conflict` (with
+  `expectedProjectDigest` and `actualProjectDigest` in `data`). It does so
+  before any permission check or adapter call, so an adapter-returned project
+  can never be derived from a base the caller did not see. A request without
+  the field keeps the earlier contract: the core runs on whatever project the
+  host supplied. Either way, the host still owns persistence. It must serialize
+  or reconcile a generation result with project changes made while the adapter
+  ran, because the core sees only the project value it was given. (The
+  maintainer chose the optional field over requiring a digest on all three
+  tools, which would break the request schema; 2026-11 requirements audit.)
 - Artifact paths cannot escape the workspace. Existing destinations require an
   explicit `overwrite` request and the separate overwrite capability.
 - Generation callbacks, filesystem persistence, browser ownership, arbitrary

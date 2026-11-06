@@ -403,6 +403,105 @@ describe("Studio agent tools (DM-2693)", () => {
     expect(denied).toMatchObject({ status: "permission-required", permission: { name: "destructiveProjectEdits" } });
   });
 
+  it("rejects a stale generation base when the host sends a project digest", async () => {
+    workspace = mkdtempSync(join(tmpdir(), "domotion-studio-agent-"));
+    const root = workspace;
+    const calls: string[] = [];
+    const artifactFor = (workspacePath: string) => {
+      const path = resolve(root, workspacePath);
+      mkdirSync(resolve(path, ".."), { recursive: true });
+      writeFileSync(path, "artifact");
+      return { id: `artifact-${calls.length}`, kind: "other" as const, path, workspacePath };
+    };
+    const options: RunStudioAgentToolOptions = {
+      workspaceRoot: root,
+      actor: { kind: "ai" },
+      permissions: { editProject: true, capture: true, artifactWrites: true, renderVideo: true },
+      timestamp: () => T0,
+      capture: async ({ workspacePath }) => {
+        calls.push("capture.compile");
+        return { artifacts: [artifactFor(`${workspacePath}/capture.json`)] };
+      },
+      preview: async ({ workspacePath }) => {
+        calls.push("render.preview");
+        return { artifacts: [artifactFor(workspacePath)] };
+      },
+      video: async ({ workspacePath }) => {
+        calls.push("render.video");
+        return { artifacts: [artifactFor(workspacePath)] };
+      },
+    };
+    const project = projectFrom(
+      await runStudioAgentTool(
+        null,
+        { version: STUDIO_AGENT_TOOL_VERSION, tool: "project.create", title: "Digest" },
+        options,
+      ),
+    );
+    const digest = studioAgentProjectDigest(project);
+    const stale = "f".repeat(64);
+    const requests = (projectDigest: string | undefined, suffix: string) =>
+      [
+        {
+          version: STUDIO_AGENT_TOOL_VERSION,
+          tool: "capture.compile",
+          selection: { kind: "project" },
+          artifactDir: `capture-${suffix}`,
+          ...(projectDigest == null ? {} : { projectDigest }),
+        },
+        {
+          version: STUDIO_AGENT_TOOL_VERSION,
+          tool: "render.preview",
+          selection: { kind: "project" },
+          outputPath: `preview-${suffix}.svg`,
+          ...(projectDigest == null ? {} : { projectDigest }),
+        },
+        {
+          version: STUDIO_AGENT_TOOL_VERSION,
+          tool: "render.video",
+          selection: { kind: "project" },
+          inputSvgPath: `preview-${suffix}.svg`,
+          outputPath: `video-${suffix}.mp4`,
+          review: "required",
+          ...(projectDigest == null ? {} : { projectDigest }),
+        },
+      ] as const;
+
+    for (const request of requests(stale, "stale")) {
+      const result = await runStudioAgentTool(project, request, options);
+      expect(result).toMatchObject({
+        status: "conflict",
+        data: { expectedProjectDigest: stale, actualProjectDigest: digest },
+      });
+    }
+    // A stale base is rejected before any adapter (or permission prompt) runs.
+    expect(calls).toEqual([]);
+
+    for (const [digestForRequest, suffix] of [
+      [digest, "current"],
+      [digest.toUpperCase(), "upper"],
+      [undefined, "legacy"],
+    ] as const) {
+      for (const request of requests(digestForRequest, suffix)) {
+        expect((await runStudioAgentTool(project, request, options)).status).toBe("ok");
+      }
+    }
+    expect(calls).toEqual(
+      Array.from({ length: 3 }, () => ["capture.compile", "render.preview", "render.video"]).flat(),
+    );
+
+    expect(() =>
+      studioAgentToolRequestSchema.parse({
+        version: STUDIO_AGENT_TOOL_VERSION,
+        tool: "render.preview",
+        outputPath: "x.svg",
+        projectDigest: "not-a-digest",
+      }),
+    ).toThrow();
+    const schemaText = JSON.stringify(buildStudioAgentToolRequestJsonSchema());
+    expect(schemaText).toContain("projectDigest");
+  });
+
   it("keeps artifact writes inside the workspace and makes required AI video review observable", async () => {
     workspace = mkdtempSync(join(tmpdir(), "domotion-studio-agent-"));
     const options: RunStudioAgentToolOptions = {
