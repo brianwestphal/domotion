@@ -1,34 +1,51 @@
-import { resetGeneration } from "@domotion/text-engine/testing";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
-import { clearGlyphDefs, clearWebfonts, withRenderTextMode } from "../src/render/text-to-path.js";
+import {
+  createTextEngineSession,
+  withTextEngineDocument,
+  type TextEngineDocumentCallback,
+  type TextEngineSession,
+} from "../src/render/text-engine.js";
 
-/** A fixture begins with no browser URL accumulator or renderer font state. */
-export function resetFeatureFixtureState(fontUrls: Set<string>): void {
-  clearWebfonts();
-  clearGlyphDefs();
+/**
+ * Begin one feature fixture: clear its browser font-URL accumulator and return
+ * the text-engine session that owns its webfont registrations.
+ *
+ * The harness worker pool runs fixtures concurrently in one process, and the
+ * webfont registry behind the legacy `registerWebfont` / `clearWebfonts` API is
+ * process-global. A fixture used to clear that registry at its start, then
+ * await page load, the screenshot, discovery, capture, image embedding and
+ * conic rasterization before rendering, so another worker starting a fixture
+ * during those awaits wiped this fixture's discovered webfonts and its render
+ * fell back to system fonts. Discovery cannot move into the synchronous render
+ * because it is async, so each fixture registers into its own session instead
+ * (pass it to `discoverAndRegisterWebfonts`), the same shape the production
+ * `CaptureSession` uses. Nothing here touches the ambient registry, so no
+ * fixture can clear another's.
+ */
+export function resetFeatureFixtureState(fontUrls: Set<string>): TextEngineSession {
   fontUrls.clear();
+  return createTextEngineSession({ defaultRenderTextMode: "paths" });
 }
 
 /**
- * Render one feature fixture's SVG body in `paths` mode, as its own generation.
+ * Run one synchronous render as a feature fixture's own `paths`-mode document:
+ * exactly the fixture session's webfonts, and a fresh glyph generation.
  *
- * The paths-mode glyph registry is process-global, and the harness worker pool
- * runs fixtures concurrently in one process. A reset at the start of a fixture
- * is therefore not enough: every `await` between that reset and the render lets
- * other workers render and register their own `<path id="gN">` defs, which then
- * appeared, unreferenced, in this fixture's `<defs>` and shifted its ids, so the
- * emitted SVG depended on scheduling. `elementTreeToSvgInner` never awaits, so
- * resetting the generation inside the same synchronous call (the shape
- * `html-test-suite.tsx` uses) gives each fixture exactly its own defs, numbered
- * from `g0`.
+ * The paths-mode glyph registry is process-global too. Resetting the generation
+ * inside the same synchronous call (not at the start of the fixture) keeps other
+ * workers' `<path id="gN">` defs, registered during this fixture's awaits, out
+ * of its `<defs>`, so each fixture's defs are its own and numbered from `g0`.
  */
+export function renderFixtureDocument<T>(session: TextEngineSession, render: TextEngineDocumentCallback<T>): T {
+  return withTextEngineDocument({ session, generation: "reset", renderTextMode: "paths" }, render).value;
+}
+
+/** Render one feature fixture's SVG body (see `renderFixtureDocument`). */
 export function renderFixtureSvgInner(
+  session: TextEngineSession,
   tree: Parameters<typeof elementTreeToSvgInner>[0],
   width: number,
   height: number,
 ): string {
-  return withRenderTextMode("paths", () => {
-    resetGeneration();
-    return elementTreeToSvgInner(tree, width, height);
-  });
+  return renderFixtureDocument(session, () => elementTreeToSvgInner(tree, width, height));
 }

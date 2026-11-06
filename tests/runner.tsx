@@ -191,13 +191,12 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // every active FontFace has loaded.
   writeFileSync(htmlPath, renderDoc(<FixturePage body={test.html} bodyStyle={test.bodyStyle} />));
   await w.page.setViewportSize({ width, height });
-  // DM-559: reset webfont registry + per-test font-url accumulator before
-  // each test so a webfont registered for fixture A doesn't leak into
-  // fixture B. The `requestfinished` listener on `w.page` populates
-  // `w.fontUrls` as the test's HTML loads.
-  resetFeatureFixtureState(w.fontUrls);
-  // DM-1338: reset the paths-mode glyph registry per fixture too, so fixture A's
-  // <path id="gN"> defs don't accumulate into fixture B's emitted <defs>.
+  // DM-559: each fixture starts with an empty font-URL accumulator (the
+  // `requestfinished` listener on `w.page` populates `w.fontUrls` as the
+  // test's HTML loads) and its own text-engine session, so a webfont
+  // registered for fixture A neither leaks into fixture B nor, with workers
+  // running concurrently, gets cleared by B's start before A renders.
+  const fontSession = resetFeatureFixtureState(w.fontUrls);
   await w.page.goto(`file://${htmlPath}`);
   await w.page.evaluate(() => document.fonts.ready);
   await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width, height } });
@@ -209,7 +208,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // would have TestFont loaded in Chromium's font cache for the expected
   // screenshot but absent from Domotion's webfont registry — so the SVG
   // would silently fall through to the system fallback chain.
-  await discoverAndRegisterWebfonts(w.page, w.fontUrls);
+  await discoverAndRegisterWebfonts(w.page, w.fontUrls, fontSession);
 
   // Step 2: Capture DOM -> SVG
   const tree = await captureElementTree(w.page, "body", { x: 0, y: 0, width, height });
@@ -222,9 +221,10 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   // the live Chromium paint, and embedded `<text>` carries an inherent sub-
   // pixel-kerning drift (xOffsets aren't forwarded, to keep the glyph atlas
   // cacheable). Same convention the scroll composer documents for diffing.
-  // `renderFixtureSvgInner` starts the paths-mode generation inside the
-  // synchronous render so concurrent workers' glyph defs cannot leak in.
-  const svgContent = renderFixtureSvgInner(tree, width, height);
+  // `renderFixtureSvgInner` renders inside the fixture's own session and
+  // starts the paths-mode generation within the synchronous render, so
+  // concurrent workers' glyph defs and webfont resets cannot reach it.
+  const svgContent = renderFixtureSvgInner(fontSession, tree, width, height);
   const svgDoc = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#0d1117" />${svgContent}</svg>`;
   writeFileSync(svgPath, svgDoc);
 

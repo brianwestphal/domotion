@@ -344,6 +344,16 @@ To measure an asymmetric capture flag you need an asymmetric harness: capture th
 
 **That mode now exists (DM-1790).** Set `DOMOTION_CAPTURE_FLAGS` to flag the capture browser only; the candidate SVG then rasterizes in a second, unflagged browser. Setting `DOMOTION_RASTER_FLAGS` to the same list reproduces the coupled behavior described above, deliberately. Neither set ⇒ one browser, exactly as before. Non-default runs print the configuration and record it beside their results, because the failure this guards against is a number measured under a flag nobody remembers setting. Full spec, including the expected-PNG cache-key trap and the Linux validation numbers: **`docs/105-asymmetric-harness-browsers.md`**.
 
+## Feature harness renderer state
+
+`tests/runner.tsx` runs fixtures in a worker pool inside one Node process, and
+the renderer's legacy webfont and paths-mode glyph registries are process
+global. `tests/feature-fixture-state.ts` therefore gives each fixture its own
+text-engine session: webfont discovery registers into that session, and the
+synchronous render runs as a `paths`-mode document of that session with a
+fresh glyph generation. Another worker's fixture can neither clear this
+fixture's webfonts during its awaits nor add glyph defs to its `<defs>`.
+
 ## HTML harness state and targeted text evidence
 
 `tests/html-test-suite.tsx` coordinates the run. Its fixture heights, skip and
