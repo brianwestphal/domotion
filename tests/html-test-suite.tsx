@@ -42,6 +42,7 @@ import { createExpectedCache } from "./html-test/cache.js";
 import { createCompareLock } from "./html-test/compare-lock.js";
 import { parseTextEvidenceSelection, renderWithTextEvidence } from "./html-test/evidence.js";
 import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
+import { captureLocalRunEnv, readPreviousRunEnv, runEnvChangeWarning } from "./local-run-env.js";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
@@ -894,6 +895,13 @@ async function main(): Promise<void> {
   const browser = browsers.capture;
   const browserNote = harnessBrowserNote(browsers);
   if (browserNote != null) console.log(`  ${browserNote}\n`);
+  // DM-779QKV: record the environment beside the results (`run-conditions.json`)
+  // and warn when it moved since the previous run in this output directory — a
+  // macOS downloadable-font install once changed Chrome's expected paint
+  // mid-session with nothing on record to say why. See tests/local-run-env.ts.
+  const runEnv = captureLocalRunEnv(browser.version());
+  const envWarning = runEnvChangeWarning(readPreviousRunEnv(resolve(OUTPUT_DIR, "run-conditions.json")), runEnv);
+  if (envWarning != null) console.warn(`${envWarning}\n`);
 
   // Announce a missing native glyph helper. On macOS and Windows the
   // per-codepoint fallback resolver asks the OS (CoreText / DirectWrite)
@@ -1024,6 +1032,7 @@ async function main(): Promise<void> {
           browsers: browserNote,
           captureFlags: browsers.captureFlags,
           rasterFlags: browsers.rasterFlags,
+          runEnv,
         },
         null,
         2,

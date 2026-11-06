@@ -1665,7 +1665,8 @@
           "DM-1790",
           "DM-1844",
           "DM-EBRC7F",
-          "DM-9JP366"
+          "DM-9JP366",
+          "DM-779QKV"
         ],
         "code": [
           ".github/workflows/fast-visual-tests.yml",
@@ -1690,6 +1691,8 @@
           "tests/html-test/index-html.tsx",
           "tests/html-test/tables.ts",
           "tests/html-test/worker-pages.ts",
+          "tests/local-run-env.ts",
+          "tools/font-inventory.mjs",
           "tests/harness-constants.ts",
           "tests/feature-fixture-state.ts",
           "tests/review-prefetch-state.ts",

@@ -19,11 +19,24 @@
 //   node tools/font-inventory.mjs                 # JSON to stdout
 //   node tools/font-inventory.mjs out.json        # …and to a file
 //   node tools/font-inventory.mjs --digest        # just the sha256
+//   node tools/font-inventory.mjs --assets        # macOS MobileAsset fonts instead
 //
 // The list is families/filenames as the platform names them, NOT the faces the
 // oracle observed Chrome using — that second, narrower record lives in the
 // sweep's own report (`chromeFaces`). Both are recorded; they answer different
 // questions ("what is installed" vs "what did this sweep actually touch").
+//
+// macOS downloadable fonts are a SEPARATE record (`fontAssetsDocument()`,
+// `--assets`). CoreText also serves faces from MobileAsset bundles under
+// `/System/Library/AssetsV2/com_apple_MobileAsset_Font<N>/`, which no font
+// directory above contains. They arrive outside our control: on 2026-11-06 an
+// unrelated app (Photoshop) asked `mobileassetd` for the Font8 catalog, macOS
+// installed a PingFang.ttc asset, and from then on Chrome painted every
+// `PingFang SC` run from it — two feature fixtures moved while the inventory
+// digest above stayed identical. The asset list is kept out of `digest` on
+// purpose: every committed darwin conformance baseline is keyed on that digest,
+// and CI runners that fetch assets on demand would churn it. Local visual runs
+// record and compare both.
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -91,16 +104,71 @@ export function collectInventory(platform = process.platform) {
   return { source: dirs.join(" + "), entries: [...all].sort() };
 }
 
+const ASSET_FAMILY = /^com_apple_MobileAsset_(Font\d+)$/;
+const ASSET_ID = /^(.+)\.asset$/;
+
+/**
+ * macOS MobileAsset font files, as `Font<N>/<asset-id>/<file>` entries.
+ *
+ * The asset id is part of the entry because Apple ships a new version of a
+ * font as a new asset directory: the file name stays `PingFang.ttc` while the
+ * outlines change, so a file-name-only list would miss an in-place update.
+ * Empty on every other platform (the store does not exist there) and when the
+ * store is unreadable; `root` is injectable for tests.
+ */
+export function collectFontAssets(platform = process.platform, root = "/System/Library/AssetsV2") {
+  const source = `${root}/com_apple_MobileAsset_Font*`;
+  if (platform !== "darwin") return { source: "none (darwin only)", entries: [] };
+  const entries = [];
+  let families;
+  try {
+    families = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return { source, entries };
+  }
+  for (const fam of families) {
+    const famMatch = fam.isDirectory() ? ASSET_FAMILY.exec(fam.name) : null;
+    if (famMatch == null) continue;
+    let assets;
+    try {
+      assets = readdirSync(join(root, fam.name), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const asset of assets) {
+      const idMatch = asset.isDirectory() ? ASSET_ID.exec(asset.name) : null;
+      if (idMatch == null) continue;
+      for (const file of filesUnder(join(root, fam.name, asset.name, "AssetData"), 2)) {
+        entries.push(`${famMatch[1]}/${idMatch[1]}/${file}`);
+      }
+    }
+  }
+  return { source, entries: entries.sort() };
+}
+
+const digestOf = (entries) => createHash("sha256").update(entries.join("\n")).digest("hex").slice(0, 16);
+
+/**
+ * The MobileAsset font record: `{ platform, source, count, digest, entries }`.
+ *
+ * @param {string} [platform]
+ * @param {string} [root]
+ */
+export function fontAssetsDocument(platform = process.platform, root) {
+  const { source, entries } = collectFontAssets(platform, root);
+  return { platform, source, count: entries.length, digest: digestOf(entries), entries };
+}
+
 export function inventoryDocument() {
   const { source, entries } = collectInventory();
-  const digest = createHash("sha256").update(entries.join("\n")).digest("hex").slice(0, 16);
+  const digest = digestOf(entries);
   return { platform: process.platform, arch: process.arch, source, count: entries.length, digest, entries };
 }
 
 function main(argv) {
-  const { values, positionals } = parseCommand(argv, { digest: { type: "boolean" } });
+  const { values, positionals } = parseCommand(argv, { digest: { type: "boolean" }, assets: { type: "boolean" } });
   if (positionals.length > 1) throw new Error("expected at most one output path");
-  const doc = inventoryDocument();
+  const doc = values.assets ? fontAssetsDocument() : inventoryDocument();
   if (values.digest) {
     process.stdout.write(`${doc.digest}\n`);
     return 0;

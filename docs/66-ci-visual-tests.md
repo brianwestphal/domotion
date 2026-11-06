@@ -5,7 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844", "DM-EBRC7F", "DM-9JP366"]
+tickets:
+  ["DM-1216", "DM-1217", "DM-1660", "DM-1661", "DM-1665", "DM-1790", "DM-1844", "DM-EBRC7F", "DM-9JP366", "DM-779QKV"]
 code:
   [
     ".github/workflows/fast-visual-tests.yml",
@@ -30,6 +31,8 @@ code:
     "tests/html-test/index-html.tsx",
     "tests/html-test/tables.ts",
     "tests/html-test/worker-pages.ts",
+    "tests/local-run-env.ts",
+    "tools/font-inventory.mjs",
     "tests/harness-constants.ts",
     "tests/feature-fixture-state.ts",
     "tests/review-prefetch-state.ts",
@@ -272,6 +275,43 @@ The Linux expected-PNG cache partition uses the same
 walk's eight-character digest; preexisting cache directories are simply no
 longer selected, so a screenshot recorded under a different font inventory
 cannot be reused by this harness.
+
+### macOS downloadable fonts are a separate record, and local runs compare it
+
+The font-inventory digest reads only `/System/Library/Fonts`, `/Library/Fonts`
+and `~/Library/Fonts` on macOS. CoreText also serves faces from MobileAsset
+bundles under `/System/Library/AssetsV2/com_apple_MobileAsset_Font<N>/`, and
+those can arrive at any time. Measured on a dev Mac on 2026-11-06: an unrelated
+app (Photoshop) asked `mobileassetd` for the Font8 catalog, macOS installed a
+`PingFang.ttc` asset, and from then on Chrome painted every `PingFang SC` run
+from it. Two feature fixtures (`text-mixed-script`,
+`text-decoration-skip-ink-exclusions`) changed bytes on both the expected and
+actual sides while the inventory digest stayed identical.
+
+`fontAssetsDocument()` in `tools/font-inventory.mjs` (`node
+tools/font-inventory.mjs --assets`) lists those files as
+`Font<N>/<asset-id>/<file>` with its own digest. The asset id is in the entry
+because Apple ships a new font version as a new asset directory under the same
+file name. It is deliberately **not** folded into `inventoryDocument().digest`:
+every committed darwin font-conformance baseline is keyed on that digest, and CI
+runners that fetch assets on demand would churn it. The conformance oracle
+therefore still cannot see an asset change.
+
+Local visual runs record both. `tests/local-run-env.ts` writes
+`runEnv: { chromium, osRelease, fontInventory: {digest,count}, fontAssets:
+{digest,count} }` into `<suite>-results.json` (feature, showcase and the other
+`tests/runner.tsx` suites) and into the html-test `run-conditions.json`. At the
+start of a run the harness compares that record with the previous manifest in
+the same output directory and prints a warning naming each field that moved:
+comparisons across those runs are not like-for-like. It warns rather than
+fails, since a local run is not a gate. A field absent on either side, as in a
+manifest written before this record existed, is skipped.
+
+The macOS expected-PNG cache partition is `darwin-<fontAssets digest>` for the
+same reason the Linux one carries the inventory digest: when the asset set
+moves, a cached Chrome screenshot is stale. `DOMOTION_FONT_FINGERPRINT`
+overrides the digest on both platforms. Windows keeps the bare `win32`
+partition.
 
 This mirrors the guard the font-conformance oracle already had (`comparability()` in `scripts/diff-font-conformance-baseline.mjs`, doc 107), which refuses to judge across a change in runner image, font inventory, ICU version or slice. The visual sweep simply never had one.
 

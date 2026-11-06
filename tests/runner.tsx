@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { type BrowserContext, type Page } from "@playwright/test";
 import { raw } from "kerfjs";
 import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
+import { captureLocalRunEnv, readPreviousRunEnv, runEnvChangeWarning } from "./local-run-env.js";
 import { captureElementTree, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { renderFixtureSvgInner, resetFeatureFixtureState } from "./feature-fixture-state.js";
@@ -342,6 +343,14 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   const browser = browsers.capture;
   const browserNote = harnessBrowserNote(browsers);
   if (browserNote != null) console.log(`  ${browserNote}`);
+  // DM-779QKV: record the environment (browser build, kernel, font inventory,
+  // macOS MobileAsset fonts) and say so when it moved since the previous run
+  // here — a downloadable-font install once changed Chrome's expected paint
+  // between two runs of the same tree with nothing on record to say why.
+  const runEnv = captureLocalRunEnv(browser.version());
+  const manifestPath = suiteName != null ? resolve(OUTPUT_DIR, `${suiteName}-results.json`) : null;
+  const envWarning = manifestPath != null ? runEnvChangeWarning(readPreviousRunEnv(manifestPath), runEnv) : null;
+  if (envWarning != null) console.warn(envWarning);
   const workerCount = resolveWorkerCount();
 
   const results = await runJobsInPool<FeatureTest, RunnerWorker, SuiteResult>({
@@ -413,9 +422,9 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
   // regardless of pass/fail so the review tool can still be launched after a
   // failed run. Keyed by suiteName so running multiple suites doesn't clobber
   // earlier runs.
-  if (suiteName != null) {
+  if (manifestPath != null) {
     writeFileSync(
-      resolve(OUTPUT_DIR, `${suiteName}-results.json`),
+      manifestPath,
       // DM-1790: record the browser condition alongside the results. The
       // failure mode the asymmetric mode exists to prevent is a number
       // measured under a flag nobody remembers setting — so the manifest says
@@ -431,6 +440,7 @@ export async function runFeatureTests(tests: FeatureTest[], suiteName?: string):
           generatedAt: new Date().toISOString(),
           platform: process.platform,
           browsers: browserNote ?? "one browser, no flags",
+          runEnv,
           results,
         },
         null,

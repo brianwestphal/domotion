@@ -161,12 +161,24 @@ describe("harness capture/raster browser flags (DM-1790)", () => {
         }
       };
 
-      it("suffixes ONLY linux — macOS and Windows keep the bare platform name", () => {
+      it("suffixes linux and darwin by font digest — Windows keeps the bare platform name", () => {
         withFingerprint("abc123", () => {
           expect(expectedCachePlatformDir("linux")).toBe("linux-abc123");
-          expect(expectedCachePlatformDir("darwin")).toBe("darwin");
+          expect(expectedCachePlatformDir("darwin")).toBe("darwin-abc123");
           expect(expectedCachePlatformDir("win32")).toBe("win32");
         });
+      });
+
+      // DM-779QKV: a macOS downloadable-font (MobileAsset) install changed
+      // Chrome's expected paint mid-session, so the darwin cache is keyed on the
+      // MobileAsset digest and a moved asset set never reads a stale screenshot.
+      it("keys darwin on the MobileAsset font digest, not the bare platform", () => {
+        withFingerprint(undefined, () => {
+          expect(expectedCachePlatformDir("darwin")).toMatch(/^darwin-[0-9a-f]{16}$/);
+        });
+        const a = withFingerprint("assetsA", () => expectedCachePlatformDir("darwin"));
+        const b = withFingerprint("assetsB", () => expectedCachePlatformDir("darwin"));
+        expect(a).not.toBe(b);
       });
 
       it("two different font sets get two different cache directories", () => {

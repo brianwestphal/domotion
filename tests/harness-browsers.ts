@@ -43,7 +43,7 @@
 
 import type { Browser } from "@playwright/test";
 import { openOwnedBrowser } from "../tools/lib/browser.js";
-import { inventoryDocument } from "../tools/font-inventory.mjs";
+import { fontAssetsDocument, inventoryDocument } from "../tools/font-inventory.mjs";
 
 /** Parse a whitespace-separated flag list; `undefined`/blank ⇒ no flags. */
 function parseFlags(raw: string | undefined): string[] {
@@ -133,9 +133,28 @@ function linuxFontDigest(): string {
   return (_fontDigest = inventoryDocument().digest);
 }
 
-/** Test-only: clear the memoized font digest. */
+/**
+ * The macOS MobileAsset font digest (`fontAssetsDocument()` in
+ * `tools/font-inventory.mjs`). CoreText serves downloadable faces such as
+ * PingFang from `/System/Library/AssetsV2/com_apple_MobileAsset_Font<N>/`, and
+ * an unrelated app can make macOS install or update one mid-session — measured
+ * on 2026-11-06, when a PingFang asset arrived and Chrome's own expected paint
+ * for every `PingFang SC` run changed. The `/System/Library/Fonts` inventory
+ * cannot see that, so this is the darwin cache key. `DOMOTION_FONT_FINGERPRINT`
+ * overrides it, as it does the Linux digest.
+ */
+let _assetDigest: string | null = null;
+function darwinFontAssetDigest(): string {
+  if (_assetDigest != null) return _assetDigest;
+  const override = process.env.DOMOTION_FONT_FINGERPRINT;
+  if (override != null && override.trim() !== "") return (_assetDigest = override.trim());
+  return (_assetDigest = fontAssetsDocument("darwin").digest);
+}
+
+/** Test-only: clear the memoized font digests. */
 export function __resetFontDigestForTest(): void {
   _fontDigest = null;
+  _assetDigest = null;
 }
 
 /**
@@ -159,18 +178,19 @@ export function __resetFontDigestForTest(): void {
  * from before this fix — they are simply never looked up again. (Capture FLAGS
  * stay in the key: platform is "which machine painted these", flags are a
  * variant within one machine.)
- *
- * KNOWN GAP: two different *Linux* environments still share `linux` — the
- * pinned Playwright container and a Noto-installed desktop image paint
- * differently with the same `process.platform`. See DM-1797.
  */
 export function expectedCachePlatformDir(platform: string = process.platform): string {
   // DM-1797: on Linux the platform alone is not enough — the installed font set
   // is what varies between environments, and it is what the screenshot depends
-  // on. macOS and Windows keep the bare platform name: their system font sets
-  // are stable per OS, and the silent-cross-contamination hazard DM-1794 fixed
-  // is specific to running a container against a mounted host checkout.
-  return platform === "linux" ? `linux-${linuxFontDigest()}` : platform;
+  // on.
+  if (platform === "linux") return `linux-${linuxFontDigest()}`;
+  // DM-779QKV: macOS's font directories are stable per OS, but its downloadable
+  // MobileAsset fonts are not — a PingFang asset installed mid-session changed
+  // Chrome's expected paint, and a bare `darwin` cache then served stale
+  // screenshots. Keying on the asset digest retires them the moment the set
+  // moves. Windows keeps the bare platform name.
+  if (platform === "darwin") return `darwin-${darwinFontAssetDigest()}`;
+  return platform;
 }
 
 export interface HarnessBrowsers {
