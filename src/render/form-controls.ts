@@ -15,6 +15,7 @@ import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { isWholeHostNativeAppearance } from "../capture/effective-appearance.js";
 import { buildLinearGradientDef, buildRadialGradientDef, gradientCacheKey, parseGradient } from "./gradients.js";
 import { parseBoxShadow } from "./box-shadow.js";
+import { splitTopLevelCommas } from "./css-tokens.js";
 import { esc, r } from "./format.js";
 import { blinkSymbolMarkerGeometry, disclosureTriangle } from "./list-marker-geometry.js";
 import { fontSizeOrDefault } from "./text-defaults.js";
@@ -89,6 +90,59 @@ function gradientFillFor(
     ctx.gradientCache.set(key, id);
   }
   return `url(#${id})`;
+}
+
+/**
+ * Resolve a pseudo's computed `background-image` list to one SVG fill per
+ * renderable layer, in PAINT order (bottom layer first). Blink paints every
+ * fill layer, last-listed first, over the background color
+ * (`BoxPainterBase::PaintFillLayers`, Chromium 7d859f27). A layer that cannot
+ * be painted here (a `url()` image, an unparseable value, a conic tile the
+ * pre-pass did not produce) is omitted with a named warning rather than
+ * silently replaced by the background color.
+ */
+function gradientLayerFills(
+  bgImage: string | undefined,
+  rect: { x: number; y: number; w: number; h: number },
+  ctx: DefCtx | undefined,
+  slot: string,
+): string[] {
+  if (ctx == null || bgImage == null || bgImage === "" || bgImage === "none") return [];
+  const layers = splitTopLevelCommas(bgImage)
+    .map((layer) => layer.trim())
+    .filter((layer) => layer !== "" && layer !== "none");
+  const fills: string[] = [];
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const fill = gradientFillFor(layers[i], rect, ctx);
+    if (fill != null) {
+      fills.push(fill);
+      continue;
+    }
+    renderWarn(
+      "form-control-background-layer",
+      `${slot} background layer ${i + 1} of ${layers.length} is not a renderable gradient; that layer is omitted`,
+      slot,
+    );
+  }
+  return fills;
+}
+
+/**
+ * The shapes painted BELOW a multi-layer pseudo's top layer: the background
+ * color (when painted and not already emitted by the caller) and then every
+ * lower gradient layer, each in the same geometry as the top shape. Empty for
+ * a single layer, which keeps the single-layer emit unchanged.
+ */
+function underlayerShapes(
+  fills: readonly string[],
+  baseColor: string | null,
+  shape: (fill: string) => string,
+): string[] {
+  if (fills.length < 2) return [];
+  const out: string[] = [];
+  if (baseColor != null && isPaintedColor(baseColor)) out.push(shape(baseColor));
+  for (const fill of fills.slice(0, -1)) out.push(shape(fill));
+  return out;
 }
 
 /**
@@ -181,8 +235,14 @@ function meterBarGeom(el: CapturedElement): {
 export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer: string; w: number; h: number }> {
   const s = el.styles;
   const out: Array<{ layer: string; w: number; h: number }> = [];
-  const isConic = (bg: string | undefined): bg is string =>
-    bg != null && bg !== "" && bg !== "none" && /^(?:repeating-)?conic-gradient\(/i.test(bg.trim());
+  // A pseudo's `background-image` may be a layer list; each conic layer is
+  // rasterized on its own at the consumer rect, as gradientLayerFills reads it.
+  const conicLayers = (bg: string | undefined): string[] =>
+    bg == null || bg === "" || bg === "none"
+      ? []
+      : splitTopLevelCommas(bg)
+          .map((layer) => layer.trim())
+          .filter((layer) => /^(?:repeating-)?conic-gradient\(/i.test(layer));
   const tag = el.tag;
   const inputType = s.inputType;
   if (tag === "input" && inputType === "range") {
@@ -200,20 +260,18 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
     const elW = Math.round(el.x + el.width) - Math.round(el.x);
     const elH = Math.round(el.y + el.height) - Math.round(el.y);
     const isVertical = s.writingMode != null && s.writingMode !== "" && s.writingMode !== "horizontal-tb";
-    if (isConic(s.rangeTrackBgImage)) {
+    for (const layer of conicLayers(s.rangeTrackBgImage)) {
       out.push({
-        layer: s.rangeTrackBgImage,
+        layer,
         w: isVertical ? trackThickness : elW,
         h: isVertical ? elH : trackThickness,
       });
     }
-    if (isConic(s.rangeThumbBgImage)) {
-      // Mirror renderRange's thumb-shape branch: a non-circular / small-radius
-      // styled thumb is a thumbW×thumbH rect; otherwise a thumbW-diameter circle.
-      const ellipse = styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2);
-      out.push({ layer: s.rangeThumbBgImage, w: thumbW, h: ellipse ? thumbH : thumbW });
-    }
-  } else if (tag === "input" && inputType === "color" && isConic(s.colorSwatchBgImage)) {
+    // Mirror renderRange's thumb-shape branch: a non-circular / small-radius
+    // styled thumb is a thumbW×thumbH rect; otherwise a thumbW-diameter circle.
+    const ellipse = styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2);
+    for (const layer of conicLayers(s.rangeThumbBgImage)) out.push({ layer, w: thumbW, h: ellipse ? thumbH : thumbW });
+  } else if (tag === "input" && inputType === "color" && conicLayers(s.colorSwatchBgImage).length > 0) {
     // Mirror renderColorSwatch's `swatchRect`; a missing wrapper padding fact
     // is not replaced with the former sampled 4px platform value.
     const tok = s.colorSwatchWrapperPadding
@@ -227,21 +285,22 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
       const left = tok.length < 2 ? tok[0] : tok.length < 4 ? tok[1] : tok[3];
       const w = el.width - left - right;
       const h = el.height - top - bottom;
-      if (w > 0 && h > 0) out.push({ layer: s.colorSwatchBgImage, w, h });
+      if (w > 0 && h > 0) for (const layer of conicLayers(s.colorSwatchBgImage)) out.push({ layer, w, h });
     }
   } else if (tag === "progress") {
     // DM-1254: progress bar/value rects come from the shared progressBarGeom
     // (also used by renderProgress), so the conic tile size matches what's filled.
     const { trackRect, valueRect } = progressBarGeom(el);
-    if (isConic(s.progressBarBgImage)) out.push({ layer: s.progressBarBgImage, w: trackRect.w, h: trackRect.h });
-    if (valueRect != null && isConic(s.progressValueBgImage))
-      out.push({ layer: s.progressValueBgImage, w: valueRect.w, h: valueRect.h });
+    for (const layer of conicLayers(s.progressBarBgImage)) out.push({ layer, w: trackRect.w, h: trackRect.h });
+    if (valueRect != null)
+      for (const layer of conicLayers(s.progressValueBgImage)) out.push({ layer, w: valueRect.w, h: valueRect.h });
   } else if (tag === "meter") {
     // DM-1254: meter bar/value rects + the region-selected value bg image come
     // from the shared meterBarGeom (also used by renderMeter's gradient lookups).
     const { trackRect, valueRect, valueBgImage } = meterBarGeom(el);
-    if (isConic(s.meterBarBgImage)) out.push({ layer: s.meterBarBgImage, w: trackRect.w, h: trackRect.h });
-    if (valueRect != null && isConic(valueBgImage)) out.push({ layer: valueBgImage, w: valueRect.w, h: valueRect.h });
+    for (const layer of conicLayers(s.meterBarBgImage)) out.push({ layer, w: trackRect.w, h: trackRect.h });
+    if (valueRect != null)
+      for (const layer of conicLayers(valueBgImage)) out.push({ layer, w: valueRect.w, h: valueRect.h });
   }
   return out;
 }
@@ -439,7 +498,8 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     trackRect = { x: elL, y: trackY, w: elW, h: trackThickness };
   }
 
-  const trackGradFill = gradientFillFor(s.rangeTrackBgImage, trackRect, defCtx);
+  const trackFills = gradientLayerFills(s.rangeTrackBgImage, trackRect, defCtx, "::-webkit-slider-runnable-track");
+  const trackGradFill = trackFills.at(-1) ?? null;
   // CSS background layering: when both a gradient image and a background
   // color are declared, the color paints first and the gradient overlays.
   // For opaque non-repeating gradients this is invisible, but a repeating
@@ -450,6 +510,10 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
       `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${s.rangeTrackBg}" />`,
     );
   }
+  const trackLayerShape = (fill: string): string =>
+    `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(trackR)}" fill="${fill}" />`;
+  // The background color is already painted above whenever a gradient exists.
+  parts.push(...underlayerShapes(trackFills, null, trackLayerShape));
   const trackFill = trackGradFill ?? trackBgColor;
   const trackBorder = parseBorderShorthand(s.rangeTrackBorder);
   const trackStroke = trackBorder == null ? "" : ` stroke="${trackBorder.color}" stroke-width="${trackBorder.width}"`;
@@ -464,9 +528,17 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   if (styledThumb && (thumbH !== thumbW || thumbRadius < Math.min(thumbW, thumbH) / 2)) {
     const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
     const thumbRect = { x: thumbCx - thumbW / 2, y: thumbCy - thumbH / 2, w: thumbW, h: thumbH };
-    const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
-    const thumbFill = thumbGradFill ?? thumbBgColor;
+    const thumbFills = gradientLayerFills(s.rangeThumbBgImage, thumbRect, defCtx, "::-webkit-slider-thumb");
+    const thumbFill = thumbFills.at(-1) ?? thumbBgColor;
     const strokeAttrs = thumbBorder != null ? ` stroke="${thumbBorder.color}" stroke-width="${thumbBorder.width}"` : "";
+    parts.push(
+      ...underlayerShapes(
+        thumbFills,
+        s.rangeThumbBg ?? null,
+        (fill) =>
+          `${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${fill}" />`,
+      ),
+    );
     parts.push(
       `${indent}<rect x="${r(thumbRect.x)}" y="${r(thumbRect.y)}" width="${r(thumbW)}" height="${r(thumbH)}" rx="${r(thumbRadius)}" fill="${thumbFill}"${strokeAttrs} />`,
     );
@@ -474,8 +546,8 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     const halfThumb = thumbW / 2;
     const thumbBgColor = s.rangeThumbBg != null && s.rangeThumbBg !== "" ? s.rangeThumbBg : "none";
     const thumbRect = { x: thumbCx - halfThumb, y: thumbCy - halfThumb, w: thumbW, h: thumbW };
-    const thumbGradFill = gradientFillFor(s.rangeThumbBgImage, thumbRect, defCtx);
-    const thumbFill = thumbGradFill ?? thumbBgColor;
+    const thumbFills = gradientLayerFills(s.rangeThumbBgImage, thumbRect, defCtx, "::-webkit-slider-thumb");
+    const thumbFill = thumbFills.at(-1) ?? thumbBgColor;
     // Donut-effect outer ring (DM-319). When the thumb pseudo has a
     // `box-shadow: 0 0 0 Npx <color>` (spread-only inset-less shadow), Chrome
     // paints an extra ring of width N around the thumb's outer edge — the
@@ -496,6 +568,15 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
       const ringR = halfThumb + ring.spread;
       parts.push(`${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(ringR)}" fill="${ring.color}" />`);
     }
+    // Lower layers fill the whole border box; the top shape's border stroke
+    // still paints over them.
+    parts.push(
+      ...underlayerShapes(
+        thumbFills,
+        s.rangeThumbBg ?? null,
+        (fill) => `${indent}<circle cx="${r(thumbCx)}" cy="${r(thumbCy)}" r="${r(halfThumb)}" fill="${fill}" />`,
+      ),
+    );
     if (thumbBorder != null) {
       const innerR = Math.max(0, halfThumb - thumbBorder.width / 2);
       parts.push(
@@ -584,7 +665,8 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
     h: el.height - top - bottom,
   };
   if (swatchRect.w <= 0 || swatchRect.h <= 0) return "";
-  const swatchGrad = gradientFillFor(s.colorSwatchBgImage, swatchRect, defCtx);
+  const swatchFills = gradientLayerFills(s.colorSwatchBgImage, swatchRect, defCtx, "::-webkit-color-swatch");
+  const swatchGrad = swatchFills.at(-1) ?? null;
   const value = /^#[0-9a-f]{6}$/i.test(s.inputValue ?? "") ? s.inputValue : undefined;
   const swatchFill = swatchGrad ?? (s.colorSwatchBg != null && s.colorSwatchBg !== "" ? s.colorSwatchBg : value);
   if (swatchFill == null) return "";
@@ -597,7 +679,12 @@ function renderColorSwatch(el: CapturedElement, indent: string, defCtx?: DefCtx)
       borderAttrs = ` stroke="${m[3]}" stroke-width="${m[1]}"`;
     }
   }
-  return `${indent}<rect x="${r(swatchRect.x)}" y="${r(swatchRect.y)}" width="${r(swatchRect.w)}" height="${r(swatchRect.h)}" rx="${r(radius)}" fill="${swatchFill}"${borderAttrs} />`;
+  const swatchShape = (fill: string, attrs = ""): string =>
+    `${indent}<rect x="${r(swatchRect.x)}" y="${r(swatchRect.y)}" width="${r(swatchRect.w)}" height="${r(swatchRect.h)}" rx="${r(radius)}" fill="${fill}"${attrs} />`;
+  return [
+    ...underlayerShapes(swatchFills, s.colorSwatchBg ?? null, swatchShape),
+    swatchShape(swatchFill, borderAttrs),
+  ].join("\n");
 }
 
 /** Paint captured author `::file-selector-button` outset-shadow overflow. */
@@ -780,18 +867,41 @@ function renderProgress(el: CapturedElement, indent: string, defCtx?: DefCtx): s
   const { trackRect, valueRect } = progressBarGeom(el);
   const parts: string[] = [];
   const trackColor = capturedPseudoColor(el.styles.progressBarBg);
-  const trackGradient = gradientFillFor(el.styles.progressBarBgImage, trackRect, defCtx);
+  const trackFills = gradientLayerFills(el.styles.progressBarBgImage, trackRect, defCtx, "::-webkit-progress-bar");
+  const trackGradient = trackFills.at(-1) ?? null;
   if (trackColor != null || trackGradient != null) {
     const radius = Math.max(0, parseFloat(el.styles.progressBarRadius ?? "") || 0);
+    parts.push(
+      ...underlayerShapes(
+        trackFills,
+        trackColor,
+        (fill) =>
+          `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(radius)}" fill="${fill}" />`,
+      ),
+    );
     parts.push(
       `${indent}<rect x="${r(trackRect.x)}" y="${r(trackRect.y)}" width="${r(trackRect.w)}" height="${r(trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`,
     );
   }
   if (valueRect != null) {
     const valueColor = capturedPseudoColor(el.styles.progressValueBg);
-    const valueGradient = gradientFillFor(el.styles.progressValueBgImage, valueRect, defCtx);
+    const valueFills = gradientLayerFills(
+      el.styles.progressValueBgImage,
+      valueRect,
+      defCtx,
+      "::-webkit-progress-value",
+    );
+    const valueGradient = valueFills.at(-1) ?? null;
     if (valueColor != null || valueGradient != null) {
       const radius = Math.max(0, parseFloat(el.styles.progressValueRadius ?? "") || 0);
+      parts.push(
+        ...underlayerShapes(
+          valueFills,
+          valueColor,
+          (fill) =>
+            `${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(radius)}" fill="${fill}" />`,
+        ),
+      );
       parts.push(
         `${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(radius)}" fill="${valueGradient ?? valueColor!}" />`,
       );
@@ -820,15 +930,34 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   const parts: string[] = [];
   const radius = Math.max(0, parseFloat(s.meterBarRadius ?? "") || 0);
   const trackColor = capturedPseudoColor(s.meterBarBg);
-  const trackGradient = gradientFillFor(s.meterBarBgImage, geometry.trackRect, defCtx);
+  const trackFills = gradientLayerFills(s.meterBarBgImage, geometry.trackRect, defCtx, "::-webkit-meter-bar");
+  const trackGradient = trackFills.at(-1) ?? null;
   if (trackColor != null || trackGradient != null) {
+    parts.push(
+      ...underlayerShapes(
+        trackFills,
+        trackColor,
+        (fill) =>
+          `${indent}<rect x="${r(geometry.trackRect.x)}" y="${r(geometry.trackRect.y)}" width="${r(geometry.trackRect.w)}" height="${r(geometry.trackRect.h)}" rx="${r(radius)}" fill="${fill}" />`,
+      ),
+    );
     parts.push(
       `${indent}<rect x="${r(geometry.trackRect.x)}" y="${r(geometry.trackRect.y)}" width="${r(geometry.trackRect.w)}" height="${r(geometry.trackRect.h)}" rx="${r(radius)}" fill="${trackGradient ?? trackColor!}" />`,
     );
   }
   if (geometry.valueRect != null) {
-    const valueGradient = gradientFillFor(geometry.valueBgImage, geometry.valueRect, defCtx);
+    const valueRect = geometry.valueRect;
+    const valueFills = gradientLayerFills(geometry.valueBgImage, valueRect, defCtx, "meter value pseudo");
+    const valueGradient = valueFills.at(-1) ?? null;
     if (valueColor != null || valueGradient != null) {
+      parts.push(
+        ...underlayerShapes(
+          valueFills,
+          valueColor,
+          (fill) =>
+            `${indent}<rect x="${r(valueRect.x)}" y="${r(valueRect.y)}" width="${r(valueRect.w)}" height="${r(valueRect.h)}" rx="${r(Math.min(radius, valueRect.h / 2))}" fill="${fill}" />`,
+        ),
+      );
       parts.push(
         `${indent}<rect x="${r(geometry.valueRect.x)}" y="${r(geometry.valueRect.y)}" width="${r(geometry.valueRect.w)}" height="${r(geometry.valueRect.h)}" rx="${r(Math.min(radius, geometry.valueRect.h / 2))}" fill="${valueGradient ?? valueColor!}" />`,
       );

@@ -5,7 +5,8 @@
  * attribute and break SVGO / strict XML parsers.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { getLastCaptureWarnings, resetLastCaptureWarnings } from "../capture/warnings.js";
 import {
   checkablePseudoFactsOwnIndicator,
   renderFileSelectorOutsetShadow,
@@ -396,6 +397,92 @@ describe("file-selector source-owned paint (DM-2189 / DM-2458)", () => {
     expect(svg).toContain('fill="rgb(220, 30, 92)"');
     expect(defsParts.join("\n")).toContain('clip-rule="evenodd"');
     expect(defsParts.join("\n")).toContain("M20,20h94v30h-94Z");
+  });
+});
+
+describe("multi-layer form-control pseudo backgrounds", () => {
+  const ctx = () => {
+    const defsParts: string[] = [];
+    let n = 0;
+    return {
+      defsParts,
+      ctx: { idPrefix: "t", defsParts, gradientCache: new Map<string, string>(), nextGradId: () => `tgrad${n++}` },
+    };
+  };
+  const progress = (styles: Record<string, unknown>): CapturedElement =>
+    ({
+      tag: "progress",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 20,
+      children: [],
+      styles: { effectiveAppearance: "none", progressValue: 0.5, progressMax: 1, progressBarRadius: "0px", ...styles },
+    }) as unknown as CapturedElement;
+
+  it("paints every gradient layer bottom-to-top over the background color", () => {
+    const { defsParts, ctx: defCtx } = ctx();
+    const svg = renderFormControl(
+      progress({
+        progressBarBg: "rgb(10, 20, 30)",
+        progressBarBgImage:
+          "repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.3) 0px, rgba(255, 255, 255, 0.3) 4px, transparent 4px, transparent 8px), linear-gradient(rgb(255, 0, 0), rgb(0, 0, 255))",
+      }),
+      "",
+      defCtx,
+    );
+    const fills = [...svg.matchAll(/fill="([^"]+)"/g)].map((m) => m[1]);
+    // color, then the LAST-listed (bottom) layer, then the first-listed (top).
+    expect(fills.slice(0, 3)).toEqual(["rgb(10, 20, 30)", "url(#tgrad0)", "url(#tgrad1)"]);
+    const defs = defsParts.join("\n");
+    expect(defs).toMatch(/id="tgrad0"[^\n]*rgb\(255,0,0\)/);
+    expect(defs).toMatch(/id="tgrad1"[^\n]*rgba\(255,255,255,0\.3\)/);
+  });
+
+  it("keeps the single-layer emit unchanged", () => {
+    const { ctx: defCtx } = ctx();
+    const svg = renderFormControl(
+      progress({
+        progressBarBg: "rgb(10, 20, 30)",
+        progressBarBgImage: "linear-gradient(rgb(255, 0, 0), rgb(0, 0, 255))",
+      }),
+      "",
+      defCtx,
+    );
+    expect([...svg.matchAll(/fill="([^"]+)"/g)].map((m) => m[1])[0]).toBe("url(#tgrad0)");
+    expect(svg).not.toContain('fill="rgb(10, 20, 30)"');
+  });
+
+  it("omits a non-gradient layer with a named warning instead of dropping every layer", () => {
+    resetLastCaptureWarnings([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { ctx: defCtx } = ctx();
+    const svg = renderFormControl(
+      progress({ progressBarBgImage: 'url("data:image/png;base64,AAAA"), linear-gradient(red, blue)' }),
+      "",
+      defCtx,
+    );
+    warn.mockRestore();
+    expect(svg).toContain('fill="url(#tgrad0)"');
+    expect(getLastCaptureWarnings()).toEqual([
+      expect.objectContaining({
+        feature: "form-control-background-layer",
+        detail: expect.stringContaining("layer 1 of 2"),
+      }),
+    ]);
+  });
+
+  it("collects each conic layer of a list as its own tile", () => {
+    const tiles = collectFormControlConicTiles(
+      progress({
+        progressBarRadius: "4px",
+        progressBarBgImage: "conic-gradient(red, blue), linear-gradient(red, blue), conic-gradient(green, yellow)",
+      }),
+    );
+    expect(tiles.filter((tile) => tile.w === 100)).toEqual([
+      { layer: "conic-gradient(red, blue)", w: 100, h: 20 },
+      { layer: "conic-gradient(green, yellow)", w: 100, h: 20 },
+    ]);
   });
 });
 

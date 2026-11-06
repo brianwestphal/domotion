@@ -57,6 +57,7 @@ Each feature has a visual regression test that compares HTML-to-PNG with SVG-to-
 - [x] **comp-input**: Form input with border and placeholder-style text
 - [x] **comp-input-value**: Native `<input>` element with value attribute
 - [x] **native-control-decoration-split** (DM-2455, doc 171): styled select/temporal/search/number hosts and value text remain structural while exact Chromium menulist-arrow and closed-shadow picker/cancel/spin layers are isolated into fail-closed transparent overlays; base-select remains fully vector.
+- [x] **range-multilayer-pseudo-background** (doc 07): a form-control pseudo `background-image` list paints every gradient layer bottom-to-top over the background color; a non-gradient layer is omitted with a named warning.
 - [x] **comp-code-block**: Code block with monospace, background, border
 - [ ] **comp-nav**: Navigation bar with logo and links
 

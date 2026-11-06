@@ -742,6 +742,17 @@ export const tests: FeatureTest[] = [
     height: 80,
   },
   {
+    // A control pseudo with a background-image LIST paints every layer over
+    // its background color, last-listed first (BoxPainterBase::PaintFillLayers,
+    // Chromium 7d859f27): a translucent stripe layer over a base gradient on
+    // the track, and a highlight over a radial gradient on the thumb. The
+    // whole list used to fail to parse, so every gradient layer vanished.
+    name: "range-multilayer-pseudo-background",
+    html: `<style>input.ml{appearance:none;width:300px;height:32px;margin:20px}input.ml::-webkit-slider-runnable-track{height:16px;border-radius:8px;background-color:#1e293b;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.35) 0 6px,transparent 6px 12px),linear-gradient(90deg,#2563eb,#16a34a)}input.ml::-webkit-slider-thumb{appearance:none;width:24px;height:24px;margin-top:-4px;border-radius:50%;background:linear-gradient(rgba(255,255,255,.6),transparent 60%),radial-gradient(circle,#f59e0b,#b45309)}</style><input class="ml" type="range" value="60">`,
+    width: 350,
+    height: 80,
+  },
+  {
     name: "gradient-hint-border-image",
     html: `<div style="padding:20px;background:#fff"><div style="width:300px;height:80px;border:16px solid transparent;border-image-source:linear-gradient(to top right,transparent 0%,20%,#ef4444 100%);border-image-slice:1"></div></div>`,
     width: 380,
