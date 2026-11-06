@@ -31,11 +31,8 @@ import {
 import { invokeSynchronousCallback, type SynchronousCallback } from "./text-engine.js";
 import { resolveImageRootTransform, type ResolvedImageRootTransform } from "./svg-image-root-transform.js";
 import { renderWarn } from "./render-warn.js";
-import {
-  cascadeRootStylesheetTransform,
-  IMAGE_ROOT_MARKER,
-  type CascadedDeclaration,
-} from "./svg-image-root-stylesheet.js";
+import { cascadeRootStylesheetTransform, type CascadedDeclaration } from "./svg-image-root-stylesheet.js";
+import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
@@ -159,15 +156,24 @@ export function editSvgOpeningTagAttributes(
   );
 }
 
+/** Every `id` declared anywhere in an SVG document (root tag included). */
+function svgDocumentIds(svg: string): Set<string> {
+  const ids = new Set<string>();
+  for (const match of svg.matchAll(/\bid\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) ids.add(match[1] ?? match[2]);
+  return ids;
+}
+
 /**
  * Prefix every `id="…"`, `href="#…"`, `xlink:href="#…"`, and `url(#…)` in an
  * SVG fragment with `prefix` so its internal references stay self-consistent
  * while no longer colliding with ids elsewhere in the host document. Handles
  * both single- and double-quoted attribute forms. Class selectors inside a
  * `<style>` block are intentionally NOT rewritten — see the module note.
+ * `knownIds` adds ids declared outside `svg` (e.g. on a root tag prefixed
+ * separately) so references to them are namespaced too.
  */
-export function prefixSvgIds(svg: string, prefix: string): string {
-  const ids = new Set<string>();
+export function prefixSvgIds(svg: string, prefix: string, knownIds: Iterable<string> = []): string {
+  const ids = new Set<string>(knownIds);
   for (const match of svg.matchAll(/\bid\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) ids.add(match[1] ?? match[2]);
   const mapped = (id: string) => (ids.has(id) ? `${prefix}${id}` : id);
   let out = svg;
@@ -627,7 +633,7 @@ export interface InlineSvgPlacement {
 function rootSheetTransform(
   svgText: string,
   tag: SvgOpeningTag,
-): { declarations: ReadonlyMap<string, CascadedDeclaration> | null; source: string; markRoot: boolean } {
+): { declarations: ReadonlyMap<string, CascadedDeclaration> | null; source: string } {
   const tokens = parseSvgAttributes(tag.attributes) ?? [];
   const attr = (name: string): string | null =>
     tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
@@ -642,9 +648,9 @@ function rootSheetTransform(
       "<img> svg root transform from an internal <style> sheet uses a selector or at-rule that cannot be resolved exactly; the sheet's transform is not applied",
       "<img> svg",
     );
-    return { declarations: null, source: svgText, markRoot: false };
+    return { declarations: null, source: svgText };
   }
-  return sheet == null ? { declarations: null, source: svgText, markRoot: false } : sheet;
+  return sheet == null ? { declarations: null, source: svgText } : sheet;
 }
 
 /** A root `<svg>` length attribute resolved against the image viewport
@@ -742,9 +748,11 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   attrs = stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio"]);
   // Namespace ids: the root tag's own attrs (a root `id`/`url(#…)` is rare but
   // legal) and the whole body (defs + references).
-  let rootAttrs = prefixSvgIds(attrs, p.idPrefix).replace(/\s+$/, "");
-  if (sheet.markRoot) rootAttrs += ` ${IMAGE_ROOT_MARKER}=""`;
-  let body = prefixSvgIds(svgText.slice(tag.end), p.idPrefix);
+  // Both halves share the document's id set, so a body reference to the
+  // root's own id (`#root` in a `<style>`, `href="#root"`) follows it.
+  const docIds = svgDocumentIds(svgText);
+  let rootAttrs = prefixSvgIds(attrs, p.idPrefix, docIds).replace(/\s+$/, "");
+  let body = prefixSvgIds(svgText.slice(tag.end), p.idPrefix, docIds);
   // DM-1593: also namespace CSS class names — but ONLY when the SVG carries a
   // `<style>` block (the only way a class can affect rendering, so the common
   // presentation-attribute export stays byte-identical). Gated on the whole
@@ -753,6 +761,10 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   if (/<style[\s>]/i.test(svgText)) {
     rootAttrs = prefixSvgClasses(rootAttrs, p.idPrefix);
     body = prefixSvgClasses(body, p.idPrefix);
+    // An inlined `<style>` belongs to the whole output document; scope its
+    // selectors to this image (its own document in Blink).
+    rootAttrs += ` ${IMAGE_ROOT_ATTR}="${p.idPrefix}"`;
+    body = scopeImageStyleSheets(body, p.idPrefix);
   }
 
   const open =
@@ -927,12 +939,13 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
   if (matrix == null) return null;
 
   // Namespace ids/classes exactly as the nested path does (DM-1588 / DM-1593).
-  let body = prefixSvgIds(bodySource, p.idPrefix);
+  const docIds = svgDocumentIds(svgText);
+  let body = prefixSvgIds(bodySource, p.idPrefix, docIds);
   if (/<style[\s>]/i.test(svgText)) body = prefixSvgClasses(body, p.idPrefix);
   // Inheritable presentation properties + currentColor context on the root svg
   // must survive: carry a root `color`/`fill`/… by keeping the source svg's
   // presentation attrs on the group (strip layout attrs it must not carry).
-  const groupAttrs = prefixSvgIds(flattenedRootGroupAttributes(attrs), p.idPrefix);
+  const groupAttrs = prefixSvgIds(flattenedRootGroupAttributes(attrs), p.idPrefix, docIds);
 
   // The `r()` px formatter rounds to 1 decimal — fine for coordinates but far
   // too coarse for the scale/skew components (0.6667 would round to 0.7, a ~5%

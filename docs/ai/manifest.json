@@ -1611,6 +1611,8 @@
         "src/render/svg-image-root-stylesheet.test.ts",
         "src/render/svg-image-root-stylesheet.ts",
         "src/render/svg-image-root-transform.test.ts",
+        "src/render/svg-image-style-scope.test.ts",
+        "src/render/svg-image-style-scope.ts",
         "src/render/svg-image-root-transform.ts",
         "src/render/svg-inline.test.ts",
         "src/render/svg-inline.ts",

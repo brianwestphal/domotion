@@ -27,8 +27,10 @@
  * qualify; `svg` qualifies when the image has no nested `<svg>`, and `.class`
  * when no other element carries the class. A matching selector that does not
  * qualify (including `*`) keeps its transform family for the other elements as
- * `selector:not([data-domotion-image-root])`, and the caller marks the root.
+ * `selector:not([data-domotion-image-root])`; the inlined root carries that
+ * attribute whenever the image has a sheet (see `svg-image-style-scope.ts`).
  */
+import { IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 
 /** The CSS properties that make up the root's transform. */
 export const ROOT_TRANSFORM_PROPERTIES: ReadonlySet<string> = new Set([
@@ -53,15 +55,7 @@ export interface RootStylesheetTransform {
   declarations: Map<string, CascadedDeclaration>;
   /** The SVG source with the applied declarations removed from its sheets. */
   source: string;
-  /** The rewritten sheets exclude the root via {@link IMAGE_ROOT_MARKER}, so
-   *  the inlined root must carry that attribute. */
-  markRoot: boolean;
 }
-
-/** Attribute that marks the inlined root so a rewritten selector that also
- *  reaches other elements (`*`, `svg` with nested `<svg>`s, a shared class)
- *  keeps its transform for them but not for the root. */
-export const IMAGE_ROOT_MARKER = "data-domotion-image-root";
 
 interface SimpleCompound {
   type: string | null; // lowercased tag, "*" or null
@@ -265,7 +259,6 @@ export function cascadeRootStylesheetTransform(
   let order = 0;
   let unsupported = false;
   let changed = false;
-  let markRoot = false;
 
   const rewrittenBody = body.replace(
     /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
@@ -324,8 +317,7 @@ export function cascadeRootStylesheetTransform(
           if (!compoundIsRootExclusive(compound, facts)) {
             // The selector also reaches other elements of the image: keep its
             // transform family for them, excluding the marked root.
-            keepForOthers.push(`${selector}:not([${IMAGE_ROOT_MARKER}])`);
-            markRoot = true;
+            keepForOthers.push(`${selector}:not([${IMAGE_ROOT_ATTR}])`);
           }
           const spec = SPECIFICITY(compound);
           if (matchedSpec == null || compareSpec(spec, matchedSpec) > 0) matchedSpec = spec;
@@ -371,7 +363,6 @@ export function cascadeRootStylesheetTransform(
   return {
     declarations,
     source: changed ? svgText.slice(0, rootTagEnd) + rewrittenBody : svgText,
-    markRoot,
   };
 }
 

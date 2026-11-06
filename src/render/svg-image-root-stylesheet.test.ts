@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cascadeRootStylesheetTransform, IMAGE_ROOT_MARKER } from "./svg-image-root-stylesheet.js";
+import { cascadeRootStylesheetTransform } from "./svg-image-root-stylesheet.js";
+import { IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 import { inlineImgSvg, flattenImgSvg, readSvgOpeningTag } from "./svg-inline.js";
 
 function cascade(svg: string) {
@@ -32,7 +33,6 @@ describe("cascadeRootStylesheetTransform", () => {
     if (r == null || r === "unsupported") return;
     expect(r.source).toContain("fill: red");
     expect(r.source).not.toMatch(/transform|scale:|rotate:/);
-    expect(r.markRoot).toBe(false);
   });
 
   it("ranks by importance, then specificity, then order", () => {
@@ -50,8 +50,7 @@ describe("cascadeRootStylesheetTransform", () => {
     );
     if (r == null || r === "unsupported") throw new Error("expected a cascade");
     expect(r.source).toContain(`svg, rect {} rect {transform: rotate(4deg)}`);
-    expect(r.source).toContain(`.c {} .c:not([${IMAGE_ROOT_MARKER}]) {scale: 2}`);
-    expect(r.markRoot).toBe(true);
+    expect(r.source).toContain(`.c {} .c:not([${IMAGE_ROOT_ATTR}]) {scale: 2}`);
     expect(valueOf(r, "scale")).toBe("2");
   });
 
@@ -80,7 +79,7 @@ describe("<img> SVG root transform from the document's own <style>", () => {
       P,
     )!;
     expect(out).toContain(`translate(50 50) rotate(20) translate(-50 -50)`);
-    expect(out).toContain(`<style>svg {}</style>`);
+    expect(out).toContain(`<style>svg:where([${IMAGE_ROOT_ATTR}="S-"], [${IMAGE_ROOT_ATTR}="S-"] *) {}</style>`);
   });
 
   it("lets the style attribute beat a normal sheet rule, and an important sheet rule beat it", () => {
@@ -110,8 +109,8 @@ describe("<img> SVG root transform from the document's own <style>", () => {
       `<svg class="c" viewBox="0 0 100 100"><style>.c { transform: rotate(-25deg) }</style><rect class="c"/></svg>`,
       P,
     )!;
-    expect(out).toContain(`${IMAGE_ROOT_MARKER}=""`);
-    expect(out).toContain(`:not([${IMAGE_ROOT_MARKER}])`);
+    expect(out).toContain(`${IMAGE_ROOT_ATTR}="S-"`);
+    expect(out).toContain(`:not([${IMAGE_ROOT_ATTR}])`);
     expect(out).toContain("rotate(-25)");
   });
 

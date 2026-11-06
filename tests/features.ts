@@ -1171,6 +1171,23 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // Blink gives each SVG image its own document, so the image's author
+    // sheets reach only its own elements and `:root` means the image root.
+    // Inlined, the sheets are scoped to the nested root: the first image's
+    // `g rect` / `:root` / `svg > rect` rules must not reach the second image
+    // or the page boxes, and the third image's `#r` rule must still match
+    // its (namespaced) root id.
+    name: "image-svg-style-scope",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>g rect { stroke: #fde047; stroke-width: 8 } :root { fill: #16a34a } svg > rect { fill: #db2777 }</style><g><rect x="15" y="15" width="70" height="30"/></g><rect x="15" y="60" width="70" height="25"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><g><rect x="15" y="15" width="70" height="30" fill="#2563eb"/></g><rect x="15" y="60" width="70" height="25" fill="#0ea5e9"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" id="r" width="90" height="90" viewBox="0 0 100 100"><style>#r rect { fill: #f59e0b } * { stroke: none }</style><rect x="15" y="15" width="70" height="70"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <div style="width:90px;height:90px;background:#7c3aed"></div>
+    </div>`,
+    width: 460,
+    height: 130,
+  },
+  {
     // An `<img>` SVG document's own author sheets cascade onto its root like
     // any author rule, so `svg { transform }`, `:root { transform-origin }`,
     // `#id` / `.class` rules apply to the image, ranked by importance, the

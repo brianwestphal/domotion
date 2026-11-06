@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG", "DM-JZR5T6"]
+tickets: ["DM-1592", "DM-1593", "DM-1595", "DM-97E2CN", "DM-VGPTYG", "DM-JZR5T6", "DM-KA02KF"]
 code:
   [
     "src/capture/embed.ts",
@@ -18,6 +18,8 @@ code:
     "src/render/svg-image-root-stylesheet.test.ts",
     "src/render/svg-image-root-stylesheet.ts",
     "src/render/svg-image-root-transform.test.ts",
+    "src/render/svg-image-style-scope.test.ts",
+    "src/render/svg-image-style-scope.ts",
     "src/render/svg-image-root-transform.ts",
     "src/render/svg-inline.test.ts",
     "src/render/svg-inline.ts",
@@ -122,6 +124,8 @@ All `object-fit` values take the native path:
 `prefixSvgIds` rewrites every `id`, `href="#…"`, `xlink:href="#…"`, and `url(#…)` with the per-document-unique prefix so gradients / clipPaths / filters / masks / `<use>` targets can't collide across inlined SVGs or with the outer document.
 
 `prefixSvgClasses` (DM-1593) does the same for **CSS class names** — but only when the SVG carries a `<style>` block (the only way a class affects rendering, so a presentation-attribute export like the `brand-mixed` logo stays byte-identical). It rewrites class selectors in the _selector portion_ of each rule inside `<style>` (never a `.` in a declaration value) plus every `class="…"` attribute. Without this, two design-tool exports that both define `.cls-1` in a `<style>` block would cross-contaminate, since an inlined SVG `<style>` applies document-wide (verified: a red-`.cls-1` and a blue-`.cls-1` SVG now render independently). Nested at-rules (`@media`) inside an SVG `<style>` are not handled — essentially never present in an SVG asset.
+
+**Sheet scoping for `<img>` SVGs.** Blink gives every SVG image its own document, so the image's author sheets reach only its own elements and `:root` means the image root. An inlined `<style>` instead belongs to the whole output document, where an element selector such as `g rect { stroke: … }` would reach every rect in the output and `svg` / `:root` rules would reach the output root. When the source has a `<style>`, `inlineImgSvg` therefore marks the nested root with `data-domotion-image-root="<prefix>"` and rewrites every selector (`scopeImageStyleSheets`, `src/render/svg-image-style-scope.ts`). Each compound gains `:where([data-domotion-image-root="<prefix>"], [data-domotion-image-root="<prefix>"] *)`, which adds no specificity, so the image's rules keep their relative ranking. A compound that already requires one of the image's namespaced classes or ids is left alone. `:root` becomes the root attribute selector, which has the same specificity. Conditional group rules (`@media`, `@supports`, `@layer`, `@container`, `@scope`) are scoped recursively, and other at-rules are left alone. The root's own `id` is part of the id set for the body too, so a `#root rect` rule or `href="#root"` follows the namespaced id. The flattened output needs no marker because its gate already rejects every selector that is not a class or id selector. Fixture: `image-svg-style-scope`.
 
 `prefixSvgClasses` is shared by all three SVG-inlining paths (DM-1595), each gated on `<style>` presence:
 
