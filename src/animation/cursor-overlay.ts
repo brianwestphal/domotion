@@ -41,10 +41,13 @@ export interface CursorStyle {
    */
   pointer: "mouse" | "touch";
   /**
-   * Inner ring + cursor stroke color. Defaults to white with a thin black
-   * outline so the cursor reads on light and dark backgrounds alike.
+   * Mouse-pointer body color: the fill of the arrow and of filled cursor glyphs,
+   * and the halo under line-art glyphs. Default white, with `cursorStroke` as the
+   * thin dark outline, so the cursor reads on light and dark backgrounds alike.
+   * The `touch` disc keeps its fixed look. Config `cursor.style.color` sets it.
    */
   cursorFill: string;
+  /** Outline color of the per-keyword cursor glyphs. Default black. */
   cursorStroke: string;
   /** Click pulse stroke color. Default white with a black hairline. */
   pulseStroke: string;
@@ -402,6 +405,10 @@ export function cursorOverlayMarkup(
     `@keyframes ${posName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{transform:translate(${num(p.x)}px,${num(p.y)}px)}`).join("")}}`,
   );
   const posAnim = `${posName} ${totalSec}s linear infinite`;
+  // The default fill keeps each glyph's own white literal, so default output is unchanged.
+  const cursorFill =
+    style.cursorFill === DEFAULT_STYLE.cursorFill ? undefined : cssValueForStyle(style.cursorFill, "cursor color");
+  const cursorStroke = cssValueForStyle(style.cursorStroke, "cursor stroke color");
 
   // Pulse fragments — one per click; each pushes its own keyframes into `kf`.
   const pulseMarkup = clicks.map((c, i) => buildPulseFragment(c, i, uid, kf, totalDurationMs)).join("\n");
@@ -425,7 +432,7 @@ export function cursorOverlayMarkup(
     const kinds = Array.from(new Set(cursorTimeline.map((e) => e.cursor).filter((c): c is string => c != null)));
     const glyphLayers = kinds
       .map((kind, gi) => {
-        const glyph = cursorGlyphSvg(kind, 0, 0, size, style.cursorStroke);
+        const glyph = cursorGlyphSvg(kind, 0, 0, size, cursorStroke, cursorFill);
         const gName = `co-glyph-${uid}-${gi}`;
         kf.push(
           `@keyframes ${gName}{${cursorTimeline.map((e) => `${pct(e.t / totalDurationMs)}{opacity:${e.cursor === kind ? "1" : "0"}}`).join("")}}`,
@@ -445,7 +452,7 @@ ${glyphLayers}
       `@keyframes ${visName}{${positions.map((p) => `${pct(p.t / totalDurationMs)}{opacity:${p.visible ? "1" : "0"}}`).join("")}}`,
     );
     pointerGroup = `    <g class="cursor-arrow" opacity="0" style="animation:${posAnim},${visName} ${totalSec}s step-end infinite">
-      ${macosCursorPath(style.cursorScale)}
+      ${macosCursorPath(style.cursorScale, cursorFill)}
     </g>`;
   }
 
@@ -534,13 +541,13 @@ export function touchPointerGlyph(scale: number): string {
 }
 
 /** macOS-style cursor arrow path. The hot point (0, 0) sits at the tip. */
-function macosCursorPath(scale: number): string {
+function macosCursorPath(scale: number, fill = "rgb(255,255,255)"): string {
   // Path approximates the macOS pointer: tip at (0, 0), tail extends down and
-  // right with a small notch. Stroked white with a thin black outline so it
+  // right with a small notch. Filled white (or `cursorFill`) with a thin black outline so it
   // reads on any background.
   const d = "M 0 0 L 0 16 L 4 12 L 7 18 L 9 17 L 6 11 L 12 11 Z";
   const transform = scale !== 1 ? ` transform="scale(${num(scale)})"` : "";
-  return `<path d="${d}" fill="rgb(255,255,255)" stroke="rgb(0,0,0)" stroke-width="1" stroke-linejoin="round"${transform} />`;
+  return `<path d="${d}" fill="${fill}" stroke="rgb(0,0,0)" stroke-width="1" stroke-linejoin="round"${transform} />`;
 }
 
 function num(n: number): string {

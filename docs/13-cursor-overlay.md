@@ -78,8 +78,9 @@ type CursorEvent =
 
 interface CursorStyle {
   pointer: "mouse" | "touch";
-  /** Inner ring + cursor stroke color. Default white with a thin black outline. */
+  /** Mouse-pointer body: arrow / filled-glyph fill and line-art halo. Default white. Config `cursor.style.color`. */
   cursorFill: string;
+  /** Outline color of the per-keyword cursor glyphs. Default black. */
   cursorStroke: string;
   /** Click pulse stroke color. Default white with a black hairline. */
   pulseStroke: string;

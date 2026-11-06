@@ -26,7 +26,13 @@ import {
   assembleRegionStateTrees,
   type AnimateConfig,
 } from "./animate.js";
-import { getRenderTextMode, setRenderTextMode, type CursorEvent } from "../index.js";
+import {
+  cursorOverlayMarkup,
+  getRenderTextMode,
+  resolveCursorScript,
+  setRenderTextMode,
+  type CursorEvent,
+} from "../index.js";
 import type { CapturedElement } from "../capture/types.js";
 
 const base = { width: 100, height: 100 };
@@ -1286,6 +1292,33 @@ describe("cursor overlay config (DM-851)", () => {
 // already shows the change it caused. Before this fix, the cart-htmx demo's
 // three clicks fired at 1850 / 3170 / 4590 ms — each ~550 ms AFTER its own
 // result was already on screen.
+describe("buildCursorOverlay: cursor style mapping", () => {
+  it("maps every config cursor style field onto a renderer field that the overlay paints", () => {
+    const frames = validateAnimateConfig({ ...base, frames: [{ input: "a.html", duration: 1000 }] }).frames;
+    const ov = buildCursorOverlay(
+      false,
+      [{ frame: 0, at: 0, type: "moveClick", to: { x: 40, y: 40 } }],
+      { scale: 1.5, color: "#ffcc00", pulseColor: "#00ccff", pulseRadius: 20, pulseDurationMs: 300 },
+      [],
+      new Map(),
+      frameStartsFor(frames),
+      frames,
+    );
+    expect(ov?.style).toEqual({
+      cursorScale: 1.5,
+      cursorFill: "#ffcc00",
+      pulseStroke: "#00ccff",
+      pulseRadius: 20,
+      pulseDurationMs: 300,
+    });
+    const r = resolveCursorScript(ov!, 1000, frameStartsFor(frames), null);
+    const svg = cursorOverlayMarkup(r.positions, r.clicks, r.style, 1000);
+    // `color` used to map to a field no renderer read; it now paints the arrow body.
+    expect(svg).toContain('fill="#ffcc00"');
+    expect(svg).toContain('stroke="#00ccff"');
+  });
+});
+
 describe("buildCursorOverlay: auto click timing (DM-1050)", () => {
   // The cart-htmx shape: an initial frame then three continue frames, each one
   // click + a 220 ms crossfade. (durations: 1000, 1100, 1100, 1300.)

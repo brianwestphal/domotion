@@ -155,11 +155,20 @@ export const CURSOR_CATEGORIES: { title: string; values: string[] }[] = [
 
 /**
  * Render a cursor glyph as an SVG `<g>`, positioned so its hotspot sits at
- * `(x, y)` and the 24-box is scaled to `size` px. Paints a white halo under the
- * dark glyph (filled glyphs use a white fill + dark outline). Returns "" for an
- * empty glyph (`none`).
+ * `(x, y)` and the 24-box is scaled to `size` px. Paints a light halo under the
+ * dark glyph (filled glyphs use a light fill + dark outline). `color` is the dark
+ * outline / stroke and `fill` the light body / halo (white by default). Both are
+ * written into presentation attributes, so the caller must pass safe CSS colors
+ * (`cssValueForStyle`). Returns "" for an empty glyph (`none`).
  */
-export function cursorGlyphSvg(value: string, x: number, y: number, size = 22, color = "#1a1a1a"): string {
+export function cursorGlyphSvg(
+  value: string,
+  x: number,
+  y: number,
+  size = 22,
+  color = "#1a1a1a",
+  fill = "#fff",
+): string {
   const g = CURSOR_GLYPHS[value] ?? CURSOR_GLYPHS.default;
   if (g.body === "") return "";
   const s = size / 24;
@@ -167,9 +176,9 @@ export function cursorGlyphSvg(value: string, x: number, y: number, size = 22, c
   const ty = y - g.hotspot[1] * s;
   const rot = g.rotate ? ` rotate(${g.rotate} 12 12)` : "";
   const inner = g.fill
-    ? // Filled silhouette: white fill + dark outline (classic arrow look).
-      `<g fill="#fff" stroke="${color}" stroke-width="1.4" stroke-linejoin="round">${g.body}</g>`
-    : // Line-art: white halo stroke under the dark stroke.
-      `<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="3.4">${g.body}</g><g stroke="${color}" stroke-width="1.7">${g.body}</g></g>`;
+    ? // Filled silhouette: light fill + dark outline (classic arrow look).
+      `<g fill="${fill}" stroke="${color}" stroke-width="1.4" stroke-linejoin="round">${g.body}</g>`
+    : // Line-art: light halo stroke under the dark stroke.
+      `<g fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="${fill}" stroke-width="3.4">${g.body}</g><g stroke="${color}" stroke-width="1.7">${g.body}</g></g>`;
   return `<g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(4)})"><g transform="${rot.trim() || "translate(0 0)"}">${inner}</g></g>`;
 }

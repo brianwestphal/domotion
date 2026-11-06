@@ -241,6 +241,45 @@ describe("cursorOverlayMarkup: multi-glyph (DM-1106)", () => {
   });
 });
 
+describe("cursorOverlayMarkup: cursorFill (config cursor.style.color)", () => {
+  const events: CursorOverlay["events"] = [
+    { type: "show", t: 0, x: 0, y: 50 },
+    { type: "move", t: 0, to: { x: 200, y: 50 }, duration: 1000 },
+  ];
+  const resolveCursorAt: CursorAtResolver = (x) => (x < 100 ? "default" : "text");
+
+  it("paints the legacy arrow body with cursorFill and keeps the default white otherwise", () => {
+    const plain = resolveCursorScript({ events }, 1000, [0], null);
+    expect(cursorOverlayMarkup(plain.positions, plain.clicks, plain.style, 1000)).toContain('fill="rgb(255,255,255)"');
+    const tinted = resolveCursorScript({ events, style: { cursorFill: "#ffcc00" } }, 1000, [0], null);
+    const svg = cursorOverlayMarkup(tinted.positions, tinted.clicks, tinted.style, 1000);
+    expect(svg).toContain('class="cursor-arrow"');
+    expect(svg).toContain('fill="#ffcc00"');
+    expect(svg).not.toContain('fill="rgb(255,255,255)"');
+  });
+
+  it("paints filled glyph bodies and line-art halos with cursorFill", () => {
+    const plain = resolveCursorScript({ events }, 1000, [0], null, resolveCursorAt);
+    const plainSvg = cursorOverlayMarkup(plain.positions, plain.clicks, plain.style, 1000, plain.cursorTimeline);
+    expect(plainSvg).toContain('fill="#fff"'); // filled `default` arrow
+    expect(plainSvg).toContain('stroke="#fff"'); // line-art `text` halo
+    const tinted = resolveCursorScript({ events, style: { cursorFill: "#ffcc00" } }, 1000, [0], null, resolveCursorAt);
+    const svg = cursorOverlayMarkup(tinted.positions, tinted.clicks, tinted.style, 1000, tinted.cursorTimeline);
+    expect(svg).toContain('fill="#ffcc00"');
+    expect(svg).toContain('stroke="#ffcc00"');
+    expect(svg).not.toContain('#fff"');
+  });
+
+  it("refuses a cursorFill or cursorStroke that would leave its attribute", () => {
+    for (const style of [{ cursorFill: 'red" onload="x' }, { cursorStroke: "red}</style>" }]) {
+      const r = resolveCursorScript({ events, style }, 1000, [0], null, resolveCursorAt);
+      expect(() => cursorOverlayMarkup(r.positions, r.clicks, r.style, 1000, r.cursorTimeline)).toThrow(
+        /Invalid cursor (stroke )?color/,
+      );
+    }
+  });
+});
+
 describe("cursorOverlayMarkup: touch pointer", () => {
   const overlay = (pointer?: "mouse" | "touch"): CursorOverlay => ({
     style: pointer == null ? undefined : { pointer },
