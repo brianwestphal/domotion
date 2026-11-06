@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Select } from "@kerfjs/ui/select";
 import { selectValue, setSelectValue } from "./kerf-ui-select.js";
 
-function render(value: string): Element {
+function render(value: "" | "1" | "2"): Element {
   const host = document.createElement("div");
   host.innerHTML = Select({
     name: "speed",

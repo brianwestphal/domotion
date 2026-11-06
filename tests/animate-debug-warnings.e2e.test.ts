@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { sfntOs2FsType } from "@domotion/text-engine/testing";
 import { runAnimate } from "../src/cli/animate.js";
-import { restrictedEmbeddingFont } from "../src/test-support/restricted-embedding-font.js";
+import { restrictedEmbeddingFont } from "./test-support/restricted-embedding-font.js";
 
 const dir = mkdtempSync(join(tmpdir(), "domotion-animate-debug-warnings-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));

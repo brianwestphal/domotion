@@ -2727,8 +2727,9 @@ still fall back to svg2ttf when the source cannot be subset safely.
    **unnameable member index** (`FontSourceInfo.faceIndex === null`, below), or
    any hb-subset failure.
 
-The visual harness snapshots `getEmbeddedFontBuildDiagnostics()` immediately
-after this build and stores it as `embeddedFontBuilds` in each fixture result
+The visual harness reads the text-engine document's
+`artifacts.embeddedFontDiagnostics` (the session-scoped form of
+`getEmbeddedFontBuildDiagnostics()`) immediately after this build and stores it as `embeddedFontBuilds` in each fixture result
 (doc [124](124-embedded-font-build-diagnostics.md)): source/face/axes, selected
 builder, exact disqualification reasons, retained table tags, and glyph/run
 counts travel with the pixel artifact instead of being recoverable only from an

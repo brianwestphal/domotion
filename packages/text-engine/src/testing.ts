@@ -19,11 +19,7 @@ export {
   __clusterFallbackCountersForTest,
   splitTextIntoFontRunsShaped,
 } from "./render/cluster-fallback.js";
-export {
-  clearEmbeddedFontBuilder,
-  getBuiltEmbeddedFontFaceCss,
-  getEmbeddedFontBuildDiagnostics,
-} from "./render/embedded-font-builder.js";
+export { clearEmbeddedFontBuilder, getBuiltEmbeddedFontFaceCss } from "./render/embedded-font-builder.js";
 export {
   type FakeBoldSvgPaintPass,
   resolveFakeBoldTextPaint,

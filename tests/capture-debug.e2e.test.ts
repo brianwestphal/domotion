@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { runCapture } from "../src/cli/capture.js";
-import { restrictedEmbeddingFont } from "../src/test-support/restricted-embedding-font.js";
+import { restrictedEmbeddingFont } from "./test-support/restricted-embedding-font.js";
 
 const dir = mkdtempSync(join(tmpdir(), "domotion-capture-debug-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
