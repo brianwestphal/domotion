@@ -403,7 +403,14 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByLabel("Project file").fill("previews.studio.json");
     await testPage.getByRole("button", { name: "Open", exact: true }).click();
     await testPage.getByRole("heading", { name: "Preview story" }).waitFor();
+    // The preview selector is one exclusive group (kerf-ui SegmentedControl): nothing is pressed
+    // before the first choice, then exactly the chosen segment is.
+    const previewGroup = testPage.getByRole("group", { name: "Preview" });
+    expect(await previewGroup.locator('[aria-pressed="true"]').count()).toBe(0);
     await testPage.getByRole("button", { name: "Scene 1", exact: true }).click();
+    await expect
+      .poll(() => previewGroup.locator('[aria-pressed="true"]').evaluateAll((els) => els.map((el) => el.textContent)))
+      .toEqual(["Scene 1"]);
     const scrubber = testPage.frameLocator("[data-scrubber-frame]");
     await scrubber.locator(".svg-host svg").waitFor();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:02.00");
@@ -453,6 +460,9 @@ describe("Domotion Studio application shell (DM-2687)", () => {
 
     await testPage.getByRole("button", { name: "Whole story", exact: true }).click();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:03.20");
+    expect(
+      await previewGroup.locator('[aria-pressed="true"]').evaluateAll((els) => els.map((el) => el.textContent)),
+    ).toEqual(["Whole story"]);
     const beforePlay = await scrubber.locator(".time").textContent();
     await scrubber.getByRole("button", { name: "Play" }).click();
     await testPage.waitForTimeout(180);

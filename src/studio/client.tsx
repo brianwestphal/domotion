@@ -5,6 +5,7 @@ import { computed, delegate, mount, signal } from "kerfjs";
 import { EmptyState } from "@kerfjs/ui/empty-state";
 import { LoadingSpinner } from "@kerfjs/ui/loading-spinner";
 import { LucideIcon } from "@kerfjs/ui/lucide-icon";
+import { SegmentedControl } from "@kerfjs/ui/segmented-control";
 import { StateBanner } from "@kerfjs/ui/state-banner";
 import {
   CircleAlert,
@@ -173,7 +174,7 @@ h1{font-size:17px;margin:0}.eyebrow{font-size:11px;letter-spacing:.13em;text-tra
 .issues{margin:8px 0 0;padding:10px 14px 10px 34px}.issues code{color:#ffb5c1}.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(250px,.8fr);gap:18px;margin-bottom:18px}.panel h3{margin:0 0 16px;font-size:14px;letter-spacing:.02em}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.wide{grid-column:1/-1}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{padding:13px;border:1px solid #29364e;border-radius:11px;background:#0c1320}.metric strong{display:block;font-size:22px}.metric span{font-size:11px;color:#8d9ab0;text-transform:uppercase;letter-spacing:.08em}
 .scene-list{display:flex;flex-direction:column;gap:11px}.scene{display:grid;grid-template-columns:40px minmax(0,1fr);gap:13px;align-items:start;border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.scene-no{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#1b2942;color:#b9c9e7;font-weight:750}.scene-editor{min-width:0}.scene-head,.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.scene-head .field{flex:1}.scene-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.scene-controls .span2{grid-column:span 2}.scene-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}.scene-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.scene-id{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#78869e}.scene-state{white-space:nowrap}.beat-list{display:grid;gap:10px}.beat{display:grid;grid-template-columns:minmax(140px,.7fr) minmax(200px,1.3fr) auto;gap:10px;align-items:end;border:1px solid #29364e;border-radius:11px;padding:11px;background:#0c1320}.help{font-size:12px;color:#8795ae;line-height:1.45}.danger{border-color:#6e3b49;color:#ffbdc8}
-.preview-panel{margin-top:18px}.preview-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.preview-toolbar .spacer{flex:1}.preview-frame{display:block;width:100%;height:min(70vh,680px);min-height:420px;border:1px solid #29364e;border-radius:12px;background:#0e0f13}.preview-meta{margin:10px 0 0;color:#8795ae;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.preview-empty{display:grid;place-items:center;min-height:240px;border:1px dashed #34415a;border-radius:12px;color:#8795ae;text-align:center;padding:24px}.preview-empty .kui-empty-state{min-height:0;padding:0;width:min(100%,34rem)}.with-icon{display:inline-flex;align-items:center;gap:7px}.with-icon [data-lucide],.with-icon .kui-loading-spinner{width:15px;height:15px}
+.preview-panel{margin-top:18px}.preview-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.preview-toolbar .spacer{flex:1}.preview-toolbar [data-action="preview-refresh"]{margin-left:auto}.preview-choices{--kui-segmented-background:#111a2b;--kui-segmented-border:#37445d;--kui-segmented-foreground:#e8edf7;--kui-segmented-hover-background:#22304c;--kui-segmented-selected-background:#4d6df3;--kui-segmented-selected-foreground:#fff;--kui-segmented-selected-border:#6e87ff;--kui-segmented-selected-shadow:none;flex-wrap:wrap;overflow:visible;gap:2px}.preview-choices .kui-segmented-control__item{font-size:13px;font-weight:500;padding:6px 12px}.preview-frame{display:block;width:100%;height:min(70vh,680px);min-height:420px;border:1px solid #29364e;border-radius:12px;background:#0e0f13}.preview-meta{margin:10px 0 0;color:#8795ae;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.preview-empty{display:grid;place-items:center;min-height:240px;border:1px dashed #34415a;border-radius:12px;color:#8795ae;text-align:center;padding:24px}.preview-empty .kui-empty-state{min-height:0;padding:0;width:min(100%,34rem)}.with-icon{display:inline-flex;align-items:center;gap:7px}.with-icon [data-lucide],.with-icon .kui-loading-spinner{width:15px;height:15px}
 .review-panel{margin-top:18px}.review-compose{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:14px;margin-bottom:14px}.review-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.review-fields .body{grid-column:1/-1}.review-fields .scene-select{grid-column:span 2}.review-help{font-size:12px;color:#8795ae;margin:9px 0 0}.annotation-list{display:flex;flex-direction:column;gap:10px}.annotation{border:1px solid #29364e;border-radius:12px;background:#0c1320;padding:13px}.annotation-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}.annotation-author{font-size:12px;color:#aebbd0}.annotation-target{font-size:12px;color:#8290a8;margin:8px 0}.annotation-actions{display:flex;gap:8px;margin-top:9px}.empty-notes{color:#8795ae;font-size:13px;margin:0}
 .recording-panel{margin-top:18px}.recording-panel textarea{min-height:120px}.semantic-actions{display:grid;gap:7px;margin-top:10px}.semantic-action{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:10px;align-items:end;border-left:2px solid #536da8;padding-left:10px}.semantic-action code{font-size:11px;color:#aebbd0;overflow-wrap:anywhere}
 .timeline-panel{margin-top:18px}.timeline-toolbar{display:flex;align-items:end;gap:9px;flex-wrap:wrap;margin-bottom:13px}.timeline-toolbar .field{min-width:110px}.timeline-scroll{overflow:auto;border:1px solid #29364e;border-radius:12px;background:#090f1b}.timeline-canvas{min-width:900px}.timeline-ruler{height:30px;border-bottom:1px solid #29364e;position:relative;margin-left:150px;background:linear-gradient(90deg,#33415a 1px,transparent 1px);background-size:80px 100%}.timeline-row{display:grid;grid-template-columns:150px minmax(0,1fr);min-height:46px;border-bottom:1px solid #202b40}.timeline-row:last-child{border-bottom:0}.timeline-label{padding:12px 10px;font-size:11px;color:#aebbd0;border-right:1px solid #29364e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.timeline-lane{position:relative;min-height:45px;background:linear-gradient(90deg,#1d2940 1px,transparent 1px);background-size:80px 100%}.timeline-item{position:absolute;top:7px;height:31px;min-width:24px;padding:6px 10px;border:1px solid #5572b7;border-radius:7px;background:#233a68;color:#eff4ff;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;text-align:left}.timeline-item[data-selected="true"]{outline:3px solid #a5b5ff;outline-offset:1px;background:#3d56a0}.timeline-item[data-kind="annotation"]{background:#6a4824;border-color:#b98546}.timeline-item[data-kind="transition"]{background:#4f326f;border-color:#8c65b0}.timeline-item[data-kind="scene"]{background:#24534e;border-color:#4f9188}.timeline-resize{position:absolute;right:0;top:0;width:9px;height:100%;cursor:ew-resize;border-left:1px solid #a5b5ff66}.timeline-summary{margin:9px 0 0;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#8795ae}
@@ -989,31 +990,39 @@ function ScenesPanel({ current }: { current: StudioProject }) {
   );
 }
 
+/** `data-segment-value` prefix of a scene choice in the preview selector; the rest is the scene id. */
+const PREVIEW_SCENE_PREFIX = "scene:";
+
+/** The preview selector's segment value for a selection; "" (no segment pressed) before any choice. */
+function previewChoiceValue(selection: typeof previewSelection.value): string {
+  if (selection == null) return "";
+  return selection.kind === "story" ? "story" : `${PREVIEW_SCENE_PREFIX}${selection.sceneId}`;
+}
+
 function PreviewPanel({ current }: { current: StudioProject }) {
   return (
     <section class="panel preview-panel">
       <h3>Scrubber preview</h3>
       <div class="preview-toolbar">
-        <button
-          data-action="preview-story"
-          class={previewSelection.value?.kind === "story" ? "primary" : ""}
-          disabled={previewBusy.value || !hasStoryPreview()}
-        >
-          Whole story
-        </button>
-        {current.scenes.map((scene, index) => (
-          <button
-            data-action="preview-scene"
-            data-preview-scene={scene.id}
-            data-key={scene.id}
-            class={
-              previewSelection.value?.kind === "scene" && previewSelection.value.sceneId === scene.id ? "primary" : ""
-            }
-            disabled={previewBusy.value || !hasScenePreview(scene.id)}
-          >
-            Scene {index + 1}
-          </button>
-        ))}
+        {/* One exclusive choice (DM-BSEJ7G): kerf-ui's controlled SegmentedControl, one
+            `preview-select` action carrying the choice in `data-segment-value`. An empty
+            value is the "nothing selected yet" state: no segment is pressed. */}
+        <SegmentedControl
+          id="studio-preview"
+          label="Preview"
+          action="preview-select"
+          appearance="outlined"
+          className="preview-choices"
+          value={previewChoiceValue(previewSelection.value)}
+          choices={[
+            { value: "story", label: "Whole story", disabled: previewBusy.value || !hasStoryPreview() },
+            ...current.scenes.map((scene, index) => ({
+              value: `${PREVIEW_SCENE_PREFIX}${scene.id}`,
+              label: `Scene ${index + 1}`,
+              disabled: previewBusy.value || !hasScenePreview(scene.id),
+            })),
+          ]}
+        />
         <span class="spacer"></span>
         <button
           class="with-icon"
@@ -1554,12 +1563,12 @@ function handlePreviewClick({ action, target, sceneId }: ClickActionContext): bo
     case "import-recording":
       void run(importRecording);
       return true;
-    case "preview-story":
-      void loadPreview({ kind: "story" });
-      return true;
-    case "preview-scene": {
-      const previewSceneId = target.dataset.previewScene;
-      if (previewSceneId != null) void loadPreview({ kind: "scene", sceneId: previewSceneId });
+    case "preview-select": {
+      const choice = target.dataset.segmentValue;
+      if (choice === "story") void loadPreview({ kind: "story" });
+      else if (choice?.startsWith(PREVIEW_SCENE_PREFIX) === true) {
+        void loadPreview({ kind: "scene", sceneId: choice.slice(PREVIEW_SCENE_PREFIX.length) });
+      }
       return true;
     }
     case "preview-refresh":
