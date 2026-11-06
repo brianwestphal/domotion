@@ -1,7 +1,9 @@
 /** Mechanical extraction from font-resolution.ts; preserve resolver behavior. */
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { UNICODE_FONT_PATHS_LINUX } from "./unicode-font-routing.linux.generated.js";
 import { UNICODE_FONT_PATHS_NOTO_LINUX } from "./unicode-font-routing.noto-linux.generated.js";
-import { fcMatch } from "./font-paths.win32.js";
+import type { FontPath } from "./font-paths.darwin.js";
 
 // ── Cross-platform font path discovery (DM-258) ──
 //
@@ -321,3 +323,70 @@ export function __linuxFontProfileForTest(): "noto" | "bare" {
 // Chromium-on-Windows defaults (sans → Arial, serif → Times New Roman, mono →
 // Courier New); CJK / symbol / math / Indic route to the DirectWrite system
 // faces. Exact per-block calibration is DM-260.
+
+// `fc-match` is a synchronous process boundary and the same exact fontconfig
+// pattern is reached through multiple logical font keys and render passes. Its
+// answer is a pure function of the pattern for the lifetime of one font
+// environment, so retain successes and misses alike until the normal font-
+// resolution cache boundary clears them.
+export const fcMatchCache = new Map<string, { path: string; postscriptName?: string } | null>();
+
+/**
+ * Run `fc-match` for a fontconfig pattern and return the resolved file plus
+ * its postscript name (for picking the right TTC member). Returns null when
+ * fc-match is missing, errors, or resolves to a file that doesn't exist.
+ * Only ever called on Linux.
+ */
+export function fcMatch(pattern: string): { path: string; postscriptName?: string } | null {
+  const cached = fcMatchCache.get(pattern);
+  if (cached !== undefined) return cached;
+
+  let result: { path: string; postscriptName?: string } | null = null;
+  try {
+    const out = execFileSync("fc-match", ["-f", "%{file}\t%{postscriptname}", pattern], {
+      encoding: "utf8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (out !== "") {
+      const [file, postscriptName] = out.split("\t");
+      if (file != null && file !== "" && existsSync(file)) {
+        result = { path: file, postscriptName: postscriptName || undefined };
+      }
+    }
+  } catch {
+    // A missing/timed-out fontconfig executable is a stable miss for this
+    // process environment, just like an empty or unusable answer.
+  }
+  fcMatchCache.set(pattern, result);
+  return result;
+}
+
+export function resolveLinuxSpec(key: string): FontPath | null {
+  // DM-1404: on a desktop Noto host, the primary-key overlay wins for the keys
+  // that differ from the bare image (sans/serif/mono primaries + CJK). Only when
+  // the overlay's on-disk file actually exists; otherwise fall through so a host
+  // with a partial Noto install still resolves via the bare table / fc-match.
+  if (linuxFontProfile() === "noto") {
+    const noto = LINUX_FONT_PATHS_NOTO[key];
+    if (noto != null && noto.path != null && existsSync(noto.path)) {
+      return { path: noto.path, postscriptName: noto.postscriptName, extractor: noto.extractor };
+    }
+  }
+  const entry = LINUX_FONT_PATHS[key];
+  if (entry == null) return null;
+  // Canonical path first when it exists, then fontconfig discovery (entries
+  // generated from the per-block sweep — DM-984 — have no `fcMatch` because
+  // their absolute path is the answer; only the hand-coded entries carry one).
+  if (entry.path != null && existsSync(entry.path)) {
+    return { path: entry.path, postscriptName: entry.postscriptName, extractor: entry.extractor };
+  }
+  if (entry.fcMatch == null) return null;
+  const matched = fcMatch(entry.fcMatch);
+  if (matched == null) return null;
+  return {
+    path: matched.path,
+    postscriptName: entry.postscriptName ?? matched.postscriptName,
+    extractor: entry.extractor,
+  };
+}

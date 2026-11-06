@@ -1,14 +1,15 @@
 /** Mechanical extraction from font-resolution.ts; preserve resolver behavior. */
+import { existsSync } from "node:fs";
 import { hostPlatform } from "./host-platform.js";
 import { LINUX_FONT_PATHS } from "./font-paths.linux.js";
 import { WIN32_FONT_PATHS } from "./font-paths.win32.js";
 import { FONT_PATHS } from "./font-paths.darwin.js";
 import type { FontPath } from "./font-paths.darwin.js";
-import { resolvedSpecCache, resolvedSpecMemoKey } from "./font-paths.win32.js";
-import { dynamicSystemFontPaths } from "./font-paths.win32.js";
-import { resolveLinuxSpec } from "./font-paths.win32.js";
+import { resolveInstalledFont } from "./glyph-helper.js";
+import { resolvedSpecCache, resolvedSpecMemoKey } from "./font-spec-registry.js";
+import { dynamicSystemFontPaths } from "./font-spec-registry.js";
+import { resolveLinuxSpec } from "./font-paths.linux.js";
 import { resolveWin32Spec } from "./font-paths.win32.js";
-import { relocateMissingSpec } from "./font-paths.win32.js";
 import type { CssFallbackDescription } from "./fallback-chain.js";
 import { resolveSystemFallbackKeyForCp } from "./system-fallback-resolver.js";
 
@@ -39,6 +40,15 @@ export function platformFontKeys(): string[] {
   }
 }
 
+/**
+ * Resolve a logical font key to a concrete on-disk spec for the current
+ * platform (DM-258). On macOS this is the unchanged `FONT_PATHS[key]` lookup —
+ * file existence is still handled downstream by `fontkit.openSync` / the
+ * glyph helper, preserving the family-chain fall-through for fonts that
+ * aren't installed (e.g. Source Serif Pro). On Linux / Windows it consults
+ * the per-platform tables above, verifying the file exists (and using
+ * `fc-match` discovery on Linux). Results are cached per key.
+ */
 export function resolveFontSpec(key: string): FontPath | null {
   // Platform joins the memo key because the ANSWER is per-platform — the switch
   // below picks a different table for each. In production `hostPlatform()` never
@@ -326,4 +336,36 @@ export function linuxDeferOrStatic(
     return [];
   }
   return fallback;
+}
+
+/**
+ * Relocate a table entry whose declared file is not on this host.
+ *
+ * The path tables hardcode where a system font lived when the entry was
+ * written, and the OS moves them: on current macOS all eight PingFang keys
+ * declare `/System/Library/Fonts/PingFang.ttc`, which no longer exists — the
+ * faces now ship inside `FontServices.framework/…/Reserved/PingFangUI.ttc`.
+ * Nothing looked broken because those entries are `extractor: "native"`, so the
+ * helper opens them by PostScript name through CoreText and the declared path
+ * is never dereferenced on the happy path. But `resolveFontSpec(key).path` is
+ * read directly elsewhere — the embedded-subset builder reads those bytes, and
+ * mistaking the base entry for the rendered face was the conformance oracle's
+ * own instrument bug — so a path that cannot be opened is a live hazard, not
+ * cosmetic.
+ *
+ * Rather than swap one machine's literal for another's, ask the OS: when the
+ * declared file is absent and we know the PostScript name, take the path
+ * CoreText reports for that face. Self-healing across OS relocations, and it
+ * keeps the table honest about what it actually points at.
+ *
+ * No-op where it cannot help: platforms without the native helper get `null`
+ * from `resolveInstalledFont` and keep the declared entry unchanged, which is
+ * exactly the previous behavior.
+ */
+export function relocateMissingSpec(spec: FontPath | null): FontPath | null {
+  if (spec?.path == null || spec.path === "" || spec.postscriptName == null) return spec;
+  if (existsSync(spec.path)) return spec;
+  const installed = resolveInstalledFont(spec.postscriptName);
+  if (installed?.path == null || !existsSync(installed.path)) return spec;
+  return { ...spec, path: installed.path };
 }

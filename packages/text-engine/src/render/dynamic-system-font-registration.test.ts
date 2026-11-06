@@ -22,7 +22,7 @@ vi.mock("./glyph-helper.js", async (importOriginal) => {
 
 const { clearFontResolutionCaches, invalidateFontEnvironmentCaches, resolveFontSpec } =
   await import("./font-resolution.js");
-const { registerDynamicSystemFont, resolvedSpecCache } = await import("./font-paths.win32.js");
+const { registerDynamicSystemFont, resolvedSpecCache } = await import("./font-spec-registry.js");
 const { sfProCoverageOtfKey } = await import("./shaping-route.js");
 const { withHostPlatform } = await import("./host-platform.js");
 

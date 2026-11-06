@@ -14,7 +14,7 @@ import { getFontSourceInfo } from "./font-instance.js";
 import { shapingFaceFor } from "./font-instance.js";
 import { logicalFontSize } from "./font-instance.js";
 import type { FontVariantEmojiOverride } from "./emoji-presentation.js";
-import { registerDynamicSystemFont } from "./font-paths.win32.js";
+import { registerDynamicSystemFont } from "./font-spec-registry.js";
 import { fontSourceMap } from "./font-instance.js";
 import { registerFontEnvironmentInvalidator } from "./generation.js";
 

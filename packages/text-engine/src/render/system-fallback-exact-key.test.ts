@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { declaredFamilyForKey } from "./family-match.js";
-import { dynamicSystemFontPaths, registerDynamicSystemFont } from "./font-paths.win32.js";
+import { dynamicSystemFontPaths, registerDynamicSystemFont } from "./font-spec-registry.js";
 import { withHostPlatform } from "./host-platform.js";
 import { resolveFontSpec } from "./font-spec.js";
 import { exactSystemFallbackKey } from "./system-fallback-resolver.js";

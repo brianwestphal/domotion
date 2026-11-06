@@ -12,7 +12,7 @@ route, and explicitly degraded per-codepoint route.
 > system-fallback backends, or the render-text-mode branch **must update the
 > matching diagram + prose here in the same commit**. The authoritative source is
 > `packages/text-engine/src/render/font-resolution.ts` (compatibility re-export barrel),
-> `packages/text-engine/src/render/font-paths.{darwin,linux,win32}.ts`,
+> `packages/text-engine/src/render/font-paths.{darwin,linux,win32}.ts`, `packages/text-engine/src/render/font-spec-registry.ts` (resolved-spec memo and dynamic-key registry),
 > `font-spec.ts`, `family-match.ts`, `font-instance.ts`,
 > `fallback-chain.{darwin,linux,win32}.ts` plus `fallback-chain.ts`,
 > `character-fallback-cache.ts`, `system-fallback-resolver.ts`,
@@ -1015,8 +1015,8 @@ the angle.
 `subBoldWeightCutSuffix` / `darwinPrimaryCutKey` / `win32PrimaryCutKey` /
 `linuxPrimaryCutKey` / `fontHasOutlineTable` / `commandsFor` in
 `packages/text-engine/src/render/{font-instance,font-spec,family-match}.ts`
-(`darwinPrimaryCutKey` and `linuxPrimaryCutKey` in `family-match.ts`) — except
-`win32PrimaryCutKey`, which lives in `fallback-chain.linux.ts`;
+(`darwinPrimaryCutKey`, `linuxPrimaryCutKey` and `win32PrimaryCutKey` in
+`family-match.ts`);
 `win32FamilySuffixAdjustment` in
 `packages/text-engine/src/render/win32-family-suffix.ts`; `resolveFamilyStyleMatch` /
 `resolveLinuxFamilyMatch` / `resolveInstalledFont` in the
@@ -1205,13 +1205,13 @@ The Linux column is the hand-coded bare-image table (`LINUX_FONT_PATHS`, `font-p
 (`linuxNotoFallbackChain` + `UNICODE_FONT_RANGES_NOTO_LINUX`); else the **bare**
 CI-image chain. Overridable via `DOMOTION_LINUX_FONT_PROFILE=noto|bare`.
 
-**Source of truth:** `resolveFontSpec` in `font-spec.ts`; `FONT_PATHS` in
-`font-paths.darwin.ts`; `linuxFontProfile` / `LINUX_FONT_PATHS` in
-`font-paths.linux.ts`; and `resolveLinuxSpec` / `resolveWin32Spec` / `fcMatch`
-/ `WIN32_FONT_PATHS` — together with `dynamicSystemFontPaths` /
-`registerDynamicSystemFont` — in `font-paths.win32.ts` (all under
-`packages/text-engine/src/render/`; the Linux resolvers sit in the win32 file
-as an artifact of the mechanical split from `font-resolution.ts`); the four
+**Source of truth:** `resolveFontSpec` / `relocateMissingSpec` in `font-spec.ts`;
+`FONT_PATHS` in `font-paths.darwin.ts`; `linuxFontProfile` / `LINUX_FONT_PATHS` /
+`resolveLinuxSpec` / `fcMatch` in `font-paths.linux.ts`; `resolveWin32Spec` /
+`WIN32_FONT_PATHS` in `font-paths.win32.ts`; and the cross-platform registry
+(`resolvedSpecCache` / `forgetResolvedSpec` / `dynamicSystemFontPaths` /
+`registerDynamicSystemFont`) in `font-spec-registry.ts` (all under
+`packages/text-engine/src/render/`); the four
 `unicode-font-routing.*.generated.ts` tables.
 
 ---
@@ -2490,7 +2490,7 @@ native helpers via a `HasCharacter` guard reporting `found:false`; Linux via
 `resolveLinuxSystemFallbackKeyForCp` / `fontFileCoversCodepoint` /
 `registerDynamicSystemFont` / `withSystemFallbackResolution` in
 `packages/text-engine/src/render/system-fallback-resolver.ts` and
-`font-paths.win32.ts`; `resolveSystemFallbackFonts` /
+`font-spec-registry.ts`; `resolveSystemFallbackFonts` /
 `resolveInstalledFont` in the `packages/text-engine/src/render/glyph-helper.ts` facade,
 `createGlyphHelperFont` in `packages/text-engine/src/render/glyph-helper-font.ts`, and
 `isGlyphHelperAvailable` in `packages/text-engine/src/render/glyph-helper-transport.ts`. Doc

@@ -19,13 +19,13 @@ import type { FontFallbackSemanticContext } from "./fallback-chain.js";
 import { createFontFallbackSemanticContext } from "./fallback-chain.js";
 import { resolveFontSpec } from "./font-spec.js";
 import type { FontPath } from "./font-paths.darwin.js";
-import { win32PrimaryCutKey } from "./fallback-chain.linux.js";
+import { win32PrimaryCutKey } from "./family-match.js";
 import { darwinPrimaryCutKey } from "./family-match.js";
 import { linuxPrimaryCutKey } from "./family-match.js";
 import { pickWebfontVariant } from "./webfont-registry.js";
 import { pickLocalFontAliasVariant } from "./webfont-registry.js";
 import { trakHbShapingEnabled } from "./system-fallback-resolver.js";
-import { registerDynamicSystemFont } from "./font-paths.win32.js";
+import { registerDynamicSystemFont } from "./font-spec-registry.js";
 import { darwinFontDataIdentity, recordDarwinFontDataUse } from "./darwin-font-data-lifetime.js";
 // re-export for text-to-path.test.ts + text.ts
 

@@ -10,6 +10,7 @@ import {
   resolveFamilyStyleMatch,
   resolveFamilyStyleMatchWithStatus,
   resolveLinuxFamilyMatch,
+  resolveSystemUiFamily,
   type LinuxFamilyMatch,
 } from "./glyph-helper.js";
 import { win32FamilySuffixAdjustment } from "./win32-family-suffix.js";
@@ -22,14 +23,13 @@ import { winFallbackPriorityForTextRun } from "./win-font-fallback.js";
 import { isIcuHelperAvailable } from "./icu-helper.js";
 import { resolveFontSpec } from "./font-spec.js";
 import { openFontkitFace } from "./font-instance.js";
-import { registerDynamicSystemFont } from "./font-paths.win32.js";
+import { registerDynamicSystemFont } from "./font-spec-registry.js";
 import { systemFallbackResolutionEnabled } from "./font-spec.js";
 import { skiaLastResortInitialFamily } from "./fallback-chain.js";
 import { LINUX_FONT_PATHS } from "./font-paths.linux.js";
 import type { FontFallbackSemanticContext } from "./fallback-chain.js";
 import { createFontFallbackSemanticContext } from "./fallback-chain.js";
 import type { CssFallbackDescription } from "./fallback-chain.js";
-import { win32FamilyKeyCache } from "./fallback-chain.linux.js";
 import type { FontVariantEmojiOverride } from "./emoji-presentation.js";
 import { isEmojiCharCp } from "./emoji-presentation.js";
 import { isEmojiPresentationCp } from "./emoji-presentation.js";
@@ -43,8 +43,7 @@ import {
   warmDarwinSystemUiAlias,
   type DarwinFontDescription,
 } from "./darwin-font-data-lifetime.js";
-import { fcMatch } from "./font-paths.win32.js";
-import { win32SuffixDeclaredForKey } from "./fallback-chain.linux.js";
+import { fcMatch } from "./font-paths.linux.js";
 import { resolveFaceInfoForFile } from "./font-instance.js";
 import { splitFontFamilyNames } from "./font-instance.js";
 import type { FontInstance } from "./font-instance.js";
@@ -600,6 +599,111 @@ export function linuxPrimaryCutKey(
   return result;
 }
 
+/**
+ * DM-1878: presence and face selection are two DIFFERENT Blink calls, and this
+ * function serves both — so the style is optional rather than always passed.
+ *
+ *  - `css == null` → `matchFamilyStyle(name, SkFontStyle())`, Blink's
+ *    `IsFontPresent` (`win/font_fallback_win.cc:54-59`). This is what the
+ *    hardcoded-table stage probes with while deciding which family to nominate,
+ *    and it is style-blind in Blink too — a bold run does not change whether
+ *    "David" is installed.
+ *  - `css != null` → `matchFamilyStyle(name, font_description.SkiaFontStyle())`,
+ *    which is how Blink instantiates the family it nominated
+ *    (`GetFontPlatformData(font_description, create_by_family)`,
+ *    `win/font_cache_skia_win.cc:170-176`). DirectWrite picks the cut inside that
+ *    call, so the run's weight/slant/stretch have to be IN it: there is no
+ *    second in-family re-selection step on Windows the way macOS has one.
+ *
+ * Passing NORMAL where Blink passes the run's style is what made every
+ * weight-700 Windows stack resolve the regular cut — 222,874 of the first
+ * Windows conformance baseline's 259,152 mismatches were same-family-wrong-cut.
+ * (Chromium rev 7d859f27, 2026-06-27.)
+ */
+/** Keys whose cut must NOT be re-resolved by family on Windows. */
+const WIN32_PRIMARY_CUT_SKIP = new Set([
+  // Already a resolved face rather than a logical key — re-asking by family
+  // would discard the very resolution that produced it.
+  // (`sysfb:` / `winfam:` / `webfont:` / `localalias:` are prefix-matched below.)
+  "last-resort",
+]);
+
+export const win32PrimaryCutCache = new Map<string, string | null>();
+
+/**
+ * DM-1881: the Windows face for a logical key at a given weight/slant, resolved
+ * by asking DirectWrite for the family — the call Blink makes — rather than by
+ * picking a filename out of the table.
+ *
+ * Returns a `winfam:` key, or null to leave the caller on its existing path.
+ *
+ * The family name is READ FROM THE FILE the table already points at, so no
+ * key→family table is introduced; `system-ui` is the exception, since it has no
+ * literal name to read and the OS is asked instead.
+ */
+/**
+ * Author-declared Windows families that only resolved through Blink's
+ * family-name suffix adjustment ("Segoe UI Light" → "Segoe UI" with the weight
+ * PINNED at 300). Keyed by the dynamic key `matchFamilyNameToKey` registered;
+ * the value is what the suffix pinned. `win32PrimaryCutKey` consults this
+ * BEFORE its dynamic-prefix skip, because for these keys the style-dependent
+ * part (the slope) still has to be re-asked per run — the pinned axis
+ * replaces the run's, the others follow it (`font_cache_skia_win.cc:456-480`,
+ * rev 7d859f27: the adjusted description overrides weight or stretch and keeps
+ * everything else).
+ */
+export const win32SuffixDeclaredForKey = new Map<string, { family: string; weight?: number; stretch?: number }>();
+
+export function win32PrimaryCutKey(key: string, weight: number, slant: number, stretch: number = 100): string | null {
+  if (WIN32_PRIMARY_CUT_SKIP.has(key)) return null;
+  // A suffix-declared family re-resolves per style even though its key is
+  // dynamic: the suffix pinned one axis, the run still owns the slope.
+  const suffixDecl = win32SuffixDeclaredForKey.get(key);
+  const declaredFamily = declaredFamilyForKey.get(key);
+  // Already-resolved or dynamically-registered faces: the key IS the answer.
+  if (
+    suffixDecl == null &&
+    ((key.startsWith("sysfb:") && declaredFamily == null) ||
+      key.startsWith("winfam:") ||
+      key.startsWith("webfont:") ||
+      key.startsWith("localalias:"))
+  )
+    return null;
+
+  const cacheKey = `${hostPlatform()}|${key}|${weight}|${slant !== 0 ? 1 : 0}|${stretch}`;
+  const cached = win32PrimaryCutCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let result: string | null = null;
+  try {
+    // `system-ui` never reaches font matching as a literal in Blink
+    // (`DCHECK_NE(family, kSystemUi)`), so it is asked of the OS.
+    const family =
+      suffixDecl != null
+        ? suffixDecl.family
+        : declaredFamily != null
+          ? declaredFamily
+          : key === "sf-pro"
+            ? (resolveSystemUiFamily() ?? fileFamilyNameForKey(key))
+            : fileFamilyNameForKey(key);
+    if (family != null && family !== "") {
+      const cut = win32FamilyKey(family, {
+        weight: suffixDecl?.weight ?? weight,
+        slant,
+        fontSize: 16,
+        stretch: suffixDecl?.stretch ?? stretch,
+      });
+      // Only adopt a cut that actually resolves to a file; otherwise the table
+      // entry stands.
+      if (cut != null && resolveFontSpec(cut) != null) result = cut;
+    }
+  } catch {
+    result = null;
+  }
+  win32PrimaryCutCache.set(cacheKey, result);
+  return result;
+}
+
 /** The family name recorded inside the file a key maps to, or null. */
 export function fileFamilyNameForKey(key: string): string | null {
   const spec = resolveFontSpec(key);
@@ -608,6 +712,29 @@ export function fileFamilyNameForKey(key: string): string | null {
   return typeof fam === "string" && fam !== "" ? fam : null;
 }
 
+export const win32FamilyKeyCache = new Map<string, string | null>();
+
+/**
+ * Resolve one of Blink's hardcoded Windows family names to a logical font key.
+ *
+ * This is `IsFontPresent` and the path lookup in one call, because on Windows
+ * they are the same DirectWrite question. Blink's `IsFontPresent` is
+ * `SkFontMgr::matchFamilyStyle(name, SkFontStyle())`, which on Windows reduces
+ * to an exact `IDWriteFontCollection::FindFamilyName`
+ * (`third_party/skia/src/ports/SkFontMgr_win_dw.cpp:381-385` → `:1057-1067`) —
+ * and that is exactly what the win32 glyph helper's `family` query runs. So this
+ * is the identical API call, not a filename table sampled off one machine's
+ * `C:\Windows\Fonts` listing.
+ *
+ * Returns a `winfam:<postscriptName>` key registered in the dynamic-spec
+ * registry (like the live resolver's `sysfb:` keys), or null when the family is
+ * not installed — which is precisely `IsFontPresent` answering false.
+ *
+ * Returns null everywhere the helper is unavailable (non-Windows hosts, and a
+ * Windows host with no built helper binary). That is the honest degradation:
+ * without the helper there is no DirectWrite to ask, so the generated
+ * per-block net carries the whole answer, exactly as it did before.
+ */
 export function win32FamilyKey(family: string, css?: CssFallbackDescription): string | null {
   if (_win32FamilyKeyOverride != null) return _win32FamilyKeyOverride(family, css);
   const cacheKey =
