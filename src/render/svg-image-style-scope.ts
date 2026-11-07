@@ -24,6 +24,7 @@
  */
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import { renderWarn } from "./render-warn.js";
+import { decideImageSupports } from "./svg-image-supports.js";
 
 /** The attribute that identifies an inlined image root (value: its id prefix). */
 export const IMAGE_ROOT_ATTR = "data-domotion-image-root";
@@ -100,8 +101,14 @@ function scopeRules(
       if (GROUP_AT_RULES.has(name)) {
         const inner = scopeRules(css, clean, brace + 1, close - 1, scope, viewport, env, inLayer || name === "layer");
         // An image sheet's `@media` sees the image viewport, not the output
-        // document's: decide it now and freeze the answer.
-        const matches = name === "media" ? evaluateMediaQueryList(trimmed.slice(6), viewport, env) : null;
+        // document's: decide it now and freeze the answer. An `@supports`
+        // condition the page's Chromium decided at capture is frozen too.
+        const matches =
+          name === "media"
+            ? evaluateMediaQueryList(trimmed.slice(6), viewport, env)
+            : name === "supports"
+              ? decideImageSupports(trimmed.slice(9), env.supports)
+              : null;
         if (name === "media" && matches == null) {
           renderWarn(
             "svg-image-sheet-media",

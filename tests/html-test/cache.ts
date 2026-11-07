@@ -68,6 +68,9 @@ export function createExpectedCache(options: {
     .update(hashFileOrEmpty(resolve(packageRoot, "src/capture/index.ts")))
     .update(hashFileOrEmpty(resolve(packageRoot, "src/capture/background-image-sizing.ts")))
     .update(hashFileOrEmpty(resolve(packageRoot, "src/capture/pseudo-fragment-cdp.ts")))
+    // The <img> SVG @supports answers recorded on the cached tree.
+    .update(hashFileOrEmpty(resolve(packageRoot, "src/capture/image-svg-supports.ts")))
+    .update(hashFileOrEmpty(resolve(packageRoot, "src/render/svg-image-supports.ts")))
     .digest("hex");
   let fontDigest = "unknown";
   try {

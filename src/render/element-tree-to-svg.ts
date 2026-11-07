@@ -577,6 +577,7 @@ function paintImage(
         preferredColorScheme: el.imageEmbeddingColorScheme,
         prefersReducedMotion: el.imageDocumentPrefersReducedMotion,
         forcedColors: el.imageDocumentForcedColors,
+        supportsConditions: el.imageSvgSupports,
       };
       inlinedNone =
         (getFlattenNestedSvg() ? flattenImgSvg(svgTextNone, placement) : null) ?? inlineImgSvg(svgTextNone, placement);
@@ -612,6 +613,7 @@ function paintImage(
         preferredColorScheme: el.imageEmbeddingColorScheme,
         prefersReducedMotion: el.imageDocumentPrefersReducedMotion,
         forcedColors: el.imageDocumentForcedColors,
+        supportsConditions: el.imageSvgSupports,
       };
       const inlined =
         (getFlattenNestedSvg() ? flattenImgSvg(svgText, placement) : null) ?? inlineImgSvg(svgText, placement);

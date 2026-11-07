@@ -2264,6 +2264,16 @@ export interface CapturedElement {
    */
   imageDocumentPrefersReducedMotion?: boolean;
   imageDocumentForcedColors?: boolean;
+  /**
+   * The `@supports` conditions of an `<img>`'s SVG source sheets, decided by
+   * the capturing page's Chromium: each prelude must parse as an `@supports`
+   * prelude (CSSParserImpl::ConsumeSupportsRule) and is then evaluated with
+   * `CSS.supports`. Keyed by the whitespace-collapsed prelude
+   * (`supportsConditionKey`). Recorded Node-side after the tree is captured
+   * (`src/capture/image-svg-supports.ts`); absent when the source was not
+   * resolvable then, had no `@supports`, or on older trees.
+   */
+  imageSvgSupports?: Record<string, boolean>;
   /** True when the <img> failed to load (`complete && naturalWidth === 0`).
    *  Legacy serialized-tree compatibility only; new live captures use
    *  `brokenImageFallback`. */

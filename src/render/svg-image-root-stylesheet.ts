@@ -34,10 +34,12 @@
  * - `@container` never matches the root: it has no ancestor container.
  * - `@layer` blocks and statements order the cascade (CSS Cascade 5), with
  *   unlayered rules last.
+ * - `@supports` applies as the page's Chromium decided it at capture
+ *   (`svg-image-supports.ts`); an undecided condition gives up.
  * Anything else that could reach the root with a transform-family declaration
  * makes the result `unsupported`: a selector this module cannot decide (such
- * as `:lang()`), an undecided media query, or another group rule (`@supports`,
- * `@scope`, `@starting-style`). The caller then keeps its previous output and
+ * as `:lang()`), an undecided media or supports condition, or another group rule
+ * (`@scope`, `@starting-style`). The caller then keeps its previous output and
  * warns instead of painting a guess.
  *
  * The returned `source` rewrites the sheets so the inlined markup does not
@@ -67,6 +69,7 @@ import {
   type ImageElement,
 } from "./svg-image-selector-engine.js";
 import { anPlusBMatches, IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
+import { decideImageSupports } from "./svg-image-supports.js";
 
 export { cssUnescape, decodeXmlAttributeValue, expandXmlReferences };
 
@@ -567,6 +570,10 @@ export function cascadeRootStylesheetTransform(
           // (EvalAndAdd, core/css/container_query_evaluator.cc:138-203,
           // chromium 7d859f27).
           applies = false;
+        } else if (name === "supports") {
+          // Decided by the page's Chromium at capture (svg-image-supports.ts);
+          // null when it was not.
+          applies = decideImageSupports(prelude.slice(9), env.supports);
         } else if (name === "layer") {
           // `@layer name { … }` or an anonymous `@layer { … }`.
           const layerName = prelude.slice(6).trim();
@@ -583,7 +590,7 @@ export function cascadeRootStylesheetTransform(
             processRange(css, clean, brace + 1, end, false, innerLayer);
           }
         } else if (touchesTransform) {
-          // `@supports`, `@scope`, `@starting-style`, an undecided `@media` …
+          // `@scope`, `@starting-style`, an undecided `@media` or `@supports` …
           unsupported = true;
         }
         i = end + 1;

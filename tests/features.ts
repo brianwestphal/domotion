@@ -1339,6 +1339,21 @@ export const tests: FeatureTest[] = [
     height: 130,
   },
   {
+    // `@supports` in an `<img>` SVG's own sheet is decided by the capturing
+    // page's Chromium and frozen: the first image's root rotates under a
+    // supported condition, the second's `not` / unknown-property blocks
+    // leave it scaled only, and the third's bare-declaration prelude is a
+    // parse error, so its rule is dropped as an @supports rule would be.
+    name: "image-svg-supports",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>@supports (display: grid) and (not (foo: bar)) { svg { transform: rotate(20deg) } rect { fill: #16a34a } }</style><rect width="100" height="40" fill="#ed1234"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg { scale: 0.7 } @supports not (display: grid) { svg { rotate: 30deg } } @supports (not-a-property: 1) { svg { rotate: -30deg } }</style><rect width="100" height="40" fill="#0ea5e9"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>@supports display: grid { svg { transform: rotate(40deg) } } @supports selector(svg:has(> rect)) { svg { translate: 10px 0 } }</style><rect width="100" height="40" fill="#f59e0b"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 360,
+    height: 130,
+  },
+  {
     // Blink lays an `<img>` SVG document out at the concrete object rect
     // (ImagePainter requests the image at dest_rect.size,
     // core/paint/image_painter.cc:218; SVGImage sizes the root to it,

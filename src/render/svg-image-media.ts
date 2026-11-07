@@ -26,6 +26,9 @@ export interface ImageMediaEnv {
    *  `isolated_svg_document_host.cc:199`) is set, which is its StyleEngine's
    *  forced colors (`core/css/style_engine.cc:4431`). */
   forcedColors?: boolean | null;
+  /** `@supports` answers decided by the page's Chromium at capture, keyed by
+   *  `supportsConditionKey` (see `svg-image-supports.ts`). */
+  supports?: Readonly<Record<string, boolean>> | null;
 }
 
 /**

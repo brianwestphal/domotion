@@ -760,6 +760,9 @@ export interface InlineSvgPlacement {
    *  unknown when absent. */
   prefersReducedMotion?: boolean;
   forcedColors?: boolean;
+  /** The image sheets' `@supports` answers, decided by the page's Chromium at
+   *  capture (`CapturedElement.imageSvgSupports`); undecided when absent. */
+  supportsConditions?: Readonly<Record<string, boolean>>;
 }
 
 /** The embedder-supplied part of the image document's media environment. */
@@ -768,6 +771,7 @@ function imageMediaEnv(p: InlineSvgPlacement): ImageMediaEnv {
     preferredColorScheme: p.preferredColorScheme ?? null,
     prefersReducedMotion: p.prefersReducedMotion ?? null,
     forcedColors: p.forcedColors ?? null,
+    supports: p.supportsConditions ?? null,
   };
 }
 

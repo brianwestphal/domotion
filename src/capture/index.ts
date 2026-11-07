@@ -31,6 +31,7 @@ import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../t
 import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { withRenderWarningSink } from "../render/render-warn.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
+import { captureImageSvgSupports } from "./image-svg-supports.js";
 import { registerLocalFontAlias, registerWebfont } from "../render/font-resolution.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
@@ -507,6 +508,9 @@ export class DemoRecorder {
         retries: this.embedRemoteImagesRetries,
         retryBackoffMs: this.embedRemoteImagesRetryBackoffMs,
       });
+    // A remote `<img>` SVG is resolvable only once embedded: decide its
+    // `@supports` conditions now, while the page is still alive.
+    if (this.selfContained && this.page != null) await captureImageSvgSupports(this.page, tree);
     if (this.selfContained && this.embedRemoteImagesResize) {
       for (const record of this.animatedImageStaticFrameRecords) {
         _dataUriCache.set(record.pngDataUrl, record.pngDataUrl);
@@ -2001,6 +2005,8 @@ export async function captureElementTreeSelfContained(
     ...(opts?.animationTimeMs != null ? { animationTimeMs: opts.animationTimeMs } : {}),
   });
   await embedRemoteImages(tree, opts?.embed ?? {});
+  // Remote `<img>` SVGs are resolvable only now that they are embedded.
+  await captureImageSvgSupports(page, tree);
   return tree;
 }
 
@@ -2314,6 +2320,7 @@ async function captureElementTreeWithWarningsInternal(
       await rasterizeMaskSources(page, typed.tree, viewport);
       await rasterizeAdvancedGradients(typed.tree, page);
       await captureImageDocumentSettings(page, typed.tree);
+      await captureImageSvgSupports(page, typed.tree);
       if (sessionGenericFamilies != null) {
         const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
         for (const root of typed.tree) root.sessionGenericFamilies = captured;
