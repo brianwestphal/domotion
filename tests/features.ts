@@ -1204,6 +1204,21 @@ export const tests: FeatureTest[] = [
     height: 304,
   },
   {
+    // Font-metric units in an <img> SVG root transform resolve against the
+    // root's primary font (CSSToLengthConversionData::FontSizes /
+    // LineHeightSize, chromium 7d859f27): ex / ch / ic / cap with the
+    // default family at 20px, ex / cap / ch in bold Georgia, and ch / rex
+    // in Menlo, with lh from a numeric line-height.
+    name: "image-svg-root-transform-font-units",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:24px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" font-size="20" style="transform: translate(1ex, 0.5ch) rotate(15deg); transform-origin: 1ic 2lh; line-height: 1.25"><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#0ea5e9"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" font-family="Georgia, serif" font-weight="bold" style="translate: 1cap 0; rotate: -12deg; transform-origin: 3ex 3ch"><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#0ea5e9"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" font-family="Menlo, monospace" font-size="12" style="transform: translateX(calc(3ch - 2rex)) rotate(8deg); transform-origin: 0 4rlh; line-height: 15px"><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#0ea5e9"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 420,
+    height: 140,
+  },
+  {
     // Root transform values beyond the 2D px subset: calc(), em lengths
     // (against the root's 16px font-size), 3D functions and the axis form of
     // `rotate`, flattened exactly because the image root paints into a flat

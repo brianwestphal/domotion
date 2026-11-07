@@ -125,6 +125,34 @@ describe("resolveImageRootTransform", () => {
     expect(resolve({ transform: "perspective(10%)" })).toBe("unsupported");
   });
 
+  it("resolves font-metric units through the caller's fontMetric, including inside calc()", () => {
+    const metrics: Record<string, number> = { ex: 8, ch: 9, cap: 11, ic: 16, lh: 24, rlh: 24 };
+    const out = resolveImageRootTransform(
+      {
+        transformAttr: null,
+        transformOriginAttr: null,
+        style: new Map([
+          ["transform", "translate(1ex, calc(2ch - 1cap)) translateX(0.5ic)"],
+          ["transform-origin", "1lh 1rlh"],
+        ]),
+        fontMetric: (unit) => metrics[unit] ?? null,
+      },
+      box,
+    );
+    expect(out).toEqual({ transform: "translate(8 7) translate(8 0)", origin: { x: 34, y: 44 } });
+    // A unit the caller leaves unknown stays unsupported.
+    const unknown = resolveImageRootTransform(
+      {
+        transformAttr: null,
+        transformOriginAttr: null,
+        style: new Map([["translate", "1lh"]]),
+        fontMetric: () => null,
+      },
+      box,
+    );
+    expect(unknown).toBe("unsupported");
+  });
+
   it("reports unsupported values instead of guessing", () => {
     expect(resolve({ transform: "translate(1ex)" })).toBe("unsupported");
     expect(resolve({ transform: "translate(10vw)" })).toBe("unsupported"); // no viewport known

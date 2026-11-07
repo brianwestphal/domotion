@@ -16,6 +16,8 @@ import {
 } from "./svg-inline.js";
 import { elementTreeToSvg, elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import type { CapturedElement } from "../capture/types.js";
+import { formatNumberLoose } from "./format.js";
+import { imageRootFontMetricUnits } from "./svg-image-root-font.js";
 
 describe("SVG root attribute editor", () => {
   it("handles quoted angle brackets and preserves unrelated attributes and body", () => {
@@ -591,10 +593,22 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
   it("falls back to the transform attribute about the center, with a warning, for an unresolvable style value", () => {
     resetLastCaptureWarnings([]);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const out = inlineImgSvg(icon(` transform="rotate(30)" style="transform-origin: 2ex"`), place)!;
+    // `line-height: normal` needs the platform line spacing, which is not resolved.
+    const out = inlineImgSvg(icon(` transform="rotate(30)" style="transform-origin: 2lh"`), place)!;
     warn.mockRestore();
     expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
     expect(getLastCaptureWarnings()).toEqual([expect.objectContaining({ feature: "svg-image-root-transform" })]);
+  });
+
+  // Font-metric units read the root's primary font from the text engine.
+  it("resolves font-metric units in the root transform-origin against the root's primary font", () => {
+    const ex = imageRootFontMetricUnits({ get: (n) => (n === "font-family" ? "serif" : null) }, 16, null)?.("ex");
+    expect(ex).toBeGreaterThan(0);
+    const out = inlineImgSvg(
+      icon(` font-family="serif" transform="rotate(30)" style="transform-origin: 2ex 3lh; line-height: 1.5"`),
+      place,
+    )!;
+    expect(out).toContain(`translate(${formatNumberLoose(50 + 2 * (ex ?? 0), 6)} 122) rotate(30)`);
   });
 
   // SVG transforms are affine; a root transform whose perspective reaches the

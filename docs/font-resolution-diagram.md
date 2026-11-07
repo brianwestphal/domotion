@@ -619,6 +619,20 @@ participates in the embedded subset cache key, preventing a previous metric's
 outlines from being reused after an adjustment change.
 `tests/font-size-adjust-general.e2e.test.ts` exercises these transitions.
 
+**Isolated-document primary metrics.** `isolatedPrimaryFontMetrics`
+(`packages/text-engine/src/render/isolated-primary-font-metrics.ts`) gives the
+renderer the primary face's metrics for the font-relative units of an `<img>`
+SVG root transform (`ex` / `cap` / `ch` / `ic`). It resolves the family list
+through the same `resolveFont` as text, with the webfont and `local()` alias
+registries temporarily emptied, because an SVG image document has none of the
+embedding page's `@font-face` rules. It then reads the metrics per platform as
+the pinned Skia scaler does (skia 62efacd3). macOS uses OS/2 v2 `sCapHeight`;
+`CTFontGetCapHeight`'s own value is not derivable from the file, so it is
+left unresolved. The x-height is Blink's `x` path-bound top. FreeType uses
+`sxHeight` / `sCapHeight`, else the `x` / `H` outline top. DirectWrite uses
+OS/2 v2 only. `ch` and `ic` read the advances of `0` and U+6C34. Only the
+macOS values are validated against Chrome.
+
 **The same split governs `wght`.** Only `MatchSystemUIFont` (system-ui) and the
 webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in
 WHICH face the trait/weight matcher picked, and `FontPlatformDataFromCTFont`

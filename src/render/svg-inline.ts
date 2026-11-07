@@ -38,6 +38,7 @@ import {
 } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
+import { imageRootFontMetricUnits } from "./svg-image-root-font.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
@@ -428,6 +429,18 @@ function sheetMaySetFontSize(svgText: string): boolean {
  * initial `medium` (16px). Null when it cannot be known exactly (a relative
  * or keyword value, or a sheet that might set it).
  */
+/** The font and writing-mode properties SVG maps from presentation
+ *  attributes (`SVGElement::CssPropertyIdForSVGAttributeName`,
+ *  `core/svg/svg_element.cc:349-354, 385`, chromium 7d859f27). */
+const FONT_PRESENTATION_ATTRIBUTES: ReadonlySet<string> = new Set([
+  "font-family",
+  "font-size",
+  "font-stretch",
+  "font-style",
+  "font-weight",
+  "writing-mode",
+]);
+
 function rootFontSize(attrValue: string | null, styleValue: string | null, hasSheets: boolean): number | null {
   const value = styleValue ?? attrValue;
   if (value == null) return hasSheets ? null : 16;
@@ -514,13 +527,21 @@ function imageRootTransform(
   const decodedTransform = attr("transform");
   const transformAttr =
     decodedTransform != null && /[<>&"']/.test(decodedTransform) ? rawAttr("transform") : decodedTransform;
+  const fontSize = rootFontSize(attr("font-size"), inline.get("font-size")?.value ?? null, hasSheets);
+  // The root's font: inline style over its font presentation attributes
+  // (`line-height` and the `font` shorthand are not presentation attributes).
+  const fontDeclarations = {
+    get: (name: string): string | null =>
+      inline.get(name)?.value ?? (FONT_PRESENTATION_ATTRIBUTES.has(name) ? attr(name) : null),
+  };
   const resolved = resolveImageRootTransform(
     {
       transformAttr,
       transformOriginAttr: attr("transform-origin"),
       style,
-      fontSize: rootFontSize(attr("font-size"), inline.get("font-size")?.value ?? null, hasSheets),
+      fontSize,
       viewport,
+      fontMetric: imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang")),
     },
     box,
   );

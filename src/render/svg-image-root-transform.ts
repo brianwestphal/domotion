@@ -35,7 +35,9 @@
  * SVG transform: the result is `"projective"`, and the caller routes the image
  * to the `<image>` fallback, whose SVG document applies the transform itself.
  * Viewport units resolve against the image viewport (the object rect) when the
- * caller knows it. `ex` / `ch` and the other font-metric units return
+ * caller knows it. The font-metric units (`ex` / `cap` / `ch` / `ic` / `lh`
+ * and their root forms) resolve through the caller's `fontMetric`, which reads
+ * the root's primary font (`svg-image-root-font.ts`); without one they return
  * `"unsupported"`, so the caller keeps its previous output instead of painting
  * a guess.
  */
@@ -54,12 +56,16 @@ export interface ImageRootTransformInputs {
   /** The image viewport (the concrete object rect in the image's CSS px) for
    *  `vw` / `vh` / `vmin` / `vmax`; null when unknown. */
   viewport?: { w: number; h: number } | null;
+  /** The root's font-metric units in px (`ex`, `rex`, `cap`, `rcap`, `ch`,
+   *  `rch`, `ic`, `ric`, `lh`, `rlh`); null / absent when unknown. */
+  fontMetric?: ((unit: string) => number | null) | null;
 }
 
 /** What font- and viewport-relative lengths resolve against. */
 export interface LengthEnv {
   fontSize: number | null;
   viewport: { w: number; h: number } | null;
+  fontMetric?: ((unit: string) => number | null) | null;
 }
 
 export interface ResolvedImageRootTransform {
@@ -153,6 +159,8 @@ function evaluate(token: string, kind: ValueKind, ctx: ValueContext): number | n
         const per = { vw: vp.w, vh: vp.h, vmin: Math.min(vp.w, vp.h), vmax: Math.max(vp.w, vp.h) }[unit];
         if (per != null) return { value: (n * per) / 100, dim: true };
       }
+      const metric = ctx.fontMetric?.(unit);
+      if (metric != null) return { value: n * metric, dim: true };
       return null;
     }
     if (kind === "angle" && unit in ANGLE_UNITS) return { value: n * ANGLE_UNITS[unit], dim: true };
@@ -638,6 +646,7 @@ export function resolveImageRootTransform(
   const env: LengthEnv = {
     fontSize: inputs.fontSize === undefined ? 16 : inputs.fontSize,
     viewport: inputs.viewport ?? null,
+    fontMetric: inputs.fontMetric ?? null,
   };
   const individual: Array<[string, (value: string) => string | null | "unsupported"]> = [
     ["translate", (value) => translateProperty(value, box, env)],

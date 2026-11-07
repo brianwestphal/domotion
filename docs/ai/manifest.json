@@ -1604,6 +1604,9 @@
       "code": [
         "src/capture/embed.ts",
         "src/capture/image-document-settings.ts",
+        "src/render/svg-image-root-font.ts",
+        "src/render/svg-image-root-font.test.ts",
+        "packages/text-engine/src/render/isolated-primary-font-metrics.ts",
         "src/capture/image-document-settings.test.ts",
         "tests/img-svg-document-settings.e2e.test.ts",
         "src/capture/script/walker/inline-svg.ts",
