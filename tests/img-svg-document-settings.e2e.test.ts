@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Browser, BrowserContextOptions, Page } from "@playwright/test";
 import sharp from "sharp";
 import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/index.js";
@@ -10,6 +10,11 @@ import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js"
 // isolated_svg_document_host.cc:192-199, chromium 7d859f27) and sees no media
 // overrides. These tests hold the capture-time oracle to a real <img> paint in
 // configurations where the page's matchMedia gives the opposite answer.
+//
+// The image's prefers-reduced-motion follows the host OS preference, which is
+// not fixed: GitHub's hosted macOS runners report reduce, a typical dev Mac does
+// not. So the reduced-motion expectation of the cases that do not force it is
+// the host's own answer, measured from a real <img> paint with no emulation.
 
 const W = 120;
 const H = 80;
@@ -54,7 +59,8 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
     context: BrowserContextOptions;
     /** The page's own matchMedia("(prefers-reduced-motion: reduce)"). */
     pageReduce: boolean;
-    expected: [boolean, boolean];
+    /** The image's [reduced-motion, forced-colors] answers; "host" = the host OS preference. */
+    expected: ["host" | boolean, boolean];
     capture: boolean;
   }> = [
     // A reducedMotion emulation is a page media override: the page matches
@@ -64,7 +70,7 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
       args: [],
       context: { reducedMotion: "reduce" },
       pageReduce: true,
-      expected: [false, false],
+      expected: ["host", false],
       capture: true,
     },
     // The browser-wide preference reaches Settings while Playwright's default
@@ -89,18 +95,27 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
       args: [],
       context: { forcedColors: "active" },
       pageReduce: false,
-      expected: [false, true],
+      expected: ["host", true],
       capture: false,
     },
   ];
+  let hostReduce = false;
+  beforeAll(async () => {
+    // Playwright's default emulation is a page media override, which the image
+    // never sees, so an un-emulated page's <img> paint is the host preference.
+    const page = await openPage([], {});
+    [hostReduce] = await blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
+  }, 60_000);
+
   for (const c of cases) {
     it(`agrees with a real <img> paint: ${c.name}`, async () => {
+      const expected: [boolean, boolean] = [c.expected[0] === "host" ? hostReduce : c.expected[0], c.expected[1]];
       const page = await openPage(c.args, c.context);
       expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(c.pageReduce);
       const painted = await blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
-      expect(painted).toEqual(c.expected);
+      expect(painted).toEqual(expected);
       const oracle = await probeImageDocumentSettings(page);
-      expect(oracle).toEqual({ prefersReducedMotion: c.expected[0], forcedColors: c.expected[1] });
+      expect(oracle).toEqual({ prefersReducedMotion: expected[0], forcedColors: expected[1] });
       if (!c.capture) return;
 
       // Capture freezes the image's own answer in the output sheet, which then
@@ -112,9 +127,7 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
       try {
         const raster = await rasterBrowser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
         await raster.setContent(`<!doctype html><body style="margin:0">${svg}</body>`, { waitUntil: "load" });
-        expect(await blueAt(await raster.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }))).toEqual(
-          c.expected,
-        );
+        expect(await blueAt(await raster.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }))).toEqual(expected);
       } finally {
         await closeBrowserSafely(rasterBrowser);
       }
