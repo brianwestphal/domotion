@@ -25,6 +25,11 @@ vi.mock("@domotion/text-engine/font-resolution", async (importOriginal) => ({
   takeEmbeddedFontEmbeddingRestrictions: () => engine.pending.splice(0),
 }));
 
+// tests/e2e-setup.ts imports render modules before this file's mock exists,
+// and they pull in the root font-resolution adapter, so the adapter's binding to
+// the drain was cached unmocked. Re-evaluating the module graph makes the
+// compiler's adapter import see the mock.
+vi.resetModules();
 const { compileStudioInteractiveProject } = await import("./interactive-compile.js");
 const { loadStudioProject } = await import("./project.js");
 
