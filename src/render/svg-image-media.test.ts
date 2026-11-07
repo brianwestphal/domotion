@@ -26,6 +26,25 @@ describe("evaluateMediaQueryList (the <img> SVG document's media environment)", 
     expect(evaluateMediaQueryList("(prefers-color-scheme: dim)", vp, { preferredColorScheme: "dark" })).toBeNull();
   });
 
+  // The image page's copied Settings (CopySettingsFrom): the boolean form is the
+  // setting itself, and both stay undecided when capture did not record them.
+  it("decides prefers-reduced-motion and forced-colors from the image page's copied Settings", () => {
+    const reduce = { prefersReducedMotion: true, forcedColors: false };
+    const motion = { prefersReducedMotion: false, forcedColors: true };
+    expect(evaluateMediaQueryList("(prefers-reduced-motion: reduce)", vp, reduce)).toBe(true);
+    expect(evaluateMediaQueryList("(prefers-reduced-motion: no-preference)", vp, reduce)).toBe(false);
+    expect(evaluateMediaQueryList("(prefers-reduced-motion)", vp, reduce)).toBe(true);
+    expect(evaluateMediaQueryList("(prefers-reduced-motion)", vp, motion)).toBe(false);
+    expect(evaluateMediaQueryList("(prefers-reduced-motion: no-preference)", vp, motion)).toBe(true);
+    expect(evaluateMediaQueryList("(forced-colors: active)", vp, motion)).toBe(true);
+    expect(evaluateMediaQueryList("(forced-colors: none)", vp, motion)).toBe(false);
+    expect(evaluateMediaQueryList("(forced-colors)", vp, reduce)).toBe(false);
+    expect(evaluateMediaQueryList("not (forced-colors: active)", vp, reduce)).toBe(true);
+    expect(evaluateMediaQueryList("(prefers-reduced-motion: reduce)", vp)).toBeNull();
+    expect(evaluateMediaQueryList("(forced-colors)", vp, { forcedColors: null })).toBeNull();
+    expect(evaluateMediaQueryList("(forced-colors: auto)", vp, reduce)).toBeNull();
+  });
+
   // The image page keeps the Settings defaults: no hover, no pointer
   // (HOVER_TYPE_NONE / POINTER_TYPE_NONE), no contrast or transparency
   // preference, and a 1dppx device pixel ratio.

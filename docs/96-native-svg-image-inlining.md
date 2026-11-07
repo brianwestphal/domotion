@@ -18,10 +18,14 @@ tickets:
     "DM-XMBY4P",
     "DM-GZP5P2",
     "DM-9JBJ9F",
+    "DM-KE2WFC",
   ]
 code:
   [
     "src/capture/embed.ts",
+    "src/capture/image-document-settings.ts",
+    "src/capture/image-document-settings.test.ts",
+    "tests/img-svg-document-settings.e2e.test.ts",
     "src/capture/script/walker/inline-svg.ts",
     "src/cli/animate-orchestrator.ts",
     "src/cli/capture.ts",
@@ -113,7 +117,7 @@ An outermost `<svg>`'s `transform` attribute is a presentation attribute for the
   - `prefers-contrast` and `prefers-reduced-transparency` keep `no-preference` (settings.json5:1186-1209).
   - `resolution` and `-webkit-device-pixel-ratio` are 1dppx: `LocalFrame::DevicePixelRatio` multiplies the page's inspector override (1, `core/page/page.cc:276`) by the frame's layout zoom, which is 1 for a frame with no parent (`core/frame/local_frame.cc:288-291, 1839-1846`). dpcm comparisons round to two decimals as `EvalResolution` does.
   - `prefers-color-scheme` is the embedder's: `LayoutImageResource::GetImage` passes `StyleEngine::ResolveColorSchemeForEmbedding(&img style)` to the image (`core/layout/layout_image_resource.cc:227-233`, `core/css/style_engine.cc:4644-4656`). Capture records it on the `<img>` as `imageEmbeddingColorScheme`. When the img's color-scheme flags (its computed `color-scheme`, or for `normal` the first valid `<meta name=color-scheme>`) name no scheme, it is the embedder document's preferred scheme. Otherwise it is the img's used scheme (`ComputedStyleBuilder::SetUsedColorScheme`, `core/style/computed_style.cc:3139-3181`). Forced darkening (a WebView setting) is assumed off.
-  - `prefers-reduced-motion` and `forced-colors` follow the ordinary page's Settings, which the page cannot observe while emulation overrides are active, so they stay undecided.
+  - `prefers-reduced-motion` and `forced-colors` follow the Settings the image page copied from the renderer's first ordinary page (`SVGImage::DataChanged`, `core/svg/graphics/svg_image.cc:901-904`; `CopySettingsFrom`, :192-199). The image page has no media overrides, so `MediaValues::CalculatePrefersReducedMotion` (`core/css/media_values.cc:441-459`) and its StyleEngine's forced colors (`core/css/style_engine.cc:4431`) answer from those Settings. The embedding page's `matchMedia` can disagree: a Playwright `reducedMotion` emulation is a page media override that never reaches the image, while `--force-prefers-reduced-motion` sets Settings under Playwright's default `no-preference` emulation, and a `forcedColors` emulation writes the page's Settings (`core/inspector/inspector_emulation_agent.cc:418-430`). Capture therefore asks an SVG image itself, once per capture with an `<img>` in the tree (`src/capture/image-document-settings.ts`): it draws a `data:` SVG whose rect is hidden under each query into a canvas and reads the alpha, which goes through the same `SVGImage` path in the same renderer process. It records `imageDocumentPrefersReducedMotion` / `imageDocumentForcedColors` on each `<img>`, and both features are then decided in its sheets (`PrefersReducedMotionMediaFeatureEval` / `ForcedColorsMediaFeatureEval`, `core/css/media_query_evaluator.cc:1000-1022, 1207-1228`). If the probe cannot run (a CSP that blocks `data:` images, say) they stay undecided with a `svg-image-sheet-media` warning. `tests/img-svg-document-settings.e2e.test.ts` holds the probe to a real `<img>` paint in configurations where the page's `matchMedia` gives the opposite answer. Fixture: `image-svg-document-settings`.
 
 **The drawn-image clip.** `SVGImage::DrawInternal` clips every SVG image frame to its destination rect before drawing it (`core/svg/graphics/svg_image.cc:548`, Chromium `7d859f27`), whatever the root's `overflow`. Both `<img>` paths therefore clip to the content box intersected with the concrete object rect (`clipToImage` in `src/render/svg-inline.ts`) when the root sets `overflow="visible"` or `overflow: visible`, and when the object rect is inset from the placement box (an aspect-preserving `par` such as `object-fit: contain`), where the nested viewport's own clip at the placement box would be wider than the drawn image. A Chromium probe confirms that content outside the viewBox of an `overflow="visible"` image does not paint outside the image box, and that a `contain` image is clipped to its object rect inside a wider content box. Icons whose object rect fills the placement box keep their output unchanged. Fixture: `image-svg-overflow-visible-clip`.
 

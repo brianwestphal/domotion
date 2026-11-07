@@ -37,6 +37,7 @@ import {
   type CascadedDeclaration,
 } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
+import type { ImageMediaEnv } from "./svg-image-media.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
@@ -754,6 +755,20 @@ export interface InlineSvgPlacement {
    *  `ResolveColorSchemeForEmbedding` for the `<img>`), for
    *  `prefers-color-scheme` in its sheets; unknown when absent. */
   preferredColorScheme?: "light" | "dark";
+  /** The image page's copied `prefersReducedMotion` / `inForcedColors`
+   *  Settings, for `prefers-reduced-motion` / `forced-colors` in its sheets;
+   *  unknown when absent. */
+  prefersReducedMotion?: boolean;
+  forcedColors?: boolean;
+}
+
+/** The embedder-supplied part of the image document's media environment. */
+function imageMediaEnv(p: InlineSvgPlacement): ImageMediaEnv {
+  return {
+    preferredColorScheme: p.preferredColorScheme ?? null,
+    prefersReducedMotion: p.prefersReducedMotion ?? null,
+    forcedColors: p.forcedColors ?? null,
+  };
 }
 
 /** The SVG image document's viewport in its own CSS px, for `@media`: the
@@ -789,7 +804,7 @@ function rootSheetTransform(
       attributes: tokens.map((token): [string, string] => [token.name, token.value]),
     },
     imageViewport(p),
-    { preferredColorScheme: p.preferredColorScheme ?? null },
+    imageMediaEnv(p),
   );
   if (sheet === "unsupported") {
     renderWarn(
@@ -921,9 +936,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     // An inlined `<style>` belongs to the whole output document; scope its
     // selectors to this image (its own document in Blink).
     rootAttrs += ` ${IMAGE_ROOT_ATTR}="${p.idPrefix}"`;
-    body = scopeImageStyleSheets(body, p.idPrefix, imageViewport(p), {
-      preferredColorScheme: p.preferredColorScheme ?? null,
-    });
+    body = scopeImageStyleSheets(body, p.idPrefix, imageViewport(p), imageMediaEnv(p));
   }
 
   const open =

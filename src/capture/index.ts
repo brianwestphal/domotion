@@ -78,6 +78,7 @@ import {
 } from "./replaced-media-frame.js";
 import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element-raster.js";
 import { resetLastCaptureWarnings } from "./warnings.js";
+import { captureImageDocumentSettings } from "./image-document-settings.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { assertCapturedTreeShape } from "./tree-shape.js";
 import { fetchFontSourceBytes, type FontHttpGetter } from "./font-source-bytes.js";
@@ -2312,6 +2313,7 @@ async function captureElementTreeWithWarningsInternal(
       const replacedMediaFrameState = await replacedMediaTransaction?.finalize(typed.tree);
       await rasterizeMaskSources(page, typed.tree, viewport);
       await rasterizeAdvancedGradients(typed.tree, page);
+      await captureImageDocumentSettings(page, typed.tree);
       if (sessionGenericFamilies != null) {
         const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
         for (const root of typed.tree) root.sessionGenericFamilies = captured;

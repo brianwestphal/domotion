@@ -8,14 +8,24 @@
  */
 /**
  * The parts of the image document's media environment that come from its
- * embedder rather than from source: today the preferred color scheme, which
- * Blink's `LayoutImageResource::GetImage` resolves with
- * `StyleEngine::ResolveColorSchemeForEmbedding` and hands to the image
- * (`SVGImage::SetPreferredColorScheme`, `core/svg/graphics/svg_image.cc:306`).
- * Null / absent when the capture did not record it.
+ * embedder rather than from source. Null / absent when the capture did not
+ * record them.
  */
 export interface ImageMediaEnv {
+  /** Blink's `LayoutImageResource::GetImage` resolves it with
+   *  `StyleEngine::ResolveColorSchemeForEmbedding` and hands it to the image
+   *  (`SVGImage::SetPreferredColorScheme`, `core/svg/graphics/svg_image.cc:306`). */
   preferredColorScheme?: "light" | "dark" | null;
+  /** The image page's `Settings::PrefersReducedMotion`, copied from the first
+   *  ordinary page's Settings (`svg_image.cc:901-904`,
+   *  `isolated_svg_document_host.cc:192-193`). The image page has no media
+   *  overrides, so `MediaValues::CalculatePrefersReducedMotion`
+   *  (`core/css/media_values.cc:441-459`) returns it. */
+  prefersReducedMotion?: boolean | null;
+  /** Whether the image page's `Settings::InForcedColors` (copied at
+   *  `isolated_svg_document_host.cc:199`) is set, which is its StyleEngine's
+   *  forced colors (`core/css/style_engine.cc:4431`). */
+  forcedColors?: boolean | null;
 }
 
 /**
@@ -39,9 +49,9 @@ export interface ImageMediaEnv {
  *     `core/page/page.cc:276`) times the frame's layout zoom, 1 for a frame
  *     with no parent (`core/frame/local_frame.cc:288-291, 1839-1846`).
  *   - `prefers-color-scheme` is the embedder's resolved scheme (`env`).
- *   - `prefers-reduced-motion` and `forced-colors` follow the ordinary page's
- *     Settings, which a capture cannot observe while emulation overrides are
- *     active, so they stay undecided.
+ *   - `prefers-reduced-motion` and `forced-colors` follow the copied Settings
+ *     (`env`), which capture asks an SVG image itself for; undecided when it
+ *     did not record them.
  * Feature semantics per `core/css/media_query_evaluator.cc` (chromium
  * 7d859f27). Supports the `all` / `screen` media types, `not` / `only`,
  * `and`, the `min-` / `max-` and range forms of the numeric features, and the
@@ -162,6 +172,21 @@ function discreteFeature(name: string, value: string | null, env: ImageMediaEnv)
     case "prefers-reduced-transparency":
       if (v == null) return false;
       return oneOf(["no-preference", "reduce"]) ? v === "no-preference" : null;
+    case "prefers-reduced-motion": {
+      // PrefersReducedMotionMediaFeatureEval (media_query_evaluator.cc:1000-1022):
+      // the boolean form is the setting itself.
+      const reduce = env.prefersReducedMotion;
+      if (v != null && !oneOf(["no-preference", "reduce"])) return null;
+      if (reduce == null) return null;
+      return v == null ? reduce : (v === "no-preference") !== reduce;
+    }
+    case "forced-colors": {
+      // ForcedColorsMediaFeatureEval (media_query_evaluator.cc:1207-1228).
+      const forced = env.forcedColors;
+      if (v != null && !oneOf(["none", "active"])) return null;
+      if (forced == null) return null;
+      return v == null ? forced : (v === "active") === forced;
+    }
     case "resolution":
     case "-webkit-device-pixel-ratio":
       // EvalResolution: the boolean form is `!!actual_resolution`, and the

@@ -1259,6 +1259,20 @@ export const tests: FeatureTest[] = [
     height: 130,
   },
   {
+    // `prefers-reduced-motion` / `forced-colors` in an `<img>` SVG document
+    // follow the Settings its image page copied from the first ordinary page
+    // (isolated_svg_document_host.cc:192-199, chromium 7d859f27), which
+    // capture reads from an SVG image drawn into a canvas. In the harness both
+    // are off, so the green rect and amber circle paint, and the output sheet
+    // freezes each query instead of leaving it to the output document.
+    name: "image-svg-document-settings",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><style>@media (prefers-reduced-motion: no-preference) { rect { fill: #16a34a } } @media (prefers-reduced-motion) { rect { stroke: #ed1234; stroke-width: 10 } } @media (forced-colors: none) { circle { fill: #f59e0b } } @media (forced-colors) { circle { stroke: #ed1234; stroke-width: 10 } }</style><rect x="10" y="10" width="80" height="35" fill="#64748b"/><circle cx="50" cy="72" r="18" fill="#64748b"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 180,
+    height: 130,
+  },
+  {
     // Blink gives each SVG image its own document, so the image's author
     // sheets reach only its own elements and `:root` means the image root.
     // Inlined, the sheets are scoped to the nested root: the first image's

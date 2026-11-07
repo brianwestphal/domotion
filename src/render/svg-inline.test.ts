@@ -788,3 +788,29 @@ describe("SVG <style> selector scans stay linear on long brace-free runs (DM-NEV
     expect(safe).toBe(true);
   });
 });
+
+describe("<img> SVG document Settings in its sheets", () => {
+  // The image page copies prefersReducedMotion / inForcedColors from the
+  // first ordinary page's Settings (isolated_svg_document_host.cc:192-199);
+  // capture records them on the <img>, and the scoped sheet freezes the answer.
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><style>` +
+    `@media (prefers-reduced-motion: reduce) { rect { fill: blue } } @media (forced-colors) { circle { fill: red } }` +
+    `</style><rect width="10" height="5"/><circle cx="5" cy="8" r="2"/></svg>`;
+  it("freezes prefers-reduced-motion and forced-colors from the recorded Settings", () => {
+    const el = {
+      ...imgEl(SVG_URI(svg)),
+      imageDocumentPrefersReducedMotion: true,
+      imageDocumentForcedColors: false,
+    } as CapturedElement;
+    const out = elementTreeToSvg([el], 100, 100);
+    expect(out).not.toMatch(/prefers-reduced-motion|forced-colors/);
+    expect(out).toMatch(/@media all \{ rect/);
+    expect(out).toMatch(/@media not all \{ circle/);
+  });
+  it("leaves both live without a recording", () => {
+    const out = elementTreeToSvg([imgEl(SVG_URI(svg))], 100, 100);
+    expect(out).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(out).toContain("@media (forced-colors)");
+  });
+});

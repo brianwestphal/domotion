@@ -2250,6 +2250,20 @@ export interface CapturedElement {
    * the image's own sheets. Absent on non-`<img>` elements and older trees.
    */
   imageEmbeddingColorScheme?: "light" | "dark";
+  /**
+   * The `prefersReducedMotion` / `inForcedColors` Settings an `<img>`'s SVG
+   * image document copies from the renderer's first ordinary page
+   * (`SVGImage::DataChanged`, `core/svg/graphics/svg_image.cc:901-904`;
+   * `IsolatedSVGDocumentHost::CopySettingsFrom`,
+   * `isolated_svg_document_host.cc:192-199`). The image page sees no media
+   * overrides, so these can differ from the embedding page's `matchMedia`.
+   * Capture asks an SVG image drawn into a canvas in the same page. They
+   * decide `prefers-reduced-motion` / `forced-colors` in the image's own
+   * sheets. Absent on non-`<img>` elements, older trees, and when the probe
+   * could not run.
+   */
+  imageDocumentPrefersReducedMotion?: boolean;
+  imageDocumentForcedColors?: boolean;
   /** True when the <img> failed to load (`complete && naturalWidth === 0`).
    *  Legacy serialized-tree compatibility only; new live captures use
    *  `brokenImageFallback`. */
