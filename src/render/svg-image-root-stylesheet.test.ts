@@ -193,10 +193,29 @@ describe("cascadeRootStylesheetTransform", () => {
   });
 
   it("is unsupported for an undecidable compound or a transform inside another at-rule", () => {
-    expect(cascade(`<svg><style>svg:has(rect) { transform: rotate(1deg) }</style><rect/></svg>`)).toBe("unsupported");
+    expect(cascade(`<svg><style>svg:lang(en) { transform: rotate(1deg) }</style><rect/></svg>`)).toBe("unsupported");
     expect(
       cascade(`<svg><style>@supports (display: grid) { svg { transform: rotate(1deg) } }</style><rect/></svg>`),
     ).toBe("unsupported");
+  });
+
+  it("decides :has() against the image's own element tree", () => {
+    const doc = (sheet: string): string =>
+      `<svg><style>${sheet}</style><g class="dark"><rect id="a"/></g><circle/></svg>`;
+    expect(valueOf(cascade(doc(`svg:has(> g.dark) { rotate: 1deg }`)), "rotate")).toBe("1deg");
+    expect(cascade(doc(`svg:has(> rect) { rotate: 2deg }`))).toBeNull();
+    expect(valueOf(cascade(doc(`:root:has(g > #a + *) { rotate: 3deg }`)), "rotate")).toBeUndefined();
+    expect(valueOf(cascade(doc(`:root:has(g > #a, circle) { rotate: 3deg }`)), "rotate")).toBe("3deg");
+    // The root has no siblings, so `+` / `~` never match.
+    expect(cascade(doc(`svg:has(+ g) { rotate: 4deg }`))).toBeNull();
+    expect(valueOf(cascade(doc(`svg:not(:has(path)) { rotate: 5deg }`)), "rotate")).toBe("5deg");
+    // Specificity is the most specific argument: #a (1,0,0) beats .dark (0,1,0).
+    expect(
+      valueOf(cascade(doc(`svg:has(#a) { rotate: 6deg } svg:has(.dark):has(rect) { rotate: 7deg }`)), "rotate"),
+    ).toBe("6deg");
+    // Nested :has() and pseudo-elements are left undecided.
+    expect(cascade(doc(`svg:has(g:has(rect)) { rotate: 8deg }`))).toBe("unsupported");
+    expect(cascade(doc(`svg:has(::before) { rotate: 8deg }`))).toBe("unsupported");
   });
 
   it("preserves a CDATA wrapper and comments outside the rewritten rule", () => {

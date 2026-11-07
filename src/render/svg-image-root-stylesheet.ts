@@ -20,7 +20,9 @@
  *   specificity rules;
  * - the dynamic pseudo-classes (`:hover`, `:focus`, `:target`, `:link`, ...),
  *   which never match in an image document: it receives no input, focus or
- *   navigation.
+ *   navigation;
+ * - `:has()`, whose relative argument is matched against the image's own
+ *   element tree (`svg-image-selector-engine.ts`).
  *
  * Attribute values and ids / classes are compared as the DOM holds them:
  * CSS escapes in the selector are decoded, and the root's XML attribute values
@@ -34,7 +36,7 @@
  *   unlayered rules last.
  * Anything else that could reach the root with a transform-family declaration
  * makes the result `unsupported`: a selector this module cannot decide (such
- * as `:has()`), an undecided media query, or another group rule (`@supports`,
+ * as `:lang()`), an undecided media query, or another group rule (`@supports`,
  * `@scope`, `@starting-style`). The caller then keeps its previous output and
  * warns instead of painting a guess.
  *
@@ -50,7 +52,23 @@
  * attribute whenever the image has a sheet (see `svg-image-style-scope.ts`).
  */
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
+import {
+  asciiLower,
+  attributeValueMatches,
+  CSS_IDENT,
+  cssUnescape,
+  decideHas,
+  decodeXmlAttributeValue,
+  expandXmlReferences,
+  matchesSelectorList,
+  NEVER_MATCHING_PSEUDOS,
+  parseImageElementTree,
+  parseSelectorList,
+  type ImageElement,
+} from "./svg-image-selector-engine.js";
 import { anPlusBMatches, IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
+
+export { cssUnescape, decodeXmlAttributeValue, expandXmlReferences };
 
 /** The CSS properties that make up the root's transform. */
 export const ROOT_TRANSFORM_PROPERTIES: ReadonlySet<string> = new Set([
@@ -89,22 +107,6 @@ interface SimpleCompound {
   extraSpec: [number, number, number];
 }
 
-/** Pseudo-classes that never match in an SVG image document: it receives no
- *  input, focus or navigation, and its root is not a link. */
-const NEVER_MATCHING_PSEUDOS = new Set([
-  "hover",
-  "active",
-  "focus",
-  "focus-visible",
-  "focus-within",
-  "target",
-  "target-within",
-  "link",
-  "visited",
-  "any-link",
-  "-webkit-any-link",
-]);
-
 /**
  * A parameterless structural pseudo-class decided for the image root, or null
  * when `name` is not one. The root is the document element and has no
@@ -112,18 +114,17 @@ const NEVER_MATCHING_PSEUDOS = new Set([
  * all hold (`core/css/selector_checker.cc:476-486, 2348-2420`); `:scope` in
  * a document-scoped sheet is the document element (`CheckPseudoScope`,
  * selector_checker.cc:3644-3654); `:empty` asks whether the root has no
- * element child and no non-whitespace text (selector_checker.cc:2310),
- * chromium 7d859f27.
+ * element child and no non-empty text child, whitespace included
+ * (selector_checker.cc:2310-2335), chromium 7d859f27.
  */
 function rootStructuralPseudo(name: string, root: RootFacts): boolean | null {
   if (/^(?:first|last|only)-(?:child|of-type)$/.test(name) || name === "scope") return true;
   if (name === "empty") {
-    const close = root.body.toLowerCase().lastIndexOf("</svg>");
-    const content = (close >= 0 ? root.body.slice(0, close) : root.body)
-      .replace(/<!--[\s\S]*?-->/g, "")
-      .replace(/<\?[\s\S]*?\?>/g, "");
-    if (/<[a-zA-Z]/.test(content)) return false;
-    return !/\S/.test(content.replace(/<!\[CDATA\[|\]\]>/g, ""));
+    // Any element child or non-empty text child (whitespace included) makes
+    // it non-empty (kPseudoEmpty, selector_checker.cc:2310-2335).
+    const tree = rootTree(root);
+    const list = parseSelectorList(":empty");
+    return tree == null || list == null ? null : matchesSelectorList(tree, list, tree);
   }
   return null;
 }
@@ -146,64 +147,7 @@ function matchParen(s: string, open: number): number {
   return -1;
 }
 
-// CSS Syntax §4.3.7: an escape is `\` + 1-6 hex digits (+ one whitespace), or
-// `\` + any other non-newline code point.
-const ESCAPE = "\\\\(?:[0-9a-fA-F]{1,6}[ \\t\\n\\r\\f]?|[^\\n\\r\\f0-9a-fA-F])";
-const IDENT = `-?(?:[_a-zA-Z]|[^\\x00-\\x7f]|${ESCAPE})(?:[-_a-zA-Z0-9]|[^\\x00-\\x7f]|${ESCAPE})*`;
-
-/** Decode CSS escapes (CSS Syntax §4.3.7 "consume an escaped code point";
- *  §4.3.5: an escaped newline inside a string is a line continuation). */
-export function cssUnescape(text: string): string {
-  return text.replace(
-    /\\(?:([0-9a-fA-F]{1,6})(?:\r\n|[ \t\n\r\f])?|(\r\n|[\n\r\f])|([\s\S]))/g,
-    (_m, hex: string | undefined, newline: string | undefined, ch: string | undefined) => {
-      if (hex != null) {
-        const cp = parseInt(hex, 16);
-        return cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) ? "\ufffd" : String.fromCodePoint(cp);
-      }
-      return newline != null ? "" : (ch ?? "");
-    },
-  );
-}
-
-const XML_PREDEFINED: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
-
-/** Expand character references and the predefined entities in XML text;
- *  null when the text references any other entity, which only a DTD could
- *  define, or a code point XML does not allow. */
-export function expandXmlReferences(text: string): string | null {
-  let undecidable = false;
-  const out = text.replace(
-    /&(?:#(\d+)|#x([0-9a-fA-F]+)|([A-Za-z_][\w.-]*));/g,
-    (whole: string, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
-      if (name != null) {
-        if (Object.hasOwn(XML_PREDEFINED, name)) return XML_PREDEFINED[name];
-        undecidable = true;
-        return whole;
-      }
-      const cp = dec != null ? Number(dec) : parseInt(hex ?? "", 16);
-      if (!(cp >= 1 && cp <= 0x10ffff) || (cp >= 0xd800 && cp <= 0xdfff)) {
-        undecidable = true; // not well-formed: no document at all
-        return whole;
-      }
-      return String.fromCodePoint(cp);
-    },
-  );
-  return undecidable ? null : out;
-}
-
-/**
- * An XML attribute value as the parser hands it to the DOM (XML 1.0 §2.11,
- * §3.3.3; libxml2 for an `image/svg+xml` document): line ends normalized, each
- * literal whitespace character replaced by a space, then references expanded
- * (see {@link expandXmlReferences}).
- */
-export function decodeXmlAttributeValue(raw: string): string | null {
-  return expandXmlReferences(raw.replace(/\r\n?/g, "\n").replace(/[\t\n]/g, " "));
-}
-
-/** ASCII case folding, as Blink's case-insensitive attribute matching uses. */
-const asciiLower = (text: string): string => text.replace(/[A-Z]/g, (c) => c.toLowerCase());
+const IDENT = CSS_IDENT;
 
 // `[ns|name op value flag]`; the name may carry an XML prefix (`xlink:href`).
 const ATTR_NAME = `${IDENT}(?::${IDENT})?`;
@@ -220,30 +164,7 @@ function attributeMatches(
   flag: string | undefined,
   root: RootFacts,
 ): boolean | null {
-  if (!root.attributes.has(name)) return false;
-  if (op == null) return true;
-  const actual = root.attributes.get(name);
-  if (actual == null) return null; // a DTD-defined entity: the DOM value is unknown
-  // The `i` flag folds ASCII case only (Blink's EqualIgnoringAsciiCase).
-  const fold = flag?.toLowerCase() === "i";
-  const a = fold ? asciiLower(actual) : actual;
-  const v = fold ? asciiLower(value) : value;
-  switch (op) {
-    case "=":
-      return a === v;
-    case "~=":
-      return v !== "" && !/\s/.test(v) && a.split(/[ \t\n\f\r]+/).includes(v);
-    case "|=":
-      return a === v || a.startsWith(`${v}-`);
-    case "^=":
-      return v !== "" && a.startsWith(v);
-    case "$=":
-      return v !== "" && a.endsWith(v);
-    case "*=":
-      return v !== "" && a.includes(v);
-    default:
-      return false;
-  }
+  return attributeValueMatches(root.attributes.has(name) ? root.attributes.get(name) : undefined, op, value, flag);
 }
 
 /** Decide a selector list argument (of `:is()` / `:not()` / `:where()`)
@@ -339,6 +260,20 @@ function parseCompound(selector: string, root: RootFacts): SimpleCompound | null
         }
         if (!first || !ofMatches) out.extraMatch = false;
         addSpec(spec);
+        i = close + 1;
+        firstToken = false;
+        continue;
+      }
+      if (name === "has") {
+        // `:has()` matches its relative argument against the root's
+        // descendants (CheckPseudoHas, selector_checker.cc:2111-2273), so it
+        // is decided against the image's own element tree. Its specificity is
+        // its most specific argument (css_selector.cc:221-222).
+        const tree = rootTree(root);
+        const has = tree == null ? null : decideHas(s.slice(open + 1, close), tree, tree);
+        if (has == null) return null;
+        if (!has.match) out.extraMatch = false;
+        addSpec(has.specificity);
         i = close + 1;
         firstToken = false;
         continue;
@@ -498,6 +433,16 @@ interface RootFacts {
   attributes: Map<string, string | null>;
   /** The image body (everything after the root's opening tag). */
   body: string;
+  /** The whole SVG source, for the element tree. */
+  source: string;
+  /** The parsed element tree (null: unreadable), built on first use. */
+  tree?: ImageElement | null;
+}
+
+/** The image document's element tree, parsed once per cascade. */
+function rootTree(root: RootFacts): ImageElement | null {
+  if (root.tree === undefined) root.tree = parseImageElementTree(root.source);
+  return root.tree;
 }
 
 function compoundMatchesRoot(c: SimpleCompound, root: RootFacts): boolean | null {
@@ -559,6 +504,7 @@ export function cascadeRootStylesheetTransform(
     classes: className == null ? null : new Set(className.split(/[ \t\n\f\r]+/).filter((c) => c !== "")),
     attributes: new Map((root.attributes ?? []).map(([name, value]) => [name, decodeXmlAttributeValue(value)])),
     body,
+    source: svgText,
   };
   const candidates: Array<{ name: string; layer: string; declaration: CascadedDeclaration }> = [];
   const layers = new CascadeLayers();

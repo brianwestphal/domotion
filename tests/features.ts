@@ -1309,6 +1309,22 @@ export const tests: FeatureTest[] = [
     height: 130,
   },
   {
+    // `:has()` on an `<img>` SVG root is decided against the image's own
+    // DOM (CheckPseudoHas matches the relative argument from the root as the
+    // anchor). The first image has a `g.dark` child and rotates; the
+    // second has its `rect.x` only as a grandchild, so `> rect.x` misses
+    // and the more specific `:has(g rect.x)` scale applies; the third has
+    // no sibling for `+ g` and stays put.
+    name: "image-svg-root-has",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:16px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg:has(> g.dark) { transform: rotate(20deg) }</style><g class="dark"><rect width="100" height="40" fill="#ed1234"/></g><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg:has(> rect.x) { transform: rotate(30deg) } svg:has(g rect.x) { transform: scale(0.6) } svg:has(rect) { transform: rotate(-30deg) }</style><g><rect class="x" width="100" height="40" fill="#0ea5e9"/></g><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg:has(+ g) { transform: rotate(40deg) } :root:not(:has(circle)) { transform-origin: 0 0 }</style><rect width="100" height="40" fill="#f59e0b"/><rect y="60" width="40" height="40" fill="#2563eb"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 360,
+    height: 130,
+  },
+  {
     // Blink lays an `<img>` SVG document out at the concrete object rect
     // (ImagePainter requests the image at dest_rect.size,
     // core/paint/image_painter.cc:218; SVGImage sizes the root to it,
