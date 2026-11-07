@@ -23,7 +23,7 @@
  * `line-height: normal` needs the platform's line spacing, which is not
  * transcribed, so it stays unresolved.
  */
-import { isolatedPrimaryFontMetrics } from "@domotion/text-engine/font-resolution";
+import { isolatedPrimaryFontMetrics } from "./font-resolution.js";
 
 /** The root's font declarations, attribute and inline style merged (style wins). */
 export interface ImageRootFontDeclarations {

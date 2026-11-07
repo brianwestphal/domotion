@@ -27,4 +27,5 @@ export {
   takeEmbeddedFontEmbeddingRestrictions,
   truncateGlyphDefs,
   withRenderTextMode,
+  isolatedPrimaryFontMetrics,
 } from "@domotion/text-engine/font-resolution";
