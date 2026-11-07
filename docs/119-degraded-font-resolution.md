@@ -101,6 +101,22 @@ second stall fails the call, and the caller degrades as for any other helper
 error. Stalls observed so far have been transient: the next request answered in
 milliseconds.
 
+A one-shot request travels as a temporary file passed with `--input <path>`,
+and the child's stdin is connected to nothing (`/dev/null`). The file is
+created exclusively with mode 0600 in the OS temp directory and removed when
+the call returns, whatever the outcome. Earlier the request travelled on stdin.
+libuv gives a `spawnSync` child a socketpair for stdin and keeps the parent end
+open for the whole call, so the child sees EOF only after the parent's private
+loop finishes the write and runs its deferred `shutdown(SHUT_WR)`. Every native
+helper's one-shot mode reads stdin to EOF before it does anything else. A macOS
+unit-suite worker was once found deadlocked in exactly that state, with the
+helper blocked in `read` on fd 0. Why the shutdown never ran was not
+established. With a file, the child does not depend on the parent to end its
+input. All three helpers have accepted `--input` since their first commit. The
+stdin carrier is still used when the request file cannot be written, and on
+Windows when the temp path is not ASCII, because the Windows helper reads its
+arguments through the ANSI `main(argc, argv)`.
+
 ## Test contract
 
 `static-chain-degraded-net.test.ts` proves the critical ordering invariant and

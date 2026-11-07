@@ -96,7 +96,10 @@ describePosix("persistent helper channel failure branches", () => {
       .split("\n")
       .filter(Boolean)
       .map((line) => JSON.parse(line) as string[]);
-    return { serve: rows.filter((r) => r[0] === "--serve").length, oneShot: rows.filter((r) => r.length === 0).length };
+    return {
+      serve: rows.filter((r) => r[0] === "--serve").length,
+      oneShot: rows.filter((r) => r[0] === "--input").length,
+    };
   }
 
   function call(times: number): void {

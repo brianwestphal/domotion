@@ -278,6 +278,12 @@ describe("the per-codepoint fallback memo", () => {
         "  }));",
         '  return JSON.stringify({ results: [{ type: "fallback", fonts }] });',
         "}",
+        // One-shot requests arrive as `--input <file>` with stdin ignored.
+        'const inputAt = process.argv.indexOf("--input");',
+        "if (inputAt >= 0) {",
+        '  const text = process.getBuiltinModule("node:fs").readFileSync(process.argv[inputAt + 1], "utf-8");',
+        "  process.stdout.write(answer(JSON.parse(text)));",
+        "} else {",
         'let buf = "";',
         'process.stdin.on("data", (c) => {',
         '  buf += c.toString("utf-8");',
@@ -289,6 +295,7 @@ describe("the per-codepoint fallback memo", () => {
         "  }",
         "});",
         'process.stdin.on("end", () => { if (buf.trim()) process.stdout.write(answer(JSON.parse(buf))); });',
+        "}",
       ].join("\n"),
     );
     chmodSync(p, 0o755);

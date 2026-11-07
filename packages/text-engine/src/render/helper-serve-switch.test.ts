@@ -114,7 +114,8 @@ describeLive("the helper transport switch changes only the transport", () => {
       spawns,
       // `--serve` on macOS/Linux, `--serve-pipe <name>` on Windows.
       serving: spawns.filter((args) => args[0]?.startsWith("--serve") === true).length,
-      oneShot: spawns.filter((args) => args.length === 0).length,
+      // A one-shot request arrives as `--input <request file>`.
+      oneShot: spawns.filter((args) => args[0] === "--input").length,
     };
   }
 

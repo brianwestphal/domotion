@@ -34,7 +34,8 @@
  * ## Protocol notes
  *
  * `callHelper` tries a persistent `--serve` channel first and falls back to a
- * one-shot `spawnSync(bin, [], { input: JSON })` when that fails. This script
+ * one-shot `spawnSync(bin, ["--input", <request file>])` when that fails (or
+ * the request on stdin when no temp file can be written). This script
  * deliberately EXITS NON-ZERO on `--serve`/`--serve-pipe` so the caller takes
  * the one-shot path, which is the only one worth recording — one request in,
  * one response out, no session state.
@@ -69,7 +70,10 @@ if (PATH_ == null || PATH_ === "") {
   process.exit(2);
 }
 
-const raw = readFileSync(0, "utf8");
+// One-shot requests arrive as `--input <file>`; stdin is the fallback carrier.
+const inputAt = process.argv.indexOf("--input");
+const inputPath = inputAt >= 0 ? process.argv[inputAt + 1] : undefined;
+const raw = readFileSync(inputPath ?? 0, "utf8");
 
 /**
  * Canonical key for a request. The helper's answer depends only on the queries,
@@ -105,7 +109,11 @@ if (MODE === "record") {
     process.stderr.write(`font-env-cassette: FONT_CASSETTE_REAL must point at a real helper (got ${REAL})\n`);
     process.exit(2);
   }
-  const proc = spawnSync(REAL, [], { input: raw, encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 });
+  const proc = spawnSync(REAL, inputPath != null ? ["--input", inputPath] : [], {
+    ...(inputPath != null ? { stdio: ["ignore", "pipe", "pipe"] } : { input: raw }),
+    encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (proc.status !== 0) {
     process.stderr.write(proc.stderr ?? "");
     process.exit(proc.status ?? 1);

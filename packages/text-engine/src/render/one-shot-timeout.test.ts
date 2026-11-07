@@ -3,12 +3,15 @@
 // minutes at 0% CPU with a one-shot child still waiting for EOF on its stdin,
 // and two CI unit jobs later stalled for exactly the 120 s bound inside a test
 // with a 30 s budget. The transport bounds each one-shot call, reports a stall
-// on stderr (every caller swallows the thrown error), and retries it once.
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+// on stderr (every caller swallows the thrown error), and retries it once. It
+// also sends the request as an `--input` file with stdin connected to nothing,
+// so the child never waits for the parent to end its stdin.
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  __oneShotInputFileForTest,
   __setOneShotTimeoutForTest,
   callGlyphHelper,
   clearGlyphHelperTransport,
@@ -22,6 +25,7 @@ const saved = {
   path: process.env.DOMOTION_HELPER_PATH,
   noServe: process.env.DOMOTION_HELPER_NO_SERVE,
   timeout: process.env.DOMOTION_HELPER_ONE_SHOT_TIMEOUT_MS,
+  tmp: { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP },
 };
 
 const REQUEST: HelperRequest = {
@@ -57,7 +61,34 @@ beforeAll(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   __setOneShotTimeoutForTest();
+  for (const [key, value] of Object.entries(saved.tmp)) {
+    if (value == null) delete process.env[key];
+    else process.env[key] = value;
+  }
 });
+
+/** Fake-helper prologue: logs this process's argv and whether its stdin is a
+ *  character device (`/dev/null`), then exposes the request text and its
+ *  carrier. Like the native helpers, it reads stdin to EOF only when no
+ *  `--input` path is given. */
+function prologue(log: string): string {
+  return `const fs = require("node:fs");
+     const args = process.argv.slice(2);
+     fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, devNull: fs.fstatSync(0).isCharacterDevice() }) + "\\n");
+     const inputAt = args.indexOf("--input");
+     const readRequest = (cb) => {
+       if (inputAt >= 0) return cb(fs.readFileSync(args[inputAt + 1], "utf-8"));
+       let input = "";
+       process.stdin.on("data", (d) => (input += d));
+       process.stdin.on("end", () => cb(input));
+     };`;
+}
+
+const spawnLog = (log: string): { args: string[]; devNull: boolean }[] =>
+  readFileSync(log, "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { args: string[]; devNull: boolean });
 afterAll(() => {
   for (const [key, value] of [
     ["DOMOTION_HELPER_PATH", saved.path],
@@ -73,11 +104,9 @@ afterAll(() => {
 
 describe("one-shot helper transport", () => {
   it("turns a helper that never answers into an error after one retry, reporting each stall", () => {
-    // Reads stdin and never exits, even after EOF.
-    const helper = useHelper(
-      "stalled-helper.cjs",
-      'process.stdin.resume(); process.stdin.on("end", () => setInterval(() => {}, 1000));',
-    );
+    // Reads its request and never exits.
+    const log = join(dir, "stalled.log");
+    const helper = useHelper("stalled-helper.cjs", `${prologue(log)} readRequest(() => setInterval(() => {}, 1000));`);
     __setOneShotTimeoutForTest(1000);
     const stderr = captureStderr();
     const started = Date.now();
@@ -94,8 +123,14 @@ describe("one-shot helper transport", () => {
     expect(lines[0]).toContain(`helper ${helper}`);
     expect(lines[0]).toContain("queries fallback×2,meta; fonts [HiraginoSans-W3]");
     expect(lines[0]).toMatch(/— retrying$/);
+    expect(lines[0]).toContain("request bytes via --input");
     expect(lines[1]).toMatch(/\(attempt 2\/2, /);
     expect(lines[1]).not.toMatch(/retrying/);
+    // Each attempt got its own request file, and neither outlives the call.
+    const files = spawnLog(log).map((entry) => entry.args[1]);
+    expect(files).toHaveLength(2);
+    expect(new Set(files).size).toBe(2);
+    for (const file of files) expect(existsSync(file)).toBe(false);
   });
 
   it("answers from the retry when only the first attempt stalls", () => {
@@ -103,22 +138,85 @@ describe("one-shot helper transport", () => {
     const marker = join(dir, "stalled-once.marker");
     useHelper(
       "stall-once-helper.cjs",
-      `const fs = require("node:fs");
+      `${prologue(join(dir, "stall-once.log"))}
        const marker = ${JSON.stringify(marker)};
-       let input = "";
-       process.stdin.on("data", (d) => (input += d));
-       process.stdin.on("end", () => {
+       readRequest((input) => {
          if (!fs.existsSync(marker)) { fs.writeFileSync(marker, ""); setInterval(() => {}, 1000); return; }
          const req = JSON.parse(input);
          process.stdout.write(JSON.stringify({ results: req.queries.map(() => ({ type: "meta", unitsPerEm: 1000 })) }));
        });`,
     );
-    __setOneShotTimeoutForTest(1000);
+    // Generous: the answering attempt starts a Node process, which a loaded
+    // machine can take over a second to do.
+    __setOneShotTimeoutForTest(5000);
     const stderr = captureStderr();
     const response = callGlyphHelper({ fonts: [], queries: [{ type: "meta", fontRef: "base" }] });
     expect(existsSync(marker)).toBe(true);
     expect(response.results).toHaveLength(1);
     expect(stderr.text()).toMatch(/one-shot request stalled \(attempt 1\/2,.*— retrying\n$/);
+  });
+
+  it("sends the request as an --input file with stdin connected to nothing, and removes the file", () => {
+    // Answers only when stdin is /dev/null. Given a live stdin it waits for an
+    // EOF that, in the deadlock this carrier removes, never came.
+    const log = join(dir, "input-file.log");
+    useHelper(
+      "input-file-helper.cjs",
+      `${prologue(log)}
+       if (!fs.fstatSync(0).isCharacterDevice()) { process.stdin.resume(); setInterval(() => {}, 1000); }
+       else readRequest((input) => {
+         const req = JSON.parse(input);
+         process.stdout.write(JSON.stringify({ results: req.queries.map(() => ({ type: "meta", unitsPerEm: req.fonts.length })) }));
+       });`,
+    );
+    __setOneShotTimeoutForTest(5000);
+    const stderr = captureStderr();
+    const response = callGlyphHelper(REQUEST);
+    expect(response.results).toEqual([
+      { type: "meta", unitsPerEm: 1 },
+      { type: "meta", unitsPerEm: 1 },
+      { type: "meta", unitsPerEm: 1 },
+    ]);
+    expect(stderr.text()).toBe("");
+    const [spawned] = spawnLog(log);
+    expect(spawned?.devNull).toBe(true);
+    expect(spawned?.args[0]).toBe("--input");
+    expect(spawned?.args).toHaveLength(2);
+    expect(existsSync(spawned!.args[1]!)).toBe(false);
+  });
+
+  it("removes the request file when the helper fails", () => {
+    const log = join(dir, "failing-input.log");
+    useHelper("failing-input-helper.cjs", `${prologue(log)} process.exit(4);`);
+    expect(() => callGlyphHelper(REQUEST)).toThrow(/exit 4/);
+    const [spawned] = spawnLog(log);
+    expect(spawned?.args[0]).toBe("--input");
+    expect(existsSync(spawned!.args[1]!)).toBe(false);
+  });
+
+  it("falls back to stdin when the request file cannot be written", () => {
+    const log = join(dir, "stdin-fallback.log");
+    useHelper(
+      "stdin-fallback-helper.cjs",
+      `${prologue(log)}
+       readRequest((input) => process.stdout.write(JSON.stringify({ results: JSON.parse(input).queries.map(() => ({ type: "meta" })) })));`,
+    );
+    // `os.tmpdir()` reads TMPDIR on POSIX and TMP/TEMP on Windows.
+    for (const key of Object.keys(saved.tmp)) process.env[key] = join(dir, "missing", "tmp");
+    const stderr = captureStderr();
+    expect(callGlyphHelper(REQUEST).results).toHaveLength(3);
+    expect(stderr.text()).toBe("");
+    const [spawned] = spawnLog(log);
+    expect(spawned).toEqual({ args: [], devNull: false });
+  });
+
+  it("uses a request file on Windows only when the temp path is ASCII", () => {
+    expect(__oneShotInputFileForTest("darwin", "/private/var/folders/x/T")).toBe(true);
+    expect(__oneShotInputFileForTest("linux", "/tmp/caf\u00e9")).toBe(true);
+    expect(__oneShotInputFileForTest("win32", "C:\\Users\\dev\\AppData\\Local\\Temp")).toBe(true);
+    // The Windows helper's ANSI argv would mangle these.
+    expect(__oneShotInputFileForTest("win32", "C:\\Users\\J\u00f6rg\\AppData\\Local\\Temp")).toBe(false);
+    expect(__oneShotInputFileForTest("win32", "C:\\Users\\\u7530\u4e2d\\Temp")).toBe(false);
   });
 
   it("does not retry or report a helper that fails without stalling", () => {

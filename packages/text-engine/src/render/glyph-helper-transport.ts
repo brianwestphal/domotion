@@ -5,9 +5,11 @@
  * child-process state or helper-path lifecycle.
  */
 
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, openSync, readSync, writeSync } from "node:fs";
+import { spawn, spawnSync, type ChildProcess, type SpawnSyncReturns } from "node:child_process";
+import { existsSync, openSync, readSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { acquireGlyphHelperSync, onGlyphHelperRecovered } from "./helper-acquire.js";
 import { hostPlatform } from "./host-platform.js";
@@ -461,6 +463,83 @@ function callHelperPersistent(request: HelperRequest, bin: string): HelperRespon
   }
 }
 
+/** Whether a one-shot request may travel as an `--input` file under `dir`.
+ *  The Windows helper takes its arguments through the ANSI `main(argc, argv)`,
+ *  which would mangle a non-ASCII path, so there only an ASCII temp path
+ *  qualifies. */
+export function __oneShotInputFileForTest(platform: NodeJS.Platform, dir: string): boolean {
+  return platform !== "win32" || /^[\x20-\x7e]*$/.test(dir);
+}
+
+let _oneShotSeq = 0;
+
+function writeOneShotRequest(input: string): string | undefined {
+  const dir = tmpdir();
+  if (!__oneShotInputFileForTest(process.platform, dir)) return undefined;
+  const file = path.join(
+    dir,
+    `domotion-glyph-request-${process.pid}-${_oneShotSeq++}-${randomBytes(4).toString("hex")}.json`,
+  );
+  try {
+    // `wx`: never follow or reuse an existing path; 0600: requests can carry
+    // inline font data, which is no one else's business.
+    writeFileSync(file, input, { flag: "wx", mode: 0o600 });
+    return file;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A one-shot request travels to the helper in a temporary file passed as
+ * `--input <path>`, with the child's stdin connected to nothing.
+ *
+ * It used to travel on stdin (`spawnSync`'s `input`), and that carrier can
+ * deadlock. libuv gives the child a socketpair for stdin and keeps the parent
+ * end open for the whole call; the child sees EOF only once spawnSync's private
+ * loop has finished the write AND run the deferred `shutdown(SHUT_WR)`
+ * (`uv__drain`, libuv 1.51 `src/unix/stream.c`). Every native helper's
+ * one-shot mode reads stdin to EOF before doing anything. A macOS unit-suite
+ * worker was once found exactly in that state: the helper blocked in `read` on
+ * fd 0, the worker at 0% CPU still holding the peer socket, neither able to
+ * proceed. Why the shutdown never ran was not established, and CI later
+ * stalled the same way for the full one-shot bound. A file the child reads to
+ * its end needs no cooperation from the parent, so that wait cannot occur.
+ *
+ * All three helpers have accepted `--input` since they were first committed.
+ * The stdin carrier remains the fallback when the request cannot be written to
+ * the temp directory (a read-only or sandboxed `TMPDIR`) or, on Windows, when
+ * the temp path is not ASCII.
+ */
+function spawnOneShot(
+  bin: string,
+  input: string,
+  timeoutMs: number,
+): SpawnSyncReturns<string> & { carrier: "--input" | "stdin" } {
+  const file = writeOneShotRequest(input);
+  try {
+    const invocation = __helperInvocationForTest(bin, file != null ? ["--input", file] : []);
+    const proc = spawnSync(invocation.command, invocation.args, {
+      ...(file != null ? { stdio: ["ignore", "pipe", "pipe"] as const } : { input }),
+      encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
+      // A spawnSync that never returns blocks the event loop, so no caller-side
+      // timer can fire. Bound the call so a stall becomes an error naming the
+      // request instead of a silent hang.
+      timeout: timeoutMs,
+    });
+    return Object.assign(proc, { carrier: file != null ? ("--input" as const) : ("stdin" as const) });
+  } finally {
+    if (file != null) {
+      try {
+        unlinkSync(file);
+      } catch {
+        /* already gone */
+      }
+    }
+  }
+}
+
 export function callGlyphHelper(request: HelperRequest): HelperResponse {
   // `isGlyphHelperAvailable()` (the gate every caller passes) sets
   // `helperPath`; re-resolve defensively in case it's called standalone.
@@ -494,22 +573,12 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
     }
     return persistent;
   }
-  // Fallback: original one-shot spawnSync.
-  const invocation = __helperInvocationForTest(bin);
+  // Fallback: one-shot spawnSync.
   const input = JSON.stringify(request);
   const timeoutMs = oneShotTimeoutMs();
   for (let attempt = 1; ; attempt++) {
     const started = Date.now();
-    const proc = spawnSync(invocation.command, invocation.args, {
-      input,
-      encoding: "utf-8",
-      maxBuffer: 64 * 1024 * 1024,
-      // A spawnSync that never returns blocks the event loop, so no caller-side
-      // timer can fire: a unit-suite worker once sat 18 minutes at 0% CPU with a
-      // one-shot child still waiting for EOF on its stdin. Bound the call so a
-      // stall becomes an error naming the request instead of a silent hang.
-      timeout: timeoutMs,
-    });
+    const proc = spawnOneShot(bin, input, timeoutMs);
     profAccum("helper-spawnSync", profNow() - _t0);
     if (proc.error == null && proc.status === 0) {
       return parseHelperResponse(proc.stdout, { helperPath: bin ?? null, transport: "one-shot" });
@@ -528,7 +597,7 @@ export function callGlyphHelper(request: HelperRequest): HelperResponse {
       process.stderr.write(
         `domotion: glyph helper one-shot request stalled (attempt ${attempt}/${ONE_SHOT_ATTEMPTS}, ` +
           `pid ${proc.pid ?? "?"}, ${Date.now() - started} ms, bound ${timeoutMs} ms, helper ${bin}; ` +
-          `${describeHelperRequest(request)}; ${input.length} request bytes, ` +
+          `${describeHelperRequest(request)}; ${input.length} request bytes via ${proc.carrier}, ` +
           `${proc.stdout?.length ?? 0} response bytes before the kill)` +
           `${attempt < ONE_SHOT_ATTEMPTS ? " — retrying" : ""}\n`,
       );
