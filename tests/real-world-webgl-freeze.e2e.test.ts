@@ -56,12 +56,14 @@ describe("real-world WebGL freeze", () => {
   for (const variant of ["gl1", "gl2"] as const) {
     it(`keeps the last presented ${variant} frame while the page loop keeps running`, async () => {
       const page = await openLoopPage(variant);
-      expect(await centerPixel(page)).toEqual([255, 0, 0]);
+      // The first WebGL context in a fresh browser can take a while to reach
+      // the compositor (CI's hosted macOS runner showed a gray placeholder at
+      // first), so wait for the first presented frame rather than assume it.
+      await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([255, 0, 0]);
 
       // Control: without the freeze, the loop repaints the new color.
       await setColor(page, [0, 0, 1]);
-      await page.waitForTimeout(100);
-      expect(await centerPixel(page)).toEqual([0, 0, 255]);
+      await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([0, 0, 255]);
 
       expect(await freezeWebGlOutput(page)).toEqual({ frozenFrames: 1, failedFrames: 0 });
       await setColor(page, [0, 1, 0]);
@@ -71,7 +73,7 @@ describe("real-world WebGL freeze", () => {
       expect(await page.evaluate(() => (window as unknown as { loops_: number }).loops_)).toBeGreaterThan(loopsBefore);
       expect(await centerPixel(page)).toEqual([0, 0, 255]);
       await page.close();
-    });
+    }, 60_000);
   }
 
   it("is idempotent and covers every frame of the page", async () => {
