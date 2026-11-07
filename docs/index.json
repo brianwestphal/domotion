@@ -1682,7 +1682,8 @@
           "DM-9JP366",
           "DM-779QKV",
           "DM-JEMQA6",
-          "DM-ZMS0TB"
+          "DM-ZMS0TB",
+          "DM-4S3VQH"
         ],
         "code": [
           ".github/workflows/fast-visual-tests.yml",
@@ -1713,6 +1714,7 @@
           "tests/feature-fixture-state.ts",
           "tests/review-prefetch-state.ts",
           "tests/output/",
+          "tests/real-world-webgl-freeze.ts",
           "tests/runner.tsx",
           "tests/shard-completeness.test.ts",
           "tests/shard.ts",

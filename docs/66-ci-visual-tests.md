@@ -19,6 +19,7 @@ tickets:
     "DM-779QKV",
     "DM-JEMQA6",
     "DM-ZMS0TB",
+    "DM-4S3VQH",
   ]
 code:
   [
@@ -50,6 +51,7 @@ code:
     "tests/feature-fixture-state.ts",
     "tests/review-prefetch-state.ts",
     "tests/output/",
+    "tests/real-world-webgl-freeze.ts",
     "tests/runner.tsx",
     "tests/shard-completeness.test.ts",
     "tests/shard.ts",
@@ -118,6 +120,16 @@ quiesces in-flight HAR routes with Playwright's `ignoreErrors` teardown mode,
 then closes the browser context and records the fixture as errored; this keeps
 a slow public-page replay from crashing the whole suite through an unhandled
 redirect callback.
+Right after its expected screenshot, each real-world job also turns the page's
+WebGL draw and clear entry points into no-ops
+(`tests/real-world-webgl-freeze.ts`). Headless Chromium composites in software,
+so a continuously drawing WebGL canvas (resend.com) made every main-frame
+commit read the canvas back and every capture round trip wait behind it; the
+resend desktop fold and entire-page captures overran the six-minute budget on
+idle runners for that reason, not because of Domotion's own work. Blink only
+marks a WebGL canvas changed from those entry points, so the canvas keeps its
+last presented frame, and the expected pixels and the replaced-element crops
+taken from them are unchanged.
 Dispatch it from Actions as **Fast visual tests (all platforms)**, selecting one
 platform for focused work or `all` for a release/parity pass.
 

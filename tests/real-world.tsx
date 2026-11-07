@@ -53,6 +53,7 @@ import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
+import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
@@ -649,7 +650,8 @@ async function runJob(
         } catch {
           /* */
         }
-        // No-op future setTimeout / setInterval. Don't touch rAF.
+        // No-op future setTimeout / setInterval. Don't touch rAF (WebGL
+        // drawing is frozen after the expected screenshot instead, below).
         try {
           const noop = (() => 0) as unknown as typeof window.setTimeout;
           window.setTimeout = noop;
@@ -707,6 +709,19 @@ async function runJob(
         ? { x: 0, y: 0, width: viewport.width, height: canvasH }
         : { x: 0, y: 0, width: viewport.width, height: viewport.height };
     await page.screenshot({ path: expectedPath, clip: expectedClip });
+
+    // DM-4S3VQH: stop WebGL canvases from drawing for the rest of the job.
+    // Headless Chromium composites in software, so a continuous WebGL loop
+    // (resend.com) makes every commit read the canvas back and every capture
+    // round trip wait for it: 40 computed-style queries took 3.6-5.8 s with
+    // the loop drawing and 0.1-0.2 s without, and the fold capture overran
+    // the job budget on CI. Freezing after the expected screenshot leaves the
+    // reference pixels (and the replaced-element crops taken from them)
+    // untouched. See `tests/real-world-webgl-freeze.ts`.
+    const webGlFreeze = await freezeWebGlOutput(page);
+    if (webGlFreeze.failedFrames > 0) {
+      console.warn(`  ${test}: WebGL output not frozen in ${webGlFreeze.failedFrames} frame(s)`);
+    }
 
     const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };
     // captureElementTreeWithWarnings returns warnings inline so concurrent
