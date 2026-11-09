@@ -942,15 +942,21 @@ async function runJob(
           // exactly there wraps to the hero, so sample 1 ms inside the cycle.
           const cycleEndMs = segments[segments.length - 1].segmentEndMs;
           const seekTimeMs = scrollChunkSeekTimeMs(seg.segmentEndMs, cycleEndMs);
-          await renderPage.evaluate((timeMs) => {
-            for (const a of document.getAnimations()) {
-              try {
-                a.currentTime = timeMs;
-                a.pause();
-              } catch {
-                /* */
-              }
-            }
+          await renderPage.evaluate(async (timeMs) => {
+            await Promise.all(
+              document.getAnimations().map(async (a) => {
+                try {
+                  // pause() can be pending until the next animation frame.
+                  // Assigning currentTime first lets a running animation
+                  // advance past the cycle end before the screenshot.
+                  a.pause();
+                  await a.ready;
+                  a.currentTime = timeMs;
+                } catch {
+                  /* Ignore animations canceled by the page while seeking. */
+                }
+              }),
+            );
           }, seekTimeMs);
           await renderPage.waitForTimeout(50);
           await renderPage.screenshot({ path: actualChunk, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS });
