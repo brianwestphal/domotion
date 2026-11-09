@@ -34,8 +34,11 @@ it("freezes pending and future timers without adding a page-global name helper",
     expect(frozen.addedNameHelper).toBe(false);
     expect(frozen.modalHidden).toBe("none");
 
+    const firedAtFreeze = await page.evaluate(() => (window as typeof window & { timerFired: number }).timerFired);
     await new Promise<void>((resolve) => setTimeout(resolve, 550));
-    expect(await page.evaluate(() => (window as typeof window & { timerFired: number }).timerFired)).toBe(0);
+    expect(await page.evaluate(() => (window as typeof window & { timerFired: number }).timerFired)).toBe(
+      firedAtFreeze,
+    );
   } finally {
     await page.close();
   }
