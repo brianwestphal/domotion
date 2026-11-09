@@ -49,6 +49,15 @@ A bare CLI Mach-O cannot be stapled (only `.app` / `.pkg` / `.dmg` can), so the 
 
 Reads a single JSON request from stdin or `--input <path>.json` and writes a JSON response to stdout. Schema in [`docs/16-coretext-glyph-extraction.md`](../../docs/16-coretext-glyph-extraction.md) §IPC protocol.
 
+A `meta` query may include `fontSizePx`. Current helpers additionally return
+optional `coreTextMetrics` with the query's `fontRef` and requested size, the
+actual Float32 CSS size, explicit `css-px` units, authenticated PostScript and
+family names, upem, name-match status, and Float32 ascent/descent/leading. This
+is separate from legacy design-unit metadata. The helper reopens the original
+font spec at the requested size, preserving explicit variation coordinates
+without carrying an optical handle selected at upem size. Older helpers omit
+the envelope; callers must retain their file-metric or unresolved fallback.
+
 Quick smoke test:
 
 ```bash

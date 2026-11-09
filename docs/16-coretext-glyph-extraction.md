@@ -29,6 +29,7 @@ tickets:
     "DM-886",
     "DM-888",
     "DM-891",
+    "DM-S15JM4",
   ]
 code:
   [
@@ -37,6 +38,9 @@ code:
     "packages/text-engine/src/render/font-resolution.ts",
     "packages/text-engine/src/render/glyph-helper.test.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
+    "packages/text-engine/src/render/darwin-normal-line-spacing.ts",
+    "packages/text-engine/src/render/darwin-normal-line-spacing.test.ts",
+    "tests/image-svg-normal-line-height.e2e.test.ts",
     "packages/text-engine/src/render/glyph-helper-transport.ts",
     "packages/text-engine/src/render/helper-acquire.ts",
     "packages/text-engine/src/render/text-to-path.ts",
@@ -137,7 +141,16 @@ The helper accepts a single request as JSON, either inline on stdin or via `--in
 - `size` is in CSS pixels. CoreText takes points; the helper converts internally.
 - `variations` is optional and applied via `CTFontDescriptorCreateCopyWithVariation` when the font exposes the axes.
 - A `glyphs` query takes an array of either Unicode codepoint (`cp`) or pre-resolved glyph id (`id`) entries. `cp` is resolved with `CTFontGetGlyphsForCharacters`; missing-glyph (id 0) entries return empty path data. This is a one-glyph-per-codepoint mapping with **no shaping** — no ligatures, no reordering, no mark positioning, no dotted-circle insertion.
-- A `meta` query returns the font-level metrics (see response below).
+- A `meta` query returns the font-level metrics (see response below). On macOS,
+  optional `fontSizePx` additionally asks for `coreTextMetrics`: the echoed
+  `fontRef` and requested size, actual Float32 CTFont CSS size, `units: "css-px"`,
+  upem, exact PostScript/family identity, name-match status, and Float32
+  ascent/descent/leading. The helper reopens the original font spec at the
+  requested size, retaining explicit variation coordinates, rather than cloning
+  the upem-sized optical handle. Legacy design-unit fields remain unchanged.
+  Missing/invalid envelopes from older helpers retain file-metric or unresolved
+  fallback. `darwin-normal-line-spacing.ts` validates the envelope before
+  transcribing Blink's per-component normal line-spacing rounding (DM-S15JM4).
 - A `fallback` query (`{ "type": "fallback", "fontRef": "f1", "cps": [ … ], "cssWeight": 700, "bold": true, "italic": false }`) answers, per codepoint, which installed face the system would substitute when the referenced font lacks the character. Declare the base font with its `fontPath` whenever it may be one of Apple's hidden `.`-prefixed faces — CoreText refuses those names and returns Times New Roman without erroring, so a name-only base silently walks the wrong cascade; the query errors rather than substituting when a named `fontRef` cannot be opened — `CTFontCreateForString` from that base, with `found: false` for LastResort. `cssWeight` / `bold` / `italic` carry the run's CSS description and are optional; when present the helper additionally performs Blink's **in-family cut re-selection** on the nominated face (`CTFontCreateWithFontDescriptor` over the substitute's family with the requested symbolic traits and `ToCTFontWeight(cssWeight)`, adopted only when the face moves and still covers the codepoint). Without them the nominated face is returned as-is, which is one cut too light or too heavy at most non-400 weights. See `docs/font-resolution-diagram.md` §8a.
 - A `shape` query (`{ "type": "shape", "fontRef": "f1", "text": "…" }`) runs **CoreText line shaping** _(historical routing: the query still exists in the helper protocol, but emitted runs are now re-shaped by the production HarfBuzz pass described in [doc 115](115-production-harfbuzz-shaping.md); the CoreText `shape` result is not the final glyph stream)_ (`CTLine`) over the string and returns the shaped glyph stream — ids, per-glyph advance and GPOS offset, the UTF-16 source-cluster index, and the outline. This is what makes complex scripts round-trip: an orphaned Brahmic combining mark gets its dotted circle (U+25CC) inserted, conjuncts ligate and reorder, and marks position over their base. Used for the per-Unicode-block font routes whose scripts use a complex shaper (Javanese, Marchen, Telugu, Devanagari, Balinese, …) — fontkit's Universal Shaping Engine is broken for these (it mis-stacks marks and throws on some clusters), so CoreText, the engine Chrome also shapes through on macOS, is the source of truth. Each shaped glyph: `{ "id", "cluster", "ax", "ay", "dx", "dy", "d" }` where `ax`/`ay` are the advance, `dx`/`dy` the offset from the glyph's pen origin, and `cluster` the UTF-16 index into `text`. Outlines are read from each run's OWN CoreText font (`CTRunGetAttributes`) so a sub-substitution still draws the correct glyph. The renderer calls this only when the font covers every source codepoint — an UNCOVERED codepoint must stay on the `glyphs` path so the primary font's real `.notdef` reaches the page (CTLine would substitute a different font's tofu, regressing Sutton SignWriting and the no-font Brahmic blocks; DM-1028).
 

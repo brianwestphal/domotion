@@ -35,7 +35,25 @@ export interface GlyphHelperGlyph {
   rasterRepresentation?: GlyphRasterRepresentation;
 }
 
+/** Optional macOS metrics at the requested CSS size, independent of the
+ * legacy design-unit ascent/descent and upem-sized height queries. */
+export interface CoreTextMetrics {
+  fontRef: string;
+  fontSizePx: number;
+  actualSizePx: number;
+  units: "css-px";
+  unitsPerEm: number;
+  postscriptName: string;
+  familyName: string;
+  nameMatched: boolean;
+  ascent: number;
+  descent: number;
+  leading: number;
+}
+
 export interface MetaResponse {
+  /** Absent from older helpers, which retain the file-metric fallback. */
+  coreTextMetrics?: CoreTextMetrics;
   unitsPerEm: number;
   ascent: number;
   descent: number;

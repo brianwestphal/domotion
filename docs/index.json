@@ -543,7 +543,8 @@
           "DM-881",
           "DM-886",
           "DM-888",
-          "DM-891"
+          "DM-891",
+          "DM-S15JM4"
         ],
         "code": [
           "scripts/probe-coretext-glyphs.mjs",
@@ -551,6 +552,9 @@
           "packages/text-engine/src/render/font-resolution.ts",
           "packages/text-engine/src/render/glyph-helper.test.ts",
           "packages/text-engine/src/render/glyph-helper.ts",
+          "packages/text-engine/src/render/darwin-normal-line-spacing.ts",
+          "packages/text-engine/src/render/darwin-normal-line-spacing.test.ts",
+          "tests/image-svg-normal-line-height.e2e.test.ts",
           "packages/text-engine/src/render/glyph-helper-transport.ts",
           "packages/text-engine/src/render/helper-acquire.ts",
           "packages/text-engine/src/render/text-to-path.ts",

@@ -17,6 +17,7 @@
  * `core/svg/graphics/isolated_svg_document_host.cc:178-189`).
  */
 import { readFileSync } from "node:fs";
+import { darwinNormalLineSpacing } from "./darwin-normal-line-spacing.js";
 import { resolveFont } from "./family-match.js";
 import { getFontSourceInfo, type FontInstance } from "./font-instance.js";
 import { callGlyphHelper, isGlyphHelperAvailable } from "./glyph-helper-transport.js";
@@ -186,7 +187,8 @@ function linuxHintedHeights(font: FontInstance, fontSize: number): { x: number |
  * each Skia component separately and adds its Times/Helvetica/Courier ascent
  * adjustment before storing LineSpacing (simple_font_data.cc:168-176 and
  * font_metrics.cc:102-144, Chromium 7d859f27; SkScalerContext_mac_ct.cpp:
- * 688-691, Skia 62efacd3). A helper-only face has no hhea answer here.
+ * 688-691, Skia 62efacd3). The optional live CoreText envelope supplies
+ * CSS-size metrics first; old helpers retain this file-derived fallback.
  * Linux FreeType uses OS/2 typo metrics when USE_TYPO_METRICS is set, otherwise
  * hhea; Blink can replace ascent/descent with a VDMX strike. Windows' natural
  * DirectWrite metrics agree with hhea for file-backed ordinary faces. Faces
@@ -195,6 +197,10 @@ function linuxHintedHeights(font: FontInstance, fontSize: number): { x: number |
  */
 export function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
   if (platform !== "darwin" && platform !== "linux" && platform !== "win32") return null;
+  if (platform === "darwin") {
+    const native = darwinNormalLineSpacing(font, fontSize);
+    if (native != null) return native;
+  }
   // Native Windows helper instances omit the table directory and lineGap.
   // Use the exact matched static file face for the hhea/OS/2 fields while
   // retaining the helper's glyph advances for the other font units.

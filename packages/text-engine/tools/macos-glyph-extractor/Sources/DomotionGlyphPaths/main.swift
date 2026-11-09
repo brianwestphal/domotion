@@ -185,6 +185,7 @@ struct FontEntry {
     /// per open rather than once per query. Advances are read from it — see
     /// `untrackedAdvances`.
     let cgFont: CGFont
+    let sourceSpec: [String: Any]
     let pointSize: CGFloat
     let unitsPerEm: Int
     /// True when the returned face is guaranteed to be the requested PostScript
@@ -240,7 +241,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
         // current axes and the selected family member (DM-EZJKXN).
         let uiFont = cloneSystemUIBaseIfEffective(f, size: CGFloat(size), request: spec["uiClone"])
         return FontEntry(ref: ref, font: uiFont, cgFont: CTFontCopyGraphicsFont(uiFont, nil),
-                         pointSize: CGFloat(size),
+                         sourceSpec: spec, pointSize: CGFloat(size),
                          unitsPerEm: Int(CTFontGetUnitsPerEm(f)),
                          nameMatched: true, resolution: .systemUI)
     }
@@ -393,7 +394,7 @@ func openFont(spec: [String: Any]) throws -> FontEntry {
 
     let upem = Int(CTFontGetUnitsPerEm(font))
     return FontEntry(ref: ref, font: font, cgFont: CTFontCopyGraphicsFont(font, nil),
-                     pointSize: CGFloat(size), unitsPerEm: upem,
+                     sourceSpec: spec, pointSize: CGFloat(size), unitsPerEm: upem,
                      nameMatched: pickedNameMatch || postscriptName == nil,
                      resolution: resolution)
 }
@@ -779,6 +780,32 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
     if let v = strikeoutPos { result["strikeoutPosition"] = v }
     if let v = strikeoutThick { result["strikeoutThickness"] = v }
     if let axes = ctAxesReport(font) { result["ctAxes"] = axes }
+    // DM-S15JM4: Skia asks CoreText at the CSS-size CTFont, then converts
+    // CGFloat to SkScalar (Float32). Reopen the original spec instead of
+    // resizing the upem-sized handle: that handle may carry an optical-size
+    // coordinate selected for a completely different size.
+    if let requested = (query["fontSizePx"] as? NSNumber)?.doubleValue,
+       requested.isFinite, requested > 0 {
+        let scalarSize = Float(requested)
+        if scalarSize.isFinite, scalarSize > 0 {
+            var sizedSpec = entry.sourceSpec
+            sizedSpec["size"] = Double(scalarSize)
+            if let sized = try? openFont(spec: sizedSpec) {
+                let live = sized.font
+                result["coreTextMetrics"] = [
+                    "fontRef": ref, "fontSizePx": requested,
+                    "actualSizePx": Double(CTFontGetSize(live)),
+                    "units": "css-px", "unitsPerEm": sized.unitsPerEm,
+                    "postscriptName": CTFontCopyPostScriptName(live) as String,
+                    "familyName": CTFontCopyFamilyName(live) as String,
+                    "nameMatched": sized.nameMatched,
+                    "ascent": Double(Float(CTFontGetAscent(live))),
+                    "descent": Double(Float(CTFontGetDescent(live))),
+                    "leading": Double(Float(CTFontGetLeading(live)))
+                ]
+            }
+        }
+    }
     return result
 }
 

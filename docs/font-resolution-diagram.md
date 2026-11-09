@@ -625,13 +625,32 @@ renderer the primary face's metrics for the font-relative units of an `<img>`
 SVG root transform (`ex` / `cap` / `ch` / `ic`). It resolves the family list
 through the same `resolveFont` as text, with the webfont and `local()` alias
 registries temporarily emptied, because an SVG image document has none of the
-embedding page's `@font-face` rules. It then reads the metrics per platform as
-the pinned Skia scaler does (skia 62efacd3). macOS uses OS/2 v2 `sCapHeight`;
-`CTFontGetCapHeight`'s own value is not derivable from the file, so it is
-left unresolved. The x-height is Blink's `x` path-bound top. FreeType uses
-`sxHeight` / `sCapHeight`, else the `x` / `H` outline top. DirectWrite uses
-OS/2 v2 only. `ch` and `ic` read the advances of `0` and U+6C34. Only the
-macOS values are validated against Chrome.
+embedding page's `@font-face` rules. It reads the platform metrics as the
+pinned Skia scaler does (Skia 62efacd3). On macOS, OS/2 v2 `sCapHeight` wins
+when valid; otherwise the authenticated native `ctCapHeight` supplies
+`CTFontGetCapHeight` (`nativeMacMetrics`, `metricUnits` in
+`isolated-primary-font-metrics.ts`). X-height is Blink's `x` path-bound top,
+with the helper's native glyph bounds before the file fallback. FreeType uses
+`sxHeight` / `sCapHeight`, else the hinted `x` / `H` outline top; DirectWrite
+uses OS/2 v2 here. `ch` and `ic` read the advances of `0` and U+6C34.
+
+For normal `lh` / `rlh`, macOS first asks `darwinNormalLineSpacing`
+(`packages/text-engine/src/render/darwin-normal-line-spacing.ts`) for optional
+`coreTextMetrics`: CoreText ascent/descent/leading at the actual Float32 CSS
+size, with echoed request, exact selected PostScript name, upem, and explicit
+CSS-pixel units. The Swift helper reopens the original font spec at that size;
+it does not resize or reuse the upem-sized cap/x-height handle. The consumer
+validates both the outer face metadata and the sized envelope, transcribes
+`AscentDescentWithHacks` (including Times/Helvetica/Courier's 15% ascent
+adjustment), then independently `lroundf`s the three components for
+`LineSpacing` (`font_metrics.cc:102-145`, `simple_font_data.cc:168-176`;
+`SkScalerContext_mac_ct.cpp:688-691`). Ordinary CSS layout retains the default
+non-subpixel ascent/descent path, including tiny fonts. Successful answers are
+cached per selected live face and actual size; unavailable, old or invalid
+helper responses retain the existing hhea file fallback, and helper-only faces
+remain unresolved when no authenticated native answer exists. Real Chromium
+`100lh` checks cover PingFang SC and system-ui's distinct optical coordinates
+in `tests/image-svg-normal-line-height.e2e.test.ts` (DM-S15JM4).
 
 **The same split governs `wght`.** Only `MatchSystemUIFont` (system-ui) and the
 webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in

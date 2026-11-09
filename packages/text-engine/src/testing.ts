@@ -76,7 +76,12 @@ export {
 } from "./render/font-resolution.js";
 export { hostPlatform, hostPlatformIsOverridden, withHostPlatform } from "./render/host-platform.js";
 export { createGlyphHelperFont } from "./render/glyph-helper-font.js";
-export { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "./render/glyph-helper-transport.js";
+export {
+  callGlyphHelper,
+  clearGlyphHelperTransport,
+  isGlyphHelperAvailable,
+  resolvedGlyphHelperPathForEvidence,
+} from "./render/glyph-helper-transport.js";
 export {
   __helperMetaForTest,
   clearGlyphHelperCache,
