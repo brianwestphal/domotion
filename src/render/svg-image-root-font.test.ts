@@ -32,7 +32,18 @@ describe("imageRootFontMetricUnits", () => {
     expect(units?.("lh")).toBe(32);
     expect(units?.("rlh")).toBe(32);
     expect(units?.("vw")).toBeNull();
-    expect(imageRootFontMetricUnits(decls({}), 16, null)?.("lh")).toBeNull();
+    const normal = imageRootFontMetricUnits(decls({}), 16, null)?.("lh");
+    if (process.platform === "darwin") expect(normal).toBeGreaterThan(0);
+    else expect(normal).toBeNull();
+  });
+
+  it.skipIf(process.platform !== "darwin")("resolves normal lh / rlh from macOS primary-font line spacing", () => {
+    const units = imageRootFontMetricUnits(decls({ "font-family": "Arial" }), 16, null);
+    expect(units?.("lh")).toBe(18);
+    expect(units?.("rlh")).toBe(units?.("lh"));
+    expect(imageRootFontMetricUnits(decls({ "font-family": "Arial", "line-height": "normal" }), 16, null)?.("lh")).toBe(
+      18,
+    );
   });
 
   it("reads ex / cap / ch / ic from the resolved primary face, scaled to the font size", () => {

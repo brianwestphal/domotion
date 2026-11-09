@@ -20,8 +20,8 @@
  * `ComputedStyle::ComputedLineHeight` (`core/style/computed_style.cc:
  * 2413-2429`) over the line height `StyleBuilderConverter::ConvertLineHeight`
  * computes (`core/css/resolver/style_builder_converter.cc:2198-2233`).
- * `line-height: normal` needs the platform's line spacing, which is not
- * transcribed, so it stays unresolved.
+ * `line-height: normal` uses the primary face's LineSpacing when its native
+ * metrics can be reproduced; otherwise it remains unresolved.
  */
 import { isolatedPrimaryFontMetrics } from "./font-resolution.js";
 
@@ -148,7 +148,8 @@ export function imageRootFontMetricUnits(
     }
     return resolved;
   };
-  const lineHeight = rootLineHeight(declarations.get("line-height"), fontSize);
+  const lineHeightValue = declarations.get("line-height");
+  const lineHeight = rootLineHeight(lineHeightValue, fontSize);
   return (unit: string): number | null => {
     switch (unit) {
       case "ex":
@@ -169,7 +170,7 @@ export function imageRootFontMetricUnits(
       }
       case "lh":
       case "rlh":
-        return lineHeight;
+        return lineHeight ?? (isInitial(lineHeightValue) ? (metrics()?.lineSpacing ?? null) : null);
       default:
         return null;
     }

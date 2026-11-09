@@ -1218,6 +1218,18 @@ export const tests: FeatureTest[] = [
     width: 420,
     height: 140,
   },
+  ...(process.platform === "darwin"
+    ? [
+        {
+          // On macOS the root's primary font gives normal lh/rlh via CoreText
+          // line spacing, including Blink's per-component rounding.
+          name: "image-svg-root-transform-normal-lh",
+          html: `<div style="padding:20px;background:#e2e8f0"><img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100" font-family="Arial" font-size="16" style="transform: rotate(20deg); transform-origin: 2lh 3rlh"><rect width="100" height="40" fill="#db2777"/><rect y="60" width="40" height="40" fill="#0ea5e9"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a"></div>`,
+          width: 130,
+          height: 130,
+        },
+      ]
+    : []),
   {
     // Root transform values beyond the 2D px subset: calc(), em lengths
     // (against the root's 16px font-size), 3D functions and the axis form of

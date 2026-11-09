@@ -50,9 +50,40 @@ export interface IsolatedPrimaryFontMetrics {
   zeroWidth: number | null;
   /** The horizontal advance of U+6C34 (`IdeographicAdvanceWidth`). */
   ideographicAdvance: number | null;
+  /** Blink's rounded `FontMetrics::LineSpacing` for `line-height: normal`. */
+  lineSpacing: number | null;
 }
 
 type Metric = "x-height" | "cap-height" | "zero" | "water";
+
+/**
+ * macOS Skia reads CoreText ascent, descent, and leading; for file-backed
+ * OpenType faces CoreText uses the hhea values exposed by fontkit. Blink rounds
+ * each Skia component separately and adds its Times/Helvetica/Courier ascent
+ * adjustment before storing LineSpacing (simple_font_data.cc:168-176 and
+ * font_metrics.cc:102-144, Chromium 7d859f27; SkScalerContext_mac_ct.cpp:
+ * 688-691, Skia 62efacd3). A helper-only face has no hhea answer here.
+ * Linux's FreeType VDMX/hinting and Windows' DirectWrite metrics cannot be
+ * recovered from these fontkit fields, so both platforms stay unresolved.
+ */
+function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
+  if (platform !== "darwin") return null;
+  const face = font as FontInstance & { lineGap?: number; familyName?: string };
+  if (face.lineGap == null || !Number.isFinite(face.lineGap)) return null;
+  if (!(font.ascent > 0) || !(font.descent < 0)) return null;
+  const scaled = (units: number): number => Math.fround((Math.fround(units) * Math.fround(fontSize)) / font.unitsPerEm);
+  const rawAscent = scaled(font.ascent);
+  const rawDescent = scaled(-font.descent);
+  // Blink may retain subpixel ascent/descent instead of rounding at tiny sizes.
+  if (rawAscent < 3 || rawAscent + rawDescent < 2) return null;
+  let ascent = Math.round(rawAscent);
+  const descent = Math.round(rawDescent);
+  const leading = Math.round(scaled(face.lineGap));
+  if (face.familyName === "Times" || face.familyName === "Helvetica" || face.familyName === "Courier") {
+    ascent += Math.floor(Math.fround((ascent + descent) * 0.15) + 0.5);
+  }
+  return ascent + descent + leading;
+}
 
 interface Os2Heights {
   version?: number;
@@ -134,6 +165,7 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
       capHeight: px("cap-height"),
       zeroWidth: px("zero"),
       ideographicAdvance: px("water"),
+      lineSpacing: normalLineSpacing(font, request.fontSize, platform),
     };
   } finally {
     restoreFontRegistrations(saved);

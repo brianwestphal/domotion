@@ -593,11 +593,22 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
   it("falls back to the transform attribute about the center, with a warning, for an unresolvable style value", () => {
     resetLastCaptureWarnings([]);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // `line-height: normal` needs the platform line spacing, which is not resolved.
-    const out = inlineImgSvg(icon(` transform="rotate(30)" style="transform-origin: 2lh"`), place)!;
+    // A line-height expressed in ex needs the font's computed line-height,
+    // which this resolver deliberately leaves to the image document.
+    const out = inlineImgSvg(icon(` transform="rotate(30)" style="line-height: 3ex; transform-origin: 2lh"`), place)!;
     warn.mockRestore();
     expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
     expect(getLastCaptureWarnings()).toEqual([expect.objectContaining({ feature: "svg-image-root-transform" })]);
+  });
+
+  it.skipIf(process.platform !== "darwin")("resolves normal lh / rlh in an image root transform", () => {
+    resetLastCaptureWarnings([]);
+    const out = inlineImgSvg(
+      icon(` font-family="Arial" transform="rotate(30)" style="transform-origin: 2lh 3rlh"`),
+      place,
+    )!;
+    expect(out).toContain(`<g transform="translate(86 104) rotate(30) translate(-86 -104)"><svg`);
+    expect(getLastCaptureWarnings()).toEqual([]);
   });
 
   // Font-metric units read the root's primary font from the text engine.
