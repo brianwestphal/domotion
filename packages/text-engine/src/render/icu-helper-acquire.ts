@@ -7,11 +7,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hostPlatform } from "./host-platform.js";
 
-export const ICU_COMPANION_VERSION = "78.2-domotion.1";
-const RELEASE_BASE = `https://github.com/brianwestphal/domotion/releases/download/icu-v${ICU_COMPANION_VERSION}`;
+export const ICU_COMPANION_VERSION = "78.2-domotion.2";
+const LEGACY_ICU_COMPANION_VERSION = "78.2-domotion.1";
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 export interface IcuCompanionTarget {
+  releaseVersion: string;
   executableAsset: string;
   dataAsset: string;
   directory: string;
@@ -48,8 +49,9 @@ export function parseIcuCompanionTarget(raw: string | undefined): IcuCompanionTa
   if (value == null || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   const nonEmpty = (field: unknown): field is string => typeof field === "string" && field !== "";
-  const fields = ["executableAsset", "dataAsset", "directory", "executablePath", "dataPath"] as const;
+  const fields = ["releaseVersion", "executableAsset", "dataAsset", "directory", "executablePath", "dataPath"] as const;
   if (!fields.every((key) => nonEmpty(record[key]))) return null;
+  if (!/^78\.2-domotion\.[1-9]\d*$/.test(record.releaseVersion as string)) return null;
   const assets = record.runtimeAssets;
   if (!Array.isArray(assets)) return null;
   const runtimeAssets: Array<{ asset: string; path: string }> = [];
@@ -60,6 +62,7 @@ export function parseIcuCompanionTarget(raw: string | undefined): IcuCompanionTa
     runtimeAssets.push({ asset, path: assetPath });
   }
   return {
+    releaseVersion: record.releaseVersion as string,
     executableAsset: record.executableAsset as string,
     dataAsset: record.dataAsset as string,
     directory: record.directory as string,
@@ -76,21 +79,30 @@ export function icuAssetStem(platform: NodeJS.Platform, arch: string): string | 
   return null;
 }
 
-export function icuCacheDir(platform: NodeJS.Platform, env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
-  const suffix = path.join("domotion", "icu", ICU_COMPANION_VERSION);
+export function icuCacheDir(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+  version = ICU_COMPANION_VERSION,
+): string {
+  const suffix = path.join("domotion", "icu", version);
   if (platform === "darwin") return path.join(home, "Library", "Caches", suffix);
   if (platform === "win32") return path.join(env.LOCALAPPDATA ?? path.join(home, "AppData", "Local"), suffix);
   return path.join(env.XDG_DATA_HOME ?? path.join(home, ".local", "share"), suffix);
 }
 
-export function resolveIcuCompanionTarget(opts: IcuAcquireOptions = {}): IcuCompanionTarget | null {
+export function resolveIcuCompanionTarget(
+  opts: IcuAcquireOptions = {},
+  version = ICU_COMPANION_VERSION,
+): IcuCompanionTarget | null {
   const platform = opts.platform ?? hostPlatform();
   const stem = icuAssetStem(platform, opts.arch ?? process.arch);
   if (stem == null) return null;
-  const directory = opts.cacheDir ?? icuCacheDir(platform);
+  const directory = opts.cacheDir ?? icuCacheDir(platform, process.env, homedir(), version);
   const executableAsset = platform === "win32" ? `${stem}.exe` : stem;
   const dataAsset = `${stem}.icudtl.dat`;
   return {
+    releaseVersion: version,
     executableAsset,
     dataAsset,
     directory,
@@ -110,8 +122,8 @@ function parseSha(text: string): string {
   return text.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
 }
 
-async function fetchVerified(asset: string): Promise<Buffer | null> {
-  const url = `${RELEASE_BASE}/${asset}`;
+async function fetchVerified(asset: string, version: string): Promise<Buffer | null> {
+  const url = `https://github.com/brianwestphal/domotion/releases/download/icu-v${version}/${asset}`;
   const [body, sha] = await Promise.all([fetch(url), fetch(`${url}.sha256`)]);
   if (!body.ok || !sha.ok) return null;
   const bytes = Buffer.from(await body.arrayBuffer());
@@ -122,9 +134,9 @@ async function fetchVerified(asset: string): Promise<Buffer | null> {
 
 export async function downloadIcuCompanion(target: IcuCompanionTarget): Promise<boolean> {
   const [executable, data, ...runtime] = await Promise.all([
-    fetchVerified(target.executableAsset),
-    fetchVerified(target.dataAsset),
-    ...target.runtimeAssets.map((item) => fetchVerified(item.asset)),
+    fetchVerified(target.executableAsset, target.releaseVersion),
+    fetchVerified(target.dataAsset, target.releaseVersion),
+    ...target.runtimeAssets.map((item) => fetchVerified(item.asset, target.releaseVersion)),
   ]);
   if (executable == null || data == null || runtime.some((bytes) => bytes == null)) return false;
   mkdirSync(target.directory, { recursive: true });
@@ -147,38 +159,40 @@ export async function downloadIcuCompanion(target: IcuCompanionTarget): Promise<
   return true;
 }
 
+function installed(target: IcuCompanionTarget): boolean {
+  return (
+    existsSync(target.executablePath) &&
+    existsSync(target.dataPath) &&
+    target.runtimeAssets.every((item) => existsSync(item.path))
+  );
+}
+
+function downloadSync(target: IcuCompanionTarget): boolean {
+  const workerPath = fileURLToPath(import.meta.url);
+  // Source checkouts need tsx's .js→.ts import remapping; published dist does not.
+  const workerArgs = icuAcquireWorkerArgs(workerPath, target);
+  const proc = spawnSync(process.execPath, workerArgs, { timeout: DOWNLOAD_TIMEOUT_MS, encoding: "utf8" });
+  return proc.status === 0 && installed(target);
+}
+
 let failed = false;
+let preferredDownloadFailed = false;
 export function acquireIcuCompanionSync(opts: IcuAcquireOptions = {}): string | undefined {
   if (process.env.DOMOTION_ICU_HELPER_PATH) return process.env.DOMOTION_ICU_HELPER_PATH;
   if (process.env.DOMOTION_DISABLE_ICU_HELPER === "1") return undefined;
   const target = resolveIcuCompanionTarget(opts);
   if (target == null) return undefined;
-  if (
-    existsSync(target.executablePath) &&
-    existsSync(target.dataPath) &&
-    target.runtimeAssets.every((item) => existsSync(item.path))
-  )
-    return target.executablePath;
-  if (failed) return undefined;
-  const workerPath = fileURLToPath(import.meta.url);
-  // Source-checkout commands run this module through tsx.  A child launched as
-  // plain `node icu-helper-acquire.ts` loses tsx's .js→.ts import remapping
-  // (`./host-platform.js` is still source-only), while the published dist file
-  // is ordinary JavaScript and needs no loader.  Preserve the parent execution
-  // mode only for the source form.
-  const workerArgs = icuAcquireWorkerArgs(workerPath, target);
-  const proc = spawnSync(process.execPath, workerArgs, {
-    timeout: DOWNLOAD_TIMEOUT_MS,
-    encoding: "utf8",
-  });
-  if (
-    proc.status === 0 &&
-    existsSync(target.executablePath) &&
-    existsSync(target.dataPath) &&
-    target.runtimeAssets.every((item) => existsSync(item.path))
-  ) {
-    return target.executablePath;
+  if (installed(target)) return target.executablePath;
+  if (!preferredDownloadFailed) {
+    if (downloadSync(target)) return target.executablePath;
+    preferredDownloadFailed = true;
   }
+  // Keep the published .1 companion usable while the new .2 assets are built
+  // and uploaded. Recheck .2 on a fresh process, so it takes over after release.
+  const legacy = resolveIcuCompanionTarget(opts, LEGACY_ICU_COMPANION_VERSION)!;
+  if (installed(legacy)) return legacy.executablePath;
+  if (failed) return undefined;
+  if (downloadSync(legacy)) return legacy.executablePath;
   failed = true;
   process.stderr.write(
     "domotion: WARNING: Chromium-matched ICU companion is unavailable; continuing with best-effort JavaScript Unicode classification. Font routing and shaping may differ from Chromium.\n",
@@ -190,11 +204,7 @@ export async function acquireIcuCompanion(opts: IcuAcquireOptions = {}): Promise
   if (process.env.DOMOTION_ICU_HELPER_PATH) return process.env.DOMOTION_ICU_HELPER_PATH;
   const target = resolveIcuCompanionTarget(opts);
   if (target == null) return null;
-  if (
-    existsSync(target.executablePath) &&
-    existsSync(target.dataPath) &&
-    target.runtimeAssets.every((item) => existsSync(item.path))
-  ) {
+  if (installed(target)) {
     recoverIcuFromDegradedMode();
     return target.executablePath;
   }
@@ -204,9 +214,22 @@ export async function acquireIcuCompanion(opts: IcuAcquireOptions = {}): Promise
   } catch {
     ok = false;
   }
-  if (!ok) return null;
+  if (ok) {
+    preferredDownloadFailed = false;
+    recoverIcuFromDegradedMode();
+    return target.executablePath;
+  }
+  const legacy = resolveIcuCompanionTarget(opts, LEGACY_ICU_COMPANION_VERSION)!;
+  if (!installed(legacy)) {
+    try {
+      ok = await downloadIcuCompanion(legacy);
+    } catch {
+      ok = false;
+    }
+    if (!ok) return null;
+  }
   recoverIcuFromDegradedMode();
-  return target.executablePath;
+  return legacy.executablePath;
 }
 
 const icuRecoveryListeners = new Set<() => void>();
@@ -231,6 +254,7 @@ function recoverIcuFromDegradedMode(): void {
 
 export function __resetIcuAcquireStateForTest(): void {
   failed = false;
+  preferredDownloadFailed = false;
 }
 
 /** Test-only: latch the synchronous-acquisition failure without a download attempt. */

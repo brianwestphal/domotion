@@ -1,7 +1,12 @@
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ICU_COMPANION_VERSION,
+  __resetIcuAcquireStateForTest,
+  acquireIcuCompanion,
   icuAcquireWorkerArgs,
   icuAssetStem,
   icuCacheDir,
@@ -21,7 +26,7 @@ describe("ICU companion acquisition (DM-2254)", () => {
   });
 
   it("keeps ICU releases independent from the npm package version", () => {
-    expect(ICU_COMPANION_VERSION).toBe("78.2-domotion.1");
+    expect(ICU_COMPANION_VERSION).toBe("78.2-domotion.2");
     expect(icuCacheDir("linux", { XDG_DATA_HOME: "/cache" }, "/home/me")).toBe(
       path.join("/cache", "domotion", "icu", ICU_COMPANION_VERSION),
     );
@@ -29,6 +34,7 @@ describe("ICU companion acquisition (DM-2254)", () => {
 
   it("installs a stable executable name beside the matching data file", () => {
     const target = resolveIcuCompanionTarget({ platform: "win32", arch: "arm64", cacheDir: "C:\\cache" });
+    expect(target?.releaseVersion).toBe(ICU_COMPANION_VERSION);
     expect(target?.executableAsset).toBe("domotion-icu-win32-arm64.exe");
     expect(target?.dataAsset).toBe("domotion-icu-win32-arm64.icudtl.dat");
     expect(target?.runtimeAssets.map((item) => item.asset)).toEqual([
@@ -61,11 +67,46 @@ describe("ICU companion acquisition (DM-2254)", () => {
       "null",
       "[]",
       JSON.stringify({ ...target, dataPath: 3 }),
+      JSON.stringify({ ...target, releaseVersion: "bad" }),
       JSON.stringify({ ...target, directory: "" }),
       JSON.stringify({ ...target, runtimeAssets: "x" }),
       JSON.stringify({ ...target, runtimeAssets: [{ asset: "a" }] }),
     ]) {
       expect(parseIcuCompanionTarget(raw)).toBeNull();
+    }
+  });
+
+  it("retains the previous release as a fallback while new assets are published", () => {
+    const target = resolveIcuCompanionTarget({ platform: "darwin", arch: "arm64" }, "78.2-domotion.1")!;
+    expect(target.releaseVersion).toBe("78.2-domotion.1");
+    expect(target.directory).toContain(path.join("icu", "78.2-domotion.1"));
+  });
+
+  it("tries the new release before downloading the still-published legacy companion", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "dm-icu-release-fallback-"));
+    const previousDataHome = process.env.XDG_DATA_HOME;
+    process.env.XDG_DATA_HOME = dir;
+    const body = "companion asset";
+    const sha = createHash("sha256").update(body).digest("hex");
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (input: string) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("icu-v78.2-domotion.2/")) return new Response("missing", { status: 404 });
+      return new Response(url.endsWith(".sha256") ? sha : body);
+    });
+    try {
+      const executable = await acquireIcuCompanion({ platform: "linux", arch: "x64" });
+      expect(executable).toContain(path.join("icu", "78.2-domotion.1"));
+      expect(readFileSync(executable!, "utf8")).toBe(body);
+      expect(urls.some((url) => url.includes("icu-v78.2-domotion.2/"))).toBe(true);
+      expect(urls.some((url) => url.includes("icu-v78.2-domotion.1/"))).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+      __resetIcuAcquireStateForTest();
+      if (previousDataHome == null) delete process.env.XDG_DATA_HOME;
+      else process.env.XDG_DATA_HOME = previousDataHome;
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

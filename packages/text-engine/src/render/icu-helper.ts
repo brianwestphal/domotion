@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { acquireIcuCompanionSync, onIcuCompanionRecovered } from "./icu-helper-acquire.js";
 
@@ -102,6 +104,8 @@ const MAX_MEMO_ROWS = 65_536;
 let helperPath: string | undefined;
 let checked = false;
 let helperValidated: boolean | null = null;
+let helperTransport: "file" | "stdin" | null = null;
+let requestSequence = 0;
 
 function inTreeHelper(): string | undefined {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -118,22 +122,77 @@ function resolveHelper(): string | undefined {
   return helperPath;
 }
 
+function writeRequestFile(request: string): string | undefined {
+  const dir = tmpdir();
+  // The Windows companion takes argv through ANSI main(), so a non-ASCII
+  // temporary path cannot be passed to --input without losing characters.
+  if (process.platform === "win32" && !/^[\x20-\x7e]*$/.test(dir)) return undefined;
+  const file = path.join(
+    dir,
+    `domotion-icu-request-${process.pid}-${requestSequence++}-${randomBytes(4).toString("hex")}.json`,
+  );
+  try {
+    writeFileSync(file, request, { flag: "wx", mode: 0o600 });
+    return file;
+  } catch {
+    return undefined;
+  }
+}
+
+function callIcuHelper(
+  executable: string,
+  codepoints: readonly number[],
+  preferredCarrier: "file" | "stdin",
+  maxBuffer: number,
+): { response: IcuResponse | null; carrier: "file" | "stdin" } {
+  const request = JSON.stringify({ cps: codepoints });
+  const file = preferredCarrier === "file" ? writeRequestFile(request) : undefined;
+  try {
+    const proc = spawnSync(executable, file == null ? [] : ["--input", file], {
+      ...(file == null ? { input: request } : { stdio: ["ignore", "pipe", "pipe"] as const }),
+      encoding: "utf8",
+      timeout: 10_000,
+      maxBuffer,
+      env: process.env.DOMOTION_ICU_DATA
+        ? process.env
+        : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
+    });
+    return {
+      response: proc.status === 0 ? parseIcuResponse(proc.stdout) : null,
+      carrier: file == null ? "stdin" : "file",
+    };
+  } finally {
+    if (file != null) {
+      try {
+        unlinkSync(file);
+      } catch {
+        // The child has finished; an already-removed request file needs no cleanup.
+      }
+    }
+  }
+}
+
 /** Whether the pinned ICU companion and its data image answer the protocol. */
 export function isIcuHelperAvailable(): boolean {
   if (helperValidated != null) return helperValidated;
   const executable = resolveHelper();
   if (executable == null) return (helperValidated = false);
-  const proc = spawnSync(executable, [], {
-    input: JSON.stringify({ cps: [] }),
-    encoding: "utf8",
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-    env: process.env.DOMOTION_ICU_DATA
-      ? process.env
-      : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
-  });
-  if (proc.status !== 0) return (helperValidated = false);
-  return (helperValidated = parseIcuResponse(proc.stdout) != null);
+  // A pre-file-carrier binary silently ignores --input and parses an empty
+  // stdin stream, producing a valid response with zero rows. Ask for one known
+  // scalar: only a returned U+0041 proves that the file was actually read.
+  const probe = callIcuHelper(executable, [0x41], "file", 1024 * 1024);
+  if (probe.response?.properties.some((row) => row.cp === 0x41)) {
+    helperTransport = probe.carrier;
+    return (helperValidated = true);
+  }
+  if (probe.carrier === "file") {
+    const legacy = callIcuHelper(executable, [0x41], "stdin", 1024 * 1024);
+    if (legacy.response?.properties.some((row) => row.cp === 0x41)) {
+      helperTransport = "stdin";
+      return (helperValidated = true);
+    }
+  }
+  return (helperValidated = false);
 }
 
 export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, IcuCodepointProperties> {
@@ -164,16 +223,7 @@ export function queryIcuCodepoints(codepoints: readonly number[]): Map<number, I
   }
   const executable = missing.length > 0 && isIcuHelperAvailable() ? resolveHelper() : undefined;
   if (missing.length > 0 && executable != null) {
-    const proc = spawnSync(executable, [], {
-      input: JSON.stringify({ cps: missing }),
-      encoding: "utf8",
-      timeout: 10_000,
-      maxBuffer: 64 * 1024 * 1024,
-      env: process.env.DOMOTION_ICU_DATA
-        ? process.env
-        : { ...process.env, DOMOTION_ICU_DATA: path.join(path.dirname(executable), "icudtl.dat") },
-    });
-    const response = proc.status === 0 ? parseIcuResponse(proc.stdout) : null;
+    const { response } = callIcuHelper(executable, missing, helperTransport ?? "stdin", 64 * 1024 * 1024);
     if (response != null) {
       const wanted = new Set(requested);
       for (const row of response.properties) {
@@ -218,6 +268,7 @@ export function clearIcuHelper(): void {
   checked = false;
   helperPath = undefined;
   helperValidated = null;
+  helperTransport = null;
 }
 
 export const __resetIcuHelperForTest = clearIcuHelper;

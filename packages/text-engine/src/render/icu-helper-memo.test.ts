@@ -7,11 +7,13 @@ const fake = vi.hoisted(() => ({ spawns: [] as number[][], fail: false }));
 
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
+  const { readFileSync } = await import("node:fs");
   return {
     ...actual,
-    spawnSync: (_file: string, _args: readonly string[], options: { input: string }) => {
-      const cps = (JSON.parse(options.input) as { cps: number[] }).cps;
-      if (cps.length > 0) fake.spawns.push(cps);
+    spawnSync: (_file: string, args: readonly string[], options: { input?: string }) => {
+      const input = args[0] === "--input" ? readFileSync(args[1]!, "utf8") : options.input;
+      const cps = (JSON.parse(input!) as { cps: number[] }).cps;
+      if (cps.length > 1) fake.spawns.push(cps);
       if (fake.fail) return { status: 1, stdout: "", stderr: "boom" };
       const properties = cps.map((cp) => ({
         cp,

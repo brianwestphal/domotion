@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Independent companion tag (for example icu-v78.2-domotion.1)
+        description: Independent companion tag (for example icu-v78.2-domotion.2)
         required: true
-        default: icu-v78.2-domotion.1
+        default: icu-v78.2-domotion.2
         type: string
 
 permissions:
@@ -65,7 +65,9 @@ jobs:
           cp external/chromium/third_party/icu/common/icudtl.dat packages/text-engine/tools/icu-helper/icudtl.dat
           test "$(packages/text-engine/tools/icu-helper/domotion-icu --version)" = "domotion-icu 1 ICU 78.2"
           printf '{"cps":[65,19968]}' | packages/text-engine/tools/icu-helper/domotion-icu | grep -q '"icuVersion":"78.2"'
-          test "$(packages/text-engine/tools/icu-helper/domotion-icu --digest)" = '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c5c14d607f8d945"}'
+          printf '{"cps":[65,19968]}' > "$RUNNER_TEMP/domotion-icu-request.json"
+          packages/text-engine/tools/icu-helper/domotion-icu --input "$RUNNER_TEMP/domotion-icu-request.json" </dev/null | grep -q '"cp":19968'
+          test "$(packages/text-engine/tools/icu-helper/domotion-icu --digest)" = '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c7b853707dd878a"}'
       - name: Stage and checksum exact Chromium ICU data
         env:
           TARGET: ${{ matrix.target }}
@@ -124,8 +126,11 @@ jobs:
           $version = & packages/text-engine/tools/icu-helper/domotion-icu.exe --version
           if ($version -ne "domotion-icu 1 ICU 78.2") { throw "unexpected version: $version" }
           '{"cps":[65,19968]}' | packages/text-engine/tools/icu-helper/domotion-icu.exe | Select-String '"icuVersion":"78.2"'
+          $request = Join-Path $env:RUNNER_TEMP 'domotion-icu-request.json'
+          Set-Content -Path $request -Value '{"cps":[65,19968]}' -NoNewline -Encoding ascii
+          & packages/text-engine/tools/icu-helper/domotion-icu.exe --input $request | Select-String '"cp":19968'
           $digest = & packages/text-engine/tools/icu-helper/domotion-icu.exe --digest
-          if ($digest -ne '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c5c14d607f8d945"}') { throw "unexpected digest: $digest" }
+          if ($digest -ne '{"protocolVersion":"1","icuVersion":"78.2","codepoints":1114112,"assigned":299382,"fnv1a64":"6c7b853707dd878a"}') { throw "unexpected digest: $digest" }
       - name: Stage assets
         shell: bash
         env:

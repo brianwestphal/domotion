@@ -19,6 +19,9 @@ Protocol:
 { "cps": [65, 8205, 19968] }
 ```
 
+One-shot requests read JSON from stdin by default, or from `--input <path>`
+with stdin closed. The file carrier avoids a stdin-EOF wait in `spawnSync`;
+the TypeScript caller probes it and keeps stdin support for older companions.
 Pass `--serve` for one JSON request/response per line. Every response reports
 the protocol, ICU and Unicode versions so a mismatched cached companion cannot
 silently answer.

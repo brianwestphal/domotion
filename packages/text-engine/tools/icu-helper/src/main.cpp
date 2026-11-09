@@ -253,8 +253,25 @@ int main(int argc, char** argv) {
     }
     return 0;
   }
-  std::ostringstream input;
-  input << std::cin.rdbuf();
-  std::cout << responseJson(input.str()) << '\n';
+  std::ostringstream request;
+  if (argc > 1) {
+    if (argc != 3 || std::string(argv[1]) != "--input") {
+      std::cerr << "Usage: domotion-icu [--version|--digest|--serve|--input <path>]\n";
+      return 2;
+    }
+    std::ifstream input(argv[2], std::ios::binary);
+    if (!input) {
+      std::cerr << "domotion-icu: could not read --input file: " << argv[2] << "\n";
+      return 2;
+    }
+    request << input.rdbuf();
+    if (input.bad()) {
+      std::cerr << "domotion-icu: failed reading --input file: " << argv[2] << "\n";
+      return 2;
+    }
+  } else {
+    request << std::cin.rdbuf();
+  }
+  std::cout << responseJson(request.str()) << '\n';
   return 0;
 }
