@@ -8,8 +8,12 @@ import { freezeWebGlOutputForCapture } from "./webgl-output-freeze.js";
 import type { CapturedElement } from "./types.js";
 
 let browser: Browser;
+// Automatic ANGLE startup can lose the context before its first screenshot
+// (DM-D5JEMG). Select the backend explicitly so these tests exercise live
+// frame ownership; a separate control below covers Chromium's lost-context paint.
+const webGlBrowserOptions = { args: ["--use-angle=swiftshader"] };
 beforeAll(async () => {
-  browser = await launchChromium();
+  browser = await launchChromium(webGlBrowserOptions);
 });
 afterAll(async () => {
   await closeBrowserSafely(browser);
@@ -91,12 +95,16 @@ function walk(nodes: CapturedElement[]): CapturedElement[] {
   return nodes.flatMap((node) => [node, ...walk(node.children ?? [])]);
 }
 
-async function capturedCanvasPixel(page: Page): Promise<number[]> {
+async function capturedCanvasPng(page: Page): Promise<Buffer> {
   const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 80, height: 80 });
   const uri = walk(tree).find((node) => node.tag === "canvas")?.replacedSnapshot?.dataUri;
   expect(uri).toMatch(/^data:image\/png;base64,/);
+  return Buffer.from(uri!.split(",")[1], "base64");
+}
+
+async function capturedCanvasPixel(page: Page): Promise<number[]> {
   return Array.from(
-    await sharp(Buffer.from(uri!.split(",")[1], "base64"))
+    await sharp(await capturedCanvasPng(page))
       .extract({ left: 16, top: 16, width: 1, height: 1 })
       .removeAlpha()
       .raw()
@@ -110,7 +118,7 @@ describe("capture-scoped WebGL output freeze", () => {
     async (preserve) => {
       // Keep the original startup poll cold too: the production capture must
       // not initialize the browser used by the other presentation controls.
-      const coldBrowser = await launchChromium();
+      const coldBrowser = await launchChromium(webGlBrowserOptions);
       try {
         const page = await makeWebGlPage(false, coldBrowser, preserve);
         expect(await capturedCanvasPixel(page)).toEqual([255, 0, 0]);
@@ -121,6 +129,32 @@ describe("capture-scoped WebGL output freeze", () => {
       }
     },
   );
+
+  it("captures Chromium's actual broken-canvas paint when the context was already lost", async () => {
+    const page = await makeWebGlPage();
+    try {
+      await page.evaluate(async () => {
+        const gl = document.querySelector("canvas")!.getContext("webgl")!;
+        const extension = gl.getExtension("WEBGL_lose_context");
+        if (extension == null) throw new Error("context-loss control extension unavailable");
+        await new Promise<void>((resolve) => {
+          gl.canvas.addEventListener("webglcontextlost", () => resolve(), { once: true });
+          extension.loseContext();
+        });
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      });
+      expect(await page.evaluate(() => document.querySelector("canvas")!.getContext("webgl")!.isContextLost())).toBe(
+        true,
+      );
+      const source = await page.screenshot({ clip: { x: 8, y: 8, width: 32, height: 32 } });
+      const actual = await capturedCanvasPng(page);
+      expect(await sharp(actual).ensureAlpha().raw().toBuffer()).toEqual(
+        await sharp(source).ensureAlpha().raw().toBuffer(),
+      );
+    } finally {
+      await page.close();
+    }
+  });
 
   it("holds the presented pixels and restores drawing after disposal", async () => {
     const page = await makeWebGlPage();

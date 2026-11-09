@@ -43,6 +43,10 @@ The result is pixel-faithful at t=0 to whatever Chromium painted in that element
 
 Production capture takes one live screenshot before temporarily muting WebGL drawing methods on canvas-bearing frames. This gives Chromium a presented canvas frame before the CDP and raster passes, then avoids repeated software readback while the rest of the tree is captured. The exact prototype methods are restored when capture ends, including on errors, so a later animation frame can draw again. Frames that cannot be paused add a partial capture warning.
 
+A successful WebGL context creation is not proof that a valid frame was presented. If the context is already lost before capture, Chromium paints its broken-canvas icon; the SVG snapshot reflects that current source paint. Blink explicitly selects that icon when `isContextLost()` is true (`html_canvas_element.cc:1103–1131`, [Chromium 7d859f27](https://chromium.googlesource.com/chromium/src/+/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc)). Capture does not reconstruct an earlier valid frame that was never presented.
+
+DM-D5JEMG reproduced the reported gray pixels as this icon, with context loss witnessed before the first screenshot or freeze. The WebGL regression fixture explicitly selects SwiftShader to keep healthy-frame controls independent of automatic backend initialization: both drawing-buffer modes require red captured pixels and restored blue, and a deliberate pre-capture context-loss control compares the emitted PNG against Chromium's actual paint. The ordinary capture launch defaults remain platform-owned; automatic ANGLE startup loss is tracked separately in DM-C3HJHY.
+
 The pre-existing capture warning is **kept**. These element types are still outside the spirit of the rendering contract (they aren't being reproduced from CSS / DOM); the snapshot exists only to avoid ugly holes in real-world captures, and consumers should know they got a frozen raster, not a faithful re-render.
 
 ## Capture isolation
