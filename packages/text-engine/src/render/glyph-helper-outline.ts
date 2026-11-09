@@ -39,6 +39,9 @@ export interface MetaResponse {
   unitsPerEm: number;
   ascent: number;
   descent: number;
+  /** CoreText scaler heights in font units (macOS helper only). */
+  ctCapHeight?: number;
+  ctXHeight?: number;
   underlinePosition?: number;
   underlineThickness?: number;
   strikeoutPosition?: number;

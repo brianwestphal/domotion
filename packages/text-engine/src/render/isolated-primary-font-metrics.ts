@@ -19,6 +19,7 @@
 import { readFileSync } from "node:fs";
 import { resolveFont } from "./family-match.js";
 import { getFontSourceInfo, type FontInstance } from "./font-instance.js";
+import { callGlyphHelper, isGlyphHelperAvailable } from "./glyph-helper-transport.js";
 import { ITALIC_SLNT } from "./font-paths.darwin.js";
 import { hostPlatform } from "./host-platform.js";
 import { emptyFontRegistrations, restoreFontRegistrations, snapshotFontRegistrations } from "./webfont-registry.js";
@@ -38,8 +39,8 @@ export interface IsolatedPrimaryFontRequest {
 
 /**
  * The primary font's metrics in px. `xHeight` / `capHeight` are null when the
- * platform value is not reproducible from the font file (the caller must not
- * guess); `zeroWidth` / `ideographicAdvance` are null when the face has no
+ * platform answer is unavailable from both the selected native face and font
+ * file (the caller must not guess); `zeroWidth` / `ideographicAdvance` are null when the face has no
  * glyph for `0` / U+6C34, where Blink's own fallbacks apply.
  */
 export interface IsolatedPrimaryFontMetrics {
@@ -56,6 +57,63 @@ export interface IsolatedPrimaryFontMetrics {
 }
 
 type Metric = "x-height" | "cap-height" | "zero" | "water";
+
+interface NativeMacHeights {
+  /** Blink uses the x outline's top for ex after reading Skia's x height. */
+  xGlyphTop: number | null;
+  ctXHeight: number | null;
+  ctCapHeight: number | null;
+}
+
+const nativeMacHeightsCache = new WeakMap<FontInstance, NativeMacHeights>();
+
+function nativeMacHeights(font: FontInstance): NativeMacHeights | null {
+  const cached = nativeMacHeightsCache.get(font);
+  if (cached != null) return cached;
+  const source = getFontSourceInfo(font);
+  if (source == null || !source.nameMatched || !isGlyphHelperAvailable()) return null;
+  let heights: NativeMacHeights | null = null;
+  try {
+    const result = callGlyphHelper({
+      fonts: [
+        {
+          ref: "primary",
+          fontPath: source.path,
+          postscriptName: source.postscriptName,
+          variations: source.variationAxes ?? undefined,
+          size: font.unitsPerEm,
+        },
+      ],
+      queries: [
+        { type: "meta", fontRef: "primary" },
+        { type: "glyphs", fontRef: "primary", glyphs: [{ cp: 0x78 }] },
+      ],
+    });
+    const meta = result.results[0];
+    const glyphs = result.results[1];
+    if (
+      meta?.type === "meta" &&
+      meta.nameMatched !== false &&
+      meta.postscriptName === source.postscriptName &&
+      meta.unitsPerEm === font.unitsPerEm
+    ) {
+      const valid = (value: number | undefined): number | null =>
+        value != null && Number.isFinite(value) && value > 0 && value < 2 * font.unitsPerEm ? value : null;
+      const x = glyphs?.type === "glyphs" ? glyphs.glyphs[0] : undefined;
+      heights = {
+        xGlyphTop: x != null && x.id !== 0 ? valid(x.bbox.y + x.bbox.h) : null,
+        ctXHeight: valid(meta.ctXHeight),
+        ctCapHeight: valid(meta.ctCapHeight),
+      };
+    }
+  } catch {
+    // A missing or older helper leaves the file-derived answer in place.
+  }
+  // A helper may be acquired after an earlier degraded render. Cache only a
+  // successful answer so that later captures can use the newly available binary.
+  if (heights != null) nativeMacHeightsCache.set(font, heights);
+  return heights;
+}
 
 /**
  * macOS Skia reads CoreText ascent, descent, and leading; for file-backed
@@ -196,8 +254,9 @@ interface Os2Heights {
  *   (`SkScalerContext_mac_ct.cpp:696-738`). Blink then replaces a nonzero
  *   x-height with the top of the `x` glyph's path bounds
  *   (`simple_font_data.cc:145-161`, `skia/skia_text_metrics.cc:125-146`).
- *   CoreText's own values are not derivable from the file, so a face without
- *   the OS/2 v2 value has no cap height here.
+ *   CoreText's own values are queried from the native glyph helper when the
+ *   file omits OS/2 v2 cap height. The same helper provides the x glyph bounds
+ *   Blink uses for `ex`, avoiding outline differences in fontkit.
  * - FreeType: `sxHeight` (any OS/2 version), else the `x` outline's top; OS/2
  *   v2 `sCapHeight`, else the `H` outline's top (`SkFontHost_FreeType.cpp:
  *   1576-1634`). Skia reads a hinted control box; this reads the unhinted
@@ -207,7 +266,12 @@ interface Os2Heights {
  * - `0` / U+6C34: the glyph's advance (`ZeroInlineSize`, `IdeographicAdvanceWidth`,
  *   `simple_font_data.cc:435-445, 557-575`).
  */
-function metricUnits(font: FontInstance, metric: Metric, platform: string): number | null {
+function metricUnits(
+  font: FontInstance,
+  metric: Metric,
+  platform: string,
+  native?: NativeMacHeights | null,
+): number | null {
   const glyph = (codePoint: number) => {
     const found = font.glyphForCodePoint(codePoint) as {
       id: number;
@@ -222,11 +286,13 @@ function metricUnits(font: FontInstance, metric: Metric, platform: string): numb
   const v2 = os2 != null && os2.version != null && os2.version >= 2 && os2.version !== 0xffff;
   switch (metric) {
     case "x-height":
-      if (platform === "darwin") return positive(glyph(0x78)?.bbox?.maxY);
+      if (platform === "darwin")
+        return native == null ? positive(glyph(0x78)?.bbox?.maxY) : (native.xGlyphTop ?? native.ctXHeight);
       if (platform === "win32") return v2 ? positive(os2?.xHeight) : null;
       return positive(os2?.xHeight) ?? positive(glyph(0x78)?.bbox?.maxY);
     case "cap-height":
-      if (platform === "darwin" || platform === "win32") return v2 ? positive(os2?.capHeight) : null;
+      if (platform === "darwin") return (v2 ? positive(os2?.capHeight) : null) ?? native?.ctCapHeight ?? null;
+      if (platform === "win32") return v2 ? positive(os2?.capHeight) : null;
       return (v2 ? positive(os2?.capHeight) : null) ?? positive(glyph(0x48)?.bbox?.maxY);
     case "zero":
       return positive(glyph(0x30)?.advanceWidth);
@@ -253,8 +319,9 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
     if (font == null) return null;
     if (!(font.unitsPerEm > 0)) return null;
     const platform = hostPlatform();
+    const native = platform === "darwin" ? nativeMacHeights(font) : null;
     const px = (metric: Metric): number | null => {
-      const units = metricUnits(font, metric, platform);
+      const units = metricUnits(font, metric, platform, native);
       return units == null ? null : (units / font.unitsPerEm) * request.fontSize;
     };
     return {

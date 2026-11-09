@@ -720,6 +720,8 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
     let scale = pointSize > 0 ? Double(upem) / Double(pointSize) : 0
     let ascentUnits = Int((Double(CTFontGetAscent(font)) * scale).rounded())
     let descentUnits = -Int((Double(CTFontGetDescent(font)) * scale).rounded())
+    let capHeightUnits = Double(CTFontGetCapHeight(font)) * scale
+    let xHeightUnits = Double(CTFontGetXHeight(font)) * scale
 
     // Underline / strikeout: read from `post` and `OS/2` tables in design units.
     var underlinePos: Int? = nil
@@ -749,6 +751,8 @@ func runMetaQuery(_ query: [String: Any], fonts: [String: FontEntry]) -> [String
         "unitsPerEm": upem,
         "ascent": ascentUnits,
         "descent": descentUnits,
+        "ctCapHeight": NSDecimalNumber(string: formatNumber(capHeightUnits)),
+        "ctXHeight": NSDecimalNumber(string: formatNumber(xHeightUnits)),
         // How the face was arrived at. `nameMatched: false` means the returned
         // outlines are NOT guaranteed to be the requested PostScript name, so a
         // caller must not read them as evidence of which face was loaded.
