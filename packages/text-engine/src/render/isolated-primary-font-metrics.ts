@@ -58,35 +58,44 @@ export interface IsolatedPrimaryFontMetrics {
 
 type Metric = "x-height" | "cap-height" | "zero" | "water";
 
-interface NativeMacHeights {
+interface NativeMacMetrics {
   /** Blink uses the x outline's top for ex after reading Skia's x height. */
   xGlyphTop: number | null;
   ctXHeight: number | null;
   ctCapHeight: number | null;
+  /** Blink's `ch` uses the selected face's 0 glyph advance. */
+  zeroAdvance: number | null;
 }
 
-const nativeMacHeightsCache = new WeakMap<FontInstance, NativeMacHeights>();
+const nativeMacMetricsCache = new WeakMap<FontInstance, NativeMacMetrics>();
 
-function nativeMacHeights(font: FontInstance): NativeMacHeights | null {
-  const cached = nativeMacHeightsCache.get(font);
+function nativeMacMetrics(font: FontInstance): NativeMacMetrics | null {
+  const cached = nativeMacMetricsCache.get(font);
   if (cached != null) return cached;
   const source = getFontSourceInfo(font);
   if (source == null || !source.nameMatched || !isGlyphHelperAvailable()) return null;
-  let heights: NativeMacHeights | null = null;
+  let metrics: NativeMacMetrics | null = null;
   try {
+    // PingFang SC's installed PostScript name resolves to a CoreText handle
+    // whose glyph IDs and advances differ from opening its reserved TTC member.
+    // Blink uses the named handle: at 20px its x top is 10.34px and zero advance
+    // 12px, while the physical member reports 10.36px / 11.74px despite the
+    // same PostScript string. Keep the file route for other families and for
+    // protected dot-prefixed names that cannot be reopened by name.
+    const namedPingFang = source.postscriptName?.startsWith("PingFangSC-") === true;
     const result = callGlyphHelper({
       fonts: [
         {
           ref: "primary",
-          fontPath: source.path,
+          fontPath: namedPingFang ? undefined : source.path,
           postscriptName: source.postscriptName,
-          variations: source.variationAxes ?? undefined,
+          variations: namedPingFang ? undefined : (source.variationAxes ?? undefined),
           size: font.unitsPerEm,
         },
       ],
       queries: [
         { type: "meta", fontRef: "primary" },
-        { type: "glyphs", fontRef: "primary", glyphs: [{ cp: 0x78 }] },
+        { type: "glyphs", fontRef: "primary", glyphs: [{ cp: 0x78 }, { cp: 0x30 }] },
       ],
     });
     const meta = result.results[0];
@@ -100,10 +109,12 @@ function nativeMacHeights(font: FontInstance): NativeMacHeights | null {
       const valid = (value: number | undefined): number | null =>
         value != null && Number.isFinite(value) && value > 0 && value < 2 * font.unitsPerEm ? value : null;
       const x = glyphs?.type === "glyphs" ? glyphs.glyphs[0] : undefined;
-      heights = {
+      const zero = glyphs?.type === "glyphs" ? glyphs.glyphs[1] : undefined;
+      metrics = {
         xGlyphTop: x != null && x.id !== 0 ? valid(x.bbox.y + x.bbox.h) : null,
         ctXHeight: valid(meta.ctXHeight),
         ctCapHeight: valid(meta.ctCapHeight),
+        zeroAdvance: zero != null && zero.id !== 0 ? valid(zero.advance) : null,
       };
     }
   } catch {
@@ -111,8 +122,8 @@ function nativeMacHeights(font: FontInstance): NativeMacHeights | null {
   }
   // A helper may be acquired after an earlier degraded render. Cache only a
   // successful answer so that later captures can use the newly available binary.
-  if (heights != null) nativeMacHeightsCache.set(font, heights);
-  return heights;
+  if (metrics != null) nativeMacMetricsCache.set(font, metrics);
+  return metrics;
 }
 
 /**
@@ -270,7 +281,7 @@ function metricUnits(
   font: FontInstance,
   metric: Metric,
   platform: string,
-  native?: NativeMacHeights | null,
+  native?: NativeMacMetrics | null,
 ): number | null {
   const glyph = (codePoint: number) => {
     const found = font.glyphForCodePoint(codePoint) as {
@@ -295,7 +306,9 @@ function metricUnits(
       if (platform === "win32") return v2 ? positive(os2?.capHeight) : null;
       return (v2 ? positive(os2?.capHeight) : null) ?? positive(glyph(0x48)?.bbox?.maxY);
     case "zero":
-      return positive(glyph(0x30)?.advanceWidth);
+      return platform === "darwin"
+        ? (native?.zeroAdvance ?? positive(glyph(0x30)?.advanceWidth))
+        : positive(glyph(0x30)?.advanceWidth);
     case "water":
       return positive(glyph(0x6c34)?.advanceWidth);
   }
@@ -319,7 +332,7 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
     if (font == null) return null;
     if (!(font.unitsPerEm > 0)) return null;
     const platform = hostPlatform();
-    const native = platform === "darwin" ? nativeMacHeights(font) : null;
+    const native = platform === "darwin" ? nativeMacMetrics(font) : null;
     const px = (metric: Metric): number | null => {
       const units = metricUnits(font, metric, platform, native);
       return units == null ? null : (units / font.unitsPerEm) * request.fontSize;
