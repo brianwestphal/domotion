@@ -22,17 +22,20 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: "Release tag whose source is built and whose release receives the assets"
+        description: "Release tag whose release receives the matching-version helper assets"
         required: true
         type: string
-  # Manual re-run against an EXISTING release tag — lets you iterate on the
-  # signing setup without cutting a new version (it only uploads helper assets,
-  # never publishes to npm).
+  # Manual helper-only refresh of an EXISTING release. An optional source_ref
+  # selects newer same-version source without moving the tag or publishing npm.
   workflow_dispatch:
     inputs:
       tag:
         description: "Existing release tag to (re)attach the helper binary to, e.g. v0.3.1"
         required: true
+        type: string
+      source_ref:
+        description: "Optional source ref for a helper-only refresh; defaults to tag and must have the same package version"
+        required: false
         type: string
 
 permissions:
@@ -43,11 +46,77 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve-source:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      source_package_version: ${{ steps.source.outputs.source_package_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || inputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Resolve and validate the helper source
+        id: source
+        env:
+          TAG: ${{ inputs.tag }}
+          SOURCE_REF: ${{ inputs.source_ref || inputs.tag }}
+          SOURCE_OVERRIDE: ${{ inputs.source_ref }}
+          PROVENANCE_PATH: ${{ runner.temp }}/domotion-helper-provenance.json
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { appendFileSync, readFileSync, writeFileSync } = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const tag = process.env.TAG;
+          if (typeof tag !== 'string' || tag !== tag.trim() || !/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(tag)) {
+            throw new Error('Expected an explicit v-prefixed release version');
+          }
+          const sourcePackageVersion = JSON.parse(readFileSync('package.json', 'utf8')).version;
+          const targetVersion = tag.slice(1);
+          // release.yml's beta publish lane bumps the package version ephemerally.
+          // Preserve that existing tag-source flow, never an explicit refresh ref.
+          const betaBase = /^v(\d+\.\d+\.\d+)-beta\.\d+$/.exec(tag)?.[1];
+          const defaultTagBeta = betaBase != null && !process.env.SOURCE_OVERRIDE && process.env.SOURCE_REF === tag && sourcePackageVersion === betaBase;
+          if (sourcePackageVersion !== targetVersion && !defaultTagBeta) throw new Error(`Source package version ${sourcePackageVersion} does not match target ${tag}`);
+          const versionPolicy = sourcePackageVersion === targetVersion ? 'exact' : 'default-tag-beta-base';
+          const commit = execFileSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { encoding: 'utf8' }).trim();
+          if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error('Source did not resolve to a full commit SHA');
+          const provenance = {
+            schemaVersion: 1, tag, requestedSourceRef: process.env.SOURCE_REF,
+            sourceCommit: commit, sourcePackageVersion, targetVersion, versionPolicy,
+            repository: process.env.GITHUB_REPOSITORY,
+            workflowCommit: process.env.WORKFLOW_SHA,
+            runId: process.env.GITHUB_RUN_ID, resolutionRunAttempt: process.env.GITHUB_RUN_ATTEMPT,
+            assets: {},
+          };
+          writeFileSync(process.env.PROVENANCE_PATH, JSON.stringify(provenance, null, 2) + '\n');
+          appendFileSync(process.env.GITHUB_OUTPUT, `source_sha=${commit}\nsource_package_version=${sourcePackageVersion}\n`);
+          console.log(`Pinned ${tag} helper source to ${commit} (source package ${sourcePackageVersion}, target ${targetVersion})`);
+          NODE
+      - name: Require an existing target release before native builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: gh release view "$TAG" >/dev/null
+      - name: Retain resolved source provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-helper-source
+          path: ${{ runner.temp }}/domotion-helper-provenance.json
+          if-no-files-found: error
+          retention-days: 7
+
   macos-glyph-extractor:
+    needs: resolve-source
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.tag }}" }
+        with: { ref: "${{ needs.resolve-source.outputs.source_sha }}" }
 
       # Imports the Developer ID Application cert (+ private key) from the
       # base64-encoded .p12 secret into a throwaway keychain and authorizes
@@ -104,20 +173,21 @@ jobs:
           retention-days: 7
 
   linux-glyph-extractor:
+    needs: resolve-source
     runs-on: ubuntu-22.04 # glibc 2.35 floor — see packages/text-engine/tools/linux-glyph-extractor/Dockerfile
     steps:
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.tag }}" }
+        with: { ref: "${{ needs.resolve-source.outputs.source_sha }}" }
 
-      # FreeType dev headers + a C++17 toolchain. The binary links
-      # libfreetype.so.6 dynamically; that shared library is always present
+      # FreeType + Fontconfig dev headers and a C++17 toolchain. The binary links
+      # libfreetype.so.6 and libfontconfig.so.1 dynamically; both are present
       # wherever Domotion runs because Chromium-on-Linux requires it
       # (libfreetype6 is part of `npx playwright install-deps`).
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config libfreetype-dev
+            build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
 
       - name: Build the helper
         run: bash packages/text-engine/tools/linux-glyph-extractor/build.sh
@@ -145,16 +215,17 @@ jobs:
           retention-days: 7
 
   linux-arm64-glyph-extractor:
+    needs: resolve-source
     runs-on: ubuntu-22.04-arm # GitHub-hosted arm64 Linux runner; glibc 2.35 floor
     steps:
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.tag }}" }
+        with: { ref: "${{ needs.resolve-source.outputs.source_sha }}" }
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config libfreetype-dev
+            build-essential cmake pkg-config libfreetype-dev libfontconfig-dev
 
       # build.sh compiles for the host arch, so on an arm64 runner it produces
       # the arm64 binary — no cross-compilation needed.
@@ -182,10 +253,11 @@ jobs:
           retention-days: 7
 
   windows-glyph-extractor:
+    needs: resolve-source
     runs-on: windows-latest # x64; DirectWrite + the Windows SDK ship preinstalled
     steps:
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.tag }}" }
+        with: { ref: "${{ needs.resolve-source.outputs.source_sha }}" }
 
       # MSVC + the Windows SDK (dwrite.lib, D2D headers) are preinstalled on the
       # runner. build.ps1 drives CMake and links the CRT statically (/MT), so the
@@ -218,10 +290,11 @@ jobs:
           retention-days: 7
 
   windows-arm64-glyph-extractor:
+    needs: resolve-source
     runs-on: windows-11-arm # GitHub-hosted arm64 Windows runner; MSVC + SDK preinstalled
     steps:
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.tag }}" }
+        with: { ref: "${{ needs.resolve-source.outputs.source_sha }}" }
 
       # build.ps1 drives CMake for the host arch; on the arm64 runner it links
       # an arm64 .exe (CRT statically linked /MT, no VC++ redistributable).
@@ -251,6 +324,7 @@ jobs:
 
   attach-binaries:
     needs:
+      - resolve-source
       - macos-glyph-extractor
       - linux-glyph-extractor
       - linux-arm64-glyph-extractor
@@ -264,6 +338,64 @@ jobs:
           pattern: release-helper-*
           path: ${{ runner.temp }}/release-helpers
           merge-multiple: true
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Verify the complete helper set and commit provenance
+        env:
+          ASSET_DIR: ${{ runner.temp }}/release-helpers
+          TAG: ${{ inputs.tag }}
+          SOURCE_SHA: ${{ needs.resolve-source.outputs.source_sha }}
+          SOURCE_PACKAGE_VERSION: ${{ needs.resolve-source.outputs.source_package_version }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { createHash } = require('node:crypto');
+          const { readFileSync, readdirSync, writeFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          const dir = process.env.ASSET_DIR;
+          const name = 'domotion-helper-provenance.json';
+          const provenance = JSON.parse(readFileSync(join(dir, name), 'utf8'));
+          if (provenance.schemaVersion !== 1 || provenance.tag !== process.env.TAG ||
+              provenance.sourceCommit !== process.env.SOURCE_SHA || provenance.sourcePackageVersion !== process.env.SOURCE_PACKAGE_VERSION || provenance.targetVersion !== process.env.TAG.slice(1) ||
+              !/^[0-9a-f]{40}$/.test(provenance.sourceCommit)) throw new Error('Source provenance does not match the pinned build');
+          const exact = provenance.sourcePackageVersion === provenance.targetVersion;
+          const betaBase = /^v(\d+\.\d+\.\d+)-beta\.\d+$/.exec(provenance.tag)?.[1];
+          if ((!exact && !(betaBase != null && provenance.requestedSourceRef === provenance.tag && provenance.sourcePackageVersion === betaBase)) ||
+              provenance.versionPolicy !== (exact ? 'exact' : 'default-tag-beta-base')) throw new Error('Invalid source version compatibility provenance');
+          const assets = [
+            'domotion-glyph-paths-darwin-universal',
+            'domotion-glyph-paths-linux-x64', 'domotion-glyph-paths-linux-arm64',
+            'domotion-glyph-paths-win32-x64.exe', 'domotion-glyph-paths-win32-arm64.exe',
+          ];
+          const expected = new Set([name, ...assets.flatMap(asset => [asset, asset + '.sha256'])]);
+          const unexpected = readdirSync(dir).filter(file => !expected.has(file));
+          if (unexpected.length > 0) throw new Error(`Unexpected helper artifacts: ${unexpected.join(', ')}`);
+          const records = {};
+          for (const asset of assets) {
+            const binary = readFileSync(join(dir, asset));
+            if (binary.length === 0) throw new Error(`Empty helper asset: ${asset}`);
+            const digest = createHash('sha256').update(binary).digest('hex');
+            const sidecar = readFileSync(join(dir, asset + '.sha256'), 'utf8').trim();
+            const match = /^([0-9a-f]{64})[ \t]+\*?([^\r\n]+)$/.exec(sidecar);
+            if (match == null || match[1] !== digest || match[2] !== asset) throw new Error(`Helper checksum mismatch: ${asset}`);
+            records[asset] = { sha256: digest, bytes: binary.length };
+          }
+          provenance.assets = records;
+          provenance.attachRunAttempt = process.env.GITHUB_RUN_ATTEMPT;
+          const content = JSON.stringify(provenance, null, 2) + '\n';
+          writeFileSync(join(dir, name), content);
+          writeFileSync(join(dir, name + '.sha256'), createHash('sha256').update(content).digest('hex') + '  ' + name + '\n');
+          console.log(`Verified all ${assets.length} helpers from ${provenance.sourceCommit}`);
+          NODE
+      - name: Retain verified commit and checksum provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: helper-release-provenance-verified
+          path: |
+            ${{ runner.temp }}/release-helpers/domotion-helper-provenance.json
+            ${{ runner.temp }}/release-helpers/domotion-helper-provenance.json.sha256
+          if-no-files-found: error
+          retention-days: 7
       - name: Attach complete helper set to the existing release
         env:
           ASSET_DIR: ${{ runner.temp }}/release-helpers

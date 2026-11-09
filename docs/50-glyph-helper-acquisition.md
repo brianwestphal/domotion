@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2353", "DM-2664", "DM-393", "DM-881", "DM-886", "DM-887", "DM-890"]
+tickets: ["DM-K85TST", "DM-2353", "DM-2664", "DM-393", "DM-881", "DM-886", "DM-887", "DM-890"]
 code:
   [
     ".github/workflows/release-helpers.yml",
@@ -62,13 +62,56 @@ Each `.sha256` sidecar is the `shasum -a 256` / `sha256sum` output (hex digest +
 filename). The asset is keyed to the package version via the release tag.
 
 The release workflow invokes the helper workflow only after GitHub Release
-creation succeeds. All five native jobs retain their staged binary and sidecar
-as seven-day Actions artifacts; a single fan-in job downloads the complete set,
-verifies that the release exists, and attaches every asset. Manual dispatch
-uses the requested tag for both checkout and upload. There is no parallel tag
-trigger or polling window, so a failed release validation cannot cascade into
-five misleading helper-upload failures, and a transient attach failure can be
-retried without repeating native builds/signing (DM-2664).
+creation succeeds. A source-resolution job checks that the selected source's
+`package.json` version matches the target tag (without its `v` prefix), resolves
+one full commit SHA, and requires the target release to exist before native
+builds or signing begin. Every native job checks out that same immutable SHA.
+By default, both reusable and manual runs select the requested tag. The sole
+compatibility exception is the existing default-tag `vX.Y.Z-beta.N` flow:
+`release.yml` applies the beta npm version ephemerally, so that tag may contain
+source package version `X.Y.Z`. This exception never applies to an explicit
+`source_ref` refresh, even when it names the tag itself.
+
+All five native jobs retain their staged binary and sidecar as seven-day
+Actions artifacts. One fan-in job verifies that the complete five-platform set
+is present, every binary agrees with its named checksum sidecar, and retained
+source provenance matches the pinned commit/package version. Only then does it
+attach assets to the existing release. The macOS signing, notarization and
+signature verification stages remain required. Both Linux builds install
+FreeType and Fontconfig development headers.
+
+The release also receives `domotion-helper-provenance.json` and its SHA-256
+sidecar. It records the target tag, requested source ref, resolved commit,
+actual source package version, target version, compatibility policy, workflow/run identity and each binary's checksum/size. The
+resolved source record and verified aggregate record are retained separately as
+Actions artifacts. There is no parallel tag trigger or polling window; a
+transient attach failure can be retried without repeating native
+builds/signing (DM-2664).
+
+### Refresh helpers without a new npm release (DM-K85TST)
+
+For a reviewed same-version native fix, manual dispatch accepts `source_ref`:
+
+```bash
+gh workflow run release-helpers.yml --ref main \
+  -f tag=v0.35.0 -f source_ref=<reviewed-full-commit-sha>
+```
+
+The workflow definition must already be integrated. `source_ref` may be a ref
+or commit; it is resolved once before all five builds, so a moving branch
+cannot split their source versions. Omitting it retains the tag source. A
+source with a different package version fails before any native build. This
+path only replaces helper assets on the existing release: it does not move the
+tag, create a release or publish npm.
+
+After publication, verify a clean-cache download of the macOS helper reports
+`ctCapHeight` and `ctXHeight`, and run the SVG root Chromium metric tests without
+skips. A coordinated refresh containing Linux/Windows metadata changes also
+needs their target-platform probes. Retained producer checksums and successful
+signing are build evidence; fetched-asset metadata and actual Chromium parity
+are separate consumer evidence. Existing cached older helpers retain their
+compatible fallback behavior until replaced; a helper refresh does not
+silently invalidate every consumer's versioned cache.
 
 > **Current Linux arm64 contract (DM-2353):** v0.24.0 carries the native glyph
 > asset + sidecar and `icu-v78.2-domotion.1` carries the arm64 executable/data +

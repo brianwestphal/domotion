@@ -1363,7 +1363,7 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2353", "DM-2664", "DM-393", "DM-881", "DM-886", "DM-887", "DM-890"],
+        "tickets": ["DM-K85TST", "DM-2353", "DM-2664", "DM-393", "DM-881", "DM-886", "DM-887", "DM-890"],
         "code": [
           ".github/workflows/release-helpers.yml",
           ".github/workflows/release.yml",
