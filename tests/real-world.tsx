@@ -56,6 +56,7 @@ import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
+import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
 import { planRealWorldScroll, scrollChunkSeekTimeMs, type RealWorldScrollPlan } from "./real-world-scroll-plan.js";
 
@@ -650,6 +651,17 @@ async function runJob(
         : { x: 0, y: 0, width: viewport.width, height: viewport.height };
     await page.screenshot({ path: expectedPath, clip: expectedClip });
     trace("expected screenshot complete");
+
+    // A viewport screenshot does not present wholly offscreen WebGL canvas
+    // layers. Prime a bounded set without scrolling before draw calls stop;
+    // otherwise a later rasterization scroll can reveal a blank canvas.
+    const canvasPreflight =
+      mode === "entire-page" ? { primed: 0, failed: 0, skipped: 0 } : await primeOffscreenCanvases(page);
+    if (canvasPreflight.failed > 0 || canvasPreflight.skipped > 0) {
+      console.warn(
+        `  ${test}: offscreen canvas preflight primed ${canvasPreflight.primed}, failed ${canvasPreflight.failed}, skipped ${canvasPreflight.skipped}`,
+      );
+    }
 
     // DM-4S3VQH: stop WebGL canvases from drawing for the rest of the job.
     // Headless Chromium composites in software, so a continuous WebGL loop
