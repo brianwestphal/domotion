@@ -225,22 +225,28 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
     expect(canonical(first.evidence)).toEqual(canonical(second.evidence));
   });
 
-  it("observes initially missing attachment targets and existing targets that detach", async () => {
-    const observeLifecycle = async (step: StudioSemanticStep): Promise<StudioInteractionEvidence> =>
-      observeStudioSemanticStep(page!, step, () => runStudioSemanticStep(page!, step), {
-        baselineMs: 0,
-        debounceMs: 20,
-        settleMs: 300,
-      });
+  it.each([0, 150])("observes attachment lifecycles after %i ms of setup delay (DM-7XCS30)", async (setupDelay) => {
+    const observeLifecycle = async (
+      step: StudioSemanticStep,
+      armMutation: () => Promise<void>,
+    ): Promise<StudioInteractionEvidence> =>
+      observeStudioSemanticStep(
+        page!,
+        step,
+        async () => {
+          // Arm fixture timers only after observation starts. Scheduling during
+          // setContent races target resolution and observer setup on busy hosts.
+          await armMutation();
+          await runStudioSemanticStep(page!, step);
+        },
+        {
+          baselineMs: 0,
+          debounceMs: 20,
+          settleMs: 300,
+        },
+      );
 
-    await page.setContent(`<!doctype html><script>
-      setTimeout(() => {
-        const late = document.createElement("div");
-        late.id = "late";
-        late.textContent = "Ready";
-        document.body.append(late);
-      }, 40);
-    </script>`);
+    await page.setContent("<!doctype html><body></body>");
     const attachStep: StudioSemanticStep = {
       path: "$.scenes[0].tracks[0].events[0]",
       trackId: "lifecycle",
@@ -253,15 +259,25 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
         timeoutMs: 1_000,
       },
     };
-    const attached = await observeLifecycle(attachStep);
+    // The delayed case exceeds the old fixture timer to pin the setup race.
+    if (setupDelay > 0) await page.waitForTimeout(setupDelay);
+    expect(await page.locator("#late").count()).toBe(0);
+    const attached = await observeLifecycle(attachStep, () =>
+      page.evaluate(() => {
+        setTimeout(() => {
+          const late = document.createElement("div");
+          late.id = "late";
+          late.textContent = "Ready";
+          document.body.append(late);
+        }, 40);
+      }),
+    );
     expect(attached.summary.addedNodes).toBeGreaterThan(0);
     expect(attached.changes.some((change) => change.ref.includes("#late") && change.reasons.includes("added"))).toBe(
       true,
     );
 
-    await page.setContent(`<!doctype html><div id="departing">Remove me</div><script>
-      setTimeout(() => document.querySelector("#departing")?.remove(), 40);
-    </script>`);
+    await page.setContent('<!doctype html><div id="departing">Remove me</div>');
     const detachStep: StudioSemanticStep = {
       path: "$.scenes[0].tracks[0].events[1]",
       trackId: "lifecycle",
@@ -274,7 +290,13 @@ describe("Studio proactive interaction observation (DM-2684)", () => {
         timeoutMs: 1_000,
       },
     };
-    const detached = await observeLifecycle(detachStep);
+    if (setupDelay > 0) await page.waitForTimeout(setupDelay);
+    expect(await page.locator("#departing").count()).toBe(1);
+    const detached = await observeLifecycle(detachStep, () =>
+      page.evaluate(() => {
+        setTimeout(() => document.querySelector("#departing")?.remove(), 40);
+      }),
+    );
     expect(detached.summary.removedNodes).toBeGreaterThan(0);
     expect(
       detached.changes.some((change) => change.ref.includes("#departing") && change.reasons.includes("removed")),
