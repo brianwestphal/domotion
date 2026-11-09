@@ -2175,7 +2175,7 @@ async function captureElementTreeWithWarningsInternal(
       await reverifyAnimationFrame();
       pseudoStyles = await captureResolvedControlPseudoStyles(page);
       await reverifyAnimationFrame();
-      effectiveAppearance = await captureEffectiveAppearanceFacts(page);
+      effectiveAppearance = await captureEffectiveAppearanceFacts(page, viewport);
       await reverifyAnimationFrame();
       scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
         sourceImagePath: opts?.rasterizeFromImagePath,
