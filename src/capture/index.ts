@@ -1515,11 +1515,14 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
       ({ token, probeSize }) => {
         const style = document.createElement("style");
         style.dataset.domotionResizerProbe = token;
-        style.textContent = `[data-domotion-resizer-probe="${token}"]::-webkit-resizer{background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;
+        // Forced colors normally replace authored background colors, including
+        // the marker on a custom scrollbar part. Keep this temporary probe's
+        // colors so the same pixel discriminator works under that emulation.
+        style.textContent = `[data-domotion-resizer-probe="${token}"]::-webkit-resizer{forced-color-adjust:none!important;background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;
         const probe = document.createElement("div");
         probe.dataset.domotionResizerProbe = token;
         probe.setAttribute("aria-hidden", "true");
-        probe.style.cssText = `all:initial;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
+        probe.style.cssText = `all:initial;forced-color-adjust:none;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
         document.documentElement.append(style, probe);
         return {
           x: window.scrollX,

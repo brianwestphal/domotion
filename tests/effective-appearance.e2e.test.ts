@@ -1,7 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 
 import { captureElementTreeWithWarnings, launchChromium } from "../src/index.js";
-import { measureBlinkPlatformResizer } from "../src/capture/index.js";
 import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
 import type { CapturedElement, CaptureScriptArgs } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
@@ -182,11 +181,6 @@ describeBrowser("Blink EffectiveAppearance native-control ownership", () => {
       });
       const page = await context.newPage();
       try {
-        // Measure the platform corner outside forced-colors. That independent
-        // resizer probe uses a color discriminator which forced-colors is
-        // allowed to replace; this ticket's matrix then changes media state
-        // while retaining the same BrowserContext/platform metrics.
-        await measureBlinkPlatformResizer(page);
         await page.emulateMedia({ forcedColors: row.forcedColors });
         await page.setContent(`<style>
           html,body{margin:0;color-scheme:light dark}

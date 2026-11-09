@@ -86,17 +86,14 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
       capture: true,
     },
     // forcedColors emulation writes the page's Settings
-    // (inspector_emulation_agent.cc:418-430), which the image copies. Capture
-    // itself does not run under forced-colors emulation today (the
-    // platform-resizer probe paints no custom corner), so only the oracle is
-    // checked here.
+    // (inspector_emulation_agent.cc:418-430), which the image copies.
     {
       name: "emulated forced colors",
       args: [],
       context: { forcedColors: "active" },
       pageReduce: false,
       expected: ["host", true],
-      capture: false,
+      capture: true,
     },
   ];
   let hostReduce = false;
