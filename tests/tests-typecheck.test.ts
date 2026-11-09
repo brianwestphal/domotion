@@ -1,5 +1,6 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
@@ -13,10 +14,13 @@ describe("DM-GTSWNF: tests typecheck project", () => {
   const parsed = ts.readConfigFile("tsconfig.tests.json", ts.sys.readFile);
   const config = ts.parseJsonConfigFileContent(parsed.config, ts.sys, resolve("."));
 
-  function testSources(dir: string): string[] {
+  function testSources(dir: string, root = dir): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
       const path = join(dir, entry.name);
-      if (entry.isDirectory()) return entry.name === "output" || entry.name === "cache" ? [] : testSources(path);
+      if (entry.isDirectory())
+        return dir === root && (entry.name.startsWith("output") || entry.name === "cache")
+          ? []
+          : testSources(path, root);
       return /\.tsx?$/.test(entry.name) ? [resolve(path)] : [];
     });
   }
@@ -38,6 +42,45 @@ describe("DM-GTSWNF: tests typecheck project", () => {
     const checked = new Set(config.fileNames.map((path) => resolve(path)));
     const missing = testSources("tests").filter((path) => !checked.has(path));
     expect(missing).toEqual([]);
+  });
+
+  it("includes output-prefixed source files while excluding generated output directories", () => {
+    const temporary = mkdtempSync(join(tmpdir(), "domotion-typecheck-glob-"));
+    const included = [
+      "tests/ordinary.test.ts",
+      "tests/output-directory.test.ts",
+      "tests/output-helper.tsx",
+      "tests/source/output-model/nested.ts",
+    ];
+    const excluded = [
+      "tests/output/generated.ts",
+      "tests/output-linux/generated.tsx",
+      "tests/output-windows/nested/generated.ts",
+      "tests/cache/generated.ts",
+    ];
+    try {
+      for (const file of [...included, ...excluded]) {
+        const path = join(temporary, file);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, "export {};\n");
+      }
+      const fixture = ts.parseJsonConfigFileContent(
+        { include: ["tests/**/*.ts", "tests/**/*.tsx"], exclude: parsed.config.exclude },
+        ts.sys,
+        temporary,
+      );
+      expect(fixture.errors).toEqual([]);
+      expect(
+        testSources(join(temporary, "tests"))
+          .map((path) => relative(temporary, path))
+          .sort(),
+      ).toEqual(included.map((path) => join(...path.split("/"))).sort());
+      expect(fixture.fileNames.map((path) => relative(temporary, path)).sort()).toEqual(
+        included.map((path) => join(...path.split("/"))).sort(),
+      );
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   });
 
   it("does not opt test files out of checking", () => {
