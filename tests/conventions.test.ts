@@ -66,6 +66,7 @@ describe("project conventions", () => {
       // wrong. `packages/text-engine/vendor/harfbuzzjs/` is v1.4.0 rebuilt with Chromium's HarfBuzz
       // configuration and imported by relative path instead.
       "kerfjs",
+      "postcss",
       "sharp",
       "svg2ttf",
       "svgo",
