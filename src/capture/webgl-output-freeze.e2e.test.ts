@@ -62,7 +62,16 @@ describe("capture-scoped WebGL output freeze", () => {
       expect(frozen.frozenFrames).toBe(1);
       try {
         await paint(page, 0, 1);
-        expect(await centerPixel(page)).toEqual([255, 0, 0]);
+        // Hosted software compositing can briefly show a gray placeholder
+        // when the canvas layer is recycled after freezing. The held red frame
+        // must become visible without ever allowing the new blue draw through.
+        const deadline = Date.now() + 5_000;
+        let pixel = await centerPixel(page);
+        while (pixel[0] === pixel[1] && pixel[1] === pixel[2] && Date.now() < deadline) {
+          await page.waitForTimeout(100);
+          pixel = await centerPixel(page);
+        }
+        expect(pixel).toEqual([255, 0, 0]);
       } finally {
         await frozen.dispose();
       }
