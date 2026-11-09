@@ -296,6 +296,34 @@ export function capturedScrollOwnerBindingSha256(
   );
 }
 
+/**
+ * A Playwright Frame can disappear or lose its default execution context
+ * between the main-world token handshake and CDP enumeration. Such a frame
+ * has no authenticated Chromium id, so CAPTURE_SCRIPT leaves its iframe as a
+ * raster boundary. It must not become a nameless member of the sealed graph:
+ * the composer correctly rejects that as ambiguous authority. Omit it and
+ * descendants whose authenticated parent chain was lost, while retaining
+ * their diagnostics in the capture warnings.
+ */
+export function retainIdentifiedFrameScrollRecords(
+  records: readonly CapturedFrameScrollRecord[],
+  topFrameId: string,
+): CapturedFrameScrollRecord[] {
+  if (topFrameId === "") throw new Error("top Chromium frame identity could not be authenticated");
+  const byId = new Map(
+    records.filter(({ frameId }) => frameId !== "").map((record) => [record.frameId, record]),
+  );
+  const reachesTop = (record: CapturedFrameScrollRecord, seen: Set<string>): boolean => {
+    if (record.frameId === topFrameId) return record.parentFrameId == null;
+    if (record.parentFrameId == null || seen.has(record.frameId)) return false;
+    const parent = byId.get(record.parentFrameId);
+    if (parent == null) return false;
+    seen.add(record.frameId);
+    return reachesTop(parent, seen);
+  };
+  return records.filter((record) => record.frameId !== "" && reachesTop(record, new Set()));
+}
+
 async function setupFrame(
   frame: Frame,
   propertyKey: string,
@@ -947,7 +975,7 @@ export async function prepareFrameScrollCapture(
   );
 
   const snapshot = async (): Promise<CapturedFrameScrollState> => {
-    const records = await Promise.all(
+    const sampledRecords = await Promise.all(
       frames.map(async (frame): Promise<CapturedFrameScrollRecord> => {
         let canRead =
           frame.reachableFromTop &&
@@ -993,6 +1021,16 @@ export async function prepareFrameScrollCapture(
         };
       }),
     );
+    for (const record of sampledRecords) {
+      if (record.diagnostic == null || warnings.some((warning) => warning.detail === record.diagnostic)) continue;
+      warnings.push({
+        selector: `frame[${record.frameId || "unknown"}]`,
+        feature: "cross-origin-frame-scroll",
+        detail: record.diagnostic,
+        status: "unavailable",
+      });
+    }
+    const records = retainIdentifiedFrameScrollRecords(sampledRecords, topFrameId);
     const recordsById = new Map(records.map((record) => [record.frameId, record]));
     const resolved = new Set<CapturedFrameScrollRecord>();
     const resolvingRecords = new Set<CapturedFrameScrollRecord>();
