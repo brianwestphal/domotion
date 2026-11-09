@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser } from "@playwright/test";
 import { startScrubberServer, type ScrubberServerHandle } from "./server.js";
 import { closeSafely } from "../test-support/close-browser-safely.js";
+import { withTimeout } from "../utils/with-timeout.js";
 
 /**
  * DM-1040: end-to-end coverage for the `svg-scrubber` server — the
@@ -432,7 +433,7 @@ describe("svg-scrubber server (DM-1040)", () => {
 // records its pid once frames arrive, so it needs Chromium but not a real ffmpeg. POSIX
 // only: the stub relies on a shebang.
 describe.skipIf(process.platform === "win32")("svg-scrubber range-video export failure cleanup", () => {
-  it("kills ffmpeg when the page dies mid-export", async () => {
+  it("kills ffmpeg when the page dies mid-export", async ({ skip }) => {
     const { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -457,24 +458,36 @@ process.stdin.on("end", () => process.exit(0));
     let b: Browser | null = null;
     let s: ScrubberServerHandle | null = null;
     let pid: number | undefined;
+    const requestController = new AbortController();
     try {
       try {
         b = await chromium.launch({ headless: true });
       } catch {
-        return; // no Chromium here — skip like the rest of this file
+        skip();
+        return;
       }
       s = await startScrubberServer({ launchBrowser: async () => b! });
       const request = fetch(s.url.replace(/\/$/, "") + "/export-range-video", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // 20 s at 30 fps is 600 frames: long enough to kill the browser part-way through.
+        // 20 s at 30 fps is 600 frames: long enough to close its page part-way through.
         body: JSON.stringify({ svg: SVG, startMs: 0, endMs: 20_000, width: 100, height: 60 }),
+        signal: requestController.signal,
+      }).then(async (response) => {
+        await response.arrayBuffer();
+        return response;
       });
-      for (let i = 0; i < 300 && !existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 50));
-      expect(existsSync(pidFile)).toBe(true);
+      // Observe failures immediately, including an aborted request during teardown.
+      void request.catch(() => {});
+      await expect.poll(() => existsSync(pidFile), { timeout: 15_000 }).toBe(true);
       pid = Number(readFileSync(pidFile, "utf8"));
-      await b.close(); // the page dies mid-export
-      const response = await request;
+      const exportPages = b.contexts().flatMap((context) => context.pages());
+      expect(exportPages).toHaveLength(1);
+      // Exercise page failure directly; whole-browser shutdown has independent
+      // load-sensitive teardown behavior and is not the export's failure signal.
+      expect(await withTimeout(exportPages[0].close(), 5_000, "page close timed out")).toBeUndefined();
+      const response = await withTimeout(request, 5_000, null);
+      if (response == null) throw new Error("Export request did not fail after its page closed");
       expect(response.status).toBeGreaterThanOrEqual(500);
 
       const alive = (): boolean => {
@@ -485,9 +498,21 @@ process.stdin.on("end", () => process.exit(0));
           return false;
         }
       };
-      for (let i = 0; i < 60 && alive(); i++) await new Promise((r) => setTimeout(r, 50));
-      expect(alive()).toBe(false);
+      await expect.poll(alive, { timeout: 3_000 }).toBe(false);
+      pid = undefined;
+
+      // The server must recover with a fresh page in the same live browser.
+      expect(b.isConnected()).toBe(true);
+      const recovered = await fetch(s.url.replace(/\/$/, "") + "/timing", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ svg: SVG }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      expect(recovered.status).toBe(200);
+      expect(((await recovered.json()) as { durationMs: number }).durationMs).toBe(2000);
     } finally {
+      requestController.abort();
       if (pid != null) {
         try {
           process.kill(pid, "SIGKILL");
