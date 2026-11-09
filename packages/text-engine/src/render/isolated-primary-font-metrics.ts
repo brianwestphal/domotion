@@ -127,6 +127,59 @@ function nativeMacMetrics(font: FontInstance): NativeMacMetrics | null {
   return metrics;
 }
 
+/** Skia's FreeType fallbacks for absent OS/2 heights read the hinted `x` and
+ * `H` outline CBoxes at the requested strike, not their design-unit bounds. */
+function linuxHintedHeights(font: FontInstance, fontSize: number): { x: number | null; cap: number | null } | null {
+  const source = getFontSourceInfo(font);
+  if (source == null || !source.nameMatched || !isGlyphHelperAvailable()) return null;
+  try {
+    const response = callGlyphHelper({
+      fonts: [
+        {
+          ref: "primary",
+          fontPath: source.path,
+          postscriptName: source.postscriptName,
+          size: fontSize,
+          ...(source.variationAxes == null ? {} : { variations: source.variationAxes }),
+        },
+      ],
+      queries: [
+        { type: "meta", fontRef: "primary" },
+        {
+          type: "hintedGlyphs",
+          fontRef: "primary",
+          fontSizePx: fontSize,
+          hintStyle: "slight",
+          forceAutoHint: false,
+          useBitmaps: true,
+          glyphs: [{ cp: 0x78 }, { cp: 0x48 }],
+        },
+      ],
+    });
+    const meta = response.results[0];
+    const hinted = response.results[1];
+    if (
+      meta?.type !== "meta" ||
+      meta.nameMatched === false ||
+      meta.unitsPerEm !== font.unitsPerEm ||
+      hinted?.type !== "hintedGlyphs" ||
+      hinted.error != null ||
+      hinted.coordinateScale !== 64 ||
+      hinted.fontSizePx !== fontSize
+    )
+      return null;
+    const top = (index: number, cp: number): number | null => {
+      const glyph = hinted.glyphs?.[index];
+      if (glyph == null || glyph.id === 0 || glyph.id !== font.glyphForCodePoint(cp).id) return null;
+      const height = (glyph.bbox.y + glyph.bbox.h) / 64;
+      return Number.isFinite(height) && height > 0 && height < 2 * fontSize ? height : null;
+    };
+    return { x: top(0, 0x78), cap: top(1, 0x48) };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * macOS Skia reads CoreText ascent, descent, and leading; for file-backed
  * OpenType faces CoreText uses the hhea values exposed by fontkit. Blink rounds
@@ -304,8 +357,8 @@ function windowsFileOs2Heights(font: FontInstance): Os2Heights | null {
  *   Blink uses for `ex`, avoiding outline differences in fontkit.
  * - FreeType: `sxHeight` (any OS/2 version), else the `x` outline's top; OS/2
  *   v2 `sCapHeight`, else the `H` outline's top (`SkFontHost_FreeType.cpp:
- *   1576-1634`). Skia reads a hinted control box; this reads the unhinted
- *   outline bounds.
+ *   1576-1634`). The absent-OS/2 height routes below ask FreeType for the
+ *   hinted target-size control boxes and retain design-unit bounds as fallback.
  * - DirectWrite: `DWRITE_FONT_METRICS` (`SkScalerContext_win_dw.cpp:1873-1874`),
  *   which this reads from OS/2 v2 only.
  * - `0` / U+6C34: the glyph's advance (`ZeroInlineSize`, `IdeographicAdvanceWidth`,
@@ -369,13 +422,24 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
     const platform = hostPlatform();
     const native = platform === "darwin" ? nativeMacMetrics(font) : null;
     const windowsOs2 = platform === "win32" ? windowsFileOs2Heights(font) : null;
+    const linuxOs2 = (font as { "OS/2"?: Os2Heights })["OS/2"];
+    const validHeight = (value: number | undefined): boolean =>
+      value != null && Number.isFinite(value) && value > 0 && value < 2 * font.unitsPerEm;
+    const linuxOs2X = validHeight(linuxOs2?.xHeight);
+    const linuxOs2Cap =
+      linuxOs2?.version != null &&
+      linuxOs2.version >= 2 &&
+      linuxOs2.version !== 0xffff &&
+      validHeight(linuxOs2.capHeight);
+    const linuxHinted =
+      platform === "linux" && (!linuxOs2X || !linuxOs2Cap) ? linuxHintedHeights(font, request.fontSize) : null;
     const px = (metric: Metric): number | null => {
       const units = metricUnits(font, metric, platform, native, windowsOs2);
       return units == null ? null : (units / font.unitsPerEm) * request.fontSize;
     };
     return {
-      xHeight: px("x-height"),
-      capHeight: px("cap-height"),
+      xHeight: (!linuxOs2X ? linuxHinted?.x : null) ?? px("x-height"),
+      capHeight: (!linuxOs2Cap ? linuxHinted?.cap : null) ?? px("cap-height"),
       zeroWidth: px("zero"),
       ideographicAdvance: px("water"),
       lineSpacing: normalLineSpacing(font, request.fontSize, platform),
