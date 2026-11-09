@@ -134,6 +134,26 @@ invalidation also drops `local()` font aliases, a caller that recovers in the
 middle of a capture session must re-register them; a capture re-registers them
 on its next run.
 
+**Cold ICU acquisition (DM-T9Z4HF).** The independently versioned ICU
+companion verifies the SHA-256 sidecar for every executable, data file, and
+required Windows runtime library before installing the executable. Each asset
+has a 30-second request deadline and at most three attempts, with short bounded
+backoff for connection errors, request timeouts, HTTP 408/429, and server errors.
+Missing assets or checksum failures do not retry. Requests and backoff share a
+55-second acquisition budget; the synchronous download worker retains its
+60-second deadline. Terminal download diagnostics name the
+release and asset, HTTP stage/status or checksum mismatch, and any transport
+cause; worker failures retain child diagnostics and identify worker timeouts.
+Acquisition failure still falls back to the prior companion release and then
+warns once before using best-effort JavaScript classification.
+
+`npm run fonts:prewarm-icu` builds the text-engine workspace, acquires the
+preferred ICU release, and validates a real versioned-protocol Latin query. It
+fails explicitly if only the legacy companion is available or the native query
+fails. The primary macOS CI test job runs it serially before Vitest forks, so
+parallel workers reuse a validated cache instead of racing cold downloads. This
+strict CI gate does not remove the normal consumer's degraded runtime path.
+
 **Persistent-channel crashes.** The helper normally runs as one persistent
 `--serve` child. If its first round trip fails, the binary is taken not to
 support the channel and every later call uses one-shot spawns. If it worked and

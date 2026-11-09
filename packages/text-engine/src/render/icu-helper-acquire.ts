@@ -10,6 +10,9 @@ import { hostPlatform } from "./host-platform.js";
 export const ICU_COMPANION_VERSION = "78.2-domotion.2";
 const LEGACY_ICU_COMPANION_VERSION = "78.2-domotion.1";
 const DOWNLOAD_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+const DOWNLOAD_BUDGET_MS = 55_000;
+const DOWNLOAD_ATTEMPTS = 3;
 
 export interface IcuCompanionTarget {
   releaseVersion: string;
@@ -122,21 +125,86 @@ function parseSha(text: string): string {
   return text.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
 }
 
-async function fetchVerified(asset: string, version: string): Promise<Buffer | null> {
+class IcuDownloadError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+  }
+}
+
+function transientStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+async function fetchVerifiedAttempt(asset: string, version: string, remainingMs: number): Promise<Buffer> {
   const url = `https://github.com/brianwestphal/domotion/releases/download/icu-v${version}/${asset}`;
-  const [body, sha] = await Promise.all([fetch(url), fetch(`${url}.sha256`)]);
-  if (!body.ok || !sha.ok) return null;
+  const signal = AbortSignal.timeout(Math.min(REQUEST_TIMEOUT_MS, remainingMs));
+  const [body, sha] = await Promise.all([fetch(url, { signal }), fetch(`${url}.sha256`, { signal })]);
+  const failures = [
+    { name: "asset", response: body },
+    { name: "checksum", response: sha },
+  ].filter(({ response }) => !response.ok);
+  if (failures.length > 0) {
+    // A missing sidecar must not leave the large data download running while
+    // another attempt or the legacy release starts using the same connection pool.
+    await Promise.all([body.body?.cancel(), sha.body?.cancel()]);
+    throw new IcuDownloadError(
+      failures.map(({ name, response }) => `${name} HTTP ${response.status}`).join(", "),
+      failures.every(({ response }) => transientStatus(response.status)),
+    );
+  }
   const bytes = Buffer.from(await body.arrayBuffer());
   const expected = parseSha(await sha.text());
   const actual = createHash("sha256").update(bytes).digest("hex");
-  return expected.length === 64 && expected === actual ? bytes : null;
+  if (!/^[0-9a-f]{64}$/.test(expected) || expected !== actual) {
+    throw new IcuDownloadError(`SHA-256 mismatch (expected ${expected || "empty"}, received ${actual})`, false);
+  }
+  return bytes;
+}
+
+async function fetchVerified(asset: string, version: string, deadline: number): Promise<Buffer | null> {
+  let lastFailure = "";
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; ++attempt) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      process.stderr.write(
+        `domotion: ICU download ${version}/${asset} exhausted its ${DOWNLOAD_BUDGET_MS}ms budget after ${attempt - 1} attempt(s): ${lastFailure}\n`,
+      );
+      return null;
+    }
+    try {
+      return await fetchVerifiedAttempt(asset, version, remainingMs);
+    } catch (error) {
+      const retryable =
+        error instanceof IcuDownloadError
+          ? error.retryable
+          : error instanceof Error && ["TypeError", "TimeoutError", "AbortError"].includes(error.name);
+      const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      const cause = error instanceof Error && error.cause instanceof Error ? ` (${error.cause.message})` : "";
+      lastFailure = `${reason}${cause}`;
+      if (retryable && attempt < DOWNLOAD_ATTEMPTS) {
+        const backoffMs = Math.min(attempt * 250, Math.max(0, deadline - Date.now()));
+        if (backoffMs > 0) await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        continue;
+      }
+      process.stderr.write(
+        `domotion: ICU download ${version}/${asset} failed after ${attempt} attempt(s): ${reason}${cause}\n`,
+      );
+      return null;
+    }
+  }
+  return null;
 }
 
 export async function downloadIcuCompanion(target: IcuCompanionTarget): Promise<boolean> {
+  // Leave worker startup/teardown room inside the synchronous 60-second cap.
+  const deadline = Date.now() + DOWNLOAD_BUDGET_MS;
   const [executable, data, ...runtime] = await Promise.all([
-    fetchVerified(target.executableAsset, target.releaseVersion),
-    fetchVerified(target.dataAsset, target.releaseVersion),
-    ...target.runtimeAssets.map((item) => fetchVerified(item.asset, target.releaseVersion)),
+    fetchVerified(target.executableAsset, target.releaseVersion, deadline),
+    fetchVerified(target.dataAsset, target.releaseVersion, deadline),
+    ...target.runtimeAssets.map((item) => fetchVerified(item.asset, target.releaseVersion, deadline)),
   ]);
   if (executable == null || data == null || runtime.some((bytes) => bytes == null)) return false;
   mkdirSync(target.directory, { recursive: true });
@@ -172,7 +240,16 @@ function downloadSync(target: IcuCompanionTarget): boolean {
   // Source checkouts need tsx's .js→.ts import remapping; published dist does not.
   const workerArgs = icuAcquireWorkerArgs(workerPath, target);
   const proc = spawnSync(process.execPath, workerArgs, { timeout: DOWNLOAD_TIMEOUT_MS, encoding: "utf8" });
-  return proc.status === 0 && installed(target);
+  if (proc.status === 0 && installed(target)) return true;
+  const outcome =
+    proc.error != null && "code" in proc.error && proc.error.code === "ETIMEDOUT"
+      ? `timed out after ${DOWNLOAD_TIMEOUT_MS}ms`
+      : `exited ${proc.status ?? "without status"}${proc.signal == null ? "" : ` (${proc.signal})`}`;
+  const details = [proc.error?.message, proc.stderr?.trim()].filter(Boolean).join("; ").slice(0, 2_000);
+  process.stderr.write(
+    `domotion: ICU acquisition worker ${target.releaseVersion}/${target.executableAsset} ${outcome}${details ? `: ${details}` : ""}\n`,
+  );
+  return false;
 }
 
 let failed = false;

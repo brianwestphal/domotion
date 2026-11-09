@@ -1240,12 +1240,29 @@ Unicode properties used by the supported helper-backed path come from the
 separately versioned `domotion-icu` companion (`packages/text-engine/src/render/icu-helper.ts`). Its
 ICU 78.2 source revision and complete `icudtl.dat` are pinned to Chromium; the
 platform executable and data are downloaded from the matching GitHub Release,
-checksum-verified, and cached independently of the npm package. In particular,
-Windows script/block nomination, ideographic classification, and inkless
+checksum-verified, and cached independently of the npm package. The acquisition
+boundary retries transient network/HTTP failures within bounded request and
+worker deadlines and preserves terminal HTTP/checksum/timeout
+diagnostics. The primary macOS CI job runs `fonts:prewarm-icu` before its unit
+workers to validate the preferred companion and protocol serially (DM-T9Z4HF;
+[acquisition contract](50-glyph-helper-acquisition.md)).
+In particular, Windows script/block nomination, ideographic classification, and inkless
 category checks consume these ICU answers. If the companion cannot be acquired,
 Domotion remains nonfatal and falls back to JavaScript/generated compatibility
 data, but that is explicitly a best-effort degraded path rather than the
 Chromium-fidelity contract. See [doc 128](128-chromium-unicode-decision-audit.md).
+
+```mermaid
+flowchart LR
+  IA["ICU acquisition<br/>lazy runtime or serial CI prewarm"] --> IC{"preferred release<br/>files cached?"}
+  IC -->|yes| IV["icu-helper validates<br/>versioned native protocol"]
+  IC -->|no| ID["Download + SHA verification<br/>at most 3 attempts per asset<br/>30 s request / 55 s total / 60 s sync worker"]
+  ID -->|installed| IV
+  ID -->|terminal failure + diagnostics| IL["Try prior companion release<br/>same verified acquisition"]
+  IL -->|available| IV
+  IL -->|unavailable + warn once| IF["best-effort JavaScript classification"]
+  IV -->|invalid| IF
+```
 
 ```mermaid
 flowchart TD

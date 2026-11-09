@@ -82,6 +82,8 @@ deviation for box, inline, control, and text shadows.
   covers metric changes and fallback transitions.
   The text-engine build imports its compiled Node ESM entry as a runtime
   initialization check after TypeScript compilation.
+  `scripts/prewarm-icu-companion.mjs` acquires and probes the preferred ICU
+  companion before the primary macOS CI job starts parallel unit workers.
   From the repository root, `npm run lint --workspace @domotion/text-engine`
   checks that workspace with the shared Prettier and ESLint configuration;
   its `test` and `typecheck` scripts run independently as well.

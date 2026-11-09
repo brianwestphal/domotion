@@ -51,6 +51,8 @@ jobs:
         run: |
           SWIFT_ARCH="$(uname -m)"
           bash packages/text-engine/tools/macos-glyph-extractor/build.sh --arch "$SWIFT_ARCH"
+      - name: Prewarm and validate the Chromium-matched ICU companion
+        run: npm run fonts:prewarm-icu
       - run: npm test
       # The @domotion/text-engine workspace declares its own lane (build, its
       # unit suite, and the helper transport lane that counts spawns to prove

@@ -158,6 +158,7 @@
     "fonts:conformance:stacks": "tsx tools/font-conformance.ts --extract-stacks",
     "fonts:cluster-conformance": "tsx tools/cluster-conformance.ts",
     "fonts:inventory": "node tools/font-inventory.mjs",
+    "fonts:prewarm-icu": "npm run build:text-engine && node scripts/prewarm-icu-companion.mjs",
     "fonts:shaping": "tsx tools/shaping-conformance.ts",
     "text-engine:conformance": "npm run fonts:conformance && npm run fonts:shaping && npm run decorations:oracle",
     "fonts:shaping:runs": "tsx tools/shaping-conformance.ts --extract-runs",
