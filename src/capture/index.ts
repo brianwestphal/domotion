@@ -2262,7 +2262,7 @@ async function captureElementTreeWithWarningsInternal(
         warnings.push({
           selector,
           feature: "WebGL capture freeze",
-          detail: `${webGlFreeze.failedFrames} canvas-bearing frame(s) could not pause WebGL draws; subsequent raster samples may drift and software readback may remain slow`,
+          detail: `${webGlFreeze.failedFrames} frame(s) could not be checked or paused for WebGL draws; subsequent raster samples may drift and software readback may remain slow`,
           status: "partial",
         });
       }

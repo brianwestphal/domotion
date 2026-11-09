@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 
 /** Blink marks the drawing buffer changed through these WebGL paint entry points. */
@@ -35,9 +35,29 @@ export const WEBGL_PAINT_METHODS: Record<string, readonly string[]> = {
 };
 
 const FREEZE_KEY = "__domotionCaptureWebGlFreeze";
+const CANVAS_PROBE_TIMEOUT_MS = 5_000;
+
+/** A child frame can stop answering after a prior iframe navigation even while
+ * Playwright still lists it. Keep a missed probe visible as a capture warning
+ * instead of letting one stale frame block every later fixture. */
+async function frameHasCanvas(frame: Frame): Promise<boolean | null> {
+  if (frame.isDetached()) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      evaluateInFrame(frame, () => document.querySelector("canvas") != null).catch(() => null),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), CANVAS_PROBE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer != null) clearTimeout(timer);
+  }
+}
 
 export interface WebGlOutputFreeze {
   frozenFrames: number;
+  /** Frames whose canvas presence was unknown or whose draw methods could not be muted. */
   failedFrames: number;
   dispose(): Promise<void>;
 }
@@ -49,11 +69,10 @@ export interface WebGlOutputFreeze {
  */
 export async function freezeWebGlOutputForCapture(page: Page): Promise<WebGlOutputFreeze> {
   const frames = page.frames();
-  const canvasPresence = await Promise.all(
-    frames.map((frame) => evaluateInFrame(frame, () => document.querySelector("canvas") != null).catch(() => false)),
-  );
+  const canvasPresence = await Promise.all(frames.map(frameHasCanvas));
+  const missedProbes = canvasPresence.filter((present) => present == null).length;
   if (!canvasPresence.some(Boolean)) {
-    return { frozenFrames: 0, failedFrames: 0, dispose: async () => undefined };
+    return { frozenFrames: 0, failedFrames: missedProbes, dispose: async () => undefined };
   }
   const canvasFrames = frames.filter((_, index) => canvasPresence[index]);
 
@@ -119,7 +138,7 @@ export async function freezeWebGlOutputForCapture(page: Page): Promise<WebGlOutp
   const frozenFrames = patched.filter((failedMethods) => failedMethods === 0).length;
   return {
     frozenFrames,
-    failedFrames: patched.length - frozenFrames,
+    failedFrames: missedProbes + patched.length - frozenFrames,
     dispose: async () => {
       const failures = await Promise.all(
         canvasFrames.map((frame) =>

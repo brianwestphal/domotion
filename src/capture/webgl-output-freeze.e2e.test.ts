@@ -73,6 +73,45 @@ describe("capture-scoped WebGL output freeze", () => {
     }
   });
 
+  it("freezes a canvas in a live child frame", async () => {
+    const page = await browser.newPage({ viewport: { width: 80, height: 80 } });
+    try {
+      await page.setContent(
+        `<body style="margin:0"><iframe style="border:0" width="32" height="32" srcdoc="<body style='margin:0'><canvas width='32' height='32'></canvas></body>"></iframe></body>`,
+      );
+      const child = page.frames().find((frame) => frame !== page.mainFrame());
+      expect(child).toBeDefined();
+      await child!.waitForSelector("canvas");
+      const draw = async (red: number, blue: number): Promise<void> => {
+        await evaluateInFrame(
+          child!,
+          ({ red, blue }) => {
+            const gl = document.querySelector("canvas")?.getContext("webgl", { preserveDrawingBuffer: true });
+            if (gl == null) throw new Error("WebGL context unavailable in child frame");
+            gl.clearColor(red, 0, blue, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+          },
+          { red, blue },
+        );
+      };
+      await draw(1, 0);
+      expect(await centerPixel(page)).toEqual([255, 0, 0]);
+      const frozen = await freezeWebGlOutputForCapture(page);
+      expect(frozen.frozenFrames).toBe(1);
+      expect(frozen.failedFrames).toBe(0);
+      try {
+        await draw(0, 1);
+        expect(await centerPixel(page)).toEqual([255, 0, 0]);
+      } finally {
+        await frozen.dispose();
+      }
+      await draw(0, 1);
+      expect(await centerPixel(page)).toEqual([0, 0, 255]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it("keeps drawing paused until nested captures both dispose", async () => {
     const page = await makeWebGlPage();
     try {
