@@ -62,6 +62,30 @@ does so only when you pass `launchChromium({ autoInstall: true })`). CI jobs can
 predictable. For a zero-install trial, run
 `npx -p domotion-svg domotion capture https://example.com -o example.svg`.
 
+## macOS development setup
+
+From a fresh checkout, run:
+
+```bash
+make prep-macos-dev
+```
+
+The target checks for Xcode Command Line Tools and Homebrew, installs Node.js
+22 if your shell has no Node.js 22+ and installs ffmpeg if needed. It then runs
+`npm ci`, downloads the pinned upstream source files used by tests, installs
+Playwright Chromium, builds the native glyph helper for your Mac, and checks
+the TypeScript and production builds. Re-running the target is safe. To check
+the machine tools without changing anything, run `make prep-macos-dev-check`.
+
+If the Command Line Tools are missing, the script starts Apple's installer;
+finish its prompts and rerun the target. If `make` is unavailable before the
+tools install, run `bash scripts/prep-macos-dev.sh` to start that step. If
+Homebrew is missing, install it from [brew.sh](https://brew.sh) and rerun. The
+script adds Homebrew's Node.js 22
+to `~/.zprofile` only if it had to install Node; open a new shell afterward.
+The target uses a login `zsh` so it respects this repository's Node toolchain
+configuration.
+
 ## Choose your task
 
 - **Capture one page:** use `domotion capture`; see the
