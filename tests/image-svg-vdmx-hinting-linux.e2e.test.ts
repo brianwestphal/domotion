@@ -9,12 +9,18 @@ import { captureImageFontHinting, observeImageFontHinting } from "../src/capture
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import { imageRootFontMetricUnits } from "../src/render/svg-image-root-font.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
+import type { CapturedElement } from "../src/capture/types.js";
+import { forEachElement } from "../src/tree-ops/for-each-element.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
 
 it.skipIf(process.platform !== "linux")(
   "discriminates launch hinting from per-face Fontconfig with a real VDMX strike",
   async () => {
     const priorConfig = process.env["FONTCONFIG_FILE"];
+    const priorGenericProbe = process.env["DOMOTION_GENERIC_PROBE"];
+    // This deliberately single-font inventory cannot answer unrelated generic
+    // discovery probes. The named control uses no generic-family settings.
+    process.env["DOMOTION_GENERIC_PROBE"] = "0";
     const dir = mkdtempSync(join(tmpdir(), "domotion-vdmx-native-"));
     const results: Array<{ mode: string; singleProcess: boolean; observed?: string; lineSpacing: number }> = [];
     try {
@@ -55,11 +61,34 @@ it.skipIf(process.platform !== "linux")(
           results.push({ mode, singleProcess, observed, lineSpacing });
           expect(lineSpacing).toBe(singleProcess && mode === "none" ? 16 : 23);
           expect(observed).toBe(singleProcess ? mode : undefined);
-          const tree = await captureElementTree(page, "#vdmx-image", { x: 0, y: 0, width: 220, height: 150 });
-          const owner = tree.find((node) => node.imageSrc != null);
+          const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 220, height: 150 });
+          let owner: CapturedElement | undefined;
+          const routing: Array<{
+            tag: string;
+            children: number;
+            image: boolean;
+            snapshot: boolean;
+            inline: boolean;
+            annotated: boolean;
+          }> = [];
+          forEachElement(tree, (node) => {
+            routing.push({
+              tag: node.tag,
+              children: node.children.length,
+              image: node.imageSrc != null,
+              snapshot: node.replacedSnapshot != null,
+              inline: node.svgContent != null,
+              annotated: node.imageDocumentFontRendering != null,
+            });
+            if (node.imageSrc === `data:image/svg+xml,${encodeURIComponent(svg)}`) owner = node;
+          });
+          console.log("VDMX captured routing:", JSON.stringify({ mode, singleProcess, roots: tree.length, routing }));
           expect(owner).toBeDefined();
+          expect(owner?.imageIntrinsic).toEqual({ w: 100, h: 100 });
+          expect(owner?.replacedSnapshot).toBeUndefined();
           const fontRendering = owner?.imageDocumentFontRendering;
           expect(fontRendering).toBeDefined();
+          expect(fontRendering).toMatchObject({ source: "shared-fontconfig-v1", singleProcess });
           const declarations = { get: (name: string) => (name === "font-family" ? "'Domotion VDMX Control'" : null) };
           expect(imageRootFontMetricUnits(declarations, 16, null, fontRendering)?.("lh")).toBe(lineSpacing);
           // Mechanism-off must become unresolved on this very same control.
@@ -124,6 +153,8 @@ it.skipIf(process.platform !== "linux")(
       console.log("Linux VDMX hinting control:", JSON.stringify(results));
     } finally {
       clearGlyphHelperCache();
+      if (priorGenericProbe == null) delete process.env["DOMOTION_GENERIC_PROBE"];
+      else process.env["DOMOTION_GENERIC_PROBE"] = priorGenericProbe;
       if (priorConfig == null) delete process.env["FONTCONFIG_FILE"];
       else process.env["FONTCONFIG_FILE"] = priorConfig;
       rmSync(dir, { recursive: true, force: true });
