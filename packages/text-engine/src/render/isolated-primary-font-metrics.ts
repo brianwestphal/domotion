@@ -25,6 +25,7 @@ import { fontkit, isFontkitCollection } from "./fontkit-facade.js";
 import { ITALIC_SLNT } from "./font-paths.darwin.js";
 import { hostPlatform } from "./host-platform.js";
 import { emptyFontRegistrations, restoreFontRegistrations, snapshotFontRegistrations } from "./webfont-registry.js";
+import { windowsNativeLineSpacing } from "./windows-font-metrics.js";
 
 export interface IsolatedPrimaryFontRequest {
   /** The computed `font-family` list (empty for the initial standard family). */
@@ -190,10 +191,9 @@ function linuxHintedHeights(font: FontInstance, fontSize: number): { x: number |
  * 688-691, Skia 62efacd3). The optional live CoreText envelope supplies
  * CSS-size metrics first; old helpers retain this file-derived fallback.
  * Linux FreeType uses OS/2 typo metrics when USE_TYPO_METRICS is set, otherwise
- * hhea; Blink can replace ascent/descent with a VDMX strike. Windows' natural
- * DirectWrite metrics agree with hhea for file-backed ordinary faces. Faces
- * that may take GDI-compatible bitmap metrics remain unresolved here. A helper
- * without hhea metadata can use the exact matched static file face.
+ * hhea; Blink can replace ascent/descent with a VDMX strike. Windows consumes
+ * the helper's size-specific natural/GDI metrics. Older helpers retain the
+ * exact-file fallback for ordinary faces; bitmap/unknown cases stay unresolved.
  */
 export function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
   if (platform !== "darwin" && platform !== "linux" && platform !== "win32") return null;
@@ -201,7 +201,11 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
     const native = darwinNormalLineSpacing(font, fontSize);
     if (native != null) return native;
   }
-  // Native Windows helper instances omit the table directory and lineGap.
+  if (platform === "win32") {
+    const native = windowsNativeLineSpacing(font, fontSize);
+    if (native != null) return native;
+  }
+  // Older native Windows helper instances omit the table directory and lineGap.
   // Use the exact matched static file face for the hhea/OS/2 fields while
   // retaining the helper's glyph advances for the other font units.
   const metricFont =
@@ -224,7 +228,13 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
     // hhea fields. If the helper omitted them, the exact file face above
     // supplies the table directory and lineGap.
     const tables = face.directory?.tables;
-    if (tables == null || tables.EBLC != null || tables.CBLC != null || tables.CBDT != null || tables.sbix != null) {
+    if (
+      tables?.hhea == null ||
+      tables.EBLC != null ||
+      tables.CBLC != null ||
+      tables.CBDT != null ||
+      tables.sbix != null
+    ) {
       return null;
     }
     // DirectWrite may prefer OS/2 typo metrics for USE_TYPO_METRICS. When the

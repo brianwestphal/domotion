@@ -85,6 +85,34 @@ outlines, zero bundled-font weight.
 
 ### DirectWrite pipeline
 
+**Size-specific line metrics (DM-3ZRKA5).** A `meta` query always exposes
+natural `GetMetrics` ascent/descent/lineGap in design units. Supplying
+`fontSizePx` additionally requests `directWriteMetrics`, carrying the request
+size, actual float render size, selected PostScript name, measuring mode,
+font-smoothing state, units-per-em, ascent, negative descent and lineGap.
+Skia's Windows scaler selects GDI-classic metrics for aliased text or a
+bitmap-bearing EBLC/EBSC/gasp range, except that CBDT forces natural
+measurement. Small hinted fonts without a version-1 gasp range can retain a
+1/64 px render size even with natural measurement. The helper transcribes
+those decisions from `SkScalerContext_win_dw.cpp:301-426,1848-1871` at Skia
+`62efacd3`, then calls the same `GetMetrics` or `GetGdiCompatibleMetrics` with
+pixelsPerDip 1 and the untransformed metric matrix. System antialiasing follows
+Chromium `7d859f27`'s `ui/gfx/font_render_params_win.cc` and
+`win/font_platform_data_win.cc` (`SPI_GETFONTSMOOTHING`).
+
+`windows-font-metrics.ts` consumes this size/face-validated evidence for SVG
+image-root normal `lh`/`rlh`, including helper instances with no readable hhea
+table. It keeps Skia's float scaling and Blink's component rounding, including
+signed `lroundf` for a negative line gap. Missing or malformed optional fields
+retain the older exact-file fallback for ordinary faces and raster fallback
+for bitmap/unknown cases; an older release helper is never a hard failure.
+Native Windows helper tests and
+`tests/image-svg-normal-line-height-win32.e2e.test.ts` verify a live bitmap/GDI
+face whose native metrics differ from natural metrics, Chromium `100lh`, and
+an actual image-versus-inlined SVG geometry screenshot. macOS type/unit checks
+do not establish Windows parity. A rebuilt Windows release asset is required
+to make the new metrics available to downloaded-helper consumers.
+
 Mirrors doc 16 §"Internal pipeline" with DirectWrite calls:
 
 1. **Factory + font resolution.** `DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, …, &factory)`.

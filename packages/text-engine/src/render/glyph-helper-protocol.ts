@@ -27,7 +27,12 @@ export interface HelperRequest {
     italic?: boolean;
   }>;
   queries: Array<
-    | { type: "meta"; fontRef: string; fontSizePx?: number }
+    | {
+        type: "meta";
+        fontRef: string;
+        /** Windows target size for Skia's bitmap/measuring-mode metrics. */
+        fontSizePx?: number;
+      }
     | { type: "glyphs"; fontRef: string; glyphs: Array<{ cp?: number; id?: number }> }
     // Linux-only target-strike outline used by the DM-2623 embedded-font
     // terminal-mask correction. Coordinates are FreeType 26.6 pixels, y-up.

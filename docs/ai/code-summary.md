@@ -88,6 +88,8 @@ deviation for box, inline, control, and text shadows.
   initialization check after TypeScript compilation.
   `scripts/prewarm-icu-companion.mjs` acquires and probes the preferred ICU
   companion before the primary macOS CI job starts parallel unit workers.
+  `render/windows-font-metrics.ts` validates native DirectWrite size/face
+  evidence for image-root line spacing, including GDI bitmap metrics.
   From the repository root, `npm run lint --workspace @domotion/text-engine`
   checks that workspace with the shared Prettier and ESLint configuration;
   its `test` and `typecheck` scripts run independently as well.

@@ -4,6 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import * as fontkit from "fontkit";
+import { createGlyphHelperFont } from "./glyph-helper-font.js";
+import { getFontSourceInfo } from "./font-instance.js";
+import { normalLineSpacing } from "./isolated-primary-font-metrics.js";
 
 // DM-837: validates the Windows DirectWrite glyph extractor
 // (packages/text-engine/tools/win32-glyph-extractor). Mirrors the macOS / Linux helper tests.
@@ -204,12 +207,39 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
   });
 
   describeArial("SimSun-compatible bitmap predicate control", () => {
+    it("uses native line metadata without requiring a registered readable file face", () => {
+      const font = createGlyphHelperFont({ fontPath: ARIAL!, fontSizePx: 16 });
+      expect(font).not.toBeNull();
+      expect(getFontSourceInfo(font)).toBeNull();
+      expect(font?.directWriteMetrics?.fontSizePx).toBe(16);
+      expect(normalLineSpacing(font!, 16, "win32")).toBeGreaterThan(0);
+      expect(normalLineSpacing(font!, 17, "win32")).toBeNull();
+    });
     it("keeps an outline-only face on the vector route", () => {
       const resp = callHelper({
         fonts: [{ ref: "f", fontPath: ARIAL, size: 2048 }],
         queries: [{ type: "meta", fontRef: "f", fontSizePx: 18 }],
       });
       expect(resp.results[0].embeddedBitmapPaint).toBe(false);
+    });
+
+    it("reports natural lineGap and exact size-specific DirectWrite metric identity", () => {
+      for (const size of [13, 15.995000001, 16.005, 24]) {
+        const meta = callHelper({
+          fonts: [{ ref: "f", fontPath: ARIAL, size: 2048 }],
+          queries: [{ type: "meta", fontRef: "f", fontSizePx: size }],
+        }).results[0];
+        expect(Number.isFinite(meta.lineGap)).toBe(true);
+        expect(meta.directWriteMetrics.fontSizePx).toBe(size);
+        expect(meta.directWriteMetrics.postscriptName).toBe(meta.postscriptName);
+        expect(meta.directWriteMetrics.unitsPerEm).toBe(meta.unitsPerEm);
+        expect(Number.isFinite(meta.directWriteMetrics.lineGap)).toBe(true);
+        expect(meta.directWriteMetrics.ascent).toBeGreaterThan(0);
+        expect(meta.directWriteMetrics.descent).toBeLessThan(0);
+        expect(meta.directWriteMetrics.measuringMode).toBe(
+          meta.directWriteMetrics.fontSmoothingEnabled ? "natural" : "gdi-classic",
+        );
+      }
     });
   });
 
@@ -235,6 +265,10 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       // this repository. Assert the capability Skia consumes, not that one
       // particular SimSun revision keeps a bitmap-bearing gasp range at 18px.
       expect(active).toBeGreaterThanOrEqual(0);
+      expect(results[active].directWriteMetrics.measuringMode).toBe(
+        results[active].supportedColorTables?.includes("CBDT") ? "natural" : "gdi-classic",
+      );
+      expect(Number.isFinite(results[active].directWriteMetrics.lineGap)).toBe(true);
       const fontIndex = Math.floor(active / sizes.length);
       const sizeIndex = active % sizes.length;
       console.info(

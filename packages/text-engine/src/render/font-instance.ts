@@ -1,6 +1,7 @@
 /** Mechanical extraction from font-resolution.ts; preserve resolver behavior. */
 import { fontkit, isFontkitCollection, type FontkitContainer, type FontkitFont } from "./fontkit-facade.js";
 import { hostPlatform } from "./host-platform.js";
+import type { DirectWriteFontMetrics } from "./glyph-helper-outline.js";
 import { isTransientFsError, retrySync } from "./sync-retry.js";
 import { parseCssFontFamilyEntries } from "../font-family-stack.js";
 import {
@@ -121,6 +122,8 @@ export interface FontInstance {
   capHeight?: number;
   ascent: number;
   descent: number;
+  lineGap?: number;
+  directWriteMetrics?: DirectWriteFontMetrics;
   underlinePosition: number;
   underlineThickness: number;
   /** Available OpenType feature tags (e.g. ['liga', 'kern', 'smcp']). Used by

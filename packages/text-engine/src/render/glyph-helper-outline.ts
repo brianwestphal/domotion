@@ -51,12 +51,30 @@ export interface CoreTextMetrics {
   leading: number;
 }
 
+/** Selected-face DirectWrite metrics, including Skia's size/measuring mode. */
+export interface DirectWriteFontMetrics {
+  fontSizePx: number;
+  renderSizePx: number;
+  postscriptName: string;
+  measuringMode: "natural" | "gdi-classic";
+  fontSmoothingEnabled: boolean;
+  unitsPerEm: number;
+  ascent: number;
+  /** Nonpositive below-baseline magnitude, matching the helper's top-level descent. */
+  descent: number;
+  lineGap: number;
+}
+
 export interface MetaResponse {
   /** Absent from older helpers, which retain the file-metric fallback. */
   coreTextMetrics?: CoreTextMetrics;
   unitsPerEm: number;
   ascent: number;
   descent: number;
+  /** Natural design-unit line gap (optional on older native helpers). */
+  lineGap?: number;
+  /** Windows only; present when meta requested a valid fontSizePx. */
+  directWriteMetrics?: DirectWriteFontMetrics;
   /** CoreText scaler heights in font units (macOS helper only). */
   ctCapHeight?: number;
   ctXHeight?: number;

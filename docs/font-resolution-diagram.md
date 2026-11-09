@@ -652,6 +652,23 @@ remain unresolved when no authenticated native answer exists. Real Chromium
 `100lh` checks cover PingFang SC and system-ui's distinct optical coordinates
 in `tests/image-svg-normal-line-height.e2e.test.ts` (DM-S15JM4).
 
+Normal line spacing additionally consumes size-specific DirectWrite evidence
+from `windows-font-metrics.ts` (DM-3ZRKA5). The helper selects the same natural
+or GDI-classic metrics and float render size as Skia `62efacd3`, including the
+CBDT exception, then the renderer applies Blink's component rounding. Optional
+metadata preserves older-helper ordinary-file and conservative raster fallbacks.
+The Windows-only Chromium/bitmap gate must pass on the rebuilt helper before
+native parity is claimed; see [Windows helper contract](41-windows-glyph-extraction.md).
+
+```mermaid
+flowchart LR
+  WL["isolated SVG normal lh / rlh"] --> WM{"size + face match<br/>DirectWrite metric evidence?"}
+  WM -->|yes| WS["selected natural / GDI metrics<br/>float render-size scaling<br/>Blink component rounding"]
+  WM -->|no| WF{"ordinary exact-file metrics<br/>safe with older helper?"}
+  WF -->|yes| WH["existing hhea fallback"]
+  WF -->|no| WR["unresolved metric<br/>SVG raster fallback"]
+```
+
 **The same split governs `wght`.** Only `MatchSystemUIFont` (system-ui) and the
 webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in
 WHICH face the trait/weight matcher picked, and `FontPlatformDataFromCTFont`
