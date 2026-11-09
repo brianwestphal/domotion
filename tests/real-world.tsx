@@ -54,6 +54,7 @@ import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
+import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
@@ -616,89 +617,8 @@ async function runJob(
     // network requests are silenced. Stripe's render loop doesn't fetch so
     // it's unaffected; NYT's paywall script is loaded via fetch after page
     // load and is silenced here.
-    try {
-      await page.evaluate(() => {
-        try {
-          if (typeof document.getAnimations === "function") {
-            for (const a of document.getAnimations()) {
-              try {
-                a.pause();
-              } catch {
-                /* */
-              }
-            }
-          }
-        } catch {
-          /* */
-        }
-        // Cancel pending setTimeout handles (probe next handle, then iterate).
-        try {
-          const probe = window.setTimeout(() => {}, 0) as unknown as number;
-          window.clearTimeout(probe);
-          for (let i = 1; i <= probe; i++) {
-            try {
-              window.clearTimeout(i);
-            } catch {
-              /* */
-            }
-            try {
-              window.clearInterval(i);
-            } catch {
-              /* */
-            }
-          }
-        } catch {
-          /* */
-        }
-        // No-op future setTimeout / setInterval. Don't touch rAF (WebGL
-        // drawing is frozen after the expected screenshot instead, below).
-        try {
-          const noop = (() => 0) as unknown as typeof window.setTimeout;
-          window.setTimeout = noop;
-          window.setInterval = noop;
-        } catch {
-          /* */
-        }
-        // DM-556: no-op fetch / XHR.send so async-loaded modals can't inject
-        // DOM between the freeze and the screenshot. Returns a never-resolving
-        // promise so callers that `await` the fetch hang harmlessly (the page
-        // is going to be screenshotted within milliseconds anyway).
-        try {
-          window.fetch = (() => new Promise(() => {})) as typeof window.fetch;
-        } catch {
-          /* */
-        }
-        try {
-          XMLHttpRequest.prototype.send = function () {
-            /* no-op */
-          };
-        } catch {
-          /* */
-        }
-        // DM-556: hide modal dialogs that were already injected during the
-        // settle window (e.g. NYT mobile paywall). These appear in the
-        // expected screenshot but not in the captured tree because they're
-        // network-fetched and DOM-injected at unpredictable timing, leaving
-        // the captured tree describing a different snapshot than expected.
-        // Removing them produces a deterministic 'no modal' state on both
-        // sides. Heuristic: `[role=dialog][aria-modal=true]` is the web
-        // standard for accessibility-flagged modals.
-        try {
-          for (const el of document.querySelectorAll(
-            '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]',
-          )) {
-            try {
-              (el as HTMLElement).style.display = "none";
-            } catch {
-              /* */
-            }
-          }
-        } catch {
-          /* */
-        }
-      });
-    } catch {
-      /* best-effort */
+    if (!(await freezeRealWorldDom(page))) {
+      throw new Error("real-world DOM freeze could not replace page timers");
     }
 
     // Expected PNG: for `fold` and `scroll` we screenshot the viewport-
