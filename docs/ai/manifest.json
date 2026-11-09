@@ -4392,6 +4392,26 @@
       "file": "273-ui-conventions.md"
     },
     {
+      "id": "requirements/dynamic-svg-image-fonts",
+      "title": "Dynamic font values in isolated SVG images",
+      "kind": "contract",
+      "status": "current",
+      "owners": ["images-media"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        "src/render/svg-image-font-shorthand.ts",
+        "src/render/svg-image-css-variables.ts",
+        "src/render/svg-image-style-names.ts",
+        "src/render/svg-image-root-font.ts",
+        "src/render/svg-image-root-stylesheet.ts",
+        "src/render/svg-image-root-transform.ts",
+        "src/render/svg-inline.ts",
+        "tests/img-svg-dynamic-font-names.e2e.test.ts",
+        "tests/img-svg-root-sheet-font.e2e.test.ts"
+      ],
+      "file": "274-dynamic-svg-image-fonts.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

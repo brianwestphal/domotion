@@ -8,6 +8,8 @@
  */
 import postcss, { type AtRule, type Declaration, type Root } from "postcss";
 import { renderWarn } from "./render-warn.js";
+import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
+import { resolveImageCssVariables } from "./svg-image-css-variables.js";
 
 interface ImageNames {
   keyframes: Set<string>;
@@ -148,13 +150,15 @@ function renameShorthand(value: string, names: Set<string>, scope: string, keywo
 }
 
 /** In a font shorthand the family list follows the size and optional line height. */
-function renameFontShorthand(value: string, names: Set<string>, scope: string): string {
-  const size =
-    /(?:^|\s)(?:\d*\.?\d+(?:px|pt|pc|em|rem|ex|ch|vh|vw|vmin|vmax|%)|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)(?:\s*\/\s*[^\s]+)?\s+/i.exec(
-      value,
-    );
-  if (size == null) return value;
-  const offset = size.index + size[0].length;
+function renameFontShorthand(value: string, names: Set<string>, scope: string): string | null {
+  const parsed = parseImageFontShorthand(value);
+  if (parsed == null)
+    return /^(?:caption|icon|menu|message-box|small-caption|status-bar|initial|inherit|unset|revert|revert-layer)$/i.test(
+      value.trim(),
+    )
+      ? value
+      : null;
+  const offset = parsed.familyStart;
   return value.slice(0, offset) + renameList(value.slice(offset), names, scope, true);
 }
 
@@ -248,13 +252,35 @@ function renameProperties(value: string, names: Set<string>, scope: string): str
   return out;
 }
 
-function rewriteDeclaration(decl: Declaration, names: ImageNames, scope: string): void {
+function rewriteDeclaration(
+  decl: Declaration,
+  names: ImageNames,
+  scope: string,
+  variableCounts: ReadonlyMap<string, number>,
+): boolean {
   const prop = decl.prop.toLowerCase();
   if (names.properties.has(nameKey(decl.prop))) decl.prop = `--${scope}${decl.prop.slice(2)}`;
   let value = decl.value;
-  if (prop === "font-family") value = renameList(value, names.fonts, scope, true);
-  else if (prop === "font") value = renameFontShorthand(value, names.fonts, scope);
-  else if (prop === "animation-name" || prop === "-webkit-animation-name") {
+  if ((prop === "font" || prop === "font-family") && names.fonts.size > 0) {
+    const expanded = resolveImageCssVariables(value, (name) => {
+      // Only a sole definition in this exact declaration block is provably
+      // constant for every element to which this font declaration applies.
+      // null is absent (var fallback is valid); undefined is an undecidable
+      // value whose fallback must not be mistaken for the actual value.
+      if (names.properties.has(nameKey(name))) return undefined;
+      if (!variableCounts.has(name)) return null;
+      if (variableCounts.get(name) !== 1) return undefined;
+      const local = decl.parent?.nodes?.find((node) => node.type === "decl" && node.prop === name);
+      return local?.type === "decl" ? local.value : undefined;
+    });
+    if (expanded == null) return false;
+    const renamed =
+      prop === "font"
+        ? renameFontShorthand(expanded, names.fonts, scope)
+        : renameList(expanded, names.fonts, scope, true);
+    if (renamed == null) return false;
+    value = renamed;
+  } else if (prop === "animation-name" || prop === "-webkit-animation-name") {
     value = renameList(value, names.keyframes, scope);
   } else if (prop === "animation" || prop === "-webkit-animation") {
     value = renameShorthand(value, names.keyframes, scope, ANIMATION_KEYWORDS);
@@ -267,6 +293,7 @@ function rewriteDeclaration(decl: Declaration, names: ImageNames, scope: string)
       names.counters.has(nameKey(name)) ? head + prefixed(name, scope) : head + name,
     );
   decl.value = renameProperties(value, names.properties, scope);
+  return true;
 }
 
 function rewriteAtRule(rule: AtRule, names: ImageNames, scope: string): void {
@@ -317,7 +344,13 @@ function collectNames(sheets: ParsedSheet[]): ImageNames {
 }
 
 /** Rewrite inline style and SVG presentation attributes outside `<style>`. */
-function rewriteAttributes(markup: string, names: ImageNames, scope: string): string {
+function rewriteAttributes(
+  markup: string,
+  names: ImageNames,
+  scope: string,
+  variableCounts: ReadonlyMap<string, number>,
+  unsafe: () => void,
+): string {
   return markup.replace(/<[^>]+>/g, (tag) =>
     tag.replace(
       /(\s)(style|font-family|animation-name|list-style-type)\s*=\s*(["'])([\s\S]*?)\3/gi,
@@ -326,12 +359,23 @@ function rewriteAttributes(markup: string, names: ImageNames, scope: string): st
         if (attr.toLowerCase() === "style") {
           try {
             const root = postcss.parse(`x{${value}}`);
-            root.walkDecls((decl) => rewriteDeclaration(decl, names, scope));
+            root.walkDecls((decl) => {
+              if (!rewriteDeclaration(decl, names, scope, variableCounts)) unsafe();
+            });
             next = root.toString().slice(2, -1);
           } catch {
             return full;
           }
-        } else if (attr.toLowerCase() === "font-family") next = renameList(value, names.fonts, scope, true);
+        } else if (attr.toLowerCase() === "font-family" && names.fonts.size > 0) {
+          const expanded = resolveImageCssVariables(value, (name) =>
+            variableCounts.has(name) || names.properties.has(nameKey(name)) ? undefined : null,
+          );
+          if (expanded == null) {
+            unsafe();
+            return full;
+          }
+          next = renameList(expanded, names.fonts, scope, true);
+        } else if (attr.toLowerCase() === "font-family") next = value;
         else if (attr.toLowerCase() === "animation-name") next = renameList(value, names.keyframes, scope);
         else next = renameList(value, names.counters, scope);
         return `${space}${attr}=${quote}${next}${quote}`;
@@ -341,19 +385,40 @@ function rewriteAttributes(markup: string, names: ImageNames, scope: string): st
 }
 
 /** Prefix each CSS-wide name declared by this image and every local reference. */
-export function namespaceImageStyleNames(markup: string, scope: string): string {
+export function namespaceImageStyleNames(markup: string, scope: string): string | null {
   const sheets: ParsedSheet[] = [];
   for (const match of markup.matchAll(STYLE_TAG)) sheets.push(parseSheet(match[2]));
   if (sheets.length === 0) return markup;
   const names = collectNames(sheets);
   if (![names.keyframes, names.fonts, names.properties, names.counters].some((set) => set.size > 0)) return markup;
   let index = 0;
+  const variableCounts = new Map<string, number>();
+  const count = (decl: Declaration): void => {
+    if (decl.prop.startsWith("--")) variableCounts.set(decl.prop, (variableCounts.get(decl.prop) ?? 0) + 1);
+  };
+  for (const sheet of sheets) sheet.root?.walkDecls(count);
+  for (const tag of markup.replace(STYLE_TAG, "").matchAll(/<[^>]+>/g)) {
+    const style = /\sstyle\s*=\s*(["'])([\s\S]*?)\1/i.exec(tag[0]);
+    if (style != null) {
+      try {
+        postcss.parse(`x{${style[2]}}`).walkDecls(count);
+      } catch {
+        /* left unchanged below */
+      }
+    }
+  }
+  let unsafe = false;
   const rewritten = markup.replace(STYLE_TAG, (_full, open: string, _css: string, close: string) => {
     const sheet = sheets[index++];
     if (sheet.root == null) return open + sheet.original + close;
     sheet.root.walkAtRules((rule) => rewriteAtRule(rule, names, scope));
-    sheet.root.walkDecls((decl) => rewriteDeclaration(decl, names, scope));
+    sheet.root.walkDecls((decl) => {
+      if (!rewriteDeclaration(decl, names, scope, variableCounts)) unsafe = true;
+    });
     return open + sheet.prefix + sheet.root.toString() + sheet.suffix + close;
   });
-  return rewriteAttributes(rewritten, names, scope);
+  const result = rewriteAttributes(rewritten, names, scope, variableCounts, () => {
+    unsafe = true;
+  });
+  return unsafe ? null : result;
 }

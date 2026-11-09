@@ -3,6 +3,67 @@ import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import { inlineImgSvg } from "./svg-inline.js";
 
 describe("isolated SVG image CSS names", () => {
+  it.each(["calc(12px + 2px)", "min(12px, 2em)", "max(10px, calc(1em + 2px))", "clamp(10px, 2em, 24px)"])(
+    "scopes families after dynamic size %s (DM-2K0K01)",
+    (size) => {
+      const out = namespaceImageStyleNames(
+        `<svg><style>@font-face{font-family:Pair;src:local(serif)} text{font:italic ${size}/1.5 Pair, serif}</style></svg>`,
+        "A-",
+      );
+      expect(out).toContain(`font:italic ${size}/1.5 A-Pair, serif`);
+    },
+  );
+
+  it("expands a constant local font variable without changing unrelated custom-property values", () => {
+    const out = namespaceImageStyleNames(
+      `<svg><style>@font-face{font-family:Pair;src:local(serif)} text{--font:20px Pair;--unrelated:'Pair';font:var(--font)}</style></svg>`,
+      "A-",
+    );
+    expect(out).toContain("--font:20px Pair");
+    expect(out).toContain("--unrelated:'Pair'");
+    expect(out).toMatch(/font:\s*20px A-Pair/);
+  });
+
+  it("falls back for font variables with unresolved or competing definitions", () => {
+    expect(
+      namespaceImageStyleNames(
+        `<svg font-family="var(--family)"><style>@font-face{font-family:Pair;src:local(serif)} svg{--family:Pair}</style></svg>`,
+        "A-",
+      ),
+    ).toBeNull();
+    expect(
+      namespaceImageStyleNames(
+        `<svg><style>@font-face{font-family:Pair;src:local(serif)} text{--font:20px Pair;font:var(--font,10px Pair)} .other{--font:30px Pair}</style></svg>`,
+        "A-",
+      ),
+    ).toBeNull();
+    expect(
+      namespaceImageStyleNames(
+        `<svg><style>@font-face{font-family:Pair;src:local(serif)} @property --font{syntax:'*';inherits:true;initial-value:20px Pair} text{font:var(--font,10px Pair)}</style></svg>`,
+        "A-",
+      ),
+    ).toBeNull();
+    expect(
+      namespaceImageStyleNames(
+        `<svg><style>@font-face{font-family:Pair;src:local(serif)} text{font:var(--font)}</style></svg>`,
+        "A-",
+      ),
+    ).toBeNull();
+    expect(
+      inlineImgSvg(
+        `<svg viewBox="0 0 10 10"><style>@font-face{font-family:Pair;src:local(serif)} text{--font:20px Pair;font:var(--font)} .other{--font:30px Pair}</style><text>x</text></svg>`,
+        { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "A-" },
+      ),
+    ).toBeNull();
+  });
+  it("can use the fallback of a truly absent font variable", () => {
+    expect(
+      namespaceImageStyleNames(
+        `<svg><style>@font-face{font-family:Pair;src:local(serif)} text{font:var(--missing,20px Pair)}</style></svg>`,
+        "A-",
+      ),
+    ).toMatch(/font:\s*20px A-Pair/);
+  });
   it("prefixes definitions and references across sheets, attributes and CDATA", () => {
     const source = `<svg viewBox="0 0 10 10" font-family="Shared Face" style="animation-name: spin; --tone: blue">
       <style><![CDATA[/* kept */ @font-face { font-family: "Shared Face"; src: local("Georgia") }

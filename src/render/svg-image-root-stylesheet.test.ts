@@ -280,6 +280,10 @@ describe("<img> SVG root transform from the document's own <style>", () => {
     ["2em", "32"],
     ["2rem", "32"],
     ["calc(2em + 1px)", "33"],
+    ["calc(1em + calc(1em + 1px))", "33"],
+    ["min(2em, 20px)", "20"],
+    ["max(1em, 20px)", "20"],
+    ["clamp(20px, 1em, 10px)", "20"],
     ["inherit", "16"],
   ])("resolves parentless root font-size %s against the image initial size", (size, expected) => {
     const out = inlineImgSvg(
@@ -294,6 +298,38 @@ describe("<img> SVG root transform from the document's own <style>", () => {
       `<svg viewBox="0 0 100 100"><style>svg { ${declarations}; transform: translate(1em, 1lh) }</style><rect/></svg>`;
     expect(inlineImgSvg(svg("font-size: 30px; font: italic bold 20px/1.5 Georgia"), P)).toContain("translate(20 30)");
     expect(inlineImgSvg(svg("font: italic bold 20px/1.5 Georgia; font-size: 30px"), P)).toContain("translate(30 45)");
+  });
+
+  it("resolves case-sensitive custom properties from the root cascade", () => {
+    const svg = `<svg viewBox="0 0 100 100" style="--Size:24px"><style>@layer defaults { svg { --Size:20px; --size:10px } } svg { font-size:var(--Size); transform:translateX(1em) }</style><rect/></svg>`;
+    expect(inlineImgSvg(svg, P)).toContain("translate(24 0)");
+    expect(inlineImgSvg(svg.replace("--Size:24px", "--Size:32px !important"), P)).toContain("translate(32 0)");
+    expect(
+      inlineImgSvg(
+        `<svg viewBox="0 0 100 100" font-size="var(--Size)" style="--Size:24px;transform:translateX(1em)"><rect/></svg>`,
+        P,
+      ),
+    ).toContain("translate(24 0)");
+    expect(
+      inlineImgSvg(
+        `<svg viewBox="0 0 100 100"><style>svg{--Font:small-caps 550 clamp(12px, 2em, 24px) serif; font:var(--Font);transform:translateX(1em)}</style><rect/></svg>`,
+        P,
+      ),
+    ).toContain("translate(24 0)");
+  });
+
+  it("falls back for unavailable root font data only when the transform needs it", () => {
+    const svg = (declarations: string, transform: string) =>
+      `<svg viewBox="0 0 100 100" style="${declarations};transform:${transform}"><rect/></svg>`;
+    expect(inlineImgSvg(svg("font-size:var(--missing)", "translateX(1em)"), P)).toBeNull();
+    expect(inlineImgSvg(svg("--s:20px;--s:;font-size:var(--s)", "translateX(1em)"), P)).toBeNull();
+    expect(inlineImgSvg(svg("font-size:var(--missing)", "rotate(20deg)"), P)).toContain("rotate(20)");
+    expect(inlineImgSvg(svg("font-size:var(--missing, 20px)", "translateX(1em)"), P)).toContain("translate(20 0)");
+    const registered = `<svg viewBox="0 0 100 100" style="font-size:var(--size,20px);transform:translateX(1em)"><style>@property --size{syntax:'*';inherits:true;initial-value:30px}</style><rect/></svg>`;
+    expect(inlineImgSvg(registered, P)).toBeNull();
+    expect(inlineImgSvg(registered.replace("font-size:var(--size,20px)", "font-size:20px"), P)).toContain(
+      "translate(20 0)",
+    );
   });
 
   it("ranks inline font shorthand and longhand against important sheet declarations", () => {

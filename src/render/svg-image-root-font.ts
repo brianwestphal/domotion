@@ -24,6 +24,7 @@
  * metrics can be reproduced; otherwise it remains unresolved.
  */
 import { isolatedPrimaryFontMetrics } from "./font-resolution.js";
+import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 
 /** The root's font declarations, attribute and inline style merged (style wins). */
 export interface ImageRootFontDeclarations {
@@ -49,9 +50,6 @@ const ABSOLUTE_PX: Record<string, number> = {
   pc: 16,
 };
 
-const FONT_SIZE_TOKEN =
-  "(?:calc\\([^)]*\\)|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:px|pt|pc|in|cm|mm|q|em|rem|%)|xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|smaller|larger)";
-
 /** The supported static `font` shorthand subset, expanded at its cascade position. */
 export function parseImageRootFontShorthand(value: string): ReadonlyMap<string, string> | null {
   const v = value.trim();
@@ -63,38 +61,19 @@ export function parseImageRootFontShorthand(value: string): ReadonlyMap<string, 
       ["font-style", "normal"],
       ["line-height", "normal"],
       ["font-stretch", "normal"],
+      ["font-variant-caps", "normal"],
     ]);
   }
-  if (/\bvar\(/i.test(v)) return null;
-  const match = new RegExp(
-    `^(.*?)\\b(${FONT_SIZE_TOKEN})(?:\\s*\\/\\s*(normal|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:%|[a-z]+)?))?\\s+(.+)$`,
-    "i",
-  ).exec(v);
+  const match = parseImageFontShorthand(v);
   if (match == null) return null;
-  let weight = "normal";
-  let style = "normal";
-  let stretch = "normal";
-  for (const token of match[1].trim().split(/\s+/).filter(Boolean)) {
-    const lower = token.toLowerCase();
-    if (lower === "normal") continue;
-    if (lower === "italic" || lower === "oblique") {
-      if (style !== "normal") return null;
-      style = lower;
-    } else if (/^(?:bold|bolder|lighter|[1-9]00)$/.test(lower)) {
-      if (weight !== "normal") return null;
-      weight = lower;
-    } else if (/^(?:condensed|expanded|semi-condensed|semi-expanded)$/.test(lower)) {
-      if (stretch !== "normal") return null;
-      stretch = lower;
-    } else return null;
-  }
   return new Map([
-    ["font-size", match[2]],
-    ["font-family", match[4].trim()],
-    ["font-weight", weight],
-    ["font-style", style],
-    ["line-height", match[3] ?? "normal"],
-    ["font-stretch", stretch],
+    ["font-size", match.size],
+    ["font-family", match.family],
+    ["font-weight", match.weight],
+    ["font-style", match.style],
+    ["line-height", match.lineHeight],
+    ["font-stretch", match.stretch],
+    ["font-variant-caps", match.variant],
   ]);
 }
 
@@ -186,6 +165,7 @@ export function imageRootFontMetricUnits(
   const fontFamily = familyValue == null || isInitial(familyValue) ? "" : familyValue.trim();
   let resolved: ReturnType<typeof isolatedPrimaryFontMetrics> | undefined;
   const metrics = (): ReturnType<typeof isolatedPrimaryFontMetrics> => {
+    if (!isInitial(declarations.get("font-variant-caps"))) return null;
     if (resolved === undefined) {
       resolved = isolatedPrimaryFontMetrics({
         fontFamily,

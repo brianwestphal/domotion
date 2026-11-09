@@ -46,6 +46,7 @@ import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
 import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
+import { resolveImageCssVariables } from "./svg-image-css-variables.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
@@ -578,6 +579,7 @@ function imageRootTransform(
   sheet: ReadonlyMap<string, CascadedDeclaration> | null = null,
   fontUnresolved = false,
   viewport: { w: number; h: number } | null = null,
+  registeredProperties: ReadonlySet<string> = new Set(),
 ): ResolvedImageRootTransform | null | "projective" {
   const tokens = parseSvgAttributes(attrs) ?? [];
   // The DOM value of an XML attribute: references expanded, whitespace
@@ -601,7 +603,8 @@ function imageRootTransform(
       const raw = declaration.slice(colon + 1).trim();
       const important = /!\s*important\s*$/i.test(raw);
       const value = raw.replace(/!\s*important\s*$/i, "").trim();
-      const name = declaration.slice(0, colon).trim().toLowerCase();
+      const rawName = declaration.slice(0, colon).trim();
+      const name = rawName.startsWith("--") ? rawName : rawName.toLowerCase();
       const previous = inline.get(name);
       if (previous == null || important || !previous.important) inline.set(name, { value, important, order });
     }
@@ -612,12 +615,36 @@ function imageRootTransform(
     const fromSheet = sheet?.get(name);
     if (fromSheet == null || decl.important || !fromSheet.important) style.set(name, decl.value);
   }
+  const variables = new Map(style);
+  const dynamicFont =
+    [...variables].some(
+      ([name, value]) =>
+        (name === "font" || name === "line-height" || FONT_PRESENTATION_ATTRIBUTES.has(name)) &&
+        (/\b(?:var|calc|min|max|clamp)\(/i.test(value) || (name === "font" && /\bsmall-caps\b/i.test(value))),
+    ) || /\b(?:var|calc|min|max|clamp)\(/i.test(attr("font-size") ?? "");
+  const expanded = (value: string): string | null =>
+    resolveImageCssVariables(value, (name) =>
+      registeredProperties.has(name) ? undefined : (variables.get(name) ?? null),
+    );
+  for (const [name, value] of style) {
+    if (!name.startsWith("--")) style.set(name, expanded(value) ?? value);
+  }
   const sheetFont = sheet?.get("font");
   const inlineFont = inline.get("font");
-  const sheetShorthand = sheetFont == null ? null : parseImageRootFontShorthand(sheetFont.value);
-  const inlineShorthand = inlineFont == null ? null : parseImageRootFontShorthand(inlineFont.value);
+  const sheetShorthand =
+    sheetFont == null ? null : parseImageRootFontShorthand(expanded(sheetFont.value) ?? sheetFont.value);
+  const inlineShorthand =
+    inlineFont == null ? null : parseImageRootFontShorthand(expanded(inlineFont.value) ?? inlineFont.value);
   if ((sheetFont == null || sheetShorthand != null) && (inlineFont == null || inlineShorthand != null)) {
-    for (const name of ["font-size", "font-family", "font-weight", "font-style", "line-height", "font-stretch"]) {
+    for (const name of [
+      "font-size",
+      "font-family",
+      "font-weight",
+      "font-style",
+      "line-height",
+      "font-stretch",
+      "font-variant-caps",
+    ]) {
       const sheetLonghand = sheet?.get(name);
       const sheetValue =
         sheetFont != null && (sheetLonghand == null || compareRootCascadeDeclarations(sheetFont, sheetLonghand) > 0)
@@ -637,8 +664,8 @@ function imageRootTransform(
       const inlineValue = inlineUsesShorthand ? inlineShorthand?.get(name) : inlineLonghand?.value;
       const inlineImportant = inlineUsesShorthand ? inlineFont?.important : inlineLonghand?.important;
       if (inlineValue != null && (sheetValue == null || inlineImportant || !sheetImportant))
-        style.set(name, inlineValue);
-      else if (sheetValue != null) style.set(name, sheetValue);
+        style.set(name, expanded(inlineValue) ?? inlineValue);
+      else if (sheetValue != null) style.set(name, expanded(sheetValue) ?? sheetValue);
     }
     style.delete("font");
   }
@@ -649,13 +676,21 @@ function imageRootTransform(
     decodedTransform != null && /[<>&"']/.test(decodedTransform) ? rawAttr("transform") : decodedTransform;
   const fontSize = style.has("font")
     ? null
-    : rootFontSize(attr("font-size"), style.get("font-size") ?? null, fontUnresolved);
+    : rootFontSize(
+        attr("font-size") == null ? null : (expanded(attr("font-size")!) ?? attr("font-size")),
+        style.get("font-size") ?? null,
+        fontUnresolved,
+      );
   // The root's font: inline style over its font presentation attributes
   // (`line-height` and the `font` shorthand are not presentation attributes).
   const fontDeclarations = {
     get: (name: string): string | null =>
       style.get(name) ?? (FONT_PRESENTATION_ATTRIBUTES.has(name) ? attr(name) : null),
   };
+  const metricUnits = fontUnresolved
+    ? null
+    : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang"));
+  let unavailableFontMetric = false;
   const resolved = resolveImageRootTransform(
     {
       transformAttr,
@@ -663,13 +698,23 @@ function imageRootTransform(
       style,
       fontSize,
       viewport,
-      fontMetric: fontUnresolved
-        ? null
-        : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang")),
+      fontMetric: (unit) => {
+        const value = metricUnits?.(unit) ?? null;
+        if (value == null && /^(?:r?(?:ex|cap|ch|ic|lh))$/.test(unit)) unavailableFontMetric = true;
+        return value;
+      },
     },
     box,
   );
   if (resolved !== "unsupported") return resolved;
+  if ((fontSize == null || unavailableFontMetric) && dynamicFont) {
+    renderWarn(
+      "svg-image-root-transform",
+      `${slot} root transform depends on unresolved font data; retaining the image raster fallback`,
+      slot,
+    );
+    return "projective";
+  }
   // (`"projective"` passes through: the caller falls back to `<image>`.)
   renderWarn(
     "svg-image-root-transform",
@@ -940,7 +985,12 @@ function rootSheetTransform(
   svgText: string,
   tag: SvgOpeningTag,
   p: InlineSvgPlacement,
-): { declarations: ReadonlyMap<string, CascadedDeclaration> | null; source: string; fontUnresolved: boolean } {
+): {
+  declarations: ReadonlyMap<string, CascadedDeclaration> | null;
+  source: string;
+  fontUnresolved: boolean;
+  registeredProperties?: ReadonlySet<string>;
+} {
   const tokens = parseSvgAttributes(tag.attributes) ?? [];
   const attr = (name: string): string | null =>
     tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
@@ -964,7 +1014,14 @@ function rootSheetTransform(
     );
     return { declarations: null, source: svgText, fontUnresolved: true };
   }
-  return sheet == null ? { declarations: null, source: svgText, fontUnresolved: false } : sheet;
+  return sheet == null
+    ? { declarations: null, source: svgText, fontUnresolved: false }
+    : {
+        ...sheet,
+        registeredProperties: new Set(
+          [...sheet.registeredProperties].flatMap((name) => [name, `--${p.idPrefix}${name.slice(2)}`]),
+        ),
+      };
 }
 
 /** A root `<svg>` length attribute resolved against the image viewport
@@ -1032,6 +1089,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   if (tag == null) return null;
   const sheet = rootSheetTransform(imageSource, tag, p);
   const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
+  if (svgText == null) return null;
   const rewrittenTag = readSvgOpeningTag(svgText);
   if (rewrittenTag == null) return null;
   let attrs = rewrittenTag.attributes;
@@ -1067,6 +1125,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     sheet.declarations,
     sheet.fontUnresolved,
     imageViewport(p),
+    sheet.registeredProperties,
   );
   if (rootTransform === "projective") return null;
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
@@ -1249,6 +1308,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
   if (tag == null) return null;
   const sheet = rootSheetTransform(sourceText, tag, p);
   const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
+  if (svgText == null) return null;
   const rewrittenTag = readSvgOpeningTag(svgText);
   if (rewrittenTag == null) return null;
   const attrs = rewrittenTag.attributes;
@@ -1293,6 +1353,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     sheet.declarations,
     sheet.fontUnresolved,
     imageViewport(p),
+    sheet.registeredProperties,
   );
   if (rootTransform === "projective") return null;
   if (rootOverflowVisible(attrs)) {

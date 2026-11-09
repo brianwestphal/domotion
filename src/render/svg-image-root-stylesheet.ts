@@ -90,6 +90,7 @@ const ROOT_FONT_PROPERTIES: ReadonlySet<string> = new Set([
   "font-size",
   "font-weight",
   "font-style",
+  "font-variant-caps",
   "line-height",
   "font",
   "font-stretch",
@@ -100,6 +101,7 @@ const ROOT_FONT_PROPERTIES: ReadonlySet<string> = new Set([
   "text-orientation",
 ]);
 const ROOT_RELEVANT_PROPERTIES: ReadonlySet<string> = new Set([...ROOT_TRANSFORM_PROPERTIES, ...ROOT_FONT_PROPERTIES]);
+const isRootRelevant = (name: string): boolean => ROOT_RELEVANT_PROPERTIES.has(name) || name.startsWith("--");
 
 export interface CascadedDeclaration {
   value: string;
@@ -119,6 +121,8 @@ export interface RootStylesheetTransform {
   source: string;
   /** A font rule might reach the root but could not be decided exactly. */
   fontUnresolved: boolean;
+  /** Typed custom-property registration is kept distinct from absent values. */
+  registeredProperties: ReadonlySet<string>;
 }
 
 interface SimpleCompound {
@@ -406,11 +410,12 @@ function parseDeclarations(block: string): Array<{ name: string; value: string; 
     start = i + 1;
     const colon = raw.indexOf(":");
     if (colon < 0) continue;
-    const name = raw.slice(0, colon).trim().toLowerCase();
+    const rawName = raw.slice(0, colon).trim();
+    const name = rawName.startsWith("--") ? rawName : rawName.toLowerCase();
     let value = raw.slice(colon + 1).trim();
     const important = /!\s*important\s*$/i.test(value);
     if (important) value = value.replace(/!\s*important\s*$/i, "").trim();
-    if (name !== "" && value !== "") out.push({ name, value, important, raw });
+    if (name !== "" && (value !== "" || name.startsWith("--"))) out.push({ name, value, important, raw });
   }
   return out;
 }
@@ -518,6 +523,7 @@ export function cascadeRootStylesheetTransform(
   env: ImageMediaEnv = {},
 ): RootStylesheetTransform | null | "unsupported" {
   const body = svgText.slice(rootTagEnd);
+  const registeredProperties = new Set<string>();
   if (!/<style[\s>]/i.test(body)) return null;
   // The source carries raw attribute text; the DOM sees it decoded.
   const id = root.id == null ? null : (decodeXmlAttributeValue(root.id) ?? undefined);
@@ -577,12 +583,18 @@ export function cascadeRootStylesheetTransform(
       const block = clean.slice(brace + 1, end);
       if (prelude.startsWith("@")) {
         const name = /^@([-\w]+)/.exec(prelude)?.[1].toLowerCase() ?? "";
+        // Registered custom properties have typed initial/inheritance rules;
+        // unregistered root var() substitution cannot assume their semantics.
+        if (name === "property") {
+          const property = /^@property\s+(--[-\w]+)/i.exec(prelude)?.[1];
+          if (property != null) registeredProperties.add(property);
+        }
         const isStyleRule = name !== "font-face" && name !== "keyframes" && name !== "-webkit-keyframes";
         const touchesTransform =
           isStyleRule && /(?:^|[;{}])\s*(?:transform|transform-origin|translate|rotate|scale)\s*:/i.test(block);
         const touchesFont =
           isStyleRule &&
-          /(?:^|[;{}])\s*(?:font(?:-[a-z-]+)?|line-height|writing-mode|text-orientation)\s*:/i.test(block);
+          /(?:^|[;{}])\s*(?:font(?:-[a-z-]+)?|line-height|writing-mode|text-orientation|--[-\w]+)\s*:/i.test(block);
         const touchesRootStyle = touchesTransform || touchesFont;
         // The block's rules for the root: `true` / `false` to apply them or
         // not (their root transform declarations are removed either way, so
@@ -628,8 +640,8 @@ export function cascadeRootStylesheetTransform(
       }
       const decls = parseDeclarations(block);
       const transformDecls = decls.filter((d) => ROOT_TRANSFORM_PROPERTIES.has(d.name));
-      const fontDecls = decls.filter((d) => ROOT_FONT_PROPERTIES.has(d.name));
-      const relevantDecls = decls.filter((d) => ROOT_RELEVANT_PROPERTIES.has(d.name));
+      const fontDecls = decls.filter((d) => ROOT_FONT_PROPERTIES.has(d.name) || d.name.startsWith("--"));
+      const relevantDecls = decls.filter((d) => isRootRelevant(d.name));
       if (relevantDecls.length === 0) {
         order += decls.length;
         i = end + 1;
@@ -680,7 +692,7 @@ export function cascadeRootStylesheetTransform(
       if (matchedSpec != null) {
         for (const d of decls) {
           const current = order++;
-          if (!active || !ROOT_RELEVANT_PROPERTIES.has(d.name)) continue;
+          if (!active || !isRootRelevant(d.name)) continue;
           candidates.push({
             name: d.name,
             layer,
@@ -734,11 +746,12 @@ export function cascadeRootStylesheetTransform(
     if (previous == null || compareRootCascadeDeclarations(declaration, previous) > 0)
       declarations.set(name, declaration);
   }
-  if (declarations.size === 0 && !changed && !unsupportedFont) return null;
+  if (declarations.size === 0 && !changed && !unsupportedFont && registeredProperties.size === 0) return null;
   return {
     declarations,
     source: changed ? svgText.slice(0, rootTagEnd) + rewrittenBody : svgText,
     fontUnresolved: unsupportedFont,
+    registeredProperties,
   };
 }
 

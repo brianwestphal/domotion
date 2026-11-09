@@ -121,11 +121,14 @@ interface Operand {
 function evaluate(token: string, kind: ValueKind, ctx: ValueContext): number | null {
   const src = token.trim();
   let pos = 0;
+  // Bound expression work and recursive nesting for untrusted image CSS.
+  let atomBudget = 512;
   const peek = (): string => {
     while (pos < src.length && /\s/.test(src[pos])) pos++;
     return src[pos] ?? "";
   };
   const atom = (): Operand | null => {
+    if (--atomBudget < 0) return null;
     const c = peek();
     if (c === "(") {
       pos++;
@@ -134,9 +137,26 @@ function evaluate(token: string, kind: ValueKind, ctx: ValueContext): number | n
       pos++;
       return v;
     }
-    if (/^calc\(/i.test(src.slice(pos))) {
-      pos += 4;
-      return atom();
+    const fn = /^(calc|min|max|clamp)\(/i.exec(src.slice(pos));
+    if (fn != null) {
+      pos += fn[0].length;
+      const args: Operand[] = [];
+      for (;;) {
+        const value = sum();
+        if (value == null) return null;
+        args.push(value);
+        if (peek() !== ",") break;
+        pos++;
+      }
+      if (peek() !== ")" || args.some((arg) => arg.dim !== args[0].dim)) return null;
+      pos++;
+      const name = fn[1].toLowerCase();
+      if (name === "calc") return args.length === 1 ? args[0] : null;
+      if (name === "clamp")
+        return args.length === 3
+          ? { value: Math.max(args[0].value, Math.min(args[1].value, args[2].value)), dim: args[0].dim }
+          : null;
+      return { value: (name === "min" ? Math.min : Math.max)(...args.map((arg) => arg.value)), dim: args[0].dim };
     }
     const m = new RegExp(`^(${NUMBER})(%|[a-zA-Z]+)?`).exec(src.slice(pos));
     if (m == null) return null;
@@ -207,7 +227,7 @@ function evaluate(token: string, kind: ValueKind, ctx: ValueContext): number | n
     }
     return left;
   };
-  const isCalc = /^calc\(/i.test(src);
+  const isCalc = /^(?:calc|min|max|clamp)\(/i.test(src);
   const result = isCalc ? atom() : unary();
   if (result == null || peek() !== "" || !Number.isFinite(result.value)) return null;
   if (kind === "number") return result.dim ? null : result.value;

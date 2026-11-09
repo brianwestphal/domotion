@@ -53,8 +53,12 @@ deviation for box, inline, control, and text shadows.
   `src/capture/script/` is type-checked under the repo's strict config; the
   browser bundle erases these annotations before serialization.
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
-  decisions; it does not independently lay out the page. Browser-faithful text
-  is a private workspace at `packages/text-engine/`: it owns resolution,
+  decisions; it does not independently lay out the page.
+  SVG image font parsing shares balanced shorthand boundaries in
+  `render/svg-image-font-shorthand.ts` and bounded root custom-property
+  substitution in `render/svg-image-css-variables.ts`; font name isolation and
+  root transform metrics use those decisions together.
+  Browser-faithful text is a private workspace at `packages/text-engine/`: it owns resolution,
   fallback, shaping, glyph/outline and embedded-font emission, platform routing,
   native and ICU helpers, HarfBuzz, font fixtures, and package-local tests.
   `packages/text-engine/src/render/font-resolution.ts` is the compatibility

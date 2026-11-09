@@ -37,6 +37,16 @@ describe("imageRootFontMetricUnits", () => {
     else expect(normal).toBeNull();
   });
 
+  it("keeps explicit line height independent of unresolved small-caps glyph metrics", () => {
+    const units = imageRootFontMetricUnits(
+      decls({ "font-variant-caps": "small-caps", "line-height": "1.5" }),
+      24,
+      null,
+    );
+    expect(units?.("lh")).toBe(36);
+    expect(units?.("ex")).toBeNull();
+  });
+
   it.skipIf(process.platform !== "darwin")("resolves normal lh / rlh from macOS primary-font line spacing", () => {
     const units = imageRootFontMetricUnits(decls({ "font-family": "Arial" }), 16, null);
     expect(units?.("lh")).toBe(18);

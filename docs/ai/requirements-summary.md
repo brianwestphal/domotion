@@ -71,6 +71,9 @@ external runtime assets. macOS, Linux, and Windows are first-class platforms.
 - [Layout and fragmentation](../handbook/layout-and-fragmentation.md)
 - [Paint, effects, and native controls](../handbook/paint-effects-and-native-controls.md)
 - [Images, media, and embedding](../handbook/images-media-and-embedding.md)
+  includes [dynamic isolated SVG image fonts](../274-dynamic-svg-image-fonts.md):
+  bounded root variable/math resolution and font-face namespace isolation are
+  shipped; uncertain values retain raster fallback.
 - [Animation and interaction](../handbook/animation-and-interaction.md)
 - [Platforms, testing, and release](../handbook/platforms-testing-and-release.md)
 - [Major-release visual capture checklist](../handbook/major-release-visual-capture.md)

@@ -32,6 +32,8 @@ aliases: ["docs/handbook/images-media-and-embedding.md"]
    `font-family` / `font-size` / `text-anchor`) is baked onto the cloned nodes
    ([doc 96](../96-native-svg-image-inlining.md)). Canvas, video, object, embed,
    broken-image, and other replaced content cross an explicit ownership gate.
+   Dynamic image-root font math and font-face name isolation follow
+   [the isolated image font contract](../274-dynamic-svg-image-fonts.md).
 3. Time-dependent media is captured only from a coherent authenticated frame.
    Animated-image indexed capture is opt-in: owner bytes, decode, frame
    selection, immutable PNG handoff, resize, and emission retain one epoch and

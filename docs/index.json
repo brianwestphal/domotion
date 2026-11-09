@@ -5963,6 +5963,30 @@
       }
     },
     {
+      "file": "274-dynamic-svg-image-fonts.md",
+      "metadata": {
+        "id": "requirements/dynamic-svg-image-fonts",
+        "title": "Dynamic font values in isolated SVG images",
+        "kind": "contract",
+        "status": "current",
+        "owners": ["images-media"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-2K0K01", "DM-53WRGR"],
+        "code": [
+          "src/render/svg-image-font-shorthand.ts",
+          "src/render/svg-image-css-variables.ts",
+          "src/render/svg-image-style-names.ts",
+          "src/render/svg-image-root-font.ts",
+          "src/render/svg-image-root-stylesheet.ts",
+          "src/render/svg-image-root-transform.ts",
+          "src/render/svg-inline.ts",
+          "tests/img-svg-dynamic-font-names.e2e.test.ts",
+          "tests/img-svg-root-sheet-font.e2e.test.ts"
+        ],
+        "aliases": ["docs/274-dynamic-svg-image-fonts.md"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6421,6 +6445,7 @@
     "271": ["requirements/mathml-italic-token-oracle"],
     "272": ["requirements/background-clip-text-native-parity"],
     "273": ["requirements/ui-conventions"],
+    "274": ["requirements/dynamic-svg-image-fonts"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],
