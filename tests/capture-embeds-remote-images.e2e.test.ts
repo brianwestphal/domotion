@@ -1,7 +1,11 @@
 import { createServer, type Server } from "node:http";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { launchChromium, captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../src/index.js";
+import { runCapture } from "../src/cli/capture.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-1506: `domotion capture` must embed remote images so the output SVG is
@@ -32,6 +36,17 @@ async function setup(): Promise<{
       if ((req.url ?? "").startsWith("/pic.png")) {
         res.writeHead(200, { "content-type": "image/png" });
         res.end(png);
+      } else if ((req.url ?? "").startsWith("/supports.svg")) {
+        res.writeHead(200, { "content-type": "image/svg+xml" });
+        res.end(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><style>` +
+            `@supports (display: grid) { :root { color: green } rect { fill: currentColor } } ` +
+            `@supports (not-a-property: 1) { rect { fill: red } }` +
+            `</style><rect width="10" height="10"/></svg>`,
+        );
+      } else if ((req.url ?? "").startsWith("/supports.html")) {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end(`<body style="margin:0"><img src="/supports.svg" style="width:80px;height:80px"></body>`);
       } else {
         res.writeHead(200, { "content-type": "text/html" });
         res.end(html);
@@ -87,6 +102,21 @@ describeBrowser("capture embeds remote images (DM-1506)", () => {
       expect(after).not.toMatch(/href="http:\/\/127\.0\.0\.1/);
     } finally {
       await page.close();
+    }
+  }, 60_000);
+
+  it("decides remote SVG @supports through the CLI capture pipeline", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-svg-supports-"));
+    const out = join(dir, "capture.svg");
+    try {
+      await runCapture([`${env!.base}/supports.html`, "--quiet", "--width", "100", "--height", "100", "-o", out], "");
+      const svg = readFileSync(out, "utf8");
+      expect(svg).toContain("data-domotion-image-root");
+      expect(svg).toContain("green");
+      expect(svg).not.toContain("not-a-property");
+      expect(svg).not.toContain("@supports");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   }, 60_000);
 });

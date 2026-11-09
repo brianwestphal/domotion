@@ -24,6 +24,7 @@ import {
 } from "./render.js";
 import type { TerminalThemeSpec } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
+import { captureImageSvgSupports } from "../capture/image-svg-supports.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { generateAnimatedSvg, type AnimationFrame } from "../animation/animator.js";
 import { composeIncrementalTermSvg } from "./incremental.js";
@@ -169,6 +170,7 @@ export async function castToTermFrames(
       await page.evaluate(() => document.fonts.ready);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
       await embedRemoteImages(tree);
+      await captureImageSvgSupports(page, tree);
       // includeGlyphDefs=true, includeEmbeddedFontCss=false (DM-1225): defer the
       // font to the single deduped block collected below, not per frame.
       const svgContent = elementTreeToSvgInner(tree, width, height, `t${i}-`, true, 2, false, opts.realText === true);

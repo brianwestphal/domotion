@@ -29,6 +29,7 @@ import {
   isRenderTextMode,
 } from "../render/index.js";
 import { embedRemoteImages } from "../capture/embed.js";
+import { captureImageSvgSupports } from "../capture/image-svg-supports.js";
 import { compressEmbeddedFontsToWoff2, optimizeSvg } from "../post-processing/index.js";
 import { getLastCaptureWarnings, logCaptureWarnings } from "../capture/warnings.js";
 import { resolveFormat, safeAreaGuideSvg, formatNames, type ResolvedFormat } from "../templates/index.js";
@@ -398,7 +399,10 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
       // self-contained too. `--no-embed-images` opts out.
       if (values["no-embed-images"] !== true) {
         await timed(log, `  embedded images`, async () => {
-          for (const seg of segments) await embedRemoteImages(seg.tree);
+          for (const seg of segments) {
+            await embedRemoteImages(seg.tree);
+            await captureImageSvgSupports(page, seg.tree);
+          }
         });
       }
       svg = await timed(log, `  composed scroll SVG`, () =>
@@ -460,7 +464,10 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
       // is genuinely self-contained, matching the animate/template pipelines and
       // the "no external assets" promise. `--no-embed-images` opts out.
       if (values["no-embed-images"] !== true) {
-        await timed(log, "  embedded images", () => embedRemoteImages(tree));
+        await timed(log, "  embedded images", async () => {
+          await embedRemoteImages(tree);
+          await captureImageSvgSupports(page, tree);
+        });
       }
       clearEmbeddedFonts(); // DM-839: reset embedded-font builder before this single-frame render
       clearGlyphDefs(); // DM-1338: glyph registry (paths mode) shares the per-generation lifecycle

@@ -29,6 +29,7 @@ import type {
 } from "../capture/types.js";
 import { captureElementTreeWithWarnings } from "../capture/index.js";
 import { embedRemoteImages } from "../capture/embed.js";
+import { captureImageSvgSupports } from "../capture/image-svg-supports.js";
 import { capturedScrollOwnerBindingSha256 } from "../capture/frame-scroll-state.js";
 import type {
   ScrollPattern,
@@ -405,7 +406,10 @@ export async function executeScrollPattern(
       ...(opts.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
     });
     const scrollOwner = await resolveScrollOwner(page, selector, captured.frameScrollState);
-    if (opts.embedImages !== false) await embedRemoteImages(captured.tree);
+    if (opts.embedImages !== false) {
+      await embedRemoteImages(captured.tree);
+      await captureImageSvgSupports(page, captured.tree);
+    }
     return {
       tree: captured.tree,
       frameScrollState: captured.frameScrollState,

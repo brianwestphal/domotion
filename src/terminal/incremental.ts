@@ -37,6 +37,7 @@ import {
 } from "./render.js";
 import type { TerminalTheme } from "./theme.js";
 import { captureElementTree, elementTreeToSvgInner, embedRemoteImages } from "../render/element-tree-to-svg.js";
+import { captureImageSvgSupports } from "../capture/image-svg-supports.js";
 import { clearEmbeddedFonts, clearGlyphDefs, getEmbeddedFontFaceCss } from "../render/index.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "../render/real-text-layer.js";
 import type { TermToSvgOptions } from "./index.js";
@@ -409,6 +410,7 @@ export async function composeIncrementalTermSvg(
     await page.evaluate(() => document.fonts.ready);
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
     await embedRemoteImages(tree);
+    await captureImageSvgSupports(page, tree);
     const renderVisual = (): string => elementTreeToSvgInner(tree, width, height, "ti-", true, 2, false);
     inner = opts.realText === true ? withRealTextLayerVisualSemantics(renderVisual) : renderVisual();
 
