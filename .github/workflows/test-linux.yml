@@ -210,6 +210,8 @@ jobs:
             tests/output/*.png
             tests/output/features-results.json
             tests/output/run-env.json
+            tests/output-linux/image-vdmx-*.png
+            tests/output-linux/image-vdmx-hinting.json
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

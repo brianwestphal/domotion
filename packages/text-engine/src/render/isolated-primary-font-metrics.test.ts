@@ -1,8 +1,38 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { FontInstance } from "./font-instance.js";
+import { fontSourceMap, type FontInstance } from "./font-instance.js";
 import { normalLineSpacing, parseVdmxStrike } from "./isolated-primary-font-metrics.js";
+import { buildVdmxHintedFont } from "./synth-test-fonts.js";
+import { fontkit, isFontkitCollection } from "./fontkit-facade.js";
 
 describe("Linux normal line spacing", () => {
+  it("selects the discriminating VDMX strike only with observed bytecode hinting", () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-vdmx-"));
+    try {
+      const path = join(dir, "control.ttf");
+      writeFileSync(path, buildVdmxHintedFont());
+      const font = fontkit.openSync(path);
+      if (isFontkitCollection(font)) throw new Error("expected single control face");
+      fontSourceMap.set(font, { path, faceIndex: 0, nameMatched: true });
+      expect(normalLineSpacing(font, 16, "linux")).toBeNull();
+      expect(normalLineSpacing(font, 16, "linux", "full")).toBeNull();
+      expect(normalLineSpacing(font, 16, "linux", "full", true)).toBe(16);
+      expect(normalLineSpacing(font, 16, "linux", "none")).toBe(16);
+      expect(normalLineSpacing(font, 16, "linux", "slight")).toBe(16);
+      expect(normalLineSpacing(font, 16, "linux", "medium", false)).toBe(23);
+      expect(normalLineSpacing(font, 16, "linux", "full", false)).toBe(23);
+      expect(normalLineSpacing(font, 20, "linux", "full", false)).toBe(20);
+      // A no-VDMX mode must not depend on reading an unused table at all.
+      fontSourceMap.delete(font);
+      expect(normalLineSpacing(font, 16, "linux", "none")).toBe(16);
+      expect(normalLineSpacing(font, 16, "linux", "full", false)).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("uses OS/2 typo metrics only when USE_TYPO_METRICS is selected", () => {
     const face = {
       unitsPerEm: 1000,

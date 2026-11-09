@@ -1026,6 +1026,84 @@ static std::string runFamilyMatchQuery(FT_Library lib, const JsonValue& query) {
   return out.str();
 }
 
+extern char** environ;
+
+// Chromium 7d859f27 gfx::QueryFontconfig / GetFontRenderParams, and
+// linux/fontconfig_util.cc::GetFontRenderParamsFromFcPattern. No family means
+// the global renderer preference query, not an arbitrary default matched face.
+static std::string runFontRenderStyleQuery(const JsonValue& query) {
+  FcPattern* pattern = FcPatternCreate();
+  if (pattern == nullptr) return "{\"type\":\"fontRenderStyle\",\"error\":\"pattern allocation failed\"}";
+  FcPatternAddBool(pattern, FC_SCALABLE, FcTrue);
+  FcPatternAddString(pattern, FC_FONT_WRAPPER, reinterpret_cast<const FcChar8*>("SFNT"));
+  const std::string family = query.at("family").asString();
+  if (!family.empty()) {
+    FcPatternAddString(pattern, FC_FAMILY, reinterpret_cast<const FcChar8*>(family.c_str()));
+    const float requestedSize = static_cast<float>(query.at("fontSizePx").asNumber(0));
+    if (!std::isfinite(requestedSize) || requestedSize < 0 || requestedSize >= 65536) {
+      FcPatternDestroy(pattern);
+      return "{\"type\":\"fontRenderStyle\",\"error\":\"font size outside sandbox strike range\"}";
+    }
+    // Blink's float text_size passes through the sandbox's int strike size.
+    const int size = static_cast<int>(requestedSize);
+    if (size > 0) FcPatternAddDouble(pattern, FC_PIXEL_SIZE, size);
+    FcPatternAddInteger(pattern, FC_SLANT, query.at("italic").boolean ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
+    FcPatternAddInteger(pattern, FC_WEIGHT, query.at("bold").boolean ? FC_WEIGHT_BOLD : FC_WEIGHT_NORMAL);
+  }
+  FcConfig* config = FcConfigGetCurrent();
+  FcConfigSubstitute(config, pattern, FcMatchPattern);
+  FcDefaultSubstitute(pattern);
+  FcPattern* result = nullptr;
+  if (family.empty()) {
+    result = FcPatternDuplicate(pattern);
+    if (result != nullptr) {
+      FcPatternDel(result, FC_FAMILY);
+      FcPatternDel(result, FC_PIXEL_SIZE);
+      FcPatternDel(result, FC_SIZE);
+      FcConfigSubstituteWithPat(config, result, pattern, FcMatchFont);
+    }
+  } else {
+    FcResult matchResult;
+    result = FcFontMatch(config, pattern, &matchResult);
+  }
+  FcPatternDestroy(pattern);
+  if (result == nullptr) return "{\"type\":\"fontRenderStyle\",\"error\":\"fontconfig query failed\"}";
+  // FontRenderParams defaults; missing properties retain those values.
+  bool antialias = true, autohint = false;
+  int hint = FC_HINT_MEDIUM;
+  FcBool flag;
+  if (FcPatternGetBool(result, FC_ANTIALIAS, 0, &flag) == FcResultMatch) antialias = flag;
+  if (FcPatternGetBool(result, FC_AUTOHINT, 0, &flag) == FcResultMatch) autohint = flag;
+  if (FcPatternGetBool(result, FC_HINTING, 0, &flag) == FcResultMatch) {
+    hint = FC_HINT_NONE;
+    if (flag) FcPatternGetInteger(result, FC_HINT_STYLE, 0, &hint);
+  }
+  FcPatternDestroy(result);
+  // Linux, not ChromeOS: dsf > 1 enables subpixel positioning and disables
+  // hinting, unless the launch explicitly disabled subpixel positioning.
+  if (!antialias) hint = FC_HINT_FULL;
+  else if (!query.at("disableSubpixelPositioning").boolean &&
+           static_cast<float>(query.at("deviceScaleFactor").asNumber(1)) > 1.0f) hint = FC_HINT_NONE;
+  const char* mode = hint == FC_HINT_SLIGHT ? "slight" : hint == FC_HINT_MEDIUM ? "medium" : hint == FC_HINT_FULL ? "full" : "none";
+  std::ostringstream out;
+  out << "{\"type\":\"fontRenderStyle\",\"hinting\":\"" << mode
+      << "\",\"forceAutoHint\":" << (autohint ? "true" : "false") << ",\"environment\":{";
+  bool first = true;
+  for (char** env = environ; env != nullptr && *env != nullptr; ++env) {
+    const std::string entry(*env);
+    const auto equal = entry.find('=');
+    if (equal == std::string::npos) continue;
+    const std::string key = entry.substr(0, equal);
+    if (key != "HOME" && key != "LANG" && key.rfind("FONTCONFIG_", 0) != 0 &&
+        key.rfind("FC_", 0) != 0 && key.rfind("XDG_", 0) != 0 && key.rfind("LC_", 0) != 0) continue;
+    if (!first) out << ",";
+    first = false;
+    out << "\"" << jsonEscape(key) << "\":\"" << jsonEscape(entry.substr(equal + 1)) << "\"";
+  }
+  out << "}}";
+  return out.str();
+}
+
 // Open the font described by `spec`. Returns true on success (populating
 // `out`); on failure returns false and sets `err` — the caller decides whether
 // to `die()` (one-shot mode, preserving the original fatal contract) or skip
@@ -1328,6 +1406,8 @@ static std::string handleEnvelope(FT_Library lib, const JsonValue& envelope,
       response << runFcFallbackQuery(queries[i]);
     } else if (type == "fcdiagnostic") {
       response << runFcDiagnosticQuery(queries[i]);
+    } else if (type == "fontRenderStyle") {
+      response << runFontRenderStyleQuery(queries[i]);
     } else if (type == "familyMatch") {
       response << runFamilyMatchQuery(lib, queries[i]);
     } else {

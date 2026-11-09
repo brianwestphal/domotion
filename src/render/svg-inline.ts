@@ -580,6 +580,7 @@ function imageRootTransform(
   fontUnresolved = false,
   viewport: { w: number; h: number } | null = null,
   registeredProperties: ReadonlySet<string> = new Set(),
+  fontRendering?: InlineSvgPlacement["fontRendering"],
 ): ResolvedImageRootTransform | null | "projective" {
   const tokens = parseSvgAttributes(attrs) ?? [];
   // The DOM value of an XML attribute: references expanded, whitespace
@@ -689,7 +690,7 @@ function imageRootTransform(
   };
   const metricUnits = fontUnresolved
     ? null
-    : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang"));
+    : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang"), fontRendering);
   let unavailableFontMetric = false;
   const resolved = resolveImageRootTransform(
     {
@@ -953,6 +954,8 @@ export interface InlineSvgPlacement {
   /** The image sheets' `@supports` answers, decided by the page's Chromium at
    *  capture (`CapturedElement.imageSvgSupports`); undecided when absent. */
   supportsConditions?: Readonly<Record<string, boolean>>;
+  /** Observed explicit global Chromium hinting; absent remains conservative. */
+  fontRendering?: import("@domotion/text-engine/font-resolution").LinuxFontRenderContext;
 }
 
 /** The embedder-supplied part of the image document's media environment. */
@@ -1126,6 +1129,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     sheet.fontUnresolved,
     imageViewport(p),
     sheet.registeredProperties,
+    p.fontRendering,
   );
   if (rootTransform === "projective") return null;
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
@@ -1354,6 +1358,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     sheet.fontUnresolved,
     imageViewport(p),
     sheet.registeredProperties,
+    p.fontRendering,
   );
   if (rootTransform === "projective") return null;
   if (rootOverflowVisible(attrs)) {

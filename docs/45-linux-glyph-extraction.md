@@ -8,6 +8,7 @@ platforms: ["macos", "linux", "windows"]
 tickets:
   [
     "DM-1034",
+    "DM-3AJ2DR",
     "DM-2056",
     "DM-2353",
     "DM-258",
@@ -30,6 +31,9 @@ tickets:
   ]
 code:
   [
+    "src/capture/image-font-hinting.ts",
+    "packages/text-engine/src/render/linux-font-render-style.ts",
+    "tests/image-svg-vdmx-hinting-linux.e2e.test.ts",
     ".github/workflows/release-helpers.yml",
     "packages/text-engine/src/render/glyph-helper.test.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
@@ -457,3 +461,43 @@ defines the native arm64 clean-cache consumer gate over the published bytes.
   arm64 jobs run on GitHub arm64 runners. DM-2353/doc 196 adds the missing
   native Linux consumer gate; its first remote dispatch is intentionally kept
   distinct from the already-green producer job.
+
+## Isolated image-root normal line spacing (DM-3AJ2DR)
+
+The optional `fontRenderStyle` query reproduces Chromium 7d859f27’s
+`gfx::QueryFontconfig` and `GetFontRenderParams`, including the empty global
+query, selected-typeface bold/italic traits, antialiasing, forced autohint,
+device scale and disabled subpixel positioning. Blink consults VDMX only for
+normal/full hinting without forced autohint. `none`/`slight` and forced
+autohint use the rounded FreeType metrics. A missing helper field, unknown
+mode or unmatched font identity retains the conservative unresolved answer
+when VDMX changes line spacing.
+
+A launch flag is a preference, not generally the effective style.
+`RendererBlinkPlatformImpl::sandboxEnabled` is false only for
+`--single-process`; `--no-sandbox` still permits per-face Fontconfig IPC.
+Domotion-owned headless-shell launches record a digest of the Fontconfig
+environment and the observed CDP route on each captured image. The renderer
+uses a native per-face query for ordinary multiprocess captures and the global
+query plus explicit launch hinting for single-process captures. Only the enum,
+route and environment digest persist; raw launch arguments and environment
+values do not enter the tree. A persistent helper with a different environment
+is rejected. Changing Fontconfig files during a live capture/helper session is
+outside this snapshot contract.
+
+Custom/remote Playwright launches have no verified environment provenance;
+older serialized trees, older helpers, and generic families without concrete
+nomination provenance remain conservative. `Browser.getBrowserCommandLine`
+can still observe a custom launch’s explicit preference, but that alone does
+not authorize a metric answer. This limitation preserves correctness under
+custom `FONTCONFIG_FILE`/locale/home settings.
+
+The source-authored `buildVdmxHintedFont` control has 16px rounded hhea spacing
+and a deliberately different 23px VDMX strike. The Linux browser test requires
+single-process explicit `none` and `medium` answers to move, verifies that
+multiprocess Fontconfig can override `none`, compares native image and inlined
+SVG geometry, and writes evidence under `DOMOTION_OUTPUT_DIR` (default
+`tests/output-linux`). Native Linux CI must build the helper and run
+`tests/image-svg-vdmx-hinting-linux.e2e.test.ts`; macOS skips are not Linux parity
+validation. Rebuild/publish the Linux helper asset before treating this optional
+protocol extension as available to published consumers.

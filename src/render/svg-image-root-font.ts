@@ -142,6 +142,7 @@ export function imageRootFontMetricUnits(
   declarations: ImageRootFontDeclarations,
   fontSize: number | null,
   lang: string | null,
+  linuxFontRenderContext?: import("@domotion/text-engine/font-resolution").LinuxFontRenderContext,
 ): ((unit: string) => number | null) | null {
   if (fontSize == null || !(fontSize > 0)) return null;
   for (const name of UNSUPPORTED_FONT_PROPERTIES) {
@@ -172,6 +173,7 @@ export function imageRootFontMetricUnits(
         fontSize,
         fontWeight: weight,
         italic,
+        ...(linuxFontRenderContext != null ? { linuxFontRenderContext } : {}),
         ...(lang != null && lang !== "" ? { lang } : {}),
       });
     }

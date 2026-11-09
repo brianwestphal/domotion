@@ -317,6 +317,27 @@ export function buildStaticHintedFont(opts: SynthOptions = {}): Buffer {
   return buildSfnt(coreTables(opts));
 }
 
+/** A source-authored control whose 16px VDMX line spacing is 23px while
+ * rounded FreeType hhea spacing is 16px (800/-200 units at 1000 upem).
+ * Real bytecode tables ensure this can exercise Blink's bytecode VDMX arm.
+ */
+export function buildVdmxHintedFont(): Buffer {
+  const tables = coreTables({ family: "Domotion VDMX Control" });
+  const vdmx = Buffer.alloc(22);
+  vdmx.writeUInt16BE(1, 2); // group count
+  vdmx.writeUInt16BE(1, 4); // ratio count
+  vdmx.set([0, 1, 1, 1], 6); // 1:1 ratio
+  vdmx.writeUInt16BE(12, 10); // group offset
+  vdmx.writeUInt16BE(1, 12); // record count
+  vdmx[14] = 16;
+  vdmx[15] = 16;
+  vdmx.writeUInt16BE(16, 16); // ppem
+  vdmx.writeInt16BE(18, 18); // yMax
+  vdmx.writeInt16BE(-5, 20); // yMin
+  tables.VDMX = vdmx;
+  return buildSfnt(tables);
+}
+
 /** The static font plus a `wght` variation axis (100..400..900). gvar deltas
  *  at wght=900 (normalized +1.0): "A" right edge/advance +100 units, "B" +200.
  *  Pinning wght=900 must bake those into the outline; wght=650 → half. */

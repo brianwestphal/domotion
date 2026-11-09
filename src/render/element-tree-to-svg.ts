@@ -578,6 +578,7 @@ function paintImage(
         prefersReducedMotion: el.imageDocumentPrefersReducedMotion,
         forcedColors: el.imageDocumentForcedColors,
         supportsConditions: el.imageSvgSupports,
+        fontRendering: el.imageDocumentFontRendering,
       };
       inlinedNone =
         (getFlattenNestedSvg() ? flattenImgSvg(svgTextNone, placement) : null) ?? inlineImgSvg(svgTextNone, placement);
@@ -614,6 +615,7 @@ function paintImage(
         prefersReducedMotion: el.imageDocumentPrefersReducedMotion,
         forcedColors: el.imageDocumentForcedColors,
         supportsConditions: el.imageSvgSupports,
+        fontRendering: el.imageDocumentFontRendering,
       };
       const inlined =
         (getFlattenNestedSvg() ? flattenImgSvg(svgText, placement) : null) ?? inlineImgSvg(svgText, placement);
