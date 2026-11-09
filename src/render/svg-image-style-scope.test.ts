@@ -33,6 +33,22 @@ describe("scopeSelectorList", () => {
     expect(scopeSelectorList("#P-root", "P-")).toBe("#P-root");
     expect(scopeSelectorList("rect:not(.P-cls)", "P-")).toBe(`rect:not(.P-cls)${W}`);
   });
+
+  it("confines relative :has() selectors without changing their combinators", () => {
+    expect(scopeSelectorList("svg:has(+ g)", "P-")).toBe(`svg:has(+ g${W})${W}`);
+    expect(scopeSelectorList("svg:has(~ .P-x)", "P-")).toBe(`svg:has(~ .P-x${W})${W}`);
+    expect(scopeSelectorList("g:has(> rect + circle, path)", "P-")).toBe(
+      `g:has(> rect${W} + circle${W}, path${W})${W}`,
+    );
+  });
+
+  it("confines complex logical selectors nested inside :has()", () => {
+    expect(scopeSelectorList("svg:has(:is(body rect, g > path))", "P-")).toBe(
+      `svg:has(:is(body${W} rect${W}, g${W} > path${W})${W})${W}`,
+    );
+    expect(scopeSelectorList("svg:has(:not(body rect))", "P-")).toBe(`svg:has(:not(body${W} rect${W})${W})${W}`);
+    expect(scopeSelectorList(`[title=":has(+ g)"]`, "P-")).toBe(`[title=":has(+ g)"]${W}`);
+  });
 });
 
 describe("scopeImageStyleSheets", () => {

@@ -20,7 +20,10 @@
  * `@scope`) are scoped recursively; other at-rules (`@font-face`,
  * `@keyframes`, `@page`, `@import`, …) carry no element selectors and are left
  * alone. Top-level cascade layer names gain the image's prefix, so each image
- * keeps its own layer order (`namespaceLayerNames`).
+ * keeps its own layer order (`namespaceLayerNames`). `:has()` relative selectors
+ * receive the same filter inside their argument: Blink's `CheckPseudoHas`
+ * traverses following siblings for `+` and `~`, while an SVG image document
+ * root has none (selector_checker.cc, chromium 7d859f27).
  */
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import { renderWarn } from "./render-warn.js";
@@ -209,7 +212,7 @@ function splitTopLevel(text: string, isSeparator: (ch: string) => boolean): Arra
 }
 
 /** Replace `:root` (outside strings) with the scope root's attribute selector. */
-function replaceRoot(selector: string, rootSel: string): string {
+function replaceRoot(selector: string, rootSel: string, scope: string, withinHas = false): string {
   let out = "";
   let i = 0;
   while (i < selector.length) {
@@ -236,7 +239,7 @@ function replaceRoot(selector: string, rootSel: string): string {
       continue;
     }
     if (m[2] == null) {
-      out += rewriteStructural(name, null, rootSel) ?? m[0];
+      out += rewriteStructural(name, null, rootSel, scope, withinHas) ?? m[0];
       i += m[0].length;
       continue;
     }
@@ -247,7 +250,12 @@ function replaceRoot(selector: string, rootSel: string): string {
       break;
     }
     const inner = selector.slice(open + 1, close);
-    out += rewriteStructural(name, inner, rootSel) ?? `:${m[1]}(${replaceRoot(inner, rootSel)})`;
+    // A relative :has() argument can walk to a following output sibling of
+    // the nested image root. Filter every argument compound, including nested
+    // logical selector lists, so it sees only the former image document.
+    out +=
+      rewriteStructural(name, inner, rootSel, scope, withinHas) ??
+      `:${m[1]}(${name === "has" || (withinHas && /^(?:is|not|where)$/.test(name)) ? scopeSelectorList(inner, scope, true) : replaceRoot(inner, rootSel, scope, withinHas)})`;
     i = close + 1;
   }
   return out;
@@ -264,7 +272,13 @@ function replaceRoot(selector: string, rootSel: string): string {
  * pseudo-class is rewritten to give the root its image-document answer while
  * every other element keeps the original test. Returns null for anything else.
  */
-function rewriteStructural(name: string, args: string | null, rootSel: string): string | null {
+function rewriteStructural(
+  name: string,
+  args: string | null,
+  rootSel: string,
+  scope: string,
+  withinHas: boolean,
+): string | null {
   if (args == null) {
     if (name === "root" || name === "scope") return rootSel;
     if (/^(?:first|last|only)-(?:child|of-type)$/.test(name)) return `:is(:${name}, ${rootSel})`;
@@ -273,7 +287,12 @@ function rewriteStructural(name: string, args: string | null, rootSel: string): 
   if (!/^nth-(?:last-)?(?:child|of-type)$/.test(name)) return null;
   const ofMatch = /^([\s\S]*?)\s+of\s+([\s\S]+)$/i.exec(args);
   const anb = (ofMatch?.[1] ?? args).trim();
-  const ofSelector = ofMatch != null && name.endsWith("child") ? replaceRoot(ofMatch[2], rootSel) : null;
+  const ofSelector =
+    ofMatch != null && name.endsWith("child")
+      ? withinHas
+        ? scopeSelectorList(ofMatch[2], scope, true)
+        : replaceRoot(ofMatch[2], rootSel, scope)
+      : null;
   if (ofMatch != null && ofSelector == null) return null;
   const firstMatches = anPlusBMatches(anb, 1);
   if (firstMatches == null) return null;
@@ -322,7 +341,7 @@ function matchParen(s: string, open: number): number {
 }
 
 /** Scope one compound selector: insert the scope filter before any pseudo-element. */
-function scopeCompound(compound: string, filter: string, scope: string): string {
+function scopeCompound(compound: string, filter: string, scope: string, withinHas: boolean): string {
   if (compound === "") return compound;
   // A compound that requires one of this image's namespaced classes or ids
   // (`prefixSvgClasses` / `prefixSvgIds` ran first) already matches only
@@ -333,19 +352,19 @@ function scopeCompound(compound: string, filter: string, scope: string): string 
     prev = top;
     top = top.replace(/\([^()]*\)/g, "");
   }
-  if (top.includes(`.${scope}`) || top.includes(`#${scope}`)) return compound;
+  if (!withinHas && (top.includes(`.${scope}`) || top.includes(`#${scope}`))) return compound;
   // A pseudo-element (`::x`, or a legacy single-colon one) ends the compound.
   const pe = /::|:(?:before|after|first-line|first-letter)\b/i.exec(compound);
   return pe == null ? compound + filter : compound.slice(0, pe.index) + filter + compound.slice(pe.index);
 }
 
 /** Scope every complex selector of a selector list. */
-export function scopeSelectorList(selectorList: string, scope: string): string {
+export function scopeSelectorList(selectorList: string, scope: string, withinHas = false): string {
   const rootSel = `[${IMAGE_ROOT_ATTR}="${scope}"]`;
   const filter = `:where(${rootSel}, ${rootSel} *)`;
   return splitTopLevel(selectorList, (ch) => ch === ",")
     .map(({ part, sep }) => {
-      const selector = replaceRoot(part, rootSel);
+      const selector = replaceRoot(part, rootSel, scope, withinHas);
       const lead = selector.match(/^\s*/)?.[0] ?? "";
       const tail = selector.match(/\s*$/)?.[0] ?? "";
       const body = selector.trim();
@@ -353,7 +372,7 @@ export function scopeSelectorList(selectorList: string, scope: string): string {
       // Compounds are separated by combinators: whitespace, `>`, `+`, `~`.
       const pieces = splitTopLevel(body, (ch) => ch === ">" || ch === "+" || ch === "~" || /\s/.test(ch));
       const scoped = pieces
-        .map(({ part: compound, sep: comb }) => scopeCompound(compound, filter, scope) + comb)
+        .map(({ part: compound, sep: comb }) => scopeCompound(compound, filter, scope, withinHas) + comb)
         .join("");
       return lead + scoped + tail + sep;
     })
