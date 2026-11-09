@@ -15,7 +15,7 @@ afterAll(async () => {
   await closeBrowserSafely(browser);
 });
 
-async function makeWebGlPage(): Promise<Page> {
+async function makeWebGlPage(waitForPresentation = true): Promise<Page> {
   const page = await browser.newPage({ viewport: { width: 80, height: 80 } });
   await page.setContent('<canvas width="32" height="32"></canvas>');
   const supported = await evaluateInFrame(page, () => {
@@ -27,7 +27,35 @@ async function makeWebGlPage(): Promise<Page> {
     return true;
   });
   expect(supported).toBe(true);
-  await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([255, 0, 0]);
+  if (waitForPresentation) {
+    try {
+      await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([255, 0, 0]);
+    } catch (error) {
+      // Diagnose startup separately from freeze: this runs before any method
+      // is muted. Compare compositor output with the actual drawing buffer.
+      const fullFrame = await page.screenshot();
+      const presented = Array.from(
+        await sharp(fullFrame).extract({ left: 20, top: 20, width: 1, height: 1 }).removeAlpha().raw().toBuffer(),
+      );
+      const drawingBuffer = await page.evaluate(() => {
+        const canvas = document.querySelector("canvas")!;
+        const gl = canvas.getContext("webgl")!;
+        const pixel = new Uint8Array(4);
+        gl.readPixels(16, 16, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        return {
+          contextLost: gl.isContextLost(),
+          error: gl.getError(),
+          pixel: Array.from(pixel),
+          bounds: canvas.getBoundingClientRect().toJSON(),
+          visibility: document.visibilityState,
+        };
+      });
+      await page.close();
+      throw new Error(`WebGL startup presentation failed: ${JSON.stringify({ presented, drawingBuffer })}`, {
+        cause: error,
+      });
+    }
+  }
   return page;
 }
 
@@ -55,7 +83,31 @@ function walk(nodes: CapturedElement[]): CapturedElement[] {
   return nodes.flatMap((node) => [node, ...walk(node.children ?? [])]);
 }
 
+async function capturedCanvasPixel(page: Page): Promise<number[]> {
+  const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 80, height: 80 });
+  const uri = walk(tree).find((node) => node.tag === "canvas")?.replacedSnapshot?.dataUri;
+  expect(uri).toMatch(/^data:image\/png;base64,/);
+  return Array.from(
+    await sharp(Buffer.from(uri!.split(",")[1], "base64"))
+      .extract({ left: 16, top: 16, width: 1, height: 1 })
+      .removeAlpha()
+      .raw()
+      .toBuffer(),
+  );
+}
+
 describe("capture-scoped WebGL output freeze", () => {
+  it("captures a cold canvas before any screenshot presentation poll", async () => {
+    const page = await makeWebGlPage(false);
+    try {
+      expect(await capturedCanvasPixel(page)).toEqual([255, 0, 0]);
+      await paint(page, 0, 1);
+      expect(await centerPixel(page)).toEqual([0, 0, 255]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it("holds the presented pixels and restores drawing after disposal", async () => {
     const page = await makeWebGlPage();
     try {
@@ -165,15 +217,7 @@ describe("capture-scoped WebGL output freeze", () => {
         requestAnimationFrame(attempt);
       });
       for (let capture = 0; capture < 3; capture++) {
-        const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 80, height: 80 });
-        const uri = walk(tree).find((node) => node.tag === "canvas")?.replacedSnapshot?.dataUri;
-        expect(uri).toMatch(/^data:image\/png;base64,/);
-        const pixels = await sharp(Buffer.from(uri!.split(",")[1], "base64"))
-          .extract({ left: 16, top: 16, width: 1, height: 1 })
-          .removeAlpha()
-          .raw()
-          .toBuffer();
-        expect(Array.from(pixels)).toEqual([255, 0, 0]);
+        expect(await capturedCanvasPixel(page)).toEqual([255, 0, 0]);
       }
       expect(
         await page.evaluate(
