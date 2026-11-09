@@ -221,6 +221,11 @@ function lengthOf(token: string, basis: number, env: LengthEnv): number | null {
   return evaluate(token, "length", { basis, ...env });
 }
 
+/** Resolve a root font-size length against the image document's initial size. */
+export function imageRootFontSizeLength(token: string, initialSize: number): number | null {
+  return lengthOf(token, initialSize, { fontSize: initialSize, viewport: null });
+}
+
 /** An `<angle>` in degrees; a bare 0 is a valid angle. */
 function angleDeg(token: string): number | null {
   return evaluate(token, "angle", { basis: 0, fontSize: null, viewport: null });

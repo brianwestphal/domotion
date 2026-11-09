@@ -731,7 +731,8 @@ export function cascadeRootStylesheetTransform(
   for (const { name, layer, declaration } of candidates) {
     declaration.layerRank = rank.get(layer) ?? 0;
     const previous = declarations.get(name);
-    if (previous == null || compareCascade(declaration, previous) > 0) declarations.set(name, declaration);
+    if (previous == null || compareRootCascadeDeclarations(declaration, previous) > 0)
+      declarations.set(name, declaration);
   }
   if (declarations.size === 0 && !changed && !unsupportedFont) return null;
   return {
@@ -748,7 +749,7 @@ function compareSpec(a: [number, number, number], b: [number, number, number]): 
 /** CSS Cascade 5 §6.1 within the author origin: importance, then cascade
  *  layer (later layers win for normal declarations, earlier ones for
  *  `!important`), then specificity, then order of appearance. */
-function compareCascade(a: CascadedDeclaration, b: CascadedDeclaration): number {
+export function compareRootCascadeDeclarations(a: CascadedDeclaration, b: CascadedDeclaration): number {
   if (a.important !== b.important) return a.important ? 1 : -1;
   const layer = (a.layerRank ?? 0) - (b.layerRank ?? 0);
   if (layer !== 0) return a.important ? -layer : layer;

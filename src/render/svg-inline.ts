@@ -29,17 +29,22 @@ import {
   type ViewBox,
 } from "./svg-viewport-matrix.js";
 import { invokeSynchronousCallback, type SynchronousCallback } from "./text-engine.js";
-import { resolveImageRootTransform, type ResolvedImageRootTransform } from "./svg-image-root-transform.js";
+import {
+  imageRootFontSizeLength,
+  resolveImageRootTransform,
+  type ResolvedImageRootTransform,
+} from "./svg-image-root-transform.js";
 import { renderWarn } from "./render-warn.js";
 import {
   cascadeRootStylesheetTransform,
+  compareRootCascadeDeclarations,
   decodeXmlAttributeValue,
   type CascadedDeclaration,
 } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
 import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
-import { imageRootFontMetricUnits } from "./svg-image-root-font.js";
+import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
 import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
@@ -492,8 +497,9 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
 /**
  * The root's computed font-size in px for `em` / `rem` in its transform: the
  * winning inline or stylesheet declaration over the `font-size` presentation
- * attribute, else the initial `medium` (16px). Null when the size cannot be
- * known exactly (a relative or keyword value, or an undecidable sheet rule).
+ * attribute, else the initial `medium` (16px). Relative units on the
+ * parentless image root resolve against that same initial size. Null when the
+ * size cannot be known exactly (e.g. `var()`, or an undecidable sheet rule).
  */
 /** The font and writing-mode properties SVG maps from presentation
  *  attributes (`SVGElement::CssPropertyIdForSVGAttributeName`,
@@ -511,11 +517,28 @@ function rootFontSize(attrValue: string | null, styleValue: string | null, fontU
   if (fontUnresolved) return null;
   const value = styleValue ?? attrValue;
   if (value == null) return 16;
-  const m = /^\s*([-+]?(?:\d+\.?\d*|\.\d+))(px|pt|pc|in|cm|mm)?\s*$/i.exec(value);
-  if (m == null) return null;
-  const factor: Record<string, number> = { px: 1, pt: 4 / 3, pc: 16, in: 96, cm: 96 / 2.54, mm: 96 / 25.4 };
-  const n = Number(m[1]) * factor[(m[2] ?? "px").toLowerCase()];
-  return n >= 0 ? n : null;
+  const v = value.trim().toLowerCase();
+  const keywordPx: Readonly<Record<string, number>> = {
+    "xx-small": 9,
+    "x-small": 10,
+    small: 13,
+    medium: 16,
+    large: 18,
+    "x-large": 24,
+    "xx-large": 32,
+    "xxx-large": 48,
+    smaller: 16 / 1.2,
+    larger: 16 * 1.2,
+    initial: 16,
+    inherit: 16,
+    unset: 16,
+    revert: 16,
+  };
+  if (v in keywordPx) return keywordPx[v];
+  // SVG's presentation attribute also accepts a unitless user length.
+  if (/^[-+]?(?:\d+\.?\d*|\.\d+)$/.test(v)) return Number(v) >= 0 ? Number(v) : null;
+  const n = imageRootFontSizeLength(v, 16);
+  return n != null && n >= 0 ? n : null;
 }
 
 /**
@@ -569,10 +592,10 @@ function imageRootTransform(
   // declaration beats a normal one, and at equal importance the style
   // attribute beats any selector (CSS Cascade 4 §6.1); between sheet rules the
   // cascade module already kept the highest specificity, then the last.
-  const inline = new Map<string, { value: string; important: boolean }>();
+  const inline = new Map<string, { value: string; important: boolean; order: number }>();
   const styleText = attr("style");
   if (styleText != null) {
-    for (const declaration of splitStyleDeclarations(styleText)) {
+    for (const [order, declaration] of splitStyleDeclarations(styleText).entries()) {
       const colon = declaration.indexOf(":");
       if (colon < 0) continue;
       const raw = declaration.slice(colon + 1).trim();
@@ -580,7 +603,7 @@ function imageRootTransform(
       const value = raw.replace(/!\s*important\s*$/i, "").trim();
       const name = declaration.slice(0, colon).trim().toLowerCase();
       const previous = inline.get(name);
-      if (previous == null || important || !previous.important) inline.set(name, { value, important });
+      if (previous == null || important || !previous.important) inline.set(name, { value, important, order });
     }
   }
   const style = new Map<string, string>();
@@ -589,14 +612,41 @@ function imageRootTransform(
     const fromSheet = sheet?.get(name);
     if (fromSheet == null || decl.important || !fromSheet.important) style.set(name, decl.value);
   }
+  const sheetFont = sheet?.get("font");
+  const inlineFont = inline.get("font");
+  const sheetShorthand = sheetFont == null ? null : parseImageRootFontShorthand(sheetFont.value);
+  const inlineShorthand = inlineFont == null ? null : parseImageRootFontShorthand(inlineFont.value);
+  if ((sheetFont == null || sheetShorthand != null) && (inlineFont == null || inlineShorthand != null)) {
+    for (const name of ["font-size", "font-family", "font-weight", "font-style", "line-height", "font-stretch"]) {
+      const sheetLonghand = sheet?.get(name);
+      const sheetValue =
+        sheetFont != null && (sheetLonghand == null || compareRootCascadeDeclarations(sheetFont, sheetLonghand) > 0)
+          ? sheetShorthand?.get(name)
+          : sheetLonghand?.value;
+      const sheetImportant =
+        sheetFont != null && (sheetLonghand == null || compareRootCascadeDeclarations(sheetFont, sheetLonghand) > 0)
+          ? sheetFont.important
+          : sheetLonghand?.important;
+      const inlineLonghand = inline.get(name);
+      const inlineUsesShorthand =
+        inlineFont != null &&
+        (inlineLonghand == null ||
+          (inlineFont.important === inlineLonghand.important
+            ? inlineFont.order > inlineLonghand.order
+            : inlineFont.important));
+      const inlineValue = inlineUsesShorthand ? inlineShorthand?.get(name) : inlineLonghand?.value;
+      const inlineImportant = inlineUsesShorthand ? inlineFont?.important : inlineLonghand?.important;
+      if (inlineValue != null && (sheetValue == null || inlineImportant || !sheetImportant))
+        style.set(name, inlineValue);
+      else if (sheetValue != null) style.set(name, sheetValue);
+    }
+    style.delete("font");
+  }
   // The transform attribute is re-emitted as attribute text, so it stays raw
   // when decoding would expose markup characters (no transform list holds any).
   const decodedTransform = attr("transform");
   const transformAttr =
     decodedTransform != null && /[<>&"']/.test(decodedTransform) ? rawAttr("transform") : decodedTransform;
-  // A `font` shorthand also sets font-size. Until it is expanded with its
-  // declaration order, an independently cascaded longhand is not enough to
-  // recover the computed size safely.
   const fontSize = style.has("font")
     ? null
     : rootFontSize(attr("font-size"), style.get("font-size") ?? null, fontUnresolved);

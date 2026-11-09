@@ -49,6 +49,55 @@ const ABSOLUTE_PX: Record<string, number> = {
   pc: 16,
 };
 
+const FONT_SIZE_TOKEN =
+  "(?:calc\\([^)]*\\)|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:px|pt|pc|in|cm|mm|q|em|rem|%)|xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|smaller|larger)";
+
+/** The supported static `font` shorthand subset, expanded at its cascade position. */
+export function parseImageRootFontShorthand(value: string): ReadonlyMap<string, string> | null {
+  const v = value.trim();
+  if (/^(?:initial|inherit|unset|revert)$/i.test(v)) {
+    return new Map([
+      ["font-size", "medium"],
+      ["font-family", "initial"],
+      ["font-weight", "normal"],
+      ["font-style", "normal"],
+      ["line-height", "normal"],
+      ["font-stretch", "normal"],
+    ]);
+  }
+  if (/\bvar\(/i.test(v)) return null;
+  const match = new RegExp(
+    `^(.*?)\\b(${FONT_SIZE_TOKEN})(?:\\s*\\/\\s*(normal|[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:%|[a-z]+)?))?\\s+(.+)$`,
+    "i",
+  ).exec(v);
+  if (match == null) return null;
+  let weight = "normal";
+  let style = "normal";
+  let stretch = "normal";
+  for (const token of match[1].trim().split(/\s+/).filter(Boolean)) {
+    const lower = token.toLowerCase();
+    if (lower === "normal") continue;
+    if (lower === "italic" || lower === "oblique") {
+      if (style !== "normal") return null;
+      style = lower;
+    } else if (/^(?:bold|bolder|lighter|[1-9]00)$/.test(lower)) {
+      if (weight !== "normal") return null;
+      weight = lower;
+    } else if (/^(?:condensed|expanded|semi-condensed|semi-expanded)$/.test(lower)) {
+      if (stretch !== "normal") return null;
+      stretch = lower;
+    } else return null;
+  }
+  return new Map([
+    ["font-size", match[2]],
+    ["font-family", match[4].trim()],
+    ["font-weight", weight],
+    ["font-style", style],
+    ["line-height", match[3] ?? "normal"],
+    ["font-stretch", stretch],
+  ]);
+}
+
 /** `LayoutUnit(float)`: truncation to 1/64 px. */
 const layoutUnit = (n: number): number => Math.trunc(Math.fround(n) * 64) / 64;
 

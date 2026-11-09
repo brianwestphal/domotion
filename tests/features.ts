@@ -1204,6 +1204,19 @@ export const tests: FeatureTest[] = [
     height: 304,
   },
   {
+    // Parentless SVG image roots resolve relative and keyword font sizes
+    // against the initial 16px size; a static font shorthand participates in
+    // declaration order before the root transform consumes em units.
+    name: "image-svg-root-transform-relative-font-size",
+    html: `<div style="padding:20px;background:#e2e8f0;display:flex;gap:20px;align-items:flex-start">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg { font-size: small; transform: translateX(1em); transform-origin: 0 0 }</style><rect width="35" height="75" fill="#db2777"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg { font-size: 150%; transform: translateX(1em); transform-origin: 0 0 }</style><rect width="35" height="75" fill="#0ea5e9"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+      <img alt="" src="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 100 100"><style>svg { font: 20px serif; font-size: 30px; transform: translateX(1em); transform-origin: 0 0 }</style><rect width="35" height="75" fill="#16a34a"/></svg>')}" style="display:block;width:90px;height:90px;background:#0f172a">
+    </div>`,
+    width: 390,
+    height: 130,
+  },
+  {
     // Font-metric units in an <img> SVG root transform resolve against the
     // root's primary font (CSSToLengthConversionData::FontSizes /
     // LineHeightSize, chromium 7d859f27): ex / ch / ic / cap with the

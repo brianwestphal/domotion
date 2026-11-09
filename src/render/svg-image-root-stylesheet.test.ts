@@ -274,6 +274,36 @@ describe("<img> SVG root transform from the document's own <style>", () => {
     expect(out).toContain("line-height: 40px");
   });
 
+  it.each([
+    ["small", "13"],
+    ["150%", "24"],
+    ["2em", "32"],
+    ["2rem", "32"],
+    ["calc(2em + 1px)", "33"],
+    ["inherit", "16"],
+  ])("resolves parentless root font-size %s against the image initial size", (size, expected) => {
+    const out = inlineImgSvg(
+      `<svg viewBox="0 0 100 100"><style>svg { font-size: ${size}; transform: translateX(1em) }</style><rect width="10" height="10"/></svg>`,
+      P,
+    )!;
+    expect(out).toContain(`translate(${expected} 0)`);
+  });
+
+  it("expands a static font shorthand in sheet declaration order", () => {
+    const svg = (declarations: string): string =>
+      `<svg viewBox="0 0 100 100"><style>svg { ${declarations}; transform: translate(1em, 1lh) }</style><rect/></svg>`;
+    expect(inlineImgSvg(svg("font-size: 30px; font: italic bold 20px/1.5 Georgia"), P)).toContain("translate(20 30)");
+    expect(inlineImgSvg(svg("font: italic bold 20px/1.5 Georgia; font-size: 30px"), P)).toContain("translate(30 45)");
+  });
+
+  it("ranks inline font shorthand and longhand against important sheet declarations", () => {
+    const svg = (inline: string, sheet: string): string =>
+      `<svg viewBox="0 0 100 100" style="${inline}; transform: translateX(1em)"><style>svg { ${sheet} }</style><rect/></svg>`;
+    expect(inlineImgSvg(svg("font-size: 25px; font: 20px serif", "font-size: 30px"), P)).toContain("translate(20 0)");
+    expect(inlineImgSvg(svg("font: 20px serif; font-size: 25px", "font-size: 30px"), P)).toContain("translate(25 0)");
+    expect(inlineImgSvg(svg("font: 20px serif", "font-size: 30px !important"), P)).toContain("translate(30 0)");
+  });
+
   it("ranks sheet font-size against the root style attribute", () => {
     const svg = (sheet: string): string =>
       `<svg viewBox="0 0 100 100" style="font-size: 10px; transform: translate(1em)"><style>svg { font-size: ${sheet} }</style><rect/></svg>`;
