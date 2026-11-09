@@ -65,6 +65,17 @@ Quick smoke test (on Windows):
   | .\domotion-glyph-paths.exe
 ```
 
+### `meta` query — size-specific DirectWrite metrics (DM-3ZRKA5)
+
+The `meta` response includes natural DirectWrite `lineGap` in design units.
+With `fontSizePx`, it also returns optional `directWriteMetrics`: the exact
+request size, float render size, selected face, natural/GDI-classic measuring
+mode, system font-smoothing state, upem, ascent, negative descent, and lineGap.
+The helper mirrors pinned Skia's bitmap/gasp selection, small hinted-font size
+rounding, and CBDT natural-measurement exception before calling `GetMetrics`
+or `GetGdiCompatibleMetrics` (DM-3ZRKA5). New fields are optional for older
+helper binaries; the renderer retains its conservative file/raster fallback.
+
 ### `fallback` query — live system fallback (DM-1403)
 
 `{"queries":[{"type":"fallback","cps":[19968,2309]}]}` resolves each codepoint to

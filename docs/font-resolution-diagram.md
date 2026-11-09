@@ -633,6 +633,23 @@ left unresolved. The x-height is Blink's `x` path-bound top. FreeType uses
 OS/2 v2 only. `ch` and `ic` read the advances of `0` and U+6C34. Only the
 macOS values are validated against Chrome.
 
+Normal line spacing additionally consumes size-specific DirectWrite evidence
+from `windows-font-metrics.ts` (DM-3ZRKA5). The helper selects the same natural
+or GDI-classic metrics and float render size as Skia `62efacd3`, including the
+CBDT exception, then the renderer applies Blink's component rounding. Optional
+metadata preserves older-helper ordinary-file and conservative raster fallbacks.
+The Windows-only Chromium/bitmap gate must pass on the rebuilt helper before
+native parity is claimed; see [Windows helper contract](41-windows-glyph-extraction.md).
+
+```mermaid
+flowchart LR
+  WL["isolated SVG normal lh / rlh"] --> WM{"size + face match<br/>DirectWrite metric evidence?"}
+  WM -->|yes| WS["selected natural / GDI metrics<br/>float render-size scaling<br/>Blink component rounding"]
+  WM -->|no| WF{"ordinary exact-file metrics<br/>safe with older helper?"}
+  WF -->|yes| WH["existing hhea fallback"]
+  WF -->|no| WR["unresolved metric<br/>SVG raster fallback"]
+```
+
 **The same split governs `wght`.** Only `MatchSystemUIFont` (system-ui) and the
 webfont path set a CSS-valued weight axis; a DECLARED family's weight lives in
 WHICH face the trait/weight matcher picked, and `FontPlatformDataFromCTFont`

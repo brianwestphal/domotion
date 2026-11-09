@@ -12,6 +12,7 @@ import {
   parseSvgPath,
   translateCommandsY,
   type GlyphHelperGlyph,
+  type DirectWriteFontMetrics,
   type GlyphResponse,
   type MetaResponse,
   type PathCommand,
@@ -28,6 +29,8 @@ export interface GlyphHelperFontInstance {
   unitsPerEm: number;
   ascent: number;
   descent: number;
+  lineGap?: number;
+  directWriteMetrics?: DirectWriteFontMetrics;
   underlinePosition: number;
   underlineThickness: number;
   "OS/2"?: {
@@ -447,6 +450,8 @@ export function createGlyphHelperFont(spec: {
     unitsPerEm,
     ascent: metaResp.ascent ?? 0,
     descent: metaResp.descent ?? 0,
+    ...(metaResp.lineGap != null ? { lineGap: metaResp.lineGap } : {}),
+    ...(metaResp.directWriteMetrics != null ? { directWriteMetrics: metaResp.directWriteMetrics } : {}),
     underlinePosition: metaResp.underlinePosition ?? 0,
     underlineThickness: metaResp.underlineThickness ?? 0,
     "OS/2": {

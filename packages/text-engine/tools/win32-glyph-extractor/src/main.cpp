@@ -47,6 +47,8 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
+#include <limits>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -1013,6 +1015,17 @@ static std::string runGlyphsQuery(const JsonValue& query, IDWriteFactory* factor
 
 static std::string faceResolvedAxesJson(IDWriteFontFace* face);
 
+// SkScalarRoundToScalar -> sk_float_round first widens the float to double
+// (Skia 62efacd3, include/private/SkFloatingPoint.h:38,126).
+static FLOAT skiaRoundScalar(FLOAT value) {
+  return static_cast<FLOAT>(std::floor(static_cast<double>(value) + 0.5));
+}
+
+static FLOAT skiaGdiTextSize(FLOAT realSize) {
+  const FLOAT rounded = skiaRoundScalar(realSize * 64.0f) / 64.0f;
+  return rounded == 0 ? 1.0f : rounded;
+}
+
 // DM-2655: transcription of SkScalerContext_win_dw.cpp's
 // `treatLikeBitmap` decision. Chromium enables embedded bitmaps for Windows
 // system fonts; when a gridfit-only gasp range contains an EBLC/EBSC strike,
@@ -1020,7 +1033,10 @@ static std::string faceResolvedAxesJson(IDWriteFontFace* face);
 // outline remains available, so outline presence cannot reveal this decision.
 static bool faceUsesEmbeddedBitmapPaintAtSize(IDWriteFontFace* face, double requestedSize) {
   if (!face || !std::isfinite(requestedSize) || requestedSize <= 0) return false;
-  const double gdiTextSize = std::round(requestedSize * 64.0) / 64.0;
+  const FLOAT realSize = static_cast<FLOAT>(requestedSize);
+  if (!std::isfinite(realSize)) return false;
+  const FLOAT gdiTextSize = skiaGdiTextSize(realSize);
+  if (gdiTextSize <= 0 || gdiTextSize >= 65536) return false;
   const int bitmapPpem = static_cast<int>(gdiTextSize);
   if (bitmapPpem <= 0 || bitmapPpem > 0xffff) return false;
 
@@ -1047,7 +1063,7 @@ static bool faceUsesEmbeddedBitmapPaintAtSize(IDWriteFontFace* face, double requ
     if (SUCCEEDED(hr) && exists && data && size >= 4) {
       const auto* bytes = static_cast<const BYTE*>(data);
       const UINT32 count = readU16BE(bytes, 2);
-      if (count <= 1024 && 4ull + static_cast<UINT64>(count) * 4ull <= size) {
+      if (readU16BE(bytes, 0) <= 1 && count <= 1024 && 4ull + static_cast<UINT64>(count) * 4ull <= size) {
         int previousMax = -1;
         for (UINT32 i = 0; i < count; i++) {
           const UINT32 offset = 4 + i * 4;
@@ -1127,6 +1143,97 @@ static bool faceUsesEmbeddedBitmapPaintAtSize(IDWriteFontFace* face, double requ
     if (context) face->ReleaseFontTable(context);
   }
   return found;
+}
+
+// Skia 62efacd3, SkScalerContext_win_dw.cpp:108-123 and 135-173.
+static bool faceHasBytecodeHints(IDWriteFontFace* face) {
+  const void* data = nullptr;
+  UINT32 size = 0;
+  void* context = nullptr;
+  BOOL exists = FALSE;
+  const HRESULT hr = face->TryGetFontTable(
+      DWRITE_MAKE_OPENTYPE_TAG('m','a','x','p'), &data, &size, &context, &exists);
+  bool hinted = false;
+  if (SUCCEEDED(hr) && exists && data && size >= 32) {
+    const auto* b = static_cast<const BYTE*>(data);
+    hinted = b[0] == 0 && b[1] == 1 && b[2] == 0 && b[3] == 0
+          && (b[26] != 0 || b[27] != 0);
+  }
+  if (context) face->ReleaseFontTable(context);
+  return hinted;
+}
+
+static int faceGaspVersionAtSize(IDWriteFontFace* face, int ppem) {
+  const void* data = nullptr;
+  UINT32 size = 0;
+  void* context = nullptr;
+  BOOL exists = FALSE;
+  const HRESULT hr = face->TryGetFontTable(
+      DWRITE_MAKE_OPENTYPE_TAG('g','a','s','p'), &data, &size, &context, &exists);
+  int version = -1;
+  if (SUCCEEDED(hr) && exists && data && size >= 4) {
+    const auto* b = static_cast<const BYTE*>(data);
+    auto u16 = [b](UINT32 at) { return (static_cast<UINT32>(b[at]) << 8) | b[at + 1]; };
+    const UINT32 tableVersion = u16(0);
+    const UINT32 count = u16(2);
+    if (tableVersion <= 1 && count <= 1024 && 4ull + 4ull * count <= size) {
+      int previousMax = -1;
+      for (UINT32 i = 0; i < count; i++) {
+        const int maximum = static_cast<int>(u16(4 + i * 4));
+        if (previousMax < ppem && ppem <= maximum) {
+          version = static_cast<int>(tableVersion);
+          break;
+        }
+        previousMax = maximum;
+      }
+    }
+  }
+  if (context) face->ReleaseFontTable(context);
+  return version;
+}
+
+static std::string faceLineMetricsAtSize(IDWriteFontFace* face, double requestedSize, bool hasCbdt, bool bitmap) {
+  if (!std::isfinite(requestedSize) || requestedSize <= 0) return "";
+  const FLOAT realSize = static_cast<FLOAT>(requestedSize);
+  if (!std::isfinite(realSize)) return "";
+  const FLOAT gdiSize = skiaGdiTextSize(realSize);
+  // Chromium 7d859f27, ui/gfx/font_render_params_win.cc:86-91, then
+  // win/font_platform_data_win.cc:44-76. Failed SPI leaves antialiasing off.
+  BOOL smoothing = FALSE;
+  const bool antialias = SystemParametersInfoW(SPI_GETFONTSMOOTHING, 0, &smoothing, 0) && smoothing;
+  bool gdi = !antialias || bitmap;
+  FLOAT renderSize = gdiSize;
+  // Skia 62efacd3, SkScalerContext_win_dw.cpp:301-393: a natural measuring
+  // mode can still render at its 1/64 px GDI size for small hinted fonts.
+  if (!gdi && (realSize > 20.0f || !faceHasBytecodeHints(face)
+               || faceGaspVersionAtSize(face, static_cast<int>(skiaRoundScalar(gdiSize))) >= 1)) {
+    renderSize = realSize;
+  }
+  // Same constructor:421-426. CBDT keeps the selected render size but forces
+  // natural measurement even when alias/bitmap selection requested GDI.
+  if (hasCbdt) gdi = false;
+  DWRITE_FONT_METRICS metrics = {};
+  if (gdi) {
+    const DWRITE_MATRIX identity = {1, 0, 0, 1, 0, 0};
+    if (FAILED(face->GetGdiCompatibleMetrics(renderSize, 1.0f, &identity, &metrics))) return "";
+  } else {
+    face->GetMetrics(&metrics);
+  }
+  if (metrics.designUnitsPerEm == 0) return "";
+  std::ostringstream out;
+  // The outline serializer intentionally rounds to three decimals. Metrics
+  // must instead round-trip the exact float render size and request identity.
+  out << std::setprecision(std::numeric_limits<double>::max_digits10)
+      << "{\"fontSizePx\":" << requestedSize
+      << ",\"renderSizePx\":" << renderSize
+      << ",\"postscriptName\":\"" << jsonEscape(facePostScriptName(face)) << "\""
+      << ",\"measuringMode\":\"" << (gdi ? "gdi-classic" : "natural") << "\""
+      << ",\"fontSmoothingEnabled\":" << (antialias ? "true" : "false")
+      << ",\"unitsPerEm\":" << static_cast<int>(metrics.designUnitsPerEm)
+      << ",\"ascent\":" << static_cast<int>(metrics.ascent)
+      << ",\"descent\":" << -static_cast<int>(metrics.descent)
+      << ",\"lineGap\":" << static_cast<int>(metrics.lineGap) << "}";
+  return out.str();
 }
 
 static std::string runMetaQuery(const JsonValue& query, std::map<std::string, FontEntry>& fonts) {
@@ -1229,6 +1336,7 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
       // DirectWrite descent is a positive magnitude below the baseline; fontkit
       // (and the other helpers) report descent as negative.
       << ",\"descent\":" << -static_cast<int>(m.descent)
+      << ",\"lineGap\":" << static_cast<int>(m.lineGap)
       << ",\"underlinePosition\":" << static_cast<int>(m.underlinePosition)
       << ",\"underlineThickness\":" << static_cast<int>(m.underlineThickness)
       << ",\"strikeoutPosition\":" << static_cast<int>(m.strikethroughPosition)
@@ -1238,9 +1346,14 @@ static std::string runMetaQuery(const JsonValue& query, std::map<std::string, Fo
         << ",\"typoDescender\":" << static_cast<int>(typoDescender);
   }
   if (query.has("fontSizePx")) {
+    const double fontSizePx = query.at("fontSizePx").asNumber();
+    const bool bitmap = faceUsesEmbeddedBitmapPaintAtSize(it->second.face, fontSizePx);
     out << ",\"embeddedBitmapPaint\":"
-        << (faceUsesEmbeddedBitmapPaintAtSize(it->second.face, query.at("fontSizePx").asNumber())
-              ? "true" : "false");
+        << (bitmap ? "true" : "false");
+    const std::string lineMetrics = faceLineMetricsAtSize(
+        it->second.face, fontSizePx,
+        hasTable(DWRITE_MAKE_OPENTYPE_TAG('C','B','D','T')), bitmap);
+    if (!lineMetrics.empty()) out << ",\"directWriteMetrics\":" << lineMetrics;
   }
   out << ",\"availableFeatures\":[";
   for (size_t i = 0; i < availableFeatures.size(); i++) {
