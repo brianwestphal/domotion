@@ -15,17 +15,25 @@ afterAll(async () => {
   await closeBrowserSafely(browser);
 });
 
-async function makeWebGlPage(waitForPresentation = true): Promise<Page> {
-  const page = await browser.newPage({ viewport: { width: 80, height: 80 } });
+async function makeWebGlPage(
+  waitForPresentation = true,
+  ownerBrowser = browser,
+  preserveDrawingBuffer = true,
+): Promise<Page> {
+  const page = await ownerBrowser.newPage({ viewport: { width: 80, height: 80 } });
   await page.setContent('<canvas width="32" height="32"></canvas>');
-  const supported = await evaluateInFrame(page, () => {
-    const canvas = document.querySelector("canvas");
-    const gl = canvas?.getContext("webgl", { preserveDrawingBuffer: true });
-    if (gl == null) return false;
-    gl.clearColor(1, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    return true;
-  });
+  const supported = await evaluateInFrame(
+    page,
+    (preserve) => {
+      const canvas = document.querySelector("canvas");
+      const gl = canvas?.getContext("webgl", { preserveDrawingBuffer: preserve });
+      if (gl == null) return false;
+      gl.clearColor(1, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      return gl.getContextAttributes()?.preserveDrawingBuffer === preserve;
+    },
+    preserveDrawingBuffer,
+  );
   expect(supported).toBe(true);
   if (waitForPresentation) {
     try {
@@ -97,16 +105,22 @@ async function capturedCanvasPixel(page: Page): Promise<number[]> {
 }
 
 describe("capture-scoped WebGL output freeze", () => {
-  it("captures a cold canvas before any screenshot presentation poll", async () => {
-    const page = await makeWebGlPage(false);
-    try {
-      expect(await capturedCanvasPixel(page)).toEqual([255, 0, 0]);
-      await paint(page, 0, 1);
-      expect(await centerPixel(page)).toEqual([0, 0, 255]);
-    } finally {
-      await page.close();
-    }
-  });
+  it.each([true, false])(
+    "captures a cold canvas before presentation polling (preserveDrawingBuffer=%s)",
+    async (preserve) => {
+      // Keep the original startup poll cold too: the production capture must
+      // not initialize the browser used by the other presentation controls.
+      const coldBrowser = await launchChromium();
+      try {
+        const page = await makeWebGlPage(false, coldBrowser, preserve);
+        expect(await capturedCanvasPixel(page)).toEqual([255, 0, 0]);
+        await paint(page, 0, 1);
+        expect(await centerPixel(page)).toEqual([0, 0, 255]);
+      } finally {
+        await closeBrowserSafely(coldBrowser);
+      }
+    },
+  );
 
   it("holds the presented pixels and restores drawing after disposal", async () => {
     const page = await makeWebGlPage();
@@ -115,16 +129,19 @@ describe("capture-scoped WebGL output freeze", () => {
       expect(frozen.frozenFrames).toBe(1);
       try {
         await paint(page, 0, 1);
-        // Hosted software compositing can briefly show a gray placeholder
-        // when the canvas layer is recycled after freezing. The held red frame
-        // must become visible without ever allowing the new blue draw through.
-        const deadline = Date.now() + 5_000;
-        let pixel = await centerPixel(page);
-        while (pixel[0] === pixel[1] && pixel[1] === pixel[2] && Date.now() < deadline) {
-          await page.waitForTimeout(100);
-          pixel = await centerPixel(page);
+        const presented = await centerPixel(page);
+        try {
+          expect(presented).toEqual([255, 0, 0]);
+        } catch (error) {
+          // If held presentation fails, also inspect the production raster
+          // under the same freeze instead of guessing whether it is affected.
+          const captured = await capturedCanvasPixel(page).catch((failure: unknown) =>
+            failure instanceof Error ? failure.message : String(failure),
+          );
+          throw new Error(`WebGL frozen presentation failed: ${JSON.stringify({ presented, captured })}`, {
+            cause: error,
+          });
         }
-        expect(pixel).toEqual([255, 0, 0]);
       } finally {
         await frozen.dispose();
       }
