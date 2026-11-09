@@ -66,6 +66,13 @@ aliases: ["docs/handbook/platforms-testing-and-release.md"]
    measured heavy raster/oracle files run serially. A targeted file selection
    runs once in the safe serial lane, and every lane keeps the production
    persistent native-helper lifecycle enabled.
+10. Real-world WebGL preflight includes visible canvas surfaces within current
+    same-origin, cross-origin, and nested frame content boxes. It maps them to
+    main-document screenshot coordinates without scrolling or pausing rAF,
+    retaining the shared eight-surface, 512 px side, three-second discovery,
+    and ten-second capture budgets. Non-axis-aligned frame owners are reported
+    as skipped; detached or unqueryable frames are reported as failures
+    (DM-T64MNZ; `tests/real-world-webgl-preflight.ts`).
 
 ## Verified implementation map
 
