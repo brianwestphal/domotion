@@ -28,7 +28,9 @@
  *   tests/output/real-world/<test>.svg
  *   tests/output/real-world/results.json   (consumed by review-server)
  *
- * Usage: npx tsx tests/real-world.tsx [--only google-desktop-fold]
+ * Usage: npx tsx tests/real-world.tsx [--only google-desktop-fold] [--full-scroll]
+ * Stripe and Resend scroll jobs sample a bounded extent by default; use
+ * --full-scroll for an explicit full-depth run of those heavy pages.
  */
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -55,6 +57,7 @@ import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worke
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
+import { planRealWorldScroll, type RealWorldScrollPlan } from "./real-world-scroll-plan.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
@@ -185,6 +188,8 @@ interface Result {
    *  the additional `<name>-{expected,actual,diff}-N.png` files. Absent
    *  for `fold` / `entire-page` modes. See docs/34-scroll-mode-per-chunk-diff.md. */
   chunks?: ChunkResult[];
+  /** Planned and captured vertical extent for scroll jobs. */
+  scrollCoverage?: RealWorldScrollPlan & { capturedEndY?: number; capturedSegments?: number };
 }
 
 interface PageJob {
@@ -215,6 +220,7 @@ async function main(): Promise<void> {
   const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
   // DM-542: opt-in resize pre-pass for size-vs-fidelity validation.
   const enableResize = args.includes("--resize");
+  const fullScroll = args.includes("--full-scroll");
   const hiDPIArg = args.indexOf("--hi-dpi") >= 0 ? parseFloat(args[args.indexOf("--hi-dpi") + 1]) : NaN;
   const resizeHiDPI = Number.isFinite(hiDPIArg) ? hiDPIArg : 2;
   if (enableResize) {
@@ -255,7 +261,7 @@ async function main(): Promise<void> {
         const comparePage = await compareContext.newPage();
         try {
           await comparePage.goto("about:blank");
-          return await runJob(browser, comparePage, job, { resize: enableResize, hiDPI: resizeHiDPI });
+          return await runJob(browser, comparePage, job, { resize: enableResize, hiDPI: resizeHiDPI, fullScroll });
         } finally {
           await compareContext.close().catch(() => {});
         }
@@ -268,7 +274,11 @@ async function main(): Promise<void> {
             : result.skipped
               ? `  (${result.skipReason ?? "skipped"})`
               : ` ${result.verdict} · ${result.regionCount} region${result.regionCount === 1 ? "" : "s"} · ${result.coveragePct.toFixed(2)}% of image · ${result.width}×${result.height}`;
-        console.log(`  ${status}  ${job.test.padEnd(38)}${note}`);
+        const scrollNote =
+          result.scrollCoverage == null
+            ? ""
+            : ` · ${result.scrollCoverage.extent} ${result.scrollCoverage.capturedEndY ?? result.scrollCoverage.requestedEndY}/${result.scrollCoverage.availableEndY}px`;
+        console.log(`  ${status}  ${job.test.padEnd(38)}${note}${scrollNote}`);
       },
     });
 
@@ -407,9 +417,15 @@ async function runJob(
   browser: Browser,
   comparePage: Page,
   job: PageJob,
-  resizeOpts: { resize: boolean; hiDPI: number } = { resize: false, hiDPI: 2 },
+  resizeOpts: { resize: boolean; hiDPI: number; fullScroll: boolean } = { resize: false, hiDPI: 2, fullScroll: false },
 ): Promise<Result> {
   const { test, site, viewport, mode } = job;
+  const traceStart = Date.now();
+  const trace = (phase: string): void => {
+    if (process.env["DOMOTION_REAL_WORLD_TIMING"] === "1") {
+      console.log(`  ${test}: ${(Date.now() - traceStart) / 1000}s ${phase}`);
+    }
+  };
   const expectedPath = resolve(OUTPUT_DIR, `${test}-expected.png`);
   const actualPath = resolve(OUTPUT_DIR, `${test}-actual.png`);
   const diffPath = resolve(OUTPUT_DIR, `${test}-diff.png`);
@@ -507,11 +523,14 @@ async function runJob(
   // here so the per-chunk diff loop after the canonical comparePngs can
   // walk the same anchors. Stays undefined for fold / entire-page.
   let segments: ScrollSegmentCapture[] | undefined;
+  let scrollCoverage: Result["scrollCoverage"];
   let captureTimedOut = false;
-  const captureWatchdog = setTimeout(() => {
+  let captureJobTimeoutMs = CAPTURE_JOB_TIMEOUT_MS;
+  const closeOnTimeout = (): void => {
     captureTimedOut = true;
-    void closeTimedOutCaptureContext(context, `real-world capture exceeded ${CAPTURE_JOB_TIMEOUT_MS / 60_000}m`);
-  }, CAPTURE_JOB_TIMEOUT_MS);
+    void closeTimedOutCaptureContext(context, `real-world capture exceeded ${captureJobTimeoutMs / 60_000}m`);
+  };
+  let captureWatchdog = setTimeout(closeOnTimeout, captureJobTimeoutMs);
   captureWatchdog.unref();
 
   try {
@@ -520,6 +539,7 @@ async function runJob(
     // We trade that off for a fixed SETTLE_MS window after DOMContentLoaded.
     await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: GOTO_TIMEOUT_MS });
     await page.waitForTimeout(SETTLE_MS);
+    trace("navigated and settled");
 
     if (mode === "entire-page") {
       // Resize the viewport to the document scroll height so a single
@@ -629,6 +649,7 @@ async function runJob(
         ? { x: 0, y: 0, width: viewport.width, height: canvasH }
         : { x: 0, y: 0, width: viewport.width, height: viewport.height };
     await page.screenshot({ path: expectedPath, clip: expectedClip });
+    trace("expected screenshot complete");
 
     // DM-4S3VQH: stop WebGL canvases from drawing for the rest of the job.
     // Headless Chromium composites in software, so a continuous WebGL loop
@@ -645,35 +666,69 @@ async function runJob(
       );
     }
 
-    const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };
-    // captureElementTreeWithWarnings returns warnings inline so concurrent
-    // workers don't race on the lastCaptureWarnings module global (DM-456).
-    // DM-562: for `fold` and `entire-page` modes the expected.png already
-    // covers the same coordinate space as captureClip, so crop replaced-
-    // element rasters from that PNG instead of taking fresh per-rid
-    // screenshots — eliminates the timing drift between the expected and
-    // rotating cross-origin-iframe content (NYT Google Ads, etc.). For
-    // `scroll` mode the expected.png is only the viewport-sized t=0 fold,
-    // so we fall back to per-rid screenshots there.
-    const rasterizeFromImagePath = mode === "fold" || mode === "entire-page" ? expectedPath : undefined;
-    const cap = await captureElementTreeWithWarnings(page, "body", captureClip, { rasterizeFromImagePath });
-    warnings = cap.warnings;
-    // DM-512: real-world captures of public sites reference image URLs on
-    // the host CDN. Inline them as data: URIs so the produced SVGs load in
-    // Preview / QuickLook / chat-client previewers (which don't fetch
-    // remote resources from local files). DM-527: per-URL fetch failures
-    // are appended to the same `warnings` array we collected from capture
-    // so concurrent workers don't race on the lastCaptureWarnings global.
-    await embedRemoteImages(cap.tree, { warnings });
-    if (resizeOpts.resize) {
-      await resizeEmbeddedImages(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
+    let tree: ScrollSegmentCapture["tree"];
+    let svgInner = "";
+    if (mode === "scroll") {
+      const maxScrollY = await page.evaluate(() =>
+        Math.max(0, document.documentElement.scrollHeight - document.documentElement.clientHeight),
+      );
+      const plan = planRealWorldScroll(site.name, viewport.height, maxScrollY, resizeOpts.fullScroll);
+      scrollCoverage = { ...plan };
+      if (plan.jobTimeoutMs !== captureJobTimeoutMs) {
+        captureJobTimeoutMs = plan.jobTimeoutMs;
+        clearTimeout(captureWatchdog);
+        captureWatchdog = setTimeout(closeOnTimeout, Math.max(1, captureJobTimeoutMs - (Date.now() - traceStart)));
+        captureWatchdog.unref();
+      }
+      trace(`scroll executor starting (${plan.extent} ${plan.requestedEndY}/${plan.availableEndY}px)`);
+      const destination = plan.extent === "sampled" ? `${plan.requestedEndY}px` : "bottom";
+      const pattern = parseScrollPattern(`down:${destination}@${SCROLL_SPEED_PX_PER_SEC}pxps`);
+      segments = await executeScrollPattern(page, pattern, {
+        viewportW: viewport.width,
+        viewportH: viewport.height,
+        prescroll: false,
+        embedImages: false,
+        maxTimeoutMs: captureJobTimeoutMs,
+        log: trace,
+      });
+      scrollCoverage.capturedEndY = segments.at(-1)?.scrollY;
+      scrollCoverage.capturedSegments = segments.length;
+      trace(`scroll executor complete with ${segments.length} segments`);
+      tree = segments[0].tree;
+      for (const segment of segments) warnings.push(...(segment.captureWarnings ?? []));
+    } else {
+      const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };
+      // captureElementTreeWithWarnings returns warnings inline so concurrent
+      // workers don't race on the lastCaptureWarnings module global (DM-456).
+      // DM-562: for `fold` and `entire-page` modes the expected.png already
+      // covers the same coordinate space as captureClip, so crop replaced-
+      // element rasters from that PNG instead of taking fresh per-rid
+      // screenshots — eliminates the timing drift between the expected and
+      // rotating cross-origin-iframe content (NYT Google Ads, etc.). For
+      // `scroll` mode the expected.png is only the viewport-sized t=0 fold,
+      // so we fall back to per-rid screenshots there.
+      const rasterizeFromImagePath = mode === "fold" || mode === "entire-page" ? expectedPath : undefined;
+      const cap = await captureElementTreeWithWarnings(page, "body", captureClip, { rasterizeFromImagePath });
+      trace("initial tree capture complete");
+      warnings = cap.warnings;
+      // DM-512: real-world captures of public sites reference image URLs on
+      // the host CDN. Inline them as data: URIs so the produced SVGs load in
+      // Preview / QuickLook / chat-client previewers (which don't fetch
+      // remote resources from local files). DM-527: per-URL fetch failures
+      // are appended to the same `warnings` array we collected from capture
+      // so concurrent workers don't race on the lastCaptureWarnings global.
+      await embedRemoteImages(cap.tree, { warnings });
+      if (resizeOpts.resize) {
+        await resizeEmbeddedImages(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
+      }
+      // DM-549: rasterize conic-gradient layers (no-op when tree has none).
+      await rasterizeConicGradients(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
+      tree = cap.tree;
+      svgInner = withTextEngineDocument({ session: fontSession, generation: "reset" }, () =>
+        elementTreeToSvgInner(tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI),
+      ).value;
+      trace("initial tree render complete");
     }
-    // DM-549: rasterize conic-gradient layers (no-op when tree has none).
-    await rasterizeConicGradients(cap.tree, { hiDPIFactor: resizeOpts.hiDPI });
-    const tree = cap.tree;
-    const svgInner = withTextEngineDocument({ session: fontSession, generation: "reset" }, () =>
-      elementTreeToSvgInner(tree, viewport.width, canvasH, "", true, resizeOpts.hiDPI),
-    ).value;
     // DM-554: when document.body is transparent, prefer the captured tree's
     // `rootBgComputed` (Chromium-resolved `<html>` bg, which handles author-
     // set roots AND the UA default per scheme — `#ffffff` for light,
@@ -688,7 +743,7 @@ async function runJob(
       if (bg === "rgba(0, 0, 0, 0)" || bg === "transparent") return null;
       return bg;
     });
-    const rootStyles = cap.tree[0]?.styles;
+    const rootStyles = tree[0]?.styles;
     const rootBg = rootStyles?.rootBgComputed;
     const rootScheme = rootStyles?.rootColorScheme;
     const transparentRootBg =
@@ -708,21 +763,7 @@ async function runJob(
     // canvas size.
     let svgDoc: string;
     if (mode === "scroll") {
-      // Pattern: scroll down to bottom at a constant `SCROLL_SPEED_PX_PER_SEC`
-      // (DM-669) — animation length scales with page height so cadence stays
-      // consistent across pages of different sizes. The `@<n>pxps` suffix
-      // pins the speed for this single action; the executor computes the
-      // duration from the captured page's actual scroll height.
-      const pattern = parseScrollPattern(`down:bottom@${SCROLL_SPEED_PX_PER_SEC}pxps`);
-      segments = await executeScrollPattern(page, pattern, {
-        viewportW: viewport.width,
-        viewportH: viewport.height,
-        // We already did the pre-scroll wake-up above; don't repeat it.
-        prescroll: false,
-        // This harness embeds each segment itself below, with its own warning
-        // sink and the resize / conic passes in the right order.
-        embedImages: false,
-      });
+      if (segments == null) throw new Error("scroll executor returned no segments");
       // Per-segment post-processing: every tree needs the same passes the
       // single-capture path runs above (embed images, optional resize,
       // conic-gradient rasterize, viewBox cull). embedRemoteImages uses a
@@ -917,7 +958,7 @@ async function runJob(
     }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
-    captureError = captureTimedOut ? `capture exceeded ${CAPTURE_JOB_TIMEOUT_MS / 60_000}m: ${detail}` : detail;
+    captureError = captureTimedOut ? `capture exceeded ${captureJobTimeoutMs / 60_000}m: ${detail}` : detail;
   } finally {
     clearTimeout(captureWatchdog);
     // Defensive: a failed page.screenshot can leave the underlying
@@ -934,7 +975,7 @@ async function runJob(
   }
 
   if (captureError != null) {
-    return makeErrorResult(test, site, viewport, mode, viewport.width, canvasH, captureError, warnings);
+    return makeErrorResult(test, site, viewport, mode, viewport.width, canvasH, captureError, warnings, scrollCoverage);
   }
 
   // Compare. Diff dimensions = the actual.png we just wrote.
@@ -957,6 +998,7 @@ async function runJob(
       diffH,
       `compare failed: ${e instanceof Error ? e.message : String(e)}`,
       warnings,
+      scrollCoverage,
     );
   }
 
@@ -1052,6 +1094,7 @@ async function runJob(
     height: diffH,
     warnings: warnings.length > 0 ? warnings : undefined,
     chunks,
+    scrollCoverage,
   };
 }
 
@@ -1064,6 +1107,7 @@ function makeErrorResult(
   height: number,
   error: string,
   warnings: Array<{ selector: string; feature: string; detail: string }>,
+  scrollCoverage?: Result["scrollCoverage"],
 ): Result {
   return {
     name,
@@ -1090,6 +1134,7 @@ function makeErrorResult(
     height,
     error,
     warnings: warnings.length > 0 ? warnings : undefined,
+    scrollCoverage,
   };
 }
 
