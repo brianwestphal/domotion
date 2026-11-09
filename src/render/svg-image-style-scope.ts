@@ -250,12 +250,12 @@ function replaceRoot(selector: string, rootSel: string, scope: string, withinHas
       break;
     }
     const inner = selector.slice(open + 1, close);
-    // A relative :has() argument can walk to a following output sibling of
-    // the nested image root. Filter every argument compound, including nested
-    // logical selector lists, so it sees only the former image document.
+    // A relative :has() argument can walk to a following output sibling.
+    // Logical lists can inspect an output ancestor (e.g. :is(body rect)).
+    // Filter every argument compound to the former image document.
     out +=
       rewriteStructural(name, inner, rootSel, scope, withinHas) ??
-      `:${m[1]}(${name === "has" || (withinHas && /^(?:is|not|where)$/.test(name)) ? scopeSelectorList(inner, scope, true) : replaceRoot(inner, rootSel, scope, withinHas)})`;
+      `:${m[1]}(${name === "has" || /^(?:is|not|where|matches)$/.test(name) ? scopeSelectorList(inner, scope, withinHas || name === "has") : replaceRoot(inner, rootSel, scope, withinHas)})`;
     i = close + 1;
   }
   return out;
@@ -287,12 +287,7 @@ function rewriteStructural(
   if (!/^nth-(?:last-)?(?:child|of-type)$/.test(name)) return null;
   const ofMatch = /^([\s\S]*?)\s+of\s+([\s\S]+)$/i.exec(args);
   const anb = (ofMatch?.[1] ?? args).trim();
-  const ofSelector =
-    ofMatch != null && name.endsWith("child")
-      ? withinHas
-        ? scopeSelectorList(ofMatch[2], scope, true)
-        : replaceRoot(ofMatch[2], rootSel, scope)
-      : null;
+  const ofSelector = ofMatch != null && name.endsWith("child") ? scopeSelectorList(ofMatch[2], scope, withinHas) : null;
   if (ofMatch != null && ofSelector == null) return null;
   const firstMatches = anPlusBMatches(anb, 1);
   if (firstMatches == null) return null;

@@ -18,14 +18,16 @@ describe("scopeSelectorList", () => {
 
   it("maps :root to the image root attribute (outside strings)", () => {
     expect(scopeSelectorList(":root", "P-")).toBe(`${R}${W}`);
-    expect(scopeSelectorList("rect:not(:root)", "P-")).toBe(`rect:not(${R})${W}`);
+    expect(scopeSelectorList("rect:not(:root)", "P-")).toBe(`rect:not(${R}${W})${W}`);
     expect(scopeSelectorList(`[title=":root"]`, "P-")).toBe(`[title=":root"]${W}`);
     expect(scopeSelectorList(":root-ish", "P-")).toBe(`:root-ish${W}`);
   });
 
   it("puts the filter before a pseudo-element and ignores separators inside brackets", () => {
     expect(scopeSelectorList("text::selection", "P-")).toBe(`text${W}::selection`);
-    expect(scopeSelectorList(`rect[data-x="a b"]:not(.q > .r)`, "P-")).toBe(`rect[data-x="a b"]:not(.q > .r)${W}`);
+    expect(scopeSelectorList(`rect[data-x="a b"]:not(.q > .r)`, "P-")).toBe(
+      `rect[data-x="a b"]:not(.q${W} > .r${W})${W}`,
+    );
   });
 
   it("leaves a compound that already requires a namespaced class or id", () => {
@@ -48,6 +50,14 @@ describe("scopeSelectorList", () => {
     );
     expect(scopeSelectorList("svg:has(:not(body rect))", "P-")).toBe(`svg:has(:not(body${W} rect${W})${W})${W}`);
     expect(scopeSelectorList(`[title=":has(+ g)"]`, "P-")).toBe(`[title=":has(+ g)"]${W}`);
+  });
+
+  it("confines top-level logical selector lists and their nested relations", () => {
+    expect(scopeSelectorList("rect:is(body rect, g > rect)", "P-")).toBe(
+      `rect:is(body${W} rect${W}, g${W} > rect${W})${W}`,
+    );
+    expect(scopeSelectorList("rect:not(body rect)", "P-")).toBe(`rect:not(body${W} rect${W})${W}`);
+    expect(scopeSelectorList("rect:where(:is(body rect))", "P-")).toBe(`rect:where(:is(body${W} rect${W})${W})${W}`);
   });
 });
 
@@ -95,9 +105,9 @@ describe("image-document answers frozen for the inlined root", () => {
     expect(scopeSelectorList("rect:nth-child(odd)", "P-")).toBe(`rect:is(:nth-child(odd), ${R})${W}`);
     expect(scopeSelectorList("svg:nth-child(2n)", "P-")).toBe(`svg:nth-child(2n):not(:where(${R}))${W}`);
     expect(scopeSelectorList("svg:nth-child(1 of :root)", "P-")).toBe(
-      `svg:is(:nth-child(1 of ${R}), ${R}:is(${R}))${W}`,
+      `svg:is(:nth-child(1 of ${R}${W}), ${R}:is(${R}${W}))${W}`,
     );
-    expect(scopeSelectorList("rect:not(:last-of-type)", "P-")).toBe(`rect:not(:is(:last-of-type, ${R}))${W}`);
+    expect(scopeSelectorList("rect:not(:last-of-type)", "P-")).toBe(`rect:not(:is(:last-of-type, ${R})${W})${W}`);
     expect(scopeSelectorList(`[title=":first-child"]`, "P-")).toBe(`[title=":first-child"]${W}`);
     expect(scopeSelectorList("text::first-line", "P-")).toBe(`text${W}::first-line`);
   });
