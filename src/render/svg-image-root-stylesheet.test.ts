@@ -24,6 +24,32 @@ const valueOf = (r: ReturnType<typeof cascade>, prop: string): string | undefine
   r != null && r !== "unsupported" ? r.declarations.get(prop)?.value : undefined;
 
 describe("cascadeRootStylesheetTransform", () => {
+  it("cascades root font declarations without removing them from the sheet", () => {
+    const r = cascade(
+      `<svg id="r"><style>@font-face { font-family: Face; src: local(Arial) } ` +
+        `svg { font-family: serif; font-size: 24px; font-weight: 500; font-style: italic; line-height: 36px } ` +
+        `#r { font-size: 30px }</style><rect/></svg>`,
+    );
+    if (r == null || r === "unsupported") throw new Error("expected a font cascade");
+    expect(valueOf(r, "font-family")).toBe("serif");
+    expect(valueOf(r, "font-size")).toBe("30px");
+    expect(valueOf(r, "font-weight")).toBe("500");
+    expect(valueOf(r, "font-style")).toBe("italic");
+    expect(valueOf(r, "line-height")).toBe("36px");
+    expect(r.source).toContain(`@font-face { font-family: Face; src: local(Arial) }`);
+    expect(r.source).toContain(`font-size: 24px`);
+    expect(r.source).toContain(`#r { font-size: 30px }`);
+  });
+
+  it("keeps known transforms when a separate root font selector is undecidable", () => {
+    const r = cascade(
+      `<svg><style>svg { transform: rotate(10deg) } svg:lang(en) { font-size: 30px }</style><rect/></svg>`,
+    );
+    if (r == null || r === "unsupported") throw new Error("expected a transform cascade");
+    expect(r.declarations.get("transform")?.value).toBe("rotate(10deg)");
+    expect(r.fontUnresolved).toBe(true);
+  });
+
   it("returns null without a sheet or without a transform-family declaration reaching the root", () => {
     expect(cascade(`<svg><rect/></svg>`)).toBeNull();
     expect(cascade(`<svg><style>rect { transform: rotate(1deg) } svg { fill: red }</style><rect/></svg>`)).toBeNull();
@@ -236,6 +262,23 @@ describe("<img> SVG root transform from the document's own <style>", () => {
     )!;
     expect(out).toContain(`translate(50 50) rotate(20) translate(-50 -50)`);
     expect(out).toContain(`<style>svg:where([${IMAGE_ROOT_ATTR}="S-"], [${IMAGE_ROOT_ATTR}="S-"] *) {}</style>`);
+  });
+
+  it("uses the cascaded root font size and line height for transform units", () => {
+    const out = inlineImgSvg(
+      `<svg viewBox="0 0 100 100"><style>svg { font-size: 30px; line-height: 40px; transform: translate(2em, 1lh) }</style><rect width="10" height="10"/></svg>`,
+      P,
+    )!;
+    expect(out).toContain("translate(60 40)");
+    expect(out).toContain("font-size: 30px");
+    expect(out).toContain("line-height: 40px");
+  });
+
+  it("ranks sheet font-size against the root style attribute", () => {
+    const svg = (sheet: string): string =>
+      `<svg viewBox="0 0 100 100" style="font-size: 10px; transform: translate(1em)"><style>svg { font-size: ${sheet} }</style><rect/></svg>`;
+    expect(inlineImgSvg(svg("20px"), P)).toContain("translate(10 0)");
+    expect(inlineImgSvg(svg("20px !important"), P)).toContain("translate(20 0)");
   });
 
   it("lets the style attribute beat a normal sheet rule, and an important sheet rule beat it", () => {

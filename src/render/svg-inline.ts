@@ -416,19 +416,11 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
   "transform-box",
 ];
 
-/** Whether any `<style>` sheet declares `font-size` or the `font` shorthand. */
-function sheetMaySetFontSize(svgText: string): boolean {
-  for (const m of svgText.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
-    if (/(?:^|[;{\s])font(?:-size)?\s*:/i.test(m[1])) return true;
-  }
-  return false;
-}
-
 /**
  * The root's computed font-size in px for `em` / `rem` in its transform: the
- * style declaration over the `font-size` presentation attribute, else the
- * initial `medium` (16px). Null when it cannot be known exactly (a relative
- * or keyword value, or a sheet that might set it).
+ * winning inline or stylesheet declaration over the `font-size` presentation
+ * attribute, else the initial `medium` (16px). Null when the size cannot be
+ * known exactly (a relative or keyword value, or an undecidable sheet rule).
  */
 /** The font and writing-mode properties SVG maps from presentation
  *  attributes (`SVGElement::CssPropertyIdForSVGAttributeName`,
@@ -442,9 +434,10 @@ const FONT_PRESENTATION_ATTRIBUTES: ReadonlySet<string> = new Set([
   "writing-mode",
 ]);
 
-function rootFontSize(attrValue: string | null, styleValue: string | null, hasSheets: boolean): number | null {
+function rootFontSize(attrValue: string | null, styleValue: string | null, fontUnresolved: boolean): number | null {
+  if (fontUnresolved) return null;
   const value = styleValue ?? attrValue;
-  if (value == null) return hasSheets ? null : 16;
+  if (value == null) return 16;
   const m = /^\s*([-+]?(?:\d+\.?\d*|\.\d+))(px|pt|pc|in|cm|mm)?\s*$/i.exec(value);
   if (m == null) return null;
   const factor: Record<string, number> = { px: 1, pt: 4 / 3, pc: 16, in: 96, cm: 96 / 2.54, mm: 96 / 25.4 };
@@ -487,7 +480,7 @@ function imageRootTransform(
   box: Rect,
   slot: string,
   sheet: ReadonlyMap<string, CascadedDeclaration> | null = null,
-  hasSheets = false,
+  fontUnresolved = false,
   viewport: { w: number; h: number } | null = null,
 ): ResolvedImageRootTransform | null | "projective" {
   const tokens = parseSvgAttributes(attrs) ?? [];
@@ -528,12 +521,17 @@ function imageRootTransform(
   const decodedTransform = attr("transform");
   const transformAttr =
     decodedTransform != null && /[<>&"']/.test(decodedTransform) ? rawAttr("transform") : decodedTransform;
-  const fontSize = rootFontSize(attr("font-size"), inline.get("font-size")?.value ?? null, hasSheets);
+  // A `font` shorthand also sets font-size. Until it is expanded with its
+  // declaration order, an independently cascaded longhand is not enough to
+  // recover the computed size safely.
+  const fontSize = style.has("font")
+    ? null
+    : rootFontSize(attr("font-size"), style.get("font-size") ?? null, fontUnresolved);
   // The root's font: inline style over its font presentation attributes
   // (`line-height` and the `font` shorthand are not presentation attributes).
   const fontDeclarations = {
     get: (name: string): string | null =>
-      inline.get(name)?.value ?? (FONT_PRESENTATION_ATTRIBUTES.has(name) ? attr(name) : null),
+      style.get(name) ?? (FONT_PRESENTATION_ATTRIBUTES.has(name) ? attr(name) : null),
   };
   const resolved = resolveImageRootTransform(
     {
@@ -542,7 +540,9 @@ function imageRootTransform(
       style,
       fontSize,
       viewport,
-      fontMetric: imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang")),
+      fontMetric: fontUnresolved
+        ? null
+        : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang")),
     },
     box,
   );
@@ -806,9 +806,10 @@ function imageViewport(p: InlineSvgPlacement): { w: number; h: number } | null {
 }
 
 /**
- * The image's `<style>` sheets cascaded onto its root's transform family
- * (`cascadeRootStylesheetTransform`), with the source rewritten so the inlined
- * sheets do not apply those declarations again. A sheet the cascade cannot
+ * The image's `<style>` sheets cascaded onto its root's transform and font
+ * (`cascadeRootStylesheetTransform`). Applied transform declarations are
+ * removed from the inlined sheet; font declarations remain for text paint.
+ * A sheet the cascade cannot
  * decide exactly keeps the previous behavior (attributes and inline style
  * only) with a `svg-image-root-transform` warning.
  */
@@ -816,7 +817,7 @@ function rootSheetTransform(
   svgText: string,
   tag: SvgOpeningTag,
   p: InlineSvgPlacement,
-): { declarations: ReadonlyMap<string, CascadedDeclaration> | null; source: string } {
+): { declarations: ReadonlyMap<string, CascadedDeclaration> | null; source: string; fontUnresolved: boolean } {
   const tokens = parseSvgAttributes(tag.attributes) ?? [];
   const attr = (name: string): string | null =>
     tokens.find((token) => token.name.toLowerCase() === name)?.value ?? null;
@@ -838,9 +839,9 @@ function rootSheetTransform(
       "<img> svg root transform from an internal <style> sheet uses a selector or at-rule that cannot be resolved exactly; the sheet's transform is not applied",
       "<img> svg",
     );
-    return { declarations: null, source: svgText };
+    return { declarations: null, source: svgText, fontUnresolved: true };
   }
-  return sheet == null ? { declarations: null, source: svgText } : sheet;
+  return sheet == null ? { declarations: null, source: svgText, fontUnresolved: false } : sheet;
 }
 
 /** A root `<svg>` length attribute resolved against the image viewport
@@ -939,7 +940,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     object,
     "<img> svg",
     sheet.declarations,
-    sheetMaySetFontSize(svgText),
+    sheet.fontUnresolved,
     imageViewport(p),
   );
   if (rootTransform === "projective") return null;
@@ -1165,7 +1166,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     object,
     "<img> svg",
     sheet.declarations,
-    sheetMaySetFontSize(svgText),
+    sheet.fontUnresolved,
     imageViewport(p),
   );
   if (rootTransform === "projective") return null;

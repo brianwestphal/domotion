@@ -1,5 +1,5 @@
 /**
- * The root `<svg>`'s transform-family declarations that an `<img>` SVG
+ * The root `<svg>`'s transform and font declarations that an `<img>` SVG
  * document's own `<style>` sheets cascade onto it, e.g.
  * `<style>svg { transform: rotate(10deg) }</style>` or
  * `:root { transform-origin: 0 0 }`.
@@ -8,7 +8,9 @@
  * author rule (the root is an ordinary element of that document), so the
  * declared transform applies to the image. Domotion composes the root
  * transform itself, outside the nested viewport (see `imageRootTransform` in
- * `svg-inline.ts`), so it needs the cascaded values node-side.
+ * `svg-inline.ts`), so it needs the cascaded values node-side. The root font
+ * also determines em and font-metric transform lengths; those declarations
+ * stay in the source sheet for the image's text paint.
  *
  * Only selectors that can be decided against the root exactly are resolved.
  * The root of an SVG image has no parent and no element siblings, so any
@@ -82,6 +84,23 @@ export const ROOT_TRANSFORM_PROPERTIES: ReadonlySet<string> = new Set([
   "scale",
 ]);
 
+/** Root font declarations needed to resolve font-relative transform lengths. */
+const ROOT_FONT_PROPERTIES: ReadonlySet<string> = new Set([
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "line-height",
+  "font",
+  "font-stretch",
+  "font-variation-settings",
+  "font-size-adjust",
+  "font-optical-sizing",
+  "writing-mode",
+  "text-orientation",
+]);
+const ROOT_RELEVANT_PROPERTIES: ReadonlySet<string> = new Set([...ROOT_TRANSFORM_PROPERTIES, ...ROOT_FONT_PROPERTIES]);
+
 export interface CascadedDeclaration {
   value: string;
   important: boolean;
@@ -94,10 +113,12 @@ export interface CascadedDeclaration {
 }
 
 export interface RootStylesheetTransform {
-  /** Winning sheet declaration per transform-family property. */
+  /** Winning sheet declaration per transform or font property. */
   declarations: Map<string, CascadedDeclaration>;
   /** The SVG source with the applied declarations removed from its sheets. */
   source: string;
+  /** A font rule might reach the root but could not be decided exactly. */
+  fontUnresolved: boolean;
 }
 
 interface SimpleCompound {
@@ -484,9 +505,10 @@ const SPECIFICITY = (c: SimpleCompound): [number, number, number] => [
 /**
  * Cascade the image's `<style>` sheets onto its root. `svgText` is the whole
  * SVG source, `rootTagEnd` the offset just past the root's opening tag, and
- * `rootAttrs` its parsed `id` / `class`. Returns null when no sheet reaches
- * the root's transform, `"unsupported"` when one might in a way this module
- * cannot decide or neutralize exactly.
+ * `rootAttrs` its parsed `id` / `class`. Returns null when no relevant sheet
+ * reaches the root, `"unsupported"` when a transform might in a way this
+ * module cannot decide or neutralize exactly. An uncertain font declaration
+ * is reported separately so known transforms can still be applied.
  */
 export function cascadeRootStylesheetTransform(
   svgText: string,
@@ -514,7 +536,8 @@ export function cascadeRootStylesheetTransform(
   // CDATA sections of the sheet being processed (offsets into its text).
   let cdataRegions: Array<[number, number]> = [];
   let order = 0;
-  let unsupported = false;
+  let unsupportedTransform = false;
+  let unsupportedFont = false;
   let changed = false;
 
   // Rewrite `[start, end)` of a sheet. `active` is false inside an `@media`
@@ -554,7 +577,13 @@ export function cascadeRootStylesheetTransform(
       const block = clean.slice(brace + 1, end);
       if (prelude.startsWith("@")) {
         const name = /^@([-\w]+)/.exec(prelude)?.[1].toLowerCase() ?? "";
-        const touchesTransform = /(?:^|[;{}])\s*(?:transform|transform-origin|translate|rotate|scale)\s*:/i.test(block);
+        const isStyleRule = name !== "font-face" && name !== "keyframes" && name !== "-webkit-keyframes";
+        const touchesTransform =
+          isStyleRule && /(?:^|[;{}])\s*(?:transform|transform-origin|translate|rotate|scale)\s*:/i.test(block);
+        const touchesFont =
+          isStyleRule &&
+          /(?:^|[;{}])\s*(?:font(?:-[a-z-]+)?|line-height|writing-mode|text-orientation)\s*:/i.test(block);
+        const touchesRootStyle = touchesTransform || touchesFont;
         // The block's rules for the root: `true` / `false` to apply them or
         // not (their root transform declarations are removed either way, so
         // the inlined sheet does not decide them again), null to give up.
@@ -581,7 +610,7 @@ export function cascadeRootStylesheetTransform(
           applies = true;
         }
         if (applies != null) {
-          if (touchesTransform) {
+          if (touchesRootStyle) {
             const inner = processRange(css, clean, brace + 1, end, active && applies, innerLayer);
             out += css.slice(cursor, brace + 1) + inner + "}";
             cursor = end + 1;
@@ -589,16 +618,19 @@ export function cascadeRootStylesheetTransform(
             // Register nested layer names in order even without transforms.
             processRange(css, clean, brace + 1, end, false, innerLayer);
           }
-        } else if (touchesTransform) {
+        } else if (touchesRootStyle) {
           // `@scope`, `@starting-style`, an undecided `@media` or `@supports` …
-          unsupported = true;
+          if (touchesTransform) unsupportedTransform = true;
+          if (touchesFont) unsupportedFont = true;
         }
         i = end + 1;
         continue;
       }
       const decls = parseDeclarations(block);
       const transformDecls = decls.filter((d) => ROOT_TRANSFORM_PROPERTIES.has(d.name));
-      if (transformDecls.length === 0) {
+      const fontDecls = decls.filter((d) => ROOT_FONT_PROPERTIES.has(d.name));
+      const relevantDecls = decls.filter((d) => ROOT_RELEVANT_PROPERTIES.has(d.name));
+      if (relevantDecls.length === 0) {
         order += decls.length;
         i = end + 1;
         continue;
@@ -612,7 +644,8 @@ export function cascadeRootStylesheetTransform(
       for (const selector of selectors) {
         const domSelector = inCdata ? selector : expandXmlReferences(selector);
         if (domSelector == null) {
-          unsupported = true;
+          if (transformDecls.length > 0) unsupportedTransform = true;
+          if (fontDecls.length > 0) unsupportedFont = true;
           keepForOthers.push(selector);
           continue;
         }
@@ -622,13 +655,17 @@ export function cascadeRootStylesheetTransform(
         }
         const compound = parseCompound(domSelector, facts);
         if (compound == null) {
-          unsupported = true;
+          if (transformDecls.length > 0) unsupportedTransform = true;
+          if (fontDecls.length > 0) unsupportedFont = true;
           keepForOthers.push(selector);
           continue;
         }
         const rootMatch = compoundMatchesRoot(compound, facts);
         if (rootMatch !== true) {
-          if (rootMatch == null) unsupported = true;
+          if (rootMatch == null) {
+            if (transformDecls.length > 0) unsupportedTransform = true;
+            if (fontDecls.length > 0) unsupportedFont = true;
+          }
           keepForOthers.push(selector);
           continue;
         }
@@ -643,7 +680,7 @@ export function cascadeRootStylesheetTransform(
       if (matchedSpec != null) {
         for (const d of decls) {
           const current = order++;
-          if (!active || !ROOT_TRANSFORM_PROPERTIES.has(d.name)) continue;
+          if (!active || !ROOT_RELEVANT_PROPERTIES.has(d.name)) continue;
           candidates.push({
             name: d.name,
             layer,
@@ -655,19 +692,20 @@ export function cascadeRootStylesheetTransform(
             },
           });
         }
-        // Rebuild the rule: the other declarations for every selector, the
-        // transform family only for selectors that do not reach the root.
-        const others = decls.filter((d) => !ROOT_TRANSFORM_PROPERTIES.has(d.name)).map((d) => d.raw.trim());
-        let rule = `${selectors.join(", ")} {${others.join("; ")}}`;
-        if (keepForOthers.length > 0) {
-          rule += ` ${keepForOthers.join(", ")} {${transformDecls.map((d) => d.raw.trim()).join("; ")}}`;
+        if (transformDecls.length > 0) {
+          // Keep font declarations in the sheet: the nested image still
+          // needs them for text paint, even though the root transform uses
+          // their cascaded values outside the viewport.
+          const others = decls.filter((d) => !ROOT_TRANSFORM_PROPERTIES.has(d.name)).map((d) => d.raw.trim());
+          let rule = `${selectors.join(", ")} {${others.join("; ")}}`;
+          if (keepForOthers.length > 0) {
+            rule += ` ${keepForOthers.join(", ")} {${transformDecls.map((d) => d.raw.trim()).join("; ")}}`;
+          }
+          const lead = clean.slice(i, brace).match(/^\s*/)?.[0].length ?? 0;
+          out += css.slice(cursor, i + lead) + rule;
+          cursor = end + 1;
+          changed = true;
         }
-        // Keep the original text before the selector (whitespace, but also a
-        // CDATA opener or comment that the blanked copy hid).
-        const lead = clean.slice(i, brace).match(/^\s*/)?.[0].length ?? 0;
-        out += css.slice(cursor, i + lead) + rule;
-        cursor = end + 1;
-        changed = true;
       } else {
         order += decls.length;
       }
@@ -687,7 +725,7 @@ export function cascadeRootStylesheetTransform(
     },
   );
 
-  if (unsupported) return "unsupported";
+  if (unsupportedTransform) return "unsupported";
   const declarations = new Map<string, CascadedDeclaration>();
   const rank = layers.ranks();
   for (const { name, layer, declaration } of candidates) {
@@ -695,10 +733,11 @@ export function cascadeRootStylesheetTransform(
     const previous = declarations.get(name);
     if (previous == null || compareCascade(declaration, previous) > 0) declarations.set(name, declaration);
   }
-  if (declarations.size === 0 && !changed) return null;
+  if (declarations.size === 0 && !changed && !unsupportedFont) return null;
   return {
     declarations,
     source: changed ? svgText.slice(0, rootTagEnd) + rewrittenBody : svgText,
+    fontUnresolved: unsupportedFont,
   };
 }
 
