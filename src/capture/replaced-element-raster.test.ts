@@ -65,6 +65,9 @@ async function fakeRasterPage(
         },
       };
     },
+    async evaluateHandle() {
+      return { async evaluate() {}, async dispose() {} };
+    },
     async evaluate(fn: unknown, arg?: unknown) {
       if (typeof arg === "string") return true;
       const source = String(fn);

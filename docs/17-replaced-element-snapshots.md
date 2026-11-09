@@ -5,10 +5,11 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE"]
+tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE", "DM-KPMB5S", "DM-FTRBES"]
 code:
   [
     "src/capture/replaced-element-raster.ts",
+    "src/capture/snapshot-visibility-transitions.ts",
     "src/capture/webgl-output-freeze.ts",
     "src/capture/webgl-output-freeze.e2e.test.ts",
     "src/capture/replaced-element-raster.test.ts",
@@ -18,6 +19,9 @@ code:
     "tests/features.ts",
     "tests/replaced-media-frame.e2e.test.ts",
     "tests/replaced-snapshot-transform.e2e.test.ts",
+    "tests/replaced-snapshot-visibility-transition.e2e.test.ts",
+    "tests/real-world-reference-frame.ts",
+    "tests/real-world-reference-frame.e2e.test.ts",
   ]
 aliases: ["docs/17-replaced-element-snapshots.md", "doc-17"]
 ---
@@ -82,6 +86,42 @@ body {
 - `html` and `body` background overrides plus `omitBackground: true` on the screenshot keep the page background out of the alpha channel — partially-transparent canvases composite cleanly onto the SVG behind them.
 
 Ancestors of the target are also hidden by the `*` rule. That is intentional: ancestor backgrounds / borders would otherwise leak through the target's transparent regions. The target's own paint is unaffected because `visibility: visible` on the target overrides the inherited `hidden` from ancestors.
+
+### Visibility transitions and reference-frame ownership
+
+An important hide rule alone does not isolate an element with `transition: all`.
+Its newly started visibility transition outranks the important declaration and
+keeps the element visible until that transition ends. DM-KPMB5S measured this on
+Resend's separate hero light image: a native background pixel of RGB 15 leaked
+into the transparent canvas raster and was painted again by the SVG, reaching
+RGB 29. The healthy canvas and its ancestors used normal blend mode; this was
+duplicate background ownership, not a canvas blend-mode correction.
+
+The replaced-element rasterizer retains each applicable transition list and
+appends only `visibility 0s linear 0s`, including generated before/after pseudos.
+Blink selects the last matching transition entry and cancels a previous pending
+entry when the selected duration plus delay is zero
+([`CSSAnimations::CalculateTransitionUpdateForPropertyHandle`, Chromium
+7d859f27](https://chromium.googlesource.com/chromium/src/+/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/animation/css/css_animations.cc#2724)).
+Other transition properties retain their source animation objects and timing.
+Cleanup removes the hide rule, flushes the restored visibility while its
+immediate entry remains active, and restores authored transition values and
+priorities. Temporary pseudo selectors and their stylesheet are removed on both
+success and failure.
+
+An already-active authored visibility transition is rejected before isolation
+mutates it; the raster remains unavailable with an explicit isolation warning.
+Preserving and isolating that source animation is tracked by DM-FTRBES. This
+boundary does not disable or finish an authored animation to obtain a sample.
+
+The real-world harness separately presents and primes live canvases before
+freezing WebGL draws, then saves its authoritative expected PNG **after** that
+freeze. Saving the reference first allowed a healthy animated hero to advance
+before its raster was sampled. Both drawing-buffer preservation modes have a
+browser regression that draws a different frame between presentation and freeze
+and requires the saved reference and captured raster to use the same frozen
+paint, while source DOM styles and the existing frozen method identity survive
+capture.
 
 The hide stylesheet is injected once before the rasterize pass and removed in `finally`, even if any individual screenshot throws. The data attribute is moved between targets (cleared, then set on the next one) inside the loop.
 

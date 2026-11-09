@@ -300,6 +300,7 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/replaced-element-raster.ts",
+        "src/capture/snapshot-visibility-transitions.ts",
         "src/capture/webgl-output-freeze.ts",
         "src/capture/webgl-output-freeze.e2e.test.ts",
         "src/capture/replaced-element-raster.test.ts",
@@ -308,7 +309,10 @@
         "src/render/element-tree-to-svg.ts",
         "tests/features.ts",
         "tests/replaced-media-frame.e2e.test.ts",
-        "tests/replaced-snapshot-transform.e2e.test.ts"
+        "tests/replaced-snapshot-transform.e2e.test.ts",
+        "tests/replaced-snapshot-visibility-transition.e2e.test.ts",
+        "tests/real-world-reference-frame.ts",
+        "tests/real-world-reference-frame.e2e.test.ts"
       ],
       "file": "17-replaced-element-snapshots.md"
     },

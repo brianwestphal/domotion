@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import type { CDPSession, ElementHandle, Page } from "@playwright/test";
 import { detachQuietly } from "./cdp-lifecycle.js";
+import { suppressSnapshotVisibilityTransitions } from "./snapshot-visibility-transitions.js";
 import {
   axisAlignedQuadBounds,
   mapCssRectToSourcePixels,
@@ -414,7 +415,9 @@ async function rasterizeByIsolatedScreenshots(
   // Inject the hide-everything-else stylesheet (shared SNAPSHOT_HIDE_CSS);
   // restored unconditionally in finally.
   let styleHandle: ElementHandle | null = null;
+  let visibilityTransitions: Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>> | undefined;
   try {
+    visibilityTransitions = await suppressSnapshotVisibilityTransitions(page);
     styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
     for (const target of screenshotTargets) {
       await rasterizeTargetByScreenshot(session, target);
@@ -439,6 +442,11 @@ async function rasterizeByIsolatedScreenshots(
       } catch (error) {
         recordFailure(undefined, "cleanup", `could not remove raster isolation style: ${errorDetail(error)}`);
       }
+    }
+    try {
+      await visibilityTransitions?.dispose();
+    } catch (error) {
+      recordFailure(undefined, "cleanup", `could not restore visibility transitions: ${errorDetail(error)}`);
     }
     try {
       await detachQuietly(cdp);

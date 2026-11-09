@@ -55,8 +55,7 @@ import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
-import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
-import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
+import { captureRealWorldReferenceFrame } from "./real-world-reference-frame.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
 import { captureRealWorldScrollReference } from "./real-world-scroll-reference.js";
 import { resolveVisualOutputRoot } from "./output-directory.mjs";
@@ -517,7 +516,7 @@ async function runJob(
 
   let warnings: Array<{ selector: string; feature: string; detail: string }> = [];
   let captureError: string | undefined;
-  let webGlFreeze: Awaited<ReturnType<typeof freezeWebGlOutput>> | undefined;
+  let webGlFreeze: Awaited<ReturnType<typeof captureRealWorldReferenceFrame>>["webGlFreeze"] | undefined;
   let reportedFailedWorkers = 0;
 
   // Capture canvas height. `fold` / `scroll` always run at viewport size;
@@ -653,29 +652,20 @@ async function runJob(
       mode === "entire-page"
         ? { x: 0, y: 0, width: viewport.width, height: canvasH }
         : { x: 0, y: 0, width: viewport.width, height: viewport.height };
-    await page.screenshot({ path: expectedPath, clip: expectedClip });
-    trace("expected screenshot complete");
-
-    // A viewport screenshot does not present wholly offscreen WebGL canvas
-    // layers. Prime a bounded set without scrolling before draw calls stop;
-    // otherwise a later rasterization scroll can reveal a blank canvas.
-    const canvasPreflight =
-      mode === "entire-page" ? { primed: 0, failed: 0, skipped: 0 } : await primeOffscreenCanvases(page);
+    const referenceFrame = await captureRealWorldReferenceFrame(page, {
+      path: expectedPath,
+      clip: expectedClip,
+      entirePage: mode === "entire-page",
+    });
+    const { canvasPreflight } = referenceFrame;
+    webGlFreeze = referenceFrame.webGlFreeze;
+    trace("expected screenshot complete after WebGL freeze");
     if (canvasPreflight.failed > 0 || canvasPreflight.skipped > 0) {
       console.warn(
         `  ${test}: offscreen canvas preflight primed ${canvasPreflight.primed}, failed ${canvasPreflight.failed}, skipped ${canvasPreflight.skipped}`,
       );
     }
 
-    // DM-4S3VQH: stop WebGL canvases from drawing for the rest of the job.
-    // Headless Chromium composites in software, so a continuous WebGL loop
-    // (resend.com) makes every commit read the canvas back and every capture
-    // round trip wait for it: 40 computed-style queries took 3.6-5.8 s with
-    // the loop drawing and 0.1-0.2 s without, and the fold capture overran
-    // the job budget on CI. Freezing after the expected screenshot leaves the
-    // reference pixels (and the replaced-element crops taken from them)
-    // untouched. See `tests/real-world-webgl-freeze.ts`.
-    webGlFreeze = await freezeWebGlOutput(page);
     reportedFailedWorkers = webGlFreeze.failedWorkers;
     if (webGlFreeze.failedFrames > 0 || webGlFreeze.failedWorkers > 0) {
       console.warn(

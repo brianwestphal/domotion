@@ -574,9 +574,10 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE"],
+        "tickets": ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE", "DM-KPMB5S", "DM-FTRBES"],
         "code": [
           "src/capture/replaced-element-raster.ts",
+          "src/capture/snapshot-visibility-transitions.ts",
           "src/capture/webgl-output-freeze.ts",
           "src/capture/webgl-output-freeze.e2e.test.ts",
           "src/capture/replaced-element-raster.test.ts",
@@ -585,7 +586,10 @@
           "src/render/element-tree-to-svg.ts",
           "tests/features.ts",
           "tests/replaced-media-frame.e2e.test.ts",
-          "tests/replaced-snapshot-transform.e2e.test.ts"
+          "tests/replaced-snapshot-transform.e2e.test.ts",
+          "tests/replaced-snapshot-visibility-transition.e2e.test.ts",
+          "tests/real-world-reference-frame.ts",
+          "tests/real-world-reference-frame.e2e.test.ts"
         ],
         "aliases": ["docs/17-replaced-element-snapshots.md", "doc-17"]
       }
