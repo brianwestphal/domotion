@@ -30,13 +30,19 @@ export const E2E_HEAVY_FILES = [
  *   (`PageHandler::ScreenshotCaptured`, content/browser/devtools/protocol/
  *   page_handler.cc at 7d859f27), a compositor condition no page content can
  *   cause or prevent.
+ * - The font-conformance oracle detected all six macOS generic families
+ *   reverting from Playwright's table to Blink's defaults during a measured
+ *   batch. A host appearance/accessibility notification can push fresh
+ *   WebPreferences to every Chrome process (doc 198). The oracle correctly
+ *   aborts that sweep; a retry starts a new browser and new report instead of
+ *   combining answers from both preference states.
  *
  * Any other failure, and a second transient-shaped failure, still fails the lane.
  */
 export const E2E_HOST_TRANSIENT_RETRY = {
   count: 1,
   condition:
-    /different generic-family preference sessions|generic font families changed between capture round|Page\.captureScreenshot\): Unable to capture screenshot/,
+    /different generic-family preference sessions|generic font families changed between capture round|Page\.captureScreenshot\): Unable to capture screenshot|oracle font settings changed during sweep/,
 } as const;
 
 export const E2E_BASE_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/tests/output/**"] as const;

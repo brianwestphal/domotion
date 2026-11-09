@@ -83,6 +83,18 @@ describe("DM-T5SXSV: host generic-family reset retry", () => {
     expect("Unable to capture screenshot").not.toMatch(E2E_HOST_TRANSIENT_RETRY.condition);
   });
 
+  it("DM-B2Q7B1: retries only the oracle's diagnosed generic-family drift", () => {
+    const source = readFileSync(new URL("../tools/font-conformance.ts", import.meta.url), "utf8");
+    expect(source).toContain("`oracle font settings changed during sweep at ${at}: `");
+    expect(
+      "oracle font settings changed during sweep at stack 2/2 batch 1: expected [serif=Times], got [serif=TimesNewRomanPSMT]",
+    ).toMatch(E2E_HOST_TRANSIENT_RETRY.condition);
+    expect("oracle supplementary PUA face diverged from the stack primary").not.toMatch(
+      E2E_HOST_TRANSIENT_RETRY.condition,
+    );
+    expect("oracle: asked for 1 cells, page produced 0").not.toMatch(E2E_HOST_TRANSIENT_RETRY.condition);
+  });
+
   it("retries once and does not retry unrelated failures", () => {
     expect(E2E_HOST_TRANSIENT_RETRY.count).toBe(1);
     expect("expected 'Times' to be 'Times-Roman'").not.toMatch(E2E_HOST_TRANSIENT_RETRY.condition);
