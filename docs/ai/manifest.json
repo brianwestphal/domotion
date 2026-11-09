@@ -2872,6 +2872,9 @@
       "owners": ["text-fonts", "paint-effects"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
+        "src/capture/control-pseudo-viewport.ts",
+        "src/capture/control-pseudo-viewport.test.ts",
+        "src/capture/control-pseudo-viewport.e2e.test.ts",
         "src/capture/input-value-geometry.ts",
         "src/capture/native-control-decoration.ts",
         "src/capture/pseudo-style-cdp.test.ts",

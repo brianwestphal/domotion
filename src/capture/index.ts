@@ -2173,7 +2173,7 @@ async function captureElementTreeWithWarningsInternal(
     try {
       const resizerMetrics = await measureBlinkPlatformResizer(page);
       await reverifyAnimationFrame();
-      pseudoStyles = await captureResolvedControlPseudoStyles(page);
+      pseudoStyles = await captureResolvedControlPseudoStyles(page, viewport);
       await reverifyAnimationFrame();
       effectiveAppearance = await captureEffectiveAppearanceFacts(page, viewport);
       await reverifyAnimationFrame();

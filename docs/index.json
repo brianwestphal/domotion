@@ -4045,8 +4045,11 @@
         "status": "current",
         "owners": ["text-fonts", "paint-effects"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634", "DM-CVTZNR"],
+        "tickets": ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634", "DM-CVTZNR", "DM-A93KQZ"],
         "code": [
+          "src/capture/control-pseudo-viewport.ts",
+          "src/capture/control-pseudo-viewport.test.ts",
+          "src/capture/control-pseudo-viewport.e2e.test.ts",
           "src/capture/input-value-geometry.ts",
           "src/capture/native-control-decoration.ts",
           "src/capture/pseudo-style-cdp.test.ts",

@@ -37,6 +37,7 @@ import {
   type RejectedInputValueTextGeometry,
 } from "./input-value-geometry.js";
 import type { CapturedScrollbarPseudoStyle } from "./types.js";
+import { offscreenControlPseudoHostIds } from "./control-pseudo-viewport.js";
 
 export const CONTROL_PSEUDO_KINDS = [
   "track",
@@ -97,6 +98,9 @@ const METER_PART_KINDS: ReadonlySet<ControlPseudoKind> = new Set([
   "meter-suboptimum",
   "meter-even-less-good",
 ]);
+
+const VIEWPORT_FILTER_MIN_CONTROL_HOSTS = 16;
+const CONTROL_HOST_NAMES = new Set(["BUTTON", "INPUT", "METER", "PROGRESS", "SELECT", "TEXTAREA"]);
 
 const PSEUDO_ID_TO_KIND: Readonly<Record<string, ControlPseudoKind>> = {
   "-webkit-slider-runnable-track": "track",
@@ -603,7 +607,10 @@ export interface ResolvedPseudoStyleCapture {
  * browser surface is unavailable, capture fails visibly instead of silently
  * returning a cascade answer known to be wrong.
  */
-export async function captureResolvedControlPseudoStyles(page: Page): Promise<ResolvedPseudoStyleCapture> {
+export async function captureResolvedControlPseudoStyles(
+  page: Page,
+  viewport?: { x: number; y: number; width: number; height: number },
+): Promise<ResolvedPseudoStyleCapture> {
   const session = await page.context().newCDPSession(page);
   const propertyKey = privateCaptureKey("ResolvedPseudos");
   const decorationPropertyKey = `${propertyKey}_decorations`;
@@ -703,10 +710,42 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     await session.send("CSS.enable");
     const documentResult = await session.send("DOM.getDocument", { depth: -1, pierce: true });
     const visited = new Set<number>();
+    let offscreenHosts: ReadonlySet<number> = new Set();
+    if (viewport != null) {
+      const counted = new Set<number>();
+      let topFrameControlHosts = 0;
+      const countHosts = (node: CdpNode): void => {
+        if (counted.has(node.nodeId)) return;
+        counted.add(node.nodeId);
+        if (
+          CONTROL_HOST_NAMES.has(node.nodeName) ||
+          node.shadowRoots?.some((shadow) => shadow.shadowRootType === "user-agent")
+        )
+          topFrameControlHosts++;
+        for (const child of node.children ?? []) countHosts(child);
+        for (const shadow of node.shadowRoots ?? []) {
+          if (shadow.shadowRootType !== "user-agent") countHosts(shadow);
+        }
+      };
+      countHosts(documentResult.root as CdpNode);
+      if (topFrameControlHosts >= VIEWPORT_FILTER_MIN_CONTROL_HOSTS) {
+        try {
+          const snapshot = await session.send("DOMSnapshot.captureSnapshot", {
+            computedStyles: ["transform"],
+            includeDOMRects: true,
+          });
+          offscreenHosts = offscreenControlPseudoHostIds(snapshot, viewport, documentResult.root.backendNodeId);
+        } catch {
+          // An unavailable snapshot never suppresses authoritative UA reads.
+        }
+      }
+    }
+    const offscreenNodeIds = new Set<number>();
 
     const visit = async (node: CdpNode, uaHost: CdpNode | null): Promise<void> => {
       if (visited.has(node.nodeId)) return;
       visited.add(node.nodeId);
+      if (offscreenHosts.has(node.backendNodeId)) offscreenNodeIds.add(node.nodeId);
       if (uaHost != null) {
         // Blink centers single-line input content with the private
         // `-internal-align-content-block` path. Host CSSOM exposes neither the
@@ -813,6 +852,9 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       for (const child of node.children ?? []) await visit(child, uaHost);
       if (node.contentDocument != null) await visit(node.contentDocument, null);
       for (const shadow of node.shadowRoots ?? []) {
+        // Skip only proven offscreen top-frame control parts. Keep the host's
+        // light/author-shadow children, all child frames, and unknown layout.
+        if (shadow.shadowRootType === "user-agent" && offscreenHosts.has(node.backendNodeId)) continue;
         await visit(shadow, shadow.shadowRootType === "user-agent" ? node : null);
       }
     };
@@ -848,6 +890,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
     for (const objectId of resizableObjectIds) {
       const requested = await session.send("DOM.requestNode", { objectId });
       if (requested.nodeId === 0) continue;
+      if (offscreenNodeIds.has(requested.nodeId)) continue;
       const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId: requested.nodeId });
       if (!hasAuthorPseudoOrigin(resizerMatchedOrigins(matched))) continue;
       await store(requested.nodeId, "resizer", await computedResizerProperties(session, objectId), objectId);
@@ -865,6 +908,7 @@ export async function captureResolvedControlPseudoStyles(page: Page): Promise<Re
       try {
         const requested = await session.send("DOM.requestNode", { objectId });
         if (requested.nodeId === 0) continue;
+        if (offscreenNodeIds.has(requested.nodeId)) continue;
         const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId: requested.nodeId });
         for (const { kind, origins } of scrollbarPseudoEntries(matched)) {
           if (!hasAuthorPseudoOrigin(origins)) continue;

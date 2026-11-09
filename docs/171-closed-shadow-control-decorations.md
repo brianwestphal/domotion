@@ -5,9 +5,12 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634", "DM-CVTZNR"]
+tickets: ["DM-2455", "DM-2615", "DM-2624", "DM-2628", "DM-2634", "DM-CVTZNR", "DM-A93KQZ"]
 code:
   [
+    "src/capture/control-pseudo-viewport.ts",
+    "src/capture/control-pseudo-viewport.test.ts",
+    "src/capture/control-pseudo-viewport.e2e.test.ts",
     "src/capture/input-value-geometry.ts",
     "src/capture/native-control-decoration.ts",
     "src/capture/pseudo-style-cdp.test.ts",
@@ -87,6 +90,54 @@ chevron/calendar/clock/cancel/spin substitute and capture emits a named
 `native-control-decoration-raster` warning.
 
 ## Structural closed-shadow facts
+
+### Viewport selection
+
+For captures with at least sixteen top-frame control hosts, one Chromium
+`DOMSnapshot` selects which closed-UA-shadow subtrees need exact pseudo and
+value-text probes (DM-A93KQZ). A positive-area host box proven outside the
+capture viewport may omit those probes. Snapshot document coordinates are
+bound to the DOM agent's main-document backend identity and translated by its
+captured scroll offset before selection. Missing or
+degenerate bounds, child frames, unavailable snapshot facts, transformed
+ancestry, and non-empty `data-domotion-anim` ancestry keep the exact reads.
+The latter two match the capture walker's offscreen-subtree retention rules.
+The same proof selects anonymous scrollbar and resizer hosts before their
+matched-style queries. UA roots owned by media elements are included, because
+their closed controls can contain internal range inputs even when no range
+input exists in the author DOM. Omitting the optional viewport from the
+low-level capture API retains the full-document probe path.
+
+#### 2026-11-09 pass measurements
+
+DM-A93KQZ compared the low-level pseudo-style pass with and without its
+viewport argument, replaying the same freshly recorded responses in each arm.
+The host was macOS 27.2 arm64 with Node 26.13, Playwright 1.59.1 and Chromium
+147.0.7727.15. Both arms used the same instrumentation and the real-world
+harness's DOM/WebGL freeze helpers. These are
+isolated pass timings, not complete SVG capture or full-scroll runtime claims.
+The earlier DM-D5ZFVN report of 24–25 seconds used a different recording and
+host state; the fresh Resend baseline here was about 10.4 seconds.
+
+| Cached page    | Scroll Y | Unfiltered pass (ms) | Selected pass (ms) | Matched-style requests, before → after |
+| -------------- | -------: | -------------------: | -----------------: | -------------------------------------: |
+| Resend desktop |        0 |            10446.665 |           1308.994 |                                 23 → 4 |
+| Resend desktop |      800 |            10410.770 |           1330.669 |                                 23 → 4 |
+| Resend desktop |    11468 |            10394.679 |           1484.622 |                                 23 → 4 |
+| Stripe mobile  |        0 |               95.154 |             90.916 |                                  6 → 3 |
+| Stripe mobile  |      844 |               71.630 |             63.822 |                                  6 → 2 |
+| Stripe mobile  |    19401 |               75.472 |             67.598 |                                  6 → 2 |
+
+Resend's reduction came from offscreen media-owned UA ranges and anonymous
+scrollbar/resizer hosts. Selecting only author-DOM input UA roots left its 23
+expensive matched-style requests unchanged and did not materially improve the
+pass. Stripe's absolute cost was already small; these samples do not establish
+a meaningful Stripe speedup. Snapshot collection cost about 12–28 ms on these
+pages. The raw records, profiling source and exact commands are retained in the
+ticket's verification evidence. Fresh archive SHA-256 identities:
+
+- Resend desktop: `2a1590f36a1d4d11f260f26afb3f162ff4478ba5be3926e17f6015fe8083575f`
+- Stripe mobile: `226a7f6fed6f1106a40505f28cf5bab31752fd1fc6142f3215c7c0e3291cb005`
 
 ### Single-line input value geometry
 
