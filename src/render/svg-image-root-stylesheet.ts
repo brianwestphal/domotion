@@ -55,6 +55,7 @@
  * `selector:not([data-domotion-image-root])`; the inlined root carries that
  * attribute whenever the image has a sheet (see `svg-image-style-scope.ts`).
  */
+import { blankImageCssNoise as blankNoise, joinedCdata, serializeJoinedCdata } from "./svg-image-cdata.js";
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import {
   asciiLower,
@@ -442,16 +443,6 @@ function matchBrace(css: string, open: number): number {
   return -1;
 }
 
-/** Blank out CSS comments and CDATA markers with spaces (same length), so
- *  parsing positions index the original text. */
-function blankNoise(css: string): string {
-  const blank = (m: string): string => " ".repeat(m.length);
-  return css
-    .replace(/\/\*[\s\S]*?\*\//g, blank)
-    .replace(/<!\[CDATA\[|\]\]>/g, blank)
-    .replace(/<!--|-->/g, blank);
-}
-
 interface RootFacts {
   tag: string;
   /** Null without an id; undefined when a DTD entity leaves it unknown. */
@@ -730,11 +721,17 @@ export function cascadeRootStylesheetTransform(
   const rewrittenBody = body.replace(
     /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
     (_whole, open: string, css: string, closeTag: string) => {
-      cdataRegions = [...css.matchAll(/<!\[CDATA\[([\s\S]*?)(?:\]\]>|$)/g)].map((m): [number, number] => [
-        m.index,
-        m.index + m[0].length,
-      ]);
-      return open + processRange(css, blankNoise(css), 0, css.length, true, "") + closeTag;
+      const wrapper = joinedCdata(css);
+      const text = wrapper?.content ?? css;
+      cdataRegions =
+        wrapper != null
+          ? [[0, text.length]]
+          : [...css.matchAll(/<!\[CDATA\[([\s\S]*?)(?:\]\]>|$)/g)].map((m): [number, number] => [
+              m.index,
+              m.index + m[0].length,
+            ]);
+      const rewritten = processRange(text, blankNoise(text), 0, text.length, true, "");
+      return open + (wrapper == null ? rewritten : serializeJoinedCdata(rewritten, wrapper)) + closeTag;
     },
   );
 

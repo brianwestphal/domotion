@@ -7,6 +7,7 @@
  * references together, including presentation and inline-style attributes.
  */
 import postcss, { type AtRule, type Declaration, type Root } from "postcss";
+import { serializeJoinedCdata } from "./svg-image-cdata.js";
 import { renderWarn } from "./render-warn.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
@@ -312,7 +313,10 @@ function parseSheet(css: string): ParsedSheet {
   const wrapped = /^(\s*(?:<!\[CDATA\[|<!--)\s*)([\s\S]*?)(\s*(?:\]\]>|-->)\s*)$/.exec(css);
   const prefix = wrapped?.[1] ?? "";
   const suffix = wrapped?.[3] ?? "";
-  const content = wrapped?.[2] ?? css;
+  const body = wrapped?.[2] ?? css;
+  // A CSS string/comment may contain ]]>; XML represents it with adjacent
+  // CDATA sections. Feed PostCSS the DOM text, then restore safe boundaries.
+  const content = prefix.includes("<![CDATA[") ? body.replaceAll("]]><![CDATA[", "") : body;
   try {
     return { prefix, suffix, root: postcss.parse(content), original: css };
   } catch {
@@ -415,7 +419,11 @@ export function namespaceImageStyleNames(markup: string, scope: string): string 
     sheet.root.walkDecls((decl) => {
       if (!rewriteDeclaration(decl, names, scope, variableCounts)) unsafe = true;
     });
-    return open + sheet.prefix + sheet.root.toString() + sheet.suffix + close;
+    const css = sheet.root.toString();
+    const serialized = sheet.prefix.includes("<![CDATA[")
+      ? serializeJoinedCdata(css, sheet)
+      : sheet.prefix + css + sheet.suffix;
+    return open + serialized + close;
   });
   const result = rewriteAttributes(rewritten, names, scope, variableCounts, () => {
     unsafe = true;

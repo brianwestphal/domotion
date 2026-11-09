@@ -1650,6 +1650,11 @@
         "src/render/svg-image-root-transform.ts",
         "src/render/svg-inline.test.ts",
         "src/render/svg-inline.ts",
+        "src/render/svg-image-css-import.ts",
+        "src/render/svg-image-css-import.test.ts",
+        "src/render/svg-image-cdata.ts",
+        "src/render/svg-image-style-names.ts",
+        "tests/img-svg-css-import.e2e.test.ts",
         "tests/inline-svg-text-presentation.e2e.test.ts",
         "tests/inline-svg-textpath-oracle.e2e.test.ts",
         "tests/replaced-used-size.e2e.test.ts"

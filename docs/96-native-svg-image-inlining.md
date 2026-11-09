@@ -20,6 +20,7 @@ tickets:
     "DM-9JBJ9F",
     "DM-KE2WFC",
     "DM-QK62CS",
+    "DM-6ZX6W0",
   ]
 code:
   [
@@ -54,6 +55,11 @@ code:
     "src/render/svg-image-root-transform.ts",
     "src/render/svg-inline.test.ts",
     "src/render/svg-inline.ts",
+    "src/render/svg-image-css-import.ts",
+    "src/render/svg-image-css-import.test.ts",
+    "src/render/svg-image-cdata.ts",
+    "src/render/svg-image-style-names.ts",
+    "tests/img-svg-css-import.e2e.test.ts",
     "tests/inline-svg-text-presentation.e2e.test.ts",
     "tests/inline-svg-textpath-oracle.e2e.test.ts",
     "tests/replaced-used-size.e2e.test.ts",
@@ -176,6 +182,66 @@ All `object-fit` values take the native path:
 - **`<img src="*.svg">`** (`inlineImgSvg`) — namespaces both ids and classes (self-contained file, no cross-SVG refs).
 - **Captured DOM inline `<svg>`** (`paintInlineSvg`) — namespaces ids by the captured document/shadow-root scope. Sibling SVGs in one source scope share a prefix, preserving legitimate cross-SVG `<use>` and paint-server references; independent iframe/shadow scopes receive different prefixes before they are combined into the consumer document. Same-scope `href`/`xlink:href`, CSS `url(#…)`, embedded ID selectors, SMIL event references, and ARIA IDREFs are rewritten only when their target exists, so unresolved references remain unresolved. CSS classes retain their separate per-inline-SVG namespace.
 - **Animator svg-overlay files** (`namespaceSvgIds` in `src/cli/animate-orchestrator.ts`) — namespaces ids (already) and now classes.
+
+## Data stylesheet imports in SVG image mode (DM-6ZX6W0)
+
+`resolveSvgImageCssImports` expands image-allowed data sheets before root
+cascade, global-name isolation, selector scoping and ID rewriting. In a strict
+SVG image document Chromium accepts `text/css` and
+`application/x-unknown-content-type`; other data MIME types contribute no
+rules. HTTP/blob and relative stylesheet loads remain blocked. A rejected
+sheet still reserves an active import's named layer, while false import
+conditions do not: media/supports wrappers surround the imported layer.
+Flattened rules retain their original import position and nested order.
+
+The decoder follows pinned Chromium's byte boundary: percent decoding before
+forgiving base64, then BOM, transport charset, initial in-band `@charset`, and
+inherited stylesheet encoding. The root environment is UTF-8; non-UTF-8 XML
+encoding declarations remain conservative. Image-context differential probes
+verify UTF-8, Windows-1252/ISO-8859-1/US-ASCII, and UTF-16LE/BE. Only this set is
+admitted; Node `TextDecoder` support alone is insufficient evidence for another
+encoding. Every charset parameter is validated before selecting the first
+nonempty label: a malformed later token can invalidate the URL in Chromium's
+parameter-preserving path. Unsupported or quoted labels, malformed byte
+sequences and ambiguous charset parameters retain raster fallback. Nested imports inherit the decoded sheet's
+encoding. Decoded bytes, expanded UTF-8 text and serialized XML CSS each stay within 256,000 bytes,
+with at most four nested import levels.
+
+XML style character references and CDATA are read as CSS text before
+expansion. XML-sensitive `<` and `&` use CDATA; a literal `]]>` splits into
+adjacent sections without changing the CSS text. A shared helper joins those
+sections before selector, root-cascade and font-name processing and masks
+actual comments/wrappers without erasing quoted marker text. Native checks
+include marker-bearing selectors, root font/em transforms, comments, and
+competing imported data-font families with the same marker-bearing name.
+
+Imported author font faces remain vector for ordinary paint. When metric-dependent
+font units occur with an author face, the image retains raster: the existing
+isolated root metric provider resolves system fonts and cannot authenticate the
+image's own font-face metrics. A native embedded-mono `2ch` probe translates
+24 px where the system-font fallback would translate 20 px. Strings and data URL
+payload bytes do not count as dimensions for this conservative gate.
+DM-NZQE02 tracks authenticated image-local author-font metric resolution.
+
+Declaration resources are admitted only as independent canonical `data:` URLs
+without escapes, raw markup/quotes/parentheses or ambiguous whitespace. Literal
+URL-looking strings do not count as loads. Relative/external/fragment URLs,
+escaped resource syntax and alternate image functions remain raster-backed;
+they cannot acquire the output document's base URL or bind to its IDs. Native
+pixel checks cover canonical data SVG paint, filter and mask resources. An
+external-fetch control loads in the ordinary host SVG, while the same nested
+load stays blocked through the data resource in both native image and inline
+output.
+DM-YMAF0G tracks authenticated image-local fragment support, and DM-Y3H2EV
+tracks escaped import/URL classification. Literal `</style>` inside imported
+CSS remains unrepresentable by downstream stylesheet extraction (DM-5D93J3).
+Unknown XML entities, invalid XML characters, undecodable sheets and budget
+violations also keep the original raster.
+
+The source contract is Chromium `7d859f27`:
+[`CSSStyleSheetResource::CanUseSheet`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/loader/resource/css_style_sheet_resource.cc),
+[`DataURL::Parse`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/net/base/data_url.cc),
+and [`TextResourceDecoder`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/html/parser/text_resource_decoder.cc).
 
 ## Scope / known boundaries
 

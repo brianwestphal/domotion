@@ -25,6 +25,7 @@
  * traverses following siblings for `+` and `~`, while an SVG image document
  * root has none (selector_checker.cc, chromium 7d859f27).
  */
+import { blankImageCssNoise as blankNoise, joinedCdata, serializeJoinedCdata } from "./svg-image-cdata.js";
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import { renderWarn } from "./render-warn.js";
 import { decideImageSupports } from "./svg-image-supports.js";
@@ -33,16 +34,6 @@ import { decideImageSupports } from "./svg-image-supports.js";
 export const IMAGE_ROOT_ATTR = "data-domotion-image-root";
 
 const GROUP_AT_RULES = new Set(["media", "supports", "layer", "container", "scope", "document"]);
-
-/** Blank comments, CDATA markers and HTML comment markers (same length), so
- *  parse positions index the original text. */
-function blankNoise(css: string): string {
-  const blank = (m: string): string => " ".repeat(m.length);
-  return css
-    .replace(/\/\*[\s\S]*?\*\//g, blank)
-    .replace(/<!\[CDATA\[|\]\]>/g, blank)
-    .replace(/<!--|-->/g, blank);
-}
 
 /** Index just past the `}` closing the block opened at `open`, or the text end. */
 function blockEnd(css: string, open: number): number {
@@ -382,6 +373,9 @@ export function scopeImageStyleSheets(
   env: ImageMediaEnv = {},
 ): string {
   return markup.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
-    return open + scopeRules(css, blankNoise(css), 0, css.length, scope, viewport, env, false) + close;
+    const wrapper = joinedCdata(css);
+    const text = wrapper?.content ?? css;
+    const scoped = scopeRules(text, blankNoise(text), 0, text.length, scope, viewport, env, false);
+    return open + (wrapper == null ? scoped : serializeJoinedCdata(scoped, wrapper)) + close;
   });
 }
