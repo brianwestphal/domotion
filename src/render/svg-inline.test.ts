@@ -417,6 +417,18 @@ describe("paintInlineSvg — DOM inline <svg> class namespacing (DM-1595)", () =
 });
 
 describe("prefixSvgIds scope-complete references", () => {
+  it("namespaces ID tokens before pseudo-classes and preserves escaped ID characters", () => {
+    const source =
+      `<svg><style>#plain:not(.off), #a\\:b:hover, #a\\3a b:focus, #a\\.b.active { fill: blue }` +
+      ` [href="#plain"] { opacity: 1 }</style><rect id="plain"/><rect id="a:b"/><rect id="a.b"/></svg>`;
+    const out = prefixSvgIds(source, "P-");
+    expect(out).toContain(`#P-plain:not(.off)`);
+    expect(out).toContain(`#P-a\\:b:hover`);
+    expect(out).toContain(`#P-a\\3a b:focus`);
+    expect(out).toContain(`#P-a\\.b.active`);
+    expect(out).toContain(`[href="#P-plain"]`);
+  });
+
   it("rewrites same-scope fragment, CSS, timing, and IDREF consumers but preserves unresolved refs", () => {
     const source = `<svg><style>#paint{fill:url('#grad');color:#fff}</style><defs><linearGradient id="grad"/><path id="paint"/><clipPath id="clip"/></defs><use href="#paint" clip-path="url(#clip)" aria-labelledby="paint missing"><animate begin="paint.click; missing.end"/></use><use href="#missing"/></svg>`;
     const out = prefixSvgIds(source, "s-");

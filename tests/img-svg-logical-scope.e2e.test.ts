@@ -61,4 +61,46 @@ describe("inlined image logical selector lists", () => {
       await page.close();
     }
   }, 60_000);
+
+  it("preserves ID selectors followed by pseudos, including an escaped colon", async () => {
+    const idSource = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10">
+      <style>
+        rect { fill: green }
+        #plain:not(body rect) { fill: blue }
+        #escaped\\:name:is(rect) { fill: red }
+      </style>
+      <rect id="plain" width="10" height="10"/>
+      <rect id="escaped:name" x="10" width="10" height="10"/>
+    </svg>`;
+    const inlined = inlineImgSvg(idSource, { x: 0, y: 0, w: 120, h: 60, par: "xMidYMid meet", idPrefix: "P-" });
+    expect(inlined).not.toBeNull();
+    const page = await browser.newPage({ viewport: { width: 240, height: 150 } });
+    try {
+      await page.setContent(
+        `<body><img id="source" src="data:image/svg+xml,${encodeURIComponent(idSource)}" width="120" height="60">` +
+          `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60">${inlined}</svg></body>`,
+      );
+      const colors = await page.evaluate(async () => {
+        const image = document.getElementById("source") as HTMLImageElement;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = 120;
+        canvas.height = 60;
+        const context = canvas.getContext("2d")!;
+        context.drawImage(image, 0, 0, 120, 60);
+        const sourceColors = [30, 90].map((x) => Array.from(context.getImageData(x, 30, 1, 1).data));
+        const outputColors = ["plain", "escaped:name"].map(
+          (id) => getComputedStyle(document.getElementById(`P-${id}`)!).fill,
+        );
+        return { sourceColors, outputColors };
+      });
+      expect(colors.sourceColors).toEqual([
+        [0, 0, 255, 255],
+        [255, 0, 0, 255],
+      ]);
+      expect(colors.outputColors).toEqual(["rgb(0, 0, 255)", "rgb(255, 0, 0)"]);
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
 });

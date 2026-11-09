@@ -248,6 +248,82 @@ function svgDocumentIds(svg: string): Set<string> {
   return ids;
 }
 
+/** Read the CSS identifier after `#`, decoding escapes only for ID lookup. */
+function cssIdToken(selector: string, start: number): { end: number; id: string } | null {
+  let index = start;
+  let id = "";
+  while (index < selector.length) {
+    const codePoint = selector.codePointAt(index)!;
+    if (codePoint === 92) {
+      const escaped = selector[index + 1];
+      if (escaped == null || /[\n\r\f]/.test(escaped)) break;
+      index++;
+      let hex = "";
+      while (index < selector.length && hex.length < 6 && /[0-9a-fA-F]/.test(selector[index])) {
+        hex += selector[index++];
+      }
+      if (hex !== "") {
+        const decoded = parseInt(hex, 16);
+        id +=
+          decoded === 0 || decoded > 0x10ffff || (decoded >= 0xd800 && decoded <= 0xdfff)
+            ? "\ufffd"
+            : String.fromCodePoint(decoded);
+        if (/\s/.test(selector[index] ?? "")) index += selector[index] === "\r" && selector[index + 1] === "\n" ? 2 : 1;
+      } else {
+        const escapedPoint = selector.codePointAt(index)!;
+        id += String.fromCodePoint(escapedPoint);
+        index += escapedPoint > 0xffff ? 2 : 1;
+      }
+      continue;
+    }
+    if (codePoint < 128 && !/[-_a-zA-Z0-9]/.test(selector[index])) break;
+    id += String.fromCodePoint(codePoint);
+    index += codePoint > 0xffff ? 2 : 1;
+  }
+  return index === start ? null : { end: index, id };
+}
+
+/** Namespace real CSS ID selectors, leaving strings, attributes, and comments intact. */
+function prefixCssIdSelectors(selectors: string, prefix: string, ids: ReadonlySet<string>): string {
+  let out = "";
+  let index = 0;
+  let bracketDepth = 0;
+  while (index < selectors.length) {
+    const ch = selectors[index];
+    if (ch === '"' || ch === "'") {
+      const start = index++;
+      while (index < selectors.length) {
+        if (selectors[index] === "\\") index += 2;
+        else if (selectors[index++] === ch) break;
+      }
+      out += selectors.slice(start, index);
+      continue;
+    }
+    if (ch === "/" && selectors[index + 1] === "*") {
+      const end = selectors.indexOf("*/", index + 2);
+      const next = end < 0 ? selectors.length : end + 2;
+      out += selectors.slice(index, next);
+      index = next;
+      continue;
+    }
+    if (ch === "[") bracketDepth++;
+    else if (ch === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    if (ch === "#" && bracketDepth === 0) {
+      const token = cssIdToken(selectors, index + 1);
+      if (token != null) {
+        out += ids.has(token.id)
+          ? `#${prefix}${selectors.slice(index + 1, token.end)}`
+          : selectors.slice(index, token.end);
+        index = token.end;
+        continue;
+      }
+    }
+    out += ch;
+    index++;
+  }
+  return out;
+}
+
 /**
  * Prefix every `id="…"`, `href="#…"`, `xlink:href="#…"`, and `url(#…)` in an
  * SVG fragment with `prefix` so its internal references stay self-consistent
@@ -304,11 +380,7 @@ export function prefixSvgIds(svg: string, prefix: string, knownIds: Iterable<str
     /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
     (_m, open: string, css: string, close: string) =>
       open +
-      replaceFlatCssBlocks(
-        css,
-        (selectors, body) =>
-          selectors.replace(/#(-?[_a-zA-Z][-_a-zA-Z0-9:.]*)/g, (_s, id: string) => `#${mapped(id)}`) + body,
-      ) +
+      replaceFlatCssBlocks(css, (selectors, body) => prefixCssIdSelectors(selectors, prefix, ids) + body) +
       close,
   );
   return out;
