@@ -137,11 +137,17 @@ function nativeMacMetrics(font: FontInstance): NativeMacMetrics | null {
  * Linux FreeType uses OS/2 typo metrics when USE_TYPO_METRICS is set, otherwise
  * hhea; Blink can replace ascent/descent with a VDMX strike. Windows' natural
  * DirectWrite metrics agree with hhea for file-backed ordinary faces. Faces
- * that may take GDI-compatible bitmap metrics remain unresolved here.
+ * that may take GDI-compatible bitmap metrics remain unresolved here. A helper
+ * without hhea metadata can use the exact matched static file face.
  */
 export function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
   if (platform !== "darwin" && platform !== "linux" && platform !== "win32") return null;
-  const face = font as FontInstance & {
+  // Native Windows helper instances omit the table directory and lineGap.
+  // Use the exact matched static file face for the hhea/OS/2 fields while
+  // retaining the helper's glyph advances for the other font units.
+  const metricFont =
+    platform === "win32" && font.directory?.tables?.hhea == null ? (windowsFileFace(font) ?? font) : font;
+  const face = metricFont as FontInstance & {
     lineGap?: number;
     familyName?: string;
     "OS/2"?: {
@@ -156,7 +162,8 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
   if (platform === "win32") {
     // SkScalerContext_DW::generateFontMetrics selects GDI-compatible metrics
     // for bitmap-backed text. Its size-specific answer is not in fontkit's
-    // hhea fields. Older native helpers also omit lineGap, so keep null.
+    // hhea fields. If the helper omitted them, the exact file face above
+    // supplies the table directory and lineGap.
     const tables = face.directory?.tables;
     if (tables == null || tables.EBLC != null || tables.CBLC != null || tables.CBDT != null || tables.sbix != null) {
       return null;
@@ -184,7 +191,8 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
   const gapUnits = useTypo ? os2?.typoLineGap : face.lineGap;
   if (gapUnits == null || !Number.isFinite(gapUnits)) return null;
   if (ascentUnits == null || descentUnits == null || !(ascentUnits > 0) || !(descentUnits < 0)) return null;
-  const scaled = (units: number): number => Math.fround((Math.fround(units) * Math.fround(fontSize)) / font.unitsPerEm);
+  const scaled = (units: number): number =>
+    Math.fround((Math.fround(units) * Math.fround(fontSize)) / metricFont.unitsPerEm);
   const rawAscent = scaled(ascentUnits);
   const rawDescent = scaled(-descentUnits);
   // Blink may retain subpixel ascent/descent instead of rounding at tiny sizes.
@@ -262,9 +270,7 @@ interface Os2Heights {
  * metadata omits OS/2 xHeight/capHeight. Reopen the exact selected physical
  * face for those table values. A variable instance or unknown TTC member has
  * no safe file-table substitute for DirectWrite's live metrics. */
-function windowsFileOs2Heights(font: FontInstance): Os2Heights | null {
-  const direct = (font as { "OS/2"?: Os2Heights })["OS/2"];
-  if (direct?.version != null) return direct;
+function windowsFileFace(font: FontInstance): FontInstance | null {
   const source = getFontSourceInfo(font);
   if (source == null || source.nameMatched === false || source.faceIndex == null || source.variationAxes != null) {
     return null;
@@ -273,10 +279,16 @@ function windowsFileOs2Heights(font: FontInstance): Os2Heights | null {
     const opened = fontkit.openSync(source.path);
     const face = isFontkitCollection(opened) ? opened.fonts[source.faceIndex] : source.faceIndex === 0 ? opened : null;
     if (face == null || (source.postscriptName != null && face.postscriptName !== source.postscriptName)) return null;
-    return face["OS/2"] ?? null;
+    return face;
   } catch {
     return null;
   }
+}
+
+function windowsFileOs2Heights(font: FontInstance): Os2Heights | null {
+  const direct = (font as { "OS/2"?: Os2Heights })["OS/2"];
+  if (direct?.version != null) return direct;
+  return (windowsFileFace(font) as (FontInstance & { "OS/2"?: Os2Heights }) | null)?.["OS/2"] ?? null;
 }
 
 /**
