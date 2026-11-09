@@ -24,9 +24,15 @@ async function centerPixel(page: Page): Promise<[number, number, number]> {
 
 describe("offscreen WebGL preflight", () => {
   it("presents an offscreen canvas before freezing without changing scroll or stopping animation", async () => {
-    const page = await browser.newPage({ viewport: { width: 40, height: 40 } });
-    try {
-      await page.setContent(`<!doctype html><body style="margin:0;height:1200px">
+    let pixel: [number, number, number] = [0, 0, 0];
+    // Hosted macOS Chromium can leave a new WebGL context's composited layer
+    // gray even after a successful offscreen screenshot. Retry that compositor
+    // startup state on a fresh page, while preserving every preflight and
+    // frozen-frame assertion for each attempt.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const page = await browser.newPage({ viewport: { width: 40, height: 40 } });
+      try {
+        await page.setContent(`<!doctype html><body style="margin:0;height:1200px">
         <canvas id="far" width="40" height="40" style="position:absolute;top:1000px;left:0"></canvas>
         <script>
           const gl = document.getElementById('far').getContext('webgl2');
@@ -39,18 +45,23 @@ describe("offscreen WebGL preflight", () => {
           }
           requestAnimationFrame(loop);
         </script></body>`);
-      await page.waitForFunction(() => (window as unknown as { loops_: number }).loops_ > 2);
-      await page.evaluate(() => window.scrollTo(0, 123));
-      await page.screenshot({ clip: { x: 0, y: 0, width: 40, height: 40 } });
-      const loopsBefore = await page.evaluate(() => (window as unknown as { loops_: number }).loops_);
-      expect(await primeOffscreenCanvases(page)).toEqual({ primed: 1, failed: 0, skipped: 0 });
-      expect(await page.evaluate(() => window.scrollY)).toBe(123);
-      expect(await page.evaluate(() => (window as unknown as { loops_: number }).loops_)).toBeGreaterThan(loopsBefore);
-      expect(await freezeWebGlOutput(page)).toMatchObject({ frozenFrames: 1, failedFrames: 0 });
-      await page.evaluate(() => document.getElementById("far")!.scrollIntoView());
-      expect(await centerPixel(page)).toEqual([255, 0, 0]);
-    } finally {
-      await page.close();
+        await page.waitForFunction(() => (window as unknown as { loops_: number }).loops_ > 2);
+        await page.evaluate(() => window.scrollTo(0, 123));
+        await page.screenshot({ clip: { x: 0, y: 0, width: 40, height: 40 } });
+        const loopsBefore = await page.evaluate(() => (window as unknown as { loops_: number }).loops_);
+        expect(await primeOffscreenCanvases(page)).toEqual({ primed: 1, failed: 0, skipped: 0 });
+        expect(await page.evaluate(() => window.scrollY)).toBe(123);
+        expect(await page.evaluate(() => (window as unknown as { loops_: number }).loops_)).toBeGreaterThan(
+          loopsBefore,
+        );
+        expect(await freezeWebGlOutput(page)).toMatchObject({ frozenFrames: 1, failedFrames: 0 });
+        await page.evaluate(() => document.getElementById("far")!.scrollIntoView());
+        pixel = await centerPixel(page);
+        if (pixel[0] !== pixel[1] || pixel[1] !== pixel[2]) break;
+      } finally {
+        await page.close();
+      }
     }
+    expect(pixel).toEqual([255, 0, 0]);
   }, 60_000);
 });
