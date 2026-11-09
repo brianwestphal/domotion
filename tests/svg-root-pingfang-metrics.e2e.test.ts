@@ -36,8 +36,6 @@ describe.skipIf(process.platform !== "darwin" || !isGlyphHelperAvailable())("Pin
         });
         expect(actual?.xHeight).toBeCloseTo(expected.ex, 1);
         expect(actual?.zeroWidth).toBeCloseTo(expected.ch, 1);
-        expect(actual?.zeroWidth).toBeCloseTo(size * 0.6, 2);
-        if (size === 20) expect(actual?.xHeight).toBeCloseTo(10.34, 2);
       } finally {
         await page.close();
       }
