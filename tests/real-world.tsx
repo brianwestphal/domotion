@@ -639,8 +639,10 @@ async function runJob(
     // reference pixels (and the replaced-element crops taken from them)
     // untouched. See `tests/real-world-webgl-freeze.ts`.
     const webGlFreeze = await freezeWebGlOutput(page);
-    if (webGlFreeze.failedFrames > 0) {
-      console.warn(`  ${test}: WebGL output not frozen in ${webGlFreeze.failedFrames} frame(s)`);
+    if (webGlFreeze.failedFrames > 0 || webGlFreeze.failedWorkers > 0) {
+      console.warn(
+        `  ${test}: WebGL output not frozen in ${webGlFreeze.failedFrames} frame(s) and ${webGlFreeze.failedWorkers} worker(s)`,
+      );
     }
 
     const captureClip = { x: 0, y: 0, width: viewport.width, height: canvasH };

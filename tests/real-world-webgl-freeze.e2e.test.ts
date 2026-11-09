@@ -65,7 +65,12 @@ describe("real-world WebGL freeze", () => {
       await setColor(page, [0, 0, 1]);
       await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([0, 0, 255]);
 
-      expect(await freezeWebGlOutput(page)).toEqual({ frozenFrames: 1, failedFrames: 0 });
+      expect(await freezeWebGlOutput(page)).toEqual({
+        frozenFrames: 1,
+        failedFrames: 0,
+        frozenWorkers: 0,
+        failedWorkers: 0,
+      });
       await setColor(page, [0, 1, 0]);
       const loopsBefore = await page.evaluate(() => (window as unknown as { loops_: number }).loops_);
       await page.waitForTimeout(100);
@@ -80,12 +85,74 @@ describe("real-world WebGL freeze", () => {
     const page = await browser.newPage();
     await page.setContent(`<iframe srcdoc="<canvas></canvas>"></iframe><iframe srcdoc="<p>x</p>"></iframe>`);
     await page.waitForFunction(() => document.querySelectorAll("iframe").length === 2);
-    expect(await freezeWebGlOutput(page)).toEqual({ frozenFrames: 3, failedFrames: 0 });
-    expect(await freezeWebGlOutput(page)).toEqual({ frozenFrames: 3, failedFrames: 0 });
+    expect(await freezeWebGlOutput(page)).toEqual({
+      frozenFrames: 3,
+      failedFrames: 0,
+      frozenWorkers: 0,
+      failedWorkers: 0,
+    });
+    expect(await freezeWebGlOutput(page)).toEqual({
+      frozenFrames: 3,
+      failedFrames: 0,
+      frozenWorkers: 0,
+      failedWorkers: 0,
+    });
     for (const frame of page.frames()) {
       const drawArrays = await frame.evaluate(() => WebGL2RenderingContext.prototype.drawArrays.toString());
       expect(drawArrays).not.toContain("[native code]");
     }
     await page.close();
   });
+
+  it("keeps the last frame of a transferred OffscreenCanvas while its worker continues", async () => {
+    const page = await browser.newPage({ viewport: { width: 40, height: 40 } });
+    await page.setContent(`<canvas id="c" width="40" height="40" style="display:block"></canvas>`);
+    await page.evaluate(() => {
+      const script = `let color = [1, 0, 0];
+        onmessage = ({ data }) => {
+          if (data.canvas) {
+            const gl = data.canvas.getContext('webgl2');
+            if (!gl) { postMessage({ error: 'WebGL2 unavailable' }); return; }
+            setInterval(() => {
+              gl.clearColor(...color, 1);
+              gl.clear(gl.COLOR_BUFFER_BIT);
+              postMessage({ tick: true });
+            }, 16);
+          } else if (data.color) color = data.color;
+        };`;
+      const url = URL.createObjectURL(new Blob([script], { type: "text/javascript" }));
+      const worker = new Worker(url);
+      URL.revokeObjectURL(url);
+      (window as unknown as { workerTicks_: number }).workerTicks_ = 0;
+      worker.onmessage = ({ data }: MessageEvent<{ tick?: boolean; error?: string }>) => {
+        if (data.error) throw new Error(data.error);
+        if (data.tick) (window as unknown as { workerTicks_: number }).workerTicks_++;
+      };
+      const canvas = document.getElementById("c") as HTMLCanvasElement;
+      const offscreen = canvas.transferControlToOffscreen();
+      worker.postMessage({ canvas: offscreen }, [offscreen]);
+      (window as unknown as { worker_: Worker }).worker_ = worker;
+    });
+    await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([255, 0, 0]);
+    await page.evaluate(() => (window as unknown as { worker_: Worker }).worker_.postMessage({ color: [0, 0, 1] }));
+    await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([0, 0, 255]);
+    expect(await freezeWebGlOutput(page)).toEqual({
+      frozenFrames: 1,
+      failedFrames: 0,
+      frozenWorkers: 1,
+      failedWorkers: 0,
+    });
+    await page.evaluate(() => (window as unknown as { worker_: Worker }).worker_.postMessage({ color: [0, 1, 0] }));
+    const ticksBefore = await page.evaluate(() => (window as unknown as { workerTicks_: number }).workerTicks_);
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => (window as unknown as { workerTicks_: number }).workerTicks_)).toBeGreaterThan(
+      ticksBefore,
+    );
+    expect(await centerPixel(page)).toEqual([0, 0, 255]);
+    await page.close();
+    // The freeze belongs to this capture page; a later page starts with native methods.
+    const nextPage = await browser.newPage();
+    expect(await nextPage.evaluate(() => WebGL2RenderingContext.prototype.clear.toString())).toContain("[native code]");
+    await nextPage.close();
+  }, 60_000);
 });

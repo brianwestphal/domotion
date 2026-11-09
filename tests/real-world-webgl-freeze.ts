@@ -1,5 +1,5 @@
-import type { Frame, Page } from "@playwright/test";
-import { evaluateInFrame } from "../src/capture/evaluate-in-frame.js";
+import type { Frame, Page, Worker } from "@playwright/test";
+import { browserCallbackExpression } from "../src/capture/evaluate-in-frame.js";
 import { WEBGL_PAINT_METHODS } from "../src/capture/webgl-output-freeze.js";
 
 /**
@@ -40,8 +40,11 @@ import { WEBGL_PAINT_METHODS } from "../src/capture/webgl-output-freeze.js";
  * running. The draw entry points live on the WebGL prototypes, which the
  * page's renderer calls through on every frame.
  *
- * The harness freezes WebGL after the expected screenshot, so the reference
- * pixels, and the replaced-element crops taken from them, are unaffected.
+ * Dedicated Workers drawing transferred OffscreenCanvas surfaces have separate
+ * WebGL prototypes, so patch their current globals too. The harness freezes
+ * after the expected screenshot, so the reference pixels and the crops taken
+ * from them are unaffected. Its capture context closes in a finally block,
+ * so the next page starts with native prototypes.
  */
 
 const FREEZE_KEY = "__domotionRealWorldWebGlFrozen";
@@ -51,49 +54,67 @@ export interface WebGlFreezeResult {
   frozenFrames: number;
   /** Frames that could not be patched (detached, navigating, crashed). */
   failedFrames: number;
+  /** Dedicated Workers whose WebGL prototypes were patched. */
+  frozenWorkers: number;
+  /** Dedicated Workers that could not be patched (terminated, navigating, crashed). */
+  failedWorkers: number;
 }
 
-const FRAME_TIMEOUT_MS = 10_000;
+const GLOBAL_TIMEOUT_MS = 10_000;
 
-async function freezeFrame(frame: Frame): Promise<boolean> {
+/** Runs inside either a Window or a dedicated Worker; no module closures. */
+function patchWebGlGlobal({ key, methods }: { key: string; methods: Record<string, readonly string[]> }): boolean {
+  const scope = globalThis as Record<string, unknown>;
+  if (scope[key] === true) return true;
+  const noDraw = (): undefined => undefined;
+  for (const [iface, names] of Object.entries(methods)) {
+    const ctor = scope[iface] as { prototype?: Record<string, unknown> } | undefined;
+    const proto = ctor?.prototype;
+    if (proto == null) continue;
+    for (const name of names) {
+      if (typeof proto[name] !== "function") continue;
+      Object.defineProperty(proto, name, {
+        configurable: true,
+        writable: true,
+        value: noDraw,
+      });
+    }
+  }
+  Object.defineProperty(scope, key, { value: true, configurable: true });
+  return true;
+}
+
+async function freezeGlobal(target: Frame | Worker): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => resolve(false), FRAME_TIMEOUT_MS);
+    timer = setTimeout(() => resolve(false), GLOBAL_TIMEOUT_MS);
   });
-  // evaluateInFrame scopes tsx's `__name` keep-names helper to the callback,
-  // which a plain frame.evaluate would leave undefined in the page.
-  const patched = evaluateInFrame(
-    frame,
-    ({ key, methods }: { key: string; methods: Record<string, readonly string[]> }) => {
-      const scope = window as unknown as Record<string, unknown>;
-      if (scope[key] === true) return true;
-      const noDraw = (): undefined => undefined;
-      for (const [iface, names] of Object.entries(methods)) {
-        const ctor = scope[iface] as { prototype?: Record<string, unknown> } | undefined;
-        const proto = ctor?.prototype;
-        if (proto == null) continue;
-        for (const name of names) {
-          if (typeof proto[name] !== "function") continue;
-          Object.defineProperty(proto, name, {
-            configurable: true,
-            writable: true,
-            value: noDraw,
-          });
-        }
-      }
-      Object.defineProperty(scope, key, { value: true, configurable: true });
-      return true;
-    },
-    { key: FREEZE_KEY, methods: WEBGL_PAINT_METHODS },
-  ).catch(() => false);
+  // browserCallbackExpression scopes tsx's `__name` keep-names helper to the
+  // callback without changing either global. Frame and Worker both accept it.
+  const expression = browserCallbackExpression(patchWebGlGlobal, {
+    key: FREEZE_KEY,
+    methods: WEBGL_PAINT_METHODS,
+  });
+  const patched = target.evaluate<boolean>(expression).catch(() => false);
   const result = await Promise.race([patched, timeout]);
   clearTimeout(timer);
   return result;
 }
 
-/** Freeze WebGL output in every frame of the page. Never throws. */
+/** Freeze WebGL output in every current frame and dedicated Worker. Never throws. */
 export async function freezeWebGlOutput(page: Page): Promise<WebGlFreezeResult> {
-  const outcomes = await Promise.all(page.frames().map(freezeFrame));
-  const frozenFrames = outcomes.filter(Boolean).length;
-  return { frozenFrames, failedFrames: outcomes.length - frozenFrames };
+  const frames = page.frames();
+  const workers = page.workers();
+  const [frameOutcomes, workerOutcomes] = await Promise.all([
+    Promise.all(frames.map(freezeGlobal)),
+    Promise.all(workers.map(freezeGlobal)),
+  ]);
+  const frozenFrames = frameOutcomes.filter(Boolean).length;
+  const frozenWorkers = workerOutcomes.filter(Boolean).length;
+  return {
+    frozenFrames,
+    failedFrames: frames.length - frozenFrames,
+    frozenWorkers,
+    failedWorkers: workers.length - frozenWorkers,
+  };
 }
