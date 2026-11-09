@@ -486,6 +486,52 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     expect(offHost).toEqual([]);
   }, 240_000);
 
+  it("Studio Select uses the viewport when its page is scrolled", async () => {
+    const studio = await startStudioServer({
+      workspaceRoot: ROOT,
+      initialProjectPath: "tests/fixtures/studio/treatments-showcase.project.json",
+    });
+    const page = await browser!.newPage({ viewport: { width: 1440, height: 1300 } });
+    try {
+      await page.goto(studio.url, { waitUntil: "networkidle" });
+      const select = page.locator("kui-select[name=scene-transition]").first();
+      const trigger = select.getByRole("combobox");
+      await expect.poll(() => trigger.isVisible()).toBe(true);
+
+      for (const { height, scrollY } of [
+        { height: 1300, scrollY: 600 },
+        { height: 900, scrollY: 727 },
+      ]) {
+        await page.setViewportSize({ width: 1440, height });
+        await page.evaluate((y) => window.scrollTo(0, y), scrollY);
+        await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);
+        // A DOM click preserves the requested scroll position; Playwright's
+        // locator click would scroll the trigger into view first.
+        await trigger.evaluate((el) => (el as HTMLButtonElement).click());
+        const popup = select.locator(".kui-select__popup");
+        await expect.poll(() => popup.isVisible()).toBe(true);
+        const geometry = await popup.evaluate((el) => {
+          const rect = el.getBoundingClientRect();
+          return {
+            top: rect.top,
+            bottom: rect.bottom,
+            height: rect.height,
+            placement: el.getAttribute("data-placement"),
+          };
+        });
+        expect(geometry.placement).toBe("bottom");
+        expect(geometry.top).toBeGreaterThanOrEqual(0);
+        expect(geometry.bottom).toBeLessThanOrEqual(height);
+        expect(geometry.height).toBeGreaterThan(height === 1300 ? 500 : 350);
+        await trigger.evaluate((el) => (el as HTMLButtonElement).click());
+        await expect.poll(() => popup.isVisible()).toBe(false);
+      }
+    } finally {
+      await page.close();
+      await studio.close();
+    }
+  }, 120_000);
+
   it("scrubber reports an export server error without a blocking dialog", async () => {
     const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
     const started = await startServer("src/cli/scrubber.ts", [svg, "--no-open"]);

@@ -46,13 +46,3 @@ describe("kerf-ui Select support", () => {
     expect(selectValue(empty)).toBe("");
   });
 });
-
-describe("scrolled-page popup floor (kerf-ui positionPopup workaround)", () => {
-  it("injects one floor stylesheet whose floor never exceeds 2.5rem per option", async () => {
-    const { SELECT_POPUP_FLOOR_CSS } = await import("./kerf-ui-select.js");
-    expect(document.querySelectorAll("style[data-kerf-ui-select-floor]")).toHaveLength(1);
-    const floors = [...SELECT_POPUP_FLOOR_CSS.matchAll(/nth-child\((\d+)\)\) \{ min-height: min\(([\d.]+)rem/g)];
-    expect(floors).toHaveLength(5);
-    for (const m of floors) expect(Number(m[2])).toBeLessThanOrEqual(Number(m[1]) * 2.5);
-  });
-});

@@ -74,8 +74,6 @@ kerf-ui 5's `Select` renders a light-DOM `<kui-select>` root with a native trigg
 
 The growth is `select/register` (the Select controller, which also wires kerf-ui popup menus and help tags), its floating-ui positioning, and the Select CSS. kerf-ui 4's Web Awesome Select would have added about 216 KB minified and needed a bundled icon library to stay offline.
 
-**Known issue.** In a scrolled page the popup can open on the wrong side, with too little height. kerf-ui positions it against `document.documentElement` with fixed positioning, and that boundary is offset by the scroll distance. Studio, whose page scrolls, shows it most; at phone width the popup collapsed to a few pixels. Until kerf-ui bounds the popup by the viewport, `src/kerf-ui-select.ts` injects a temporary floor on the popup's height. CSS lets `min-height` win over the inline `max-height`, and the floor grows with the option count but stays under the real row height (2.5 rem per option, capped at `min(15rem, 40vh)`), so a short list never gains empty space. Remove the floor when the upstream fix lands.
-
 Icons come from the [`lucide`](https://lucide.dev) package, imported by name (`import { Play } from "lucide"`) so only the referenced icon nodes are bundled, and rendered through `LucideIcon`. Icon-only buttons carry an `aria-label`; the icon itself is decorative.
 
 ## Packaging

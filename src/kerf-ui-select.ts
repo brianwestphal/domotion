@@ -14,27 +14,6 @@
 
 import "@kerfjs/ui/select/register";
 
-/**
- * Temporary workaround for a kerf-ui 5 positioning bug. `positionPopup` bounds
- * the listbox by `document.documentElement` with fixed positioning, and that
- * boundary is offset by the scroll distance, so in a scrolled page (Studio)
- * the popup can open on the wrong side, squeezed to a few pixels. A floor on
- * its height (CSS lets `min-height` win over the inline `max-height`) keeps
- * the list usable. The floor grows with the option count but stays under the
- * real row height (about 3rem), so a short list never gains empty space.
- * Remove this once kerf-ui bounds the popup by the viewport.
- */
-export const SELECT_POPUP_FLOOR_CSS = [2, 3, 4, 5, 6]
-  .map(
-    (n) =>
-      `kui-select > .kui-select__popup:has([role="option"]:nth-child(${n})) { min-height: min(${n * 2.5}rem, 40vh); }`,
-  )
-  .join("\n");
-const floor = document.createElement("style");
-floor.setAttribute("data-kerf-ui-select-floor", "");
-floor.textContent = SELECT_POPUP_FLOOR_CSS;
-document.head.append(floor);
-
 /** The `<kui-select>` element registered by `@kerfjs/ui/select/register`. */
 interface KuiSelectElement extends Element {
   value: string | string[];
