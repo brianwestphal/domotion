@@ -22,6 +22,8 @@ describe("Windows selected DirectWrite line metrics (DM-3ZRKA5)", () => {
       unitsPerEm: 1000,
       ascent: 800,
       descent: -200,
+      lineGap: 0,
+      directory: { tables: {} },
       postscriptName: "BitmapFixture",
       directWriteMetrics: metrics,
     } as unknown as FontInstance;

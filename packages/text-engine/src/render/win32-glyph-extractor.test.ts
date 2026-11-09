@@ -213,6 +213,7 @@ describeHelper("Windows DirectWrite glyph extractor", () => {
       expect(getFontSourceInfo(font)).toBeNull();
       expect(font?.directWriteMetrics?.fontSizePx).toBe(16);
       expect(normalLineSpacing(font!, 16, "win32")).toBeGreaterThan(0);
+      expect(normalLineSpacing(font!, 17, "win32")).toBeNull();
     });
     it("keeps an outline-only face on the vector route", () => {
       const resp = callHelper({

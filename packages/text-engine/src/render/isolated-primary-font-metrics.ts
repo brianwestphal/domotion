@@ -222,7 +222,13 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
     // hhea fields. If the helper omitted them, the exact file face above
     // supplies the table directory and lineGap.
     const tables = face.directory?.tables;
-    if (tables == null || tables.EBLC != null || tables.CBLC != null || tables.CBDT != null || tables.sbix != null) {
+    if (
+      tables?.hhea == null ||
+      tables.EBLC != null ||
+      tables.CBLC != null ||
+      tables.CBDT != null ||
+      tables.sbix != null
+    ) {
       return null;
     }
     // DirectWrite may prefer OS/2 typo metrics for USE_TYPO_METRICS. When the
