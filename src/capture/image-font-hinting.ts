@@ -10,7 +10,7 @@ import {
   linuxFontEnvironmentKey,
   type FontRenderHinting,
   type LinuxFontRenderContext,
-} from "@domotion/text-engine/font-resolution";
+} from "../render/font-resolution.js";
 import type { CapturedElement } from "./types.js";
 import { withCdpSession } from "./cdp-lifecycle.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";

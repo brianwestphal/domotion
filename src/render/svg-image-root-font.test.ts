@@ -20,6 +20,15 @@ describe("rootLineHeight (ComputedLineHeight over ConvertLineHeight)", () => {
 });
 
 describe("imageRootFontMetricUnits", () => {
+  it("keeps geometricPrecision metrics unresolved without losing explicit lh", () => {
+    const geometric = { "text-rendering": "geometricPrecision", "font-family": "Arial" };
+    expect(imageRootFontMetricUnits(decls(geometric), 16, null)?.("lh")).toBeNull();
+    expect(imageRootFontMetricUnits(decls(geometric), 16, null)?.("ex")).toBeNull();
+    expect(imageRootFontMetricUnits(decls({ ...geometric, "line-height": "20px" }), 16, null)?.("lh")).toBe(20);
+    expect(imageRootFontMetricUnits(decls({ "text-rendering": "auto", "line-height": "20px" }), 16, null)?.("lh")).toBe(
+      20,
+    );
+  });
   it("is null without a known font size or with an unresolved font declaration", () => {
     expect(imageRootFontMetricUnits(decls({}), null, null)).toBeNull();
     expect(imageRootFontMetricUnits(decls({ "font-stretch": "condensed" }), 16, null)).toBeNull();

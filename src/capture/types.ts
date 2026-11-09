@@ -1,3 +1,4 @@
+import type { LinuxFontRenderContext } from "../render/font-resolution.js";
 import type {
   PhysicalEdges as CapturedPseudoPhysicalEdges,
   PseudoBoxFragment as CapturedPseudoBoxFragment,
@@ -2276,7 +2277,7 @@ export interface CapturedElement {
   imageSvgSupports?: Record<string, boolean>;
   /** Verified shared Fontconfig launch environment and observed Chromium route.
    * Absent for older trees and custom/remote launches without provenance. */
-  imageDocumentFontRendering?: import("@domotion/text-engine/font-resolution").LinuxFontRenderContext;
+  imageDocumentFontRendering?: LinuxFontRenderContext;
   /** True when the <img> failed to load (`complete && naturalWidth === 0`).
    *  Legacy serialized-tree compatibility only; new live captures use
    *  `brokenImageFallback`. */

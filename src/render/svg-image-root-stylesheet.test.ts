@@ -3,6 +3,18 @@ import { cascadeRootStylesheetTransform } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 import { inlineImgSvg, flattenImgSvg, readSvgOpeningTag } from "./svg-inline.js";
 
+it("retains image fallback for geometricPrecision metric transforms in all root declaration sources", () => {
+  const placement = { x: 0, y: 0, w: 100, h: 100, par: "none", documentViewport: true, idPrefix: "rendering-" };
+  for (const source of [
+    `<svg width="100" height="100" text-rendering="geometricPrecision" style="transform:translateY(1lh)"/>`,
+    `<svg width="100" height="100" style="text-rendering:geometricPrecision;transform:translateY(1lh)"/>`,
+    `<svg width="100" height="100"><style>svg{text-rendering:geometricPrecision;transform:translateY(1lh)}</style></svg>`,
+  ]) {
+    expect(inlineImgSvg(source, placement)).toBeNull();
+    expect(flattenImgSvg(source, placement)).toBeNull();
+  }
+});
+
 function cascade(
   svg: string,
   viewport: { w: number; h: number } | null = null,

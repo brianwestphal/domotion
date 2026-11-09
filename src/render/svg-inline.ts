@@ -21,6 +21,7 @@
  * exactly one place.
  */
 
+import type { LinuxFontRenderContext } from "./font-resolution.js";
 import { esc, formatNumberLoose, r } from "./format.js";
 import {
   computeViewportMatrix,
@@ -506,6 +507,7 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
  *  attributes (`SVGElement::CssPropertyIdForSVGAttributeName`,
  *  `core/svg/svg_element.cc:349-354, 385`, chromium 7d859f27). */
 const FONT_PRESENTATION_ATTRIBUTES: ReadonlySet<string> = new Set([
+  "text-rendering",
   "font-family",
   "font-size",
   "font-stretch",
@@ -708,7 +710,10 @@ function imageRootTransform(
     box,
   );
   if (resolved !== "unsupported") return resolved;
-  if ((fontSize == null || unavailableFontMetric) && dynamicFont) {
+  const unresolvedTextRendering = !/^(?:|auto|initial|inherit|unset|revert)$/i.test(
+    fontDeclarations.get("text-rendering")?.trim() ?? "",
+  );
+  if ((fontSize == null || unavailableFontMetric) && (dynamicFont || unresolvedTextRendering)) {
     renderWarn(
       "svg-image-root-transform",
       `${slot} root transform depends on unresolved font data; retaining the image raster fallback`,
@@ -955,7 +960,7 @@ export interface InlineSvgPlacement {
    *  capture (`CapturedElement.imageSvgSupports`); undecided when absent. */
   supportsConditions?: Readonly<Record<string, boolean>>;
   /** Observed explicit global Chromium hinting; absent remains conservative. */
-  fontRendering?: import("@domotion/text-engine/font-resolution").LinuxFontRenderContext;
+  fontRendering?: LinuxFontRenderContext;
 }
 
 /** The embedder-supplied part of the image document's media environment. */

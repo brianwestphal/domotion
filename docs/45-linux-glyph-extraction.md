@@ -470,7 +470,7 @@ query, selected-typeface bold/italic traits, antialiasing, forced autohint,
 device scale and disabled subpixel positioning. Blink consults VDMX only for
 normal/full hinting without forced autohint. `none`/`slight` and forced
 autohint use the rounded FreeType metrics. A missing helper field, unknown
-mode or unmatched font identity retains the conservative unresolved answer
+mode, unsupported non-auto root `text-rendering` or unmatched font identity retains the conservative unresolved answer
 when VDMX changes line spacing.
 
 A launch flag is a preference, not generally the effective style.

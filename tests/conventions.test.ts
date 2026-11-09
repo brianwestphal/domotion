@@ -152,6 +152,10 @@ describe("project conventions", () => {
       // per-fixture build record; keeping this type at the boundary avoids a
       // second, structurally duplicated definition drifting from production.
       "EmbeddedFontBuildDiagnostic",
+      // Verified launch/helper Fontconfig provenance for Linux image-root metrics.
+      "linuxFontEnvironmentKey",
+      "FontRenderHinting",
+      "LinuxFontRenderContext",
       // the three real queries
       "resolveFontKey",
       "getFontInstance",
