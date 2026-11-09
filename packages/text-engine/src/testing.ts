@@ -78,6 +78,7 @@ export { hostPlatform, hostPlatformIsOverridden, withHostPlatform } from "./rend
 export { createGlyphHelperFont } from "./render/glyph-helper-font.js";
 export { isGlyphHelperAvailable, resolvedGlyphHelperPathForEvidence } from "./render/glyph-helper-transport.js";
 export {
+  __helperMetaForTest,
   clearGlyphHelperCache,
   glyphHelperCodepointMemoSize,
   resolveFcFallbackDiagnostic,

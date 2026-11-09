@@ -1,12 +1,11 @@
 import type { Browser } from "@playwright/test";
+import { __helperMetaForTest, isGlyphHelperAvailable } from "@domotion/text-engine/testing";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { isolatedPrimaryFontMetrics } from "../src/render/font-resolution.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
-import { isGlyphHelperAvailable } from "../packages/text-engine/src/render/glyph-helper-transport.js";
-import { __helperMetaForTest } from "../packages/text-engine/src/render/glyph-helper.js";
 
 // Downloaded helpers may predate the optional CoreText height fields. The
 // renderer keeps its file-derived fallback for those binaries.

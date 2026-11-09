@@ -1,7 +1,7 @@
 import type { Browser } from "@playwright/test";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { isGlyphHelperAvailable } from "../packages/text-engine/src/render/glyph-helper-transport.js";
+import { isGlyphHelperAvailable } from "@domotion/text-engine/testing";
 import { launchChromium } from "../src/capture/index.js";
 import { isolatedPrimaryFontMetrics } from "../src/render/font-resolution.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
