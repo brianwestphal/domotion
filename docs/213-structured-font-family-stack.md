@@ -5,10 +5,13 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: []
-tickets: ["DM-2518", "DM-VY5DHJ"]
+tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW"]
 code:
   [
     "src/font-family-stack.test.ts",
+    "src/capture/script/font-family-default.ts",
+    "src/capture/script/font-family-default.test.ts",
+    "src/capture/font-family-default.e2e.test.ts",
     "packages/text-engine/src/font-family-stack.test.ts",
     "packages/text-engine/src/font-family-stack.ts",
     "tests/font-family-stack-capture.e2e.test.ts",
@@ -80,6 +83,21 @@ that host record when their computed family is inherited. A matching authored
 pseudo family declaration prevents the inheritance rewrite even when it
 resolves to the same concrete settings face; this is the same-face mutation
 control that a computed string alone cannot pass.
+
+The UA-default admission guard requires one concrete family equal to the
+current document's computed `initial` family, sampled once through a hidden
+inline-important probe. Known author declarations and UA control fonts still
+exclude the rewrite. A multi-family stack or a distinct named family is
+retained even when its defining stylesheet is cross-origin and cannot be read
+through CSSOM. This prevents an opaque authored webfont stack from being
+replaced with standard serif routing (DM-JQ57WW), without changing renderer
+fallback tables or assuming a platform-specific initial font name.
+
+An opaque authored declaration identical to the actual initial name remains
+ambiguous without richer cascade provenance (DM-ZZRZWK). The guard preserves
+existing known author facts; it does not claim complete authorship proof for
+unreadable stylesheets. Actual UA-default text in a document with unrelated
+opaque rules continues to use the script-keyed standard route.
 
 ## Owner matrix
 

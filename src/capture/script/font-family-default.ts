@@ -24,7 +24,9 @@
 //      keyword. A UA rule only ever sets a GENERIC family (`pre`/`code` →
 //      `monospace`) which serializes as the keyword and is already routed
 //      script-keyed by the declared-generic path; a concrete computed name with
-//      no author declaration can only be the standard initial value.
+//      no known author declaration is only a candidate for the initial value.
+//      It must be a single family matching this document's actual initial
+//      computed family. Opaque stylesheet declarations remain unavailable.
 //   2. NO author `font-family` declaration on self or any ancestor. Sources:
 //      an inline `style` (its `.fontFamily` reflects both `font-family:` and the
 //      `font` shorthand), a `<font face>` presentation attribute, or any
@@ -56,6 +58,19 @@ const GENERIC_FAMILY_KEYWORDS: Record<string, number> = {
   "-webkit-pictograph": 1,
 };
 
+/** A possible initial value is one concrete family, not an authored stack. */
+export function fontFamilyCanBeInitial(computedFamily: string, initialFamily: string): boolean {
+  const computed = parseCssFontFamilyEntries(computedFamily);
+  const initial = parseCssFontFamilyEntries(initialFamily);
+  return (
+    computed.length === 1 &&
+    initial.length === 1 &&
+    computed[0].type === "family-name" &&
+    initial[0].type === "family-name" &&
+    computed[0].name.toLowerCase() === initial[0].name.toLowerCase()
+  );
+}
+
 export const createFontFamilyDefault = () => {
   // Cache author font selectors per Document. Iframe recursion walks elements
   // from several documents in one capture; consulting only the top document's
@@ -63,6 +78,28 @@ export const createFontFamilyDefault = () => {
   type PseudoFamilyRule = { pseudoName: string; hostSelector: string; value: string };
   type FamilySelectors = { familySelectors: string[]; pseudoFamilyRules: PseudoFamilyRule[] };
   const selectorsByDocument = new WeakMap<Document, FamilySelectors>();
+  const initialFamilyByDocument = new WeakMap<Document, string>();
+  const initialFamilyFor = (doc: Document): string => {
+    const cached = initialFamilyByDocument.get(doc);
+    if (cached != null) return cached;
+    const view = doc.defaultView;
+    if (view == null || doc.documentElement == null) return "";
+    const probe = doc.createElement("span");
+    // Inline important initial wins even over an opaque author font shorthand.
+    // A hidden, connected probe asks this document's browser settings rather
+    // than assuming a macOS, Linux or Windows standard-family name.
+    probe.style.setProperty("all", "initial", "important");
+    probe.style.setProperty("display", "none", "important");
+    let family: string;
+    try {
+      doc.documentElement.appendChild(probe);
+      family = view.getComputedStyle(probe).fontFamily;
+    } finally {
+      probe.remove();
+    }
+    initialFamilyByDocument.set(doc, family);
+    return family;
+  };
   const splitSelectorList = (selectorText: string): string[] => {
     const selectors: string[] = [];
     let token = "",
@@ -227,17 +264,24 @@ export const createFontFamilyDefault = () => {
   // rather than an author-declared or UA-generic family.
   const familyIsUADefault = (el: Element, computedFontFamily: string): boolean => {
     if (typeof computedFontFamily !== "string" || computedFontFamily === "") return false;
-    const { familySelectors } = selectorsFor(el.ownerDocument || document);
-    // (1) concrete-name test on the first family.
-    const first = parseCssFontFamilyEntries(computedFontFamily)[0]?.name ?? "";
+    const families = parseCssFontFamilyEntries(computedFontFamily);
+    // The actual initial value has one concrete name. An opaque stylesheet
+    // can author a stack even though none of its selectors are visible here.
+    if (families.length !== 1) return false;
+    const first = families[0]?.name ?? "";
     if (first === "" || GENERIC_FAMILY_KEYWORDS[first.toLowerCase()] === 1) return false;
+    const doc = el.ownerDocument || document;
+    const { familySelectors } = selectorsFor(doc);
     // (2) no author font-family on self or any ancestor (font-family inherits).
     let n: Element | null = el;
     while (n != null && n.nodeType === 1) {
       if (nodeSetsNonStandardFamily(n, familySelectors)) return false;
       n = n.parentElement;
     }
-    return true;
+    // Missing CSSOM author facts cannot turn a distinct named family into the
+    // initial value. Equal names still depend on the known author facts above;
+    // opaque same-name declarations need richer cascade provenance.
+    return fontFamilyCanBeInitial(computedFontFamily, initialFamilyFor(doc));
   };
 
   // `getComputedStyle(host, pseudo)` cannot distinguish inherited kStandard

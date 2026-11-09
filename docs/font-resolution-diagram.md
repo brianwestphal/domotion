@@ -93,6 +93,9 @@ flowchart TD
     A2 --> A3{"@font-face src?"}
     A3 -->|"real webfont bytes (url / data)"| A4["registerWebfont(family, weight,<br/>style, buffer, unicodeRange,<br/>stretch desc, weight desc, style desc)<br/>→ webfontRegistry"]
     A3 -->|"all local() → system font"| A5["registerLocalFontAlias(family,<br/>resolvedKey, weight, italic)<br/>→ localFontAliasRegistry"]
+    A0 --> A6{"Capture: one concrete family equals<br/>this document's computed initial family,<br/>with no known author/control declaration?"}
+    A6 -->|"yes"| A7["typed -webkit-standard<br/>script-keyed standard descriptor"]
+    A6 -->|"no"| A8["retain computed structured stack<br/>including opaque authored names"]
   end
 
   subgraph REN["Render time — src/render/text.ts → text-to-path.ts"]
@@ -117,6 +120,8 @@ flowchart TD
 
   A4 -.->|"consulted by resolveFontKey /<br/>getFontInstance / resolveFontForCodepoint"| C0
   A5 -.-> C0
+  A7 --> B00
+  A8 --> B00
 ```
 
 **Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts` (source bytes via `fetchFontSourceBytes` in `src/capture/font-source-bytes.ts`: `data:` decoded locally, `file:` read from disk for a `file:` page, everything else through an injectable http getter that defaults to the browser request API; a HAR replay — `domotion capture page.har` and the real-world suite — passes `createHarHttpGetter` from `src/capture/har-fetcher.ts` so the bytes come from the archive Chrome painted, since `routeFromHAR` does not intercept the request API);
@@ -294,12 +299,20 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > declared `font-family: Times`. The capture script detects the UA-default case
 > (`src/capture/script/font-family-default.ts`) and rewrites the family to the
 > `-webkit-standard` keyword, which the resolver already routes script-keyed
-> above. Detection: the computed first family must be CONCRETE (a UA rule only
-> ever sets a generic, e.g. `pre`→`monospace`, already handled), with NO author
-> declaration on self-or-ancestor — inline style (incl. the `font` shorthand), a
-> matching author rule, or a `<font face>` attribute — and form controls
+> above. Detection first requires ONE concrete family matching the document's
+> actual computed `initial` family, sampled once with a hidden inline-important
+> initial-value probe. A multi-family stack or a distinct custom/system name
+> cannot be the UA initial value merely because its cross-origin stylesheet
+> is CSSOM-inaccessible (DM-JQ57WW: Stripe's Söhne stack previously became
+> standard serif). Known author declarations on self-or-ancestor still exclude
+> the rewrite: inline style (including the `font` shorthand), a matching
+> readable author rule, or a `<font face>` attribute. Form controls
 > (`input`/`textarea`/`select`/`button`, UA `font: -webkit-small-control`, a
-> concrete SYSTEM font not kStandardFamily) plus their descendants excluded.
+> concrete SYSTEM font not kStandardFamily) and their descendants are excluded.
+> This admission guard does not prove authorship when an opaque rule declares
+> the identical initial name; that independent cascade-provenance ambiguity is
+> tracked as DM-ZZRZWK. Genuine initial routing remains enabled even in a
+> document containing an unrelated opaque stylesheet.
 >
 > **Quoted generic spellings are literal family names, not keywords.** The
 > splitter carries a per-entry `generic` bit: an entry is a generic KEYWORD

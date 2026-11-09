@@ -151,3 +151,67 @@ describeBrowser("DM-2051: capture rewrites UA-default font-family to -webkit-sta
     expect(familyOf(tree, "button-child")).not.toBe("-webkit-standard");
   });
 });
+
+describeBrowser("cross-origin font-family declarations", () => {
+  it("retains distinct authored families while recognizing the actual UA initial value", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: W, height: H } });
+    try {
+      await page.route("https://family.test/", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<!doctype html><link rel="stylesheet" href="https://cdn.family.test/family.css">
+          <p class="stack">opaque-stack</p><div class="single"><p>opaque-inherited-single</p></div>
+          <p class="shorthand">opaque-shorthand</p><p id="initial" lang="ja">opaque-ua-default</p>
+          <p id="known" lang="ja">known-initial-name</p>`,
+        }),
+      );
+      await page.route("https://cdn.family.test/family.css", (route) =>
+        route.fulfill({
+          contentType: "text/css",
+          body: ".stack{font-family:Arial,sans-serif}.single{font-family:Georgia}.shorthand{font:16px Verdana}",
+        }),
+      );
+      await page.goto("https://family.test/", { waitUntil: "load" });
+      expect(
+        await page.evaluate(() => {
+          try {
+            void document.styleSheets[0].cssRules;
+            return false;
+          } catch {
+            return true;
+          }
+        }),
+      ).toBe(true);
+      const initial = await page.locator("#initial").evaluate((el) => getComputedStyle(el).fontFamily);
+      await page.addStyleTag({ content: `#known{font-family:${initial}}` });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+      expect(familyOf(tree, "opaque-stack")).toBe("Arial, sans-serif");
+      expect(familyOf(tree, "opaque-inherited-single")).toBe("Georgia");
+      expect(familyOf(tree, "opaque-shorthand")).toBe("Verdana");
+      expect(familyOf(tree, "opaque-ua-default")).toBe("-webkit-standard");
+      expect(familyOf(tree, "known-initial-name")).toBe(initial);
+      const stacks = new Map<string, CapturedElement["styles"]["fontFamilyStack"]>();
+      const collectStacks = (nodes: CapturedElement[]): void => {
+        for (const node of nodes) {
+          stacks.set(node.text.trim(), node.styles.fontFamilyStack);
+          collectStacks(node.children);
+        }
+      };
+      collectStacks(tree);
+      // The renderer consumes this structured record ahead of the legacy string.
+      expect(stacks.get("opaque-stack")).toEqual({
+        source: "blink-font-family-stack-v1",
+        entries: [
+          { name: "Arial", type: "family-name" },
+          { name: "sans-serif", type: "generic-family" },
+        ],
+        genericFamily: "sans-serif",
+      });
+      expect(stacks.get("opaque-inherited-single")?.genericFamily).toBe("none");
+      expect(stacks.get("opaque-ua-default")?.genericFamily).toBe("standard");
+      expect(stacks.get("known-initial-name")?.genericFamily).toBe("none");
+    } finally {
+      await page.close();
+    }
+  });
+});
