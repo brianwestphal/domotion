@@ -16,8 +16,9 @@
  * image page copies (`IsolatedSVGDocumentHost::CopySettingsFrom`,
  * `core/svg/graphics/isolated_svg_document_host.cc:178-189`).
  */
+import { readFileSync } from "node:fs";
 import { resolveFont } from "./family-match.js";
-import type { FontInstance } from "./font-instance.js";
+import { getFontSourceInfo, type FontInstance } from "./font-instance.js";
 import { ITALIC_SLNT } from "./font-paths.darwin.js";
 import { hostPlatform } from "./host-platform.js";
 import { emptyFontRegistrations, restoreFontRegistrations, snapshotFontRegistrations } from "./webfont-registry.js";
@@ -63,26 +64,99 @@ type Metric = "x-height" | "cap-height" | "zero" | "water";
  * adjustment before storing LineSpacing (simple_font_data.cc:168-176 and
  * font_metrics.cc:102-144, Chromium 7d859f27; SkScalerContext_mac_ct.cpp:
  * 688-691, Skia 62efacd3). A helper-only face has no hhea answer here.
- * Linux's FreeType VDMX/hinting and Windows' DirectWrite metrics cannot be
- * recovered from these fontkit fields, so both platforms stay unresolved.
+ * Linux FreeType uses OS/2 typo metrics when USE_TYPO_METRICS is set, otherwise
+ * hhea; Blink can replace ascent/descent with a VDMX strike. Windows'
+ * DirectWrite metrics remain unresolved.
  */
-function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
-  if (platform !== "darwin") return null;
-  const face = font as FontInstance & { lineGap?: number; familyName?: string };
-  if (face.lineGap == null || !Number.isFinite(face.lineGap)) return null;
-  if (!(font.ascent > 0) || !(font.descent < 0)) return null;
+export function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
+  if (platform !== "darwin" && platform !== "linux") return null;
+  const face = font as FontInstance & {
+    lineGap?: number;
+    familyName?: string;
+    "OS/2"?: {
+      version?: number;
+      fsSelection?: number | { useTypoMetrics?: boolean };
+      typoAscender?: number;
+      typoDescender?: number;
+      typoLineGap?: number;
+    };
+  };
+  const os2 = face["OS/2"];
+  const useTypo =
+    platform === "linux" &&
+    os2?.version !== 0xffff &&
+    (typeof os2?.fsSelection === "number" ? (os2.fsSelection & 0x80) !== 0 : os2?.fsSelection?.useTypoMetrics === true);
+  const ascentUnits = useTypo ? os2?.typoAscender : face.ascent;
+  const descentUnits = useTypo ? os2?.typoDescender : face.descent;
+  const gapUnits = useTypo ? os2?.typoLineGap : face.lineGap;
+  if (gapUnits == null || !Number.isFinite(gapUnits)) return null;
+  if (ascentUnits == null || descentUnits == null || !(ascentUnits > 0) || !(descentUnits < 0)) return null;
   const scaled = (units: number): number => Math.fround((Math.fround(units) * Math.fround(fontSize)) / font.unitsPerEm);
-  const rawAscent = scaled(font.ascent);
-  const rawDescent = scaled(-font.descent);
+  const rawAscent = scaled(ascentUnits);
+  const rawDescent = scaled(-descentUnits);
   // Blink may retain subpixel ascent/descent instead of rounding at tiny sizes.
   if (rawAscent < 3 || rawAscent + rawDescent < 2) return null;
   let ascent = Math.round(rawAscent);
   const descent = Math.round(rawDescent);
-  const leading = Math.round(scaled(face.lineGap));
-  if (face.familyName === "Times" || face.familyName === "Helvetica" || face.familyName === "Courier") {
+  const leading = Math.round(scaled(platform === "linux" ? Math.max(0, gapUnits) : gapUnits));
+  if (platform === "linux" && face.directory?.tables?.VDMX != null) {
+    const table = face.directory.tables.VDMX as { offset?: number; length?: number };
+    const source = getFontSourceInfo(font);
+    if (source == null || table.offset == null || table.length == null || table.length >= 1024 * 1024) return null;
+    try {
+      const bytes = readFileSync(source.path).subarray(table.offset, table.offset + table.length);
+      if (bytes.length !== table.length) return null;
+      const strike = parseVdmxStrike(bytes, Math.floor(fontSize + 0.5));
+      // Chromium reads VDMX only with normal/full hinting. The image-root
+      // resolver has no browser launch flags, and our visual harness also
+      // runs Chromium with hinting=none. If the strike changes line spacing,
+      // neither answer is safe without that flag; leave it unresolved.
+      if (strike != null && strike[0] + strike[1] !== ascent + descent) return null;
+    } catch {
+      return null;
+    }
+  }
+  if (
+    platform === "darwin" &&
+    (face.familyName === "Times" || face.familyName === "Helvetica" || face.familyName === "Courier")
+  ) {
     ascent += Math.floor(Math.fround((ascent + descent) * 0.15) + 0.5);
   }
   return ascent + descent + leading;
+}
+
+/** Blink's VDMX 1:1/default ratio lookup (vdmx_parser.cc, rev 7d859f27). */
+export function parseVdmxStrike(bytes: Uint8Array, pixelSize: number): [number, number] | null {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const u16 = (offset: number): number | null =>
+    offset >= 0 && offset + 2 <= bytes.length ? view.getUint16(offset, false) : null;
+  const i16 = (offset: number): number | null =>
+    offset >= 0 && offset + 2 <= bytes.length ? view.getInt16(offset, false) : null;
+  const ratios = u16(4);
+  if (ratios == null) return null;
+  for (let i = 0; i < ratios; i++) {
+    const at = 6 + i * 4;
+    if (at + 4 > bytes.length) return null;
+    const x = bytes[at + 1];
+    const y1 = bytes[at + 2];
+    const y2 = bytes[at + 3];
+    if (!((x === 1 && y1 <= 1 && y2 >= 1) || (x === 0 && y1 === 0 && y2 === 0))) continue;
+    const group = u16(6 + ratios * 4 + i * 2);
+    if (group == null) return null;
+    const records = u16(group);
+    if (records == null || u16(group + 2) == null) return null;
+    for (let j = 0; j < records; j++) {
+      const record = group + 4 + j * 6;
+      const size = u16(record);
+      if (size == null || size > pixelSize) return null;
+      if (size !== pixelSize) continue;
+      const yMax = i16(record + 2);
+      const yMin = i16(record + 4);
+      return yMax == null || yMin == null ? null : [yMax, -yMin];
+    }
+    return null;
+  }
+  return null;
 }
 
 interface Os2Heights {
