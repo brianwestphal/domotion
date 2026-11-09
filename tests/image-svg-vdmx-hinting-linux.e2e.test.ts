@@ -6,7 +6,7 @@ import { buildVdmxHintedFont, clearGlyphHelperCache } from "@domotion/text-engin
 import sharp from "sharp";
 import { expect, it } from "vitest";
 import { captureImageFontHinting, observeImageFontHinting } from "../src/capture/image-font-hinting.js";
-import { launchChromium } from "../src/capture/index.js";
+import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import { imageRootFontMetricUnits } from "../src/render/svg-image-root-font.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
@@ -45,24 +45,25 @@ it.skipIf(process.platform !== "linux")(
           env: { ...process.env, FONTCONFIG_FILE: config },
         });
         try {
-          const page = await browser.newPage({ viewport: { width: 220, height: 100 } });
+          const page = await browser.newPage({ viewport: { width: 220, height: 150 } });
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" style="font-family:'Domotion VDMX Control';font-size:16px;line-height:normal;transform:translateY(1lh);transform-origin:0 0"><rect width="12" height="12" fill="red"/></svg>`;
           await page.setContent(
-            `<div style="font-family:'Domotion VDMX Control';font-size:16px;line-height:normal;width:100lh">A</div>`,
+            `<div style="font-family:'Domotion VDMX Control';font-size:16px;line-height:normal;width:100lh">A</div><img id="vdmx-image" width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
           );
           const lineSpacing = await page.locator("div").evaluate((el) => parseFloat(getComputedStyle(el).width) / 100);
           const observed = await observeImageFontHinting(page);
           results.push({ mode, singleProcess, observed, lineSpacing });
           expect(lineSpacing).toBe(singleProcess && mode === "none" ? 16 : 23);
           expect(observed).toBe(singleProcess ? mode : undefined);
-          const owner = capturedElement({ imageSrc: "data:image/svg+xml,<svg/>" });
-          await captureImageFontHinting(page, [owner]);
-          const fontRendering = owner.imageDocumentFontRendering;
+          const tree = await captureElementTree(page, "#vdmx-image", { x: 0, y: 0, width: 220, height: 150 });
+          const owner = tree.find((node) => node.imageSrc != null);
+          expect(owner).toBeDefined();
+          const fontRendering = owner?.imageDocumentFontRendering;
           expect(fontRendering).toBeDefined();
           const declarations = { get: (name: string) => (name === "font-family" ? "'Domotion VDMX Control'" : null) };
           expect(imageRootFontMetricUnits(declarations, 16, null, fontRendering)?.("lh")).toBe(lineSpacing);
           // Mechanism-off must become unresolved on this very same control.
           expect(imageRootFontMetricUnits(declarations, 16, null)?.("lh")).toBeNull();
-          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" style="font-family:'Domotion VDMX Control';font-size:16px;line-height:normal;transform:translateY(1lh);transform-origin:0 0"><rect width="12" height="12" fill="red"/></svg>`;
           const inlined = inlineImgSvg(svg, {
             x: 0,
             y: 0,
@@ -107,7 +108,7 @@ it.skipIf(process.platform !== "linux")(
       try {
         const page = await custom.newPage();
         expect(await observeImageFontHinting(page)).toBe("none");
-        const owner = capturedElement({ imageSrc: "data:image/svg+xml,<svg/>" });
+        const owner = capturedElement({ imageSrc: "data:image/svg+xml,<svg/>", children: [] });
         await captureImageFontHinting(page, [owner]);
         expect(owner.imageDocumentFontRendering).toBeUndefined();
       } finally {

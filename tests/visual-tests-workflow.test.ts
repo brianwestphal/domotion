@@ -351,6 +351,22 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
     expect(Object.keys(jobs)).toEqual(expect.arrayContaining(["regression", "family-match"]));
   });
 
+  it("keeps the focused manual profile distinct from the default required fidelity gate", () => {
+    expect(yaml).toMatch(/image_root_metrics_only:[\s\S]*?type: boolean\n\s+default: false/);
+    const job = jobs["regression"];
+    expect(job).toContain(
+      "inputs.image_root_metrics_only && 'Linux image-root metric diagnostics' || 'Linux fidelity regression'",
+    );
+    expect(job).toContain("inputs.image_root_metrics_only && 'linux-image-root-metrics' || 'linux-fidelity-diffs'");
+    const focused = job.match(
+      /- name: Run focused image-root metric diagnostics\n([\s\S]*?)(?=\n\s+- name: Upload)/,
+    )?.[1];
+    expect(focused).toMatch(/^\s+if: always\(\) && inputs\.image_root_metrics_only$/m);
+    expect(focused).toContain("tests/image-svg-vdmx-hinting-linux.e2e.test.ts");
+    expect(focused).toContain("tests/image-svg-normal-line-height-linux.e2e.test.ts");
+    expect(job).toMatch(/if: always\(\) && !inputs\.image_root_metrics_only[\s\S]*?run: npm run test:e2e/);
+  });
+
   it("builds the Linux glyph helper before running the feature suite", () => {
     const job = jobs["regression"];
     expect(job, "regression job must exist").toBeDefined();
@@ -373,7 +389,7 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
       /- name: Run feature visual-regression suite[^\n]*\n([\s\S]*?)(?=\n\s+- name: Record run environment)/,
     )?.[1];
     expect(featureStep, "feature producer step must exist").toBeDefined();
-    expect(featureStep).toMatch(/^\s+if: always\(\)$/m);
+    expect(featureStep).toMatch(/^\s+if: always\(\) && !inputs\.image_root_metrics_only$/m);
     expect(featureStep).toMatch(/^\s+run: npm run demos:test \|\| true$/m);
     expect(job.indexOf("Run feature visual-regression suite")).toBeLessThan(
       job.indexOf("Run browser-driven e2e tests"),
@@ -386,7 +402,7 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
       /- name: Gate vs committed Linux baseline[^\n]*\n([\s\S]*?)(?=\n\s+- name: Build dist\/)/,
     )?.[1];
     expect(baselineStep, "strict baseline step must exist").toBeDefined();
-    expect(baselineStep).toMatch(/^\s+if: always\(\)$/m);
+    expect(baselineStep).toMatch(/^\s+if: always\(\) && !inputs\.image_root_metrics_only$/m);
     expect(baselineStep).toContain("--strict --label");
     expect(job.indexOf("Run feature visual-regression suite")).toBeLessThan(
       job.indexOf("Gate vs committed Linux baseline"),

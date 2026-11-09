@@ -501,3 +501,10 @@ SVG geometry, and writes evidence under `DOMOTION_OUTPUT_DIR` (default
 `tests/image-svg-vdmx-hinting-linux.e2e.test.ts`; macOS skips are not Linux parity
 validation. Rebuild/publish the Linux helper asset before treating this optional
 protocol extension as available to published consumers.
+
+For an iterative native check, dispatch `test-linux.yml` with
+`image_root_metrics_only=true`. It reuses the Linux helper build/setup and runs
+the two image-root metric browser files, with the distinct
+`Linux image-root metric diagnostics` check and `linux-image-root-metrics`
+artifact. The default remains the complete required fidelity gate; a focused
+success is not a full Linux regression result.
