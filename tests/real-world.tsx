@@ -57,7 +57,7 @@ import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worke
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
-import { planRealWorldScroll, type RealWorldScrollPlan } from "./real-world-scroll-plan.js";
+import { planRealWorldScroll, scrollChunkSeekTimeMs, type RealWorldScrollPlan } from "./real-world-scroll-plan.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
@@ -926,6 +926,10 @@ async function runJob(
           // back to their initial state, which would undo this seek and
           // leave every chunk's actual screenshot stuck on the t=0 frame.
           // The pause() above is sufficient to freeze the moment.
+          // The final segment ends at 100% of an infinite CSS cycle. Seeking
+          // exactly there wraps to the hero, so sample 1 ms inside the cycle.
+          const cycleEndMs = segments[segments.length - 1].segmentEndMs;
+          const seekTimeMs = scrollChunkSeekTimeMs(seg.segmentEndMs, cycleEndMs);
           await renderPage.evaluate((timeMs) => {
             for (const a of document.getAnimations()) {
               try {
@@ -935,7 +939,7 @@ async function runJob(
                 /* */
               }
             }
-          }, seg.segmentEndMs);
+          }, seekTimeMs);
           await renderPage.waitForTimeout(50);
           await renderPage.screenshot({ path: actualChunk, clip: actualClip, timeout: PLAYWRIGHT_TIMEOUT_MS });
         } catch (e) {

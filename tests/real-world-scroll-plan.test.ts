@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planRealWorldScroll } from "./real-world-scroll-plan.js";
+import { planRealWorldScroll, scrollChunkSeekTimeMs } from "./real-world-scroll-plan.js";
 
 describe("real-world scroll planning", () => {
   it("samples heavy sites without pretending the sampled extent is full depth", () => {
@@ -31,5 +31,12 @@ describe("real-world scroll planning", () => {
     const resend = planRealWorldScroll("resend", 800, 11_391, true);
     expect(resend).toMatchObject({ extent: "full-depth", requestedEndY: 11_391, plannedTransitions: 15 });
     expect(resend.jobTimeoutMs).toBeGreaterThan(30 * 60_000);
+  });
+});
+
+describe("scroll chunk screenshot seek", () => {
+  it("keeps intermediate anchors exact and seeks inside the final infinite cycle", () => {
+    expect(scrollChunkSeekTimeMs(8_439, 11_252)).toBe(8_439);
+    expect(scrollChunkSeekTimeMs(11_252, 11_252)).toBe(11_251);
   });
 });

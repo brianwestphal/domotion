@@ -44,3 +44,8 @@ export function planRealWorldScroll(
       : DEFAULT_JOB_TIMEOUT_MS;
   return { extent, availableEndY, requestedEndY, plannedTransitions, jobTimeoutMs };
 }
+
+/** An infinite CSS animation wraps to its first frame at the exact cycle end. */
+export function scrollChunkSeekTimeMs(segmentEndMs: number, cycleEndMs: number): number {
+  return segmentEndMs >= cycleEndMs ? Math.max(0, cycleEndMs - Math.min(1, cycleEndMs / 2)) : segmentEndMs;
+}
