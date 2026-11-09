@@ -52,14 +52,29 @@ async function centerPixel(page: Page): Promise<[number, number, number]> {
 const setColor = (page: Page, rgb: [number, number, number]): Promise<void> =>
   page.evaluate((c) => void ((window as unknown as { color_: number[] }).color_ = c), rgb);
 
+async function openPresentedLoopPage(variant: "gl1" | "gl2"): Promise<Page> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const page = await openLoopPage(variant);
+    try {
+      // Hosted macOS Chromium can leave the first context's canvas showing a
+      // gray placeholder even while its animation loop is advancing. A fresh
+      // page gives the compositor another chance without weakening the frame
+      // assertions below.
+      await expect.poll(() => centerPixel(page), { timeout: attempt === 0 ? 8_000 : 15_000 }).toEqual([255, 0, 0]);
+      return page;
+    } catch (error) {
+      lastError = error;
+      await page.close();
+    }
+  }
+  throw lastError;
+}
+
 describe("real-world WebGL freeze", () => {
   for (const variant of ["gl1", "gl2"] as const) {
     it(`keeps the last presented ${variant} frame while the page loop keeps running`, async () => {
-      const page = await openLoopPage(variant);
-      // The first WebGL context in a fresh browser can take a while to reach
-      // the compositor (CI's hosted macOS runner showed a gray placeholder at
-      // first), so wait for the first presented frame rather than assume it.
-      await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([255, 0, 0]);
+      const page = await openPresentedLoopPage(variant);
 
       // Control: without the freeze, the loop repaints the new color.
       await setColor(page, [0, 0, 1]);
