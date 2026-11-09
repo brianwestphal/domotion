@@ -517,6 +517,8 @@ async function runJob(
 
   let warnings: Array<{ selector: string; feature: string; detail: string }> = [];
   let captureError: string | undefined;
+  let webGlFreeze: Awaited<ReturnType<typeof freezeWebGlOutput>> | undefined;
+  let reportedFailedWorkers = 0;
 
   // Capture canvas height. `fold` / `scroll` always run at viewport size;
   // `entire-page` resizes to the document scroll height after measuring.
@@ -673,7 +675,8 @@ async function runJob(
     // the job budget on CI. Freezing after the expected screenshot leaves the
     // reference pixels (and the replaced-element crops taken from them)
     // untouched. See `tests/real-world-webgl-freeze.ts`.
-    const webGlFreeze = await freezeWebGlOutput(page);
+    webGlFreeze = await freezeWebGlOutput(page);
+    reportedFailedWorkers = webGlFreeze.failedWorkers;
     if (webGlFreeze.failedFrames > 0 || webGlFreeze.failedWorkers > 0) {
       console.warn(
         `  ${test}: WebGL output not frozen in ${webGlFreeze.failedFrames} frame(s) and ${webGlFreeze.failedWorkers} worker(s)`,
@@ -974,6 +977,17 @@ async function runJob(
     captureError = captureTimedOut ? `capture exceeded ${captureJobTimeoutMs / 60_000}m: ${detail}` : detail;
   } finally {
     clearTimeout(captureWatchdog);
+    await webGlFreeze?.dispose();
+    if (webGlFreeze != null && webGlFreeze.failedWorkers > reportedFailedWorkers) {
+      console.warn(
+        `  ${test}: WebGL output not fully frozen in ${webGlFreeze.failedWorkers - reportedFailedWorkers} late worker(s)`,
+      );
+    }
+    if (webGlFreeze != null && (webGlFreeze.failedFrameRestorations > 0 || webGlFreeze.failedWorkerRestorations > 0)) {
+      console.warn(
+        `  ${test}: WebGL prototype restoration unverified in ${webGlFreeze.failedFrameRestorations} live frame(s) and ${webGlFreeze.failedWorkerRestorations} live worker(s)`,
+      );
+    }
     // Defensive: a failed page.screenshot can leave the underlying
     // Chromium target in a half-closed state (DM-460), so the implicit
     // session teardown throws "Target page, context or browser has been

@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2604", "DM-2635", "DM-2636", "DM-2664", "DM-0MAZSK", "DM-8P5PHJ"]
+tickets: ["DM-2596", "DM-2604", "DM-2635", "DM-2636", "DM-2664", "DM-0MAZSK", "DM-8P5PHJ", "DM-S9S3WG", "DM-34WC46"]
 code:
   [
     ".github/workflows/",
@@ -78,6 +78,14 @@ aliases: ["docs/handbook/platforms-testing-and-release.md"]
     and ten-second capture budgets. Non-axis-aligned frame owners are reported
     as skipped; detached or unqueryable frames are reported as failures
     (DM-T64MNZ; `tests/real-world-webgl-preflight.ts`).
+
+11. Real-world post-screenshot WebGL freeze observes Page-related dedicated
+    worker startup and context-owned SharedWorker live calls, with bounded
+    debugger commands and explicit restoration/disposal. New SharedWorkers can
+    execute imports before Playwright's independent debugger resume is owned;
+    cached native calls escape interception. Those targets report failures,
+    and DM-S9S3WG remains blocked on DM-34WC46 for strict bootstrap coverage.
+    Other BrowserContexts are resumed without patching.
 
 ## Visual output roots
 

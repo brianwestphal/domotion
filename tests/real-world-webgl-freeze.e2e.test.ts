@@ -57,10 +57,9 @@ async function openPresentedLoopPage(variant: "gl1" | "gl2"): Promise<Page> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const page = await openLoopPage(variant);
     try {
-      // Hosted macOS Chromium can leave the first context's canvas showing a
-      // gray placeholder even while its animation loop is advancing. A fresh
-      // page gives the compositor another chance without weakening the frame
-      // assertions below.
+      // Hosted macOS Chromium can lose a context during startup. Require an
+      // actual red presentation before testing freeze; a fresh page retries
+      // that independent startup failure without weakening frame assertions.
       await expect.poll(() => centerPixel(page), { timeout: attempt === 0 ? 8_000 : 15_000 }).toEqual([255, 0, 0]);
       return page;
     } catch (error) {
@@ -80,7 +79,7 @@ describe("real-world WebGL freeze", () => {
       await setColor(page, [0, 0, 1]);
       await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([0, 0, 255]);
 
-      expect(await freezeWebGlOutput(page)).toEqual({
+      expect(await freezeWebGlOutput(page)).toMatchObject({
         frozenFrames: 1,
         failedFrames: 0,
         frozenWorkers: 0,
@@ -88,9 +87,10 @@ describe("real-world WebGL freeze", () => {
       });
       await setColor(page, [0, 1, 0]);
       const loopsBefore = await page.evaluate(() => (window as unknown as { loops_: number }).loops_);
-      await page.waitForTimeout(100);
       // The page's own loop is untouched; only its output stops changing.
-      expect(await page.evaluate(() => (window as unknown as { loops_: number }).loops_)).toBeGreaterThan(loopsBefore);
+      await expect
+        .poll(() => page.evaluate(() => (window as unknown as { loops_: number }).loops_), { timeout: 5_000 })
+        .toBeGreaterThan(loopsBefore);
       expect(await centerPixel(page)).toEqual([0, 0, 255]);
       await page.close();
     }, 60_000);
@@ -100,13 +100,13 @@ describe("real-world WebGL freeze", () => {
     const page = await browser.newPage();
     await page.setContent(`<iframe srcdoc="<canvas></canvas>"></iframe><iframe srcdoc="<p>x</p>"></iframe>`);
     await page.waitForFunction(() => document.querySelectorAll("iframe").length === 2);
-    expect(await freezeWebGlOutput(page)).toEqual({
+    expect(await freezeWebGlOutput(page)).toMatchObject({
       frozenFrames: 3,
       failedFrames: 0,
       frozenWorkers: 0,
       failedWorkers: 0,
     });
-    expect(await freezeWebGlOutput(page)).toEqual({
+    expect(await freezeWebGlOutput(page)).toMatchObject({
       frozenFrames: 3,
       failedFrames: 0,
       frozenWorkers: 0,
@@ -151,7 +151,7 @@ describe("real-world WebGL freeze", () => {
     await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([255, 0, 0]);
     await page.evaluate(() => (window as unknown as { worker_: Worker }).worker_.postMessage({ color: [0, 0, 1] }));
     await expect.poll(() => centerPixel(page), { timeout: 15_000 }).toEqual([0, 0, 255]);
-    expect(await freezeWebGlOutput(page)).toEqual({
+    expect(await freezeWebGlOutput(page)).toMatchObject({
       frozenFrames: 1,
       failedFrames: 0,
       frozenWorkers: 1,

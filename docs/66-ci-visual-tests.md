@@ -20,6 +20,8 @@ tickets:
     "DM-JEMQA6",
     "DM-ZMS0TB",
     "DM-4S3VQH",
+    "DM-S9S3WG",
+    "DM-34WC46",
   ]
 code:
   [
@@ -52,6 +54,9 @@ code:
     "tests/review-prefetch-state.ts",
     "tests/output/",
     "tests/real-world-webgl-freeze.ts",
+    "tests/real-world-webgl-worker-lifecycle.ts",
+    "tests/real-world-webgl-worker-lifecycle.test.ts",
+    "tests/real-world-webgl-worker-lifecycle.e2e.test.ts",
     "tests/runner.tsx",
     "tests/shard-completeness.test.ts",
     "tests/shard.ts",
@@ -130,6 +135,37 @@ idle runners for that reason, not because of Domotion's own work. Blink only
 marks a WebGL canvas changed from those entry points, so the canvas keeps its
 last presented frame, and the expected pixels and the replaced-element crops
 taken from them are unchanged.
+
+The freeze observes late Page-related dedicated workers through paused public CDP
+attachment, before their module imports run. SharedWorkers belong to the job's
+isolated BrowserContext, so discovery covers that context, resumes unrelated
+contexts without patching, and never infers SharedWorker coverage from
+`page.workers()`. Separate flat discovery clients and a non-flat command client
+avoid worker-source rewrites and preserve module URLs, origin and CSP. Commands
+have three-second timeouts; per-target work runs independently. The harness calls
+`dispose()` in `finally` to restore reference-counted prototypes, resume waiting
+targets, remove listeners and detach sessions; Page/context close also disposes.
+Cleanup separately counts unverified restoration in live frames and workers and
+reports it after capture (DM-2XDPSR). If page code hardens a patched prototype,
+the failed entries retain their original descriptors and owner marker for
+diagnosis; disposal never forcefully rewrites those properties or terminates a
+worker to hide the failure. Terminated targets do not require restoration.
+
+SharedWorker startup remains partial (DM-S9S3WG, prerequisite DM-34WC46).
+Playwright 1.59.1 independently resumes unmanaged SharedWorker targets while
+this observer attaches. Imports/top-level code can cache native draw methods
+before patching and continue drawing through those cached references. Late
+SharedWorkers are therefore counted as failed freezes even when live prototype
+calls are muted, and the harness reports those late failures after capture.
+SharedWorker discovery does not request startup pauses: public Playwright cannot
+address the flat discovery session directly, and a paused restart could stall.
+When a worker terminates, its secondary client detaches immediately: Chromium
+reuses SharedWorker hosts and pauses restart if a client remains attached.
+Existing SharedWorkers can have their live calls muted and restored, but cached
+native calls in any already-running realm remain outside this technique. The
+same-origin HTTP module regressions retain a cached-call escape assertion,
+plus dedicated startup, unrelated-context liveness, shared ownership, restart,
+attach/evaluate/timeout failure, and close-cleanup checks.
 Dispatch it from Actions as **Fast visual tests (all platforms)**, selecting one
 platform for focused work or `all` for a release/parity pass.
 
