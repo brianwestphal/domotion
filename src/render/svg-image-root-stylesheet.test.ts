@@ -309,7 +309,9 @@ describe("<img> SVG root transform from the document's own <style>", () => {
       P,
     )!;
     expect(out).toContain(`${IMAGE_ROOT_ATTR}="S-"`);
-    expect(out).toContain(`:not([${IMAGE_ROOT_ATTR}])`);
+    expect(out).toContain(
+      `.S-c:not([${IMAGE_ROOT_ATTR}]:where([${IMAGE_ROOT_ATTR}="S-"], [${IMAGE_ROOT_ATTR}="S-"] *))`,
+    );
     expect(out).toContain("rotate(-25)");
   });
 
