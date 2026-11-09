@@ -310,9 +310,7 @@ export function retainIdentifiedFrameScrollRecords(
   topFrameId: string,
 ): CapturedFrameScrollRecord[] {
   if (topFrameId === "") throw new Error("top Chromium frame identity could not be authenticated");
-  const byId = new Map(
-    records.filter(({ frameId }) => frameId !== "").map((record) => [record.frameId, record]),
-  );
+  const byId = new Map(records.filter(({ frameId }) => frameId !== "").map((record) => [record.frameId, record]));
   const reachesTop = (record: CapturedFrameScrollRecord, seen: Set<string>): boolean => {
     if (record.frameId === topFrameId) return record.parentFrameId == null;
     if (record.parentFrameId == null || seen.has(record.frameId)) return false;
