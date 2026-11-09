@@ -37,6 +37,7 @@ import {
   type CascadedDeclaration,
 } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
+import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits } from "./svg-image-root-font.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
@@ -903,9 +904,11 @@ function resolveDocumentViewport(
 export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
-  let attrs = tag.attributes;
   const sheet = rootSheetTransform(sourceText, tag, p);
-  const svgText = sheet.source;
+  const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
+  const rewrittenTag = readSvgOpeningTag(svgText);
+  if (rewrittenTag == null) return null;
+  let attrs = rewrittenTag.attributes;
 
   const doc = p.documentViewport === true ? resolveDocumentViewport(attrs, p) : null;
   if (p.documentViewport === true && doc == null) return null;
@@ -949,7 +952,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   // root's own id (`#root` in a `<style>`, `href="#root"`) follows it.
   const docIds = svgDocumentIds(svgText);
   let rootAttrs = prefixSvgIds(attrs, p.idPrefix, docIds).replace(/\s+$/, "");
-  let body = prefixSvgIds(svgText.slice(tag.end), p.idPrefix, docIds);
+  let body = prefixSvgIds(svgText.slice(rewrittenTag.end), p.idPrefix, docIds);
   // DM-1593: also namespace CSS class names — but ONLY when the SVG carries a
   // `<style>` block (the only way a class can affect rendering, so the common
   // presentation-attribute export stays byte-identical). Gated on the whole
@@ -1118,10 +1121,12 @@ export function isSvgSafeToFlatten(body: string): boolean {
 export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
-  const attrs = tag.attributes;
   const sheet = rootSheetTransform(sourceText, tag, p);
-  const svgText = sheet.source;
-  const rawBody = svgText.slice(tag.end);
+  const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
+  const rewrittenTag = readSvgOpeningTag(svgText);
+  if (rewrittenTag == null) return null;
+  const attrs = rewrittenTag.attributes;
+  const rawBody = svgText.slice(rewrittenTag.end);
   // Drop a trailing `</svg>` (and anything after) so we emit only the children.
   const closeIdx = rawBody.toLowerCase().lastIndexOf("</svg>");
   const bodySource = closeIdx >= 0 ? rawBody.slice(0, closeIdx) : rawBody;
