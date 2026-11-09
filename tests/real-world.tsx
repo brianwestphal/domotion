@@ -49,7 +49,7 @@ import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
 import { createHarHttpGetter, loadHarArchive } from "../src/capture/har-fetcher.js";
 import { createTextEngineSession, withTextEngineDocument } from "../src/render/text-engine.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
-import { executeScrollPattern, type ScrollSegmentCapture } from "../src/scroll/executor.js";
+import { executeScrollPatternWithCapture, type ScrollSegmentCapture } from "../src/scroll/executor.js";
 import { composeScrollSvg } from "../src/scroll/composer.js";
 import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
@@ -58,6 +58,7 @@ import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
+import { captureRealWorldScrollReference } from "./real-world-scroll-reference.js";
 import { planRealWorldScroll, scrollChunkSeekTimeMs, type RealWorldScrollPlan } from "./real-world-scroll-plan.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -695,14 +696,27 @@ async function runJob(
       trace(`scroll executor starting (${plan.extent} ${plan.requestedEndY}/${plan.availableEndY}px)`);
       const destination = plan.extent === "sampled" ? `${plan.requestedEndY}px` : "bottom";
       const pattern = parseScrollPattern(`down:${destination}@${SCROLL_SPEED_PX_PER_SEC}pxps`);
-      segments = await executeScrollPattern(page, pattern, {
-        viewportW: viewport.width,
-        viewportH: viewport.height,
-        prescroll: false,
-        embedImages: false,
-        maxTimeoutMs: captureJobTimeoutMs,
-        log: trace,
-      });
+      let anchorReferences = 0;
+      segments = await executeScrollPatternWithCapture(
+        page,
+        pattern,
+        {
+          viewportW: viewport.width,
+          viewportH: viewport.height,
+          prescroll: false,
+          embedImages: false,
+          maxTimeoutMs: captureJobTimeoutMs,
+          log: trace,
+        },
+        async (capturePage, selector, clip, options) => {
+          const captured = await captureRealWorldScrollReference(capturePage, selector, clip, options);
+          const ordinal = anchorReferences++;
+          const referencePath = ordinal === 0 ? expectedPath : expectedPath.replace(/\.png$/, `-${ordinal}.png`);
+          writeFileSync(referencePath, captured.debug.expectedPng);
+          return captured;
+        },
+      );
+      if (anchorReferences !== segments.length) throw new Error("scroll reference/segment count mismatch");
       scrollCoverage.capturedEndY = segments.at(-1)?.scrollY;
       scrollCoverage.capturedSegments = segments.length;
       trace(`scroll executor complete with ${segments.length} segments`);
@@ -892,9 +906,11 @@ async function runJob(
 
     // Per-chunk screenshots for `scroll` mode. The canonical screenshot
     // above is the t=0 frame (chunk 0). For each subsequent segment the
-    // executor visited, take an expected screenshot of the live page at
-    // that scrollY, then seek the composed SVG animation to the same
-    // timepoint and screenshot the actual. Comparison happens later
+    // executor visited, use its saved capture-time source screenshot,
+    // then seek the composed SVG animation to the same timepoint and
+    // screenshot the actual. Revisiting the source scroll position can
+    // start a different entrance animation; disabling screenshot animations
+    // would finish it and fabricate paint absent from the captured tree. Comparison happens later
     // (after the canonical comparePngs) once the renderContext is closed.
     // See docs/34-scroll-mode-per-chunk-diff.md.
     if (mode === "scroll" && segments != null && segments.length > 1) {
@@ -902,33 +918,7 @@ async function runJob(
         const seg = segments[i];
         const expectedChunk = expectedPath.replace(/\.png$/, `-${i}.png`);
         const actualChunk = actualPath.replace(/\.png$/, `-${i}.png`);
-        try {
-          await page.evaluate((y) => window.scrollTo(0, y), seg.scrollY);
-          await page.waitForTimeout(150);
-          // Re-pause any animations that intersection observers may have
-          // started on the scroll-back (the original freeze pass only
-          // paused animations active at that moment).
-          await page.evaluate(() => {
-            for (const a of document.getAnimations()) {
-              try {
-                a.pause();
-              } catch {
-                /* */
-              }
-            }
-          });
-          await page.waitForTimeout(50);
-          await page.screenshot({
-            path: expectedChunk,
-            clip: actualClip,
-            timeout: PLAYWRIGHT_TIMEOUT_MS,
-            animations: "disabled",
-          });
-        } catch (e) {
-          console.warn(
-            `  ${test}: chunk ${i} expected screenshot failed: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
+        if (!existsSync(expectedChunk)) throw new Error(`missing capture-time scroll reference ${i}`);
         try {
           // Seek the composed SVG's CSS animation to this segment's
           // anchor timepoint. document.getAnimations() reaches CSS

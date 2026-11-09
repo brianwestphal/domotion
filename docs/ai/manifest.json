@@ -567,7 +567,12 @@
       "status": "current",
       "owners": ["layout"],
       "platforms": [],
-      "code": ["tests/real-world.tsx"],
+      "code": [
+        "tests/real-world.tsx",
+        "tests/real-world-scroll-reference.ts",
+        "tests/real-world-scroll-reference.e2e.test.ts",
+        "src/scroll/executor.ts"
+      ],
       "file": "34-scroll-mode-per-chunk-diff.md"
     },
     {

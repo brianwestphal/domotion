@@ -5,8 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: []
-code: ["tests/real-world.tsx"]
+tickets: ["DM-4GXCMQ"]
+code:
+  [
+    "tests/real-world.tsx",
+    "tests/real-world-scroll-reference.ts",
+    "tests/real-world-scroll-reference.e2e.test.ts",
+    "src/scroll/executor.ts",
+  ]
 aliases: ["docs/34-scroll-mode-per-chunk-diff.md", "doc-34"]
 ---
 
@@ -25,7 +31,7 @@ For a `*-scroll` fixture with N executor segments (chunks):
   - `<name>-actual.png` — composed SVG screenshotted at animation frame 0 (`animations: "disabled"`)
   - `<name>-diff.png` — pixel diff of the above
 - **Per-chunk triplets** for chunks 1..N-1:
-  - `<name>-expected-{i}.png` — Chromium screenshot of the live page scrolled to `segments[i].scrollY`
+  - `<name>-expected-{i}.png` — capture-time Chromium screenshot retained with `segments[i]` at its `scrollY`
   - `<name>-actual-{i}.png` — composed SVG with its CSS animation seeked to `segments[i].segmentEndMs` (via `document.getAnimations()` → `currentTime` + `pause`), then screenshotted
   - `<name>-diff-{i}.png` — pixel diff
 
@@ -53,9 +59,13 @@ Chunk 0's metrics mirror the canonical metrics for the same triplet.
 
 ## Capture-side details
 
-- **Source page**: scrolling back to each `segments[i].scrollY` re-runs intersection observers, which can start new animations the original freeze pass didn't catch. The harness runs a follow-up `getAnimations().pause()` after each scroll to suppress those before screenshotting.
+- **Source page**: each executor capture pauses currently known document animations in the relevant frames at their existing times. The harness then uses `captureElementTreeWithDebug` to retain source PNG bytes with that anchor's tree. The explicit capture ordinal determines the output filename; reference count must equal segment count. Source references are not reconstructed by scrolling back later.
 - **Render page**: the composed SVG's animation runs over `segments[N-1].segmentEndMs`. Seeking to `segments[i].segmentEndMs` lands exactly on a composer keyframe anchor (not interpolated), so the rendered frame matches what the SVG paints when the consumer actually scrolls to that point.
-- **`animations: "disabled"`** is passed to the _expected_ (source-page) screenshots so Playwright freezes the moment of capture independently of any animations Chromium might still be running. The one deliberate exception is the per-chunk _actual_ (composed-SVG) screenshot, which OMITS the flag (`tests/real-world.tsx`): the SVG's transition is an infinite CSS animation seeked via `currentTime`, and `animations: "disabled"` would cancel it and undo the seek — so the actual frame is screenshotted with animations live at the seeked time.
+- **Screenshot animations**: source and per-chunk actual screenshots omit `animations: "disabled"`. Playwright's installed `screenshotter.js` calls `animation.finish()` for finite animations even when they are paused, while canceling infinite animations. That changes paint instead of preserving the sampled state. The harness pauses source animations without seeking; the actual animation is explicitly paused at its composed anchor.
+
+DM-4GXCMQ reproduced the distinction on the fixed Resend desktop recording at scrollY 11469: a footer wordmark with near-zero captured opacity became fully visible only when the later reference screenshot finished its entrance animation. The correction preserves the captured state; it does not force the wordmark visible or change production SVG paint/culling. The Chromium `Page.captureScreenshot` protocol records pixels; the finite-animation finishing policy belongs to Playwright's screenshot preparation, not the renderer. Browser regressions exercise hidden, intermediate and complete wordmark opacity, anchor pairing, and evidence failures.
+
+This is a paused-animation comparison contract. It does not claim an atomic snapshot of arbitrary live JavaScript mutations, newly created animations, or network-driven DOM changes. The existing real-world DOM freeze still limits those independent sources of drift.
 
 ## Pass criterion
 

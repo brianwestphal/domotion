@@ -377,6 +377,16 @@ export async function executeScrollPattern(
   pattern: ScrollPattern,
   opts: ScrollExecutorOptions,
 ): Promise<ScrollSegmentCapture[]> {
+  return executeScrollPatternWithCapture(page, pattern, opts, captureElementTreeWithWarnings);
+}
+
+/** Internal capture dependency seam; intentionally absent from public barrels. */
+export async function executeScrollPatternWithCapture(
+  page: Page,
+  pattern: ScrollPattern,
+  opts: ScrollExecutorOptions,
+  capture: typeof captureElementTreeWithWarnings,
+): Promise<ScrollSegmentCapture[]> {
   const defaultSpeed = opts.defaultSpeed ?? DEFAULT_SPEED_PX_PER_SEC;
   const prescroll = opts.prescroll !== false;
   const maxTimeoutMs = opts.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS;
@@ -402,7 +412,7 @@ export async function executeScrollPattern(
     scrollX: number;
     scrollY: number;
   }> => {
-    const captured = await captureElementTreeWithWarnings(page, captureSelector, captureViewport, {
+    const captured = await capture(page, captureSelector, captureViewport, {
       ...(opts.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
     });
     const scrollOwner = await resolveScrollOwner(page, selector, captured.frameScrollState);
