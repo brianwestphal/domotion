@@ -486,8 +486,8 @@ is rejected. Changing Fontconfig files during a live capture/helper session is
 outside this snapshot contract.
 
 Custom/remote Playwright launches have no verified environment provenance;
-older serialized trees, older helpers, and generic families without concrete
-nomination provenance remain conservative. `Browser.getBrowserCommandLine`
+older serialized trees, older helpers, generic families, and unverified earlier
+CSS/alternate-name nominations without concrete provenance remain conservative. `Browser.getBrowserCommandLine`
 can still observe a custom launch’s explicit preference, but that alone does
 not authorize a metric answer. This limitation preserves correctness under
 custom `FONTCONFIG_FILE`/locale/home settings.

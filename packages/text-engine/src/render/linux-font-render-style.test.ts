@@ -78,6 +78,15 @@ describe("Linux effective font style", () => {
     boundary.call.mockReset().mockReturnValue({ results: [{ ...selected, path: "other.ttf" }] });
     expect(linuxFontRenderStyle(face(), request, context())).toBeNull();
   });
+  it("does not skip an unverified earlier alternate-name nomination", () => {
+    boundary.call
+      .mockReturnValueOnce({ results: [{ type: "familyMatch", found: false }] })
+      .mockReturnValueOnce({ results: [selected] })
+      .mockReturnValue({ results: [style] });
+    expect(linuxFontRenderStyle(face(), { ...request, fontFamily: "Alias, Control" }, context())).toBeNull();
+    expect(boundary.call).toHaveBeenCalledOnce();
+  });
+
   it("keeps generics without nomination provenance and failed queries conservative", () => {
     expect(linuxFontRenderStyle(face(), { ...request, fontFamily: "serif" }, context())).toBeNull();
     boundary.call.mockImplementation(() => {

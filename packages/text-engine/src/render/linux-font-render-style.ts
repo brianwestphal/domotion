@@ -59,21 +59,21 @@ export function linuxFontRenderStyle(
       if (source == null || !source.nameMatched) return null;
       // A generic's concrete Settings family needs nomination provenance; do
       // not substitute the generic keyword into a Fontconfig render query.
-      const entries = parseCssFontFamilyEntries(request.fontFamily);
-      for (const entry of entries) {
-        if (entry.type === "generic-family") return null;
-        const response = callGlyphHelper({
-          fonts: [],
-          queries: [{ type: "familyMatch", family: entry.name, cssWeight: request.fontWeight, italic: request.italic }],
-        }).results[0];
-        if (response?.type !== "familyMatch" || !response.found) continue;
-        if (response.path !== source.path || response.postscriptName !== font.postscriptName) return null;
-        if (response.weight == null || response.italic == null) return null;
-        family = entry.name;
-        bold = response.weight >= 600;
-        italic = response.italic;
-        break;
-      }
+      // A failed earlier direct match may still succeed through Blink's
+      // AlternateFontName route. Do not attribute its selected file to a
+      // later CSS family, whose Fontconfig rendering policy can differ.
+      const entry = parseCssFontFamilyEntries(request.fontFamily)[0];
+      if (entry == null || entry.type === "generic-family") return null;
+      const response = callGlyphHelper({
+        fonts: [],
+        queries: [{ type: "familyMatch", family: entry.name, cssWeight: request.fontWeight, italic: request.italic }],
+      }).results[0];
+      if (response?.type !== "familyMatch" || !response.found) return null;
+      if (response.path !== source.path || response.postscriptName !== font.postscriptName) return null;
+      if (response.weight == null || response.italic == null) return null;
+      family = entry.name;
+      bold = response.weight >= 600;
+      italic = response.italic;
       if (family == null) return null;
     }
     const result = callGlyphHelper({
