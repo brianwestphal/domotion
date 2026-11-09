@@ -77,12 +77,14 @@ import { Toolbar } from "@kerfjs/ui/toolbar";
 import { RefreshCw, TriangleAlert } from "lucide";
 import * as esbuild from "esbuild";
 
+import { resolveVisualOutputRoot, resolveReviewOutputRoot } from "./output-directory.mjs";
+
 // ── Paths ──
 
 // Anchor against this file's location so paths resolve correctly regardless
 // of cwd (running from the repo root or from inside tests/).
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_OUTPUT_DIR = resolve(TESTS_DIR, "output");
+const DEFAULT_OUTPUT_DIR = resolveVisualOutputRoot();
 const PROJECT_ROOT = resolve(TESTS_DIR, "..");
 const SETTINGS_PATH = resolve(PROJECT_ROOT, ".hotsheet/settings.json");
 const SECRET_PATH = resolve(PROJECT_ROOT, ".hotsheet/secret.json");
@@ -96,7 +98,8 @@ type SuiteName = "features" | "showcase" | "html-test" | "html-test-unicode" | "
 // self-contained OUTPUT_DIR-style root holding the same suite layout
 // (features-results.json, showcase-results.json, html-test/, html-test-unicode/,
 // real-world/). `local-macos` maps to the plain `tests/output/` the local suites
-// write to (overridable via REVIEW_OUTPUT_DIR, kept for back-compat / DM-1216);
+// write to (DOMOTION_OUTPUT_DIR redirects the suite root; REVIEW_OUTPUT_DIR
+// takes precedence for the local source, kept for back-compat / DM-1216);
 // the CI sources live under `tests/output/review/ci-<os>/`.
 interface Source {
   id: string;
@@ -109,10 +112,7 @@ const REVIEW_BASE =
   process.env.REVIEW_CI_BASE != null && process.env.REVIEW_CI_BASE !== ""
     ? resolve(process.env.REVIEW_CI_BASE)
     : resolve(DEFAULT_OUTPUT_DIR, "review");
-const LOCAL_MACOS_ROOT =
-  process.env.REVIEW_OUTPUT_DIR != null && process.env.REVIEW_OUTPUT_DIR !== ""
-    ? resolve(process.env.REVIEW_OUTPUT_DIR)
-    : DEFAULT_OUTPUT_DIR;
+const LOCAL_MACOS_ROOT = resolveReviewOutputRoot();
 const SOURCES: Source[] = [
   { id: "local-macos", label: "Local · macOS", root: LOCAL_MACOS_ROOT },
   { id: "ci-macos", label: "CI · macOS", root: resolve(REVIEW_BASE, "ci-macos") },

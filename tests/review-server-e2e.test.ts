@@ -116,6 +116,22 @@ describe("review-server async loading (DM-1665)", () => {
     mkdirSync(join(ciBase, "ci-macos", "html-test-unicode"), { recursive: true });
     const localOut = join(tmp, "local");
     mkdirSync(localOut, { recursive: true });
+    const realWorldOut = join(localOut, "real-world");
+    mkdirSync(realWorldOut);
+    writeFileSync(
+      join(realWorldOut, "results.json"),
+      JSON.stringify({
+        suite: "real-world",
+        results: [{ name: "output-root-fixture", pass: true, coveragePct: 0, regionCount: 0 }],
+      }),
+    );
+    writeFileSync(
+      join(realWorldOut, "output-root-fixture-actual.png"),
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ZkAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
     const unicodeOut = join(localOut, "html-test-unicode");
     mkdirSync(unicodeOut, { recursive: true });
     writeFileSync(join(unicodeOut, "results.json"), JSON.stringify([linuxCjkResult()]));
@@ -152,7 +168,8 @@ describe("review-server async loading (DM-1665)", () => {
         ...process.env,
         PATH: `${ghDir}:${process.env.PATH}`,
         REVIEW_CI_BASE: ciBase,
-        REVIEW_OUTPUT_DIR: localOut,
+        DOMOTION_OUTPUT_DIR: localOut,
+        REVIEW_OUTPUT_DIR: "",
         REVIEW_NO_OPEN: "1",
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -192,6 +209,16 @@ describe("review-server async loading (DM-1665)", () => {
     const html = await res.text();
     expect(res.status).toBe(200);
     expect(html).toContain('"sourceFetchNeeded":false');
+  });
+
+  it("reads real-world metadata and image bytes from the suite output override", async () => {
+    const response = await fetch(`${BASE}/?source=local-macos`);
+    expect(await response.text()).toContain('"name":"output-root-fixture"');
+    const image = await fetch(`${BASE}/img/local-macos/real-world/output-root-fixture-actual.png`);
+    expect(image.status).toBe(200);
+    expect(Buffer.from(await image.arrayBuffer())).toEqual(
+      readFileSync(join(tmp, "local/real-world/output-root-fixture-actual.png")),
+    );
   });
 
   it("reports malformed results instead of silently showing an empty or stale source", async () => {

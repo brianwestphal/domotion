@@ -59,10 +59,11 @@ import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
 import { captureRealWorldScrollReference } from "./real-world-scroll-reference.js";
+import { resolveVisualOutputRoot } from "./output-directory.mjs";
 import { planRealWorldScroll, scrollChunkSeekTimeMs, type RealWorldScrollPlan } from "./real-world-scroll-plan.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
-const OUTPUT_DIR = resolve(TESTS_DIR, "output/real-world");
+const OUTPUT_DIR = resolve(resolveVisualOutputRoot(), "real-world");
 // Persistent HTTP-Archive (HAR) cache. First run for a (site × viewport)
 // records every network request to disk; subsequent runs replay from the
 // HAR so the suite doesn't keep hammering real production sites. Wipe a

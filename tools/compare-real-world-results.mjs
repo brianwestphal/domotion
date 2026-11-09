@@ -1,13 +1,15 @@
 // Compare two real-world `results.json` snapshots and print per-fixture
 // diff. Used to evaluate the DM-1016 swap (capture before screenshot).
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { resolveVisualOutputRoot } from "../tests/output-directory.mjs";
 import { isMain, parseCommand, runMain } from "./lib/cli.mjs";
 
 async function main(argv) {
   const { positionals } = parseCommand(argv, {});
   if (positionals.length > 2) throw new Error("expected at most two results paths");
   const baselinePath = positionals[0] ?? "/tmp/baseline-results.json";
-  const newPath = positionals[1] ?? "tests/output/real-world/results.json";
+  const newPath = positionals[1] ?? resolve(resolveVisualOutputRoot(), "real-world/results.json");
 
   const baseline = JSON.parse(readFileSync(baselinePath, "utf-8")).results;
   const updated = JSON.parse(readFileSync(newPath, "utf-8")).results;
