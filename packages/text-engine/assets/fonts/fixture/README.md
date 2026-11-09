@@ -18,9 +18,12 @@ container), overlapping a known compressor break at 3712 px, so no single cap
 could both pass a correct build and fail a broken one. Pinning the fixtures to
 these files collapses the ceiling to one number everywhere.
 
-Consumed through `tests/fixture-fonts.ts` — never referenced by path from a
-test. See that module for the two-halves usage contract (page `@font-face` for
-Chrome's layout, `registerWebfont` for Domotion's outlines).
+Browser rendering fixtures consume these through `tests/fixture-fonts.ts`.
+See that module for the two-halves usage contract (page `@font-face` for
+Chrome's layout, `registerWebfont` for Domotion's outlines). The text-engine's
+`font-stack-availability.test.ts` opens the serif file directly through a
+controlled fontconfig answer to test real font loading without host fonts or
+fontconfig (DM-V6R5PM).
 
 ## Provenance
 
