@@ -27,6 +27,12 @@ import { hostPlatform } from "./host-platform.js";
 import { emptyFontRegistrations, restoreFontRegistrations, snapshotFontRegistrations } from "./webfont-registry.js";
 import { windowsNativeLineSpacing } from "./windows-font-metrics.js";
 
+import {
+  linuxFontRenderStyle,
+  type FontRenderHinting,
+  type LinuxFontRenderContext,
+} from "./linux-font-render-style.js";
+
 export interface IsolatedPrimaryFontRequest {
   /** The computed `font-family` list (empty for the initial standard family). */
   fontFamily: string;
@@ -38,6 +44,8 @@ export interface IsolatedPrimaryFontRequest {
   italic: boolean;
   /** The element's content language, when it has one. */
   lang?: string;
+  /** Browser/helper Fontconfig provenance; unknown preserves VDMX fallback. */
+  linuxFontRenderContext?: LinuxFontRenderContext;
 }
 
 /**
@@ -195,7 +203,13 @@ function linuxHintedHeights(font: FontInstance, fontSize: number): { x: number |
  * the helper's size-specific natural/GDI metrics. Older helpers retain the
  * exact-file fallback for ordinary faces; bitmap/unknown cases stay unresolved.
  */
-export function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
+export function normalLineSpacing(
+  font: FontInstance,
+  fontSize: number,
+  platform: string,
+  fontRenderHinting?: FontRenderHinting,
+  fontAutoHinting?: boolean,
+): number | null {
   if (platform !== "darwin" && platform !== "linux" && platform !== "win32") return null;
   if (platform === "darwin") {
     const native = darwinNormalLineSpacing(font, fontSize);
@@ -267,9 +281,15 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
   // Blink may retain subpixel ascent/descent instead of rounding at tiny sizes.
   if (rawAscent < 3 || rawAscent + rawDescent < 2) return null;
   let ascent = Math.round(rawAscent);
-  const descent = Math.round(rawDescent);
+  let descent = Math.round(rawDescent);
   const leading = Math.round(scaled(platform === "linux" ? Math.max(0, gapUnits) : gapUnits));
-  if (platform === "linux" && face.directory?.tables?.VDMX != null) {
+  if (
+    platform === "linux" &&
+    fontAutoHinting !== true &&
+    fontRenderHinting !== "none" &&
+    fontRenderHinting !== "slight" &&
+    face.directory?.tables?.VDMX != null
+  ) {
     const table = face.directory.tables.VDMX as { offset?: number; length?: number };
     const source = getFontSourceInfo(font);
     if (source == null || table.offset == null || table.length == null || table.length >= 1024 * 1024) return null;
@@ -277,11 +297,16 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
       const bytes = readFileSync(source.path).subarray(table.offset, table.offset + table.length);
       if (bytes.length !== table.length) return null;
       const strike = parseVdmxStrike(bytes, Math.floor(fontSize + 0.5));
-      // Chromium reads VDMX only with normal/full hinting. The image-root
-      // resolver has no browser launch flags, and our visual harness also
-      // runs Chromium with hinting=none. If the strike changes line spacing,
-      // neither answer is safe without that flag; leave it unresolved.
-      if (strike != null && strike[0] + strike[1] !== ascent + descent) return null;
+      // Blink's FontMetrics::AscentDescentWithHacks (7d859f27) selects
+      // VDMX only for normal/full bytecode hinting. The caller supplies an
+      // observed launch mode only when the browser uses that global style.
+      if (strike != null) {
+        if (fontAutoHinting === false && (fontRenderHinting === "medium" || fontRenderHinting === "full")) {
+          [ascent, descent] = strike;
+        } else if (strike[0] + strike[1] !== ascent + descent) {
+          return null;
+        }
+      }
     } catch {
       return null;
     }
@@ -453,12 +478,14 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
       const units = metricUnits(font, metric, platform, native, windowsOs2);
       return units == null ? null : (units / font.unitsPerEm) * request.fontSize;
     };
+    const linuxStyle =
+      platform === "linux" ? linuxFontRenderStyle(font, request, request.linuxFontRenderContext) : null;
     return {
       xHeight: (!linuxOs2X ? linuxHinted?.x : null) ?? px("x-height"),
       capHeight: (!linuxOs2Cap ? linuxHinted?.cap : null) ?? px("cap-height"),
       zeroWidth: px("zero"),
       ideographicAdvance: px("water"),
-      lineSpacing: normalLineSpacing(font, request.fontSize, platform),
+      lineSpacing: normalLineSpacing(font, request.fontSize, platform, linuxStyle?.hinting, linuxStyle?.forceAutoHint),
     };
   } finally {
     restoreFontRegistrations(saved);

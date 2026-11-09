@@ -268,3 +268,9 @@ plus controlled-healing browser passes.
 
 Search the [manifest](manifest.json) by stable ID or code path, then open only
 the handbook and current reference/evidence records relevant to the change.
+
+Linux isolated image-root line spacing reads observed launch provenance in
+`src/capture/image-font-hinting.ts` and queries the effective native style in
+`packages/text-engine/src/render/linux-font-render-style.ts`; the typed
+`fontRenderStyle` helper query distinguishes per-face Fontconfig from the
+single-process global preferences before selecting VDMX metrics.

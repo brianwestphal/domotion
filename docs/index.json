@@ -1231,6 +1231,7 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": [
           "DM-1034",
+          "DM-3AJ2DR",
           "DM-2056",
           "DM-2353",
           "DM-258",
@@ -1252,6 +1253,9 @@
           "DM-886"
         ],
         "code": [
+          "src/capture/image-font-hinting.ts",
+          "packages/text-engine/src/render/linux-font-render-style.ts",
+          "tests/image-svg-vdmx-hinting-linux.e2e.test.ts",
           ".github/workflows/release-helpers.yml",
           "packages/text-engine/src/render/glyph-helper.test.ts",
           "packages/text-engine/src/render/glyph-helper.ts",

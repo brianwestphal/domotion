@@ -100,6 +100,15 @@ export interface HelperRequest {
     | { type: "fcfallback"; lang: string; cps: number[] }
     | { type: "fcdiagnostic"; lang: string; cps: number[] }
     | { type: "systemfont" }
+    | {
+        type: "fontRenderStyle";
+        family?: string;
+        fontSizePx?: number;
+        bold?: boolean;
+        italic?: boolean;
+        deviceScaleFactor: number;
+        disableSubpixelPositioning: boolean;
+      }
   >;
 }
 // DM-1028: one shaped glyph from the CoreText `shape` query. Coordinates are
@@ -204,6 +213,13 @@ export interface HelperResponse {
     | { type: "fallback"; fonts: FallbackResponseEntry[] }
     | FamilyResponse
     | FamilyMatchResponse
+    | {
+        type: "fontRenderStyle";
+        hinting?: "none" | "slight" | "medium" | "full";
+        forceAutoHint?: boolean;
+        environment?: Record<string, string>;
+        error?: string;
+      }
     | { type: "shape"; glyphs?: ShapeResponseGlyph[]; error?: string }
     | {
         type: "fcfallback";

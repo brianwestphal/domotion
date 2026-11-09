@@ -120,7 +120,7 @@ export {
 } from "./render/icu-helper.js";
 export { profReset, profSnapshot } from "./render/render-profile.js";
 export { segmentForShaping } from "./render/script-segmentation.js";
-export { buildSfnt } from "./render/synth-test-fonts.js";
+export { buildSfnt, buildVdmxHintedFont } from "./render/synth-test-fonts.js";
 export { faceNeedsSyntheticBold, faceNeedsSyntheticOblique } from "./render/synthesis-decision.js";
 export {
   getFixtureTextRunProvenance,

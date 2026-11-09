@@ -99,6 +99,7 @@ const ROOT_FONT_PROPERTIES: ReadonlySet<string> = new Set([
   "font-optical-sizing",
   "writing-mode",
   "text-orientation",
+  "text-rendering",
 ]);
 const ROOT_RELEVANT_PROPERTIES: ReadonlySet<string> = new Set([...ROOT_TRANSFORM_PROPERTIES, ...ROOT_FONT_PROPERTIES]);
 const isRootRelevant = (name: string): boolean => ROOT_RELEVANT_PROPERTIES.has(name) || name.startsWith("--");

@@ -21,6 +21,7 @@
  * exactly one place.
  */
 
+import type { LinuxFontRenderContext } from "./font-resolution.js";
 import { esc, formatNumberLoose, r } from "./format.js";
 import {
   computeViewportMatrix,
@@ -506,6 +507,7 @@ const FLATTENED_ROOT_DROPPED_ATTRS = [
  *  attributes (`SVGElement::CssPropertyIdForSVGAttributeName`,
  *  `core/svg/svg_element.cc:349-354, 385`, chromium 7d859f27). */
 const FONT_PRESENTATION_ATTRIBUTES: ReadonlySet<string> = new Set([
+  "text-rendering",
   "font-family",
   "font-size",
   "font-stretch",
@@ -580,6 +582,7 @@ function imageRootTransform(
   fontUnresolved = false,
   viewport: { w: number; h: number } | null = null,
   registeredProperties: ReadonlySet<string> = new Set(),
+  fontRendering?: InlineSvgPlacement["fontRendering"],
 ): ResolvedImageRootTransform | null | "projective" {
   const tokens = parseSvgAttributes(attrs) ?? [];
   // The DOM value of an XML attribute: references expanded, whitespace
@@ -689,7 +692,7 @@ function imageRootTransform(
   };
   const metricUnits = fontUnresolved
     ? null
-    : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang"));
+    : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang"), fontRendering);
   let unavailableFontMetric = false;
   const resolved = resolveImageRootTransform(
     {
@@ -707,7 +710,10 @@ function imageRootTransform(
     box,
   );
   if (resolved !== "unsupported") return resolved;
-  if ((fontSize == null || unavailableFontMetric) && dynamicFont) {
+  const unresolvedTextRendering = !/^(?:|auto|initial|inherit|unset|revert)$/i.test(
+    fontDeclarations.get("text-rendering")?.trim() ?? "",
+  );
+  if ((fontSize == null || unavailableFontMetric) && (dynamicFont || unresolvedTextRendering)) {
     renderWarn(
       "svg-image-root-transform",
       `${slot} root transform depends on unresolved font data; retaining the image raster fallback`,
@@ -953,6 +959,8 @@ export interface InlineSvgPlacement {
   /** The image sheets' `@supports` answers, decided by the page's Chromium at
    *  capture (`CapturedElement.imageSvgSupports`); undecided when absent. */
   supportsConditions?: Readonly<Record<string, boolean>>;
+  /** Verified Chromium/Fontconfig context; absent remains conservative. */
+  fontRendering?: LinuxFontRenderContext;
 }
 
 /** The embedder-supplied part of the image document's media environment. */
@@ -1126,6 +1134,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     sheet.fontUnresolved,
     imageViewport(p),
     sheet.registeredProperties,
+    p.fontRendering,
   );
   if (rootTransform === "projective") return null;
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
@@ -1354,6 +1363,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     sheet.fontUnresolved,
     imageViewport(p),
     sheet.registeredProperties,
+    p.fontRendering,
   );
   if (rootTransform === "projective") return null;
   if (rootOverflowVisible(attrs)) {

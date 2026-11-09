@@ -23,7 +23,7 @@
  * `line-height: normal` uses the primary face's LineSpacing when its native
  * metrics can be reproduced; otherwise it remains unresolved.
  */
-import { isolatedPrimaryFontMetrics } from "./font-resolution.js";
+import { isolatedPrimaryFontMetrics, type LinuxFontRenderContext } from "./font-resolution.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 
 /** The root's font declarations, attribute and inline style merged (style wins). */
@@ -142,6 +142,7 @@ export function imageRootFontMetricUnits(
   declarations: ImageRootFontDeclarations,
   fontSize: number | null,
   lang: string | null,
+  linuxFontRenderContext?: LinuxFontRenderContext,
 ): ((unit: string) => number | null) | null {
   if (fontSize == null || !(fontSize > 0)) return null;
   for (const name of UNSUPPORTED_FONT_PROPERTIES) {
@@ -166,12 +167,18 @@ export function imageRootFontMetricUnits(
   let resolved: ReturnType<typeof isolatedPrimaryFontMetrics> | undefined;
   const metrics = (): ReturnType<typeof isolatedPrimaryFontMetrics> => {
     if (!isInitial(declarations.get("font-variant-caps"))) return null;
+    // FontPlatformData::QuerySystemRenderStyle disables hinting for
+    // geometricPrecision (7d859f27:249-257). The native Fontconfig query
+    // cannot stand in for that root style. Preserve explicit lh lengths.
+    const rendering = declarations.get("text-rendering")?.trim().toLowerCase() ?? "";
+    if (!isInitial(rendering) && rendering !== "auto") return null;
     if (resolved === undefined) {
       resolved = isolatedPrimaryFontMetrics({
         fontFamily,
         fontSize,
         fontWeight: weight,
         italic,
+        ...(linuxFontRenderContext != null ? { linuxFontRenderContext } : {}),
         ...(lang != null && lang !== "" ? { lang } : {}),
       });
     }

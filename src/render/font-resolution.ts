@@ -28,4 +28,7 @@ export {
   truncateGlyphDefs,
   withRenderTextMode,
   isolatedPrimaryFontMetrics,
+  linuxFontEnvironmentKey,
+  type FontRenderHinting,
+  type LinuxFontRenderContext,
 } from "@domotion/text-engine/font-resolution";

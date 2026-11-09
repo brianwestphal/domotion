@@ -31,6 +31,7 @@ import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../t
 import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { withRenderWarningSink } from "../render/render-warn.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
+import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
 import { registerLocalFontAlias, registerWebfont } from "../render/font-resolution.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
@@ -257,7 +258,7 @@ export async function launchChromium(opts?: LaunchChromiumOptions): Promise<Brow
   // need a headed diagnostic must opt into `headless: false` explicitly.
   const launchOptions: LaunchOptions = { headless: true, ...playwrightOptions };
   try {
-    return await chromium.launch(launchOptions);
+    return recordBrowserFontEnvironment(await chromium.launch(launchOptions), launchOptions.env ?? process.env);
   } catch (err) {
     if (!isMissingBrowserError(err)) throw err;
     if (!autoInstall) {
@@ -270,7 +271,7 @@ export async function launchChromium(opts?: LaunchChromiumOptions): Promise<Brow
 
     console.error("[domotion] Chromium binary not found — installing via 'npx playwright install chromium'…");
     await installPlaywrightChromium();
-    return chromium.launch(launchOptions);
+    return recordBrowserFontEnvironment(await chromium.launch(launchOptions), launchOptions.env ?? process.env);
   }
 }
 
@@ -2339,6 +2340,7 @@ async function captureElementTreeWithWarningsInternal(
       await rasterizeAdvancedGradients(typed.tree, page);
       await captureImageDocumentSettings(page, typed.tree);
       await captureImageSvgSupports(page, typed.tree);
+      await captureImageFontHinting(page, typed.tree);
       if (sessionGenericFamilies != null) {
         const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
         for (const root of typed.tree) root.sessionGenericFamilies = captured;
