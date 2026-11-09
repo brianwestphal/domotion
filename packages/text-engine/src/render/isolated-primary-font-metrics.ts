@@ -65,11 +65,12 @@ type Metric = "x-height" | "cap-height" | "zero" | "water";
  * font_metrics.cc:102-144, Chromium 7d859f27; SkScalerContext_mac_ct.cpp:
  * 688-691, Skia 62efacd3). A helper-only face has no hhea answer here.
  * Linux FreeType uses OS/2 typo metrics when USE_TYPO_METRICS is set, otherwise
- * hhea; Blink can replace ascent/descent with a VDMX strike. Windows'
- * DirectWrite metrics remain unresolved.
+ * hhea; Blink can replace ascent/descent with a VDMX strike. Windows' natural
+ * DirectWrite metrics agree with hhea for file-backed ordinary faces. Faces
+ * that may take GDI-compatible bitmap metrics remain unresolved here.
  */
 export function normalLineSpacing(font: FontInstance, fontSize: number, platform: string): number | null {
-  if (platform !== "darwin" && platform !== "linux") return null;
+  if (platform !== "darwin" && platform !== "linux" && platform !== "win32") return null;
   const face = font as FontInstance & {
     lineGap?: number;
     familyName?: string;
@@ -82,6 +83,28 @@ export function normalLineSpacing(font: FontInstance, fontSize: number, platform
     };
   };
   const os2 = face["OS/2"];
+  if (platform === "win32") {
+    // SkScalerContext_DW::generateFontMetrics selects GDI-compatible metrics
+    // for bitmap-backed text. Its size-specific answer is not in fontkit's
+    // hhea fields. Older native helpers also omit lineGap, so keep null.
+    const tables = face.directory?.tables;
+    if (tables == null || tables.EBLC != null || tables.CBLC != null || tables.CBDT != null || tables.sbix != null) {
+      return null;
+    }
+    // DirectWrite may prefer OS/2 typo metrics for USE_TYPO_METRICS. When the
+    // values differ from hhea, the native answer needs a DirectWrite query.
+    const useTypoMetrics =
+      os2?.version !== 0xffff &&
+      (typeof os2?.fsSelection === "number"
+        ? (os2.fsSelection & 0x80) !== 0
+        : os2?.fsSelection?.useTypoMetrics === true);
+    if (
+      useTypoMetrics &&
+      (os2?.typoAscender !== face.ascent || os2?.typoDescender !== face.descent || os2?.typoLineGap !== face.lineGap)
+    ) {
+      return null;
+    }
+  }
   const useTypo =
     platform === "linux" &&
     os2?.version !== 0xffff &&

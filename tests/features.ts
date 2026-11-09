@@ -1218,7 +1218,7 @@ export const tests: FeatureTest[] = [
     width: 420,
     height: 140,
   },
-  ...(process.platform === "darwin" || process.platform === "linux"
+  ...(process.platform === "darwin" || process.platform === "linux" || process.platform === "win32"
     ? [
         {
           // The root's primary font gives normal lh/rlh via platform metrics,

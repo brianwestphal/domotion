@@ -39,3 +39,33 @@ describe("Linux normal line spacing", () => {
     expect(parseVdmxStrike(bytes, 12)).toBeNull();
   });
 });
+
+describe("Windows normal line spacing", () => {
+  const face = {
+    unitsPerEm: 2048,
+    ascent: 1854,
+    descent: -434,
+    lineGap: 67,
+    directory: { tables: { hhea: {} } },
+  } as unknown as FontInstance;
+
+  it("matches DirectWrite natural metrics for a file-backed face", () => {
+    expect(normalLineSpacing(face, 16, "win32")).toBe(18);
+  });
+
+  it("leaves bitmap and divergent OS/2 typo metrics unresolved", () => {
+    const bitmap = { ...face, directory: { tables: { EBLC: {} } } } as FontInstance;
+    expect(normalLineSpacing(bitmap, 16, "win32")).toBeNull();
+    const typo = {
+      ...face,
+      "OS/2": {
+        version: 4,
+        fsSelection: { useTypoMetrics: true },
+        typoAscender: 1600,
+        typoDescender: -400,
+        typoLineGap: 100,
+      },
+    } as FontInstance;
+    expect(normalLineSpacing(typo, 16, "win32")).toBeNull();
+  });
+});
