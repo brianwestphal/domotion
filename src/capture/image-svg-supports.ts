@@ -21,6 +21,7 @@ import type { Page } from "@playwright/test";
 import { resolveSvgSource } from "./embed.js";
 import type { CapturedElement } from "./types.js";
 import { collectImageSupportsConditions, type ImageSupportsCondition } from "../render/svg-image-supports.js";
+import { resolveSvgImageCssImports } from "../render/svg-image-css-import.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 
 export async function captureImageSvgSupports(page: Page, tree: CapturedElement[]): Promise<void> {
@@ -29,7 +30,9 @@ export async function captureImageSvgSupports(page: Page, tree: CapturedElement[
     if (el.imageSrc == null || el.imageSvgSupports != null) return;
     const svg = resolveSvgSource(el.imageSrc);
     if (svg == null) return;
-    const conditions = collectImageSupportsConditions(svg);
+    const expanded = resolveSvgImageCssImports(svg);
+    if (expanded == null) return;
+    const conditions = collectImageSupportsConditions(expanded);
     if (conditions.length > 0) pending.push({ el, conditions });
   });
   if (pending.length === 0) return;

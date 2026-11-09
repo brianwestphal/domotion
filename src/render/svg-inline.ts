@@ -40,6 +40,7 @@ import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.
 import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits } from "./svg-image-root-font.js";
+import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
@@ -975,9 +976,11 @@ function resolveDocumentViewport(
  * any zoom.
  */
 export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
-  const tag = readSvgOpeningTag(sourceText);
+  const imageSource = resolveSvgImageCssImports(sourceText);
+  if (imageSource == null) return null;
+  const tag = readSvgOpeningTag(imageSource);
   if (tag == null) return null;
-  const sheet = rootSheetTransform(sourceText, tag, p);
+  const sheet = rootSheetTransform(imageSource, tag, p);
   const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
   const rewrittenTag = readSvgOpeningTag(svgText);
   if (rewrittenTag == null) return null;

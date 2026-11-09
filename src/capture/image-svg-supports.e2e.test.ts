@@ -24,6 +24,26 @@ const svg =
   `</style><rect width="10" height="10"/></svg>`;
 
 describe("captureImageSvgSupports", () => {
+  it("records conditions from a data-imported image stylesheet", async () => {
+    const imported = `@supports (display: grid) { rect { fill: red } }`;
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><style>@import url("data:text/css,${encodeURIComponent(imported)}") supports(display: block);</style><rect width="10" height="10"/></svg>`;
+    const page = await browser.newPage({ viewport: { width: 100, height: 100 } });
+    try {
+      await page.setContent(
+        `<body><img src="data:image/svg+xml,${encodeURIComponent(source)}" width="50" height="50"></body>`,
+      );
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 100, height: 100 });
+      const imgs: CapturedElement[] = [];
+      forEachElement(tree, (el) => {
+        if (el.tag === "img") imgs.push(el);
+      });
+      expect(imgs).toHaveLength(1);
+      expect(imgs[0].imageSvgSupports).toEqual({ "(display: block)": true, "(display: grid)": true });
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
   it("records the page's answer for every @supports prelude of an <img> SVG", async () => {
     const page = await browser.newPage({ viewport: { width: 200, height: 100 }, deviceScaleFactor: 1 });
     try {
