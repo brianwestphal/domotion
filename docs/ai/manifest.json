@@ -297,6 +297,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/capture/replaced-element-raster.ts",
+        "src/capture/webgl-output-freeze.ts",
+        "src/capture/webgl-output-freeze.e2e.test.ts",
         "src/capture/replaced-element-raster.test.ts",
         "src/capture/replaced-media-frame.test.ts",
         "src/capture/replaced-media-frame.ts",

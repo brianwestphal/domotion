@@ -43,6 +43,7 @@ import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
 import { prepareFrameScrollCapture } from "./frame-scroll-state.js";
+import { freezeWebGlOutputForCapture, type WebGlOutputFreeze } from "./webgl-output-freeze.js";
 import {
   assertGenericFamilyTargetConsistency,
   ensureSessionGenericFamilyOverrides,
@@ -2089,7 +2090,13 @@ async function captureElementTreeWithWarningsInternal(
     }
   };
   let replacedMediaTransaction: ReplacedMediaFrameTransaction | undefined;
+  let webGlFreeze: WebGlOutputFreeze | undefined;
   try {
+    // A live screenshot presents the current WebGL frame before the replaced
+    // media transaction and many CDP probes. Muting only WebGL paint calls
+    // avoids software readback on later commits. The outer finally restores
+    // drawing before another animation frame is sought.
+    webGlFreeze = await freezeWebGlOutputForCapture(page);
     if (animationFrameState != null && rafClockState != null) {
       if (opts?.rasterizeFromImagePath != null) {
         throw new Error("atomic replaced-media capture cannot authenticate an external source image");
@@ -2251,6 +2258,14 @@ async function captureElementTreeWithWarningsInternal(
       warnings.push(...(collapsedBorderFragmentProbe?.warnings ?? []));
       warnings.push(...(pseudoFragmentProbe?.warnings ?? []));
       warnings.push(...(textPaintProbe?.warnings ?? []));
+      if (webGlFreeze != null && webGlFreeze.failedFrames > 0) {
+        warnings.push({
+          selector,
+          feature: "WebGL capture freeze",
+          detail: `${webGlFreeze.failedFrames} canvas-bearing frame(s) could not pause WebGL draws; subsequent raster samples may drift and software readback may remain slow`,
+          status: "partial",
+        });
+      }
       const frameScrollState = await frameScrollCapture.snapshot();
       warnings.push(...frameScrollCapture.warnings);
       warnings.push(...genericProbeWarnings);
@@ -2341,7 +2356,11 @@ async function captureElementTreeWithWarningsInternal(
       await disposeAll(frameScrollCapture, pseudoStyles, projectiveProbe, textPaintProbe);
     }
   } finally {
-    await replacedMediaTransaction?.dispose();
+    try {
+      await replacedMediaTransaction?.dispose();
+    } finally {
+      await webGlFreeze?.dispose();
+    }
   }
 }
 

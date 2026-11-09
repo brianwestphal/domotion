@@ -1,5 +1,6 @@
 import type { Frame, Page } from "@playwright/test";
 import { evaluateInFrame } from "../src/capture/evaluate-in-frame.js";
+import { WEBGL_PAINT_METHODS } from "../src/capture/webgl-output-freeze.js";
 
 /**
  * Stop a real-world page's WebGL canvases from producing new frames once the
@@ -45,39 +46,6 @@ import { evaluateInFrame } from "../src/capture/evaluate-in-frame.js";
 
 const FREEZE_KEY = "__domotionRealWorldWebGlFrozen";
 
-/** Every method that marks a WebGL canvas changed, by interface name. */
-const CANVAS_CHANGING_METHODS: Record<string, readonly string[]> = {
-  WebGLRenderingContext: ["clear", "drawArrays", "drawElements"],
-  WebGL2RenderingContext: [
-    "clear",
-    "drawArrays",
-    "drawElements",
-    "drawArraysInstanced",
-    "drawElementsInstanced",
-    "drawRangeElements",
-    "blitFramebuffer",
-    "clearBufferfv",
-    "clearBufferiv",
-    "clearBufferuiv",
-    "clearBufferfi",
-  ],
-  ANGLEInstancedArrays: ["drawArraysInstancedANGLE", "drawElementsInstancedANGLE"],
-  WebGLMultiDraw: [
-    "multiDrawArraysWEBGL",
-    "multiDrawElementsWEBGL",
-    "multiDrawArraysInstancedWEBGL",
-    "multiDrawElementsInstancedWEBGL",
-  ],
-  WebGLDrawInstancedBaseVertexBaseInstance: [
-    "drawArraysInstancedBaseInstanceWEBGL",
-    "drawElementsInstancedBaseVertexBaseInstanceWEBGL",
-  ],
-  WebGLMultiDrawInstancedBaseVertexBaseInstance: [
-    "multiDrawArraysInstancedBaseInstanceWEBGL",
-    "multiDrawElementsInstancedBaseVertexBaseInstanceWEBGL",
-  ],
-};
-
 export interface WebGlFreezeResult {
   /** Frames whose WebGL prototypes were patched. */
   frozenFrames: number;
@@ -116,7 +84,7 @@ async function freezeFrame(frame: Frame): Promise<boolean> {
       Object.defineProperty(scope, key, { value: true, configurable: true });
       return true;
     },
-    { key: FREEZE_KEY, methods: CANVAS_CHANGING_METHODS },
+    { key: FREEZE_KEY, methods: WEBGL_PAINT_METHODS },
   ).catch(() => false);
   const result = await Promise.race([patched, timeout]);
   clearTimeout(timer);

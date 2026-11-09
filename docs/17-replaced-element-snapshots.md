@@ -5,10 +5,12 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG"]
+tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE"]
 code:
   [
     "src/capture/replaced-element-raster.ts",
+    "src/capture/webgl-output-freeze.ts",
+    "src/capture/webgl-output-freeze.e2e.test.ts",
     "src/capture/replaced-element-raster.test.ts",
     "src/capture/replaced-media-frame.test.ts",
     "src/capture/replaced-media-frame.ts",
@@ -38,6 +40,8 @@ Pre-DM-457 behavior: CAPTURE_SCRIPT logged a `<canvas>` / `<video>` / `<iframe>`
 For each `<canvas>` / `<video>` / `<iframe>` / `<object>` / `<embed>` element captured at t=0, embed a Playwright `page.screenshot` of the element's rendered pixels as an `<image>` inside the SVG, positioned at the element's content-box rect. The source bitmap and destination geometry must be expressed in the same transform space: affine rotation/skew is removed while Chromium samples the local surface and is applied once by the existing SVG transform wrapper; pure scale/translation remains baked; projective paint belongs to the outer `transformSubtreeRaster` surface.
 
 The result is pixel-faithful at t=0 to whatever Chromium painted in that element's content area. Live playback (canvas redraw, video playback, iframe scroll, etc.) remains out of scope — this is a static frame, the same as every other domotion capture.
+
+Production capture takes one live screenshot before temporarily muting WebGL drawing methods on canvas-bearing frames. This gives Chromium a presented canvas frame before the CDP and raster passes, then avoids repeated software readback while the rest of the tree is captured. The exact prototype methods are restored when capture ends, including on errors, so a later animation frame can draw again. Frames that cannot be paused add a partial capture warning.
 
 The pre-existing capture warning is **kept**. These element types are still outside the spirit of the rendering contract (they aren't being reproduced from CSS / DOM); the snapshot exists only to avoid ugly holes in real-world captures, and consumers should know they got a frozen raster, not a faithful re-render.
 

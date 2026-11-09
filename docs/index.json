@@ -570,9 +570,11 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG"],
+        "tickets": ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE"],
         "code": [
           "src/capture/replaced-element-raster.ts",
+          "src/capture/webgl-output-freeze.ts",
+          "src/capture/webgl-output-freeze.e2e.test.ts",
           "src/capture/replaced-element-raster.test.ts",
           "src/capture/replaced-media-frame.test.ts",
           "src/capture/replaced-media-frame.ts",
