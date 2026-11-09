@@ -47,6 +47,9 @@ export type FontkitNameRecord = string | Record<string, string | undefined>;
 
 /** The `OS/2` fields read here. fontkit parses `fsSelection` as a bitfield object (older builds: a number). */
 export interface FontkitOs2Table {
+  version?: number;
+  xHeight?: number;
+  capHeight?: number;
   usWeightClass?: number;
   fsSelection?: number | { bold?: boolean; italic?: boolean; regular?: boolean };
   yStrikeoutPosition?: number;

@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { resolveFont } from "./family-match.js";
 import { getFontSourceInfo, type FontInstance } from "./font-instance.js";
 import { callGlyphHelper, isGlyphHelperAvailable } from "./glyph-helper-transport.js";
+import { fontkit, isFontkitCollection } from "./fontkit-facade.js";
 import { ITALIC_SLNT } from "./font-paths.darwin.js";
 import { hostPlatform } from "./host-platform.js";
 import { emptyFontRegistrations, restoreFontRegistrations, snapshotFontRegistrations } from "./webfont-registry.js";
@@ -257,6 +258,27 @@ interface Os2Heights {
   capHeight?: number;
 }
 
+/** The Windows helper reports DirectWrite outlines/advances but its current
+ * metadata omits OS/2 xHeight/capHeight. Reopen the exact selected physical
+ * face for those table values. A variable instance or unknown TTC member has
+ * no safe file-table substitute for DirectWrite's live metrics. */
+function windowsFileOs2Heights(font: FontInstance): Os2Heights | null {
+  const direct = (font as { "OS/2"?: Os2Heights })["OS/2"];
+  if (direct?.version != null) return direct;
+  const source = getFontSourceInfo(font);
+  if (source == null || source.nameMatched === false || source.faceIndex == null || source.variationAxes != null) {
+    return null;
+  }
+  try {
+    const opened = fontkit.openSync(source.path);
+    const face = isFontkitCollection(opened) ? opened.fonts[source.faceIndex] : source.faceIndex === 0 ? opened : null;
+    if (face == null || (source.postscriptName != null && face.postscriptName !== source.postscriptName)) return null;
+    return face["OS/2"] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * One metric in font units, transcribed from the platform's Skia scaler at
  * the revision chromium 7d859f27 pins (skia 62efacd3):
@@ -281,7 +303,8 @@ function metricUnits(
   font: FontInstance,
   metric: Metric,
   platform: string,
-  native?: NativeMacMetrics | null,
+  native: NativeMacMetrics | null,
+  windowsOs2: Os2Heights | null,
 ): number | null {
   const glyph = (codePoint: number) => {
     const found = font.glyphForCodePoint(codePoint) as {
@@ -293,7 +316,7 @@ function metricUnits(
   };
   const positive = (n: number | undefined): number | null =>
     n != null && Number.isFinite(n) && n > 0 && n < 2 * font.unitsPerEm ? n : null;
-  const os2 = (font as { "OS/2"?: Os2Heights })["OS/2"];
+  const os2 = platform === "win32" ? windowsOs2 : (font as { "OS/2"?: Os2Heights })["OS/2"];
   const v2 = os2 != null && os2.version != null && os2.version >= 2 && os2.version !== 0xffff;
   switch (metric) {
     case "x-height":
@@ -333,8 +356,9 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
     if (!(font.unitsPerEm > 0)) return null;
     const platform = hostPlatform();
     const native = platform === "darwin" ? nativeMacMetrics(font) : null;
+    const windowsOs2 = platform === "win32" ? windowsFileOs2Heights(font) : null;
     const px = (metric: Metric): number | null => {
-      const units = metricUnits(font, metric, platform, native);
+      const units = metricUnits(font, metric, platform, native, windowsOs2);
       return units == null ? null : (units / font.unitsPerEm) * request.fontSize;
     };
     return {

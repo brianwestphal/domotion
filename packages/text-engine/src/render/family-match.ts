@@ -1462,8 +1462,8 @@ function resolveLinuxNominatedFamilyKey(candidate: FamilyCandidate): FamilyStage
  */
 function resolveCalibratedMonospaceFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
   const { name, generic } = candidate;
-  // The capture harness's `monospace` resolves to Courier because PLAYWRIGHT
-  // says so, not Chromium. Identified end-to-end (previously "unidentified"):
+  // The macOS capture harness's `monospace` resolves to Courier because
+  // PLAYWRIGHT says so, not Chromium. Identified end-to-end (previously "unidentified"):
   // Playwright applies its own vendored per-platform generic-family table to
   // every non-headful page via CDP `Page.setFontFamilies`
   // (`playwright-core/lib/server/chromium/crPage.js`,
@@ -1517,7 +1517,11 @@ function resolveCalibratedMonospaceFamilyKey(candidate: FamilyCandidate): Family
   // Mono). Chrome falls through to the standard-font default (Times). It
   // intentionally falls through here so the last-resort `times` mapping
   // at the bottom catches it.
-  if ((generic && name === "monospace") || name === "courier") return "courier";
+  // Playwright's Windows fixed-family setting is Consolas. The calibrated
+  // `menlo` key points at consola.ttf on Windows; this branch is for the
+  // generic keyword only, so a literal missing Menlo still walks onward.
+  if (generic && name === "monospace") return hostPlatform() === "win32" ? "menlo" : "courier";
+  if (name === "courier") return "courier";
   // `Courier New` is its own installed face (Supplemental on macOS, cour.ttf
   // on Windows, fontconfig's Liberation Mono metric substitute on Linux) and
   // Chrome resolves the name DIRECTLY when the lookup succeeds. The Courier
