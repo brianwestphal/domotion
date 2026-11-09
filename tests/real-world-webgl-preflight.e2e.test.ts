@@ -46,7 +46,7 @@ describe("offscreen WebGL preflight", () => {
       expect(await primeOffscreenCanvases(page)).toEqual({ primed: 1, failed: 0, skipped: 0 });
       expect(await page.evaluate(() => window.scrollY)).toBe(123);
       expect(await page.evaluate(() => (window as unknown as { loops_: number }).loops_)).toBeGreaterThan(loopsBefore);
-      expect(await freezeWebGlOutput(page)).toEqual({ frozenFrames: 1, failedFrames: 0 });
+      expect(await freezeWebGlOutput(page)).toMatchObject({ frozenFrames: 1, failedFrames: 0 });
       await page.evaluate(() => document.getElementById("far")!.scrollIntoView());
       expect(await centerPixel(page)).toEqual([255, 0, 0]);
     } finally {
