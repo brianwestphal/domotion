@@ -2778,19 +2778,19 @@ describe("resolveFontForCodepoint: unified family-walk loop (DM-1083)", () => {
 
   it.skipIf(!MACOS_FONTS)("covers strictly MORE 2F800 cells than the run's primary font alone supplies", () => {
     // The family-walk's whole point: cells the primary (Hiragino) can't supply
-    // get picked up from later-declared families / OS fallback, so total coverage
-    // must strictly exceed what resolves to the primary's own key.
+    // get picked up from later-declared families / OS fallback. One such cell
+    // proves coverage strictly exceeds the primary's; stop once found so this
+    // test does not spend 256 native-helper queries proving the same fact.
     const primaryKey = resolveFontKey(FIXTURE_STACK);
-    let covered = 0;
-    let primarySupplied = 0;
+    let nonPrimaryCell: number | null = null;
     for (let cp = 0x2f800; cp <= 0x2f8ff; cp++) {
       const r = __resolveFontForCodepointForTest(cp, FIXTURE_STACK);
-      if (r?.covered) {
-        covered++;
-        if (r.key === primaryKey) primarySupplied++;
+      if (r?.covered && r.key !== primaryKey) {
+        nonPrimaryCell = cp;
+        break;
       }
     }
-    expect(covered).toBeGreaterThan(primarySupplied);
+    expect(nonPrimaryCell).not.toBeNull();
   });
 
   it.skipIf(!MACOS_FONTS)(
