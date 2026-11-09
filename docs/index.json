@@ -1700,9 +1700,14 @@
           "DM-ZMS0TB",
           "DM-4S3VQH",
           "DM-S9S3WG",
-          "DM-34WC46"
+          "DM-34WC46",
+          "DM-MBRZBH"
         ],
         "code": [
+          "tests/real-world-browser.ts",
+          "tests/real-world-cdp.ts",
+          "tests/real-world-shared-worker-bootstrap.ts",
+          "tools/check-worker-bootstrap-report.ts",
           ".github/workflows/fast-visual-tests.yml",
           ".github/workflows/visual-tests.yml",
           "scripts/ci-baseline-aggregate.mjs",

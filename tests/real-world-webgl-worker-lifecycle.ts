@@ -1,4 +1,5 @@
 import type { CDPSession, Page } from "@playwright/test";
+import { sharedWorkerBootstrapFor } from "./real-world-shared-worker-bootstrap.js";
 import { detachQuietly } from "../src/capture/cdp-lifecycle.js";
 
 interface TargetInfo {
@@ -131,6 +132,8 @@ export async function freezeWorkerLifecycle(
     counters.failedWorkers++;
     return { dispose: async () => undefined };
   }
+  const managedShared = sharedWorkerBootstrapFor(browser);
+  let managedLease: { dispose(): Promise<void> } | undefined;
   let related: CDPSession | undefined,
     shared: CDPSession | undefined,
     transportSession: CDPSession | undefined,
@@ -188,8 +191,9 @@ export async function freezeWorkerLifecycle(
         sessionId: secondary,
         targetId: event.targetInfo.targetId,
       });
-      if (event.targetInfo.type === "shared_worker") {
-        // Include any dedicated descendants a SharedWorker creates later.
+      if (event.targetInfo.type === "worker") {
+        // Dedicated workers can create nested workers. Register their child
+        // scope before module execution; SharedWorker does not expose Worker.
         await bounded(
           related!.send("Target.autoAttachRelated", {
             targetId: event.targetInfo.targetId,
@@ -249,6 +253,7 @@ export async function freezeWorkerLifecycle(
   const dispose = (): Promise<void> =>
     (disposePromise ??= (async () => {
       closing = true;
+      await managedLease?.dispose();
       if (related != null)
         await bounded(
           related.send("Target.setAutoAttach", { autoAttach: false, waitForDebuggerOnStart: false, flatten: true }),
@@ -308,7 +313,7 @@ export async function freezeWorkerLifecycle(
     pageSession = await acquireSession(page.context().newCDPSession(page));
     const { targetInfo } = await bounded(pageSession.send("Target.getTargetInfo"));
     related = await acquireSession(browser.newBrowserCDPSession());
-    shared = await acquireSession(browser.newBrowserCDPSession());
+    if (managedShared == null) shared = await acquireSession(browser.newBrowserCDPSession());
     transportSession = await acquireSession(browser.newBrowserCDPSession());
     wire = new WorkerCommandTransport(transportSession);
     transportSession.on("Target.receivedMessageFromTarget", wire.receive);
@@ -329,13 +334,15 @@ export async function freezeWorkerLifecycle(
       }
     };
     related.on("Target.attachedToTarget", onRelated);
-    shared.on("Target.attachedToTarget", onShared);
-    shared.on("Target.detachedFromTarget", onPrimaryDetached);
+    shared?.on("Target.attachedToTarget", onShared);
+    shared?.on("Target.detachedFromTarget", onPrimaryDetached);
     related.on("Target.detachedFromTarget", onPrimaryDetached);
-    const { targetInfos } = await bounded(shared.send("Target.getTargets"));
-    for (const target of targetInfos) {
-      if (target.type === "shared_worker" && target.browserContextId === targetInfo.browserContextId)
-        existingShared.add(target.targetId);
+    if (shared != null) {
+      const { targetInfos } = await bounded(shared.send("Target.getTargets"));
+      for (const target of targetInfos) {
+        if (target.type === "shared_worker" && target.browserContextId === targetInfo.browserContextId)
+          existingShared.add(target.targetId);
+      }
     }
     await bounded(
       related.send("Target.autoAttachRelated", {
@@ -344,17 +351,26 @@ export async function freezeWorkerLifecycle(
         filter: FILTER_WORKERS,
       }),
     );
-    await bounded(
-      shared.send("Target.setAutoAttach", {
-        autoAttach: true,
-        // Public Playwright cannot address this flat session's own startup
-        // throttle. Do not introduce a wait that a restarted SharedWorker may
-        // never release. Strict startup is tracked by DM-34WC46.
-        waitForDebuggerOnStart: false,
-        flatten: true,
-        filter: FILTER_SHARED,
-      }),
-    );
+    if (managedShared != null) {
+      if (targetInfo.browserContextId == null) throw new Error("Cannot identify frozen SharedWorker browser context");
+      managedLease = await managedShared.acquire(
+        targetInfo.browserContextId,
+        expressions,
+        counters,
+        () => contextClosed,
+      );
+    } else {
+      await bounded(
+        shared!.send("Target.setAutoAttach", {
+          autoAttach: true,
+          // Unmanaged Playwright browsers independently resume SharedWorkers.
+          // Preserve the explicitly partial prototype-only fallback.
+          waitForDebuggerOnStart: false,
+          flatten: true,
+          filter: FILTER_SHARED,
+        }),
+      );
+    }
     await Promise.allSettled([...tasks]);
     await bounded(detachQuietly(pageSession)).catch(() => undefined);
     pageSession = undefined;

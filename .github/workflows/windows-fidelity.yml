@@ -45,6 +45,10 @@ on:
   # the repo's GitHub settings and cannot be done from this file.
   workflow_dispatch:
     inputs:
+      worker_bootstrap_only:
+        description: "Run focused worker startup/transport diagnostics instead of full fidelity"
+        type: boolean
+        default: false
       arm64_family_match:
         description: "Record a hosted Windows 11 Arm64 family-match candidate only"
         type: boolean
@@ -56,7 +60,7 @@ env:
 
 jobs:
   font-width-probe:
-    if: ${{ !inputs.arm64_family_match }}
+    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +80,7 @@ jobs:
           if-no-files-found: error
 
   regression:
-    if: ${{ !inputs.arm64_family_match }}
+    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     # DM-1405: distinct check-run name (see test-linux.yml) so this Windows gate
     # is a separately-required status check from the Linux one.
     name: Windows fidelity regression
@@ -131,7 +135,7 @@ jobs:
           if-no-files-found: error
 
   decoration-geometry:
-    if: ${{ !inputs.arm64_family_match }}
+    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     name: Windows decoration geometry
     runs-on: windows-latest
     steps:
@@ -187,7 +191,7 @@ jobs:
   # the job. Numbers from this runner say nothing about desktop Windows 11 —
   # each environment is judged only against itself.
   family-match:
-    if: ${{ !inputs.arm64_family_match }}
+    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     name: Windows family-match conformance
     runs-on: windows-latest
     steps:
@@ -227,7 +231,7 @@ jobs:
   # This hosted desktop Arm64 runner has its own environment fingerprint. A new
   # image records a candidate; a matching committed entry gates regressions.
   family-match-arm64-hosted:
-    if: ${{ inputs.arm64_family_match }}
+    if: ${{ inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     name: Windows 11 Arm64 hosted family-match conformance
     runs-on: windows-11-arm
     steps:
@@ -272,7 +276,7 @@ jobs:
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
-    if: ${{ !inputs.arm64_family_match }}
+    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -309,7 +313,7 @@ jobs:
   # committed table on real desktop Windows 11 (run `tools/probe-983-sweep.mjs`
   # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
   font-routing-sweep:
-    if: ${{ !inputs.arm64_family_match }}
+    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -337,7 +341,7 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
-    if: ${{ !inputs.arm64_family_match }}
+    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -348,3 +352,49 @@ jobs:
         run: npx playwright install chromium
       - name: Probe captured vs painted text positions
         run: npx tsx tools/probe-win-text-drift.ts
+
+  reject-conflicting-worker-profile:
+    name: Reject conflicting worker diagnostic profiles
+    if: ${{ inputs.worker_bootstrap_only && inputs.arm64_family_match }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Select only one manual diagnostic profile
+        run: |
+          echo "worker_bootstrap_only conflicts with arm64_family_match" >&2
+          exit 1
+
+  worker-bootstrap:
+    name: Windows worker bootstrap diagnostics
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.worker_bootstrap_only && !inputs.arm64_family_match }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      DOMOTION_OUTPUT_DIR: tests/output
+      DOMOTION_WORKER_BOOTSTRAP_EVIDENCE: tests/output/worker-bootstrap/fingerprint.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Build the text-engine workspace
+        run: npm run build:text-engine
+      - name: Run native worker bootstrap diagnostics
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/real-world-cdp.e2e.test.ts
+          tests/real-world-shared-worker-bootstrap.e2e.test.ts
+          tests/real-world-browser-signals.e2e.test.ts
+          tests/real-world-webgl-worker-lifecycle.e2e.test.ts
+          tests/real-world-webgl-freeze.e2e.test.ts
+          --reporter=json --outputFile=tests/output/worker-bootstrap/results.json
+      - name: Verify native profile evidence and no skipped tests
+        if: always()
+        run: node --import tsx tools/check-worker-bootstrap-report.ts tests/output/worker-bootstrap/results.json tests/output/worker-bootstrap/fingerprint.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-worker-bootstrap
+          path: tests/output/worker-bootstrap/
+          if-no-files-found: error

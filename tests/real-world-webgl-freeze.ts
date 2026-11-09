@@ -46,10 +46,11 @@ import { freezeWorkerLifecycle } from "./real-world-webgl-worker-lifecycle.js";
  * prototypes. Observe Page-related dedicated workers with paused CDP attachment
  * and patch before module imports. SharedWorkers are observed across the job's
  * isolated BrowserContext, including workers already running when freeze starts.
- * Playwright independently resumes new SharedWorkers, so their startup can cache
- * native methods before interception: patch live calls best effort, but report
- * those targets as failures (DM-34WC46). Cached native references in any already
- * running realm also remain outside prototype interception.
+ * The managed harness broker owns new SharedWorker startup through public CDP
+ * before imports can cache native methods. Ordinary Playwright browsers retain
+ * a partial fallback: independent resume can escape startup interception, so
+ * late targets count as failures even when live calls are muted. Cached native
+ * references in already-running realms remain outside prototype interception.
  *
  * Freeze follows the expected screenshot, preserving its reference pixels/crops.
  * The result owns reference-counted patches and bounded debugger sessions until

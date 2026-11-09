@@ -32,6 +32,10 @@ name: Linux fidelity
 on:
   workflow_dispatch:
     inputs:
+      worker_bootstrap_only:
+        description: "Run focused worker startup/transport diagnostics instead of full fidelity"
+        type: boolean
+        default: false
       image_root_metrics_only:
         description: "Run focused image-root font metrics diagnostics instead of the full fidelity gate"
         type: boolean
@@ -57,7 +61,7 @@ jobs:
     # always reports on PRs. Keep this diagnostic probe (and glyph-extractor-build
     # below) OFF the every-PR path — run them on demand (workflow_dispatch) — so
     # only the gate runs on a normal PR.
-    if: github.event_name != 'pull_request' && !inputs.image_root_metrics_only
+    if: github.event_name != 'pull_request' && !inputs.image_root_metrics_only && !inputs.worker_bootstrap_only
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -75,6 +79,7 @@ jobs:
           if-no-files-found: error
 
   regression:
+    if: ${{ !inputs.worker_bootstrap_only }}
     # DM-1405: distinct check-run name so this can be a REQUIRED status check
     # without colliding with windows-fidelity.yml's `regression` job (GitHub
     # matches required checks by name; two checks named "regression" would let
@@ -241,7 +246,7 @@ jobs:
   # with the calibrated container fonts AND a built helper, so the
   # nomination-walk pins actually execute here rather than skipping.
   family-match:
-    if: ${{ !inputs.image_root_metrics_only }}
+    if: ${{ !inputs.image_root_metrics_only && !inputs.worker_bootstrap_only }}
     name: Linux family-match conformance
     runs-on: ubuntu-latest
     container:
@@ -289,7 +294,7 @@ jobs:
   # proves it compiles and matches fontkit) — run after editing the C++ to catch
   # build / coordinate issues without cutting a tag.
   glyph-extractor-build:
-    if: github.event_name != 'pull_request' # DM-1405: on-demand, not on every PR (see font-width-probe)
+    if: github.event_name != 'pull_request' && !inputs.worker_bootstrap_only # DM-1405: on-demand, not on every PR (see font-width-probe)
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -314,3 +319,47 @@ jobs:
             | packages/text-engine/tools/linux-glyph-extractor/domotion-glyph-paths
       - name: Run the fontkit-parity test
         run: npx vitest run --config packages/text-engine/vitest.config.ts packages/text-engine/src/render/linux-glyph-extractor.test.ts
+
+  reject-conflicting-worker-profile:
+    name: Reject conflicting worker diagnostic profiles
+    if: ${{ inputs.worker_bootstrap_only && inputs.image_root_metrics_only }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Select only one manual diagnostic profile
+        run: |
+          echo "worker_bootstrap_only conflicts with image_root_metrics_only" >&2
+          exit 1
+
+  worker-bootstrap:
+    name: Linux worker bootstrap diagnostics
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.worker_bootstrap_only && !inputs.image_root_metrics_only }}
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    timeout-minutes: 15
+    env:
+      DOMOTION_OUTPUT_DIR: tests/output-linux
+      DOMOTION_WORKER_BOOTSTRAP_EVIDENCE: tests/output-linux/worker-bootstrap/fingerprint.json
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Build the text-engine workspace
+        run: npm run build:text-engine
+      - name: Run native worker bootstrap diagnostics
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/real-world-cdp.e2e.test.ts
+          tests/real-world-shared-worker-bootstrap.e2e.test.ts
+          tests/real-world-browser-signals.e2e.test.ts
+          tests/real-world-webgl-worker-lifecycle.e2e.test.ts
+          tests/real-world-webgl-freeze.e2e.test.ts
+          --reporter=json --outputFile=tests/output-linux/worker-bootstrap/results.json
+      - name: Verify native profile evidence and no skipped tests
+        if: always()
+        run: node --import tsx tools/check-worker-bootstrap-report.ts tests/output-linux/worker-bootstrap/results.json tests/output-linux/worker-bootstrap/fingerprint.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-worker-bootstrap
+          path: tests/output-linux/worker-bootstrap/
+          if-no-files-found: error

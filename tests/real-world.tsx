@@ -37,7 +37,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { withBrowser } from "../tools/lib/browser.js";
+import { withRealWorldBrowser } from "./real-world-browser.js";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
@@ -240,7 +240,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const newResults = await withBrowser(async (browser) => {
+  const newResults = await withRealWorldBrowser(async (browser) => {
     // First-time HAR recording can't run concurrently for the same (site,
     // viewport) — `routeFromHAR({ update: true })` writes the .har file, and
     // two contexts hammering the same path corrupt it. Pre-record any
@@ -980,7 +980,7 @@ async function runJob(
     await webGlFreeze?.dispose();
     if (webGlFreeze != null && webGlFreeze.failedWorkers > reportedFailedWorkers) {
       console.warn(
-        `  ${test}: WebGL output not fully frozen in ${webGlFreeze.failedWorkers - reportedFailedWorkers} late worker(s)`,
+        `  ${test}: ${webGlFreeze.failedWorkers - reportedFailedWorkers} additional WebGL worker freeze/discovery failure(s) during capture`,
       );
     }
     if (webGlFreeze != null && (webGlFreeze.failedFrameRestorations > 0 || webGlFreeze.failedWorkerRestorations > 0)) {

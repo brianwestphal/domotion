@@ -22,9 +22,14 @@ tickets:
     "DM-4S3VQH",
     "DM-S9S3WG",
     "DM-34WC46",
+    "DM-MBRZBH",
   ]
 code:
   [
+    "tests/real-world-browser.ts",
+    "tests/real-world-cdp.ts",
+    "tests/real-world-shared-worker-bootstrap.ts",
+    "tools/check-worker-bootstrap-report.ts",
     ".github/workflows/fast-visual-tests.yml",
     ".github/workflows/visual-tests.yml",
     "scripts/ci-baseline-aggregate.mjs",
@@ -151,22 +156,85 @@ the failed entries retain their original descriptors and owner marker for
 diagnosis; disposal never forcefully rewrites those properties or terminates a
 worker to hide the failure. Terminated targets do not require restoration.
 
-SharedWorker startup remains partial (DM-S9S3WG, prerequisite DM-34WC46).
-Playwright 1.59.1 independently resumes unmanaged SharedWorker targets while
-this observer attaches. Imports/top-level code can cache native draw methods
-before patching and continue drawing through those cached references. Late
-SharedWorkers are therefore counted as failed freezes even when live prototype
-calls are muted, and the harness reports those late failures after capture.
-SharedWorker discovery does not request startup pauses: public Playwright cannot
-address the flat discovery session directly, and a paused restart could stall.
-When a worker terminates, its secondary client detaches immediately: Chromium
-reuses SharedWorker hosts and pauses restart if a client remains attached.
-Existing SharedWorkers can have their live calls muted and restored, but cached
-native calls in any already-running realm remain outside this technique. The
-same-origin HTTP module regressions retain a cached-call escape assertion,
-plus dedicated startup, unrelated-context liveness, shared ownership, restart,
-attach/evaluate/timeout failure, and close-cleanup checks.
-Dispatch it from Actions as **Fast visual tests (all platforms)**, selecting one
+The real-world harness now owns **late SharedWorker startup** through a public
+CDP broker (DM-34WC46). Playwright 1.59.1 detaches unsupported SharedWorker targets
+by first sending `Runtime.runIfWaitingForDebugger`; a second observer cannot
+prevent imports from caching native draw methods after that independent resume.
+The broker prepends only a SharedWorker exclusion to Playwright's browser-root
+`Target.setAutoAttach` filter. Every other first-match filter rule and child
+session request remains unchanged. A separate flat-CDP owner holds new
+SharedWorkers in frozen contexts, applies the reference-counted patch before
+imports/top-level execution, then resumes the actual startup session. Foreign
+contexts are resumed and detached without prototype changes.
+
+```mermaid
+flowchart LR
+  PW[Playwright API] --> Broker[Loopback public-CDP broker]
+  Broker -->|Root discovery excludes SharedWorkers| Chrome[Owned Chromium]
+  Owner[Flat-CDP startup owner] -->|Patch then resume observed startup session| Chrome
+  Context[Frozen context leases] --> Owner
+```
+
+The browser executable and normal flags come from a public
+`chromium.launchServer()` scout via `BrowserServer.process()`. This adds one empty
+launch per real-world suite invocation, closed before the capture browser starts.
+The same executable is relaunched with all normal flags preserved, including the
+debugging pipe and its parent-death cleanup. Only the temporary profile is
+replaced; a loopback CDP port is added. Playwright reconnects through the broker
+with `isLocal: true`; jobs still use fresh explicit browser contexts rather than
+the connected browser's unused default context. The exact owned spawn environment
+is registered for Linux image-font provenance as a digest; raw arguments and
+environment values are never persisted. Unsupported launch provenance fails
+explicitly rather than substituting full Chrome for default headless-shell.
+
+Commands are bounded. Terminated worker sessions detach immediately so Chromium
+cannot reuse a SharedWorker host with a stale attached client. Failed patch or
+resume attempts release their own startup wait; a rejected resume restores before
+detaching. An unexpectedly lost primary marks active leases unhealthy and rejects
+future strict acquisition. A bounded recovery client resumes only target IDs
+observed waiting under that owner, rechecking type/context/URL before resume and
+detach. It neither sweeps arbitrary targets nor uses `Debugger.resume` or worker
+termination. The Node owner closes its browser/process/profile in `finally`,
+handles ordinary signals, and retains the debugging-pipe EOF behavior for forced
+host termination.
+
+The native controls retain HTTP relative imports, origin and CSP, delay patching
+100 ms, and require both import/top-level native flags and cached-clear pixels to
+move. A transparent broker and plain Playwright allow cached-native red pixels;
+the owned path produces transparent pixels before any new drawing. Dedicated
+worker descendants are registered before their parent resumes (DM-MBRZBH). In
+this Chrome revision `Worker` is exposed to Window and DedicatedWorker, not
+SharedWorker; the nested control uses the legitimate Dedicated→Dedicated graph.
+The observed browser is HeadlessChrome 147.0.7727.15 at revision
+`6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`. Its
+[worker debugger startup/resume source](https://github.com/chromium/chromium/blob/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/inspector/worker_thread_debugger.cc)
+was checked separately from the retained source calibration pin.
+
+Unmanaged Playwright browsers retain the explicitly partial fallback: late
+SharedWorkers count as failures even if their live methods are muted. Neither
+path can revoke native references cached before freezing an already-running
+realm; existing-worker live-prototype interception remains best effort. Worker
+freeze/discovery and restoration diagnostics report these limits separately.
+
+### Focused native worker diagnostics
+
+Dispatch `test-linux.yml` or `windows-fidelity.yml` with
+`worker_bootstrap_only=true` for the bounded native startup/transport/lifetime
+checks. Linux uses the pinned Playwright container and writes to
+`tests/output-linux/worker-bootstrap/`; Windows writes to
+`tests/output/worker-bootstrap/`. Selecting this flag together with an existing
+image-root/Arm64-only flag is rejected. Defaults and full required fidelity gates
+are unchanged; the distinct Linux/Windows worker-bootstrap check names cannot
+satisfy the full fidelity check.
+
+The profile retains a JSON test report and scoped browser/source/launch/startup
+fingerprint, and fails on skipped assertions, missing evidence, another
+platform/ref, a non-headless-shell launch, or escaped cached-native pixels. It
+measures browser transport and ownership, not font shaping/helper precision or
+the full visual regression. Local macOS success is not Linux/Windows native
+validation.
+
+For the broader suite, dispatch **Fast visual tests (all platforms)** from Actions, selecting one
 platform for focused work or `all` for a release/parity pass.
 
 Feature, showcase, and real-world scalar results are compared with committed
