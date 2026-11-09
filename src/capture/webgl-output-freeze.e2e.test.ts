@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import sharp from "sharp";
 import type { Browser, Page } from "@playwright/test";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { captureElementTree, launchChromium } from "./index.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { freezeWebGlOutputForCapture } from "./webgl-output-freeze.js";
+import type { CapturedElement } from "./types.js";
 
 let browser: Browser;
 beforeAll(async () => {
@@ -31,14 +33,9 @@ async function makeWebGlPage(): Promise<Page> {
 
 async function centerPixel(page: Page): Promise<number[]> {
   const png = await page.screenshot({ clip: { x: 20, y: 20, width: 1, height: 1 } });
-  return page.evaluate(async (b64) => {
-    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
-    const canvas = new OffscreenCanvas(1, 1);
-    const context = canvas.getContext("2d");
-    if (context == null) throw new Error("2D context unavailable");
-    context.drawImage(bitmap, 0, 0);
-    return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
-  }, png.toString("base64"));
+  // DM-D5JEMG: inspect Chromium's actual PNG, without another GPU bitmap
+  // decode/readback in the same browser whose compositor is being tested.
+  return Array.from(await sharp(png).removeAlpha().raw().toBuffer());
 }
 
 async function paint(page: Page, red: number, blue: number): Promise<void> {
@@ -52,6 +49,10 @@ async function paint(page: Page, red: number, blue: number): Promise<void> {
     },
     { red, blue },
   );
+}
+
+function walk(nodes: CapturedElement[]): CapturedElement[] {
+  return nodes.flatMap((node) => [node, ...walk(node.children ?? [])]);
 }
 
 describe("capture-scoped WebGL output freeze", () => {
@@ -140,10 +141,46 @@ describe("capture-scoped WebGL output freeze", () => {
     }
   });
 
-  it("restores WebGL methods after a production tree capture", async () => {
+  it("captures the held red raster while draw attempts continue and restores blue afterward", async () => {
     const page = await makeWebGlPage();
     try {
-      await captureElementTree(page, "body", { x: 0, y: 0, width: 80, height: 80 });
+      await page.evaluate(() => {
+        const gl = document.querySelector("canvas")!.getContext("webgl", { preserveDrawingBuffer: true })!;
+        const originalClear = gl.clear;
+        const scope = globalThis as typeof globalThis & { frozenDrawAttempts: number; stopDrawLoop?: () => void };
+        scope.frozenDrawAttempts = 0;
+        let stopped = false;
+        scope.stopDrawLoop = () => {
+          stopped = true;
+        };
+        const attempt = (): void => {
+          if (stopped) return;
+          if (gl.clear !== originalClear) {
+            scope.frozenDrawAttempts++;
+            gl.clearColor(0, 0, 1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+          }
+          requestAnimationFrame(attempt);
+        };
+        requestAnimationFrame(attempt);
+      });
+      for (let capture = 0; capture < 3; capture++) {
+        const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 80, height: 80 });
+        const uri = walk(tree).find((node) => node.tag === "canvas")?.replacedSnapshot?.dataUri;
+        expect(uri).toMatch(/^data:image\/png;base64,/);
+        const pixels = await sharp(Buffer.from(uri!.split(",")[1], "base64"))
+          .extract({ left: 16, top: 16, width: 1, height: 1 })
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        expect(Array.from(pixels)).toEqual([255, 0, 0]);
+      }
+      expect(
+        await page.evaluate(
+          () => (globalThis as typeof globalThis & { frozenDrawAttempts: number }).frozenDrawAttempts,
+        ),
+      ).toBeGreaterThan(0);
+      await page.evaluate(() => (globalThis as typeof globalThis & { stopDrawLoop?: () => void }).stopDrawLoop?.());
       await paint(page, 0, 1);
       expect(await centerPixel(page)).toEqual([0, 0, 255]);
     } finally {
