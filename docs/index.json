@@ -1718,10 +1718,17 @@
           "DM-S9S3WG",
           "DM-34WC46",
           "DM-MBRZBH",
-          "DM-4GF2A0"
+          "DM-4GF2A0",
+          "DM-6TJDZ5",
+          "DM-GQNPEN",
+          "DM-PCT7GR"
         ],
         "code": [
           "tests/real-world-browser.ts",
+          "tests/real-world-webgl-preflight.ts",
+          "tests/real-world-webgl-frame-geometry.ts",
+          "tests/real-world-webgl-geometry.ts",
+          "tests/real-world-webgl-projective-preflight.e2e.test.ts",
           "tests/real-world-process-lifetime.ts",
           "tests/real-world-process-lifetime.test.ts",
           "tests/real-world-cdp.ts",
@@ -6240,6 +6247,9 @@
           "DM-S9S3WG",
           "DM-34WC46",
           "DM-95ECD3",
+          "DM-6TJDZ5",
+          "DM-GQNPEN",
+          "DM-PCT7GR",
           "DM-K85TST"
         ],
         "code": [
@@ -6257,6 +6267,10 @@
           "tests/output-directory.mjs",
           "tests/output-directory.test.ts",
           "tests/real-world.tsx",
+          "tests/real-world-webgl-preflight.ts",
+          "tests/real-world-webgl-frame-geometry.ts",
+          "tests/real-world-webgl-geometry.ts",
+          "tests/real-world-webgl-projective-preflight.e2e.test.ts",
           "tests/review-server.tsx",
           "tools/compare-real-world-results.mjs",
           "tests/feature-coverage.ts",

@@ -24,10 +24,17 @@ tickets:
     "DM-34WC46",
     "DM-MBRZBH",
     "DM-4GF2A0",
+    "DM-6TJDZ5",
+    "DM-GQNPEN",
+    "DM-PCT7GR",
   ]
 code:
   [
     "tests/real-world-browser.ts",
+    "tests/real-world-webgl-preflight.ts",
+    "tests/real-world-webgl-frame-geometry.ts",
+    "tests/real-world-webgl-geometry.ts",
+    "tests/real-world-webgl-projective-preflight.e2e.test.ts",
     "tests/real-world-process-lifetime.ts",
     "tests/real-world-process-lifetime.test.ts",
     "tests/real-world-cdp.ts",
@@ -623,3 +630,56 @@ allows the same named retry policy to recognize an actual empty-surface failure
 without treating unexplained failed counts as transient. Persistent failures
 still fail. These diagnostics do not imply that screenshot errors and a VDMX
 timeout share a cause (DM-4GF2A0).
+
+## Offscreen frame projection
+
+Preflight measures content quads through public CDP in the node's authenticated
+execution context. Scoped per-frame tokens distinguish identical URLs; sessions,
+remote-object groups and registry keys are owned and disposed per discovery.
+The pinned [InspectorHighlight coordinate conversion](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_highlight.cc)
+maps local box corners to a local-root viewport. [LocalFrameView](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/frame/local_frame_view.cc)
+walks local parent views; OOPIF roots therefore require explicit owner-plane
+homographies. Source dimensions come from the exact computed content box, never
+integer `innerWidth` (a native 80.5 px frame reports 81). Quads are never replaced
+by their AABBs before convex frame/overflow clipping. A capped screenshot is
+centered around a proven polygon interior point so a large diagonal plane cannot
+leave its entire paint outside a top-left 512 px crop.
+For ordinary frame owners, the pinned
+[embedded-content transform](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/layout/layout_embedded_content.cc)
+adds the content offset without rescaling to the integer widget size. Frozen or
+nonordinary owners are outside this contract and are refused.
+
+Supported projective camera checks prove positive homogeneous W over the owner
+content plane using its computed transform and, where present, its immediate
+parent's perspective. Finite convex quads alone are insufficient: a native
+behind-camera plane also exposes one. More distant/projective ancestor cameras,
+unproved independent 3D properties under a camera, nondefault projective
+transform-box/zoom, nontrivial visual-viewport offsets/scale, camera crossings,
+degenerate planes and nonrectangular/ambiguous clip authority remain explicit
+skips (DM-GQNPEN). Authenticated zero-margin content/padding/border overflow
+rectangles and every enclosing iframe content clip are supported.
+
+Projection and paint activation have separate evidence. Default native
+HeadlessChrome 147 revision `6b5a1b80…` returned blank tight **and broad** screenshots
+for a fully hidden cross-origin frame whose source bitmap was red; the same
+source painted with a partly visible owner and a wholly offscreen canvas.
+DM-PCT7GR tracks that pre-existing presentation gap. The `primed` counter retains
+its existing successful-request meaning and is not a paint certificate. Native
+cross-origin/OOPIF projection positives therefore use partly visible owners and
+establish the child's own natural rAF progression while the canvas remains
+wholly offscreen, then assert actual red pixels in the bounded production
+screenshot. Fully hidden
+failure PNGs remain problem evidence. No viewport mutation, scrolling, rAF
+replacement, default launch-argument change or extra recurring readback is introduced.
+The named `explicit-site-per-process` test control exercises OOPIF ownership
+using the same installed headless-shell binary.
+
+`tests/real-world-webgl-projective-preflight.e2e.test.ts` emits PNG/JSON evidence
+with `generatedAt`, platform, browser revision, launch-profile enum, source commit
+and exact input-file hashes. On Linux it writes `tests/output-linux/` unless an
+explicit output root is supplied. CI uses `GITHUB_SHA`; a clean local committed
+run supplies `DOMOTION_PREFLIGHT_SOURCE_COMMIT=<full SHA>`. An uncommitted local
+probe records a null commit plus the exact file hashes, never an invented source
+identity. The existing Linux diagnostic profile and ordinary manual Windows
+regression retain these artifacts; their results must be read on the actual
+target runner, independently of the macOS development evidence.

@@ -274,11 +274,11 @@ describe("offscreen WebGL preflight", () => {
     }
   });
 
-  it("reports an unsupported rotated frame without inventing a projection", async () => {
+  it("reports a degenerate frame without inventing a projection", async () => {
     const page = await browser.newPage({ viewport: { width: 100, height: 100 } });
     try {
       await page.setContent(
-        `<body style="height:1800px"><iframe style="position:absolute;top:1000px;transform:rotate(10deg)" srcdoc="<canvas width=40 height=40></canvas>"></iframe></body>`,
+        `<body style="height:1800px"><iframe style="position:absolute;top:1000px;transform:scaleX(0)" srcdoc="<canvas width=40 height=40></canvas>"></iframe></body>`,
       );
       await page.frameLocator("iframe").locator("canvas").waitFor();
       expect(await primeOffscreenCanvases(page)).toEqual({ primed: 0, failed: 0, skipped: 1 });

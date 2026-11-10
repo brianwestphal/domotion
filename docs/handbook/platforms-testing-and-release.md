@@ -17,6 +17,9 @@ tickets:
     "DM-S9S3WG",
     "DM-34WC46",
     "DM-95ECD3",
+    "DM-6TJDZ5",
+    "DM-GQNPEN",
+    "DM-PCT7GR",
     "DM-K85TST",
   ]
 code:
@@ -35,6 +38,10 @@ code:
     "tests/output-directory.mjs",
     "tests/output-directory.test.ts",
     "tests/real-world.tsx",
+    "tests/real-world-webgl-preflight.ts",
+    "tests/real-world-webgl-frame-geometry.ts",
+    "tests/real-world-webgl-geometry.ts",
+    "tests/real-world-webgl-projective-preflight.e2e.test.ts",
     "tests/review-server.tsx",
     "tools/compare-real-world-results.mjs",
     "tests/feature-coverage.ts",
@@ -93,9 +100,14 @@ aliases: ["docs/handbook/platforms-testing-and-release.md"]
     same-origin, cross-origin, and nested frame content boxes. It maps them to
     main-document screenshot coordinates without scrolling or pausing rAF,
     retaining the shared eight-surface, 512 px side, three-second discovery,
-    and ten-second capture budgets. Non-axis-aligned frame owners are reported
-    as skipped; detached or unqueryable frames are reported as failures
-    (DM-T64MNZ; `tests/real-world-webgl-preflight.ts`).
+    and ten-second capture budgets. Browser-owned content quads authenticate
+    rotated, skewed, reflected and supported projective owners; local-root
+    homographies compose OOPIF coordinates, and convex ancestor clips are
+    intersected before choosing a bounded screenshot rectangle. Unknown
+    camera/clip authority is skipped; detached or unqueryable frames fail
+    (DM-T64MNZ, DM-6TJDZ5; `tests/real-world-webgl-preflight.ts`). Successful
+    capture requests alone do not authenticate paint in fully hidden
+    cross-origin frames (DM-PCT7GR).
 
 11. Real-world post-screenshot WebGL freeze observes Page-related dedicated
     worker startup and context-owned SharedWorker live calls, with bounded
@@ -104,6 +116,13 @@ aliases: ["docs/handbook/platforms-testing-and-release.md"]
     cached native calls escape interception. Those targets report failures,
     and DM-S9S3WG remains blocked on DM-34WC46 for strict bootstrap coverage.
     Other BrowserContexts are resumed without patching.
+
+## Offscreen frame projection
+
+Browser-owned content quads and local-root homographies retain convex frame
+clips before screenshot bounds. Unknown cameras and fully hidden cross-origin
+presentation keep separate limits. [The CI testing record](../66-ci-visual-tests.md#offscreen-frame-projection)
+retains source authority, lifecycle, native evidence and dispatch details.
 
 ## Visual output roots
 
