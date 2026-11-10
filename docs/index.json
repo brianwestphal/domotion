@@ -4308,7 +4308,17 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP", "DM-AWS6Y4", "DM-XWPSPP", "DM-NAG7AD", "DM-5YF0BB"],
+        "tickets": [
+          "DM-2459",
+          "DM-2468",
+          "DM-2488",
+          "DM-P1ASMP",
+          "DM-AWS6Y4",
+          "DM-XWPSPP",
+          "DM-NAG7AD",
+          "DM-5YF0BB",
+          "DM-9PEZBK"
+        ],
         "code": [
           ".github/workflows/pseudo-fragment-render-parity.yml",
           "src/render/pseudo-fragments.ts",
@@ -4317,6 +4327,7 @@
           "src/render/pseudo-stacking-contexts.test.ts",
           "src/capture/pseudo-fragment-cdp.ts",
           "tests/pseudo-ancestor-stacking.e2e.test.ts",
+          "tests/hoisted-real-ancestry.e2e.test.ts",
           "tests/pseudo-fragment-render-oracle.e2e.test.ts",
           "tests/pseudo-fragment-render-report.test.ts",
           "tests/pseudo-stacking-native-contract.e2e.test.ts",

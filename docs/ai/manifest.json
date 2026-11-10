@@ -3076,6 +3076,7 @@
         "src/render/pseudo-stacking-contexts.test.ts",
         "src/capture/pseudo-fragment-cdp.ts",
         "tests/pseudo-ancestor-stacking.e2e.test.ts",
+        "tests/hoisted-real-ancestry.e2e.test.ts",
         "tests/pseudo-fragment-render-oracle.e2e.test.ts",
         "tests/pseudo-fragment-render-report.test.ts",
         "tests/pseudo-stacking-native-contract.e2e.test.ts",

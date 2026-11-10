@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP", "DM-AWS6Y4", "DM-XWPSPP", "DM-NAG7AD", "DM-5YF0BB"]
+tickets: ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP", "DM-AWS6Y4", "DM-XWPSPP", "DM-NAG7AD", "DM-5YF0BB", "DM-9PEZBK"]
 code:
   [
     ".github/workflows/pseudo-fragment-render-parity.yml",
@@ -15,6 +15,7 @@ code:
     "src/render/pseudo-stacking-contexts.test.ts",
     "src/capture/pseudo-fragment-cdp.ts",
     "tests/pseudo-ancestor-stacking.e2e.test.ts",
+    "tests/hoisted-real-ancestry.e2e.test.ts",
     "tests/pseudo-fragment-render-oracle.e2e.test.ts",
     "tests/pseudo-fragment-render-report.test.ts",
     "tests/pseudo-stacking-native-contract.e2e.test.ts",
@@ -242,9 +243,35 @@ source-authority investigation (DM-T935AC); raw static z-index does not justify
 promotion. DM-9PEZBK separately owns unchanged-main real-descendant ancestry
 failures: nested clips and captured owner display/cull state each differ at 48
 pixels on unchanged main. Generated ordering repairs four nested-clip pixels;
-the remaining 44 clip pixels and 48 display/cull pixels still need the real-child
-ancestry repair. Their full-pixel controls remain intact with that repair; NAG's generated
-ancestry controls isolate generated paint without hiding those real-child failures.
+the remaining 44 clip pixels and 48 display/cull pixels are repaired by retaining
+the same applicable ancestry around actually hoisted real paint. The original
+full-pixel controls remain intact and now match their unchanged native sources.
+
+### Shared real/generated ancestry (DM-9PEZBK)
+
+Paint hoisting changes the context's ordering list, without discarding source
+clip or timeline ancestry. Real hoisted descendants now reuse the generated
+paint wrapper, retaining every applicable non-context ancestor instead of only
+the nearest overflow owner. The parent map stops at the genuine context whose
+effects already surround the paint; it does not duplicate opacity or transform
+effects. Cull/display and animation wrappers remain independent so animation
+shorthands cannot overwrite one another.
+
+Exact runtime Blink revision `6b5a1b80` supplies the containing-block rule in
+`FragmentPaintPropertyTreeBuilder::UpdateOutOfFlowContext` and
+`UpdatePaintOffset`: absolute/fixed paint switches to its containing block's
+inherited context. Overflow below an external containing block can therefore
+be escaped, while applicable outer clips remain. Native full-RGBA controls
+cover both absolute cases, viewport-fixed escape, transformed fixed containment,
+opacity/explicit context barriers, floats, inline SVG surfaces and independent
+cull/animation ownership. No source coordinates, source element styles, or
+captured paint records are rewritten by this renderer repair.
+
+Legacy CSS `clip:rect()` has an additional native fixed-descendant inheritance
+rule; its distinct capture authority is an investigation (DM-1C56DE), not an
+overflow heuristic in this repair. Viewport-fixed traversal through genuine
+effect contexts also needs independent attribution (DM-RN0T12). Neither has an
+isolated native failure claimed by this change.
 
 Docs [157](157-pseudo-generated-fragment-geometry-audit.md),
 [175](175-pseudo-fragment-protocol-oracle.md), and

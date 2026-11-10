@@ -44,6 +44,7 @@ import { computeTileSize } from "./conic-raster.js";
 import { _conicTileCache } from "./raster-tile-cache.js";
 import {
   establishesStackingContext,
+  isOverflowOnlySC,
   gatherStackingContextChildren,
   isFixedContainingBlock,
   paintOrderBuckets,
@@ -2349,14 +2350,9 @@ function renderMaskPhase(state: RenderState, el: CapturedElement): string | null
   return maskUrlId;
 }
 
-// DM-673: wraps `renderElement` with a `<g clip-path>` group when `el`
-// was hoisted past an overflow-clip ancestor. The ancestor's clip-path
-// id is stashed in `overflowClipPathIds` by the ancestor's own
-// renderElement call (which runs first because sections paint at body's
-// step 3 / base bucket, BEFORE positioned descendants at step 6 /
-// zeroOrAuto bucket). `position:fixed` descendants are never added to
-// the map (CSS Overflow 3 §2.2 — fixed elements escape ancestor
-// overflow clipping), so they aren't wrapped here.
+// Hoisting changes paint ownership, not source clip/timeline ancestry.
+// Retain every applicable non-context ancestor, rather than only the nearest
+// overflow owner. True context effects are already applied by that context.
 function renderElementWithOverflowClip(
   state: RenderState,
   el: CapturedElement,
@@ -2364,6 +2360,20 @@ function renderElementWithOverflowClip(
   parentDisplayForEl?: string,
   phase: PaintPhase = "all",
 ): void {
+  if (state.hoistedFromAncestor.has(el)) {
+    const ancestors: CapturedElement[] = [];
+    let parent = state.parentElements.get(el);
+    while (parent != null) {
+      const grandparent = state.parentElements.get(parent);
+      if (establishesStackingContext(parent, grandparent?.styles.display) && !isOverflowOnlySC(parent)) break;
+      ancestors.unshift(parent);
+      parent = grandparent;
+    }
+    paintWithAncestorWrappers(state, ancestors, el.styles.position, depth, () =>
+      renderElement(state, el, depth, parentDisplayForEl, phase),
+    );
+    return;
+  }
   const { overflowClipForHoisted, overflowClipPathIds, svgParts } = state;
   const overflowClipAncestor = overflowClipForHoisted.get(el);
   const clipId = overflowClipAncestor != null ? overflowClipPathIds.get(overflowClipAncestor) : undefined;
@@ -2854,16 +2864,21 @@ function paintsAtomicallyInInlinePhase(c: CapturedElement, parentDisplay: string
   return paintsAtomicallyAsInlineBox(c, parentDisplay);
 }
 
-/** Reapply only ancestry that the generated layer actually leaves behind. */
-function paintOwnedStackedPseudo(state: RenderState, entry: OwnedStackedPseudo, depth: number): void {
+/** Reapply only ancestry that hoisted real or generated paint leaves behind. */
+function paintWithAncestorWrappers(
+  state: RenderState,
+  ancestors: readonly CapturedElement[],
+  position: string | undefined,
+  depth: number,
+  paint: () => void,
+): void {
   const indent = "  ".repeat(depth);
   const { svgParts } = state;
-  const position = entry.paint.position;
-  let containingIndex = entry.ancestors.length - 1;
+  let containingIndex = ancestors.length - 1;
   if (position === "absolute" || position === "fixed") {
     containingIndex = -1;
-    for (let index = entry.ancestors.length - 1; index >= 0; index--) {
-      const ancestor = entry.ancestors[index];
+    for (let index = ancestors.length - 1; index >= 0; index--) {
+      const ancestor = ancestors[index];
       const positioned = ancestor.styles.position != null && ancestor.styles.position !== "static";
       if (isFixedContainingBlock(ancestor) || (position === "absolute" && positioned)) {
         containingIndex = index;
@@ -2872,8 +2887,8 @@ function paintOwnedStackedPseudo(state: RenderState, entry: OwnedStackedPseudo, 
     }
   }
   let wrappers = 0;
-  for (let index = 0; index < entry.ancestors.length; index++) {
-    const ancestor = entry.ancestors[index];
+  for (let index = 0; index < ancestors.length; index++) {
+    const ancestor = ancestors[index];
     const attrs = [
       ancestor.cullClass ? `class="${esc(ancestor.cullClass)}"` : "",
       ancestor.displayNone === true ? 'style="display:none"' : "",
@@ -2902,8 +2917,21 @@ function paintOwnedStackedPseudo(state: RenderState, entry: OwnedStackedPseudo, 
       }
     }
   }
-  paintCapturedPseudoFragments(state, entry.owner, indent, pseudoFragmentPaintSlot(entry.record), [entry.record], true);
+  paint();
   while (wrappers-- > 0) svgParts.push(`${indent}</g>`);
+}
+
+function paintOwnedStackedPseudo(state: RenderState, entry: OwnedStackedPseudo, depth: number): void {
+  paintWithAncestorWrappers(state, entry.ancestors, entry.paint.position, depth, () =>
+    paintCapturedPseudoFragments(
+      state,
+      entry.owner,
+      "  ".repeat(depth),
+      pseudoFragmentPaintSlot(entry.record),
+      [entry.record],
+      true,
+    ),
+  );
 }
 
 /** Stable native-z merge across real and generated children of one context. */
