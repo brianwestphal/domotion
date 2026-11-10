@@ -266,6 +266,12 @@ describe("escaped image CSS imports/resources (DM-Y3H2EV)", () => {
         '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="blue"/></svg>',
       );
     for (const attribute of ["HREF", "hReF", "STYLE"]) {
+      const evidenceId = `alias-${[...attribute].map((character) => character.charCodeAt(0).toString(16)).join("-")}`;
+      const files = {
+        sourcePng: `${evidenceId}-source.png`,
+        hostPng: `${evidenceId}-host.png`,
+        sourceSvg: `${evidenceId}-source.svg`,
+      };
       const page = await browser.newPage({ viewport: { width: 40, height: 40 } });
       try {
         const body =
@@ -282,12 +288,14 @@ describe("escaped image CSS imports/resources (DM-Y3H2EV)", () => {
         await expect.poll(async () => [...(await rgb(await page.screenshot())).subarray(0, 3)]).toEqual([0, 0, 255]);
         const hostPng = await page.screenshot();
         await saveControls({
-          [`alias-${attribute}-source.png`]: sourcePng,
-          [`alias-${attribute}-host.png`]: hostPng,
-          [`alias-${attribute}-source.svg`]: source,
+          [files.sourcePng]: sourcePng,
+          [files.hostPng]: hostPng,
+          [files.sourceSvg]: source,
         });
         evidence.push({
           name: `alias-${attribute}`,
+          evidenceId,
+          files,
           sourceColor: [255, 0, 0],
           refused: true,
           hostColor: [0, 0, 255],
