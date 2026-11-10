@@ -128,7 +128,7 @@ export async function openExternalSvgTransport(
       })
       .catch(() => null);
     if (original?.result.value !== true)
-      throw new Error("external SVG source document changed during isolated world setup");
+      throw new Error("external SVG source document identity unavailable after isolated world setup");
     contextId = isolated.executionContextId;
   };
   const removeToken = async (): Promise<void> => {

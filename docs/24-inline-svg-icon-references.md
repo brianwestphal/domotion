@@ -79,7 +79,7 @@ more privileged request fallback.
 
 A frame ID survives navigation. The transport retains its matched default
 execution-context ID and rechecks the original private token after isolated-world
-creation. If that document changed in between, setup refuses before fetching;
+creation. If that document changed or cannot be revalidated, setup refuses before fetching;
 a fresh acquisition can bind to the new stable document.
 
 Request timeout/disposal aborts only its private controller. Temporary frame tokens

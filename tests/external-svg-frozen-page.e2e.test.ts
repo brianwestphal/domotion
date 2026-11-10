@@ -673,7 +673,7 @@ describe("external SVG transport under frozen author globals (DM-4H5MC1)", () =>
             await transport.dispose();
           }
         })(),
-      ).rejects.toThrow("source document changed during isolated world setup");
+      ).rejects.toThrow("source document identity unavailable after isolated world setup");
       expect(sameProcessRefusal).toBe(true);
       expect(matched).toBe(true);
       expect(navigated).toBe(true);
