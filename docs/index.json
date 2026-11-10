@@ -4266,12 +4266,13 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP"],
+        "tickets": ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP", "DM-AWS6Y4", "DM-XWPSPP"],
         "code": [
           ".github/workflows/pseudo-fragment-render-parity.yml",
           "src/render/pseudo-fragments.ts",
           "tests/pseudo-fragment-render-oracle.e2e.test.ts",
           "tests/pseudo-fragment-render-report.test.ts",
+          "tests/pseudo-stacking-native-contract.e2e.test.ts",
           "tools/pseudo-fragment-render-oracle.ts",
           "tools/pseudo-fragment-render-report.ts"
         ],

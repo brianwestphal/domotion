@@ -3049,6 +3049,7 @@
         "src/render/pseudo-fragments.ts",
         "tests/pseudo-fragment-render-oracle.e2e.test.ts",
         "tests/pseudo-fragment-render-report.test.ts",
+        "tests/pseudo-stacking-native-contract.e2e.test.ts",
         "tools/pseudo-fragment-render-oracle.ts",
         "tools/pseudo-fragment-render-report.ts"
       ],
