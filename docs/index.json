@@ -2456,7 +2456,8 @@
           "DM-KE2WFC",
           "DM-QK62CS",
           "DM-6ZX6W0",
-          "DM-KGD5KC"
+          "DM-KGD5KC",
+          "DM-SXDNW9"
         ],
         "code": [
           "src/capture/embed.ts",
@@ -2473,6 +2474,8 @@
           "src/render/element-tree-to-svg.ts",
           "src/render/resolve-svg-source.test.ts",
           "src/capture/script/walker/image-elements.ts",
+          "src/capture/script/walker/document-prepass.ts",
+          "tests/capture-selected-replaced-root.e2e.test.ts",
           "src/render/svg-image-media.test.ts",
           "src/render/svg-image-media.ts",
           "src/render/svg-image-natural-sizing.test.ts",

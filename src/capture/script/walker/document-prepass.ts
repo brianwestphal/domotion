@@ -509,7 +509,7 @@ export const createBackgroundAttachmentPaintScale = () => {
   return paintScaleFor;
 };
 
-/** Capture the root element itself when it has visible border or background
+/** Capture the root element itself when it owns content, border or background
  * (DM-362: <body style="border:3px solid pink"> was not rendering because we
  * only walked root.children). When the root has nothing visually
  * distinctive, fall through to the child walk so we don't wrap every page in
@@ -521,6 +521,14 @@ export const captureRootElements = (
 ) => {
   const result: CapturedElement[] = [];
   const rootCs = window.getComputedStyle(root);
+  const rootTag = root.tagName.toLowerCase();
+  // Intrinsic images/SVG, replaced snapshots and native controls emit their
+  // own content even when their CSS box has no background, border or text.
+  // Admission must reach those existing producers; capture's visibility and
+  // geometry gates still decide whether the selected owner is retained.
+  const rootHasContentPaint =
+    /^(?:img|svg|canvas|video|iframe|object|embed|input|textarea|select|button|progress|meter)$/.test(rootTag) ||
+    (rootTag.indexOf("-") > 0 && root.shadowRoot != null);
   const rootHasBorder =
     (parseFloat(rootCs.borderTopWidth) || 0) > 0 ||
     (parseFloat(rootCs.borderRightWidth) || 0) > 0 ||
@@ -548,7 +556,7 @@ export const captureRootElements = (
       break;
     }
   }
-  if (rootHasBorder || rootHasBg || rootHasDirectText || nonAffineProjectiveRoots.has(root)) {
+  if (rootHasContentPaint || rootHasBorder || rootHasBg || rootHasDirectText || nonAffineProjectiveRoots.has(root)) {
     const c = capture(root);
     if (c) result.push(c);
   } else {

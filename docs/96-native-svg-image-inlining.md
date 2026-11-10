@@ -22,6 +22,7 @@ tickets:
     "DM-QK62CS",
     "DM-6ZX6W0",
     "DM-KGD5KC",
+    "DM-SXDNW9",
   ]
 code:
   [
@@ -39,6 +40,8 @@ code:
     "src/render/element-tree-to-svg.ts",
     "src/render/resolve-svg-source.test.ts",
     "src/capture/script/walker/image-elements.ts",
+    "src/capture/script/walker/document-prepass.ts",
+    "tests/capture-selected-replaced-root.e2e.test.ts",
     "src/render/svg-image-media.test.ts",
     "src/render/svg-image-media.ts",
     "src/render/svg-image-natural-sizing.test.ts",
@@ -86,6 +89,14 @@ A nested native `<svg>` carries live vector geometry (paths, gradients, filters)
 ## Behavior
 
 ### Trigger
+
+A visible image can be selected directly through `captureElementTree` or the
+CLI's `--selector`; it does not need an authored background, border or text.
+Root admission reaches the existing image-content producer, so selecting a
+transparent `<img>` retains the same image as selecting its container. The
+ordinary visibility, viewport and geometry gates still apply. The shared root
+admission also reaches existing inline-SVG, replaced-snapshot and native-control
+producers; transparent ordinary containers keep their existing child walk.
 
 The native path fires when, and only when, the `<img>`'s source resolves to an SVG. `resolveSvgSource(el.imageSrc)` (`src/capture/embed.ts`) resolves the source the same way the `<image href>` path does — via `embedAsDataUri` (file read, `file://` decode, or a pre-fetched remote `_dataUriCache` hit) — and returns the decoded SVG text only when the mime is `image/svg+xml`. It returns `null` (→ raster `<image>` path) for:
 
