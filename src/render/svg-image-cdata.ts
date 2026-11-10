@@ -14,7 +14,7 @@ export function serializeJoinedCdata(css: string, wrapper: { prefix: string; suf
 
 /** Preserve quoted CSS data while masking real comments/XML wrappers at the
  * same offsets. A literal ]]> inside a selector or family name is data. */
-export function blankImageCssNoise(css: string): string {
+export function blankImageCssNoise(css: string, xmlWrappers = true): string {
   let out = "",
     start = 0;
   let quote: string | null = null;
@@ -37,7 +37,7 @@ export function blankImageCssNoise(css: string): string {
     if (css.startsWith("/*", i)) {
       const close = css.indexOf("*/", i + 2);
       end = close < 0 ? css.length : close + 2;
-    } else {
+    } else if (xmlWrappers) {
       const marker = ["<![CDATA[", "]]>", "<!--", "-->"].find((value) => css.startsWith(value, i));
       if (marker != null) end = i + marker.length;
     }

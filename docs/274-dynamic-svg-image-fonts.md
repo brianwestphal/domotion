@@ -5,10 +5,12 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA"]
+tickets: ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ"]
 code:
   [
     "src/render/svg-image-font-shorthand.ts",
+    "src/render/svg-image-font-family.ts",
+    "tests/svg-image-font-tail.e2e.test.ts",
     "src/render/svg-image-css-variables.ts",
     "src/render/svg-image-style-names.ts",
     "src/render/svg-image-root-font.ts",
@@ -56,6 +58,19 @@ ordinary style/weight/stretch keywords, numeric weights, `small-caps` and
 oblique degree angles. Metric-dependent transforms retain their existing
 conservative checks for unsupported font traits; recognizing a shorthand does
 not claim exact metrics for every trait.
+
+Family tails must consume the complete CSS family list before a shorthand can
+contribute root metrics. Numeric tokens, a generic keyword followed by another
+identifier, missing list entries and malformed strings remain raster. Quoted
+numeric names and escaped identifiers remain valid. Real comments separate
+tokens; comment-like string data and unrelated custom property strings survive.
+Generic keywords remain generic when a quoted local face has the same name.
+These rules follow `ConsumeFontFamily`, `ConsumeFamilyName` and
+`ConcatenateFamilyName` (`css_parsing_utils.cc:6302–6388`, Chromium `7d859f27`),
+plus the four optional-component limit in `ConsumeFont`
+(`shorthands_custom.cc:3100–3157`). Family parsing bounds input size and token
+count. Literal names with decoded outer whitespace remain raster until the
+shared CSSOM family bridge preserves that distinction (DM-N80HJW).
 
 ## Font-face isolation
 

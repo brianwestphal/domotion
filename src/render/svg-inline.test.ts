@@ -19,6 +19,16 @@ import type { CapturedElement } from "../capture/types.js";
 import { formatNumberLoose } from "./format.js";
 import { imageRootFontMetricUnits } from "./svg-image-root-font.js";
 
+it("strips root transforms without splitting XML-encoded CSS string data", () => {
+  const attrs = flattenedRootGroupAttributes(
+    ' style="--label:&quot;a;transform:scale(9)&amp;b&quot;;--escaped:Foo\\;Bar;transform:translateX(1em);fill:red"',
+  );
+  expect(attrs).toContain("--label:&quot;a;transform:scale(9)&amp;b&quot;");
+  expect(attrs).toContain("--escaped:Foo\\;Bar");
+  expect(attrs).not.toContain("translateX");
+  expect(attrs).toContain("fill:red");
+});
+
 describe("SVG root attribute editor", () => {
   it("handles quoted angle brackets and preserves unrelated attributes and body", () => {
     const source = `<svg data-note='a > b' width='24' height="24" viewBox="0 0 24 24"><path d="M0 0"/></svg>`;
@@ -553,6 +563,11 @@ it("flattenImgSvg never emits a duplicate transform attribute from a root transf
 // center and is clipped to the drawn image; a DOM-inline svg's transform is
 // already applied by the capture's element transform.
 describe("root <svg transform> (outermost-svg transform parity)", () => {
+  it("does not parse declarations hidden in CSS comments or leave a commented transform live", () => {
+    const out = inlineImgSvg(icon(` style="font-size:30px;/* font:8px Pair; */ transform:translateX(1em)"`), place);
+    expect(out).toContain("translate(30 0)");
+    expect(out).not.toContain("transform:translateX");
+  });
   const icon = (extra: string): string =>
     `<svg viewBox="0 0 100 100" width="100" height="100"${extra}><rect width="100" height="40" fill="red"/></svg>`;
   const place = { x: 50, y: 50, w: 100, h: 100, par: "none", idPrefix: "p-" };

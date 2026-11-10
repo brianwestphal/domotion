@@ -26,6 +26,7 @@
 import { isolatedPrimaryFontMetrics, type LinuxFontRenderContext } from "./font-resolution.js";
 import type { IsolatedFontFace } from "./font-resolution.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
+import { trimImageCssWhitespace } from "./svg-image-font-family.js";
 
 /** The root's font declarations, attribute and inline style merged (style wins). */
 export interface ImageRootFontDeclarations {
@@ -53,7 +54,7 @@ const ABSOLUTE_PX: Record<string, number> = {
 
 /** The supported static `font` shorthand subset, expanded at its cascade position. */
 export function parseImageRootFontShorthand(value: string): ReadonlyMap<string, string> | null {
-  const v = value.trim();
+  const v = trimImageCssWhitespace(value);
   if (/^(?:initial|inherit|unset|revert)$/i.test(v)) {
     return new Map([
       ["font-size", "medium"],

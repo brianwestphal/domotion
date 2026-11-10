@@ -12,6 +12,7 @@ import { renderWarn } from "./render-warn.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
 import { decodeXmlAttributeValue } from "./svg-image-selector-engine.js";
+import { parseImageFontFamilyTail, trimImageCssWhitespace } from "./svg-image-font-family.js";
 
 interface ImageNames {
   keyframes: Set<string>;
@@ -156,12 +157,25 @@ function renameFontShorthand(value: string, names: Set<string>, scope: string): 
   const parsed = parseImageFontShorthand(value);
   if (parsed == null)
     return /^(?:caption|icon|menu|message-box|small-caption|status-bar|initial|inherit|unset|revert|revert-layer)$/i.test(
-      value.trim(),
+      trimImageCssWhitespace(value),
     )
       ? value
       : null;
   const offset = parsed.familyStart;
-  return value.slice(0, offset) + renameList(value.slice(offset), names, scope, true);
+  const family = renameFontFamilies(value.slice(offset), names, scope);
+  return family == null ? null : value.slice(0, offset) + family;
+}
+
+/** Generic identifiers are keywords, even when a literal face uses the same
+ * decoded name. Strings and escaped literal identifiers remain own names. */
+function renameFontFamilies(value: string, names: Set<string>, scope: string): string | null {
+  const families = parseImageFontFamilyTail(value);
+  if (families == null) return null;
+  return families
+    .map((family) =>
+      !family.generic && names.has(family.name.toLowerCase()) ? prefixed(family.css, scope) : family.css,
+    )
+    .join(", ");
 }
 
 function matchingParen(text: string, open: number): number {
@@ -279,7 +293,7 @@ function rewriteDeclaration(
     const renamed =
       prop === "font"
         ? renameFontShorthand(expanded, names.fonts, scope)
-        : renameList(expanded, names.fonts, scope, true);
+        : renameFontFamilies(expanded, names.fonts, scope);
     if (renamed == null) return false;
     value = renamed;
   } else if (prop === "animation-name" || prop === "-webkit-animation-name") {
@@ -330,8 +344,9 @@ function parseSheet(css: string): ParsedSheet {
   }
 }
 
-function collectNames(sheets: ParsedSheet[]): ImageNames {
+function collectNames(sheets: ParsedSheet[]): ImageNames | null {
   const names: ImageNames = { keyframes: new Set(), fonts: new Set(), properties: new Set(), counters: new Set() };
+  let unsupportedFont = false;
   for (const sheet of sheets) {
     sheet.root?.walkAtRules((rule) => {
       const name = rule.name.toLowerCase();
@@ -340,12 +355,14 @@ function collectNames(sheets: ParsedSheet[]): ImageNames {
       else if (name === "counter-style") names.counters.add(nameKey(rule.params));
       else if (name === "font-face") {
         rule.walkDecls(/^font-family$/i, (decl) => {
-          names.fonts.add(nameKey(decl.value, true));
+          const families = parseImageFontFamilyTail(decl.value);
+          if (families?.length !== 1 || families[0].generic || families[0].name === "") unsupportedFont = true;
+          else names.fonts.add(families[0].name.toLowerCase());
         });
       }
     });
   }
-  return names;
+  return unsupportedFont ? null : names;
 }
 
 /** Rewrite inline style and SVG presentation attributes outside `<style>`. */
@@ -385,7 +402,12 @@ function rewriteAttributes(
             unsafe();
             return full;
           }
-          next = renameList(expanded, names.fonts, scope, true);
+          const renamed = renameFontFamilies(expanded, names.fonts, scope);
+          if (renamed == null) {
+            unsafe();
+            return full;
+          }
+          next = renamed;
         } else if (attr.toLowerCase() === "font-family") next = value;
         else if (attr.toLowerCase() === "animation-name") next = renameList(value, names.keyframes, scope);
         else next = renameList(value, names.counters, scope);
@@ -405,6 +427,7 @@ export function namespaceImageStyleNames(markup: string, scope: string): string 
   for (const match of markup.matchAll(STYLE_TAG)) sheets.push(parseSheet(match[2]));
   if (sheets.length === 0) return markup;
   const names = collectNames(sheets);
+  if (names == null) return null;
   if (![names.keyframes, names.fonts, names.properties, names.counters].some((set) => set.size > 0)) return markup;
   let index = 0;
   const variableCounts = new Map<string, number>();

@@ -50,6 +50,8 @@ import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
 import { authenticatedImageFonts, imageOwnFontSheets, type ImageOwnFontContext } from "./svg-image-own-fonts.js";
 import type { IsolatedFontFace } from "./font-resolution.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
+import { blankImageCssNoise } from "./svg-image-cdata.js";
+import { imageCssEscapeEnd, trimImageCssWhitespace } from "./svg-image-font-family.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
 export interface SvgOpeningTag {
@@ -603,12 +605,13 @@ function imageRootTransform(
   const styleText = attr("style");
   if (styleText != null) {
     for (const [order, declaration] of splitStyleDeclarations(styleText).entries()) {
-      const colon = declaration.indexOf(":");
+      const clean = blankImageCssNoise(declaration, false);
+      const colon = clean.indexOf(":");
       if (colon < 0) continue;
-      const raw = declaration.slice(colon + 1).trim();
+      const raw = trimImageCssWhitespace(declaration.slice(colon + 1));
       const important = /!\s*important\s*$/i.test(raw);
-      const value = raw.replace(/!\s*important\s*$/i, "").trim();
-      const rawName = declaration.slice(0, colon).trim();
+      const value = trimImageCssWhitespace(raw.replace(/!\s*important\s*$/i, ""));
+      const rawName = trimImageCssWhitespace(clean.slice(0, colon));
       const name = rawName.startsWith("--") ? rawName : rawName.toLowerCase();
       const previous = inline.get(name);
       if (previous == null || important || !previous.important) inline.set(name, { value, important, order });
@@ -824,8 +827,10 @@ export function flattenedRootGroupAttributes(rootAttrs: string): string {
   const tokens = parseSvgAttributes(kept);
   const style = tokens?.find((token) => token.name.toLowerCase() === "style");
   if (style == null) return kept.replace(/\s+$/, "");
-  const declarations = stripViewportOnlyStyleDeclarations(style.value);
-  const replacement = declarations === "" ? "" : ` style="${declarations.replace(/"/g, "&quot;")}"`;
+  const decoded = decodeXmlAttributeValue(style.value);
+  if (decoded == null) return kept.replace(/\s+$/, "");
+  const declarations = stripViewportOnlyStyleDeclarations(decoded);
+  const replacement = declarations === "" ? "" : ` style="${esc(declarations)}"`;
   return (kept.slice(0, style.start) + replacement + kept.slice(style.end)).replace(/\s+$/, "");
 }
 
@@ -866,31 +871,32 @@ const IMAGE_ROOT_TRANSFORM_STYLE_PROPS = new Set([
 function stripStyleProperties(style: string, properties: ReadonlySet<string>): string {
   return splitStyleDeclarations(style)
     .filter((declaration) => {
-      const colon = declaration.indexOf(":");
-      return !properties.has((colon < 0 ? declaration : declaration.slice(0, colon)).trim().toLowerCase());
+      const clean = blankImageCssNoise(declaration, false);
+      const colon = clean.indexOf(":");
+      return !properties.has(trimImageCssWhitespace(colon < 0 ? clean : clean.slice(0, colon)).toLowerCase());
     })
     .join(";");
 }
 
 /** Split a `style` attribute value into its trimmed, non-empty declarations.
- *  Splits on `;` outside quotes, parentheses and character entities, so
- *  `url("data:…;…")` and `&quot;Helvetica Neue&quot;` stay intact. */
+ *  Takes DOM-decoded CSS; splits outside strings, comments, escapes and functions. */
 function splitStyleDeclarations(style: string): string[] {
+  const clean = blankImageCssNoise(style, false);
   const declarations: string[] = [];
   let depth = 0;
   let quote: string | null = null;
   let start = 0;
   for (let i = 0; i <= style.length; i++) {
-    const ch = style[i];
+    const ch = clean[i];
     if (i < style.length) {
       if (quote != null) {
-        if (ch === quote) quote = null;
+        if (ch === "\\") i++;
+        else if (ch === quote) quote = null;
         continue;
       }
-      // The value is raw attribute text, so `&quot;` and friends end in `;`.
-      const entity = ch === "&" ? /^&(?:#\d+|#x[\da-f]+|[a-z]+);/i.exec(style.slice(i)) : null;
-      if (entity != null) {
-        i += entity[0].length - 1;
+      if (ch === "\\") {
+        const end = imageCssEscapeEnd(clean, i);
+        if (end != null) i = end - 1;
         continue;
       }
       if (ch === '"' || ch === "'") quote = ch;
@@ -898,7 +904,7 @@ function splitStyleDeclarations(style: string): string[] {
       else if (ch === ")") depth = Math.max(0, depth - 1);
       if (ch !== ";" || depth > 0) continue;
     }
-    const declaration = style.slice(start, i).trim();
+    const declaration = trimImageCssWhitespace(style.slice(start, i));
     start = i + 1;
     if (declaration !== "") declarations.push(declaration);
   }
@@ -911,8 +917,10 @@ function stripImageRootTransformAttrs(attrs: string): string {
   const stripped = stripAttrs(attrs, ["transform", "transform-origin"]);
   const style = parseSvgAttributes(stripped)?.find((token) => token.name.toLowerCase() === "style");
   if (style == null) return stripped;
-  const declarations = stripStyleProperties(style.value, IMAGE_ROOT_TRANSFORM_STYLE_PROPS);
-  const replacement = declarations === "" ? "" : ` style="${declarations.replace(/"/g, "&quot;")}"`;
+  const decoded = decodeXmlAttributeValue(style.value);
+  if (decoded == null) return stripped;
+  const declarations = stripStyleProperties(decoded, IMAGE_ROOT_TRANSFORM_STYLE_PROPS);
+  const replacement = declarations === "" ? "" : ` style="${esc(declarations)}"`;
   return stripped.slice(0, style.start) + replacement + stripped.slice(style.end);
 }
 

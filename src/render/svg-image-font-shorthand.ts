@@ -1,4 +1,19 @@
 /** Balanced font shorthand boundaries shared by SVG root metrics and name isolation. */
+import { blankImageCssNoise } from "./svg-image-cdata.js";
+import { imageCssEscapeEnd, parseImageFontFamilyTail } from "./svg-image-font-family.js";
+import { imageRootFontSizeLength } from "./svg-image-root-transform.js";
+
+const LINE_HEIGHT_UNIT =
+  /^(?:%|px|pt|pc|in|cm|mm|q|r?em|r?ex|r?ch|r?cap|r?ic|r?lh|[sld]?v(?:w|h|i|b|min|max)|cq(?:w|h|i|b|min|max))$/i;
+
+/** ConsumeLineHeight accepts a nonnegative number/length/percentage. Math
+ * outside the existing typed length evaluator remains unresolved. */
+function validLineHeight(value: string): boolean {
+  if (/^normal$/i.test(value)) return true;
+  const simple = /^([-+]?(?:\d+\.?\d*|\.\d+))(%|[a-z]+)?$/i.exec(value);
+  if (simple != null) return Number(simple[1]) >= 0 && (simple[2] == null || LINE_HEIGHT_UNIT.test(simple[2]));
+  return /^(?:calc|min|max|clamp)\(/i.test(value) && imageRootFontSizeLength(value, 16) != null;
+}
 export interface ImageFontShorthand {
   size: string;
   family: string;
@@ -11,8 +26,9 @@ export interface ImageFontShorthand {
 }
 
 /** CSS functions and quoted names remain single tokens, including nested math. */
-function tokens(value: string): Array<{ value: string; start: number }> | null {
-  const out: Array<{ value: string; start: number }> = [];
+function tokens(value: string): Array<{ value: string; start: number; end: number }> | null {
+  const out: Array<{ value: string; start: number; end: number }> = [];
+  value = blankImageCssNoise(value, false);
   let start = 0;
   let depth = 0;
   let quote = "";
@@ -21,13 +37,17 @@ function tokens(value: string): Array<{ value: string; start: number }> | null {
     if (quote !== "") {
       if (ch === "\\") i++;
       else if (ch === quote) quote = "";
+    } else if (ch === "\\") {
+      const end = imageCssEscapeEnd(value, i);
+      if (end == null) return null;
+      i = end - 1;
     } else if (ch === '"' || ch === "'") quote = ch;
     else if (ch === "(") depth++;
     else if (ch === ")") {
       if (--depth < 0) return null;
-    } else if (depth === 0 && (ch == null || /\s/.test(ch) || ch === "/")) {
-      if (i > start) out.push({ value: value.slice(start, i), start });
-      if (ch === "/") out.push({ value: ch, start: i });
+    } else if (depth === 0 && (ch == null || /[ \t\n\r\f]/.test(ch) || ch === "/")) {
+      if (i > start) out.push({ value: value.slice(start, i), start, end: i });
+      if (ch === "/") out.push({ value: ch, start: i, end: i + 1 });
       start = i + 1;
     }
   }
@@ -35,12 +55,14 @@ function tokens(value: string): Array<{ value: string; start: number }> | null {
 }
 
 export function parseImageFontShorthand(value: string): ImageFontShorthand | null {
+  if (value.length > 65536) return null;
   const parts = tokens(value);
   if (parts == null) return null;
   let weight = "normal",
     style = "normal",
     stretch = "normal",
     variant = "normal";
+  let optionalCount = 0;
   for (let i = 0; i < parts.length; i++) {
     const token = parts[i].value;
     const lower = token.toLowerCase();
@@ -53,26 +75,20 @@ export function parseImageFontShorthand(value: string): ImageFontShorthand | nul
       let familyIndex = i + 1;
       let lineHeight = "normal";
       if (parts[familyIndex]?.value === "/") {
-        lineHeight = parts[++familyIndex]?.value ?? "";
-        if (
-          !/^(?:normal|[-+]?(?:\d+\.?\d*|\.\d+)(?:%|[a-z]+)?)$/i.test(lineHeight) &&
-          !/^(?:calc|min|max|clamp)\(/i.test(lineHeight)
-        )
-          return null;
+        const part = parts[++familyIndex];
+        lineHeight = part == null ? "" : value.slice(part.start, part.end);
+        if (!validLineHeight(lineHeight)) return null;
         familyIndex++;
       }
       if (parts[familyIndex] == null || parts[familyIndex].value === "/") return null;
       const familyStart = parts[familyIndex].start;
-      // A family tail is strings/identifiers, never another function or slash.
-      if (
-        parts
-          .slice(familyIndex)
-          .some((part) => part.value === "/" || (/^[^"']/.test(part.value) && /[():;]/.test(part.value)))
-      )
-        return null;
+      const families = parseImageFontFamilyTail(value.slice(familyStart));
+      if (families == null) return null;
       return {
-        size: token,
-        family: value.slice(familyStart).trim(),
+        // Keep size math raw: inserting whitespace where comments occurred
+        // must not turn invalid operator spacing into a valid expression.
+        size: value.slice(parts[i].start, parts[i].end),
+        family: families.map((family) => family.css).join(", "),
         familyStart,
         lineHeight,
         weight,
@@ -81,11 +97,16 @@ export function parseImageFontShorthand(value: string): ImageFontShorthand | nul
         variant,
       };
     }
+    // ConsumeFont permits at most four optional components, including each
+    // normal placeholder (shorthands_custom.cc:3100–3157, Chromium7d859f27).
+    if (++optionalCount > 4) return null;
     if (lower === "normal") continue;
     if ((lower === "italic" || lower === "oblique") && style === "normal") {
       style = lower;
-      if (lower === "oblique" && /^[-+]?(?:\d+\.?\d*|\.\d+)deg$/i.test(parts[i + 1]?.value ?? ""))
+      if (lower === "oblique" && /^[-+]?(?:\d+\.?\d*|\.\d+)deg$/i.test(parts[i + 1]?.value ?? "")) {
+        if (Math.abs(parseFloat(parts[i + 1].value)) > 90) return null;
         style += ` ${parts[++i].value}`;
+      }
     } else if (/^(?:bold|bolder|lighter|(?:[1-9]\d{0,2}|1000))$/.test(lower) && weight === "normal") weight = lower;
     else if (
       /^(?:ultra-condensed|extra-condensed|condensed|semi-condensed|semi-expanded|expanded|extra-expanded|ultra-expanded)$/.test(

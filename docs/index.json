@@ -6038,9 +6038,11 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA"],
+        "tickets": ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ"],
         "code": [
           "src/render/svg-image-font-shorthand.ts",
+          "src/render/svg-image-font-family.ts",
+          "tests/svg-image-font-tail.e2e.test.ts",
           "src/render/svg-image-css-variables.ts",
           "src/render/svg-image-style-names.ts",
           "src/render/svg-image-root-font.ts",

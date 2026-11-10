@@ -4449,6 +4449,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/render/svg-image-font-shorthand.ts",
+        "src/render/svg-image-font-family.ts",
+        "tests/svg-image-font-tail.e2e.test.ts",
         "src/render/svg-image-css-variables.ts",
         "src/render/svg-image-style-names.ts",
         "src/render/svg-image-root-font.ts",

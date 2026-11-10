@@ -3,6 +3,24 @@ import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import { inlineImgSvg } from "./svg-inline.js";
 
 describe("isolated SVG image CSS names", () => {
+  it("does not rename a genuine generic to a same-named literal font face", () => {
+    const out = namespaceImageStyleNames(
+      `<svg><style>@font-face{font-family:'serif';src:local(serif)}.a{font:20px SERIF}.b{font:20px 'serif'}</style></svg>`,
+      "A-",
+    );
+    expect(out).toContain("font-family:'A-serif'");
+    expect(out).toContain(".a{font:20px serif}");
+    expect(out).toContain(".b{font:20px 'A-serif'}");
+  });
+  it("matches commented/escaped literal families without changing unrelated variable strings", () => {
+    const out = namespaceImageStyleNames(
+      `<svg><style>@font-face{font-family:Foo/**/Bar;src:local(serif)}.a{--note:'Foo/**/Bar';font:20px Foo/**/Bar}</style></svg>`,
+      "A-",
+    );
+    expect(out).toContain("font-family:A-Foo Bar");
+    expect(out).toContain("font:20px A-Foo Bar");
+    expect(out).toContain("--note:'Foo/**/Bar'");
+  });
   it("decodes XML font references before CSS and preserves unrelated DOM strings", () => {
     const out = namespaceImageStyleNames(
       `<svg style="--unrelated:'A &amp; B';font:20px &quot;A &amp; B&quot;"><style><![CDATA[@font-face{font-family:'A & B';src:local(serif)}]]></style><text font-family="&quot;A &amp; B&quot;">A</text></svg>`,
