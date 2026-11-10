@@ -129,7 +129,8 @@ export interface ImageElement {
   attributes: Map<string, string | null>;
   /** Optional lexical evidence for resource admission, never inferred from
    * decoded DOM values. Duplicate attributes remain visible here. */
-  sourceAttributes?: Array<{ name: string; value: string; syntax: string }>;
+  sourceAttributes?: Array<{ name: string; value: string; syntax: string; start: number; end: number }>;
+  sourceRange?: { start: number; openEnd: number; closeStart: number; end: number; selfClosing: boolean };
   parent: ImageElement | null;
   children: ImageElement[];
   /** Each text child's DOM data (CDATA sections included), null when a DTD
@@ -186,6 +187,10 @@ export function parseImageElementTree(xml: string, recordAttributeSource = false
       if (end < 0 || current == null) return null;
       const name = xml.slice(lt + 2, end).trim();
       if (name !== current.name) return null;
+      if (current.sourceRange != null) {
+        current.sourceRange.closeStart = lt;
+        current.sourceRange.end = end + 1;
+      }
       current = current.parent;
       i = end + 1;
     } else {
@@ -207,13 +212,28 @@ export function parseImageElementTree(xml: string, recordAttributeSource = false
         attrRe.lastIndex = j;
         const m = attrRe.exec(xml);
         if (m == null) return null;
-        el.sourceAttributes?.push({ name: m[1], value: m[2] ?? m[3] ?? "", syntax: m[0] });
+        el.sourceAttributes?.push({
+          name: m[1],
+          value: m[2] ?? m[3] ?? "",
+          syntax: m[0],
+          start: m.index,
+          end: attrRe.lastIndex,
+        });
         el.attributes.set(m[1], decodeXmlAttributeValue(m[2] ?? m[3] ?? ""));
         j = attrRe.lastIndex;
       }
       if (current != null) current.children.push(el);
       else root = el;
-      if (xml.startsWith("/>", j)) i = j + 2;
+      const selfClosing = xml.startsWith("/>", j);
+      if (recordAttributeSource)
+        el.sourceRange = {
+          start: lt,
+          openEnd: j + (selfClosing ? 2 : 1),
+          closeStart: j + (selfClosing ? 2 : 1),
+          end: j + (selfClosing ? 2 : 1),
+          selfClosing,
+        };
+      if (selfClosing) i = j + 2;
       else {
         current = el;
         i = j + 1;

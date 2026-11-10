@@ -47,6 +47,7 @@ import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
 import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
+import { namespaceImageReferences } from "./svg-image-references.js";
 import { authenticatedImageFonts, imageOwnFontSheets, type ImageOwnFontContext } from "./svg-image-own-fonts.js";
 import type { IsolatedFontFace } from "./font-resolution.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
@@ -1103,8 +1104,10 @@ function resolveDocumentViewport(
 export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
   const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
   const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
-  const imageSource =
+  let imageSource =
     expanded == null ? null : fontFaces == null ? expanded : (imageOwnFontSheets(expanded)?.source ?? null);
+  if (imageSource == null) return null;
+  if (p.documentViewport === true) imageSource = namespaceImageReferences(imageSource, p.idPrefix);
   if (imageSource == null) return null;
   const tag = readSvgOpeningTag(imageSource);
   if (tag == null) return null;
@@ -1160,16 +1163,21 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   // Both halves share the document's id set, so a body reference to the
   // root's own id (`#root` in a `<style>`, `href="#root"`) follows it.
   const docIds = svgDocumentIds(svgText);
-  let rootAttrs = prefixSvgIds(attrs, p.idPrefix, docIds).replace(/\s+$/, "");
-  let body = prefixSvgIds(svgText.slice(rewrittenTag.end), p.idPrefix, docIds);
+  let rootAttrs = (p.documentViewport === true ? attrs : prefixSvgIds(attrs, p.idPrefix, docIds)).replace(/\s+$/, "");
+  let body =
+    p.documentViewport === true
+      ? svgText.slice(rewrittenTag.end)
+      : prefixSvgIds(svgText.slice(rewrittenTag.end), p.idPrefix, docIds);
   // DM-1593: also namespace CSS class names — but ONLY when the SVG carries a
   // `<style>` block (the only way a class can affect rendering, so the common
   // presentation-attribute export stays byte-identical). Gated on the whole
   // source: `<style>` + `class="…"` live in the body; a `class` on the root svg
   // is rare but handled too.
   if (/<style[\s>]/i.test(svgText)) {
-    rootAttrs = prefixSvgClasses(rootAttrs, p.idPrefix);
-    body = prefixSvgClasses(body, p.idPrefix);
+    if (p.documentViewport !== true) {
+      rootAttrs = prefixSvgClasses(rootAttrs, p.idPrefix);
+      body = prefixSvgClasses(body, p.idPrefix);
+    }
     // An inlined `<style>` belongs to the whole output document; scope its
     // selectors to this image (its own document in Blink).
     rootAttrs += ` ${IMAGE_ROOT_ATTR}="${p.idPrefix}"`;
@@ -1336,6 +1344,11 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     if (sheets == null) return null;
     sourceText = sheets.source;
   } else sourceText = expanded;
+  if (p.documentViewport === true) {
+    const namespaced = namespaceImageReferences(sourceText, p.idPrefix);
+    if (namespaced == null) return null;
+    sourceText = namespaced;
+  }
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   const sheet = rootSheetTransform(sourceText, tag, p);
@@ -1361,12 +1374,15 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
 
   // Namespace ids/classes exactly as the nested path does (DM-1588 / DM-1593).
   const docIds = svgDocumentIds(svgText);
-  let body = prefixSvgIds(bodySource, p.idPrefix, docIds);
-  if (/<style[\s>]/i.test(svgText)) body = prefixSvgClasses(body, p.idPrefix);
+  let body = p.documentViewport === true ? bodySource : prefixSvgIds(bodySource, p.idPrefix, docIds);
+  if (p.documentViewport !== true && /<style[\s>]/i.test(svgText)) body = prefixSvgClasses(body, p.idPrefix);
   // Inheritable presentation properties + currentColor context on the root svg
   // must survive: carry a root `color`/`fill`/… by keeping the source svg's
   // presentation attrs on the group (strip layout attrs it must not carry).
-  const groupAttrs = prefixSvgIds(flattenedRootGroupAttributes(attrs), p.idPrefix, docIds);
+  const groupAttrs =
+    p.documentViewport === true
+      ? flattenedRootGroupAttributes(attrs)
+      : prefixSvgIds(flattenedRootGroupAttributes(attrs), p.idPrefix, docIds);
 
   // The `r()` px formatter rounds to 1 decimal — fine for coordinates but far
   // too coarse for the scale/skew components (0.6667 would round to 0.7, a ~5%

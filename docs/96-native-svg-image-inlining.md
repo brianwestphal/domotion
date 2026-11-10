@@ -24,6 +24,7 @@ tickets:
     "DM-KGD5KC",
     "DM-YMAF0G",
     "DM-SXDNW9",
+    "DM-WT73T4",
   ]
 code:
   [
@@ -65,6 +66,11 @@ code:
     "src/render/svg-image-css-import.test.ts",
     "src/render/svg-image-fragment-ids.ts",
     "src/render/svg-image-fragment-ids.test.ts",
+    "src/render/svg-image-references.ts",
+    "src/render/svg-image-reference-css.ts",
+    "src/render/svg-image-reference-syntax.ts",
+    "src/render/svg-image-references.test.ts",
+    "tests/img-svg-reference-identity.e2e.test.ts",
     "tests/img-svg-import-fragments.e2e.test.ts",
     "src/render/svg-image-cdata.ts",
     "src/render/svg-image-style-names.ts",
@@ -289,7 +295,49 @@ fragment image is lowered; canonical gradient `href` chains are preserved.
 Unresolved references, unproved attribute serialization and namespace-sensitive
 text/string data retain the source image. This admission gate does not repair
 the shared ordinary-image namespace rewrite: DM-WT73T4 owns its complete
-XML/URL identity and reference handling.
+XML/URL identity and reference handling. Its admission gate remains deliberately
+strict after that ordinary-image repair; encoded imported forms are not
+silently admitted by the later namespace pass.
+
+### Ordinary image XML identity (DM-WT73T4)
+
+An SVG captured as an image document uses a separate XML-aware namespace pass.
+It reads actual XML attribute values, including character references and
+whitespace around `=`, and rewrites IDs and their consumers from one image-local
+identity inventory. Percent-encoded fragments use Chromium's URL normalization
+and UTF8-or-isomorphic decoding: if any decoded byte sequence is invalid UTF8,
+the entire sequence becomes isomorphic bytes. CSS URL functions, hash/class
+selectors and their escapes are tokenized; ordinary strings, comments and
+unrelated attribute/text data remain data. The shared DOM-inline/animation
+`prefixSvgIds` API retains its intentional host-reference behavior.
+
+Known image-local references include the nine SVG paint/resource properties
+above, `href`/`xlink:href`, ARIA IDREF attributes and SMIL syncbase/eventbase
+conditions. IDs/classes and selectors share the same prefix. Original DOM
+values of changed attributes are saved under fresh private attribute names;
+attribute selector names and CSS `attr()` reads use those original-value
+attributes. This preserves equality/substrings, specificity and typed `attr()`
+geometry rather than changing which source nodes match. The private names are
+chosen outside authored XML and decoded CSS vocabulary.
+
+Duplicate/empty IDs, unknown XML data, missing targets, relative/external
+references, unsupported URI consumers, namespace/base-URL ambiguity, dynamic
+animation of identity/reference attributes and unproved selector syntax retain
+the source image fallback. A missing target therefore preserves its original
+fallback paint instead of binding to a same-named host target. URL-bearing
+custom properties remain conservative. DTD-bearing images are also retained;
+DM-1YAE1F tracks source-proving harmless self-contained doctypes. Stylesheet
+processing instructions remain outside lexical authentication. This pass does
+not relax data-import MIME/charset/depth/size or fragment admission gates.
+It still relies on the caller's generated namespace being distinct from other
+output IDs. DM-R7ME85 tracks the separate existing ambiguity in concatenating
+numeric image prefixes with authored IDs and wrapper helper suffixes.
+
+The source contract is Chromium `7d859f27`:
+[`SVGURIReference::FragmentIdentifierFromIRIString`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/svg/svg_uri_reference.cc),
+[`CSSURIValue::NormalizedFragmentIdentifier`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/css/css_uri_value.cc),
+[`DecodeUrlEscapeSequences`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/url/url_util.cc#L833-L890),
+and [`SVGSMILElement::ParseCondition`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/svg/animation/svg_smil_element.cc#L562-L664).
 
 The source contract is Chromium `7d859f27`:
 [`CSSStyleSheetResource::CanUseSheet`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/loader/resource/css_style_sheet_resource.cc),
@@ -301,6 +349,14 @@ and [`TextResourceDecoder`](https://github.com/chromium/chromium/blob/7d859f271c
 - **`<filter>` regions, `currentColor`, and CSS custom properties** inside the SVG resolve against the nested `<svg>` context, matching how the browser resolves them for the original `<img>` in the common cases (design-tool exports with self-contained gradients/filters). SVGs that rely on inheriting `color` / CSS variables from the host page are out of scope.
 
 ## Testing
+
+- `src/render/svg-image-references.test.ts` checks XML/URL identity decoding,
+  selector/string preservation, fresh private names, href/ARIA/SMIL consumers
+  and conservative ambiguous-input fallbacks. The native
+  `tests/img-svg-reference-identity.e2e.test.ts` compares source image paint to
+  captured output under competing host IDs in both flatten modes, including
+  explicit typed `attr()` source geometry checks. Import overlap remains in
+  `tests/img-svg-import-fragments.e2e.test.ts`.
 
 - `src/render/svg-inline.test.ts` — `prefixSvgIds` namespacing (fragment/CSS/timing/ARIA consumers, both quote styles, unresolved/external passthrough, shared-vs-independent scopes); `inlineImgSvg` (viewBox preservation, width/height synthesis, intrinsic fallback, no-coordinate-system → `null`, no-root → `null`, XML-decl stripping); and end-to-end through `elementTreeToSvgInner` (SVG `<img>` → native `<svg>`, raster `<img>` → `<image>`, border-radius clip wrapper). `tests/inline-svg-textpath-oracle.e2e.test.ts` proves two iframe documents can reuse one path id without cross-binding after capture.
 - `src/render/resolve-svg-source.test.ts` — `resolveSvgSource` decode (base64 + URL-encoded), local URL-encoded files, Windows drive/UNC conversion, raster → `null`, remote → `null`, empty/nullish → `null`.
