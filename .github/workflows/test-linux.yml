@@ -247,6 +247,7 @@ jobs:
             tests/output-linux/webfont-descriptor-group-*.json
             tests/output-linux/webgl-projective-preflight/
             tests/output-linux/literal-family-identity/
+            tests/output-linux/external-svg-frozen/
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed
