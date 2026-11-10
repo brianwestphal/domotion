@@ -98,3 +98,26 @@ until their release and cleanup are proved.
 Node 22's official documentation specifies both
 [process/stdio closure ordering](https://github.com/nodejs/node/blob/v22.21.0/doc/api/child_process.md#event-close)
 and [Windows signal behavior](https://github.com/nodejs/node/blob/v22.21.0/doc/api/child_process.md#subprocesskillsignal).
+
+### Native clipboard copy assertions (DM-2Z7626)
+
+The review-client guard compares the complete copied issue text with the
+textarea value, accounting only for Chromium's native clipboard line endings.
+At Chromium147 revision6b5a1b80,
+[`SystemClipboard::WritePlainText`](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/clipboard/system_clipboard.cc)
+calls `NormalizeLineEndingsToCRLF` on Windows; the
+[`line-ending implementation`](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/platform/wtf/text/line_ending.cc)
+preserves existing CRLF and converts lone CR/LF to CRLF, leaving other characters
+alone. Windows
+[`ClipboardWin::ReadTextInternal`](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/ui/base/clipboard/clipboard_win.cc)
+returns native `CF_UNICODETEXT` without converting those endings back to LF.
+
+`tests/native-clipboard-text.ts` expresses this expected transport convention;
+macOS/Linux expectations retain the original string. The native assertion still
+requires exact whole-text equality, including Unicode, spaces, blank lines and
+the final line ending. It does not trim the readback, alter product copy logic,
+replace the browser clipboard or weaken readonly/selection checks. The f283
+Windows9/2 native profile failed this clipboard expectation after the editor
+checks passed; its other Select-placement failure is tracked independently in
+DM-QV1MYS. Its13 process controls and all five owned-service cleanup records
+passed. Neither UI assertion identifies the earlier startup-null cause.

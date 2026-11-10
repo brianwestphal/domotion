@@ -9,6 +9,7 @@ import { startReviewServer } from "../src/review/server.js";
 import { startStudioServer } from "../src/studio/server.js";
 import { chooseKerfSelectOption, kerfSelectOptionValues, kerfSelectValue } from "../src/test-support/kerf-select.js";
 import { startOwnedUiServer, type OwnedUiServer } from "./owned-ui-server.js";
+import { expectedNativeClipboardText } from "./native-clipboard-text.js";
 
 // DM-1798: browser-side guard for the two UIs that use kerf's RUNTIME rather
 // than just its SSR JSX — `tests/review-client.tsx` (signal / computed /
@@ -301,7 +302,9 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
         .context()
         .grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(server.url).origin });
       await page.getByRole("button", { name: "Copy issue text", exact: true }).click();
-      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(markdown);
+      await expect
+        .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+        .toBe(expectedNativeClipboardText(markdown, process.platform));
       // The empty region list is a client-rendered kerf-ui EmptyState whose
       // CSS arrives through the bundle's <head> prologue.
       await expectKerfUiStyled(page, ".region-list .kui-empty-state", "display", "grid");
