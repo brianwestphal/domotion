@@ -48,7 +48,7 @@ import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
 import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
-import { namespaceImageReferences } from "./svg-image-references.js";
+import { namespaceImageReferencesWithIdentity, preserveImageStyleAttributeIdentity } from "./svg-image-references.js";
 import { resolveImageNamespace } from "./svg-image-namespace.js";
 import { authenticatedImageFonts, imageOwnFontSheets, type ImageOwnFontContext } from "./svg-image-own-fonts.js";
 import type { IsolatedFontFace } from "./font-resolution.js";
@@ -1120,13 +1120,17 @@ export function inlineImgSvg(sourceText: string, placement: InlineSvgPlacement):
   let imageSource =
     expanded == null ? null : fontFaces == null ? expanded : (imageOwnFontSheets(expanded)?.source ?? null);
   if (imageSource == null) return null;
-  if (p.documentViewport === true) imageSource = namespaceImageReferences(imageSource, p.idPrefix);
-  if (imageSource == null) return null;
+  const identity =
+    p.documentViewport === true
+      ? namespaceImageReferencesWithIdentity(imageSource, p.idPrefix)
+      : preserveImageStyleAttributeIdentity(imageSource);
+  if (identity == null) return null;
+  imageSource = identity.markup;
   const tag = readSvgOpeningTag(imageSource);
   if (tag == null) return null;
   const sheet = rootSheetTransform(imageSource, tag, p);
   if (sheet.raster) return null;
-  const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
+  const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix, identity.originals);
   if (svgText == null) return null;
   const rewrittenTag = readSvgOpeningTag(svgText);
   if (rewrittenTag == null) return null;
@@ -1358,16 +1362,17 @@ export function flattenImgSvg(sourceText: string, placement: InlineSvgPlacement)
     if (sheets == null) return null;
     sourceText = sheets.source;
   } else sourceText = expanded;
-  if (p.documentViewport === true) {
-    const namespaced = namespaceImageReferences(sourceText, p.idPrefix);
-    if (namespaced == null) return null;
-    sourceText = namespaced;
-  }
+  const identity =
+    p.documentViewport === true
+      ? namespaceImageReferencesWithIdentity(sourceText, p.idPrefix)
+      : preserveImageStyleAttributeIdentity(sourceText);
+  if (identity == null) return null;
+  sourceText = identity.markup;
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   const sheet = rootSheetTransform(sourceText, tag, p);
   if (sheet.raster) return null;
-  const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
+  const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix, identity.originals);
   if (svgText == null) return null;
   const rewrittenTag = readSvgOpeningTag(svgText);
   if (rewrittenTag == null) return null;

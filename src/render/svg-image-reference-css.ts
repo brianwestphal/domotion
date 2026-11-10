@@ -14,6 +14,8 @@ export interface ImageReferenceContext {
   prefix: string;
   ids: ReadonlySet<string>;
   originals: ReadonlyMap<string, string>;
+  /** Only original attribute reads; IDs/classes/resource ownership stay unchanged. */
+  identityOnly?: boolean;
 }
 
 export const IMAGE_SVG_RESOURCE_PROPERTIES: ReadonlySet<string> = new Set([
@@ -109,7 +111,8 @@ export function rewriteImageCssValue(value: string, property: string, context: I
     if (name === "url") {
       const argument = imageCssUrlArgument(value, identifier.end);
       if (argument == null) return null;
-      if (argument.value.startsWith("#")) {
+      if (context.identityOnly) out += value.slice(at, argument.end);
+      else if (argument.value.startsWith("#")) {
         if (!IMAGE_SVG_RESOURCE_PROPERTIES.has(property.toLowerCase())) return null;
         const rewritten = rewriteImageLocalUrl(argument.value, context);
         if (rewritten == null) return null;
@@ -202,7 +205,7 @@ export function rewriteImageSelector(selector: string, context: ImageReferenceCo
       at = end;
       continue;
     }
-    if (selector[at] === "#" || selector[at] === ".") {
+    if (!context.identityOnly && (selector[at] === "#" || selector[at] === ".")) {
       const identifier = referenceCssIdentifier(selector, at + 1);
       if (identifier == null) return null;
       out += selector[at] + referenceCssIdentifierValue(context.prefix + identifier.value);

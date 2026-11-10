@@ -569,9 +569,13 @@ it("flattenImgSvg never emits a duplicate transform attribute from a root transf
 // already applied by the capture's element transform.
 describe("root <svg transform> (outermost-svg transform parity)", () => {
   it("does not parse declarations hidden in CSS comments or leave a commented transform live", () => {
-    const out = inlineImgSvg(icon(` style="font-size:30px;/* font:8px Pair; */ transform:translateX(1em)"`), place);
+    const out = inlineImgSvg(icon(` style="font-size:30px;/* font:8px Pair; */ transform:translateX(1em)"`), place)!;
     expect(out).toContain("translate(30 0)");
-    expect(out).not.toContain("transform:translateX");
+    const nested = readSvgOpeningTag(out.slice(out.indexOf("<svg")))!.attributes;
+    expect(/(?:^|\s)style="([^"]*)"/.exec(nested)?.[1]).not.toContain("transform:translateX");
+    expect(nested).toContain(
+      'data-domotion-source-0-0="font-size:30px;/* font:8px Pair; */ transform:translateX(1em)"',
+    );
   });
   const icon = (extra: string): string =>
     `<svg viewBox="0 0 100 100" width="100" height="100"${extra}><rect width="100" height="40" fill="red"/></svg>`;
@@ -613,7 +617,11 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
     )!;
     expect(out).toContain(`<g transform="translate(50 50) rotate(5) rotate(30) translate(-50 -50)"><svg`);
     const nested = readSvgOpeningTag(out.slice(out.indexOf("<svg")))!.raw;
-    expect(nested).not.toMatch(/\btransform=|transform:|transform-origin|rotate:/);
+    expect(nested).not.toMatch(/(?:^|\s)transform=/);
+    expect(/(?:^|\s)style="([^"]*)"/.exec(nested)?.[1]).not.toMatch(/transform:|transform-origin|rotate:/);
+    expect(nested).toContain(
+      'data-domotion-source-0-0="fill: red; transform: rotate(30deg); transform-origin: 0 0; rotate: 5deg"',
+    );
     expect(nested).toContain(`style="fill: red"`);
   });
 

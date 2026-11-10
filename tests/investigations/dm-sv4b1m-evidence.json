@@ -1,0 +1,41 @@
+{
+  "browser": "147.0.7727.15",
+  "baseline": "d5bf5fc9 (a8ca0caa + de45c0f4 + f01f307a)",
+  "viewport": {
+    "width": 120,
+    "height": 40,
+    "dpr": 1
+  },
+  "results": [
+    {
+      "label": "before",
+      "sourceSha256": "758073b86456aa580293151af3691a2978400cc4b65051e3f7814b365cf19c30",
+      "expectedSha256": "3699614f419fd727710847be56ee9b2084adc6236fee8c271f9eb5d95c1edff0",
+      "actualSha256": "b75469895376b1313d75d0a3ad58e26dc646ddb824bd78d9bd8f3715934f55d8",
+      "svgSha256": "ecb1038ebbcd4ee9846c8d53322203219e630c71dc5cb41e50b1e9715fbafa4e",
+      "changedPixels": 4634,
+      "totalPixels": 4800,
+      "diffPct": 96.54166666666667,
+      "native": [255, 0, 0, 255],
+      "actual": [0, 255, 0, 255]
+    },
+    {
+      "label": "after",
+      "sourceSha256": "758073b86456aa580293151af3691a2978400cc4b65051e3f7814b365cf19c30",
+      "expectedSha256": "3699614f419fd727710847be56ee9b2084adc6236fee8c271f9eb5d95c1edff0",
+      "actualSha256": "3699614f419fd727710847be56ee9b2084adc6236fee8c271f9eb5d95c1edff0",
+      "svgSha256": "4bcb847afc443c96257cb9ef17e52e46d267ceb054b0279f61a266b4ff15f0a6",
+      "changedPixels": 0,
+      "totalPixels": 4800,
+      "diffPct": 0,
+      "native": [255, 0, 0, 255],
+      "actual": [255, 0, 0, 255]
+    }
+  ],
+  "scope": "Ordinary Face selector identity, same source/viewport/embedded font; no general SVG or exotic-name parity claim.",
+  "commands": [
+    "node --import tsx tools/scratch/sv4-evidence.ts",
+    "node node_modules/vitest/vitest.mjs run --config vitest.e2e.config.ts tests/img-svg-font-attribute-identity.e2e.test.ts"
+  ],
+  "baselineReproduction": "Baseline renderer/reference/name modules read from exact d5bf5fc9; only relative import locations rewritten to the isolated checkout. No source SVG geometry or CSS comparison data changed."
+}

@@ -31,6 +31,9 @@ const MUTATED_ATTRIBUTES = [
   "end",
   ...IDREFS,
   ...IMAGE_SVG_RESOURCE_PROPERTIES,
+  "font-family",
+  "animation-name",
+  "list-style-type",
 ];
 const OTHER_URI_ATTRIBUTES = new Set([
   "cursor",
@@ -54,8 +57,31 @@ interface Edit {
  * prefixSvgIds, this pass authenticates DOM identities and every supported
  * reference before moving them into the output document. Unknown ownership
  * keeps the original source image, including its own fallback paint. */
+export interface ImageAttributeIdentity {
+  markup: string;
+  originals: ReadonlyMap<string, string>;
+}
+
+/** Keep the string entry point for existing reference consumers. */
 export function namespaceImageReferences(svg: string, prefix: string): string | null {
-  if (prefix === "" || /<!DOCTYPE\b|<\?xml-stylesheet\b/i.test(svg)) return null;
+  return namespaceImageReferencesWithIdentity(svg, prefix)?.markup ?? null;
+}
+
+export function namespaceImageReferencesWithIdentity(svg: string, prefix: string): ImageAttributeIdentity | null {
+  return preserveImageAttributes(svg, prefix, false);
+}
+
+/** The legacy/name-only path shares WT's original-value map without taking
+ * ownership of IDs, classes or resource URLs. Run before root style edits. */
+export function preserveImageStyleAttributeIdentity(svg: string): ImageAttributeIdentity | null {
+  return preserveImageAttributes(svg, "", true);
+}
+
+function preserveImageAttributes(svg: string, prefix: string, identityOnly: boolean): ImageAttributeIdentity | null {
+  if ((!identityOnly && prefix === "") || /<!DOCTYPE\b|<\?xml-stylesheet\b/i.test(svg)) return null;
+  const mutableNames = identityOnly
+    ? ["style", "font-family", "animation-name", "list-style-type"]
+    : MUTATED_ATTRIBUTES;
   const root = parseImageElementTree(svg, true);
   if (root == null || root.name !== "svg") return null;
   const elements: ImageElement[] = [],
@@ -89,7 +115,7 @@ export function namespaceImageReferences(svg: string, prefix: string): string | 
     }
     if (/^(?:animate|set|animateTransform|animateMotion)$/.test(element.name)) {
       const attribute = element.attributes.get("attributeName");
-      if (attribute != null && MUTATED_ATTRIBUTES.includes(attribute)) return null;
+      if (attribute != null && mutableNames.includes(attribute)) return null;
     }
     elements.push(element);
     pending.push(...element.children);
@@ -104,8 +130,8 @@ export function namespaceImageReferences(svg: string, prefix: string): string | 
   do {
     privatePrefix = `data-domotion-source-${serial++}-`;
   } while (vocabulary.includes(privatePrefix));
-  const originals = new Map(MUTATED_ATTRIBUTES.map((name, index) => [name, privatePrefix + index]));
-  const context: ImageReferenceContext = { prefix, ids, originals };
+  const originals = new Map(mutableNames.map((name, index) => [name, privatePrefix + index]));
+  const context: ImageReferenceContext = { prefix, ids, originals, identityOnly };
   const hasStyle = elements.some((e) => e.name === "style");
   const edits: Edit[] = [];
   for (const element of elements) {
@@ -117,7 +143,9 @@ export function namespaceImageReferences(svg: string, prefix: string): string | 
       const privateName = originals.get(name);
       if (privateName != null) saved += ` ${privateName}="${referenceXmlAttributeValue(value)}"`;
       let rewritten: string | null = value;
-      if (name === "id") rewritten = prefix + value;
+      if (identityOnly) {
+        if (name === "style") rewritten = rewriteImageInlineStyle(value, context);
+      } else if (name === "id") rewritten = prefix + value;
       else if (name === "class" && hasStyle) rewritten = value.replace(/[^ \t\n\r\f]+/g, (token) => prefix + token);
       else if (name === "style") rewritten = rewriteImageInlineStyle(value, context);
       else if (name === "href" || name === "xlink:href")
@@ -170,7 +198,7 @@ export function namespaceImageReferences(svg: string, prefix: string): string | 
     result = result.slice(0, edit.start) + edit.value + result.slice(edit.end);
     boundary = edit.start;
   }
-  return result;
+  return { markup: result, originals };
 }
 
 /** SVGSMILElement::ParseCondition uses the first unescaped dot as the

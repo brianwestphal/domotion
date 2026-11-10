@@ -12,8 +12,10 @@ import { serializeJoinedCdata } from "./svg-image-cdata.js";
 import { renderWarn } from "./render-warn.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
-import { decodeXmlAttributeValue, parseImageElementTree } from "./svg-image-selector-engine.js";
+import { parseImageElementTree } from "./svg-image-selector-engine.js";
 import { parseImageFontFamilyTail, trimImageCssWhitespace } from "./svg-image-font-family.js";
+import { preserveImageStyleAttributeIdentity } from "./svg-image-references.js";
+import { referenceXmlAttributeValue } from "./svg-image-reference-syntax.js";
 
 interface ImageNames {
   keyframes: Set<string>;
@@ -388,56 +390,69 @@ function rewriteAttributes(
   variableCounts: ReadonlyMap<string, number>,
   unsafe: () => void,
 ): string {
-  return markup.replace(/<[^>]+>/g, (tag) =>
-    tag.replace(
-      /(\s)(style|font-family|animation-name|list-style-type)\s*=\s*(["'])([\s\S]*?)\3/gi,
-      (full, space: string, attr: string, quote: string, value: string) => {
-        const decoded = decodeXmlAttributeValue(value);
-        if (decoded == null) {
+  const root = parseImageElementTree(markup, true);
+  if (root == null) {
+    unsafe();
+    return markup;
+  }
+  const edits: Array<{ start: number; end: number; value: string }> = [];
+  const pending = [root];
+  while (pending.length > 0) {
+    const element = pending.pop()!;
+    pending.push(...element.children);
+    for (const attribute of element.sourceAttributes ?? []) {
+      const attr = attribute.name;
+      if (!["style", "font-family", "animation-name", "list-style-type"].includes(attr)) continue;
+      const value = element.attributes.get(attr);
+      if (value == null) {
+        unsafe();
+        continue;
+      }
+      let next = value;
+      if (attr === "style") {
+        try {
+          const root = postcss.parse(`x{${value}}`);
+          root.walkDecls((decl) => {
+            if (!rewriteDeclaration(decl, names, scope, variableCounts)) unsafe();
+          });
+          next = root.toString().slice(2, -1);
+        } catch {
           unsafe();
-          return full;
+          continue;
         }
-        value = decoded;
-        let next = value;
-        if (attr.toLowerCase() === "style") {
-          try {
-            const root = postcss.parse(`x{${value}}`);
-            root.walkDecls((decl) => {
-              if (!rewriteDeclaration(decl, names, scope, variableCounts)) unsafe();
-            });
-            next = root.toString().slice(2, -1);
-          } catch {
-            return full;
-          }
-        } else if (attr.toLowerCase() === "font-family" && names.fonts.size > 0) {
-          const expanded = resolveImageCssVariables(value, (name) =>
-            variableCounts.has(name) || names.properties.has(nameKey(name)) ? undefined : null,
-          );
-          if (expanded == null) {
-            unsafe();
-            return full;
-          }
-          const renamed = renameFontFamilies(expanded, names.fonts, scope);
-          if (renamed == null) {
-            unsafe();
-            return full;
-          }
-          next = renamed;
-        } else if (attr.toLowerCase() === "font-family") next = value;
-        else if (attr.toLowerCase() === "animation-name") next = renameList(value, names.keyframes, scope);
-        else next = renameList(value, names.counters, scope);
-        const encoded = next
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(quote, quote === '"' ? "&quot;" : "&apos;");
-        return `${space}${attr}=${quote}${encoded}${quote}`;
-      },
-    ),
-  );
+      } else if (attr === "font-family" && names.fonts.size > 0) {
+        const expanded = resolveImageCssVariables(value, (name) =>
+          variableCounts.has(name) || names.properties.has(nameKey(name)) ? undefined : null,
+        );
+        const renamed = expanded == null ? null : renameFontFamilies(expanded, names.fonts, scope);
+        if (renamed == null) {
+          unsafe();
+          continue;
+        }
+        next = renamed;
+      } else if (attr === "animation-name") next = renameList(value, names.keyframes, scope);
+      else if (attr === "list-style-type") next = renameList(value, names.counters, scope);
+      if (next !== value)
+        edits.push({
+          start: attribute.start,
+          end: attribute.end,
+          value: `${attr}="${referenceXmlAttributeValue(next)}"`,
+        });
+    }
+  }
+  let result = markup;
+  for (const edit of edits.sort((a, b) => b.start - a.start)) {
+    result = result.slice(0, edit.start) + edit.value + result.slice(edit.end);
+  }
+  return result;
 }
 
 /** Prefix each CSS-wide name declared by this image and every local reference. */
-export function namespaceImageStyleNames(markup: string, scope: string): string | null {
+export function namespaceImageStyleNames(
+  markup: string,
+  scope: string,
+  originals?: ReadonlyMap<string, string>,
+): string | null {
   const styles = imageStyleSheets(markup);
   if (styles == null) return null;
   const sheets: ParsedSheet[] = [];
@@ -460,22 +475,29 @@ export function namespaceImageStyleNames(markup: string, scope: string): string 
     }
   }
   if (![names.keyframes, names.fonts, names.properties, names.counters].some((set) => set.size > 0)) return markup;
+  if (originals == null) {
+    const identity = preserveImageStyleAttributeIdentity(markup);
+    return identity == null ? null : namespaceImageStyleNames(identity.markup, scope, identity.originals);
+  }
   let index = 0;
   const variableCounts = new Map<string, number>();
   const count = (decl: Declaration): void => {
     if (decl.prop.startsWith("--")) variableCounts.set(decl.prop, (variableCounts.get(decl.prop) ?? 0) + 1);
   };
   for (const sheet of sheets) sheet.root?.walkDecls(count);
-  for (const tag of replaceImageStyleSheets(markup, () => "").matchAll(/<[^>]+>/g)) {
-    const style = /\sstyle\s*=\s*(["'])([\s\S]*?)\1/i.exec(tag[0]);
-    if (style != null) {
-      const decoded = decodeXmlAttributeValue(style[2]);
-      if (decoded == null) return null;
-      try {
-        postcss.parse(`x{${decoded}}`).walkDecls(count);
-      } catch {
-        /* left unchanged below */
-      }
+  const tree = parseImageElementTree(markup);
+  if (tree == null) return null;
+  const pending = [tree];
+  while (pending.length > 0) {
+    const element = pending.pop()!;
+    pending.push(...element.children);
+    const style = element.attributes.get("style");
+    if (style === undefined) continue;
+    if (style == null) return null;
+    try {
+      postcss.parse(`x{${style}}`).walkDecls(count);
+    } catch {
+      return null;
     }
   }
   let unsafe = false;

@@ -224,6 +224,17 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output/svg-escaped-import/results.json --minimum-passed 23
+      - name: Verify native SVG font attribute identity (DM-SV4B1M)
+        if: always()
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/img-svg-font-attribute-identity.e2e.test.ts
+          --reporter=json --outputFile=tests/output/svg-font-identity/results.json
+      - name: Require every SVG font attribute identity assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/svg-font-identity/results.json --minimum-passed 11
       - name: Verify native shadow knockout and root boundaries
         if: always()
         run: >-
@@ -277,6 +288,7 @@ jobs:
             tests/output/shadow-knockout/
             tests/output/svg-style-xml/
             tests/output/svg-escaped-import/
+            tests/output/svg-font-identity/
             tests/output/opaque-font-family/
             tests/output/owned-ui-server/
             tests/output/srcset-resource/

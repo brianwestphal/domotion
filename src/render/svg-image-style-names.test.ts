@@ -2,8 +2,58 @@ import { describe, expect, it } from "vitest";
 import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import { inlineImgSvg } from "./svg-inline.js";
 import { resolveImageNamespace } from "./svg-image-namespace.js";
+import { parseImageElementTree } from "./svg-image-selector-engine.js";
+import { namespaceImageReferencesWithIdentity } from "./svg-image-references.js";
 
 describe("isolated SVG image CSS names", () => {
+  it("refuses animated attribute mutations whose original identity would become stale", () => {
+    for (const attribute of ["style", "font-family", "animation-name", "list-style-type"]) {
+      const source = `<svg><style>@font-face{font-family:Face;src:local(serif)}</style><animate attributeName="${attribute}" to="Face"/></svg>`;
+      expect(namespaceImageStyleNames(source, "I-")).toBeNull();
+    }
+  });
+  it("shares original font/style-name attributes with the existing reference map", () => {
+    const source = `<svg font-family="&quot;Face&quot;" animation-name="spin" list-style-type="marks"><style>@font-face{font-family:Face;src:local(serif)}@keyframes spin{to{opacity:0}}@counter-style marks{system:cyclic;symbols:'x'}[font-family='"Face"'][animation-name=spin][list-style-type=marks]{--read:attr(font-family);--literal:'attr(font-family)'}</style></svg>`;
+    const identity = namespaceImageReferencesWithIdentity(source, "I-")!;
+    const result = namespaceImageStyleNames(identity.markup, "I-", identity.originals)!;
+    const root = parseImageElementTree(result)!;
+    expect(root.attributes.get("font-family")).toBe('"I-Face"');
+    for (const [name, value] of [
+      ["font-family", '"Face"'],
+      ["animation-name", "spin"],
+      ["list-style-type", "marks"],
+    ]) {
+      const privateName = identity.originals.get(name)!;
+      expect(root.attributes.get(privateName)).toBe(value);
+      expect(result).toContain(`[${privateName}=`);
+    }
+    expect(result).toContain(`attr(${identity.originals.get("font-family")})`);
+    expect(result).toContain("--literal:'attr(font-family)'");
+    expect(result).not.toContain("data-domotion-source-1-");
+  });
+  it("preserves XML reference whitespace and exact case without rewriting fake CDATA tags", () => {
+    const source = `<svg font-family="&#x9;Face" FONT-FAMILY="Face"><style><![CDATA[@font-face{font-family:Face;src:local(serif)}svg{--literal:'<g font-family="Face">';--read:attr(font-family)}]]></style><g style="--literal:'>';font-family:Face"/></svg>`;
+    const out = namespaceImageStyleNames(source, "I-")!;
+    const root = parseImageElementTree(out)!;
+    expect(root.attributes.get("font-family")).toBe("I-Face");
+    expect(root.attributes.get("FONT-FAMILY")).toBe("Face");
+    expect([...root.attributes.values()]).toContain("\tFace");
+    expect(out).toContain("&#x9;Face");
+    expect(out).toContain(`--literal:'<g font-family="Face">'`);
+    expect(root.children[1].attributes.get("style")).toBe("--literal:'>';font-family:I-Face");
+  });
+  it("preserves selectors for absent authored attributes before later root style additions", () => {
+    const identity = namespaceImageReferencesWithIdentity(
+      `<svg><style>@font-face{font-family:Face;src:local(serif)}svg:not([style]){font-family:Face}</style></svg>`,
+      "I-",
+    )!;
+    const withStyle = identity.markup.replace("<svg", '<svg style="font-family:Face"');
+    const out = namespaceImageStyleNames(withStyle, "I-", identity.originals)!;
+    const root = parseImageElementTree(out)!;
+    expect(root.attributes.has(identity.originals.get("style")!)).toBe(false);
+    expect(out).toContain(`:not([${identity.originals.get("style")}])`);
+    expect(root.attributes.get("style")).toBe("font-family:I-Face");
+  });
   it.each(['font-family="&quot; Face &quot;"', 'style="fill:red"'])(
     "DM-N80HJW retains source ownership across unproved original font attribute data: %s",
     (attribute) => {
@@ -152,10 +202,10 @@ describe("isolated SVG image CSS names", () => {
   });
 
   it("does not rewrite strings, URLs or unrelated names", () => {
-    const source = `<svg><style>@keyframes spin { to { opacity: 0 } } @property --tone { syntax: "<color>"; inherits: false; initial-value: red }
+    const source = `<svg><style><![CDATA[@keyframes spin { to { opacity: 0 } } @property --tone { syntax: "<color>"; inherits: false; initial-value: red }
       @counter-style marks { system: cyclic; symbols: "*" }
       rect { content: "counter(item, marks) var(--tone)" counter(item, marks); background: url("--tone.svg"); animation-name: other; fill: var(--tone) }
-    </style></svg>`;
+    ]]></style></svg>`;
     const out = namespaceImageStyleNames(source, "I-");
     expect(out).toContain(`content: "counter(item, marks) var(--tone)" counter(item, I-marks)`);
     expect(out).toContain(`url("--tone.svg")`);
@@ -179,9 +229,9 @@ describe("isolated SVG image CSS names", () => {
   });
 
   it("recognizes escaped custom-property references and leaves comments alone", () => {
-    const source = `<svg><style>@property --tone { syntax: "<color>"; inherits: false; initial-value: red }
+    const source = `<svg><style><![CDATA[@property --tone { syntax: "<color>"; inherits: false; initial-value: red }
       @container style(--tone: red) { rect { fill: var(--t\\6f ne); /* --tone */ } }
-    </style></svg>`;
+    ]]></style></svg>`;
     const out = namespaceImageStyleNames(source, "I-");
     expect(out).toContain(`@container style(--I-tone: red)`);
     expect(out).toContain(`var(--I-t\\6f ne)`);
