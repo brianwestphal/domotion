@@ -28,3 +28,67 @@ Each failure artifact uses schema version 2. It snapshots actual controlled-hook
 Retention is intentionally narrow: at most eight exceptions, 32 KiB per incoming message and 64 KiB of aggregate exception messages. Exception names and source positions are allowlisted. Only known synthetic/native error details survive; other text becomes `[redacted]`. Object IDs, arbitrary URLs, stacks, argument values and protocol error messages are not retained. Diagnostic unavailability is data in the failure artifact and does not replace the original startup error. If the artifact cannot be written, the fixture emits a fixed warning and retains that original error. Existing filtered owned-process stderr remains separate.
 
 `tests/real-world-worker-startup-diagnostics.test.ts` covers identity, redaction, byte limits, rejected/missing/late replies and cleanup failures. `tests/real-world-worker-startup-diagnostics.e2e.test.ts` exercises native healthy, silent `onconnect` and null-context errors, same-URL/name foreign-context liveness, real protocol failures, late-attachment cleanup, and preservation of another client's startup barrier. The existing bootstrap E2E suite also verifies installed-versus-executed hook facts and the unchanged worker/import SHA-256 digests. Native diagnostic observations are written under `DOMOTION_OUTPUT_DIR/worker-bootstrap/diagnostics/`, with source hashes and owned-process identity; these synthetic JSON files supplement the strict browser test report. The Linux and Windows manual worker-bootstrap profiles include the new native file, preserve their no-skip validation, and retain these observations through their existing artifact scope.
+
+## Owned UI server processes
+
+`tests/kerf-client-uis.e2e.test.ts` uses `tests/owned-ui-server.ts` to launch the
+actual Node service with `process.execPath --import tsx`. It does not launch an
+`npx` wrapper. Review-harness tests request `--port 0`; the server prints the
+port returned by `server.address()`. The ordinary human CLI still defaults to 4175. Tests never reserve a port and release it before the real server binds.
+The helper returns an origin-only base URL, preserving existing `/api/...`
+request joining.
+
+A private E2E-only preload, `tests/owned-ui-server-bootstrap.mjs`, authenticates
+its PID through the owned Node IPC channel. Readiness requires that handshake
+and a complete bounded loopback-URL line; split chunks cannot publish a partial
+port, and oversized lines are discarded through their terminating newline.
+The 60-second startup limit is unchanged. Each stdout/stderr stream retains at
+most 32 KiB of raw prefix/tail bytes, with total/retained byte counts and an
+explicit truncation marker. Failure details include the actual PID, Node
+version, command, output, exit code/signal and observed closed state; environment
+values are not dumped.
+
+Shutdown is sent over that same private IPC channel and invokes the CLI's
+existing `SIGTERM` handler in JavaScript. This allows asynchronous cleanup on
+Windows, where OS signal delivery terminates a child abruptly. Parent-channel
+loss also requests shutdown and installs an eight-second self-exit bound in
+case an application handler hangs after its owner disappears. A preload without
+its owner exits before the service starts. Ordinary human CLI execution never
+loads this preload.
+
+Cleanup waits for the child's `close` event, which follows process termination
+and stdio closure, rather than treating `kill()` or `exit` as completed cleanup.
+A six-second grace period can escalate to `SIGKILL` on that exact owned PID,
+followed by a two-second observed-close bound. Escalation or an unobserved close
+or a nonzero/signal shutdown exit is an error, not clean success. Startup failures retain their original reason
+and include any cleanup failure. The UI file's existing 20-second teardown
+limit remains; owned servers close in parallel, and every existing UI assertion
+and test/startup deadline is retained. No retry or global concurrency policy is
+changed. These are owned-service guarantees, not a claim that arbitrary
+untracked descendant trees have been authenticated.
+
+`tests/owned-ui-server.test.ts` drives two simultaneous real review servers with
+different fixtures, then proves their distinct responses and closed ports. An
+occupied-port control retains its unrelated owner while the attempted child
+records the actual bind error. Other controls cover split/oversized URL lines,
+stream overflow, spawn error, early exit, timeout, forced/failing cleanup,
+unexpected late exit and IPC loss with both completing and hanging handlers.
+New process-test budgets include the existing startup
+and cleanup bounds; they do not enlarge the UI's deadlines.
+
+Bounded control evidence is retained in `owned-ui-server/observations.json`;
+actual UI services retain `owned-ui-server/client-processes.json` after awaited
+cleanup. `DOMOTION_OUTPUT_DIR` selects their parent directory. The macOS unit
+and browser CI jobs upload this folder with `always()`. Missing artifacts never
+establish successful cleanup; the process/test result remains authoritative.
+
+The earlier isolated startup returning null was not causally attributed. These
+changes address source-proven shared-port, port-reporting and ownership gaps.
+Legacy `tests/review-server-e2e.test.ts` still uses fixed ports and detached
+wrapper groups for fixtures with held `gh` descendants; its separate
+cross-platform port/process-tree audit (DM-W4BR21) must preserve those children
+until their release and cleanup are proved.
+
+Node 22's official documentation specifies both
+[process/stdio closure ordering](https://github.com/nodejs/node/blob/v22.21.0/doc/api/child_process.md#event-close)
+and [Windows signal behavior](https://github.com/nodejs/node/blob/v22.21.0/doc/api/child_process.md#subprocesskillsignal).

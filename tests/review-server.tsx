@@ -53,7 +53,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const GH_OPTS = { maxBuffer: 32 * 1024 * 1024 } as const;
 import { raw } from "kerfjs";
-import { openInBrowser } from "../src/cli/common.js";
+import { installShutdownHandlers, openInBrowser } from "../src/cli/common.js";
+import { reviewServerPort } from "./review-server-options.js";
 import { checkLocalRequest } from "../src/utils/local-server.js";
 import {
   formatLogicalClassification,
@@ -1247,8 +1248,7 @@ function mimeFor(path: string): string {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const portIdx = args.indexOf("--port");
-  const port = portIdx >= 0 ? parseInt(args[portIdx + 1], 10) : 4175;
+  const port = reviewServerPort(args);
 
   const settings = loadSettings();
   const [clientJs, kerfUiCss] = await Promise.all([bundleClient(), bundleKerfUiCss()]);
@@ -1505,7 +1505,9 @@ async function main(): Promise<void> {
 
   // Loopback only: listening on every interface would expose the ticket-filing routes to the LAN.
   server.listen(port, "127.0.0.1", () => {
-    const url = `http://127.0.0.1:${port}/`;
+    const address = server.address();
+    if (address == null || typeof address === "string") throw new Error("Review server has no bound TCP address");
+    const url = `http://127.0.0.1:${address.port}/`;
     const manifest = loadManifest(defaultSource);
     const failing = manifest.tests.filter((r) => !r.pass && !r.skipped).length;
     const skipped = manifest.tests.filter((r) => r.skipped).length;
@@ -1542,6 +1544,12 @@ async function main(): Promise<void> {
       void openInBrowser(url);
     }
   });
+  installShutdownHandlers(
+    () =>
+      new Promise<void>((done, reject) => {
+        server.close((error) => (error == null ? done() : reject(error)));
+      }),
+  );
 }
 
 void main();

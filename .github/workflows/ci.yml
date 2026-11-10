@@ -79,6 +79,13 @@ jobs:
       - run: npm run paint:order-oracle
       - run: npm run replaced:geometry-oracle
       - run: npm run raster:boundary-oracle
+      - name: Upload owned UI process controls
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owned-ui-process-controls-macos
+          path: tests/output/owned-ui-server/
+          if-no-files-found: warn
 
   build:
     runs-on: ubuntu-latest
@@ -248,4 +255,5 @@ jobs:
             tests/output/external-svg-frozen/
             tests/output/worker-bootstrap/
             tests/output/opaque-font-family/
+            tests/output/owned-ui-server/
           if-no-files-found: error

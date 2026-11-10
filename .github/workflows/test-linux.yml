@@ -188,6 +188,32 @@ jobs:
         # fresh checkout has no dist/, so they skipped here every run.
         if: always()
         run: npm run build
+      - name: Verify owned UI process controls (DM-3CJSK2)
+        if: always()
+        env:
+          DOMOTION_OUTPUT_DIR: tests/output-linux
+        run: >-
+          npx vitest run tests/owned-ui-server.test.ts tests/e2e-native-log-workflow.test.ts
+          --reporter=json --outputFile=tests/output-linux/owned-ui-server/controls.json
+      - name: Require every owned UI process assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output-linux/owned-ui-server/controls.json --minimum-passed 13
+      - name: Verify native client UI lifecycle
+        if: always()
+        env:
+          DOMOTION_OUTPUT_DIR: tests/output-linux
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/kerf-client-uis.e2e.test.ts tests/scrubber-natural-size.e2e.test.ts
+          tests/studio-responsive-metrics.e2e.test.ts
+          --reporter=json --outputFile=tests/output-linux/owned-ui-server/native-ui.json
+      - name: Require every native client UI assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output-linux/owned-ui-server/native-ui.json --minimum-passed 11
       - name: Run browser-driven e2e tests (capture/layout assertions)
         # DM-1977: `if: always()` so a failure in an EARLIER step cannot hide
         # this one. It did, for as long as this suite has existed: the baseline
@@ -291,6 +317,7 @@ jobs:
             tests/output-linux/webgl-projective-preflight/
             tests/output-linux/literal-family-identity/
             tests/output-linux/opaque-font-family/
+            tests/output-linux/owned-ui-server/
             tests/output-linux/external-svg-frozen/
           if-no-files-found: error
 

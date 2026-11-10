@@ -1,6 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { createServer as createNetServer } from "node:net";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -10,6 +8,7 @@ import { startBrowserCoverage, writeBrowserCoverage } from "../src/test-support/
 import { startReviewServer } from "../src/review/server.js";
 import { startStudioServer } from "../src/studio/server.js";
 import { chooseKerfSelectOption, kerfSelectOptionValues, kerfSelectValue } from "../src/test-support/kerf-select.js";
+import { startOwnedUiServer, type OwnedUiServer } from "./owned-ui-server.js";
 
 // DM-1798: browser-side guard for the two UIs that use kerf's RUNTIME rather
 // than just its SSR JSX — `tests/review-client.tsx` (signal / computed /
@@ -31,38 +30,9 @@ import { chooseKerfSelectOption, kerfSelectOptionValues, kerfSelectValue } from 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
-/** Spawn a server via tsx and resolve the URL it prints. */
-async function startServer(
-  script: string,
-  args: string[],
-  env?: NodeJS.ProcessEnv,
-): Promise<{ proc: ChildProcess; url: string } | null> {
-  const proc = spawn("npx", ["tsx", script, ...args], {
-    cwd: ROOT,
-    stdio: ["ignore", "pipe", "pipe"],
-    ...(env != null ? { env: { ...process.env, ...env } } : {}),
-  });
-  const url = await new Promise<string | null>((res) => {
-    const timer = setTimeout(() => res(null), 60_000);
-    const scan = (b: Buffer): void => {
-      const m = /https?:\/\/(?:localhost|127\.0\.0\.1):\d+/.exec(b.toString());
-      if (m != null) {
-        clearTimeout(timer);
-        res(m[0]);
-      }
-    };
-    proc.stdout?.on("data", scan);
-    proc.stderr?.on("data", scan);
-    proc.on("exit", () => {
-      clearTimeout(timer);
-      res(null);
-    });
-  });
-  if (url == null) {
-    proc.kill();
-    return null;
-  }
-  return { proc, url };
+/** Keep the existing startup limit while owning the actual Node service. */
+function startServer(script: string, args: string[], env?: NodeJS.ProcessEnv): Promise<OwnedUiServer> {
+  return startOwnedUiServer(script, args, { cwd: ROOT, env });
 }
 
 /** Collect page errors so a silently-broken reactive path can't pass. */
@@ -93,10 +63,30 @@ async function expectKerfUiStyled(page: Page, selector: string, property: string
 }
 
 let browser: Browser | null = null;
-const servers: ChildProcess[] = [];
+const servers: OwnedUiServer[] = [];
 afterAll(async () => {
-  for (const p of servers) p.kill();
-  await browser?.close();
+  const owned = servers.splice(0);
+  const results = await Promise.allSettled([...owned.map((server) => server.close()), browser?.close()]);
+  const errors = results.filter((result) => result.status === "rejected").map((result) => result.reason);
+  try {
+    const directory = resolve(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output", "owned-ui-server");
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, "client-processes.json"),
+      JSON.stringify(
+        {
+          node: process.version,
+          platform: process.platform,
+          servers: owned.map((server) => ({ url: server.url, diagnostics: server.diagnostics() })),
+        },
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length > 0) throw new AggregateError(errors, "Owned UI cleanup failed");
 }, 20_000);
 
 try {
@@ -172,12 +162,12 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
   );
 
   it("review UI: each() reconciles across reorder and filter, preserving row identity", async () => {
-    const started = await startServer("tests/review-server.tsx", [], {
+    const started = await startServer("tests/review-server.tsx", ["--port", "0"], {
       REVIEW_OUTPUT_DIR: fixtureRoot,
       REVIEW_NO_OPEN: "1",
     });
     expect(started, "review server failed to start").not.toBeNull();
-    servers.push(started!.proc);
+    servers.push(started!);
     const page = await browser!.newPage();
     const coverage = await startBrowserCoverage(page);
     const errors = watchErrors(page);
@@ -327,7 +317,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
     const started = await startServer("src/cli/scrubber.ts", [svg, "--no-open"]);
     expect(started, "scrubber failed to start").not.toBeNull();
-    servers.push(started!.proc);
+    servers.push(started!);
     const page = await browser!.newPage();
     const coverage = await startBrowserCoverage(page);
     const errors = watchErrors(page);
@@ -456,28 +446,18 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       }
     };
 
-    // The harness listens on a fixed default port, which the earlier harness
-    // test's server still holds; give this one a free port.
-    const port = await new Promise<number>((res, rej) => {
-      const probe = createNetServer();
-      probe.once("error", rej);
-      probe.listen(0, "127.0.0.1", () => {
-        const address = probe.address();
-        probe.close(() => res(typeof address === "object" && address != null ? address.port : 0));
-      });
-    });
-    const harness = await startServer("tests/review-server.tsx", ["--port", String(port)], {
+    const harness = await startServer("tests/review-server.tsx", ["--port", "0"], {
       REVIEW_OUTPUT_DIR: fixtureRoot,
       REVIEW_NO_OPEN: "1",
     });
     expect(harness, "review server failed to start").not.toBeNull();
-    servers.push(harness!.proc);
+    servers.push(harness!);
     await exercise("demos:review", harness!.url, "[data-key]", "sort");
 
     const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
     const scrubber = await startServer("src/cli/scrubber.ts", [svg, "--no-open"]);
     expect(scrubber, "scrubber failed to start").not.toBeNull();
-    servers.push(scrubber!.proc);
+    servers.push(scrubber!);
     await exercise("svg-scrubber", scrubber!.url, '[data-action="scrub"]:not([disabled])', "speed");
 
     const review = await startReviewServer({
@@ -557,7 +537,7 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     const svg = resolve(ROOT, "examples/animate/overlay-window/overlay-window.svg");
     const started = await startServer("src/cli/scrubber.ts", [svg, "--no-open"]);
     expect(started, "scrubber failed to start").not.toBeNull();
-    servers.push(started!.proc);
+    servers.push(started!);
     const page = await browser!.newPage();
     const dialogs: string[] = [];
     page.on("dialog", (dialog) => {

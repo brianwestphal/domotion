@@ -97,6 +97,32 @@ jobs:
       - name: Verify Windows font rendering transitions
         # The default unit config excludes *e2e.test.ts, so select the browser lane.
         run: npx vitest run --config vitest.e2e.config.ts tests/windows-system-ui-cjk-context.e2e.test.ts tests/font-size-adjust-general.e2e.test.ts tests/font-conformance-windows-locale-scope.e2e.test.ts tests/windows-mixed-locale-primary.e2e.test.ts tests/windows-italic-arabic-fallback.e2e.test.ts tests/windows-current-face-normalization.e2e.test.ts tests/windows-bold-monospace-box-drawing.e2e.test.ts tests/windows-supplementary-cjk-compatibility.e2e.test.ts tests/windows-malgun-fallback-cut.e2e.test.ts tests/image-svg-normal-line-height-win32.e2e.test.ts tests/image-svg-font-units-win32.e2e.test.ts tests/image-svg-own-fonts.e2e.test.ts tests/img-svg-dynamic-font-names.e2e.test.ts tests/webfont-descriptor-group.e2e.test.ts tests/darwin-family-visibility.e2e.test.ts
+      - name: Verify owned UI process controls (DM-3CJSK2)
+        if: always()
+        env:
+          DOMOTION_OUTPUT_DIR: tests/output
+        run: >-
+          npx vitest run tests/owned-ui-server.test.ts tests/e2e-native-log-workflow.test.ts
+          --reporter=json --outputFile=tests/output/owned-ui-server/controls.json
+      - name: Require every owned UI process assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/owned-ui-server/controls.json --minimum-passed 13
+      - name: Verify native client UI lifecycle
+        if: always()
+        env:
+          DOMOTION_OUTPUT_DIR: tests/output
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/kerf-client-uis.e2e.test.ts tests/scrubber-natural-size.e2e.test.ts
+          tests/studio-responsive-metrics.e2e.test.ts
+          --reporter=json --outputFile=tests/output/owned-ui-server/native-ui.json
+      - name: Require every native client UI assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/owned-ui-server/native-ui.json --minimum-passed 11
       - name: Verify native opaque font-family provenance
         if: always()
         run: >-
@@ -209,6 +235,7 @@ jobs:
             tests/output/literal-family-identity/
             tests/output/external-svg-frozen/
             tests/output/opaque-font-family/
+            tests/output/owned-ui-server/
           if-no-files-found: error
 
   decoration-geometry:
