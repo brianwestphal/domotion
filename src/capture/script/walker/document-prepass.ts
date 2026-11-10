@@ -10,6 +10,7 @@
 // scope, so each capture call stays independent.
 
 import { isPaintedColor } from "../../../utils/transparent-background.js";
+import { parseBoxShadow } from "../../../render/box-shadow.js";
 import { selectProjectiveRasterOwnerIndexes } from "../../projective-owner.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../../backdrop-effect-space.js";
 import { composeEffectiveTransform, transformHasRotationOrSkew } from "./transforms.js";
@@ -561,7 +562,7 @@ export const createBackgroundAttachmentPaintScale = () => {
   return paintScaleFor;
 };
 
-/** Capture the root element itself when it owns content, border or background
+/** Capture the root element itself when it owns content, border, background or shadow
  * (DM-362: <body style="border:3px solid pink"> was not rendering because we
  * only walked root.children). When the root has nothing visually
  * distinctive, fall through to the child walk so we don't wrap every page in
@@ -596,6 +597,13 @@ export const captureRootElements = (
   const rootBgImage = rootCs.backgroundImage;
   const rootHasBgImage = rootBgImage != null && rootBgImage !== "none" && rootBgImage !== "";
   const rootHasBg = isPaintedColor(rootBg) || rootHasBgImage;
+  // BoxPainterBase paints inset shadows independently of a background or
+  // border. Source-computed shadow layers reach the existing producer without
+  // wrapping ordinary transparent containers (DM-TPJX3H). Outset/mixed roots
+  // retain their old admission until the transparent knockout producer is
+  // repaired (DM-J2WVF3); do not newly route them to known-wrong paint.
+  const rootShadows = parseBoxShadow(rootCs.boxShadow);
+  const rootHasShadow = rootShadows.length > 0 && rootShadows.every((shadow) => shadow.inset);
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
   // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
   // Chrome paints it; we'd miss it if we only walked root.children (Element
@@ -608,7 +616,14 @@ export const captureRootElements = (
       break;
     }
   }
-  if (rootHasContentPaint || rootHasBorder || rootHasBg || rootHasDirectText || nonAffineProjectiveRoots.has(root)) {
+  if (
+    rootHasContentPaint ||
+    rootHasBorder ||
+    rootHasBg ||
+    rootHasShadow ||
+    rootHasDirectText ||
+    nonAffineProjectiveRoots.has(root)
+  ) {
     const c = capture(root);
     if (c) result.push(c);
   } else {

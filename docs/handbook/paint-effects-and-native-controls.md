@@ -5,11 +5,13 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634"]
+tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H"]
 code:
   [
     "src/render/element-tree-to-svg.ts",
     "src/render/paint-order.ts",
+    "src/capture/script/walker/document-prepass.ts",
+    "tests/capture-selected-shadow-root.e2e.test.ts",
     "src/capture/input-value-geometry.ts",
     "src/capture/native-control-raster.ts",
     "src/capture/pseudo-style-cdp.test.ts",
@@ -75,6 +77,34 @@ aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
 
 Every new specialized paint route needs a source decision, an activation
 record, a hostile movement control, and platform integration evidence.
+
+## Selected shadow-only roots (DM-TPJX3H)
+
+Root selection must reach an element's existing paint producer even when that
+ordinary element has no background, border, direct text, or real children.
+An empty 20×20 selected div with `box-shadow:inset 0 0 0 20px red` previously
+returned no captured roots, while selecting its transparent container or body
+reached the same div and matched Chromium. Root admission now retains source
+computed all-inset shadow lists, using the existing shadow parser so comma
+separated colors and mixed inset/outset lists are distinguished correctly.
+The ordinary no-shadow container flattening and capture's visibility/geometry
+pruning remain in force; no source styles or geometry are changed.
+
+Actual Chromium 147 revision `6b5a1b80` `BoxPainterBase` invokes inset shadow
+paint independently of an opaque background or painted border. Native full-RGBA
+controls cover the original solid inset, inset frame, multiple inset layers,
+direct/container/body selection, and retained visibility/geometry pruning.
+This is a platform-neutral computed-style admission rule; native macOS was
+verified locally, without claiming a Linux/Windows execution that was not run.
+
+New outset/mixed root admission is deliberately held until DM-J2WVF3 repairs
+the independently demonstrated existing outset producer: a transparent box's
+normal shadow must knock out the original border-box interior. Its parent/body
+capture already differs from native; routing a newly selected root to that
+known-wrong output would not complete the contract. DM-H49Z50 and DM-HZPAYY own
+separate proved outline-only and pseudo-only root admission defects. These
+boundaries are explicit follow-ups, not evidence that all own-paint roots are
+already supported.
 
 ## Structural form-control failure boundaries
 
