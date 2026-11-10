@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE", "DM-KPMB5S", "DM-FTRBES"]
+tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE", "DM-KPMB5S", "DM-FTRBES", "DM-C3HJHY"]
 code:
   [
     "src/capture/replaced-element-raster.ts",
@@ -22,6 +22,7 @@ code:
     "tests/replaced-snapshot-visibility-transition.e2e.test.ts",
     "tests/real-world-reference-frame.ts",
     "tests/real-world-reference-frame.e2e.test.ts",
+    "tests/real-world-webgl-preflight.e2e.test.ts",
   ]
 aliases: ["docs/17-replaced-element-snapshots.md", "doc-17"]
 ---
@@ -50,6 +51,12 @@ Production capture takes one live screenshot before temporarily muting WebGL dra
 A successful WebGL context creation is not proof that a valid frame was presented. If the context is already lost before capture, Chromium paints its broken-canvas icon; the SVG snapshot reflects that current source paint. Blink explicitly selects that icon when `isContextLost()` is true (`html_canvas_element.cc:1103–1131`, [Chromium 7d859f27](https://chromium.googlesource.com/chromium/src/+/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc)). Capture does not reconstruct an earlier valid frame that was never presented.
 
 DM-D5JEMG reproduced the reported gray pixels as this icon, with context loss witnessed before the first screenshot or freeze. The WebGL regression fixture explicitly selects SwiftShader to keep healthy-frame controls independent of automatic backend initialization: both drawing-buffer modes require red captured pixels and restored blue, and a deliberate pre-capture context-loss control compares the emitted PNG against Chromium's actual paint. The ordinary capture launch defaults remain platform-owned; automatic ANGLE startup loss is tracked separately in DM-C3HJHY.
+
+DM-C3HJHY keeps the automatic-launch iframe preflight controls strict and records the original source context before warmup, before offscreen presentation, before freeze, and around the final screenshot. A failed control reports the timeline, exact browser revision and GPU feature facts, and saves a later source PNG plus JSON under `webgl-startup-e2e/` in the configured visual output root. Those files are problem evidence; diagnostics neither create a replacement context nor turn gray paint into red. A controlled-loss regression verifies that an initially healthy context remains identifiable as lost before presentation. Native GPU stderr retention in CI is separately tracked by DM-95ECD3; the existing artifact upload does not yet include this directory.
+
+The 2026-11-10 bounded local investigation did not reproduce loss in sixteen fresh launches: ten automatic and six explicit SwiftShader controls, split between iframe WebGL2 and main-frame WebGL1 with both drawing-buffer modes. Both policies reported the same implementation and SwiftShader renderer; automatic GPU feature states differed from explicit selection. The common `CVDisplayLinkCreateWithCGDisplay` error also occurred in healthy red controls. Neither observation attributes the intermittent reset or proves a backend transition. Full-lane pressure remains a hypothesis requiring a witnessed failure.
+
+At the actual Chromium 147 revision [6b5a1b80](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/gpu/config/gpu_util.cc), `EnableSwiftShaderIfNeeded` (lines 850–880) respects an explicit GL request and can add software-WebGL switches for automatic fallback. The decoder separately logs failed `MakeCurrent` or a detected reset and distinguishes driver reset status ([`gles2_cmd_decoder_passthrough.cc`, lines 1233–1254 and 2071–2099](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/gpu/command_buffer/service/gles2_cmd_decoder_passthrough.cc)). Blink's real-loss callback destroys the drawing buffer and queues the context-loss event ([`webgl_rendering_context_base.cc`, lines 1423–1428 and 7399–7470](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc)). A renderer label or generic loss event does not identify which native failure occurred.
 
 The pre-existing capture warning is **kept**. These element types are still outside the spirit of the rendering contract (they aren't being reproduced from CSS / DOM); the snapshot exists only to avoid ugly holes in real-world captures, and consumers should know they got a frozen raster, not a faithful re-render.
 

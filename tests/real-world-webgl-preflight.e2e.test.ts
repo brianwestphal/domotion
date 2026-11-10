@@ -1,7 +1,12 @@
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { chromium, type Browser, type Locator, type Page } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { withTimeout } from "../src/utils/with-timeout.js";
+import { resolveVisualOutputRoot } from "./output-directory.mjs";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { primeOffscreenCanvases, type CanvasPreflightFailure } from "./real-world-webgl-preflight.js";
 
@@ -10,6 +15,86 @@ beforeAll(async () => {
   browser = await chromium.launch();
 });
 afterAll(async () => closeBrowserSafely(browser), 15_000);
+
+const iframeCanvasHtml = `<!doctype html><body style="margin:0"><canvas width="40" height="40"></canvas>
+<script>
+  const canvas = document.querySelector('canvas');
+  window.__preflightEvents = [];
+  canvas.addEventListener('webglcontextlost', event => window.__preflightEvents.push({type:event.type,status:event.statusMessage,time:performance.now()}));
+  const gl = canvas.getContext('webgl2');
+  window.__preflightGl = gl;
+  window.__preflightInitial = {lost:gl?.isContextLost() ?? null,time:performance.now()};
+  const paint = () => { gl.clearColor(1,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); };
+  paint(); setInterval(paint, 10);
+</script></body>`;
+
+/** DM-C3HJHY: observe the original context; never create a replacement for diagnostics. */
+async function canvasSourceState(canvas: Locator, phase: string) {
+  return withTimeout(
+    canvas
+      .evaluate((element) => {
+        const source = element.ownerDocument.defaultView as unknown as Window & {
+          __preflightGl: WebGL2RenderingContext | null;
+          __preflightInitial: { lost: boolean | null; time: number };
+          __preflightEvents: { type: string; status: string; time: number }[];
+        };
+        return {
+          available: source.__preflightGl != null,
+          lost: source.__preflightGl?.isContextLost() ?? null,
+          initial: source.__preflightInitial,
+          events: source.__preflightEvents,
+          time: performance.now(),
+        };
+      })
+      .catch((error: unknown) => ({ diagnosticError: String(error) })),
+    2_000,
+    { diagnosticError: "source context witness exceeded 2000ms" },
+  ).then((state) => ({ phase, ...state }));
+}
+
+async function reportWebGlFailure(page: Page, kind: string, states: unknown[]) {
+  const startup = await withTimeout(
+    (async () => {
+      const cdp = await browser.newBrowserCDPSession();
+      try {
+        const version = await cdp.send("Browser.getVersion");
+        const { gpu } = await cdp.send("SystemInfo.getInfo");
+        const aux: Record<string, unknown> = gpu.auxAttributes ?? {};
+        return {
+          version,
+          features: gpu.featureStatus,
+          attributes: Object.fromEntries(
+            [
+              "glImplementationParts",
+              "glRenderer",
+              "glResetNotificationStrategy",
+              "processCrashCount",
+              "passthroughCmdDecoder",
+            ].map((key) => [key, aux[key]]),
+          ),
+        };
+      } finally {
+        await cdp.detach();
+      }
+    })().catch((error: unknown) => ({ diagnosticError: String(error) })),
+    2_000,
+    { diagnosticError: "GPU startup witness exceeded 2000ms" },
+  );
+  // Only an already failed fixture saves this later source frame. It is problem
+  // evidence, not a replacement reference or a reason to relax the assertion.
+  const source = await withTimeout(
+    page.screenshot({ timeout: 2_000 }).catch(() => null),
+    2_000,
+    null,
+  );
+  const payload = { kind, states, startup, sourceMoment: "after fixture failure" };
+  const directory = join(resolveVisualOutputRoot(), "webgl-startup-e2e");
+  mkdirSync(directory, { recursive: true });
+  const basename = `${kind}-${Date.now()}`;
+  if (source != null) writeFileSync(join(directory, `${basename}-source.png`), source);
+  writeFileSync(join(directory, `${basename}.json`), JSON.stringify(payload, null, 2));
+  console.warn("WebGL source/startup witnesses:", JSON.stringify(payload));
+}
 
 async function centerPixel(page: Page): Promise<[number, number, number]> {
   const png = await page.screenshot({ clip: { x: 20, y: 20, width: 1, height: 1 } });
@@ -28,12 +113,8 @@ describe("offscreen WebGL preflight", () => {
     "primes a far-offscreen %s iframe content box",
     async (kind) => {
       const page = await browser.newPage({ viewport: { width: 100, height: 100 } });
-      const canvasHtml = `<!doctype html><body style="margin:0"><canvas width="40" height="40"></canvas>
-      <script>
-        const gl = document.querySelector('canvas').getContext('webgl2');
-        const paint = () => { gl.clearColor(1,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); };
-        paint(); setInterval(paint, 10);
-      </script></body>`;
+      const canvasHtml = iframeCanvasHtml;
+      const states: unknown[] = [];
       try {
         await page.route("https://canvas-frame.test/**", (route) =>
           route.fulfill({ contentType: "text/html", body: canvasHtml }),
@@ -65,10 +146,12 @@ describe("offscreen WebGL preflight", () => {
             ? page.frameLocator("#far").frameLocator("#inner").locator("canvas")
             : page.frameLocator("#far").locator("canvas");
         await canvas.waitFor();
+        states.push(await canvasSourceState(canvas, "before warmup"));
         await page.waitForFunction(() => (window as unknown as { ticks: number }).ticks > 2);
         await page.evaluate(() => window.scrollTo(0, 123));
         const before = await Promise.all(page.frames().map((frame) => frame.evaluate(() => [scrollX, scrollY])));
         const ticks = await page.evaluate(() => (window as unknown as { ticks: number }).ticks);
+        states.push(await canvasSourceState(canvas, "before offscreen presentation"));
         expect(await primeOffscreenCanvases(page)).toEqual({ primed: 1, failed: 0, skipped: 0 });
         expect(await Promise.all(page.frames().map((frame) => frame.evaluate(() => [scrollX, scrollY])))).toEqual(
           before,
@@ -76,19 +159,89 @@ describe("offscreen WebGL preflight", () => {
         await expect
           .poll(() => page.evaluate(() => (window as unknown as { ticks: number }).ticks))
           .toBeGreaterThan(ticks);
+        states.push(await canvasSourceState(canvas, "before freeze"));
         expect(await freezeWebGlOutput(page)).toMatchObject({ failedFrames: 0 });
+        states.push(await canvasSourceState(canvas, "after freeze, before screenshot"));
         await page.locator("#far").scrollIntoViewIfNeeded();
         const box = await canvas.boundingBox();
         expect(box).not.toBeNull();
         const png = await page.screenshot({
           clip: { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2, width: 1, height: 1 },
         });
+        states.push(await canvasSourceState(canvas, "after screenshot"));
         expect(Array.from(await sharp(png).removeAlpha().raw().toBuffer())).toEqual([255, 0, 0]);
+      } catch (error) {
+        await reportWebGlFailure(page, kind, states).catch((diagnosticError: unknown) =>
+          console.warn("WebGL failure diagnostics unavailable:", String(diagnosticError)),
+        );
+        throw error;
       } finally {
         await page.close();
       }
     },
   );
+
+  it("records source context loss before presentation without substituting a fresh context", async () => {
+    const page = await browser.newPage();
+    const directory = mkdtempSync(join(tmpdir(), "webgl-loss-witness-"));
+    const priorOutput = process.env["DOMOTION_OUTPUT_DIR"];
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    process.env["DOMOTION_OUTPUT_DIR"] = directory;
+    try {
+      await page.setContent(iframeCanvasHtml);
+      const canvas = page.locator("canvas");
+      expect(await canvasSourceState(canvas, "healthy source")).toMatchObject({ available: true, lost: false });
+      expect(
+        await canvas.evaluate((element) => {
+          const source = element.ownerDocument.defaultView as unknown as Window & {
+            __preflightGl: WebGL2RenderingContext;
+          };
+          const extension = source.__preflightGl.getExtension("WEBGL_lose_context");
+          extension?.loseContext();
+          return extension != null;
+        }),
+      ).toBe(true);
+      await expect
+        .poll(async () => canvasSourceState(canvas, "before presentation"))
+        .toMatchObject({
+          phase: "before presentation",
+          available: true,
+          lost: true,
+          initial: { lost: false },
+          events: [{ type: "webglcontextlost", status: expect.any(String), time: expect.any(Number) }],
+        });
+      const lost = await canvasSourceState(canvas, "before presentation");
+      await reportWebGlFailure(page, "controlled-loss", [lost]);
+      const files = readdirSync(join(directory, "webgl-startup-e2e"));
+      expect(files.some((name) => name.endsWith("-source.png"))).toBe(true);
+      const payload: unknown = JSON.parse(
+        readFileSync(
+          join(
+            directory,
+            "webgl-startup-e2e",
+            files.find((name) => name.endsWith(".json"))!,
+          ),
+          "utf8",
+        ),
+      );
+      expect(payload).toMatchObject({
+        kind: "controlled-loss",
+        states: [{ lost: true, initial: { lost: false } }],
+        startup: { version: { revision: expect.any(String) } },
+        sourceMoment: "after fixture failure",
+      });
+      expect(await canvasSourceState(canvas, "after reporting")).toMatchObject({
+        lost: true,
+        initial: { lost: false },
+      });
+    } finally {
+      warning.mockRestore();
+      if (priorOutput == null) delete process.env["DOMOTION_OUTPUT_DIR"];
+      else process.env["DOMOTION_OUTPUT_DIR"] = priorOutput;
+      await page.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
   it("shares the eight-canvas screenshot budget across the main document and child frames", async () => {
     const page = await browser.newPage({ viewport: { width: 100, height: 100 } });

@@ -312,7 +312,8 @@
         "tests/replaced-snapshot-transform.e2e.test.ts",
         "tests/replaced-snapshot-visibility-transition.e2e.test.ts",
         "tests/real-world-reference-frame.ts",
-        "tests/real-world-reference-frame.e2e.test.ts"
+        "tests/real-world-reference-frame.e2e.test.ts",
+        "tests/real-world-webgl-preflight.e2e.test.ts"
       ],
       "file": "17-replaced-element-snapshots.md"
     },
