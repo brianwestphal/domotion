@@ -128,6 +128,19 @@ trees.
 suite fails, writes `fast-visual-completeness.json`, and only then returns a
 failure. Actions therefore uploads every suite's expected/actual/diff PNGs and
 other output instead of losing the later evidence to the first red command.
+Missing real-world HAR caches are recorded serially as embedded JSON
+(`updateContent: "embed"`, DM-9K75QG), avoiding Playwright's attached-content ZIP
+extraction path. Recording has a 120-second budget; context finalization has a
+separate 15-second budget. Only successful close followed by validated nonempty
+embedded JSON publishes the unique staging file to the final cache path. A
+navigation error, rejected close, timeout, or invalid readback leaves an existing
+cache untouched and does not promote a populated `.tmp` ZIP. A pending timed-out
+Playwright operation cannot be cancelled by the deadline; the enclosing browser
+owner closes on failure, and any late staging result is removed rather than
+published. Jobs are replay-only after this pre-pass. Existing ordinary JSON HARs
+and response sidecars remain supported unchanged; ZIP input and extraction
+instructions are in [doc 48](48-har-source.md#json-format-and-zip-archives).
+
 Each real-world capture remains bounded to six minutes. A timeout first
 quiesces in-flight HAR routes with Playwright's `ignoreErrors` teardown mode,
 then closes the browser context and records the fixture as errored; this keeps

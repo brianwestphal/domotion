@@ -9,6 +9,7 @@
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { assertJsonHarFile } from "../capture/har-fetcher.js";
 import { clearCaptureGenerationCaches } from "../capture/generation-caches.js";
 import { captureElementTree, launchChromium } from "../capture/index.js";
 import { composeScrollSvg, executeScrollPattern, parseScrollPattern } from "../scroll/index.js";
@@ -200,6 +201,7 @@ function parseCaptureOptions(args: string[]) {
   if (input !== "-" && !/^https?:\/\//i.test(input) && !existsSync(resolve(input))) {
     throw new UsageError(`input file not found: ${resolve(input)}`);
   }
+  if (har) assertJsonHarFile(input);
   // DM-1538: `--format <name|WxH>` sizes the capture VIEWPORT via the shared
   // format machinery (docs/87, docs/90). Precedence stays explicit `--width` /
   // `--height` > format > default 800×600 — so `parseIntFlag`'s default becomes

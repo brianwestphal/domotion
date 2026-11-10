@@ -47,7 +47,7 @@ import {
 import { resizeEmbeddedImages } from "../src/tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../src/render/conic-raster.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
-import { createHarHttpGetter, loadHarArchive } from "../src/capture/har-fetcher.js";
+import { assertJsonHarFile, createHarHttpGetter, loadHarArchive } from "../src/capture/har-fetcher.js";
 import { createTextEngineSession, withTextEngineDocument } from "../src/render/text-engine.js";
 import { parseScrollPattern } from "../src/scroll/pattern.js";
 import { executeScrollPatternWithCapture, type ScrollSegmentCapture } from "../src/scroll/executor.js";
@@ -55,6 +55,7 @@ import { composeScrollSvg } from "../src/scroll/composer.js";
 import { cullElementsOutsideViewBox } from "../src/tree-ops/viewbox-culling.js";
 import { comparePngs, type DiffVerdict } from "../src/review/compare-pngs.js";
 import { lowerProcessPriority, resolveWorkerCount, runJobsInPool } from "./worker-pool.js";
+import { recordRealWorldHar } from "./real-world-har-cache.js";
 import { closeTimedOutCaptureContext } from "./real-world-timeout.js";
 import { captureRealWorldReferenceFrame } from "./real-world-reference-frame.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
@@ -360,7 +361,10 @@ async function ensureHarsRecorded(browser: Browser, jobs: PageJob[]): Promise<vo
   const missing = new Map<string, { site: Site; viewport: Viewport; harPath: string }>();
   for (const job of jobs) {
     const harPath = resolve(CACHE_DIR, `${job.site.name}-${job.viewport.name}.har`);
-    if (existsSync(harPath)) continue;
+    if (existsSync(harPath)) {
+      assertJsonHarFile(harPath);
+      continue;
+    }
     const key = `${job.site.name}|${job.viewport.name}`;
     if (missing.has(key)) continue;
     missing.set(key, { site: job.site, viewport: job.viewport, harPath });
@@ -381,12 +385,11 @@ async function ensureHarsRecorded(browser: Browser, jobs: PageJob[]): Promise<vo
         ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
         : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     });
-    await context.routeFromHAR(harPath, { url: "**/*", update: true, notFound: "fallback" });
     const page = await context.newPage();
     // DM-479: standardize per-page Playwright operation timeouts at 90 s.
     page.setDefaultTimeout(PLAYWRIGHT_TIMEOUT_MS);
     page.setDefaultNavigationTimeout(PLAYWRIGHT_TIMEOUT_MS);
-    try {
+    await recordRealWorldHar(context, harPath, async () => {
       await page.goto(site.url, { waitUntil: "domcontentloaded", timeout: GOTO_TIMEOUT_MS });
       await page.waitForTimeout(SETTLE_MS);
       // Stretch to full document height + scroll end-to-end so the
@@ -404,13 +407,7 @@ async function ensureHarsRecorded(browser: Browser, jobs: PageJob[]): Promise<vo
         window.scrollTo(0, 0);
       }, fullH);
       await page.waitForTimeout(800);
-    } catch (e) {
-      console.log(` failed: ${e instanceof Error ? e.message : String(e)}`);
-      // Even on failure, close() flushes whatever was captured so the next
-      // run replays partial responses rather than re-fetching from scratch.
-    } finally {
-      await context.close();
-    }
+    });
     console.log(` ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   }
   console.log("");
@@ -434,6 +431,8 @@ async function runJob(
   const diffPath = resolve(OUTPUT_DIR, `${test}-diff.png`);
   const svgPath = resolve(OUTPUT_DIR, `${test}.svg`);
 
+  const harPath = resolve(CACHE_DIR, `${site.name}-${viewport.name}.har`);
+  assertJsonHarFile(harPath);
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 1,
@@ -469,16 +468,14 @@ async function runJob(
   }
 
   // HAR cache: keyed by (site, viewport) since responses can vary by UA /
-  // device. First run records, subsequent runs replay. `notFound: 'fallback'`
-  // lets a record-mode run fetch newly-required assets through to the network;
-  // replay-mode runs fall through to the network for anything not in the HAR
+  // device. The serial pre-pass records finalized embedded JSON; jobs only
+  // replay it. `notFound: 'fallback'` falls through to the network for
+  // anything not in the HAR
   // (which generally means the page made a new request that didn't exist
   // before — rare). To force a fresh capture, delete the HAR file.
-  const harPath = resolve(CACHE_DIR, `${site.name}-${viewport.name}.har`);
-  const harExists = existsSync(harPath);
   await context.routeFromHAR(harPath, {
     url: "**/*",
-    update: !harExists,
+    update: false,
     notFound: "fallback",
   });
 
@@ -486,15 +483,12 @@ async function runJob(
   // through the context's request API, which routeFromHAR does not intercept.
   // On a replay, serve those fetches from the same archive (falling through to
   // the network like the route's `notFound: 'fallback'`), so discovery gets the
-  // bytes Chrome painted rather than whatever the live URL returns today. A
-  // record run has no archive yet (it is written on context close), so it
-  // keeps the default request API.
-  const harFontGetter = harExists
-    ? createHarHttpGetter(loadHarArchive(harPath), {
-        notFound: "fallback",
-        fallback: (u) => context.request.get(u),
-      })
-    : undefined;
+  // bytes Chrome painted rather than whatever the live URL returns today. The
+  // serial recording pre-pass completes before replay jobs begin.
+  const harFontGetter = createHarHttpGetter(loadHarArchive(harPath), {
+    notFound: "fallback",
+    fallback: (u) => context.request.get(u),
+  });
 
   const page = await context.newPage();
   // DM-479: standardize per-page Playwright operation timeouts at 90 s.

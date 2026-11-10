@@ -13,6 +13,7 @@ import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
+import { assertJsonHarFile } from "../capture/har-fetcher.js";
 import { setChromiumAutoInstallDefault } from "../capture/chromium-auto-install.js";
 import { gzipSvg } from "../post-processing/index.js";
 import { formatIssues, type ValidationIssueLike } from "../utils/zod-issues.js";
@@ -256,7 +257,7 @@ export function parseTuple(value: string, len: number, name: string): number[] {
 /** True when the input is an HTTP-Archive file (auto-detected by extension,
  *  like `.svgz` output). DM-889. */
 export function isHarPath(input: string): boolean {
-  return input !== "-" && /\.har$/i.test(input);
+  return input !== "-" && /\.har(?:\.zip)?$/i.test(input);
 }
 
 /**
@@ -268,6 +269,7 @@ export function isHarPath(input: string): boolean {
 export function inferHarPageUrl(harPath: string): string {
   let har: unknown;
   try {
+    assertJsonHarFile(harPath);
     har = JSON.parse(readFileSync(harPath, "utf8"));
   } catch (e) {
     throw new Error(`could not read HAR file ${harPath}: ${e instanceof Error ? e.message : String(e)}`);

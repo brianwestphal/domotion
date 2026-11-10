@@ -31,7 +31,7 @@
  * When no entry matches, `notFound` decides like `routeFromHAR`'s option of the
  * same name: `"abort"` fails the fetch, `"fallback"` hands it to `fallback`.
  */
-import { readFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -85,8 +85,25 @@ export function parseHarArchive(jsonText: string, baseDir: string): HarArchive {
   return { baseDir, entries };
 }
 
+/** Reject ZIP before Playwright can enter an unsupported ZIP read path. */
+export function assertJsonHarFile(harPath: string): void {
+  const fd = openSync(harPath, "r");
+  const signature = Buffer.alloc(4);
+  try {
+    readSync(fd, signature, 0, signature.length, 0);
+  } finally {
+    closeSync(fd);
+  }
+  if ((signature[0] === 0x50 && signature[1] === 0x4b) || /\.zip$/i.test(harPath)) {
+    throw new Error(
+      "ZIP HAR input is unsupported: extract the archive to a JSON .har file with its response sidecars first; see docs/48-har-source.md",
+    );
+  }
+}
+
 /** Read and parse a `.har` file; `_file` sidecars resolve against its directory. */
 export function loadHarArchive(harPath: string): HarArchive {
+  assertJsonHarFile(harPath);
   return parseHarArchive(readFileSync(harPath, "utf8"), path.dirname(path.resolve(harPath)));
 }
 
