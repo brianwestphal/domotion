@@ -957,9 +957,12 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": [],
-        "tickets": ["DM-4GXCMQ", "DM-TRM653", "DM-P0X82N", "DM-SJBWJC"],
+        "tickets": ["DM-4GXCMQ", "DM-TRM653", "DM-P0X82N", "DM-SJBWJC", "DM-EWYDDF"],
         "code": [
           "tests/real-world.tsx",
+          "tests/real-world-scroll-plan.ts",
+          "tests/real-world-scroll-plan.test.ts",
+          "tests/real-world-scroll-plan.e2e.test.ts",
           "tests/real-world-scroll-reference.ts",
           "tests/real-world-scroll-reference.e2e.test.ts",
           "tests/real-world-scroll-reference.test.ts",

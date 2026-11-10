@@ -931,7 +931,9 @@ async function runJob(
           // leave every chunk's actual screenshot stuck on the t=0 frame.
           // The pause() above is sufficient to freeze the moment.
           // The final segment ends at 100% of an infinite CSS cycle. Seeking
-          // exactly there wraps to the hero, so sample 1 ms inside the cycle.
+          // exactly there wraps to the hero. Take the nearest representable
+          // instant inside the cycle, preserving final cull membership without
+          // the geometric drift caused by a fixed millisecond offset.
           const cycleEndMs = segments[segments.length - 1].segmentEndMs;
           const seekTimeMs = scrollChunkSeekTimeMs(seg.segmentEndMs, cycleEndMs);
           await renderPage.evaluate(async (timeMs) => {

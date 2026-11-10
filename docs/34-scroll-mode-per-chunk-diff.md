@@ -5,10 +5,13 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-4GXCMQ", "DM-TRM653", "DM-P0X82N", "DM-SJBWJC"]
+tickets: ["DM-4GXCMQ", "DM-TRM653", "DM-P0X82N", "DM-SJBWJC", "DM-EWYDDF"]
 code:
   [
     "tests/real-world.tsx",
+    "tests/real-world-scroll-plan.ts",
+    "tests/real-world-scroll-plan.test.ts",
+    "tests/real-world-scroll-plan.e2e.test.ts",
     "tests/real-world-scroll-reference.ts",
     "tests/real-world-scroll-reference.e2e.test.ts",
     "tests/real-world-scroll-reference.test.ts",
@@ -41,7 +44,7 @@ For a `*-scroll` fixture with N executor segments (chunks):
   - `<name>-diff.png` — pixel diff of the above
 - **Per-chunk triplets** for chunks 1..N-1:
   - `<name>-expected-{i}.png` — capture-time Chromium screenshot retained with `segments[i]` at its `scrollY`
-  - `<name>-actual-{i}.png` — composed SVG with its CSS animation seeked to `segments[i].segmentEndMs` (via `document.getAnimations()` → `currentTime` + `pause`), then screenshotted
+  - `<name>-actual-{i}.png` — composed SVG at the intermediate `segments[i].segmentEndMs`, or the final representable left limit described below (via `document.getAnimations()` → `currentTime` + `pause`), then screenshotted
   - `<name>-diff-{i}.png` — pixel diff
 
 The canonical triplet always exists (no behavior change for downstream tools that don't know about chunks). The per-chunk triplets exist only when N > 1.
@@ -69,7 +72,7 @@ Chunk 0's metrics mirror the canonical metrics for the same triplet.
 ## Capture-side details
 
 - **Source page**: each executor capture pauses currently known document animations in the relevant frames at their sampled times. Setting the same resolved `currentTime` completes pending pauses without seeking to the animation end. Inactive timelines with no resolved time or effect progress remain unchanged; their `ready` promises can stay pending indefinitely. Frame pause work has a shared 2000 ms Node-owned deadline and fails before publishing reference pixels if active paint cannot settle (DM-TRM653 / DM-4GXCMQ). The harness then uses `captureElementTreeWithDebug` to retain source PNG bytes with that anchor's tree. The explicit capture ordinal determines the output filename; reference count must equal segment count. Source references are not reconstructed by scrolling back later.
-- **Render page**: the composed SVG's animation runs over `segments[N-1].segmentEndMs`. Seeking to `segments[i].segmentEndMs` lands exactly on a composer keyframe anchor (not interpolated), so the rendered frame matches what the SVG paints when the consumer actually scrolls to that point.
+- **Render page**: the composed SVG's animation runs over `segments[N-1].segmentEndMs`. Intermediate anchors use their exact segment time. At the final anchor, an infinite animation wraps at the exact cycle end; the comparison instead uses the immediate preceding positive JavaScript double. It retains the final culling interval without a fixed millisecond geometric offset. This is a representable left-limit comparison, not a change to emitted SVG keyframes, visibility, timing, source geometry or live playback (DM-EWYDDF). Invalid/nonpositive cycle times and a minimum subnormal cycle with no positive representable interior fail explicitly.
 - **Screenshot animations**: source and per-chunk actual screenshots omit `animations: "disabled"`. Playwright's installed `screenshotter.js` calls `animation.finish()` for finite animations even when they are paused, while canceling infinite animations. That changes paint instead of preserving the sampled state. The harness pauses source animations without seeking; the actual animation is explicitly paused at its composed anchor.
 
 DM-4GXCMQ reproduced the distinction on the fixed Resend desktop recording at scrollY 11469: a footer wordmark with near-zero captured opacity became fully visible only when the later reference screenshot finished its entrance animation. The correction preserves the captured state; it does not force the wordmark visible or change production SVG paint/culling. The Chromium `Page.captureScreenshot` protocol records pixels; the finite-animation finishing policy belongs to Playwright's screenshot preparation, not the renderer. Browser regressions exercise hidden, intermediate and complete wordmark opacity, anchor pairing, evidence failures, unresolved inactive scroll timelines, and active-to-inactive scroll timeline transitions. The sampled-time pause follows the [Web Animations current-time setter](https://www.w3.org/TR/web-animations-1/#setting-the-current-time-of-an-animation); the deadline does not depend on page timers, which the real-world freeze may override.
@@ -99,3 +102,39 @@ Unchanged from before this feature: real-world `scroll` mode never `pass`es (the
 ## Composite-against-composite diffing (out of scope)
 
 A future iteration could compare a Chromium-recorded video of the live scroll against a recording of the SVG playback. That would test the composed animation as consumers actually see it, including timing/easing. Per-chunk diffing is the cheaper path that catches the same per-position regressions without a video-recording dependency.
+
+## Terminal comparison precision (DM-EWYDDF)
+
+Chromium147 `6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`
+`TimingCalculations::CalculateSimpleIterationProgress` uses the fractional
+remainder of overall progress. The exact boundary of an active infinite cycle
+has progress0. The active-duration endpoint special case does not apply to a
+finite sample time in an infinite-duration effect. Composer cull tracks also deliberately hide
+at100%; forcing finite fill-forwards would not preserve the last visible slice.
+
+On the unchanged Stripe11252ms output, the old11251ms sample has outer scroll
+translation−3375.7 and iconCTM.f129.800048828125. The immediate predecessor
+11251.999999999998ms retains progress0.9999999999999999, visible final cull,
+outerCTM−3376 and iconCTM.f129.5. The exact11252ms boundary wraps to hero and
+hides the last slice. Native regressions compare intermediate and terminal
+80px source anchor PNGs against actual composer output, retain the infinite
+iteration count and verify wrapping still occurs. Additional1/2/11252/1000000ms
+controls verify final cull/CTM; helper tests cover subnormal and large durations.
+These are measured endpoint-paint facts for this cohort, not a claim of exact
+continuous geometry for every arbitrary animation or an atomic live-JavaScript
+snapshot.
+
+The retained-HAR mobile390×844 finalY3376 source PNG is unchanged
+(SHA256f52a1a77efdfcb0e9aa64f814f417b06fc7d96c28306d336828e198c93fe0c82).
+A controlled replay of identical emitted SVG bytes changes only sampling:
+rawdiffPct0.045927265258765344→0.028882242459361426, regionCount0 in both arms.
+Icon mean absolute RGB channel error4.611666666666666/max141→3.07/max93;
+background2.9037286270526494/max32→2.0548903842898256/max24. These channel
+errors are not diffPct. The resulting PNG is byte-identical to the official
+after capture. Remaining static raster/inline-SVG differences require their
+own source-route investigation; this repair does not claim pixel identity.
+The routine suite still fails an earlier Y844 chunk (3regions,
+rawdiffPct2.420168909434965) identically in both arms. Other source frames and
+whole SVG bytes differ between independent captures, so the controlled
+same-SVG replay isolates the final-sampling cause without claiming whole-run
+input identity or a full-page fidelity pass.

@@ -103,9 +103,11 @@ Two discriminators keep the remaining differences separate:
   background mean absolute RGB error 2.0988953783646522 (maximum 22) and icon
   error 3.07 (maximum 93), at native crop coordinates `(16,180,358,440)` and
   `(329,129,20,20)`. These metrics are channel errors, not `diffPct`.
-- The composed output is sampled at final cycle time minus 1 ms. Its outer CTM
-  leaves the final anchor about 0.30005 px short; DM-EWYDDF owns that separate
-  harness defect. The existing composed result has raw
+- The original composed output sampled final cycle time minus 1 ms. Its outer
+  CTM left the final anchor about 0.30005 px short. DM-EWYDDF corrects that
+  separate harness defect using the nearest representable left limit, with
+  unchanged live playback ([comparison contract](../34-scroll-mode-per-chunk-diff.md)).
+  The historical composed result had raw
   `diffPct=0.04592027283545024`, `regionCount=0`; passing that region gate does
   not make its pixels identical.
 

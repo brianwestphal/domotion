@@ -45,7 +45,19 @@ export function planRealWorldScroll(
   return { extent, availableEndY, requestedEndY, plannedTransitions, jobTimeoutMs };
 }
 
-/** An infinite CSS animation wraps to its first frame at the exact cycle end. */
+/** Sample the closest representable instant inside the final infinite cycle.
+ * A fixed millisecond offset moves continuous scroll geometry. The predecessor
+ * preserves the last culling interval while approaching its endpoint at native
+ * floating-point precision; the emitted SVG and live playback remain unchanged.
+ */
 export function scrollChunkSeekTimeMs(segmentEndMs: number, cycleEndMs: number): number {
-  return segmentEndMs >= cycleEndMs ? Math.max(0, cycleEndMs - Math.min(1, cycleEndMs / 2)) : segmentEndMs;
+  if (!Number.isFinite(cycleEndMs) || cycleEndMs <= 0) throw new RangeError("invalid scroll cycle end");
+  if (!Number.isFinite(segmentEndMs) || segmentEndMs < 0) throw new RangeError("invalid scroll anchor time");
+  if (segmentEndMs < cycleEndMs) return segmentEndMs;
+  const bits = new DataView(new ArrayBuffer(8));
+  bits.setFloat64(0, cycleEndMs);
+  bits.setBigUint64(0, bits.getBigUint64(0) - 1n);
+  const sample = bits.getFloat64(0);
+  if (sample === 0) throw new RangeError("scroll cycle has no positive representable interior");
+  return sample;
 }

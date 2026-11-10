@@ -35,8 +35,27 @@ describe("real-world scroll planning", () => {
 });
 
 describe("scroll chunk screenshot seek", () => {
-  it("keeps intermediate anchors exact and seeks inside the final infinite cycle", () => {
+  it("keeps intermediate anchors exact and takes the final representable left limit", () => {
     expect(scrollChunkSeekTimeMs(8_439, 11_252)).toBe(8_439);
-    expect(scrollChunkSeekTimeMs(11_252, 11_252)).toBe(11_251);
+    expect(scrollChunkSeekTimeMs(11_252, 11_252)).toBe(11_251.999999999998);
+  });
+  it.each([Number.MIN_VALUE * 2, 1e-100, 1, 2, 100, 11_252, 1_000_000, Number.MAX_VALUE])(
+    "returns the immediate positive-double predecessor for %s ms",
+    (duration) => {
+      const sample = scrollChunkSeekTimeMs(duration, duration);
+      expect(sample).toBeLessThan(duration);
+      const bits = new DataView(new ArrayBuffer(8));
+      bits.setFloat64(0, sample);
+      bits.setBigUint64(0, bits.getBigUint64(0) + 1n);
+      expect(bits.getFloat64(0)).toBe(duration);
+    },
+  );
+  it("rejects invalid cycles/anchors and cycles without a positive interior", () => {
+    expect(() => scrollChunkSeekTimeMs(0, 0)).toThrow(RangeError);
+    expect(() => scrollChunkSeekTimeMs(Number.MIN_VALUE, Number.MIN_VALUE)).toThrow(RangeError);
+    expect(() => scrollChunkSeekTimeMs(NaN, 1)).toThrow(RangeError);
+    expect(() => scrollChunkSeekTimeMs(1, NaN)).toThrow(RangeError);
+    expect(() => scrollChunkSeekTimeMs(Infinity, Infinity)).toThrow(RangeError);
+    expect(() => scrollChunkSeekTimeMs(0, -1)).toThrow(RangeError);
   });
 });
