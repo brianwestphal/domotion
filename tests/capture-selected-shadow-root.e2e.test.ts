@@ -68,21 +68,25 @@ it.each(["inset 0 0 0 20px red", "inset 0 0 0 3px red", "inset 0 0 0 3px blue,in
     }
   },
 );
-it.each(["none", "4px 4px 0 red", "inset 0 0 0 20px red,4px 4px 0 blue"])(
-  "keeps existing selected-root flattening outside inset-only scope: %s",
-  async (shadow) => {
-    const page = await browser.newPage({ viewport });
-    try {
-      await page.setContent(html(shadow));
-      expect(await captureElementTree(page, "#only", viewport)).toEqual([]);
-      const parent = await captureElementTree(page, "#container", viewport);
-      expect(parent).toHaveLength(1);
-      expect(parent[0].children).toEqual([]);
-    } finally {
-      await page.close();
-    }
-  },
-);
+it.each([
+  "none",
+  "4px 4px 4px red",
+  "4px 4px 0 red",
+  "4px 0 0 red",
+  "inset 0 0 2px red,4px 4px 0 blue",
+  "inset 0 0 3px red,4px 4px 0 blue",
+])("keeps existing selected-root flattening outside verified shadow scope: %s", async (shadow) => {
+  const page = await browser.newPage({ viewport });
+  try {
+    await page.setContent(html(shadow));
+    expect(await captureElementTree(page, "#only", viewport)).toEqual([]);
+    const parent = await captureElementTree(page, "#container", viewport);
+    expect(parent).toHaveLength(1);
+    expect(parent[0].children).toEqual([]);
+  } finally {
+    await page.close();
+  }
+});
 it.each(["display:none", "visibility:hidden", "width:0;height:0"])(
   "preserves existing visibility and geometry pruning: %s",
   async (extra) => {

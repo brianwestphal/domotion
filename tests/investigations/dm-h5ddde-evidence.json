@@ -1,0 +1,178 @@
+{
+  "baseline": "fdb4e8a1af1602123a4af0ea170ddee09e2302c2",
+  "chromium": "6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050",
+  "skia": "fd139e79fd4553ba16556c1bca6c0f4dd9bc6fa5",
+  "note": "Retained local evidence paths; reference/problem evidence only. Full RGBA, no geometry normalization. Contour-only primitives do not establish full shadow coverage.",
+  "files": [
+    {
+      "path": "/private/tmp/dm-h5ddde-evidence/elliptical-actual.png",
+      "bytes": 540,
+      "sha256": "e72617c2ae6bc0b113baec80155992e4ae1b2f22b3644102575844496e530f70"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-evidence/elliptical-expected.png",
+      "bytes": 531,
+      "sha256": "e8139d49f035464c2bd3b6e4e4fe05b30829535b2ed25151c00df2cd413356f4"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-evidence/evidence.json",
+      "bytes": 555,
+      "sha256": "3369f9555b207f93474665d29252439ae5b665ba249848e045c6ddac471b87e0"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-evidence/unequal-actual.png",
+      "bytes": 452,
+      "sha256": "fef45e17987aeb3a46b3b05c83fc1fd0f2a378944ff2a481a62e701b8b0d793f"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-evidence/unequal-expected.png",
+      "bytes": 450,
+      "sha256": "0d79b5dd2c79097d3fc7c5a24e2d38632db8319e652c4f761eae0ba9a4f18128"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-unchanged-producer/elliptical-actual.png",
+      "bytes": 511,
+      "sha256": "80908eb6b479b47729ca0c06e930b036b56a4141e19df57a016bd95fdda24afc"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-unchanged-producer/elliptical-expected.png",
+      "bytes": 531,
+      "sha256": "e8139d49f035464c2bd3b6e4e4fe05b30829535b2ed25151c00df2cd413356f4"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-unchanged-producer/elliptical.svg",
+      "bytes": 232,
+      "sha256": "f9474fed126aa127f1b2048a0c4783eb3467aa3bff41c2299e49bac4ef7c9d32"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-unchanged-producer/records.json",
+      "bytes": 731,
+      "sha256": "27dcf1fd1c2931a00fe3e77b8ace319ed4f859e6ff86ef152180022dc566d80e"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-unchanged-producer/unequal-actual.png",
+      "bytes": 507,
+      "sha256": "e12263a7000a809eec9857ca636a29e6e80a5973629f02d0099daeecad7f1bd3"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-unchanged-producer/unequal-expected.png",
+      "bytes": 450,
+      "sha256": "0d79b5dd2c79097d3fc7c5a24e2d38632db8319e652c4f761eae0ba9a4f18128"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-unchanged-producer/unequal.svg",
+      "bytes": 215,
+      "sha256": "d0094e290a0d04029d3778baba38af2d2067969cf61d281ea2375c4f8ec450cd"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/commands.json",
+      "bytes": 26193,
+      "sha256": "e2b19f966181cd21e340cc650d3d1d78af1c6e00e3a7acb47ce324dafd36d6ee"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/elliptical-background.png",
+      "bytes": 511,
+      "sha256": "80908eb6b479b47729ca0c06e930b036b56a4141e19df57a016bd95fdda24afc"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/elliptical-foreign-background.png",
+      "bytes": 511,
+      "sha256": "80908eb6b479b47729ca0c06e930b036b56a4141e19df57a016bd95fdda24afc"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/elliptical-shadow.png",
+      "bytes": 531,
+      "sha256": "e8139d49f035464c2bd3b6e4e4fe05b30829535b2ed25151c00df2cd413356f4"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/elliptical-svg-path.png",
+      "bytes": 511,
+      "sha256": "80908eb6b479b47729ca0c06e930b036b56a4141e19df57a016bd95fdda24afc"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/elliptical-svg-rect.png",
+      "bytes": 511,
+      "sha256": "80908eb6b479b47729ca0c06e930b036b56a4141e19df57a016bd95fdda24afc"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/unequal-background.png",
+      "bytes": 505,
+      "sha256": "7c6a626e3f7bb4ea4f27e97f951f4eaf3b572c1e2c177e7e4720ea15280c6e2f"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/unequal-foreign-background.png",
+      "bytes": 505,
+      "sha256": "7c6a626e3f7bb4ea4f27e97f951f4eaf3b572c1e2c177e7e4720ea15280c6e2f"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/unequal-shadow.png",
+      "bytes": 450,
+      "sha256": "0d79b5dd2c79097d3fc7c5a24e2d38632db8319e652c4f761eae0ba9a4f18128"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-auth-primitives/unequal-svg-path.png",
+      "bytes": 507,
+      "sha256": "e12263a7000a809eec9857ca636a29e6e80a5973629f02d0099daeecad7f1bd3"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-canvas/elliptical-plain.png",
+      "bytes": 511,
+      "sha256": "80908eb6b479b47729ca0c06e930b036b56a4141e19df57a016bd95fdda24afc"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-canvas/elliptical-shadow.png",
+      "bytes": 564,
+      "sha256": "9f4ed57b5309448e12dfe0bf0ffa3d9f052e4c5a33db8ef46983cf9ab1c25766"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-canvas/metrics.json",
+      "bytes": 651,
+      "sha256": "cd5f6a3c44a5964011c46e00323f71ffffdf1fa81b84e0d1cda4f4ef72a7aa06"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-canvas/unequal-plain.png",
+      "bytes": 505,
+      "sha256": "7c6a626e3f7bb4ea4f27e97f951f4eaf3b572c1e2c177e7e4720ea15280c6e2f"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-canvas/unequal-shadow.png",
+      "bytes": 534,
+      "sha256": "c3032954937a8dfa838a96f3378d5f90dbfb2f4831adf48bd1a3c47298165e1b"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-zero/circular-actual.png",
+      "bytes": 522,
+      "sha256": "93f47bad2f9a7039c6fa17e5350144072888f11be2d42ac2b5d6531768b86e60"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-zero/circular-expected.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-zero/elliptical-actual.png",
+      "bytes": 496,
+      "sha256": "e11ac3c1978c2b614277ff693fdaeb7f0fe09289a17773900b6b4849089ed6d2"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-zero/elliptical-expected.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-zero/metrics.json",
+      "bytes": 350,
+      "sha256": "5f7374634cc67458cfcc19053d1b7c5790a6d1ecc37a5263e277f7591b2fec5b"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-zero/sharp-actual.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-h5ddde-zero/sharp-expected.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    }
+  ]
+}

@@ -599,11 +599,14 @@ export const captureRootElements = (
   const rootHasBg = isPaintedColor(rootBg) || rootHasBgImage;
   // BoxPainterBase paints inset shadows independently of a background or
   // border. Source-computed shadow layers reach the existing producer without
-  // wrapping ordinary transparent containers (DM-TPJX3H). Outset/mixed roots
-  // retain their old admission until the transparent knockout producer is
-  // repaired (DM-J2WVF3); do not newly route them to known-wrong paint.
+  // wrapping ordinary transparent containers (DM-TPJX3H). DM-J2WVF3 repairs
+  // the existing outset producer's source-border knockout, but new outset/mixed
+  // root admission stays held (DM-09GQAV): fractional source paint geometry
+  // (DM-WYY3ZZ) and contour coverage (DM-ZNQ7PH) still need native authority.
+  // An integer-origin offset fixture alone cannot authenticate every root.
   const rootShadows = parseBoxShadow(rootCs.boxShadow);
-  const rootHasShadow = rootShadows.length > 0 && rootShadows.every((shadow) => shadow.inset);
+  const rootHasShadow =
+    rootCs.display !== "contents" && rootShadows.length > 0 && rootShadows.every((shadow) => shadow.inset);
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
   // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
   // Chrome paints it; we'd miss it if we only walked root.children (Element

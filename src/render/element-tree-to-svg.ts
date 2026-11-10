@@ -1556,7 +1556,12 @@ function paintResizeHandle(
     } as CapturedElement;
     const shadowCorners = parseCornerRadii(shadowElement.styles, handle.width, handle.height);
     const shadowCtx: PaintCtx = { ...ctx, svgParts: [] };
-    paintBoxShadow(shadowCtx, shadowElement, shadowCorners, "");
+    paintBoxShadow(
+      shadowCtx,
+      { ...shadowElement, styles: { ...shadowElement.styles, backgroundColor: custom.backgroundColor } },
+      shadowCorners,
+      "",
+    );
     const outerShadows = shadowCtx.svgParts.splice(0);
 
     const color = parseColor(custom.backgroundColor ?? "transparent");

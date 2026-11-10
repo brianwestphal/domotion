@@ -1,0 +1,91 @@
+import type { Browser } from "@playwright/test";
+import sharp from "sharp";
+import { afterAll, beforeAll, expect, it } from "vitest";
+import { captureElementTree, launchChromium } from "../src/capture/index.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+const viewport = { x: 0, y: 0, width: 100, height: 100 };
+let browser: Browser;
+let priorProbe: string | undefined;
+beforeAll(async () => {
+  priorProbe = process.env["DOMOTION_GENERIC_PROBE"];
+  process.env["DOMOTION_GENERIC_PROBE"] = "0";
+  browser = await launchChromium();
+});
+afterAll(async () => {
+  await closeBrowserSafely(browser);
+  if (priorProbe == null) delete process.env["DOMOTION_GENERIC_PROBE"];
+  else process.env["DOMOTION_GENERIC_PROBE"] = priorProbe;
+});
+const rgba = async (bytes: Buffer) => sharp(bytes).ensureAlpha().raw().toBuffer();
+const cases = [
+  { name: "original zero-origin root", shadow: "4px 4px 0 red", extra: "margin:0" },
+  { name: "transparent shifted box", shadow: "4px 4px 0 red" },
+  { name: "semitransparent background", shadow: "4px 4px 0 red", extra: "background:rgba(0,0,255,.5)" },
+  { name: "opaque path preserved", shadow: "4px 4px 0 red", extra: "background:blue" },
+  { name: "positive spread", shadow: "0 0 0 4px red" },
+  { name: "negative spread", shadow: "4px 4px 0 -2px red" },
+  { name: "rounded native coverage", shadow: "4px 4px 0 red", extra: "border-radius:5px" },
+  { name: "elliptical native coverage", shadow: "4px 4px 0 red", extra: "border-radius:8px / 4px" },
+  { name: "unequal corner native coverage", shadow: "4px 4px 0 red", extra: "border-radius:8px 0 3px 5px" },
+  { name: "group opacity", shadow: "4px 4px 0 red", extra: "opacity:.5" },
+  { name: "translucent rounded shadow", shadow: "4px 4px 0 rgba(255,0,0,.5)", extra: "border-radius:5px" },
+  { name: "multiple normal layers", shadow: "4px 4px 0 red,-4px -4px 0 blue" },
+  { name: "mixed inset and normal layers", shadow: "inset 0 0 0 3px blue,4px 4px 0 red" },
+  { name: "fractional source shadow offset", shadow: "4.5px 4.5px 0 red" },
+  { name: "transparent border", shadow: "4px 4px 0 red", extra: "border:2px solid transparent" },
+  { name: "zero offset paints nothing inside", shadow: "0 0 0 red" },
+];
+it.each(cases)(
+  "matches complete native pixels for $name",
+  async (sample) => {
+    const page = await browser.newPage({ viewport }),
+      output = await browser.newPage({ viewport });
+    try {
+      await page.setContent(
+        `<style>body{margin:0}#only{display:block;width:20px;height:20px;margin:20px;border:0;background:transparent;box-shadow:${sample.shadow};${sample.extra ?? ""}}</style><div id="container"><div id="only"></div></div>`,
+      );
+      const source = await rgba(await page.screenshot({ omitBackground: true }));
+      for (const selector of ["#only", "#container", "body"]) {
+        const captured = await captureElementTree(page, selector, viewport);
+        expect(captured, selector).toHaveLength(1);
+        await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(captured, 100, 100));
+        expect(await rgba(await output.screenshot({ omitBackground: true })), selector).toEqual(source);
+      }
+    } finally {
+      await page.close();
+      await output.close();
+    }
+  },
+  30000,
+);
+
+it("knocks out the complete source interior after blur while blurred-root admission stays held", async () => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      '<style>body{margin:0}#only{width:20px;height:20px;margin:20px;background:transparent;box-shadow:4px 4px 4px red}</style><div id="container"><div id="only"></div></div>',
+    );
+    const source = await sharp(await page.screenshot({ omitBackground: true }))
+      .extract({ left: 20, top: 20, width: 20, height: 20 })
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
+    expect(await captureElementTree(page, "#only", viewport)).toEqual([]);
+    const tree = await captureElementTree(page, "#container", viewport);
+    await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(tree, 100, 100));
+    const actual = await sharp(await output.screenshot({ omitBackground: true }))
+      .extract({ left: 20, top: 20, width: 20, height: 20 })
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
+    expect(actual).toEqual(source);
+    expect(actual.equals(Buffer.alloc(20 * 20 * 4))).toBe(true);
+    // DM-RRWR8E retains the independently measured outer alpha-kernel mismatch;
+    // this contract claims exact interior clipping, never full blur parity.
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});

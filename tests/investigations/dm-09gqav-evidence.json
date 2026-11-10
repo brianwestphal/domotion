@@ -1,0 +1,190 @@
+{
+  "prerequisite": "e63ff30714240dc9f1bafc95c8d7db65c1194ee8",
+  "chromium": "6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050",
+  "skia": "fd139e79fd4553ba16556c1bca6c0f4dd9bc6fa5",
+  "generatedCaptureFunctionalSha256": "09c8be9afeaed61d5ba7eed1936355b88f1a774466dcc325d59b95724fd6c7b4",
+  "nativeContract": "Full RGBA equality; no geometry normalization, fitted radii or tolerance. All-zero normal shadow only; outset/mixed root admission held at inset-only boundary.",
+  "zeroCircular": {
+    "oldChanged": 390,
+    "initialJ2Changed": 34,
+    "initialJ2MaxAlpha": 64,
+    "afterChanged": 0,
+    "afterSourceAlpha": 0,
+    "afterActualAlpha": 0,
+    "note": "Incomplete pre-existing producer repair; not claimed as regression versus old producer."
+  },
+  "gate": {
+    "pueue": 240,
+    "result": "Success",
+    "rootUnitsPassed": 5547,
+    "rootUnitsSkipped": 4,
+    "affectedNativePassed": 47,
+    "docs": 276
+  },
+  "after": [
+    {
+      "name": "sharp",
+      "changed": 0,
+      "sourceAlpha": 0,
+      "actualAlpha": 0,
+      "maxAlpha": 0
+    },
+    {
+      "name": "circular",
+      "changed": 0,
+      "sourceAlpha": 0,
+      "actualAlpha": 0,
+      "maxAlpha": 0
+    },
+    {
+      "name": "elliptical",
+      "changed": 0,
+      "sourceAlpha": 0,
+      "actualAlpha": 0,
+      "maxAlpha": 0
+    }
+  ],
+  "explicitGaps": [
+    "DM-ZNQ7PH old outer ellipse/unequal coverage",
+    "DM-WYY3ZZ fractional source normal-shadow paint rectangle",
+    "DM-7P69DC independently measured positive-inset fractional paint",
+    "Subpixel-offset circular coverage3/4pixels remains distinct; see retained strict probe and DM-09GQAV investigation evidence."
+  ],
+  "files": [
+    {
+      "path": "/private/tmp/dm-09gqav-after/circular-actual.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-after/circular-expected.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-after/elliptical-actual.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-after/elliptical-expected.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-after/metrics.json",
+      "bytes": 340,
+      "sha256": "b74d99d36129e9a89468e0023dcb7434ac0be03b7de2970372b551c957db8aba"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-after/sharp-actual.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-after/sharp-expected.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/metrics.json",
+      "bytes": 51166,
+      "sha256": "3239b6568e620904d25e3bb1b221763fc76a26e4323f61a57b5af63f406d99f5"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-horizontal-clip.png",
+      "bytes": 528,
+      "sha256": "f1e71688b98a238b564e1ca34ef9637883f263598c764b5c150aa781fdc9e3dd"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-horizontal-expected.png",
+      "bytes": 541,
+      "sha256": "6ff29d5089877879e9c7966fb8ba4a053c8381882535f11eb51f705ddd525878"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-horizontal-mask.png",
+      "bytes": 545,
+      "sha256": "b0488bf7235b459da09beee71d375720ba359c4515e41600c1e605c973732baf"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-horizontal-old.png",
+      "bytes": 524,
+      "sha256": "c991033f432c49cf5c07c0584b09470efa8485a5eab36a6c7e2acf1e12ca8924"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-vertical-clip.png",
+      "bytes": 532,
+      "sha256": "70171b34de0704cd17d33d738995a0023fec4de4a1229089b6c9c9aea373e772"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-vertical-expected.png",
+      "bytes": 543,
+      "sha256": "bc3f6c1934a65417068f2c9bf9dbdc6b44cc2a224e8fea4e6f4af661cd6678f2"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-vertical-mask.png",
+      "bytes": 531,
+      "sha256": "4d4abff56eab83ce2347d0b887d9a087acd04f1a5bd9af68a9bfad83945b9081"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/subpixel-vertical-old.png",
+      "bytes": 541,
+      "sha256": "9a92bb5db09c83397e587b25be9d80a9a746854250d9283a21508c658bf57754"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/zero-clip.png",
+      "bytes": 505,
+      "sha256": "8d5c8037aa52f7b40de811967dcdf68e239bffc2718086b006d6fe22f202f13c"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/zero-expected.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/zero-mask.png",
+      "bytes": 522,
+      "sha256": "93f47bad2f9a7039c6fa17e5350144072888f11be2d42ac2b5d6531768b86e60"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-baseline/zero-old.png",
+      "bytes": 505,
+      "sha256": "fb42d28fac358d653664f8ba71f0cd4c9d82c8981958f9194e49ba99a14bb0d1"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-inset-fractional/0-container.png",
+      "bytes": 411,
+      "sha256": "aebf97d18b7474b567958fa861afd40fc11ce0564228a9bd11b0b0d8427a071c"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-inset-fractional/0-expected.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-inset-fractional/0-only.png",
+      "bytes": 411,
+      "sha256": "aebf97d18b7474b567958fa861afd40fc11ce0564228a9bd11b0b0d8427a071c"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-inset-fractional/metrics.json",
+      "bytes": 844,
+      "sha256": "7c6edba98584e3b4e2235c0059419db8ced34e84a70e87554668935a858b5760"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-native-paint/20.5.png",
+      "bytes": 520,
+      "sha256": "ba903e8f1fd48af0c7828760f6d47301c8a61a3407600f524a6fa1420e50f2f2"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-native-paint/20.png",
+      "bytes": 520,
+      "sha256": "1c3202b7e0e5a81fbf9142e6e27a12373141c48ce78c6577438a7bac40edd478"
+    },
+    {
+      "path": "/private/tmp/dm-09gqav-native-paint/commands.json",
+      "bytes": 4082,
+      "sha256": "59cea633ad542fbe6d9a3d5e410a7cd6ea73e51833963e387a1a0666c6f4d7d0"
+    }
+  ]
+}

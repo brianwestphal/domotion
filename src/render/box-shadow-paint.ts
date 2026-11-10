@@ -36,14 +36,22 @@ export interface ShadowBox {
   styles: Pick<
     CapturedElement["styles"],
     "boxShadow" | "borderTopWidth" | "borderRightWidth" | "borderBottomWidth" | "borderLeftWidth"
-  >;
+  > & { backgroundColor?: string; display?: string };
 }
 
 export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners: CornerRadii, indent: string): void {
+  // A display:contents element has no box for BoxPainterBase to decorate.
+  if (el.styles.display === "contents") return;
   const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
   for (let si = shadows.length - 1; si >= 0; si--) {
     const sh = shadows[si];
     if (sh.inset) continue;
+    // Blink clips normal shadow paint outside the source border contour. With
+    // no offset, blur or spread, the shadow and excluded contour coincide:
+    // their geometric difference is empty, including antialiased corners.
+    // Multiplying separately rasterized contour/inverse-mask alpha would leave
+    // A*(1-A) coverage at those edges (DM-09GQAV).
+    if (sh.x === 0 && sh.y === 0 && sh.spread === 0 && sh.blur === 0) continue;
     // Negative spread is allowed: per CSS Backgrounds 3 §6.4 the shadow
     // shape's width/height = box + 2*spread (so spread < 0 shrinks the
     // shadow). Chromium's `BoxShadowData::ApplyToBoxOuter` shrinks the
@@ -64,14 +72,37 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners: Corn
     if (sh.blur > 0) {
       const fid = ctx.nextClipId("sh");
       // Filter region needs to extend beyond the shadow rect by enough
-      // padding to keep the Gaussian fall-off from clipping. Use a
-      // generous 200% on each side; primitiveUnits inherits the default
+      // padding to keep the Gaussian fall-off from clipping. The default
+      // filter region adds 50% on each side; primitiveUnits inherits the default
       // userSpaceOnUse-equivalent so stdDeviation is in CSS pixels.
       ctx.defsParts.push(emitGaussianBlurFilter(fid, sh.blur));
       filterAttr = ` filter="url(#${fid})"`;
     }
+    let clipAttr = "";
+    const background = el.styles.backgroundColor == null ? null : parseColor(el.styles.backgroundColor);
+    if (background != null && background.a < 1) {
+      // Blink 147 BoxPainterBase::ClipToBorderEdge excludes the original
+      // border contour before normal-shadow paint on a nonopaque background.
+      // Clip after filtering, so the blur cannot refill the transparent box.
+      // Opaque/unknown backgrounds retain their existing producer path.
+      const clipId = ctx.nextClipId("shcut");
+      const rounded = [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h > 0 || corner.v > 0);
+      if (rounded) {
+        ctx.defsParts.push(
+          `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${roundedRectSvg(el.x, el.y, el.width, el.height, corners, 'fill="black"')}</mask>`,
+        );
+        clipAttr = ` mask="url(#${clipId})"`;
+      } else {
+        const outer = `M${r(sx - sw)} ${r(sy - sh2)}h${r(sw * 3)}v${r(sh2 * 3)}h${r(-sw * 3)}Z`;
+        const hole = roundedRectPath(el.x, el.y, el.width, el.height, corners);
+        ctx.defsParts.push(
+          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${outer} ${hole}" clip-rule="evenodd"/></clipPath>`,
+        );
+        clipAttr = ` clip-path="url(#${clipId})"`;
+      }
+    }
     ctx.svgParts.push(
-      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
+      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}${clipAttr}`)}`,
     );
   }
   return;

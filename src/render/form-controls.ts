@@ -187,6 +187,7 @@ function underlayerShapes(layers: LayerFills, baseColor: string | null, shape: (
 function pseudoBoxShadowMarkup(
   kind: "outer" | "inset",
   boxShadow: string | undefined,
+  backgroundColor: string | undefined,
   box: { x: number; y: number; w: number; h: number },
   radius: number,
   borderWidth: number,
@@ -200,7 +201,14 @@ function pseudoBoxShadowMarkup(
     y: box.y,
     width: box.w,
     height: box.h,
-    styles: { boxShadow, borderTopWidth: bw, borderRightWidth: bw, borderBottomWidth: bw, borderLeftWidth: bw },
+    styles: {
+      boxShadow,
+      backgroundColor,
+      borderTopWidth: bw,
+      borderRightWidth: bw,
+      borderBottomWidth: bw,
+      borderLeftWidth: bw,
+    },
   };
   const corners = parseCornerRadii({ borderRadius: `${radius}px` }, box.w, box.h);
   const svgParts: string[] = [];
@@ -614,6 +622,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     pseudoBoxShadowMarkup(
       kind,
       s.rangeTrackBoxShadow,
+      s.rangeTrackBg,
       trackRect,
       Math.min(trackR, trackRect.w / 2, trackRect.h / 2),
       trackBorder?.width ?? 0,
@@ -652,6 +661,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
       pseudoBoxShadowMarkup(
         kind,
         s.rangeThumbBoxShadow,
+        s.rangeThumbBg,
         thumbRect,
         Math.min(thumbRadius, thumbW / 2, thumbH / 2),
         thumbBorder?.width ?? 0,
@@ -686,7 +696,16 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
     // circle's path radius by `borderWidth/2`, putting the stroke band between
     // r=halfThumb-border and r=halfThumb.
     const thumbShadow = (kind: "outer" | "inset"): string[] =>
-      pseudoBoxShadowMarkup(kind, s.rangeThumbBoxShadow, thumbRect, halfThumb, thumbBorder?.width ?? 0, indent, defCtx);
+      pseudoBoxShadowMarkup(
+        kind,
+        s.rangeThumbBoxShadow,
+        s.rangeThumbBg,
+        thumbRect,
+        halfThumb,
+        thumbBorder?.width ?? 0,
+        indent,
+        defCtx,
+      );
     parts.push(...thumbShadow("outer"));
     // Lower layers fill the whole border box; the top shape's border stroke
     // still paints over them.
@@ -1065,7 +1084,14 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
           advanceClipIdx: () => undefined,
           emittedTextCtm: new WeakMap(),
         };
-  if (paintCtx != null) paintBoxShadow(paintCtx, barBox, corners, indent);
+  if (paintCtx != null) {
+    paintBoxShadow(
+      paintCtx,
+      { ...barBox, styles: { ...barBox.styles, backgroundColor: capturedPseudoColor(s.meterBarBg) ?? undefined } },
+      corners,
+      indent,
+    );
+  }
   const trackShape = (fill: string): string =>
     `${indent}${roundedRectSvg(track.x, track.y, track.w, track.h, corners, `fill="${fill}"`)}`;
   const trackColor = capturedPseudoColor(s.meterBarBg);

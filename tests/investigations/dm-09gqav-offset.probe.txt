@@ -1,0 +1,27 @@
+// Strict investigation probe, intentionally outside ordinary *.e2e discovery.
+// Copy to tests/dm-09gqav-offset.e2e.test.ts to run; remove the temporary copy.
+// These unresolved native full-RGBA assertions must not acquire a tolerance.
+import sharp from "sharp";
+import { expect, it } from "vitest";
+import { captureElementTree, launchChromium } from "../src/capture/index.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+
+it.each([
+  { name: "subpixel horizontal", left: 20, radius: 5, x: 0.5, y: 0 },
+  { name: "subpixel vertical", left: 20, radius: 5, x: 0, y: 0.5 },
+  { name: "fractional circular source", left: 20.5, radius: 5, x: 4, y: 0 },
+  { name: "fractional sharp source", left: 20.5, radius: 0, x: 4, y: 0 },
+])("native shadow authority: $name", async ({ left, radius, x, y }) => {
+  const browser = await launchChromium();
+  try {
+    const viewport = { width: 100, height: 100 };
+    const page = await browser.newPage({ viewport });
+    const output = await browser.newPage({ viewport });
+    await page.setContent(`<style>body{margin:0}#only{position:absolute;left:${left}px;top:${left}px;width:20px;height:20px;border-radius:${radius}px;box-shadow:${x}px ${y}px 0 red}</style><div id="container"><div id="only"></div></div>`);
+    const source = await sharp(await page.screenshot({ omitBackground: true })).ensureAlpha().raw().toBuffer();
+    const tree = await captureElementTree(page, "#container", { x: 0, y: 0, ...viewport });
+    await output.setContent('<style>body{margin:0}</style>' + elementTreeToSvg(tree, 100, 100));
+    const actual = await sharp(await output.screenshot({ omitBackground: true })).ensureAlpha().raw().toBuffer();
+    expect(actual).toEqual(source);
+  } finally { await browser.close(); }
+});
