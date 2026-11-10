@@ -3,9 +3,12 @@ import { detachQuietly, isSameProcessFrameError } from "./cdp-lifecycle.js";
 import { privateCaptureKey } from "./private-key.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { matchedFamilyIsUnambiguouslyAuthored, type MatchedFamilyDeclarations } from "./font-family-declarations.js";
+import { familyDomRecords, nativeFontFamilyType, type FamilyDomNode } from "./font-family-cascade-cdp.js";
+import { fontLocaleMatchesCapturedLanguage, type ProvenFamilyType } from "./font-family-cascade.js";
+import { withTimeout } from "../utils/with-timeout.js";
 import type { CaptureWarning } from "./types.js";
 
-interface CdpNode {
+interface CdpNode extends FamilyDomNode {
   nodeId: number;
   nodeType: number;
   children?: CdpNode[];
@@ -17,7 +20,7 @@ interface CdpNode {
 // This function runs against a Document or ShadowRoot, including a closed root
 // obtained through DOM.resolveNode. Its only DOM change is the removed initial
 // value probe, matching the capture walk's existing browser-settings probe.
-const collectCandidates = String.raw`function() {
+const collectCandidates = String.raw`function(literalOnly) {
   var root = this;
   var doc = root.nodeType === 9 ? root : root.ownerDocument;
   var view = doc.defaultView;
@@ -38,7 +41,7 @@ const collectCandidates = String.raw`function() {
   if (root !== doc) sheets = sheets.concat(Array.from(root.styleSheets || []));
   var hasOpaque = false;
   for (var i = 0; i < sheets.length; i++) if (opaque(sheets[i])) hasOpaque = true;
-  if (!hasOpaque) return [];
+  if (!hasOpaque && literalOnly) return [];
   var probe = doc.createElement('span');
   probe.style.setProperty('all', 'initial', 'important');
   probe.style.setProperty('display', 'none', 'important');
@@ -51,18 +54,38 @@ const collectCandidates = String.raw`function() {
   var elements = root.querySelectorAll('*');
   for (var i = 0; i < elements.length; i++) {
     var el = elements[i];
-    if (view.getComputedStyle(el).fontFamily.toLowerCase() === initial) candidates.push(el);
+    var candidate = view.getComputedStyle(el).fontFamily.toLowerCase() === initial;
+    if (!literalOnly && !candidate) {
+      candidate = ['before', 'after', 'first-letter', 'first-line', 'placeholder', 'file-selector-button'].some(function(pseudo) {
+        return view.getComputedStyle(el, '::' + pseudo).fontFamily.toLowerCase() === initial;
+      });
+    }
+    if (candidate) candidates.push(el);
   }
   return candidates;
 }`;
 
 /** Supplement known CSSOM author facts only for opaque-sheet initial-name candidates. */
-export async function captureFontFamilyDeclarationFacts(page: Page): Promise<{
+export async function captureFontFamilyDeclarationFacts(
+  page: Page,
+  options: { literalOnly?: boolean } = {},
+): Promise<{
   propertyKey: string;
   warnings: CaptureWarning[];
   dispose(): Promise<void>;
 }> {
   const propertyKey = privateCaptureKey("FontFamilyDeclarations");
+  let capturedFallbackLanguage: string | undefined;
+  if (!options.literalOnly) {
+    try {
+      capturedFallbackLanguage = await withTimeout(
+        page.evaluate(() => document.documentElement.lang || ""),
+        500,
+      );
+    } catch {
+      /* Unavailable language cannot authorize a standard-family fact. */
+    }
+  }
   const warnings: CaptureWarning[] = [];
   const reported = new Set<string>();
   const retained: Array<{ session: CDPSession; objects: Set<string>; group: string }> = [];
@@ -70,7 +93,9 @@ export async function captureFontFamilyDeclarationFacts(page: Page): Promise<{
     const warning = probeFailureWarning({
       selector: "document",
       feature: "font-family provenance",
-      probe: "opaque stylesheet matched-family declarations",
+      probe: options.literalOnly
+        ? "opaque stylesheet matched-family declarations"
+        : "native matched-family cascade and value provenance",
       cause: error,
       effect: "the affected nodes retain the prior CSSOM declaration route",
     });
@@ -95,6 +120,7 @@ export async function captureFontFamilyDeclarationFacts(page: Page): Promise<{
       await session.send("DOM.enable");
       await session.send("CSS.enable");
       const { root } = await session.send("DOM.getDocument", { depth: -1, pierce: true });
+      const records = familyDomRecords(root);
       const roots: number[] = [];
       const visit = (node: CdpNode): void => {
         if (node.nodeType === 9 || node.nodeType === 11) roots.push(node.nodeId);
@@ -110,6 +136,7 @@ export async function captureFontFamilyDeclarationFacts(page: Page): Promise<{
         const result = await session.send("Runtime.callFunctionOn", {
           objectId: resolved.object.objectId,
           functionDeclaration: collectCandidates,
+          arguments: [{ value: options.literalOnly === true }],
           objectGroup: group,
         });
         if (result.exceptionDetails != null) throw new Error(result.exceptionDetails.text);
@@ -160,19 +187,157 @@ export async function captureFontFamilyDeclarationFacts(page: Page): Promise<{
                 if (animations.exceptionDetails != null) throw new Error(animations.exceptionDetails.text);
                 if (animations.result.value !== false) authoredPseudos = [];
               }
-              if (!authored && authoredPseudos.length === 0) continue;
+              let provenance:
+                | {
+                    family: string;
+                    type?: ProvenFamilyType;
+                    usable?: boolean;
+                    fontLocale?: string;
+                    language?: string;
+                    pseudos: Record<
+                      string,
+                      {
+                        family: string;
+                        type?: ProvenFamilyType;
+                        usable: boolean;
+                        fontLocale?: string;
+                        language?: string;
+                      }
+                    >;
+                  }
+                | undefined;
+              if (!options.literalOnly) {
+                try {
+                  const languageReply = await withTimeout(
+                    session.send("Runtime.callFunctionOn", {
+                      objectId,
+                      returnByValue: true,
+                      functionDeclaration: `function(fallback) { /* font provenance language */
+                      var n=this;while(n&&n.nodeType===1){if(typeof n.lang==='string'&&n.lang)return n.lang;n=n.parentElement;}
+                      return fallback;
+                    }`,
+                      arguments: [{ value: capturedFallbackLanguage ?? null }],
+                    }),
+                    500,
+                  );
+                  const language =
+                    typeof languageReply?.result.value === "string" ? languageReply.result.value : undefined;
+                  const native = await withTimeout(nativeFontFamilyType(session, nodeId, evidence, records), 1500);
+                  provenance = {
+                    family: native?.family ?? "",
+                    fontLocale: native?.fontLocale,
+                    language,
+                    pseudos: Object.fromEntries(
+                      (records.get(nodeId)?.node.pseudoElements ?? [])
+                        .filter((p) => p.pseudoType != null)
+                        .map((p) => [p.pseudoType!, { family: "", usable: false }]),
+                    ),
+                  };
+                  if (native != null && "type" in native.resolution) {
+                    provenance.type = native.resolution.type;
+                    provenance.usable =
+                      provenance.type !== "standard" || fontLocaleMatchesCapturedLanguage(native.fontLocale, language);
+                    if (!provenance.usable)
+                      report(
+                        new Error(
+                          "standard family type cannot use the captured DOM language for this computed font locale (DM-PJG8E9)",
+                        ),
+                      );
+                  } else if (!authored)
+                    report(
+                      new Error(
+                        native == null
+                          ? "native font provenance exceeded Node deadline"
+                          : "reason" in native.resolution
+                            ? native.resolution.reason
+                            : "native family type is unavailable",
+                      ),
+                    );
+                  for (const pseudo of records.get(nodeId)?.node.pseudoElements ?? []) {
+                    if (pseudo.pseudoType == null) continue;
+                    const pseudoReplies = await withTimeout(
+                      Promise.all([
+                        session.send("CSS.getMatchedStylesForNode", { nodeId: pseudo.nodeId }),
+                        session.send("CSS.getAnimatedStylesForNode", { nodeId: pseudo.nodeId }),
+                      ]),
+                      1500,
+                    );
+                    if (pseudoReplies == null) {
+                      report(new Error("native pseudo font input exceeded Node deadline"));
+                      continue;
+                    }
+                    const [pseudoMatched, pseudoAnimated] = pseudoReplies;
+                    const pseudoEvidence: MatchedFamilyDeclarations = {
+                      ...pseudoMatched,
+                      animationStyles: pseudoAnimated.animationStyles,
+                      transitionsStyle: pseudoAnimated.transitionsStyle,
+                      inherited: pseudoMatched.inherited?.map((scope, index) => ({
+                        ...scope,
+                        animationStyles: pseudoAnimated.inherited?.[index]?.animationStyles,
+                        transitionsStyle: pseudoAnimated.inherited?.[index]?.transitionsStyle,
+                      })),
+                    };
+                    const nativePseudo = await withTimeout(
+                      nativeFontFamilyType(session, pseudo.nodeId, pseudoEvidence, records),
+                      1500,
+                    );
+                    if (nativePseudo != null && "type" in nativePseudo.resolution)
+                      provenance.pseudos[pseudo.pseudoType] = {
+                        family: nativePseudo.family,
+                        type: nativePseudo.resolution.type,
+                        fontLocale: nativePseudo.fontLocale,
+                        language,
+                        usable:
+                          nativePseudo.resolution.type !== "standard" ||
+                          fontLocaleMatchesCapturedLanguage(nativePseudo.fontLocale, language),
+                      };
+                    else if (!authoredPseudos.includes(pseudo.pseudoType))
+                      report(
+                        new Error(
+                          nativePseudo == null
+                            ? "native pseudo font provenance exceeded Node deadline"
+                            : "reason" in nativePseudo.resolution
+                              ? nativePseudo.resolution.reason
+                              : "native pseudo family type is unavailable",
+                        ),
+                      );
+                  }
+                } catch (error) {
+                  // The optional extension cannot erase a valid ZZR literal
+                  // witness when a new native query is unavailable.
+                  report(error);
+                  // Retain independently completed host/pseudo proofs; the failing field stays absent.
+                }
+              }
+              if (
+                !authored &&
+                authoredPseudos.length === 0 &&
+                provenance?.type == null &&
+                Object.keys(provenance?.pseudos ?? {}).length === 0
+              )
+                continue;
               // Track before evaluation: a protocol timeout can follow a completed
               // definition, and cleanup must still attempt to remove that key.
               objects.add(objectId);
               const attached = await session.send("Runtime.callFunctionOn", {
                 objectId,
-                functionDeclaration: `function(key, authored, authoredPseudos) {
+                functionDeclaration: `function(key, authored, authoredPseudos, provenance) {
                 Object.defineProperty(this, key, { configurable: true, value: {
                   family: this.ownerDocument.defaultView.getComputedStyle(this).fontFamily,
-                  authored: authored, authoredPseudos: authoredPseudos
+                  authored: authored, authoredPseudos: authoredPseudos,
+                  familyType: provenance && provenance.family === this.ownerDocument.defaultView.getComputedStyle(this).fontFamily ? provenance.type : undefined,
+                  familyTypeUsable: provenance && provenance.usable,
+                  familyTypeLocale: provenance && provenance.fontLocale,
+                  familyTypeLanguage: provenance && provenance.language,
+                  pseudoFamilyTypes: provenance ? Object.fromEntries(Object.entries(provenance.pseudos).map(([pseudo,fact])=>[pseudo,{...fact,family:fact.family || this.ownerDocument.defaultView.getComputedStyle(this, '::' + pseudo).fontFamily}]).filter(([pseudo,fact]) => this.ownerDocument.defaultView.getComputedStyle(this, '::' + pseudo).fontFamily === fact.family)) : undefined
                 }});
               }`,
-                arguments: [{ value: propertyKey }, { value: authored }, { value: authoredPseudos }],
+                arguments: [
+                  { value: propertyKey },
+                  { value: authored },
+                  { value: authoredPseudos },
+                  { value: provenance ?? null },
+                ],
               });
               if (attached.exceptionDetails != null) throw new Error(attached.exceptionDetails.text);
             } catch (error) {

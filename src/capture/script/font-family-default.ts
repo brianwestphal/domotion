@@ -78,6 +78,48 @@ export const createFontFamilyDefault = (declarationPropertyKey?: string) => {
     declarationPropertyKey == null
       ? undefined
       : ((el as Element & Record<string, unknown>)[declarationPropertyKey] as FontFamilyDeclarationFact | undefined);
+  const capturedLanguageFor = (el: Element): string => {
+    let n: Element | null = el;
+    while (n != null && n.nodeType === 1) {
+      const language = (n as HTMLElement).lang;
+      if (language) return language;
+      n = n.parentElement;
+    }
+    return document.documentElement.lang || "";
+  };
+  const familyTypeFromDeclaration = (
+    el: Element,
+    family: string,
+    pseudo?: string,
+  ): "standard" | "concrete" | "unusable" | undefined => {
+    const fact = declarationFactFor(el);
+    const value =
+      pseudo == null
+        ? fact == null
+          ? undefined
+          : {
+              family: fact.family,
+              type: fact.familyType,
+              usable: fact.familyTypeUsable,
+              fontLocale: fact.familyTypeLocale,
+              language: fact.familyTypeLanguage,
+            }
+        : fact?.pseudoFamilyTypes?.[pseudo.replace(/^:+/, "").toLowerCase()];
+    if (value?.family !== family) return;
+    if (value.usable === false) return "unusable";
+    if (value.type == null) return;
+    if (value.type === "standard") {
+      const view = el.ownerDocument.defaultView;
+      if (value.usable !== true || value.fontLocale == null || value.language == null || view == null)
+        return "unusable";
+      if (
+        view.getComputedStyle(el, pseudo).getPropertyValue("-webkit-locale") !== value.fontLocale ||
+        capturedLanguageFor(el) !== value.language
+      )
+        return "unusable";
+    }
+    return value.type;
+  };
   // Cache author font selectors per Document. Iframe recursion walks elements
   // from several documents in one capture; consulting only the top document's
   // sheets makes an inherited iframe rule look like the UA default.
@@ -268,7 +310,7 @@ export const createFontFamilyDefault = (declarationPropertyKey?: string) => {
 
   // Whether `el`'s computed `font-family` is the UA-default (kStandardFamily)
   // rather than an author-declared or UA-generic family.
-  const familyIsUADefault = (el: Element, computedFontFamily: string): boolean => {
+  const familyIsUADefault = (el: Element, computedFontFamily: string, ignoreNativeProvenance = false): boolean => {
     if (typeof computedFontFamily !== "string" || computedFontFamily === "") return false;
     const families = parseCssFontFamilyEntries(computedFontFamily);
     // The actual initial value has one concrete name. An opaque stylesheet
@@ -277,6 +319,8 @@ export const createFontFamilyDefault = (declarationPropertyKey?: string) => {
     const first = families[0]?.name ?? "";
     if (first === "" || GENERIC_FAMILY_KEYWORDS[first.toLowerCase()] === 1) return false;
     const doc = el.ownerDocument || document;
+    const provenType = ignoreNativeProvenance ? undefined : familyTypeFromDeclaration(el, computedFontFamily);
+    if (provenType === "standard" || provenType === "concrete") return provenType === "standard";
     const declaration = declarationFactFor(el);
     if (declaration?.authored && declaration.family === computedFontFamily) return false;
     const { familySelectors } = selectorsFor(doc);
@@ -328,5 +372,5 @@ export const createFontFamilyDefault = (declarationPropertyKey?: string) => {
     return false;
   };
 
-  return { familyIsUADefault, pseudoFamilyIsAuthored };
+  return { familyIsUADefault, pseudoFamilyIsAuthored, familyTypeFromDeclaration };
 };

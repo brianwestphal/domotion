@@ -123,6 +123,19 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output/owned-ui-server/native-ui.json --minimum-passed 11
+      - name: Verify native CSS-wide family provenance
+        if: always()
+        env:
+          DOMOTION_FONT_FAMILY_PROVENANCE_EVIDENCE: tests/output/font-family-css-wide/evidence
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/font-family-css-wide-provenance.e2e.test.ts
+          --reporter=json --outputFile=tests/output/font-family-css-wide/results.json
+      - name: Require every native CSS-wide family assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/font-family-css-wide/results.json --minimum-passed 2
       - name: Verify native opaque font-family provenance
         if: always()
         run: >-
@@ -328,6 +341,7 @@ jobs:
             tests/output/svg-escaped-import/
             tests/output/svg-font-identity/
             tests/output/opaque-font-family/
+            tests/output/font-family-css-wide/
             tests/output/owned-ui-server/
             tests/output/srcset-resource/
             tests/output/snapshot-visibility/

@@ -95,7 +95,9 @@ describe("opaque initial-named font declarations", () => {
       ).toBe(true);
       evidence.initial = initial;
       evidence.fixtureHtml = await page.content();
-      const probe = await captureFontFamilyDeclarationFacts(page);
+      // Keep this direct probe scoped to the original ZZR literal-only contract.
+      // Production capture below exercises the extended ESH provenance path.
+      const probe = await captureFontFamilyDeclarationFacts(page, { literalOnly: true });
       try {
         evidence.probeWarnings = probe.warnings;
         expect(probe.warnings).toEqual([]);
@@ -325,7 +327,7 @@ describe("opaque initial-named font declarations", () => {
       });
       await page.frameLocator("iframe").locator(".literal").waitFor();
       await page.waitForLoadState("networkidle");
-      const probe = await captureFontFamilyDeclarationFacts(page);
+      const probe = await captureFontFamilyDeclarationFacts(page, { literalOnly: true });
       try {
         expect(probe.warnings).toEqual([]);
         const facts = await page.evaluate((key) => {

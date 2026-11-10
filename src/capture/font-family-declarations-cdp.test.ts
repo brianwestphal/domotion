@@ -9,16 +9,24 @@ function harness(failure?: string) {
       (failure === "attach" &&
         method === "Runtime.callFunctionOn" &&
         params?.arguments != null &&
-        (params.arguments as unknown[]).length === 3)
+        (params.arguments as unknown[]).length >= 3)
     )
       throw new Error("synthetic failure");
     switch (method) {
       case "DOM.getDocument":
-        return { root: { nodeId: 1, nodeType: 9 } };
+        return {
+          root: {
+            nodeId: 1,
+            backendNodeId: 100,
+            nodeType: 9,
+            children: [{ nodeId: 2, backendNodeId: 200, nodeType: 1 }],
+          },
+        };
       case "DOM.resolveNode":
         return { object: { objectId: "document" } };
       case "Runtime.callFunctionOn":
-        if (failure === "attach-js" && params?.arguments != null && (params.arguments as unknown[]).length === 3)
+        if (String(params?.functionDeclaration).includes("font provenance language")) return { result: { value: "" } };
+        if (failure === "attach-js" && params?.arguments != null && (params.arguments as unknown[]).length >= 3)
           return { result: {}, exceptionDetails: { text: "synthetic failure" } };
         return { result: { objectId: "candidates" } };
       case "Runtime.getProperties":
@@ -28,9 +36,27 @@ function harness(failure?: string) {
       case "CSS.getMatchedStylesForNode":
         return {
           matchedCSSRules: [
-            { rule: { origin: "regular", style: { cssProperties: [{ name: "font-family", value: "Times" }] } } },
+            {
+              rule: {
+                origin: "regular",
+                originTreeScopeNodeId: 100,
+                style: { cssProperties: [{ name: "font-family", value: "Times" }] },
+              },
+            },
           ],
         };
+      case "CSS.getLayersForNode":
+        if (failure === "new-native") throw new Error("synthetic new native failure");
+        return { rootLayer: { name: "implicit outer layer", order: 0 } };
+      case "CSS.getComputedStyleForNode":
+        return {
+          computedStyle: [
+            { name: "font-family", value: "Times" },
+            { name: "-webkit-locale", value: "auto" },
+          ],
+        };
+      case "CSS.getLonghandProperties":
+        return { longhandProperties: [{ name: "font-family", value: "Times" }] };
       default:
         return {};
     }
@@ -38,6 +64,7 @@ function harness(failure?: string) {
   const detach = vi.fn(async () => undefined);
   const page = {
     frames: () => [],
+    evaluate: async () => "",
     context: () => ({ newCDPSession: async () => ({ send, detach }) }),
   } as unknown as Page;
   return { page, send, detach };
@@ -46,7 +73,7 @@ function harness(failure?: string) {
 describe("opaque family declaration probe lifecycle", () => {
   it("releases retained objects and removes its private key", async () => {
     const h = harness();
-    const probe = await captureFontFamilyDeclarationFacts(h.page);
+    const probe = await captureFontFamilyDeclarationFacts(h.page, { literalOnly: true });
     expect(probe.warnings).toEqual([]);
     expect(h.detach).not.toHaveBeenCalled();
     await probe.dispose();
@@ -74,7 +101,7 @@ describe("opaque family declaration probe lifecycle", () => {
     "attach-js",
   ])("reports %s failure and still detaches", async (failure) => {
     const h = harness(failure);
-    const probe = await captureFontFamilyDeclarationFacts(h.page);
+    const probe = await captureFontFamilyDeclarationFacts(h.page, { literalOnly: true });
     expect(probe.warnings).toHaveLength(1);
     expect(probe.warnings[0].detail).toContain("synthetic failure");
     await probe.dispose();
@@ -90,8 +117,46 @@ describe("opaque family declaration probe lifecycle", () => {
   });
   it("detaches even when key removal and object release fail", async () => {
     const h = harness();
-    const probe = await captureFontFamilyDeclarationFacts(h.page);
+    const probe = await captureFontFamilyDeclarationFacts(h.page, { literalOnly: true });
     h.send.mockRejectedValue(new Error("target closed"));
+    await probe.dispose();
+    expect(h.detach).toHaveBeenCalledOnce();
+  });
+});
+
+describe("extended native family provenance lifecycle", () => {
+  it("runs extended provenance by default and retains the original literal witness", async () => {
+    const h = harness();
+    const probe = await captureFontFamilyDeclarationFacts(h.page);
+    expect(probe.warnings).toEqual([]);
+    expect(h.send).toHaveBeenCalledWith("CSS.getLayersForNode", { nodeId: 2 });
+    const install = h.send.mock.calls.find(
+      ([method, params]) =>
+        method === "Runtime.callFunctionOn" && (params?.arguments as unknown[] | undefined)?.length === 4,
+    );
+    expect(install?.[1]?.arguments).toMatchObject([
+      { value: probe.propertyKey },
+      { value: true },
+      { value: [] },
+      { value: { family: "Times", type: "concrete", usable: true, fontLocale: "auto", language: "", pseudos: {} } },
+    ]);
+    await probe.dispose();
+    expect(h.detach).toHaveBeenCalledOnce();
+  });
+  it("does not erase valid literal provenance when an extension query fails", async () => {
+    const h = harness("new-native");
+    const probe = await captureFontFamilyDeclarationFacts(h.page);
+    expect(probe.warnings).toHaveLength(1);
+    const install = h.send.mock.calls.find(
+      ([method, params]) =>
+        method === "Runtime.callFunctionOn" && (params?.arguments as unknown[] | undefined)?.length === 4,
+    );
+    expect(install?.[1]?.arguments).toMatchObject([
+      { value: probe.propertyKey },
+      { value: true },
+      { value: [] },
+      { value: null },
+    ]);
     await probe.dispose();
     expect(h.detach).toHaveBeenCalledOnce();
   });

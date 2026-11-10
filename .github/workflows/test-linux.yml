@@ -251,6 +251,19 @@ jobs:
           tests/real-world-webgl-projective-preflight.e2e.test.ts
           tests/webfont-descriptor-group.e2e.test.ts
           tests/darwin-family-visibility.e2e.test.ts
+      - name: Verify native CSS-wide family provenance
+        if: always()
+        env:
+          DOMOTION_FONT_FAMILY_PROVENANCE_EVIDENCE: tests/output-linux/font-family-css-wide/evidence
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/font-family-css-wide-provenance.e2e.test.ts
+          --reporter=json --outputFile=tests/output-linux/font-family-css-wide/results.json
+      - name: Require every native CSS-wide family assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output-linux/font-family-css-wide/results.json --minimum-passed 2
       - name: Verify native opaque font-family provenance
         if: always()
         run: >-
@@ -410,6 +423,7 @@ jobs:
             tests/output-linux/webgl-projective-preflight/
             tests/output-linux/literal-family-identity/
             tests/output-linux/opaque-font-family/
+            tests/output-linux/font-family-css-wide/
             tests/output-linux/owned-ui-server/
             tests/output-linux/cleanup-contracts/
             tests/output-linux/srcset-resource/

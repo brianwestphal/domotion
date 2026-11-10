@@ -338,8 +338,14 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > when every declaration there is an explicit literal family list. Font
 > shorthands require Chromium's parsed longhand evidence. CSS-wide values,
 > substitutions, incomplete evidence and any animated family cannot create a new
-> authored fact; they retain the prior route. DM-ESH89H tracks exact winning
-> cascade/substitution provenance and the older readable-reset ambiguity.
+> authored fact; that literal-only contract remains unchanged. DM-ESH89H adds
+> separate standard/concrete cascade facts for readable and opaque initial-name
+> candidates, using canonical matched declarations, explicit native layer order,
+> computed custom-property tokens and native shorthand parsing. CSS-wide resets
+> stop inherited authored witnesses. Computed names do not choose the type.
+> Standard adoption is independently gated by computed-font-locale/DOM-language
+> compatibility (DM-PJG8E9); unsupported animation/tree/layer authority remains
+> unknown (DM-RRAX58). See doc213 for the exact bounded contract.
 > Genuine initial routing remains enabled with unrelated opaque sheets. Facts
 > use removed private expandos and released CDP object groups, never authored
 > selector markers or stylesheet rewriting. This protocol seam is platform

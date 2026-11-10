@@ -108,8 +108,11 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     substituteAliasedFamilies: _substituteAliasedFamilies,
   } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
-  const { familyIsUADefault: _familyIsUADefault, pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored } =
-    createFontFamilyDefault(args.fontFamilyDeclarationPropertyKey);
+  const {
+    familyIsUADefault: _familyIsUADefault,
+    pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored,
+    familyTypeFromDeclaration: _familyTypeFromDeclaration,
+  } = createFontFamilyDefault(args.fontFamilyDeclarationPropertyKey);
   const _fontFamilyStackFor = (el: Element, computedFontFamily: string, pseudo?: string) => {
     // Generated/first-letter/placeholder styles inherit the host's
     // kStandardFamily unless they resolve to a distinct family. CSSOM exposes
@@ -117,9 +120,12 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     // already-audited declaredness seam before creating the structured list.
     const hostFamily =
       pseudo == null ? computedFontFamily : (el.ownerDocument?.defaultView ?? window).getComputedStyle(el).fontFamily;
+    const provenType = _familyTypeFromDeclaration(el, computedFontFamily, pseudo);
     const inheritedHostStandard =
-      (pseudo == null || (computedFontFamily === hostFamily && !_pseudoFamilyIsAuthored(el, pseudo))) &&
-      _familyIsUADefault(el, hostFamily);
+      provenType === "standard" || provenType === "concrete"
+        ? provenType === "standard"
+        : (pseudo == null || (computedFontFamily === hostFamily && !_pseudoFamilyIsAuthored(el, pseudo))) &&
+          _familyIsUADefault(el, hostFamily, provenType === "unusable");
     return captureFontFamilyStack(computedFontFamily, inheritedHostStandard);
   };
   const { resolveFontPalette: _resolveFontPalette, resolveShadowFontPalettes: _resolveShadowFontPalettes } =

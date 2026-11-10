@@ -5,12 +5,21 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW"]
+tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H"]
 code:
   [
     "src/font-family-stack.test.ts",
     "src/capture/script/font-family-default.ts",
     "src/capture/script/font-family-default.test.ts",
+    "src/capture/font-family-declarations.ts",
+    "src/capture/font-family-declarations-cdp.ts",
+    "src/capture/font-family-cascade.ts",
+    "src/capture/font-family-cascade.test.ts",
+    "src/capture/font-family-cascade-cdp.ts",
+    "src/capture/font-family-cascade-cdp.test.ts",
+    "src/capture/font-family-values.ts",
+    "src/capture/font-family-values.test.ts",
+    "tests/font-family-css-wide-provenance.e2e.test.ts",
     "src/capture/font-family-default.e2e.test.ts",
     "packages/text-engine/src/font-family-stack.test.ts",
     "packages/text-engine/src/font-family-stack.ts",
@@ -142,11 +151,65 @@ through CSSOM. This prevents an opaque authored webfont stack from being
 replaced with standard serif routing (DM-JQ57WW), without changing renderer
 fallback tables or assuming a platform-specific initial font name.
 
-An opaque authored declaration identical to the actual initial name remains
-ambiguous without richer cascade provenance (DM-ZZRZWK). The guard preserves
-existing known author facts; it does not claim complete authorship proof for
-unreadable stylesheets. Actual UA-default text in a document with unrelated
-opaque rules continues to use the script-keyed standard route.
+## Winning initial-name provenance
+
+DM-ESH89H supplements the existing ZZR literal-only witness; it does not widen
+that classifier. Readable and opaque initial-name candidates receive optional
+native cascade facts. Computed `Times` alone is never evidence of concrete
+versus standard family type.
+
+Pinned Chromium `7d859f271cbda744098ac69f44978d4edfa62be3` owns the distinction:
+[`FontFamily::ApplyInitial`/`ApplyInherit`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/css/properties/longhands/longhands_custom.cc#L4480)
+create the initial description or copy the parent's complete description.
+[`FontBuilder::InitialGenericFamily`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/css/resolver/font_builder.h#L106)
+is `kStandardFamily`; literal `CSSFontFamilyValue` conversion is `kNoFamily`.
+The resolver uses canonical inspector properties without raw source ranges/text,
+matching-rule order, origin/importance and explicit `CSS.getLayersForNode` order.
+`initial` stops inherited authored witnesses; `inherit`/inherited-property `unset`
+copy the parent type. `revert` rolls to the lower origin. `revert-layer` follows
+`CascadePriority::ForLayerComparison`/`CascadeMap::FindRevertLayer`, which remove
+importance inversion before comparing rollback layers. A missing canonical
+entry cannot authenticate a losing source declaration or ancestor.
+
+Computed custom-property tokens come from inspector `GetVariables`. Bounded
+`var()` substitution preserves strings, escapes, comments and token boundaries;
+a known missing variable selects fallback or invalid-at-computed-value `unset`.
+Unknown/budget-exceeded syntax is not called unset. A pending font shorthand
+requires its empty canonical family plus matching canonical `shorthandEntries`;
+important suffixes are removed before that pairing. `CSS.getLonghandProperties`
+parses the substituted value. Its fixed size prefix validates standalone family
+syntax only; no font metric or selected face comes from that prefix.
+`CSS.resolveValues(font-family)` and animation `getKeyframes()` are not provenance:
+both serialize distinct initial/concrete descriptions to the same concrete name.
+
+Facts use the existing private per-element key, with separate standard/concrete
+classification and renderer usability. Standard adoption requires authenticated
+computed `-webkit-locale` to agree with captured DOM language; live consumption
+rechecks both bindings. `all:initial` can reset locale to `auto` despite `lang=ja`.
+That known mismatch retains its exact prior route with a warning (DM-PJG8E9),
+without rewriting the public language schema. Pseudos have their own bound facts;
+unknown/blocked pseudo evidence cannot borrow a newly proved host standard type.
+Native query failure preserves an independently valid ZZR literal witness.
+
+Assigned-slot/author-shadow inheritance, nested or anonymous layer identity,
+scoped/starting rules and injected sheets whose author/user origin is not exposed,
+unsupported direct functions, unproved `all` substitution and interpolated family
+type remain explicit unknowns (DM-RRAX58). No broader cascade or animation parity
+is claimed. Inheritance is capped at 64 scopes, computed style at 4,096 properties,
+and substitution at 64 KiB/32 nested levels/256 expansions. New native reads have
+Node bounds; late reads cannot start another query or install a family fact.
+Object groups, sessions and private keys retain their owned cleanup.
+
+Native readable/opaque controls use the real production capture entry point in
+both A/B arms, toggling only the declaration provider's literal-only test mode.
+Actual painted A PostScript faces and Range advances must match fontkit candidate
+advances (including Blink's 1/64 CSS-pixel layout quantum); usable captured types
+must select those same faces. Existing ZZR reset/literal/iframe/shadow controls
+remain strict. Matching source/legacy/current PNG/SVG evidence is retained, with
+raw pixel differences reported separately from semantic face/type assertions.
+Full-frame residual differences are not attributed by the improvement alone
+(DM-GREERW). Linux and Windows have a separate strict two-case native profile;
+local macOS evidence does not stand in for those target runners.
 
 ## Owner matrix
 

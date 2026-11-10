@@ -93,4 +93,13 @@ export interface FontFamilyDeclarationFact {
   family: string;
   authored: boolean;
   authoredPseudos: string[];
+  /** Native canonical cascade provenance, independently of ZZR literal evidence. */
+  familyType?: "standard" | "concrete";
+  familyTypeUsable?: boolean;
+  familyTypeLocale?: string;
+  familyTypeLanguage?: string;
+  pseudoFamilyTypes?: Record<
+    string,
+    { family: string; type?: "standard" | "concrete"; usable?: boolean; fontLocale?: string; language?: string }
+  >;
 }
