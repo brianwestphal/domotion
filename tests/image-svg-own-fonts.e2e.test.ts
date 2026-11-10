@@ -232,7 +232,7 @@ describe("image-owned font metric evidence", () => {
       const inlined = inlineImgSvg(source, { ...placement, ownFonts: el.imageOwnFonts });
       expect(inlined).not.toBeNull();
       expect(inlined).toContain("translate(24 0)");
-      expect(inlined).toContain("own-Image Face");
+      expect(inlined).toContain(`${resolveImageNamespace(placement.idPrefix).sourcePrefix}Image Face`);
       await page.setContent(
         `<body style="margin:0;background:white"><img src="${el.imageSrc}" width="90" height="40"><svg width="90" height="40">${inlined}</svg></body>`,
       );

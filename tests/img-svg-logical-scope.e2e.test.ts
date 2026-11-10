@@ -2,6 +2,7 @@ import type { Browser } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
+import { resolveImageNamespace } from "../src/render/svg-image-namespace.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 let browser: Browser;
@@ -36,7 +37,7 @@ describe("inlined image logical selector lists", () => {
         `<body><img id="source" src="data:image/svg+xml,${encodeURIComponent(source)}" width="120" height="30">` +
           `<svg id="output" xmlns="http://www.w3.org/2000/svg" width="120" height="30">${inlined}</svg></body>`,
       );
-      const colors = await page.evaluate(async () => {
+      const colors = await page.evaluate(async (sourcePrefix) => {
         const image = document.getElementById("source") as HTMLImageElement;
         await image.decode();
         const canvas = document.createElement("canvas");
@@ -46,10 +47,10 @@ describe("inlined image logical selector lists", () => {
         context.drawImage(image, 0, 0, 120, 30);
         const sourceColors = [15, 45, 75, 105].map((x) => Array.from(context.getImageData(x, 15, 1, 1).data));
         const outputColors = ["nth", "is", "not", "where"].map(
-          (id) => getComputedStyle(document.getElementById(`P-${id}`)!).fill,
+          (id) => getComputedStyle(document.getElementById(`${sourcePrefix}${id}`)!).fill,
         );
         return { sourceColors, outputColors };
-      });
+      }, resolveImageNamespace("P-").sourcePrefix);
       expect(colors.sourceColors).toEqual([
         [0, 128, 0, 255],
         [0, 128, 0, 255],
@@ -80,7 +81,7 @@ describe("inlined image logical selector lists", () => {
         `<body><img id="source" src="data:image/svg+xml,${encodeURIComponent(idSource)}" width="120" height="60">` +
           `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60">${inlined}</svg></body>`,
       );
-      const colors = await page.evaluate(async () => {
+      const colors = await page.evaluate(async (sourcePrefix) => {
         const image = document.getElementById("source") as HTMLImageElement;
         await image.decode();
         const canvas = document.createElement("canvas");
@@ -90,10 +91,10 @@ describe("inlined image logical selector lists", () => {
         context.drawImage(image, 0, 0, 120, 60);
         const sourceColors = [30, 90].map((x) => Array.from(context.getImageData(x, 30, 1, 1).data));
         const outputColors = ["plain", "escaped:name"].map(
-          (id) => getComputedStyle(document.getElementById(`P-${id}`)!).fill,
+          (id) => getComputedStyle(document.getElementById(`${sourcePrefix}${id}`)!).fill,
         );
         return { sourceColors, outputColors };
-      });
+      }, resolveImageNamespace("P-").sourcePrefix);
       expect(colors.sourceColors).toEqual([
         [0, 0, 255, 255],
         [255, 0, 0, 255],

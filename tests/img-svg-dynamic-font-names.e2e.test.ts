@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
+import { resolveImageNamespace } from "../src/render/svg-image-namespace.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { FIXTURE_FONT_CSS, FIXTURE_MONO_FAMILY, FIXTURE_SERIF_FAMILY } from "./fixture-fonts.js";
 
@@ -29,7 +30,7 @@ describe("dynamic SVG image font namespace (DM-2K0K01)", () => {
       idPrefix: "XML-",
     });
     expect(actual).not.toBeNull();
-    expect(actual).toContain("&quot;XML-Image &amp; Face&quot;");
+    expect(actual).toContain(`&quot;${resolveImageNamespace("XML-").sourcePrefix}Image &amp; Face&quot;`);
     const page = await browser.newPage({ viewport: { width: 240, height: 40 } });
     try {
       await page.setContent(

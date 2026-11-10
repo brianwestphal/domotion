@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
+import { resolveImageNamespace } from "../src/render/svg-image-namespace.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { FIXTURE_FONT_CSS, FIXTURE_MONO_FAMILY, FIXTURE_SERIF_FAMILY } from "./fixture-fonts.js";
 
@@ -157,7 +158,11 @@ describe("CSS imports in SVG image resources", () => {
         });
       });
       const imageCssRequests = cssRequests;
-      expect(await page.locator("#E-paint").evaluate((rect) => getComputedStyle(rect).fill)).toBe("rgb(0, 128, 0)");
+      expect(
+        await page
+          .locator(`#${resolveImageNamespace("E-").sourcePrefix}paint`)
+          .evaluate((rect) => getComputedStyle(rect).fill),
+      ).toBe("rgb(0, 128, 0)");
       await page.goto("https://domotion.test/image.svg");
       const documentStyles = await page.evaluate(() => {
         const root = document.documentElement;

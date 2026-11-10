@@ -2,6 +2,7 @@ import type { Browser } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
+import { resolveImageNamespace } from "../src/render/svg-image-namespace.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 let browser: Browser;
@@ -35,7 +36,7 @@ describe("inlined image :has() arguments", () => {
           `<svg id="output" xmlns="http://www.w3.org/2000/svg" width="90" height="30">${inlined}` +
           `<g class="outside"/></svg>`,
       );
-      const colors = await page.evaluate(async () => {
+      const colors = await page.evaluate(async (sourcePrefix) => {
         const image = document.getElementById("source") as HTMLImageElement;
         await image.decode();
         const canvas = document.createElement("canvas");
@@ -45,10 +46,10 @@ describe("inlined image :has() arguments", () => {
         context.drawImage(image, 0, 0, 90, 30);
         const sourceColors = [15, 45, 75].map((x) => Array.from(context.getImageData(x, 15, 1, 1).data));
         const outputColors = ["negative", "positive", "sibling-positive"].map(
-          (id) => getComputedStyle(document.getElementById(`P-${id}`)!).fill,
+          (id) => getComputedStyle(document.getElementById(`${sourcePrefix}${id}`)!).fill,
         );
         return { sourceColors, outputColors };
-      });
+      }, resolveImageNamespace("P-").sourcePrefix);
       expect(colors.sourceColors).toEqual([
         [0, 128, 0, 255],
         [0, 0, 255, 255],

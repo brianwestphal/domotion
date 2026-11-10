@@ -354,6 +354,14 @@ layers and font names follow the same encoded source owner. Original attribute
 selectors, typed `attr()` reads and literal strings retain their WT semantics.
 Caller tokens are not mutated; the emitted generated names are internal.
 
+Native integration assertions derive emitted identities from the source domain
+returned by `resolveImageNamespace`, rather than treating an owner token as a
+literal prefix (DM-MSKB7C). The independent paint checks remain authoritative:
+source/output selector colors, imported-resource isolation, image-owned font
+geometry and full-pixel host-font collision comparisons keep their original
+expected values. Namespace unit tests separately verify the exact encoding and
+adversarial cross-owner/source/wrapper separation.
+
 Pinned Chromium's `TreeScope::getElementById` delegates to `TreeOrderedMap`,
 which returns the first matching element in tree order. Duplicate generated
 IDs can therefore change both paint resource type and target; they cannot be
