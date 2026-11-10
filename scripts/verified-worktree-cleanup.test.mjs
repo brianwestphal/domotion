@@ -28,49 +28,40 @@ import {
   runCommand as nativeRunCommand,
 } from "./verified-worktree-cleanup.mjs";
 
+import { createCleanupTestProgress, CLEANUP_GIT_OPERATIONS as gitOperations } from "./cleanup-test-progress.mjs";
+
 let nativeCommands = 0;
-const gitOperations = new Set([
-  "init",
-  "config",
-  "add",
-  "commit",
-  "worktree",
-  "rev-parse",
-  "merge",
-  "cherry-pick",
-  "switch",
-  "remote",
-  "push",
-  "status",
-  "ls-files",
-  "merge-base",
-  "ls-remote",
-  "for-each-ref",
-  "stash",
-  "update-index",
-  "update-ref",
-  "show",
-  "diff",
-  "cat-file",
-  "check-ref-format",
-  "rev-list",
-  "symbolic-ref",
-]);
+const trace = createCleanupTestProgress({
+  enabled: process.env.DOMOTION_CLEANUP_TEST_PROGRESS === "1",
+  write: (line) => writeSync(2, line),
+});
 function progress(value) {
-  if (process.env.DOMOTION_CLEANUP_TEST_PROGRESS === "1")
-    // Synchronous stderr survives a blocked event loop and Node's test-file
-    // supervisor. Never include command arguments, paths or environment values.
-    writeSync(2, `[cleanup-test] ${JSON.stringify(value)}\n`);
+  trace.emit(value);
 }
+if (process.env.DOMOTION_CLEANUP_TEST_PROGRESS === "1")
+  process.once("exit", (code) => progress({ phase: "process-exit", status: code }));
 function runCommand(program, args, cwd, timeout, input) {
   const index = ++nativeCommands;
   const operation = program === "git" ? (args.find((arg) => gitOperations.has(arg)) ?? "other") : "node";
-  if (index <= 4096) progress({ nativeCommand: index, operation, phase: "start" });
+  progress({ nativeCommand: index, operation, phase: "start" });
   const started = performance.now();
-  const result = nativeRunCommand(program, args, cwd, timeout, input);
-  if (result.error || result.status !== 0 || performance.now() - started > 1000)
-    progress({ nativeCommand: index, operation, phase: "returned", status: result.status, error: result.error?.code });
-  return result;
+  try {
+    const result = nativeRunCommand(program, args, cwd, timeout, input);
+    progress({
+      nativeCommand: index,
+      operation,
+      phase: "returned",
+      durationMs: performance.now() - started,
+      childPid: result.pid,
+      status: result.status,
+      signal: result.signal,
+      error: result.error?.code,
+    });
+    return result;
+  } catch (error) {
+    progress({ nativeCommand: index, operation, phase: "threw", durationMs: performance.now() - started });
+    throw error;
+  }
 }
 
 const TICKET = "DM-ABC123";
@@ -86,7 +77,15 @@ const generatedFile = (program = PROGRAM) =>
 const seeds = new Map();
 const seedRoots = new Set();
 after(() => {
-  for (const root of seedRoots) rmSync(root, { recursive: true, force: true });
+  const started = performance.now();
+  let returned = false;
+  progress({ phase: "seed-cleanup", step: "start" });
+  try {
+    for (const root of seedRoots) rmSync(root, { recursive: true, force: true });
+    returned = true;
+  } finally {
+    progress({ phase: "seed-cleanup", step: returned ? "returned" : "threw", durationMs: performance.now() - started });
+  }
   progress({ phase: "complete", nativeCommands });
 });
 
@@ -152,12 +151,40 @@ function fixture(t, { legacy = false, cherryPick = false } = {}) {
   progress({ phase: "fixture", case: t.name.slice(0, 192) });
   const seed = prepareSeed({ legacy, cherryPick });
   const root = realpathSync(mkdtempSync(join(tmpdir(), "dm-cleanup-test-")));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    const started = performance.now();
+    let returned = false;
+    progress({ phase: "fixture", case: t.name, step: "cleanup-start" });
+    try {
+      rmSync(root, { recursive: true, force: true });
+      returned = true;
+    } finally {
+      progress({
+        phase: "fixture",
+        case: t.name,
+        step: returned ? "cleanup-returned" : "cleanup-threw",
+        durationMs: performance.now() - started,
+      });
+    }
+  });
   const project = join(root, "project"),
     store = join(root, "store"),
     remote = join(root, "remote.git");
-  cpSync(seed.project, project, { recursive: true });
-  cpSync(seed.remote, remote, { recursive: true });
+  const copyStarted = performance.now();
+  let copied = false;
+  progress({ phase: "fixture", case: t.name, step: "copy-start" });
+  try {
+    cpSync(seed.project, project, { recursive: true });
+    cpSync(seed.remote, remote, { recursive: true });
+    copied = true;
+  } finally {
+    progress({
+      phase: "fixture",
+      case: t.name,
+      step: copied ? "copy-returned" : "copy-threw",
+      durationMs: performance.now() - copyStarted,
+    });
+  }
   mkdirSync(store);
   mkdirSync(join(root, "empty-hooks"));
   const native = (program, args, cwd = project, timeout, input) => runCommand(program, args, cwd, timeout, input);
@@ -307,7 +334,9 @@ function fixture(t, { legacy = false, cherryPick = false } = {}) {
     if (program === "git" && args.includes("status")) state.onStatus?.();
     return native(program, args, cwd, timeout, input);
   };
-  state.adapter = cleanupAdapter(run);
+  state.adapter = cleanupAdapter(run, (event) =>
+    progress({ phase: "gate", status: event.status, command: event.command }),
+  );
   state.options = { project, store, worktree, shipping, ticket: TICKET, reviewNote: NOTE };
   return state;
 }

@@ -20,13 +20,35 @@ are removed through their owning Node test hooks, including failed setup.
 
 The wrapper enables `DOMOTION_CLEANUP_TEST_PROGRESS=1` only for its child.
 Synchronous stderr records contain a bounded case name, command counter,
-allowlisted operation and phase, plus failed/slow return status. They omit
-arguments, paths, source bodies and environment values. Native start records
-stop after 4,096 commands; case/completion records remain available. All output
-is still subject to the wrapper's unchanged 4 MiB limit, which fails rather than
-silently accepting overflow. The Node supervisor forwards these records even
-when the test file's event loop cannot flush ordinary TAP results. A future
-timeout therefore retains the last observed stage with its original error.
+allowlisted operation and paired start/return timing. They omit arguments,
+paths, source bodies and environment values. Every admitted return includes its
+duration/status, even when fast; a missing return is an observation gap, not
+proof of a native hang. Copy/teardown and the adapter's already-reached gate
+phases bracket work outside native calls. The child emits its own PID/parent,
+runtime and monotonic elapsed time; the wrapper retains its actual supervisor
+PID, elapsed/wall-clock bounds, status/signal/error and captured byte counts.
+The process-exit marker means its callback ran, not that descendant or stdio
+closure was independently authenticated.
+
+`scripts/cleanup-test-progress.mjs` admits at most 4,096 native pairs and uses a
+2 MiB byte budget, reserving 2 KiB for one truncation notice and completion/exit
+summaries. After the normal byte cap, it does no normal encoding, clock read or
+write; omitted counters remain visible in the reserved summaries. Case phases
+remain admitted after the native-command limit while normal byte space remains.
+Summary byte counts explicitly precede their own record. Diagnostic write
+failure cannot throw over the underlying assertion. All output remains subject
+to the unchanged wrapper 4 MiB limit, which fails on overflow. The Node
+supervisor forwards synchronous records even when ordinary TAP is buffered.
+
+DM-BEMV41 records a recurrence on source `8a599821` after the warm-fixture
+optimization: the last observed start was native command 2,673 in the replaced
+generated-inode refusal case. The old format omitted fast returns and elapsed
+time, so it cannot distinguish accumulated work, an active native call, file
+work or teardown. An unchanged narrow control passed in 19.66 seconds. That
+does not attribute the full-lane deadline to PJ, Node or scheduling. The new
+phase evidence preserves all 75 cases, platform selection, 90/95-second bounds,
+30-second default native-command bound and every production authorization check;
+the cause remains unresolved until an actual trace supports attribution.
 
 An unchanged macOS Node 22.21.0 observation executed 74 cases (73 passed and one
 platform skip), making 3,436 native commands in approximately 36 seconds. About

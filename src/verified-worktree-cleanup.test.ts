@@ -14,6 +14,8 @@ test("verified cleanup passes platform-supported and portable refusal contracts"
           "GitHub CI authority|CLI never accepts|generated exception refuses|Windows cleanup refuses",
         ]
       : [];
+  const startedAt = new Date().toISOString();
+  const started = performance.now();
   const result = spawnSync(process.execPath, ["--test", ...selection, "scripts/verified-worktree-cleanup.test.mjs"], {
     cwd: fileURLToPath(new URL("..", import.meta.url)),
     encoding: "utf8",
@@ -21,8 +23,28 @@ test("verified cleanup passes platform-supported and portable refusal contracts"
     timeout: 90_000,
     maxBuffer: 4 * 1024 * 1024,
   });
-  expect(result.error, result.stdout + result.stderr).toBeUndefined();
-  expect(result.status, result.stdout + result.stderr).toBe(0);
+  const rawErrorCode: unknown = result.error == null ? null : Reflect.get(result.error, "code");
+  const outcome = {
+    schema: "domotion-cleanup-wrapper-result-v1",
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    ownerPid: process.pid,
+    supervisorPid: result.pid,
+    durationMs: Math.round((performance.now() - started) * 100) / 100,
+    status: result.status,
+    signal: result.signal,
+    error:
+      typeof rawErrorCode === "string" && /^[A-Z0-9_]{1,64}$/.test(rawErrorCode)
+        ? rawErrorCode
+        : result.error == null
+          ? null
+          : "unknown",
+    stdoutBytes: Buffer.byteLength(result.stdout ?? ""),
+    stderrBytes: Buffer.byteLength(result.stderr ?? ""),
+  };
+  const diagnostic = `${JSON.stringify(outcome)}\n${result.stdout}${result.stderr}`;
+  expect(result.error, diagnostic).toBeUndefined();
+  expect(result.status, diagnostic).toBe(0);
   expect(result.stdout).toContain('[cleanup-test] {"phase":"complete",');
   if (process.platform !== "win32") {
     expect(result.stdout).toContain('"operation":"init","phase":"start"');
