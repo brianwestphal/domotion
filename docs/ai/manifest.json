@@ -3314,6 +3314,7 @@
         ".github/workflows/generic-family-preference-parity.yml",
         "src/capture/generic-font-probe.ts",
         "src/capture/tree-envelope.ts",
+        "src/capture/control-pseudo-viewport.e2e.test.ts",
         "tools/generic-family-preference-oracle.ts",
         "tools/generic-profile-target-oracle.ts",
         "src/capture/generic-font-probe.test.ts",

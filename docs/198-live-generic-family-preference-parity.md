@@ -5,12 +5,13 @@ kind: "evidence"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM", "DM-GNJ47P"]
+tickets: ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM", "DM-GNJ47P", "DM-G0DM6T"]
 code:
   [
     ".github/workflows/generic-family-preference-parity.yml",
     "src/capture/generic-font-probe.ts",
     "src/capture/tree-envelope.ts",
+    "src/capture/control-pseudo-viewport.e2e.test.ts",
     "tools/generic-family-preference-oracle.ts",
     "tools/generic-profile-target-oracle.ts",
     "src/capture/generic-font-probe.test.ts",
@@ -319,6 +320,19 @@ pixels, a font-name snapshot, or a tolerance.
   batch, while its second attempt passed. The oracle still aborts that batch;
   retrying the whole test starts a new browser and report, so no comparison
   mixes preference states.
+- Same-Page A/B fixtures must compare captures from one preference cohort.
+  DM-G0DM6T found that the viewport pseudo-style test could reach ordinary
+  deep equality with different `sessionGenericFamilies` records, bypassing
+  the existing named session refusal. The fixture now validates the combined
+  roots with `capturedTreeSessionGenericFamilies` and requires authority before
+  comparing the complete trees. It retains font metadata and every geometry,
+  value, pseudo-style and retained-content assertion; only frame transaction
+  UUIDs are normalized. A controlled same-Page Inspector mutation reproduces
+  the changed cohort and reaches the existing once-only lane retry. Geometry,
+  input-value and missing/partial-authority failures do not match that retry.
+  CI 42722876710's emitted diff changed only Common/script font maps; this
+  establishes different recorded settings, not a specific host-event cause or
+  identical source pixels. Neither production probing nor retry policy changes.
 - `system-ui` remains outside this gate's parity claim. Its separate exact
   CoreText / Linux renderer-family / Windows menu-font route oracle shipped in
   [doc 211](211-platform-system-ui-preference-route.md); the rows here remain

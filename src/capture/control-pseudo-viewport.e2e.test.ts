@@ -4,6 +4,7 @@ import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import * as pseudoStyles from "./pseudo-style-cdp.js";
 import { captureElementTree } from "./index.js";
 import type { CapturedElement } from "./types.js";
+import { capturedTreeSessionGenericFamilies } from "./tree-envelope.js";
 
 let browser: Browser;
 beforeAll(async () => {
@@ -114,6 +115,26 @@ async function facts(page: Page, captured: Capture) {
   };
 }
 
+function expectEqualCaptureTrees(unfiltered: CapturedElement[], filtered: CapturedElement[]) {
+  // DM-G0DM6T: compare one Page-authority cohort. A real preference change
+  // uses the existing named refusal/once-only lane retry, never a relaxed diff.
+  expect(capturedTreeSessionGenericFamilies([...unfiltered, ...filtered])).not.toBeNull();
+  // Frame provenance gets a fresh transaction UUID on every capture.
+  const comparable = (nodes: CapturedElement[]): CapturedElement[] =>
+    nodes.map((node) => ({
+      ...node,
+      children: comparable(node.children),
+      frameScrollIdentity:
+        node.frameScrollIdentity == null
+          ? undefined
+          : {
+              ...node.frameScrollIdentity,
+              captureId: "capture-transaction",
+            },
+    }));
+  expect(comparable(filtered)).toEqual(comparable(unfiltered));
+}
+
 describe("control pseudo viewport selection (DM-A93KQZ)", () => {
   it.each([1280, 800, 390])("preserves the production capture tree at %i px", async (width) => {
     const page = await fixture();
@@ -127,22 +148,61 @@ describe("control pseudo viewport selection (DM-A93KQZ)", () => {
       spy.mockImplementation(original);
       const filtered = await captureElementTree(page, "body", captureViewport);
       expect(spy.mock.calls.at(-1)?.[1]).toEqual(captureViewport);
-      // Frame provenance gets a fresh transaction UUID on every capture.
-      const comparable = (nodes: CapturedElement[]): CapturedElement[] =>
-        nodes.map((node) => ({
-          ...node,
-          children: comparable(node.children),
-          frameScrollIdentity:
-            node.frameScrollIdentity == null
-              ? undefined
-              : {
-                  ...node.frameScrollIdentity,
-                  captureId: "capture-transaction",
-                },
-        }));
-      expect(comparable(filtered)).toEqual(comparable(unfiltered));
+      expectEqualCaptureTrees(unfiltered, filtered);
     } finally {
       spy.mockRestore();
+      await page.close();
+    }
+  });
+
+  it("DM-G0DM6T: refuses changed Page font cohorts before tree equality", async () => {
+    const page = await fixture();
+    try {
+      const before = await captureElementTree(page, "body", viewport);
+      const preferences = capturedTreeSessionGenericFamilies(before);
+      expect(preferences).not.toBeNull();
+      const replacement = [...new Set(Object.values(preferences!.common))].find(
+        (family) => family !== preferences!.common.serif && !family.startsWith("."),
+      );
+      expect(replacement).toBeDefined();
+      const session = await page.context().newCDPSession(page);
+      try {
+        await session.send("Page.setFontFamilies", { fontFamilies: { serif: replacement! } });
+      } finally {
+        await session.detach();
+      }
+      const after = await captureElementTree(page, "body", viewport);
+      expect(capturedTreeSessionGenericFamilies(after)!.common.serif).not.toBe(preferences!.common.serif);
+      expect(() => expectEqualCaptureTrees(before, after)).toThrow(/different generic-family preference sessions/);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("DM-G0DM6T: keeps same-session geometry, values and missing authority as hard failures", async () => {
+    const page = await fixture();
+    try {
+      const before = await captureElementTree(page, "body", viewport);
+      expectEqualCaptureTrees(before, structuredClone(before));
+      const input = before.findIndex((node) => node.tag === "input" && node.styles.inputValue === "Visible value");
+      expect(input).toBeGreaterThanOrEqual(0);
+      for (const defect of ["geometry", "value", "missing authority", "partial authority"] as const) {
+        const left = structuredClone(before);
+        const right = structuredClone(before);
+        if (defect === "geometry") right[input].width += 1;
+        else if (defect === "value") right[input].styles.inputValue = "Changed control value";
+        else if (defect === "partial authority") delete right[0].sessionGenericFamilies;
+        else for (const node of [...left, ...right]) delete node.sessionGenericFamilies;
+        let failure: unknown;
+        try {
+          expectEqualCaptureTrees(left, right);
+        } catch (error) {
+          failure = error;
+        }
+        expect(failure, defect).toBeInstanceOf(Error);
+        expect(String(failure), defect).not.toMatch(/different generic-family preference sessions/);
+      }
+    } finally {
       await page.close();
     }
   });

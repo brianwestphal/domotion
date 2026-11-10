@@ -4606,11 +4606,22 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-1WXKBZ", "DM-2351", "DM-2637", "DM-2668", "DM-N6XJRS", "DM-N78DX3", "DM-QQJ8JM", "DM-GNJ47P"],
+        "tickets": [
+          "DM-1WXKBZ",
+          "DM-2351",
+          "DM-2637",
+          "DM-2668",
+          "DM-N6XJRS",
+          "DM-N78DX3",
+          "DM-QQJ8JM",
+          "DM-GNJ47P",
+          "DM-G0DM6T"
+        ],
         "code": [
           ".github/workflows/generic-family-preference-parity.yml",
           "src/capture/generic-font-probe.ts",
           "src/capture/tree-envelope.ts",
+          "src/capture/control-pseudo-viewport.e2e.test.ts",
           "tools/generic-family-preference-oracle.ts",
           "tools/generic-profile-target-oracle.ts",
           "src/capture/generic-font-probe.test.ts",
