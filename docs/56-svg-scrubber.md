@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-1041", "DM-1042", "DM-1045"]
+tickets: ["DM-1041", "DM-1042", "DM-1045", "DM-77YEZV"]
 code:
   [
     "scripts/build-scrubber-client.mjs",
@@ -16,6 +16,7 @@ code:
     "src/scrubber/server.ts",
     "src/scrubber/trim.test.ts",
     "src/scrubber/trim.ts",
+    "tools/probe-scrubber-resize.ts",
   ]
 aliases: ["docs/56-svg-scrubber.md", "doc-56"]
 ---
@@ -198,3 +199,64 @@ animated-SVG analogue of `svg-review`. See
 [82-svg-scrubber-review-mode.md](82-svg-scrubber-review-mode.md). Endpoint:
 `POST /ticket` (review-mode only); the `.ticket` schema + the pure,
 unit-tested `buildTicketFile` builder live in `src/scrubber/server.ts`.
+
+## Paused resize attribution
+
+The native resize probe keeps the original SVG bytes and records snapshots
+before and after each screenshot, with animation membership, play state/time,
+SMIL time, font state, stage/host/SVG geometry, graphic screen matrices, source
+hashes and loaded-node identity. Its controls include an equal-wait no-resize
+arm, a nonanimated SVG, and an explicit diagnostic override that prevents the
+loaded SVG from flex-shrinking. The override affects only an owned probe page;
+it is not a production fix.
+
+```sh
+npm run build:text-engine
+node --import tsx tools/probe-scrubber-resize.ts --output tests/output/scrubber-resize
+# Bounded original/control replay:
+node --import tsx tools/probe-scrubber-resize.ts --arms animated-resize,animated-natural-size
+```
+
+The default five-arm matrix has 20 screenshots. It uses the committed
+`examples/animate/overlay-window/overlay-window.svg`; `--svg` selects another
+source. The half-timeline seek is 2.50s for that five-second example; the static
+control has a one-second fallback period and is sampled at 0.50s. Wide starts
+in Fit, displayed as 220% at 1440×900, then transitions through 900×900 and
+390×844 back to 1440×900. The probe never disables screenshot animations or
+changes their current times while measuring.
+
+On native macOS Chromium 147.0.7727.15, the original source returned with all
+16 animations paused at 2500ms and unchanged DOM, timing, font-face, root-box
+and animation-target geometry facts, while the SVG stage differed by 3613 pixels. Equal-wait no-resize was
+pixel-identical. A static SVG also differed by 1213 stage pixels, excluding
+animation pose drift as the common explanation. Finer text measurements do
+change despite unchanged screen matrices: one label's native bounding height
+moves from 37px to about 36.167px, with its top moving about 1.067px. The
+natural-size control retains those text bounds as well as identical stage
+pixels. Root-box agreement alone therefore misses the native text metric
+change.
+
+The source-owned layout defect is the SVG's default flex shrink inside the
+stage-sized flex host: at 390px, the declared 640px SVG width becomes 390px
+before the host applies Fit scale 0.609375. Its resulting viewport is only
+237.65625×219.375 instead of 390×219.375. Default viewBox `meet` can retain
+graphic aspect through additional letterboxing; the viewport measurements do
+not prove stretched glyphs. A single-factor `flex-shrink:0` diagnostic restores
+the natural layout size and eliminates all returned-wide stage differences
+for both animated and static sources. Removing `will-change` alone does not.
+Preventing that double reduction needs a separate layout repair and native
+Fit/Fill/manual/crop/pan regression coverage (the natural-size sizing follow-up).
+Small footer-only differences remain separately unclassified; stage identity
+must not be reported as whole-page pixel identity.
+
+The exact native Chromium source at
+[`6b5a1b80`](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/layout/svg/layout_svg_text.cc#218)
+updates SVG text metrics on viewport/scale changes.
+[`LayoutSVGInlineText::ComputeNewScaledFontForStyle`](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/layout/svg/layout_svg_inline_text.cc#182)
+constructs a scale-dependent font, using the
+[transform-to-layer scale calculation](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/layout/svg/svg_layout_support.cc#367).
+That explains why unchanged authored font/geometry values do not establish
+identical internal raster state. The probe does not expose Blink's private
+scaled-font/cache values, so it does not attribute the residue to a particular
+upstream cache or compositor defect. No animation seeking change is supported
+by these controls.

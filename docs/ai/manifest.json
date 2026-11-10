@@ -980,7 +980,8 @@
         "src/scrubber/server.e2e.test.ts",
         "src/scrubber/server.ts",
         "src/scrubber/trim.test.ts",
-        "src/scrubber/trim.ts"
+        "src/scrubber/trim.ts",
+        "tools/probe-scrubber-resize.ts"
       ],
       "file": "56-svg-scrubber.md"
     },
