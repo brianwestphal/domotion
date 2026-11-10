@@ -1,0 +1,168 @@
+{
+  "ticket": "DM-E0KRM2",
+  "scope": "Selected-resource state ordering only; no source mutation, natural-size, AX, geometry or fallback renderer changes.",
+  "before": {
+    "browser": "147.0.7727.15",
+    "baseline": "e22c6ad0ba46e7e6ceff940dd9da9ba10dc5e106",
+    "viewport": {
+      "width": 140,
+      "height": 100,
+      "dpr": 1
+    },
+    "sourceSha256": "03aae075af663a5bccdf01e3eac64a69849ae50a1438e773ada6955bce89627c",
+    "expectedSha256": "901dd192b8ab664f6052722c2f312ad434e091f6a3e9ea4002b525c4b73589f7",
+    "actualSha256": "4ab09d11f5b6841cd9ff09250f768de7369b31c447c476686a863fc859ce51bb",
+    "svgSha256": "a3a37d431dcc26b9d113ff2dec05bee8d787a7d93eeb02370d03fd571dc73300",
+    "changedPixels": 2560,
+    "totalPixels": 14000,
+    "diffPct": 18.285714285714285,
+    "image": {
+      "imageSrc": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 40,
+      "brokenImageFallback": {
+        "schemaVersion": 1,
+        "authority": "chromium-ua-shadow-v1",
+        "disposition": "primary",
+        "captureStatus": "exact",
+        "paintOwnership": "none",
+        "loadState": "no-source",
+        "source": {
+          "complete": true,
+          "naturalWidth": 1,
+          "naturalHeight": 1,
+          "currentSrc": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+          "src": {
+            "present": false,
+            "value": null
+          },
+          "alt": {
+            "present": true,
+            "value": "srcset only"
+          },
+          "title": {
+            "present": false,
+            "value": null
+          },
+          "resolvedText": "srcset only"
+        },
+        "hostBox": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 64,
+            "height": 40
+          },
+          "content": [0, 0, 64, 0, 64, 40, 0, 40],
+          "padding": [0, 0, 64, 0, 64, 40, 0, 40],
+          "border": [0, 0, 64, 0, 64, 40, 0, 40],
+          "margin": [0, 0, 64, 0, 64, 40, 0, 40]
+        },
+        "accessibility": {
+          "ignored": false,
+          "role": "image",
+          "name": "srcset only",
+          "description": null
+        }
+      }
+    },
+    "warnings": []
+  },
+  "after": {
+    "browser": "147.0.7727.15",
+    "browserRevision": "@6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050",
+    "baseline": "e22c6ad0ba46e7e6ceff940dd9da9ba10dc5e106",
+    "viewport": {
+      "width": 140,
+      "height": 100,
+      "dpr": 1
+    },
+    "sourceSha256": "03aae075af663a5bccdf01e3eac64a69849ae50a1438e773ada6955bce89627c",
+    "expectedSha256": "901dd192b8ab664f6052722c2f312ad434e091f6a3e9ea4002b525c4b73589f7",
+    "actualSha256": "901dd192b8ab664f6052722c2f312ad434e091f6a3e9ea4002b525c4b73589f7",
+    "svgSha256": "39fffc674e7b3742e7206c4e1db73924ce3cdd5d99d0f68f8b973461eadd6db7",
+    "changedPixels": 0,
+    "totalPixels": 14000,
+    "diffPct": 0,
+    "image": {
+      "imageSrc": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 40,
+      "brokenImageFallback": {
+        "schemaVersion": 1,
+        "authority": "chromium-ua-shadow-v1",
+        "disposition": "primary",
+        "captureStatus": "exact",
+        "paintOwnership": "none",
+        "loadState": "loaded",
+        "source": {
+          "complete": true,
+          "naturalWidth": 1,
+          "naturalHeight": 1,
+          "currentSrc": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+          "src": {
+            "present": false,
+            "value": null
+          },
+          "alt": {
+            "present": true,
+            "value": "srcset only"
+          },
+          "title": {
+            "present": false,
+            "value": null
+          },
+          "resolvedText": "srcset only"
+        },
+        "hostBox": {
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 64,
+            "height": 40
+          },
+          "content": [0, 0, 64, 0, 64, 40, 0, 40],
+          "padding": [0, 0, 64, 0, 64, 40, 0, 40],
+          "border": [0, 0, 64, 0, 64, 40, 0, 40],
+          "margin": [0, 0, 64, 0, 64, 40, 0, 40]
+        },
+        "accessibility": {
+          "ignored": false,
+          "role": "image",
+          "name": "srcset only",
+          "description": null
+        }
+      }
+    },
+    "warnings": []
+  },
+  "originalReferenceSha256": "901dd192b8ab664f6052722c2f312ad434e091f6a3e9ea4002b525c4b73589f7",
+  "sourceFactsAndHostBoxAndAXUnchanged": true,
+  "sourceAuthority": {
+    "revision": "@6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050",
+    "htmlImageElement": {
+      "url": "https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/html/html_image_element.cc",
+      "sha256": "72869d29128f909bfb008f6b9eb7cd16b30f776c143b7b3af7719332911cb499",
+      "lines": {
+        "naturalDimensions": "660-680",
+        "currentSrc": "720-737",
+        "complete": "829-831",
+        "sourceSelection": "983-1016"
+      }
+    },
+    "imageLoader": {
+      "url": "https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/loader/image_loader.cc",
+      "sha256": "cddb94377fa6ac13fa308079873fd6ca753ddd7fb24af5991f2ea6553018157b",
+      "naturalSizeLines": "914-944"
+    }
+  },
+  "commands": [
+    "node --import tsx tools/scratch/e0-evidence.ts before",
+    "node --import tsx tools/scratch/e0-evidence.ts after",
+    "node node_modules/vitest/vitest.mjs run --config vitest.e2e.config.ts src/capture/broken-image-fallback.e2e.test.ts -t DM-E0KRM2"
+  ]
+}

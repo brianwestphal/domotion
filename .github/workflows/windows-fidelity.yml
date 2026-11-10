@@ -186,6 +186,18 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output/external-svg-frozen/results.json --minimum-passed 57
+      - name: Verify selected image resource and fallback ownership (DM-E0KRM2)
+        if: always()
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          src/capture/broken-image-fallback.e2e.test.ts
+          tests/broken-image-fallback-render.e2e.test.ts
+          --reporter=json --outputFile=tests/output/srcset-resource/results.json
+      - name: Require every selected image resource assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/srcset-resource/results.json --minimum-passed 20
       - name: Verify native shadow knockout and root boundaries
         if: always()
         run: >-
@@ -238,6 +250,7 @@ jobs:
             tests/output/external-svg-frozen/
             tests/output/opaque-font-family/
             tests/output/owned-ui-server/
+            tests/output/srcset-resource/
           if-no-files-found: error
 
   decoration-geometry:

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { captureBrokenImageFallbackFacts, classifyBrokenImageDisposition } from "./broken-image-fallback.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
+import { capturedElement } from "../test-support/captured-fixtures.js";
 
 function source(
   overrides: Partial<{
@@ -28,6 +29,83 @@ function source(
 }
 
 describe("Chromium broken-image fallback disposition (DM-2463)", () => {
+  it.each([
+    {
+      name: "missing source",
+      complete: true,
+      naturalWidth: 0,
+      currentSrc: "",
+      src: { present: false, value: null },
+      state: "no-source",
+    },
+    {
+      name: "empty src",
+      complete: true,
+      naturalWidth: 0,
+      currentSrc: "",
+      src: { present: true, value: "" },
+      state: "failed",
+    },
+    {
+      name: "pending candidate without src",
+      complete: false,
+      naturalWidth: 0,
+      currentSrc: "",
+      src: { present: false, value: null },
+      state: "loading",
+    },
+    {
+      name: "pending src",
+      complete: false,
+      naturalWidth: 0,
+      currentSrc: "",
+      src: { present: true, value: "/pending.png" },
+      state: "loading",
+    },
+    {
+      name: "failed candidate without src",
+      complete: true,
+      naturalWidth: 0,
+      currentSrc: "https://example.test/failed.png",
+      src: { present: false, value: null },
+      state: "failed",
+    },
+    {
+      name: "loaded candidate without src",
+      complete: true,
+      naturalWidth: 1,
+      currentSrc: "https://example.test/good.png",
+      src: { present: false, value: null },
+      state: "loaded",
+    },
+    {
+      name: "loaded candidate with empty src",
+      complete: true,
+      naturalWidth: 1,
+      currentSrc: "https://example.test/good.png",
+      src: { present: true, value: "" },
+      state: "loaded",
+    },
+  ])(
+    "retains selected-resource load state for $name (DM-E0KRM2)",
+    async ({ name: _name, state, naturalWidth, ...facts }) => {
+      const image = capturedElement({
+        tag: "img",
+        x: 0,
+        y: 0,
+        width: 64,
+        height: 40,
+        children: [],
+        brokenImageFallback: { source: source({ ...facts, naturalWidth, naturalHeight: naturalWidth }) },
+      });
+      await captureBrokenImageFallbackFacts({} as never, [image], { x: 0, y: 0, width: 140, height: 100 }, []);
+      expect(image.brokenImageFallback?.loadState).toBe(state);
+      expect(image.brokenImageFallback?.source).toEqual(
+        source({ ...facts, naturalWidth, naturalHeight: naturalWidth }),
+      );
+      expect(image.brokenImageFallback?.captureStatus).toBe("terminal-raster");
+    },
+  );
   it("separates primary, loading, and collapsed hosts without a UA shadow", () => {
     expect(
       classifyBrokenImageDisposition({

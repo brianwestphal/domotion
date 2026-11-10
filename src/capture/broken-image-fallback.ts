@@ -180,9 +180,12 @@ function numberStyle(style: Record<string, string>, property: string): number {
 }
 
 function loadState(source: SourceFacts): CapturedBrokenImageFallback["loadState"] {
-  if (!source.src.present) return "no-source";
+  // HTMLImageElement::SelectSourceURL can choose srcset/picture without src.
+  // complete/natural size describe that selected resource; currentSrc also
+  // retains the selected URL on failure (Chromium147, 6b5a1b80).
   if (!source.complete) return "loading";
   if (source.naturalWidth > 0 && source.naturalHeight > 0) return "loaded";
+  if (!source.src.present && source.currentSrc === "") return "no-source";
   return "failed";
 }
 

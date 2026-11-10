@@ -120,6 +120,130 @@ async function captureLiveImages(
 }
 
 describeBrowser("Chromium broken-image UA-shadow capture (DM-2463)", () => {
+  for (const dpr of [1, 2]) {
+    it.each([
+      {
+        name: "srcset only",
+        markup: `<img id="test" srcset="${GOOD} 1x" alt="srcset only">`,
+        src: { present: false, value: null },
+      },
+      {
+        name: "empty src with srcset",
+        markup: `<img id="test" src="" srcset="${GOOD} 1x" alt="srcset only">`,
+        src: { present: true, value: "" },
+      },
+      {
+        name: "srcset overrides failed src",
+        markup: `<img id="test" src="${BROKEN}" srcset="${GOOD} 1x" alt="srcset only">`,
+        src: { present: true, value: BROKEN },
+      },
+      {
+        name: "picture without src",
+        markup: `<picture><source srcset="${GOOD} 1x"><img id="test" alt="srcset only"></picture>`,
+        src: { present: false, value: null },
+      },
+      {
+        name: "picture overrides failed img candidates",
+        markup: `<picture><source srcset="${GOOD} 1x"><img id="test" src="${BROKEN}" srcset="${BROKEN} 1x" alt="srcset only"></picture>`,
+        src: { present: true, value: BROKEN },
+      },
+      {
+        name: "unmatched picture falls back to img srcset",
+        markup: `<picture><source media="not all" srcset="${BROKEN} 1x"><img id="test" srcset="${GOOD} 1x" alt="srcset only"></picture>`,
+        src: { present: false, value: null },
+      },
+    ])(`renders selected $name at DPR ${dpr} (DM-E0KRM2)`, async ({ markup, src }) => {
+      const context = await env!.browser.newContext({ viewport: { width: 140, height: 100 }, deviceScaleFactor: dpr });
+      const source = await context.newPage();
+      const generated = await context.newPage();
+      try {
+        await source.setContent(
+          `<!doctype html><style>html,body{margin:0;background:white}img{display:block;width:64px;height:40px}</style>${markup}`,
+        );
+        await source.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+        const expected = await source.screenshot();
+        const capture = await captureElementTreeWithWarnings(source, "body", { x: 0, y: 0, width: 140, height: 100 });
+        const walk = (nodes: CapturedElement[]): CapturedElement[] =>
+          nodes.flatMap((node) => [node, ...walk(node.children)]);
+        const image = walk(capture.tree).find((node) => node.tag === "img")!;
+        expect(capture.warnings.filter((warning) => warning.feature === "broken-image-fallback")).toEqual([]);
+        expect(image.imageSrc).toBe(GOOD);
+        expect(image.brokenImageFallback).toMatchObject({
+          disposition: "primary",
+          loadState: "loaded",
+          captureStatus: "exact",
+          paintOwnership: "none",
+          source: { complete: true, naturalWidth: 1, naturalHeight: 1, currentSrc: GOOD, src },
+          hostBox: { rect: { x: 0, y: 0, width: 64, height: 40 } },
+          accessibility: { ignored: false, role: "image", name: "srcset only" },
+        });
+        expect(image.brokenImageFallback?.container).toBeUndefined();
+        expect(image.brokenImageFallback?.text).toBeUndefined();
+        await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(capture.tree, 140, 100)}`);
+        const native = await sharp(expected).ensureAlpha().raw().toBuffer();
+        expect([...native.subarray(0, 4)]).toEqual([0, 0, 0, 255]);
+        expect(
+          await sharp(await generated.screenshot())
+            .ensureAlpha()
+            .raw()
+            .toBuffer(),
+        ).toEqual(native);
+      } finally {
+        await context.close();
+      }
+    });
+  }
+
+  it("distinguishes pending/failed selections from absent candidates without src (DM-E0KRM2)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 700, height: 100 } });
+    const routes: import("@playwright/test").Route[] = [];
+    const registry = "__e0_responsive_states";
+    try {
+      await page.route("https://pending.example.test/*", (route) => {
+        routes.push(route);
+      });
+      await page.setContent(
+        `<!doctype html><img id="missing" alt="missing"><img id="empty" src="" alt="empty"><img id="empty-set" srcset="" alt="empty set"><picture><source media="not all" srcset="${GOOD}"><img id="no-match" alt="no match"></picture><img id="failed-set" srcset="${BROKEN} 1x" alt="failed set"><picture><source srcset="${BROKEN} 1x"><img id="failed-picture" alt="failed picture"></picture><img id="pending-set" srcset="https://pending.example.test/set.png 1x" alt="pending set"><picture><source srcset="https://pending.example.test/picture.png 1x"><img id="pending-picture" alt="pending picture"></picture>`,
+        { waitUntil: "domcontentloaded" },
+      );
+      await expect.poll(() => routes.length).toBe(2);
+      await page.waitForFunction(() => document.images[4].complete && document.images[5].complete);
+      const capture = await captureLiveImages(page, registry, { x: 0, y: 0, width: 700, height: 100 });
+      expect(capture.warnings).toEqual([]);
+      for (const id of ["missing", "empty-set", "no-match"])
+        expect(capture.byId.get(id)).toMatchObject({
+          loadState: "no-source",
+          source: { complete: true, currentSrc: "", src: { present: false } },
+        });
+      expect(capture.byId.get("empty")).toMatchObject({
+        loadState: "failed",
+        source: { complete: true, currentSrc: "", src: { present: true, value: "" } },
+      });
+      for (const id of ["failed-set", "failed-picture"])
+        expect(capture.byId.get(id)).toMatchObject({
+          disposition: "non-replaced-fallback",
+          captureStatus: "exact",
+          paintOwnership: "hybrid-icon-raster-vector-text",
+          loadState: "failed",
+          source: { complete: true, naturalWidth: 0, naturalHeight: 0, currentSrc: BROKEN, src: { present: false } },
+        });
+      for (const id of ["pending-set", "pending-picture"])
+        expect(capture.byId.get(id)).toMatchObject({
+          disposition: "loading",
+          loadState: "loading",
+          paintOwnership: "none",
+          source: { complete: false, naturalWidth: 0, naturalHeight: 0, currentSrc: "", src: { present: false } },
+        });
+    } finally {
+      for (const route of routes) await route.abort().catch(() => {});
+      await page
+        .evaluate((key) => {
+          delete (globalThis as typeof globalThis & Record<string, unknown>)[key];
+        }, registry)
+        .catch(() => {});
+      await page.close();
+    }
+  });
   it("restores primary pixels after a broken image recovers and retains real fallback after relapse (DM-STQYYJ)", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
     const generated = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
