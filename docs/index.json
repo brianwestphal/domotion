@@ -942,12 +942,14 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": [],
-        "tickets": ["DM-4GXCMQ", "DM-TRM653"],
+        "tickets": ["DM-4GXCMQ", "DM-TRM653", "DM-P0X82N", "DM-SJBWJC"],
         "code": [
           "tests/real-world.tsx",
           "tests/real-world-scroll-reference.ts",
           "tests/real-world-scroll-reference.e2e.test.ts",
           "tests/real-world-scroll-reference.test.ts",
+          "tests/real-world-dom-freeze.ts",
+          "tests/real-world-dom-freeze.e2e.test.ts",
           "src/scroll/executor.ts"
         ],
         "aliases": ["docs/34-scroll-mode-per-chunk-diff.md", "doc-34"]

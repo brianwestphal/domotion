@@ -5,13 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-4GXCMQ", "DM-TRM653"]
+tickets: ["DM-4GXCMQ", "DM-TRM653", "DM-P0X82N", "DM-SJBWJC"]
 code:
   [
     "tests/real-world.tsx",
     "tests/real-world-scroll-reference.ts",
     "tests/real-world-scroll-reference.e2e.test.ts",
     "tests/real-world-scroll-reference.test.ts",
+    "tests/real-world-dom-freeze.ts",
+    "tests/real-world-dom-freeze.e2e.test.ts",
     "src/scroll/executor.ts",
   ]
 aliases: ["docs/34-scroll-mode-per-chunk-diff.md", "doc-34"]
@@ -67,6 +69,14 @@ Chunk 0's metrics mirror the canonical metrics for the same triplet.
 DM-4GXCMQ reproduced the distinction on the fixed Resend desktop recording at scrollY 11469: a footer wordmark with near-zero captured opacity became fully visible only when the later reference screenshot finished its entrance animation. The correction preserves the captured state; it does not force the wordmark visible or change production SVG paint/culling. The Chromium `Page.captureScreenshot` protocol records pixels; the finite-animation finishing policy belongs to Playwright's screenshot preparation, not the renderer. Browser regressions exercise hidden, intermediate and complete wordmark opacity, anchor pairing, evidence failures, unresolved inactive scroll timelines, and active-to-inactive scroll timeline transitions. The sampled-time pause follows the [Web Animations current-time setter](https://www.w3.org/TR/web-animations-1/#setting-the-current-time-of-an-animation); the deadline does not depend on page timers, which the real-world freeze may override.
 
 This is a paused-animation comparison contract. It does not claim an atomic snapshot of arbitrary live JavaScript mutations, newly created animations, or network-driven DOM changes. The existing real-world DOM freeze still limits those independent sources of drift.
+
+## Live JavaScript motion (DM-P0X82N)
+
+`freezeRealWorldDom` intentionally preserves author `requestAnimationFrame` callbacks so page warmup and WebGL priming can finish. Pausing Web Animations does not pause JavaScript-written DOM transforms. The capture debug source screenshot runs before the asynchronous capture prepasses; a live rAF loop can therefore move an element before the tree walk even though the source PNG and tree belong to the same capture call.
+
+The recorded Stripe mobile logo carousel demonstrates this distinction with the JQ font and TRM pause-readiness controls applied. Its `ul.logo-carousel__marquee` moves about 15 px in 500 ms after both the DOM freeze and WebGL output freeze. The source PNG records the track near x = −89 px, while the later tree records x = −123 px. A static render of that tree reproduces the logo shift without scroll composition. This identifies live author DOM motion across capture stages; it does not justify changing renderer geometry or forcing the carousel to a chosen position.
+
+The browser contract regression keeps a self-scheduling rAF transform loop alive through the initial DOM freeze. Capture-time reference/runtime ownership **after** warmup and graphics priming remains the actionable fix in DM-SJBWJC. Global rAF cancellation during warmup is not a substitute: it can break the WebGL source and capture-owned waits. This investigation establishes the current limitation rather than claiming arbitrary-JavaScript snapshot coherence.
 
 ## Pass criterion
 

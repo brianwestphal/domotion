@@ -43,3 +43,34 @@ it("freezes pending and future timers without adding a page-global name helper",
     await page.close();
   }
 });
+
+it("keeps author rAF DOM motion live before WebGL priming", async () => {
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`<div id="track" style="width:20px;height:20px"></div>
+      <script>
+        window.rafFrames = 0;
+        function tick() {
+          window.rafFrames++;
+          document.querySelector('#track').style.transform = 'translateX(' + window.rafFrames + 'px)';
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      </script>`);
+    expect(await freezeRealWorldDom(page)).toBe(true);
+    const before = await page.locator("#track").evaluate((element) => element.getBoundingClientRect().x);
+    const frames = await page.evaluate(() => (window as typeof window & { rafFrames: number }).rafFrames);
+    // DOM freeze intentionally leaves this scheduler live for warmup/priming.
+    // Pausing Web Animations does not freeze JavaScript-written transforms.
+    await page.waitForFunction(
+      (start) => (window as typeof window & { rafFrames: number }).rafFrames >= start + 3,
+      frames,
+      { timeout: 2000 },
+    );
+    expect(await page.locator("#track").evaluate((element) => element.getBoundingClientRect().x)).toBeGreaterThan(
+      before,
+    );
+  } finally {
+    await page.close();
+  }
+});

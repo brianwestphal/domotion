@@ -579,6 +579,8 @@
         "tests/real-world-scroll-reference.ts",
         "tests/real-world-scroll-reference.e2e.test.ts",
         "tests/real-world-scroll-reference.test.ts",
+        "tests/real-world-dom-freeze.ts",
+        "tests/real-world-dom-freeze.e2e.test.ts",
         "src/scroll/executor.ts"
       ],
       "file": "34-scroll-mode-per-chunk-diff.md"
