@@ -16,6 +16,7 @@ import {
   type SelectViewportObservation,
 } from "./select-viewport-evidence.js";
 import { withTimeout } from "../src/utils/with-timeout.js";
+import { resolveSelectViewportScroll } from "./select-viewport-fixture.js";
 
 // DM-1798: browser-side guard for the two UIs that use kerf's RUNTIME rather
 // than just its SSR JSX — `tests/review-client.tsx` (signal / computed /
@@ -513,13 +514,32 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       const trigger = select.getByRole("combobox");
       await expect.poll(() => trigger.isVisible()).toBe(true);
 
-      for (const { height, scrollY } of [
-        { height: 1300, scrollY: 600 },
-        { height: 900, scrollY: 727 },
-      ]) {
-        await page.setViewportSize({ width: 1440, height });
+      const positionTrigger = async (preferredSide: "bottom" | "top"): Promise<number> => {
+        const source = await trigger.evaluate((el) => {
+          const rect = el.getBoundingClientRect();
+          return {
+            viewportHeight: document.documentElement.clientHeight,
+            trigger: { top: rect.top, height: rect.height },
+            scrollY: window.scrollY,
+          };
+        });
+        const scrollY = resolveSelectViewportScroll(
+          source.viewportHeight,
+          source.trigger,
+          source.scrollY,
+          preferredSide,
+        );
+        expect(scrollY, "fixture must exercise actual document scroll").toBeGreaterThan(0);
         await page.evaluate((y) => window.scrollTo(0, y), scrollY);
         await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);
+        return scrollY;
+      };
+      for (const height of [1300, 900]) {
+        await page.setViewportSize({ width: 1440, height });
+        // Fixed document coordinates put the trigger on different sides of
+        // the midpoint on native platforms. Establish the bottom-space
+        // precondition using measured geometry, keeping actual page scroll.
+        const scrollY = await positionTrigger("bottom");
         // A DOM click preserves the requested scroll position; Playwright's
         // locator click would scroll the trigger into view first.
         await trigger.evaluate((el) => (el as HTMLButtonElement).click());
@@ -529,6 +549,10 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
         observations.push({ requested: { height, scrollY }, geometry });
         if (!evidence.write(observations))
           console.warn("Select geometry diagnostic write unavailable; strict assertions remain authoritative");
+        expect(geometry.viewport.scrollY).toBe(scrollY);
+        expect(geometry.availableSpaceBeforePadding!.below).toBeGreaterThan(
+          geometry.availableSpaceBeforePadding!.above,
+        );
         expect(geometry.placement).toBe("bottom");
         expect(geometry.top).toBeGreaterThanOrEqual(0);
         expect(geometry.bottom).toBeLessThanOrEqual(height);
@@ -536,6 +560,25 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
         await trigger.evaluate((el) => (el as HTMLButtonElement).click());
         await expect.poll(() => popup.isVisible()).toBe(false);
       }
+      // Discriminator: with the same real app, viewport and popup contents,
+      // put more room above. A fixture that forces bottom must fail here.
+      const topEvidence = createSelectViewportEvidence(
+        process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output",
+        browser!.version(),
+      );
+      const scrollY = await positionTrigger("top");
+      await trigger.evaluate((el) => (el as HTMLButtonElement).click());
+      const popup = select.locator(".kui-select__popup");
+      await expect.poll(() => popup.isVisible()).toBe(true);
+      const geometry = await popup.evaluate(readSelectViewportGeometry);
+      if (!topEvidence.write([{ requested: { height: 900, scrollY }, geometry }]))
+        console.warn("Select top-control diagnostic write unavailable; strict assertions remain authoritative");
+      expect(geometry.viewport.scrollY).toBe(scrollY);
+      expect(geometry.availableSpaceBeforePadding!.above).toBeGreaterThan(geometry.availableSpaceBeforePadding!.below);
+      expect(geometry.placement).toBe("top");
+      expect(geometry.top).toBeGreaterThanOrEqual(0);
+      expect(geometry.bottom).toBeLessThanOrEqual(geometry.trigger!.top);
+      expect(geometry.height).toBeGreaterThan(350);
     } catch (error) {
       const png = await withTimeout(
         page.screenshot({ timeout: 2_000 }).catch(() => null),

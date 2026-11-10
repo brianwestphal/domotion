@@ -112,6 +112,7 @@ export function createSelectViewportEvidence(parent: string, browser: string) {
           [
             "select-viewport-evidence.ts",
             "kerf-client-uis.e2e.test.ts",
+            "select-viewport-fixture.ts",
             "fixtures/studio/treatments-showcase.project.json",
             "../package-lock.json",
           ].map((file) => [

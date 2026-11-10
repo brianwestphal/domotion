@@ -124,14 +124,32 @@ passed. Neither UI assertion identifies the earlier startup-null cause.
 
 ### Scrolled Select geometry qualification (DM-QV1MYS)
 
-The Windows f283 native UI report records `data-placement=top` where the strict
+The Windows f283 native UI report recorded `data-placement=top` where the strict
 test expected bottom, but did not retain the failed trigger/popup geometry.
 The beta129 Select calls its package `positionPopup` with a bottom preference.
 The installed shared popup implementation uses fixed positioning, a
 `documentElement.clientWidth/clientHeight` viewport boundary, adaptive
 `flip(bestFit)`, shift and size middleware, then asynchronously writes its
-position and placement attribute. These source branches do not establish why
-that Windows observation differed; no font, scroll or timing cause is assigned.
+position and placement attribute.
+
+Run42838603293 at source4d740319 retained actual Chromium147 Windows geometry:
+at900px, the trigger occupied451..495, leaving451px above and405px below. The
+549px natural popup fit neither side. FloatingUI1.8.0's `bestFit` minimizes
+positive overflow, so top had46px more space and the package's10px padding
+produced exactly the observed441px cap. At1300px it correctly used bottom.
+The macOS fixture instead left414px above and442px below at900px. This proves
+that absolute document scroll coordinates did not establish portable placement
+preconditions. It does not identify the font or other cause of the upstream
+layout difference, or a product placement defect.
+
+DM-HY9H7S derives document scroll from the measured trigger height and source
+viewport. Its bottom controls put the trigger center one trigger-height above
+the viewport midpoint, giving bottom two trigger-heights more room. Both1300px
+and900px retain positive actual document scroll and assert this space
+precondition before the original bottom, viewport-bound and minimum-height
+checks. An inverse900px control gives top more room and requires adaptive top
+placement, viewport containment and no trigger overlap. The package still owns
+all popup positioning; no CSS, font or placement override is applied.
 
 The existing popup geometry query now retains trigger bounds, actual root and
 visual viewport, scroll position, raw space above/below, used popup limits and
@@ -146,7 +164,9 @@ two observations/16KiB, with full commit when supplied, normalized source/projec
 lockfile hashes and runtime identity. A failed case alone may retain a later
 PNG (maximum4MiB,2000ms diagnostic deadline), explicitly separate from the
 earlier geometry read. I/O failure cannot replace the original error. Healthy
-cases take no extra screenshot, page query or frame wait. The native test count,
-launch, viewport/scroll inputs, assertion thresholds and120-second limit stay
-unchanged. Actual failed Windows geometry remains necessary before proposing a
-placement repair; local healthy geometry cannot explain a historical failure.
+cases take no extra screenshot or frame wait. The repair adds measured fixture
+setup and a negative-control geometry query. The native11-case count, launch,
+1440px width,1300/900px heights, original assertion thresholds and120-second
+limit remain unchanged; measured scroll replaces the platform-sensitive
+absolute600/727px inputs. Each evidence file still has at most two observations;
+the inverse control uses its own uniquely owned file.
