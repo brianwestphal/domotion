@@ -285,6 +285,7 @@ jobs:
       - name: Verify native snapshot transition ownership
         if: always()
         env:
+          DOMOTION_OUTPUT_DIR: tests/output-linux
           DOMOTION_THP_EVIDENCE_DIR: tests/output-linux/snapshot-visibility/production
           DOMOTION_FTR_EVIDENCE_DIR: tests/output-linux/snapshot-visibility/contracts
           DOMOTION_T8_EVIDENCE_DIR: tests/output-linux/snapshot-visibility/pseudo
@@ -295,12 +296,13 @@ jobs:
           tests/replaced-snapshot-visibility-transition.e2e.test.ts
           tests/visibility-transition-effect-ownership.e2e.test.ts
           tests/pseudo-surface-transition-ownership.e2e.test.ts
+          tests/native-control-decoration.e2e.test.ts
           --reporter=json --outputFile=tests/output-linux/snapshot-visibility/results.json
       - name: Require every native snapshot transition assertion
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output-linux/snapshot-visibility/results.json --minimum-passed 74
+          --browser-results tests/output-linux/snapshot-visibility/results.json --minimum-passed 78
       - name: Verify native literal font-family identity
         if: always()
         run: >-
@@ -418,6 +420,7 @@ jobs:
             tests/output-linux/svg-escaped-import/
             tests/output-linux/svg-font-identity/
             tests/output-linux/snapshot-visibility/
+            tests/output-linux/native-control-decoration-e2e/
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

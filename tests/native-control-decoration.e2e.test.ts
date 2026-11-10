@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -11,6 +12,9 @@ import {
 } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { observeNativeDecorationFrame } from "./native-decoration-frame-probe.js";
+import { observeExistingSpinRules } from "./native-decoration-rule-probe.js";
+import { resolveVisualOutputRoot } from "./output-directory.mjs";
 
 async function setup() {
   try {
@@ -23,7 +27,7 @@ const env = await setup();
 afterAll(async () => closeBrowserSafely(env?.browser), 15_000);
 const describeBrowser = env == null ? describe.skip : describe;
 
-const OUT_DIR = "tests/output/native-control-decoration-e2e";
+const OUT_DIR = join(resolveVisualOutputRoot(), "native-control-decoration-e2e");
 
 /** DM-MPDTVX: capture must leave the live page's paint byte-identical. When it
  *  does not, keep both screenshots and the changed-pixel bounds (CSS px) so the
@@ -286,7 +290,24 @@ describeBrowser("source-owned partial native-control decorations", () => {
         const focused = await captureState();
         expect(byId(focused.tree, "search").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
         await page.hover("#number");
-        const hovered = await captureState();
+        const probe = observeNativeDecorationFrame(page);
+        const rules = observeExistingSpinRules(page);
+        let hovered: Awaited<ReturnType<typeof captureState>>;
+        try {
+          hovered = await captureState();
+        } finally {
+          probe.dispose();
+          rules.dispose();
+        }
+        await probe
+          .write(OUT_DIR, `hovered-number-${rows.indexOf(row)}-${randomUUID()}`, byId(hovered.tree, "number"), {
+            ...row,
+            browser: env!.browser.version(),
+            existingMatchedDeclarations: rules.snapshot(),
+          })
+          .catch(() =>
+            console.warn("Hovered-number diagnostic write unavailable; strict assertion remains authoritative"),
+          );
         expect(byId(hovered.tree, "number").nativeControlDecorationRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
         await page.mouse.down();
         const active = await captureState();
