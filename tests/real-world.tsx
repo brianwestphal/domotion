@@ -38,6 +38,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { withRealWorldBrowser } from "./real-world-browser.js";
+import { installRealWorldRafOwner } from "./real-world-raf-owner.js";
 import {
   captureElementTreeWithWarnings,
   elementTreeToSvgInner,
@@ -459,6 +460,14 @@ async function runJob(
       : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   });
 
+  let rafOwner: Awaited<ReturnType<typeof installRealWorldRafOwner>>;
+  try {
+    rafOwner = await installRealWorldRafOwner(context);
+  } catch (error) {
+    await closeTimedOutCaptureContext(context, "real-world rAF owner installation failed");
+    throw error;
+  }
+
   // HAR cache: keyed by (site, viewport) since responses can vary by UA /
   // device. First run records, subsequent runs replay. `notFound: 'fallback'`
   // lets a record-mode run fetch newly-required assets through to the network;
@@ -656,6 +665,7 @@ async function runJob(
       path: expectedPath,
       clip: expectedClip,
       entirePage: mode === "entire-page",
+      afterWebGlFreeze: () => rafOwner.park(page),
     });
     const { canvasPreflight } = referenceFrame;
     webGlFreeze = referenceFrame.webGlFreeze;
@@ -673,6 +683,7 @@ async function runJob(
       );
     }
 
+    await rafOwner.verify(page);
     let tree: ScrollSegmentCapture["tree"];
     let svgInner = "";
     if (mode === "scroll") {
@@ -703,7 +714,9 @@ async function runJob(
           log: trace,
         },
         async (capturePage, selector, clip, options) => {
+          await rafOwner.verify(capturePage);
           const captured = await captureRealWorldScrollReference(capturePage, selector, clip, options);
+          await rafOwner.verify(capturePage);
           const ordinal = anchorReferences++;
           const referencePath = ordinal === 0 ? expectedPath : expectedPath.replace(/\.png$/, `-${ordinal}.png`);
           writeFileSync(referencePath, captured.debug.expectedPng);
@@ -729,6 +742,7 @@ async function runJob(
       // so we fall back to per-rid screenshots there.
       const rasterizeFromImagePath = mode === "fold" || mode === "entire-page" ? expectedPath : undefined;
       const cap = await captureElementTreeWithWarnings(page, "body", captureClip, { rasterizeFromImagePath });
+      await rafOwner.verify(page);
       trace("initial tree capture complete");
       warnings = cap.warnings;
       // DM-512: real-world captures of public sites reference image URLs on
@@ -977,6 +991,11 @@ async function runJob(
       console.warn(
         `  ${test}: WebGL prototype restoration unverified in ${webGlFreeze.failedFrameRestorations} live frame(s) and ${webGlFreeze.failedWorkerRestorations} live worker(s)`,
       );
+    }
+    try {
+      await rafOwner.dispose();
+    } catch (error) {
+      captureError ??= `rAF cleanup failed: ${String(error)}`;
     }
     // Defensive: a failed page.screenshot can leave the underlying
     // Chromium target in a half-closed state (DM-460), so the implicit

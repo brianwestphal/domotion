@@ -5,7 +5,12 @@ import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
 /** Present/prime live canvas layers, then save the reference from the frozen paint epoch. */
 export async function captureRealWorldReferenceFrame(
   page: Page,
-  options: { path: string; clip: { x: number; y: number; width: number; height: number }; entirePage: boolean },
+  options: {
+    path: string;
+    clip: { x: number; y: number; width: number; height: number };
+    entirePage: boolean;
+    afterWebGlFreeze?: () => Promise<unknown>;
+  },
 ) {
   // This presentation frame is deliberately not the expected artifact: workers
   // can draw while preflight and prototype freezing cross protocol boundaries.
@@ -15,6 +20,7 @@ export async function captureRealWorldReferenceFrame(
     : await primeOffscreenCanvases(page);
   const webGlFreeze = await freezeWebGlOutput(page);
   try {
+    await options.afterWebGlFreeze?.();
     await page.screenshot({ path: options.path, clip: options.clip });
   } catch (error) {
     // The caller receives ownership only after the reference is saved.

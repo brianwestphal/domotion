@@ -7,6 +7,7 @@
  */
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
+import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
@@ -362,17 +363,7 @@ async function mutateTransforms(frames: readonly PreparedFrame[], key: string, n
 }
 
 async function settleFrames(frames: readonly PreparedFrame[]): Promise<void> {
-  await Promise.all(
-    frames.map(({ frame }) =>
-      evaluateInFrame(
-        frame,
-        () =>
-          new Promise<void>((resolve) => {
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-          }),
-      ).catch(() => undefined),
-    ),
-  );
+  await Promise.all(frames.map(({ frame }) => waitForCaptureAnimationFrames(frame, 2).catch(() => undefined)));
 }
 
 async function defaultRuntimeContexts(session: CDPSession, key: string): Promise<Map<string, number>> {

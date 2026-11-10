@@ -28,6 +28,7 @@
 import { randomUUID } from "node:crypto";
 import type { Frame, Page } from "@playwright/test";
 import sharp from "sharp";
+import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { disposeAll } from "./cdp-lifecycle.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { privateCaptureKey } from "./private-key.js";
@@ -800,9 +801,7 @@ async function restoreMarkerPaint(
       if (marker != null) marker.state = undefined;
     }, args)
     .catch(() => undefined);
-  await frame
-    .evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-    .catch(() => undefined);
+  await waitForCaptureAnimationFrames(frame, 2).catch(() => undefined);
 }
 
 function routeForCandidate(
@@ -898,13 +897,7 @@ async function captureNativeOverlayFrames(
         ),
       ),
     );
-    await Promise.all(
-      frameIndexes.map(({ frame }) =>
-        frame.evaluate(
-          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-        ),
-      ),
-    );
+    await Promise.all(frameIndexes.map(({ frame }) => waitForCaptureAnimationFrames(frame, 2)));
     underlay = await captureNativeScrollbarSourceFrame(page, viewport);
   } catch {
     underlay = null;
@@ -933,15 +926,7 @@ async function captureNativeOverlayFrames(
     );
     await restoreRegistry.dispose();
   }
-  await Promise.all(
-    frameIndexes.map(({ frame }) =>
-      frame
-        .evaluate(
-          () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-        )
-        .catch(() => undefined),
-    ),
-  );
+  await Promise.all(frameIndexes.map(({ frame }) => waitForCaptureAnimationFrames(frame, 2).catch(() => undefined)));
   const restored = await captureNativeScrollbarSourceFrame(page, viewport);
   return { source, underlay, restored };
 }
@@ -1298,7 +1283,7 @@ async function captureMarkerComponents(
       overflowX: candidate.overflowX,
       overflowY: candidate.overflowY,
     });
-    await candidate.frame.evaluate(waitForTwoAnimationFramesInFrame);
+    await waitForCaptureAnimationFrames(candidate.frame, 2);
     const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
       const png = await page.screenshot({ type: "png" });
@@ -1334,7 +1319,7 @@ async function captureMarkerComponents(
       for (const isolatedKind of ["background", "track"] as const) {
         const css = customMarkerCss(markerAttribute, token, isolatedKind);
         await candidate.frame.evaluate(setMarkerCssInFrame, { markerKey, css });
-        await candidate.frame.evaluate(waitForTwoAnimationFramesInFrame);
+        await waitForCaptureAnimationFrames(candidate.frame, 2);
         const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
         components = [...components.filter(({ kind }) => kind !== isolatedKind), ...isolated];
       }
@@ -1636,9 +1621,6 @@ const setMarkerCssInFrame = ({ markerKey, css }: { markerKey: string; css: strin
     | undefined;
   if (state?.style != null) state.style.textContent = css;
 };
-
-const waitForTwoAnimationFramesInFrame = (): Promise<void> =>
-  new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 /** Define the private scrollbar record expando read by CAPTURE_SCRIPT. */
 const attachScrollbarRecordInFrame = ({

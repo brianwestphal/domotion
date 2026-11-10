@@ -10,6 +10,7 @@
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import sharp from "sharp";
+import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
@@ -789,10 +790,7 @@ async function capturePseudoBackdropBoundary(
   let restores: VisibilityRestore[] = [];
   try {
     restores = await hideBackdropLaterNodes(session, ordinaryBackendNodeIds);
-    await evaluateInFrame(
-      page,
-      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-    );
+    await waitForCaptureAnimationFrames(page, 2);
     const clip = clipRectForScreenshot(rasterRect, viewport);
     const png = Buffer.from(
       await page.screenshot({
@@ -816,9 +814,7 @@ async function capturePseudoBackdropBoundary(
   } finally {
     await restoreBackdropLaterNodes(session, restores);
     await styles.dispose();
-    await evaluateInFrame(page, () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))).catch(
-      () => undefined,
-    );
+    await waitForCaptureAnimationFrames(page, 1).catch(() => undefined);
   }
 }
 
@@ -1034,10 +1030,7 @@ async function isolatePseudoSurface(
       }, marker);
       await handle.dispose();
     }
-    await evaluateInFrame(
-      page,
-      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-    );
+    await waitForCaptureAnimationFrames(page, 2);
     const png = Buffer.from(
       await page.screenshot({
         clip: { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height },
@@ -1201,7 +1194,7 @@ export async function preparePseudoFragmentGeometry(
         } catch {
           playbackRate = undefined;
         }
-        await evaluateInFrame(page, () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+        await waitForCaptureAnimationFrames(page, 1);
         const snapshot: SnapshotResult = await session.send("DOMSnapshot.captureSnapshot", {
           computedStyles: [],
           includePaintOrder: true,

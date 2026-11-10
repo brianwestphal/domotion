@@ -1,6 +1,7 @@
 /** Chromium protocol prepass for exact affine text-fragment geometry (DM-2469). */
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
+import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
@@ -286,13 +287,7 @@ async function settleFrames(frames: readonly PreparedFrame[]): Promise<void> {
         // detaching the Frame, leaving Runtime.callFunctionOn pending forever.
         // The mutation is synchronous; this wait is only a best-effort compositor
         // settle, so cap it rather than wedging the entire fixture/worker.
-        const settle = evaluateInFrame(
-          frame,
-          () =>
-            new Promise<void>((resolve) => {
-              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-            }),
-        ).catch(() => undefined);
+        const settle = waitForCaptureAnimationFrames(frame, 2, 1_000).catch(() => undefined);
         await withTimeout(settle, 1_000);
       }),
   );

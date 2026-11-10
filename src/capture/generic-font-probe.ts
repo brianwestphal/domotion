@@ -44,6 +44,7 @@
 // explicitly disabled.
 
 import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
+import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { isSameProcessFrameError } from "./cdp-lifecycle.js";
 import type { CapturedSessionGenericFamilies } from "./types.js";
 import { localeToScriptCodeForFontSelection } from "../render/generic-script-families.js";
@@ -276,12 +277,7 @@ async function waitForGenericSettingsTurn(target: Page | Frame): Promise<void> {
   // table under load. Cross one rendering turn before the first observation
   // and between confirmations so "stable" means stable across task/paint
   // boundaries, not merely within one CDP dispatch batch.
-  await target.evaluate(
-    () =>
-      new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
-      }),
-  );
+  await waitForCaptureAnimationFrames(target, 1);
 }
 
 async function readPageGenericFamilies(
@@ -360,10 +356,8 @@ async function readPageGenericFamilies(
     await page.evaluate(async (id) => {
       await document.fonts.ready;
       document.getElementById(id)?.getBoundingClientRect();
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      });
     }, containerId);
+    await waitForCaptureAnimationFrames(page, 2);
     const { root } = await cdp.send("DOM.getDocument", { depth: -1, pierce: true });
     const common = new Map<string, string>();
     const byScript = new Map<string, Map<string, string>>();

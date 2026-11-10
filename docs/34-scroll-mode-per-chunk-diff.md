@@ -14,6 +14,12 @@ code:
     "tests/real-world-scroll-reference.test.ts",
     "tests/real-world-dom-freeze.ts",
     "tests/real-world-dom-freeze.e2e.test.ts",
+    "tests/real-world-raf-owner.ts",
+    "tests/real-world-raf-owner.e2e.test.ts",
+    "tests/real-world-reference-frame.ts",
+    "tests/real-world-reference-frame.test.ts",
+    "src/capture/frame-scheduler.ts",
+    "src/capture/frame-scheduler.test.ts",
     "src/scroll/executor.ts",
   ]
 aliases: ["docs/34-scroll-mode-per-chunk-diff.md", "doc-34"]
@@ -74,9 +80,17 @@ This is a paused-animation comparison contract. It does not claim an atomic snap
 
 `freezeRealWorldDom` intentionally preserves author `requestAnimationFrame` callbacks so page warmup and WebGL priming can finish. Pausing Web Animations does not pause JavaScript-written DOM transforms. The capture debug source screenshot runs before the asynchronous capture prepasses; a live rAF loop can therefore move an element before the tree walk even though the source PNG and tree belong to the same capture call.
 
-The recorded Stripe mobile logo carousel demonstrates this distinction with the JQ font and TRM pause-readiness controls applied. Its `ul.logo-carousel__marquee` moves about 15 px in 500 ms after both the DOM freeze and WebGL output freeze. The source PNG records the track near x = −89 px, while the later tree records x = −123 px. A static render of that tree reproduces the logo shift without scroll composition. This identifies live author DOM motion across capture stages; it does not justify changing renderer geometry or forcing the carousel to a chosen position.
+The owner-disabled Stripe mobile logo-carousel baseline demonstrates this distinction with the JQ font and TRM pause-readiness controls applied. Its `ul.logo-carousel__marquee` moves about 15 px in 500 ms after both the DOM freeze and WebGL output freeze. The source PNG records the track near x = −89 px, while the later tree records x = −123 px. A static render of that tree reproduces the logo shift without scroll composition. This identifies live author DOM motion across capture stages; it does not justify changing renderer geometry or forcing the carousel to a chosen position.
 
-The browser contract regression keeps a self-scheduling rAF transform loop alive through the initial DOM freeze. Capture-time reference/runtime ownership **after** warmup and graphics priming remains the actionable fix in DM-SJBWJC. Global rAF cancellation during warmup is not a substitute: it can break the WebGL source and capture-owned waits. This investigation establishes the current limitation rather than claiming arbitrary-JavaScript snapshot coherence.
+The initial DOM freeze keeps a self-scheduling rAF transform loop alive for warmup. DM-SJBWJC installs a Context owner before navigation, then parks author callbacks **after** offscreen priming and WebGL output freeze and **before** the final reference screenshot. Existing callbacks stay queued; capture work never replays them. The same owner is verified before and after each tree capture, including its frame set.
+
+Ordinary compositor-settle probes use `waitForCaptureAnimationFrames`. Unregistered Contexts retain their previous rAF behavior; registered Contexts use a separate native capture lane under a Node-owned deadline (2 seconds, or the existing 1-second text-paint bound). Those paint frames do not deliver parked author callbacks. A timeout remains fatal to final verification even when a best-effort paint probe catches its own error. Missing/foreign owners, changed frames, and competing authenticated clocks fail closed.
+
+Transparent warmup decorators keep their function identity only after a canceled registration proves they still use the owned queue; no callback is delivered by this check. No vendor metadata or function-source heuristic grants ownership. Once parked, a changed callable is rejected. Terminal Context cleanup cancels owned waits and parked author callbacks and restores installed globals without replaying them. A saved shim cannot forward to native scheduling after ownership loss. The public capture API and authenticated `raf-clock` protocol are unchanged.
+
+The same-HAR enabled control keeps the track at x = −71.496 px from parking through the source screenshot and captured tree. The initial exact-coordinate logo comparison improves from 8.695% unequal RGB pixels to 1.496%. A subsequent integrated replay with the native helper enabled matches all 30,420 RGB pixels in that focused crop. These scoped observations do not establish whole-scene parity.
+
+This is rAF scheduling ownership for the real-world harness, not a claim of atomic snapshots for arbitrary JavaScript or native media changes. Source/raster/tree evidence is retained with DM-P0X82N and DM-SJBWJC; independent loaded-image and SVG-card omissions remain DM-STQYYJ and DM-AWS6Y4. Their control replay also fails without the rAF owner, so they are not hidden by a whole-scene pass claim.
 
 ## Pass criterion
 
