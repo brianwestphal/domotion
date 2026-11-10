@@ -262,7 +262,7 @@
     "@xterm/headless": "^6.0.0",
     "bidi-js": "^1.0.3",
     "fontkit": "^2.0.4",
-    "kerfjs": "5.0.0-beta.126",
+    "kerfjs": "5.0.0-beta.129",
     "postcss": "8.5.31",
     "sharp": "^0.35.5",
     "svg2ttf": "^6.1.0",
@@ -274,7 +274,7 @@
     "@domotion/text-engine"
   ],
   "devDependencies": {
-    "@kerfjs/ui": "5.0.0-beta.126",
+    "@kerfjs/ui": "5.0.0-beta.129",
     "@types/node": "^25.6.0",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/parser": "^8.59.4",
@@ -282,7 +282,7 @@
     "c8": "^11.0.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
-    "eslint-plugin-kerfjs": "5.0.0-beta.126",
+    "eslint-plugin-kerfjs": "5.0.0-beta.129",
     "gitgist": "^1.2.0",
     "happy-dom": "^20.11.1",
     "istanbul-lib-coverage": "^3.2.2",

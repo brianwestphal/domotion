@@ -31,7 +31,7 @@ The design philosophy, accessibility contract and component-selection guidance a
 
 The tools use kerf-ui's `Toolbar`, `ToolbarControlGroup`, `LucideIcon`, `StateBanner`, `EmptyState`, `LoadingSpinner`, `SegmentedControl` and `Select`. Each is imported from its own subpath (`@kerfjs/ui/toolbar`, …), never from the root barrel.
 
-kerfjs, `@kerfjs/ui` and `eslint-plugin-kerfjs` are pinned to the exact 5.0 beta `5.0.0-beta.126` until 5.0 is released stable. Under kerf-ui 5 none of these components depends on Web Awesome, and `@awesome.me/webawesome` is not installed. Web Awesome components stay out: they are an optional kerf-ui integration, and Web Awesome's default icon library builds Font Awesome CDN URLs, which would break the pages' self-contained, offline contract. Every choice control is a kerf-ui `Select`; no tool renders a native `<select>`.
+kerfjs, `@kerfjs/ui` and `eslint-plugin-kerfjs` are pinned to the exact 5.0 beta `5.0.0-beta.129` until 5.0 is released stable. Under kerf-ui 5 none of these components depends on Web Awesome, and `@awesome.me/webawesome` is not installed. Web Awesome components stay out: they are an optional kerf-ui integration, and Web Awesome's default icon library builds Font Awesome CDN URLs, which would break the pages' self-contained, offline contract. Every choice control is a kerf-ui `Select`; no tool renders a native `<select>`.
 
 **Bundle sizes.** Upgrading from kerfjs 4.4 / kerf-ui 4.4.1 to the 5.0 beta grew the three shipped bundles as follows (JavaScript including the folded CSS string; "minified" is an esbuild `minify` pass over the shipped unminified bundle):
 
