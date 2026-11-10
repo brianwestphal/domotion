@@ -392,7 +392,7 @@ const isolateDecorationsInPage = ({
   rows,
 }: IsolationPageArgs): IsolationFact[] => {
   type RestoreEntry =
-    | { type: "style"; element: HTMLElement; property: string; value: string; priority: string }
+    | { type: "style"; element: HTMLElement; style: string | null }
     | { type: "node"; node: Node; parent: Node; nextSibling: Node | null };
   type RetainedPart = { kind?: string; node?: Element };
   type RestoreState = {
@@ -404,6 +404,7 @@ const isolateDecorationsInPage = ({
   const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;
   const restoreState = pageGlobal[restoreKey] as RestoreState;
   const restore = restoreState.entries;
+  const saved = new Set<HTMLElement>();
   const initialActiveElement = restoreState.activeElement;
   const interactionStates = rows.map((row): InteractionState | null => {
     const host = row.index == null ? null : (sourceNodes?.[row.index] ?? null);
@@ -421,13 +422,15 @@ const isolateDecorationsInPage = ({
   // the browser utility world.
   const helpers = {
     set(element: HTMLElement, property: string, value: string): void {
-      restore.push({
-        type: "style",
-        element,
-        property,
-        value: element.style.getPropertyValue(property),
-        priority: element.style.getPropertyPriority(property),
-      });
+      if (
+        element.style.getPropertyValue(property) === value &&
+        element.style.getPropertyPriority(property) === "important"
+      )
+        return;
+      if (!saved.has(element)) {
+        restore.push({ type: "style", element, style: element.getAttribute("style") });
+        saved.add(element);
+      }
       element.style.setProperty(property, value, "important");
     },
     neutralizeHostPaint(host: HTMLElement): void {
@@ -586,7 +589,9 @@ const isolateDecorationsInPage = ({
   };
 
   for (const element of Array.from(document.querySelectorAll("*"))) {
-    helpers.set(element as HTMLElement, "visibility", "hidden");
+    // Hiding ancestors first already hides inheriting descendants without
+    // source attributes or custom-element attribute callbacks.
+    if (getComputedStyle(element).visibility === "visible") helpers.set(element as HTMLElement, "visibility", "hidden");
   }
   for (const canvas of [document.documentElement, document.body]) {
     if (canvas != null) helpers.set(canvas, "background", "transparent");
@@ -616,7 +621,7 @@ const restoreDecorationIsolationInPage = ({
   rows,
 }: RestorePageArgs): { ok: boolean; reason?: string } => {
   type RestoreEntry =
-    | { type: "style"; element: HTMLElement; property: string; value: string; priority: string }
+    | { type: "style"; element: HTMLElement; style: string | null }
     | { type: "node"; node: Node; parent: Node; nextSibling: Node | null };
   type RetainedPart = { kind?: string; node?: Element };
   type RestoreState = {
@@ -671,25 +676,17 @@ const restoreDecorationIsolationInPage = ({
           }
         }
       }
-    } else if (entry.value === "") {
-      try {
-        entry.element.style.removeProperty(entry.property);
-      } catch {
-        failures.push(`style restore failed: ${entry.property}`);
-      }
     } else {
       try {
-        entry.element.style.setProperty(entry.property, entry.value, entry.priority);
+        if (entry.element.getAttribute("style") !== entry.style) {
+          if (entry.style == null) entry.element.removeAttribute("style");
+          else entry.element.setAttribute("style", entry.style);
+        }
+        if (entry.element.getAttribute("style") !== entry.style)
+          failures.push("style attribute did not restore exactly");
       } catch {
-        failures.push(`style restore failed: ${entry.property}`);
+        failures.push("style attribute restore failed");
       }
-    }
-    if (
-      entry.type === "style" &&
-      (entry.element.style.getPropertyValue(entry.property) !== entry.value ||
-        entry.element.style.getPropertyPriority(entry.property) !== entry.priority)
-    ) {
-      failures.push(`style restore mismatch: ${entry.property}`);
     }
   }
   const sourceNodes = pageGlobal[sourceNodeKey] as Element[] | undefined;

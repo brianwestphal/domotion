@@ -1,0 +1,885 @@
+{
+  "ticket": "DM-D8Y3WJ",
+  "baseline": "bb9cad1d117728768926de89c60e3f9e7984ae60",
+  "browser": "147.0.7727.15",
+  "scope": "Exact native-control authored style restoration and avoidable callback writes; NOT whole-document mutation-free capture or SVG raster identity.",
+  "matrixBefore": [
+    {
+      "profile": "none",
+      "name": "absent",
+      "before": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "after": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "none",
+      "name": "empty",
+      "before": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "none",
+      "name": "literal",
+      "before": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "none",
+      "name": "explicit-visible",
+      "before": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "buttons",
+      "name": "absent",
+      "before": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:2578)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "buttons",
+      "name": "empty",
+      "before": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:2578)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "buttons",
+      "name": "literal",
+      "before": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"color: red; --note: one;\"></x-containment-guard>",
+        "style": "color: red; --note: one;"
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:2578)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "buttons",
+      "name": "explicit-visible",
+      "before": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"color: red; --note: one; visibility: visible !important;\"></x-containment-guard>",
+        "style": "color: red; --note: one; visibility: visible !important;"
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:2578)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        },
+        {
+          "property": "visibility",
+          "value": "visible",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:247)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "decoration",
+      "name": "absent",
+      "before": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at Object.set (eval at evaluate (:302:30), <anonymous>:1:696)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:4931)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "decoration",
+      "name": "empty",
+      "before": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at Object.set (eval at evaluate (:302:30), <anonymous>:1:696)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:4931)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "decoration",
+      "name": "literal",
+      "before": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"color: red; --note: one;\"></x-containment-guard>",
+        "style": "color: red; --note: one;"
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at Object.set (eval at evaluate (:302:30), <anonymous>:1:696)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:4931)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "decoration",
+      "name": "explicit-visible",
+      "before": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"color: red; --note: one; visibility: visible !important;\"></x-containment-guard>",
+        "style": "color: red; --note: one; visibility: visible !important;"
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at Object.set (eval at evaluate (:302:30), <anonymous>:1:696)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:4931)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        },
+        {
+          "property": "visibility",
+          "value": "visible",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:1410)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    }
+  ],
+  "matrixAfter": [
+    {
+      "profile": "none",
+      "name": "absent",
+      "before": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "after": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "none",
+      "name": "empty",
+      "before": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "none",
+      "name": "literal",
+      "before": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "none",
+      "name": "explicit-visible",
+      "before": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 0,
+      "warnings": [],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "buttons",
+      "name": "absent",
+      "before": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "after": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "callbackDelta": 0,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "buttons",
+      "name": "empty",
+      "before": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 0,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "buttons",
+      "name": "literal",
+      "before": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 0,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "buttons",
+      "name": "explicit-visible",
+      "before": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "body",
+          "feature": "scrollbar-capture",
+          "detail": "authoritative scrollbar record is unavailable; missing marker-paint, scrollbar-object-existence; legacy synthesis is disabled"
+        },
+        {
+          "selector": "body > button",
+          "feature": "native-control-raster",
+          "detail": "required Chromium native-control surface unavailable (overlapping native owners cannot be separated by one atomic alpha frame); sampled SVG chrome is suppressed (DM-2456)"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at Object.set (eval at evaluate (:302:30), <anonymous>:1:2529)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:2791)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    },
+    {
+      "profile": "decoration",
+      "name": "absent",
+      "before": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "after": {
+        "html": "<x-containment-guard></x-containment-guard>",
+        "style": null
+      },
+      "callbackDelta": 0,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "decoration",
+      "name": "empty",
+      "before": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"\"></x-containment-guard>",
+        "style": ""
+      },
+      "callbackDelta": 0,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "decoration",
+      "name": "literal",
+      "before": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\" COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": " COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 0,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": []
+    },
+    {
+      "profile": "decoration",
+      "name": "explicit-visible",
+      "before": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "after": {
+        "html": "<x-containment-guard style=\"visibility:visible!important; COLOR : red ; --note:  one  ; \"></x-containment-guard>",
+        "style": "visibility:visible!important; COLOR : red ; --note:  one  ; "
+      },
+      "callbackDelta": 2,
+      "warnings": [
+        {
+          "selector": "option::checkmark",
+          "feature": "generated-pseudo-fragment-geometry",
+          "detail": "computed generated content had no correlatable Chromium pseudo backend node; retained one isolated Chromium-painted pseudo surface"
+        }
+      ],
+      "constructed": 1,
+      "connected": 1,
+      "writes": [
+        {
+          "property": "visibility",
+          "value": "hidden",
+          "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:608)\n    at Object.set (eval at evaluate (:302:30), <anonymous>:1:804)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:5091)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        }
+      ]
+    }
+  ],
+  "qualifiedBefore": {
+    "baseline": "bb9cad1d117728768926de89c60e3f9e7984ae60",
+    "browser": "147.0.7727.15",
+    "viewport": {
+      "width": 200,
+      "height": 160,
+      "dpr": 1
+    },
+    "sourceSha256": "17c0278a27cade9f4ee67695bc16c1a6a0b738c055882c8d139a8e8a68235051",
+    "expectedSha256": "351746c4c41f3eb1b555198959de187a8f6c6af4be90a10fcb15c841abdd4cf8",
+    "restoredSha256": "351746c4c41f3eb1b555198959de187a8f6c6af4be90a10fcb15c841abdd4cf8",
+    "actualSha256": "8cdbe5a64a7e1d7c02da6534e124ea0a53bec8d8dff1608a76e82d108c01fd57",
+    "changedPixels": 8,
+    "totalPixels": 32000,
+    "diffPct": 0.025,
+    "restorationChangedPixels": 0,
+    "before": {
+      "guard": "<x-containment-guard></x-containment-guard>",
+      "state": {
+        "constructed": 1,
+        "connected": 1,
+        "callbacks": 0
+      }
+    },
+    "after": {
+      "guard": "<x-containment-guard style=\"\"></x-containment-guard>",
+      "state": {
+        "constructed": 1,
+        "connected": 1,
+        "callbacks": 2
+      }
+    },
+    "warnings": [],
+    "rasters": [
+      {
+        "x": 7,
+        "y": 67,
+        "width": 42,
+        "height": 22,
+        "sha256": "bbd493d2275ca95c9c48de8d70c237525dadd3bc2a746c1203798aed3979d6f0"
+      },
+      {
+        "x": 7,
+        "y": 95,
+        "width": 42,
+        "height": 22,
+        "sha256": "bbd493d2275ca95c9c48de8d70c237525dadd3bc2a746c1203798aed3979d6f0"
+      }
+    ]
+  },
+  "qualifiedAfter": {
+    "baseline": "bb9cad1d117728768926de89c60e3f9e7984ae60",
+    "browser": "147.0.7727.15",
+    "viewport": {
+      "width": 200,
+      "height": 160,
+      "dpr": 1
+    },
+    "sourceSha256": "17c0278a27cade9f4ee67695bc16c1a6a0b738c055882c8d139a8e8a68235051",
+    "expectedSha256": "351746c4c41f3eb1b555198959de187a8f6c6af4be90a10fcb15c841abdd4cf8",
+    "restoredSha256": "351746c4c41f3eb1b555198959de187a8f6c6af4be90a10fcb15c841abdd4cf8",
+    "actualSha256": "8cdbe5a64a7e1d7c02da6534e124ea0a53bec8d8dff1608a76e82d108c01fd57",
+    "changedPixels": 8,
+    "totalPixels": 32000,
+    "diffPct": 0.025,
+    "restorationChangedPixels": 0,
+    "before": {
+      "guard": "<x-containment-guard></x-containment-guard>",
+      "state": {
+        "constructed": 1,
+        "connected": 1,
+        "callbacks": 0
+      }
+    },
+    "after": {
+      "guard": "<x-containment-guard></x-containment-guard>",
+      "state": {
+        "constructed": 1,
+        "connected": 1,
+        "callbacks": 0
+      }
+    },
+    "warnings": [],
+    "rasters": [
+      {
+        "x": 7,
+        "y": 67,
+        "width": 42,
+        "height": 22,
+        "sha256": "bbd493d2275ca95c9c48de8d70c237525dadd3bc2a746c1203798aed3979d6f0"
+      },
+      {
+        "x": 7,
+        "y": 95,
+        "width": 42,
+        "height": 22,
+        "sha256": "bbd493d2275ca95c9c48de8d70c237525dadd3bc2a746c1203798aed3979d6f0"
+      }
+    ]
+  },
+  "independentUnchangedSourceControl": {
+    "baseline": "bb9cad1d117728768926de89c60e3f9e7984ae60",
+    "rows": [
+      {
+        "name": "none",
+        "bodyBefore": null,
+        "bodyAfter": null,
+        "retainedColorNormAppends": [
+          {
+            "kind": "append",
+            "html": "<div style=\"position: absolute; visibility: hidden;\"></div>",
+            "stack": "Error\n    at Node.appendChild (eval at evaluate (:302:30), <anonymous>:1:179)\n    at createColorNorm (eval at evaluate (:302:30), <anonymous>:8:17)\n    at captureDocumentTree (eval at evaluate (:302:30), <anonymous>:11414:86)\n    at eval (eval at evaluate (:302:30), <anonymous>:11651:19)\n    at eval (eval at evaluate (:302:30), <anonymous>:11653:2)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          },
+          {
+            "kind": "append",
+            "html": "<div style=\"position: absolute; visibility: hidden;\"></div>",
+            "stack": "Error\n    at Node.appendChild (eval at evaluate (:302:30), <anonymous>:1:179)\n    at createColorNorm (eval at evaluate (:302:30), <anonymous>:8:17)\n    at captureDocumentTree (eval at evaluate (:302:30), <anonymous>:11414:86)\n    at eval (eval at evaluate (:302:30), <anonymous>:11651:19)\n    at eval (eval at evaluate (:302:30), <anonymous>:11653:2)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ],
+        "bodyPropertyWrites": []
+      },
+      {
+        "name": "overflow-no-controls",
+        "bodyBefore": null,
+        "bodyAfter": "",
+        "retainedColorNormAppends": [
+          {
+            "kind": "append",
+            "html": "<div style=\"position: absolute; visibility: hidden;\"></div>",
+            "stack": "Error\n    at Node.appendChild (eval at evaluate (:302:30), <anonymous>:1:179)\n    at createColorNorm (eval at evaluate (:302:30), <anonymous>:8:17)\n    at captureDocumentTree (eval at evaluate (:302:30), <anonymous>:11414:86)\n    at eval (eval at evaluate (:302:30), <anonymous>:11651:19)\n    at eval (eval at evaluate (:302:30), <anonymous>:11653:2)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          },
+          {
+            "kind": "append",
+            "html": "<div style=\"position: absolute; visibility: hidden;\"></div>",
+            "stack": "Error\n    at Node.appendChild (eval at evaluate (:302:30), <anonymous>:1:179)\n    at createColorNorm (eval at evaluate (:302:30), <anonymous>:8:17)\n    at captureDocumentTree (eval at evaluate (:302:30), <anonymous>:11414:86)\n    at eval (eval at evaluate (:302:30), <anonymous>:11651:19)\n    at eval (eval at evaluate (:302:30), <anonymous>:11653:2)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ],
+        "bodyPropertyWrites": [
+          {
+            "kind": "set",
+            "property": "scrollbar-color",
+            "value": "rgb(23,71,239) rgb(13,227,239)",
+            "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:440)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:929)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          },
+          {
+            "kind": "set",
+            "property": "overflow-x",
+            "value": "auto",
+            "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:440)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:1322)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          },
+          {
+            "kind": "set",
+            "property": "overflow-y",
+            "value": "auto",
+            "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:440)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:1403)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "name": "original",
+        "bodyBefore": null,
+        "bodyAfter": "",
+        "retainedColorNormAppends": [
+          {
+            "kind": "append",
+            "html": "<div style=\"position: absolute; visibility: hidden;\"></div>",
+            "stack": "Error\n    at Node.appendChild (eval at evaluate (:302:30), <anonymous>:1:179)\n    at createColorNorm (eval at evaluate (:302:30), <anonymous>:8:17)\n    at captureDocumentTree (eval at evaluate (:302:30), <anonymous>:11414:86)\n    at eval (eval at evaluate (:302:30), <anonymous>:11651:19)\n    at eval (eval at evaluate (:302:30), <anonymous>:11653:2)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          },
+          {
+            "kind": "append",
+            "html": "<div style=\"position: absolute; visibility: hidden;\"></div>",
+            "stack": "Error\n    at Node.appendChild (eval at evaluate (:302:30), <anonymous>:1:179)\n    at createColorNorm (eval at evaluate (:302:30), <anonymous>:8:17)\n    at captureDocumentTree (eval at evaluate (:302:30), <anonymous>:11414:86)\n    at eval (eval at evaluate (:302:30), <anonymous>:11651:19)\n    at eval (eval at evaluate (:302:30), <anonymous>:11653:2)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ],
+        "bodyPropertyWrites": [
+          {
+            "kind": "set",
+            "property": "scrollbar-color",
+            "value": "rgb(23,71,239) rgb(13,227,239)",
+            "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:440)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:929)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          },
+          {
+            "kind": "set",
+            "property": "overflow-x",
+            "value": "auto",
+            "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:440)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:1322)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          },
+          {
+            "kind": "set",
+            "property": "overflow-y",
+            "value": "auto",
+            "stack": "Error\n    at CSSStyleDeclaration.setProperty (eval at evaluate (:302:30), <anonymous>:1:440)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:1403)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      }
+    ]
+  },
+  "svgResidualPixels": [
+    {
+      "x": 8,
+      "y": 70,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    },
+    {
+      "x": 47,
+      "y": 70,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    },
+    {
+      "x": 8,
+      "y": 85,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    },
+    {
+      "x": 47,
+      "y": 85,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    },
+    {
+      "x": 8,
+      "y": 98,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    },
+    {
+      "x": 47,
+      "y": 98,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    },
+    {
+      "x": 8,
+      "y": 113,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    },
+    {
+      "x": 47,
+      "y": 113,
+      "expected": [151, 151, 151, 255],
+      "actual": [150, 150, 150, 255]
+    }
+  ],
+  "followUps": {
+    "explicitOverrideCallbacks": "DM-Q4J4JG",
+    "colorNormLifecycleInvestigation": "DM-AK8DWV",
+    "scrollbarAttributeRestoration": "DM-W4VADZ",
+    "preexistingSvgResidualInvestigation": "DM-ZYANDV"
+  },
+  "commands": [
+    "node --import tsx tools/scratch/d8-baseline.ts before",
+    "node --import tsx tools/scratch/d8-baseline.ts after",
+    "node --import tsx tools/scratch/d8-qualified.ts before (clean source-control checkout)",
+    "node --import tsx tools/scratch/d8-qualified.ts after",
+    "node --import tsx tools/scratch/d8-independent-cleanup.ts (clean source-control checkout)",
+    "node node_modules/vitest/vitest.mjs run --config vitest.e2e.config.ts tests/native-control-style-restoration.e2e.test.ts tests/native-control-source-frame.e2e.test.ts tests/native-control-decoration.e2e.test.ts"
+  ]
+}

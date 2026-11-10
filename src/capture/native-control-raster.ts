@@ -334,9 +334,7 @@ export async function rasterizeNativeControlSurfaces(
 
   type RestoreEntry = {
     element: HTMLElement;
-    property: string;
-    value: string;
-    priority: string;
+    style: string | null;
   };
   const restoreRegistry = createPageRegistry<RestoreEntry[]>(page, "NativeControlRestore");
   const restoreKey = restoreRegistry.key;
@@ -354,9 +352,7 @@ export async function rasterizeNativeControlSurfaces(
         ({ sourceNodeKey, restoreKey, rows }) => {
           type RestoreEntry = {
             element: HTMLElement;
-            property: string;
-            value: string;
-            priority: string;
+            style: string | null;
           };
           const host = globalThis as typeof globalThis & Record<string, unknown>;
           const sourceNodes = host[sourceNodeKey] as Element[] | undefined;
@@ -437,6 +433,22 @@ export async function rasterizeNativeControlSurfaces(
           });
 
           const restore = host[restoreKey] as RestoreEntry[];
+          const saved = new Set<HTMLElement>();
+          // Object methods remain serializable under direct TSX callers.
+          const styles = {
+            set(element: HTMLElement, property: string, value: string): void {
+              if (
+                element.style.getPropertyValue(property) === value &&
+                element.style.getPropertyPriority(property) === "important"
+              )
+                return;
+              if (!saved.has(element)) {
+                restore.push({ element, style: element.getAttribute("style") });
+                saved.add(element);
+              }
+              element.style.setProperty(property, value, "important");
+            },
+          };
           for (const element of elements) {
             let retained = false;
             for (const target of targetSet) {
@@ -445,39 +457,20 @@ export async function rasterizeNativeControlSurfaces(
                 break;
               }
             }
-            if (!retained) {
-              const html = element as HTMLElement;
-              restore.push({
-                element: html,
-                property: "visibility",
-                value: html.style.getPropertyValue("visibility"),
-                priority: html.style.getPropertyPriority("visibility"),
-              });
-              html.style.setProperty("visibility", "hidden", "important");
+            // Document order hides ancestors first. Inherited hidden nodes
+            // need no source-attribute write; explicit visible descendants do.
+            if (!retained && getComputedStyle(element).visibility === "visible") {
+              styles.set(element as HTMLElement, "visibility", "hidden");
             }
           }
-          // A hidden ancestor's visibility is inherited. Reassert the used value
-          // on each owner; authored hidden descendants remain untouched.
           for (const target of targetSet) {
-            const html = target as HTMLElement;
-            restore.push({
-              element: html,
-              property: "visibility",
-              value: html.style.getPropertyValue("visibility"),
-              priority: html.style.getPropertyPriority("visibility"),
-            });
-            html.style.setProperty("visibility", targetVisibility.get(target) ?? "visible", "important");
+            const visibility = targetVisibility.get(target) ?? "visible";
+            if (getComputedStyle(target).visibility !== visibility) {
+              styles.set(target as HTMLElement, "visibility", visibility);
+            }
           }
           for (const canvas of [document.documentElement, document.body]) {
-            if (canvas != null && !targetSet.has(canvas)) {
-              restore.push({
-                element: canvas,
-                property: "background",
-                value: canvas.style.getPropertyValue("background"),
-                priority: canvas.style.getPropertyPriority("background"),
-              });
-              canvas.style.setProperty("background", "transparent", "important");
-            }
+            if (canvas != null && !targetSet.has(canvas)) styles.set(canvas, "background", "transparent");
           }
           void document.documentElement.getBoundingClientRect();
           return facts;
@@ -500,23 +493,37 @@ export async function rasterizeNativeControlSurfaces(
     isolationFailure = error instanceof Error ? error.message : "isolation preparation failed";
     isolatedFrame = null;
   } finally {
-    await page
+    const restored = await page
       .evaluate((restoreKey) => {
-        type RestoreEntry = {
-          element: HTMLElement;
-          property: string;
-          value: string;
-          priority: string;
-        };
+        type RestoreEntry = { element: HTMLElement; style: string | null };
         const host = globalThis as typeof globalThis & Record<string, unknown>;
         const restore = host[restoreKey] as RestoreEntry[] | undefined;
-        for (let index = (restore?.length ?? 0) - 1; index >= 0; index--) {
-          const entry = restore![index];
-          if (entry.value === "") entry.element.style.removeProperty(entry.property);
-          else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
+        if (restore == null) return { ok: false, reason: "style restore registry unavailable" };
+        const failures: string[] = [];
+        for (let index = restore.length - 1; index >= 0; index--) {
+          const entry = restore[index];
+          try {
+            if (entry.element.getAttribute("style") !== entry.style) {
+              if (entry.style == null) entry.element.removeAttribute("style");
+              else entry.element.setAttribute("style", entry.style);
+            }
+            if (entry.element.getAttribute("style") !== entry.style)
+              failures.push("source style attribute did not restore exactly");
+          } catch {
+            failures.push("source style attribute restore failed");
+          }
         }
+        return { ok: failures.length === 0, reason: failures.join("; ") };
       }, restoreKey)
-      .catch(() => undefined);
+      .catch((error: unknown) => ({
+        ok: false,
+        reason: error instanceof Error ? error.message : "source style restore failed",
+      }));
+    if (options.sourceNodeKey != null && !restored.ok) {
+      isolatedFrame = null;
+      isolationFailure = restored.reason;
+      isolationFacts = isolationFacts.map((fact) => ({ ...fact, connected: false }));
+    }
     await restoreRegistry.dispose();
   }
 
