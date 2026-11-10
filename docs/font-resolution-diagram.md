@@ -347,7 +347,8 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > platform route.
 >
 > DM-7KS85J retains the controlled opaque-provenance fixture's diagnostics in
-> `opaque-font-family/native-context.json` even when an assertion fails. The
+> `opaque-font-family/native-context.json` even when an assertion fails. Actual
+> capture warnings remain separate from the independent declaredness probe. The
 > record includes source/runtime hashes, direct declaration facts, exact native
 > matched/animated classifier inputs and their admission result, captured family
 > stacks, Range widths and painted faces. It never changes the strict UA-standard

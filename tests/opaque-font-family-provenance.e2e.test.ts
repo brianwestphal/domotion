@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { release } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
+import { captureElementTreeWithWarnings, launchChromium, type CapturedElement } from "../src/index.js";
 import {
   matchedFamilyIsUnambiguouslyAuthored,
   type MatchedFamilyDeclarations,
@@ -140,7 +140,9 @@ describe("opaque initial-named font declarations", () => {
           probe.propertyKey,
         ),
       ).toBe(false);
-      const tree = flatten(await captureElementTree(page, "body", { x: 0, y: 0, width: 720, height: 900 }));
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 720, height: 900 });
+      evidence.captureWarnings = capture.warnings;
+      const tree = flatten(capture.tree);
       const family = (id: string) =>
         tree.find((node) => node.text.trim() === `A漢 ${id}`)?.styles.fontFamilyStack?.genericFamily;
       evidence.sourceStyleFacts = await page.evaluate(() => {
