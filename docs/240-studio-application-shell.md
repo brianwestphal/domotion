@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["studio", "ui"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2687", "DM-S31XF3", "DM-1X1GQ8"]
+tickets: ["DM-2687", "DM-S31XF3", "DM-1X1GQ8", "DM-5YECNS"]
 code:
   [
     "src/cli/studio.ts",
@@ -16,6 +16,7 @@ code:
     "scripts/build-studio-client.mjs",
     "src/studio/app-projects.test.ts",
     "src/studio/server.e2e.test.ts",
+    "tests/studio-responsive-metrics.e2e.test.ts",
     "src/utils/local-server.ts",
     "src/utils/local-server.e2e.test.ts",
   ]
@@ -183,6 +184,13 @@ timing are specified in `docs/252-studio-real-interaction-import.md`.
 The zoomable, keyboard-accessible multitrack timing editor is specified in
 `docs/253-studio-detailed-multitrack-timeline.md`.
 
+The Generation & review counters wrap within their own panel when their full
+labels and padding cannot share a row. The cards grow equally within each row;
+counts, labels and source order remain visible. This adapts to the panel's
+available width, including the intermediate viewport range where the outer
+layout still has two columns. No clipping or viewport-specific counter breakpoint
+is used.
+
 The responsive two-column layout collapses to one column at or below 800 CSS pixels,
 all controls retain visible keyboard focus, status/errors use live regions, and
 the complete workflow has a real Chromium E2E assertion. The client is authored
@@ -229,6 +237,14 @@ default creation, no-overwrite behavior, atomic save/reopen, and structured
 server validation errors. `src/studio/server.e2e.test.ts` drives the rendered
 Kerf UI through create → edit narrative/scene → save → make an unsaved edit →
 reopen, then checks the persisted file and page-error stream.
+
+`tests/studio-responsive-metrics.e2e.test.ts` loads the committed treatment
+showcase project in the real Studio server and checks 1440 → 900 → 390 → 1440
+CSS-pixel viewport transitions. Each counter and label must stay inside its
+owning panel, cards must not overlap, values/order and disabled generation
+behavior remain intact, returning wide restores the initial geometry, and adding
+a scene then undoing updates the displayed count without saving the fixture.
+Page-level horizontal overflow alone is insufficient to detect panel overflow.
 
 No font, glyph, layout-capture, or SVG-paint logic changes in this shell. Future
 preview/capture features must continue using the existing Chromium, HarfBuzz,
