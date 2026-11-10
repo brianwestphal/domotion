@@ -245,4 +245,5 @@ jobs:
             tests/output/native-control-decoration-e2e/
             tests/output/native-browser-logs/
             tests/output/webgl-startup-e2e/
+            tests/output/worker-bootstrap/
           if-no-files-found: error

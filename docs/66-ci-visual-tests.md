@@ -250,6 +250,14 @@ measures browser transport and ownership, not font shaping/helper precision or
 the full visual regression. Local macOS success is not Linux/Windows native
 validation.
 
+SharedWorker readiness controls retain both plain `Event` load/parse failures and
+`ErrorEvent` runtime messages. A failure writes bounded request completion/body
+digests, console errors, page state, browser version and source identity under
+`worker-bootstrap/startup-*.json`; main CI uploads this directory even when its
+browser lane fails. The readiness deadline remains eight seconds. These facts
+distinguish an observed error from missing progress; a timeout alone does not
+identify a broker, GPU or resource-loading cause.
+
 Linux host-lifetime checks retain separate `process-lifetime-SIGTERM.json` and
 `process-lifetime-SIGKILL.json` witnesses beside the bootstrap fingerprint.
 They record only bounded PID/state/start-time transitions and the tested signal.

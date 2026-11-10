@@ -1,5 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { createServer, type Server } from "node:http";
 import type { Page } from "@playwright/test";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,13 +8,16 @@ import { recordBrowserFontEnvironment } from "../src/capture/image-font-hinting.
 import { captureElementTree } from "../src/capture/index.js";
 import { openRealWorldBrowser } from "./real-world-browser.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
-import { FlatCdp } from "./real-world-cdp.js";
+import { cdpBounded, FlatCdp } from "./real-world-cdp.js";
 import { sharedWorkerBootstrapFor } from "./real-world-shared-worker-bootstrap.js";
 
 let server: Server;
 let origin: string;
 let owner: Awaited<ReturnType<typeof openRealWorldBrowser>>;
 const leases = new Set<{ dispose(): Promise<void> }>();
+let requests: Array<{ path: string; contentType: string; bodySha256: string; finished: boolean }> = [];
+let startupEvidence: string[] = [];
+const pageErrors = new WeakMap<Page, string[]>();
 interface Report {
   nativeInImport: boolean;
   nativeAtStart: boolean;
@@ -32,6 +36,7 @@ interface Probe {
   worker: SharedWorker | Worker;
   port: MessagePort | Worker;
   error?: string;
+  errorEventType?: string;
 }
 type Scope = typeof globalThis & { dm34: Record<string, Probe> };
 const patch = `(()=>{globalThis.__dm34OriginalClear??=Object.getOwnPropertyDescriptor(WebGL2RenderingContext.prototype,'clear');Object.defineProperty(WebGL2RenderingContext.prototype,'clear',{value:function(){},writable:true,configurable:true});return true})()`;
@@ -40,15 +45,26 @@ const restore = `(()=>{if(globalThis.__dm34OriginalClear)Object.defineProperty(W
 beforeAll(async () => {
   server = createServer((request, response) => {
     response.setHeader("content-security-policy", "script-src 'self'; worker-src 'self'");
-    response.setHeader("content-type", request.url?.endsWith(".js") ? "text/javascript" : "text/html");
+    const contentType = request.url?.endsWith(".js") ? "text/javascript" : "text/html";
+    response.setHeader("content-type", contentType);
     const workerScript = `import{cachedClear,nativeInImport,imported}from'./relative.js';const nativeAtStart=WebGL2RenderingContext.prototype.clear.toString().includes('[native code]');function makeReport(){const gl=new OffscreenCanvas(1,1).getContext('webgl2',{preserveDrawingBuffer:true});gl.clearColor(1,0,0,1);cachedClear.call(gl,gl.COLOR_BUFFER_BIT);const pixel=new Uint8Array(4);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);return {nativeInImport,nativeAtStart,nativeNow:gl.clear.toString().includes('[native code]'),pixel:Array.from(pixel),imported,origin:location.origin,url:location.pathname,hardened:Object.isFrozen(WebGL2RenderingContext.prototype),retained:globalThis.__domotionRealWorldWebGlFrozen?.failed===true};}function listen(p){p.onmessage=({data})=>{if(data.close){close();return;}if(data.spawnChild){try{const child=new Worker('/dedicated.js',{type:'module'});child.onmessage=e=>p.postMessage({...makeReport(),descendant:e.data});child.onerror=e=>p.postMessage({...makeReport(),childError:e.message});}catch(e){p.postMessage({...makeReport(),childError:String(e)});}return;}if(data.harden)Object.freeze(WebGL2RenderingContext.prototype);p.postMessage(makeReport());};p.start?.();p.postMessage(makeReport());}if('onconnect'in globalThis)onconnect=({ports:[p]})=>listen(p);else listen(globalThis);`;
-    response.end(
+    const body =
       request.url === "/relative.js"
         ? `export const cachedClear=WebGL2RenderingContext.prototype.clear;export const nativeInImport=cachedClear.toString().includes('[native code]');export const imported='relative-ok';`
         : request.url === "/worker.js" || request.url === "/dedicated.js"
           ? workerScript
-          : "<!doctype html><body>worker fixture</body>",
-    );
+          : "<!doctype html><body>worker fixture</body>";
+    const fact = {
+      path: (request.url ?? "").split("?")[0].slice(0, 128),
+      contentType,
+      bodySha256: createHash("sha256").update(body).digest("hex"),
+      finished: false,
+    };
+    if (requests.length < 64) requests.push(fact);
+    response.once("finish", () => {
+      fact.finished = true;
+    });
+    response.end(body);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -56,6 +72,8 @@ beforeAll(async () => {
   origin = `http://127.0.0.1:${address.port}`;
 });
 beforeEach(async () => {
+  requests = [];
+  startupEvidence = [];
   let recorded = false;
   owner = await openRealWorldBrowser(
     (browser, env) => {
@@ -80,6 +98,11 @@ afterAll(async () => {
 async function page(): Promise<Page> {
   const context = await owner.browser.newContext();
   const page = await context.newPage();
+  const errors: string[] = [];
+  pageErrors.set(page, errors);
+  page.on("console", (message) => {
+    if (message.type() === "error" && errors.length < 20) errors.push(message.text().slice(0, 512));
+  });
   await page.goto(origin);
   return page;
 }
@@ -107,35 +130,100 @@ async function acquire(page: Page, beforePatch?: () => Promise<void>) {
   leases.add(lease);
   return { lease, counters };
 }
-async function start(page: Page, name = "worker", kind: "shared" | "dedicated" = "shared"): Promise<Report> {
+async function saveStartupFailure(page: Page, name: string, kind: string, phase: "error" | "timeout"): Promise<void> {
+  const state = await cdpBounded(
+    page.evaluate((name) => {
+      const probe = (globalThis as Scope).dm34[name];
+      return {
+        reports: probe?.reports.length ?? 0,
+        error: probe?.error ?? null,
+        errorEventType: probe?.errorEventType ?? null,
+        visibility: document.visibilityState,
+        focused: document.hasFocus(),
+      };
+    }, name),
+    500,
+    "Worker startup diagnostic",
+  ).catch(() => ({ unavailable: true }));
+  const file = join(
+    process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output",
+    "worker-bootstrap",
+    `startup-${process.pid}-${Date.now()}-${name.replace(/[^a-z0-9-]/gi, "_")}.json`,
+  );
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(
+    file,
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        sourceCommit: process.env["GITHUB_SHA"] ?? null,
+        platform: process.platform,
+        arch: process.arch,
+        browserVersion: owner.browser.version(),
+        processId: owner.processId,
+        name,
+        kind,
+        phase,
+        state,
+        requests,
+        consoleErrors: pageErrors.get(page) ?? [],
+      },
+      null,
+      2,
+    ),
+  );
+  startupEvidence.push(file);
+}
+async function start(
+  page: Page,
+  name = "worker",
+  kind: "shared" | "dedicated" = "shared",
+  script?: string,
+): Promise<Report> {
   await page.evaluate(
-    ({ name, kind }) => {
+    ({ name, kind, script }) => {
       const scope = globalThis as Scope;
       scope.dm34 ??= {};
       const worker =
         kind === "shared"
-          ? new SharedWorker("/worker.js", { type: "module", name })
-          : new Worker("/dedicated.js", { type: "module" });
+          ? new SharedWorker(script ?? "/worker.js", { type: "module", name })
+          : new Worker(script ?? "/dedicated.js", { type: "module" });
       const port = worker instanceof SharedWorker ? worker.port : worker;
       const probe: Probe = { worker, port, reports: [] };
       scope.dm34[name] = probe;
       worker.onerror = (event) => {
-        probe.error = event.message;
+        // Chrome147 shared_worker_client.cc:48–89 dispatches plain Event for
+        // fetch/parse failures; only runtime failures carry ErrorEvent.message.
+        probe.errorEventType = event instanceof ErrorEvent ? "ErrorEvent" : "Event";
+        probe.error = `${event.type} (${probe.errorEventType})${event.message ? `: ${event.message.slice(0, 512)}` : ""}`;
+      };
+      port.onmessageerror = () => {
+        probe.error = "messageerror";
       };
       port.onmessage = ({ data }: MessageEvent<Report>) => probe.reports.push(data);
       if (port instanceof MessagePort) port.start();
     },
-    { name, kind },
+    { name, kind, script },
   );
-  await page.waitForFunction(
-    (name) => {
-      const probe = (globalThis as Scope).dm34[name]!;
-      return probe.reports.length > 0 || probe.error != null;
-    },
-    name,
-    { timeout: 8000 },
-  );
-  expect(await page.evaluate((name) => (globalThis as Scope).dm34[name]!.error, name)).toBeUndefined();
+  try {
+    await page.waitForFunction(
+      (name) => {
+        const probe = (globalThis as Scope).dm34[name]!;
+        return probe.reports.length > 0 || probe.error != null;
+      },
+      name,
+      { timeout: 8000 },
+    );
+  } catch (error) {
+    await saveStartupFailure(page, name, kind, "timeout");
+    throw error;
+  }
+  const error = await page.evaluate((name) => (globalThis as Scope).dm34[name]!.error, name);
+  if (error != null) {
+    await saveStartupFailure(page, name, kind, "error");
+    throw new Error(`Worker startup failed: ${error}`);
+  }
   return (await latest(page, name))!;
 }
 const latest = (page: Page, name = "worker"): Promise<Report | undefined> =>
@@ -154,6 +242,26 @@ async function report(page: Page, message: Record<string, unknown> = {}, name = 
 }
 
 describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
+  it("reports native generic module-load errors instead of waiting for readiness", async () => {
+    const p = await page();
+    const freeze = await freezeWebGlOutput(p);
+    leases.add(freeze);
+    // The fixture returns HTML under a JavaScript MIME type at this path.
+    // Blink dispatches a plain Event for the resulting module parse failure.
+    await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow("Worker startup failed");
+    const file = startupEvidence.at(-1);
+    expect(file).toBeDefined();
+    const evidence = JSON.parse(await readFile(file!, "utf8")) as {
+      phase: string;
+      state: { errorEventType: string; reports: number };
+      requests: Array<{ path: string; contentType: string; finished: boolean }>;
+    };
+    expect(evidence.phase).toBe("error");
+    expect(evidence.state).toMatchObject({ errorEventType: "Event", reports: 0 });
+    expect(evidence.requests).toContainEqual(
+      expect.objectContaining({ path: "/missing-worker.js", contentType: "text/javascript", finished: true }),
+    );
+  });
   it("preserves default headless-shell and patches before delayed imports/cached native clear", async () => {
     const p = await page();
     let debuggingPipeRetained = false;
