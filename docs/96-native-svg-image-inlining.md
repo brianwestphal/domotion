@@ -22,6 +22,7 @@ tickets:
     "DM-QK62CS",
     "DM-6ZX6W0",
     "DM-KGD5KC",
+    "DM-YMAF0G",
     "DM-SXDNW9",
   ]
 code:
@@ -62,6 +63,9 @@ code:
     "src/render/svg-inline.ts",
     "src/render/svg-image-css-import.ts",
     "src/render/svg-image-css-import.test.ts",
+    "src/render/svg-image-fragment-ids.ts",
+    "src/render/svg-image-fragment-ids.test.ts",
+    "tests/img-svg-import-fragments.e2e.test.ts",
     "src/render/svg-image-cdata.ts",
     "src/render/svg-image-style-names.ts",
     "tests/img-svg-css-import.e2e.test.ts",
@@ -238,20 +242,54 @@ image's own font-face metrics. A native embedded-mono `2ch` probe translates
 payload bytes do not count as dimensions for this conservative gate.
 DM-NZQE02 tracks authenticated image-local author-font metric resolution.
 
-Declaration resources are admitted only as independent canonical `data:` URLs
+Declaration resources can use independent canonical `data:` URLs
 without escapes, raw markup/quotes/parentheses or ambiguous whitespace. Literal
-URL-looking strings do not count as loads. Relative/external/fragment URLs,
+URL-looking strings do not count as loads. Relative/external URLs,
 escaped resource syntax and alternate image functions remain raster-backed;
 they cannot acquire the output document's base URL or bind to its IDs. Native
 pixel checks cover canonical data SVG paint, filter and mask resources. An
 external-fetch control loads in the ordinary host SVG, while the same nested
 load stays blocked through the data resource in both native image and inline
 output.
-DM-YMAF0G tracks authenticated image-local fragment support, and DM-Y3H2EV
-tracks escaped import/URL classification. Literal `</style>` inside imported
+DM-Y3H2EV tracks escaped import/URL classification. Literal `</style>` inside imported
 CSS remains unrepresentable by downstream stylesheet extraction (DM-5D93J3).
 Unknown XML entities, invalid XML characters, undecodable sheets and budget
 violations also keep the original raster.
+
+**Authenticated local fragments (DM-YMAF0G).** A literal `url(#id)` can remain
+vector for `fill`, `stroke`, `filter`, `clip-path`, `mask`, `mask-image` and the
+three marker properties. The SVG image's actual XML element tree supplies the
+inventory; comments and CDATA string data cannot invent IDs. Every ID must be
+unique, nonempty ASCII letters/digits/underscore/dot/colon/hyphen and written
+exactly as `id="..."` or `id='...'`. Lexical attribute evidence proves that the
+existing downstream namespace pass will rewrite the same identity. Nested
+imports share that image inventory.
+Class attributes likewise require canonical assignment spelling and plain ASCII
+class names. Escaped selectors and selectors containing attribute or string data
+retain raster output until the token-aware image namespace rewrite is available;
+native controls cover escaped class names, class assignment whitespace and dots
+inside attribute selectors in both flatten modes.
+DTD-dependent documents, stylesheet processing instructions and unresolved XML
+attribute data remain raster because this lexical inventory cannot prove their
+complete DOM state.
+
+Blink records the authored leading `#` in `CSSUrlData` and treats it as local
+regardless of the imported sheet's data URL base (`css_url_data.cc:83–96,
+231–234`). SVG consumers resolve it in the element's originating tree scope
+(`ElementStyleResources::GetSVGResourceFromValue`,
+`element_style_resources.cc:281–289`; masks use `LoadMaskSource:374–384`), at
+Chromium `7d859f27`. Competing host gradients, clips, filters, masks and markers
+therefore must not become candidates after lowering.
+
+Missing/duplicate targets, entity or whitespace ID spellings, percent-encoded
+fragments, escaped URL syntax and unproved consumers such as font sources,
+background images, cursors and custom properties remain raster. Neighboring
+ordinary references must also be owned and rewritable before a newly admitted
+fragment image is lowered; canonical gradient `href` chains are preserved.
+Unresolved references, unproved attribute serialization and namespace-sensitive
+text/string data retain the source image. This admission gate does not repair
+the shared ordinary-image namespace rewrite: DM-WT73T4 owns its complete
+XML/URL identity and reference handling.
 
 The source contract is Chromium `7d859f27`:
 [`CSSStyleSheetResource::CanUseSheet`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/loader/resource/css_style_sheet_resource.cc),

@@ -1,5 +1,6 @@
 import postcss, { type AtRule, type Root } from "postcss";
 import { cssUnescape, expandXmlReferences, parseImageElementTree } from "./svg-image-selector-engine.js";
+import { imageFragmentInventory, type ImageFragmentInventory } from "./svg-image-fragment-ids.js";
 
 const MAX_IMPORT_DEPTH = 4;
 const MAX_CSS_BYTES = 256_000;
@@ -100,7 +101,42 @@ function dataCss(url: string, inheritedEncoding: string): DecodedCss | null {
 /** Independent data resources cannot acquire the host document's base URL.
  * Keep escaped/dynamic/relative URLs, image-set strings and noncanonical data
  * payloads conservative; later SVG namespace passes scan the serialized text. */
-function safeResourceValues(value: string): boolean {
+const SVG_RESOURCE_PROPERTIES = new Set([
+  "fill",
+  "stroke",
+  "filter",
+  "clip-path",
+  "marker-start",
+  "marker-mid",
+  "marker-end",
+  "mask",
+  "mask-image",
+]);
+
+interface ResourceContext {
+  inventory: ImageFragmentInventory | null;
+  hasLocalReference: boolean;
+  unrewritableString: boolean;
+}
+
+/** The current class prefixer cannot preserve escapes or attribute/string
+ * selector data. DM-WT73T4 replaces this limited namespace mechanism. */
+function selectorsRewritable(root: Root): boolean {
+  let safe = true;
+  root.walkRules((rule) => {
+    if (/[\\\[\]"']/.test(rule.selector)) safe = false;
+  });
+  return safe;
+}
+
+/** Text/data that the shared regex namespace pass could accidentally edit. */
+function namespaceSensitiveData(value: string): boolean {
+  return /\bid\s*=['"]|\b(?:href|xlink:href)\s*=['"]#|url\(\s*['"]?#|\b(?:aria-activedescendant|aria-controls|aria-describedby|aria-details|aria-errormessage|aria-flowto|aria-labelledby|aria-owns|for|begin|end)\s*=['"]/i.test(
+    value,
+  );
+}
+
+function safeResourceValues(value: string, property: string, context: ResourceContext): boolean {
   for (let i = 0; i < value.length;) {
     const ch = value[i];
     if (value.startsWith("/*", i)) {
@@ -112,12 +148,16 @@ function safeResourceValues(value: string): boolean {
     if (ch === "\\") return false;
     if (ch === "'" || ch === '"') {
       const quote = ch;
+      const start = i;
       i++;
       while (i < value.length && value[i] !== quote) {
         if (value[i] === "\\") i++;
         i++;
       }
       if (i >= value.length) return false;
+      // The existing global namespace pass also sees URL-looking string
+      // data. Do not newly lower such an image before that pass is token-aware.
+      if (namespaceSensitiveData(value.slice(start, i))) context.unrewritableString = true;
       i++;
       continue;
     }
@@ -136,13 +176,73 @@ function safeResourceValues(value: string): boolean {
     }
     const arg = parenthesized(value, i);
     if (arg == null) return false;
-    let url = arg.content.trim();
+    let url = arg.content.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, "");
     if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'")))
       url = url.slice(1, -1);
+    if (url.startsWith("#")) {
+      if (!SVG_RESOURCE_PROPERTIES.has(property.toLowerCase()) || !context.inventory?.ids.has(url.slice(1)))
+        return false;
+      context.hasLocalReference = true;
+      i = arg.end;
+      continue;
+    }
     if (!/^data:/i.test(url) || /[\s<>\x22\x27()\\&]/.test(url)) return false;
     i = arg.end;
   }
   return true;
+}
+
+/** A newly admitted imported reference must not expose an ordinary neighboring
+ * source reference to host lookup. This is admission only, not the shared
+ * ordinary-image rewrite repair tracked by DM-WT73T4. */
+function safeOriginalImageReferences(context: ResourceContext): boolean {
+  if (context.inventory == null) return false;
+  const pending = [context.inventory.root];
+  const declarationsSafe = (css: string): boolean => {
+    try {
+      let safe = true;
+      const root = postcss.parse(css);
+      if (!selectorsRewritable(root)) return false;
+      root.walkDecls((decl) => {
+        if (!safeResourceValues(decl.value, decl.prop, context)) safe = false;
+      });
+      return safe;
+    } catch {
+      return false;
+    }
+  };
+  while (pending.length > 0) {
+    const element = pending.pop()!;
+    for (const attribute of element.sourceAttributes ?? []) {
+      const value = element.attributes.get(attribute.name);
+      if (attribute.name === "href" || attribute.name === "xlink:href") {
+        if (value == null) return false;
+        if (value.startsWith("#")) {
+          if (!context.inventory.ids.has(value.slice(1))) return false;
+          if (
+            attribute.syntax !== `${attribute.name}="${value}"` &&
+            attribute.syntax !== `${attribute.name}='${value}'`
+          )
+            return false;
+        } else if (!/^data:/i.test(value) || /[\s<>\x22\x27()\\&]/.test(value)) return false;
+      } else if (
+        attribute.name === "style" ||
+        SVG_RESOURCE_PROPERTIES.has(attribute.name) ||
+        ["cursor", "background-image", "offset-path"].includes(attribute.name)
+      ) {
+        if (value == null || (attribute.value.includes("&") && /url\s*\(/i.test(value))) return false;
+        if (attribute.name === "style") {
+          if (!declarationsSafe(`e{${value}}`)) return false;
+        } else if (!safeResourceValues(value, attribute.name, context)) return false;
+      } else if (attribute.name === "begin" || attribute.name === "end" || namespaceSensitiveData(attribute.value))
+        return false;
+    }
+    if (element.name === "style" || element.name.endsWith(":style")) {
+      if (element.texts.some((text) => text == null) || !declarationsSafe(element.texts.join(""))) return false;
+    } else if (element.texts.some((text) => text == null || namespaceSensitiveData(text))) return false;
+    pending.push(...element.children);
+  }
+  return !context.unrewritableString;
 }
 
 export function xmlStyleText(raw: string): string | null {
@@ -223,7 +323,7 @@ function importSpec(params: string): ImportSpec | null {
   return { url: match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5], layer, supports, media: rest || null };
 }
 
-function expandCss(css: string, depth: number, encoding: string): string | null {
+function expandCss(css: string, depth: number, encoding: string, resources: ResourceContext): string | null {
   if (depth > MAX_IMPORT_DEPTH || Buffer.byteLength(css, "utf8") > MAX_CSS_BYTES || !serializableCss(css)) return null;
   if (hasEscapedImport(css)) return null;
   let root: Root;
@@ -232,12 +332,13 @@ function expandCss(css: string, depth: number, encoding: string): string | null 
   } catch {
     return null;
   }
+  if (!selectorsRewritable(root)) resources.unrewritableString = true;
   // A data-imported sheet can contain another resource URL. In SVG image mode
   // that resource may be blocked, whereas the inlined host document could load
   // it. Keep the original image raster when that distinction matters.
   let hasResourceValue = false;
   root.walkDecls((declaration) => {
-    if (!safeResourceValues(declaration.value)) hasResourceValue = true;
+    if (!safeResourceValues(declaration.value, declaration.prop, resources)) hasResourceValue = true;
   });
   if (hasResourceValue) return null;
   let importsAllowed = true;
@@ -268,7 +369,7 @@ function expandCss(css: string, depth: number, encoding: string): string | null 
     }
     const decoded = absolute?.protocol === "data:" ? dataCss(absolute.href, encoding) : { text: "", encoding };
     if (decoded == null) return null;
-    const nested = expandCss(decoded.text, depth + 1, decoded.encoding);
+    const nested = expandCss(decoded.text, depth + 1, decoded.encoding, resources);
     if (nested == null) return null;
     let inserted = nested;
     if (spec.layer != null) inserted = `@layer ${spec.layer} { ${inserted} }`;
@@ -367,6 +468,7 @@ export function resolveSvgImageCssImports(svgText: string, ownFontContext = fals
   if (!/[@&]/.test(svgText)) return svgText;
   const unknownXmlEncoding = /<\?xml[^>]*encoding\s*=\s*['"](?!utf-8['"])[^'"]+['"]/i.test(svgText);
   let unresolved = false;
+  let resources: ResourceContext | undefined;
   const out = svgText.replace(
     /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
     (_whole, open: string, css: string, close: string) => {
@@ -377,7 +479,8 @@ export function resolveSvgImageCssImports(svgText: string, ownFontContext = fals
       }
       const text = xmlStyleText(css);
       if (text != null && !/@import\b/i.test(text) && !hasEscapedImport(text)) return open + css + close;
-      const expanded = text == null || unknownXmlEncoding ? null : expandCss(text, 0, "utf-8");
+      resources ??= { inventory: imageFragmentInventory(svgText), hasLocalReference: false, unrewritableString: false };
+      const expanded = text == null || unknownXmlEncoding ? null : expandCss(text, 0, "utf-8", resources);
       if (expanded == null) {
         unresolved = true;
         return open + css + close;
@@ -393,5 +496,9 @@ export function resolveSvgImageCssImports(svgText: string, ownFontContext = fals
       return open + serialized + close;
     },
   );
-  return unresolved || (!ownFontContext && unresolvedAuthorFontMetrics(out)) ? null : out;
+  return unresolved ||
+    (resources?.hasLocalReference && !safeOriginalImageReferences(resources)) ||
+    (!ownFontContext && unresolvedAuthorFontMetrics(out))
+    ? null
+    : out;
 }

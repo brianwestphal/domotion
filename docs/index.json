@@ -2468,6 +2468,7 @@
           "DM-QK62CS",
           "DM-6ZX6W0",
           "DM-KGD5KC",
+          "DM-YMAF0G",
           "DM-SXDNW9"
         ],
         "code": [
@@ -2507,6 +2508,9 @@
           "src/render/svg-inline.ts",
           "src/render/svg-image-css-import.ts",
           "src/render/svg-image-css-import.test.ts",
+          "src/render/svg-image-fragment-ids.ts",
+          "src/render/svg-image-fragment-ids.test.ts",
+          "tests/img-svg-import-fragments.e2e.test.ts",
           "src/render/svg-image-cdata.ts",
           "src/render/svg-image-style-names.ts",
           "tests/img-svg-css-import.e2e.test.ts",

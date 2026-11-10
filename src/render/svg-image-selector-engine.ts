@@ -127,6 +127,9 @@ export interface ImageElement {
   /** Attributes by qualified name, with DOM values (null: a DTD entity leaves
    *  the value unknown). */
   attributes: Map<string, string | null>;
+  /** Optional lexical evidence for resource admission, never inferred from
+   * decoded DOM values. Duplicate attributes remain visible here. */
+  sourceAttributes?: Array<{ name: string; value: string; syntax: string }>;
   parent: ImageElement | null;
   children: ImageElement[];
   /** Each text child's DOM data (CDATA sections included), null when a DTD
@@ -139,7 +142,7 @@ export interface ImageElement {
  * doctype are skipped. Returns the document element, or null when the markup
  * is not a well-formed element tree this parser can read.
  */
-export function parseImageElementTree(xml: string): ImageElement | null {
+export function parseImageElementTree(xml: string, recordAttributeSource = false): ImageElement | null {
   let root: ImageElement | null = null;
   let current: ImageElement | null = null;
   let i = 0;
@@ -196,6 +199,7 @@ export function parseImageElementTree(xml: string): ImageElement | null {
         children: [],
         texts: [],
       };
+      if (recordAttributeSource) el.sourceAttributes = [];
       let j = lt + nameMatch[0].length;
       for (;;) {
         while (j < xml.length && /\s/.test(xml[j])) j++;
@@ -203,6 +207,7 @@ export function parseImageElementTree(xml: string): ImageElement | null {
         attrRe.lastIndex = j;
         const m = attrRe.exec(xml);
         if (m == null) return null;
+        el.sourceAttributes?.push({ name: m[1], value: m[2] ?? m[3] ?? "", syntax: m[0] });
         el.attributes.set(m[1], decodeXmlAttributeValue(m[2] ?? m[3] ?? ""));
         j = attrRe.lastIndex;
       }
