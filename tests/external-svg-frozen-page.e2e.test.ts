@@ -225,7 +225,7 @@ describe("external SVG transport under frozen author globals (DM-4H5MC1)", () =>
     }
   });
 
-  it("refuses direct foreign SVG even with CORS permission, while preserving redirect CORS behavior", async () => {
+  it("uses native use redirect refusal while preserving generic transport CORS behavior", async () => {
     const context = await browser.newContext();
     try {
       await context.addCookies([{ name: "control", value: "origin-only-cookie", url: origin }]);
@@ -242,15 +242,28 @@ describe("external SVG transport under frozen author globals (DM-4H5MC1)", () =>
         expect(result.find((row) => row.href === `${otherOrigin}/sprite.svg`)).toMatchObject({
           failure: expect.stringMatching(/not same-origin/),
         });
-        expect(result.find((row) => row.href === `${origin}/redirect-ok.svg`)?.xml).toContain('fill="blue"');
+        expect(result.find((row) => row.href === `${origin}/redirect-ok.svg`)).toMatchObject({
+          failure: expect.stringMatching(/Failed to fetch/),
+        });
         expect(result.find((row) => row.href === `${origin}/redirect-denied.svg`)).toMatchObject({
           failure: expect.stringMatching(/Failed to fetch/),
         });
-        const foreignFetches = requests.slice(start).filter((r) => r.foreign && r.dest === "empty");
+        expect(requests.slice(start).filter((r) => r.foreign && r.dest === "empty")).toEqual([]);
+      } finally {
+        await prime.dispose();
+      }
+      const genericStart = requests.length;
+      const transport = await openExternalSvgTransport(page.mainFrame(), 5000);
+      try {
+        expect(await transport.fetch(`${origin}/redirect-ok.svg`)).toEqual({ text: sprite("blue"), hrefs: [] });
+        expect(await transport.fetch(`${origin}/redirect-denied.svg`)).toMatchObject({
+          failure: expect.stringMatching(/Failed to fetch/),
+        });
+        const foreignFetches = requests.slice(genericStart).filter((r) => r.foreign && r.dest === "empty");
         expect(foreignFetches.map((r) => r.path).sort()).toEqual(["/nocors.svg", "/sprite.svg"]);
         expect(foreignFetches.every((r) => r.cookie === "")).toBe(true);
       } finally {
-        await prime.dispose();
+        await transport.dispose();
       }
     } finally {
       await context.close();

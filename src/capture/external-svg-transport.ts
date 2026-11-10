@@ -34,11 +34,15 @@ async function frameSession(frame: Frame): Promise<CDPSession> {
 
 /** A separate world supplies native fetch/AbortController despite page freezes.
  * InspectorPageAgent copies the frame origin; grantUniveralAccess stays false.
- * No isolated CSP is installed, so LocalDOMWindow retains the document CSP. */
+ * No isolated CSP is installed, so LocalDOMWindow retains the document CSP.
+ * Requests default to generic CORS; SVG use explicitly selects same-origin. */
 export async function openExternalSvgTransport(
   frame: Frame,
   timeoutMs: number,
-): Promise<{ fetch(href: string): Promise<ExternalSvgResponse>; dispose(): Promise<void> }> {
+): Promise<{
+  fetch(href: string, mode?: "cors" | "same-origin"): Promise<ExternalSvgResponse>;
+  dispose(): Promise<void>;
+}> {
   const token = privateCaptureKey("ExternalSvgFrame");
   const worldName = worlds.get(frame) ?? privateCaptureKey("ExternalSvgTransport");
   worlds.set(frame, worldName);
@@ -161,18 +165,26 @@ export async function openExternalSvgTransport(
     throw error;
   }
   return {
-    async fetch(href) {
+    async fetch(href, mode = "cors") {
       if (disposed || session == null || contextId == null) throw new Error("external SVG transport is disposed");
       const key = privateCaptureKey("ExternalSvgRequest");
       const request = session.send("Runtime.evaluate", {
         contextId,
         expression: browserCallbackExpression(
-          async ({ href, key }: { href: string; key: string }): Promise<ExternalSvgResponse> => {
+          async ({
+            href,
+            key,
+            mode,
+          }: {
+            href: string;
+            key: string;
+            mode: "cors" | "same-origin";
+          }): Promise<ExternalSvgResponse> => {
             const controller = new AbortController();
             const scope = globalThis as typeof globalThis & Record<string, AbortController | undefined>;
             scope[key] = controller;
             try {
-              const response = await fetch(href, { credentials: "same-origin", signal: controller.signal });
+              const response = await fetch(href, { credentials: "same-origin", mode, signal: controller.signal });
               if (!response.ok) return { failure: `HTTP ${response.status}` };
               const text = await response.text();
               const parsed = new DOMParser().parseFromString(text, "image/svg+xml");
@@ -190,7 +202,7 @@ export async function openExternalSvgTransport(
               delete scope[key];
             }
           },
-          { href, key },
+          { href, key, mode },
         ),
         awaitPromise: true,
         returnByValue: true,

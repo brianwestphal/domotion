@@ -22,7 +22,7 @@ export interface ExternalSvgUsePrime extends AsyncDisposable {
   registryKey: string;
 }
 
-/** URL graph policy is unchanged; request deadlines now belong to Node. */
+/** Bound the URL graph; the loader owns native request-mode/redirect admission. */
 export async function collectExternalSvgUseDocuments(
   source: ExternalSvgSourceFrame,
   load: (href: string) => Promise<ExternalSvgResponse>,
@@ -104,7 +104,10 @@ export async function primeExternalSvgUseDocuments(page: Page): Promise<External
             source,
             async (href) => {
               transport ??= openExternalSvgTransport(frame, EXTERNAL_SVG_FETCH_TIMEOUT_MS);
-              return (await transport).fetch(href);
+              // SVGUseElement explicitly requests kSameOrigin. Let native
+              // fetch enforce every redirect hop, including out-and-back;
+              // the shared transport retains generic CORS for other callers.
+              return (await transport).fetch(href, "same-origin");
             },
             { maxDepth: EXTERNAL_SVG_MAX_DEPTH, maxDocuments: EXTERNAL_SVG_MAX_DOCUMENTS },
           );

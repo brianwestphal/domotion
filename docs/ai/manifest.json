@@ -416,6 +416,7 @@
         "src/capture/external-svg-use.ts",
         "src/capture/external-svg-transport.ts",
         "tests/external-svg-frozen-page.e2e.test.ts",
+        "tests/external-svg-redirects.e2e.test.ts",
         "tests/features.ts",
         "tests/inline-svg-external-use.e2e.test.ts"
       ],

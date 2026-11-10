@@ -12,6 +12,7 @@ code:
     "src/capture/external-svg-use.ts",
     "src/capture/external-svg-transport.ts",
     "tests/external-svg-frozen-page.e2e.test.ts",
+    "tests/external-svg-redirects.e2e.test.ts",
     "tests/features.ts",
     "tests/inline-svg-external-use.e2e.test.ts",
   ]
@@ -102,19 +103,28 @@ clears that override, and
 [`LocalDOMWindow::GetContentSecurityPolicyForWorld`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/frame/local_dom_window.cc#L413)
 falls back to the document policy. Installed Chrome147 revision `6b5a1b80` uses the
 same origin-copy/document-policy rules. Native tests separately prove CSP denial,
-cookie retention, direct foreign-URL refusal, redirect CORS, unchanged XML text,
+cookie retention, direct foreign-URL refusal, generic redirect CORS, unchanged XML text,
 HAR replay without network, owned cancellation and same-process/OOPIF identity;
 the positive frozen-page vector matches Chromium's red pixels exactly.
 
-Generic-fetch redirect CORS success is not proof of native SVG `<use>` paint
-admission. The deadline repair preserves the existing fetch policy; DM-N8EYNT
-tracks a preexisting foreign-redirect mismatch where Chromium paints no icon but
-capture inlines a CORS-readable sprite. That behavior is separately tracked and
-is not redirect paint parity.
+External SVG `<use>` selects **same-origin request mode** (DM-N8EYNT), matching
+[`SVGUseElement::UpdateTargetReference`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/svg/svg_use_element.cc#L253).
+The installed Chromium147 revision `6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`
+also explicitly sets `RequestMode::kSameOrigin`. Native fetch enforces that
+mode at every redirect hop: same-origin chains remain vector-admissible; any
+foreign hop refuses, even with CORS permission or a later redirect back to the
+source origin. This is a caller policy, not a final-response-URL check or a
+paint inference from a screenshot. Failure retains the existing warning and
+Chromium raster ownership path. The shared renderer transport still defaults
+to generic CORS fetch for CSS and other consumers; its independent CORS control
+must continue to accept an authorized foreign redirect. Native redirect pixel
+controls live in `tests/external-svg-redirects.e2e.test.ts` and are selected by
+the ordinary Linux/Windows validation jobs.
 
-The separate CSS external `clip-path`/`mask-image` fragment prepass still uses
-author fetch without a bound under frozen globals; DM-HK7GEB tracks its native
-reproduction and repair. This SVG `<use>` transport does not change that prepass.
+CSS external `clip-path`/`mask-image` resources have a separate prepass and
+admission contract (DM-HK7GEB; [doc 39](39-clip-path-fragment-references.md)).
+The SVG `<use>` request mode must not change that consumer's generic transport
+policy.
 
 What is refused, with an `inline-svg` warning and Chromium raster ownership of the host `<svg>` ([raster fallback E8](reference/raster-image-fallback-cases.md)): a document that fails to load or parse, a cross-origin or non-http(s) URL (Chromium does not paint those, and no request is made), stylesheet rules outside the scoped style/media/supports subset, a nested chain beyond the depth or document-count limits, and a reference with no fragment id. A document that loads but lacks the named element only warns: Chromium paints nothing, so the dangling `<use>` is faithful.
 
