@@ -1,5 +1,5 @@
-// Strict investigation probe: intentionally outside ordinary E2E discovery.
-// Run with node --import tsx; expected to fail until DM-T8ZTSC is repaired.
+// Strict executable ownership witness, also covered by the T8 browser suite.
+// Published baseline fails; the DM-T8ZTSC repair preserves the original source.
 import type { Page } from "@playwright/test";
 import { launchChromium, captureElementTreeWithWarnings } from "../../src/capture/index.js";
 import { freezeRealWorldDom } from "../../tests/real-world-dom-freeze.js";

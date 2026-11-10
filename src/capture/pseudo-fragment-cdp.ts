@@ -8,12 +8,17 @@
  * by an isolated Chromium-painted pseudo surface, never by a cloned layout.
  */
 
-import type { CDPSession, Frame, Page } from "@playwright/test";
+import type { CDPSession, Frame, JSHandle, Page } from "@playwright/test";
 import sharp from "sharp";
 import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
-import { evaluateInFrame } from "./evaluate-in-frame.js";
+import { browserCallbackExpression, evaluateInFrame } from "./evaluate-in-frame.js";
+import {
+  suppressSnapshotVisibilityTransitions,
+  type SnapshotVisibilityState,
+} from "./snapshot-visibility-transitions.js";
+import { withTimeout } from "../utils/with-timeout.js";
 declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").browserImageNaturalSize;
 import { clipRectForScreenshot } from "./clip-rect.js";
 import { planPseudoBackdropIsolation, type PseudoBackdropSnapshotNode } from "./pseudo-backdrop-isolation.js";
@@ -975,6 +980,27 @@ async function cropTransparentSurface(
   };
 }
 
+interface PseudoIsolationFrame {
+  activate(transitionKey: string): void;
+  markAncestorChain(element: Element): void;
+  install(options: {
+    active: boolean;
+    key: string;
+    token: string;
+    elementIndex: number;
+    pseudo: PseudoName;
+    textOnly: boolean;
+  }): void;
+  restore(): void;
+}
+
+async function boundedPseudoIsolation<T>(operation: Promise<T>): Promise<T> {
+  const expired = Symbol("pseudo isolation deadline");
+  const result = await withTimeout(operation, 2_000, expired);
+  if (result === expired) throw new Error("pseudo isolation operation exceeded 2000ms");
+  return result;
+}
+
 async function isolatePseudoSurface(
   page: Page,
   prepared: readonly PreparedFrame[],
@@ -984,54 +1010,220 @@ async function isolatePseudoSurface(
   textOnly = false,
 ): Promise<NonNullable<CapturedPseudoFragmentSet["terminalRaster"]>> {
   const marker = `dm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const styleId = `__domotionPseudoIsolation_${marker}`;
-  const ancestorFrames = new Set<Frame>();
-  for (let cursor: Frame | null = candidate.frame; cursor != null; cursor = cursor.parentFrame())
-    ancestorFrames.add(cursor);
+  const states = new Map<Frame, JSHandle<PseudoIsolationFrame>>();
+  const transitions = new Map<Frame, Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>>>();
+  const parents = new Map(prepared.map(({ frame }) => [frame, frame.parentFrame()]));
+  const assertFrames = () => {
+    const live = page.frames();
+    if (
+      live.length !== prepared.length ||
+      live.some((frame) => !parents.has(frame) || parents.get(frame) !== frame.parentFrame())
+    )
+      throw new Error("pseudo isolation source frame set or ancestry changed or is unavailable");
+  };
   try {
+    assertFrames();
+    // Observe every context before the first mutation. Settled collection keeps
+    // successful handles reachable when another frame fails preparation.
+    const preparation = await Promise.allSettled(
+      prepared.map(async ({ frame }) => {
+        const pending = frame.evaluateHandle<PseudoIsolationFrame>(
+          browserCallbackExpression((marker: string) => {
+            const sheet = document.createElement("style");
+            const sourceDocument = document;
+            const ancestors = new Set<Element>();
+            const attributes: Array<{ node: Element; name: string; value: string | null }> = [];
+            let visibility: SnapshotVisibilityState | undefined;
+            let ownedRules: string | undefined;
+            let closed = false;
+            const mark = (node: Element, name: string) => {
+              if (closed || node.ownerDocument !== sourceDocument || !node.isConnected)
+                throw new Error("pseudo isolation marker owner changed");
+              if (!attributes.some((entry) => entry.node === node && entry.name === name))
+                attributes.push({ node, name, value: node.getAttribute(name) });
+              if (node.getAttribute(name) !== marker) node.setAttribute(name, marker);
+            };
+            const markAncestor = (node: Element) => {
+              ancestors.add(node);
+              mark(node, "data-domotion-pseudo-ancestor");
+            };
+            return {
+              activate(transitionKey: string) {
+                if (closed) throw new Error("pseudo isolation owner is closed");
+                visibility = (globalThis as typeof globalThis & Record<string, unknown>)[
+                  transitionKey
+                ] as SnapshotVisibilityState;
+                if (visibility == null) throw new Error("pseudo isolation transition owner unavailable");
+                visibility.start();
+              },
+              markAncestorChain(element: Element) {
+                if (element.ownerDocument !== sourceDocument || element.getRootNode() !== sourceDocument)
+                  throw new Error("pseudo iframe ancestor belongs to another context or author shadow root");
+                for (let node: Element | null = element; node != null; node = node.parentElement) markAncestor(node);
+                markAncestor(document.documentElement);
+                if (document.body != null) markAncestor(document.body);
+              },
+              install({
+                active,
+                key,
+                token,
+                elementIndex,
+                pseudo,
+                textOnly,
+              }: {
+                active: boolean;
+                key: string;
+                token: string;
+                elementIndex: number;
+                pseudo: PseudoName;
+                textOnly: boolean;
+              }) {
+                if (closed || visibility == null) throw new Error("pseudo isolation owner is inactive");
+                let target: Element | undefined;
+                if (active) {
+                  const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
+                    { token?: string; elements?: Element[] } | undefined;
+                  target = registry?.elements?.[elementIndex];
+                  if (
+                    registry?.token !== token ||
+                    target == null ||
+                    target.ownerDocument !== sourceDocument ||
+                    !target.isConnected
+                  )
+                    throw new Error("pseudo isolation target lost source/context correlation");
+                  markAncestor(document.documentElement);
+                  if (document.body != null) markAncestor(document.body);
+                  mark(target, "data-domotion-pseudo-target");
+                }
+                const neutral = [
+                  "background-color",
+                  "background-image",
+                  "border-top-color",
+                  "border-right-color",
+                  "border-bottom-color",
+                  "border-left-color",
+                  "box-shadow",
+                  "outline-color",
+                ];
+                for (const node of ancestors) for (const property of neutral) visibility.assertMutable(node, property);
+                if (textOnly && target != null)
+                  for (const property of [...neutral, "filter", "opacity"]) visibility.assertMutable(target, property);
+                const textOnlyPaint = textOnly
+                  ? ";background-color:transparent!important;background-image:none!important;border-color:transparent!important;box-shadow:none!important;outline-color:transparent!important;filter:none!important;opacity:1!important"
+                  : "";
+                sheet.textContent = `*{visibility:hidden!important}html[data-domotion-pseudo-ancestor="${marker}"],body[data-domotion-pseudo-ancestor="${marker}"],[data-domotion-pseudo-ancestor="${marker}"]{visibility:visible!important;background-color:transparent!important;background-image:none!important;border-color:transparent!important;box-shadow:none!important;outline-color:transparent!important}${active ? `[data-domotion-pseudo-target="${marker}"]::${pseudo}{visibility:visible!important${textOnlyPaint}}` : ""}`;
+                (document.head ?? document.documentElement).append(sheet);
+                if (sheet.sheet == null) throw new Error("pseudo isolation stylesheet is unavailable");
+                ownedRules = JSON.stringify(Array.from(sheet.sheet.cssRules, (rule) => rule.cssText));
+                for (const animation of document.getAnimations()) {
+                  if (
+                    !(animation instanceof CSSTransition) ||
+                    animation.transitionProperty !== "visibility" ||
+                    animation.playState === "idle" ||
+                    animation.playState === "finished"
+                  )
+                    continue;
+                  const effect = animation.effect;
+                  if (!(effect instanceof KeyframeEffect) || !(effect.target instanceof Element))
+                    throw new Error("pseudo isolation visibility target is unsupported");
+                  const node = effect.target;
+                  const destination = ancestors.has(node) ? "visible" : "hidden";
+                  if (!visibility.paint(node, destination) || getComputedStyle(node).visibility !== destination)
+                    throw new Error("pseudo isolation visibility declaration did not own used paint");
+                }
+              },
+              restore() {
+                closed = true;
+                const failures: unknown[] = [];
+                try {
+                  if (
+                    ownedRules != null &&
+                    (!sheet.isConnected ||
+                      sheet.ownerDocument !== sourceDocument ||
+                      sheet.sheet == null ||
+                      sheet.sheet.disabled ||
+                      JSON.stringify(Array.from(sheet.sheet.cssRules, (rule) => rule.cssText)) !== ownedRules)
+                  )
+                    failures.push(new Error("pseudo isolation stylesheet ownership changed"));
+                } catch (error) {
+                  failures.push(error);
+                }
+                try {
+                  sheet.remove();
+                } catch (error) {
+                  failures.push(error);
+                }
+                for (const entry of attributes.reverse()) {
+                  try {
+                    if (entry.node.getAttribute(entry.name) !== marker)
+                      throw new Error("pseudo marker ownership changed during isolation");
+                    if (entry.value == null) entry.node.removeAttribute(entry.name);
+                    else if (entry.value !== marker) entry.node.setAttribute(entry.name, entry.value);
+                    if (entry.node.getAttribute(entry.name) !== entry.value)
+                      throw new Error("pseudo source marker did not restore exactly");
+                  } catch (error) {
+                    failures.push(error);
+                  }
+                }
+                for (const entry of attributes) void getComputedStyle(entry.node).visibility;
+                if (failures.length > 0) throw new Error("pseudo isolation source restoration failed");
+              },
+            };
+          }, marker),
+        );
+        let state: JSHandle<PseudoIsolationFrame>;
+        try {
+          state = await boundedPseudoIsolation(pending);
+        } catch (error) {
+          void pending.then((value) => value.dispose()).catch(() => undefined);
+          throw error;
+        }
+        states.set(frame, state);
+        transitions.set(frame, await suppressSnapshotVisibilityTransitions(frame, true));
+      }),
+    );
+    const failed = preparation.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
     await Promise.all(
       prepared.map(({ frame }) =>
-        evaluateInFrame(
-          frame,
-          ({ styleId, marker, active, key, elementIndex, pseudo, textOnly }) => {
-            const style = document.createElement("style");
-            style.id = styleId;
-            const textOnlyPaint = textOnly
-              ? ";background-color:transparent!important;background-image:none!important;border-color:transparent!important;box-shadow:none!important;outline-color:transparent!important;filter:none!important;opacity:1!important"
-              : "";
-            style.textContent = `*{visibility:hidden!important}html[data-domotion-pseudo-ancestor="${marker}"],body[data-domotion-pseudo-ancestor="${marker}"],[data-domotion-pseudo-ancestor="${marker}"]{visibility:visible!important;background-color:transparent!important;background-image:none!important;border-color:transparent!important;box-shadow:none!important;outline-color:transparent!important}${active ? `[data-domotion-pseudo-target="${marker}"]::${pseudo}{visibility:visible!important${textOnlyPaint}}` : ""}`;
-            (document.head ?? document.documentElement).appendChild(style);
-            if (active) {
-              document.documentElement.setAttribute("data-domotion-pseudo-ancestor", marker);
-              document.body?.setAttribute("data-domotion-pseudo-ancestor", marker);
-              const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
-                { elements?: Element[] } | undefined;
-              registry?.elements?.[elementIndex]?.setAttribute("data-domotion-pseudo-target", marker);
-            }
-          },
-          {
-            styleId,
-            marker,
-            active: frame === candidate.frame,
-            key,
-            elementIndex: candidate.elementIndex,
-            pseudo: candidate.pseudo,
-            textOnly,
-          },
+        boundedPseudoIsolation(
+          states.get(frame)!.evaluate((state, key) => state.activate(key), transitions.get(frame)!.key),
         ),
       ),
     );
     for (let cursor: Frame | null = candidate.frame; cursor.parentFrame() != null; cursor = cursor.parentFrame()!) {
-      const handle = await cursor.frameElement();
-      await handle.evaluate((element, value) => {
-        for (let owner: Element | null = element as Element; owner != null; owner = owner.parentElement)
-          owner.setAttribute("data-domotion-pseudo-ancestor", value);
-        document.documentElement.setAttribute("data-domotion-pseudo-ancestor", value);
-        document.body?.setAttribute("data-domotion-pseudo-ancestor", value);
-      }, marker);
-      await handle.dispose();
+      const parent = cursor.parentFrame()!;
+      const state = states.get(parent);
+      if (state == null) throw new Error("pseudo iframe ancestor context is unavailable");
+      const element = await boundedPseudoIsolation(cursor.frameElement());
+      try {
+        await boundedPseudoIsolation(
+          state.evaluate((state, element) => {
+            if (!(element instanceof Element)) throw new Error("pseudo iframe owner is not an Element");
+            state.markAncestorChain(element);
+          }, element),
+        );
+      } finally {
+        await boundedPseudoIsolation(element.dispose());
+      }
     }
+    await Promise.all(
+      prepared.map(({ frame, token }) =>
+        boundedPseudoIsolation(
+          states.get(frame)!.evaluate((state, args) => state.install(args), {
+            active: frame === candidate.frame,
+            key,
+            token,
+            elementIndex: candidate.elementIndex,
+            pseudo: candidate.pseudo,
+            textOnly,
+          }),
+        ),
+      ),
+    );
+    assertFrames();
     await waitForCaptureAnimationFrames(page, 2);
+    assertFrames();
     const png = Buffer.from(
       await page.screenshot({
         clip: { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height },
@@ -1040,27 +1232,20 @@ async function isolatePseudoSurface(
         animations: "allow",
       }),
     );
+    assertFrames();
     return await cropTransparentSurface(png, viewport);
   } finally {
-    await Promise.all(
-      prepared.map(({ frame }) =>
-        evaluateInFrame(
-          frame,
-          ({ styleId, marker }) => {
-            document.getElementById(styleId)?.remove();
-            for (const element of document.querySelectorAll(
-              `[data-domotion-pseudo-ancestor="${marker}"],[data-domotion-pseudo-target="${marker}"]`,
-            )) {
-              if (element.getAttribute("data-domotion-pseudo-ancestor") === marker)
-                element.removeAttribute("data-domotion-pseudo-ancestor");
-              if (element.getAttribute("data-domotion-pseudo-target") === marker)
-                element.removeAttribute("data-domotion-pseudo-target");
-            }
-          },
-          { styleId, marker },
-        ).catch(() => undefined),
-      ),
+    // Restore all source styles/markers before releasing any frame's private
+    // transition guards. A cleanup failure invalidates the pending raster.
+    const restored = await Promise.allSettled(
+      [...states.values()].map((state) => boundedPseudoIsolation(state.evaluate((state) => state.restore()))),
     );
+    const released = await Promise.allSettled([...transitions.values()].map((owner) => owner.dispose()));
+    const disposed = await Promise.allSettled(
+      [...states.values()].map((state) => boundedPseudoIsolation(state.dispose())),
+    );
+    const failed = [...restored, ...released, ...disposed].find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 }
 
@@ -1419,7 +1604,12 @@ export async function preparePseudoFragmentGeometry(
       });
     }
   }
-  await installFacts(prepared, key, facts);
+  try {
+    await installFacts(prepared, key, facts);
+  } catch (error) {
+    await registry.dispose();
+    throw error;
+  }
   return {
     key,
     warnings,

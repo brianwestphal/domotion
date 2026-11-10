@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import { browserCallbackExpression } from "./evaluate-in-frame.js";
 import { privateCaptureKey } from "./private-key.js";
 import { withTimeout } from "../utils/with-timeout.js";
@@ -21,7 +21,7 @@ export interface SnapshotVisibilityState {
 
 /** Keep isolation's visibility changes immediate without stopping other CSS transitions. */
 export async function suppressSnapshotVisibilityTransitions(
-  page: Page,
+  page: Frame | Page,
   deferred = false,
 ): Promise<{ key: string; paintTarget(): Promise<void>; dispose(): Promise<void> }> {
   const marker = `data-${privateCaptureKey("SnapshotTransition").toLowerCase()}`;
