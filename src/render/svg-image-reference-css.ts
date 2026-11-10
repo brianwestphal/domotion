@@ -1,4 +1,5 @@
 import postcss from "postcss";
+import { imageHtmlNameUnchanged, imageHtmlSelectorNamesUnchanged } from "./svg-image-html-identity.js";
 import { cssUnescape } from "./svg-image-selector-engine.js";
 import {
   cssWhitespace,
@@ -126,6 +127,7 @@ export function rewriteImageCssValue(value: string, property: string, context: I
       let start = identifier.end + 1;
       while (cssWhitespace(value[start] ?? "")) start++;
       const attribute = referenceCssIdentifier(value, start);
+      if (attribute != null && !imageHtmlNameUnchanged(attribute.value, true)) return null;
       if (attribute?.value.includes(":") || value[attribute?.end ?? start] === "|") return null;
       const original = attribute == null ? undefined : context.originals.get(attribute.value);
       if (original != null) {
@@ -171,6 +173,7 @@ function attributeSelectorEnd(value: string, start: number): number | null {
  * are data. Original-value attributes preserve all comparison operators and
  * specificity without fitting selectors to the current matched node set. */
 export function rewriteImageSelector(selector: string, context: ImageReferenceContext): string | null {
+  if (!imageHtmlSelectorNamesUnchanged(selector)) return null;
   let out = "";
   for (let at = 0; at < selector.length;) {
     if (selector.startsWith("/*", at)) {

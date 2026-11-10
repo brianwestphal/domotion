@@ -24,6 +24,7 @@ tickets:
     "DM-5D93J3",
     "DM-Y3H2EV",
     "DM-SC5Y23",
+    "DM-SC5Y23",
     "DM-KGD5KC",
     "DM-YMAF0G",
     "DM-SXDNW9",
@@ -81,6 +82,9 @@ code:
     "src/render/svg-image-fragment-ids.test.ts",
     "src/render/svg-image-references.ts",
     "src/render/svg-image-reference-css.ts",
+    "src/render/svg-image-html-identity.ts",
+    "src/render/svg-image-html-identity.test.ts",
+    "tests/img-svg-xml-case-identity.e2e.test.ts",
     "src/render/svg-image-reference-syntax.ts",
     "src/render/svg-image-references.test.ts",
     "src/render/svg-image-namespace.ts",
@@ -99,6 +103,35 @@ aliases: ["docs/96-native-svg-image-inlining.md", "doc-96"]
 ---
 
 # 96 — Native inlining of `<img src="*.svg">`
+
+## XML names in HTML output
+
+An SVG image parses as XML; embedding vector markup in HTML changes its parser.
+Chromium's pinned `7d859f271cbda744098ac69f44978d4edfa62be3`
+`HTMLTokenizer` folds ASCII tag/attribute names. `HTMLTreeBuilder` restores mixed
+case from its SVG tag/attribute name tables, with manual `altGlyph`/`glyphRef`
+family and `viewTarget` entries. `CSSSelectorParser::ConsumeTypeSelector` and
+`ConsumeAttribute` separately fold selector names in an HTML document. XML keeps
+the original local names. Case normalization can therefore activate an inert
+XML `HREF`, `STYLE`, `RECT`, lowercase `viewbox` or a nonmatching `RECT`/
+`[DATA-MARK]` selector (DM-SC5Y23).
+
+Both image vector entry points compare original source names before import/font
+rewrites, and the modern reference boundary checks the rewritten tree again.
+Names must survive folding plus SVG adjustment unchanged. Canonical `viewBox`,
+`preserveAspectRatio`, `linearGradient`, `clipPath` and lowercase unknown
+attributes remain supported. The pass never repairs spelling by activating it;
+changed names retain the original image. Namespace/font/resource authority and
+host-reference refusal remain independent prerequisites.
+
+Selector names use the shared selector grammar recursively, including logical,
+relative `:has()` and `:nth-child(... of ...)` lists. Canonical selector comparison
+values, class/ID case and strings stay data. `attr()` names receive the same
+identity check before original-value rewriting. Unsupported selector grammar
+retains the source image; extending that authenticated grammar is DM-EKTD3T.
+This boundary does not establish general XML/HTML namespace or scripting parity.
+Native cases compare source and rendered pixels for both nested and flattened
+output, retaining matching PNG/SVG pairs and exact source provenance.
 
 ## XML stylesheet data
 
@@ -314,8 +347,8 @@ proof, exact owned local IDs and conservative canonical data-resource addresses.
 Unknown/duplicate/entity-dependent identities, unresolved neighboring references,
 active or foreign-namespace contexts and unproved stylesheet activation metadata
 retain fallback. Case-aliased reference/style attributes cannot acquire HTML
-resource semantics through a newly escaped admission; DM-SC5Y23 tracks the
-general XML-to-HTML attribute-case identity defect. Imported escaped local URLs normalize to literal owned references
+resource semantics through a newly escaped admission. The general image
+admission boundary also preserves XML-to-HTML name identity (DM-SC5Y23). Imported escaped local URLs normalize to literal owned references
 before namespace rewriting; percent aliases cannot acquire a different target.
 Unknown escaped non-import rules, nested import grammar and unsupported resource
 syntax are not broadened by this change. The existing MIME/charset/depth/byte

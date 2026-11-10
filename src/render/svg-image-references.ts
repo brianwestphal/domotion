@@ -1,3 +1,4 @@
+import { imageHtmlNameUnchanged } from "./svg-image-html-identity.js";
 import { xmlStyleText } from "./svg-image-css-import.js";
 import { cssUnescape, parseImageElementTree, type ImageElement } from "./svg-image-selector-engine.js";
 import {
@@ -90,6 +91,14 @@ function preserveImageAttributes(svg: string, prefix: string, identityOnly: bool
   while (pending.length > 0) {
     const element = pending.pop()!;
     const attributes = element.sourceAttributes;
+    // HTML foreign-content parsing folds unknown names too. Refuse any change,
+    // including aliases that would activate an inert XML resource/style/tag.
+    if (
+      !identityOnly &&
+      (!imageHtmlNameUnchanged(element.name, false) ||
+        attributes?.some((attribute) => !imageHtmlNameUnchanged(attribute.name, true)))
+    )
+      return null;
     if (
       attributes == null ||
       element.sourceRange == null ||

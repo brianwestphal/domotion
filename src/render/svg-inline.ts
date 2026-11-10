@@ -44,6 +44,7 @@ import {
   type CascadedDeclaration,
 } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
+import { imageHtmlSourceNamesUnchanged } from "./svg-image-html-identity.js";
 import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
@@ -1114,6 +1115,7 @@ function resolveDocumentViewport(
  * any zoom.
  */
 export function inlineImgSvg(sourceText: string, placement: InlineSvgPlacement): string | null {
+  if (!imageHtmlSourceNamesUnchanged(sourceText)) return null;
   const p = resolveNamespacedImagePlacement(placement);
   const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
   const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
@@ -1353,6 +1355,7 @@ export function isSvgSafeToFlatten(body: string): boolean {
  * source sets `overflow: visible`, since a `<g>` (unlike a viewport) does not clip.
  */
 export function flattenImgSvg(sourceText: string, placement: InlineSvgPlacement): string | null {
+  if (!imageHtmlSourceNamesUnchanged(sourceText)) return null;
   const p = resolveNamespacedImagePlacement(placement);
   const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
   const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
