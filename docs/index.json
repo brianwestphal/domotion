@@ -6062,6 +6062,20 @@
       }
     },
     {
+      "file": "275-playwright-zip-reader-investigation.md",
+      "metadata": {
+        "id": "requirements/playwright-zip-reader-investigation",
+        "title": "Playwright compressed ZIP reader lifecycle investigation",
+        "kind": "investigation",
+        "status": "current",
+        "owners": ["rendering"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-Z9VSDJ", "DM-9K75QG", "DM-VFZCB4"],
+        "code": ["package.json", "package-lock.json"],
+        "aliases": ["docs/275-playwright-zip-reader-investigation.md", "doc-275"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6540,6 +6554,7 @@
     "272": ["requirements/background-clip-text-native-parity"],
     "273": ["requirements/ui-conventions"],
     "274": ["requirements/dynamic-svg-image-fonts"],
+    "275": ["requirements/playwright-zip-reader-investigation"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],
