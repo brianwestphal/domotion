@@ -10,6 +10,12 @@ import { startStudioServer } from "../src/studio/server.js";
 import { chooseKerfSelectOption, kerfSelectOptionValues, kerfSelectValue } from "../src/test-support/kerf-select.js";
 import { startOwnedUiServer, type OwnedUiServer } from "./owned-ui-server.js";
 import { expectedNativeClipboardText } from "./native-clipboard-text.js";
+import {
+  createSelectViewportEvidence,
+  readSelectViewportGeometry,
+  type SelectViewportObservation,
+} from "./select-viewport-evidence.js";
+import { withTimeout } from "../src/utils/with-timeout.js";
 
 // DM-1798: browser-side guard for the two UIs that use kerf's RUNTIME rather
 // than just its SSR JSX — `tests/review-client.tsx` (signal / computed /
@@ -496,6 +502,11 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       initialProjectPath: "tests/fixtures/studio/treatments-showcase.project.json",
     });
     const page = await browser!.newPage({ viewport: { width: 1440, height: 1300 } });
+    const observations: SelectViewportObservation[] = [];
+    const evidence = createSelectViewportEvidence(
+      process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output",
+      browser!.version(),
+    );
     try {
       await page.goto(studio.url, { waitUntil: "networkidle" });
       const select = page.locator("kui-select[name=scene-transition]").first();
@@ -514,15 +525,10 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
         await trigger.evaluate((el) => (el as HTMLButtonElement).click());
         const popup = select.locator(".kui-select__popup");
         await expect.poll(() => popup.isVisible()).toBe(true);
-        const geometry = await popup.evaluate((el) => {
-          const rect = el.getBoundingClientRect();
-          return {
-            top: rect.top,
-            bottom: rect.bottom,
-            height: rect.height,
-            placement: el.getAttribute("data-placement"),
-          };
-        });
+        const geometry = await popup.evaluate(readSelectViewportGeometry);
+        observations.push({ requested: { height, scrollY }, geometry });
+        if (!evidence.write(observations))
+          console.warn("Select geometry diagnostic write unavailable; strict assertions remain authoritative");
         expect(geometry.placement).toBe("bottom");
         expect(geometry.top).toBeGreaterThanOrEqual(0);
         expect(geometry.bottom).toBeLessThanOrEqual(height);
@@ -530,6 +536,15 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
         await trigger.evaluate((el) => (el as HTMLButtonElement).click());
         await expect.poll(() => popup.isVisible()).toBe(false);
       }
+    } catch (error) {
+      const png = await withTimeout(
+        page.screenshot({ timeout: 2_000 }).catch(() => null),
+        2_000,
+        null,
+      );
+      if (!evidence.write(observations, png))
+        console.warn("Select failure diagnostic write unavailable; preserving original error");
+      throw error;
     } finally {
       await page.close();
       await studio.close();

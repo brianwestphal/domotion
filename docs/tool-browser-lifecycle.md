@@ -121,3 +121,32 @@ Windows9/2 native profile failed this clipboard expectation after the editor
 checks passed; its other Select-placement failure is tracked independently in
 DM-QV1MYS. Its13 process controls and all five owned-service cleanup records
 passed. Neither UI assertion identifies the earlier startup-null cause.
+
+### Scrolled Select geometry qualification (DM-QV1MYS)
+
+The Windows f283 native UI report records `data-placement=top` where the strict
+test expected bottom, but did not retain the failed trigger/popup geometry.
+The beta129 Select calls its package `positionPopup` with a bottom preference.
+The installed shared popup implementation uses fixed positioning, a
+`documentElement.clientWidth/clientHeight` viewport boundary, adaptive
+`flip(bestFit)`, shift and size middleware, then asynchronously writes its
+position and placement attribute. These source branches do not establish why
+that Windows observation differed; no font, scroll or timing cause is assigned.
+
+The existing popup geometry query now retains trigger bounds, actual root and
+visual viewport, scroll position, raw space above/below, used popup limits and
+declared font strings before the unchanged comparisons. It also records selected
+and focused option indices/counts and the selected row's used rectangle, inspecting
+at most64 options without retaining labels or option values. Declared fonts are not
+painted-face identity; raw space omits the package's padding. The artifact does
+not simulate a winning placement or relax the original bottom/height assertions.
+
+Unique `owned-ui-server/select-viewport/<uuid>/geometry.json` files hold at most
+two observations/16KiB, with full commit when supplied, normalized source/project/
+lockfile hashes and runtime identity. A failed case alone may retain a later
+PNG (maximum4MiB,2000ms diagnostic deadline), explicitly separate from the
+earlier geometry read. I/O failure cannot replace the original error. Healthy
+cases take no extra screenshot, page query or frame wait. The native test count,
+launch, viewport/scroll inputs, assertion thresholds and120-second limit stay
+unchanged. Actual failed Windows geometry remains necessary before proposing a
+placement repair; local healthy geometry cannot explain a historical failure.
