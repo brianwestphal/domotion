@@ -8,6 +8,7 @@ import { captureImageSvgFonts } from "../src/capture/image-svg-fonts.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
+import { resolveImageNamespace } from "../src/render/svg-image-namespace.js";
 import { forEachElement } from "../src/tree-ops/for-each-element.js";
 import type { CapturedElement } from "../src/capture/types.js";
 
@@ -85,7 +86,9 @@ describe("image-owned font metric evidence", () => {
         expect(el.imageOwnFonts?.faces[0].family).toBe(name);
         const inlined = inlineImgSvg(source, { ...placement, ownFonts: el.imageOwnFonts });
         expect(inlined).toContain("translate(24 0)");
-        expect(inlined).toContain(`own-${name.replaceAll("&", "&amp;")}`);
+        expect(inlined).toContain(
+          `${resolveImageNamespace(placement.idPrefix).sourcePrefix}${name.replaceAll("&", "&amp;")}`,
+        );
       }
     } finally {
       await page.close();
