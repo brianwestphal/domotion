@@ -669,6 +669,9 @@
       "platforms": [],
       "code": [
         "src/capture/index.ts",
+        "src/capture/external-css-svg.ts",
+        "src/capture/external-svg-transport.ts",
+        "tests/external-css-svg.e2e.test.ts",
         "src/render/clip-path.test.ts",
         "src/render/svg-inline.test.ts",
         "tests/clip-path-url-reference-box.e2e.test.ts",

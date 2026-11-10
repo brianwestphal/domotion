@@ -20,6 +20,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { primeExternalSvgUseDocuments } from "./external-svg-use.js";
+import { primeExternalCssSvgReferences, type ExternalCssSvgPrime } from "./external-css-svg.js";
 import { chromiumAutoInstallDefault } from "./chromium-auto-install.js";
 import { createPageRegistry } from "./page-registry.js";
 import { browserCallbackExpression, evaluateInFrame } from "./evaluate-in-frame.js";
@@ -2097,6 +2098,9 @@ async function captureElementTreeWithWarningsInternal(
   };
   let replacedMediaTransaction: ReplacedMediaFrameTransaction | undefined;
   let webGlFreeze: WebGlOutputFreeze | undefined;
+  let externalCssSvg: ExternalCssSvgPrime | undefined;
+  let primaryFailed = false;
+  let primaryFailure: unknown;
   try {
     // A live screenshot presents the current WebGL frame before the replaced
     // media transaction and many CDP probes. Muting only WebGL paint calls
@@ -2123,9 +2127,10 @@ async function captureElementTreeWithWarningsInternal(
     // rewrites the element's ref to `url(#localId)` — so the existing
     // same-document paths (clip-path: DM-826/DM-828; mask: DM-493) handle it
     // unchanged. A no-op (one getComputedStyle sweep, no fetches) when no
-    // external refs exist; a fetch failure leaves the ref intact so the walk
-    // warns as before.
-    await inlineExternalSvgRefs(page);
+    // external refs exist. Unreadable resources refuse capture rather than
+    // silently dropping paint; temporary definitions live through raster passes
+    // and are restored by the outer capture cleanup.
+    externalCssSvg = await primeExternalCssSvgReferences(page);
     await reverifyAnimationFrame();
 
     // Default-on (DOMOTION_GENERIC_PROBE=0 disables): probe THIS capture Page's
@@ -2378,119 +2383,27 @@ async function captureElementTreeWithWarningsInternal(
     } finally {
       await disposeAll(frameScrollCapture, pseudoStyles, projectiveProbe, textPaintProbe);
     }
+  } catch (error) {
+    primaryFailed = true;
+    primaryFailure = error;
+    throw error;
   } finally {
-    try {
-      await replacedMediaTransaction?.dispose();
-    } finally {
-      await webGlFreeze?.dispose();
+    const failures: unknown[] = [];
+    // Keep definitions through every native raster pass, then restore CSS
+    // before the pre-existing media/WebGL owners release their source state.
+    for (const owned of [externalCssSvg, replacedMediaTransaction, webGlFreeze]) {
+      try {
+        await owned?.dispose();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      if (primaryFailed) throw new AggregateError([primaryFailure, ...failures], "capture and scoped cleanup failed");
+      if (failures.length === 1) throw failures[0];
+      throw new AggregateError(failures, "capture scoped cleanup failed");
     }
   }
-}
-
-/**
- * DM-829 / DM-496: resolve external-file `clip-path` / `mask-image`
- * (`url("./shapes.svg#id")`) refs in the live page before the (synchronous)
- * capture walk runs. For each element whose computed `clip-path` or
- * `mask-image` points at a file fragment (a non-empty path before the `#`, vs
- * the same-document `url("#id")` form), fetch the `.svg` same-origin, extract
- * the referenced `<clipPath>` / `<mask>`, inline a copy into a hidden
- * in-document SVG, and rewrite the element's inline ref to `url(#localId)`.
- * Blink parses URL clip sources and geometry boxes as mutually exclusive
- * operations, so there is no trailing box token to preserve. The downstream walk
- * then sees a normal same-document fragment and the existing renderer paths
- * handle it unchanged (clip-path: DM-826/DM-828; mask: DM-493).
- *
- * Only meaningful on http(s) pages — Chrome doesn't resolve external fragment
- * refs over `file://`, and `fetch()` of a sibling file is blocked there. Any
- * failure (fetch error / non-2xx / missing or wrong-tag fragment) leaves the
- * element's ref intact, so the walk emits its existing "could not be resolved"
- * warning and the element paints unclipped / unmasked — the prior baseline.
- */
-async function inlineExternalSvgRefs(page: Page): Promise<void> {
-  await evaluateInFrame(page, async () => {
-    // External form: a non-empty, non-`#`-only path before the fragment.
-    // `url("#id")` (same-document) has nothing before the `#` → skipped.
-    const EXT = /url\(\s*["']?([^"')#]+)#([^"')\s]+)["']?\s*\)/i;
-    const SVGNS = "http://www.w3.org/2000/svg";
-
-    type Hit = { el: HTMLElement; absUrl: string; fragId: string; kind: "clip" | "mask" };
-    // First sweep: collect the hits. Bail fast — the common case has none, so
-    // we never fetch or mutate.
-    const hits: Hit[] = [];
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
-      const cs = getComputedStyle(el);
-      const cp = cs.clipPath;
-      if (cp != null && cp !== "none" && cp !== "") {
-        const m = EXT.exec(cp);
-        if (m != null) {
-          try {
-            hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "clip" });
-          } catch {
-            /* bad URL */
-          }
-        }
-      }
-      const mi = cs.maskImage || (cs as typeof cs & { webkitMaskImage?: string }).webkitMaskImage || "";
-      if (mi !== "" && mi !== "none") {
-        const m = EXT.exec(mi);
-        if (m != null) {
-          try {
-            hits.push({ el, absUrl: new URL(m[1], document.baseURI).href, fragId: m[2], kind: "mask" });
-          } catch {
-            /* bad URL */
-          }
-        }
-      }
-    }
-    if (hits.length === 0) return;
-
-    const fileCache = new Map<string, Document | null>(); // absUrl → parsed doc (null = failed)
-    const localIdFor = new Map<string, string>(); // `${kind}|${absUrl}#${fragId}` → injected local id
-    let host: SVGSVGElement | null = null;
-    let counter = 0;
-
-    for (const hit of hits) {
-      const wantTag = hit.kind === "clip" ? "clippath" : "mask";
-      const key = `${hit.kind}|${hit.absUrl}#${hit.fragId}`;
-      let localId = localIdFor.get(key);
-      if (localId == null) {
-        let doc = fileCache.get(hit.absUrl);
-        if (doc === undefined) {
-          try {
-            const res = await fetch(hit.absUrl);
-            doc = res.ok ? new DOMParser().parseFromString(await res.text(), "image/svg+xml") : null;
-          } catch {
-            doc = null;
-          }
-          fileCache.set(hit.absUrl, doc);
-        }
-        if (doc == null) continue; // fetch/parse failed → leave ref intact (walk warns)
-        const frag = doc.getElementById(hit.fragId);
-        if (frag == null || frag.tagName.toLowerCase() !== wantTag) continue;
-        if (host == null) {
-          host = document.createElementNS(SVGNS, "svg");
-          host.setAttribute("width", "0");
-          host.setAttribute("height", "0");
-          host.setAttribute("aria-hidden", "true");
-          host.style.position = "absolute";
-          document.body.appendChild(host);
-        }
-        const imported = document.importNode(frag, true) as Element;
-        localId = `domotion-ext${hit.kind}-${counter++}`;
-        imported.setAttribute("id", localId);
-        host.appendChild(imported);
-        localIdFor.set(key, localId);
-      }
-      if (hit.kind === "clip") {
-        hit.el.style.clipPath = `url(#${localId})`;
-      } else {
-        // Override just the image longhand; mask-mode/size/position/repeat stay
-        // from the original CSS so DM-493's same-document path reads them.
-        hit.el.style.maskImage = `url(#${localId})`;
-        (hit.el.style as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage = `url(#${localId})`;
-      }
-    }
-  });
 }
 
 /**

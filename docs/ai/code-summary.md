@@ -26,6 +26,8 @@ deviation for box, inline, control, and text shadows.
 
 - `src/capture/` owns browser bring-up, DOM/style/geometry collection, source
   evidence, replaced/native surfaces, and the serialized page capture script.
+  `external-css-svg.ts` owns temporary CSS clip/mask resources, reusing the
+  document-authenticated `external-svg-transport.ts` with Node deadlines.
   `capture/debug-bundle.ts` owns the filesystem-neutral in-memory reproduction
   artifacts used by programmatic capture callers; CLI directory conventions
   remain under `src/cli/`. `capture/index.ts` is the internal barrel;

@@ -150,6 +150,7 @@ jobs:
         run: >-
           npx vitest run --config vitest.e2e.config.ts
           tests/external-svg-frozen-page.e2e.test.ts
+          tests/external-css-svg.e2e.test.ts
           tests/inline-svg-external-use.e2e.test.ts
           tests/external-svg-refs.e2e.test.ts
           --reporter=json --outputFile=tests/output/external-svg-frozen/results.json
@@ -157,7 +158,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output/external-svg-frozen/results.json --minimum-passed 33
+          --browser-results tests/output/external-svg-frozen/results.json --minimum-passed 53
       - name: Run feature visual-regression suite
         # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
         # runner applies a per-platform coverage cap on win32 because DirectWrite

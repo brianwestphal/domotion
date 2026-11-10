@@ -5,10 +5,13 @@ kind: "reference"
 status: "current"
 owners: ["paint-effects", "layout", "product-tooling"]
 platforms: []
-tickets: ["DM-2338", "DM-2362", "DM-493", "DM-826", "DM-828", "DM-829"]
+tickets: ["DM-2338", "DM-2362", "DM-493", "DM-826", "DM-828", "DM-829", "DM-HK7GEB", "DM-302BYE"]
 code:
   [
     "src/capture/index.ts",
+    "src/capture/external-css-svg.ts",
+    "src/capture/external-svg-transport.ts",
+    "tests/external-css-svg.e2e.test.ts",
     "src/render/clip-path.test.ts",
     "src/render/svg-inline.test.ts",
     "tests/clip-path-url-reference-box.e2e.test.ts",
@@ -117,7 +120,48 @@ The captured `<clipPath>`'s `clipPathUnits` is recorded at capture time (`ClipPa
 
 ### 3. External-file fragment (`url("./shapes.svg#clip-id")`)
 
-**Implemented in DM-829.** The `.svg` file isn't part of the captured DOM, so the sync walk can't reach it. An async pre-pass — `inlineExternalSvgRefs()` in `src/capture/index.ts`, run before the capture walk (alongside the `rasterize*` passes) — does the resolution in-page: for each element whose computed `clip-path` is an external `url("<path>#id")` (a non-empty path before the `#`), it fetches the file same-origin, `DOMParser`-extracts the `<clipPath id>`, inlines a copy into a hidden in-document `<svg>` under a fresh local id, and rewrites the element's inline `clip-path` to the exclusive `url(#localId)` form. There is no geometry-box token to preserve. The walk then sees a normal same-document fragment, and §1/§2 (incl. DM-828 userSpaceOnUse translation) render it **unchanged**.
+**Implemented in DM-829; frozen-page ownership repaired in DM-HK7GEB.**
+`primeExternalCssSvgReferences()` in `src/capture/external-css-svg.ts` runs at
+the existing main-document prepass boundary. It reads external `clip-path` and
+`mask-image` fragments with the document-authenticated isolated renderer
+transport used by external SVG `<use>`. Native fetch retains cookies, CSP,
+CORS and Playwright HAR routing; each request, including its body, has a
+5-second Node-owned bound. It never resumes author fetch or timers. The
+original default-document token is checked again after transport binding so
+navigation cannot reuse a stale CSS snapshot in a new document.
+
+The prepass imports the matching `<clipPath>` or `<mask>` into an owned hidden
+SVG and temporarily points the source property at its local definition. The
+existing same-document capture and rendering paths remain responsible for
+geometry. Definitions survive all capture raster passes. Outer capture cleanup
+restores the exact original style attribute when still owned; after an author
+edit it restores only properties whose value and priority remain owned.
+Unconfirmed restoration or foreign adoption of a definition retains the
+journal/definition and reports a cleanup error, allowing a safe retry.
+The adoption check resolves document-local URL identity and percent-decodes
+generated ASCII fragment IDs; an encoded reference is still a live dependency.
+Native clip and mask controls verify that refused cleanup preserves those
+pixels and that a later retry succeeds after the foreign owner is removed.
+
+Caveats: external fragments are validated over HTTP(S), not `file://`.
+An unreadable, malformed, denied or stalled resource refuses capture instead
+of silently discarding active clipping/masking. A missing or wrong-type
+fragment in a successfully read document retains the existing walker outcome;
+mixed unresolved mask layers refuse rather than partially rewriting paint.
+One resource read is shared across consumers in the capture. The same Page
+retains stable private definition names between captures; existing IDs and
+local CSS references are excluded from allocation.
+
+Chromium can paint an SVG resource even when CSP `connect-src` denies a new
+fetch. This valid source remains an explicit unsupported refusal, tracked by
+DM-302BYE for source-owned raster/resource acquisition. Redirect paint
+admission remains DM-N8EYNT. Neither limitation is claimed solved by the
+transport. Native controls cover frozen clip/mask pixels, exact rollback,
+cookies, HAR replay, CSP refusal, bounded stalled-body abort, partial setter
+failure and foreign cleanup ownership in `tests/external-css-svg.e2e.test.ts`.
+The transport's pinned Chromium origin-copy and document-CSP source contract,
+and its distinction from the installed Chromium revision, are documented in
+[doc 24](24-inline-svg-icon-references.md).
 
 Caveats: this only works over **http(s)** — Chrome doesn't resolve external clip-path refs over `file://`, and a sibling-file `fetch()` is blocked there (so the feature is validated via a loopback-HTTP test, `tests/external-svg-refs.e2e.test.ts`, not the `file://` feature runner). Any failure (fetch error / non-2xx / non-http origin / missing or non-`<clipPath>` fragment) leaves the ref intact, so the walk emits its existing warning and the element paints unclipped — the pre-DM-829 baseline. A parsed file is fetched once and shared across consumers (icon-set pattern).
 
@@ -147,7 +191,8 @@ Caveats: this only works over **http(s)** — Chrome doesn't resolve external cl
 ## Remaining boundaries
 
 - ~~`clipPathUnits="userSpaceOnUse"`~~ — **done in DM-828** (per-element translated copy via `positionFragmentClipPathDef`; fixture `clip-path-userspaceonuse-fragment` in `tests/features.ts`).
-- ~~External `.svg` file fragment refs (`url("./shapes.svg#id")`)~~ — **done in DM-829** (`inlineExternalSvgRefs` pre-pass; resolves over http(s), inlines as a same-document def).
+- External `.svg` fragment refs resolve over HTTP(S) through the owned prepass;
+  CSP-painted acquisition remains DM-302BYE and redirect admission DM-N8EYNT.
 - ~~Non-default `<geometry-box>` origins for URL references~~ — **closed by
   DM-2362's source audit**. Blink's parser rejects URL-plus-box syntax; it is a
   negative activation control, not a deferred geometry feature. Bare HTML URL
