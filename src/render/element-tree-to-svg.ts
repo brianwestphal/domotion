@@ -463,12 +463,17 @@ function paintImage(
   const capturedImageZoom = el.imageEffectiveZoom;
   const effectiveZoom =
     capturedImageZoom != null && Number.isFinite(capturedImageZoom) && capturedImageZoom > 0 ? capturedImageZoom : 1;
+  // Density cancels for contain/cover. Preserve native decoded resource ratio
+  // instead of the independently truncated DOM natural dimensions (DM-0A2W05).
+  // None/scale-down still require complete density-corrected natural size.
+  const ratioIntrinsic = fit === "contain" || fit === "cover" ? el.imageDecodedIntrinsic : undefined;
+  const objectIntrinsic = ratioIntrinsic ?? intrinsic;
   const paintIntrinsic =
-    intrinsic == null
+    objectIntrinsic == null
       ? null
       : {
-          w: intrinsic.w * effectiveZoom,
-          h: intrinsic.h * effectiveZoom,
+          w: objectIntrinsic.w * effectiveZoom,
+          h: objectIntrinsic.h * effectiveZoom,
         };
   // An SVG image's object-fit uses Blink's natural sizing info (which may be
   // a ratio alone, one dimension, or nothing), not the concrete size

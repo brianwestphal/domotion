@@ -52,6 +52,7 @@ import {
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
 import { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./tree-envelope.js";
+import { primeDecodedImageRatios } from "./decoded-image-ratio.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import { captureSummaryMarkerGeometry } from "./summary-marker-cdp.js";
@@ -2139,21 +2140,28 @@ async function captureElementTreeWithWarningsInternal(
     await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
     await reverifyAnimationFrame();
 
-    const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime, externalSvgUsePrime] = await runPrepasses([
-      { prepare: () => primeMaskImageIntrinsics(page) },
-      { prepare: () => primeBackgroundImageSizing(page) },
-      { prepare: () => primePseudoImageIntrinsics(page) },
-      { prepare: () => primeExternalSvgUseDocuments(page) },
-    ] as const);
+    const [maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime, externalSvgUsePrime, decodedImagePrime] =
+      await runPrepasses([
+        { prepare: () => primeMaskImageIntrinsics(page) },
+        { prepare: () => primeBackgroundImageSizing(page) },
+        { prepare: () => primePseudoImageIntrinsics(page) },
+        { prepare: () => primeExternalSvgUseDocuments(page) },
+        { prepare: () => primeDecodedImageRatios(page) },
+      ] as const);
     const frameScrollCapture = await prepareFrameScrollCapture(page, opts?.crossOriginFrames).catch(async (error) => {
       try {
-        await disposeAll(maskIntrinsicPrime, backgroundImagePrime, pseudoImagePrime, externalSvgUsePrime);
+        await disposeAll(
+          maskIntrinsicPrime,
+          backgroundImagePrime,
+          pseudoImagePrime,
+          externalSvgUsePrime,
+          decodedImagePrime,
+        );
       } catch (cleanupError) {
         throw new AggregateError([error, cleanupError], "frame scroll preparation and cleanup failed");
       }
       throw error;
     });
-    await reverifyAnimationFrame();
     let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
     let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
     let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
@@ -2163,6 +2171,7 @@ async function captureElementTreeWithWarningsInternal(
     let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
     let result: unknown;
     try {
+      await reverifyAnimationFrame();
       const resizerMetrics = await measureBlinkPlatformResizer(page);
       await reverifyAnimationFrame();
       pseudoStyles = await captureResolvedControlPseudoStyles(page, viewport);
@@ -2227,6 +2236,7 @@ async function captureElementTreeWithWarningsInternal(
         backgroundImagePrime,
         pseudoImagePrime,
         externalSvgUsePrime,
+        decodedImagePrime,
         result == null ? pseudoStyles : undefined,
         result == null ? projectiveProbe : undefined,
       );
@@ -2261,6 +2271,7 @@ async function captureElementTreeWithWarningsInternal(
       const frameScrollState = await frameScrollCapture.snapshot();
       warnings.push(...frameScrollCapture.warnings);
       warnings.push(...genericProbeWarnings);
+      warnings.push(...decodedImagePrime.warnings);
       finalizeScrollbarResizerOverlap(typed.tree);
       try {
         // DM-2455: structural hosts keep their vector box/text while one separate

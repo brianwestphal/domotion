@@ -2241,6 +2241,9 @@ export interface CapturedElement {
   imageSrc?: string;
   /** Unzoomed intrinsic pixel dimensions of <img>. */
   imageIntrinsic?: { w: number; h: number };
+  /** Native selected decoded resource dimensions, orientation applied. Ratio
+   * authority only: responsive density is deliberately not inferred. */
+  imageDecodedIntrinsic?: { w: number; h: number };
   /**
    * Blink `LayoutImage::UpdateNaturalSizeIfNeeded()` passes the element's
    * effective zoom into `ImageResource::GetNaturalDimensions()`. The renderer

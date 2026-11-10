@@ -29,6 +29,7 @@ export const captureImageElement = ({
 }) => {
   let imageSrc = undefined;
   let imageIntrinsic;
+  let imageDecodedIntrinsic;
   let imageEffectiveZoom;
   let imageBroken;
   let imageAlt;
@@ -43,6 +44,35 @@ export const captureImageElement = ({
     if (img.naturalWidth > 0 && img.naturalHeight > 0) {
       imageIntrinsic = { w: img.naturalWidth, h: img.naturalHeight };
       imageEffectiveZoom = effectiveZoomFor(el);
+      const host = el.ownerDocument.defaultView as
+        | (Window & {
+            __domotionDecodedImageRatios?: {
+              active: boolean;
+              facts: WeakMap<
+                Element,
+                {
+                  source: string;
+                  naturalWidth: number;
+                  naturalHeight: number;
+                  orientation: string;
+                  width: number;
+                  height: number;
+                }
+              >;
+            };
+          })
+        | null;
+      const state = host?.__domotionDecodedImageRatios;
+      const decoded = state?.active ? state.facts.get(el) : undefined;
+      if (
+        decoded != null &&
+        decoded.source === imageSrc &&
+        decoded.naturalWidth === img.naturalWidth &&
+        decoded.naturalHeight === img.naturalHeight &&
+        el.ownerDocument.defaultView?.getComputedStyle(el).imageOrientation === decoded.orientation
+      ) {
+        imageDecodedIntrinsic = { w: decoded.width, h: decoded.height };
+      }
     }
     // Broken-image fallback (DM-372): img.complete && naturalWidth===0 means
     // the browser tried to load and failed (or src was empty). Chrome paints
@@ -135,6 +165,7 @@ export const captureImageElement = ({
   return {
     imageSrc,
     imageIntrinsic,
+    imageDecodedIntrinsic,
     imageEffectiveZoom,
     imageBroken,
     imageAlt,

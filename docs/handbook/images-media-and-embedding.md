@@ -72,8 +72,21 @@ retains floating density-scaled sizing. The native
 `raster-intrinsic-density.e2e.test.ts` contract uses identical 396 × 581 PNG bytes
 and a 358 × 525.234375 cover box: ordinary and responsive (`396w`, `sizes=390px`)
 images paint identical pixels, while the captured intrinsic API values change
-from 396 × 581 to 389 × 572. DM-0A2W05 owns correcting the renderer authority;
-this investigation changes no production sizing.
+from 396 × 581 to 389 × 572. DM-0A2W05 adds selected decoded-resource ratio authority for raster contain/cover;
+the original investigation changed no production sizing. The `src/capture/decoded-image-ratio.ts` prepass
+uses the live selected IMG with native ImageBitmap, applies native orientation,
+closes every bitmap (including late resolutions), and bounds readiness/cleanup
+with Node timers. It makes no new asset request and retains source DOM/API
+integers. Child frames and open shadow roots share that contract. Unsupported
+orientation, decode failure or a deadline reports an explicit diagnostic and
+keeps legacy sizing; foreign ownership fails closed. DM-JPDMRD tracks the
+proved same-origin EXIF/CSS orientation-none gap: native layout40×20 can coexist
+with oriented DOMnatural20×40. SVG natural sizing takes
+precedence. DM-FRF6A8 owns complete fractional natural-size authority for none
+and scale-down: physical decoded dimensions alone cannot recover density. A
+native396w/sizes390px auto-size control lays out389.984375×572.1875 while API
+getters report389×572. Do not infer density from those separately truncated
+integers.
 
 The retained Stripe mobile card joins actual browser response bytes and emitted
 SVG bytes by SHA-256
@@ -105,3 +118,10 @@ made. CSS HTML image painting also pixel-snaps its destination while SVG image
 painting uses fractional geometry in this Chromium revision. That source fact
 alone neither quantifies the remaining raster floor nor authorizes position
 normalization or a raster/geometry fix.
+
+After the ratio correction, the same static card source/crop hashes remain
+unchanged. Background mean channel error is2.0548903842898256/max24 (previous
+2.0988953783646522/max22); icon remains3.07/max93. Standard raw full-reference
+`diffPct` stays0.012077388292882433 with regionCount0 in both static arms.
+This is scoped sizing-authority evidence, not a claim that the remaining
+raster-route difference or whole reference is corrected.
