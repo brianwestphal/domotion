@@ -414,6 +414,8 @@
       "code": [
         "src/capture/script/walker/inline-svg.ts",
         "src/capture/external-svg-use.ts",
+        "src/capture/external-svg-transport.ts",
+        "tests/external-svg-frozen-page.e2e.test.ts",
         "tests/features.ts",
         "tests/inline-svg-external-use.e2e.test.ts"
       ],

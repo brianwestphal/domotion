@@ -726,10 +726,12 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": [],
-        "tickets": ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE", "DM-589ZF6"],
+        "tickets": ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE", "DM-589ZF6", "DM-4H5MC1"],
         "code": [
           "src/capture/script/walker/inline-svg.ts",
           "src/capture/external-svg-use.ts",
+          "src/capture/external-svg-transport.ts",
+          "tests/external-svg-frozen-page.e2e.test.ts",
           "tests/features.ts",
           "tests/inline-svg-external-use.e2e.test.ts"
         ],

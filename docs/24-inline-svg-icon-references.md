@@ -5,11 +5,13 @@ kind: "reference"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE", "DM-589ZF6"]
+tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE", "DM-589ZF6", "DM-4H5MC1"]
 code:
   [
     "src/capture/script/walker/inline-svg.ts",
     "src/capture/external-svg-use.ts",
+    "src/capture/external-svg-transport.ts",
+    "tests/external-svg-frozen-page.e2e.test.ts",
     "tests/features.ts",
     "tests/inline-svg-external-use.e2e.test.ts",
   ]
@@ -61,6 +63,47 @@ When the resolved subtree contains an active CSS animation (`getAnimations({subt
 ### External-file references (`<use href="sprite.svg#icon">`)
 
 The capture script is synchronous and cannot fetch, so a prepass (`src/capture/external-svg-use.ts`, run in every frame before the walk) collects the external documents the page's `<use>` elements name, then follows nested cross-file references relative to each sprite's own URL. It fetches each same-origin document once, parses it as SVG, and stashes it on the window under a private key (`CaptureScriptArgs.externalSvgUseKey`). The graph is bounded to five nested file levels and 32 distinct documents per frame; cycles are deduplicated. The page registry owns that key and clears each tagged frame after capture; the fetched `Document` objects remain live in Chromium throughout the walk. The walker resolves the reference against that document and inlines the target exactly like a same-document one: `<symbol>` as a nested `<svg viewBox>`, anything else as `<g transform>`, `currentColor` resolved against the host, the `<use>`'s own attributes carried over. External stylesheet rules are scoped to that copy; fragment resources are copied into its defs with collision-free ids, and nested uses resolve against their source document.
+
+The prepass remains usable after the real-world harness freezes author `fetch` and
+timers (DM-4H5MC1). Node owns the URL graph and each request's five-second deadline,
+including reading a stalled response body. It authenticates the source frame's
+default CDP context using a temporary random token, then fetches in one private,
+reused isolated renderer world per frame. This world retains Chromium networking,
+same-origin credentials, redirect/CORS checks, the document's CSP and Playwright/HAR
+routing; it grants no universal access and installs no replacement security policy.
+Neither author globals nor author loops are resumed. The response text crosses to
+Node unchanged and is parsed back into the ordinary capture registry; the walker
+still receives live `Document` objects from the default world. Source identity or
+transport setup failures are explicit refusals, rather than a URL-based guess or a
+more privileged request fallback.
+
+Request timeout/disposal aborts only its private controller. Temporary frame tokens
+and confirmed-complete request controllers are removed, CDP sessions detach (including late setup
+results), and concurrent loads share one session. A refused/unconfirmed cancellation
+remains a cleanup error on repeated disposal and retains its controller rather than
+silently declaring success. All frame work settles before a
+failed prepass disposes its registries. The isolated realm itself is reused until
+navigation; it retains no per-capture document/request stash after disposal. These
+bounds cover each request, not a five-second deadline for the entire multi-level
+graph. Existing HTTP/parser/network/depth/count failures keep their explicit
+`inline-svg` warning and raster ownership.
+
+Source authority: pinned Chromium `7d859f27`
+[`InspectorPageAgent::EnsureDOMWrapperWorld`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_page_agent.cc#L1015)
+copies the frame origin and grants universal access only when requested. The absent
+CSP argument is a null String,
+[`IsolatedWorldCSP::SetContentSecurityPolicy`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/bindings/core/v8/isolated_world_csp.cc#L147)
+clears that override, and
+[`LocalDOMWindow::GetContentSecurityPolicyForWorld`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/frame/local_dom_window.cc#L413)
+falls back to the document policy. Installed Chrome147 revision `6b5a1b80` uses the
+same origin-copy/document-policy rules. Native tests separately prove CSP denial,
+cookie retention, direct foreign-URL refusal, redirect CORS, unchanged XML text,
+HAR replay without network, owned cancellation and same-process/OOPIF identity;
+the positive frozen-page vector matches Chromium's red pixels exactly.
+
+The separate CSS external `clip-path`/`mask-image` fragment prepass still uses
+author fetch without a bound under frozen globals; DM-HK7GEB tracks its native
+reproduction and repair. This SVG `<use>` transport does not change that prepass.
 
 What is refused, with an `inline-svg` warning and Chromium raster ownership of the host `<svg>` ([raster fallback E8](reference/raster-image-fallback-cases.md)): a document that fails to load or parse, a cross-origin or non-http(s) URL (Chromium does not paint those, and no request is made), stylesheet rules outside the scoped style/media/supports subset, a nested chain beyond the depth or document-count limits, and a reference with no fragment id. A document that loads but lacks the named element only warns: Chromium paints nothing, so the dangling `<use>` is faithful.
 

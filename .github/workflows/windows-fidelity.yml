@@ -132,6 +132,14 @@ jobs:
       - name: Verify portable cleanup contracts and native Windows refusal
         if: always()
         run: npx vitest run src/verified-worktree-cleanup.test.ts
+      - name: Verify frozen external SVG renderer requests
+        if: always()
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/external-svg-frozen-page.e2e.test.ts
+          tests/inline-svg-external-use.e2e.test.ts
+          tests/external-svg-refs.e2e.test.ts
+          --reporter=json --outputFile=tests/output/external-svg-frozen/results.json
       - name: Run feature visual-regression suite
         # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
         # runner applies a per-platform coverage cap on win32 because DirectWrite
@@ -164,6 +172,7 @@ jobs:
             tests/output/webgl-projective-preflight/
             tests/output/native-image-capture/
             tests/output/literal-family-identity/
+            tests/output/external-svg-frozen/
           if-no-files-found: error
 
   decoration-geometry:
