@@ -46,6 +46,7 @@ describe.each([
     for (const file of [
       "real-world-cdp",
       "real-world-shared-worker-bootstrap",
+      "real-world-worker-startup-diagnostics",
       "real-world-browser-signals",
       "real-world-webgl-worker-lifecycle",
       "real-world-webgl-freeze",

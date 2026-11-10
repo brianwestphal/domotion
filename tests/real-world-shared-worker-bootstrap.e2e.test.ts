@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createServer, type Server } from "node:http";
 import type { Page } from "@playwright/test";
@@ -10,6 +11,8 @@ import { openRealWorldBrowser } from "./real-world-browser.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { cdpBounded, FlatCdp } from "./real-world-cdp.js";
 import { sharedWorkerBootstrapFor } from "./real-world-shared-worker-bootstrap.js";
+import { collectWorkerStartupDiagnostic } from "./real-world-worker-startup-diagnostics.js";
+import type { WorkerFreezeCounters } from "./real-world-webgl-worker-lifecycle.js";
 
 let server: Server;
 let origin: string;
@@ -17,6 +20,13 @@ let owner: Awaited<ReturnType<typeof openRealWorldBrowser>>;
 const leases = new Set<{ dispose(): Promise<void> }>();
 let requests: Array<{ path: string; contentType: string; bodySha256: string; finished: boolean }> = [];
 let startupEvidence: string[] = [];
+interface StartupControlFacts {
+  patchHook?: { installed: boolean; invocations: number };
+  resumeRejection?: { installed: boolean; executed: boolean };
+  bootstrapDisconnect?: { installed: boolean; executed: boolean };
+}
+let startupControls: StartupControlFacts = {};
+let startupAcquisitions: Array<{ context: ReturnType<Page["context"]>; counters: WorkerFreezeCounters }> = [];
 const pageErrors = new WeakMap<Page, string[]>();
 interface Report {
   nativeInImport: boolean;
@@ -74,6 +84,8 @@ beforeAll(async () => {
 beforeEach(async () => {
   requests = [];
   startupEvidence = [];
+  startupControls = {};
+  startupAcquisitions = [];
   let recorded = false;
   owner = await openRealWorldBrowser(
     (browser, env) => {
@@ -108,10 +120,14 @@ async function page(): Promise<Page> {
 }
 async function acquire(page: Page, beforePatch?: () => Promise<void>) {
   if (beforePatch != null) {
+    const observation = { installed: true, invocations: 0 };
+    startupControls.patchHook = observation;
     const original = FlatCdp.prototype.command;
     vi.spyOn(FlatCdp.prototype, "command").mockImplementation(function (this: FlatCdp, method, params, sessionId) {
-      if (method === "Runtime.evaluate" && params?.["expression"] === patch)
+      if (method === "Runtime.evaluate" && params?.["expression"] === patch) {
+        observation.invocations++;
         return beforePatch().then(() => original.call(this, method, params, sessionId));
+      }
       return original.call(this, method, params, sessionId);
     });
   }
@@ -127,10 +143,24 @@ async function acquire(page: Page, beforePatch?: () => Promise<void>) {
     closed = true;
   });
   const lease = await bootstrap.acquire(targetInfo.browserContextId, { patch, restore }, counters, () => closed);
+  startupAcquisitions.push({ context: page.context(), counters });
   leases.add(lease);
   return { lease, counters };
 }
-async function saveStartupFailure(page: Page, name: string, kind: string, phase: "error" | "timeout"): Promise<void> {
+async function saveStartupFailure(
+  page: Page,
+  name: string,
+  kind: string,
+  phase: "error" | "timeout",
+  scriptPath: string,
+): Promise<void> {
+  // Capture actual hook/counter state before awaiting any failure diagnostics.
+  const observedAt = new Date().toISOString();
+  const controlFacts = structuredClone(startupControls);
+  const bootstrapCounters = startupAcquisitions
+    .filter((entry) => entry.context === page.context())
+    .slice(0, 8)
+    .map((entry) => ({ ...entry.counters }));
   const state = await cdpBounded(
     page.evaluate((name) => {
       const probe = (globalThis as Scope).dm34[name];
@@ -145,6 +175,10 @@ async function saveStartupFailure(page: Page, name: string, kind: string, phase:
     500,
     "Worker startup diagnostic",
   ).catch(() => ({ unavailable: true }));
+  const workerDiagnostic =
+    kind === "shared"
+      ? await collectWorkerStartupDiagnostic(page, { origin, name, scriptPath })
+      : { status: "not_shared_worker" };
   const file = join(
     process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output",
     "worker-bootstrap",
@@ -155,7 +189,8 @@ async function saveStartupFailure(page: Page, name: string, kind: string, phase:
     file,
     JSON.stringify(
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
+        observedAt,
         generatedAt: new Date().toISOString(),
         sourceCommit: process.env["GITHUB_SHA"] ?? null,
         platform: process.platform,
@@ -166,6 +201,9 @@ async function saveStartupFailure(page: Page, name: string, kind: string, phase:
         kind,
         phase,
         state,
+        controlFacts,
+        bootstrapCounters,
+        workerDiagnostic,
         requests,
         consoleErrors: pageErrors.get(page) ?? [],
       },
@@ -174,6 +212,19 @@ async function saveStartupFailure(page: Page, name: string, kind: string, phase:
     ),
   );
   startupEvidence.push(file);
+}
+async function retainStartupFailure(
+  page: Page,
+  name: string,
+  kind: string,
+  phase: "error" | "timeout",
+  scriptPath: string,
+): Promise<void> {
+  try {
+    await saveStartupFailure(page, name, kind, phase, scriptPath);
+  } catch {
+    console.warn("Worker startup failed; diagnostic evidence could not be written.");
+  }
 }
 async function start(
   page: Page,
@@ -216,12 +267,24 @@ async function start(
       { timeout: 8000 },
     );
   } catch (error) {
-    await saveStartupFailure(page, name, kind, "timeout");
+    await retainStartupFailure(
+      page,
+      name,
+      kind,
+      "timeout",
+      script ?? (kind === "shared" ? "/worker.js" : "/dedicated.js"),
+    );
     throw error;
   }
   const error = await page.evaluate((name) => (globalThis as Scope).dm34[name]!.error, name);
   if (error != null) {
-    await saveStartupFailure(page, name, kind, "error");
+    await retainStartupFailure(
+      page,
+      name,
+      kind,
+      "error",
+      script ?? (kind === "shared" ? "/worker.js" : "/dedicated.js"),
+    );
     throw new Error(`Worker startup failed: ${error}`);
   }
   return (await latest(page, name))!;
@@ -262,6 +325,63 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
       expect.objectContaining({ path: "/missing-worker.js", contentType: "text/javascript", finished: true }),
     );
   });
+  it.each([false, true])("persists observed resume-hook execution with bootstrap acquired=%s", async (acquired) => {
+    const observation = { installed: true, executed: false };
+    startupControls.resumeRejection = observation;
+    const original = FlatCdp.prototype.command;
+    vi.spyOn(FlatCdp.prototype, "command").mockImplementation(function (this: FlatCdp, method, params, sessionId) {
+      if (method === "Runtime.runIfWaitingForDebugger" && !observation.executed) {
+        observation.executed = true;
+        return Promise.reject(new Error("controlled resume rejection"));
+      }
+      return original.call(this, method, params, sessionId);
+    });
+    const p = await page();
+    if (acquired) await acquire(p);
+    await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow("Worker startup failed");
+    const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
+      schemaVersion: number;
+      controlFacts: StartupControlFacts;
+      bootstrapCounters: WorkerFreezeCounters[];
+      workerDiagnostic: { cleanup: { page: string } };
+    };
+    expect(evidence.schemaVersion).toBe(2);
+    expect(evidence.controlFacts.resumeRejection).toEqual({ installed: true, executed: acquired });
+    expect(evidence.bootstrapCounters).toEqual(
+      acquired ? [{ frozenWorkers: 0, failedWorkers: 1, failedWorkerRestorations: 0 }] : [],
+    );
+    expect(evidence.workerDiagnostic.cleanup.page).toBe("detached");
+  });
+  it("preserves the original startup error when diagnostic session creation fails", async () => {
+    const p = await page();
+    vi.spyOn(p.context(), "newCDPSession").mockRejectedValue(new Error("controlled diagnostic creation rejection"));
+    await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow(
+      "Worker startup failed: error (Event)",
+    );
+    const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
+      workerDiagnostic: { status: string; failureStage: string };
+    };
+    expect(evidence.workerDiagnostic).toMatchObject({ status: "unavailable", failureStage: "create_page_session" });
+  });
+  it("preserves the original startup error when diagnostic artifact I/O fails", async () => {
+    const p = await page();
+    const directory = await mkdtemp(join(tmpdir(), "dm-startup-io-"));
+    const blocker = join(directory, "file");
+    await writeFile(blocker, "controlled non-directory");
+    const previous = process.env["DOMOTION_OUTPUT_DIR"];
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    process.env["DOMOTION_OUTPUT_DIR"] = blocker;
+    try {
+      await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow(
+        "Worker startup failed: error (Event)",
+      );
+      expect(warning).toHaveBeenCalledWith("Worker startup failed; diagnostic evidence could not be written.");
+    } finally {
+      if (previous === undefined) delete process.env["DOMOTION_OUTPUT_DIR"];
+      else process.env["DOMOTION_OUTPUT_DIR"] = previous;
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
   it("preserves default headless-shell and patches before delayed imports/cached native clear", async () => {
     const p = await page();
     let debuggingPipeRetained = false;
@@ -288,6 +408,18 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
       origin,
       url: "/worker.js",
     });
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        path: "/worker.js",
+        bodySha256: "42a15bbf4470defc1494c8d62eebf6550a176453b3c5a444ef40cc5b295045e3",
+      }),
+    );
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        path: "/relative.js",
+        bodySha256: "18fb0922269b23d5bad275642ec3e7dda7086046641414415bff17106c57cc26",
+      }),
+    );
     expect(counters).toEqual({ frozenWorkers: 1, failedWorkers: 0, failedWorkerRestorations: 0 });
     const evidencePath = process.env["DOMOTION_WORKER_BOOTSTRAP_EVIDENCE"];
     if (evidencePath != null) {
@@ -385,10 +517,13 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
   });
   it("restores and detaches after a rejected resume so cached native progress remains honest", async () => {
     let injected = false;
+    const observation = { installed: true, executed: false };
+    startupControls.resumeRejection = observation;
     const original = FlatCdp.prototype.command;
     vi.spyOn(FlatCdp.prototype, "command").mockImplementation(function (this: FlatCdp, method, params, sessionId) {
       if (method === "Runtime.runIfWaitingForDebugger" && !injected) {
         injected = true;
+        observation.executed = true;
         return Promise.reject(new Error("controlled resume rejection"));
       }
       return original.call(this, method, params, sessionId);
@@ -406,10 +541,13 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
   });
   it("reports a lost startup client and lets Chromium release its pause", async () => {
     let injected = false;
+    const observation = { installed: true, executed: false };
+    startupControls.bootstrapDisconnect = observation;
     const original = FlatCdp.prototype.command;
     vi.spyOn(FlatCdp.prototype, "command").mockImplementation(function (this: FlatCdp, method, params, sessionId) {
       if (!injected && method === "Runtime.evaluate" && params?.["expression"] === patch) {
         injected = true;
+        observation.executed = true;
         return this.close().then(() => {
           throw new Error("controlled bootstrap disconnect");
         });

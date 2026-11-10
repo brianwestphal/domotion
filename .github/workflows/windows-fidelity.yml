@@ -447,6 +447,7 @@ jobs:
           npx vitest run --config vitest.e2e.config.ts
           tests/real-world-cdp.e2e.test.ts
           tests/real-world-shared-worker-bootstrap.e2e.test.ts
+          tests/real-world-worker-startup-diagnostics.e2e.test.ts
           tests/real-world-browser-signals.e2e.test.ts
           tests/real-world-webgl-worker-lifecycle.e2e.test.ts
           tests/real-world-webgl-freeze.e2e.test.ts
