@@ -672,6 +672,9 @@
         "src/capture/index.ts",
         "src/capture/external-css-svg.ts",
         "src/capture/external-svg-transport.ts",
+        "src/capture/external-css-svg-raster.ts",
+        "src/capture/external-css-svg-shadow-guard.ts",
+        "tests/external-css-svg-shadow.e2e.test.ts",
         "tests/external-css-svg.e2e.test.ts",
         "src/render/clip-path.test.ts",
         "src/render/svg-inline.test.ts",
@@ -4546,6 +4549,22 @@
         "tests/capture-selected-shadow-root.e2e.test.ts"
       ],
       "file": "277-shadow-contour-authority.md"
+    },
+    {
+      "id": "requirements/native-css-shadow-isolation",
+      "title": "Native CSS resource paint and document shadow isolation",
+      "kind": "investigation",
+      "status": "current",
+      "owners": ["images-media", "paint-effects"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        "src/capture/external-css-svg.ts",
+        "src/capture/external-css-svg-raster.ts",
+        "src/capture/external-css-svg-shadow-guard.ts",
+        "tests/external-css-svg.e2e.test.ts",
+        "tests/external-css-svg-shadow.e2e.test.ts"
+      ],
+      "file": "278-native-css-shadow-isolation.md"
     },
     {
       "id": "handbook/animation-and-interaction",

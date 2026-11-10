@@ -26,6 +26,7 @@ import {
 import { resolveElementCursor, isOutsideCaptureViewport } from "../utils.js";
 import type { CaptureScriptArgs, CapturedElement } from "../../types.js";
 import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
+import type { ExternalCssSvgJournal } from "../../external-css-svg.js";
 import type { createNativeControlsHandler } from "./native-controls.js";
 import type { createFidelityWarnings } from "./fidelity-warnings.js";
 import type { createMasksClipsHandler } from "./masks-clips.js";
@@ -42,6 +43,22 @@ type NativeControlState = ReturnType<ReturnType<typeof createNativeControlsHandl
 type TextPhase = ReturnType<ReturnType<typeof createTextPhaseHandler>["captureTextPhase"]>;
 type FontMetrics = ReturnType<typeof createFontMetrics>;
 type TextPaintFact = { geometry?: CapturedElement["textPaintGeometry"] } | undefined;
+const externalCssSvgOwner = (args: CaptureScriptArgs, element: Element) =>
+  args.externalCssSvgKey == null
+    ? undefined
+    : (
+        (globalThis as Record<string, unknown>)[args.externalCssSvgKey] as ExternalCssSvgJournal | undefined
+      )?.rasterOwners.get(element);
+const insideExternalCssSvgOwner = (args: CaptureScriptArgs, element: Element) => {
+  const state =
+    args.externalCssSvgKey == null
+      ? undefined
+      : ((globalThis as Record<string, unknown>)[args.externalCssSvgKey] as ExternalCssSvgJournal | undefined);
+  if (state == null || state.rasterOwners.size === 0) return false;
+  for (let current: Element | null = element; current != null; current = current.parentElement)
+    if (state.rasterOwners.has(current)) return true;
+  return false;
+};
 
 export type ElementCaptureDeps = {
   args: CaptureScriptArgs;
@@ -298,6 +315,16 @@ const buildCapturedRasters = (d: ElementCaptureDeps, f: ElementFacts, nextBackdr
   const { el, cs, tag, rect, sel } = f;
   const vp = d.vp;
   return {
+    externalCssSvgRaster:
+      externalCssSvgOwner(d.args, el) == null
+        ? undefined
+        : {
+            token: externalCssSvgOwner(d.args, el)!.token,
+            x: rect.left - vp.x,
+            y: rect.top - vp.y,
+            width: rect.width,
+            height: rect.height,
+          },
     // Old-capture compatibility field. Current textarea and vertical text
     // capture is fully vector; see walker/text-segments.ts.
     elementRaster: computeElementRaster(el, cs, tag, rect, vp),
@@ -426,7 +453,13 @@ export const createElementCapture = () => {
     } as Parameters<ElementCaptureDeps["captureNativeControlState"]>[0]);
     d.warnBeforeMaskDiscovery(el, cs, sel);
     const { maskFragmentReferences, maskFragmentReferenceScope, clipFragmentReferenceScope, urlFilterRasterToken } =
-      d.discoverFragmentReferences(el, cs, sel);
+      insideExternalCssSvgOwner(d.args, el) ? {} : d.discoverFragmentReferences(el, cs, sel);
+    if (externalCssSvgOwner(d.args, el) != null)
+      d.warn(
+        sel,
+        "external-css-svg-raster",
+        "external CSS SVG bytes unavailable; the authenticated native owner retains its painted clip/mask",
+      );
     d.warnAfterMaskDiscovery(el, cs, tag, sel);
     let svgContent = undefined;
     const text = d.captureTextPhase({

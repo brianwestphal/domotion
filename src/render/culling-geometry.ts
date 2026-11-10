@@ -368,7 +368,8 @@ function ownGeometry(el: CapturedElement): {
       suppressesDescendants: true,
     };
   }
-  const atomicRaster = el.urlFilterRaster ?? el.transformSubtreeRaster ?? el.nativeControlRaster;
+  const atomicRaster =
+    el.externalCssSvgRaster ?? el.urlFilterRaster ?? el.transformSubtreeRaster ?? el.nativeControlRaster;
   if (atomicRaster != null) {
     if ("empty" in atomicRaster && atomicRaster.empty === true) {
       return {

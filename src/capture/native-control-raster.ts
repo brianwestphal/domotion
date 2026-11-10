@@ -223,7 +223,8 @@ function collectNativeControlTargets(tree: CapturedElement[]): NativeControlTarg
   const targets: NativeControlTarget[] = [];
   const visit = (nodes: CapturedElement[], projectiveOwner: boolean): void => {
     for (const element of nodes) {
-      const ownedByProjectiveRaster = projectiveOwner || element.transformSubtreeRaster != null;
+      const ownedByProjectiveRaster =
+        projectiveOwner || element.transformSubtreeRaster != null || element.externalCssSvgRaster != null;
       if (element.nativeControlRaster != null && !ownedByProjectiveRaster) {
         targets.push({ element, raster: element.nativeControlRaster });
       }

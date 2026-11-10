@@ -154,7 +154,8 @@ function collectBoundTargets(tree: CapturedElement[]): BoundTarget[] {
   const targets: BoundTarget[] = [];
   const visit = (nodes: CapturedElement[], projectiveOwner: boolean): void => {
     for (const element of nodes) {
-      const ownsProjectiveSurface = projectiveOwner || element.transformSubtreeRaster != null;
+      const ownsProjectiveSurface =
+        projectiveOwner || element.transformSubtreeRaster != null || element.externalCssSvgRaster != null;
       if (element.replacedSnapshot != null && !ownsProjectiveSurface) {
         targets.push({ element, snapshot: element.replacedSnapshot, kind: targetKind(element) });
       }

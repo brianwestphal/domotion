@@ -24,6 +24,7 @@ function ownsOpaqueSurface(element: CapturedElement): boolean {
   return (
     element.projectiveHidden === true ||
     element.nativeControlRaster != null ||
+    element.externalCssSvgRaster != null ||
     element.svgContent != null ||
     element.urlFilterRaster?.empty === true ||
     element.urlFilterRaster?.dataUri != null ||

@@ -8,3 +8,4 @@ Generated from lifecycle metadata. Historical files remain at their alias paths 
 - [Transformed flex descendant investigation](../209-transformed-flex-descendant-investigation.md) — investigation; current; `requirements/transformed-flex-descendant-investigation`
 - [Playwright compressed ZIP reader lifecycle investigation](../275-playwright-zip-reader-investigation.md) — investigation; current; `requirements/playwright-zip-reader-investigation`
 - [Native shadow contour authority and unresolved producer boundaries](../277-shadow-contour-authority.md) — investigation; current; `requirements/shadow-contour-authority`
+- [Native CSS resource paint and document shadow isolation](../278-native-css-shadow-isolation.md) — investigation; current; `requirements/native-css-shadow-isolation`

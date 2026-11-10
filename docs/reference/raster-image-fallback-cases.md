@@ -170,6 +170,27 @@ Capture and emit: each refusal emits an `inline-svg` warning naming the referenc
 
 ---
 
+### E9. Native external CSS SVG clip/mask paint without readable bytes
+
+Trigger: the owned CSS fragment prepass cannot read a selected external SVG
+resource, including a native-painted clip/mask whose CSP `connect-src` denies
+an auxiliary fetch. Copying defs cannot be justified from unavailable bytes or
+an unchecked URL cache. Capture uses the exact selected main-document HTML
+owner's existing native paint, without refetching or weakening CSP.
+
+Capture: `src/capture/external-css-svg.ts` retains document/element selection in
+its private journal; `src/capture/script/walker/element-capture.ts` records
+`externalCssSvgRaster`; `src/capture/external-css-svg-raster.ts` isolates the
+authenticated native subtree with Node bounds, source-preserving visibility,
+transparent alpha readback and retryable CAS cleanup. Unsupported ancestor
+compositing, clipping, text and active animation explicitly refuse (DM-N933MV).
+
+Emit: `src/render/element-tree-to-svg.ts` emits one atomic PNG or a proven empty
+surface. Generated pseudo descendants, child native controls and replaced
+elements stay inside that owner; no structural child repaint or stacking hoist.
+Missing pixels refuse rather than reopening the unclipped vector path. See
+[doc 39](../39-clip-path-fragment-references.md) (DM-302BYE).
+
 ## CSS-feature fallbacks
 
 ### C-1. Native form-control host paint

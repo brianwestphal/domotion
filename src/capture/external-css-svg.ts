@@ -6,6 +6,12 @@ import { openExternalSvgTransport } from "./external-svg-transport.js";
 import { EXTERNAL_SVG_FETCH_TIMEOUT_MS } from "./external-svg-use.js";
 import { createPageRegistry } from "./page-registry.js";
 import { privateCaptureKey } from "./private-key.js";
+import {
+  rasterizeExternalCssSvgSurfaces,
+  restoreExternalCssSvgIsolation,
+  type CssSvgIsolation,
+} from "./external-css-svg-raster.js";
+import type { CapturedElement } from "./types.js";
 
 // Keep static fragment identity stable across captures of the same Page.
 const definitionPrefixes = new WeakMap<Page, string>();
@@ -36,7 +42,7 @@ interface SavedStyle {
   owned: string | null;
   properties: SavedProperty[];
 }
-interface Journal {
+export interface ExternalCssSvgJournal {
   token: string;
   prefix: string;
   targets: Target[];
@@ -45,9 +51,13 @@ interface Journal {
   clones: Element[];
   ids: string[];
   hostMarkup: string | null;
+  rasterOwners: Map<Element, { token: string; properties: Array<{ property: Property; computed: string }> }>;
+  isolation?: CssSvgIsolation;
 }
+type Journal = ExternalCssSvgJournal;
 export interface ExternalCssSvgPrime extends AsyncDisposable {
   registryKey: string;
+  rasterize(tree: CapturedElement[], viewport: { x: number; y: number; width: number; height: number }): Promise<void>;
 }
 
 /** Kept at the original main-document prepass boundary. No child/foreign page mutations. */
@@ -59,10 +69,13 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
   let transport: Awaited<ReturnType<typeof openExternalSvgTransport>> | undefined;
   let disposed = false;
   let closing: Promise<void> | undefined;
+  const rasterize: ExternalCssSvgPrime["rasterize"] = (tree, viewport) =>
+    rasterizeExternalCssSvgSurfaces(page, tree, viewport, { key: registry.key, token });
   const dispose = (): Promise<void> => {
     if (disposed) return Promise.resolve();
     return (closing ??= (async () => {
       try {
+        await restoreExternalCssSvgIsolation(page, { key: registry.key, token });
         const failures = await evaluateInFrame(
           page,
           ({ key, token }) => {
@@ -184,7 +197,17 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
             if (references.length > 0) targets.push({ element, property, computed, references });
           }
         }
-        return { token, prefix, targets, styles: [], host: null, clones: [], ids: [], hostMarkup: null };
+        return {
+          token,
+          prefix,
+          targets,
+          styles: [],
+          host: null,
+          clones: [],
+          ids: [],
+          hostMarkup: null,
+          rasterOwners: new Map(),
+        };
       },
       { token, prefix },
     );
@@ -200,9 +223,10 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
     if (hrefs.length === 0) {
       await registry.dispose();
       disposed = true;
-      return { registryKey: registry.key, dispose };
+      return { registryKey: registry.key, dispose, rasterize };
     }
     const documents: Array<{ href: string; text: string }> = [];
+    const unreadable: string[] = [];
     if (hrefs.length > 0) {
       transport = await openExternalSvgTransport(page.mainFrame(), EXTERNAL_SVG_FETCH_TIMEOUT_MS);
       // Bind the earlier CSS snapshot to the document authenticated by the
@@ -218,20 +242,15 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
       for (const href of hrefs) {
         const result = await transport.fetch(href);
         if ("failure" in result) {
-          const reason =
-            /^HTTP \d{3}$/.test(result.failure) ||
-            result.failure === "the fetch timed out" ||
-            result.failure === "the document is not well-formed SVG"
-              ? result.failure
-              : "the renderer fetch was refused or failed";
-          throw new Error(`external CSS SVG resource could not be read: ${reason}`);
+          unreadable.push(href);
+          continue;
         }
         documents.push({ href, text: result.text });
       }
     }
     await evaluateInFrame(
       page,
-      ({ key, token, documents }) => {
+      ({ key, token, documents, unreadable }) => {
         const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
         if (state?.token !== token) throw new Error("external CSS SVG source ownership changed");
         const SVGNS = "http://www.w3.org/2000/svg";
@@ -260,10 +279,25 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
         }
         const definitions = new Map<string, string>();
         const styles = new Map<HTMLElement | SVGElement, SavedStyle>();
+        const nativeOwners = new Set(
+          state.targets
+            .filter((target) => target.references.some((reference) => unreadable.includes(reference.href)))
+            .map((target) => target.element),
+        );
         for (const target of state.targets) {
           if (!target.element.isConnected) continue;
           if (getComputedStyle(target.element).getPropertyValue(target.property) !== target.computed)
             throw new Error("external CSS SVG source changed while reading its resource");
+          if ([...nativeOwners].some((owner) => owner !== target.element && owner.contains(target.element))) continue;
+          if (nativeOwners.has(target.element)) {
+            let owner = state.rasterOwners.get(target.element);
+            if (owner == null) {
+              owner = { token: `${state.prefix}_raster_${state.rasterOwners.size}`, properties: [] };
+              state.rasterOwners.set(target.element, owner);
+            }
+            owner.properties.push({ property: target.property, computed: target.computed });
+            continue;
+          }
           const matches = target.references.map((reference) => {
             const element = parsed.get(reference.href)?.getElementById(reference.fragment);
             const wanted = target.property === "clip-path" ? "clippath" : "mask";
@@ -334,11 +368,11 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           }
         }
       },
-      { key: registry.key, token, documents },
+      { key: registry.key, token, documents, unreadable },
     );
     await transport?.dispose();
     transport = undefined;
-    return { registryKey: registry.key, dispose };
+    return { registryKey: registry.key, dispose, rasterize };
   } catch (error) {
     const failures: unknown[] = [error];
     try {

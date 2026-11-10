@@ -1066,11 +1066,28 @@
         "status": "current",
         "owners": ["paint-effects", "layout", "product-tooling"],
         "platforms": [],
-        "tickets": ["DM-2338", "DM-2362", "DM-493", "DM-826", "DM-828", "DM-829", "DM-HK7GEB", "DM-302BYE"],
+        "tickets": [
+          "DM-2338",
+          "DM-2362",
+          "DM-493",
+          "DM-826",
+          "DM-828",
+          "DM-829",
+          "DM-HK7GEB",
+          "DM-302BYE",
+          "DM-M6VWFD",
+          "DM-CKS6JY",
+          "DM-N933MV",
+          "DM-F19PYG",
+          "DM-HSABGR"
+        ],
         "code": [
           "src/capture/index.ts",
           "src/capture/external-css-svg.ts",
           "src/capture/external-svg-transport.ts",
+          "src/capture/external-css-svg-raster.ts",
+          "src/capture/external-css-svg-shadow-guard.ts",
+          "tests/external-css-svg-shadow.e2e.test.ts",
           "tests/external-css-svg.e2e.test.ts",
           "src/render/clip-path.test.ts",
           "src/render/svg-inline.test.ts",
@@ -6182,6 +6199,26 @@
       }
     },
     {
+      "file": "278-native-css-shadow-isolation.md",
+      "metadata": {
+        "id": "requirements/native-css-shadow-isolation",
+        "title": "Native CSS resource paint and document shadow isolation",
+        "kind": "investigation",
+        "status": "current",
+        "owners": ["images-media", "paint-effects"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-302BYE", "DM-M6VWFD", "DM-CKS6JY"],
+        "code": [
+          "src/capture/external-css-svg.ts",
+          "src/capture/external-css-svg-raster.ts",
+          "src/capture/external-css-svg-shadow-guard.ts",
+          "tests/external-css-svg.e2e.test.ts",
+          "tests/external-css-svg-shadow.e2e.test.ts"
+        ],
+        "aliases": ["docs/278-native-css-shadow-isolation.md", "doc-278"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6699,6 +6736,7 @@
     "274": ["requirements/dynamic-svg-image-fonts"],
     "275": ["requirements/playwright-zip-reader-investigation"],
     "277": ["requirements/shadow-contour-authority"],
+    "278": ["requirements/native-css-shadow-isolation"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

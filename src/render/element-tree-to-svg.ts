@@ -4313,7 +4313,13 @@ function paintAtomicElementPhase(
   // coordinates. The post-capture pass owns the complete filtered HTML
   // surface, including filter-region crop, edgeMode, divisor/bias, target,
   // preserveAlpha, clip/mask ordering, zoom, and the element's transform.
-  const urlFilterRaster = el.urlFilterRaster;
+  if (
+    el.externalCssSvgRaster != null &&
+    el.externalCssSvgRaster.empty !== true &&
+    el.externalCssSvgRaster.dataUri == null
+  )
+    throw new Error("external CSS SVG native surface is unavailable");
+  const urlFilterRaster = el.externalCssSvgRaster ?? el.urlFilterRaster;
   if (urlFilterRaster?.empty === true) return true;
   if (urlFilterRaster?.dataUri != null) {
     const image = `<image href="${urlFilterRaster.dataUri}" x="${r(urlFilterRaster.x)}" y="${r(urlFilterRaster.y)}" width="${r(urlFilterRaster.width)}" height="${r(urlFilterRaster.height)}" preserveAspectRatio="none"/>`;

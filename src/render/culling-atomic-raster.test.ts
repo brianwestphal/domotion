@@ -5,7 +5,7 @@ import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
 
 const DATA_URI = "data:image/png;base64,Y3VsbC1yYXN0ZXI=";
 
-function atomic(kind: "filter" | "projective" | "native"): CapturedElement {
+function atomic(kind: "filter" | "projective" | "native" | "css-resource"): CapturedElement {
   const element: CapturedElement = {
     tag: kind === "native" ? "input" : "div",
     text: "",
@@ -31,13 +31,22 @@ function atomic(kind: "filter" | "projective" | "native"): CapturedElement {
   };
   const surface = { x: 780, y: 20, width: 60, height: 30, dataUri: DATA_URI };
   if (kind === "filter") element.urlFilterRaster = surface;
+  else if (kind === "css-resource") element.externalCssSvgRaster = { ...surface, token: "css" };
   else if (kind === "projective") element.transformSubtreeRaster = surface;
   else element.nativeControlRaster = surface;
   return element;
 }
 
 describe("renderer-owned cull wrappers for atomic Chromium surfaces", () => {
-  it.each(["filter", "projective", "native"] as const)(
+  it("never reopens structural children when a required CSS native surface is missing or empty", () => {
+    const element = atomic("css-resource");
+    delete element.externalCssSvgRaster!.dataUri;
+    element.children.push(atomic("native"));
+    expect(() => elementTreeToSvgInner([element], 800, 200)).toThrow("external CSS SVG native surface is unavailable");
+    element.externalCssSvgRaster!.empty = true;
+    expect(elementTreeToSvgInner([element], 800, 200)).not.toContain(DATA_URI);
+  });
+  it.each(["filter", "projective", "native", "css-resource"] as const)(
     "keeps the %s surface under one outer cull owner and one inner animation owner",
     (kind) => {
       const svg = elementTreeToSvgInner([atomic(kind)], 800, 200);

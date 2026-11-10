@@ -2238,6 +2238,7 @@ async function captureElementTreeWithWarningsInternal(
         pseudoFragmentKey: pseudoFragmentProbe.key,
         pseudoImageSizingKey: pseudoImagePrime.propertyKey,
         externalSvgUseKey: externalSvgUsePrime.registryKey,
+        externalCssSvgKey: externalCssSvg.registryKey,
       };
       textPaintProbe = await prepareTextPaintGeometry(page, selector, viewport, async (textPaintKey) => {
         const neutralResult = await page.evaluate(
@@ -2344,6 +2345,8 @@ async function captureElementTreeWithWarningsInternal(
       await refineLineClampEllipsisFragments(page, typed.tree, viewport, warnings);
       await reverifyAnimationFrame();
       await rasterizeUrlFilterSurfaces(page, typed.tree, viewport);
+      await reverifyAnimationFrame();
+      await externalCssSvg.rasterize(typed.tree, viewport);
       if (textPaintProbe != null) {
         // Bitmap glyphs and pseudo fallbacks belong to the same pre-transform
         // plane as vector glyphs. Materialize only affine-owned candidates while

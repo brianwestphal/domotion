@@ -68,6 +68,15 @@ describe("positioned generated paint context ownership", () => {
     expect(plan.contexts.size).toBe(0);
     expect(plan.treeOrder.has(opaque.children[0])).toBe(true);
   });
+  it("does not hoist generated descendants from an external CSS native owner", () => {
+    const opaque = owner();
+    opaque.externalCssSvgRaster = { x: 0, y: 0, width: 40, height: 40, token: "native-css" };
+    opaque.children.push(owner());
+    const plan = collectPseudoStackingContexts([opaque]);
+    expect(plan.managed.size).toBe(0);
+    expect(plan.contexts.size).toBe(0);
+    expect(plan.treeOrder.has(opaque.children[0])).toBe(true);
+  });
 
   it("preserves negative and legacy3D ownership rather than projecting a new phase", () => {
     const negative = owner();

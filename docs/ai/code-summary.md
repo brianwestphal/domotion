@@ -33,6 +33,10 @@ reusing the reference identifier/string decoders and shared URL argument reader.
   evidence, replaced/native surfaces, and the serialized page capture script.
   `external-css-svg.ts` owns temporary CSS clip/mask resources, reusing the
   document-authenticated `external-svg-transport.ts` with Node deadlines.
+  `external-css-svg-raster.ts` preserves selected native CSS resource paint when
+  resource bytes are unavailable, with bounded isolation and exact ownership. Its public-CDP
+  `external-css-svg-shadow-guard.ts` refuses author-shadow documents and retains
+  owner/document identities through native readback.
   `capture/debug-bundle.ts` owns the filesystem-neutral in-memory reproduction
   artifacts used by programmatic capture callers; CLI directory conventions
   remain under `src/cli/`. `capture/index.ts` is the internal barrel;

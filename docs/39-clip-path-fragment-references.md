@@ -5,12 +5,30 @@ kind: "reference"
 status: "current"
 owners: ["paint-effects", "layout", "product-tooling"]
 platforms: []
-tickets: ["DM-2338", "DM-2362", "DM-493", "DM-826", "DM-828", "DM-829", "DM-HK7GEB", "DM-302BYE"]
+tickets:
+  [
+    "DM-2338",
+    "DM-2362",
+    "DM-493",
+    "DM-826",
+    "DM-828",
+    "DM-829",
+    "DM-HK7GEB",
+    "DM-302BYE",
+    "DM-M6VWFD",
+    "DM-CKS6JY",
+    "DM-N933MV",
+    "DM-F19PYG",
+    "DM-HSABGR",
+  ]
 code:
   [
     "src/capture/index.ts",
     "src/capture/external-css-svg.ts",
     "src/capture/external-svg-transport.ts",
+    "src/capture/external-css-svg-raster.ts",
+    "src/capture/external-css-svg-shadow-guard.ts",
+    "tests/external-css-svg-shadow.e2e.test.ts",
     "tests/external-css-svg.e2e.test.ts",
     "src/render/clip-path.test.ts",
     "src/render/svg-inline.test.ts",
@@ -144,20 +162,74 @@ Native clip and mask controls verify that refused cleanup preserves those
 pixels and that a later retry succeeds after the foreign owner is removed.
 
 Caveats: external fragments are validated over HTTP(S), not `file://`.
-An unreadable, malformed, denied or stalled resource refuses capture instead
-of silently discarding active clipping/masking. A missing or wrong-type
+An unreadable, malformed, denied or stalled resource selects the authenticated
+native whole-owner path below, or explicitly refuses an unsupported owner.
+A missing or wrong-type
 fragment in a successfully read document retains the existing walker outcome;
 mixed unresolved mask layers refuse rather than partially rewriting paint.
 One resource read is shared across consumers in the capture. The same Page
 retains stable private definition names between captures; existing IDs and
 local CSS references are excluded from allocation.
 
+The native-owner fallback refuses author-shadow documents (DM-CKS6JY). A
+public-CDP session with five-second setup/read and one-second query/cleanup
+bounds retains the actual owner object, original default
+execution context and document backend identity. A full pierced DOM tree must
+contain the same owner exactly once and no open or closed author shadow root,
+including empty roots or foreign hosts outside the selected ancestry. Browser-owned
+UA shadow trees are excluded. Pinned `InspectorDOMAgent::getDocument` builds the pierced shadow roots even when
+empty; `DidPushShadowRoot` emits events for fully requested hosts. Public
+topology/context events invalidate the proof
+during the screenshot, including roots inserted and removed before the final
+query. The same owner/document and tree are verified again before PNG adoption;
+unavailable coverage explicitly refuses and owned isolation is restored. This is
+a conservative refusal boundary, not author-shadow rendering support. The
+selected-root-only shadow fact used by inset-root admission does not authenticate
+foreign paint isolation. Native open/closed slotted and separate-host controls
+proved unrelated blue paint could enter the old selected-owner PNG while source
+paint remained unchanged; expected/captured witnesses are attached to DM-M6VWFD.
+
 Chromium can paint an SVG resource even when CSP `connect-src` denies a new
-fetch. This valid source remains an explicit unsupported refusal, tracked by
-DM-302BYE for source-owned raster/resource acquisition. Redirect paint
-admission remains DM-N8EYNT. Neither limitation is claimed solved by the
-transport. Native controls cover frozen clip/mask pixels, exact rollback,
-cookies, HAR replay, CSP refusal, bounded stalled-body abort, partial setter
+fetch. DM-302BYE preserves that paint through `externalCssSvgRaster`: a private
+document journal correlates the exact selected HTML element with an atomic
+Chromium-painted PNG. It reads no cached resource body and makes no replacement
+network request. Public `Page.getResourceContent` does not establish selected
+resource authority: pinned
+[`InspectorPageAgent`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_page_agent.cc#L174)
+invokes a resource-content loader and has document-fetcher/global-memory-cache/URL fallbacks. Native
+cacheable and no-store SVG-mask/clip controls did not expose their painted SVG
+through that API.
+
+Native isolation excludes the owner, its descendants and ancestor path from
+the hide selector entirely. It preserves native visibility and hidden children;
+hiding and re-showing that path can make an external mask transparent. Ancestor
+background, border, outline, shadow and pseudo paint are suppressed separately.
+Foreign branches are verified hidden. The crop comes from actual PNG alpha,
+including an explicitly transparent result; a successful screenshot alone is
+never proof that source mask paint survived. Clip/mask positive controls must
+retain the source red/white discriminator and exact full decoded pixels.
+
+The native path has 5-second Node bounds, a 32-owner/16-Mpixel viewport budget,
+document/selection checks before and after readback, and CAS cleanup. A failed
+cleanup releases its still-owned hide sheet but retains uncertain markers and
+the journal for safe retry. Native descendants and generated pseudo paint stay
+under the same atomic owner; culling and stacking predicates must not hoist or
+repaint them. An absent native surface is a renderer error, not an unclipped
+vector fallback.
+
+The initial native boundary is static HTML owners in the main document. It
+refuses root body/html owners, animated/transitioning owners, backdrop blending,
+and ancestors with transformed/composited/clipped paint, propagated decoration
+or direct text. Potential isolation transitions, exposed root scrollbars and
+inherited paint changes also refuse; owner computed paint must remain unchanged
+through isolation/readback. These legitimate unsupported cases are tracked by DM-N933MV;
+local SVG resource definitions outside the native owner remain DM-F19PYG.
+Auxiliary readable-response identity is a separate investigation, DM-HSABGR;
+this repair does not establish that any successful refetch equals selected native bytes.
+the refusal is not support parity. SVG-use redirect admission remains the
+separate DM-N8EYNT caller policy. Native controls cover frozen clip/mask pixels,
+generated layers, overlap, scrolled viewports, real missing resources, exact rollback,
+cookies, HAR replay, CSP paint, bounded stalled-body abort, partial setter
 failure and foreign cleanup ownership in `tests/external-css-svg.e2e.test.ts`.
 The transport's pinned Chromium origin-copy and document-CSP source contract,
 and its distinction from the installed Chromium revision, are documented in
@@ -192,7 +264,8 @@ Caveats: this only works over **http(s)** — Chrome doesn't resolve external cl
 
 - ~~`clipPathUnits="userSpaceOnUse"`~~ — **done in DM-828** (per-element translated copy via `positionFragmentClipPathDef`; fixture `clip-path-userspaceonuse-fragment` in `tests/features.ts`).
 - External `.svg` fragment refs resolve over HTTP(S) through the owned prepass;
-  CSP-painted acquisition remains DM-302BYE and redirect admission DM-N8EYNT.
+  unavailable bytes can use native CSS paint (DM-302BYE). Unsupported native
+  ancestry/compositing remains DM-N933MV; SVG-use redirects are DM-N8EYNT.
 - ~~Non-default `<geometry-box>` origins for URL references~~ — **closed by
   DM-2362's source audit**. Blink's parser rejects URL-plus-box syntax; it is a
   negative activation control, not a deferred geometry feature. Bare HTML URL

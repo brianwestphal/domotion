@@ -169,7 +169,8 @@ function collectRasterTargets(tree: CapturedElement[]): RasterTarget[] {
       const serializedTransform =
         inheritedSerializedTransform ||
         (el.styles.transform != null && el.styles.transform !== "" && el.styles.transform !== "none");
-      const projectiveOwner = inheritedProjectiveOwner || el.transformSubtreeRaster != null;
+      const projectiveOwner =
+        inheritedProjectiveOwner || el.transformSubtreeRaster != null || el.externalCssSvgRaster != null;
       if (el.replacedSnapshot != null) {
         targets.push({
           snapshot: el.replacedSnapshot,

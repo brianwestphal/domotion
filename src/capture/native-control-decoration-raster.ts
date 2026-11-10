@@ -64,7 +64,8 @@ function collectTargets(tree: CapturedElement[]): { all: DecorationTarget[]; mat
   const materialized: DecorationTarget[] = [];
   const visit = (nodes: CapturedElement[], projectiveOwner: boolean): void => {
     for (const element of nodes) {
-      const ownedByProjectiveRaster = projectiveOwner || element.transformSubtreeRaster != null;
+      const ownedByProjectiveRaster =
+        projectiveOwner || element.transformSubtreeRaster != null || element.externalCssSvgRaster != null;
       if (element.nativeControlDecorationRaster != null) {
         const target = { element, raster: element.nativeControlDecorationRaster };
         all.push(target);

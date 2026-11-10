@@ -2563,6 +2563,16 @@ export interface CapturedElement {
     dataUri?: string;
     empty?: boolean;
   };
+  /** Native whole-owner paint when external CSS SVG bytes are unavailable. */
+  externalCssSvgRaster?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    token: string;
+    dataUri?: string;
+    empty?: boolean;
+  };
   /**
    * For <canvas> / <video> / <iframe> / <object> / <embed>: a viewport-relative
    * content-box rect (border-box minus border + padding) that
@@ -2976,6 +2986,8 @@ export interface CaptureScriptArgs {
   pseudoImageSizingKey: string;
   /** Window property holding the prefetched external SVG documents that `<use href="file.svg#id">` names. */
   externalSvgUseKey: string;
+  /** Private document journal correlating unreadable CSS resources to live owners. */
+  externalCssSvgKey?: string;
   /** Registry key of the text-paint geometry prepass; set on the final capture only. */
   textPaintGeometryKey?: string;
   /** True for the all-transform-neutral probe capture that feeds the text-paint prepass. */
