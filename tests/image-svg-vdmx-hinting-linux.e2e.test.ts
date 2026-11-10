@@ -12,6 +12,7 @@ import { inlineImgSvg } from "../src/render/svg-inline.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { forEachElement } from "../src/tree-ops/for-each-element.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
+import { diagnosticPhase } from "./diagnostic-phase.js";
 
 it.skipIf(process.platform !== "linux")(
   "discriminates launch hinting from per-face Fontconfig with a real VDMX strike",
@@ -45,20 +46,30 @@ it.skipIf(process.platform !== "linux")(
         ["medium", true],
         ["none", false],
       ] as const) {
+        const phase = <T>(name: string, work: () => T | Promise<T>, timeoutMs?: number) =>
+          diagnosticPhase(`${mode}/${singleProcess ? "global" : "family"}/${name}`, work, timeoutMs);
         // Explicit launch preferences; the unowned custom-launch control follows.
-        const browser = await launchChromium({
-          args: [`--font-render-hinting=${mode}`, ...(singleProcess ? ["--single-process"] : [])],
-          env: { ...process.env, FONTCONFIG_FILE: config },
-        });
+        const browser = await phase("launch", () =>
+          launchChromium({
+            args: [`--font-render-hinting=${mode}`, ...(singleProcess ? ["--single-process"] : [])],
+            env: { ...process.env, FONTCONFIG_FILE: config },
+          }),
+        );
         try {
-          const page = await browser.newPage({ viewport: { width: 220, height: 150 } });
+          const page = await phase("newPage", () => browser.newPage({ viewport: { width: 220, height: 150 } }));
           const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" style="font-family:'Domotion VDMX Control';font-size:16px;line-height:normal;transform:translateY(1lh);transform-origin:0 0"><rect width="12" height="12" fill="red"/></svg>`;
-          await page.setContent(
-            `<div style="font-family:'Domotion VDMX Control';font-size:16px;line-height:normal;width:100lh">A</div><img id="vdmx-image" width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
+          await phase("source.setContent", () =>
+            page.setContent(
+              `<div style="font-family:'Domotion VDMX Control';font-size:16px;line-height:normal;width:100lh">A</div><img id="vdmx-image" width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(svg)}">`,
+            ),
           );
-          const lineSpacing = await page.locator("div").evaluate((el) => parseFloat(getComputedStyle(el).width) / 100);
+          const lineSpacing = await phase("line-spacing", () =>
+            page.locator("div").evaluate((el) => parseFloat(getComputedStyle(el).width) / 100),
+          );
           expect(lineSpacing).toBe(singleProcess && mode === "none" ? 16 : 23);
-          const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 220, height: 150 });
+          const tree = await phase("capture", () =>
+            captureElementTree(page, "body", { x: 0, y: 0, width: 220, height: 150 }),
+          );
           let owner: CapturedElement | undefined;
           const routing: Array<{
             tag: string;
@@ -100,13 +111,13 @@ it.skipIf(process.platform !== "linux")(
               .spyOn(page.context(), "newCDPSession")
               .mockRejectedValueOnce(new Error("controlled unavailable CDP capability"));
             try {
-              await captureImageFontHinting(page, retryTree);
+              await phase("hinting.denied", () => captureImageFontHinting(page, retryTree));
               expect(denied).toHaveBeenCalledOnce();
               forEachElement(retryTree, (node) => expect(node.imageDocumentFontRendering).toBeUndefined());
             } finally {
               denied.mockRestore();
             }
-            await captureImageFontHinting(page, retryTree);
+            await phase("hinting.recovered", () => captureImageFontHinting(page, retryTree));
             let recovered = false;
             forEachElement(retryTree, (node) => {
               if (node.imageSrc === owner?.imageSrc) recovered = node.imageDocumentFontRendering != null;
@@ -114,32 +125,43 @@ it.skipIf(process.platform !== "linux")(
             expect(recovered).toBe(true);
           }
           const declarations = { get: (name: string) => (name === "font-family" ? "'Domotion VDMX Control'" : null) };
-          expect(imageRootFontMetricUnits(declarations, 16, null, fontRendering)?.("lh")).toBe(lineSpacing);
+          expect(
+            await phase("native-metrics", () =>
+              imageRootFontMetricUnits(declarations, 16, null, fontRendering)?.("lh"),
+            ),
+          ).toBe(lineSpacing);
           // Mechanism-off must become unresolved on this very same control.
-          expect(imageRootFontMetricUnits(declarations, 16, null)?.("lh")).toBeNull();
-          const inlined = inlineImgSvg(svg, {
-            x: 0,
-            y: 0,
-            w: 100,
-            h: 100,
-            par: "none",
-            documentViewport: true,
-            idPrefix: "VDMX-",
-            fontRendering,
-          });
+          expect(
+            await phase("mechanism-off", () => imageRootFontMetricUnits(declarations, 16, null)?.("lh")),
+          ).toBeNull();
+          const inlined = await phase("inline", () =>
+            inlineImgSvg(svg, {
+              x: 0,
+              y: 0,
+              w: 100,
+              h: 100,
+              par: "none",
+              documentViewport: true,
+              idPrefix: "VDMX-",
+              fontRendering,
+            }),
+          );
           expect(inlined).not.toBeNull();
-          await page.setContent(
-            `<body style="margin:0;background:white"><img width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(svg)}"><svg width="100" height="100" style="position:absolute;left:110px;top:0">${inlined}</svg></body>`,
+          await phase("comparison.setContent", () =>
+            page.setContent(
+              `<body style="margin:0;background:white"><img width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(svg)}"><svg width="100" height="100" style="position:absolute;left:110px;top:0">${inlined}</svg></body>`,
+            ),
           );
           const output = resolve(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output-linux");
           mkdirSync(output, { recursive: true });
-          const image = await sharp(
-            await page.screenshot({
+          const screenshot = await phase("comparison.screenshot", () =>
+            page.screenshot({
               path: join(output, `image-vdmx-${mode}-${singleProcess ? "global" : "family"}.png`),
             }),
-          )
-            .raw()
-            .toBuffer({ resolveWithObject: true });
+          );
+          const image = await phase("comparison.decode", () =>
+            sharp(screenshot).raw().toBuffer({ resolveWithObject: true }),
+          );
           const rgb = (x: number, y: number) =>
             Array.from(
               image.data.subarray(
@@ -151,20 +173,22 @@ it.skipIf(process.platform !== "linux")(
           expect(rgb(4, lineSpacing + 4)).toEqual([255, 0, 0]);
           expect(rgb(114, lineSpacing + 4)).toEqual(rgb(4, lineSpacing + 4));
         } finally {
-          await browser.close();
+          await phase("browser.close", () => browser.close(), 5_000);
         }
       }
-      const custom = await chromium.launch({
-        args: ["--single-process", "--font-render-hinting=none"],
-        env: { ...process.env },
-      });
+      const custom = await diagnosticPhase("custom/launch", () =>
+        chromium.launch({
+          args: ["--single-process", "--font-render-hinting=none"],
+          env: { ...process.env },
+        }),
+      );
       try {
-        const page = await custom.newPage();
+        const page = await diagnosticPhase("custom/newPage", () => custom.newPage());
         const owner = capturedElement({ imageSrc: "data:image/svg+xml,<svg/>", children: [] });
-        await captureImageFontHinting(page, [owner]);
+        await diagnosticPhase("custom/hinting", () => captureImageFontHinting(page, [owner]));
         expect(owner.imageDocumentFontRendering).toBeUndefined();
       } finally {
-        await custom.close();
+        await diagnosticPhase("custom/browser.close", () => custom.close(), 5_000);
       }
       expect(results[0]?.lineSpacing).not.toBe(results[1]?.lineSpacing);
       const output = resolve(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output-linux");

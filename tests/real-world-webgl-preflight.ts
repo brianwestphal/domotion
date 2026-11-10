@@ -187,6 +187,11 @@ export interface CanvasPreflightResult {
   skipped: number;
 }
 
+export interface CanvasPreflightFailure {
+  phase: "discovery" | "session" | "capture";
+  error: unknown;
+}
+
 /**
  * Make off-viewport canvas layers compositor-visible before the WebGL freeze.
  * Ordinary page.screenshot clips cannot reach beyond the viewport, while CDP's
@@ -197,8 +202,14 @@ export interface CanvasPreflightResult {
  * The caller has already taken its reference screenshot. The capture context
  * is closed after the job, so this CDP session and its effects are job-scoped.
  */
-export async function primeOffscreenCanvases(page: Page): Promise<CanvasPreflightResult> {
-  const discovery = discoverCanvasClips(page).catch(() => null);
+export async function primeOffscreenCanvases(
+  page: Page,
+  onFailure?: (failure: CanvasPreflightFailure) => void,
+): Promise<CanvasPreflightResult> {
+  const discovery = discoverCanvasClips(page).catch((error: unknown) => {
+    onFailure?.({ phase: "discovery", error });
+    return null;
+  });
   let discoveryTimer: NodeJS.Timeout | undefined;
   const discoveryTimeout = new Promise<null>((resolve) => {
     discoveryTimer = setTimeout(() => resolve(null), MAX_DISCOVERY_MS);
@@ -216,7 +227,10 @@ export async function primeOffscreenCanvases(page: Page): Promise<CanvasPrefligh
   const session = await page
     .context()
     .newCDPSession(page)
-    .catch(() => null);
+    .catch((error: unknown) => {
+      onFailure?.({ phase: "session", error });
+      return null;
+    });
   if (session == null) return { ...result, failed: result.failed + chosen.length };
   const deadline = Date.now() + MAX_PREFLIGHT_MS;
   try {
@@ -233,7 +247,10 @@ export async function primeOffscreenCanvases(page: Page): Promise<CanvasPrefligh
       const captured = session
         .send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip })
         .then(() => true)
-        .catch(() => false);
+        .catch((error: unknown) => {
+          onFailure?.({ phase: "capture", error });
+          return false;
+        });
       const ok = await Promise.race([captured, timedOut]);
       clearTimeout(timer);
       if (ok) result.primed++;

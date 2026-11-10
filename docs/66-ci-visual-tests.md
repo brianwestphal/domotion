@@ -23,6 +23,7 @@ tickets:
     "DM-S9S3WG",
     "DM-34WC46",
     "DM-MBRZBH",
+    "DM-4GF2A0",
   ]
 code:
   [
@@ -560,3 +561,26 @@ The shard slice is plain env, so you can reproduce a shard locally:
 ```sh
 HTML_TEST_SHARD=2/5 npm run demos:test:unicode      # the 2nd of 5 stride shards
 ```
+
+## Native Linux image-root and screenshot diagnostics
+
+The manual Linux `image_root_metrics_only` profile runs the normal-line-height
+and VDMX controls together with SVG image-document settings and offscreen canvas
+preflight checks. Its distinct diagnostic check does not satisfy the full Linux
+fidelity gate. Default/full selection is unchanged.
+
+The VDMX control logs named, bounded launch, capture, font metadata, native metric,
+inlining, screenshot/decode and cleanup phases. A failed phase remains a failure;
+the test watchdog and strict line-spacing, mechanism-off and pixel assertions are
+unchanged. The phase log identifies the pending operation instead of attributing
+a timeout to browser cleanup without evidence.
+
+Image-document host-preference screenshots run inside each test's retry scope
+with owned browser cleanup. The existing exact empty-surface protocol retry can
+therefore replay the oracle, unlike a suite-level setup failure. Preflight keeps
+its strict counters and budget while exposing optional harness-internal failure
+diagnostics; its budget assertion includes the original protocol errors. This
+allows the same named retry policy to recognize an actual empty-surface failure
+without treating unexplained failed counts as transient. Persistent failures
+still fail. These diagnostics do not imply that screenshot errors and a VDMX
+timeout share a cause (DM-4GF2A0).

@@ -355,15 +355,17 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
     expect(yaml).toMatch(/image_root_metrics_only:[\s\S]*?type: boolean\n\s+default: false/);
     const job = jobs["regression"];
     expect(job).toContain(
-      "inputs.image_root_metrics_only && 'Linux image-root metric diagnostics' || 'Linux fidelity regression'",
+      "inputs.image_root_metrics_only && 'Linux image-root metrics and screenshot diagnostics' || 'Linux fidelity regression'",
     );
     expect(job).toContain("inputs.image_root_metrics_only && 'linux-image-root-metrics' || 'linux-fidelity-diffs'");
     const focused = job.match(
-      /- name: Run focused image-root metric diagnostics\n([\s\S]*?)(?=\n\s+- name: Upload)/,
+      /- name: Run focused image-root metrics and screenshot diagnostics\n([\s\S]*?)(?=\n\s+- name: Upload)/,
     )?.[1];
     expect(focused).toMatch(/^\s+if: always\(\) && inputs\.image_root_metrics_only$/m);
     expect(focused).toContain("tests/image-svg-vdmx-hinting-linux.e2e.test.ts");
     expect(focused).toContain("tests/image-svg-normal-line-height-linux.e2e.test.ts");
+    expect(focused).toContain("tests/img-svg-document-settings.e2e.test.ts");
+    expect(focused).toContain("tests/real-world-webgl-preflight.e2e.test.ts");
     expect(job).toMatch(/if: always\(\) && !inputs\.image_root_metrics_only[\s\S]*?run: npm run test:e2e/);
   });
 

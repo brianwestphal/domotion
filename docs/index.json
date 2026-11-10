@@ -1706,7 +1706,8 @@
           "DM-4S3VQH",
           "DM-S9S3WG",
           "DM-34WC46",
-          "DM-MBRZBH"
+          "DM-MBRZBH",
+          "DM-4GF2A0"
         ],
         "code": [
           "tests/real-world-browser.ts",

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
-import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
+import { primeOffscreenCanvases, type CanvasPreflightFailure } from "./real-world-webgl-preflight.js";
 
 let browser: Browser;
 beforeAll(async () => {
@@ -99,7 +99,22 @@ describe("offscreen WebGL preflight", () => {
         <iframe style="position:absolute;top:1000px;width:80px;height:80px" srcdoc="<body style='margin:0'>${"<canvas width=8 height=8></canvas>".repeat(8)}</body>"></iframe>
       </body>`);
       await page.frameLocator("iframe").locator("canvas").first().waitFor();
-      expect(await primeOffscreenCanvases(page)).toEqual({ primed: 8, failed: 0, skipped: 2 });
+      const failures: CanvasPreflightFailure[] = [];
+      const result = await primeOffscreenCanvases(page, (failure) => {
+        failures.push(failure);
+        console.warn(
+          "Canvas preflight failure:",
+          JSON.stringify({ phase: failure.phase, error: String(failure.error) }),
+        );
+      });
+      // Preserve strict counters and the original protocol error in failures.
+      // The existing named one-shot retry can recognize an actual empty-surface
+      // error; an unexplained count or persistent failure still fails the test.
+      expect(result, failures.map((failure) => `${failure.phase}: ${String(failure.error)}`).join("\n")).toEqual({
+        primed: 8,
+        failed: 0,
+        skipped: 2,
+      });
       expect(await page.evaluate(() => scrollY)).toBe(0);
     } finally {
       await page.close();
@@ -115,6 +130,29 @@ describe("offscreen WebGL preflight", () => {
       await page.frameLocator("iframe").locator("canvas").waitFor();
       expect(await primeOffscreenCanvases(page)).toEqual({ primed: 0, failed: 0, skipped: 1 });
     } finally {
+      await page.close();
+    }
+  });
+
+  it("retains exact screenshot failures without changing failed capture counters", async () => {
+    const page = await browser.newPage({ viewport: { width: 100, height: 100 } });
+    try {
+      await page.setContent(
+        `<body style="height:1800px"><canvas width=10 height=10 style="position:absolute;top:1200px"></canvas></body>`,
+      );
+      const session = await page.context().newCDPSession(page);
+      const error = new Error("Protocol error (Page.captureScreenshot): Unable to capture screenshot");
+      vi.spyOn(page.context(), "newCDPSession").mockResolvedValue(session);
+      vi.spyOn(session, "send").mockRejectedValue(error);
+      const failures: CanvasPreflightFailure[] = [];
+      expect(await primeOffscreenCanvases(page, (failure) => failures.push(failure))).toEqual({
+        primed: 0,
+        failed: 1,
+        skipped: 0,
+      });
+      expect(failures).toEqual([{ phase: "capture", error }]);
+    } finally {
+      vi.restoreAllMocks();
       await page.close();
     }
   });

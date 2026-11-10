@@ -1,9 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Browser, BrowserContextOptions, Page } from "@playwright/test";
+import { describe, expect, it } from "vitest";
+import type { BrowserContextOptions, Page } from "@playwright/test";
 import sharp from "sharp";
 import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/index.js";
 import { probeImageDocumentSettings } from "../src/capture/image-document-settings.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { diagnosticPhase } from "./diagnostic-phase.js";
 
 // An <img> SVG document copies prefersReducedMotion / inForcedColors from the
 // renderer's first ordinary page's Settings (svg_image.cc:901-904,
@@ -38,18 +39,20 @@ async function blueAt(png: Buffer): Promise<boolean[]> {
   });
 }
 
-const browsers: Browser[] = [];
-afterAll(async () => {
-  for (const browser of browsers) await closeBrowserSafely(browser);
-}, 60_000);
-
-async function openPage(args: string[], context: BrowserContextOptions): Promise<Page> {
+async function withPage<T>(
+  args: string[],
+  context: BrowserContextOptions,
+  run: (page: Page) => Promise<T>,
+): Promise<T> {
   const browser = await launchChromium({ args });
-  browsers.push(browser);
-  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, ...context });
-  const page = await ctx.newPage();
-  await page.setContent(HTML, { waitUntil: "load" });
-  return page;
+  try {
+    const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, ...context });
+    const page = await ctx.newPage();
+    await page.setContent(HTML, { waitUntil: "load" });
+    return await run(page);
+  } finally {
+    await closeBrowserSafely(browser);
+  }
 }
 
 describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)", () => {
@@ -96,38 +99,43 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
       capture: true,
     },
   ];
-  let hostReduce = false;
-  beforeAll(async () => {
-    // Playwright's default emulation is a page media override, which the image
-    // never sees, so an un-emulated page's <img> paint is the host preference.
-    const page = await openPage([], {});
-    [hostReduce] = await blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
-  }, 60_000);
-
   for (const c of cases) {
     it(`agrees with a real <img> paint: ${c.name}`, async () => {
+      // Keep the strict host oracle in the test's retry scope. A beforeAll
+      // screenshot failure bypasses the existing named one-shot retry policy.
+      const [hostReduce] =
+        c.expected[0] === "host"
+          ? await withPage([], {}, (page) =>
+              diagnosticPhase(`${c.name}/host-preference.screenshot`, async () =>
+                blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } })),
+              ),
+            )
+          : [false];
       const expected: [boolean, boolean] = [c.expected[0] === "host" ? hostReduce : c.expected[0], c.expected[1]];
-      const page = await openPage(c.args, c.context);
-      expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(c.pageReduce);
-      const painted = await blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
-      expect(painted).toEqual(expected);
-      const oracle = await probeImageDocumentSettings(page);
-      expect(oracle).toEqual({ prefersReducedMotion: expected[0], forcedColors: expected[1] });
-      if (!c.capture) return;
+      await withPage(c.args, c.context, async (page) => {
+        expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(c.pageReduce);
+        const painted = await blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
+        expect(painted).toEqual(expected);
+        const oracle = await probeImageDocumentSettings(page);
+        expect(oracle).toEqual({ prefersReducedMotion: expected[0], forcedColors: expected[1] });
+        if (!c.capture) return;
 
-      // Capture freezes the image's own answer in the output sheet, which then
-      // paints the same branch in a renderer with default settings.
-      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-      const svg = elementTreeToSvg(tree, W, H);
-      expect(svg).not.toMatch(/prefers-reduced-motion|forced-colors/);
-      const rasterBrowser = await launchChromium();
-      try {
-        const raster = await rasterBrowser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
-        await raster.setContent(`<!doctype html><body style="margin:0">${svg}</body>`, { waitUntil: "load" });
-        expect(await blueAt(await raster.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }))).toEqual(expected);
-      } finally {
-        await closeBrowserSafely(rasterBrowser);
-      }
+        // Capture freezes the image's own answer in the output sheet, which then
+        // paints the same branch in a renderer with default settings.
+        const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+        const svg = elementTreeToSvg(tree, W, H);
+        expect(svg).not.toMatch(/prefers-reduced-motion|forced-colors/);
+        const rasterBrowser = await launchChromium();
+        try {
+          const raster = await rasterBrowser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+          await raster.setContent(`<!doctype html><body style="margin:0">${svg}</body>`, { waitUntil: "load" });
+          expect(await blueAt(await raster.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }))).toEqual(
+            expected,
+          );
+        } finally {
+          await closeBrowserSafely(rasterBrowser);
+        }
+      });
     }, 60_000);
   }
 });
