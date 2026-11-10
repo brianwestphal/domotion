@@ -1524,7 +1524,7 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": [],
-        "tickets": ["DM-1041", "DM-1042", "DM-1045", "DM-77YEZV"],
+        "tickets": ["DM-1041", "DM-1042", "DM-1045", "DM-77YEZV", "DM-KJNT2X"],
         "code": [
           "scripts/build-scrubber-client.mjs",
           "src/cli/scrubber.ts",
@@ -1534,7 +1534,8 @@
           "src/scrubber/server.ts",
           "src/scrubber/trim.test.ts",
           "src/scrubber/trim.ts",
-          "tools/probe-scrubber-resize.ts"
+          "tools/probe-scrubber-resize.ts",
+          "tests/scrubber-natural-size.e2e.test.ts"
         ],
         "aliases": ["docs/56-svg-scrubber.md", "doc-56"]
       }

@@ -1048,6 +1048,8 @@ async function loadSvg(
   })();
   svg.style.width = `${n.w}px`;
   svg.style.height = `${n.h}px`;
+  // Keep the natural viewport intact; Fit/Fill scale the host, not this flex item.
+  svg.style.flexShrink = "0";
   svg.removeAttribute("width");
   svg.removeAttribute("height");
   embeddedSourceKey = options.sourceKey ?? null;

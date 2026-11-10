@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-1041", "DM-1042", "DM-1045", "DM-77YEZV"]
+tickets: ["DM-1041", "DM-1042", "DM-1045", "DM-77YEZV", "DM-KJNT2X"]
 code:
   [
     "scripts/build-scrubber-client.mjs",
@@ -17,6 +17,7 @@ code:
     "src/scrubber/trim.test.ts",
     "src/scrubber/trim.ts",
     "tools/probe-scrubber-resize.ts",
+    "tests/scrubber-natural-size.e2e.test.ts",
   ]
 aliases: ["docs/56-svg-scrubber.md", "doc-56"]
 ---
@@ -244,8 +245,15 @@ graphic aspect through additional letterboxing; the viewport measurements do
 not prove stretched glyphs. A single-factor `flex-shrink:0` diagnostic restores
 the natural layout size and eliminates all returned-wide stage differences
 for both animated and static sources. Removing `will-change` alone does not.
-Preventing that double reduction needs a separate layout repair and native
-Fit/Fill/manual/crop/pan regression coverage (the natural-size sizing follow-up).
+The loader makes only the loaded root SVG a nonshrinking flex item alongside
+its assigned natural width/height, including a source root with an inline shrink
+value. Fit and
+Fill apply only the host transform; manual zoom retains its selected scale,
+pan remains in stage pixels, and crop keeps its existing integer-client-size
+coordinate contract. Root-only setup leaves authored nested SVG flex
+layouts unchanged. Native landscape/square/portrait geometry, nested-flex,
+pan/crop and paused-source roundtrip cases protect this boundary in
+`tests/scrubber-natural-size.e2e.test.ts`.
 Small footer-only differences remain separately unclassified; stage identity
 must not be reported as whole-page pixel identity.
 
