@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { retainNativeShadowSource } from "./native-shadow-evidence.js";
 const viewport = { x: 0, y: 0, width: 100, height: 100 };
 let browser: Browser;
 let priorProbe: string | undefined;
@@ -74,10 +75,22 @@ it.each(cases)(
     const page = await browser.newPage({ viewport }),
       output = await browser.newPage({ viewport });
     try {
-      await page.setContent(
-        `<style>body{margin:0}#only{display:block;width:20px;height:20px;margin:20px;border:0;background:transparent;box-shadow:${sample.shadow};${sample.extra ?? ""}}</style><div id="container"><div id="only"></div></div>`,
-      );
-      const source = await rgba(await page.screenshot({ omitBackground: true }));
+      const fixtureHtml = `<style>body{margin:0}#only{display:block;width:20px;height:20px;margin:20px;border:0;background:transparent;box-shadow:${sample.shadow};${sample.extra ?? ""}}</style><div id="container"><div id="only"></div></div>`;
+      await page.setContent(fixtureHtml);
+      const sourcePng = await page.screenshot({ omitBackground: true });
+      const witness =
+        sample.name === "original zero-origin root"
+          ? retainNativeShadowSource({
+              id: "j2-original-knockout",
+              label: sample.name,
+              fixtureFile: import.meta.url,
+              fixtureHtml,
+              browserVersion: browser.version(),
+              viewport,
+              sourcePng,
+            })
+          : undefined;
+      const source = await rgba(sourcePng);
       // New shadow-only outset/mixed selected roots remain refused while
       // paint-space/contour authority is unresolved. Keep complete native pixel
       // assertions on the existing container/body producer, plus owned BG roots.
@@ -90,7 +103,9 @@ it.each(cases)(
         const captured = await captureElementTree(page, selector, viewport);
         expect(captured, selector).toHaveLength(1);
         await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(captured, 100, 100));
-        expect(await rgba(await output.screenshot({ omitBackground: true })), selector).toEqual(source);
+        const outputPng = await output.screenshot({ omitBackground: true });
+        witness?.output(selector, outputPng);
+        expect(await rgba(outputPng), selector).toEqual(source);
       }
     } finally {
       await page.close();

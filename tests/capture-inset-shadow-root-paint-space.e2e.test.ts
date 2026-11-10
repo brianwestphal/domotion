@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { retainNativeShadowSource } from "./native-shadow-evidence.js";
 
 const viewport = { x: 0, y: 0, width: 100, height: 100 };
 let browser: Browser;
@@ -27,13 +28,26 @@ it.each([0, 5])("retains exact ordinary integral inset roots with radius%s", asy
   const page = await browser.newPage({ viewport });
   const output = await browser.newPage({ viewport });
   try {
-    await page.setContent(html(`margin:20px;border-radius:${radius}px`));
-    const source = await rgba(await page.screenshot({ omitBackground: true }));
+    const fixtureHtml = html(`margin:20px;border-radius:${radius}px`);
+    await page.setContent(fixtureHtml);
+    const sourcePng = await page.screenshot({ omitBackground: true });
+    const witness = retainNativeShadowSource({
+      id: `integral-inset-radius-${radius}`,
+      label: `ordinary integral inset radius ${radius}`,
+      fixtureFile: import.meta.url,
+      fixtureHtml,
+      browserVersion: browser.version(),
+      viewport,
+      sourcePng,
+    });
+    const source = await rgba(sourcePng);
     for (const selector of ["#only", "#container", "body"]) {
       const tree = await captureElementTree(page, selector, viewport);
       expect(tree).toHaveLength(1);
       await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(tree, 100, 100));
-      expect(await rgba(await output.screenshot({ omitBackground: true })), selector).toEqual(source);
+      const outputPng = await output.screenshot({ omitBackground: true });
+      witness.output(selector, outputPng);
+      expect(await rgba(outputPng), selector).toEqual(source);
     }
   } finally {
     await page.close();
