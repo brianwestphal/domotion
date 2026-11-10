@@ -1,0 +1,970 @@
+{
+  "ticket": "DM-FTRBES",
+  "scope": "Findings and native browser protocol only. No production FTR repair. Separate bug DM-THP2FS.",
+  "base": "1abdf3d6f4dae8011facca481e0c676c878eca6f",
+  "prerequisite": "5b9d6b0d87df595123dae95675182141cce9b72d",
+  "localPrerequisite": "30ce1906",
+  "authorities": [
+    {
+      "filename": "css_animations.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/animation/css/css_animations.cc",
+      "lines": "2494-2558,2390-2405",
+      "sha256": "3a994170b4b9d902509ffc75315a3d3522dadc6b6588c63eebcb4ab31c0b73e2"
+    },
+    {
+      "filename": "keyframe_effect.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/animation/keyframe_effect.cc",
+      "lines": "250-268,415-437",
+      "sha256": "96469b2d2bc9781f000632f6ed7fc3bfffe9960bc4eed6227de20ab3fb248cf3"
+    },
+    {
+      "filename": "css_transition.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/animation/css/css_transition.cc",
+      "lines": "15-48",
+      "sha256": "bf30d04f121f7710e34be6e4c184ee5eee1210b62ddff714b098c43f036268f5"
+    },
+    {
+      "filename": "animation.cc",
+      "url": "https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/animation/animation.cc",
+      "lines": "1361-1480",
+      "sha256": "2fe5b7547079a218468aa622c8635e97fc9ba364d3ff8b0226aa8503138e8fe5"
+    },
+    {
+      "filename": "animation.h",
+      "url": "https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/animation/animation.h",
+      "lines": "518-522",
+      "sha256": "24d69c686f97518a4eba7c8fad3cea51fca977f3561303427caeb2029c9a527a"
+    }
+  ],
+  "production": {
+    "browser": "147.0.7727.15",
+    "rows": [
+      {
+        "route": "native",
+        "role": "overlay",
+        "direction": "to-hidden",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10000,
+          "playState": "paused",
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "guard": [255, 255, 255, 51],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "native",
+        "role": "overlay",
+        "direction": "to-hidden",
+        "paused": false,
+        "before": {
+          "currentTime": 10021.2,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10104.5,
+          "playState": "running",
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "guard": [255, 255, 255, 51],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "native",
+        "role": "overlay",
+        "direction": "to-visible",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": false,
+          "sameEffect": true,
+          "currentTime": null,
+          "playState": "idle",
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": [
+          "transitionrun",
+          "transitionstart",
+          "transitioncancel",
+          "transitionrun",
+          "transitionstart",
+          "transitioncancel"
+        ],
+        "guard": [255, 255, 255, 51],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "native",
+        "role": "overlay",
+        "direction": "to-visible",
+        "paused": false,
+        "before": {
+          "currentTime": 10020.833999999999,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": false,
+          "sameEffect": true,
+          "currentTime": null,
+          "playState": "idle",
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": [
+          "transitionrun",
+          "transitionstart",
+          "transitioncancel",
+          "transitionrun",
+          "transitionstart",
+          "transitioncancel"
+        ],
+        "guard": [255, 255, 255, 51],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "native",
+        "role": "target",
+        "direction": "to-hidden",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10000,
+          "playState": "paused",
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "guard": [0, 0, 0, 0],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "native",
+        "role": "target",
+        "direction": "to-hidden",
+        "paused": false,
+        "before": {
+          "currentTime": 10023.7,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10107.000000000002,
+          "playState": "running",
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "guard": [0, 0, 0, 0],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "native",
+        "role": "target",
+        "direction": "to-visible",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10000,
+          "playState": "paused",
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "guard": [0, 0, 0, 0],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "native",
+        "role": "target",
+        "direction": "to-visible",
+        "paused": false,
+        "before": {
+          "currentTime": 10021.034,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10137.734,
+          "playState": "running",
+          "style": "position: absolute; left: 20px; top: 20px; width: 60px; height: 30px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "guard": [0, 0, 0, 0],
+        "sourceRestoredPixelsEqual": true,
+        "failures": []
+      },
+      {
+        "route": "replaced",
+        "role": "overlay",
+        "direction": "to-hidden",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10000,
+          "playState": "paused",
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "route": "replaced",
+        "role": "overlay",
+        "direction": "to-hidden",
+        "paused": false,
+        "before": {
+          "currentTime": 10025.2,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10075.300000000001,
+          "playState": "running",
+          "style": "transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "route": "replaced",
+        "role": "overlay",
+        "direction": "to-visible",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10000,
+          "playState": "paused",
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "route": "replaced",
+        "role": "overlay",
+        "direction": "to-visible",
+        "paused": false,
+        "before": {
+          "currentTime": 10025.9,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10075.9,
+          "playState": "running",
+          "style": "transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "route": "replaced",
+        "role": "target",
+        "direction": "to-hidden",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10000,
+          "playState": "paused",
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "route": "replaced",
+        "role": "target",
+        "direction": "to-hidden",
+        "paused": false,
+        "before": {
+          "currentTime": 10024.800000000001,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10074.8,
+          "playState": "running",
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: hidden;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "route": "replaced",
+        "role": "target",
+        "direction": "to-visible",
+        "paused": true,
+        "before": {
+          "currentTime": 10000,
+          "playState": "paused",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10000,
+          "playState": "paused",
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      },
+      {
+        "route": "replaced",
+        "role": "target",
+        "direction": "to-visible",
+        "paused": false,
+        "before": {
+          "currentTime": 10023.499999999998,
+          "playState": "running",
+          "events": ["transitionrun", "transitionstart"],
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "after": {
+          "same": true,
+          "sameEffect": true,
+          "currentTime": 10073.5,
+          "playState": "running",
+          "style": "position: absolute; inset: 0px; transition: visibility 30s linear; visibility: visible;"
+        },
+        "events": ["transitionrun", "transitionstart"],
+        "sourceRestoredPixelsEqual": true,
+        "failures": [
+          {
+            "rid": "dr0",
+            "tag": "canvas",
+            "phase": "isolation",
+            "detail": "could not initialize raster isolation: page.evaluateHandle: Error: cannot isolate a replaced surface while an authored visibility transition is active\n    at eval (eval at evaluate (:302:30), <anonymous>:1:626)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3063)\n    at eval (eval at evaluate (:302:30), <anonymous>:1:3137)\n    at eval (<anonymous>)\n    at UtilityScript.evaluate (<anonymous>:302:30)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+          }
+        ]
+      }
+    ]
+  },
+  "browserContract": [
+    {
+      "name": "overlay-to-hidden-paused",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          null,
+          "transition: visibility 30s linear; visibility: hidden;"
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          null,
+          "transition: visibility 30s linear; visibility: hidden;"
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "overlay-to-hidden-paused-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "overlay-to-hidden-paused-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "overlay-to-hidden-paused-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    },
+    {
+      "name": "overlay-to-hidden-running",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10033.2,
+        "startTime": -9964.2,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          null,
+          "transition: visibility 30s linear; visibility: hidden;"
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10100,
+        "startTime": -9964.2,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          null,
+          "transition: visibility 30s linear; visibility: hidden;"
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "overlay-to-hidden-running-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "overlay-to-hidden-running-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "overlay-to-hidden-running-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    },
+    {
+      "name": "overlay-to-visible-paused",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          null,
+          "transition: visibility 30s linear; visibility: visible;"
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          null,
+          "transition: visibility 30s linear; visibility: visible;"
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "overlay-to-visible-paused-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "overlay-to-visible-paused-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "overlay-to-visible-paused-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    },
+    {
+      "name": "overlay-to-visible-running",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10020.099999999999,
+        "startTime": -9965.8,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          null,
+          "transition: visibility 30s linear; visibility: visible;"
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10086.800000000001,
+        "startTime": -9965.8,
+        "visibility": "visible",
+        "events": ["transitionrun:overlay", "transitionstart:overlay"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          null,
+          "transition: visibility 30s linear; visibility: visible;"
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "overlay-to-visible-running-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "overlay-to-visible-running-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "overlay-to-visible-running-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    },
+    {
+      "name": "target-to-hidden-paused",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          "transition: visibility 30s linear; visibility: hidden;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          "transition: visibility 30s linear; visibility: hidden;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "target-to-hidden-paused-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "target-to-hidden-paused-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "target-to-hidden-paused-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    },
+    {
+      "name": "target-to-hidden-running",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10029.8,
+        "startTime": -9965.9,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          "transition: visibility 30s linear; visibility: hidden;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10096.499999999998,
+        "startTime": -9965.9,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: hidden;",
+          "transition: visibility 30s linear; visibility: hidden;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "target-to-hidden-running-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "target-to-hidden-running-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "target-to-hidden-running-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    },
+    {
+      "name": "target-to-visible-paused",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          "transition: visibility 30s linear; visibility: visible;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "paused",
+        "currentTime": 10000,
+        "startTime": null,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          "transition: visibility 30s linear; visibility: visible;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "target-to-visible-paused-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "target-to-visible-paused-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "target-to-visible-paused-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    },
+    {
+      "name": "target-to-visible-running",
+      "before": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10025.2,
+        "startTime": -9965.8,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          "transition: visibility 30s linear; visibility: visible;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "after": {
+        "sameAnimation": true,
+        "sameEffect": true,
+        "frames": true,
+        "timing": true,
+        "playState": "running",
+        "currentTime": 10091.9,
+        "startTime": -9965.8,
+        "visibility": "visible",
+        "events": ["transitionrun:target", "transitionstart:target"],
+        "animationEvents": [],
+        "styles": [
+          "transition: visibility 30s linear; visibility: visible;",
+          "transition: visibility 30s linear; visibility: visible;",
+          null
+        ],
+        "animationCount": 1
+      },
+      "scope": "browser protocol proof; production admission is separate DM-THP2FS",
+      "images": {
+        "source": {
+          "filename": "target-to-visible-running-source.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        },
+        "isolated": {
+          "filename": "target-to-visible-running-isolated.png",
+          "sha256": "39d249c831e90b288038a96cf2c712f70944d7841f9fbeb169af0d192e682918"
+        },
+        "restored": {
+          "filename": "target-to-visible-running-restored.png",
+          "sha256": "9c320b492217239880b91448484682024208e4e0791869cffd2492224e735e3f"
+        }
+      }
+    }
+  ],
+  "rejectedCandidates": {
+    "originalEffectKeyframes": "irreversible ignore-css flag / native model change, keyframe_effect.cc415-429",
+    "sourceEffectSwap": "reattachment changes original ignore-css timing/keyframes, animation.cc1420-1427",
+    "naiveOwnedClone": "copied CSS event delegate causes spurious cancel/run, observed owned-animation-probe"
+  },
+  "ownedLayers": {
+    "normalGuard": "CanCalculateTransitionUpdateForProperty returns before retarget; protects source without guessing destination",
+    "paintClone": "native transition priority copied, delegate cleared on private base Animation, original animation/effect untouched"
+  },
+  "unknowns": [
+    "actual caller admission/ownership",
+    "pseudo and cross-document targets",
+    "non-document timelines or author-modified effects",
+    "natural completion and concurrent source edits",
+    "native partial non-visibility transition mutations"
+  ],
+  "commands": [
+    "node --import tsx tools/scratch/ftr-production-probe.ts",
+    "node --import tsx tools/scratch/ftr-two-layer-probe.ts",
+    "DOMOTION_FTR_EVIDENCE_DIR=/private/tmp/dm-ftrbes-browser-contract node node_modules/vitest/vitest.mjs run --config vitest.e2e.config.ts tests/visibility-transition-effect-ownership.e2e.test.ts"
+  ],
+  "validation": {
+    "fullGate305": {
+      "typecheck": "passed",
+      "buildPackageDist": "passed",
+      "lint": "passed",
+      "engineTests": 1800,
+      "engineSkipped": 57,
+      "transportTests": 3,
+      "rootTests": 5688,
+      "rootSkipped": 4,
+      "documentationCount": 277,
+      "nativePassed": 35,
+      "nativeFailed": 1,
+      "status": "failed with one existing hovered-number case"
+    },
+    "matchedDiagnostic308": {
+      "status": "diagnostic driver completed; base arm failed and D8 arm passed",
+      "base": "1abdf3d6f4dae8011facca481e0c676c878eca6f",
+      "baseExit": 1,
+      "baseTestsPassed": 3,
+      "baseTestsFailed": 1,
+      "d8Exit": 0,
+      "d8TestsPassed": 4,
+      "instrumentation": "Only after observing missing captured data; strict assertion unchanged; restored after diagnosis.",
+      "followUp": "DM-WRFW22",
+      "failureArtifactSha256": "8b41c18b01a2da4cdf8fc33adf8ada0c913c6d8af6cb2f34072a49d95165cbd4",
+      "sourceAfterFailureImageSha256": "6360c349a33b1a0cdfca5cb5af5f13f82461cfe9bf49a1a825962687895c4a0b"
+    },
+    "newOwnBrowserContracts": 9,
+    "unsupportedClaim": "No production repair or all-native-pass claim. Matching base failure does not quantify D8 frequency impact."
+  },
+  "attachments": {
+    "actualNativeProblem": ["01M72R81FX2ZEC3Y8F9DPB833C", "01M72R81KV4WES24V4THM6FT6K", "01M72R81QR9SEK6Z8EBTEV3PN4"],
+    "testOnlyProtocolReference": [
+      "01M72R82QDJPVKMKWK7NPWG4ZV",
+      "01M72R82VCDQAY85S440FTT0A9",
+      "01M72R82ZNWAAAXY29935NWDNK",
+      "01M72R833WEVKCM1NW73Q037B8"
+    ],
+    "separateHoveredNumberFailure": ["01M72R3CKRMPDZP3F6M9K0352D", "01M72R3CQQNZE596ZA7S2FVTKP"]
+  }
+}
