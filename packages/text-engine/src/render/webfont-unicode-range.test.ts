@@ -104,11 +104,11 @@ describe("pickWebfontVariant: unicode-range preference (DM-517)", () => {
   );
 
   it.skipIf(!haveFontFixture)(
-    "range coverage outweighs italic mismatch — synthesized italic on Latin font beats tofu from italic Cyrillic font",
+    "descriptor-less resource inference retains a Latin preference inside shared auto capabilities",
     () => {
-      // Pathological registration: italic Cyrillic-only + upright Latin-only.
-      // Asked for italic, the picker should still prefer the Latin variant
-      // because rendering tofu (.notdef) is far worse than synthesized italic.
+      // No raw style descriptors: these inferred resource faces share auto
+      // capabilities. Preserve that existing inference policy; explicitly
+      // authored style groups are covered in webfont-descriptor-group.test.ts.
       registerWebfont("geist", 400, "italic", helveticaBuf!, [[0x0400, 0x045f]]);
       registerWebfont("geist", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]]);
 
@@ -137,10 +137,8 @@ describe("pickWebfontVariant: unicode-range preference (DM-517)", () => {
 });
 
 describe("pickWebfontVariantForCodepoint: per-codepoint partition routing (DM-557)", () => {
-  // Run-splitter calls this for codepoints the primary (Latin-biased)
-  // variant can't shape. The function filters variants by `unicode-range`
-  // coverage of the codepoint, then scores remaining variants by italic +
-  // weight match.
+  // The selector first chooses descriptor capabilities, then limits range
+  // lookup to that group's partitions. A range miss walks the CSS family stack.
   const helveticaBuf = require("fs").existsSync("/System/Library/Fonts/Helvetica.ttc")
     ? require("fs").readFileSync("/System/Library/Fonts/Helvetica.ttc")
     : null;

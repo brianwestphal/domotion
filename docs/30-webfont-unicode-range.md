@@ -4,12 +4,14 @@ title: "30 — Webfont unicode-range partitioning"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: []
-tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y", "DM-687YPX"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y", "DM-687YPX", "DM-7QQPJA"]
 code:
   [
     "packages/text-engine/src/render/text-to-path.ts",
     "packages/text-engine/src/render/webfont-unicode-range.test.ts",
+    "packages/text-engine/src/render/webfont-descriptor-group.test.ts",
+    "tests/webfont-descriptor-group.e2e.test.ts",
     "src/webfont-unicode-range.test.ts",
     "src/capture/unicode-range.ts",
     "src/capture/unicode-range.test.ts",
@@ -52,10 +54,22 @@ The browser fetches only the partitions whose declared range covers a codepoint 
 
 ## Problem the change solves
 
-Domotion's webfont registry stores variants keyed by `(family, weight, italic)` only. Pre-DM-557 there was no `unicode-range` filtering at pick time:
+Domotion's registry groups declarations by family and retains their weight,
+style, stretch and range descriptors. Selection has two ordered stages:
 
-1. **DM-517 (`pickWebfontVariant`)**: the exported no-codepoint picker prefers a Latin-covering variant with a range-mismatch penalty of `1e7` before scoring stretch, style, and weight. Worked for Latin-only text but had no per-codepoint awareness — non-Latin runs in a partitioned family fell to system fonts.
-2. **DM-557 (`pickWebfontVariantForCodepoint`)**: this doc. Filters variants by `unicodeRangeCovers(v.unicodeRange, codepoint)` then scores stretch, italic, and weight. Wired into the run-splitter in `textToPathMarkup` so a mixed-script run (Latin + Cyrillic + Greek in the same `<p>`) routes each codepoint to the matching partition before falling through to the system fallback chain.
+1. Select one descriptor capability group by stretch, style and weight before
+   consulting ranges. Pinned Chromium `FontFaceCache::Get` selects a
+   `CSSSegmentedFontFace` under one capabilities key.
+2. Within that group, walk range partitions in reverse declaration order. A
+   requested character outside the entire group's ranges skips the family and
+   continues the CSS stack. It must not borrow another descriptor group's face.
+
+Earlier pickers filtered all variants by range first, or let a Latin preference
+override descriptors. A family with a 400-weight `U+0041` face and a 700-weight
+`U+0030` face could therefore supply its bold zero for a 400 request instead of
+using the next CSS family. The corrected order applies to the primary picker,
+per-codepoint selection and shaped segmented fallback. The primary's physical
+cmap cannot bypass its declared range.
 
 ## API
 
@@ -83,39 +97,62 @@ An invalid descriptor is dropped, so the face keeps the initial value U+0-10FFFF
 Two pickers consult it:
 
 - `pickWebfontVariant(family, weight, fontSize, slant, variationSettings?, stretch?)` — exported Latin-bias scorer (in `packages/text-engine/src/render/webfont-registry.ts`). Returns the primary variant for the family when no codepoint context is known (e.g., the fast-path single-font lookup before run-splitting).
-- `pickWebfontVariantForCodepoint(family, weight, fontSize, slant, codepoint, variationSettings?, stretch?)` — exported codepoint filter + stretch/style/weight scorer. Returns null when no registered variant covers the codepoint; the caller then falls through to the system fallback chain.
+- `pickWebfontVariantForCodepoint(family, weight, fontSize, slant, codepoint, variationSettings?, stretch?)` — descriptor-group selection followed by a range lookup. Returns null when the selected group excludes the codepoint; the caller continues the CSS family stack.
 
 ## Run-splitter integration
 
-`textToPathMarkup` in `packages/text-engine/src/render/text-to-path.ts` walks the input text codepoint-by-codepoint, building runs of contiguous codepoints that route to the same font. Pre-DM-557 the routing was:
+The default renderer uses shaped-cluster fallback in both output modes; its
+segmented iterator retains each selected group's reverse-declared partitions
+and clamps shaping to their ranges. The explicit degraded per-codepoint walk
+also respects the selected group:
 
-1. If `primaryFont.glyphForCodePoint(cp).id !== 0` → primary.
-2. Otherwise → walk `fallbackFontChain(cp)` (system fonts: Apple Symbols, PingFang, Hiragino, etc.).
-
-DM-557 inserts a step between (1) and (2) for primary fonts that come from the webfont registry:
-
-1. Primary covers `cp` → primary.
-2. **NEW**: Primary is `webfont:<family>` but doesn't cover `cp` → `pickWebfontVariantForCodepoint(family, …, cp)`. If a variant covers `cp`, use it.
-3. Otherwise → system fallback chain.
+1. The primary's range includes `cp` and its glyph check succeeds → primary.
+2. Walk declared CSS families in order. Webfont families use their selected
+   group's range lookup, including the primary family's other partitions.
+   A different partition retains its concrete instance even when its family
+   key is the same as the primary.
+3. After declared families are exhausted, proceed to platform fallback.
 
 The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontInstance)` rather than just `fontKey`. A Latin-partition Geist run and a Cyrillic-partition Geist run share the same `webfont:geist` key but use different `FontInstance` objects, so they form separate runs even though their key matches. Each run is shaped separately against its own instance by the production HarfBuzz pass (`harfbuzzShapedRunOverride`; see [doc 115](115-production-harfbuzz-shaping.md)).
 
 ## Behavior at the edges
 
 - **Single-partition family** (no `unicode-range` declared): The variant has `unicodeRange = undefined` which `unicodeRangeCovers` treats as covering all codepoints. The codepoint pick returns it for any input — same behavior as today, no regression.
-- **Codepoint not covered by any registered variant**: `pickWebfontVariantForCodepoint` returns null. The run-splitter walks the system fallback chain instead, just as it did before DM-557. The diff in this case is unchanged.
-- **Style, stretch, and range coverage**: `pickWebfontVariantForCodepoint` filters to range-covering candidates, then scores stretch distance, italic mismatch, and weight delta. The no-codepoint picker adds `WEBFONT_RANGE_MISMATCH = 1e7` for variants that miss its Latin probe; range coverage is a leading gate, not a tertiary tie-breaker.
+- **Selected group excludes the codepoint**: return null and continue the CSS
+  family stack even if another weight/style/stretch group advertises it.
+- **In-range missing glyph**: selection still returns the declared face; its
+  physical glyph coverage and shaping verdict govern subsequent fallback. A
+  missing glyph is not reclassified as a unicode-range exclusion. Isolated
+  image metric selection keeps its separate authenticated-face policy.
+- **Primary Latin preference**: `WEBFONT_RANGE_MISMATCH` chooses a useful
+  primary partition only inside the selected capability group. It cannot
+  override weight, style or stretch selection.
+- **Cross-group ties and CSS-less inference**: existing ordinary and segmented
+  selection policies are retained. Their different tie direction and the
+  descriptor-less OS/2 inference are not claimed as Chromium guarantees;
+  native parity remains a separate investigation (DM-M5E64N).
 
 ## Verification
 
 - `packages/text-engine/src/render/webfont-unicode-range.test.ts` — covers `pickWebfontVariantForCodepoint` directly. Tests cover: codepoint covered by exactly one variant, ASCII routing to Latin partition, return-null when no variant covers, single-non-partitioned variant covers everything (CSS default range), italic + weight scoring among multiple covering variants, unregistered family.
 - `src/webfont-unicode-range.test.ts` and `src/capture/unicode-range.test.ts` cover the capture-side `parseUnicodeRangeDescriptor`, which produces the ranges the registry consumes. The second carries Blink's own tokenizer cases plus the reversed, out-of-range, empty-entry and trailing-garbage rejections.
 - `tests/unicode-range-descriptor.e2e.test.ts` checks the parser's accept and reject verdicts and intervals against Chromium's CSS parser.
+- `webfont-descriptor-group.test.ts` covers primary/secondary CSS families,
+  descriptor groups, source order, partitions and in-range missing glyphs.
+  `webfont-descriptor-group.e2e.test.ts` requires real Chromium's selected custom
+  face and Range advance to match: excluded groups use the generated fallback's
+  14px zero while the in-range control uses the Mono fixture's 12px zero.
+  Native runs retain `webfont-descriptor-group-*.json` with the actual browser
+  revision, selected face, Range width and engine answer. Linux artifacts live
+  under `tests/output-linux/`; macOS and Windows use `tests/output/`.
 - The run-splitter integration is exercised end-to-end whenever real-world tests run against pages that load partitioned families. Stripe, Framer, NYT, Resend, Apple all use Google Fonts or their own partition pipelines.
 
 ## Cross-platform note
 
-`unicode-range` parsing and the picker are both pure JavaScript — no platform-specific paths. The cross-platform calibration concern (AGENTS.md §"Platform support") doesn't apply here. The downstream path (HarfBuzz shaping per [doc 115](115-production-harfbuzz-shaping.md), fontkit `getVariation()` for the axis instance and outlines) is the same code path used for system fonts.
+Parsing and selection are shared JavaScript, but the result reaches native
+font selection and shaping on every supported platform. The descriptor-group
+controls use authored fonts to discriminate the same ordering on macOS, Linux
+and Windows. Local macOS evidence does not establish Linux or Windows parity.
 
 ## What's NOT in scope
 

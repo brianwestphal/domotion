@@ -20,6 +20,13 @@ import { describe, it, expect } from "vitest";
 
 const WORKFLOW = resolve(__dirname, "..", ".github", "workflows", "visual-tests.yml");
 
+it("keeps portable descriptor-group native cases in Windows transitions with retained evidence", () => {
+  const yaml = readFileSync(resolve(__dirname, "..", ".github", "workflows", "windows-fidelity.yml"), "utf8");
+  const transitions = yaml.match(/- name: Verify Windows font rendering transitions\n([\s\S]*?)(?=\n\s+- name:)/)?.[1];
+  expect(transitions).toContain("tests/webfont-descriptor-group.e2e.test.ts");
+  expect(yaml).toContain("tests/output/webfont-descriptor-group-*.json");
+});
+
 describe("visual-tests.yml provides the native glyph helper", () => {
   const yaml = readFileSync(WORKFLOW, "utf-8");
 
@@ -366,6 +373,7 @@ describe("test-linux.yml's fidelity gate measures the shipped mechanism", () => 
     expect(focused).toContain("tests/image-svg-normal-line-height-linux.e2e.test.ts");
     expect(focused).toContain("tests/img-svg-document-settings.e2e.test.ts");
     expect(focused).toContain("tests/real-world-webgl-preflight.e2e.test.ts");
+    expect(focused).toContain("tests/webfont-descriptor-group.e2e.test.ts");
     expect(job).toMatch(/if: always\(\) && !inputs\.image_root_metrics_only[\s\S]*?run: npm run test:e2e/);
   });
 

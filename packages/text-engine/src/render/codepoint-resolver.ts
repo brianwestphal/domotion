@@ -23,7 +23,7 @@ import { fontCoversCp } from "./font-instance.js";
 import { nativeFaceCoversCp } from "./font-instance.js";
 import { sfProCoverageOtfKey } from "./shaping-route.js";
 import { getFontInstance } from "./font-instance.js";
-import { pickWebfontVariantForCodepoint } from "./webfont-registry.js";
+import { pickWebfontVariantForCodepoint, unicodeRangeCovers } from "./webfont-registry.js";
 import { systemFallbackResolutionEnabled } from "./font-spec.js";
 import { exactSystemFallbackKey, resolveSystemFallbackKeyForRequest } from "./system-fallback-resolver.js";
 import { systemFallbackCoverage } from "./system-fallback-resolver.js";
@@ -189,7 +189,8 @@ export function coveredFontResolution(
 function walkFontFallbackStages(request: FontRequest): FontResolution {
   _stageStats.calls++;
   const walk = buildFallbackWalk(request);
-  const complexShaped = resolveComplexShaperDecomposition(walk);
+  const primaryInRange = unicodeRangeCovers(request.primaryFont.webfontUnicodeRange, request.cp);
+  const complexShaped = primaryInRange ? resolveComplexShaperDecomposition(walk) : null;
   if (complexShaped != null) return complexShaped;
 
   // NOTE (DM-1688): a per-codepoint SF-cascade guard was tried here and REVERTED.
@@ -205,17 +206,17 @@ function walkFontFallbackStages(request: FontRequest): FontResolution {
   // so gating on it mis-routes those. Left as a documented 2-codepoint residual.
 
   // 0. Primary fast-path, then HarfBuzz's same-face normalizations.
-  const primaryLiteral = resolvePrimaryLiteralCoverage(walk);
+  const primaryLiteral = primaryInRange ? resolvePrimaryLiteralCoverage(walk) : null;
   if (primaryLiteral != null) return primaryLiteral;
   const alias = resolveCanonicalAlias(walk);
-  const primaryNormalized = resolvePrimarySameFaceNormalization(walk, alias);
+  const primaryNormalized = primaryInRange ? resolvePrimarySameFaceNormalization(walk, alias) : null;
   if (primaryNormalized != null) return primaryNormalized;
   const sfProOtf = resolveSfProCoverageOtf(walk);
   if (sfProOtf != null) return sfProOtf;
 
   // 0b. / 1. The primary's decompositions when the chain is empty, then kFontFamily.
   const decompositions = buildCanonicalDecompositions(walk);
-  const primaryDecomposed = resolvePrimaryDecompositionWithoutChain(walk, decompositions);
+  const primaryDecomposed = primaryInRange ? resolvePrimaryDecompositionWithoutChain(walk, decompositions) : null;
   if (primaryDecomposed != null) return primaryDecomposed;
   const declared = resolveDeclaredFamilyFallback(walk, alias, decompositions);
   if (declared != null) return declared;
@@ -510,12 +511,13 @@ function buildCanonicalDecompositions(walk: FallbackWalk): CanonicalDecompositio
 function fallbackChainInstance(request: FontRequest, key: string): FontInstance | null {
   const { cp, primaryFont, primaryFontKey, weight, fontSize, slant, variationSettings, stretch } = request;
   const fvs = key === primaryFontKey ? variationSettings : undefined;
-  if (key === primaryFontKey) return primaryFont;
   if (key.startsWith("webfont:")) {
     const family = key.slice("webfont:".length);
-    const v = pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
-    if (v != null) return v;
+    // A range-excluded selected group skips this CSS family. Rematerializing
+    // the primary here would bypass the exclusion using its physical cmap.
+    return pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
   }
+  if (key === primaryFontKey) return primaryFont;
   return getFontInstance(key, weight, fontSize, slant, fvs);
 }
 
@@ -589,7 +591,7 @@ function resolveDeclaredFamilyFallback(
   decompositions: CanonicalDecompositions,
 ): FontResolution | null {
   const { request, ch, sameFaceNormalization } = walk;
-  const { cp, primaryFontKey, weight, fontSize, slant, variationSettings, fontKeyChain } = request;
+  const { cp, weight, fontSize, slant, variationSettings, fontKeyChain } = request;
   const { canonical, canonicalAliasCp } = alias;
   const { singleton, decompositionCandidates } = decompositions;
   const cover = walkCover(walk);
@@ -604,19 +606,19 @@ function resolveDeclaredFamilyFallback(
     // merely MOVED the round trip down here (measured — 4000 probes left the
     // fast path and 3912 reappeared on this line).
     if (nativeFaceCoversCp(inst, cp) !== false && glyphIdForCp(inst, cp) !== 0) {
-      return cover(key, key === primaryFontKey ? null : inst);
+      return cover(key, inst === request.primaryFont ? null : inst);
     }
     // HarfBuzz can shape a canonical alias in each declared face, including a
     // standard family reached after an emoji family. Checking only the primary
     // misses U+212A when the emoji face lacks both it and its 'K' alias.
     if (canonicalAliasCp != null && glyphIdForCp(inst, canonicalAliasCp) !== 0) {
-      return cover(key, key === primaryFontKey ? null : inst, canonical, true);
+      return cover(key, inst === request.primaryFont ? null : inst, canonical, true);
     }
     if (sameFaceNormalization && cp === 0x2011 && glyphIdForCp(inst, 0x2010) !== 0) {
-      return cover(key, key === primaryFontKey ? null : inst, "\u2010", true);
+      return cover(key, inst === request.primaryFont ? null : inst, "\u2010", true);
     }
     if (singleton != null && glyphIdForCp(inst, singleton) !== 0) {
-      return cover(key, key === primaryFontKey ? null : inst, String.fromCodePoint(singleton), true);
+      return cover(key, inst === request.primaryFont ? null : inst, String.fromCodePoint(singleton), true);
     }
     // Base+mark NFD within this same font (Linux — see baseMarkNfd above). The
     // run keeps the SOURCE char (HarfBuzz decomposes internally, like Chrome),

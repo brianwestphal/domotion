@@ -1093,11 +1093,12 @@ the angle.
 ```mermaid
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
-    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["score each variant:<br/>unicode-range-misses-Latin (1e7) +<br/>stretch distance × 1e4 (Blink StretchDistance,<br/>vs the font-stretch DESCRIPTOR caps; auto = [100,100]) +<br/>italic mismatch (1000) +<br/>weight distance (Blink WeightDistance, vs the<br/>font-weight DESCRIPTOR caps; auto = [400,400]) +<br/>descriptor-less faces only: legacy OS/2-scalar<br/>tie-break × 1e-4 (resource-discovery inference)<br/>EXACT ties → LAST-declared wins<br/>(ForEachReverse, css_segmented_font_face.cc:125-136 +<br/>segmented_font_data.cc:33-40)"]
-    W1 --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
+    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["webfontDescriptorGroup:<br/>select descriptor capabilities BEFORE ranges<br/>stretch distance × 1e4 + italic mismatch (1000)<br/>+ weight distance vs descriptor capabilities;<br/>preserve existing caller tie/inference policy"]
+    W1 --> WL["ONLY inside selected group:<br/>prefer Latin-covering primary partition;<br/>range preference cannot cross descriptors"]
+    WL --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
     W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold,<br/>declaredStyleCaps, slntAxisMin, baseIsItalic}<br/>→ webfontSyntheticBold() / webfontSyntheticItalic() at the faux-bold/-italic seam<br/>(css_segmented_font_face.cc:116-123 +<br/>font_custom_platform_data.cc:129-154, 188-193, 289-293)"]
-    P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["filter variants by<br/>unicodeRangeCovers(range, cp)<br/>(CSS Fonts 4 §11.5 partitioning)"]
-    P1 --> P2["score by (stretch distance, italic,<br/>weight distance vs caps) → best"]
+    P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["same descriptor group first,<br/>then unicodeRangeCovers(range, cp)"]
+    P1 --> P2["covering declaration inside selected group;<br/>source-order ties → last declaration;<br/>range miss → null → next CSS family,<br/>never rematerialize another group"]
     P2 --> W3
     S0["webfontVariantsInDeclarationOrder(request)"] --> S1["FontFaceCache step: select ONE exact<br/>stretch/style/weight capability group"]
     S1 --> S2["CSSSegmentedFontFace step: keep only that group's<br/>declarations, reverse source order;<br/>do not collapse overlapping unicode-ranges"]
@@ -1111,17 +1112,18 @@ flowchart TD
   embedded mode can `@font-face` it as a `data:` URI. Google-Fonts-style
   partitioning (same `(family, weight)` across N `@font-face` rules, each a
   distinct `unicode-range`) is honored per-codepoint by
-  `pickWebfontVariantForCodepoint` (DM-517 / DM-557); `pickWebfontVariant` biases
-  toward the Latin partition when it can't route per-codepoint. Doc
-  [30](30-webfont-unicode-range.md). All pickers break exact score ties toward
-  the LAST-registered variant — Blink appends a segmented family's faces in
+  `pickWebfontVariantForCodepoint`; `pickWebfontVariant` biases toward a Latin
+  partition only inside its selected descriptor group. Doc
+  [30](30-webfont-unicode-range.md). Within one selected group, Blink appends faces in
   reverse declaration order and takes the first covering face
   (`css_segmented_font_face.cc:125-136`, `segmented_font_data.cc:33-40`, rev
-  7d859f27), i.e. later `@font-face` declarations override earlier ones. The
+  7d859f27), so later covering declarations override earlier ones. The
   Domotion-specific scalar-weight tie-break is confined to descriptor-less
   (auto-caps) variants, where it routes the CSS-less resource-discovery path's
   faces by their OS/2 weight; declared descriptors score by Blink's
-  WeightDistance alone.
+  WeightDistance alone. Existing ordinary/segmented cross-group tie policies
+  remain different and are not asserted as Chromium guarantees; their native
+  tie/inference parity is tracked separately (DM-M5E64N).
 - **Shaped segmented fallback** does not iterate every registered variant.
   `webfontVariantsInDeclarationOrder` first selects one exact
   weight/style/stretch capability group, matching `FontFaceCache`, and only
@@ -1318,7 +1320,7 @@ flowchart TD
   F0["resolveFontForCodepoint(cp, primaryFont, primaryKey,<br/>weight, size, slant, fvs, lang, fontKeyChain, …, fontVariantEmoji)"] --> FVE{"font-variant-emoji forces EMOJI<br/>presentation for cp?<br/>(emoji → any \p{Emoji} cp · unicode → Emoji_Presentation only;<br/>explicit VS15/VS16 in the text wins — caller passes undefined)"}
   FVE -->|"yes & color-emoji face covers cp"| FVE1["cover(color-emoji key)<br/>resolveColorEmojiKeyForCp — even over a covering primary<br/>(forced VS16: harfbuzz_face.cc:127-206)"]
   FVE -->|"no / color font lacks cp (Blink's ignore-VS reset)"| FCS["helper-absent only: complexShaperBaseMarkDecomposition(cp)<br/>→ primary covers every part → hb shaping proxy over primary<br/>(supported mode: skipped, the cluster shaper already did this)"]
-  FCS --> F1["0. PRIMARY fast-path:<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?<br/>(the default cluster shaper already tested HarfBuzz's<br/>real normalization/coverage before this iterator runs)"]
+  FCS --> F1["0. PRIMARY fast-path:<br/>declared unicode-range includes cp AND<br/>primaryFont.glyphForCodePoint(cp).id ≠ 0?<br/>(primary normalization/decomposition also respects range;<br/>default cluster shaping already clamps its candidates)"]
   F1 -->|"yes"| F1H["cover(primaryKey)"]
   F1 -->|"no"| FSP{"HarfBuzz same-font space fallback:<br/>isHarfbuzzSameFontSpaceFallback(cp) && primary covers U+0020?"}
   FSP -->|"yes"| FSPH["cover(primaryKey, ' ')"]
@@ -1361,6 +1363,9 @@ Notes:
 - `fallbackChainInstance(request, key)` materializes a chain key to an instance —
   webfont-partition-aware (`pickWebfontVariantForCodepoint`), and only the
   **primary** carries the author's `font-variation-settings`.
+- A selected webfont group excluded by `unicode-range` yields no family
+  instance; it cannot be reopened through the primary's physical cmap. A
+  different partition in the same primary family keeps its concrete override.
 - **The supported post-step routes all SHAPING to HarfBuzz without moving the OUTLINES.**
   `resolveFontForCodepoint` is a thin wrapper: it calls the resolution walk
   above and then hands the result to `harfbuzzShapedScriptOverride`, which — for

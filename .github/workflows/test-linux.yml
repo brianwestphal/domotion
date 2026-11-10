@@ -217,6 +217,7 @@ jobs:
           tests/image-svg-normal-line-height-linux.e2e.test.ts
           tests/img-svg-document-settings.e2e.test.ts
           tests/real-world-webgl-preflight.e2e.test.ts
+          tests/webfont-descriptor-group.e2e.test.ts
       - name: Upload expected/actual/diff PNGs
         if: always()
         uses: actions/upload-artifact@v4
@@ -230,6 +231,7 @@ jobs:
             tests/output/run-env.json
             tests/output-linux/image-vdmx-*.png
             tests/output-linux/image-vdmx-hinting.json
+            tests/output-linux/webfont-descriptor-group-*.json
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

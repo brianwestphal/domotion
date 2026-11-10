@@ -569,26 +569,56 @@ function webfontWeightScore(v: WebfontVariant, request: number, bounds: { min: n
   return dist + Math.abs(v.weight - request) * WEBFONT_WEIGHT_TIEBREAK_SCALE;
 }
 
-// Score-composition scales. The hierarchy is: unicode-range coverage (a
-// Domotion-specific tofu-avoidance bias, see pickWebfontVariant) dominates
-// stretch, stretch dominates style, style dominates weight — the last three
-// being Blink's `IsBetterMatchForRequest` order. Stretch distances reach 150
-// (a [50,50] face against bounds.max 200), so ×1e4 keeps every stretch step
-// above the style+weight budget (≤1800) and below the range penalty.
+// Capability selection orders stretch, style, then weight. The Latin range
+// preference applies only INSIDE the selected group, never across descriptors.
 const WEBFONT_RANGE_MISMATCH = 1e7;
 
 const WEBFONT_STRETCH_SCALE = 1e4;
 
 const WEBFONT_STYLE_MISMATCH = 1000;
 
+/** FontFaceCache selects one capabilities key before range iteration.
+ * Preserve the callers' existing tie/inference policies; their cross-group
+ * parity is a separate investigation (DM-M5E64N), not a Blink guarantee. */
+function webfontDescriptorGroup(
+  variants: WebfontVariant[],
+  weight: number,
+  wantItalic: boolean,
+  stretch: number,
+  policy: "ordinary" | "segmented" = "ordinary",
+): WebfontVariant[] {
+  const stretchBounds = webfontStretchBounds(variants);
+  const weightBounds = webfontWeightBounds(variants);
+  let selected: WebfontVariant | undefined;
+  let bestScore = Infinity;
+  for (const variant of variants) {
+    const score =
+      webfontStretchDistance(variantStretchCaps(variant), stretch, stretchBounds) * WEBFONT_STRETCH_SCALE +
+      (variant.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH) +
+      (policy === "ordinary"
+        ? webfontWeightScore(variant, weight, weightBounds)
+        : webfontWeightDistance(variantWeightCaps(variant), weight, weightBounds));
+    if (score < bestScore || (policy === "ordinary" && score === bestScore)) {
+      selected = variant;
+      bestScore = score;
+    }
+  }
+  if (selected == null) return [];
+  const key = (variant: WebfontVariant): string =>
+    JSON.stringify([
+      variantStretchCaps(variant),
+      variantWeightCaps(variant),
+      variant.synthesisFace?.declaredStyleCaps ?? [BLINK_NORMAL_SLOPE, BLINK_NORMAL_SLOPE],
+    ]);
+  const selectedKey = key(selected);
+  return variants.filter((variant) => key(variant) === selectedKey);
+}
+
 /**
- * DM-557: codepoint-aware variant pick for partitioned webfonts. Filters
- * registered variants by whether their `unicode-range` covers `codepoint`
- * (per CSS Fonts 4 §11.5 — a partition only declares it can shape glyphs
- * within its declared range), then scores by (italic, weight) like
- * `pickWebfontVariant`. Returns null when no registered variant covers the
- * codepoint — the caller is expected to walk the system fallback chain in
- * that case.
+ * Codepoint-aware selection chooses descriptor capabilities first, then walks
+ * only that group's unicode-range partitions in reverse declaration order.
+ * A range miss returns null so the caller continues the CSS family stack;
+ * it must not choose a different weight/style/stretch group for coverage.
  *
  * Used by the run-splitter in `textToPathMarkup` to route per-codepoint
  * within a Google-Fonts-style partitioned family (Geist@400 split across
@@ -617,7 +647,7 @@ export function pickWebfontVariantForCodepoint(
   const weightBounds = webfontWeightBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
-  for (const v of variants) {
+  for (const v of webfontDescriptorGroup(variants, weight, wantItalic, stretch)) {
     if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
@@ -650,7 +680,7 @@ export function pickWebfontVariantForCodepoint(
  * the selected segmented family's unicode-range (Chromium7d859f27,
  * FontFaceCache::Get and FontFallbackList::DeterminePrimarySimpleFontDataCore).
  * A missing range must walk the CSS family stack, not choose another weight.
- * Keep this distinct from the existing text walk, tracked by DM-7QQPJA. */
+ * Isolated metrics additionally require strict variation authentication. */
 export function pickWebfontPrimaryForCharacter(
   family: string,
   weight: number,
@@ -730,41 +760,10 @@ export function webfontVariantsInDeclarationOrder(
 ): FontInstance[] {
   const variants = webfontRegistry.get(family.toLowerCase()) ?? [];
   if (variants.length === 0) return [];
-  // FontFaceCache first chooses ONE FontSelectionCapabilities key for the
-  // request. CSSSegmentedFontFace then contains only the declarations stored
-  // under that exact key; unicode-range iteration must never spill into a
-  // different weight/style/stretch group after a segment miss.
-  const wantItalic = slant !== 0;
-  const stretchBounds = webfontStretchBounds(variants);
-  const weightBounds = webfontWeightBounds(variants);
-  let selected = variants[0];
-  let selectedScore = Infinity;
-  for (const variant of variants) {
-    const score =
-      webfontStretchDistance(variantStretchCaps(variant), stretch, stretchBounds) * WEBFONT_STRETCH_SCALE +
-      (variant.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH) +
-      webfontWeightDistance(variantWeightCaps(variant), weight, weightBounds);
-    if (score < selectedScore) {
-      selected = variant;
-      selectedScore = score;
-    }
-  }
-  const sameRange = (a: readonly [number, number], b: readonly [number, number]): boolean =>
-    a[0] === b[0] && a[1] === b[1];
-  const selectedStretch = variantStretchCaps(selected);
-  const selectedWeight = variantWeightCaps(selected);
-  const styleCaps = (variant: WebfontVariant): readonly [number, number] =>
-    variant.synthesisFace?.declaredStyleCaps ?? [BLINK_NORMAL_SLOPE, BLINK_NORMAL_SLOPE];
-  const selectedStyle = styleCaps(selected);
+  const group = webfontDescriptorGroup(variants, weight, slant !== 0, stretch, "segmented");
   const out: FontInstance[] = [];
-  for (let i = variants.length - 1; i >= 0; i--) {
-    const variant = variants[i];
-    if (
-      !sameRange(styleCaps(variant), selectedStyle) ||
-      !sameRange(variantStretchCaps(variant), selectedStretch) ||
-      !sameRange(variantWeightCaps(variant), selectedWeight)
-    )
-      continue;
+  for (let i = group.length - 1; i >= 0; i--) {
+    const variant = group[i];
     const instance = tagWebfontInstance(
       applyVariationAxes(variant.font, weight, fontSize, slant, variationSettings, stretch, {
         wdthCapabilities: variant.stretch ?? null,
@@ -773,7 +772,7 @@ export function webfontVariantsInDeclarationOrder(
       }),
       variant,
     );
-    instance.webfontDeclarationOrder = i;
+    instance.webfontDeclarationOrder = variants.indexOf(variant);
     out.push(instance);
   }
   return out;
@@ -825,7 +824,7 @@ export function __pickWebfontVariantMetaForTest(
   const LATIN_PROBE = 0x0041;
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
-  for (const v of variants) {
+  for (const v of webfontDescriptorGroup(variants, weight, italic, stretch)) {
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === italic ? 0 : WEBFONT_STYLE_MISMATCH;
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
@@ -868,7 +867,7 @@ export function __pickWebfontVariantMetaForCodepointForTest(
   const weightBounds = webfontWeightBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
-  for (const v of variants) {
+  for (const v of webfontDescriptorGroup(variants, weight, italic, stretch)) {
     if (!unicodeRangeCovers(v.unicodeRange, codepoint)) continue;
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === italic ? 0 : WEBFONT_STYLE_MISMATCH;
@@ -1044,28 +1043,23 @@ export function pickWebfontVariant(
   if (variants == null || variants.length === 0) return null;
   const wantItalic = slant !== 0;
   const bounds = webfontStretchBounds(variants);
-  // Tertiary preference: when multiple variants tie on (italic, weight) the
-  // one whose `unicode-range` covers Basic Latin (U+0020..U+007F) wins. Google-
+  // Inside the selected capability group, prefer the partition whose
+  // `unicode-range` covers Basic Latin (U+0020..U+007F). Google-
   // Fonts-style partitioning registers e.g. Geist@400 across 3 woff2 files
   // (Cyrillic, Latin Ext, Latin Basic) — without this, the first registered
   // partition wins regardless of whether it has glyphs for the rendered text,
   // and Latin runs lay out as .notdef tofu (DM-517).
   //
-  // We can't yet route per-codepoint (would require run-splitting upstream),
-  // so we bias toward the partition that covers the overwhelmingly common
-  // case: Latin text. Variants with no `unicode-range` declared (CSS default
-  // covers everything) match here trivially, so non-partitioned fonts are
-  // unaffected.
+  // This supplies a stable primary instance; per-codepoint and shaped fallback
+  // select the actual partition. Never let this preference cross descriptors.
   const LATIN_PROBE = 0x0041; // 'A'
   const weightBounds = webfontWeightBounds(variants);
   let best: WebfontVariant | null = null;
   let bestScore = Infinity;
-  for (const v of variants) {
+  for (const v of webfontDescriptorGroup(variants, weight, wantItalic, stretch)) {
     const stretchDist = webfontStretchDistance(variantStretchCaps(v), stretch, bounds);
     const styleMismatch = v.italic === wantItalic ? 0 : WEBFONT_STYLE_MISMATCH;
-    // Range mismatch must outweigh every other axis: rendering tofu (no glyph)
-    // is far worse than rendering upright glyphs for an italic request, where
-    // the renderer can fall back to synthesized italic via `slant`.
+    // The range preference is confined to this already-selected group.
     const rangeMismatch = unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH;
     const score =
       rangeMismatch + stretchDist * WEBFONT_STRETCH_SCALE + styleMismatch + webfontWeightScore(v, weight, weightBounds);

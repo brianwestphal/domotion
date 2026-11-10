@@ -116,7 +116,7 @@ describeWithFont("weight as a selection axis (Blink's WeightDistance over the de
     expect(__pickWebfontVariantMetaForTest("auto", 400, false)?.weightCaps).toBeUndefined();
   });
 
-  it("the per-codepoint pick scores the weight range too, after its unicode-range filter", () => {
+  it("the per-codepoint pick selects weight capabilities before unicode-range", () => {
     registerWebfont("cp", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]], undefined, "300 400");
     registerWebfont("cp", 700, "normal", helveticaBuf!, [[0x0000, 0x00ff]], undefined, "600 700");
     expect(__pickWebfontVariantMetaForCodepointForTest("cp", 400, false, 0x41)?.weightCaps).toEqual([300, 400]);

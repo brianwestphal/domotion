@@ -503,10 +503,12 @@
       "kind": "contract",
       "status": "current",
       "owners": ["text-fonts"],
-      "platforms": [],
+      "platforms": ["macos", "linux", "windows"],
       "code": [
         "packages/text-engine/src/render/text-to-path.ts",
         "packages/text-engine/src/render/webfont-unicode-range.test.ts",
+        "packages/text-engine/src/render/webfont-descriptor-group.test.ts",
+        "tests/webfont-descriptor-group.e2e.test.ts",
         "src/webfont-unicode-range.test.ts",
         "src/capture/unicode-range.ts",
         "src/capture/unicode-range.test.ts",

@@ -92,7 +92,7 @@ describeWithFont("stretch as a selection axis (Blink's stretch → style → wei
     expect(__pickWebfontVariantMetaForTest("auto", 400, false, 100)?.stretch).toBeUndefined();
   });
 
-  it("the per-codepoint pick scores stretch too, after its unicode-range filter", () => {
+  it("the per-codepoint pick selects stretch capabilities before unicode-range", () => {
     registerWebfont("cp", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]], "75%");
     registerWebfont("cp", 400, "normal", helveticaBuf!, [[0x0000, 0x00ff]], "125%");
     expect(__pickWebfontVariantMetaForCodepointForTest("cp", 400, false, 0x41, 75)?.stretch).toEqual([75, 75]);
