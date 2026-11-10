@@ -334,6 +334,7 @@ jobs:
             tests/output-linux/owned-ui-server/
             tests/output-linux/srcset-resource/
             tests/output-linux/external-svg-frozen/
+            tests/output-linux/shadow-knockout/
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

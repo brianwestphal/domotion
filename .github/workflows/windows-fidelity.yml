@@ -248,6 +248,7 @@ jobs:
             tests/output/native-image-capture/
             tests/output/literal-family-identity/
             tests/output/external-svg-frozen/
+            tests/output/shadow-knockout/
             tests/output/opaque-font-family/
             tests/output/owned-ui-server/
             tests/output/srcset-resource/
