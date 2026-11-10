@@ -37,5 +37,6 @@ export {
 export { linuxFontEnvironmentKey } from "./render/linux-font-render-style.js";
 export type { FontRenderHinting, LinuxFontRenderContext } from "./render/linux-font-render-style.js";
 export { isolatedPrimaryFontMetrics } from "./render/isolated-primary-font-metrics.js";
+export type { IsolatedFontFace } from "./render/isolated-primary-font-metrics.js";
 export { localeToScriptCodeForFontSelection } from "./render/generic-script-families.js";
 export { type FontSynthesisAllowance } from "./render/synthesis-decision.js";

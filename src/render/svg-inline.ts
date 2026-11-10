@@ -47,6 +47,8 @@ import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
 import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
+import { authenticatedImageFonts, imageOwnFontSheets, type ImageOwnFontContext } from "./svg-image-own-fonts.js";
+import type { IsolatedFontFace } from "./font-resolution.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
 import { flatCssBlocks, replaceFlatCssBlocks } from "../utils/flat-css-blocks.js";
 
@@ -583,6 +585,7 @@ function imageRootTransform(
   viewport: { w: number; h: number } | null = null,
   registeredProperties: ReadonlySet<string> = new Set(),
   fontRendering?: InlineSvgPlacement["fontRendering"],
+  fontFaces?: readonly IsolatedFontFace[],
 ): ResolvedImageRootTransform | null | "projective" {
   const tokens = parseSvgAttributes(attrs) ?? [];
   // The DOM value of an XML attribute: references expanded, whitespace
@@ -692,7 +695,7 @@ function imageRootTransform(
   };
   const metricUnits = fontUnresolved
     ? null
-    : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang"), fontRendering);
+    : imageRootFontMetricUnits(fontDeclarations, fontSize, attr("xml:lang") ?? attr("lang"), fontRendering, fontFaces);
   let unavailableFontMetric = false;
   const resolved = resolveImageRootTransform(
     {
@@ -961,6 +964,7 @@ export interface InlineSvgPlacement {
   supportsConditions?: Readonly<Record<string, boolean>>;
   /** Verified Chromium/Fontconfig context; absent remains conservative. */
   fontRendering?: LinuxFontRenderContext;
+  ownFonts?: ImageOwnFontContext;
 }
 
 /** The embedder-supplied part of the image document's media environment. */
@@ -1091,7 +1095,10 @@ function resolveDocumentViewport(
  * any zoom.
  */
 export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
-  const imageSource = resolveSvgImageCssImports(sourceText);
+  const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
+  const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
+  const imageSource =
+    expanded == null ? null : fontFaces == null ? expanded : (imageOwnFontSheets(expanded)?.source ?? null);
   if (imageSource == null) return null;
   const tag = readSvgOpeningTag(imageSource);
   if (tag == null) return null;
@@ -1127,7 +1134,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   // An `<img>` document root's own transform is composed outside the viewport
   // below (a nested `<svg transform>` would rotate about the output origin).
   const rootTransform = imageRootTransform(
-    attrs,
+    fontFaces == null ? attrs : (readSvgOpeningTag(sheet.source)?.attributes ?? attrs),
     object,
     "<img> svg",
     sheet.declarations,
@@ -1135,6 +1142,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     imageViewport(p),
     sheet.registeredProperties,
     p.fontRendering,
+    fontFaces ?? undefined,
   );
   if (rootTransform === "projective") return null;
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
@@ -1313,6 +1321,14 @@ export function isSvgSafeToFlatten(body: string): boolean {
  * source sets `overflow: visible`, since a `<g>` (unlike a viewport) does not clip.
  */
 export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
+  const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
+  const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
+  if (expanded == null) return null;
+  if (fontFaces != null) {
+    const sheets = imageOwnFontSheets(expanded);
+    if (sheets == null) return null;
+    sourceText = sheets.source;
+  } else sourceText = expanded;
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   const sheet = rootSheetTransform(sourceText, tag, p);
@@ -1356,7 +1372,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
   // visible; the drawn-image clip applies either way.
   const object = doc != null ? { x: p.x, y: p.y, w: p.w, h: p.h } : mappedViewBoxRect(viewBox, matrix);
   const rootTransform = imageRootTransform(
-    attrs,
+    fontFaces == null ? attrs : (readSvgOpeningTag(sheet.source)?.attributes ?? attrs),
     object,
     "<img> svg",
     sheet.declarations,
@@ -1364,6 +1380,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     imageViewport(p),
     sheet.registeredProperties,
     p.fontRendering,
+    fontFaces ?? undefined,
   );
   if (rootTransform === "projective") return null;
   if (rootOverflowVisible(attrs)) {

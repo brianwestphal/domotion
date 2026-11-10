@@ -40,6 +40,28 @@ function face(withFileMetrics = false): FontInstance {
 afterEach(() => vi.restoreAllMocks());
 
 describe("CoreText CSS-size normal line spacing (DM-S15JM4)", () => {
+  it("requires in-buffer resolution for owned bytes and keeps old variable helpers unresolved", () => {
+    vi.spyOn(transport, "isGlyphHelperAvailable").mockReturnValue(true);
+    const font = face(true);
+    fontSourceMap.delete(font);
+    font.postscriptName = "Test-Regular";
+    font.webfontBuffer = Buffer.from("owned-font");
+    font._appliedVariationAxes = { opsz: 16 };
+    const call = vi
+      .spyOn(transport, "callGlyphHelper")
+      .mockReturnValue({ results: [{ type: "meta", ...envelope(), resolution: "byNameVerified" }] });
+    expect(darwinNormalLineSpacing(font, 16)).toBeNull();
+    const { coreTextMetrics: _old, ...old } = envelope();
+    call.mockReturnValue({ results: [{ type: "meta", ...old, resolution: "nameMatchedInFile" }] });
+    expect(normalLineSpacing(font, 16, "darwin")).toBeNull();
+    call.mockReturnValue({ results: [{ type: "meta", ...envelope(), resolution: "nameMatchedInFile" }] });
+    expect(darwinNormalLineSpacing(font, 16)).toBe(20);
+    expect(call.mock.calls[0][0].fonts[0]).toMatchObject({
+      fontData: font.webfontBuffer.toString("base64"),
+      variations: { opsz: 16 },
+    });
+    expect(call.mock.calls[0][0].fonts[0].fontPath).toBeUndefined();
+  });
   it("rounds the three components separately and applies Blink's native-family ascent hack", () => {
     expect(coreTextNormalLineSpacing(envelope(), request)).toBe(20);
     expect(coreTextNormalLineSpacing(envelope({ familyName: "Helvetica" }), request)).toBe(23);

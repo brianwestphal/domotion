@@ -1,4 +1,5 @@
 import type { LinuxFontRenderContext } from "../render/font-resolution.js";
+import type { ImageOwnFontContext } from "../render/svg-image-own-fonts.js";
 import type {
   PhysicalEdges as CapturedPseudoPhysicalEdges,
   PseudoBoxFragment as CapturedPseudoBoxFragment,
@@ -2275,6 +2276,8 @@ export interface CapturedElement {
    * resolvable then, had no `@supports`, or on older trees.
    */
   imageSvgSupports?: Record<string, boolean>;
+  /** Digest-bound, detached-Chromium-validated image-owned font bytes. */
+  imageOwnFonts?: ImageOwnFontContext;
   /** Verified shared Fontconfig launch environment and observed Chromium route.
    * Absent for older trees and custom/remote launches without provenance. */
   imageDocumentFontRendering?: LinuxFontRenderContext;

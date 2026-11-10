@@ -2442,10 +2442,12 @@ export function resolveFont(
    *  via Playwright's per-script tables (see `resolveFontKey`). */
   lang?: string,
   cacheOptions?: DarwinFontDescription["cacheOptions"],
+  primaryLookupCharacter?: number,
 ): FontInstance | null {
   const matchSize = computedFontSize(variationSettings, fontSize);
   const description = { weight: fontWeight, size: matchSize, slant, stretch, variationSettings, cacheOptions };
   const semanticContext = createFontFallbackSemanticContext(fontFamily);
+  semanticContext.primaryLookupCharacter = primaryLookupCharacter;
   // A generated family-name table can recognize a face that is absent from
   // this particular host inventory. Blink's kFontFamily stage keeps walking
   // the authored CSS stack when matching/loading that face fails; do the same

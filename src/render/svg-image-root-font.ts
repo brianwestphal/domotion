@@ -24,6 +24,7 @@
  * metrics can be reproduced; otherwise it remains unresolved.
  */
 import { isolatedPrimaryFontMetrics, type LinuxFontRenderContext } from "./font-resolution.js";
+import type { IsolatedFontFace } from "./font-resolution.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 
 /** The root's font declarations, attribute and inline style merged (style wins). */
@@ -143,6 +144,7 @@ export function imageRootFontMetricUnits(
   fontSize: number | null,
   lang: string | null,
   linuxFontRenderContext?: LinuxFontRenderContext,
+  fontFaces?: readonly IsolatedFontFace[],
 ): ((unit: string) => number | null) | null {
   if (fontSize == null || !(fontSize > 0)) return null;
   for (const name of UNSUPPORTED_FONT_PROPERTIES) {
@@ -162,6 +164,9 @@ export function imageRootFontMetricUnits(
   const weight = rootFontWeight(declarations.get("font-weight"));
   const italic = rootItalic(declarations.get("font-style"));
   if (weight == null || italic == null) return null;
+  // The image-owned descriptor selector currently admits normal/italic
+  // capability groups only; angled oblique selection needs its own proof.
+  if (fontFaces != null && /^oblique\b/i.test(declarations.get("font-style")?.trim() ?? "")) return null;
   const familyValue = declarations.get("font-family");
   const fontFamily = familyValue == null || isInitial(familyValue) ? "" : familyValue.trim();
   let resolved: ReturnType<typeof isolatedPrimaryFontMetrics> | undefined;
@@ -178,6 +183,7 @@ export function imageRootFontMetricUnits(
         fontSize,
         fontWeight: weight,
         italic,
+        ...(fontFaces == null ? {} : { fontFaces }),
         ...(linuxFontRenderContext != null ? { linuxFontRenderContext } : {}),
         ...(lang != null && lang !== "" ? { lang } : {}),
       });

@@ -23,7 +23,7 @@ import type { FontPath } from "./font-paths.darwin.js";
 import { win32PrimaryCutKey } from "./family-match.js";
 import { darwinPrimaryCutKey } from "./family-match.js";
 import { linuxPrimaryCutKey } from "./family-match.js";
-import { pickWebfontVariant } from "./webfont-registry.js";
+import { pickWebfontVariant, pickWebfontPrimaryForCharacter } from "./webfont-registry.js";
 import { pickLocalFontAliasVariant } from "./webfont-registry.js";
 import { trakHbShapingEnabled } from "./system-fallback-resolver.js";
 import { registerDynamicSystemFont } from "./font-spec-registry.js";
@@ -857,11 +857,23 @@ function resolveRegisteredFontInstance(
   slant: number,
   variationSettings: Record<string, number> | undefined,
   stretch: number,
+  primaryLookupCharacter?: number,
 ): RegisteredFontResolution {
   if (key.startsWith("webfont:")) {
     return {
       handled: true,
-      instance: pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings, stretch),
+      instance:
+        primaryLookupCharacter == null
+          ? pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings, stretch)
+          : pickWebfontPrimaryForCharacter(
+              key.slice("webfont:".length),
+              weight,
+              fontSize,
+              slant,
+              primaryLookupCharacter,
+              variationSettings,
+              stretch,
+            ),
     };
   }
   if (key.startsWith("localalias:")) {
@@ -912,7 +924,15 @@ function instantiateResolvedFont(
 ): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
   // registry rather than the on-disk FONT_PATHS table.
-  const registered = resolveRegisteredFontInstance(key, weight, fontSize, slant, variationSettings, stretch);
+  const registered = resolveRegisteredFontInstance(
+    key,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretch,
+    semanticContext.primaryLookupCharacter,
+  );
   if (registered.handled) return registered.instance;
   // `localalias:<family>` — the family was declared via @font-face local() and
   // we tracked one or more declared (weight, italic) variants pointing at base

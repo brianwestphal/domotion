@@ -72,6 +72,9 @@ export interface CssFallbackDescription {
 export interface FontFallbackSemanticContext {
   declaredFamily?: string;
   genericFamily: BlinkGenericFamily;
+  /** Isolated font-metric lookup: filter the selected segmented face's range,
+   * without requiring that a non-segmented font contain the glyph. */
+  primaryLookupCharacter?: number;
 }
 
 export function createFontFallbackSemanticContext(declaredFamily?: string): FontFallbackSemanticContext {

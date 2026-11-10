@@ -58,24 +58,26 @@ export function darwinNormalLineSpacing(font: FontInstance, fontSize: number): n
   const actualSize = Math.fround(fontSize);
   if (!Number.isFinite(actualSize) || actualSize <= 0) return null;
   const source = getFontSourceInfo(font);
-  if (source == null || !source.nameMatched || !isGlyphHelperAvailable()) return null;
+  const ownData = font.webfontBuffer;
+  if ((source == null && ownData == null) || source?.nameMatched === false || !isGlyphHelperAvailable()) return null;
   // Base file routes may omit a requested PS name; the selected fontkit
   // member still supplies one, which the native file-open must verify.
-  const postscriptName = source.postscriptName ?? font.postscriptName;
+  const postscriptName = source?.postscriptName ?? font.postscriptName;
   if (postscriptName == null || postscriptName === "") return null;
   const cached = cache.get(font)?.get(actualSize);
   if (cached != null) return cached;
   try {
     // PingFang's installed named handle differs from its reserved physical
     // TTC member, as in nativeMacMetrics. Keep hidden names on the file route.
-    const namedPingFang = postscriptName.startsWith("PingFangSC-");
+    const namedPingFang = ownData == null && postscriptName.startsWith("PingFangSC-");
     const response = callGlyphHelper({
       fonts: [
         {
           ref: "normal-line-spacing",
-          fontPath: namedPingFang ? undefined : source.path,
+          fontPath: ownData == null && !namedPingFang ? source?.path : undefined,
+          fontData: ownData?.toString("base64"),
           postscriptName,
-          variations: namedPingFang ? undefined : (source.variationAxes ?? undefined),
+          variations: namedPingFang ? undefined : (source?.variationAxes ?? font._appliedVariationAxes ?? undefined),
           size: actualSize,
         },
       ],
@@ -83,6 +85,7 @@ export function darwinNormalLineSpacing(font: FontInstance, fontSize: number): n
     });
     const meta = response.results[0];
     if (meta?.type !== "meta") return null;
+    if (ownData != null && (meta.nameMatched !== true || meta.resolution !== "nameMatchedInFile")) return null;
     const spacing = coreTextNormalLineSpacing(meta, {
       fontSize,
       postscriptName,

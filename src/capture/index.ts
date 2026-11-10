@@ -33,6 +33,7 @@ import { withRenderWarningSink } from "../render/render-warn.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
 import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
+import { normalizedFontData } from "./font-data.js";
 import { registerLocalFontAlias, registerWebfont } from "../render/font-resolution.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
@@ -1133,19 +1134,9 @@ async function readFontMetadata(buf: Buffer): Promise<{ family: string; weight: 
  * results retain access to all tables — same as a TTF loaded from disk.
  */
 async function ensureNonWoff2(buf: Buffer): Promise<Buffer> {
-  if (buf.length < 4) return buf;
-  const isWoff2 = buf[0] === 0x77 && buf[1] === 0x4f && buf[2] === 0x46 && buf[3] === 0x32;
-  if (!isWoff2) return buf;
-  try {
-    // wawoff2 ships no .d.ts; the runtime export is `{ compress, decompress }`.
-    const wawoff = await (import("wawoff2" as string) as Promise<{
-      decompress: (b: Uint8Array) => Promise<Uint8Array>;
-    }>);
-    const ttf = await wawoff.decompress(new Uint8Array(buf));
-    return Buffer.from(ttf);
-  } catch {
-    return buf; // fall through: register the WOFF2 anyway, variations just won't work
-  }
+  // Keep the ordinary page-webfont degraded route; isolated image admission
+  // instead requires successful normalization and leaves raster on failure.
+  return (await normalizedFontData(buf)) ?? buf;
 }
 
 function parseWeightDescriptor(value: string): number {

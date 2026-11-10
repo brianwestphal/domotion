@@ -145,7 +145,7 @@ function safeResourceValues(value: string): boolean {
   return true;
 }
 
-function xmlStyleText(raw: string): string | null {
+export function xmlStyleText(raw: string): string | null {
   raw = raw.replace(/\r\n?/g, "\n");
   let out = "",
     i = 0;
@@ -325,7 +325,7 @@ function usesFontMetricUnit(value: string): boolean {
 function unresolvedAuthorFontMetrics(svg: string): boolean {
   let authorFonts = false,
     metricUnits = false;
-  for (const match of svg.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
+  for (const match of svg.matchAll(/<(?:[\w.-]+:)?style\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?style>/gi)) {
     const text = xmlStyleText(match[1]);
     if (text == null) return true;
     try {
@@ -363,11 +363,10 @@ function hasEscapedImport(css: string): boolean {
 }
 
 /** Resolve image-allowed data CSS imports and remove blocked external imports. */
-export function resolveSvgImageCssImports(svgText: string): string | null {
+export function resolveSvgImageCssImports(svgText: string, ownFontContext = false): string | null {
   if (!/[@&]/.test(svgText)) return svgText;
   const unknownXmlEncoding = /<\?xml[^>]*encoding\s*=\s*['"](?!utf-8['"])[^'"]+['"]/i.test(svgText);
   let unresolved = false;
-  let expandedImports = false;
   const out = svgText.replace(
     /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
     (_whole, open: string, css: string, close: string) => {
@@ -378,7 +377,6 @@ export function resolveSvgImageCssImports(svgText: string): string | null {
       }
       const text = xmlStyleText(css);
       if (text != null && !/@import\b/i.test(text) && !hasEscapedImport(text)) return open + css + close;
-      expandedImports = true;
       const expanded = text == null || unknownXmlEncoding ? null : expandCss(text, 0, "utf-8");
       if (expanded == null) {
         unresolved = true;
@@ -395,5 +393,5 @@ export function resolveSvgImageCssImports(svgText: string): string | null {
       return open + serialized + close;
     },
   );
-  return unresolved || (expandedImports && unresolvedAuthorFontMetrics(out)) ? null : out;
+  return unresolved || (!ownFontContext && unresolvedAuthorFontMetrics(out)) ? null : out;
 }

@@ -578,6 +578,7 @@ function paintImage(
         prefersReducedMotion: el.imageDocumentPrefersReducedMotion,
         forcedColors: el.imageDocumentForcedColors,
         supportsConditions: el.imageSvgSupports,
+        ownFonts: el.imageOwnFonts,
         fontRendering: el.imageDocumentFontRendering,
       };
       inlinedNone =
@@ -615,6 +616,7 @@ function paintImage(
         prefersReducedMotion: el.imageDocumentPrefersReducedMotion,
         forcedColors: el.imageDocumentForcedColors,
         supportsConditions: el.imageSvgSupports,
+        ownFonts: el.imageOwnFonts,
         fontRendering: el.imageDocumentFontRendering,
       };
       const inlined =

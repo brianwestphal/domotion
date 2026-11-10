@@ -23,6 +23,7 @@ import type { CapturedElement } from "./types.js";
 import { collectImageSupportsConditions, type ImageSupportsCondition } from "../render/svg-image-supports.js";
 import { resolveSvgImageCssImports } from "../render/svg-image-css-import.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
+import { captureImageSvgFonts } from "./image-svg-fonts.js";
 
 export async function captureImageSvgSupports(page: Page, tree: CapturedElement[]): Promise<void> {
   const pending: Array<{ el: CapturedElement; conditions: ImageSupportsCondition[] }> = [];
@@ -30,11 +31,12 @@ export async function captureImageSvgSupports(page: Page, tree: CapturedElement[
     if (el.imageSrc == null || el.imageSvgSupports != null) return;
     const svg = resolveSvgSource(el.imageSrc);
     if (svg == null) return;
-    const expanded = resolveSvgImageCssImports(svg);
+    const expanded = resolveSvgImageCssImports(svg, true);
     if (expanded == null) return;
     const conditions = collectImageSupportsConditions(expanded);
     if (conditions.length > 0) pending.push({ el, conditions });
   });
+  await captureImageSvgFonts(page, tree);
   if (pending.length === 0) return;
   const texts = [...new Set(pending.flatMap(({ conditions }) => conditions.map((c) => c.condition)))];
   const answers = await page.evaluate(

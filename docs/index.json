@@ -6012,7 +6012,7 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2K0K01", "DM-53WRGR"],
+        "tickets": ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA"],
         "code": [
           "src/render/svg-image-font-shorthand.ts",
           "src/render/svg-image-css-variables.ts",
@@ -6021,6 +6021,9 @@
           "src/render/svg-image-root-stylesheet.ts",
           "src/render/svg-image-root-transform.ts",
           "src/render/svg-inline.ts",
+          "src/render/svg-image-own-fonts.ts",
+          "src/capture/image-svg-fonts.ts",
+          "tests/image-svg-own-fonts.e2e.test.ts",
           "tests/img-svg-dynamic-font-names.e2e.test.ts",
           "tests/img-svg-root-sheet-font.e2e.test.ts"
         ],

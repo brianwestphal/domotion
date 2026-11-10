@@ -120,6 +120,11 @@ function rectGlyph(xMin: number, xMax: number): Buffer {
 }
 
 interface SynthOptions {
+  /** First mapped character (gid1); default A. Allows font-unit oracles to
+   * map the known variable advance to digit zero without binary patching. */
+  firstCodePoint?: number;
+  /** Add the OS/2 table Chromium's OTS requires for browser font oracles. */
+  withOs2?: boolean;
   /** Font family (name table). Default "SynthHinted". */
   family?: string;
   /** Right edge of the "A" rectangle. Default 550 (advance 600). */
@@ -233,25 +238,26 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   });
 
   // cmap: format 4, 'A'(0x41)→gid1, 'B'(0x42)→gid2 [, 'C'(0x43)→gid3]
-  const lastCp = opts.withComposite ? 0x43 : 0x42;
+  const firstCp = opts.firstCodePoint ?? 0x41;
+  const lastCp = firstCp + (opts.withComposite ? 2 : 1);
   const segCount = 2; // [0x41..lastCp], [0xFFFF terminator]
   const sub = Buffer.alloc(16 + segCount * 8);
   sub.writeUInt16BE(4, 0); // format
   sub.writeUInt16BE(sub.length, 2);
   sub.writeUInt16BE(0, 4); // language
   sub.writeUInt16BE(segCount * 2, 6); // segCountX2
-  sub.writeUInt16BE(2, 8); // searchRange
+  sub.writeUInt16BE(4, 8); // searchRange: 2 * largest power of two <= segCount
   sub.writeUInt16BE(1, 10); // entrySelector
-  sub.writeUInt16BE(2, 12); // rangeShift
+  sub.writeUInt16BE(0, 12); // rangeShift: 2 * segCount - searchRange
   let p = 14;
   sub.writeUInt16BE(lastCp, p);
   sub.writeUInt16BE(0xffff, p + 2);
   p += 4; // endCodes
   p += 2; // reservedPad
-  sub.writeUInt16BE(0x41, p);
+  sub.writeUInt16BE(firstCp, p);
   sub.writeUInt16BE(0xffff, p + 2);
   p += 4; // startCodes
-  sub.writeInt16BE(1 - 0x41, p);
+  sub.writeInt16BE(1 - firstCp, p);
   sub.writeInt16BE(1, p + 2);
   p += 4; // idDelta (gid1 at 0x41; 0xFFFF maps to gid0)
   sub.writeUInt16BE(0, p);
@@ -295,7 +301,7 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
   });
   const name = Buffer.concat([nameHdr, ...strs]);
 
-  return {
+  const tables: Record<string, Buffer> = {
     head,
     hhea,
     maxp,
@@ -309,6 +315,24 @@ function coreTables(opts: SynthOptions = {}): Record<string, Buffer> {
     fpgm: Buffer.from(FPGM_CONTENTS),
     prep: Buffer.from(PREP_CONTENTS),
   };
+  if (opts.withOs2) {
+    const os2 = Buffer.alloc(96);
+    os2.writeUInt16BE(4, 0);
+    os2.writeInt16BE(600, 2);
+    os2.writeUInt16BE(400, 4);
+    os2.writeUInt16BE(5, 6);
+    os2.writeUInt16BE(0x40, 62); // regular
+    os2.writeUInt16BE(firstCp, 64);
+    os2.writeUInt16BE(lastCp, 66);
+    os2.writeInt16BE(800, 68);
+    os2.writeInt16BE(-200, 70);
+    os2.writeUInt16BE(800, 74);
+    os2.writeUInt16BE(200, 76);
+    os2.writeInt16BE(500, 86);
+    os2.writeInt16BE(700, 88);
+    tables["OS/2"] = os2;
+  }
+  return tables;
 }
 
 /** Static hinted TrueType font: .notdef + "A" + "B" rectangles, cvt/fpgm/prep

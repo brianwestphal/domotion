@@ -24,7 +24,12 @@ import { callGlyphHelper, isGlyphHelperAvailable } from "./glyph-helper-transpor
 import { fontkit, isFontkitCollection } from "./fontkit-facade.js";
 import { ITALIC_SLNT } from "./font-paths.darwin.js";
 import { hostPlatform } from "./host-platform.js";
-import { emptyFontRegistrations, restoreFontRegistrations, snapshotFontRegistrations } from "./webfont-registry.js";
+import {
+  emptyFontRegistrations,
+  registerWebfont,
+  restoreFontRegistrations,
+  snapshotFontRegistrations,
+} from "./webfont-registry.js";
 import { windowsNativeLineSpacing } from "./windows-font-metrics.js";
 
 import {
@@ -46,6 +51,17 @@ export interface IsolatedPrimaryFontRequest {
   lang?: string;
   /** Browser/helper Fontconfig provenance; unknown preserves VDMX fallback. */
   linuxFontRenderContext?: LinuxFontRenderContext;
+  /** Caller-authenticated fonts owned by this isolated document only. */
+  fontFaces?: readonly IsolatedFontFace[];
+}
+
+export interface IsolatedFontFace {
+  family: string;
+  data: Buffer;
+  weight?: string;
+  style?: string;
+  stretch?: string;
+  unicodeRange?: Array<[number, number]>;
 }
 
 /**
@@ -84,7 +100,8 @@ function nativeMacMetrics(font: FontInstance): NativeMacMetrics | null {
   const cached = nativeMacMetricsCache.get(font);
   if (cached != null) return cached;
   const source = getFontSourceInfo(font);
-  if (source == null || !source.nameMatched || !isGlyphHelperAvailable()) return null;
+  const ownData = font.webfontBuffer;
+  if ((source == null && ownData == null) || source?.nameMatched === false || !isGlyphHelperAvailable()) return null;
   let metrics: NativeMacMetrics | null = null;
   try {
     // PingFang SC's installed PostScript name resolves to a CoreText handle
@@ -93,14 +110,16 @@ function nativeMacMetrics(font: FontInstance): NativeMacMetrics | null {
     // 12px, while the physical member reports 10.36px / 11.74px despite the
     // same PostScript string. Keep the file route for other families and for
     // protected dot-prefixed names that cannot be reopened by name.
-    const namedPingFang = source.postscriptName?.startsWith("PingFangSC-") === true;
+    const postscriptName = source?.postscriptName ?? font.postscriptName;
+    const namedPingFang = ownData == null && postscriptName?.startsWith("PingFangSC-") === true;
     const result = callGlyphHelper({
       fonts: [
         {
           ref: "primary",
-          fontPath: namedPingFang ? undefined : source.path,
-          postscriptName: source.postscriptName,
-          variations: namedPingFang ? undefined : (source.variationAxes ?? undefined),
+          fontPath: ownData == null && !namedPingFang ? source?.path : undefined,
+          fontData: ownData?.toString("base64"),
+          postscriptName,
+          variations: namedPingFang ? undefined : (source?.variationAxes ?? font._appliedVariationAxes ?? undefined),
           size: font.unitsPerEm,
         },
       ],
@@ -114,7 +133,8 @@ function nativeMacMetrics(font: FontInstance): NativeMacMetrics | null {
     if (
       meta?.type === "meta" &&
       meta.nameMatched !== false &&
-      meta.postscriptName === source.postscriptName &&
+      meta.postscriptName === postscriptName &&
+      (ownData == null || (meta.nameMatched === true && meta.resolution === "nameMatchedInFile")) &&
       meta.unitsPerEm === font.unitsPerEm
     ) {
       const valid = (value: number | undefined): number | null =>
@@ -219,6 +239,9 @@ export function normalLineSpacing(
     const native = windowsNativeLineSpacing(font, fontSize);
     if (native != null) return native;
   }
+  // A variable webfont's CSS-size MVAR/optical metrics need a native answer.
+  // Its base hhea values cannot stand in for the resolved instance.
+  if (font.webfontBuffer != null && font._appliedVariationAxes != null) return null;
   // Older native Windows helper instances omit the table directory and lineGap.
   // Use the exact matched static file face for the hhea/OS/2 fields while
   // retaining the helper's glyph advances for the other font units.
@@ -427,13 +450,20 @@ function metricUnits(
   switch (metric) {
     case "x-height":
       if (platform === "darwin")
-        return native == null ? positive(glyph(0x78)?.bbox?.maxY) : (native.xGlyphTop ?? native.ctXHeight);
+        return native == null
+          ? font.webfontBuffer == null
+            ? positive(glyph(0x78)?.bbox?.maxY)
+            : null
+          : (native.xGlyphTop ?? native.ctXHeight);
       if (platform === "win32") return v2 ? positive(os2?.xHeight) : null;
-      return positive(os2?.xHeight) ?? positive(glyph(0x78)?.bbox?.maxY);
+      return positive(os2?.xHeight) ?? (font.webfontBuffer == null ? positive(glyph(0x78)?.bbox?.maxY) : null);
     case "cap-height":
       if (platform === "darwin") return (v2 ? positive(os2?.capHeight) : null) ?? native?.ctCapHeight ?? null;
       if (platform === "win32") return v2 ? positive(os2?.capHeight) : null;
-      return (v2 ? positive(os2?.capHeight) : null) ?? positive(glyph(0x48)?.bbox?.maxY);
+      return (
+        (v2 ? positive(os2?.capHeight) : null) ??
+        (font.webfontBuffer == null ? positive(glyph(0x48)?.bbox?.maxY) : null)
+      );
     case "zero":
       return platform === "darwin"
         ? (native?.zeroAdvance ?? positive(glyph(0x30)?.advanceWidth))
@@ -449,45 +479,95 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
   const saved = snapshotFontRegistrations();
   restoreFontRegistrations(emptyFontRegistrations());
   try {
-    const font = resolveFont(
-      request.fontFamily,
-      request.fontWeight,
-      request.fontSize,
-      request.italic ? ITALIC_SLNT : 0,
-      undefined,
-      100,
-      request.lang,
-    );
-    if (font == null) return null;
-    if (!(font.unitsPerEm > 0)) return null;
-    const platform = hostPlatform();
-    const native = platform === "darwin" ? nativeMacMetrics(font) : null;
-    const windowsOs2 = platform === "win32" ? windowsFileOs2Heights(font) : null;
-    const linuxOs2 = (font as { "OS/2"?: Os2Heights })["OS/2"];
-    const validHeight = (value: number | undefined): boolean =>
-      value != null && Number.isFinite(value) && value > 0 && value < 2 * font.unitsPerEm;
-    const linuxOs2X = validHeight(linuxOs2?.xHeight);
-    const linuxOs2Cap =
-      linuxOs2?.version != null &&
-      linuxOs2.version >= 2 &&
-      linuxOs2.version !== 0xffff &&
-      validHeight(linuxOs2.capHeight);
-    const linuxHinted =
-      platform === "linux" && (!linuxOs2X || !linuxOs2Cap) ? linuxHintedHeights(font, request.fontSize) : null;
-    const px = (metric: Metric): number | null => {
-      const units = metricUnits(font, metric, platform, native, windowsOs2);
-      return units == null ? null : (units / font.unitsPerEm) * request.fontSize;
+    for (const face of request.fontFaces ?? []) {
+      // Blink's FontSelectionValue truncates to quarter units before forming
+      // the FontFaceCache capability key, not just before variable instancing.
+      const quantized = (value: string | undefined): string | undefined =>
+        value?.replace(/[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi, (number) =>
+          String(Math.trunc(Number(number) * 4) / 4),
+        );
+      const rawWeight = quantized(face.weight) ?? "normal";
+      const weight = rawWeight === "bold" ? 700 : parseFloat(rawWeight) || 400;
+      if (
+        !registerWebfont(
+          face.family,
+          weight,
+          face.style ?? "normal",
+          face.data,
+          face.unicodeRange,
+          quantized(face.stretch),
+          face.weight == null ? undefined : rawWeight,
+          face.style,
+        )
+      )
+        return null;
+    }
+    if (snapshotFontRegistrations().webfonts.some(([, variants]) => variants.some((v) => !(v.font.unitsPerEm > 0))))
+      return null;
+    const resolve = (character: number): FontInstance | null =>
+      resolveFont(
+        request.fontFamily,
+        request.fontFaces == null ? request.fontWeight : Math.trunc(request.fontWeight * 4) / 4,
+        request.fontSize,
+        request.italic ? ITALIC_SLNT : 0,
+        undefined,
+        100,
+        request.lang,
+        undefined,
+        request.fontFaces == null ? undefined : character,
+      );
+    const primary = resolve(0x20);
+    if (request.fontFaces == null) return primary == null ? null : isolatedFaceMetrics(primary, request);
+    const cache = new Map<FontInstance, IsolatedPrimaryFontMetrics | null>();
+    const metrics = (font: FontInstance | null): IsolatedPrimaryFontMetrics | null => {
+      if (font == null) return null;
+      if (!cache.has(font)) cache.set(font, isolatedFaceMetrics(font, request));
+      return cache.get(font) ?? null;
     };
-    const linuxStyle =
-      platform === "linux" ? linuxFontRenderStyle(font, request, request.linuxFontRenderContext) : null;
+    const first = metrics(primary);
     return {
-      xHeight: (!linuxOs2X ? linuxHinted?.x : null) ?? px("x-height"),
-      capHeight: (!linuxOs2Cap ? linuxHinted?.cap : null) ?? px("cap-height"),
-      zeroWidth: px("zero"),
-      ideographicAdvance: px("water"),
-      lineSpacing: normalLineSpacing(font, request.fontSize, platform, linuxStyle?.hinting, linuxStyle?.forceAutoHint),
+      xHeight: first?.xHeight ?? null,
+      capHeight: first?.capHeight ?? null,
+      lineSpacing: first?.lineSpacing ?? null,
+      zeroWidth: metrics(resolve(0x30))?.zeroWidth ?? null,
+      ideographicAdvance: metrics(resolve(0x6c34))?.ideographicAdvance ?? null,
     };
+  } catch {
+    return null;
   } finally {
     restoreFontRegistrations(saved);
   }
+}
+
+function isolatedFaceMetrics(
+  font: FontInstance,
+  request: IsolatedPrimaryFontRequest,
+): IsolatedPrimaryFontMetrics | null {
+  if (!(font.unitsPerEm > 0)) return null;
+  const platform = hostPlatform();
+  const native = platform === "darwin" ? nativeMacMetrics(font) : null;
+  const windowsOs2 = platform === "win32" ? windowsFileOs2Heights(font) : null;
+  const linuxOs2 = (font as { "OS/2"?: Os2Heights })["OS/2"];
+  const validHeight = (value: number | undefined): boolean =>
+    value != null && Number.isFinite(value) && value > 0 && value < 2 * font.unitsPerEm;
+  const linuxOs2X = validHeight(linuxOs2?.xHeight);
+  const linuxOs2Cap =
+    linuxOs2?.version != null &&
+    linuxOs2.version >= 2 &&
+    linuxOs2.version !== 0xffff &&
+    validHeight(linuxOs2.capHeight);
+  const linuxHinted =
+    platform === "linux" && (!linuxOs2X || !linuxOs2Cap) ? linuxHintedHeights(font, request.fontSize) : null;
+  const px = (metric: Metric): number | null => {
+    const units = metricUnits(font, metric, platform, native, windowsOs2);
+    return units == null ? null : (units / font.unitsPerEm) * request.fontSize;
+  };
+  const linuxStyle = platform === "linux" ? linuxFontRenderStyle(font, request, request.linuxFontRenderContext) : null;
+  return {
+    xHeight: (!linuxOs2X ? linuxHinted?.x : null) ?? px("x-height"),
+    capHeight: (!linuxOs2Cap ? linuxHinted?.cap : null) ?? px("cap-height"),
+    zeroWidth: px("zero"),
+    ideographicAdvance: px("water"),
+    lineSpacing: normalLineSpacing(font, request.fontSize, platform, linuxStyle?.hinting, linuxStyle?.forceAutoHint),
+  };
 }

@@ -28,6 +28,7 @@ export {
   truncateGlyphDefs,
   withRenderTextMode,
   isolatedPrimaryFontMetrics,
+  type IsolatedFontFace,
   linuxFontEnvironmentKey,
   type FontRenderHinting,
   type LinuxFontRenderContext,

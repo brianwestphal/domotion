@@ -646,6 +646,71 @@ export function pickWebfontVariantForCodepoint(
   );
 }
 
+/** FontFallbackList's primary-font lookup chooses capabilities BEFORE testing
+ * the selected segmented family's unicode-range (Chromium7d859f27,
+ * FontFaceCache::Get and FontFallbackList::DeterminePrimarySimpleFontDataCore).
+ * A missing range must walk the CSS family stack, not choose another weight.
+ * Keep this distinct from the existing text walk, tracked by DM-7QQPJA. */
+export function pickWebfontPrimaryForCharacter(
+  family: string,
+  weight: number,
+  fontSize: number,
+  slant: number,
+  character: number,
+  variationSettings?: Record<string, number>,
+  stretch = 100,
+): FontInstance | null {
+  const variants = webfontRegistry.get(family.toLowerCase());
+  if (variants == null || variants.length === 0) return null;
+  const stretchBounds = webfontStretchBounds(variants);
+  const weightBounds = webfontWeightBounds(variants);
+  let winner: WebfontVariant | null = null;
+  let bestScore = Infinity;
+  const capabilities = (variant: WebfontVariant): string =>
+    JSON.stringify([
+      variantStretchCaps(variant),
+      variantWeightCaps(variant),
+      variant.synthesisFace?.declaredStyleCaps ?? [0, 0],
+    ]);
+  for (const variant of variants) {
+    const score =
+      webfontStretchDistance(variantStretchCaps(variant), stretch, stretchBounds) * WEBFONT_STRETCH_SCALE +
+      (variant.italic === (slant !== 0) ? 0 : WEBFONT_STYLE_MISMATCH) +
+      webfontWeightScore(variant, weight, weightBounds);
+    if (score <= bestScore) {
+      winner = variant;
+      bestScore = score;
+    }
+  }
+  if (winner == null) return null;
+  const group = capabilities(winner);
+  for (let index = variants.length - 1; index >= 0; index--) {
+    const variant = variants[index];
+    if (capabilities(variant) !== group || !unicodeRangeCovers(variant.unicodeRange, character)) continue;
+    const instance = applyVariationAxes(variant.font, weight, fontSize, slant, variationSettings, stretch, {
+      wdthCapabilities: variant.stretch ?? null,
+      wdthAlways: true,
+      wghtCapabilities: variant.weightCaps ?? null,
+    });
+    const axes = (variant.font as FontInstance & { variationAxes?: Record<string, unknown> }).variationAxes ?? {};
+    // Blink gates automatic slnt pins on the descriptor's auto provenance
+    // (font_custom_platform_data.cc:178-192). The ordinary text instancer
+    // predates that distinction; leave this image metric unresolved instead.
+    if (axes.slnt != null) throw new Error("isolated slant-axis metrics unavailable");
+    if (
+      instance._appliedVariationAxes == null &&
+      (["wght", "wdth", "opsz"].some((tag) => axes[tag] != null) || (slant !== 0 && axes.slnt != null))
+    ) {
+      // The ordinary text route may degrade to the base face when fontkit
+      // cannot instantiate a container. Isolated units must not claim that
+      // base advance is the requested variable instance.
+      throw new Error("isolated font variation instance unavailable");
+    }
+    return tagWebfontInstance(instance, variant);
+  }
+  return null;
+}
+
 /**
  * Materialize a segmented webfont family's faces in Blink's iteration order.
  * `CSSSegmentedFontFace::GetFontData` appends every valid declaration via
