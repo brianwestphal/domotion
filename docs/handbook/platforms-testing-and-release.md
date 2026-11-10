@@ -5,13 +5,28 @@ kind: "contract"
 status: "current"
 owners: ["platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2604", "DM-2635", "DM-2636", "DM-2664", "DM-0MAZSK", "DM-8P5PHJ", "DM-S9S3WG", "DM-34WC46"]
+tickets:
+  [
+    "DM-2596",
+    "DM-2604",
+    "DM-2635",
+    "DM-2636",
+    "DM-2664",
+    "DM-0MAZSK",
+    "DM-8P5PHJ",
+    "DM-S9S3WG",
+    "DM-34WC46",
+    "DM-95ECD3",
+  ]
 code:
   [
     ".github/workflows/",
     "scripts/materialize-source-authorities.mjs",
     "scripts/install-windows-profile-fixture-fonts.ps1",
     "scripts/run-e2e-tests.mjs",
+    "scripts/e2e-native-logs.mjs",
+    "tests/e2e-native-logs.test.ts",
+    "tests/e2e-native-log-workflow.test.ts",
     "src/capture/debug-bundle.ts",
     "tests/animate-debug.e2e.test.ts",
     "tests/capture-debug-api.e2e.test.ts",
@@ -122,3 +137,43 @@ run from overwriting the host's visual evidence (DM-8P5PHJ). Use the manifest's
 The macOS-only SFNS exact terminal-mask comparison remains retained partial
 evidence. It is not a Windows, production-platform, or release requirement;
 visual SFNS variations are investigated individually when they appear.
+
+## Native browser failure evidence (DM-95ECD3)
+
+The macOS browser gate opts into `DOMOTION_E2E_NATIVE_LOG_DIR=tests/output/native-browser-logs`.
+The E2E runner keeps its normal regular two-worker and heavy one-worker lanes;
+filtered invocations remain one serial lane. With no opt-in, its original
+synchronous inherited-stream execution is unchanged. Diagnostics use only
+Playwright's public [`DEBUG=pw:browser`](https://playwright.dev/docs/ci#debugging-browser-launches)
+namespace; they add no Chromium backend flags or retry rules and use no private
+Playwright API or shared debug-file output.
+
+Each opted-in lane forwards filtered live stderr and saves a bounded prefix
+and suffix plus JSON metadata. Retention is limited to 8 MiB of filtered bytes
+per lane (plus a short omission marker); incomplete lines are limited to 64 KiB.
+Raw launch-command lines, sensitive header/environment dumps and oversized
+lines are omitted before either new forwarding or retention. Metadata records
+omitted-line counts, input versus filtered byte counts, the filtered-stream
+SHA-256, truncation, timestamps, child status/signal and diagnostic failure.
+It stores no executable arguments or environment values. A truncated file is
+not complete native evidence, and missing diagnostic output is not proof that
+no native error occurred.
+
+The original nonzero child status wins over a secondary artifact failure;
+spawn errors and signal termination remain failures. Catchable POSIX parent cancellation is
+forwarded to the owned child, bounded cleanup finalizes available diagnostics,
+and the runner restores the parent's signal result. [Node emulates kill signals
+on Windows as unconditional termination](https://nodejs.org/api/process.html#signal-events);
+that and uncatchable termination can leave incomplete diagnostic files. A successful child with
+failed diagnostic output fails the opted-in gate rather than claiming complete
+retention. Logs are observability, not an alternate success sentinel.
+
+The existing always-upload macOS artifact includes both native lane logs and
+`webgl-startup-e2e/`, where DM-C3HJHY saves the original context's phase states,
+browser revision/GPU facts and a later source PNG when the strict iframe fixture
+fails. Those are problem artifacts, not replacement references. A local normal
+two-worker probe retained native stderr from the actual C3 controls and
+neighboring files without exposing launch lines; it did not reproduce the
+intermittent reset or establish a driver/backend cause. C3 remains unattributed
+until a real loss witness can be correlated with native messages. Linux and
+Windows artifact paths and launch behavior are unchanged.

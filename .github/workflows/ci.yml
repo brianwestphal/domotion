@@ -227,6 +227,8 @@ jobs:
           # Preserve every compressor comparison, including passing states, so
           # runner-image recalibration is based on the whole measured corpus.
           FLIPBOOK_METRICS: tests/output/flipbook-parity-metrics.jsonl
+          # Bounded, filtered native stderr; preserves normal lane concurrency.
+          DOMOTION_E2E_NATIVE_LOG_DIR: tests/output/native-browser-logs
         run: npm run test:e2e
       - name: Upload visual and browser-E2E results
         if: always()
@@ -241,4 +243,6 @@ jobs:
             tests/output/region-timing-e2e/
             tests/output/two-pane-regions-e2e/
             tests/output/native-control-decoration-e2e/
+            tests/output/native-browser-logs/
+            tests/output/webgl-startup-e2e/
           if-no-files-found: error
