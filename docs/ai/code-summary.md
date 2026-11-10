@@ -24,6 +24,8 @@ deviation for box, inline, control, and text shadows.
 SVG image XML boundaries are shared by `svg-image-xml.ts` (also used by the image
 element parser) and `svg-image-stylesheets.ts`; stylesheet transformations never
 search CSS strings or CDATA for an XML closing tag.
+Escaped image CSS import/resource admission lives in `svg-image-css-import-tokens.ts`,
+reusing the reference identifier/string decoders and shared URL argument reader.
 
 ## Main pipeline
 

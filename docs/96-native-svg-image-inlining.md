@@ -22,6 +22,8 @@ tickets:
     "DM-QK62CS",
     "DM-6ZX6W0",
     "DM-5D93J3",
+    "DM-Y3H2EV",
+    "DM-SC5Y23",
     "DM-KGD5KC",
     "DM-YMAF0G",
     "DM-SXDNW9",
@@ -71,6 +73,9 @@ code:
     "src/render/svg-image-stylesheets.test.ts",
     "tests/img-svg-closing-style.e2e.test.ts",
     "src/render/svg-image-css-import.ts",
+    "src/render/svg-image-css-import-tokens.ts",
+    "src/render/svg-image-css-import-tokens.test.ts",
+    "tests/img-svg-escaped-import.e2e.test.ts",
     "src/render/svg-image-css-import.test.ts",
     "src/render/svg-image-fragment-ids.ts",
     "src/render/svg-image-fragment-ids.test.ts",
@@ -294,7 +299,30 @@ pixel checks cover canonical data SVG paint, filter and mask resources. An
 external-fetch control loads in the ordinary host SVG, while the same nested
 load stays blocked through the data resource in both native image and inline
 output.
-DM-Y3H2EV tracks escaped import/URL classification. Literal `</style>` inside imported CSS is preserved by the shared XML-aware
+Escaped import and URL spellings are token-classified (DM-Y3H2EV), using
+`referenceCssIdentifier` / `referenceCssString` and the same URL argument reader
+as ordinary image-reference rewriting. A real top-level escaped `@import` name
+is canonicalized before PostCSS can split its hex escape at optional whitespace;
+comment/string/URL payload mentions remain data. Top-level CDO/CDC markers are
+ignored at rule boundaries. Import URL strings, escaped `url()` names/schemes,
+quotes and conditions are consumed as complete tokens before scheme/data-byte
+classification. HTTP/blob/relative imports retain the image's blocked behavior;
+external declaration resources and dynamic image functions still retain raster.
+
+Newly admitted escaped routes also require the existing full source-fragment
+proof, exact owned local IDs and conservative canonical data-resource addresses.
+Unknown/duplicate/entity-dependent identities, unresolved neighboring references,
+active or foreign-namespace contexts and unproved stylesheet activation metadata
+retain fallback. Case-aliased reference/style attributes cannot acquire HTML
+resource semantics through a newly escaped admission; DM-SC5Y23 tracks the
+general XML-to-HTML attribute-case identity defect. Imported escaped local URLs normalize to literal owned references
+before namespace rewriting; percent aliases cannot acquire a different target.
+Unknown escaped non-import rules, nested import grammar and unsupported resource
+syntax are not broadened by this change. The existing MIME/charset/depth/byte
+limits remain. Native host-liveness controls prove escaped HTTP/blob imports and
+an escaped external filter load in the ordinary host while staying blocked in
+an SVG image. A separate strict23-case Linux/Windows step saves matching native
+PNG/SVG pairs and generatedAt/sourceSHA evidence under `svg-escaped-import`. Literal `</style>` inside imported CSS is preserved by the shared XML-aware
 stylesheet extraction and serialization contract (DM-5D93J3).
 Unknown XML entities, invalid XML characters, undecodable sheets and budget
 violations also keep the original raster.

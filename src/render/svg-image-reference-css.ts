@@ -43,14 +43,20 @@ function commentEnd(value: string, at: number): number | null {
 
 /** Consume the CSS url token's argument without interpreting ordinary strings
  * as resources. Bad-URL tokens and modifiers remain source-owned. */
-function urlArgument(value: string, open: number): { end: number; value: string } | null {
+export function imageCssUrlArgument(value: string, open: number): { end: number; value: string } | null {
   let at = open + 1;
   while (cssWhitespace(value[at] ?? "")) at++;
   if (value[at] === '"' || value[at] === "'") {
     const string = referenceCssString(value, at);
     if (string == null) return null;
     at = string.end;
-    while (cssWhitespace(value[at] ?? "")) at++;
+    for (;;) {
+      while (cssWhitespace(value[at] ?? "")) at++;
+      if (!value.startsWith("/*", at)) break;
+      const end = commentEnd(value, at);
+      if (end == null) return null;
+      at = end;
+    }
     return value[at] === ")" ? { end: at + 1, value: string.value } : null;
   }
   const start = at;
@@ -101,7 +107,7 @@ export function rewriteImageCssValue(value: string, property: string, context: I
       continue;
     }
     if (name === "url") {
-      const argument = urlArgument(value, identifier.end);
+      const argument = imageCssUrlArgument(value, identifier.end);
       if (argument == null) return null;
       if (argument.value.startsWith("#")) {
         if (!IMAGE_SVG_RESOURCE_PROPERTIES.has(property.toLowerCase())) return null;

@@ -13,9 +13,9 @@ describe("resolveSvgImageCssImports", () => {
     expect(resolveSvgImageCssImports(svg)).toBe(`<svg><style>rect { fill: green }</style><rect/></svg>`);
   });
 
-  it("raster-falls back when an escaped import scheme cannot be classified from source text", () => {
+  it("classifies the decoded escaped import scheme before expansion", () => {
     const svg = `<svg><style>@import url("data\\3a text/css,rect%7Bfill%3Ared%7D");</style><rect/></svg>`;
-    expect(resolveSvgImageCssImports(svg)).toBeNull();
+    expect(resolveSvgImageCssImports(svg)).toContain("rect{fill:red}");
   });
 });
 
@@ -126,7 +126,9 @@ describe("safe byte and XML expansion (DM-6ZX6W0)", () => {
     expect(resolveSvgImageCssImports(image("data:text/css,%E9"))).toBeNull();
     expect(resolveSvgImageCssImports(image("data:text/css;charset=not-an-encoding,rect%7Bfill%3Ared%7D"))).toBeNull();
     expect(resolveSvgImageCssImports(image("data:text/css;charset=shift_jis,rect%7Bfill%3Ared%7D"))).toBeNull();
-    expect(resolveSvgImageCssImports('<svg><style>@\\69mport "https://host.test/x";</style></svg>')).toBeNull();
+    expect(resolveSvgImageCssImports('<svg><style>@\\69mport "https://host.test/x";</style></svg>')).toBe(
+      "<svg><style></style></svg>",
+    );
     expect(resolveSvgImageCssImports(image(dataUrl(Buffer.from("/*" + "é".repeat(128_000) + "*/"))))).toBeNull();
     expect(resolveSvgImageCssImports(image(dataUrl(Buffer.from("/*" + "]]>".repeat(30_000) + "*/"))))).toBeNull();
     let css = "rect{fill:red}";
@@ -140,7 +142,7 @@ it("detects entity-hidden and nested escaped imports without changing unrelated 
     resolveSvgImageCssImports('<svg><style>&#64;import "data:text/css,rect%7Bfill%3Ared%7D";</style></svg>'),
   ).toContain("rect{fill:red}");
   const escaped = '@\\69 mport "https://host.test/x";';
-  expect(resolveSvgImageCssImports(image(dataUrl(Buffer.from(escaped))))).toBeNull();
+  expect(resolveSvgImageCssImports(image(dataUrl(Buffer.from(escaped))))).toBe("<svg><style></style><rect/></svg>");
   const unrelated = "<svg><style>@f\\6f nt-face{font-family:X}</style></svg>";
   expect(resolveSvgImageCssImports(unrelated)).toBe(unrelated);
 });

@@ -7,6 +7,14 @@ import {
 } from "./svg-image-stylesheets.js";
 import { cssUnescape, parseImageElementTree } from "./svg-image-selector-engine.js";
 import { imageFragmentInventory, type ImageFragmentInventory } from "./svg-image-fragment-ids.js";
+import {
+  cssImportBlock,
+  cssImportTriviaEnd,
+  cssImportUrl,
+  imageImportKeywords,
+  rewriteImportedCssUrls,
+} from "./svg-image-css-import-tokens.js";
+import { referenceCssIdentifier } from "./svg-image-reference-syntax.js";
 
 export { xmlStyleText } from "./svg-image-stylesheets.js";
 
@@ -125,6 +133,7 @@ interface ResourceContext {
   inventory: ImageFragmentInventory | null;
   hasLocalReference: boolean;
   unrewritableString: boolean;
+  requiresSourceProof: boolean;
 }
 
 /** The current class prefixer cannot preserve escapes or attribute/string
@@ -182,7 +191,7 @@ function safeResourceValues(value: string, property: string, context: ResourceCo
       i++;
       continue;
     }
-    const arg = parenthesized(value, i);
+    const arg = cssImportBlock(value, i);
     if (arg == null) return false;
     let url = arg.content.replace(/^[ \t\r\n\f]+|[ \t\r\n\f]+$/g, "");
     if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'")))
@@ -209,7 +218,9 @@ function safeOriginalImageReferences(context: ResourceContext): boolean {
   const declarationsSafe = (css: string): boolean => {
     try {
       let safe = true;
-      const root = postcss.parse(css);
+      const keywords = imageImportKeywords(css);
+      if (keywords == null || keywords.unsupported) return false;
+      const root = postcss.parse(keywords.text);
       if (!selectorsRewritable(root)) return false;
       root.walkDecls((decl) => {
         if (!safeResourceValues(decl.value, decl.prop, context)) safe = false;
@@ -257,18 +268,6 @@ function serializableCss(css: string): boolean {
   return !/[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]/i.test(css);
 }
 
-function parenthesized(text: string, start: number): { content: string; end: number } | null {
-  if (text[start] !== "(") return null;
-  let depth = 0;
-  for (let index = start; index < text.length; index++) {
-    if (text[index] === "(") depth++;
-    else if (text[index] === ")" && --depth === 0) {
-      return { content: text.slice(start + 1, index), end: index + 1 };
-    }
-  }
-  return null;
-}
-
 interface ImportSpec {
   url: string;
   layer: string | null;
@@ -277,37 +276,119 @@ interface ImportSpec {
 }
 
 function importSpec(params: string): ImportSpec | null {
-  const match = /^\s*(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)|"([^"]*)"|'([^']*)')([\s\S]*)$/i.exec(params);
-  if (match == null) return null;
-  let rest = match[6].trim();
+  const start = cssImportTriviaEnd(params, 0);
+  if (start == null) return null;
+  const token = cssImportUrl(params, start);
+  if (token == null) return null;
+  let at = cssImportTriviaEnd(params, token.end);
+  if (at == null) return null;
   let layer: string | null = null;
-  if (/^layer(?:\s|\(|$)/i.test(rest)) {
-    rest = rest.slice(5).trimStart();
-    if (rest.startsWith("(")) {
-      const arg = parenthesized(rest, 0);
-      if (arg == null) return null;
-      layer = arg.content.trim();
-      rest = rest.slice(arg.end).trimStart();
-    } else {
-      layer = "";
-    }
+  const first = referenceCssIdentifier(params, at);
+  if (first?.value.toLowerCase() === "layer") {
+    at = first.end;
+    if (params[at] === "(") {
+      const block = cssImportBlock(params, at);
+      if (block == null || block.content.trim() === "") return null;
+      layer = block.content.trim();
+      at = block.end;
+    } else layer = "";
+    at = cssImportTriviaEnd(params, at);
+    if (at == null) return null;
   }
   let supports: string | null = null;
-  if (/^supports\(/i.test(rest)) {
-    const arg = parenthesized(rest, 8);
-    if (arg == null) return null;
-    supports = arg.content.trim();
-    rest = rest.slice(arg.end).trimStart();
+  const condition = referenceCssIdentifier(params, at);
+  if (condition?.value.toLowerCase() === "supports" && params[condition.end] === "(") {
+    const block = cssImportBlock(params, condition.end);
+    if (block == null) return null;
+    supports = block.content.trim();
+    at = block.end;
+    at = cssImportTriviaEnd(params, at);
+    if (at == null) return null;
   }
-  return { url: match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5], layer, supports, media: rest || null };
+  return { url: token.value, layer, supports, media: params.slice(at).trim() || null };
+}
+
+/** Newly admitted escaped spellings cannot expose neighboring source content
+ * to a legacy namespace pass. Keep active/foreign contexts and ambiguous source
+ * spelling conservative; this is source admission, never a network probe. */
+function escapedSourceSafe(context: ResourceContext): boolean {
+  if (!safeOriginalImageReferences(context) || context.inventory == null) return false;
+  const pending = [context.inventory.root];
+  while (pending.length > 0) {
+    const element = pending.pop()!;
+    if (
+      element.name.includes(":") ||
+      /^(?:script|foreignObject|template|iframe|object|embed|audio|video|animate|set|animateTransform|animateMotion)$/i.test(
+        element.name,
+      )
+    )
+      return false;
+    if (
+      /^style$/i.test(element.name) &&
+      (element.name !== "style" ||
+        element.children.length > 0 ||
+        ["media", "title", "disabled"].some((name) => element.attributes.has(name)) ||
+        (element.attributes.has("type") && element.attributes.get("type")?.trim().toLowerCase() !== "text/css"))
+    )
+      return false;
+    for (const [name, value] of element.attributes) {
+      const folded = name.toLowerCase();
+      // XML attribute names are case-sensitive; HTML's SVG parser folds these
+      // aliases before attaching resource/style semantics (DM-SC5Y23). Do not
+      // newly activate an inert source reference through escaped admission.
+      if (
+        name !== folded &&
+        (SVG_RESOURCE_PROPERTIES.has(folded) ||
+          /^(?:href|xlink:href|style|src|cursor|background-image|offset-path|font-family|id|class|xml:base|xmlns(?::.*)?)$/.test(
+            folded,
+          ))
+      )
+        return false;
+      if (/^on/i.test(name) || name === "xml:base") return false;
+      if (name === "xmlns" && value !== "http://www.w3.org/2000/svg") return false;
+      if (name === "xmlns:xlink" && value !== "http://www.w3.org/1999/xlink") return false;
+    }
+    pending.push(...element.children);
+  }
+  return true;
+}
+function importedResourceValue(value: string, property: string, context: ResourceContext): string | null {
+  return rewriteImportedCssUrls(
+    value,
+    (url, raw) => {
+      if (raw.includes("\\")) context.requiresSourceProof = true;
+      if (url.startsWith("#")) {
+        if (!SVG_RESOURCE_PROPERTIES.has(property.toLowerCase()) || !context.inventory?.ids.has(url.slice(1)))
+          return null;
+        context.hasLocalReference = true;
+        return url;
+      }
+      let absolute: URL;
+      try {
+        absolute = new URL(url);
+      } catch {
+        return null;
+      }
+      if (absolute.protocol !== "data:" || /[\s<>\x22\x27()\\&]/.test(absolute.href)) return null;
+      return absolute.href;
+    },
+    (decoded) => {
+      if (namespaceSensitiveData(decoded)) context.unrewritableString = true;
+    },
+  );
 }
 
 function expandCss(css: string, depth: number, encoding: string, resources: ResourceContext): string | null {
   if (depth > MAX_IMPORT_DEPTH || Buffer.byteLength(css, "utf8") > MAX_CSS_BYTES || !serializableCss(css)) return null;
-  if (hasEscapedImport(css)) return null;
+  const keywords = imageImportKeywords(css);
+  if (keywords == null || keywords.unsupported) return null;
+  // Escaped mentions in comments/strings were formerly refused too. Require
+  // source proof for that newly admitted surface, while actual import
+  // classification comes exclusively from stylesheet tokens.
+  resources.requiresSourceProof ||= keywords.changed || legacyEscapedImportSurface(css);
   let root: Root;
   try {
-    root = postcss.parse(css);
+    root = postcss.parse(keywords.text);
   } catch {
     return null;
   }
@@ -317,7 +398,9 @@ function expandCss(css: string, depth: number, encoding: string, resources: Reso
   // it. Keep the original image raster when that distinction matters.
   let hasResourceValue = false;
   root.walkDecls((declaration) => {
-    if (!safeResourceValues(declaration.value, declaration.prop, resources)) hasResourceValue = true;
+    const rewritten = importedResourceValue(declaration.value, declaration.prop, resources);
+    if (rewritten == null) hasResourceValue = true;
+    else declaration.value = rewritten;
   });
   if (hasResourceValue) return null;
   let importsAllowed = true;
@@ -331,15 +414,13 @@ function expandCss(css: string, depth: number, encoding: string, resources: Reso
         importsAllowed = false;
       continue;
     }
+    resources.requiresSourceProof ||= node.params.includes("\\");
     const spec = importSpec(node.params);
     if (!importsAllowed) {
       node.remove(); // Blink ignores an @import after a style rule.
       continue;
     }
     if (spec == null) return null;
-    // CSS escapes or XML entities may change the URL scheme after parsing.
-    // Keep the original image when we cannot classify its resource safely.
-    if (/[\\&]/.test(spec.url)) return null;
     let absolute: URL | undefined;
     try {
       absolute = new URL(spec.url);
@@ -392,7 +473,7 @@ function usesFontMetricUnit(value: string): boolean {
     }
     const url = /^url\s*\(/i.exec(value.slice(i));
     if (url != null) {
-      const end = parenthesized(value, i + url[0].length - 1);
+      const end = cssImportBlock(value, i + url[0].length - 1);
       if (end == null) return true;
       i = end.end - 1;
       continue;
@@ -434,10 +515,12 @@ function unresolvedAuthorFontMetrics(svg: string): boolean {
   return metricUnits;
 }
 
-function hasEscapedImport(css: string): boolean {
-  const names = css.matchAll(/@((?:[a-z0-9_-]|\\(?:[0-9a-f]{1,6}(?:\r\n|[ \t\n\r\f])?|[^\r\n\f]))+)/gi);
-  for (const match of names) {
-    if (match[1].includes("\\") && cssUnescape(match[1]).toLowerCase() === "import") return true;
+/** Compatibility proof escalation, deliberately including inert mentions that
+ * the former detector refused. This never decides whether an import is active. */
+function legacyEscapedImportSurface(css: string): boolean {
+  for (let at = css.indexOf("@"); at >= 0; at = css.indexOf("@", at + 1)) {
+    const ident = referenceCssIdentifier(css, at + 1);
+    if (ident?.value.toLowerCase() === "import" && css.slice(at + 1, ident.end).includes("\\")) return true;
   }
   return false;
 }
@@ -457,10 +540,24 @@ export function resolveSvgImageCssImports(svgText: string, ownFontContext = fals
       return open + css + close;
     }
     const text = xmlStyleText(css);
-    if (text != null && !/@import\b/i.test(text) && !hasEscapedImport(text))
+    if (text == null) {
+      unresolved = true;
+      return open + css + close;
+    }
+    const keywords = imageImportKeywords(text);
+    if (keywords == null) {
+      unresolved = true;
+      return open + css + close;
+    }
+    if (!keywords.hasImport && !legacyEscapedImportSurface(text))
       return open + (text === css ? css : serializeImageStyleText(text)) + close;
-    resources ??= { inventory: imageFragmentInventory(svgText), hasLocalReference: false, unrewritableString: false };
-    const expanded = text == null || unknownXmlEncoding ? null : expandCss(text, 0, "utf-8", resources);
+    resources ??= {
+      inventory: imageFragmentInventory(svgText),
+      hasLocalReference: false,
+      unrewritableString: false,
+      requiresSourceProof: false,
+    };
+    const expanded = expandCss(text, 0, "utf-8", resources);
     if (expanded == null) {
       unresolved = true;
       return open + css + close;
@@ -474,6 +571,7 @@ export function resolveSvgImageCssImports(svgText: string, ownFontContext = fals
   });
   return unresolved ||
     (resources?.hasLocalReference && !safeOriginalImageReferences(resources)) ||
+    (resources?.requiresSourceProof && !escapedSourceSafe(resources)) ||
     (!ownFontContext && unresolvedAuthorFontMetrics(out))
     ? null
     : out;

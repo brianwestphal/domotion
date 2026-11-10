@@ -39,12 +39,15 @@ describe("image fragment namespace authentication", () => {
       expect(resolveSvgImageCssImports(source(`rect{${property}:url(#p)}`))).toBeNull();
     },
   );
-  it.each(["#missing", "#%70", "#", "relative.svg#p", "https://host.test/image.svg#p", "\\23 p"])(
+  it.each(["#missing", "#%70", "#", "relative.svg#p", "https://host.test/image.svg#p"])(
     "does not authenticate %s from an owned p ID",
     (url) => {
       expect(resolveSvgImageCssImports(source(`rect{fill:url(${url}) lime}`))).toBeNull();
     },
   );
+  it("authenticates a CSS-escaped fragment only after exact owned identity and literal normalization", () => {
+    expect(resolveSvgImageCssImports(source(String.raw`rect{fill:url(\23 p) lime}`))).toContain('url("#p")');
+  });
   it("keeps neighboring unresolved references and namespace-sensitive data raster", () => {
     for (const body of [
       '<g id="p"/><rect fill="url(#missing)"/>',

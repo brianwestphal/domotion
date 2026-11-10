@@ -464,7 +464,7 @@ describe("safe SVG data CSS byte/XML/resource expansion (DM-6ZX6W0)", () => {
     await compareImportedImage(importedImage(importedData(Buffer.from(css))), [255, 255, 255], setup);
     expect(requests).toBe(1);
   });
-  it("keeps fragment and relative resources and escaped imports out of the host document", () => {
+  it("keeps unresolved resources and blocked escaped imports out of the host document", () => {
     for (const value of [
       "url(#host-paint)",
       "url(relative.svg#paint)",
@@ -482,8 +482,10 @@ describe("safe SVG data CSS byte/XML/resource expansion (DM-6ZX6W0)", () => {
         }),
       ).toBeNull();
     const escaped =
-      '<svg xmlns="http://www.w3.org/2000/svg"><style>@\\69mport "https://host.test/a.css";</style></svg>';
-    expect(inlineImgSvg(escaped, { x: 0, y: 0, w: 40, h: 40, par: "none", idPrefix: "R-" })).toBeNull();
+      '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><style>@\\69mport "https://host.test/a.css";</style><rect width="40" height="40" fill="green"/></svg>';
+    const blocked = inlineImgSvg(escaped, { x: 0, y: 0, w: 40, h: 40, par: "none", idPrefix: "R-" });
+    expect(blocked).not.toBeNull();
+    expect(blocked).not.toContain("host.test");
     const invalidCharset = importedImage(
       importedData(Buffer.from("rect{fill:red}"), "text/css;charset=utf-8;charset=bad:value"),
     );

@@ -315,6 +315,19 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output-linux/svg-style-xml/results.json --minimum-passed 10
+      - name: Verify native escaped SVG CSS imports
+        if: always()
+        env:
+          DOMOTION_ESCAPED_IMPORT_EVIDENCE: tests/output-linux/svg-escaped-import/evidence
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/img-svg-escaped-import.e2e.test.ts
+          --reporter=json --outputFile=tests/output-linux/svg-escaped-import/results.json
+      - name: Require every native escaped SVG CSS assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output-linux/svg-escaped-import/results.json --minimum-passed 23
       - name: Verify native shadow knockout and root boundaries
         if: always()
         run: >-
@@ -355,6 +368,7 @@ jobs:
             tests/output-linux/external-svg-frozen/
             tests/output-linux/shadow-knockout/
             tests/output-linux/svg-style-xml/
+            tests/output-linux/svg-escaped-import/
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed
