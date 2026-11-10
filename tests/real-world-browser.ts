@@ -7,6 +7,7 @@ import { chromium, type Browser, type LaunchOptions } from "@playwright/test";
 import { recordBrowserFontEnvironment } from "../src/capture/image-font-hinting.js";
 import { chromiumAutoInstallDefault } from "../src/capture/chromium-auto-install.js";
 import { installPlaywrightChromium } from "../src/capture/index.js";
+import { captureOwnedBrowserDiagnostics } from "./real-world-browser-diagnostics.js";
 import { FlatCdp, cdpBounded, createCdpBroker } from "./real-world-cdp.js";
 import { SharedWorkerBootstrap, registerSharedWorkerBootstrap } from "./real-world-shared-worker-bootstrap.js";
 
@@ -118,6 +119,8 @@ export async function openRealWorldBrowser(
   let browser: Browser | undefined;
   let unregister: (() => void) | undefined;
   let closing: Promise<void> | undefined;
+  let diagnostics: ReturnType<typeof captureOwnedBrowserDiagnostics> | undefined;
+  const diagnosticDirectory = process.env["DOMOTION_E2E_NATIVE_LOG_DIR"];
   const signals: Array<[NodeJS.Signals, () => void]> = [];
   const onExit = (): void => {
     if (child?.exitCode == null && child?.signalCode == null) child?.kill("SIGKILL");
@@ -133,17 +136,23 @@ export async function openRealWorldBrowser(
         await raw?.command("Browser.close").catch(() => undefined);
         if (child != null) await waitForExit(child, 6_000).catch(() => stopProcess(child!));
       } finally {
-        await broker?.close();
-        await raw?.close();
-        if (child != null) await stopProcess(child);
-        await rm(profile, { recursive: true, force: true });
+        try {
+          await broker?.close();
+          await raw?.close();
+          if (child != null) await stopProcess(child);
+          await rm(profile, { recursive: true, force: true });
+        } finally {
+          await diagnostics?.finalize();
+        }
       }
     })());
   try {
     child = spawn(executable, brokerLaunchArguments(normalArgs, profile), {
       env: environment,
-      stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"],
+      stdio: ["ignore", "ignore", diagnosticDirectory ? "pipe" : "ignore", "pipe", "pipe"],
     });
+    if (diagnosticDirectory)
+      diagnostics = captureOwnedBrowserDiagnostics(child, diagnosticDirectory, process.env["GITHUB_SHA"]);
     // Drain the idle public debugging pipe; closing its parent descriptors
     // still terminates Chromium if this Node process is forcibly killed.
     const pipeOutput = child.stdio[4];

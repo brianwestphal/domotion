@@ -22,6 +22,7 @@ tickets:
     "DM-4S3VQH",
     "DM-S9S3WG",
     "DM-34WC46",
+    "DM-J5HGKV",
     "DM-MBRZBH",
     "DM-4GF2A0",
     "DM-6TJDZ5",
@@ -31,6 +32,9 @@ tickets:
 code:
   [
     "tests/real-world-browser.ts",
+    "tests/real-world-browser-diagnostics.ts",
+    "tests/real-world-browser-diagnostics.test.ts",
+    "tests/real-world-browser-diagnostics.e2e.test.ts",
     "tests/real-world-webgl-preflight.ts",
     "tests/real-world-webgl-frame-geometry.ts",
     "tests/real-world-webgl-geometry.ts",
@@ -240,6 +244,33 @@ realm; existing-worker live-prototype interception remains best effort. Worker
 freeze/discovery and restoration diagnostics report these limits separately.
 
 ### Focused native worker diagnostics
+
+For the harness-owned CDP browser, `DEBUG=pw:browser` observes the launch scout,
+not the manually spawned browser which runs the capture. DM-J5HGKV uses the same
+opt-in to retain that actual child's stderr in separate `owned-*.log` files. The
+existing artifact directory includes both sources. Each owned process retains
+at most 256 KiB of filtered prefix/suffix bytes plus its omission marker; the
+same 64 KiB line limit and sensitive-line filter apply. Its loopback DevTools
+credential line is also omitted. Logs are not forwarded to the lane's console.
+Metadata records the owned PID, host PID, validated source commit, filtered
+stream hash/counts, child exit status/signal and whether process close and
+stderr completion were observed. It contains no launch arguments or environment
+values. File names include a unique identity so concurrent browser owners cannot
+overwrite one another.
+
+Owned diagnostic files are finalized on process close; normal cleanup allows
+at most two seconds to drain diagnostics after stopping the browser. An
+incomplete stream or failed artifact write fails the opted-in close rather
+than presenting incomplete evidence as complete. Forced host termination can
+prevent finalization entirely. The default launch arguments, source bytes,
+backend, worker ownership, startup deadlines and retry rules are unchanged.
+Worker startup failure JSON under `worker-bootstrap/` records the corresponding
+owned PID, fixture request hashes/completion, bounded console errors, and generic
+`Event` versus `ErrorEvent` failures. Join by PID and run, rather than attributing
+scout errors to the capture browser. Native stderr alone does not establish
+causality. In particular, the historical initial-SharedWorker timeouts in
+macOS runs 42730953918 and 42744953060 predate this instrumentation and remain
+unattributed; local passing controls are not an explanation for those failures.
 
 Dispatch `test-linux.yml` or `windows-fidelity.yml` with
 `worker_bootstrap_only=true` for the bounded native startup/transport/lifetime

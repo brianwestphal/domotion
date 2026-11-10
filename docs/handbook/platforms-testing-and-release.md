@@ -17,6 +17,7 @@ tickets:
     "DM-S9S3WG",
     "DM-34WC46",
     "DM-95ECD3",
+    "DM-J5HGKV",
     "DM-6TJDZ5",
     "DM-GQNPEN",
     "DM-PCT7GR",
@@ -38,6 +39,9 @@ code:
     "tests/output-directory.mjs",
     "tests/output-directory.test.ts",
     "tests/real-world.tsx",
+    "tests/real-world-browser-diagnostics.ts",
+    "tests/real-world-browser-diagnostics.test.ts",
+    "tests/real-world-browser-diagnostics.e2e.test.ts",
     "tests/real-world-webgl-preflight.ts",
     "tests/real-world-webgl-frame-geometry.ts",
     "tests/real-world-webgl-geometry.ts",
@@ -109,13 +113,13 @@ aliases: ["docs/handbook/platforms-testing-and-release.md"]
     capture requests alone do not authenticate paint in fully hidden
     cross-origin frames (DM-PCT7GR).
 
-11. Real-world post-screenshot WebGL freeze observes Page-related dedicated
-    worker startup and context-owned SharedWorker live calls, with bounded
-    debugger commands and explicit restoration/disposal. New SharedWorkers can
-    execute imports before Playwright's independent debugger resume is owned;
-    cached native calls escape interception. Those targets report failures,
-    and DM-S9S3WG remains blocked on DM-34WC46 for strict bootstrap coverage.
-    Other BrowserContexts are resumed without patching.
+11. Managed real-world WebGL freeze owns dedicated and SharedWorker startup
+    through the public CDP broker, applying patches before imports execute.
+    Foreign contexts resume without patching. Unmanaged Playwright browsers
+    retain explicitly partial late-SharedWorker coverage; already cached native
+    references remain outside live-prototype interception. The
+    [worker ownership record](../66-ci-visual-tests.md#fast-integration-suites-on-all-platforms)
+    defines these separate paths.
 
 ## Offscreen frame projection
 
@@ -169,6 +173,10 @@ synchronous inherited-stream execution is unchanged. Diagnostics use only
 Playwright's public [`DEBUG=pw:browser`](https://playwright.dev/docs/ci#debugging-browser-launches)
 namespace; they add no Chromium backend flags or retry rules and use no private
 Playwright API or shared debug-file output.
+
+The managed capture browser also retains filtered, bounded `owned-*.log`
+diagnostics separately from Playwright's scout. [The worker diagnostic record](../66-ci-visual-tests.md#focused-native-worker-diagnostics)
+defines PID/source correlation, incomplete-stream refusal and historical cause limits.
 
 Each opted-in lane forwards filtered live stderr and saves a bounded prefix
 and suffix plus JSON metadata. Retention is limited to 8 MiB of filtered bytes
