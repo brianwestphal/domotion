@@ -59,6 +59,7 @@ export const createStyleRecordBuilder = (ctx: {
   _resolveFontPalette: (el: Element, cs: CSSStyleDeclaration) => CapturedStyles["fontPaletteIdentity"];
   _resolveShadowFontPalettes: (el: Element) => CapturedStyles["shadowFontPaletteIdentities"];
   _transformRelatedBox: WeakMap<Element, boolean>;
+  _paintOrLayoutContainmentEligible: WeakMap<Element, boolean>;
   captureBackgroundAttachment: (
     el: Element,
     cs: CSSStyleDeclaration,
@@ -87,6 +88,7 @@ export const createStyleRecordBuilder = (ctx: {
     _resolveFontPalette,
     _resolveShadowFontPalettes,
     _transformRelatedBox,
+    _paintOrLayoutContainmentEligible,
     captureBackgroundAttachment,
     captureBordersBackgrounds,
     computeMaskIntrinsic,
@@ -278,6 +280,7 @@ export const createStyleRecordBuilder = (ctx: {
       webkitBoxReflect: cs.webkitBoxReflect,
       willChange: cs.willChange,
       contain: cs.contain,
+      paintOrLayoutContainmentEligible: _paintOrLayoutContainmentEligible.get(el),
       isolation: cs.isolation,
       writingMode: cs.writingMode,
       textOrientation: cs.textOrientation,

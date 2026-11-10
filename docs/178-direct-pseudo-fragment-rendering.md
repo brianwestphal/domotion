@@ -183,8 +183,10 @@ own scope; no production change is part of the AWS investigation commit.
 This local repair does not establish complete ancestor-context pseudo ownership:
 DM-NAG7AD retains an unchanged-source native witness where a pseudo on a
 non-stacking host remains local while its real child hoists. DM-5YF0BB separately
-owns the missing eligible `contain:layout` stacking-context predicate, verified
-against Chromium 147 `LayoutObject::IsStackingContext`. The real Stripe icon
+captures native eligibility for the `contain:layout` stacking-context predicate,
+verified against Chromium 147 `LayoutObject::IsStackingContext`; see the
+[layout handbook](handbook/layout-and-fragmentation.md#native-containment-eligibility)
+for the measured scope and explicit unknown-owner gap. The real Stripe icon
 owner already establishes a context through z-index 3. Existing negative-host
 ownership and the separate preserve-3d path retain their prior behavior.
 

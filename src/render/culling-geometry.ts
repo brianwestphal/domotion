@@ -14,6 +14,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { hasPaintContainment } from "./containment.js";
 import { invertSvgAffine, multiplySvgAffine, type SvgAffineMatrix } from "../capture/svg-affine-freeze.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { parseCornerRadii } from "./borders.js";
@@ -727,8 +728,7 @@ function ownGeometry(el: CapturedElement): {
 function childOverflowClip(el: CapturedElement): AxisClip | null | "unknown" {
   const overflowX = el.styles.overflowX ?? "visible";
   const overflowY = el.styles.overflowY ?? "visible";
-  const contain = el.styles.contain ?? "";
-  const containClips = /\b(?:paint|strict|content)\b/i.test(contain);
+  const containClips = hasPaintContainment(el.styles);
   const clips = overflowX !== "visible" || overflowY !== "visible" || containClips;
   if (!clips || el.tag === "body" || el.children.length === 0) return null;
   const top = parseFinitePx(el.styles.borderTopWidth);
@@ -750,7 +750,8 @@ function childOverflowClip(el: CapturedElement): AxisClip | null | "unknown" {
   const usedMargin = usedOverflowClipMargin(el.styles.overflowClipMargin, {
     overflowX,
     overflowY,
-    contain,
+    contain: el.styles.contain,
+    paintOrLayoutContainmentEligible: el.styles.paintOrLayoutContainmentEligible,
     isReplaced,
     respectsCssOverflow: isReplaced
       ? isOverflowRespectingReplacedElement(el.tag)

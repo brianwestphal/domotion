@@ -6136,11 +6136,15 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2596"],
+        "tickets": ["DM-2596", "DM-5YF0BB", "DM-F42BPG", "DM-D8Y3WJ"],
         "code": [
           "src/capture/script/walker/transforms.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/transforms.ts",
+          "src/capture/script/walker/document-prepass.ts",
+          "src/render/containment.ts",
+          "src/render/stacking.ts",
+          "tests/containment-stacking.e2e.test.ts",
           "src/scroll/",
           "tests/feature-coverage.ts"
         ],

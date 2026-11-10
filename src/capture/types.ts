@@ -1339,6 +1339,11 @@ export interface CapturedStyles {
    * compatible computed-style fallback.
    */
   transformRelatedBox?: boolean;
+  /** DM-5YF0BB: native paint/layout containment eligibility, observed with a
+   * neutral built-in host of the same display plus contain:layout and a fixed
+   * child. This preserves LayoutObject's non-box and table-part exclusions.
+   * Absent for source-specific/unknown layout objects and older trees. */
+  paintOrLayoutContainmentEligible?: boolean;
   /** CSS transform-style. `preserve-3d` (or anything != `flat`) creates a stacking context per CSS Transforms 2 §4 (DM-589). */
   transformStyle?: string;
   /**

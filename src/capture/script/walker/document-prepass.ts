@@ -326,6 +326,58 @@ const TRANSFORM_RELATED_WILL_CHANGE = new Set([
 ]);
 const PROBE_UNSUPPORTED_TAGS = /^(?:AUDIO|CANVAS|EMBED|IFRAME|IMG|INPUT|METER|OBJECT|PROGRESS|SELECT|TEXTAREA|VIDEO)$/;
 
+/** Ask Blink's shared paint/layout containment eligibility through fixed ownership.
+ * Use neutral built-ins, never a clone or mutation of the source element. */
+export const probeContainmentEligibility = (ownershipEls: Element[], eligible: WeakMap<Element, boolean>) => {
+  const byDocument = new WeakMap<Document, Map<string, boolean>>();
+  for (const owner of ownershipEls) {
+    const style = getComputedStyle(owner);
+    if (!/\b(?:layout|paint|strict|content)\b/.test(style.contain)) continue;
+    // Replaced/control/SVG layout classes cannot be inferred from a neutral
+    // HTML display. BR/WBR/slots likewise have source-specific layout rules.
+    // Their absent authority remains explicit (DM-F42BPG).
+    if (
+      owner.namespaceURI !== "http://www.w3.org/1999/xhtml" ||
+      PROBE_UNSUPPORTED_TAGS.test(owner.tagName) ||
+      /^(?:BR|WBR|SLOT|OPTION|OPTGROUP)$/.test(owner.tagName)
+    )
+      continue;
+    const doc = owner.ownerDocument;
+    const tag = owner.tagName === "BUTTON" ? "button" : "span";
+    const key = `${tag}:${style.display}`;
+    let cache = byDocument.get(doc);
+    if (cache == null) {
+      cache = new Map();
+      byDocument.set(doc, cache);
+    }
+    const cached = cache.get(key);
+    if (cached != null) {
+      eligible.set(owner, cached);
+      continue;
+    }
+    const host = doc.createElementNS("http://www.w3.org/1999/xhtml", tag);
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText =
+      "all:initial!important;contain:layout!important;visibility:hidden!important;width:0!important;height:0!important;margin:0!important;padding:0!important;border:0!important";
+    host.style.setProperty("display", style.display, "important");
+    const child = doc.createElementNS("http://www.w3.org/1999/xhtml", "i");
+    child.style.cssText = "all:initial!important;position:fixed!important;width:0!important;height:0!important";
+    host.appendChild(child);
+    try {
+      (doc.body || doc.documentElement).appendChild(host);
+      const probeStyle = getComputedStyle(host);
+      if (probeStyle.display !== style.display || probeStyle.contain !== "layout") continue;
+      const answer = child.offsetParent === host;
+      cache.set(key, answer);
+      eligible.set(owner, answer);
+    } catch {
+      /* An unavailable probe must not manufacture eligibility. */
+    } finally {
+      host.remove();
+    }
+  }
+};
+
 const hasTransformRelatedSignal = (_cs: CSSStyleDeclaration) => {
   if (
     (_cs.transform != null && _cs.transform !== "" && _cs.transform !== "none") ||

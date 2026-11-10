@@ -1,5 +1,6 @@
 import { insetCornerRadii, outsetCornerRadiiWithCoverageCorrection, type CornerRadii } from "./borders.js";
 import type { PhysicalEdges } from "./geometry-box.js";
+import { hasPaintContainment } from "./containment.js";
 
 export type OverflowClipReferenceBox = "border-box" | "padding-box" | "content-box";
 
@@ -16,6 +17,7 @@ export interface OverflowClipActivation {
   overflowX?: string;
   overflowY?: string;
   contain?: string;
+  paintOrLayoutContainmentEligible?: boolean;
   isReplaced?: boolean;
   /** Override for source-level tests/special layout objects. Defaults true. */
   respectsCssOverflow?: boolean;
@@ -91,7 +93,7 @@ export function shouldApplyOverflowClipMargin(
   const isOverflowClip = isReplaced
     ? overflowX !== "visible" && overflowY !== "visible"
     : overflowX === "clip" && overflowY === "clip";
-  const paintContainment = /\b(?:content|paint|strict)\b/i.test(activation.contain ?? "");
+  const paintContainment = hasPaintContainment(activation);
   return isOverflowClip || paintContainment;
 }
 

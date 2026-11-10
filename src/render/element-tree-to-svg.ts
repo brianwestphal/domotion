@@ -21,6 +21,7 @@ import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-backgrou
 import { parseDataUri } from "../utils/data-uri.js";
 import { pseudoFragmentPaintSlot, renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { pseudoChildPaintOrder } from "./pseudo-stacking-order.js";
+import { containmentCreatesStackingContext, hasPaintContainment } from "./containment.js";
 import { measureTruncationMarker, renderRadicalGlyph, renderTextAsPath } from "./text-to-path.js";
 import { getEmbeddedFontFaceCss } from "./embedded-font-css.js";
 import { getGlyphDefs, type RenderTextMode, type SessionGenericFamilyOverrides } from "./font-resolution.js";
@@ -170,6 +171,7 @@ function resolvedOverflowClipMarginGeometry(
     overflowX: el.styles.overflowX,
     overflowY: el.styles.overflowY,
     contain: el.styles.contain,
+    paintOrLayoutContainmentEligible: el.styles.paintOrLayoutContainmentEligible,
     isReplaced,
     respectsCssOverflow,
   });
@@ -2607,7 +2609,7 @@ function computeGroupWrapperAttrs(
         el.styles.zIndex != null &&
         el.styles.zIndex !== "" &&
         el.styles.zIndex !== "auto") ||
-      (el.styles.contain != null && /\b(?:paint|strict|content)\b/i.test(el.styles.contain)));
+      containmentCreatesStackingContext(el.styles));
   const needsIsolation = explicitIsolate || implicitIsolate;
   // DM-603: an element marked for viewBox culling forces a wrapping <g>
   // even if none of the above attributes would otherwise have demanded one,
@@ -3406,12 +3408,7 @@ export function childOverflowClipGeometry(
 ): ChildOverflowClipGeometry | null {
   const ox = el.styles.overflowX;
   const oy = el.styles.overflowY;
-  const containVal = el.styles.contain;
-  const containClips =
-    containVal != null &&
-    containVal !== "" &&
-    containVal !== "none" &&
-    /\b(?:paint|strict|content)\b/i.test(containVal);
+  const containClips = hasPaintContainment(el.styles);
   const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible") || containClips;
   // Body overflow propagates to the viewport instead of clipping body itself.
   if (!clipsOverflow || el.tag === "body" || el.children.length === 0) return null;

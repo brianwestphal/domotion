@@ -5,6 +5,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { containmentCreatesFixedContainer, containmentCreatesStackingContext } from "./containment.js";
 
 /**
  * Live captures set this false when Blink declines to make this layout object
@@ -168,10 +169,9 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
       if (_scWcProps.has(lt) && (transformRelated || !transformRelatedWillChangeProperties.has(lt))) return true;
     }
   }
-  // DM-498: `contain: paint | strict | content` creates an SC.
-  if (s.contain != null && s.contain !== "" && s.contain !== "none") {
-    if (/\b(?:paint|strict|content)\b/i.test(s.contain)) return true;
-  }
+  // LayoutObject::IsStackingContext requires native eligibility for both
+  // layout and paint containment; a computed token alone is insufficient.
+  if (containmentCreatesStackingContext(s)) return true;
   // DM-498: `isolation: isolate` creates an SC.
   if (s.isolation === "isolate") return true;
   // DM-487: `overflow != visible` (scroll container) creates a stacking
@@ -488,9 +488,7 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return false;
   if (s.clipPath != null && s.clipPath !== "" && s.clipPath !== "none") return false;
   if (s.isolation === "isolate") return false;
-  if (s.contain != null && s.contain !== "" && s.contain !== "none") {
-    if (/\b(?:paint|strict|content)\b/i.test(s.contain)) return false;
-  }
+  if (containmentCreatesStackingContext(s)) return false;
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const _scWcProps: ReadonlySet<string> = new Set([
       "transform",
@@ -562,9 +560,7 @@ export function isFixedContainingBlock(el: CapturedElement): boolean {
       if (transformRelated && transformRelatedWillChangeProperties.has(lt)) return true;
     }
   }
-  if (s.contain != null && s.contain !== "" && s.contain !== "none") {
-    if (/\b(?:paint|strict|content|layout)\b/i.test(s.contain)) return true;
-  }
+  if (containmentCreatesFixedContainer(s)) return true;
   return false;
 }
 

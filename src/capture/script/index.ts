@@ -75,6 +75,7 @@ import {
   createSvgReferenceScopes,
   indexProjectiveFacts,
   probeTransformRelatedBoxes,
+  probeContainmentEligibility,
 } from "./walker/document-prepass.js";
 
 const captureDocumentTree = (args: CaptureScriptArgs) => {
@@ -246,9 +247,11 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
   const _fixedAncestors = collectFixedAncestors(root, _allEls, vp);
   const _transformInfluenced = collectTransformInfluenced(_allEls);
   const _transformRelatedBox = new WeakMap<Element, boolean>();
+  const _paintOrLayoutContainmentEligible = new WeakMap<Element, boolean>();
   const _ownershipEls = collectOwnershipElements(root, _allEls);
   const _backdropEffectSpaceFor = createBackdropEffectSpace(_ownershipEls, shortSelector);
   probeTransformRelatedBoxes(_ownershipEls, _transformRelatedBox);
+  probeContainmentEligibility(_ownershipEls, _paintOrLayoutContainmentEligible);
   const { projectiveFacts, projectiveNodeIndex, projectedQuads, projectiveAbsH, nonAffineProjectiveRoots } =
     indexProjectiveFacts(args);
   const _animInfluenced = collectAnimInfluenced(_allEls);
@@ -303,6 +306,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
     _resolveFontPalette,
     _resolveShadowFontPalettes,
     _transformRelatedBox,
+    _paintOrLayoutContainmentEligible,
     captureBackgroundAttachment: captureBackgroundAttachment as Parameters<
       typeof createStyleRecordBuilder
     >[0]["captureBackgroundAttachment"],
