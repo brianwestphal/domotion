@@ -14,4 +14,5 @@ it("DM-95ECD3: retains filtered lane logs and source failure artifacts in the or
   expect(upload).toContain("if: always()");
   expect(upload).toContain("tests/output/native-browser-logs/");
   expect(upload).toContain("tests/output/webgl-startup-e2e/");
+  expect(upload).toContain("tests/output/opaque-font-family/");
 });

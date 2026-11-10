@@ -247,4 +247,5 @@ jobs:
             tests/output/webgl-startup-e2e/
             tests/output/external-svg-frozen/
             tests/output/worker-bootstrap/
+            tests/output/opaque-font-family/
           if-no-files-found: error

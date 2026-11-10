@@ -345,6 +345,16 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > selector markers or stylesheet rewriting. This protocol seam is platform
 > independent; native font advances still come from each host's calibrated
 > platform route.
+>
+> DM-7KS85J retains the controlled opaque-provenance fixture's diagnostics in
+> `opaque-font-family/native-context.json` even when an assertion fails. The
+> record includes source/runtime hashes, direct declaration facts, exact native
+> matched/animated classifier inputs and their admission result, captured family
+> stacks, Range widths and painted faces. It never changes the strict UA-standard
+> assertion. A hosted macOS failure remains unattributed after both shipping and
+> historical-source local controls passed; the record supplies future native CI
+> evidence rather than claiming a route repair. macOS, Linux and Windows artifact
+> selections include this folder.
 > Pinned source: [matched and inherited rules](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_css_agent.cc#L1460),
 > [active flat-tree rule collection](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_style_resolver.cc#L27),
 > and [parsed shorthand longhands](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_style_sheet.cc#L1128).

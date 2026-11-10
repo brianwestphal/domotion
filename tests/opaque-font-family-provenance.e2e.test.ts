@@ -1,8 +1,13 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { release } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
+import {
+  matchedFamilyIsUnambiguouslyAuthored,
+  type MatchedFamilyDeclarations,
+} from "../src/capture/font-family-declarations.js";
 import { captureFontFamilyDeclarationFacts } from "../src/capture/font-family-declarations-cdp.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
@@ -17,6 +22,28 @@ function flatten(nodes: CapturedElement[]): CapturedElement[] {
 describe("opaque initial-named font declarations", () => {
   it("distinguishes native concrete faces from UA standard without admitting reset/substitution ambiguity", async () => {
     const page = await browser.newPage({ viewport: { width: 720, height: 900 }, deviceScaleFactor: 1 });
+    const output = resolve(
+      process.env["DOMOTION_OUTPUT_DIR"] ?? (process.platform === "linux" ? "tests/output-linux" : "tests/output"),
+      "opaque-font-family",
+    );
+    const evidence: Record<string, unknown> = {
+      schema: 2,
+      generatedAt: new Date().toISOString(),
+      platform: process.platform,
+      architecture: process.arch,
+      osRelease: release(),
+      node: process.version,
+      browser: browser.version(),
+      sourceSha: process.env["GITHUB_SHA"] ?? null,
+      fixtureSha256: createHash("sha256")
+        .update(readFileSync(new URL(import.meta.url)))
+        .digest("hex"),
+      captureBundleSha256: createHash("sha256")
+        .update(readFileSync(new URL("../src/capture/script.generated.ts", import.meta.url)))
+        .digest("hex"),
+      phase: "setup",
+    };
+    let failed = false;
     try {
       await page.setContent("<!doctype html><p>initial</p>");
       const initial = await page.locator("p").evaluate((el) => getComputedStyle(el).fontFamily);
@@ -66,8 +93,11 @@ describe("opaque initial-named font declarations", () => {
           }
         }),
       ).toBe(true);
+      evidence.initial = initial;
+      evidence.fixtureHtml = await page.content();
       const probe = await captureFontFamilyDeclarationFacts(page);
       try {
+        evidence.probeWarnings = probe.warnings;
         expect(probe.warnings).toEqual([]);
         const facts = await page.evaluate(
           (key) =>
@@ -79,6 +109,8 @@ describe("opaque initial-named font declarations", () => {
             ),
           probe.propertyKey,
         );
+        evidence.directDeclarationFacts = facts;
+        evidence.phase = "direct-declaration-facts";
         for (const id of ["literal", "inherited", "shorthand", "override-literal", "known"]) {
           expect(facts[id], id).toMatchObject({ authored: true, family: initial });
         }
@@ -111,6 +143,111 @@ describe("opaque initial-named font declarations", () => {
       const tree = flatten(await captureElementTree(page, "body", { x: 0, y: 0, width: 720, height: 900 }));
       const family = (id: string) =>
         tree.find((node) => node.text.trim() === `A漢 ${id}`)?.styles.fontFamilyStack?.genericFamily;
+      evidence.sourceStyleFacts = await page.evaluate(() => {
+        const probe = document.createElement("span");
+        probe.style.setProperty("all", "initial", "important");
+        probe.style.setProperty("display", "none", "important");
+        let currentInitialFamily: string;
+        try {
+          document.documentElement.appendChild(probe);
+          currentInitialFamily = getComputedStyle(probe).fontFamily;
+        } finally {
+          probe.remove();
+        }
+        return {
+          currentInitialFamily,
+          stylesheets: [...document.styleSheets].map((sheet) => {
+            try {
+              return { href: sheet.href, readable: true, rules: [...sheet.cssRules].map((rule) => rule.cssText) };
+            } catch {
+              return { href: sheet.href, readable: false };
+            }
+          }),
+          elements: [...document.querySelectorAll("p")].map((element) => {
+            const ancestors: Array<{ tag: string; id: string; inlineFamily: string; face: string | null }> = [];
+            for (let node: HTMLElement | null = element; node != null; node = node.parentElement) {
+              ancestors.push({
+                tag: node.tagName,
+                id: node.id,
+                inlineFamily: node.style.fontFamily,
+                face: node.getAttribute("face"),
+              });
+            }
+            return { id: element.id, computedFamily: getComputedStyle(element).fontFamily, ancestors };
+          }),
+        };
+      });
+      const widths = await page.evaluate(() =>
+        Object.fromEntries(
+          ["ua", "literal", "inherited", "known", "shorthand", "child-reset", "escaped-reset", "animated-reset"].map(
+            (id) => {
+              const range = document.createRange();
+              const el = document.getElementById(id)!;
+              range.setStart(el.firstChild!, 0);
+              range.setEnd(el.firstChild!, 1);
+              return [id, range.getBoundingClientRect().width];
+            },
+          ),
+        ),
+      );
+      evidence.widths = widths;
+      evidence.capturedGenericFamilies = Object.fromEntries(
+        [...(await page.locator("p").evaluateAll((nodes) => nodes.map((node) => node.id)))].map((id) => [
+          id,
+          family(id),
+        ]),
+      );
+      evidence.capturedTypography = tree.map((node) => ({
+        text: node.text,
+        styles: node.styles.fontFamilyStack,
+        segments: node.textSegments?.map((segment) => ({ text: segment.text, family: segment.fontFamilyStack })),
+      }));
+      evidence.phase = "captured-tree";
+      expect(widths.known).toBeGreaterThan(0);
+      for (const id of ["literal", "inherited", "shorthand"]) expect(widths[id], id).toBe(widths.known);
+      for (const id of ["child-reset", "escaped-reset", "animated-reset"]) expect(widths[id], id).toBe(widths.ua);
+      const native = await page.context().newCDPSession(page);
+      try {
+        await native.send("DOM.enable");
+        await native.send("CSS.enable");
+        const { root } = await native.send("DOM.getDocument");
+        const faces = new Map<string, string[]>();
+        const declarations: Record<string, unknown> = {};
+        evidence.nativeDeclarations = declarations;
+        evidence.paintedFaces = {};
+        for (const id of ["ua", "literal", "inherited", "known", "shorthand", "child-reset", "animated-reset"]) {
+          const { nodeId } = await native.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${id}` });
+          const matched = await native.send("CSS.getMatchedStylesForNode", { nodeId });
+          const animated = await native.send("CSS.getAnimatedStylesForNode", { nodeId });
+          const classifierInput: MatchedFamilyDeclarations = {
+            ...matched,
+            animationStyles: animated.animationStyles,
+            transitionsStyle: animated.transitionsStyle,
+            inherited: matched.inherited?.map((scope, index) => ({
+              ...scope,
+              animationStyles: animated.inherited?.[index]?.animationStyles,
+              transitionsStyle: animated.inherited?.[index]?.transitionsStyle,
+            })),
+          };
+          declarations[id] = {
+            unambiguouslyAuthored: matchedFamilyIsUnambiguouslyAuthored(classifierInput),
+            classifierInput,
+          };
+          const { fonts } = await native.send("CSS.getPlatformFontsForNode", { nodeId });
+          expect(fonts.length, id).toBeGreaterThan(0);
+          expect(
+            fonts.every((font) => font.glyphCount > 0 && !font.isCustomFont),
+            id,
+          ).toBe(true);
+          faces.set(id, [...new Set(fonts.map((font) => `${font.familyName}|${font.postScriptName}`))].sort());
+          evidence.paintedFaces = Object.fromEntries(faces);
+        }
+        for (const id of ["literal", "inherited", "shorthand"]) expect(faces.get(id), id).toEqual(faces.get("known"));
+        for (const id of ["child-reset", "animated-reset"]) expect(faces.get(id), id).toEqual(faces.get("ua"));
+      } finally {
+        await native.detach();
+      }
+      evidence.phase = "native-evidence-collected";
       for (const id of ["literal", "inherited", "shorthand", "override-literal", "known"])
         expect(family(id), id).toBe("none");
       for (const id of [
@@ -134,71 +271,6 @@ describe("opaque initial-named font declarations", () => {
           .find((node) => node.text.trim() === "A漢 pseudo-reset")
           ?.pseudoFragments?.find((record) => record.pseudo === "::before")?.typography.fontFamilyStack?.genericFamily,
       ).toBe("standard");
-      const widths = await page.evaluate(() =>
-        Object.fromEntries(
-          ["ua", "literal", "inherited", "known", "shorthand", "child-reset", "escaped-reset", "animated-reset"].map(
-            (id) => {
-              const range = document.createRange();
-              const el = document.getElementById(id)!;
-              range.setStart(el.firstChild!, 0);
-              range.setEnd(el.firstChild!, 1);
-              return [id, range.getBoundingClientRect().width];
-            },
-          ),
-        ),
-      );
-      expect(widths.known).toBeGreaterThan(0);
-      for (const id of ["literal", "inherited", "shorthand"]) expect(widths[id], id).toBe(widths.known);
-      for (const id of ["child-reset", "escaped-reset", "animated-reset"]) expect(widths[id], id).toBe(widths.ua);
-      const native = await page.context().newCDPSession(page);
-      try {
-        await native.send("DOM.enable");
-        await native.send("CSS.enable");
-        const { root } = await native.send("DOM.getDocument");
-        const faces = new Map<string, string[]>();
-        for (const id of ["ua", "literal", "inherited", "known", "shorthand", "child-reset", "animated-reset"]) {
-          const { nodeId } = await native.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${id}` });
-          const { fonts } = await native.send("CSS.getPlatformFontsForNode", { nodeId });
-          expect(fonts.length, id).toBeGreaterThan(0);
-          expect(
-            fonts.every((font) => font.glyphCount > 0 && !font.isCustomFont),
-            id,
-          ).toBe(true);
-          faces.set(id, [...new Set(fonts.map((font) => `${font.familyName}|${font.postScriptName}`))].sort());
-        }
-        for (const id of ["literal", "inherited", "shorthand"]) expect(faces.get(id), id).toEqual(faces.get("known"));
-        for (const id of ["child-reset", "animated-reset"]) expect(faces.get(id), id).toEqual(faces.get("ua"));
-        const output = resolve(
-          process.env["DOMOTION_OUTPUT_DIR"] ?? (process.platform === "linux" ? "tests/output-linux" : "tests/output"),
-          "opaque-font-family",
-        );
-        mkdirSync(output, { recursive: true });
-        writeFileSync(
-          join(output, "native-context.json"),
-          JSON.stringify(
-            {
-              generatedAt: new Date().toISOString(),
-              platform: process.platform,
-              architecture: process.arch,
-              osRelease: release(),
-              browser: browser.version(),
-              initial,
-              widths,
-              paintedFaces: Object.fromEntries(faces),
-              capturedGenericFamilies: Object.fromEntries(
-                ["ua", "literal", "inherited", "known", "shorthand", "child-reset", "animated-reset"].map((id) => [
-                  id,
-                  family(id),
-                ]),
-              ),
-            },
-            null,
-            2,
-          ),
-        );
-      } finally {
-        await native.detach();
-      }
       if (process.platform === "darwin") {
         const concrete = getFontInstance("times", 400, 32)!;
         const standard = getFontInstance("u-hiragino-kaku-gothic-pron", 400, 32)!;
@@ -210,8 +282,22 @@ describe("opaque initial-named font declarations", () => {
         expect(widths.ua).toBeCloseTo(advance(standard), 1);
         expect(widths["child-reset"]).toBe(widths.ua);
       }
+      evidence.phase = "passed";
+    } catch (error) {
+      failed = true;
+      evidence.failed = true;
+      throw error;
     } finally {
-      await page.close();
+      try {
+        mkdirSync(output, { recursive: true });
+        writeFileSync(join(output, "native-context.json"), JSON.stringify(evidence, null, 2));
+      } catch (error) {
+        // Preserve the strict assertion if evidence storage independently fails.
+        if (!failed) throw error;
+        console.warn("Could not retain opaque font-family fixture evidence");
+      } finally {
+        await page.close();
+      }
     }
   });
   it("recovers same-process iframe and shadow-root opaque declarations without marking UA siblings", async () => {
