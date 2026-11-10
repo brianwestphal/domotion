@@ -43,6 +43,7 @@ import { rasterizeNativeControlDecorations } from "./native-control-decoration-r
 import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
+import { captureFontFamilyDeclarationFacts } from "./font-family-declarations-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
 import { prepareFrameScrollCapture } from "./frame-scroll-state.js";
 import { freezeWebGlOutputForCapture, type WebGlOutputFreeze } from "./webgl-output-freeze.js";
@@ -2176,6 +2177,7 @@ async function captureElementTreeWithWarningsInternal(
     });
     let pseudoStyles: Awaited<ReturnType<typeof captureResolvedControlPseudoStyles>> | undefined;
     let effectiveAppearance: Awaited<ReturnType<typeof captureEffectiveAppearanceFacts>> | undefined;
+    let fontFamilyDeclarations: Awaited<ReturnType<typeof captureFontFamilyDeclarationFacts>> | undefined;
     let scrollbarCapture: Awaited<ReturnType<typeof prepareCapturedScrollbarSets>> | undefined;
     let projectiveProbe: ProjectivePaintProbe | undefined;
     let collapsedBorderFragmentProbe: Awaited<ReturnType<typeof prepareCollapsedBorderFragmentRecords>> | undefined;
@@ -2189,6 +2191,8 @@ async function captureElementTreeWithWarningsInternal(
       pseudoStyles = await captureResolvedControlPseudoStyles(page, viewport);
       await reverifyAnimationFrame();
       effectiveAppearance = await captureEffectiveAppearanceFacts(page, viewport);
+      await reverifyAnimationFrame();
+      fontFamilyDeclarations = await captureFontFamilyDeclarationFacts(page);
       await reverifyAnimationFrame();
       scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
         sourceImagePath: opts?.rasterizeFromImagePath,
@@ -2213,6 +2217,7 @@ async function captureElementTreeWithWarningsInternal(
         inputValuePropertyKey: pseudoStyles.inputValuePropertyKey,
         effectiveAppearancePropertyKey: effectiveAppearance.propertyKey,
         effectiveAppearanceSetupFailure: effectiveAppearance.setupFailure,
+        fontFamilyDeclarationPropertyKey: fontFamilyDeclarations.propertyKey,
         scrollbarPropertyKey: scrollbarCapture.propertyKey,
         frameScrollPropertyKey: frameScrollCapture.propertyKey,
         projectiveFacts: projectiveProbe.facts,
@@ -2244,6 +2249,7 @@ async function captureElementTreeWithWarningsInternal(
         pseudoFragmentProbe,
         scrollbarCapture,
         effectiveAppearance,
+        fontFamilyDeclarations,
         maskIntrinsicPrime,
         backgroundImagePrime,
         pseudoImagePrime,
@@ -2257,6 +2263,7 @@ async function captureElementTreeWithWarningsInternal(
       const typed = assertCapturedTreeShape(result) as { tree: CapturedElement[]; warnings: CaptureWarning[] };
       await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
       const warnings = typed.warnings ?? [];
+      warnings.push(...(fontFamilyDeclarations?.warnings ?? []));
       for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
         const fact = projectiveProbe?.facts[index];
         if (fact == null || fact.usedPreserve3d !== null) continue;

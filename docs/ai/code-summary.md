@@ -52,6 +52,9 @@ deviation for box, inline, control, and text shadows.
   validates what `page.evaluate` returns. Every module under
   `src/capture/script/` is type-checked under the repo's strict config; the
   browser bundle erases these annotations before serialization.
+  `font-family-declarations-cdp.ts` supplements CSSOM-inaccessible initial-name
+  fonts with unambiguous native matched/inherited declaration facts; its pure
+  classifier rejects reset/substitution ambiguity instead of guessing a cascade.
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
   decisions; it does not independently lay out the page.
   `packages/text-engine/src/font-family-stack.ts` preserves decoded string

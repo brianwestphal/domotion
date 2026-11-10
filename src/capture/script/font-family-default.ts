@@ -26,7 +26,8 @@
 //      script-keyed by the declared-generic path; a concrete computed name with
 //      no known author declaration is only a candidate for the initial value.
 //      It must be a single family matching this document's actual initial
-//      computed family. Opaque stylesheet declarations remain unavailable.
+//      computed family. A bounded CDP prepass supplements inaccessible sheets
+//      only with unambiguous literal-family declarations (DM-ZZRZWK).
 //   2. NO author `font-family` declaration on self or any ancestor. Sources:
 //      an inline `style` (its `.fontFamily` reflects both `font-family:` and the
 //      `font` shorthand), a `<font face>` presentation attribute, or any
@@ -35,6 +36,7 @@
 //      inherits, so a declaration on ANY ancestor makes the element non-initial.
 
 import { parseCssFontFamilyEntries } from "../../font-family-stack.js";
+import type { FontFamilyDeclarationFact } from "../font-family-declarations.js";
 
 // CSS generic-family keywords (+ the -webkit- / ui- forms Blink recognizes).
 // A computed first-family equal to one of these is a DECLARED or UA generic,
@@ -71,7 +73,11 @@ export function fontFamilyCanBeInitial(computedFamily: string, initialFamily: st
   );
 }
 
-export const createFontFamilyDefault = () => {
+export const createFontFamilyDefault = (declarationPropertyKey?: string) => {
+  const declarationFactFor = (el: Element): FontFamilyDeclarationFact | undefined =>
+    declarationPropertyKey == null
+      ? undefined
+      : ((el as Element & Record<string, unknown>)[declarationPropertyKey] as FontFamilyDeclarationFact | undefined);
   // Cache author font selectors per Document. Iframe recursion walks elements
   // from several documents in one capture; consulting only the top document's
   // sheets makes an inherited iframe rule look like the UA default.
@@ -271,6 +277,8 @@ export const createFontFamilyDefault = () => {
     const first = families[0]?.name ?? "";
     if (first === "" || GENERIC_FAMILY_KEYWORDS[first.toLowerCase()] === 1) return false;
     const doc = el.ownerDocument || document;
+    const declaration = declarationFactFor(el);
+    if (declaration?.authored && declaration.family === computedFontFamily) return false;
     const { familySelectors } = selectorsFor(doc);
     // (2) no author font-family on self or any ancestor (font-family inherits).
     let n: Element | null = el;
@@ -280,7 +288,8 @@ export const createFontFamilyDefault = () => {
     }
     // Missing CSSOM author facts cannot turn a distinct named family into the
     // initial value. Equal names still depend on the known author facts above;
-    // opaque same-name declarations need richer cascade provenance.
+    // opaque same-name declarations have the unambiguous CDP supplement above.
+    // CSS-wide/substituted scopes retain this prior route (DM-ESH89H).
     return fontFamilyCanBeInitial(computedFontFamily, initialFamilyFor(doc));
   };
 
@@ -292,6 +301,7 @@ export const createFontFamilyDefault = () => {
       .replace(/^:+/, "")
       .toLowerCase();
     if (pseudoName === "") return false;
+    if (declarationFactFor(el)?.authoredPseudos.includes(pseudoName)) return true;
     const { pseudoFamilyRules } = selectorsFor(el.ownerDocument || document);
     for (const rule of pseudoFamilyRules) {
       if (rule.pseudoName !== pseudoName) continue;

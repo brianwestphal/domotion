@@ -328,10 +328,32 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > readable author rule, or a `<font face>` attribute. Form controls
 > (`input`/`textarea`/`select`/`button`, UA `font: -webkit-small-control`, a
 > concrete SYSTEM font not kStandardFamily) and their descendants are excluded.
-> This admission guard does not prove authorship when an opaque rule declares
-> the identical initial name; that independent cascade-provenance ambiguity is
-> tracked as DM-ZZRZWK. Genuine initial routing remains enabled even in a
-> document containing an unrelated opaque stylesheet.
+> DM-ZZRZWK supplements opaque-sheet documents with native inspector declaration
+> facts (`font-family-declarations-cdp.ts`). Only elements computing to the
+> document's sampled initial name are queried. Pinned Chromium's
+> `InspectorCSSAgent::getMatchedStylesForNode` and `InspectorStyleResolver`
+> expose actual matched rules and flat-tree inherited scopes despite CSSOM
+> origin restrictions; inactive rules do not become witnesses. The first scope
+> with family-affecting declarations proves a concrete authored family only
+> when every declaration there is an explicit literal family list. Font
+> shorthands require Chromium's parsed longhand evidence. CSS-wide values,
+> substitutions, incomplete evidence and any animated family cannot create a new
+> authored fact; they retain the prior route. DM-ESH89H tracks exact winning
+> cascade/substitution provenance and the older readable-reset ambiguity.
+> Genuine initial routing remains enabled with unrelated opaque sheets. Facts
+> use removed private expandos and released CDP object groups, never authored
+> selector markers or stylesheet rewriting. This protocol seam is platform
+> independent; native font advances still come from each host's calibrated
+> platform route.
+> Pinned source: [matched and inherited rules](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_css_agent.cc#L1460),
+> [active flat-tree rule collection](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_style_resolver.cc#L27),
+> and [parsed shorthand longhands](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_style_sheet.cc#L1128).
+> Within each style, [canonical CSSOM entries](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_style_sheet.cc#L918)
+> discard overwritten raw declarations and normalize escapes/priorities before
+> classification. Inspector animation values are already computed, so they
+> cannot authenticate the original generic-family type. Pseudo witnesses also
+> reject active subtree family animations rather than interpreting their
+> serialized concrete name as a new author fact.
 >
 > **Quoted generic spellings are literal family names, not keywords.** The
 > splitter carries a per-entry `generic` bit: an entry is a generic KEYWORD

@@ -109,7 +109,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
   } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const { familyIsUADefault: _familyIsUADefault, pseudoFamilyIsAuthored: _pseudoFamilyIsAuthored } =
-    createFontFamilyDefault();
+    createFontFamilyDefault(args.fontFamilyDeclarationPropertyKey);
   const _fontFamilyStackFor = (el: Element, computedFontFamily: string, pseudo?: string) => {
     // Generated/first-letter/placeholder styles inherit the host's
     // kStandardFamily unless they resolve to a distinct family. CSSOM exposes
