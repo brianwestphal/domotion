@@ -568,13 +568,12 @@ function rootFontSize(attrValue: string | null, styleValue: string | null, fontU
  *   `<img>` paths compose it around the resolved origin
  *   ({@link applyImageRootTransform}) and clip the result to the image box.
  *
- * A projective transform (perspective that reaches the screen) returns
- * `"projective"`: SVG transforms are affine, so the caller returns null and
+ * A projective or unresolved transform returns `"raster"`: SVG transforms
+ * cannot preserve its paint exactly, so the caller returns null and
  * the `<img>` takes the `<image href="data:image/svg+xml">` path, whose SVG
- * document applies the root transform itself. A declaration the resolver
- * cannot express exactly (font-metric units, an unknown font-size) falls back
- * to the `transform` attribute alone about the box center, with a named
- * warning.
+ * document applies the root transform itself. Unresolved declarations emit a
+ * named warning; the winning CSS transform must never be replaced with only
+ * its lower-priority presentation attribute.
  */
 function imageRootTransform(
   attrs: string,
@@ -586,7 +585,7 @@ function imageRootTransform(
   registeredProperties: ReadonlySet<string> = new Set(),
   fontRendering?: InlineSvgPlacement["fontRendering"],
   fontFaces?: readonly IsolatedFontFace[],
-): ResolvedImageRootTransform | null | "projective" {
+): ResolvedImageRootTransform | null | "raster" {
   const tokens = parseSvgAttributes(attrs) ?? [];
   // The DOM value of an XML attribute: references expanded, whitespace
   // normalized (raw when it names a DTD entity).
@@ -712,6 +711,7 @@ function imageRootTransform(
     },
     box,
   );
+  if (resolved === "projective") return "raster";
   if (resolved !== "unsupported") return resolved;
   const unresolvedTextRendering = !/^(?:|auto|initial|inherit|unset|revert)$/i.test(
     fontDeclarations.get("text-rendering")?.trim() ?? "",
@@ -722,16 +722,14 @@ function imageRootTransform(
       `${slot} root transform depends on unresolved font data; retaining the image raster fallback`,
       slot,
     );
-    return "projective";
+    return "raster";
   }
-  // (`"projective"` passes through: the caller falls back to `<image>`.)
   renderWarn(
     "svg-image-root-transform",
-    `${slot} root transform uses a value that cannot be resolved exactly; only its transform attribute is applied`,
+    `${slot} root transform uses a value that cannot be resolved exactly; retaining the image raster fallback`,
     slot,
   );
-  const fallback = resolveImageRootTransform({ transformAttr, transformOriginAttr: null, style: new Map() }, box);
-  return typeof fallback === "string" ? null : fallback;
+  return "raster";
 }
 
 interface Rect {
@@ -989,9 +987,8 @@ function imageViewport(p: InlineSvgPlacement): { w: number; h: number } | null {
  * The image's `<style>` sheets cascaded onto its root's transform and font
  * (`cascadeRootStylesheetTransform`). Applied transform declarations are
  * removed from the inlined sheet; font declarations remain for text paint.
- * A sheet the cascade cannot
- * decide exactly keeps the previous behavior (attributes and inline style
- * only) with a `svg-image-root-transform` warning.
+ * A sheet the cascade cannot decide exactly retains source raster ownership
+ * with a `svg-image-root-transform` warning.
  */
 function rootSheetTransform(
   svgText: string,
@@ -1001,6 +998,7 @@ function rootSheetTransform(
   declarations: ReadonlyMap<string, CascadedDeclaration> | null;
   source: string;
   fontUnresolved: boolean;
+  raster?: true;
   registeredProperties?: ReadonlySet<string>;
 } {
   const tokens = parseSvgAttributes(tag.attributes) ?? [];
@@ -1021,10 +1019,10 @@ function rootSheetTransform(
   if (sheet === "unsupported") {
     renderWarn(
       "svg-image-root-transform",
-      "<img> svg root transform from an internal <style> sheet uses a selector or at-rule that cannot be resolved exactly; the sheet's transform is not applied",
+      "<img> svg root transform from an internal <style> sheet uses a selector or at-rule that cannot be resolved exactly; retaining the image raster fallback",
       "<img> svg",
     );
-    return { declarations: null, source: svgText, fontUnresolved: true };
+    return { declarations: null, source: svgText, fontUnresolved: true, raster: true };
   }
   return sheet == null
     ? { declarations: null, source: svgText, fontUnresolved: false }
@@ -1103,6 +1101,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
   const tag = readSvgOpeningTag(imageSource);
   if (tag == null) return null;
   const sheet = rootSheetTransform(imageSource, tag, p);
+  if (sheet.raster) return null;
   const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
   if (svgText == null) return null;
   const rewrittenTag = readSvgOpeningTag(svgText);
@@ -1144,7 +1143,7 @@ export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string 
     p.fontRendering,
     fontFaces ?? undefined,
   );
-  if (rootTransform === "projective") return null;
+  if (rootTransform === "raster") return null;
   if (rootTransform != null) attrs = stripImageRootTransformAttrs(attrs);
   // Strip the attrs we re-declare (keep xmlns / class / style / role / etc.).
   attrs = stripAttrs(attrs, ["x", "y", "width", "height", "viewBox", "preserveAspectRatio"]);
@@ -1332,6 +1331,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
   const tag = readSvgOpeningTag(sourceText);
   if (tag == null) return null;
   const sheet = rootSheetTransform(sourceText, tag, p);
+  if (sheet.raster) return null;
   const svgText = namespaceImageStyleNames(sheet.source, p.idPrefix);
   if (svgText == null) return null;
   const rewrittenTag = readSvgOpeningTag(svgText);
@@ -1382,7 +1382,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
     p.fontRendering,
     fontFaces ?? undefined,
   );
-  if (rootTransform === "projective") return null;
+  if (rootTransform === "raster") return null;
   if (rootOverflowVisible(attrs)) {
     return rootTransform == null
       ? clipToImage(group, p, object)

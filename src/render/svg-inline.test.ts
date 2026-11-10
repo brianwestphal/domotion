@@ -602,15 +602,20 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
     expect(out).toContain(`<g transform="translate(150 150) rotate(30) translate(-150 -150)">`);
   });
 
-  it("falls back to the transform attribute about the center, with a warning, for an unresolvable style value", () => {
+  it("retains source raster ownership when a transform origin cannot be resolved", () => {
     resetLastCaptureWarnings([]);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     // A line-height expressed in ex needs the font's computed line-height,
     // which this resolver deliberately leaves to the image document.
-    const out = inlineImgSvg(icon(` transform="rotate(30)" style="line-height: 3ex; transform-origin: 2lh"`), place)!;
+    const source = icon(` transform="rotate(30)" style="line-height: 3ex; transform-origin: 2lh"`);
+    const out = inlineImgSvg(source, place);
+    expect(flattenImgSvg(source, place)).toBeNull();
     warn.mockRestore();
-    expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
-    expect(getLastCaptureWarnings()).toEqual([expect.objectContaining({ feature: "svg-image-root-transform" })]);
+    expect(out).toBeNull();
+    expect(getLastCaptureWarnings()).toEqual([
+      expect.objectContaining({ feature: "svg-image-root-transform" }),
+      expect.objectContaining({ feature: "svg-image-root-transform" }),
+    ]);
   });
 
   it.skipIf(process.platform !== "darwin")("resolves normal lh / rlh in an image root transform", () => {

@@ -2455,7 +2455,8 @@
           "DM-9JBJ9F",
           "DM-KE2WFC",
           "DM-QK62CS",
-          "DM-6ZX6W0"
+          "DM-6ZX6W0",
+          "DM-KGD5KC"
         ],
         "code": [
           "src/capture/embed.ts",
@@ -2478,6 +2479,7 @@
           "src/render/svg-image-root-stylesheet.test.ts",
           "src/render/svg-image-root-stylesheet.ts",
           "src/render/svg-image-root-transform.test.ts",
+          "tests/svg-root-transform-raster.e2e.test.ts",
           "src/render/svg-image-selector-engine.test.ts",
           "src/render/svg-image-selector-engine.ts",
           "src/render/svg-image-style-scope.test.ts",

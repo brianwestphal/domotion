@@ -1661,6 +1661,7 @@
         "src/render/svg-image-root-stylesheet.test.ts",
         "src/render/svg-image-root-stylesheet.ts",
         "src/render/svg-image-root-transform.test.ts",
+        "tests/svg-root-transform-raster.e2e.test.ts",
         "src/render/svg-image-selector-engine.test.ts",
         "src/render/svg-image-selector-engine.ts",
         "src/render/svg-image-style-scope.test.ts",

@@ -128,8 +128,8 @@ System font values remain platform-dependent. Registered custom properties,
 undecidable selectors/conditions and CSS-wide variable rollback are not
 guessed. If unavailable dynamic root font data prevents a transform from resolving,
 the image retains its raster path. A static transform independent of that font
-can still be lowered. General unsupported non-font transform fallback is a
-separate existing issue tracked by DM-KGD5KC.
+can still be lowered. Unresolved non-font transforms and undecidable root
+cascades also retain the source image fallback (DM-KGD5KC).
 
 Unit tests cover parsing, dimensional math, cascade, variable cycles and
 failure paths. Chromium E2Es compare image-document and inlined geometry, and

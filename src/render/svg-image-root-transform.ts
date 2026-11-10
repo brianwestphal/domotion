@@ -38,8 +38,8 @@
  * caller knows it. The font-metric units (`ex` / `cap` / `ch` / `ic` / `lh`
  * and their root forms) resolve through the caller's `fontMetric`, which reads
  * the root's primary font (`svg-image-root-font.ts`); without one they return
- * `"unsupported"`, so the caller keeps its previous output instead of painting
- * a guess.
+ * `"unsupported"`, so the caller retains the source image raster instead of
+ * painting a partial transform.
  */
 import { formatNumberLoose } from "./format.js";
 
