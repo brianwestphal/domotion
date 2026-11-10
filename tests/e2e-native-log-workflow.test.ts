@@ -1,5 +1,61 @@
 import { readFileSync } from "node:fs";
+import { parse } from "yaml";
 import { expect, it } from "vitest";
+
+type WorkflowStep = Record<string, unknown>;
+function macOsBrowserSteps(): WorkflowStep[] {
+  const workflow = parse(readFileSync(".github/workflows/ci.yml", "utf8")) as {
+    jobs: Record<string, { steps: WorkflowStep[] }>;
+  };
+  const job = workflow.jobs["visual-macos"];
+  expect(job).toBeDefined();
+  return job!.steps;
+}
+function verifyProjectiveEvidence(steps: WorkflowStep[]): void {
+  const producer = steps.find((step) => step["name"] === "Run browser-driven e2e tests (capture/layout assertions)");
+  const upload = steps.find((step) => step["name"] === "Upload visual and browser-E2E results");
+  expect(producer).toBeDefined();
+  expect(upload).toBeDefined();
+  expect(producer!["run"]).toBe("npm run test:e2e");
+  for (const step of [producer!, upload!]) {
+    expect(step["if"]).toBe("always()");
+    expect([undefined, false]).toContain(step["continue-on-error"]);
+  }
+  expect(String(upload!["uses"])).toMatch(/^actions\/upload-artifact@/);
+  const options = upload!["with"] as Record<string, unknown>;
+  expect(
+    String(options["path"])
+      .split(/\r?\n/)
+      .map((path) => path.trim()),
+  ).toContain("tests/output/webgl-projective-preflight/");
+  expect(options["if-no-files-found"]).toBe("error");
+  expect(steps.indexOf(upload!)).toBeGreaterThan(steps.indexOf(producer!));
+}
+
+it("DM-1MVXDB: retains projective source PNG/JSON after ordinary browser failures", () => {
+  verifyProjectiveEvidence(macOsBrowserSteps());
+});
+it("DM-1MVXDB: permits growing browser steps and artifact selections", () => {
+  const grown = structuredClone(macOsBrowserSteps());
+  grown.unshift({ name: "Additional native coverage", run: "echo synthetic-control" });
+  const upload = grown.find((step) => step["name"] === "Upload visual and browser-E2E results")!;
+  const options = upload["with"] as Record<string, unknown>;
+  options["path"] = String(options["path"]) + "\ntests/output/additional-native-evidence/\n";
+  verifyProjectiveEvidence(grown);
+});
+it.each(["missing-directory", "success-only-upload"])("DM-1MVXDB: rejects %s retention regression", (mutation) => {
+  const changed = structuredClone(macOsBrowserSteps());
+  const upload = changed.find((step) => step["name"] === "Upload visual and browser-E2E results")!;
+  if (mutation === "success-only-upload") upload["if"] = "success()";
+  else {
+    const options = upload["with"] as Record<string, unknown>;
+    options["path"] = String(options["path"])
+      .split(/\r?\n/)
+      .filter((path) => path.trim() !== "tests/output/webgl-projective-preflight/")
+      .join("\n");
+  }
+  expect(() => verifyProjectiveEvidence(changed)).toThrow();
+});
 
 it("DM-95ECD3: retains filtered lane logs and source failure artifacts in the ordinary macOS lane", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
