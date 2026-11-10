@@ -13,18 +13,65 @@ import {
   unlinkSync,
   renameSync,
   rmSync,
+  cpSync,
+  writeSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 import {
   cleanupAdapter,
   generatedWitness,
   githubOriginRepository,
   parseOptions,
-  runCommand,
+  runCommand as nativeRunCommand,
 } from "./verified-worktree-cleanup.mjs";
+
+let nativeCommands = 0;
+const gitOperations = new Set([
+  "init",
+  "config",
+  "add",
+  "commit",
+  "worktree",
+  "rev-parse",
+  "merge",
+  "cherry-pick",
+  "switch",
+  "remote",
+  "push",
+  "status",
+  "ls-files",
+  "merge-base",
+  "ls-remote",
+  "for-each-ref",
+  "stash",
+  "update-index",
+  "update-ref",
+  "show",
+  "diff",
+  "cat-file",
+  "check-ref-format",
+  "rev-list",
+  "symbolic-ref",
+]);
+function progress(value) {
+  if (process.env.DOMOTION_CLEANUP_TEST_PROGRESS === "1")
+    // Synchronous stderr survives a blocked event loop and Node's test-file
+    // supervisor. Never include command arguments, paths or environment values.
+    writeSync(2, `[cleanup-test] ${JSON.stringify(value)}\n`);
+}
+function runCommand(program, args, cwd, timeout, input) {
+  const index = ++nativeCommands;
+  const operation = program === "git" ? (args.find((arg) => gitOperations.has(arg)) ?? "other") : "node";
+  if (index <= 4096) progress({ nativeCommand: index, operation, phase: "start" });
+  const started = performance.now();
+  const result = nativeRunCommand(program, args, cwd, timeout, input);
+  if (result.error || result.status !== 0 || performance.now() - started > 1000)
+    progress({ nativeCommand: index, operation, phase: "returned", status: result.status, error: result.error?.code });
+  return result;
+}
 
 const TICKET = "DM-ABC123";
 const ID = "01M6ZNH24355GRR7NRVB9GWT2B";
@@ -36,12 +83,23 @@ const PROGRAM =
 const generatedFile = (program = PROGRAM) =>
   Buffer.from(`// Generated fixture\nexport const CAPTURE_SCRIPT: string = ${JSON.stringify(program)};\n`);
 
-function fixture(t, { legacy = false, cherryPick = false } = {}) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "dm-cleanup-test-")));
+const seeds = new Map();
+const seedRoots = new Set();
+after(() => {
+  for (const root of seedRoots) rmSync(root, { recursive: true, force: true });
+  progress({ phase: "complete", nativeCommands });
+});
+
+// Repositories are copied before any linked worktrees exist. Every test still
+// owns independent object files, refs, index, remote and native worktree/gate
+// operations; only identical initial history creation is shared as input.
+function prepareSeed({ legacy, cherryPick }) {
+  const key = `${legacy}:${cherryPick}`;
+  if (seeds.has(key)) return seeds.get(key);
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "dm-cleanup-seed-")));
+  seedRoots.add(root);
   const project = join(root, "project");
-  const store = join(root, "store");
   mkdirSync(project);
-  mkdirSync(store);
   const native = (program, args, cwd = project, timeout, input) => runCommand(program, args, cwd, timeout, input);
   const git = (...args) => {
     const result = native("git", ["-C", project, ...args]);
@@ -67,12 +125,12 @@ function fixture(t, { legacy = false, cherryPick = false } = {}) {
   git("add", ".");
   git("commit", "-m", "base");
   const branch = legacy ? "dm-abc123-reviewed" : "hs/dm-abc123";
-  const worktree = legacy ? join(project, ".claude", "worktrees", branch) : join(root, "domotion-hs-abc123");
-  git("worktree", "add", "-b", branch, worktree);
-  writeFileSync(join(worktree, "source.txt"), "integrated\n");
-  git("-C", worktree, "add", "source.txt");
-  git("-C", worktree, "commit", "-m", `${TICKET} fixture source`);
-  const source = git("-C", worktree, "rev-parse", "HEAD");
+  git("switch", "-c", branch);
+  writeFileSync(join(project, "source.txt"), "integrated\n");
+  git("add", "source.txt");
+  git("commit", "-m", `${TICKET} fixture source`);
+  const source = git("rev-parse", "HEAD");
+  git("switch", "main");
   if (cherryPick) {
     writeFileSync(join(project, "unrelated.txt"), "independent\n");
     git("add", "unrelated.txt");
@@ -84,6 +142,35 @@ function fixture(t, { legacy = false, cherryPick = false } = {}) {
   assert.equal(native("git", ["init", "--bare", remote]).status, 0);
   git("remote", "add", "origin", remote);
   git("push", "origin", "main");
+  assert.equal(existsSync(join(project, ".git", "worktrees")), false);
+  const seed = { root, project, remote, branch, source, shipping };
+  seeds.set(key, seed);
+  return seed;
+}
+
+function fixture(t, { legacy = false, cherryPick = false } = {}) {
+  progress({ phase: "fixture", case: t.name.slice(0, 192) });
+  const seed = prepareSeed({ legacy, cherryPick });
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "dm-cleanup-test-")));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const project = join(root, "project"),
+    store = join(root, "store"),
+    remote = join(root, "remote.git");
+  cpSync(seed.project, project, { recursive: true });
+  cpSync(seed.remote, remote, { recursive: true });
+  mkdirSync(store);
+  mkdirSync(join(root, "empty-hooks"));
+  const native = (program, args, cwd = project, timeout, input) => runCommand(program, args, cwd, timeout, input);
+  const git = (...args) => {
+    const result = native("git", ["-C", project, ...args]);
+    assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
+    return result.stdout.trim();
+  };
+  git("config", "core.hooksPath", join(root, "empty-hooks"));
+  git("remote", "set-url", "origin", remote);
+  const { branch, source, shipping } = seed;
+  const worktree = legacy ? join(project, ".claude", "worktrees", branch) : join(root, "domotion-hs-abc123");
+  git("worktree", "add", worktree, branch);
   const validation = join(root, "validation");
   git("worktree", "add", "--detach", validation, shipping);
   const review = {
@@ -222,9 +309,40 @@ function fixture(t, { legacy = false, cherryPick = false } = {}) {
   };
   state.adapter = cleanupAdapter(run);
   state.options = { project, store, worktree, shipping, ticket: TICKET, reviewNote: NOTE };
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   return state;
 }
+
+test("prepared Git fixtures retain independent objects, refs, remotes and worktree registrations", (t) => {
+  const first = fixture(t),
+    second = fixture(t);
+  const seed = prepareSeed({ legacy: false, cherryPick: false });
+  const object = join(".git", "objects", first.source.slice(0, 2), first.source.slice(2));
+  const identities = [first.project, second.project, seed.project].map((project) => {
+    const stat = lstatSync(join(project, object));
+    assert.equal(stat.nlink, 1, "copied Git objects must never be hardlinked");
+    return `${stat.dev}:${stat.ino}`;
+  });
+  assert.equal(new Set(identities).size, 3);
+  assert.equal(first.git("remote", "get-url", "origin"), join(first.project, "..", "remote.git"));
+  assert.equal(second.git("remote", "get-url", "origin"), join(second.project, "..", "remote.git"));
+  for (const own of [first, second]) {
+    const registrations = own.git("worktree", "list", "--porcelain");
+    assert.ok(registrations.includes(own.worktree));
+    assert.ok(registrations.includes(own.validation));
+    assert.ok(!registrations.includes(seed.root));
+    assert.ok(!registrations.includes(own === first ? second.project : first.project));
+  }
+  first.git("branch", "fixture-only-branch");
+  assert.equal(second.git("for-each-ref", "refs/heads/fixture-only-branch"), "");
+  assert.equal(
+    runCommand("git", ["-C", seed.project, "for-each-ref", "refs/heads/fixture-only-branch"], seed.project).stdout,
+    "",
+  );
+  writeFileSync(join(first.worktree, "source.txt"), "only first fixture changes\n");
+  assert.equal(readFileSync(join(second.worktree, "source.txt"), "utf8"), "integrated\n");
+  gate(second);
+  preserved(second);
+});
 
 function gate(f) {
   return f.adapter.gate({ project: f.project, shipping: f.shipping, validation: f.validation });
