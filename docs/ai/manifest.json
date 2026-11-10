@@ -1118,6 +1118,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "tests/real-world-browser.ts",
+        "tests/real-world-process-lifetime.ts",
+        "tests/real-world-process-lifetime.test.ts",
         "tests/real-world-cdp.ts",
         "tests/real-world-shared-worker-bootstrap.ts",
         "tools/check-worker-bootstrap-report.ts",

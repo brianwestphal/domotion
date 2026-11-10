@@ -28,6 +28,8 @@ tickets:
 code:
   [
     "tests/real-world-browser.ts",
+    "tests/real-world-process-lifetime.ts",
+    "tests/real-world-process-lifetime.test.ts",
     "tests/real-world-cdp.ts",
     "tests/real-world-shared-worker-bootstrap.ts",
     "tools/check-worker-bootstrap-report.ts",
@@ -234,6 +236,16 @@ platform/ref, a non-headless-shell launch, or escaped cached-native pixels. It
 measures browser transport and ownership, not font shaping/helper precision or
 the full visual regression. Local macOS success is not Linux/Windows native
 validation.
+
+Linux host-lifetime checks retain separate `process-lifetime-SIGTERM.json` and
+`process-lifetime-SIGKILL.json` witnesses beside the bootstrap fingerprint.
+They record only bounded PID/state/start-time transitions and the tested signal.
+The original PID must be gone, terminal (`Z`/`X`), or demonstrably reused with a
+different opaque `/proc/PID/stat` start-time token; a live or unreadable identity
+still fails. Cleanup never signals a terminal, reused or unknown identity.
+This distinguishes process execution from an allocated PID without attributing
+an earlier unobserved failure to a zombie. See the
+[Linux proc ABI](https://docs.kernel.org/filesystems/proc.html#process-specific-subdirectories).
 
 For the broader suite, dispatch **Fast visual tests (all platforms)** from Actions, selecting one
 platform for focused work or `all` for a release/parity pass.
