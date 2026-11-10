@@ -1367,6 +1367,13 @@ function resolvePageRegisteredFamilyKey(candidate: FamilyCandidate): FamilyStage
   return undefined;
 }
 
+/** Blink rejects dot-prefixed installed names before its macOS family/unique
+ * matcher (font_cache_mac.mm:399–405, Chromium7d859f27). Registered author
+ * faces are resolved earlier and may legitimately use these same names. */
+function resolveDarwinInstalledFamilyVisibility(candidate: FamilyCandidate): FamilyStageVerdict {
+  return hostPlatform() === "darwin" && candidate.lookupName.startsWith(".") ? null : undefined;
+}
+
 /**
  * Linux declared-family nomination: `FontFallbackList::GetFontData` asking fontconfig per name.
  */
@@ -1653,11 +1660,11 @@ function resolveCalibratedSansSerifFamilyKey(candidate: FamilyCandidate): Family
 }
 
 /**
- * The platform UI font: `system-ui`, `BlinkMacSystemFont` and the SF Pro names.
+ * The platform UI font and optional named SF optical cuts.
  */
 function resolveSystemUiFamilyKey(candidate: FamilyCandidate): FamilyStageVerdict {
   const { name, canonicalSystemUiName, description } = candidate;
-  // system-ui / BlinkMacSystemFont / "SF Pro" → SF Pro.
+  // system-ui / BlinkMacSystemFont → the platform UI face.
   // These keywords mean "the platform UI font", which on modern macOS is
   // San Francisco. NOTE: `-apple-system` is INTENTIONALLY excluded —
   // empirical probe (DM-291) on the current Chromium build shows bare
@@ -1734,7 +1741,9 @@ function resolveSystemUiFamilyKey(candidate: FamilyCandidate): FamilyStageVerdic
   if (name === "blinkmacsystemfont") {
     return hostPlatform() === "darwin" ? "sf-pro" : null;
   }
-  if (name === "sf pro") return "sf-pro";
+  // Literal "SF Pro" is an ordinary installed family, not a system-ui
+  // alias. Let the native installed-family stage select it only when the
+  // host exposes it (including optional user-installed Apple font packages).
   // DM-1127 REVERSED (DM-1659): "SF Pro Text" / "SF Pro Display" resolve to the
   // SYSTEM font `SFNS.ttf` (the `sf-pro` key, opsz-pinned to the Text cut via
   // `OPTICAL_CUT_OPSZ`/DM-1103) — NOT the standalone `/Library/Fonts/SF-Pro-*.otf`.
@@ -2041,6 +2050,7 @@ const FAMILY_CANDIDATE_STAGES: ReadonlyArray<(candidate: FamilyCandidate) => Fam
   resolvePerScriptGenericFamilyKey,
   resolveSessionProbedGenericFamilyKey,
   resolvePageRegisteredFamilyKey,
+  resolveDarwinInstalledFamilyVisibility,
   resolveLinuxNominatedFamilyKey,
   resolveCalibratedMonospaceFamilyKey,
   resolveCalibratedSerifFamilyKey,

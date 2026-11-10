@@ -251,6 +251,17 @@ installed on the capture host. For example, `Helvetica Neue` is a distinct face
 on macOS but is skipped on stock Windows, allowing the next declared family to
 become primary just as Blink's family iterator does.
 
+On macOS, installed names beginning with `.` are unavailable before any native
+family or unique-name matching (`FontCache::CreateFontPlatformData`,
+`mac/font_cache_mac.mm:399–405`, Chromium `7d859f27`; DM-7CF671). This gate comes
+after registered author faces, whose family names may legitimately be `".SF NS"`.
+AppKit exposing a hidden member does not override Blink's earlier visibility
+decision. Literal `"SF Pro"` uses the ordinary installed-family route, so an
+optional user-installed family is preserved and an absent family walks on.
+`system-ui` and `BlinkMacSystemFont` keep their dedicated UI-font routing.
+Linux and Windows use their native installed-family rules without this macOS
+dot-name gate.
+
 `resolveFont` applies the same availability rule when turning that key into the
 primary `FontInstance`: recognition by a generated name table is not proof that
 the sampled face exists on the current host. If `getFontInstance` cannot load a
@@ -519,6 +530,7 @@ flowchart TD
   M -->|"generic + lang + no usable probe"| ST["static Playwright forScripts entry<br/>FirstAvailableOrFirst"]
   M -->|"generic + probed Common answer"| PC["resolve painted family as literal<br/>else fall through"]
   M -->|"webfontRegistry.has(name)"| R1["webfont:&lt;name&gt;"]
+  M -->|"after registered author faces:<br/>darwin installed name starts with dot"| RV["unavailable → next stack entry"]
   M -->|"localFontAliasRegistry.has(name)"| R2["localalias:&lt;name&gt;"]
   M -->|"linux, walk armed, non-generic name"| W{"transcribed nomination walk:<br/>matchFamilyName(name) →<br/>reject: retry blinkAlternateFamilyName(name)"}
   W -->|"accepted"| WA["sysfb:&lt;psName&gt; of matched face<br/>+ declaredFamilyForKey = ACCEPTED spelling"]
@@ -539,7 +551,7 @@ flowchart TD
   M -->|"sans-serif · helvetica"| R15["helvetica"]
   M -->|"arial"| R16["arial"]
   M -->|"arial unicode ms"| R17["u-arial-unicode-ms"]
-  M -->|"system-ui · sf pro ·<br/>blinkmacsystemfont (darwin only —<br/>style_builder_converter.cc rewrite is IS_MAC;<br/>off-darwin: null → SKIP)"| R18["sf-pro"]
+  M -->|"system-ui ·<br/>blinkmacsystemfont (darwin only —<br/>style_builder_converter.cc rewrite is IS_MAC;<br/>off-darwin: null → SKIP)"| R18["sf-pro"]
   M -->|"sf pro text · sf pro display"| R19["calibrated sf-pro candidate<br/>then exact macOS descriptor preservation"]
   M -->|"hiragino sans · hiragino kaku gothic …"| R20["calibrated hiragino-jp candidate<br/>then exact macOS descriptor preservation"]
   M -->|"ui-monospace · ui-serif · ui-rounded · ui-sans-serif ·<br/>math · emoji · fangsong · -apple-system"| RN["null → SKIP to next name"]
