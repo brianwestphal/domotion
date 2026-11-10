@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV"]
+tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV", "DM-7P69DC"]
 code:
   [
     "src/render/element-tree-to-svg.ts",
@@ -15,6 +15,10 @@ code:
     "tests/capture-selected-shadow-root.e2e.test.ts",
     "tests/box-shadow-border-knockout.e2e.test.ts",
     "tests/box-shadow-native-contour-authority.e2e.test.ts",
+    "tests/capture-inset-shadow-root-paint-space.e2e.test.ts",
+    "src/capture/inset-root-shadow-context.ts",
+    "src/capture/inset-root-shadow-context.test.ts",
+    "tests/inset-root-shadow-context.e2e.test.ts",
     "src/capture/input-value-geometry.ts",
     "src/capture/native-control-raster.ts",
     "src/capture/pseudo-style-cdp.test.ts",
@@ -137,97 +141,61 @@ already supported.
 
 ### Contour authority investigation (DM-H5DDDE)
 
-The native 147 contour investigation preserves the exact source geometry and
-full RGBA assertions. Its 20×20 transparent box at (20,20), with a red hard
-shadow offset (4,4), distinguishes these residuals:
+The [native contour investigation](../277-shadow-contour-authority.md) retains
+source geometry, full-RGBA measurements and strict unresolved producer probes.
+The repaired knockout does not establish elliptical/unequal contour parity,
+subpixel paint-space authority or a universal raster floor. DM-ZNQ7PH,
+DM-WYY3ZZ, DM-5KSA83 and DM-TFN8RD own those remaining producer gaps.
+DM-09GQAV omits the native-empty coincident normal shadow; it does not change
+positive-inset production. Root admission remains separately guarded below.
 
-| Contour         |            Before J2 | After J2 | Attribution                                                                                      |
-| --------------- | -------------------: | -------: | ------------------------------------------------------------------------------------------------ |
-| `8px / 4px`     | 251 differing pixels |        4 | Three outer pixels are byte-identical to the old producer; one inner inverse-mask pixel remains. |
-| `8px 0 3px 5px` |                  251 |        1 | The outer pixel is byte-identical to the old producer.                                           |
+### Fractional inset admission boundary (DM-7P69DC)
 
-For the ellipse, the native outer pixels (42,26), (25,41), (42,41) have red
-alpha255; both producers have alpha248. The inner (38,37) is transparent in
-Chromium, alpha255 before J2, and alpha7 afterward. The unequal contour's
-outer (26,42) is native alpha255 versus producer alpha252. These measurements
-do not establish a generic raster floor or justify moving a radius/position.
+New shadow-only inset roots require an integral border rectangle and an
+unambiguous ordinary HTML paint space. A single root fragment is required;
+root bounds retain their captured values. Fractional origins or sizes refuse
+this admission rather than round DOM geometry. Ancestor origins must also be
+integral, and transforms (including identity authored transforms and independent
+translate/rotate/scale), perspective, motion paths, non-unit zoom, filters,
+sticky positioning and prospective `will-change` paint spaces remain outside
+this new admission. Shadow-host ancestry is checked as well as ordinary DOM
+parents. Independently painted/content roots keep their existing route, and
+unsupported transparent hosts still flatten to their painted children.
 
-The native paint log records a soft difference `clipRRect` on the source box,
-then `drawRRect` with the shadow looper. Plain CSS and SVG ellipses at the
-translated shadow location are byte-identical, while the CSS shadow differs
-from that plain contour at the three outer pixels. A CSS background in SVG
-`foreignObject` also matches the plain CSS contour. Canvas2D `roundRect`, with
-or without a zero-blur native canvas shadow, does not recover those native CSS
-shadow pixels. Therefore replacing an SVG path with a rounded-rect primitive,
-or independently rasterizing only the contour, is not an established repair.
-The coupled CSS clip/shadow paint remains the authority; the precise downstream
-coverage mechanism has not been attributed. DM-ZNQ7PH owns the demonstrated old
-outer contour coverage repair; DM-H5DDDE closes only the investigation scope.
+Page DOM ancestry alone is insufficient: open and closed slotted author trees
+can hide the same0.5px transform, with the closed case exposing neither
+`assignedSlot` nor `shadowRoot`. Candidate-only public CDP reads the complete
+pierced document, including empty closed hosts. Its private fact binds the
+actual selected Element, owner Document and context; author-host chains,
+missing/unknown provenance or element replacement refuse the new route.
+Preparation/disposal use Node-owned bounds and retain late-session/key cleanup.
+The fact describes its source prepass, not arbitrary live-JS atomicity, and is
+not an authority for unrelated raster owners or foreign-paint isolation.
 
-A separate coincident-contour control (`box-shadow:0 0 0 red`) exposed
-DM-09GQAV: Chromium paints zero RGBA bytes for sharp, circular, elliptical and
-unequal contours, whereas the initial J2 inverse mask left34 circular pixels
-(max alpha64, alpha sum1211), and40 elliptical pixels (max alpha62).
-DM-09GQAV skips the all-zero normal shadow before generating its shape/mask:
-the shadow-minus-source-border set is empty. Native full RGBA controls include
-sharp/circular/elliptical/unequal corners, fractional source placement and
-opaque/semitransparent backgrounds. Genuine integer offsets and nonzero spread
-retain their existing exact controls. No general contour, geometry or tolerance
-change is part of that repair.
+This is an eligibility boundary, not an inset producer repair. Native Chromium
+147 evidence at a 20.5px margin, 20×20 box and `inset 0 0 0 3px red` differs by
+136 full-RGBA pixels (max alpha192) for sharp corners and148 (max181) for
+radius5. A fractional20.5px size at integer origin differs70 (max192).
+Local20.5px positioning followed by an own or ancestor0.5px translation gives
+integer viewport bounds `(21,21,20,20)` but still differs134 pixels (max255).
+Therefore viewport-integral bounds alone cannot authorize the shadow path.
+Ordinary integral sharp/rounded controls remain byte-exact. Source DOM values
+and the existing container renderer remain unchanged, including its measured
+preexisting failure; no broad rendering correctness claim follows from refusal.
 
-Bounded adversaries also prove why new outset/mixed admission stays held.
-At integer source origin, circular subpixel offsets `(0.5,0)` and `(0,0.5)`
-retain3/4 differing pixels (maximum alpha4/10). An inverse clipPath replacement
-regresses the exact integer-offset controls and is rejected. Separately,
-DM-WYY3ZZ owns source paint geometry: for a box at DOM `(20.5,20.5)`, native CDP
-records normal-shadow `clipRRect` and `drawRRect` at `(21,21)`, matching Blink's
-`PixelSnappedContouredBorder`; capture correctly retains the DOM rectangle,
-but the current shadow producer lacks that distinct paint rectangle. The
-fractional circular horizontal control differs87 pixels (max alpha167), and
-the sharp one differs80 (max191). Blanket rounding captured coordinates would
-not establish local-paint/transform authority.
-
-The independent positive-inset control at margin20.5, `inset 0 0 0 3px red`,
-also differs for selected-root and container capture:136 pixels/max alpha192
-for sharp corners and148/max181 for radius5. Blink's inset entry points use
-`PixelSnappedContouredInnerBorder` or
-`PixelSnappedContouredBorderWithOutsets`. DM-7P69DC owns the selected-root guard;
-DM-8N1VB2 owns the producer repair. Empty-inset controls do not authenticate
-positive-inset fractional coverage. DM-09GQAV changes no inset production code.
-
-DM-TFN8RD tracks a 20×20 box at (20,20), radius 5px and
-`box-shadow:0 0 0 -.125px red`: native alpha sum 933 versus SVG 1095,
-24 differing RGBA pixels/max alpha difference 25. Sharp corners are exact.
-The nontransparent circular native result excludes extending the all-zero skip;
-the cause remains unresolved.
-
-Linux/Windows native workflows select knockout, contour-authority, selected-root,
-range-shadow and resize-handle suites with 54 passing assertions and zero skips.
-
-Native contracts live in `tests/box-shadow-native-contour-authority.e2e.test.ts`. Strict producer
-probes remain unchanged outside ordinary discovery at
-`tests/investigations/dm-h5ddde-strict-contours.probe.txt`; to execute them, copy
-that file to `tests/dm-h5ddde-strict-contours.e2e.test.ts`, run it with
-`vitest.e2e.config.ts`, and remove the temporary copy. Its ellipse and unequal
-full-pixel assertions intentionally fail until an authenticated repair exists.
-No failing probe is in the required browser profile and no tolerance was added.
-
-```sh
-node node_modules/vitest/vitest.mjs run --config vitest.e2e.config.ts tests/box-shadow-native-contour-authority.e2e.test.ts
-```
-
-Source provenance is Chromium147 revision
-`6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`, whose DEPS pins Skia
-`fd139e79fd4553ba16556c1bca6c0f4dd9bc6fa5`, rather than the older materialized
-external Skia snapshot. See
-[BoxPainterBase](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/paint/box_painter_base.cc),
-[GraphicsContext](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/platform/graphics/graphics_context.cc),
-[SVGShapePainter](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/paint/svg_shape_painter.cc),
-[DrawLooper](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/cc/paint/draw_looper.cc)
-and [SkCanvas](https://skia.googlesource.com/skia/+/fd139e79fd4553ba16556c1bca6c0f4dd9bc6fa5/src/core/SkCanvas.cpp).
-The source clip precedes normal-shadow drawing; the zero-blur looper has no
-blur mask filter. Neither fact alone identifies backend coverage arithmetic.
-All measurements above are native macOS evidence, not a Linux/Windows result.
+The exact upstream source is Chromium
+`6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`:
+`BoxPainterBase::PaintInsetBoxShadowWithBorderRect` calls
+`PixelSnappedContouredInnerBorder`, which delegates to
+`ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets` (lines207–254
+in `core/paint/contoured_border_geometry.cc`). It rounds the local physical
+origin and snaps size allowing zero before deriving rounded-border radii.
+Capture's layout rectangle does not provide that separate paint-space basis.
+DM-8N1VB2 tracks obtaining authenticated inset paint geometry and repairing the
+producer; the related normal-shadow paint rectangle has its own measured record
+under DM-WYY3ZZ. These are distinct from this selected-root eligibility guard.
+Native verification here is macOS evidence; Linux/Windows execution is not
+implied by the platform-neutral Blink rule.
 
 ## Structural form-control failure boundaries
 

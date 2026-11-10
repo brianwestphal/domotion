@@ -1,0 +1,697 @@
+{
+  "baseline": "d9e1355c4983db81b3f23a165597b1f8693a2dfc",
+  "chromium": "6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050",
+  "source": {
+    "path": "third_party/blink/renderer/core/paint/contoured_border_geometry.cc",
+    "localPath": "/private/tmp/dm-7p69dc-contoured-border-geometry.cc",
+    "sha256": "24830dab3c718f430ed4938e24202dbc51a05c0ee8632ecf5e9ab47d51ef0cb6",
+    "lines": [207, 254]
+  },
+  "generatedCaptureFunctionalSha256": "bd40b58d43663bb155cdd06e86d1c461d114dca6928c1763271822f92cee49ad",
+  "scope": "Conservative selected-root shadow admission only; existing container/renderer/DOMgeometry unchanged.",
+  "gate": {
+    "typecheckAndBuild": {
+      "task": 264,
+      "passed": true,
+      "subsequentTaskFailure": "evidence JSON formatting, corrected without code change"
+    },
+    "remaining": {
+      "task": 267,
+      "result": "Success",
+      "engineUnitsPassed": 1800,
+      "engineUnitsSkipped": 57,
+      "transportPassed": 3,
+      "rootUnitsPassed": 5657,
+      "rootUnitsSkipped": 4,
+      "nativePassed": 37,
+      "docs": 276
+    }
+  },
+  "limits": [
+    "Unsupported selected-root after images show intentional refusal, not native rendering parity; attach only as reference.",
+    "All10 native source AND existing-container PNGs are byte-identical across before/after.",
+    "Ordinary integral sharp/rounded source/output controls remain fullRGBA exact.",
+    "Identity authored transforms are conservatively refused despite this baseline control being exact; no general mapping authority claimed.",
+    "Remaining positive-inset producer repair: DM-8N1VB2, related normal-shadow authority: DM-WYY3ZZ.",
+    "Machine-local paths below identify retained diagnostic artifacts, not portable runtime requirements.",
+    "macOS execution only; no Linux/Windows native result claimed.",
+    "Positive-inset nonordinary contour eligibility is a separate source/native investigation DM-0TRG51; no failure inferred from normal-shadow or zero-inset controls."
+  ],
+  "preservation": [
+    {
+      "name": "integral-sharp",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 0,
+        "maxAlpha": 0
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 0,
+        "maxAlpha": 0
+      }
+    },
+    {
+      "name": "integral-rounded",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 0,
+        "maxAlpha": 0
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 0,
+        "maxAlpha": 0
+      }
+    },
+    {
+      "name": "fractional-sharp",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 136,
+        "maxAlpha": 192
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 0,
+        "changed": 204,
+        "maxAlpha": 255
+      }
+    },
+    {
+      "name": "fractional-rounded",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 148,
+        "maxAlpha": 181
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 0,
+        "changed": 206,
+        "maxAlpha": 255
+      }
+    },
+    {
+      "name": "fractional-size",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 70,
+        "maxAlpha": 192
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 0,
+        "changed": 216,
+        "maxAlpha": 255
+      }
+    },
+    {
+      "name": "local-fractional-integral-viewport",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 134,
+        "maxAlpha": 255
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 0,
+        "changed": 231,
+        "maxAlpha": 255
+      }
+    },
+    {
+      "name": "ancestor-fractional-integral-viewport",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 134,
+        "maxAlpha": 255
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 0,
+        "changed": 231,
+        "maxAlpha": 255
+      }
+    },
+    {
+      "name": "ancestor-identity-integral",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 0,
+        "maxAlpha": 0
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 0,
+        "changed": 204,
+        "maxAlpha": 255
+      }
+    },
+    {
+      "name": "fractional-independent-background",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 136,
+        "maxAlpha": 192
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 136,
+        "maxAlpha": 192
+      }
+    },
+    {
+      "name": "fractional-child-content",
+      "sourceAndContainerPngUnchanged": true,
+      "before": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 140,
+        "maxAlpha": 192
+      },
+      "after": {
+        "selector": "#only",
+        "roots": 1,
+        "changed": 193,
+        "maxAlpha": 255
+      }
+    }
+  ],
+  "files": [
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/ancestor-fractional-integral-viewport-container.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/ancestor-fractional-integral-viewport-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/ancestor-fractional-integral-viewport-only.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/ancestor-identity-integral-container.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/ancestor-identity-integral-expected.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/ancestor-identity-integral-only.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-child-content-container.png",
+      "bytes": 496,
+      "sha256": "a4a975f48e6fbe3e0102498f9dd6fec8698aadc44b632c2ecfb7fd3d5a6e31cd"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-child-content-expected.png",
+      "bytes": 380,
+      "sha256": "ce0944d62adaf7fd46b4979db8268d5c3fb6a4a58b506e99be6123e6a097cff2"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-child-content-only.png",
+      "bytes": 496,
+      "sha256": "a4a975f48e6fbe3e0102498f9dd6fec8698aadc44b632c2ecfb7fd3d5a6e31cd"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-independent-background-container.png",
+      "bytes": 454,
+      "sha256": "2409928cdbc5b77650e5abf1676835244e000c74df38ca0b592c4a465c2f6a0e"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-independent-background-expected.png",
+      "bytes": 357,
+      "sha256": "2e4e9bb839cb27d310dcd6dfaeba794eb3608eb88c88558451a8e7ce7d3ce87d"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-independent-background-only.png",
+      "bytes": 454,
+      "sha256": "2409928cdbc5b77650e5abf1676835244e000c74df38ca0b592c4a465c2f6a0e"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-rounded-container.png",
+      "bytes": 610,
+      "sha256": "9383ed42cbc3d656ff724bc883fdf5eae1efd1c1b8b926d50884c629caf8a2c5"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-rounded-expected.png",
+      "bytes": 570,
+      "sha256": "bf69087f792d8c41d6997f3b026662ab649d6a75ff3fd16f91ccbbd037f6dba8"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-rounded-only.png",
+      "bytes": 610,
+      "sha256": "9383ed42cbc3d656ff724bc883fdf5eae1efd1c1b8b926d50884c629caf8a2c5"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-sharp-container.png",
+      "bytes": 411,
+      "sha256": "aebf97d18b7474b567958fa861afd40fc11ce0564228a9bd11b0b0d8427a071c"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-sharp-expected.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-sharp-only.png",
+      "bytes": 411,
+      "sha256": "aebf97d18b7474b567958fa861afd40fc11ce0564228a9bd11b0b0d8427a071c"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-size-container.png",
+      "bytes": 373,
+      "sha256": "d9904a56ed6bb36715da6bad39d5e8cce66e0a8ba35d4b96a3f7cbfcfa26fed0"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-size-expected.png",
+      "bytes": 359,
+      "sha256": "eba77f15260157071419eef3603f8cc3c9bf7bee615519896b2f47db997e07eb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/fractional-size-only.png",
+      "bytes": 373,
+      "sha256": "d9904a56ed6bb36715da6bad39d5e8cce66e0a8ba35d4b96a3f7cbfcfa26fed0"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/integral-rounded-container.png",
+      "bytes": 568,
+      "sha256": "eb9713775bd8e87874bc448f2558c12caf84672415d29e95c809658b59e11835"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/integral-rounded-expected.png",
+      "bytes": 568,
+      "sha256": "eb9713775bd8e87874bc448f2558c12caf84672415d29e95c809658b59e11835"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/integral-rounded-only.png",
+      "bytes": 568,
+      "sha256": "eb9713775bd8e87874bc448f2558c12caf84672415d29e95c809658b59e11835"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/integral-sharp-container.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/integral-sharp-expected.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/integral-sharp-only.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/local-fractional-integral-viewport-container.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/local-fractional-integral-viewport-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/local-fractional-integral-viewport-only.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-before/metrics.json",
+      "bytes": 15731,
+      "sha256": "27173815977bafa9c7d7cdda508c211831e84d5efe18525f8df880bdec667c57"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/ancestor-fractional-integral-viewport-container.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/ancestor-fractional-integral-viewport-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/ancestor-fractional-integral-viewport-only.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/ancestor-identity-integral-container.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/ancestor-identity-integral-expected.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/ancestor-identity-integral-only.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-child-content-container.png",
+      "bytes": 496,
+      "sha256": "a4a975f48e6fbe3e0102498f9dd6fec8698aadc44b632c2ecfb7fd3d5a6e31cd"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-child-content-expected.png",
+      "bytes": 380,
+      "sha256": "ce0944d62adaf7fd46b4979db8268d5c3fb6a4a58b506e99be6123e6a097cff2"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-child-content-only.png",
+      "bytes": 366,
+      "sha256": "1dbe383a86aa6918dfb3730a49e5804eb118fd7da33b2e30f289477a17ff87c1"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-independent-background-container.png",
+      "bytes": 454,
+      "sha256": "2409928cdbc5b77650e5abf1676835244e000c74df38ca0b592c4a465c2f6a0e"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-independent-background-expected.png",
+      "bytes": 357,
+      "sha256": "2e4e9bb839cb27d310dcd6dfaeba794eb3608eb88c88558451a8e7ce7d3ce87d"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-independent-background-only.png",
+      "bytes": 454,
+      "sha256": "2409928cdbc5b77650e5abf1676835244e000c74df38ca0b592c4a465c2f6a0e"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-rounded-container.png",
+      "bytes": 610,
+      "sha256": "9383ed42cbc3d656ff724bc883fdf5eae1efd1c1b8b926d50884c629caf8a2c5"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-rounded-expected.png",
+      "bytes": 570,
+      "sha256": "bf69087f792d8c41d6997f3b026662ab649d6a75ff3fd16f91ccbbd037f6dba8"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-rounded-only.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-sharp-container.png",
+      "bytes": 411,
+      "sha256": "aebf97d18b7474b567958fa861afd40fc11ce0564228a9bd11b0b0d8427a071c"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-sharp-expected.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-sharp-only.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-size-container.png",
+      "bytes": 373,
+      "sha256": "d9904a56ed6bb36715da6bad39d5e8cce66e0a8ba35d4b96a3f7cbfcfa26fed0"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-size-expected.png",
+      "bytes": 359,
+      "sha256": "eba77f15260157071419eef3603f8cc3c9bf7bee615519896b2f47db997e07eb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/fractional-size-only.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/integral-rounded-container.png",
+      "bytes": 568,
+      "sha256": "eb9713775bd8e87874bc448f2558c12caf84672415d29e95c809658b59e11835"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/integral-rounded-expected.png",
+      "bytes": 568,
+      "sha256": "eb9713775bd8e87874bc448f2558c12caf84672415d29e95c809658b59e11835"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/integral-rounded-only.png",
+      "bytes": 568,
+      "sha256": "eb9713775bd8e87874bc448f2558c12caf84672415d29e95c809658b59e11835"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/integral-sharp-container.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/integral-sharp-expected.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/integral-sharp-only.png",
+      "bytes": 359,
+      "sha256": "e590a12519b75fa5e78ffc4c818925ee27b3c49b795a3c0af47ed3c495b7c989"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/local-fractional-integral-viewport-container.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/local-fractional-integral-viewport-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/local-fractional-integral-viewport-only.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/metrics.json",
+      "bytes": 15736,
+      "sha256": "6d3e813fa1eb14dc3fc3212c78b1462ba3330babe45fa30c21941350724bb54c"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-after/preservation.json",
+      "bytes": 3125,
+      "sha256": "455b2529884d3d5590ff9858eff28e8647d62b89a6096414e871b3ac04cf4ab1"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted/closed-actual.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted/closed-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted/metrics.json",
+      "bytes": 930,
+      "sha256": "1a5f658b96e6c3fe249fec828529a3a02ac56775abda923be92ce3b37b0cd7a1"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted/open-actual.png",
+      "bytes": 359,
+      "sha256": "2161d796b70c950a7a5ef913f800b4e47782436f5c6cb1fd8dd37bdc9060186b"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted/open-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted-after/closed-actual.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted-after/closed-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted-after/metrics.json",
+      "bytes": 930,
+      "sha256": "d051f6f716d2b1329479bc7a8242f4ef8d11deaee7a6b7bd11a090dd7ea2e601"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted-after/open-actual.png",
+      "bytes": 312,
+      "sha256": "82a3bcdb75d7a3682e61c6243dcdc630dd703975850d1db108d19cc954833dcb"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-slotted-after/open-expected.png",
+      "bytes": 391,
+      "sha256": "65b38a36eba6b8fdaa00ad16e34499625869abc252eaaf32f994e8fc223f1360"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-shadow-document/closed.json",
+      "bytes": 5249,
+      "sha256": "fa22b238de65590078a0b468a9db7f96273066940d11a5ea173401eab2cb235f"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-shadow-document/empty-closed.json",
+      "bytes": 3588,
+      "sha256": "fbaec7923683c5d13a7e8935dff71ee3a2cee2337d75242e892c8be0bc98423a"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-shadow-document/none.json",
+      "bytes": 3126,
+      "sha256": "d1ba4076a919c6888f678b804c96b67a8fa445bccd44c13a66c1bd40aab209e1"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-shadow-document/open.json",
+      "bytes": 5272,
+      "sha256": "d2f970a3a096acad1ee0658284cd81c73d525abe5ef54e6195d828c5321d5d85"
+    },
+    {
+      "localPath": "/private/tmp/dm-7p69dc-shadow-document/timing.json",
+      "bytes": 731,
+      "sha256": "a6620202976d4c78a494096ffb3ec52db4ef9d58df4705ed500e1877d8f0bb5a"
+    }
+  ],
+  "provenance": {
+    "source": "domotion-inset-root-shadow-context-v1",
+    "binding": "Private actual Element, owner Document/context and owner key; CDP describes registry.root directly",
+    "missingUnknownReplacement": "Refuse new shadow-only admission",
+    "clock": "Node-owned deadline, bounded owned registry/session cleanup and late-delivery handling",
+    "scope": "Selected root chain only; never foreign raster-isolation authority or arbitrary live-JS atomicity"
+  },
+  "slotted": {
+    "beforeStage": "Initial DOM-parent-only guard prototype after249; no unchanged-main regression claim",
+    "before": [
+      {
+        "facts": {
+          "mode": "open",
+          "rect": {
+            "x": 21,
+            "y": 21,
+            "width": 20,
+            "height": 20,
+            "top": 21,
+            "right": 41,
+            "bottom": 41,
+            "left": 21
+          },
+          "assignedSlotObservable": true,
+          "shadowRootObservable": true,
+          "parentTransform": "none",
+          "actualWrapperTransform": "matrix(1, 0, 0, 1, 0.5, 0.5)"
+        },
+        "roots": 1,
+        "changed": 134,
+        "maxAlpha": 255
+      },
+      {
+        "facts": {
+          "mode": "closed",
+          "rect": {
+            "x": 21,
+            "y": 21,
+            "width": 20,
+            "height": 20,
+            "top": 21,
+            "right": 41,
+            "bottom": 41,
+            "left": 21
+          },
+          "assignedSlotObservable": false,
+          "shadowRootObservable": false,
+          "parentTransform": "none",
+          "actualWrapperTransform": "matrix(1, 0, 0, 1, 0.5, 0.5)"
+        },
+        "roots": 1,
+        "changed": 134,
+        "maxAlpha": 255
+      }
+    ],
+    "after": [
+      {
+        "facts": {
+          "mode": "open",
+          "rect": {
+            "x": 21,
+            "y": 21,
+            "width": 20,
+            "height": 20,
+            "top": 21,
+            "right": 41,
+            "bottom": 41,
+            "left": 21
+          },
+          "assignedSlotObservable": true,
+          "shadowRootObservable": true,
+          "parentTransform": "none",
+          "actualWrapperTransform": "matrix(1, 0, 0, 1, 0.5, 0.5)"
+        },
+        "roots": 0,
+        "changed": 231,
+        "maxAlpha": 255
+      },
+      {
+        "facts": {
+          "mode": "closed",
+          "rect": {
+            "x": 21,
+            "y": 21,
+            "width": 20,
+            "height": 20,
+            "top": 21,
+            "right": 41,
+            "bottom": 41,
+            "left": 21
+          },
+          "assignedSlotObservable": false,
+          "shadowRootObservable": false,
+          "parentTransform": "none",
+          "actualWrapperTransform": "matrix(1, 0, 0, 1, 0.5, 0.5)"
+        },
+        "roots": 0,
+        "changed": 231,
+        "maxAlpha": 255
+      }
+    ],
+    "sourcePngsByteIdentical": true
+  }
+}

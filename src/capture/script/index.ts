@@ -364,7 +364,7 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
   // walker/counter-prewalk.ts — DM-1086.)
   _runCounterStylePrewalk();
 
-  const result = captureRootElements(root, capture, nonAffineProjectiveRoots);
+  const result = captureRootElements(root, capture, nonAffineProjectiveRoots, args.insetRootShadowContextKey);
   attachRootPayloads(result, args, {
     maskDefs: _maskDefs,
     clipPathDefs: _clipPathDefs,

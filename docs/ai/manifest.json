@@ -4524,6 +4524,20 @@
       "file": "275-playwright-zip-reader-investigation.md"
     },
     {
+      "id": "requirements/shadow-contour-authority",
+      "title": "Native shadow contour authority and unresolved producer boundaries",
+      "kind": "investigation",
+      "status": "current",
+      "owners": ["paint-effects"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        "src/render/box-shadow-paint.ts",
+        "tests/box-shadow-native-contour-authority.e2e.test.ts",
+        "tests/capture-selected-shadow-root.e2e.test.ts"
+      ],
+      "file": "277-shadow-contour-authority.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",
@@ -4635,6 +4649,10 @@
         "tests/capture-selected-shadow-root.e2e.test.ts",
         "tests/box-shadow-border-knockout.e2e.test.ts",
         "tests/box-shadow-native-contour-authority.e2e.test.ts",
+        "tests/capture-inset-shadow-root-paint-space.e2e.test.ts",
+        "src/capture/inset-root-shadow-context.ts",
+        "src/capture/inset-root-shadow-context.test.ts",
+        "tests/inset-root-shadow-context.e2e.test.ts",
         "src/capture/input-value-geometry.ts",
         "src/capture/native-control-raster.ts",
         "src/capture/pseudo-style-cdp.test.ts",

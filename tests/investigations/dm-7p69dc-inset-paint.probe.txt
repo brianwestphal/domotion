@@ -1,0 +1,27 @@
+// DM-8N1VB2: strict existing-container producer probes, outside ordinary E2E
+// discovery. Copy to tests/dm-7p69dc-inset-paint.e2e.test.ts to execute, then
+// remove that temporary copy. Keep exact full-RGBA assertions, never tolerances.
+import sharp from "sharp";
+import { expect, it } from "vitest";
+import { captureElementTree, launchChromium } from "../src/capture/index.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+
+it.each([
+  { name: "fractional sharp", style: "margin:20.5px" },
+  { name: "fractional rounded", style: "margin:20.5px;border-radius:5px" },
+  { name: "fractional size", style: "margin:20px;width:20.5px;height:20.5px" },
+  { name: "local fractional integral viewport", style: "position:absolute;left:20.5px;top:20.5px;transform:translate(.5px,.5px)" },
+  { name: "ancestor fractional integral viewport", host: "position:relative;width:100px;height:100px;transform:translate(.5px,.5px)", style: "position:absolute;left:20.5px;top:20.5px" },
+])("native inset producer: $name", async (sample) => {
+  const browser = await launchChromium();
+  try {
+    const viewport = { width: 100, height: 100 };
+    const page = await browser.newPage({ viewport });
+    const output = await browser.newPage({ viewport });
+    await page.setContent(`<style>body{margin:0}#container{${"host" in sample ? sample.host : ""}}#only{width:20px;height:20px;box-shadow:inset 0 0 0 3px red;${sample.style}}</style><div id="container"><div id="only"></div></div>`);
+    const source = await sharp(await page.screenshot({ omitBackground: true })).ensureAlpha().raw().toBuffer();
+    const tree = await captureElementTree(page, "#container", { x: 0, y: 0, ...viewport });
+    await output.setContent('<style>body{margin:0}</style>' + elementTreeToSvg(tree, 100, 100));
+    expect(await sharp(await output.screenshot({ omitBackground: true })).ensureAlpha().raw().toBuffer()).toEqual(source);
+  } finally { await browser.close(); }
+});

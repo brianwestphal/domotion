@@ -7,3 +7,4 @@ Generated from lifecycle metadata. Historical files remain at their alias paths 
 - [Linux MathML Greek-italic residual investigation](../203-linux-mathml-greek-italic-investigation.md) — investigation; current; `requirements/linux-mathml-greek-italic-investigation`
 - [Transformed flex descendant investigation](../209-transformed-flex-descendant-investigation.md) — investigation; current; `requirements/transformed-flex-descendant-investigation`
 - [Playwright compressed ZIP reader lifecycle investigation](../275-playwright-zip-reader-investigation.md) — investigation; current; `requirements/playwright-zip-reader-investigation`
+- [Native shadow contour authority and unresolved producer boundaries](../277-shadow-contour-authority.md) — investigation; current; `requirements/shadow-contour-authority`

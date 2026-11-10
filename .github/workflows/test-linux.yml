@@ -292,6 +292,8 @@ jobs:
           tests/box-shadow-border-knockout.e2e.test.ts
           tests/box-shadow-native-contour-authority.e2e.test.ts
           tests/capture-selected-shadow-root.e2e.test.ts
+          tests/capture-inset-shadow-root-paint-space.e2e.test.ts
+          tests/inset-root-shadow-context.e2e.test.ts
           tests/range-pseudo-box-shadow.e2e.test.ts
           tests/resize-handle.e2e.test.ts
           --reporter=json --outputFile=tests/output-linux/shadow-knockout/results.json
@@ -299,7 +301,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output-linux/shadow-knockout/results.json --minimum-passed 54
+          --browser-results tests/output-linux/shadow-knockout/results.json --minimum-passed 81
       - name: Upload expected/actual/diff PNGs
         if: always()
         uses: actions/upload-artifact@v4

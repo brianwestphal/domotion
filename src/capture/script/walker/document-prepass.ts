@@ -18,6 +18,7 @@ import { collectFontFeatureValues } from "../font-feature-values.js";
 import type { CaptureScriptArgs, CapturedElement } from "../../types.js";
 import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
 import type { CollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
+import type { InsetRootShadowContextRecord } from "../../inset-root-shadow-context.js";
 
 type TextPaintRegistry = {
   indexByElement?: WeakMap<Element, number>;
@@ -571,6 +572,7 @@ export const captureRootElements = (
   root: Element,
   capture: (el: Element) => CapturedElement | null,
   nonAffineProjectiveRoots: Set<Element>,
+  insetRootShadowContextKey?: string,
 ) => {
   const result: CapturedElement[] = [];
   const rootCs = window.getComputedStyle(root);
@@ -605,8 +607,72 @@ export const captureRootElements = (
   // (DM-WYY3ZZ) and contour coverage (DM-ZNQ7PH) still need native authority.
   // An integer-origin offset fixture alone cannot authenticate every root.
   const rootShadows = parseBoxShadow(rootCs.boxShadow);
+  const insetRootPaintSpaceIsSupported = () => {
+    const shadowContext =
+      insetRootShadowContextKey == null
+        ? undefined
+        : ((window as CaptureWindow)[insetRootShadowContextKey] as InsetRootShadowContextRecord | undefined);
+    if (
+      !shadowContext ||
+      shadowContext.source !== "domotion-inset-root-shadow-context-v1" ||
+      shadowContext.owner !== insetRootShadowContextKey ||
+      shadowContext.root !== root ||
+      shadowContext.document !== document ||
+      shadowContext.context !== window ||
+      root.ownerDocument !== document ||
+      !root.isConnected ||
+      shadowContext.disposition !== "none"
+    )
+      return false;
+    // DM-7P69DC: Blink147 snaps the local physical inner-border paint rect
+    // before drawing inset shadows. Captured DOM bounds remain layout facts,
+    // not that paint rectangle. A fractional local rect can even become an
+    // integral viewport rect under a transform while its paint still differs.
+    // Refuse this new shadow-only root path until that mapping is captured;
+    // independent paint/content and the existing child/container walk remain.
+    var paintOwner: Element | null = root;
+    while (paintOwner) {
+      var ownerWindow = paintOwner.ownerDocument.defaultView;
+      if (!ownerWindow) return false;
+      var paintStyle = paintOwner === root ? rootCs : ownerWindow.getComputedStyle(paintOwner);
+      if (
+        [
+          paintStyle.transform,
+          paintStyle.translate,
+          paintStyle.rotate,
+          paintStyle.scale,
+          paintStyle.perspective,
+          paintStyle.offsetPath,
+          paintStyle.filter,
+          paintStyle.backdropFilter,
+        ].some((value) => value !== "none") ||
+        Number(paintStyle.zoom) !== 1 ||
+        paintStyle.position === "sticky" ||
+        paintStyle.willChange !== "auto" ||
+        paintOwner.namespaceURI !== "http://www.w3.org/1999/xhtml"
+      )
+        return false;
+      if (paintStyle.display !== "contents") {
+        var paintBounds = paintOwner.getBoundingClientRect();
+        if (!Number.isInteger(paintBounds.x) || !Number.isInteger(paintBounds.y)) return false;
+        if (
+          paintOwner === root &&
+          (paintOwner.getClientRects().length !== 1 ||
+            !Number.isInteger(paintBounds.width) ||
+            !Number.isInteger(paintBounds.height))
+        )
+          return false;
+      } else if (paintOwner === root) return false;
+      var ownerRoot = paintOwner.getRootNode();
+      paintOwner = paintOwner.parentElement ?? (ownerRoot instanceof ShadowRoot ? ownerRoot.host : null);
+    }
+    return true;
+  };
   const rootHasShadow =
-    rootCs.display !== "contents" && rootShadows.length > 0 && rootShadows.every((shadow) => shadow.inset);
+    rootCs.display !== "contents" &&
+    rootShadows.length > 0 &&
+    rootShadows.every((shadow) => shadow.inset) &&
+    insetRootPaintSpaceIsSupported();
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
   // when the <div> opens, leaving "baz" as a direct text-node child of <body>.
   // Chrome paints it; we'd miss it if we only walked root.children (Element

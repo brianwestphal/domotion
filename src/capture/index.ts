@@ -26,6 +26,7 @@ import { createPageRegistry } from "./page-registry.js";
 import { browserCallbackExpression, evaluateInFrame } from "./evaluate-in-frame.js";
 declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").browserImageNaturalSize;
 import { disposeAll, runPrepasses, withCdpSession } from "./cdp-lifecycle.js";
+import { prepareInsetRootShadowContext, type InsetRootShadowContextProbe } from "./inset-root-shadow-context.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
@@ -2188,6 +2189,7 @@ async function captureElementTreeWithWarningsInternal(
     let collapsedBorderFragmentProbe: Awaited<ReturnType<typeof prepareCollapsedBorderFragmentRecords>> | undefined;
     let pseudoFragmentProbe: Awaited<ReturnType<typeof preparePseudoFragmentGeometry>> | undefined;
     let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
+    let insetRootShadowContext: InsetRootShadowContextProbe | undefined;
     let result: unknown;
     try {
       await reverifyAnimationFrame();
@@ -2210,6 +2212,8 @@ async function captureElementTreeWithWarningsInternal(
       await reverifyAnimationFrame();
       pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
       await reverifyAnimationFrame();
+      insetRootShadowContext = await prepareInsetRootShadowContext(page, selector);
+      await reverifyAnimationFrame();
       const captureArgs: CaptureScriptArgs = {
         selector,
         viewport,
@@ -2223,6 +2227,7 @@ async function captureElementTreeWithWarningsInternal(
         effectiveAppearancePropertyKey: effectiveAppearance.propertyKey,
         effectiveAppearanceSetupFailure: effectiveAppearance.setupFailure,
         fontFamilyDeclarationPropertyKey: fontFamilyDeclarations.propertyKey,
+        insetRootShadowContextKey: insetRootShadowContext.key,
         scrollbarPropertyKey: scrollbarCapture.propertyKey,
         frameScrollPropertyKey: frameScrollCapture.propertyKey,
         projectiveFacts: projectiveProbe.facts,
@@ -2260,6 +2265,7 @@ async function captureElementTreeWithWarningsInternal(
         pseudoImagePrime,
         externalSvgUsePrime,
         decodedImagePrime,
+        insetRootShadowContext,
         result == null ? pseudoStyles : undefined,
         result == null ? projectiveProbe : undefined,
       );
@@ -2269,6 +2275,7 @@ async function captureElementTreeWithWarningsInternal(
       await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
       const warnings = typed.warnings ?? [];
       warnings.push(...(fontFamilyDeclarations?.warnings ?? []));
+      warnings.push(...(insetRootShadowContext?.warnings ?? []));
       for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
         const fact = projectiveProbe?.facts[index];
         if (fact == null || fact.usedPreserve3d !== null) continue;

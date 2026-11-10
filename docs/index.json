@@ -6150,6 +6150,24 @@
       }
     },
     {
+      "file": "277-shadow-contour-authority.md",
+      "metadata": {
+        "id": "requirements/shadow-contour-authority",
+        "title": "Native shadow contour authority and unresolved producer boundaries",
+        "kind": "investigation",
+        "status": "current",
+        "owners": ["paint-effects"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC"],
+        "code": [
+          "src/render/box-shadow-paint.ts",
+          "tests/box-shadow-native-contour-authority.e2e.test.ts",
+          "tests/capture-selected-shadow-root.e2e.test.ts"
+        ],
+        "aliases": ["docs/277-shadow-contour-authority.md", "doc-277"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6275,7 +6293,17 @@
         "status": "current",
         "owners": ["paint-effects", "text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV"],
+        "tickets": [
+          "DM-2596",
+          "DM-2615",
+          "DM-2628",
+          "DM-2634",
+          "DM-TPJX3H",
+          "DM-J2WVF3",
+          "DM-H5DDDE",
+          "DM-09GQAV",
+          "DM-7P69DC"
+        ],
         "code": [
           "src/render/element-tree-to-svg.ts",
           "src/render/paint-order.ts",
@@ -6284,6 +6312,10 @@
           "tests/capture-selected-shadow-root.e2e.test.ts",
           "tests/box-shadow-border-knockout.e2e.test.ts",
           "tests/box-shadow-native-contour-authority.e2e.test.ts",
+          "tests/capture-inset-shadow-root-paint-space.e2e.test.ts",
+          "src/capture/inset-root-shadow-context.ts",
+          "src/capture/inset-root-shadow-context.test.ts",
+          "tests/inset-root-shadow-context.e2e.test.ts",
           "src/capture/input-value-geometry.ts",
           "src/capture/native-control-raster.ts",
           "src/capture/pseudo-style-cdp.test.ts",
@@ -6652,6 +6684,7 @@
     "273": ["requirements/ui-conventions"],
     "274": ["requirements/dynamic-svg-image-fonts"],
     "275": ["requirements/playwright-zip-reader-investigation"],
+    "277": ["requirements/shadow-contour-authority"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

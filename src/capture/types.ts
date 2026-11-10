@@ -2959,6 +2959,8 @@ export interface CaptureScriptArgs {
   effectiveAppearanceSetupFailure?: string;
   /** Private expando carrying unambiguous opaque-sheet family declarations. */
   fontFamilyDeclarationPropertyKey?: string;
+  /** Private selected-Element/context-bound author-shadow provenance; never a transferable boolean. */
+  insetRootShadowContextKey?: string;
   /** Element property carrying the live-scrollbar records. */
   scrollbarPropertyKey: string;
   /** Window property carrying the authenticated frame-scroll registry. */
