@@ -34,7 +34,7 @@ import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.j
 import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
 import { normalizedFontData } from "./font-data.js";
-import { registerLocalFontAlias, registerWebfont } from "../render/font-resolution.js";
+import { registerLocalFontAlias, registerWebfont, type RegisteredFontFamily } from "../render/font-resolution.js";
 import { CAPTURE_SCRIPT } from "./script.generated.js";
 import { parseCrossOriginAllowlist } from "./script/cross-origin.js";
 import { rasterizeBitmapGlyphs } from "./emoji.js";
@@ -103,6 +103,7 @@ import type {
   CaptureWarning,
 } from "./types.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
+import { serializeCapturedFontFamilyStack } from "../font-family-stack.js";
 import {
   createTextEngineSession,
   registerTextEngineLocalFontAlias,
@@ -713,13 +714,14 @@ export function applyWebfontRegistration(
   registration: WebfontRegistration,
   textEngineSession?: TextEngineSession,
 ): boolean {
+  const family: RegisteredFontFamily = { decodedName: registration.family };
   if (registration.kind === "local-alias") {
-    const { family, key, weight, italic } = registration;
+    const { key, weight, italic } = registration;
     if (textEngineSession == null) registerLocalFontAlias(family, key, weight, italic);
     else registerTextEngineLocalFontAlias(textEngineSession, family, key, weight, italic);
     return true;
   }
-  const { family, weight, style, bytes, unicodeRange, stretch, weightDesc, styleDesc } = registration;
+  const { weight, style, bytes, unicodeRange, stretch, weightDesc, styleDesc } = registration;
   return textEngineSession == null
     ? registerWebfont(family, weight, style, bytes, unicodeRange, stretch, weightDesc, styleDesc)
     : registerTextEngineWebfont(
@@ -907,7 +909,7 @@ export async function resolveLocalFaceAliases(page: Page, faces: LocalFace[]): P
   if (faces.length === 0) return;
   const resolved = await evaluateInFrame(
     page,
-    (items: Array<{ family: string; weight: string; style: string; localNames: string[] }>) => {
+    (items: Array<{ family: string; familyCss: string; weight: string; style: string; localNames: string[] }>) => {
       // Defined inline: the callback is serialized into the page.
       const probeWidthInline = function (familyExpr: string, weight: string, style: string, sample: string): number {
         const span = document.createElement("span");
@@ -932,7 +934,7 @@ export async function resolveLocalFaceAliases(page: Page, faces: LocalFace[]): P
       };
       const sample = "mIw0";
       return items.map((item) => {
-        const aliasW = probeWidthInline(`"${item.family}"`, item.weight, item.style, sample);
+        const aliasW = probeWidthInline(item.familyCss, item.weight, item.style, sample);
         for (const cand of item.localNames) {
           const candW = probeWidthInline(`"${stripVariantSuffixInline(cand)}"`, item.weight, item.style, sample);
           // Tolerate sub-px FP noise; match if widths agree within 0.05px.
@@ -941,7 +943,17 @@ export async function resolveLocalFaceAliases(page: Page, faces: LocalFace[]): P
         return null;
       });
     },
-    faces.map(({ family, weight, style, localNames }) => ({ family, weight, style, localNames })),
+    faces.map(({ family, weight, style, localNames }) => ({
+      family,
+      weight,
+      style,
+      localNames,
+      familyCss: serializeCapturedFontFamilyStack({
+        source: "blink-font-family-stack-v1",
+        entries: [{ name: family, type: "family-name" }],
+        genericFamily: "none",
+      }),
+    })),
   );
   faces.forEach((face, i) => {
     face.resolvedLocalName = resolved[i] ?? null;

@@ -490,7 +490,7 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
       const weight = rawWeight === "bold" ? 700 : parseFloat(rawWeight) || 400;
       if (
         !registerWebfont(
-          face.family,
+          { decodedName: face.family },
           weight,
           face.style ?? "normal",
           face.data,

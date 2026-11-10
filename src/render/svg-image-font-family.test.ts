@@ -57,8 +57,8 @@ describe("authored SVG font family tails", () => {
   ])("keeps malformed adjacent grammar unresolved: %s", (value) => {
     expect(parseImageFontShorthand(value)).toBeNull();
   });
-  it("bounds authored family work and keeps CSSOM-trim-sensitive names unresolved", () => {
-    expect(parseImageFontFamilyTail('" Foo "')).toBeNull();
+  it("bounds authored family work while preserving decoded string spacing", () => {
+    expect(parseImageFontFamilyTail('" Foo "')).toEqual([{ css: '" Foo "', name: " Foo ", generic: false }]);
     expect(parseImageFontFamilyTail("A,".repeat(600) + "B")).toBeNull();
     expect(parseImageFontFamilyTail("A".repeat(65537))).toBeNull();
   });

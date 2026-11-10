@@ -26,6 +26,7 @@ tickets:
     "DM-SXDNW9",
     "DM-WT73T4",
     "DM-R7ME85",
+    "DM-N80HJW",
   ]
 code:
   [
@@ -33,6 +34,7 @@ code:
     "src/capture/image-document-settings.ts",
     "src/render/svg-image-root-font.ts",
     "src/render/svg-image-root-font.test.ts",
+    "tests/literal-family-whitespace.e2e.test.ts",
     "packages/text-engine/src/render/isolated-primary-font-metrics.ts",
     "src/capture/image-document-settings.test.ts",
     "tests/img-svg-document-settings.e2e.test.ts",
@@ -383,6 +385,20 @@ The source contract is Chromium `7d859f27`:
 and [`TextResourceDecoder`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/html/parser/text_resource_decoder.cc).
 
 ## Scope / known boundaries
+
+Decoded outer whitespace in literal font-family names is supported through
+CSSOM capture, exact decoded registration and authenticated image-owned faces
+(DM-N80HJW; [structured family contract](213-structured-font-family-stack.md)).
+Quoted/escaped spaces, tabs, NBSP and empty/all-space names remain data rather
+than being trimmed into another registered family. The former conservative
+image-name guard is removed only with these shared bridges and native
+same-name metric/glyph controls. Existing own-font authentication and unsupported
+descriptor/resource fallbacks still apply.
+The newly supported exotic/empty/quote-data families retain source raster when
+the image has `font-family` or inline `style` XML attributes. DM-SV4B1M tracks
+the independent font namespace pass changing original attribute comparison/
+`attr()` data; ordinary unspaced names already demonstrate that defect.
+Stylesheet-only new-name geometry and glyph paths are natively verified.
 
 - **`<filter>` regions, `currentColor`, and CSS custom properties** inside the SVG resolve against the nested `<svg>` context, matching how the browser resolves them for the original `<img>` in the common cases (design-tool exports with self-contained gradients/filters). SVGs that rely on inheriting `color` / CSS variables from the host page are out of scope.
 

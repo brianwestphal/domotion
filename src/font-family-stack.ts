@@ -4,5 +4,6 @@ export {
   type CapturedFontFamilyStack,
   captureFontFamilyStack,
   parseCssFontFamilyEntries,
+  parseCssFontFamilyName,
   serializeCapturedFontFamilyStack,
 } from "@domotion/text-engine/capture";

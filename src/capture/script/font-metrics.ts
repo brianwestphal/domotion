@@ -34,7 +34,11 @@
 // candidate referenced by direct family name (which does match installed
 // system fonts). Whichever width matches is the one Chrome resolved.
 
-import { captureFontFamilyStack, serializeCapturedFontFamilyStack } from "../../font-family-stack.js";
+import {
+  captureFontFamilyStack,
+  parseCssFontFamilyName,
+  serializeCapturedFontFamilyStack,
+} from "../../font-family-stack.js";
 
 export const createFontMetrics = () => {
   const metricsCache = new Map<string, { ascent: number; descent: number }>();
@@ -64,15 +68,11 @@ export const createFontMetrics = () => {
     for (const rule of Array.from(cssRules)) {
       if (rule.constructor.name !== "CSSFontFaceRule") continue;
       const r = rule as CSSFontFaceRule;
-      const family = r.style
-        .getPropertyValue("font-family")
-        .trim()
-        .replace(/^["']|["']$/g, "")
-        .toLowerCase();
+      const family = parseCssFontFamilyName(r.style.getPropertyValue("font-family"))?.toLowerCase();
       const weight = r.style.getPropertyValue("font-weight") || "400";
       const styleDesc = r.style.getPropertyValue("font-style") || "normal";
       const src = r.style.getPropertyValue("src");
-      if (family === "" || /url\(/.test(src)) continue;
+      if (family == null || /url\(/.test(src)) continue;
       const matches = src.match(/local\(\s*["']?[^"')]+?["']?\s*\)/g);
       if (matches == null) continue;
       const locals: string[] = [];
@@ -93,7 +93,15 @@ export const createFontMetrics = () => {
       const stripVariant = (n: string) =>
         n.replace(/\s+(Bold Italic|Italic Bold|Bold|Italic|Oblique|Regular|Light|Medium|Semibold|Black)$/i, "").trim();
       let resolved: string | null = null;
-      const aliasW = probeWidthCS('"' + family + '"', weight, styleDesc);
+      const aliasW = probeWidthCS(
+        serializeCapturedFontFamilyStack({
+          source: "blink-font-family-stack-v1",
+          entries: [{ name: family, type: "family-name" }],
+          genericFamily: "none",
+        }),
+        weight,
+        styleDesc,
+      );
       for (const cand of locals) {
         const candW = probeWidthCS('"' + stripVariant(cand) + '"', weight, styleDesc);
         if (Math.abs(candW - aliasW) < 0.05) {

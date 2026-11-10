@@ -100,6 +100,22 @@ jobs:
       - name: Verify native iframe preflight projection
         if: always()
         run: npx vitest run --config vitest.e2e.config.ts tests/real-world-webgl-projective-preflight.e2e.test.ts
+      - name: Verify literal font-family registration contracts
+        if: always()
+        run: >-
+          npm run test:unit --workspace @domotion/text-engine --
+          src/font-family-stack.test.ts src/render/registered-family-identity.test.ts
+      - name: Verify native literal font-family identity
+        if: always()
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/literal-family-whitespace.e2e.test.ts
+          --reporter=json --outputFile=tests/output/literal-family-identity/results.json
+      - name: Require every literal font-family native assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/literal-family-identity/results.json --minimum-passed 36
       - name: Verify native image ratio and containment capture
         if: always()
         run: >-
@@ -147,6 +163,7 @@ jobs:
             tests/output/webfont-descriptor-group-*.json
             tests/output/webgl-projective-preflight/
             tests/output/native-image-capture/
+            tests/output/literal-family-identity/
           if-no-files-found: error
 
   decoration-geometry:

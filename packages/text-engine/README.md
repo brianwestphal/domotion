@@ -1,5 +1,12 @@
 # `@domotion/text-engine`
 
+Font registrations accept either the existing string family argument or an
+explicit `{ decodedName: string }`. Use the decoded form for CSSOM/font
+metadata so outer whitespace and literal quote characters remain name data:
+`registerTextEngineWebfont(session, { decodedName: " Face " }, 400, "normal", bytes)`.
+Legacy string quote normalization remains compatible. The browser-safe capture
+entry exposes `parseCssFontFamilyName` for decoding one CSS family descriptor.
+
 Private npm workspace for Domotion's browser-faithful text engine. It owns font
 resolution and fallback, shaping, glyph extraction, outline and embedded-font
 emission, native/ICU helper acquisition, platform routing data, and focused

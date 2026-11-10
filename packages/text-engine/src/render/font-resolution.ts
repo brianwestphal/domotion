@@ -40,6 +40,7 @@ export { clearEmbeddedFonts } from "./generation.js";
 export { resetGeneration } from "./generation.js";
 export { getEmbeddedFontFaceCss } from "./generation.js";
 export { registerWebfont } from "./webfont-registry.js";
+export type { RegisteredFontFamily } from "./webfont-registry.js";
 export { parseFontStretchDescriptor } from "./webfont-registry.js";
 export { parseFontWeightDescriptor } from "./webfont-registry.js";
 export { parseFontStyleDescriptor } from "./webfont-registry.js";

@@ -82,7 +82,7 @@ export function authenticatedImageFonts(source: string, context?: ImageOwnFontCo
   for (const face of context.faces) {
     const data = Buffer.from(face.data, "base64");
     bytes += data.length;
-    if (bytes > 16 * 1024 * 1024 || imageFontDigest(data) !== face.sha256 || face.family === "") return null;
+    if (bytes > 16 * 1024 * 1024 || imageFontDigest(data) !== face.sha256) return null;
     out.push({ ...face, data });
   }
   return out;

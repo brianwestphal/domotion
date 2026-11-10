@@ -90,7 +90,8 @@ and fallback order below unchanged.
 flowchart TD
   subgraph CAP["Capture time — src/capture/index.ts"]
     A0["captureElementTree()"] --> A2["discoverAndRegisterWebfonts(page)<br/>after document.fonts.ready"]
-    A2 --> A3{"@font-face src?"}
+    A2 --> A21["parseCssFontFamilyName(descriptor)<br/>preserve decoded string/escape data<br/>registration: { decodedName: family }"]
+    A21 --> A3{"@font-face src?"}
     A3 -->|"real webfont bytes (url / data)"| A4["registerWebfont(family, weight,<br/>style, buffer, unicodeRange,<br/>stretch desc, weight desc, style desc)<br/>→ webfontRegistry"]
     A3 -->|"all local() → system font"| A5["registerLocalFontAlias(family,<br/>resolvedKey, weight, italic)<br/>→ localFontAliasRegistry"]
     A0 --> A6{"Capture: one concrete family equals<br/>this document's computed initial family,<br/>with no known author/control declaration?"}
@@ -243,6 +244,13 @@ in order, returning the FIRST that `matchFamilyNameToKey` resolves; if none matc
 it consults the script-keyed `-webkit-standard` entry (Blink's
 `settings.Standard(script)`) and only then falls to the calibrated default
 **`times`** (Chrome's macOS "Standard Font" default).
+Only CSS token padding and gaps between unquoted identifiers are normalized.
+Decoded string or escaped whitespace, empty literal names and literal quote
+characters remain family data. Capture, replay and image-owned faces register
+that data through `RegisteredFontFamily`'s `{ decodedName }` form; the legacy
+string registration API retains its existing quote/trim normalization. Local
+alias probes serialize the decoded name back to CSS before measuring it.
+See [213](213-structured-font-family-stack.md) (DM-N80HJW).
 `resolveFontKeyChain` returns the full ordered, de-duplicated list of matched keys
 and then Blink's preferred STANDARD family (used by the per-codepoint resolver
 to reach later-declared families before the platform system-fallback stage).

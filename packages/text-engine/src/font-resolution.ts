@@ -24,6 +24,7 @@ export {
   isRenderTextMode,
   registerLocalFontAlias,
   registerWebfont,
+  type RegisteredFontFamily,
   RENDER_TEXT_MODES,
   type RenderTextMode,
   resolveFontKey,

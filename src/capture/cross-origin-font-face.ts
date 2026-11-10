@@ -32,6 +32,7 @@ import {
 } from "./active-font-face-rules.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
+import { parseCssFontFamilyName } from "../font-family-stack.js";
 
 /** One discovered `@font-face` rule with a fetchable `url()` source. */
 export type FaceRule = {
@@ -100,11 +101,8 @@ function formatRank(fmt: string, url: string): number {
  * `baseUrl` (the stylesheet's URL).
  */
 export function faceRuleFromFontFaceDescriptors(d: FontFaceDescriptorText, baseUrl: string): FaceRule | null {
-  const family = d.family
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .trim();
-  if (family === "") return null;
+  const family = parseCssFontFamilyName(d.family);
+  if (family == null) return null;
   // The raw `font-weight` descriptor; "" = auto/absent (kept distinct from a
   // declared "400": only a declared value pins a variable face's wght axis).
   const weight = d.weight.trim();
@@ -162,11 +160,8 @@ export type LocalFace = {
  * null; discovery fills it from a page-side width probe.
  */
 export function localFaceFromFontFaceDescriptors(d: FontFaceDescriptorText): LocalFace | null {
-  const family = d.family
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .trim();
-  if (family === "") return null;
+  const family = parseCssFontFamilyName(d.family);
+  if (family == null) return null;
   const localNames = Array.from(d.src.matchAll(/local\(\s*["']?([^"')]+?)["']?\s*\)/g))
     .map((mm) => mm[1].trim())
     .filter((n) => n !== "");

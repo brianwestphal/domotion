@@ -31,6 +31,7 @@ import {
   type FontRendererSession,
   type GenerationSnapshot,
   type RenderTextMode,
+  type RegisteredFontFamily,
   type SessionGenericFamilyOverrides,
 } from "./font-resolution.js";
 import { getEmbeddedFontBuildDiagnostics, type EmbeddedFontBuildDiagnostic } from "./embedded-font-builder.js";
@@ -333,7 +334,7 @@ export function clearTextEngineFonts(session: TextEngineSession): void {
 
 export function registerTextEngineWebfont(
   session: TextEngineSession,
-  family: string,
+  family: RegisteredFontFamily,
   weight: number,
   style: string,
   buffer: Buffer,
@@ -351,7 +352,7 @@ export function registerTextEngineWebfont(
 
 export function registerTextEngineLocalFontAlias(
   session: TextEngineSession,
-  family: string,
+  family: RegisteredFontFamily,
   resolvedKey: string,
   weight: number = 400,
   italic: boolean = false,

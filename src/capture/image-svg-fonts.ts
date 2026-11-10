@@ -8,7 +8,7 @@ import { firstCssFunctionToken, parseCssUrl } from "../render/css-tokens.js";
 import { parseDataUri } from "../utils/data-uri.js";
 import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
 import { normalizedFontData } from "./font-data.js";
-import { cssUnescape } from "../render/svg-image-selector-engine.js";
+import { parseCssFontFamilyName } from "../font-family-stack.js";
 
 /** SVGImage::CheckLoaded waits for Document::LoadEventFinished; font fetches
  * block that event (resource.cc:IsLoadEventBlockingResourceType). For auto,
@@ -68,6 +68,8 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
     const deadline = Date.now() + 3000;
     for (const descriptor of parsed) {
       if (descriptor == null || descriptor.family === "" || /\\/.test(descriptor.src)) break;
+      const family = parseCssFontFamilyName(descriptor.family);
+      if (family == null) break;
       // Start with one unambiguous data source. local() and external resources
       // cannot be authenticated by an embedding-page FontFace request.
       const token = firstCssFunctionToken(descriptor.src);
@@ -82,9 +84,9 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
       const timeoutMs = deadline - Date.now();
       if (timeoutMs <= 0) break;
       const valid = await page.evaluate(
-        async ({ descriptor, timeoutMs }) => {
+        async ({ descriptor, family, timeoutMs }) => {
           try {
-            const font = new FontFace(descriptor.family, descriptor.src, {
+            const font = new FontFace(family, descriptor.src, {
               weight: descriptor.weight || "normal",
               style: descriptor.style || "normal",
               stretch: descriptor.stretch || "normal",
@@ -108,13 +110,13 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
             return false;
           }
         },
-        { descriptor, timeoutMs },
+        { descriptor, family, timeoutMs },
       );
       if (!valid) break;
       const bytes = await normalizedFontData(data.bytes, 16 * 1024 * 1024);
       if (bytes == null || (total += bytes.length - data.bytes.length) > 16 * 1024 * 1024) break;
       faces.push({
-        family: cssUnescape(descriptor.family.replace(/^(["'])(.*)\1$/, "$2")),
+        family,
         // Omitted descriptors are auto capabilities in FontFace::GetFontSelectionCapabilities;
         // explicit normal has equal selection ranges but DIFFERENT axis clamps.
         weight: descriptor.weight || undefined,

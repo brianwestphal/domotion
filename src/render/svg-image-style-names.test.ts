@@ -4,6 +4,29 @@ import { inlineImgSvg } from "./svg-inline.js";
 import { resolveImageNamespace } from "./svg-image-namespace.js";
 
 describe("isolated SVG image CSS names", () => {
+  it.each(['font-family="&quot; Face &quot;"', 'style="fill:red"'])(
+    "DM-N80HJW retains source ownership across unproved original font attribute data: %s",
+    (attribute) => {
+      const source = `<svg ${attribute}><style>@font-face{font-family:" Face ";src:local("Arial")}svg{font-family:" Face "}</style></svg>`;
+      expect(namespaceImageStyleNames(source, "I-")).toBeNull();
+    },
+  );
+  it("DM-N80HJW keeps escaped trailing family-token whitespace from PostCSS raws", () => {
+    const source = String.raw`<svg><style>@font-face{font-family:" Face ";src:local("Arial")}svg{font:20px \ Face\ ;transform:translate(2ch,0)}</style></svg>`;
+    const out = namespaceImageStyleNames(source, "I-");
+    expect(out).not.toBeNull();
+    expect(out).toContain('font-family:"I- Face "');
+    expect(out).toContain(String.raw`font:20px I-\ Face\ ;`);
+  });
+  it("DM-N80HJW recovers escaped family data at rule end and in local variable values", () => {
+    for (const body of [String.raw`font:20px \ Face\ `, String.raw`--face:\ Face\ ;font:20px var(--face)`]) {
+      const source = String.raw`<svg><style>@font-face{src:local("Arial");font-family:\ Face\ }svg{${body}}</style></svg>`;
+      const out = namespaceImageStyleNames(source, "I-");
+      expect(out).not.toBeNull();
+      expect(out).toContain(String.raw`font-family:I-\ Face\ `);
+      expect(out).toMatch(/font:20px +I-\\ Face\\ /);
+    }
+  });
   it("does not rename a genuine generic to a same-named literal font face", () => {
     const out = namespaceImageStyleNames(
       `<svg><style>@font-face{font-family:'serif';src:local(serif)}.a{font:20px SERIF}.b{font:20px 'serif'}</style></svg>`,

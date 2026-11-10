@@ -73,6 +73,7 @@ import {
 } from "./svg-image-selector-engine.js";
 import { anPlusBMatches, IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 import { decideImageSupports } from "./svg-image-supports.js";
+import { trimImageCssWhitespace } from "./svg-image-font-family.js";
 
 export { cssUnescape, decodeXmlAttributeValue, expandXmlReferences };
 
@@ -414,9 +415,9 @@ function parseDeclarations(block: string): Array<{ name: string; value: string; 
     if (colon < 0) continue;
     const rawName = raw.slice(0, colon).trim();
     const name = rawName.startsWith("--") ? rawName : rawName.toLowerCase();
-    let value = raw.slice(colon + 1).trim();
+    let value = trimImageCssWhitespace(raw.slice(colon + 1));
     const important = /!\s*important\s*$/i.test(value);
-    if (important) value = value.replace(/!\s*important\s*$/i, "").trim();
+    if (important) value = trimImageCssWhitespace(value.replace(/!\s*important\s*$/i, ""));
     if (name !== "" && (value !== "" || name.startsWith("--"))) out.push({ name, value, important, raw });
   }
   return out;
@@ -700,10 +701,12 @@ export function cascadeRootStylesheetTransform(
           // Keep font declarations in the sheet: the nested image still
           // needs them for text paint, even though the root transform uses
           // their cascaded values outside the viewport.
-          const others = decls.filter((d) => !ROOT_TRANSFORM_PROPERTIES.has(d.name)).map((d) => d.raw.trim());
+          const others = decls
+            .filter((d) => !ROOT_TRANSFORM_PROPERTIES.has(d.name))
+            .map((d) => trimImageCssWhitespace(d.raw));
           let rule = `${selectors.join(", ")} {${others.join("; ")}}`;
           if (keepForOthers.length > 0) {
-            rule += ` ${keepForOthers.join(", ")} {${transformDecls.map((d) => d.raw.trim()).join("; ")}}`;
+            rule += ` ${keepForOthers.join(", ")} {${transformDecls.map((d) => trimImageCssWhitespace(d.raw)).join("; ")}}`;
           }
           const lead = clean.slice(i, brace).match(/^\s*/)?.[0].length ?? 0;
           out += css.slice(cursor, i + lead) + rule;

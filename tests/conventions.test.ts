@@ -136,6 +136,8 @@ describe("project conventions", () => {
       "RenderTextMode",
       "registerWebfont",
       "registerLocalFontAlias",
+      // DM-N80HJW: capture explicitly marks CSSOM-decoded registration data.
+      "RegisteredFontFamily",
       // session generic-family overrides: the capture-side probe
       // (src/capture/generic-font-probe.ts, DOMOTION_GENERIC_PROBE=1) installs
       // the session's painted generic families for the resolver to consult —

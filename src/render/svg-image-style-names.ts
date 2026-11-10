@@ -11,7 +11,7 @@ import { serializeJoinedCdata } from "./svg-image-cdata.js";
 import { renderWarn } from "./render-warn.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
-import { decodeXmlAttributeValue } from "./svg-image-selector-engine.js";
+import { decodeXmlAttributeValue, parseImageElementTree } from "./svg-image-selector-engine.js";
 import { parseImageFontFamilyTail, trimImageCssWhitespace } from "./svg-image-font-family.js";
 
 interface ImageNames {
@@ -88,7 +88,7 @@ function nameKey(raw: string, insensitive = false): string {
 
 /** Insert the prefix inside a quoted name, or before an unquoted name. */
 function prefixed(raw: string, scope: string): string {
-  const text = raw.trim();
+  const text = trimImageCssWhitespace(raw);
   if (text.length >= 2 && (text[0] === '"' || text[0] === "'") && text.at(-1) === text[0]) {
     return `${text[0]}${scope}${text.slice(1)}`;
   }
@@ -268,6 +268,18 @@ function renameProperties(value: string, names: Set<string>, scope: string): str
   return out;
 }
 
+/** PostCSS moves trailing whitespace into value raws, or into the parent's
+ * after field when a rule has no final semicolon. An odd trailing backslash
+ * consumes its first whitespace character as family-token data. */
+function fontDeclarationValue(decl: Declaration): string {
+  let value = decl.raws.value?.value === decl.value ? decl.raws.value.raw : decl.value;
+  const trailing = /\\+$/.exec(value)?.[0].length ?? 0;
+  const after = decl.parent?.raws.after ?? "";
+  if (decl.parent?.last === decl && !decl.parent.raws.semicolon && trailing % 2 === 1 && /^[ \t\n\r\f]/.test(after))
+    value += after[0];
+  return value;
+}
+
 function rewriteDeclaration(
   decl: Declaration,
   names: ImageNames,
@@ -276,7 +288,10 @@ function rewriteDeclaration(
 ): boolean {
   const prop = decl.prop.toLowerCase();
   if (names.properties.has(nameKey(decl.prop))) decl.prop = `--${scope}${decl.prop.slice(2)}`;
-  let value = decl.value;
+  // PostCSS separates trailing whitespace into raws, including an escaped
+  // space which is part of a family token. Read the same raw spelling its
+  // stringifier would emit before interpreting font data (DM-N80HJW).
+  let value = prop === "font" || prop === "font-family" ? fontDeclarationValue(decl) : decl.value;
   if ((prop === "font" || prop === "font-family") && names.fonts.size > 0) {
     const expanded = resolveImageCssVariables(value, (name) => {
       // Only a sole definition in this exact declaration block is provably
@@ -287,7 +302,7 @@ function rewriteDeclaration(
       if (!variableCounts.has(name)) return null;
       if (variableCounts.get(name) !== 1) return undefined;
       const local = decl.parent?.nodes?.find((node) => node.type === "decl" && node.prop === name);
-      return local?.type === "decl" ? local.value : undefined;
+      return local?.type === "decl" ? fontDeclarationValue(local) : undefined;
     });
     if (expanded == null) return false;
     const renamed =
@@ -355,8 +370,8 @@ function collectNames(sheets: ParsedSheet[]): ImageNames | null {
       else if (name === "counter-style") names.counters.add(nameKey(rule.params));
       else if (name === "font-face") {
         rule.walkDecls(/^font-family$/i, (decl) => {
-          const families = parseImageFontFamilyTail(decl.value);
-          if (families?.length !== 1 || families[0].generic || families[0].name === "") unsupportedFont = true;
+          const families = parseImageFontFamilyTail(fontDeclarationValue(decl));
+          if (families?.length !== 1 || families[0].generic) unsupportedFont = true;
           else names.fonts.add(families[0].name.toLowerCase());
         });
       }
@@ -428,6 +443,20 @@ export function namespaceImageStyleNames(markup: string, scope: string): string 
   if (sheets.length === 0) return markup;
   const names = collectNames(sheets);
   if (names == null) return null;
+  // DM-SV4B1M: the old font-name namespace pass changes font-family/style
+  // attributes without preserving attribute comparisons or attr() reads.
+  // Do not admit N80's new data spellings through that unproved boundary.
+  if ([...names.fonts].some((name) => name === "" || name !== name.trim() || /["'\\]/.test(name))) {
+    if (/<!DOCTYPE\b/i.test(markup)) return null;
+    const root = parseImageElementTree(markup);
+    if (root == null) return null;
+    const pending = [root];
+    while (pending.length > 0) {
+      const element = pending.pop()!;
+      if ([...element.attributes.keys()].some((name) => /^(?:font-family|style)$/i.test(name))) return null;
+      pending.push(...element.children);
+    }
+  }
   if (![names.keyframes, names.fonts, names.properties, names.counters].some((set) => set.size > 0)) return markup;
   let index = 0;
   const variableCounts = new Map<string, number>();

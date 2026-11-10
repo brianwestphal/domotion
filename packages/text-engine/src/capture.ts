@@ -11,5 +11,6 @@ export {
   type CapturedFontFamilyStack,
   captureFontFamilyStack,
   parseCssFontFamilyEntries,
+  parseCssFontFamilyName,
   serializeCapturedFontFamilyStack,
 } from "./font-family-stack.js";

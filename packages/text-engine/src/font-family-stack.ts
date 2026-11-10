@@ -69,13 +69,17 @@ function replacementCodePoint(value: number): string {
 }
 
 /** Decode CSS escapes in an identifier sequence or string token. */
-export function decodeCssFontFamilyName(value: string): string {
+export function decodeCssFontFamilyName(value: string, collapseTokenWhitespace = false): string {
   let output = "";
   for (let index = 0; index < value.length;) {
     const ch = value[index];
     if (ch !== "\\") {
       output += ch;
       index++;
+      if (collapseTokenWhitespace && /[ \t\n\r\f]/.test(ch)) {
+        output = output.slice(0, -1) + " ";
+        while (index < value.length && /[ \t\n\r\f]/.test(value[index])) index++;
+      }
       continue;
     }
     index++;
@@ -110,9 +114,12 @@ function splitCssFamilyTokens(value: string): string[] {
   const output: string[] = [];
   let token = "";
   let quote = "";
+  let padding = "";
   for (let index = 0; index < value.length; index++) {
     const ch = value[index];
     if (ch === "\\") {
+      if (token !== "") token += padding;
+      padding = "";
       token += ch;
       if (index + 1 < value.length) token += value[++index];
       continue;
@@ -123,33 +130,49 @@ function splitCssFamilyTokens(value: string): string[] {
       continue;
     }
     if (ch === '"' || ch === "'") {
+      if (token !== "") token += padding;
+      padding = "";
       quote = ch;
       token += ch;
       continue;
     }
     if (ch === ",") {
-      if (token.trim() !== "") output.push(token.trim());
+      if (token !== "") output.push(token);
       token = "";
+      padding = "";
       continue;
     }
+    if (/[ \t\n\r\f]/.test(ch)) {
+      padding += ch;
+      continue;
+    }
+    if (token !== "") token += padding;
+    padding = "";
     token += ch;
   }
-  if (token.trim() !== "") output.push(token.trim());
+  if (token !== "") output.push(token);
   return output;
 }
 
 /** Parse CSSOM `font-family` without splitting quoted or escaped commas. */
 export function parseCssFontFamilyEntries(value: string): ParsedFontFamilyEntry[] {
-  return splitCssFamilyTokens(value)
-    .map((token): ParsedFontFamilyEntry => {
-      const quote = token[0];
-      const quoted = token.length >= 2 && (quote === '"' || quote === "'") && token[token.length - 1] === quote;
-      const encoded = quoted ? token.slice(1, -1) : token;
-      const name = decodeCssFontFamilyName(encoded).trim();
-      const generic = !quoted && name === name.toLowerCase() && LIST_GENERIC_NAMES.has(name);
-      return { name, type: generic ? "generic-family" : "family-name", quoted };
-    })
-    .filter((entry) => entry.name !== "");
+  return splitCssFamilyTokens(value).map((token): ParsedFontFamilyEntry => {
+    const quote = token[0];
+    const quoted = token.length >= 2 && (quote === '"' || quote === "'") && token[token.length - 1] === quote;
+    const encoded = quoted ? token.slice(1, -1) : token;
+    // CSS strings and escaped whitespace are name data. Only raw spacing
+    // between unquoted identifier tokens is normalized (DM-N80HJW).
+    const name = decodeCssFontFamilyName(encoded, !quoted);
+    const generic = !quoted && name === name.toLowerCase() && LIST_GENERIC_NAMES.has(name);
+    return { name, type: generic ? "generic-family" : "family-name", quoted };
+  });
+}
+
+/** One CSSOM family descriptor, decoded without losing string data. Null
+ * denotes missing/list input; the empty string is a valid literal name. */
+export function parseCssFontFamilyName(value: string): string | null {
+  const entries = parseCssFontFamilyEntries(value);
+  return entries.length === 1 ? entries[0].name : null;
 }
 
 export function blinkGenericFamilyFromEntries(

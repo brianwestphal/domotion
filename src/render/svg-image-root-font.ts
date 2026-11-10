@@ -169,7 +169,7 @@ export function imageRootFontMetricUnits(
   // capability groups only; angled oblique selection needs its own proof.
   if (fontFaces != null && /^oblique\b/i.test(declarations.get("font-style")?.trim() ?? "")) return null;
   const familyValue = declarations.get("font-family");
-  const fontFamily = familyValue == null || isInitial(familyValue) ? "" : familyValue.trim();
+  const fontFamily = familyValue == null || isInitial(familyValue) ? "" : trimImageCssWhitespace(familyValue);
   let resolved: ReturnType<typeof isolatedPrimaryFontMetrics> | undefined;
   const metrics = (): ReturnType<typeof isolatedPrimaryFontMetrics> => {
     if (!isInitial(declarations.get("font-variant-caps"))) return null;

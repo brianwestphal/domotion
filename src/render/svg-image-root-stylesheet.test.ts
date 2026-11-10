@@ -37,6 +37,14 @@ const valueOf = (r: ReturnType<typeof cascade>, prop: string): string | undefine
   r != null && r !== "unsupported" ? r.declarations.get(prop)?.value : undefined;
 
 describe("cascadeRootStylesheetTransform", () => {
+  it("DM-N80HJW preserves escaped trailing family whitespace during cascade and transform removal", () => {
+    const source = String.raw`<svg><style>svg{font:20px \ Face\ ;transform:translate(2ch,0)}</style></svg>`;
+    const actual = cascade(source);
+    expect(valueOf(actual, "font")).toBe("20px \\ Face\\ ");
+    expect(actual !== null && actual !== "unsupported" ? actual.source : null).toContain(
+      String.raw`font:20px \ Face\ `,
+    );
+  });
   it("cascades root font declarations without removing them from the sheet", () => {
     const r = cascade(
       `<svg id="r"><style>@font-face { font-family: Face; src: local(Arial) } ` +

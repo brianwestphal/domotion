@@ -17,7 +17,18 @@ const IDENT = new RegExp(
   `^(?:--|-?(?:[_a-zA-Z]|[^\\x00-\\x7f]|${CSS_ESCAPE}))(?:[-_a-zA-Z0-9]|[^\\x00-\\x7f]|${CSS_ESCAPE})*`,
 );
 const SPACE = /^[ \t\n\r\f]$/;
-export const trimImageCssWhitespace = (value: string): string => value.replace(/^[ \t\n\r\f]+|[ \t\n\r\f]+$/g, "");
+export function trimImageCssWhitespace(value: string): string {
+  let start = 0,
+    end = value.length;
+  while (SPACE.test(value[start] ?? "")) start++;
+  while (end > start && SPACE.test(value[end - 1])) {
+    let slashes = 0;
+    for (let at = end - 2; at >= start && value[at] === "\\"; at--) slashes++;
+    if (slashes % 2 === 1) break; // escaped whitespace is token data
+    end--;
+  }
+  return value.slice(start, end);
+}
 
 /** End of a valid CSS escape; null for EOF/newline escapes in identifiers. */
 export function imageCssEscapeEnd(value: string, start: number): number | null {
@@ -112,9 +123,6 @@ export function parseImageFontFamilyTail(value: string): ImageFontFamily[] | nul
       // that distinction with an equivalent quoted spelling.
       if (!generic && family.name.toLowerCase() === "-webkit-standard") family.css = `"${family.name}"`;
     }
-    // The renderer's CSSOM family reader trims decoded outer whitespace.
-    // Keep unusual authored names unresolved instead of changing their face.
-    if (family.name !== family.name.trim()) return null;
     families.push(family);
     space();
     if (at === text.length) return families;

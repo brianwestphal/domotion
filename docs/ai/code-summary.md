@@ -54,6 +54,9 @@ deviation for box, inline, control, and text shadows.
   browser bundle erases these annotations before serialization.
 - `src/render/` turns captured facts into SVG. It must preserve Chromium's
   decisions; it does not independently lay out the page.
+  `packages/text-engine/src/font-family-stack.ts` preserves decoded string
+  whitespace and normalizes only CSS token padding; registrations accept
+  explicit `{ decodedName }` data alongside the legacy string API.
   SVG image font parsing shares balanced shorthand boundaries in
   `render/svg-image-font-shorthand.ts` and bounded root custom-property
   substitution in `render/svg-image-css-variables.ts`; font name isolation and

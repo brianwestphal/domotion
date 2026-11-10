@@ -6,6 +6,11 @@ import type { WebfontSynthesisFace } from "./font-instance.js";
 import type { WebfontVariant } from "./font-instance.js";
 import { applyVariationAxes } from "./font-instance.js";
 
+/** Legacy string callers retain their CSS-like quote normalization. Capture
+ * and parsed FontFace descriptors pass decoded data explicitly, so quotes,
+ * outer whitespace and empty names cannot be mistaken for syntax. */
+export type RegisteredFontFamily = string | { readonly decodedName: string };
+
 /**
  * Open a webfont buffer with fontkit and register it under the given family
  * name (case-insensitive). `weight` is a CSS numeric weight (100-900); 400
@@ -50,7 +55,7 @@ import { applyVariationAxes } from "./font-instance.js";
  * `parseFontStyleDescriptor`.
  */
 export function registerWebfont(
-  family: string,
+  family: RegisteredFontFamily,
   weight: number,
   style: string,
   buffer: Buffer,
@@ -59,7 +64,8 @@ export function registerWebfont(
   weightDesc?: string,
   styleDesc?: string,
 ): boolean {
-  const key = family.toLowerCase().replace(/^["']|["']$/g, "");
+  const key =
+    typeof family === "string" ? family.toLowerCase().replace(/^["']|["']$/g, "") : family.decodedName.toLowerCase();
   let font: FontInstance;
   try {
     const created = fontkit.create(buffer) as unknown;
@@ -952,21 +958,22 @@ export function emptyFontRegistrations(): FontRegistrationSnapshot {
 }
 
 export function registerLocalFontAlias(
-  family: string,
+  family: RegisteredFontFamily,
   resolvedKey: string,
   weight: number = 400,
   italic: boolean = false,
 ): void {
-  // Normalize IDENTICALLY to the lookup side (the `resolveFontKey` tokenizer:
-  // trim → strip boundary quotes → lowercase). A different order (e.g. strip
-  // quotes before trimming) leaves interior quotes on a whitespace-padded name,
-  // so the alias registers under a key `matchFamilyNameToKey` never looks up and
-  // local-font resolution silently misses (DM-1597).
-  const key = family
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .toLowerCase();
-  if (key === "" || resolvedKey === "") return;
+  // Preserve the legacy string API's trim → strip quotes → lowercase order
+  // (DM-1597). Explicit decoded data keeps every name character, matching the
+  // shared CSSOM parser rather than reinterpreting data as CSS syntax.
+  const key =
+    typeof family === "string"
+      ? family
+          .trim()
+          .replace(/^["']|["']$/g, "")
+          .toLowerCase()
+      : family.decodedName.toLowerCase();
+  if ((typeof family === "string" && key === "") || resolvedKey === "") return;
   const list = localFontAliasRegistry.get(key) ?? [];
   list.push({ weight, italic, baseKey: resolvedKey });
   localFontAliasRegistry.set(key, list);
@@ -1003,14 +1010,17 @@ export function pickLocalFontAliasVariant(
  * weight) can be unit-tested on any platform (DM-1597).
  */
 export function __pickLocalFontAliasVariantForTest(
-  family: string,
+  family: RegisteredFontFamily,
   weight: number,
   italic: boolean,
 ): LocalFontAliasVariant | null {
-  const key = family
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .toLowerCase();
+  const key =
+    typeof family === "string"
+      ? family
+          .trim()
+          .replace(/^["']|["']$/g, "")
+          .toLowerCase()
+      : family.decodedName.toLowerCase();
   return pickLocalFontAliasVariant(key, weight, italic);
 }
 

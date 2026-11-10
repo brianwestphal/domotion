@@ -1212,7 +1212,8 @@ function matchFamilyCandidateToKey(
   lookupName: string = name,
   description: DarwinFontDescription = DARWIN_INITIAL_FONT_DESCRIPTION,
 ): string | null {
-  if (name === "" || name === "doesnotexist") return null;
+  if (name === "doesnotexist") return null;
+  if (name === "" && !webfontRegistry.has(name) && !localFontAliasRegistry.has(name)) return null;
   const candidate: FamilyCandidate = {
     name,
     generic,

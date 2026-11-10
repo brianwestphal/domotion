@@ -4,8 +4,8 @@ title: "Structured captured font-family stack"
 kind: "contract"
 status: "current"
 owners: ["text-fonts"]
-platforms: []
-tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW"]
+platforms: ["macos", "linux", "windows"]
+tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW"]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -14,6 +14,13 @@ code:
     "src/capture/font-family-default.e2e.test.ts",
     "packages/text-engine/src/font-family-stack.test.ts",
     "packages/text-engine/src/font-family-stack.ts",
+    "packages/text-engine/src/render/registered-family-identity.test.ts",
+    "packages/text-engine/src/render/webfont-registry.ts",
+    "packages/text-engine/src/render/text-engine.ts",
+    "src/capture/cross-origin-font-face.ts",
+    "src/capture/font-face-family-identity.test.ts",
+    "src/capture/script/font-metrics.ts",
+    "tests/literal-family-whitespace.e2e.test.ts",
     "tests/font-family-stack-capture.e2e.test.ts",
     "tests/capture-script-determinism.test.ts",
     "scripts/build-capture-script.mjs",
@@ -75,6 +82,48 @@ and classifies a generic only when the computed token is an unquoted canonical
 generic identifier. Literal names serialize quoted on output; only typed
 generic nodes serialize bare. That makes a round trip unambiguous even for
 `"monospace"`, `"A, B"`, and `Escaped\,Name`.
+
+### Decoded family-name data (DM-N80HJW)
+
+Only CSS token padding and unquoted identifier-sequence gaps are normalized.
+Decoded quoted-string and escaped-character data is never trimmed: `" Face "`,
+`"Face"`, escaped tabs, NBSP, all-space names and the empty literal string are
+distinct family identities. NBSP is a valid identifier character, not CSS
+whitespace. Escaped trailing spaces remain data even when PostCSS stores them
+in declaration raw metadata or the containing rule's trailing raw text.
+
+Font registration functions accept `{ decodedName: string }` for names already
+decoded from CSSOM or font metadata. Their legacy string input retains its
+existing quote normalization. This explicit boundary distinguishes a decoded
+name containing literal quote characters from CSS quote syntax without
+changing existing callers. Capture discovery, cached-registration replay,
+session registration and isolated image-own-face metrics use decoded inputs.
+Empty literal names resolve only when registered; an absent family stack still
+uses the ordinary initial/fallback route. Local aliases follow the same exact
+data boundary. Caller registrations are restored after isolated resolution,
+including rejected font bytes.
+
+This follows pinned Blink:
+[`ConsumeFamilyName`/`ConcatenateFamilyName`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/css/properties/css_parsing_utils.cc#L6348-L6380)
+passes string token data directly to `CSSFontFamilyValue`, while joining
+identifier tokens with one space.
+[`FontFace::SetFamilyValue`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/css/font_face.cc#L550-L557)
+retains that value; `FontFaceCache::SegmentedFacesByFamily::AddFontFace` keys
+`familyNameUnquoted()` without trimming. The binary `FontFace` constructor also
+takes decoded name data directly, while CSS properties take serialized CSS.
+
+Native controls match `Range` advances against the actual bundled candidate
+fonts, then verify discovery, captured records and isolated `ch` geometry with
+competing same-named caller bytes. The image controls also compare actual
+glyph pixels, in both flatten modes. Generic-vs-literal node types and the
+separate authored-default ambiguity (DM-ZZRZWK) retain their existing rules.
+New exotic image family names with `font-family`/inline `style` XML attributes
+retain source raster until the separate original-attribute namespace boundary
+is proved (DM-SV4B1M). This restriction does not trim or alter their name data.
+The same-byte DOM/embedded-SVG fixture control retains an independent existing
+three-pixel antialias difference, at most two channel values; DM-FC9VGC owns
+its attribution. It is unchanged by this identity correction. The image-own
+geometry/glyph controls are pixel-exact.
 
 Blink's initial `kStandardFamily` has no faithful concrete CSSOM spelling.
 Capture represents it as one typed `-webkit-standard` node with descriptor

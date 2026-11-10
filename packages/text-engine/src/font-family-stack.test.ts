@@ -10,6 +10,27 @@ import {
 // The captured-owner and form-control emitter cases for the same stack record
 // live in the root `src/font-family-stack.test.ts`, which owns those renderers.
 describe("DM-2518 structured Blink font-family stack", () => {
+  it.each([
+    ['" Face "', " Face "],
+    ['" Face"', " Face"],
+    ['"Face "', "Face "],
+    ['"\\20 Face\\20 "', " Face "],
+    ['"\\9 Face\\9 "', "\tFace\t"],
+    ["\u00a0Face\u00a0", "\u00a0Face\u00a0"],
+    ['" "', " "],
+    ['""', ""],
+    [" A   B ", "A B"],
+    ["\\20 Face\\20 ", " Face "],
+    ["\\ Face\\ ", " Face "],
+  ])("DM-N80HJW preserves decoded name data separately from CSS spacing: %s", (css, name) => {
+    const entries = parseCssFontFamilyEntries(css);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].name).toBe(name);
+    expect(entries[0].type).toBe("family-name");
+    expect(captureFontFamilyStack(serializeCapturedFontFamilyStack(captureFontFamilyStack(css)))).toEqual(
+      captureFontFamilyStack(css),
+    );
+  });
   it("parses quoted commas, escaped names, and CSS hex escapes without changing node identity", () => {
     expect(parseCssFontFamilyEntries('"ACME, Sans", Escaped\\,Name, M\\65 nlo, serif')).toEqual([
       { name: "ACME, Sans", type: "family-name", quoted: true },
