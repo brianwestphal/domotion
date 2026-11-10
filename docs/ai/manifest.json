@@ -4619,6 +4619,8 @@
         "tests/feature-coverage.ts",
         "tests/release-helpers-workflow.test.ts",
         "tests/release-workflow.test.ts",
+        "tools/helper-release-consumer.ts",
+        "tests/helper-release-consumer.test.ts",
         "tools/parity-program.json",
         "scripts/ci-run-fast-visuals.mjs",
         "vitest.e2e.config.ts"

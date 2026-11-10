@@ -6233,7 +6233,8 @@
           "DM-8P5PHJ",
           "DM-S9S3WG",
           "DM-34WC46",
-          "DM-95ECD3"
+          "DM-95ECD3",
+          "DM-K85TST"
         ],
         "code": [
           ".github/workflows/",
@@ -6255,6 +6256,8 @@
           "tests/feature-coverage.ts",
           "tests/release-helpers-workflow.test.ts",
           "tests/release-workflow.test.ts",
+          "tools/helper-release-consumer.ts",
+          "tests/helper-release-consumer.test.ts",
           "tools/parity-program.json",
           "scripts/ci-run-fast-visuals.mjs",
           "vitest.e2e.config.ts"

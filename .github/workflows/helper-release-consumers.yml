@@ -1,0 +1,143 @@
+name: Published helper consumers
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing same-version helper release, e.g. v0.35.0"
+        required: true
+        type: string
+      source_sha:
+        description: "Full source SHA expected in the published helper provenance"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ inputs.tag }}
+  EXPECTED_SOURCE: ${{ inputs.source_sha }}
+  DOMOTION_NO_NICE: "1"
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.21.0"
+          architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Acquire and authenticate published assets in a private fresh cache
+        run: >
+          node --import tsx tools/helper-release-consumer.ts
+          --tag "$RELEASE_TAG" --source "$EXPECTED_SOURCE"
+          --out tests/output/helper-release-consumer/receipt.json
+          --github-env "$GITHUB_ENV" --expected-platform darwin
+      - name: Verify CoreText metadata and native image metrics without skipped controls
+        run: |
+          set -euo pipefail
+          npx vitest run --config vitest.e2e.config.ts tests/svg-root-native-font-metrics.e2e.test.ts tests/image-svg-normal-line-height.e2e.test.ts --reporter=json --outputFile=tests/output/helper-release-consumer/browser.json
+          node --import tsx tools/helper-release-consumer.ts --browser-results tests/output/helper-release-consumer/browser.json --minimum-passed 16
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-helper-macos
+          path: tests/output/helper-release-consumer/
+          if-no-files-found: error
+
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x64
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.21.0"
+          architecture: ${{ matrix.arch }}
+          cache: npm
+      - run: npm ci
+      - name: Acquire and authenticate published assets in a private fresh cache
+        run: >
+          node --import tsx tools/helper-release-consumer.ts
+          --tag "$RELEASE_TAG" --source "$EXPECTED_SOURCE"
+          --out tests/output/helper-release-consumer/receipt.json
+          --github-env "$GITHUB_ENV" --expected-platform linux --expected-arch "${{ matrix.arch }}"
+      - name: Verify native hinting and image metrics without skipped controls
+        run: |
+          set -euo pipefail
+          npx vitest run --config vitest.e2e.config.ts tests/image-svg-font-units-linux.e2e.test.ts tests/image-svg-normal-line-height-linux.e2e.test.ts tests/image-svg-vdmx-hinting-linux.e2e.test.ts --reporter=json --outputFile=tests/output/helper-release-consumer/browser.json
+          node --import tsx tools/helper-release-consumer.ts --browser-results tests/output/helper-release-consumer/browser.json --minimum-passed 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-helper-linux-${{ matrix.arch }}
+          path: |
+            tests/output/helper-release-consumer/
+            tests/output-linux/image-vdmx-*.png
+            tests/output-linux/image-vdmx-hinting.json
+          if-no-files-found: error
+
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.21.0"
+          architecture: ${{ matrix.arch }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Acquire and authenticate published assets in a private fresh cache
+        run: >
+          node --import tsx tools/helper-release-consumer.ts
+          --tag "$RELEASE_TAG" --source "$EXPECTED_SOURCE"
+          --out tests/output/helper-release-consumer/receipt.json
+          --github-env "$GITHUB_ENV" --expected-platform win32 --expected-arch "${{ matrix.arch }}"
+      - name: Verify native DirectWrite bitmap and image metrics without skipped controls
+        run: |
+          set -euo pipefail
+          npx vitest run --config vitest.e2e.config.ts tests/image-svg-font-units-win32.e2e.test.ts tests/image-svg-normal-line-height-win32.e2e.test.ts --reporter=json --outputFile=tests/output/helper-release-consumer/browser.json
+          node --import tsx tools/helper-release-consumer.ts --browser-results tests/output/helper-release-consumer/browser.json --minimum-passed 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-helper-windows-${{ matrix.arch }}
+          path: |
+            tests/output/helper-release-consumer/
+            tests/output/windows-image-root-line-height.png
+          if-no-files-found: error

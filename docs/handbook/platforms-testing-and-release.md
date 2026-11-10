@@ -17,6 +17,7 @@ tickets:
     "DM-S9S3WG",
     "DM-34WC46",
     "DM-95ECD3",
+    "DM-K85TST",
   ]
 code:
   [
@@ -39,6 +40,8 @@ code:
     "tests/feature-coverage.ts",
     "tests/release-helpers-workflow.test.ts",
     "tests/release-workflow.test.ts",
+    "tools/helper-release-consumer.ts",
+    "tests/helper-release-consumer.test.ts",
     "tools/parity-program.json",
     "scripts/ci-run-fast-visuals.mjs",
     "vitest.e2e.config.ts",
@@ -177,3 +180,28 @@ neighboring files without exposing launch lines; it did not reproduce the
 intermittent reset or establish a driver/backend cause. C3 remains unattributed
 until a real loss witness can be correlated with native messages. Linux and
 Windows artifact paths and launch behavior are unchanged.
+
+## Published helper consumer validation
+
+After a same-version helper refresh completes, dispatch
+`helper-release-consumers.yml` on the desired consumer source ref. Supply the
+existing release `tag` and the full helper `source_sha` recorded by the producer.
+This workflow downloads published assets through the production acquisition APIs
+into a private, newly created cache. It does not rebuild a native helper or
+change a release, tag, npm package, or global cache.
+
+The acquisition tool verifies the provenance sidecar, repository, exact source,
+package version, complete five-asset inventory and fetched binary checksum. It
+refuses inherited helper overrides. macOS also verifies the signature and
+requires positive CoreText cap/x-height fields before running the normally
+guarded SVG-root controls. An independently downloaded ICU companion must pass
+its actual query probe.
+
+The manual workflow runs macOS, Linux x64/arm64 and Windows x64/arm64 consumers.
+Each then runs its platform's native Chromium image-unit/line-spacing controls;
+Windows includes the discriminating bitmap/GDI case, and Linux includes the
+hinted VDMX controls. Browser result validation requires actual passed assertions,
+consistent counts and zero skipped/todo controls. Acquisition receipts alone
+are not parity evidence: retain them together with each platform's browser JSON
+and diagnostic PNGs. These focused checks do not replace broader release
+validation or certify unrelated font-selection and shaping behavior.
