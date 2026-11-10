@@ -24,7 +24,12 @@ describe.each([false, true])("SVG root source-paint ownership (flatten=%s)", (fl
     { name: "origin presentation attribute", css: "transform:scale(2)", attrs: 'transform-origin="10dvw 0"' },
     { name: "individual scale math", css: "scale:calc(1 + abs(-1))" },
     { name: "individual rotate math", css: "rotate:atan2(1,1)" },
-    { name: "undecidable root selector", css: "", sheet: "svg:lang(en){transform:translateX(5px)}" },
+    {
+      name: "undecidable root selector",
+      css: "",
+      sheet: "svg:lang(en){transform:translateX(5px)}",
+      selectorIdentityRefusal: true,
+    },
   ])("keeps source raster for $name", async (entry) => {
     const original = source(entry.css, "sheet" in entry ? entry.sheet : "", "attrs" in entry ? entry.attrs : "");
     const page = await browser.newPage({ viewport: { width: 100, height: 80 }, deviceScaleFactor: 1 });
@@ -54,11 +59,17 @@ describe.each([false, true])("SVG root source-paint ownership (flatten=%s)", (fl
       expect(output).toContain("<image ");
       expect(output).toMatch(/href="data:image\/svg\+xml/);
       expect(output).not.toContain("data-domotion-image-root");
-      expect(
-        warnings.some(
-          (warning) => warning.feature === "svg-image-root-transform" && warning.detail.includes("raster fallback"),
-        ),
-      ).toBe(true);
+      if ("selectorIdentityRefusal" in entry) {
+        // The shared selector grammar refuses :lang() before transform
+        // analysis. That path retains the image without a transform warning.
+        expect(warnings.filter((warning) => warning.feature === "svg-image-root-transform")).toEqual([]);
+      } else {
+        expect(
+          warnings.some(
+            (warning) => warning.feature === "svg-image-root-transform" && warning.detail.includes("raster fallback"),
+          ),
+        ).toBe(true);
+      }
       await page.setContent(
         `<body style="margin:0;background:white"><img src="data:image/svg+xml,${encodeURIComponent(output)}" style="display:block;width:100px;height:80px"></body>`,
       );
