@@ -188,6 +188,11 @@ jobs:
         # fresh checkout has no dist/, so they skipped here every run.
         if: always()
         run: npm run build
+      - name: Verify native Linux cleanup contracts (DM-GRZJPV)
+        if: always()
+        run: >-
+          npx vitest run src/verified-worktree-cleanup.test.ts
+          --reporter=json --outputFile=tests/output-linux/cleanup-contracts/results.json
       - name: Verify owned UI process controls (DM-3CJSK2)
         if: always()
         env:
@@ -332,6 +337,7 @@ jobs:
             tests/output-linux/literal-family-identity/
             tests/output-linux/opaque-font-family/
             tests/output-linux/owned-ui-server/
+            tests/output-linux/cleanup-contracts/
             tests/output-linux/srcset-resource/
             tests/output-linux/external-svg-frozen/
             tests/output-linux/shadow-knockout/
