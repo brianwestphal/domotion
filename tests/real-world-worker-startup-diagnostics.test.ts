@@ -34,7 +34,7 @@ class FakeSession {
   listeners = new Map<string, Set<(event: CdpObject) => void>>();
   commands: Array<{ method: string; params?: CdpObject }> = [];
   targets = [target];
-  own = { type: "page", browserContextId: "ours", url: origin + "/" };
+  own = { targetId: "page-target", type: "page", browserContextId: "ours", url: origin + "/" };
   attachInfo = target;
   attachmentEvent = true;
   waiting = false;
@@ -117,6 +117,7 @@ describe("failure-only synthetic worker replay (DM-XWB4FA)", () => {
     const result = await collectWorkerStartupDiagnostic(fake.page(), identity);
     expect(result).toMatchObject({
       status: "complete",
+      identity: { browserContextId: "ours", pageTargetId: "page-target", workerTargetId: "worker-target" },
       target: {
         attachedBeforeInspection: false,
         diagnosticAttachmentWaitingForDebugger: false,
@@ -141,6 +142,19 @@ describe("failure-only synthetic worker replay (DM-XWB4FA)", () => {
       .map((command) => cdpObject(JSON.parse(String(command.params?.message)))?.method);
     expect(nested).toEqual(["Runtime.enable"]);
     expect(JSON.stringify(result)).not.toMatch(/secret|objectId|private-object|foreign-session|http:/);
+    fake.assertClean();
+  });
+
+  it("omits unsafe diagnostic IDs without changing target matching or commands", async () => {
+    vi.useFakeTimers();
+    const fake = new FakeSession();
+    fake.own.browserContextId = "unsafe context=secret";
+    fake.targets = [{ ...target, browserContextId: fake.own.browserContextId }];
+    fake.attachInfo = fake.targets[0];
+    const result = await collectWorkerStartupDiagnostic(fake.page(), identity);
+    expect(result.status).toBe("complete");
+    expect(result.identity).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain("secret");
     fake.assertClean();
   });
 
@@ -193,6 +207,13 @@ describe("failure-only synthetic worker replay (DM-XWB4FA)", () => {
       cleanup: { page: "detached" },
     });
     wrongPage.assertClean();
+    const refused = new FakeSession();
+    refused.own.url = "https://foreign.invalid/secret";
+    const result = await collectWorkerStartupDiagnostic(refused.page(), identity);
+    expect(result.identity).toBeUndefined();
+    expect(result.failureStage).toBe("page_identity");
+    expect(refused.commands.map((command) => command.method)).toEqual(["Target.getTargetInfo"]);
+    refused.assertClean();
   });
 
   it.each(["mismatch", "missing"])("does not enable Runtime with %s attachment proof", async (kind) => {

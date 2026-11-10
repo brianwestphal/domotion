@@ -37,6 +37,7 @@ export interface WorkerStartupDiagnostic {
   schemaVersion: 1;
   status: "complete" | "not_fixture" | "no_target" | "ambiguous_target" | "unavailable";
   failureStage?: string;
+  identity?: { browserContextId: string; pageTargetId?: string; workerTargetId?: string };
   target?: {
     attachedBeforeInspection: boolean;
     diagnosticAttachmentWaitingForDebugger: boolean | null;
@@ -205,6 +206,14 @@ export async function collectWorkerStartupDiagnostic(
       stage = "page_identity";
       throw new Error("Fixture identity unavailable");
     }
+    const safeId = (value: unknown): string | undefined =>
+      typeof value === "string" && /^[a-z0-9-]{1,128}$/i.test(value) ? value : undefined;
+    const safeContext = safeId(contextId);
+    if (safeContext != null)
+      result.identity = {
+        browserContextId: safeContext,
+        ...(safeId(own.targetInfo.targetId) == null ? {} : { pageTargetId: safeId(own.targetInfo.targetId) }),
+      };
     const discovery = await step("discover_targets", () => source.send("Target.getTargets"));
     const matches = discovery.targetInfos.filter(
       (target) =>
@@ -218,6 +227,7 @@ export async function collectWorkerStartupDiagnostic(
       return result;
     }
     targetId = matches[0]!.targetId;
+    if (result.identity != null && safeId(targetId) != null) result.identity.workerTargetId = safeId(targetId);
     result.target = {
       attachedBeforeInspection: matches[0]!.attached,
       diagnosticAttachmentWaitingForDebugger: null,
