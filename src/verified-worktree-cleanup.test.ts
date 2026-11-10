@@ -3,8 +3,18 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vitest";
 
-test("verified cleanup passes disposable real-Git positive and refusal regressions", () => {
-  const result = spawnSync(process.execPath, ["--test", "scripts/verified-worktree-cleanup.test.mjs"], {
+test("verified cleanup passes platform-supported and portable refusal contracts", () => {
+  // Node cannot implement POSIX owner/group/other chmod distinctions on Windows:
+  // https://nodejs.org/api/fs.html#file-modes. Its native job checks portable
+  // grammar and the explicit pre-I/O refusal; POSIX hosts run every Git fixture.
+  const selection =
+    process.platform === "win32"
+      ? [
+          "--test-name-pattern",
+          "GitHub CI authority|CLI never accepts|generated exception refuses|Windows cleanup refuses",
+        ]
+      : [];
+  const result = spawnSync(process.execPath, ["--test", ...selection, "scripts/verified-worktree-cleanup.test.mjs"], {
     cwd: fileURLToPath(new URL("..", import.meta.url)),
     encoding: "utf8",
     timeout: 90_000,

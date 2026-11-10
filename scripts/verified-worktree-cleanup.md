@@ -5,8 +5,13 @@ subagent worktrees (`domotion-hs-<suffix>`, branch `hs/dm-<suffix>`) and direct
 `.claude/worktrees/dm-<suffix>` worktrees. It is a local maintenance tool, not a
 renderer or package-install requirement. It uses the installed `hotsheet-cli`,
 Git, authenticated `gh`, and `lsof`; missing capabilities refuse cleanup.
-macOS and Linux can supply the `lsof` idle witness. Windows without that witness
-refuses removal; this does not change Windows rendering or native validation.
+macOS and Linux supply the `lsof` idle witness and POSIX private-preservation
+contract. Destructive cleanup refuses on other platforms before reading a
+checkout. Windows requires native idle and ACL evidence before future admission
+(DM-R1GCS3); Node's [file-mode API](https://nodejs.org/api/fs.html#file-modes)
+does not implement POSIX owner/group/other distinctions there. Its native test
+selection retains portable grammar and the explicit pre-I/O refusal; the complete
+real-Git/permission fixtures run on macOS and Linux.
 
 The default action is **read-only inspection**. There is no force, skip-CI,
 skip-gate, or layout-bypass option. Only the integrator executes cleanup, after

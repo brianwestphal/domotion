@@ -706,6 +706,8 @@ export function cleanupAdapter(run = runCommand, progress = () => {}) {
   }
 
   function execute(options) {
+    // POSIX chmod bits cannot certify private Windows ACL preservation.
+    requireThat(["darwin", "linux"].includes(process.platform), "unsupported_cleanup_platform");
     const verified = inspect(options);
     const { context, reviewed, path, inventory } = verified;
     requireThat(!existsSync(join(context.directory, "intent.json")), "cleanup_intent_exists_manual_recovery_required");

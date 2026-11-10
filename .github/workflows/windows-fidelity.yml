@@ -113,6 +113,9 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output/native-image-capture/results.json --minimum-passed 1
+      - name: Verify portable cleanup contracts and native Windows refusal
+        if: always()
+        run: npx vitest run src/verified-worktree-cleanup.test.ts
       - name: Run feature visual-regression suite
         # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
         # runner applies a per-platform coverage cap on win32 because DirectWrite

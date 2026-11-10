@@ -265,6 +265,13 @@ test("GitHub CI authority is parsed from supported Git origins", () => {
     assert.throws(() => githubOriginRepository(origin), /unsupported_github_origin/);
 });
 
+test("Windows cleanup refuses before reading or changing a checkout", { skip: process.platform !== "win32" }, () => {
+  const adapter = cleanupAdapter(() => {
+    throw new Error("no command may run on this refused path");
+  });
+  assert.throws(() => adapter.execute({}), /unsupported_cleanup_platform/);
+});
+
 test("ambient gh repository and host cannot substitute another repository's green CI", (t) => {
   const previous = { GH_REPO: process.env.GH_REPO, GH_HOST: process.env.GH_HOST };
   process.env.GH_REPO = "other/domotion";
