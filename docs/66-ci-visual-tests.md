@@ -575,6 +575,12 @@ the test watchdog and strict line-spacing, mechanism-off and pixel assertions ar
 unchanged. The phase log identifies the pending operation instead of attributing
 a timeout to browser cleanup without evidence.
 
+The native diagnostic subsequently located a hang in `browser.close()` after
+the metric and pixel assertions passed. The control now uses the repository's
+bounded test teardown helper. A completed teardown phase means that helper
+returned; it does not prove the underlying close completed before its bound.
+Metric and screenshot failures still reject, and the outer watchdog is unchanged.
+
 Image-document host-preference screenshots run inside each test's retry scope
 with owned browser cleanup. The existing exact empty-surface protocol retry can
 therefore replay the oracle, unlike a suite-level setup failure. Preflight keeps

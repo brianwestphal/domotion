@@ -13,6 +13,7 @@ import type { CapturedElement } from "../src/capture/types.js";
 import { forEachElement } from "../src/tree-ops/for-each-element.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
 import { diagnosticPhase } from "./diagnostic-phase.js";
+import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 it.skipIf(process.platform !== "linux")(
   "discriminates launch hinting from per-face Fontconfig with a real VDMX strike",
@@ -173,7 +174,9 @@ it.skipIf(process.platform !== "linux")(
           expect(rgb(4, lineSpacing + 4)).toEqual([255, 0, 0]);
           expect(rgb(114, lineSpacing + 4)).toEqual(rgb(4, lineSpacing + 4));
         } finally {
-          await phase("browser.close", () => browser.close(), 5_000);
+          // Native metrics/pixels are already asserted. Chromium's close can
+          // hang; use the existing bounded test teardown without raising the gate.
+          await phase("browser.teardown", () => closeBrowserSafely(browser, 4_000), 5_000);
         }
       }
       const custom = await diagnosticPhase("custom/launch", () =>
@@ -188,7 +191,7 @@ it.skipIf(process.platform !== "linux")(
         await diagnosticPhase("custom/hinting", () => captureImageFontHinting(page, [owner]));
         expect(owner.imageDocumentFontRendering).toBeUndefined();
       } finally {
-        await diagnosticPhase("custom/browser.close", () => custom.close(), 5_000);
+        await diagnosticPhase("custom/browser.teardown", () => closeBrowserSafely(custom, 4_000), 5_000);
       }
       expect(results[0]?.lineSpacing).not.toBe(results[1]?.lineSpacing);
       const output = resolve(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output-linux");
