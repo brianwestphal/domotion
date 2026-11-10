@@ -282,6 +282,23 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output-linux/external-svg-frozen/results.json --minimum-passed 96
+      - name: Verify native snapshot transition ownership
+        if: always()
+        env:
+          DOMOTION_THP_EVIDENCE_DIR: tests/output-linux/snapshot-visibility/production
+          DOMOTION_FTR_EVIDENCE_DIR: tests/output-linux/snapshot-visibility/contracts
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/snapshot-visibility-controller.e2e.test.ts
+          tests/native-control-style-restoration.e2e.test.ts
+          tests/replaced-snapshot-visibility-transition.e2e.test.ts
+          tests/visibility-transition-effect-ownership.e2e.test.ts
+          --reporter=json --outputFile=tests/output-linux/snapshot-visibility/results.json
+      - name: Require every native snapshot transition assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output-linux/snapshot-visibility/results.json --minimum-passed 56
       - name: Verify native literal font-family identity
         if: always()
         run: >-
@@ -398,6 +415,7 @@ jobs:
             tests/output-linux/svg-xml-case/
             tests/output-linux/svg-escaped-import/
             tests/output-linux/svg-font-identity/
+            tests/output-linux/snapshot-visibility/
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

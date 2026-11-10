@@ -12,6 +12,10 @@
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { createPageRegistry } from "./page-registry.js";
+import {
+  suppressSnapshotVisibilityTransitions,
+  type SnapshotVisibilityState,
+} from "./snapshot-visibility-transitions.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import {
   cropNativeControlRgba,
@@ -120,6 +124,7 @@ interface IsolationRow {
 }
 
 interface IsolationPageArgs {
+  visibilityKey: string;
   sourceNodeKey: string;
   decorationNodeKey: string;
   restoreKey: string;
@@ -272,12 +277,15 @@ async function captureIsolatedDecorations(
   let facts: IsolationFact[] = active.map(() => ({ connected: false, fingerprintMatches: false }));
   let isolated: IsolationFrame = null;
   const isolationRows = buildIsolationRows(active, viewport);
+  let visibilityTransitions: Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>> | undefined;
   try {
+    visibilityTransitions = await suppressSnapshotVisibilityTransitions(page, true);
     await restoreRegistry.tag(page, () => ({ entries: [], activeElement: document.activeElement }));
     facts = await page.evaluate(isolateDecorationsInPage, {
       sourceNodeKey: keys.sourceNodeKey,
       decorationNodeKey: keys.decorationNodeKey,
       restoreKey,
+      visibilityKey: visibilityTransitions.key,
       rows: isolationRows,
     });
     isolated = await takeIsolationFrame(page, viewport);
@@ -298,6 +306,16 @@ async function captureIsolatedDecorations(
           error instanceof Error ? `restore verification failed: ${error.message}` : "restore verification failed",
       }));
     await restoreRegistry.dispose();
+    try {
+      await visibilityTransitions?.dispose();
+    } catch (error) {
+      isolated = null;
+      facts = facts.map((fact) => ({
+        ...fact,
+        fingerprintMatches: false,
+        reason: `visibility ownership restore failed: ${error instanceof Error ? error.message : String(error)}`,
+      }));
+    }
     if (!restored.ok) {
       facts = facts.map((fact) => ({
         ...fact,
@@ -386,6 +404,7 @@ async function materializeDecorationCrop(
  * interaction-state checks defined on the same object.
  */
 const isolateDecorationsInPage = ({
+  visibilityKey,
   sourceNodeKey,
   decorationNodeKey,
   restoreKey,
@@ -416,12 +435,16 @@ const isolateDecorationsInPage = ({
         }
       : null;
   });
+  const visibility = pageGlobal[visibilityKey] as SnapshotVisibilityState;
+  visibility.start();
   // Object methods survive Playwright's function serialization in both
   // compiled and direct-TSX callers. Locally named functions gain an
   // esbuild `__name(...)` call under TSX, but that helper does not exist in
   // the browser utility world.
   const helpers = {
     set(element: HTMLElement, property: string, value: string): void {
+      visibility.assertMutable(element, property);
+      if (property === "visibility") visibility.paint(element, value);
       if (
         element.style.getPropertyValue(property) === value &&
         element.style.getPropertyPriority(property) === "important"

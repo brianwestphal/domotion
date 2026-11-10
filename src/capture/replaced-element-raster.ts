@@ -85,6 +85,7 @@ interface RasterSession {
   /** Box-model CDP session; undefined when it could not be opened. */
   cdp: CDPSession | undefined;
   rootNodeId: number | undefined;
+  visibilityTransitions?: Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>>;
 }
 
 /**
@@ -419,6 +420,7 @@ async function rasterizeByIsolatedScreenshots(
   let visibilityTransitions: Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>> | undefined;
   try {
     visibilityTransitions = await suppressSnapshotVisibilityTransitions(page);
+    session.visibilityTransitions = visibilityTransitions;
     styleHandle = await page.addStyleTag({ content: SNAPSHOT_HIDE_CSS });
     for (const target of screenshotTargets) {
       await rasterizeTargetByScreenshot(session, target);
@@ -448,6 +450,12 @@ async function rasterizeByIsolatedScreenshots(
       await visibilityTransitions?.dispose();
     } catch (error) {
       recordFailure(undefined, "cleanup", `could not restore visibility transitions: ${errorDetail(error)}`);
+      for (const target of screenshotTargets) {
+        if (target.snapshot.dataUri != null) {
+          delete target.snapshot.dataUri;
+          report.rasterizedCount--;
+        }
+      }
     }
     try {
       await detachQuietly(cdp);
@@ -499,6 +507,7 @@ async function rasterizeTargetByScreenshot(session: RasterSession, target: Raste
     }
 
     phase = "geometry";
+    await session.visibilityTransitions?.paintTarget();
     const outputQuad = await resolveTargetQuad(session, target);
     const outputBounds = outputQuad == null ? null : axisAlignedQuadBounds(outputQuad);
     if (outputQuad == null || outputBounds == null) {

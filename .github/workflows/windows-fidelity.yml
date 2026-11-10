@@ -189,6 +189,23 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output/external-svg-frozen/results.json --minimum-passed 96
+      - name: Verify native snapshot transition ownership
+        if: always()
+        env:
+          DOMOTION_THP_EVIDENCE_DIR: tests/output/snapshot-visibility/production
+          DOMOTION_FTR_EVIDENCE_DIR: tests/output/snapshot-visibility/contracts
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/snapshot-visibility-controller.e2e.test.ts
+          tests/native-control-style-restoration.e2e.test.ts
+          tests/replaced-snapshot-visibility-transition.e2e.test.ts
+          tests/visibility-transition-effect-ownership.e2e.test.ts
+          --reporter=json --outputFile=tests/output/snapshot-visibility/results.json
+      - name: Require every native snapshot transition assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/snapshot-visibility/results.json --minimum-passed 56
       - name: Verify selected image resource and fallback ownership (DM-E0KRM2)
         if: always()
         run: >-
@@ -309,6 +326,7 @@ jobs:
             tests/output/opaque-font-family/
             tests/output/owned-ui-server/
             tests/output/srcset-resource/
+            tests/output/snapshot-visibility/
           if-no-files-found: error
 
   decoration-geometry:

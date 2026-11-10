@@ -114,7 +114,7 @@ describe("replaced snapshot visibility transitions", () => {
     }
   });
 
-  it("rejects pre-existing authored visibility transitions without changing their state", async () => {
+  it("isolates pre-existing authored visibility transitions without changing their state", async () => {
     const page = await fixture();
     try {
       const retained = await page.locator("#backdrop").evaluateHandle((node) => {
@@ -130,8 +130,8 @@ describe("replaced snapshot visibility transitions", () => {
       });
       const element = target();
       const report = await rasterizeReplacedElements(page, [element], { x: 0, y: 0, width: 100, height: 100 });
-      expect(report.failures[0]?.detail).toContain("authored visibility transition is active");
-      expect(element.replacedSnapshot!.dataUri).toBeUndefined();
+      expect(report.failures).toEqual([]);
+      expect(await pixel(element.replacedSnapshot!.dataUri!, 10, 10)).toEqual([0, 0, 0, 0]);
       expect(
         await retained.evaluate(
           ({ animation, currentTime, style }) =>

@@ -82,6 +82,11 @@ Capture: `src/capture/script/walker/replaced-elements.ts` tags the live DOM with
 
 Emit: `src/render/element-tree-to-svg.ts::paintRasterSnapshot` emits the `<image>` at the content-box rect. If an `imageReplacement.titleText` was captured (sprite path — see E5), a `<title>` child is included so screen readers and tooltips still get accessible text.
 
+For supported ordinary elements, capture-owned visibility animations preserve
+active authored transition identity and timing during isolation. Unsupported
+animation owners or incomplete rollback refuse raster admission; see
+`src/capture/snapshot-visibility-transitions.ts`.
+
 Doc: [17-replaced-element-snapshots.md](../17-replaced-element-snapshots.md). Ticket: DM-457.
 
 ### E5. CSS sprite-icon image-replacement (`text-indent: -9999px` + `background-image`)

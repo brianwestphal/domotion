@@ -29,6 +29,10 @@
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { createPageRegistry } from "./page-registry.js";
+import {
+  suppressSnapshotVisibilityTransitions,
+  type SnapshotVisibilityState,
+} from "./snapshot-visibility-transitions.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 
 export interface NativeControlViewport {
@@ -345,11 +349,13 @@ export async function rasterizeNativeControlSurfaces(
   }));
   let isolatedFrame: DecodedFrame | null = null;
   let isolationFailure: string | undefined;
+  let visibilityTransitions: Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>> | undefined;
   try {
     if (options.sourceNodeKey != null) {
+      visibilityTransitions = await suppressSnapshotVisibilityTransitions(page, true);
       await restoreRegistry.tag(page, () => []);
       isolationFacts = await page.evaluate(
-        ({ sourceNodeKey, restoreKey, rows }) => {
+        ({ sourceNodeKey, restoreKey, rows, visibilityKey }) => {
           type RestoreEntry = {
             element: HTMLElement;
             style: string | null;
@@ -432,11 +438,16 @@ export async function rasterizeNativeControlSurfaces(
             return { connected: true, sourceOccluded, overlapsNativeOwner };
           });
 
+          const visibility = host[visibilityKey] as SnapshotVisibilityState;
+          visibility.start();
+
           const restore = host[restoreKey] as RestoreEntry[];
           const saved = new Set<HTMLElement>();
           // Object methods remain serializable under direct TSX callers.
           const styles = {
             set(element: HTMLElement, property: string, value: string): void {
+              visibility.assertMutable(element, property);
+              if (property === "visibility") visibility.paint(element, value);
               if (
                 element.style.getPropertyValue(property) === value &&
                 element.style.getPropertyPriority(property) === "important"
@@ -478,6 +489,7 @@ export async function rasterizeNativeControlSurfaces(
         {
           sourceNodeKey: options.sourceNodeKey,
           restoreKey,
+          visibilityKey: visibilityTransitions.key,
           rows: targets.map((target, index) => ({
             index: target.raster.sourceNodeIndex,
             x: viewport.x + (plans[index]?.output.x ?? 0),
@@ -522,6 +534,13 @@ export async function rasterizeNativeControlSurfaces(
     if (options.sourceNodeKey != null && !restored.ok) {
       isolatedFrame = null;
       isolationFailure = restored.reason;
+      isolationFacts = isolationFacts.map((fact) => ({ ...fact, connected: false }));
+    }
+    try {
+      await visibilityTransitions?.dispose();
+    } catch (error) {
+      isolatedFrame = null;
+      isolationFailure = `visibility ownership restore failed: ${error instanceof Error ? error.message : String(error)}`;
       isolationFacts = isolationFacts.map((fact) => ({ ...fact, connected: false }));
     }
     await restoreRegistry.dispose();
