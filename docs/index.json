@@ -1479,7 +1479,7 @@
         "status": "current",
         "owners": ["product-tooling"],
         "platforms": [],
-        "tickets": ["DM-585", "DM-945", "DM-946", "DM-947", "DM-948", "DM-949"],
+        "tickets": ["DM-585", "DM-945", "DM-946", "DM-947", "DM-948", "DM-949", "DM-964DQM"],
         "code": [
           "src/cli/review.ts",
           "src/review/",
@@ -1487,6 +1487,7 @@
           "src/review/region-overlay.ts",
           "src/review/server.ts",
           "tests/review-server.tsx",
+          "tests/kerf-client-uis.e2e.test.ts",
           "tools/crop-regions.ts"
         ],
         "aliases": ["docs/54-svg-review-tool.md", "doc-54"]

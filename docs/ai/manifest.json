@@ -942,6 +942,7 @@
         "src/review/region-overlay.ts",
         "src/review/server.ts",
         "tests/review-server.tsx",
+        "tests/kerf-client-uis.e2e.test.ts",
         "tools/crop-regions.ts"
       ],
       "file": "54-svg-review-tool.md"

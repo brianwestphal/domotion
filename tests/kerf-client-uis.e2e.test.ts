@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, expect as browserExpect, type Browser, type Page } from "@playwright/test";
 import { startBrowserCoverage, writeBrowserCoverage } from "../src/test-support/browser-coverage.js";
 import { startReviewServer } from "../src/review/server.js";
 import { startStudioServer } from "../src/studio/server.js";
@@ -291,6 +291,27 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
     try {
       await page.goto(server.url, { waitUntil: "networkidle" });
       await expect.poll(() => page.locator("#issue-text").inputValue()).toContain("coverage-fixture");
+      // DM-964DQM: the visible heading must name the actual readonly editor.
+      const editor = page.locator("#issue-text");
+      await browserExpect(editor).toHaveAccessibleName("GitHub issue text");
+      expect(await page.getByRole("textbox", { name: "GitHub issue text", exact: true }).count()).toBe(1);
+      const markdown = await editor.inputValue();
+      expect(await editor.isEditable()).toBe(false);
+      await editor.focus();
+      await page.keyboard.press("ControlOrMeta+A");
+      expect(
+        await editor.evaluate((element) => {
+          const field = element as HTMLTextAreaElement;
+          return field.selectionEnd - field.selectionStart;
+        }),
+      ).toBe(markdown.length);
+      await page.keyboard.type("readonly content must stay unchanged");
+      expect(await editor.inputValue()).toBe(markdown);
+      await page
+        .context()
+        .grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(server.url).origin });
+      await page.getByRole("button", { name: "Copy issue text", exact: true }).click();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(markdown);
       // The empty region list is a client-rendered kerf-ui EmptyState whose
       // CSS arrives through the bundle's <head> prologue.
       await expectKerfUiStyled(page, ".region-list .kui-empty-state", "display", "grid");

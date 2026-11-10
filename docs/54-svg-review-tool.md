@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-585", "DM-945", "DM-946", "DM-947", "DM-948", "DM-949"]
+tickets: ["DM-585", "DM-945", "DM-946", "DM-947", "DM-948", "DM-949", "DM-964DQM"]
 code:
   [
     "src/cli/review.ts",
@@ -14,6 +14,7 @@ code:
     "src/review/region-overlay.ts",
     "src/review/server.ts",
     "tests/review-server.tsx",
+    "tests/kerf-client-uis.e2e.test.ts",
     "tools/crop-regions.ts",
   ]
 aliases: ["docs/54-svg-review-tool.md", "doc-54"]
@@ -90,6 +91,9 @@ A single review card, similar in layout to one card in `tests/review-server
   panel's read-only `<textarea>` is rebuilt on every caption keystroke and
   every region add / move / resize / delete. Pressing `Enter` in a caption
   input commits it and moves focus to the textarea with its text selected.
+  The visible "GitHub issue text" heading names the read-only field for
+  assistive technology; its generated content remains selectable and copyable
+  (DM-964DQM).
   The panel also has a "Copy issue text" button and an "Open a new GitHub
   issue →" link to <https://github.com/brianwestphal/domotion/issues/new>
   with the title (`Domotion render fidelity: <label>`) pre-filled via the URL

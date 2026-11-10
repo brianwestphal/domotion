@@ -124,8 +124,8 @@ function renderShell(label: string): string {
   <h2 style="font-size: 14px; margin: 16px 0 6px;">Annotated regions</h2>
   <button id="add-region-btn" type="button">Add centered region</button>
   <div class="region-list" id="region-list"></div>
-  <h2 style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text</h2><div class="issue-actions"><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
-  <textarea id="issue-text" readonly></textarea>
+  <h2 id="issue-text-heading" style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text</h2><div class="issue-actions"><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
+  <textarea id="issue-text" aria-labelledby="issue-text-heading" readonly></textarea>
   <p class="hint">After clicking <em>Open a new GitHub issue</em>, paste the text above into the issue body and attach <code>expected.png</code> and <code>actual.svg</code>.</p>
 </div>
 <script>window.__SVG_REVIEW__ = { label: ${JSON.stringify(label)} };</script>
