@@ -18,6 +18,7 @@ import { elementTreeToSvg, elementTreeToSvgInner } from "./element-tree-to-svg.j
 import type { CapturedElement } from "../capture/types.js";
 import { formatNumberLoose } from "./format.js";
 import { imageRootFontMetricUnits } from "./svg-image-root-font.js";
+import { resolveImageNamespace } from "./svg-image-namespace.js";
 
 it("strips root transforms without splitting XML-encoded CSS string data", () => {
   const attrs = flattenedRootGroupAttributes(
@@ -161,10 +162,12 @@ describe("inlineImgSvg — img src=svg → positioned native <svg> (DM-1588)", (
     const out = inlineImgSvg(src, P)!;
     // `meet` leaves an 80x80 object rect inside the 100x80 box: Blink clips the
     // image to that rect (svg_image.cc:548), the nested viewport only to the box.
-    expect(out.startsWith(`<clipPath id="P-vclip-img"><rect x="20" y="20" width="80" height="80"/></clipPath>`)).toBe(
-      true,
-    );
-    expect(out).toContain(`<g clip-path="url(#P-vclip-img)"><svg`);
+    expect(
+      out.startsWith(
+        `<clipPath id="${resolveImageNamespace("P-").wrapperPrefix}drawn"><rect x="20" y="20" width="80" height="80"/></clipPath>`,
+      ),
+    ).toBe(true);
+    expect(out).toContain(`<g clip-path="url(#${resolveImageNamespace("P-").wrapperPrefix}drawn)"><svg`);
     expect(out).toContain(`viewBox="0 0 50 50"`);
     expect(out).toContain(`x="10" y="20" width="100" height="80"`);
     expect(out).toContain(`preserveAspectRatio="xMidYMid meet"`);
@@ -176,8 +179,8 @@ describe("inlineImgSvg — img src=svg → positioned native <svg> (DM-1588)", (
   it("namespaces internal ids so gradients/clipPaths/filters can't collide", () => {
     const src = `<svg viewBox="0 0 10 10"><defs><linearGradient id="grad"/></defs>` + `<rect fill="url(#grad)"/></svg>`;
     const out = inlineImgSvg(src, P)!;
-    expect(out).toContain(`id="P-grad"`);
-    expect(out).toContain(`fill="url(#P-grad)"`);
+    expect(out).toContain(`id="${resolveImageNamespace("P-").sourcePrefix}grad"`);
+    expect(out).toContain(`fill="url(#${resolveImageNamespace("P-").sourcePrefix}grad)"`);
     expect(out).not.toMatch(/\bid="grad"/);
   });
 
@@ -295,7 +298,7 @@ describe("<img> SVG document viewport: the root preserveAspectRatio maps the vie
       `x="10" y="20" width="200" height="80" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"`,
     );
     // The drawn image is the whole viewport: no extra clip to the mapped viewBox.
-    expect(out).not.toContain("vclip-img");
+    expect(out).not.toContain(resolveImageNamespace("D-").wrapperPrefix + "drawn");
     expect(out.startsWith("<svg")).toBe(true);
   });
 
@@ -323,7 +326,9 @@ describe("<img> SVG document viewport: the root preserveAspectRatio maps the vie
 
   it("clips an overflow-visible root to the viewport and uses it as the root transform box", () => {
     const vis = inlineImgSvg(`<svg viewBox="0 0 100 100" overflow="visible"><rect/></svg>`, D)!;
-    expect(vis).toContain(`<clipPath id="D-vclip-img"><rect x="10" y="20" width="200" height="80"/></clipPath>`);
+    expect(vis).toContain(
+      `<clipPath id="${resolveImageNamespace("D-").wrapperPrefix}drawn"><rect x="10" y="20" width="200" height="80"/></clipPath>`,
+    );
     const rot = inlineImgSvg(`<svg viewBox="0 0 100 100" transform="rotate(90)"><rect/></svg>`, D)!;
     // Rotation about the viewport center (110, 60), not the letterboxed square's.
     expect(rot).toContain(`translate(110 60) rotate(90) translate(-110 -60)`);
@@ -374,7 +379,7 @@ describe("inlineImgSvg — class namespacing (DM-1593)", () => {
     const plain = `<svg viewBox="0 0 10 10"><rect class="c" fill="#f00"/></svg>`;
     const P = { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "Q-" };
     // Styled → class rewritten.
-    expect(inlineImgSvg(styled, P)!).toContain(`class="Q-c"`);
+    expect(inlineImgSvg(styled, P)!).toContain(`class="${resolveImageNamespace("Q-").sourcePrefix}c"`);
     // No <style> → class attr left as-is (no stylesheet → no collision risk).
     expect(inlineImgSvg(plain, P)!).toContain(`class="c"`);
   });
@@ -385,12 +390,12 @@ describe("inlineImgSvg — class namespacing (DM-1593)", () => {
     const a = inlineImgSvg(mk("#f00"), { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "A-" })!;
     const b = inlineImgSvg(mk("#00f"), { x: 0, y: 0, w: 10, h: 10, par: "none", idPrefix: "B-" })!;
     // Each SVG's rule + usage carry its OWN prefix, so A's rule can't style B's rect.
-    expect(a).toContain(`.A-cls-1{fill:#f00}`);
-    expect(a).toContain(`class="A-cls-1"`);
-    expect(b).toContain(`.B-cls-1{fill:#00f}`);
-    expect(b).toContain(`class="B-cls-1"`);
-    expect(a).not.toContain("B-cls-1");
-    expect(b).not.toContain("A-cls-1");
+    expect(a).toContain(`.${resolveImageNamespace("A-").sourcePrefix}cls-1{fill:#f00}`);
+    expect(a).toContain(`class="${resolveImageNamespace("A-").sourcePrefix}cls-1"`);
+    expect(b).toContain(`.${resolveImageNamespace("B-").sourcePrefix}cls-1{fill:#00f}`);
+    expect(b).toContain(`class="${resolveImageNamespace("B-").sourcePrefix}cls-1"`);
+    expect(a).not.toContain(resolveImageNamespace("B-").sourcePrefix + "cls-1");
+    expect(b).not.toContain(resolveImageNamespace("A-").sourcePrefix + "cls-1");
   });
 });
 
@@ -581,17 +586,17 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
   it("flattenImgSvg composes the root transform about the image center, outside the viewport, clipped to the image", () => {
     const out = flattenImgSvg(icon(` transform="rotate(30)"`), place)!;
     expect(out).toBe(
-      `<clipPath id="p-vclip-img"><rect x="50" y="50" width="100" height="100"/></clipPath>` +
-        `<g clip-path="url(#p-vclip-img)"><g transform="translate(100 100) rotate(30) translate(-100 -100)">` +
-        `<clipPath id="p-vclip"><rect x="50" y="50" width="100" height="100"/></clipPath>` +
-        `<g clip-path="url(#p-vclip)"><g transform="matrix(1 0 0 1 50 50)"><rect width="100" height="40" fill="red"/></g></g>` +
+      `<clipPath id="${resolveImageNamespace("p-").wrapperPrefix}drawn"><rect x="50" y="50" width="100" height="100"/></clipPath>` +
+        `<g clip-path="url(#${resolveImageNamespace("p-").wrapperPrefix}drawn)"><g transform="translate(100 100) rotate(30) translate(-100 -100)">` +
+        `<clipPath id="${resolveImageNamespace("p-").wrapperPrefix}viewport"><rect x="50" y="50" width="100" height="100"/></clipPath>` +
+        `<g clip-path="url(#${resolveImageNamespace("p-").wrapperPrefix}viewport)"><g transform="matrix(1 0 0 1 50 50)"><rect width="100" height="40" fill="red"/></g></g>` +
         `</g></g>`,
     );
   });
 
   it("inlineImgSvg moves the root transform off the nested <svg> and applies it about the image center", () => {
     const out = inlineImgSvg(icon(` transform="rotate(30)"`), place)!;
-    expect(out.startsWith(`<clipPath id="p-vclip-img">`)).toBe(true);
+    expect(out.startsWith(`<clipPath id="${resolveImageNamespace("p-").wrapperPrefix}drawn">`)).toBe(true);
     expect(out).toContain(`<g transform="translate(100 100) rotate(30) translate(-100 -100)"><svg`);
     expect(readSvgOpeningTag(out)?.raw).not.toMatch(/\btransform=/);
     expect(out.endsWith(`</svg></g></g>`)).toBe(true);
@@ -671,19 +676,21 @@ describe("root <svg transform> (outermost-svg transform parity)", () => {
     // 100x100 viewBox contained in a 160x100 box, left-aligned → object rect x=50..150, not the box center 130.
     const contain = { x: 50, y: 50, w: 160, h: 100, par: "xMinYMid meet", idPrefix: "c-" };
     const out = flattenImgSvg(icon(` transform="scale(0.5)"`), contain)!;
-    expect(out).toContain(`<rect x="50" y="50" width="100" height="100"/></clipPath><g clip-path="url(#c-vclip-img)">`);
+    expect(out).toContain(
+      `<rect x="50" y="50" width="100" height="100"/></clipPath><g clip-path="url(#${resolveImageNamespace("c-").wrapperPrefix}drawn)">`,
+    );
     expect(out).toContain(`translate(100 100) scale(0.5) translate(-100 -100)`);
   });
 
   it("overflow: visible still clips to the drawn image when a root transform applies", () => {
     const out = flattenImgSvg(icon(` overflow="visible" transform="rotate(10)"`), place)!;
-    expect(out).toContain(`id="p-vclip-img"`);
-    expect(out).not.toContain(`id="p-vclip"`);
+    expect(out).toContain(`id="${resolveImageNamespace("p-").wrapperPrefix}drawn"`);
+    expect(out).not.toContain(`id="${resolveImageNamespace("p-").wrapperPrefix}viewport"`);
   });
 
   it("an icon without a root transform is unchanged", () => {
-    expect(inlineImgSvg(icon(""), place)).not.toContain("vclip-img");
-    expect(flattenImgSvg(icon(""), place)).not.toContain("vclip-img");
+    expect(inlineImgSvg(icon(""), place)).not.toContain(resolveImageNamespace("p-").wrapperPrefix + "drawn");
+    expect(flattenImgSvg(icon(""), place)).not.toContain(resolveImageNamespace("p-").wrapperPrefix + "drawn");
   });
 
   it("a flattened DOM-inline svg keeps its viewport matrix: the capture's neutralizing style no longer overrides it", () => {
@@ -714,7 +721,7 @@ describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {
     expect(out).not.toBeNull();
     expect(out).not.toContain("<svg"); // the nested <svg> wrapper is gone
     expect(out).toMatch(/<g[^>]* transform="matrix\(0\.666667 0 0 0\.666667 4 8\)"/); // 16/24 scale, placed at (4,8)
-    expect(out).toContain(`<clipPath id="svgimg0vclip">`); // overflow-hidden default → rect clip
+    expect(out).toContain(`<clipPath id="${resolveImageNamespace("svgimg0").wrapperPrefix}viewport">`); // overflow-hidden default → rect clip
     expect(out).toContain(`d="M2 2h20v20H2z"`);
   });
 
@@ -726,19 +733,25 @@ describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {
     for (const root of [` overflow="visible"`, ` style="overflow: visible"`]) {
       const out = flattenImgSvg(`<svg viewBox="0 0 24 24"${root}><path d="M0 0h1v1z"/></svg>`, place)!;
       expect(
-        out.startsWith(`<clipPath id="svgimg0vclip-img"><rect x="4" y="8" width="16" height="16"/></clipPath>`),
+        out.startsWith(
+          `<clipPath id="${resolveImageNamespace("svgimg0").wrapperPrefix}drawn"><rect x="4" y="8" width="16" height="16"/></clipPath>`,
+        ),
       ).toBe(true);
-      expect(out).toContain(`<g clip-path="url(#svgimg0vclip-img)"><g`);
-      expect(out).not.toContain(`id="svgimg0vclip"`);
+      expect(out).toContain(`<g clip-path="url(#${resolveImageNamespace("svgimg0").wrapperPrefix}drawn)"><g`);
+      expect(out).not.toContain(`id="${resolveImageNamespace("svgimg0").wrapperPrefix}viewport"`);
     }
   });
 
   it("clips an overflow:visible nested <svg> to the drawn image", () => {
     const out = inlineImgSvg(`<svg viewBox="0 0 24 24" overflow="visible"><path d="M0 0h1v1z"/></svg>`, place)!;
     expect(
-      out.startsWith(`<clipPath id="svgimg0vclip-img"><rect x="4" y="8" width="16" height="16"/></clipPath>`),
+      out.startsWith(
+        `<clipPath id="${resolveImageNamespace("svgimg0").wrapperPrefix}drawn"><rect x="4" y="8" width="16" height="16"/></clipPath>`,
+      ),
     ).toBe(true);
-    expect(out).toContain(`<g clip-path="url(#svgimg0vclip-img)"><svg overflow="visible"`);
+    expect(out).toContain(
+      `<g clip-path="url(#${resolveImageNamespace("svgimg0").wrapperPrefix}drawn)"><svg overflow="visible"`,
+    );
   });
 
   it("clips a contain-fitted image to its object rect, not the wider placement box", () => {
@@ -746,7 +759,9 @@ describe("flattenImgSvg — nested <svg> → <g transform> (DM-K0S6ZS)", () => {
     const nested = inlineImgSvg(`<svg viewBox="0 0 24 24"><path d="M0 0h1v1z"/></svg>`, wide)!;
     expect(nested).toContain(`<rect x="12" y="8" width="16" height="16"/>`);
     const flat = flattenImgSvg(`<svg viewBox="0 0 24 24"><path d="M0 0h1v1z"/></svg>`, wide)!;
-    expect(flat).toContain(`<clipPath id="svgimg0vclip-img"><rect x="12" y="8" width="16" height="16"/></clipPath>`);
+    expect(flat).toContain(
+      `<clipPath id="${resolveImageNamespace("svgimg0").wrapperPrefix}drawn"><rect x="12" y="8" width="16" height="16"/></clipPath>`,
+    );
   });
 
   it("adds no image clip when the object rect fills the placement box", () => {

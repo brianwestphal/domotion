@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { anPlusBMatches, IMAGE_ROOT_ATTR, scopeImageStyleSheets, scopeSelectorList } from "./svg-image-style-scope.js";
 import { inlineImgSvg } from "./svg-inline.js";
+import { resolveImageNamespace } from "./svg-image-namespace.js";
 
 const R = `[${IMAGE_ROOT_ATTR}="P-"]`;
 const W = `:where(${R}, ${R} *)`;
@@ -81,15 +82,17 @@ describe("scopeImageStyleSheets", () => {
 
 describe("inlineImgSvg scopes its sheets to the image", () => {
   const P = { x: 0, y: 0, w: 100, h: 100, par: "xMidYMid meet", idPrefix: "P-" };
+  const prefix = resolveImageNamespace(P.idPrefix).sourcePrefix;
+  const W = `:where([${IMAGE_ROOT_ATTR}="${prefix}"], [${IMAGE_ROOT_ATTR}="${prefix}"] *)`;
 
   it("marks the root and namespaces a #id selector that targets the root's own id", () => {
     const out = inlineImgSvg(
       `<svg id="r" viewBox="0 0 10 10"><style>#r rect { fill: red } g rect { stroke: blue }</style><g><rect/></g></svg>`,
       P,
     )!;
-    expect(out).toContain(`id="P-r"`);
-    expect(out).toContain(`${IMAGE_ROOT_ATTR}="P-"`);
-    expect(out).toContain(`#P-r rect${W} { fill: red }`);
+    expect(out).toContain(`id="${prefix}r"`);
+    expect(out).toContain(`${IMAGE_ROOT_ATTR}="${prefix}"`);
+    expect(out).toContain(`#${prefix}r rect${W} { fill: red }`);
     expect(out).toContain(`g${W} rect${W} { stroke: blue }`);
   });
 
@@ -183,7 +186,9 @@ describe("cascade layer names stay per image", () => {
       ...P,
       idPrefix: "B-",
     })!;
-    expect(a).toContain(`@layer A-a, A-b;`);
-    expect(b).toContain(`@layer B-b, B-a;`);
+    const first = resolveImageNamespace("A-").sourcePrefix;
+    const second = resolveImageNamespace("B-").sourcePrefix;
+    expect(a).toContain(`@layer ${first}a, ${first}b;`);
+    expect(b).toContain(`@layer ${second}b, ${second}a;`);
   });
 });

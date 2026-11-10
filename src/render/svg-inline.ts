@@ -48,6 +48,7 @@ import type { ImageMediaEnv } from "./svg-image-media.js";
 import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
 import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
 import { namespaceImageReferences } from "./svg-image-references.js";
+import { resolveImageNamespace } from "./svg-image-namespace.js";
 import { authenticatedImageFonts, imageOwnFontSheets, type ImageOwnFontContext } from "./svg-image-own-fonts.js";
 import type { IsolatedFontFace } from "./font-resolution.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
@@ -763,12 +764,12 @@ function mappedViewBoxRect(viewBox: ViewBox, m: AffineMatrix): Rect {
  * `overflow="visible"` root drawn at the image box and a `contain` image
  * clipped to its object rect inside a wider content box.
  */
-function clipToImage(content: string, p: InlineSvgPlacement, object: Rect): string {
+function clipToImage(content: string, p: NamespacedImagePlacement, object: Rect): string {
   const x0 = Math.max(p.x, object.x);
   const y0 = Math.max(p.y, object.y);
   const x1 = Math.min(p.x + p.w, object.x + object.w);
   const y1 = Math.min(p.y + p.h, object.y + object.h);
-  const clipId = `${p.idPrefix}vclip-img`;
+  const clipId = `${p.wrapperPrefix}drawn`;
   return (
     `<clipPath id="${clipId}"><rect x="${r(x0)}" y="${r(y0)}" width="${r(Math.max(0, x1 - x0))}" height="${r(Math.max(0, y1 - y0))}"/></clipPath>` +
     `<g clip-path="url(#${clipId})">${content}</g>`
@@ -783,7 +784,7 @@ function clipToImage(content: string, p: InlineSvgPlacement, object: Rect): stri
 function applyImageRootTransform(
   content: string,
   root: ResolvedImageRootTransform,
-  p: InlineSvgPlacement,
+  p: NamespacedImagePlacement,
   object: Rect,
 ): string {
   const f = (n: number): string => formatNumberLoose(n, 6);
@@ -936,7 +937,8 @@ export interface InlineSvgPlacement {
   /** The `<img>`'s intrinsic size, used to synthesize a viewBox when the SVG
    *  itself declares neither a viewBox nor absolute width/height. */
   intrinsic?: { w: number; h: number } | null;
-  /** Unique per-document prefix for namespacing the SVG's internal ids. */
+  /** Unique image-owner token within the output document. Encoded internally
+   * into disjoint source and generated-wrapper namespaces. */
   idPrefix: string;
   /**
    * The placement rect is the `<img>`'s concrete object rect, which Blink uses
@@ -972,6 +974,15 @@ export interface InlineSvgPlacement {
   /** Verified Chromium/Fontconfig context; absent remains conservative. */
   fontRendering?: LinuxFontRenderContext;
   ownFonts?: ImageOwnFontContext;
+}
+
+interface NamespacedImagePlacement extends InlineSvgPlacement {
+  wrapperPrefix: string;
+}
+
+function resolveNamespacedImagePlacement(placement: InlineSvgPlacement): NamespacedImagePlacement {
+  const namespace = resolveImageNamespace(placement.idPrefix);
+  return { ...placement, idPrefix: namespace.sourcePrefix, wrapperPrefix: namespace.wrapperPrefix };
 }
 
 /** The embedder-supplied part of the image document's media environment. */
@@ -1101,7 +1112,8 @@ function resolveDocumentViewport(
  * `<img>` scales the source — but as live vector geometry, so it stays crisp at
  * any zoom.
  */
-export function inlineImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
+export function inlineImgSvg(sourceText: string, placement: InlineSvgPlacement): string | null {
+  const p = resolveNamespacedImagePlacement(placement);
   const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
   const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
   let imageSource =
@@ -1335,7 +1347,8 @@ export function isSvgSafeToFlatten(body: string): boolean {
  * {@link isSvgSafeToFlatten}). Emits a rect clip at the placement rect unless the
  * source sets `overflow: visible`, since a `<g>` (unlike a viewport) does not clip.
  */
-export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string | null {
+export function flattenImgSvg(sourceText: string, placement: InlineSvgPlacement): string | null {
+  const p = resolveNamespacedImagePlacement(placement);
   const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
   const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
   if (expanded == null) return null;
@@ -1412,7 +1425,7 @@ export function flattenImgSvg(sourceText: string, p: InlineSvgPlacement): string
       ? clipToImage(group, p, object)
       : applyImageRootTransform(group, rootTransform, p, object);
   }
-  const clipId = `${p.idPrefix}vclip`;
+  const clipId = `${p.wrapperPrefix}viewport`;
   const clipped =
     `<clipPath id="${clipId}"><rect x="${r(p.x)}" y="${r(p.y)}" width="${r(p.w)}" height="${r(p.h)}"/></clipPath>` +
     `<g clip-path="url(#${clipId})">${group}</g>`;

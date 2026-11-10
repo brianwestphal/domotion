@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import { inlineImgSvg } from "./svg-inline.js";
+import { resolveImageNamespace } from "./svg-image-namespace.js";
 
 describe("isolated SVG image CSS names", () => {
   it("does not rename a genuine generic to a same-named literal font face", () => {
@@ -144,12 +145,14 @@ describe("isolated SVG image CSS names", () => {
     const placement = { x: 0, y: 0, w: 100, h: 100, par: "xMidYMid meet" };
     const first = inlineImgSvg(svg, { ...placement, idPrefix: "A-" })!;
     const second = inlineImgSvg(svg, { ...placement, idPrefix: "B-" })!;
-    expect(first).toContain(`@font-face{font-family:A-Pair`);
-    expect(first).toContain(`@keyframes A-pulse`);
-    expect(first).toContain(`font-family:A-Pair;animation:A-pulse 1s`);
-    expect(second).toContain(`@font-face{font-family:B-Pair`);
-    expect(second).toContain(`@keyframes B-pulse`);
-    expect(second).toContain(`font-family:B-Pair;animation:B-pulse 1s`);
+    const a = resolveImageNamespace("A-").sourcePrefix;
+    const b = resolveImageNamespace("B-").sourcePrefix;
+    expect(first).toContain(`@font-face{font-family:${a}Pair`);
+    expect(first).toContain(`@keyframes ${a}pulse`);
+    expect(first).toContain(`font-family:${a}Pair;animation:${a}pulse 1s`);
+    expect(second).toContain(`@font-face{font-family:${b}Pair`);
+    expect(second).toContain(`@keyframes ${b}pulse`);
+    expect(second).toContain(`font-family:${b}Pair;animation:${b}pulse 1s`);
   });
 
   it("recognizes escaped custom-property references and leaves comments alone", () => {

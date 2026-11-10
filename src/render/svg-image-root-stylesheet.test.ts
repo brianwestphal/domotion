@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cascadeRootStylesheetTransform } from "./svg-image-root-stylesheet.js";
 import { IMAGE_ROOT_ATTR } from "./svg-image-style-scope.js";
 import { inlineImgSvg, flattenImgSvg, readSvgOpeningTag } from "./svg-inline.js";
+import { resolveImageNamespace } from "./svg-image-namespace.js";
 
 it("retains image fallback for geometricPrecision metric transforms in all root declaration sources", () => {
   const placement = { x: 0, y: 0, w: 100, h: 100, par: "none", documentViewport: true, idPrefix: "rendering-" };
@@ -266,6 +267,7 @@ describe("cascadeRootStylesheetTransform", () => {
 
 describe("<img> SVG root transform from the document's own <style>", () => {
   const P = { x: 0, y: 0, w: 100, h: 100, par: "none", documentViewport: true, idPrefix: "S-" };
+  const prefix = resolveImageNamespace(P.idPrefix).sourcePrefix;
 
   it("composes the sheet transform around the root and removes it from the inlined sheet", () => {
     const out = inlineImgSvg(
@@ -273,7 +275,9 @@ describe("<img> SVG root transform from the document's own <style>", () => {
       P,
     )!;
     expect(out).toContain(`translate(50 50) rotate(20) translate(-50 -50)`);
-    expect(out).toContain(`<style>svg:where([${IMAGE_ROOT_ATTR}="S-"], [${IMAGE_ROOT_ATTR}="S-"] *) {}</style>`);
+    expect(out).toContain(
+      `<style>svg:where([${IMAGE_ROOT_ATTR}="${prefix}"], [${IMAGE_ROOT_ATTR}="${prefix}"] *) {}</style>`,
+    );
   });
 
   it("uses the cascaded root font size and line height for transform units", () => {
@@ -386,9 +390,9 @@ describe("<img> SVG root transform from the document's own <style>", () => {
       `<svg class="c" viewBox="0 0 100 100"><style>.c { transform: rotate(-25deg) }</style><rect class="c"/></svg>`,
       P,
     )!;
-    expect(out).toContain(`${IMAGE_ROOT_ATTR}="S-"`);
+    expect(out).toContain(`${IMAGE_ROOT_ATTR}="${prefix}"`);
     expect(out).toContain(
-      `.S-c:not([${IMAGE_ROOT_ATTR}]:where([${IMAGE_ROOT_ATTR}="S-"], [${IMAGE_ROOT_ATTR}="S-"] *))`,
+      `.${prefix}c:not([${IMAGE_ROOT_ATTR}]:where([${IMAGE_ROOT_ATTR}="${prefix}"], [${IMAGE_ROOT_ATTR}="${prefix}"] *))`,
     );
     expect(out).toContain("rotate(-25)");
   });
@@ -399,6 +403,6 @@ describe("<img> SVG root transform from the document's own <style>", () => {
       P,
     )!;
     expect(out).toContain("rotate(10)");
-    expect(out).toContain(`.S-k {}`);
+    expect(out).toContain(`.${prefix}k {}`);
   });
 });

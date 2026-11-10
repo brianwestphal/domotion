@@ -25,6 +25,7 @@ tickets:
     "DM-YMAF0G",
     "DM-SXDNW9",
     "DM-WT73T4",
+    "DM-R7ME85",
   ]
 code:
   [
@@ -70,6 +71,9 @@ code:
     "src/render/svg-image-reference-css.ts",
     "src/render/svg-image-reference-syntax.ts",
     "src/render/svg-image-references.test.ts",
+    "src/render/svg-image-namespace.ts",
+    "src/render/svg-image-namespace.test.ts",
+    "tests/img-svg-namespace-ownership.e2e.test.ts",
     "tests/img-svg-reference-identity.e2e.test.ts",
     "tests/img-svg-import-fragments.e2e.test.ts",
     "src/render/svg-image-cdata.ts",
@@ -329,9 +333,43 @@ custom properties remain conservative. DTD-bearing images are also retained;
 DM-1YAE1F tracks source-proving harmless self-contained doctypes. Stylesheet
 processing instructions remain outside lexical authentication. This pass does
 not relax data-import MIME/charset/depth/size or fragment admission gates.
-It still relies on the caller's generated namespace being distinct from other
-output IDs. DM-R7ME85 tracks the separate existing ambiguity in concatenating
-numeric image prefixes with authored IDs and wrapper helper suffixes.
+
+### Prefix-free image owner domains (DM-R7ME85)
+
+`InlineSvgPlacement.idPrefix` is an opaque image-owner token, unique within
+the output document. Both image helper entry points encode the complete token
+as its UTF16 code-unit length and reversible UTF16LE hex, then select separate
+source and wrapper domains. The encoding has explicit boundaries outside the
+hex alphabet; owner `svgimg1` plus source ID `0foo` therefore cannot equal
+owner `svgimg10` plus source ID `foo`. This is structural isolation, without
+hash collisions, randomness or an assumed long-enough prefix.
+
+Authored IDs/classes and CSS names use the source domain consistently.
+Generated drawn-image and viewport clips use distinct names in the wrapper
+domain, so source IDs such as `vclip-img`, `vclip`, `drawn` or `viewport` cannot
+acquire wrapper ownership. Root selector markers, keyframes, custom properties,
+layers and font names follow the same encoded source owner. Original attribute
+selectors, typed `attr()` reads and literal strings retain their WT semantics.
+Caller tokens are not mutated; the emitted generated names are internal.
+
+Pinned Chromium's `TreeScope::getElementById` delegates to `TreeOrderedMap`,
+which returns the first matching element in tree order. Duplicate generated
+IDs can therefore change both paint resource type and target; they cannot be
+repaired by merely rewriting the reference spelling. Native pre-fix controls
+prove both the direct image-helper numeric-owner collision and the full capture
+pipeline's authored-ID/generated-clip collisions. The initial six-image numeric
+capture control did not collide because preallocated clips changed its actual
+counter positions; it is not counted as defect evidence.
+
+The unique-owner-token precondition still applies: independent calls that
+reuse the same owner are the same namespace. Shared DOM-inline and animation
+prefix helpers retain their existing contracts and structurally separated
+caller tokens. No shared allocator or intentional host-reference behavior is
+changed here.
+
+Source:
+[`TreeScope::getElementById`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/dom/tree_scope.cc#L121-L127),
+[`TreeOrderedMap::Get`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/dom/tree_ordered_map.cc#L116-L155).
 
 The source contract is Chromium `7d859f27`:
 [`SVGURIReference::FragmentIdentifierFromIRIString`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/svg/svg_uri_reference.cc),
@@ -349,6 +387,13 @@ and [`TextResourceDecoder`](https://github.com/chromium/chromium/blob/7d859f271c
 - **`<filter>` regions, `currentColor`, and CSS custom properties** inside the SVG resolve against the nested `<svg>` context, matching how the browser resolves them for the original `<img>` in the common cases (design-tool exports with self-contained gradients/filters). SVGs that rely on inheriting `color` / CSS variables from the host page are out of scope.
 
 ## Testing
+
+- `src/render/svg-image-namespace.test.ts` proves deterministic reversible
+  owner encoding, UTF16 token distinctions, prefix-free source/wrapper domains
+  and adversarial suffix separation. Native
+  `tests/img-svg-namespace-ownership.e2e.test.ts` compares helper and full-capture
+  output to source images, including cross-image CSS names, old generated host
+  IDs, original selectors/strings/typed `attr()` and transformed wrapper clips.
 
 - `src/render/svg-image-references.test.ts` checks XML/URL identity decoding,
   selector/string preservation, fresh private names, href/ARIA/SMIL consumers

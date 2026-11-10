@@ -2470,7 +2470,8 @@
           "DM-KGD5KC",
           "DM-YMAF0G",
           "DM-SXDNW9",
-          "DM-WT73T4"
+          "DM-WT73T4",
+          "DM-R7ME85"
         ],
         "code": [
           "src/capture/embed.ts",
@@ -2515,6 +2516,9 @@
           "src/render/svg-image-reference-css.ts",
           "src/render/svg-image-reference-syntax.ts",
           "src/render/svg-image-references.test.ts",
+          "src/render/svg-image-namespace.ts",
+          "src/render/svg-image-namespace.test.ts",
+          "tests/img-svg-namespace-ownership.e2e.test.ts",
           "tests/img-svg-reference-identity.e2e.test.ts",
           "tests/img-svg-import-fragments.e2e.test.ts",
           "src/render/svg-image-cdata.ts",
