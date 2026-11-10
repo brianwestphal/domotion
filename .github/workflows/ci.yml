@@ -253,6 +253,7 @@ jobs:
             tests/output/native-browser-logs/
             tests/output/webgl-startup-e2e/
             tests/output/webgl-projective-preflight/
+            tests/output/shadow-knockout/
             tests/output/external-svg-frozen/
             tests/output/worker-bootstrap/
             tests/output/opaque-font-family/

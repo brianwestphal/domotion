@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 type WorkflowStep = Record<string, unknown>;
 function macOsBrowserSteps(): WorkflowStep[] {
@@ -11,7 +11,7 @@ function macOsBrowserSteps(): WorkflowStep[] {
   expect(job).toBeDefined();
   return job!.steps;
 }
-function verifyProjectiveEvidence(steps: WorkflowStep[]): void {
+function verifyMacOsEvidence(steps: WorkflowStep[], directory: string): void {
   const producer = steps.find((step) => step["name"] === "Run browser-driven e2e tests (capture/layout assertions)");
   const upload = steps.find((step) => step["name"] === "Upload visual and browser-E2E results");
   expect(producer).toBeDefined();
@@ -27,34 +27,39 @@ function verifyProjectiveEvidence(steps: WorkflowStep[]): void {
     String(options["path"])
       .split(/\r?\n/)
       .map((path) => path.trim()),
-  ).toContain("tests/output/webgl-projective-preflight/");
+  ).toContain(directory);
   expect(options["if-no-files-found"]).toBe("error");
   expect(steps.indexOf(upload!)).toBeGreaterThan(steps.indexOf(producer!));
 }
 
-it("DM-1MVXDB: retains projective source PNG/JSON after ordinary browser failures", () => {
-  verifyProjectiveEvidence(macOsBrowserSteps());
-});
-it("DM-1MVXDB: permits growing browser steps and artifact selections", () => {
-  const grown = structuredClone(macOsBrowserSteps());
-  grown.unshift({ name: "Additional native coverage", run: "echo synthetic-control" });
-  const upload = grown.find((step) => step["name"] === "Upload visual and browser-E2E results")!;
-  const options = upload["with"] as Record<string, unknown>;
-  options["path"] = String(options["path"]) + "\ntests/output/additional-native-evidence/\n";
-  verifyProjectiveEvidence(grown);
-});
-it.each(["missing-directory", "success-only-upload"])("DM-1MVXDB: rejects %s retention regression", (mutation) => {
-  const changed = structuredClone(macOsBrowserSteps());
-  const upload = changed.find((step) => step["name"] === "Upload visual and browser-E2E results")!;
-  if (mutation === "success-only-upload") upload["if"] = "success()";
-  else {
+describe.each([
+  { ticket: "DM-1MVXDB", directory: "tests/output/webgl-projective-preflight/" },
+  { ticket: "DM-XGXXWN", directory: "tests/output/shadow-knockout/" },
+])("$ticket macOS source evidence", ({ directory }) => {
+  it("retains PNG/JSON after ordinary browser failures", () => {
+    verifyMacOsEvidence(macOsBrowserSteps(), directory);
+  });
+  it("permits growing browser steps and artifact selections", () => {
+    const grown = structuredClone(macOsBrowserSteps());
+    grown.unshift({ name: "Additional native coverage", run: "echo synthetic-control" });
+    const upload = grown.find((step) => step["name"] === "Upload visual and browser-E2E results")!;
     const options = upload["with"] as Record<string, unknown>;
-    options["path"] = String(options["path"])
-      .split(/\r?\n/)
-      .filter((path) => path.trim() !== "tests/output/webgl-projective-preflight/")
-      .join("\n");
-  }
-  expect(() => verifyProjectiveEvidence(changed)).toThrow();
+    options["path"] = String(options["path"]) + "\ntests/output/additional-native-evidence/\n";
+    verifyMacOsEvidence(grown, directory);
+  });
+  it.each(["missing-directory", "success-only-upload"])("rejects %s retention regression", (mutation) => {
+    const changed = structuredClone(macOsBrowserSteps());
+    const upload = changed.find((step) => step["name"] === "Upload visual and browser-E2E results")!;
+    if (mutation === "success-only-upload") upload["if"] = "success()";
+    else {
+      const options = upload["with"] as Record<string, unknown>;
+      options["path"] = String(options["path"])
+        .split(/\r?\n/)
+        .filter((path) => path.trim() !== directory)
+        .join("\n");
+    }
+    expect(() => verifyMacOsEvidence(changed, directory)).toThrow();
+  });
 });
 
 it("DM-95ECD3: retains filtered lane logs and source failure artifacts in the ordinary macOS lane", () => {
