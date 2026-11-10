@@ -11,6 +11,7 @@ import { serializeJoinedCdata } from "./svg-image-cdata.js";
 import { renderWarn } from "./render-warn.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
+import { decodeXmlAttributeValue } from "./svg-image-selector-engine.js";
 
 interface ImageNames {
   keyframes: Set<string>;
@@ -359,6 +360,12 @@ function rewriteAttributes(
     tag.replace(
       /(\s)(style|font-family|animation-name|list-style-type)\s*=\s*(["'])([\s\S]*?)\3/gi,
       (full, space: string, attr: string, quote: string, value: string) => {
+        const decoded = decodeXmlAttributeValue(value);
+        if (decoded == null) {
+          unsafe();
+          return full;
+        }
+        value = decoded;
         let next = value;
         if (attr.toLowerCase() === "style") {
           try {
@@ -382,7 +389,11 @@ function rewriteAttributes(
         } else if (attr.toLowerCase() === "font-family") next = value;
         else if (attr.toLowerCase() === "animation-name") next = renameList(value, names.keyframes, scope);
         else next = renameList(value, names.counters, scope);
-        return `${space}${attr}=${quote}${next}${quote}`;
+        const encoded = next
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(quote, quote === '"' ? "&quot;" : "&apos;");
+        return `${space}${attr}=${quote}${encoded}${quote}`;
       },
     ),
   );
@@ -404,8 +415,10 @@ export function namespaceImageStyleNames(markup: string, scope: string): string 
   for (const tag of markup.replace(STYLE_TAG, "").matchAll(/<[^>]+>/g)) {
     const style = /\sstyle\s*=\s*(["'])([\s\S]*?)\1/i.exec(tag[0]);
     if (style != null) {
+      const decoded = decodeXmlAttributeValue(style[2]);
+      if (decoded == null) return null;
       try {
-        postcss.parse(`x{${style[2]}}`).walkDecls(count);
+        postcss.parse(`x{${decoded}}`).walkDecls(count);
       } catch {
         /* left unchanged below */
       }

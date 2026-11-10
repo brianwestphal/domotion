@@ -3,6 +3,23 @@ import { namespaceImageStyleNames } from "./svg-image-style-names.js";
 import { inlineImgSvg } from "./svg-inline.js";
 
 describe("isolated SVG image CSS names", () => {
+  it("decodes XML font references before CSS and preserves unrelated DOM strings", () => {
+    const out = namespaceImageStyleNames(
+      `<svg style="--unrelated:'A &amp; B';font:20px &quot;A &amp; B&quot;"><style><![CDATA[@font-face{font-family:'A & B';src:local(serif)}]]></style><text font-family="&quot;A &amp; B&quot;">A</text></svg>`,
+      "X-",
+    );
+    expect(out).toContain("font:20px &quot;X-A &amp; B&quot;");
+    expect(out).toContain('font-family="&quot;X-A &amp; B&quot;"');
+    expect(out).toContain("--unrelated:'A &amp; B'");
+  });
+  it("refuses an XML font reference whose DTD-defined value is unknown", () => {
+    expect(
+      namespaceImageStyleNames(
+        `<svg font-family="&own;"><style>@font-face{font-family:A;src:local(serif)}</style></svg>`,
+        "X-",
+      ),
+    ).toBeNull();
+  });
   it.each(["calc(12px + 2px)", "min(12px, 2em)", "max(10px, calc(1em + 2px))", "clamp(10px, 2em, 24px)"])(
     "scopes families after dynamic size %s (DM-2K0K01)",
     (size) => {
