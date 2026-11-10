@@ -11,6 +11,10 @@ code:
     ".github/workflows/pseudo-fragment-render-parity.yml",
     "src/render/pseudo-fragments.ts",
     "src/render/pseudo-stacking-order.ts",
+    "src/render/pseudo-stacking-contexts.ts",
+    "src/render/pseudo-stacking-contexts.test.ts",
+    "src/capture/pseudo-fragment-cdp.ts",
+    "tests/pseudo-ancestor-stacking.e2e.test.ts",
     "tests/pseudo-fragment-render-oracle.e2e.test.ts",
     "tests/pseudo-fragment-render-report.test.ts",
     "tests/pseudo-stacking-native-contract.e2e.test.ts",
@@ -180,15 +184,67 @@ all pseudos before all children would break the tied/higher-z controls. The
 independent loaded-image, CSS resource and bitmap-sampling tickets keep their
 own scope; no production change is part of the AWS investigation commit.
 
-This local repair does not establish complete ancestor-context pseudo ownership:
-DM-NAG7AD retains an unchanged-source native witness where a pseudo on a
-non-stacking host remains local while its real child hoists. DM-5YF0BB separately
+That local repair did not establish ancestor-context pseudo ownership.
+DM-NAG7AD retained an unchanged-source native witness where a pseudo on a
+non-stacking host remained local while its real child hoisted; the nonnegative
+positioned boundary is now handled as described below. DM-5YF0BB separately
 captures native eligibility for the `contain:layout` stacking-context predicate,
 verified against Chromium 147 `LayoutObject::IsStackingContext`; see the
 [layout handbook](handbook/layout-and-fragmentation.md#native-containment-eligibility)
 for the measured scope and explicit unknown-owner gap. The real Stripe icon
 owner already establishes a context through z-index 3. Existing negative-host
 ownership and the separate preserve-3d path retain their prior behavior.
+
+## Ancestor context admission (DM-NAG7AD)
+
+Nonnegative positioned source records now join the nearest real two-dimensional
+stacking context's paint list. A separate immutable plan retains their original
+host, source record, generated-child tree order and non-context ancestry; it does
+not fabricate captured elements or mutate the captured tree. Ordinary real
+children and generated entries stable-sort by effective z-index and source tree
+order. `::checkmark`/`::before` precede real children; `::after` follows them.
+
+At runtime Chromium 147 revision
+`6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`,
+`PaintLayerStackingNode::CollectLayers` traverses non-context layers and stops at
+real contexts before the stable effective-z sort. Its `OrderLessThan` uses
+computed order for in-flow flex/grid items and effective zero for direct out-of-flow
+items. Capture therefore retains optional `paint.order` from the live computed
+pseudo style. In-flow generated grid items use that fact; older records without
+it retain legacy local paint with a diagnostic. CSS flex direction changes layout
+rather than reversing this generated-layer tie order.
+The native comparator only inspects layout parent/grandparent ancestry. A deep
+layer under a nonzero ordered flex/grid item can therefore differ from ideal
+order-modified DOM traversal. Without native layer ancestry, preserve that whole
+context's legacy paint with an explicit diagnostic (DM-T935AC). A full-pixel
+direct/deep wrapper adversary protects this conservative boundary.
+
+Overflow-only wrappers remain pass-through owners. Escaping generated layers
+retain applicable ancestor clips and independent cull/animation wrappers;
+absolute/fixed descendants can escape an overflow owner when their containing
+block is outside it. True opacity/transform/containment contexts stay atomic.
+Source-owned native/effect raster and inline-SVG surfaces keep their generated
+paint. The no-generated-child path retains its previous element order.
+
+Full-RGBA native controls cover original before/after z ties, unchanged negative
+pseudos, nested non-context hosts, cross-branch ties, negative context ancestors,
+opacity/transform/layout barriers, applicable and escaped clips, grid order,
+single translucent emission, and generated-owner display/cull/animation state.
+The original 80×80 `contain:none` z1/z2 witness changes from 16 leaked solid-purple
+pixels to zero, matching the unchanged native source.
+
+The negative pseudo path and existing projective/legacy 3D path remain unchanged.
+A prototype negative hoist lost a body background because the implicit canvas
+phase is not separately represented; unchanged main passes that negative case.
+DM-93GNY0 investigates the source boundary rather than claiming a pre-existing
+product bug. Non-positioned generated stacking eligibility remains a separate
+source-authority investigation (DM-T935AC); raw static z-index does not justify
+promotion. DM-9PEZBK separately owns unchanged-main real-descendant ancestry
+failures: nested clips and captured owner display/cull state each differ at 48
+pixels on unchanged main. Generated ordering repairs four nested-clip pixels;
+the remaining 44 clip pixels and 48 display/cull pixels still need the real-child
+ancestry repair. Their full-pixel controls remain intact with that repair; NAG's generated
+ancestry controls isolate generated paint without hiding those real-child failures.
 
 Docs [157](157-pseudo-generated-fragment-geometry-audit.md),
 [175](175-pseudo-fragment-protocol-oracle.md), and

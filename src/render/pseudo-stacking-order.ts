@@ -11,6 +11,7 @@ export type PseudoChildPaintEntry<T, P extends StackedPseudo> =
 export function pseudoChildPaintOrder<T, P extends StackedPseudo>(
   children: ReadonlyArray<{ child: T; zIndex: number }>,
   pseudos: readonly P[],
+  treeOrder?: (entry: PseudoChildPaintEntry<T, P>) => number,
 ): PseudoChildPaintEntry<T, P>[] {
   // Blink stable-sorts by effective z-index. Generated before/checkmark nodes
   // precede real children; after nodes follow them at the same stack level.
@@ -24,5 +25,7 @@ export function pseudoChildPaintOrder<T, P extends StackedPseudo>(
     ...children.map(({ child, zIndex }): PseudoChildPaintEntry<T, P> => ({ kind: "child", child, zIndex })),
     ...pseudos.filter((record) => record.pseudo === "::after").map(pseudoEntry),
   ];
-  return entries.sort((left, right) => left.zIndex - right.zIndex);
+  return entries.sort(
+    (left, right) => left.zIndex - right.zIndex || (treeOrder == null ? 0 : treeOrder(left) - treeOrder(right)),
+  );
 }

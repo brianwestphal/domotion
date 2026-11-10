@@ -21,6 +21,11 @@ import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-backgrou
 import { parseDataUri } from "../utils/data-uri.js";
 import { pseudoFragmentPaintSlot, renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
 import { pseudoChildPaintOrder } from "./pseudo-stacking-order.js";
+import {
+  collectPseudoStackingContexts,
+  type OwnedStackedPseudo,
+  type PseudoStackingContexts,
+} from "./pseudo-stacking-contexts.js";
 import { containmentCreatesStackingContext, hasPaintContainment } from "./containment.js";
 import { measureTruncationMarker, renderRadicalGlyph, renderTextAsPath } from "./text-to-path.js";
 import { getEmbeddedFontFaceCss } from "./embedded-font-css.js";
@@ -342,6 +347,7 @@ export interface RenderState {
   height: number;
   idPrefix: string;
   hoistedFromAncestor: Set<CapturedElement>;
+  pseudoStacking: PseudoStackingContexts;
   overflowClipForHoisted: Map<CapturedElement, CapturedElement>;
   overflowClipPathIds: Map<CapturedElement, string>;
   offGridCollapsedCells: Set<CapturedElement>;
@@ -414,6 +420,7 @@ type PaintPhase = "all" | "box" | "inline";
  * element (see `RenderState.childPlans`).
  */
 interface ChildPaintPlan {
+  pseudos: readonly OwnedStackedPseudo[];
   buckets: PaintOrderBuckets;
   /** `el.styles.display`, passed down as the children's parent display. */
   childDisplay: string | undefined;
@@ -1713,6 +1720,14 @@ function buildRenderState(
   // (including URL candidate/natural sizing facts) without a lossy duplicated
   // capture projection.
   const parentElements = collectParentElements(elements);
+  const pseudoStacking = collectPseudoStackingContexts(elements);
+  for (const unavailable of pseudoStacking.unavailable) {
+    renderWarn(
+      "pseudo-ancestor-stacking",
+      `${unavailable.reason}; retaining legacy host-local paint`,
+      unavailable.owner.tag,
+    );
+  }
 
   // DM-473: tracks descendants that have been hoisted into an ancestor
   // stacking context's flat paint list. Their natural-DFS render path is
@@ -1804,6 +1819,7 @@ function buildRenderState(
     height,
     idPrefix,
     hoistedFromAncestor,
+    pseudoStacking,
     overflowClipForHoisted,
     overflowClipPathIds,
     offGridCollapsedCells,
@@ -1935,7 +1951,12 @@ function elementTreeToSvgInnerImpl(
     topLevelHoistedAsInline,
     topLevelHoistedAsZSorted,
   );
-  const topPlan: ChildPaintPlan = { buckets: topBuckets, childDisplay: undefined, flat3d: null };
+  const topPlan: ChildPaintPlan = {
+    buckets: topBuckets,
+    childDisplay: undefined,
+    flat3d: null,
+    pseudos: state.pseudoStacking.contexts.get(null) ?? [],
+  };
   renderChildBoxPhase(state, topPlan, 0);
   renderChildInlinePhase(state, topPlan, 0);
 
@@ -2812,7 +2833,7 @@ function resolveChildPlan(
       .sort((a, b) => a.z - b.z || a.idx - b.idx)
       .map((x) => x.c);
   }
-  const plan: ChildPaintPlan = { buckets, childDisplay, flat3d };
+  const plan: ChildPaintPlan = { buckets, childDisplay, flat3d, pseudos: state.pseudoStacking.contexts.get(el) ?? [] };
   state.childPlans.set(el, plan);
   return plan;
 }
@@ -2831,6 +2852,85 @@ function resolveChildPlan(
  */
 function paintsAtomicallyInInlinePhase(c: CapturedElement, parentDisplay: string | undefined): boolean {
   return paintsAtomicallyAsInlineBox(c, parentDisplay);
+}
+
+/** Reapply only ancestry that the generated layer actually leaves behind. */
+function paintOwnedStackedPseudo(state: RenderState, entry: OwnedStackedPseudo, depth: number): void {
+  const indent = "  ".repeat(depth);
+  const { svgParts } = state;
+  const position = entry.paint.position;
+  let containingIndex = entry.ancestors.length - 1;
+  if (position === "absolute" || position === "fixed") {
+    containingIndex = -1;
+    for (let index = entry.ancestors.length - 1; index >= 0; index--) {
+      const ancestor = entry.ancestors[index];
+      const positioned = ancestor.styles.position != null && ancestor.styles.position !== "static";
+      if (isFixedContainingBlock(ancestor) || (position === "absolute" && positioned)) {
+        containingIndex = index;
+        break;
+      }
+    }
+  }
+  let wrappers = 0;
+  for (let index = 0; index < entry.ancestors.length; index++) {
+    const ancestor = entry.ancestors[index];
+    const attrs = [
+      ancestor.cullClass ? `class="${esc(ancestor.cullClass)}"` : "",
+      ancestor.displayNone === true ? 'style="display:none"' : "",
+    ].filter(Boolean);
+    if (attrs.length > 0) {
+      svgParts.push(`${indent}<g ${attrs.join(" ")}>`);
+      wrappers++;
+    }
+    // Separate animation owners: combining cull/animation classes on one
+    // element lets their animation shorthands overwrite one another.
+    if (ancestor.animId != null && ancestor.animId !== "") {
+      svgParts.push(`${indent}<g class="anim-${esc(ancestor.animId)}">`);
+      wrappers++;
+    }
+    // Absolute/fixed descendants escape an overflow owner when their actual
+    // containing block is outside that owner (CSS2.1 11.1.1).
+    if (index <= containingIndex) {
+      const clip = ensureChildOverflowClipId(
+        state,
+        ancestor,
+        parseCornerRadii(ancestor.styles, ancestor.width, ancestor.height),
+      );
+      if (clip != null) {
+        svgParts.push(`${indent}<g clip-path="url(#${clip})">`);
+        wrappers++;
+      }
+    }
+  }
+  paintCapturedPseudoFragments(state, entry.owner, indent, pseudoFragmentPaintSlot(entry.record), [entry.record], true);
+  while (wrappers-- > 0) svgParts.push(`${indent}</g>`);
+}
+
+/** Stable native-z merge across real and generated children of one context. */
+function renderStackedPaintEntries(
+  state: RenderState,
+  children: Array<{ child: CapturedElement; zIndex: number }>,
+  pseudos: readonly OwnedStackedPseudo[],
+  depth: number,
+  parentDisplay?: string,
+): void {
+  // Keep the ordinary no-generated-child path byte/order compatible.
+  if (pseudos.length === 0) {
+    for (const { child } of children) renderElementWithOverflowClip(state, child, depth + 1, parentDisplay);
+    return;
+  }
+  const hasManagedSource = pseudos.some((entry) => state.pseudoStacking.managed.has(entry.record));
+  for (const entry of pseudoChildPaintOrder(
+    children,
+    pseudos,
+    hasManagedSource
+      ? (item) =>
+          item.kind === "pseudo" ? item.record.treeOrder : (state.pseudoStacking.treeOrder.get(item.child) ?? 0)
+      : undefined,
+  )) {
+    if (entry.kind === "child") renderElementWithOverflowClip(state, entry.child, depth + 1, parentDisplay);
+    else paintOwnedStackedPseudo(state, entry.record, depth + 1);
+  }
 }
 
 /**
@@ -2885,12 +2985,16 @@ function renderChildInlinePhase(
     pseudoPaint.stacked();
     return;
   }
-  for (const c of buckets.zeroOrAuto) {
-    renderElementWithOverflowClip(state, c, depth + 1, childDisplay);
-  }
-  for (const c of buckets.positive) {
-    renderElementWithOverflowClip(state, c, depth + 1, childDisplay);
-  }
+  renderStackedPaintEntries(
+    state,
+    [
+      ...buckets.zeroOrAuto.map((child) => ({ child, zIndex: 0 })),
+      ...buckets.positive.map((child) => ({ child, zIndex: Number.parseInt(child.styles.zIndex ?? "0", 10) || 0 })),
+    ],
+    plan.pseudos.filter((entry) => (entry.paint.zIndex ?? 0) >= 0),
+    depth,
+    childDisplay,
+  );
 }
 
 /** Does the inline phase of these children emit anything at all? */
@@ -2900,7 +3004,8 @@ function childInlinePhaseIsEmpty(plan: ChildPaintPlan): boolean {
     buckets.base.length === 0 &&
     buckets.inlines.length === 0 &&
     buckets.zeroOrAuto.length === 0 &&
-    buckets.positive.length === 0
+    buckets.positive.length === 0 &&
+    !plan.pseudos.some((entry) => (entry.paint.zIndex ?? 0) >= 0)
   );
 }
 
@@ -2971,45 +3076,54 @@ function paintCapturedPseudoFragments(
   indent: string,
   slot: PseudoFragmentPaintSlot,
   records = el.pseudoFragments,
+  includeManaged = false,
 ): void {
   const { paintCtx, defsParts, svgParts, captureViewport } = state;
   svgParts.push(
-    ...renderPseudoFragmentSlot({ pseudoFragments: records }, slot, {
-      indent,
-      emittedCtm: paintCtx.emittedTextCtm.get(el),
-      imageHref: (url, width, height) => embedResizedDataUri(url, width, height),
-      emitBackgroundImage: ({ record, rect, borderRadius }) => {
-        const layers = splitTopLevelCommas(record.paint.backgroundImage);
-        const sizes = splitTopLevelCommas(record.paint.backgroundSize);
-        const positions = splitTopLevelCommas(record.paint.backgroundPosition);
-        const repeats = splitTopLevelCommas(record.paint.backgroundRepeat);
-        const markup: string[] = [];
-        for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex--) {
-          const id = paintCtx.nextClipId("pfbg");
-          const out = buildBackgroundLayerDef(
-            id,
-            layers[layerIndex].trim(),
-            rect.x,
-            rect.y,
-            rect.width,
-            rect.height,
-            cyclicBackgroundLayer(sizes, layerIndex, "auto").trim(),
-            cyclicBackgroundLayer(positions, layerIndex, "0% 0%").trim(),
-            cyclicBackgroundLayer(repeats, layerIndex, "repeat").trim(),
-            null,
-            "scroll",
-            captureViewport,
-          );
-          if (out.def === "") continue;
-          defsParts.push(out.def);
-          const radius = borderRadius > 0 ? ` rx="${r(borderRadius)}" ry="${r(borderRadius)}"` : "";
-          markup.push(
-            `<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"${radius} fill="url(#${id})"/>`,
-          );
-        }
-        return markup.join("");
+    ...renderPseudoFragmentSlot(
+      {
+        pseudoFragments: includeManaged
+          ? records
+          : records?.filter((record) => !state.pseudoStacking.managed.has(record)),
       },
-    }),
+      slot,
+      {
+        indent,
+        emittedCtm: paintCtx.emittedTextCtm.get(el),
+        imageHref: (url, width, height) => embedResizedDataUri(url, width, height),
+        emitBackgroundImage: ({ record, rect, borderRadius }) => {
+          const layers = splitTopLevelCommas(record.paint.backgroundImage);
+          const sizes = splitTopLevelCommas(record.paint.backgroundSize);
+          const positions = splitTopLevelCommas(record.paint.backgroundPosition);
+          const repeats = splitTopLevelCommas(record.paint.backgroundRepeat);
+          const markup: string[] = [];
+          for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex--) {
+            const id = paintCtx.nextClipId("pfbg");
+            const out = buildBackgroundLayerDef(
+              id,
+              layers[layerIndex].trim(),
+              rect.x,
+              rect.y,
+              rect.width,
+              rect.height,
+              cyclicBackgroundLayer(sizes, layerIndex, "auto").trim(),
+              cyclicBackgroundLayer(positions, layerIndex, "0% 0%").trim(),
+              cyclicBackgroundLayer(repeats, layerIndex, "repeat").trim(),
+              null,
+              "scroll",
+              captureViewport,
+            );
+            if (out.def === "") continue;
+            defsParts.push(out.def);
+            const radius = borderRadius > 0 ? ` rx="${r(borderRadius)}" ry="${r(borderRadius)}"` : "";
+            markup.push(
+              `<rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"${radius} fill="url(#${id})"/>`,
+            );
+          }
+          return markup.join("");
+        },
+      },
+    ),
   );
 }
 
@@ -3928,8 +4042,10 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
   const { state, el, depth, indent, corners } = context;
   const { svgParts, defsParts, paintCtx, captureViewport } = state;
   const hasSourcePseudoOverlay =
-    el.pseudoFragments?.some((record) =>
-      ["after", "positioned", "positive"].includes(pseudoFragmentPaintSlot(record)),
+    el.pseudoFragments?.some(
+      (record) =>
+        !state.pseudoStacking.managed.has(record) &&
+        ["after", "positioned", "positive"].includes(pseudoFragmentPaintSlot(record)),
     ) === true;
   // ── Step 5 (continued) + steps 6-7: the children's inline content, then
   // the flex/grid items and the positioned / stacking-context children.
@@ -3963,14 +4079,27 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
               zIndex: Number.parseInt(child.styles.zIndex ?? "0", 10) || 0,
             })),
           ];
-          const pseudos = (el.pseudoFragments ?? []).filter((record) =>
-            ["positioned", "positive"].includes(pseudoFragmentPaintSlot(record)),
+          const local = (el.pseudoFragments ?? [])
+            .filter(
+              (record) =>
+                !state.pseudoStacking.managed.has(record) &&
+                ["positioned", "positive"].includes(pseudoFragmentPaintSlot(record)),
+            )
+            .map((record) => ({
+              owner: el,
+              record,
+              ancestors: [],
+              pseudo: record.pseudo,
+              paint: record.paint,
+              treeOrder: state.pseudoStacking.recordOrder.get(record) ?? 0,
+            }));
+          renderStackedPaintEntries(
+            state,
+            children,
+            [...childPlan.pseudos.filter((entry) => (entry.paint.zIndex ?? 0) >= 0), ...local],
+            depth,
+            childPlan.childDisplay,
           );
-          for (const entry of pseudoChildPaintOrder(children, pseudos)) {
-            if (entry.kind === "child")
-              renderElementWithOverflowClip(state, entry.child, depth + 1, childPlan.childDisplay);
-            else paintCapturedPseudoFragments(state, el, indent, pseudoFragmentPaintSlot(entry.record), [entry.record]);
-          }
         },
       });
     if (childClipId != null) svgParts.push(`${indent}</g>`);

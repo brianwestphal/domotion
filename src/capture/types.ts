@@ -538,6 +538,8 @@ export interface CapturedPseudoTypography {
 
 /** Paint properties owned by the pseudo box rather than by its host. */
 export interface CapturedPseudoPaintStyle {
+  /** Native computed order; out-of-flow generated items paint as order0. */
+  order?: number;
   /** Computed pseudo visibility. Hidden/collapse records retain geometry but own no paint. */
   visibility: string;
   /** Computed positioning scheme, used only to select the captured paint slot. */

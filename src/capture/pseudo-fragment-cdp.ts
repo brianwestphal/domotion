@@ -302,6 +302,7 @@ async function setupFrame(
                   resolvedFonts: [],
                 },
                 paint: {
+                  order: number(style.order),
                   visibility: style.visibility,
                   position: style.position,
                   unicodeBidi: style.unicodeBidi,
