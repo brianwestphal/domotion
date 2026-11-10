@@ -573,7 +573,7 @@ export function pseudoFragmentRecordErrors(record: CapturedPseudoFragmentSet): s
 export function pseudoFragmentPaintSlot(record: CapturedPseudoFragmentSet): PseudoFragmentPaintSlot {
   if ((record.paint.zIndex ?? 0) < 0) return "negative";
   if ((record.paint.zIndex ?? 0) > 0) return "positive";
-  if (record.paint.position === "absolute" || record.paint.position === "fixed" || record.paint.zIndex === 0)
+  if (["relative", "absolute", "fixed", "sticky"].includes(record.paint.position) || record.paint.zIndex === 0)
     return "positioned";
   // Blink's generated-child order is ::checkmark, ::before, host content,
   // ::after. Checkmark therefore shares the before slot; capture order keeps

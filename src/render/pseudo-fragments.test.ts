@@ -142,8 +142,10 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     expect(pseudoFragmentPaintSlot(checkmark)).toBe("before");
     expect(pseudoFragmentPaintSlot(before)).toBe("before");
     expect(pseudoFragmentPaintSlot(after)).toBe("after");
-    after.paint.position = "absolute";
-    expect(pseudoFragmentPaintSlot(after)).toBe("positioned");
+    for (const position of ["relative", "absolute", "fixed", "sticky"]) {
+      after.paint.position = position;
+      expect(pseudoFragmentPaintSlot(after)).toBe("positioned");
+    }
     before.paint.zIndex = -2;
     expect(pseudoFragmentPaintSlot(before)).toBe("negative");
     after.paint.zIndex = 4;

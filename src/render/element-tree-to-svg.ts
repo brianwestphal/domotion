@@ -19,7 +19,8 @@ import { renderWarn, withOptionalRenderWarningSink } from "./render-warn.js";
 import { fontSizeOrDefault, LEGACY_MARKER_ASCENT_RATIO } from "./text-defaults.js";
 import { TRANSPARENT_BLACK, isPaintedColor } from "../utils/transparent-background.js";
 import { parseDataUri } from "../utils/data-uri.js";
-import { renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
+import { pseudoFragmentPaintSlot, renderPseudoFragmentSlot, type PseudoFragmentPaintSlot } from "./pseudo-fragments.js";
+import { pseudoChildPaintOrder } from "./pseudo-stacking-order.js";
 import { measureTruncationMarker, renderRadicalGlyph, renderTextAsPath } from "./text-to-path.js";
 import { getEmbeddedFontFaceCss } from "./embedded-font-css.js";
 import { getGlyphDefs, type RenderTextMode, type SessionGenericFamilyOverrides } from "./font-resolution.js";
@@ -2858,7 +2859,12 @@ function childBoxPhaseIsEmpty(plan: ChildPaintPlan): boolean {
  * items that paint as inline blocks (step 5), then the positioned and
  * stacking-context children (steps 6 and 7).
  */
-function renderChildInlinePhase(state: RenderState, plan: ChildPaintPlan, depth: number): void {
+function renderChildInlinePhase(
+  state: RenderState,
+  plan: ChildPaintPlan,
+  depth: number,
+  pseudoPaint?: { afterInFlow(): void; stacked(): void },
+): void {
   const { buckets, childDisplay } = plan;
   for (const c of buckets.base) {
     const phase: PaintPhase = paintsAtomicallyInInlinePhase(c, childDisplay) ? "all" : "inline";
@@ -2866,6 +2872,11 @@ function renderChildInlinePhase(state: RenderState, plan: ChildPaintPlan, depth:
   }
   for (const c of buckets.inlines) {
     renderElementWithOverflowClip(state, c, depth + 1, childDisplay);
+  }
+  pseudoPaint?.afterInFlow();
+  if (pseudoPaint != null) {
+    pseudoPaint.stacked();
+    return;
   }
   for (const c of buckets.zeroOrAuto) {
     renderElementWithOverflowClip(state, c, depth + 1, childDisplay);
@@ -2952,10 +2963,11 @@ function paintCapturedPseudoFragments(
   el: CapturedElement,
   indent: string,
   slot: PseudoFragmentPaintSlot,
+  records = el.pseudoFragments,
 ): void {
   const { paintCtx, defsParts, svgParts, captureViewport } = state;
   svgParts.push(
-    ...renderPseudoFragmentSlot(el, slot, {
+    ...renderPseudoFragmentSlot({ pseudoFragments: records }, slot, {
       indent,
       emittedCtm: paintCtx.emittedTextCtm.get(el),
       imageHref: (url, width, height) => embedResizedDataUri(url, width, height),
@@ -3913,6 +3925,10 @@ function paintElementTextPhase(context: ElementPaintPhaseContext, backgroundPhas
 function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: ChildPaintPlan): void {
   const { state, el, depth, indent, corners } = context;
   const { svgParts, defsParts, paintCtx, captureViewport } = state;
+  const hasSourcePseudoOverlay =
+    el.pseudoFragments?.some((record) =>
+      ["after", "positioned", "positive"].includes(pseudoFragmentPaintSlot(record)),
+    ) === true;
   // ── Step 5 (continued) + steps 6-7: the children's inline content, then
   // the flex/grid items and the positioned / stacking-context children.
   //
@@ -3931,17 +3947,40 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
       renderElementWithOverflowClip(state, child, depth + 1, childPlan.childDisplay);
     }
     if (childClipId != null) svgParts.push(`${indent}</g>`);
-  } else if (!childInlinePhaseIsEmpty(childPlan)) {
+  } else if (!childInlinePhaseIsEmpty(childPlan) || hasSourcePseudoOverlay) {
     const childClipId = openChildOverflowClip(state, el, indent, corners);
-    renderChildInlinePhase(state, childPlan, depth);
+    if (!hasSourcePseudoOverlay) renderChildInlinePhase(state, childPlan, depth);
+    else
+      renderChildInlinePhase(state, childPlan, depth, {
+        afterInFlow: () => paintCapturedPseudoFragments(state, el, indent, "after"),
+        stacked: () => {
+          const children = [
+            ...childPlan.buckets.zeroOrAuto.map((child) => ({ child, zIndex: 0 })),
+            ...childPlan.buckets.positive.map((child) => ({
+              child,
+              zIndex: Number.parseInt(child.styles.zIndex ?? "0", 10) || 0,
+            })),
+          ];
+          const pseudos = (el.pseudoFragments ?? []).filter((record) =>
+            ["positioned", "positive"].includes(pseudoFragmentPaintSlot(record)),
+          );
+          for (const entry of pseudoChildPaintOrder(children, pseudos)) {
+            if (entry.kind === "child")
+              renderElementWithOverflowClip(state, entry.child, depth + 1, childPlan.childDisplay);
+            else paintCapturedPseudoFragments(state, el, indent, pseudoFragmentPaintSlot(entry.record), [entry.record]);
+          }
+        },
+      });
     if (childClipId != null) svgParts.push(`${indent}</g>`);
   }
 
   // A non-positioned ::after is the host's final generated child. Positioned
   // auto/zero and positive stacking records follow the in-flow child paint;
   // their exact geometry remains source-owned in all three slots.
-  paintCapturedPseudoFragments(state, el, indent, "after");
-  paintCapturedPseudoFragments(state, el, indent, "positioned");
+  if (childPlan.flat3d != null) {
+    paintCapturedPseudoFragments(state, el, indent, "after");
+    paintCapturedPseudoFragments(state, el, indent, "positioned");
+  }
 
   // Blink's TablePainter paints the collapsed edge graph after cell/row/table
   // backgrounds. Emitting here gives the single table-owned layer the same
@@ -3955,7 +3994,7 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
   // so we don't double-emit decorative `::after` boxes (carets / dividers)
   // that the earlier loop already handled in CSS-correct inline position.
   paintDeferredFadeOverlays(state, el, indent);
-  paintCapturedPseudoFragments(state, el, indent, "positive");
+  if (childPlan.flat3d != null) paintCapturedPseudoFragments(state, el, indent, "positive");
 
   // DM-808: MathML `<mfrac>` needs a horizontal fraction bar between its
   // numerator (first child) and denominator (second child). Chrome's

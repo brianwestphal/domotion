@@ -5,11 +5,12 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP", "DM-AWS6Y4", "DM-XWPSPP"]
+tickets: ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP", "DM-AWS6Y4", "DM-XWPSPP", "DM-NAG7AD", "DM-5YF0BB"]
 code:
   [
     ".github/workflows/pseudo-fragment-render-parity.yml",
     "src/render/pseudo-fragments.ts",
+    "src/render/pseudo-stacking-order.ts",
     "tests/pseudo-fragment-render-oracle.e2e.test.ts",
     "tests/pseudo-fragment-render-report.test.ts",
     "tests/pseudo-stacking-native-contract.e2e.test.ts",
@@ -147,16 +148,16 @@ and generated SVGs. Platforms do not share a font or screenshot baseline.
 
 The Stripe mobile card's expand SVG is captured and emitted with opaque purple
 paths, but an absolute auto-z `::after` background paints later and covers it.
-`paintElementOverlayPhase` currently emits every child inline/positive bucket
+The pre-repair `paintElementOverlayPhase` emitted every child inline/positive bucket
 before its positioned pseudo slot. Native controls with the same child at
 `position:relative; z-index:1` distinguish source ownership from this emission
 order:
 
-| After pseudo z-index | Native icon | Current output icon |
-| -------------------- | ----------- | ------------------- |
-| No pseudo, or -1     | Visible     | Visible             |
-| auto, or 0           | Visible     | Covered             |
-| 1, or 2              | Covered     | Covered             |
+| After pseudo z-index | Native icon | Pre-repair output icon |
+| -------------------- | ----------- | ---------------------- |
+| No pseudo, or -1     | Visible     | Visible                |
+| auto, or 0           | Visible     | Covered                |
+| 1, or 2              | Covered     | Covered                |
 
 The twelve-case reduction gives the same answers with containment `none` and
 `layout style`; containment is not the cause of this omission. The source SVG,
@@ -169,10 +170,23 @@ The installed Chromium 147 revision
 `PaintLayerStackingNode::RebuildZOrderLists` stable-sorts by effective z-index,
 `CollectLayers` stops at nested stacking contexts, and `PaintLayerPainter`
 preserves background/negative/foreground/normal-positive phases. Repair
-DM-XWPSPP owns pseudo/child interleaving and same-component after evidence. Moving
+DM-XWPSPP merges host-local positioned/positive pseudos with the existing stacked
+child buckets by numeric z-index and stable generated-child order. In-flow
+`::after` follows in-flow content before positioned children. Elements without
+source pseudo overlays retain their original child-emission fast path. Native
+coverage also crosses before/after ties, intermediate positive levels, the
+in-flow seam, and overflow clipping. Moving
 all pseudos before all children would break the tied/higher-z controls. The
 independent loaded-image, CSS resource and bitmap-sampling tickets keep their
-own scope; no production change is part of this investigation.
+own scope; no production change is part of the AWS investigation commit.
+
+This local repair does not establish complete ancestor-context pseudo ownership:
+DM-NAG7AD retains an unchanged-source native witness where a pseudo on a
+non-stacking host remains local while its real child hoists. DM-5YF0BB separately
+owns the missing eligible `contain:layout` stacking-context predicate, verified
+against Chromium 147 `LayoutObject::IsStackingContext`. The real Stripe icon
+owner already establishes a context through z-index 3. Existing negative-host
+ownership and the separate preserve-3d path retain their prior behavior.
 
 Docs [157](157-pseudo-generated-fragment-geometry-audit.md),
 [175](175-pseudo-fragment-protocol-oracle.md), and

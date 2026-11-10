@@ -29,9 +29,84 @@ async function purplePixels(png: Buffer): Promise<number> {
 }
 
 describe("native pseudo/child stacking source contract (DM-AWS6Y4)", () => {
+  it("matches tied/numeric generated-child order and the in-flow after seam (DM-XWPSPP)", async () => {
+    const page = await browser.newPage({ viewport: { width: 80, height: 80 } });
+    const generated = await browser.newPage({ viewport: { width: 80, height: 80 } });
+    try {
+      const cases = [
+        ...["before", "after"].flatMap((pseudo) =>
+          [1, 2, 3].map((zIndex) => ({
+            name: `${pseudo}-${zIndex}`,
+            pseudo,
+            zIndex,
+            childZ: "2",
+            childPosition: "relative",
+            inFlow: false,
+            pseudoPosition: "absolute",
+            clip: false,
+            visible: pseudo === "before" ? zIndex <= 2 : zIndex < 2,
+          })),
+        ),
+        ...["static", "relative"].map((childPosition) => ({
+          name: `inflow-${childPosition}`,
+          pseudo: "after",
+          zIndex: "auto",
+          childZ: "auto",
+          childPosition,
+          inFlow: true,
+          pseudoPosition: "static",
+          clip: false,
+          visible: childPosition === "relative",
+        })),
+        ...["relative", "sticky"].flatMap((pseudoPosition) =>
+          ["auto", "1"].map((childZ) => ({
+            name: `${pseudoPosition}-after-${childZ}`,
+            pseudo: "after",
+            zIndex: "auto",
+            childZ,
+            childPosition: "relative",
+            inFlow: true,
+            pseudoPosition,
+            clip: false,
+            visible: childZ === "1",
+          })),
+        ),
+        {
+          name: "clipped-auto",
+          pseudo: "after",
+          zIndex: "auto",
+          childZ: "1",
+          childPosition: "relative",
+          inFlow: false,
+          pseudoPosition: "absolute",
+          clip: true,
+          visible: true,
+        },
+      ];
+      for (const item of cases) {
+        await page.setContent(`<!doctype html><style>
+          body{margin:0;background:white}
+          .host{position:relative;z-index:3;margin:20px;width:38px;height:38px;font-size:0;${item.clip ? "overflow:hidden" : ""}}
+          .icon{position:${item.childPosition};z-index:${item.childZ};width:${item.clip ? 60 : 38}px;height:38px;display:inline-flex;align-items:center;justify-content:center;vertical-align:top}
+          .host::${item.pseudo}{content:"";position:${item.pseudoPosition};${item.inFlow ? "display:inline-block;width:38px;height:38px;margin-left:-38px;vertical-align:top" : "inset:0"};background:rgb(245,245,255);border-radius:4px;z-index:${item.zIndex}}
+          </style><div class="host"><div class="icon"><svg width="20" height="20" viewBox="0 0 20 20"><path fill="rgb(83,58,253)" d="${PATH}"/></svg></div></div>`);
+        const nativeCount = await purplePixels(await page.screenshot());
+        expect(nativeCount > 0, `native ${item.name}`).toBe(item.visible);
+        const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 80, height: 80 });
+        expect(captured.warnings).toEqual([]);
+        await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(captured.tree, 80, 80)}`);
+        expect(await purplePixels(await generated.screenshot()), item.name).toBe(nativeCount);
+      }
+    } finally {
+      await generated.close();
+      await page.close();
+    }
+  }, 60_000);
+
   for (const contain of ["none", "layout style"]) {
     it(`retains the native positioned z-order and SVG owner with containment ${contain}`, async () => {
       const page = await browser.newPage({ viewport: { width: 80, height: 80 } });
+      const generated = await browser.newPage({ viewport: { width: 80, height: 80 } });
       try {
         for (const pseudoZ of ["none", "-1", "auto", "0", "1", "2"]) {
           await page.setContent(`<!doctype html><style>
@@ -61,11 +136,13 @@ describe("native pseudo/child stacking source contract (DM-AWS6Y4)", () => {
             });
             expect(pseudo?.paint.zIndex).toBe(pseudoZ === "auto" ? undefined : Number(pseudoZ));
           }
-          // The missing real-world icon survives both capture and emission.
-          // Final renderer parity is a separate repair under DM-XWPSPP.
-          expect(elementTreeToSvg(captured.tree, 80, 80)).toMatch(/fill="rgb\(83,\s*58,\s*253\)"/);
+          const output = elementTreeToSvg(captured.tree, 80, 80);
+          expect(output).toMatch(/fill="rgb\(83,\s*58,\s*253\)"/);
+          await generated.setContent(`<style>body{margin:0}</style>${output}`);
+          expect((await purplePixels(await generated.screenshot())) > 0, `rendered ${pseudoZ}`).toBe(visible);
         }
       } finally {
+        await generated.close();
         await page.close();
       }
     }, 60_000);
