@@ -9,6 +9,7 @@
  */
 
 import bidiFactory from "bidi-js";
+import { fontSelectionLanguage } from "../capture/font-locale.js";
 import { isPaintedColor } from "../utils/transparent-background.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { resolveCharOrientation } from "../vertical-orientation.js";
@@ -188,7 +189,7 @@ function textOptions(
     targetWidth,
     ascentOverride: typography.primaryFontAscent,
     features: fontFeatures(record),
-    lang: typography.language,
+    lang: fontSelectionLanguage(typography),
     variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
     fontVariantEmoji:
       variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode" ? variantEmoji : undefined,

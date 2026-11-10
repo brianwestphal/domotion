@@ -389,10 +389,10 @@ export const createStyleRecordBuilder = (ctx: {
       // levels by running the algorithm on the characters, and the override
       // is precisely an instruction to ignore what the characters say.
       unicodeBidi: cs.unicodeBidi,
-      // Computed BCP-47 language tag from el.lang or nearest ancestor
-      // [lang], falling back to document.documentElement.lang. Used by the
-      // path renderer to route CJK Han fallback to the right PingFang
-      // regional variant. (DM-394)
+      fontLocale: cs.getPropertyValue("-webkit-locale") || undefined,
+      // DOM BCP-47 language tag from el.lang or nearest ancestor
+      // [lang], falling back to document.documentElement.lang. Preserve this
+      // metadata independently of explicit computed fontLocale routing.
       lang: (function () {
         var n: HTMLElement | null = el;
         while (n != null && n.nodeType === 1) {

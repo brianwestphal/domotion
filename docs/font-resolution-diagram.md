@@ -343,8 +343,9 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > candidates, using canonical matched declarations, explicit native layer order,
 > computed custom-property tokens and native shorthand parsing. CSS-wide resets
 > stop inherited authored witnesses. Computed names do not choose the type.
-> Standard adoption is independently gated by computed-font-locale/DOM-language
-> compatibility (DM-PJG8E9); unsupported animation/tree/layer authority remains
+> Standard adoption is independently gated by usable computed-font-locale
+> authority: explicit CSS string routing or existing DOM-language compatibility
+> (DM-PJG8E9; unproved auto/default remains DM-3972FJ); unsupported animation/tree/layer authority remains
 > unknown (DM-RRAX58). See doc213 for the exact bounded contract.
 > Genuine initial routing remains enabled with unrelated opaque sheets. Facts
 > use removed private expandos and released CDP object groups, never authored
@@ -3571,3 +3572,13 @@ same concrete settings face remains a literal node rather than being mistaken
 for inherited standard. CSS-aware tokenization preserves quoted commas,
 escapes, and quoted generic-looking literals; raw comma splitting is forbidden
 on captured CSS family lists.
+
+### Computed font locale input (DM-PJG8E9)
+
+Capture retains raw computed `fontLocale` alongside unchanged DOM `lang` (or
+pseudo `language`). `fontSelectionLanguage` decodes an explicit CSS string for
+the existing platform-aware font/shaping/metric routes. Old trees and unproved
+`auto` continue through their prior language route; authenticated renderer
+default locale remains DM-3972FJ. The Page-owned generic probe includes explicit
+computed locale scripts from its existing flattened DOMSnapshot. See
+[the captured schema and source contract](213-structured-font-family-stack.md#computed-font-locale-and-language-metadata-dm-pjg8e9).

@@ -118,6 +118,17 @@ describe("genericFamilyProbeTargets", () => {
     expect(languagesFromDomSnapshot(snapshot)).toEqual(["th", "ka", "hy"]);
   });
 
+  it("includes native computed CSS locales without inventing an auto/default locale", () => {
+    expect(
+      languagesFromDomSnapshot({
+        strings: ["en", '\"bn\"', "auto", '\"ka\"', "broken", "lang", "ja"],
+        documents: [
+          { contentLanguage: 0, nodes: { attributes: [[5, 6]] }, layout: { styles: [[1], [2], [3], [4], [99], []] } },
+        ],
+      }),
+    ).toEqual(["en", "bn", "ka", "ja"]);
+  });
+
   it("is on by default and retains an explicit degraded-mode escape hatch", () => {
     const previous = process.env.DOMOTION_GENERIC_PROBE;
     delete process.env.DOMOTION_GENERIC_PROBE;
@@ -152,8 +163,9 @@ describe("probePageGenericFamilies read ordering", () => {
   // captures in the same run contradicted.
   it("forces layout and paint between inserting the probe spans and each CDP font query", async () => {
     const events: string[] = [];
+    const requestedStyles: unknown[] = [];
     const session = {
-      send: async (method: string) => {
+      send: async (method: string, params?: { computedStyles?: unknown }) => {
         if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
         if (method === "DOM.querySelector") return { nodeId: 2 };
         if (method === "CSS.getPlatformFontsForNode") {
@@ -162,7 +174,10 @@ describe("probePageGenericFamilies read ordering", () => {
             fonts: [{ familyName: "Times", postScriptName: "Times-Roman", glyphCount: 1, isCustomFont: false }],
           };
         }
-        if (method === "DOMSnapshot.captureSnapshot") return { documents: [], strings: [] };
+        if (method === "DOMSnapshot.captureSnapshot") {
+          requestedStyles.push(params?.computedStyles);
+          return { documents: [], strings: [] };
+        }
         return {};
       },
       detach: async () => {},
@@ -181,6 +196,8 @@ describe("probePageGenericFamilies read ordering", () => {
     const result = await probePageGenericFamilies(page);
 
     expect(result).not.toBeNull();
+    expect(requestedStyles.length).toBeGreaterThan(0);
+    expect(requestedStyles.every((styles) => JSON.stringify(styles) === JSON.stringify(["-webkit-locale"]))).toBe(true);
     const reads = events.join(" ").split("insert").slice(1);
     expect(reads.length).toBeGreaterThanOrEqual(2);
     for (const read of reads) {

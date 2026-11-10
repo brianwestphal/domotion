@@ -44,6 +44,7 @@
 // explicitly disabled.
 
 import type { BrowserContext, CDPSession, Frame, Page } from "@playwright/test";
+import { computedFontLocaleLanguage } from "./font-locale.js";
 import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { isSameProcessFrameError } from "./cdp-lifecycle.js";
 import type { CapturedSessionGenericFamilies } from "./types.js";
@@ -134,6 +135,7 @@ interface DomSnapshotLanguageFacts {
   documents: ReadonlyArray<{
     contentLanguage: number;
     nodes: { attributes?: ReadonlyArray<readonly number[]> };
+    layout?: { styles?: ReadonlyArray<readonly number[]> };
   }>;
 }
 
@@ -151,6 +153,9 @@ export function languagesFromDomSnapshot(snapshot: DomSnapshotLanguageFacts): st
   };
   for (const document of snapshot.documents) {
     add(snapshot.strings[document.contentLanguage]);
+    // The requested first computed style is -webkit-locale. Native explicit
+    // CSS overrides can select a script absent every DOM lang attribute.
+    for (const style of document.layout?.styles ?? []) add(computedFontLocaleLanguage(snapshot.strings[style[0]]));
     for (const attributes of document.nodes.attributes ?? []) {
       for (let i = 0; i + 1 < attributes.length; i += 2) {
         const name = snapshot.strings[attributes[i]]?.toLowerCase();
@@ -174,7 +179,7 @@ async function pageLanguageFacts(cdp: CDPSession, onFailure?: GenericProbeFailur
   // `assertGenericFamilyTargetConsistency` below.
   return await cdp
     .send("DOMSnapshot.captureSnapshot", {
-      computedStyles: [],
+      computedStyles: ["-webkit-locale"],
       includeDOMRects: false,
       includePaintOrder: false,
     })

@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H"]
+tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9"]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -17,6 +17,9 @@ code:
     "src/capture/font-family-cascade.test.ts",
     "src/capture/font-family-cascade-cdp.ts",
     "src/capture/font-family-cascade-cdp.test.ts",
+    "src/capture/font-locale.ts",
+    "src/capture/font-locale.test.ts",
+    "tests/computed-font-locale.e2e.test.ts",
     "src/capture/font-family-values.ts",
     "src/capture/font-family-values.test.ts",
     "tests/font-family-css-wide-provenance.e2e.test.ts",
@@ -184,10 +187,12 @@ both serialize distinct initial/concrete descriptions to the same concrete name.
 
 Facts use the existing private per-element key, with separate standard/concrete
 classification and renderer usability. Standard adoption requires authenticated
-computed `-webkit-locale` to agree with captured DOM language; live consumption
-rechecks both bindings. `all:initial` can reset locale to `auto` despite `lang=ja`.
-That known mismatch retains its exact prior route with a warning (DM-PJG8E9),
-without rewriting the public language schema. Pseudos have their own bound facts;
+computed `-webkit-locale` to agree with captured DOM language, or an explicitly
+decoded CSS locale string that the renderer can route (DM-PJG8E9); live
+consumption rechecks both bindings. `all:initial` can reset locale to `auto`
+despite `lang=ja`.
+That known mismatch retains its exact prior route with a warning (DM-PJG8E9,
+DM-3972FJ), without changing existing language metadata. Pseudos have their own bound facts;
 unknown/blocked pseudo evidence cannot borrow a newly proved host standard type.
 Native query failure preserves an independently valid ZZR literal witness.
 
@@ -257,3 +262,51 @@ tolerance.
 
 The generated capture script is rebuilt twice and must have the same SHA-256
 before handoff; `tests/capture-script-determinism.test.ts` enforces this (two builds to a temporary path via `DOMOTION_CAPTURE_SCRIPT_OUT` must match each other and the tracked `src/capture/script.generated.ts`).
+
+## Computed font locale and language metadata (DM-PJG8E9)
+
+`CapturedStyles.fontLocale` and `CapturedPseudoTypography.fontLocale` are
+optional raw computed CSS `-webkit-locale` values. Their existing `lang` and
+`language` fields remain DOM/document language metadata. New captures retain
+both; JSON round trips keep the distinction. Older captured trees omit the new
+field and retain their previous rendering route.
+
+`fontSelectionLanguage()` decodes only a complete explicit CSS string, including
+escapes and an explicit empty string, for font selection, shaping, emphasis,
+vertical decoration and generated pseudo font paths. The same route governs
+pseudo glyph bitmap representation checks. Initial-name family facts may adopt
+a proven standard type under an explicit CSS locale even if it differs from DOM
+language. Their live computed locale and original DOM-language binding are still
+checked. No text-engine public API signature changes or blanket locale overrides
+are introduced. Platform dispatch remains the existing CoreText/fontconfig/
+DirectWrite path behind the shared language argument.
+
+The existing Page generic-font probe requests `-webkit-locale` in its owned
+DOMSnapshot read and adds decoded explicit layout-style locales to the existing
+per-script target set. This includes a script authored only in CSS, absent all
+DOM language attributes and response headers, and retains old/absent snapshot
+styles and invalid string indices safely. It adds no new CDP command or lifetime.
+
+Pinned source authority:
+
+- [WebkitLocale parsing, computed serialization and null/string application](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/css/properties/longhands/longhands_custom.cc#L11345).
+- [HTML XML-language priority over lang](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/html/html_element.cc#L445) and [language presentation declarations](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/dom/element.cc#L12550).
+- [FontDescription null locale uses LocaleOrDefault for script](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/platform/fonts/font_description.h#L298), [LayoutLocale default language](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/platform/text/layout_locale.cc#L294) and [renderer --lang authority](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/content/renderer/render_thread_impl.cc#L711).
+
+**Qualified boundary:** raw `auto`, unavailable and invalid locale data retain the
+prior language route and ESH's conservative family-type usability guard.
+DM-3972FJ owns authenticated renderer-default locale support. Navigator language
+comes from AcceptLanguages and Intl locale can be separately overridden;
+neither proves Blink's default font locale. Native custom Playwright locale `ja`
+changed both web-exposed values to Japanese while CSS `auto` still painted Times
+on the measured Mac. This repair does not claim that default-reset gap is solved.
+
+The bounded native regression records actual painted A faces, Range widths and
+fontkit advances for CSS inheritance/unset, authored overrides, variables and
+XML-language precedence, retains auto/initial negative cases, and compares old
+versus new routes through real capture/render. A CSS-only Bengali script control
+moves the actual generic probe result from absent to present; a generated pseudo
+keeps DOM language `en` while its explicit CSS locale is `ja`. Matching source,
+prior/current PNGs and raw `diffPct` are evidence, not an attribution of every
+residual pixel. Linux and Windows ordinary native workflows run the same strict
+two-case selection and always retain its platform-specific artifact directory.

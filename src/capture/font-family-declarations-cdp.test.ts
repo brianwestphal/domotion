@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
 import { captureFontFamilyDeclarationFacts } from "./font-family-declarations-cdp.js";
 
-function harness(failure?: string) {
+function harness(failure?: string, options: { value?: string; fontLocale?: string; language?: string } = {}) {
   const send = vi.fn(async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
     if (
       method === failure ||
@@ -25,7 +25,8 @@ function harness(failure?: string) {
       case "DOM.resolveNode":
         return { object: { objectId: "document" } };
       case "Runtime.callFunctionOn":
-        if (String(params?.functionDeclaration).includes("font provenance language")) return { result: { value: "" } };
+        if (String(params?.functionDeclaration).includes("font provenance language"))
+          return { result: { value: options.language ?? "" } };
         if (failure === "attach-js" && params?.arguments != null && (params.arguments as unknown[]).length >= 3)
           return { result: {}, exceptionDetails: { text: "synthetic failure" } };
         return { result: { objectId: "candidates" } };
@@ -40,7 +41,7 @@ function harness(failure?: string) {
               rule: {
                 origin: "regular",
                 originTreeScopeNodeId: 100,
-                style: { cssProperties: [{ name: "font-family", value: "Times" }] },
+                style: { cssProperties: [{ name: "font-family", value: options.value ?? "Times" }] },
               },
             },
           ],
@@ -52,7 +53,7 @@ function harness(failure?: string) {
         return {
           computedStyle: [
             { name: "font-family", value: "Times" },
-            { name: "-webkit-locale", value: "auto" },
+            { name: "-webkit-locale", value: options.fontLocale ?? "auto" },
           ],
         };
       case "CSS.getLonghandProperties":
@@ -160,4 +161,30 @@ describe("extended native family provenance lifecycle", () => {
     await probe.dispose();
     expect(h.detach).toHaveBeenCalledOnce();
   });
+});
+
+describe("computed locale standard-family usability (DM-PJG8E9)", () => {
+  it.each([
+    { fontLocale: '\"ja\"', usable: true },
+    { fontLocale: "auto", usable: false },
+  ])(
+    "keeps classification separate from explicit/default locale authority: $fontLocale",
+    async ({ fontLocale, usable }) => {
+      const h = harness(undefined, { value: "initial", fontLocale, language: "en" });
+      const probe = await captureFontFamilyDeclarationFacts(h.page);
+      const install = h.send.mock.calls.find(
+        ([method, params]) =>
+          method === "Runtime.callFunctionOn" && (params?.arguments as unknown[] | undefined)?.length === 4,
+      );
+      expect(install?.[1]?.arguments).toMatchObject([
+        { value: probe.propertyKey },
+        { value: false },
+        { value: [] },
+        { value: { type: "standard", usable, fontLocale, language: "en" } },
+      ]);
+      expect(probe.warnings.length).toBe(usable ? 0 : 1);
+      await probe.dispose();
+      expect(h.detach).toHaveBeenCalledOnce();
+    },
+  );
 });

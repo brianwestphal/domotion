@@ -38,6 +38,7 @@ import type {
   CapturedPseudoTypography,
   CaptureWarning,
 } from "./types.js";
+import { fontSelectionLanguage } from "./font-locale.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { pseudoFragmentRecordErrors } from "../render/pseudo-fragments.js";
@@ -300,6 +301,7 @@ async function setupFrame(
                   wordSpacing: style.wordSpacing,
                   textOrientation: style.textOrientation,
                   whiteSpace: style.whiteSpace,
+                  fontLocale: style.getPropertyValue("-webkit-locale") || undefined,
                   language: element.closest("[lang]")?.getAttribute("lang") ?? document.documentElement.lang ?? "",
                   effectiveZoom: zoom,
                   primaryFontAscent: metrics.fontBoundingBoxAscent,
@@ -1265,7 +1267,7 @@ function pseudoBitmapRepresentations(record: CapturedPseudoFragmentSet): string[
       fontWeight: typography.fontWeight,
       fontStyle: typography.fontStyle,
       fontStretch: typography.fontStretch,
-      lang: typography.language,
+      lang: fontSelectionLanguage(typography),
       variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
       fontVariantEmoji:
         variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode" ? variantEmoji : undefined,

@@ -4999,7 +4999,7 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H"],
+        "tickets": ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9"],
         "code": [
           "src/font-family-stack.test.ts",
           "src/capture/script/font-family-default.ts",
@@ -5010,6 +5010,9 @@
           "src/capture/font-family-cascade.test.ts",
           "src/capture/font-family-cascade-cdp.ts",
           "src/capture/font-family-cascade-cdp.test.ts",
+          "src/capture/font-locale.ts",
+          "src/capture/font-locale.test.ts",
+          "tests/computed-font-locale.e2e.test.ts",
           "src/capture/font-family-values.ts",
           "src/capture/font-family-values.test.ts",
           "tests/font-family-css-wide-provenance.e2e.test.ts",

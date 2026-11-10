@@ -525,6 +525,9 @@ export interface CapturedPseudoTypography {
   textOrientation: string;
   whiteSpace: string;
   language: string;
+  /** Raw computed CSS -webkit-locale; explicit strings route font selection
+   * independently of document language. Auto remains guarded (DM-3972FJ). */
+  fontLocale?: string;
   effectiveZoom: number;
   primaryFontAscent: number;
   primaryFontDescent: number;
@@ -1483,6 +1486,10 @@ export interface CapturedStyles {
    *  `<html lang>`. Routes Han fallback to the matching PingFang regional
    *  variant (TC / HK / MO) or Hiragino Kaku for `ja`. (DM-394) */
   lang?: string;
+  /** Raw computed CSS -webkit-locale, kept separate from DOM language.
+   * An explicit string supplies font selection locale; auto/default authority
+   * remains unavailable and retains the prior route (DM-3972FJ). */
+  fontLocale?: string;
   /** `text-decoration-line` — 'underline', 'line-through', 'overline', or
    *  combinations. 'none' means no decoration; renderer draws an SVG line
    *  below / through / above the text when present. */

@@ -123,6 +123,19 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output/owned-ui-server/native-ui.json --minimum-passed 11
+      - name: Verify native computed font locale
+        if: always()
+        env:
+          DOMOTION_FONT_LOCALE_EVIDENCE: tests/output/computed-font-locale/evidence
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/computed-font-locale.e2e.test.ts
+          --reporter=json --outputFile=tests/output/computed-font-locale/results.json
+      - name: Require every native computed font locale assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/computed-font-locale/results.json --minimum-passed 2
       - name: Verify native CSS-wide family provenance
         if: always()
         env:
@@ -341,6 +354,7 @@ jobs:
             tests/output/svg-escaped-import/
             tests/output/svg-font-identity/
             tests/output/opaque-font-family/
+            tests/output/computed-font-locale/
             tests/output/font-family-css-wide/
             tests/output/owned-ui-server/
             tests/output/srcset-resource/

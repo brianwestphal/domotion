@@ -1,3 +1,4 @@
+import { fontSelectionLanguage } from "../capture/font-locale.js";
 /**
  * DM-990 / DM-996: vertical writing-mode text renderer.
  *
@@ -82,7 +83,7 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
       fontWeight: segWeight,
       fontStyle: segStyle,
       fontStretch: el.styles.fontStretch,
-      lang: el.styles.lang,
+      lang: fontSelectionLanguage(el.styles),
     });
     if (metrics == null) continue;
     const position = el.styles.textEmphasisPosition ?? "over right";
@@ -260,7 +261,7 @@ function verticalDecorationIdBase(el: CapturedElement, seg: TextSegment): string
     seg.width,
     seg.height,
     seg.verticalWritingMode,
-    el.styles.lang,
+    fontSelectionLanguage(el.styles),
     el.styles.textDecorationLine,
     el.styles.textDecorationStyle,
     el.styles.textDecorationThickness,
@@ -297,7 +298,7 @@ function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillCol
     wm,
     el.styles.textOrientation,
     el.styles.textUnderlinePosition,
-    el.styles.lang,
+    fontSelectionLanguage(el.styles),
   );
   const runXOffsets = seg.yOffsets?.map((y) => y - seg.y);
   const skipText = verticalDecorationSkipInkText(seg);
@@ -344,7 +345,7 @@ function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillCol
         fontWeight: segWeight,
         fontStyle: segStyle,
         fontStretch: el.styles.fontStretch,
-        lang: el.styles.lang,
+        lang: fontSelectionLanguage(el.styles),
         variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
         // Blink disables a non-horizontal decorating box, so inherited
         // declarations remain but UsedFont/metrics are the TARGET vertical run.

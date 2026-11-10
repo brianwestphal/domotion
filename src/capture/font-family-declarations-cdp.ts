@@ -4,6 +4,7 @@ import { privateCaptureKey } from "./private-key.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { matchedFamilyIsUnambiguouslyAuthored, type MatchedFamilyDeclarations } from "./font-family-declarations.js";
 import { familyDomRecords, nativeFontFamilyType, type FamilyDomNode } from "./font-family-cascade-cdp.js";
+import { computedFontLocaleLanguage } from "./font-locale.js";
 import { fontLocaleMatchesCapturedLanguage, type ProvenFamilyType } from "./font-family-cascade.js";
 import { withTimeout } from "../utils/with-timeout.js";
 import type { CaptureWarning } from "./types.js";
@@ -236,7 +237,9 @@ export async function captureFontFamilyDeclarationFacts(
                   if (native != null && "type" in native.resolution) {
                     provenance.type = native.resolution.type;
                     provenance.usable =
-                      provenance.type !== "standard" || fontLocaleMatchesCapturedLanguage(native.fontLocale, language);
+                      provenance.type !== "standard" ||
+                      computedFontLocaleLanguage(native.fontLocale) !== undefined ||
+                      fontLocaleMatchesCapturedLanguage(native.fontLocale, language);
                     if (!provenance.usable)
                       report(
                         new Error(
@@ -289,6 +292,7 @@ export async function captureFontFamilyDeclarationFacts(
                         language,
                         usable:
                           nativePseudo.resolution.type !== "standard" ||
+                          computedFontLocaleLanguage(nativePseudo.fontLocale) !== undefined ||
                           fontLocaleMatchesCapturedLanguage(nativePseudo.fontLocale, language),
                       };
                     else if (!authoredPseudos.includes(pseudo.pseudoType))

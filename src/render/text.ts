@@ -5,6 +5,7 @@
  */
 
 import bidiFactory from "bidi-js";
+import { fontSelectionLanguage } from "../capture/font-locale.js";
 import { fontSizeOrDefault, FALLBACK_ASCENT_RATIO } from "./text-defaults.js";
 import {
   computeSkipInkGaps,
@@ -190,7 +191,7 @@ export function renderTextEmphasisMarks(el: CapturedElement, fillColorFallback: 
       fontWeight: segFontWeight,
       fontStyle: segFontStyle,
       fontStretch: el.styles.fontStretch,
-      lang: el.styles.lang,
+      lang: fontSelectionLanguage(el.styles),
     });
     if (metrics == null) continue;
     const offset = isUnder ? Math.ceil(segDescent + metrics.ascent) : Math.floor(-segAscent - metrics.descent);
@@ -1822,7 +1823,7 @@ function buildPathOptions(
 ): PathOptions {
   const stroke = textStrokeParams(el.styles);
   return {
-    lang: el.styles.lang,
+    lang: fontSelectionLanguage(el.styles),
     textStrokeWidth: stroke.width,
     textStrokeColor: stroke.color,
     paintOrder: stroke.paintOrder,
@@ -1973,7 +1974,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       fontWeight: segFontWeight,
       fontStyle: segFontStyle,
       fontStretch: el.styles.fontStretch,
-      lang: el.styles.lang,
+      lang: fontSelectionLanguage(el.styles),
       variationSettings,
       features,
     });
