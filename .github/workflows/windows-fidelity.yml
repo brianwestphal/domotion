@@ -5,11 +5,12 @@ name: Windows fidelity
 # in a Linux container — Wine's dwrite reimplementation does not match real
 # Windows fallback, and the Windows system fonts aren't redistributable.
 #
-# MANUAL DISPATCH ONLY — Windows font-capture precision is best-effort. Every
-# job here still works and the `regression` gate is still baseline-relative and
-# meaningful; none of it runs automatically. Dispatch it deliberately: before a
-# release, after touching the win32 routing or the DirectWrite helper, or when
-# chasing a Windows-specific report.
+# MANUAL DISPATCH ONLY — Windows functionality and font-capture precision are
+# first-class commitments, as specified in AGENTS.md. Manual dispatch controls
+# validation frequency because DirectWrite conformance is slower; it does not
+# lower the correctness contract. Windows-specific regressions are real defects.
+# Dispatch native validation before a release, after Windows-affecting routing,
+# helper, metric or packaging changes, and when investigating a Windows report.
 #
 # The win32 fallback chain is calibrated and the feature suite passes within the
 # documented Windows text-hinting floor (DM-836 / DM-262), so `regression` is
@@ -27,22 +28,14 @@ name: Windows fidelity
 # Windows font stack — the release-independent way to validate the win32 helper.
 
 on:
-  # MANUAL DISPATCH ONLY. Windows font-capture precision is best-effort — see
-  # the platform-support section of CLAUDE.md — so this no longer runs per PR.
+  # MANUAL DISPATCH ONLY. See AGENTS.md's platform-support policy: macOS is the
+  # primary development host, while Windows remains a first-class native target.
+  # Choose focused native profiles for the affected scope and run the complete
+  # validation warranted by release risk. The baseline-relative regression gate
+  # remains meaningful; reduced frequency does not excuse Windows breakage.
   #
-  # It previously ran on EVERY pull request with no `paths:` filter, because the
-  # `regression` job was meant to be a required check and a path-skipped
-  # required check blocks PRs forever. Under the best-effort policy it is not a
-  # required check, so that reasoning no longer applies and the per-PR cost is
-  # not justified: a Windows-only divergence is not a release blocker.
-  #
-  # Still worth dispatching deliberately — before a release, after a change to
-  # the win32 routing or the DirectWrite helper, or when investigating a
-  # Windows-specific report. The baseline-relative gate below still works; it
-  # just is not run for you.
-  #
-  # NOTE: removing the required-check status is a branch-protection setting in
-  # the repo's GitHub settings and cannot be done from this file.
+  # Required-check configuration belongs to the repository's GitHub branch
+  # protection settings; this workflow does not change those settings.
   workflow_dispatch:
     inputs:
       worker_bootstrap_only:
@@ -82,7 +75,7 @@ jobs:
   regression:
     if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     # DM-1405: distinct check-run name (see test-linux.yml) so this Windows gate
-    # is a separately-required status check from the Linux one.
+    # can be configured independently of the Linux check in branch protection.
     name: Windows fidelity regression
     runs-on: windows-latest
     steps:
