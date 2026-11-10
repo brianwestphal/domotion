@@ -20,6 +20,7 @@
  * additionally strips the outer wrapper) so the namespacing regexes live in
  * exactly one place.
  */
+import { imageStyleSheets, replaceImageStyleSheets } from "./svg-image-stylesheets.js";
 
 import type { LinuxFontRenderContext } from "./font-resolution.js";
 import { esc, formatNumberLoose, r } from "./format.js";
@@ -390,9 +391,9 @@ export function prefixSvgIds(svg: string, prefix: string, knownIds: Iterable<str
         )
         .join(";")}${quote}`,
   );
-  out = out.replace(
-    /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
-    (_m, open: string, css: string, close: string) =>
+  out = replaceImageStyleSheets(
+    out,
+    ({ open, css, close }) =>
       open +
       replaceFlatCssBlocks(css, (selectors, body) => prefixCssIdSelectors(selectors, prefix, ids) + body) +
       close,
@@ -421,7 +422,7 @@ export function prefixSvgIds(svg: string, prefix: string, knownIds: Iterable<str
 export function prefixSvgClasses(svg: string, prefix: string): string {
   let out = svg;
   // (a) class selectors inside <style> … </style>, selector-portion only.
-  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
+  out = replaceImageStyleSheets(out, ({ open, css, close }) => {
     const rewritten = replaceFlatCssBlocks(
       css,
       (sel, block) => sel.replace(/\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)/g, (_c, name: string) => `.${prefix}${name}`) + block,
@@ -1305,10 +1306,10 @@ function hasViewportRelativePercent(body: string): boolean {
  *  universal, attribute, or pseudo selector) leaks into the outer document once
  *  the SVG is merged, so such a source is not safely flattenable. */
 function hasUnscopableStyleSelector(body: string): boolean {
-  const styleBlocks = body.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi);
+  const styleBlocks = imageStyleSheets(body);
   if (styleBlocks == null) return false;
   for (const block of styleBlocks) {
-    const css = block.replace(/<style\b[^>]*>/i, "").replace(/<\/style>/i, "");
+    const css = block.css;
     for (const rule of flatCssBlocks(css, { nonEmptyPrelude: true })) {
       for (const selector of rule.prelude.split(",")) {
         // Strip class/id tokens and combinators/whitespace; anything left over

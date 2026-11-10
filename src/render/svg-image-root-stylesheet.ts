@@ -55,6 +55,8 @@
  * `selector:not([data-domotion-image-root])`; the inlined root carries that
  * attribute whenever the image has a sheet (see `svg-image-style-scope.ts`).
  */
+import { replaceImageStyleSheets } from "./svg-image-stylesheets.js";
+
 import { blankImageCssNoise as blankNoise, joinedCdata, serializeJoinedCdata } from "./svg-image-cdata.js";
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import {
@@ -721,22 +723,21 @@ export function cascadeRootStylesheetTransform(
     return out + css.slice(cursor, stop);
   };
 
-  const rewrittenBody = body.replace(
-    /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
-    (_whole, open: string, css: string, closeTag: string) => {
-      const wrapper = joinedCdata(css);
-      const text = wrapper?.content ?? css;
-      cdataRegions =
-        wrapper != null
-          ? [[0, text.length]]
-          : [...css.matchAll(/<!\[CDATA\[([\s\S]*?)(?:\]\]>|$)/g)].map((m): [number, number] => [
-              m.index,
-              m.index + m[0].length,
-            ]);
-      const rewritten = processRange(text, blankNoise(text), 0, text.length, true, "");
-      return open + (wrapper == null ? rewritten : serializeJoinedCdata(rewritten, wrapper)) + closeTag;
-    },
-  );
+  const rewrittenSource = replaceImageStyleSheets(svgText, ({ open, css, close: closeTag }) => {
+    const wrapper = joinedCdata(css);
+    const text = wrapper?.content ?? css;
+    cdataRegions =
+      wrapper != null
+        ? [[0, text.length]]
+        : [...css.matchAll(/<!\[CDATA\[([\s\S]*?)(?:\]\]>|$)/g)].map((m): [number, number] => [
+            m.index,
+            m.index + m[0].length,
+          ]);
+    const rewritten = processRange(text, blankNoise(text), 0, text.length, true, "");
+    return open + (wrapper == null ? rewritten : serializeJoinedCdata(rewritten, wrapper)) + closeTag;
+  });
+
+  const rewrittenBody = rewrittenSource.slice(rootTagEnd);
 
   if (unsupportedTransform) return "unsupported";
   const declarations = new Map<string, CascadedDeclaration>();

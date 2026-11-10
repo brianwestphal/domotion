@@ -22,6 +22,8 @@
  * leaves the answer undecided.
  */
 
+import { imageXmlTokens } from "./svg-image-xml.js";
+
 /** `[ids, classes + attributes + pseudo-classes, types]`. */
 export type Specificity = [number, number, number];
 
@@ -146,53 +148,24 @@ export interface ImageElement {
 export function parseImageElementTree(xml: string, recordAttributeSource = false): ImageElement | null {
   let root: ImageElement | null = null;
   let current: ImageElement | null = null;
-  let i = 0;
+  const tokens = imageXmlTokens(xml);
+  if (tokens == null) return null;
   const attrRe = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/y;
-  while (i < xml.length) {
-    const lt = xml.indexOf("<", i);
-    const textEnd = lt < 0 ? xml.length : lt;
-    if (textEnd > i && current != null) current.texts.push(expandXmlReferences(xml.slice(i, textEnd)));
-    if (lt < 0) break;
-    if (xml.startsWith("<!--", lt)) {
-      const end = xml.indexOf("-->", lt + 4);
-      if (end < 0) return null;
-      i = end + 3;
-    } else if (xml.startsWith("<![CDATA[", lt)) {
-      const end = xml.indexOf("]]>", lt + 9);
-      if (end < 0) return null;
-      if (current != null) current.texts.push(xml.slice(lt + 9, end));
-      i = end + 3;
-    } else if (xml.startsWith("<?", lt)) {
-      const end = xml.indexOf("?>", lt + 2);
-      if (end < 0) return null;
-      i = end + 2;
-    } else if (xml.startsWith("<!", lt)) {
-      // A doctype, possibly with an internal subset in brackets.
-      let depth = 0;
-      let j = lt + 2;
-      for (; j < xml.length; j++) {
-        const ch = xml[j];
-        if (ch === "[") depth++;
-        else if (ch === "]") depth--;
-        else if (ch === ">" && depth <= 0) break;
-        else if (ch === '"' || ch === "'") {
-          const close = xml.indexOf(ch, j + 1);
-          if (close < 0) return null;
-          j = close;
-        }
-      }
-      i = j + 1;
-    } else if (xml[lt + 1] === "/") {
-      const end = xml.indexOf(">", lt);
-      if (end < 0 || current == null) return null;
-      const name = xml.slice(lt + 2, end).trim();
-      if (name !== current.name) return null;
+  for (const token of tokens) {
+    const lt = token.start;
+    if (token.kind === "text") {
+      if (current != null) current.texts.push(expandXmlReferences(xml.slice(token.start, token.end)));
+    } else if (token.kind === "cdata") {
+      if (current != null) current.texts.push(xml.slice(token.start + 9, token.end - 3));
+    } else if (token.kind === "comment" || token.kind === "instruction" || token.kind === "declaration") {
+      continue;
+    } else if (token.kind === "close") {
+      if (current == null || token.name !== current.name) return null;
       if (current.sourceRange != null) {
         current.sourceRange.closeStart = lt;
-        current.sourceRange.end = end + 1;
+        current.sourceRange.end = token.end;
       }
       current = current.parent;
-      i = end + 1;
     } else {
       const nameMatch = /^<([^\s/>]+)/.exec(xml.slice(lt, lt + 256));
       if (nameMatch == null) return null;
@@ -233,11 +206,7 @@ export function parseImageElementTree(xml: string, recordAttributeSource = false
           end: j + (selfClosing ? 2 : 1),
           selfClosing,
         };
-      if (selfClosing) i = j + 2;
-      else {
-        current = el;
-        i = j + 1;
-      }
+      if (!selfClosing) current = el;
     }
   }
   return current == null ? root : null;

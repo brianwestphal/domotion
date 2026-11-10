@@ -10,16 +10,11 @@
  * `@supports` block like an `@media` one, and the root-transform cascade treats
  * it as a decided conditional group.
  */
-import { expandXmlReferences } from "./svg-image-selector-engine.js";
+import postcss from "postcss";
+import { blankImageCssNoise as blankNoise, joinedCdata } from "./svg-image-cdata.js";
+import { imageStyleSheets } from "./svg-image-stylesheets.js";
 
-/** Blank comments, CDATA markers and HTML comment markers (same length). */
-function blankNoise(css: string): string {
-  const blank = (m: string): string => " ".repeat(m.length);
-  return css
-    .replace(/\/\*[\s\S]*?\*\//g, blank)
-    .replace(/<!\[CDATA\[|\]\]>/g, blank)
-    .replace(/<!--|-->/g, blank);
-}
+import { expandXmlReferences } from "./svg-image-selector-engine.js";
 
 /** The lookup key of an `@supports` prelude (comments already blanked):
  *  whitespace runs collapse to one space, as Blink's `SimplifyWhiteSpace`
@@ -38,20 +33,29 @@ export interface ImageSupportsCondition {
 /** Every `@supports` condition in the SVG source's `<style>` sheets. */
 export function collectImageSupportsConditions(svgText: string): ImageSupportsCondition[] {
   const out = new Map<string, ImageSupportsCondition>();
-  for (const style of svgText.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
-    const css = style[1];
+  for (const style of imageStyleSheets(svgText) ?? []) {
+    const wrapper = joinedCdata(style.css);
+    const css = wrapper?.content ?? style.css;
     const cdata = [...css.matchAll(/<!\[CDATA\[[\s\S]*?(?:\]\]>|$)/g)].map((m): [number, number] => [
       m.index,
       m.index + m[0].length,
     ]);
     const clean = blankNoise(css);
-    for (const m of clean.matchAll(/@supports\b([^{}]*)\{/gi)) {
-      const key = supportsConditionKey(m[1]);
-      if (key === "" || out.has(key)) continue;
-      const inCdata = cdata.some(([from, to]) => m.index >= from && m.index < to);
-      const condition = inCdata ? key : expandXmlReferences(key);
-      // A DTD-defined entity leaves the DOM text unknown: leave it undecided.
-      if (condition != null) out.set(key, { key, condition });
+    try {
+      const sheet = postcss.parse(clean);
+      sheet.walkAtRules((rule) => {
+        if (rule.name.toLowerCase() !== "supports") return;
+        const key = supportsConditionKey(rule.params);
+        if (key === "" || out.has(key)) return;
+        const offset = rule.source?.start?.offset;
+        const inCdata =
+          wrapper != null || (offset != null && cdata.some(([from, to]) => offset >= from && offset < to));
+        const condition = inCdata ? key : expandXmlReferences(key);
+        // A DTD-defined entity leaves the DOM text unknown: leave it undecided.
+        if (condition != null) out.set(key, { key, condition });
+      });
+    } catch {
+      // An unreadable sheet supplies no authority for conditional inlining.
     }
   }
   return [...out.values()];

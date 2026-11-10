@@ -132,7 +132,7 @@ describe("cascadeRootStylesheetTransform", () => {
   });
 
   it("evaluates @media against the image viewport and strips non-matching blocks too", () => {
-    const svg = `<svg><style>@media (min-width: 150px) { svg { rotate: 1deg } } @media (max-width: 150px) and (orientation: landscape) { svg { scale: 2 } } @media (100px < width <= 200px), print { svg { translate: 3px } }</style><rect/></svg>`;
+    const svg = `<svg><style><![CDATA[@media (min-width: 150px) { svg { rotate: 1deg } } @media (max-width: 150px) and (orientation: landscape) { svg { scale: 2 } } @media (100px < width <= 200px), print { svg { translate: 3px } }]]></style><rect/></svg>`;
     const narrow = cascade(svg, { w: 120, h: 80 });
     if (narrow == null || narrow === "unsupported") throw new Error("expected a cascade");
     expect(narrow.declarations.get("rotate")).toBeUndefined();

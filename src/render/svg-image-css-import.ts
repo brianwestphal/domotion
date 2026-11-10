@@ -1,6 +1,14 @@
 import postcss, { type AtRule, type Root } from "postcss";
-import { cssUnescape, expandXmlReferences, parseImageElementTree } from "./svg-image-selector-engine.js";
+import {
+  imageStyleSheets,
+  replaceImageStyleSheets,
+  serializeImageStyleText,
+  xmlStyleText,
+} from "./svg-image-stylesheets.js";
+import { cssUnescape, parseImageElementTree } from "./svg-image-selector-engine.js";
 import { imageFragmentInventory, type ImageFragmentInventory } from "./svg-image-fragment-ids.js";
+
+export { xmlStyleText } from "./svg-image-stylesheets.js";
 
 const MAX_IMPORT_DEPTH = 4;
 const MAX_CSS_BYTES = 256_000;
@@ -245,37 +253,8 @@ function safeOriginalImageReferences(context: ResourceContext): boolean {
   return !context.unrewritableString;
 }
 
-export function xmlStyleText(raw: string): string | null {
-  raw = raw.replace(/\r\n?/g, "\n");
-  let out = "",
-    i = 0;
-  while (i < raw.length) {
-    if (raw.startsWith("<![CDATA[", i)) {
-      const end = raw.indexOf("]]>", i + 9);
-      if (end < 0) return null;
-      out += raw.slice(i + 9, end);
-      i = end + 3;
-    } else if (raw.startsWith("<!--", i)) {
-      const end = raw.indexOf("-->", i + 4);
-      if (end < 0) return null;
-      i = end + 3;
-    } else {
-      const next = raw.indexOf("<", i);
-      const text = raw.slice(i, next < 0 ? raw.length : next);
-      if (/&(?!(?:lt|gt|amp|quot|apos|#\d+|#x[0-9a-f]+);)/i.test(text)) return null;
-      const decoded = expandXmlReferences(text);
-      if (decoded == null) return null;
-      out += decoded;
-      if (next < 0) break;
-      if (next === i) return null;
-      i = next;
-    }
-  }
-  return out;
-}
-
 function serializableCss(css: string): boolean {
-  return !/<\/style\b|[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]/i.test(css);
+  return !/[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]/i.test(css);
 }
 
 function parenthesized(text: string, start: number): { content: string; end: number } | null {
@@ -426,8 +405,8 @@ function usesFontMetricUnit(value: string): boolean {
 function unresolvedAuthorFontMetrics(svg: string): boolean {
   let authorFonts = false,
     metricUnits = false;
-  for (const match of svg.matchAll(/<(?:[\w.-]+:)?style\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?style>/gi)) {
-    const text = xmlStyleText(match[1]);
+  for (const sheet of imageStyleSheets(svg, true) ?? []) {
+    const text = xmlStyleText(sheet.css);
     if (text == null) return true;
     try {
       const root = postcss.parse(text);
@@ -465,37 +444,34 @@ function hasEscapedImport(css: string): boolean {
 
 /** Resolve image-allowed data CSS imports and remove blocked external imports. */
 export function resolveSvgImageCssImports(svgText: string, ownFontContext = false): string | null {
-  if (!/[@&]/.test(svgText)) return svgText;
+  const sheets = imageStyleSheets(svgText);
+  if (sheets == null) return null;
   const unknownXmlEncoding = /<\?xml[^>]*encoding\s*=\s*['"](?!utf-8['"])[^'"]+['"]/i.test(svgText);
+  if (unknownXmlEncoding && sheets.length > 0) return null;
   let unresolved = false;
   let resources: ResourceContext | undefined;
-  const out = svgText.replace(
-    /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
-    (_whole, open: string, css: string, close: string) => {
-      if (!/[@&]/.test(css)) return open + css + close;
-      if (Buffer.byteLength(css, "utf8") > MAX_CSS_BYTES) {
-        unresolved = true;
-        return open + css + close;
-      }
-      const text = xmlStyleText(css);
-      if (text != null && !/@import\b/i.test(text) && !hasEscapedImport(text)) return open + css + close;
-      resources ??= { inventory: imageFragmentInventory(svgText), hasLocalReference: false, unrewritableString: false };
-      const expanded = text == null || unknownXmlEncoding ? null : expandCss(text, 0, "utf-8", resources);
-      if (expanded == null) {
-        unresolved = true;
-        return open + css + close;
-      }
-      const serialized =
-        /[<&]/.test(expanded) || expanded.includes("]]>") || css.includes("<![CDATA[")
-          ? `<![CDATA[${expanded.replaceAll("]]>", "]]]]><![CDATA[>")}]]>`
-          : expanded;
-      if (Buffer.byteLength(serialized, "utf8") > MAX_CSS_BYTES) {
-        unresolved = true;
-        return open + css + close;
-      }
-      return open + serialized + close;
-    },
-  );
+  const out = replaceImageStyleSheets(svgText, ({ open, css, close }) => {
+    if (!/[@&<]/.test(css)) return open + css + close;
+    if (Buffer.byteLength(css, "utf8") > MAX_CSS_BYTES) {
+      unresolved = true;
+      return open + css + close;
+    }
+    const text = xmlStyleText(css);
+    if (text != null && !/@import\b/i.test(text) && !hasEscapedImport(text))
+      return open + (text === css ? css : serializeImageStyleText(text)) + close;
+    resources ??= { inventory: imageFragmentInventory(svgText), hasLocalReference: false, unrewritableString: false };
+    const expanded = text == null || unknownXmlEncoding ? null : expandCss(text, 0, "utf-8", resources);
+    if (expanded == null) {
+      unresolved = true;
+      return open + css + close;
+    }
+    const serialized = serializeImageStyleText(expanded, css.includes("<![CDATA["));
+    if (Buffer.byteLength(serialized, "utf8") > MAX_CSS_BYTES) {
+      unresolved = true;
+      return open + css + close;
+    }
+    return open + serialized + close;
+  });
   return unresolved ||
     (resources?.hasLocalReference && !safeOriginalImageReferences(resources)) ||
     (!ownFontContext && unresolvedAuthorFontMetrics(out))

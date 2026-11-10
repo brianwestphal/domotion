@@ -25,6 +25,8 @@
  * traverses following siblings for `+` and `~`, while an SVG image document
  * root has none (selector_checker.cc, chromium 7d859f27).
  */
+import { replaceImageStyleSheets } from "./svg-image-stylesheets.js";
+
 import { blankImageCssNoise as blankNoise, joinedCdata, serializeJoinedCdata } from "./svg-image-cdata.js";
 import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
 import { renderWarn } from "./render-warn.js";
@@ -372,7 +374,7 @@ export function scopeImageStyleSheets(
   viewport: { w: number; h: number } | null = null,
   env: ImageMediaEnv = {},
 ): string {
-  return markup.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (_m, open: string, css: string, close: string) => {
+  return replaceImageStyleSheets(markup, ({ open, css, close }) => {
     const wrapper = joinedCdata(css);
     const text = wrapper?.content ?? css;
     const scoped = scopeRules(text, blankNoise(text), 0, text.length, scope, viewport, env, false);

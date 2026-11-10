@@ -151,9 +151,8 @@ export function namespaceImageReferences(svg: string, prefix: string): string | 
       const css = xmlStyleText(svg.slice(range.openEnd, range.closeStart));
       if (css == null || element.children.length !== 0) return null;
       const rewritten = rewriteImageStyleSheet(css, context);
-      // HTML output embeds style text as raw text; the independently tracked
-      // literal closing-style case must retain its source fallback.
-      if (rewritten == null || /<\/style\b/i.test(rewritten)) return null;
+      // The XML-aware stylesheet consumers preserve literal end-tag data in CDATA.
+      if (rewritten == null) return null;
       edits.push({
         start: range.openEnd,
         end: range.closeStart,

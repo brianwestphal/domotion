@@ -302,6 +302,19 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output-linux/srcset-resource/results.json --minimum-passed 20
+      - name: Verify native SVG XML stylesheet data
+        if: always()
+        env:
+          DOMOTION_STYLE_XML_EVIDENCE: tests/output-linux/svg-style-xml/evidence
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/img-svg-closing-style.e2e.test.ts
+          --reporter=json --outputFile=tests/output-linux/svg-style-xml/results.json
+      - name: Require every native SVG XML stylesheet assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output-linux/svg-style-xml/results.json --minimum-passed 10
       - name: Verify native shadow knockout and root boundaries
         if: always()
         run: >-
@@ -341,6 +354,7 @@ jobs:
             tests/output-linux/srcset-resource/
             tests/output-linux/external-svg-frozen/
             tests/output-linux/shadow-knockout/
+            tests/output-linux/svg-style-xml/
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

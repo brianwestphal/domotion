@@ -7,6 +7,7 @@
  * references together, including presentation and inline-style attributes.
  */
 import postcss, { type AtRule, type Declaration, type Root } from "postcss";
+import { imageStyleSheets, replaceImageStyleSheets } from "./svg-image-stylesheets.js";
 import { serializeJoinedCdata } from "./svg-image-cdata.js";
 import { renderWarn } from "./render-warn.js";
 import { parseImageFontShorthand } from "./svg-image-font-shorthand.js";
@@ -28,7 +29,6 @@ interface ParsedSheet {
   original: string;
 }
 
-const STYLE_TAG = /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi;
 const ANIMATION_KEYWORDS = new Set([
   "none",
   "infinite",
@@ -438,8 +438,10 @@ function rewriteAttributes(
 
 /** Prefix each CSS-wide name declared by this image and every local reference. */
 export function namespaceImageStyleNames(markup: string, scope: string): string | null {
+  const styles = imageStyleSheets(markup);
+  if (styles == null) return null;
   const sheets: ParsedSheet[] = [];
-  for (const match of markup.matchAll(STYLE_TAG)) sheets.push(parseSheet(match[2]));
+  for (const sheet of styles) sheets.push(parseSheet(sheet.css));
   if (sheets.length === 0) return markup;
   const names = collectNames(sheets);
   if (names == null) return null;
@@ -464,7 +466,7 @@ export function namespaceImageStyleNames(markup: string, scope: string): string 
     if (decl.prop.startsWith("--")) variableCounts.set(decl.prop, (variableCounts.get(decl.prop) ?? 0) + 1);
   };
   for (const sheet of sheets) sheet.root?.walkDecls(count);
-  for (const tag of markup.replace(STYLE_TAG, "").matchAll(/<[^>]+>/g)) {
+  for (const tag of replaceImageStyleSheets(markup, () => "").matchAll(/<[^>]+>/g)) {
     const style = /\sstyle\s*=\s*(["'])([\s\S]*?)\1/i.exec(tag[0]);
     if (style != null) {
       const decoded = decodeXmlAttributeValue(style[2]);
@@ -477,7 +479,7 @@ export function namespaceImageStyleNames(markup: string, scope: string): string 
     }
   }
   let unsafe = false;
-  const rewritten = markup.replace(STYLE_TAG, (_full, open: string, _css: string, close: string) => {
+  const rewritten = replaceImageStyleSheets(markup, ({ open, close }) => {
     const sheet = sheets[index++];
     if (sheet.root == null) return open + sheet.original + close;
     sheet.root.walkAtRules((rule) => rewriteAtRule(rule, names, scope));

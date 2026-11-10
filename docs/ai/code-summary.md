@@ -21,6 +21,9 @@ borders, and effect wrappers to named helpers. Text path emitters share their
 captured segment typography and common path options through `src/render/text.ts`.
 `src/render/gaussian-blur.ts` converts Blink shadow blur radius to SVG standard
 deviation for box, inline, control, and text shadows.
+SVG image XML boundaries are shared by `svg-image-xml.ts` (also used by the image
+element parser) and `svg-image-stylesheets.ts`; stylesheet transformations never
+search CSS strings or CDATA for an XML closing tag.
 
 ## Main pipeline
 

@@ -117,8 +117,8 @@ describe("safe byte and XML expansion (DM-6ZX6W0)", () => {
   ])("retains raster for dependent or ambiguous resource values: %s", (css) => {
     expect(resolveSvgImageCssImports(image(dataUrl(Buffer.from(css))))).toBeNull();
   });
-  it.each(['rect{--x:"</style>"}'])("retains raster for unrepresentable stylesheet marker text: %s", (css) => {
-    expect(resolveSvgImageCssImports(image(dataUrl(Buffer.from(css))))).toBeNull();
+  it.each(['rect{--x:"</style>"}'])("preserves representable closing-style data: %s", (css) => {
+    expect(resolveSvgImageCssImports(image(dataUrl(Buffer.from(css))))).not.toBeNull();
   });
   it("rejects malformed decoding, escaped import keywords and byte/depth overflow", () => {
     expect(resolveSvgImageCssImports(image("data:text/css;base64,@@@"))).toBeNull();

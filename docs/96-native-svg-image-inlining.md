@@ -21,6 +21,7 @@ tickets:
     "DM-KE2WFC",
     "DM-QK62CS",
     "DM-6ZX6W0",
+    "DM-5D93J3",
     "DM-KGD5KC",
     "DM-YMAF0G",
     "DM-SXDNW9",
@@ -65,6 +66,10 @@ code:
     "src/render/svg-image-root-transform.ts",
     "src/render/svg-inline.test.ts",
     "src/render/svg-inline.ts",
+    "src/render/svg-image-xml.ts",
+    "src/render/svg-image-stylesheets.ts",
+    "src/render/svg-image-stylesheets.test.ts",
+    "tests/img-svg-closing-style.e2e.test.ts",
     "src/render/svg-image-css-import.ts",
     "src/render/svg-image-css-import.test.ts",
     "src/render/svg-image-fragment-ids.ts",
@@ -89,6 +94,32 @@ aliases: ["docs/96-native-svg-image-inlining.md", "doc-96"]
 ---
 
 # 96 — Native inlining of `<img src="*.svg">`
+
+## XML stylesheet data
+
+Literal closing-style text inside CSS strings/comments is preserved (DM-5D93J3).
+The SVG image tree and every stylesheet consumer share lexical XML boundaries in
+`svg-image-xml.ts` and source spans in `svg-image-stylesheets.ts`. A CDATA section
+owns its literal end-tag spellings; quoted tag attributes, XML comments, processing
+instructions and doctype text cannot manufacture a stylesheet boundary. The same
+spans serve imports, global name isolation, selector scoping, root cascade,
+font-face authentication and supports/media collection. Child fragments retain
+the same boundaries without requiring a synthetic complete document.
+
+XML character references are decoded as DOM text and adjacent CDATA text remains
+joined. Rewritten CSS serializes through safe CDATA boundaries; CSS escapes emitted
+by PostCSS preserve string-token values rather than requiring identical CSSOM
+serialization. Chromium's pinned `XMLDocumentParser::CdataBlock` creates a
+`CDATASection`, separate from element end-tag callbacks. Unterminated XML tokens, unreadable style text and the existing
+namespace/resource/font authority failures retain fallback. The token reader
+supplies lexical boundaries; existing callers still own document admission.
+
+Native controls compare image and inline pixels exactly for imported, CDATA and
+character-reference styles: literal selector/custom-property data, media/supports,
+root font-relative transforms, local gradient paint and image-owned data-font
+families/text. Fake at-rules inside quoted CSS data are not conditional authority.
+Linux/Windows run the separate strict ten-case SVG XML step and preserve evidence
+under their own `svg-style-xml` artifact directories; required full gates remain.
 
 ## Summary
 
@@ -263,8 +294,8 @@ pixel checks cover canonical data SVG paint, filter and mask resources. An
 external-fetch control loads in the ordinary host SVG, while the same nested
 load stays blocked through the data resource in both native image and inline
 output.
-DM-Y3H2EV tracks escaped import/URL classification. Literal `</style>` inside imported
-CSS remains unrepresentable by downstream stylesheet extraction (DM-5D93J3).
+DM-Y3H2EV tracks escaped import/URL classification. Literal `</style>` inside imported CSS is preserved by the shared XML-aware
+stylesheet extraction and serialization contract (DM-5D93J3).
 Unknown XML entities, invalid XML characters, undecodable sheets and budget
 violations also keep the original raster.
 
