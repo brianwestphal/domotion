@@ -189,9 +189,21 @@ function loadState(source: SourceFacts): CapturedBrokenImageFallback["loadState"
 export function classifyBrokenImageDisposition(input: {
   source: SourceFacts;
   uaShadowPresent: boolean;
+  hostContent?: string;
   containerDisplay?: string;
   iconVisible?: boolean;
 }): BrokenImageFallbackDisposition {
+  // Chromium 147 HTMLImageElement::SetLayoutDisposition retains the old UA
+  // shadow tree when a failed image recovers. AccessNaturalSize is positive
+  // only for a non-error resource; CreateLayoutObject uses that primary image
+  // for ordinary content. CSS-generated images have a separate resource owner.
+  if (
+    input.hostContent === "normal" &&
+    input.source.complete &&
+    input.source.naturalWidth > 0 &&
+    input.source.naturalHeight > 0
+  )
+    return "primary";
   if (!input.uaShadowPresent) {
     if (!input.source.complete) return "loading";
     if (input.source.naturalWidth > 0 || !input.source.src.present) return "primary";
@@ -532,12 +544,21 @@ export async function captureBrokenImageFallbackFacts(
             (await readBox(session, host.backendNodeId, viewport)) ??
             (target.probe.hostRect != null ? boxFromRect(target.probe.hostRect) : null);
           const accessibility = await readAccessibility(session, host.backendNodeId);
-          if (shadow == null) {
-            const disposition = classifyBrokenImageDisposition({ source: target.probe.source, uaShadowPresent: false });
+          const source = target.probe.source;
+          const hostContent =
+            shadow != null && source.complete && source.naturalWidth > 0 && source.naturalHeight > 0
+              ? (await computedStyle(session, host)).content
+              : undefined;
+          const hostDisposition = classifyBrokenImageDisposition({
+            source,
+            uaShadowPresent: shadow != null,
+            hostContent,
+          });
+          if (shadow == null || hostDisposition === "primary") {
             target.element.brokenImageFallback = {
               schemaVersion: 1,
               authority: "chromium-ua-shadow-v1",
-              disposition,
+              disposition: hostDisposition,
               captureStatus: "exact",
               paintOwnership: "none",
               loadState: loadState(target.probe.source),

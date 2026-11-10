@@ -1,6 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
 import type { Page } from "@playwright/test";
+import sharp from "sharp";
 import { captureElementTreeWithWarnings, launchChromium } from "./index.js";
+import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import type { CapturedElement, CaptureWarning } from "./types.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
@@ -118,6 +120,75 @@ async function captureLiveImages(
 }
 
 describeBrowser("Chromium broken-image UA-shadow capture (DM-2463)", () => {
+  it("restores primary pixels after a broken image recovers and retains real fallback after relapse (DM-STQYYJ)", async () => {
+    const page = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
+    const generated = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
+    try {
+      for (const alt of ["", "loaded alternative"]) {
+        await page.setContent(
+          `<!doctype html><style>body{margin:0;background:white}img{display:block;width:64px;height:40px}</style><img src="${BROKEN}" alt="${alt}">`,
+        );
+        await page.waitForFunction(() => document.images[0].complete);
+        const before = await captureLiveImages(page, "__stq", { x: 0, y: 0, width: 140, height: 100 });
+        expect(before.warnings).toEqual([]);
+        expect(before.captured[0].brokenImageFallback).toMatchObject({
+          disposition: alt ? "non-replaced-fallback" : "replaced-flow-root-fallback",
+          loadState: "failed",
+          icon: { visible: true },
+        });
+
+        await page.locator("img").evaluate(async (image: HTMLImageElement, src) => {
+          image.src = src;
+          await image.decode();
+        }, GOOD);
+        // Changing the accessible alternative after recovery must not revive
+        // stale UA text as paint. CSS content:none computes to normal here.
+        await page.locator("img").evaluate((image: HTMLImageElement) => {
+          if (image.alt) image.alt = "changed accessible label";
+          image.style.content = "none";
+        });
+        const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 140, height: 100 });
+        const walk = (nodes: CapturedElement[]): CapturedElement[] => nodes.flatMap((n) => [n, ...walk(n.children)]);
+        const image = walk(capture.tree).find((n) => n.tag === "img")!;
+        expect(capture.warnings.filter((w) => w.feature === "broken-image-fallback")).toEqual([]);
+        expect(image.brokenImageFallback).toMatchObject({
+          disposition: "primary",
+          loadState: "loaded",
+          captureStatus: "exact",
+          paintOwnership: "none",
+          source: { complete: true, naturalWidth: 1, naturalHeight: 1 },
+        });
+        expect(image.brokenImageFallback?.container).toBeUndefined();
+        expect(image.brokenImageFallback?.text).toBeUndefined();
+        expect(image.brokenImageFallback?.accessibility).toMatchObject(
+          alt ? { ignored: false, role: "image", name: "changed accessible label" } : { ignored: true, name: null },
+        );
+        await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(capture.tree, 140, 100)}`);
+        const center = async (bytes: Buffer) => [
+          ...(await sharp(bytes).removeAlpha().extract({ left: 30, top: 18, width: 4, height: 4 }).raw().toBuffer()),
+        ];
+        const native = await center(await page.screenshot());
+        expect(native.every((channel) => channel === 0)).toBe(true);
+        expect(await center(await generated.screenshot())).toEqual(native);
+
+        await page.locator("img").evaluate((image: HTMLImageElement, src) => {
+          image.src = src;
+        }, BROKEN);
+        await page.waitForFunction(() => document.images[0].complete && document.images[0].naturalWidth === 0);
+        const relapse = await captureLiveImages(page, "__stq", { x: 0, y: 0, width: 140, height: 100 });
+        expect(relapse.warnings).toEqual([]);
+        expect(relapse.captured[0].brokenImageFallback).toMatchObject({
+          disposition: alt ? "non-replaced-fallback" : "replaced-flow-root-fallback",
+          loadState: "failed",
+          icon: { visible: true },
+        });
+      }
+    } finally {
+      await generated.close();
+      await page.close();
+    }
+  }, 60_000);
+
   for (const dpr of [1, 2]) {
     it(`captures source-owned layout/text/font/AX facts at DPR ${dpr}`, async () => {
       const context = await env!.browser.newContext({

@@ -87,6 +87,45 @@ describe("Chromium broken-image fallback disposition (DM-2463)", () => {
     ).toBe("replaced-flow-root-fallback");
   });
 
+  it("ignores retained fallback shadow only for completed ordinary primary images (DM-STQYYJ)", () => {
+    const loaded = source({ naturalWidth: 389, naturalHeight: 572 });
+    expect(
+      classifyBrokenImageDisposition({
+        source: loaded,
+        uaShadowPresent: true,
+        hostContent: "normal",
+        containerDisplay: "flow-root",
+        iconVisible: true,
+      }),
+    ).toBe("primary");
+    for (const hostContent of [undefined, 'url("replacement.png")']) {
+      expect(
+        classifyBrokenImageDisposition({
+          source: loaded,
+          uaShadowPresent: true,
+          hostContent,
+          containerDisplay: "flow-root",
+          iconVisible: true,
+        }),
+      ).toBe("replaced-flow-root-fallback");
+    }
+    for (const pendingOrFailed of [
+      source(),
+      source({ complete: false, naturalWidth: 1, naturalHeight: 1 }),
+      source({ naturalWidth: 1, naturalHeight: 0 }),
+    ]) {
+      expect(
+        classifyBrokenImageDisposition({
+          source: pendingOrFailed,
+          uaShadowPresent: true,
+          hostContent: "normal",
+          containerDisplay: "flow-root",
+          iconVisible: true,
+        }),
+      ).toBe("replaced-flow-root-fallback");
+    }
+  });
+
   it("fails closed to a classified terminal surface when live correlation is absent", async () => {
     const image = {
       tag: "img",

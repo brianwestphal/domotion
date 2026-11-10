@@ -324,6 +324,31 @@ and separately gated because it sacrifices scalable text.
 
 ## Implementation sequence and proof
 
+### Recovered images and retained shadow trees (DM-STQYYJ)
+
+The installed Playwright Chromium 147 revision
+`6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050` differs from the materialized
+source in one relevant lifecycle detail: `HTMLImageElement::SetLayoutDisposition`
+retains the existing UA fallback children when the image returns to primary
+layout. Shadow presence therefore does not establish current fallback paint
+ownership. A broken→loaded native probe retains those children without layout
+boxes while the ordinary image paints successfully; returning to a failed source
+reactivates their layout and fallback paint.
+
+The post-pass recognizes completed positive-natural-size resources with host
+computed `content: normal` before interpreting the old shadow. This follows
+`ImageLoader::AccessNaturalSize` (zero for missing/error resources) together with
+`HTMLImageElement::CreateLayoutObject`'s ordinary primary layout branch. It does
+not infer ownership from an unavailable CDP box, remove accessibility/source
+facts, or override CSS-generated content, which has a separate resource owner.
+The native regression covers empty/nonempty alternatives, an alternative change
+after recovery, primary SVG pixels, and relapse to real fallback. Independent
+srcset-only load-state and CSS-generated owner defects are tracked as
+DM-E0KRM2 and DM-G47E97.
+The same-HAR Stripe card background is restored against a byte-identical source
+frame; its remaining bitmap sampling/phase residual is tracked as DM-MJAMW0,
+without a pixel-exact claim or geometry normalization.
+
 The work is split so capture facts cannot be fixture-fit inside the renderer:
 
 1. **DM-2463 — capture fallback state and UA-shadow geometry (shipped).**
