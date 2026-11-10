@@ -104,17 +104,31 @@ export async function openExternalSvgTransport(
             silent: true,
           })
           .catch(() => null);
-        return result?.result.value === true ? candidate.frameId : null;
+        return result?.result.value === true ? candidate : null;
       }),
     );
-    const ids = matches.filter((id) => id != null);
-    if (ids.length !== 1) throw new Error("external SVG source frame identity unavailable");
+    const matched = matches.filter((context) => context != null);
+    if (matched.length !== 1) throw new Error("external SVG source frame identity unavailable");
     if (disposed) return;
+    const source = matched[0];
     const isolated = await session.send("Page.createIsolatedWorld", {
-      frameId: ids[0],
+      frameId: source.frameId,
       worldName,
       grantUniveralAccess: false,
     });
+    if (disposed) return;
+    // Frame IDs survive navigation. The world can have been created in a new
+    // document while its original default execution context was destroyed.
+    const original = await session
+      .send("Runtime.evaluate", {
+        contextId: source.contextId,
+        expression: `globalThis[${JSON.stringify(token)}] === ${JSON.stringify(token)}`,
+        returnByValue: true,
+        silent: true,
+      })
+      .catch(() => null);
+    if (original?.result.value !== true)
+      throw new Error("external SVG source document changed during isolated world setup");
     contextId = isolated.executionContextId;
   };
   const removeToken = async (): Promise<void> => {

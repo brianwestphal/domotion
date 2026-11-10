@@ -615,4 +615,111 @@ describe("external SVG transport under frozen author globals (DM-4H5MC1)", () =>
       await context.close();
     }
   });
+  it("refuses a same-process navigation after token match and permits a fresh stable-document lease", async () => {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      await page.goto(origin);
+      await page.evaluate(() => {
+        const frame = document.createElement("iframe");
+        frame.src = "/child";
+        document.body.append(frame);
+      });
+      await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame())).toBeDefined();
+      const child = page.frames().find((frame) => frame !== page.mainFrame())!;
+      await child.waitForLoadState("load");
+      let sameProcessRefusal = false;
+      let matched = false;
+      let navigated = false;
+      const attach = context.newCDPSession.bind(context);
+      vi.spyOn(context, "newCDPSession").mockImplementation(async (target) => {
+        let session: Awaited<ReturnType<typeof attach>>;
+        try {
+          session = await attach(target);
+        } catch (error) {
+          if (target === child && /part of the parent frame|does not have a separate CDP session/i.test(String(error)))
+            sameProcessRefusal = true;
+          throw error;
+        }
+        const send = session.send.bind(session);
+        vi.spyOn(session, "send").mockImplementation((async (...args: Parameters<typeof session.send>) => {
+          const [method, params] = args;
+          if (method === "Page.createIsolatedWorld" && !navigated) {
+            expect(matched).toBe(true);
+            navigated = true;
+            await child.goto(`${origin}/after-navigation`);
+          }
+          const response: unknown = await Reflect.apply(send, session, args);
+          const expression: unknown =
+            params != null && typeof params === "object" ? Reflect.get(params, "expression") : undefined;
+          if (
+            method === "Runtime.evaluate" &&
+            typeof expression === "string" &&
+            expression.includes("===") &&
+            (response as { result?: { value?: unknown } }).result?.value === true
+          )
+            matched = true;
+          return response;
+        }) as typeof session.send);
+        return session;
+      });
+      const start = requests.length;
+      await expect(
+        (async () => {
+          const transport = await openExternalSvgTransport(child, 5000);
+          try {
+            await transport.fetch(`${origin}/old-document.svg`);
+          } finally {
+            await transport.dispose();
+          }
+        })(),
+      ).rejects.toThrow("source document changed during isolated world setup");
+      expect(sameProcessRefusal).toBe(true);
+      expect(matched).toBe(true);
+      expect(navigated).toBe(true);
+      expect(requests.slice(start).filter((request) => request.path === "/old-document.svg")).toEqual([]);
+      vi.restoreAllMocks();
+      const fresh = await openExternalSvgTransport(child, 5000);
+      try {
+        expect(await fresh.fetch(`${origin}/fresh-document.svg`)).toEqual({ text: sprite("red"), hrefs: [] });
+      } finally {
+        await fresh.dispose();
+      }
+      expect(
+        await child.evaluate(() =>
+          Object.getOwnPropertyNames(globalThis).filter(
+            (key) => key.startsWith("__domotionExternalSvgFrame_") || key.startsWith("__domotionExternalSvgRequest_"),
+          ),
+        ),
+      ).toEqual([]);
+      const output =
+        process.env["DOMOTION_OUTPUT_DIR"] ?? (process.platform === "linux" ? "tests/output-linux" : "tests/output");
+      await mkdir(join(output, "external-svg-frozen"), { recursive: true });
+      await writeFile(
+        join(output, "external-svg-frozen", "navigation-guard.json"),
+        JSON.stringify(
+          {
+            generatedAt: new Date().toISOString(),
+            sourceCommit: process.env["GITHUB_SHA"] ?? null,
+            browserVersion: browser.version(),
+            sameProcessRefusal,
+            defaultTokenMatched: matched,
+            navigatedBeforeWorldCreation: navigated,
+            oldDocumentAssetRequests: requests.slice(start).filter((request) => request.path === "/old-document.svg")
+              .length,
+            freshDocumentAssetRequests: requests
+              .slice(start)
+              .filter((request) => request.path === "/fresh-document.svg").length,
+            rejectedBeforeFetch: true,
+            freshStableDocumentRecovered: true,
+          },
+          null,
+          2,
+        ),
+      );
+    } finally {
+      vi.restoreAllMocks();
+      await context.close();
+    }
+  });
 });

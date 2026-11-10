@@ -726,7 +726,17 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": [],
-        "tickets": ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE", "DM-589ZF6", "DM-4H5MC1"],
+        "tickets": [
+          "DM-258",
+          "DM-279",
+          "DM-499",
+          "DM-508",
+          "DM-553Y54",
+          "DM-VSQGBE",
+          "DM-589ZF6",
+          "DM-4H5MC1",
+          "DM-N8EYNT"
+        ],
         "code": [
           "src/capture/script/walker/inline-svg.ts",
           "src/capture/external-svg-use.ts",

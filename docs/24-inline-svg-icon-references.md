@@ -5,7 +5,7 @@ kind: "reference"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE", "DM-589ZF6", "DM-4H5MC1"]
+tickets: ["DM-258", "DM-279", "DM-499", "DM-508", "DM-553Y54", "DM-VSQGBE", "DM-589ZF6", "DM-4H5MC1", "DM-N8EYNT"]
 code:
   [
     "src/capture/script/walker/inline-svg.ts",
@@ -77,6 +77,11 @@ still receives live `Document` objects from the default world. Source identity o
 transport setup failures are explicit refusals, rather than a URL-based guess or a
 more privileged request fallback.
 
+A frame ID survives navigation. The transport retains its matched default
+execution-context ID and rechecks the original private token after isolated-world
+creation. If that document changed in between, setup refuses before fetching;
+a fresh acquisition can bind to the new stable document.
+
 Request timeout/disposal aborts only its private controller. Temporary frame tokens
 and confirmed-complete request controllers are removed, CDP sessions detach (including late setup
 results), and concurrent loads share one session. A refused/unconfirmed cancellation
@@ -100,6 +105,12 @@ same origin-copy/document-policy rules. Native tests separately prove CSP denial
 cookie retention, direct foreign-URL refusal, redirect CORS, unchanged XML text,
 HAR replay without network, owned cancellation and same-process/OOPIF identity;
 the positive frozen-page vector matches Chromium's red pixels exactly.
+
+Generic-fetch redirect CORS success is not proof of native SVG `<use>` paint
+admission. The deadline repair preserves the existing fetch policy; DM-N8EYNT
+tracks a preexisting foreign-redirect mismatch where Chromium paints no icon but
+capture inlines a CORS-readable sprite. That behavior is separately tracked and
+is not redirect paint parity.
 
 The separate CSS external `clip-path`/`mask-image` fragment prepass still uses
 author fetch without a bound under frozen globals; DM-HK7GEB tracks its native
