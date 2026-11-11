@@ -108,17 +108,22 @@ the actual process and private logs; do not delete a lock to bypass running work
 
 ### Explicit generated-comment contract
 
-Current capture generation includes two esbuild source-path comments whose
-prefixes depend on checkout/dependency layout (tracked independently by
-**DM-WREGPJ**). The integrator authorized this specific gate contract; it is not
+Capture generation before DM-WREGPJ included two esbuild source-path comments
+whose prefixes depended on checkout/dependency layout. DM-WREGPJ made the build
+emit portable `node_modules/@domotion/text-engine/dist/...` comments, so a
+validation checkout at a current shipping SHA regenerates the artifact
+unchanged and this exception records zero changed lines. It remains only so a
+validation checkout at an earlier shipping SHA keeps the same contract. The integrator authorized this specific gate contract; it is not
 a general normalization rule. The validation checkout must differ from the main
 checkout and start completely pristine. Its regular, single-link, tracked
 `src/capture/script.generated.ts` is fingerprinted before any gate. The main
 checkout's original user-dirty artifact is never eligible.
 
 After each command, the only permitted dirty entry is that artifact with exactly
-both known path comments changed: `packages/text-engine/dist/capture/script/emoji-detect.js`
-and `packages/text-engine/dist/font-family-stack.js`. Each occurs exactly once.
+both known path comments changed. They are identified by the module suffixes
+`text-engine/dist/capture/script/emoji-detect.js` and
+`text-engine/dist/font-family-stack.js` under either a `[prefix/]packages/` or
+a `node_modules/@domotion/` layout. Each occurs exactly once.
 The complete wrapper/header, canonical JSON string encoding, every other decoded
 program byte and the two line positions must remain identical. A one-line change,
 another comment, functional change, alternate JSON escaping, symlink, replacement

@@ -5000,7 +5000,7 @@
         "status": "current",
         "owners": ["text-fonts"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9"],
+        "tickets": ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ"],
         "code": [
           "src/font-family-stack.test.ts",
           "src/capture/script/font-family-default.ts",

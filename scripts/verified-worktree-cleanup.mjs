@@ -31,10 +31,11 @@ const SHA = /^[0-9a-f]{40}$/;
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const GATES = ["build", "typecheck", "lint", "test"];
 const GENERATED = "src/capture/script.generated.ts";
-const GENERATED_PATHS = [
-  "packages/text-engine/dist/capture/script/emoji-detect.js",
-  "packages/text-engine/dist/font-family-stack.js",
-];
+// Identified by their module suffix. DM-WREGPJ made generation emit the portable
+// `node_modules/@domotion/text-engine/dist/...` form; the older
+// `[prefix/]packages/text-engine/dist/...` form is still recognized so a
+// validation checkout at an earlier shipping SHA keeps the same contract.
+const GENERATED_PATHS = ["text-engine/dist/capture/script/emoji-detect.js", "text-engine/dist/font-family-stack.js"];
 const VERSION = createHash("sha256")
   .update(readFileSync(fileURLToPath(import.meta.url)))
   .digest("hex");
@@ -126,8 +127,10 @@ export function generatedWitness(before, after) {
       );
       requireThat(matches.length === 1, "generated_allowed_line_ambiguous");
       requireThat(
-        /^\/\/ [A-Za-z0-9_.:/\\-]+$/.test(matches[0].text) &&
-          /^\/\/ (?:[A-Za-z0-9_.:/\\-]+\/)?packages\/text-engine\/dist\//.test(matches[0].text),
+        /^\/\/ [A-Za-z0-9_.:/@\\-]+$/.test(matches[0].text) &&
+          /^\/\/ (?:(?:[A-Za-z0-9_.:/\\-]+\/)?packages|node_modules\/@domotion)\/text-engine\/dist\//.test(
+            matches[0].text,
+          ),
         "generated_path_comment_unknown",
       );
       return matches[0];

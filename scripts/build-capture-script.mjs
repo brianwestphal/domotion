@@ -36,6 +36,14 @@ const result = await build({
   target: "es2020",
   platform: "browser",
   legalComments: "none",
+  // esbuild writes each inlined module's path as a `// <path>` comment,
+  // relative to the working directory AFTER resolving symlinks. Pin the
+  // working directory to this checkout and keep symlinked workspace packages
+  // at their in-repo specifier path, so a build from another cwd or from a
+  // worktree whose node_modules links into a different checkout still emits
+  // the same repository-relative comments (DM-WREGPJ).
+  absWorkingDir: ROOT,
+  preserveSymlinks: true,
   // Defaults for bundling: do NOT minify (readability of the generated file
   // is a debug aid; ~3% size savings doesn't justify obfuscation). Do NOT
   // keep names — that would inject `__name(fn, "...")` calls referencing a
@@ -80,6 +88,18 @@ const helperHit = combinedForCheck.match(helperRegex);
 if (helperHit) {
   throw new Error(
     `build-capture-script: bundled script references dev-time helper '${helperHit[0]}' — would break in page context.`,
+  );
+}
+
+// Module comments are the only checkout-dependent text esbuild emits. Refuse
+// an escaping or absolute path instead of committing one machine's layout.
+const nonPortable = [...code.matchAll(/^\/\/ (\S+)$/gm)]
+  .map((m) => m[1])
+  .filter((path) => path.startsWith("../") || path.startsWith("/") || /^[A-Za-z]:/.test(path));
+if (nonPortable.length > 0) {
+  throw new Error(
+    `build-capture-script: non-portable module source comment(s) ${nonPortable.join(", ")} — ` +
+      "the bundle would record this machine's checkout layout.",
   );
 }
 

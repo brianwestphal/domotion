@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9"]
+tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ"]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -262,6 +262,16 @@ tolerance.
 
 The generated capture script is rebuilt twice and must have the same SHA-256
 before handoff; `tests/capture-script-determinism.test.ts` enforces this (two builds to a temporary path via `DOMOTION_CAPTURE_SCRIPT_OUT` must match each other and the tracked `src/capture/script.generated.ts`).
+The bytes must also be independent of the checkout layout (DM-WREGPJ). esbuild
+labels each inlined module with a `// <path>` comment relative to its working
+directory after resolving symlinks, so a worktree whose `node_modules` linked
+into another checkout once committed `../../../Users/<name>/…` paths. The build
+pins `absWorkingDir` to the checkout, keeps symlinked workspace packages at
+their `node_modules/@domotion/…` specifier path (`preserveSymlinks`), and
+refuses any escaping or absolute module comment. The same test also rebuilds
+from a foreign working directory and from a checkout whose `src` and
+`node_modules` are links into this one, and requires the tracked bytes both
+times.
 
 ## Computed font locale and language metadata (DM-PJG8E9)
 

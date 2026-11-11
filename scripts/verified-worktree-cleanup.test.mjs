@@ -994,6 +994,19 @@ for (const [name, changed] of generatedRejections)
     assert.throws(() => generatedWitness(generatedFile(), changed));
   });
 
+// DM-WREGPJ: portable generation emits node_modules/@domotion/... module comments.
+test("generated exception accepts the portable layout and the tracked artifact unchanged", () => {
+  const portable = generatedFile(PROGRAM.replaceAll("../../../old/packages/", "node_modules/@domotion/"));
+  assert.deepEqual(generatedWitness(portable, portable).allowedLines, []);
+  const tracked = readFileSync(new URL("../src/capture/script.generated.ts", import.meta.url));
+  assert.deepEqual(generatedWitness(tracked, tracked).allowedLines, []);
+  assert.throws(
+    () =>
+      generatedWitness(portable, generatedFile(PROGRAM.replaceAll("../../../old/packages/", "node_modules/@other/"))),
+    /generated_path_comment_unknown/,
+  );
+});
+
 test("preexisting generated dirt and the main checkout can never use the exception", (t) => {
   const f = fixture(t);
   assert.throws(
