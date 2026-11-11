@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Readable } from "node:stream";
 import { afterEach, expect, it } from "vitest";
 import { captureOwnedBrowserDiagnostics, observeScoutClose } from "./real-world-browser-diagnostics.js";
 
@@ -148,6 +149,17 @@ const scoutMetadata = (directory: string) => {
     metadata: JSON.parse(readFileSync(join(directory, files[1]!), "utf8")),
   };
 };
+const untilEndsWith = (stream: Readable, last: string) =>
+  new Promise<void>((done) => {
+    let text = "";
+    const seen = (chunk: Buffer): void => {
+      text += chunk.toString("utf8");
+      if (!text.endsWith(last)) return;
+      stream.off("data", seen);
+      done();
+    };
+    stream.on("data", seen);
+  });
 const STALLED =
   "process.stdout.write('scout ready\\n');process.stderr.write('Authorization: HEADER_SECRET\\nSECRET_TOKEN=ENV_SECRET\\nDevTools listening on ws://127.0.0.1:1/devtools/browser/ENDPOINT_SECRET\\nstill closing\\n');setInterval(()=>{},1000)";
 
@@ -178,7 +190,8 @@ it("retains filtered output, close request, deadline, exit and post-kill outcome
   const child = scoutChild(STALLED);
   const evidence = observeScoutClose(child, directory, source, "suite > stalled case");
   evidence.requested();
-  await new Promise((done) => setTimeout(done, 300));
+  // Kill only after both streams emitted their last line; a fixed delay raced a loaded host.
+  await Promise.all([untilEndsWith(child.stdout, "scout ready\n"), untilEndsWith(child.stderr, "still closing\n")]);
   child.kill("SIGKILL");
   await exited(child);
   await evidence.fail("resolved");
