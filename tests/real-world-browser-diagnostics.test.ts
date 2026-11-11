@@ -190,6 +190,7 @@ it("retains filtered output, close request, deadline, exit and post-kill outcome
   const child = scoutChild(STALLED);
   const evidence = observeScoutClose(child, directory, source, "suite > stalled case");
   evidence.requested();
+  evidence.expired();
   // Kill only after both streams emitted their last line; a fixed delay raced a loaded host.
   await Promise.all([untilEndsWith(child.stdout, "scout ready\n"), untilEndsWith(child.stderr, "still closing\n")]);
   child.kill("SIGKILL");
@@ -199,7 +200,7 @@ it("retains filtered output, close request, deadline, exit and post-kill outcome
   const { log, metadata } = scoutMetadata(directory);
   expect(log).toBe("scout ready\nstill closing\n");
   expect(metadata).toMatchObject({
-    schema: "domotion-scout-close-v1",
+    schema: "domotion-scout-close-v2",
     sourceCommit: source,
     diagnosticCase: "suite > stalled case",
     processId: child.pid,
@@ -217,6 +218,9 @@ it("retains filtered output, close request, deadline, exit and post-kill outcome
     filteredStreamSha256: createHash("sha256").update(log).digest("hex"),
   });
   expect(metadata.closeRequestedAtMs).toBeLessThanOrEqual(metadata.deadlineAtMs);
+  // The deadline is stamped before the kill; the kill settles after the process exited.
+  expect(metadata.deadlineAtMs).toBeLessThanOrEqual(metadata.exitAtMs);
+  expect(metadata.killSettledAtMs).toBeGreaterThanOrEqual(metadata.exitAtMs);
   expect(metadata.closeAtMs).not.toBeNull();
   expect(JSON.stringify(metadata) + log).not.toMatch(/SECRET|127\.0\.0\.1/);
 });
@@ -226,6 +230,7 @@ it("records a close that lands after the deadline was reported", async () => {
   const child = scoutChild(STALLED);
   const evidence = observeScoutClose(child, directory, source);
   evidence.requested();
+  evidence.expired();
   const failed = evidence.fail("rejected");
   setTimeout(() => child.kill("SIGKILL"), 200);
   await failed;
@@ -247,6 +252,7 @@ it("bounds the post-kill wait and records absent exit and close as unknown", asy
     expect(metadata).toMatchObject({
       sourceCommit: null,
       closeRequestedAtMs: null,
+      deadlineAtMs: null,
       exitAtMs: null,
       closeAtMs: null,
       exitObserved: false,

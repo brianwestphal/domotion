@@ -148,7 +148,12 @@ export function observeScoutClose(
   sourceCommit: string | undefined,
   diagnosticCase?: string,
   maxBytes = SCOUT_CLOSE_LOG_MAX_BYTES,
-): { requested(): void; dispose(): void; fail(killOutcome: "resolved" | "rejected"): Promise<void> } {
+): {
+  requested(): void;
+  expired(): void;
+  dispose(): void;
+  fail(killOutcome: "resolved" | "rejected"): Promise<void>;
+} {
   const observedAt = Date.now();
   const at = (): number => Date.now() - observedAt;
   const capture = createBoundedCapture(maxBytes);
@@ -163,6 +168,7 @@ export function observeScoutClose(
   ] as const;
   const ended: Record<string, number | null> = { stdout: null, stderr: null };
   let closeRequestedAtMs: number | null = null;
+  let deadlineAtMs: number | null = null;
   let exitAtMs: number | null = null;
   let closeAtMs: number | null = null;
   let disposed = false;
@@ -189,7 +195,7 @@ export function observeScoutClose(
     child.off("exit", exit);
     child.off("close", close);
   };
-  if (directory == null) return { requested() {}, dispose() {}, fail: () => Promise.resolve() };
+  if (directory == null) return { requested() {}, expired() {}, dispose() {}, fail: () => Promise.resolve() };
   streams.forEach(([, stream], index) => {
     stream?.on("data", data);
     stream?.once("end", endHandlers[index]!);
@@ -200,13 +206,18 @@ export function observeScoutClose(
     requested() {
       closeRequestedAtMs ??= at();
     },
+    // Called when the close deadline fires, before the fallback kill, so the
+    // kill's own latency never masquerades as part of the close window.
+    expired() {
+      deadlineAtMs ??= at();
+    },
     dispose,
     // A healthy close disposes first; only an undisposed observer may write.
     fail: (killOutcome) =>
       disposed && failure == null
         ? Promise.resolve()
         : (failure ??= (async () => {
-            const deadlineAtMs = at();
+            const killSettledAtMs = at();
             if (closeAtMs == null) {
               let timer: ReturnType<typeof setTimeout> | undefined;
               try {
@@ -231,7 +242,7 @@ export function observeScoutClose(
               `${logPath}.json`,
               JSON.stringify(
                 {
-                  schema: "domotion-scout-close-v1",
+                  schema: "domotion-scout-close-v2",
                   writtenAt: new Date().toISOString(),
                   sourceCommit: /^[0-9a-f]{40}$/i.test(sourceCommit ?? "") ? sourceCommit : null,
                   diagnosticCase: diagnosticCase?.slice(0, 512) ?? null,
@@ -242,6 +253,7 @@ export function observeScoutClose(
                   timeBasis: "ms after observer attachment",
                   closeRequestedAtMs,
                   deadlineAtMs,
+                  killSettledAtMs,
                   exitAtMs,
                   closeAtMs,
                   stdoutEndAtMs: ended.stdout,

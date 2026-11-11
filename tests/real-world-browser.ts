@@ -121,6 +121,7 @@ export async function openRealWorldBrowser(
     await cdpBounded(scout.close(), 6_000, "Chromium scout close");
     scoutEvidence.dispose();
   } catch (error) {
+    scoutEvidence.expired();
     let killError: unknown;
     const killed = await scout.kill().then(
       () => "resolved" as const,

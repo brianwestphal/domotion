@@ -279,8 +279,10 @@ evidence then waits at most two more seconds for process close and writes up
 to 64 KiB of output through the same pre-retention filter, with the DevTools
 credential line counted but omitted. Its metadata records the case label,
 PIDs, validated source commit, millisecond offsets (from observer attachment)
-for the close request, deadline, exit, process close and each stream end,
-status/signal and whether the kill resolved. A failed evidence write never
+for the close request, the deadline (stamped before the fallback kill), exit,
+process close, each stream end and kill settlement, status/signal and whether
+the kill resolved (schema `domotion-scout-close-v2`; v1 stamped its deadline
+only after the kill settled). A failed evidence write never
 replaces the original error. Output emitted before attachment is not observed,
 and a missing exit or close offset means "not observed within the bound", not
 proof that the process never exited.
