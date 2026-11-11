@@ -76,6 +76,8 @@ it("DM-95ECD3: retains filtered lane logs and source failure artifacts in the or
   expect(upload).toContain("tests/output/native-browser-logs/");
   expect(upload).toContain("tests/output/webgl-startup-e2e/");
   expect(upload).toContain("tests/output/opaque-font-family/");
+  // DM-DMRFRZ: retain CSS-wide provenance warnings so an intermittent count is attributable.
+  expect(upload).toContain("tests/output/font-family-css-wide/");
   expect(upload).toContain("tests/output/owned-ui-server/");
   const controls = workflow.split("- name: Upload owned UI process controls")[1].split(/\n  \S/)[0];
   expect(controls).toContain("if: always()");

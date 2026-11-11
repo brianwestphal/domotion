@@ -257,5 +257,6 @@ jobs:
             tests/output/external-svg-frozen/
             tests/output/worker-bootstrap/
             tests/output/opaque-font-family/
+            tests/output/font-family-css-wide/
             tests/output/owned-ui-server/
           if-no-files-found: error
