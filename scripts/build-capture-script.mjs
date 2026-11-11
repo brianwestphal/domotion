@@ -19,8 +19,11 @@ import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { assertLocalTextEngine } from "./local-text-engine.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// The bundle inlines text-engine modules, so they must be this checkout's.
+assertLocalTextEngine(ROOT);
 const ENTRY = resolve(ROOT, "src/capture/script/index.ts");
 // `DOMOTION_CAPTURE_SCRIPT_OUT` redirects the output so the determinism test can build twice
 // without touching the tracked file.

@@ -1,5 +1,9 @@
 import { defineConfig } from "vitest/config";
 import { coverageConfig } from "./vitest.coverage.js";
+import { assertLocalTextEngine } from "./scripts/local-text-engine.mjs";
+
+// Root tests import the built text-engine; refuse a node_modules linked into another checkout.
+assertLocalTextEngine(import.meta.dirname);
 
 // Unit-test config (DM-1075). The default `vitest run` (= `npm test`) runs the
 // fast, browser-free unit suite — every `*.test.ts` EXCEPT the browser-launching

@@ -1,9 +1,13 @@
 import { defineConfig } from "vitest/config";
 import { E2E_HOST_TRANSIENT_RETRY, e2eLaneConfig, resolveE2ELane } from "./tests/e2e-lanes.js";
 import { coverageConfig } from "./vitest.coverage.js";
+import { assertLocalTextEngine } from "./scripts/local-text-engine.mjs";
 
 const lane = resolveE2ELane(process.env["DOMOTION_E2E_LANE"]);
 const laneConfig = e2eLaneConfig(lane);
+
+// Root tests import the built text-engine; refuse a node_modules linked into another checkout.
+assertLocalTextEngine(import.meta.dirname);
 
 // E2E-test config (DM-1075). Runs ONLY the browser-launching `*e2e.test.ts`
 // files (Chromium-bound, slower, env-sensitive) — separate from the fast unit

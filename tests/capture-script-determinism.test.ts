@@ -43,8 +43,9 @@ describe("generated capture script", () => {
   it("emits the tracked bytes from a checkout whose sources and node_modules link into another checkout", () => {
     const checkout = join(dir, "linked-checkout");
     mkdirSync(join(checkout, "scripts"), { recursive: true });
-    copyFileSync("scripts/build-capture-script.mjs", join(checkout, "scripts/build-capture-script.mjs"));
-    for (const entry of ["src", "node_modules", "package.json", "tsconfig.json"])
+    for (const script of ["build-capture-script.mjs", "local-text-engine.mjs"])
+      copyFileSync(join("scripts", script), join(checkout, "scripts", script));
+    for (const entry of ["src", "node_modules", "packages", "package.json", "tsconfig.json"])
       symlinkSync(resolve(entry), join(checkout, entry));
     const out = build("linked-checkout.ts", join(checkout, "scripts/build-capture-script.mjs"), checkout);
     const comments = readFileSync(out, "utf8").match(/\\n\/\/ [^\\]+/g) ?? [];
