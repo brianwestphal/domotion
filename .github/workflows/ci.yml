@@ -167,6 +167,10 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
       - run: npm run lint
+      # kerf-ui doctor over the browser tools: fails on errors only. Its
+      # suppressions are a reviewed budget of verified false positives
+      # (.kerf-ui-doctor.json, docs/273-ui-conventions.md).
+      - run: npm run kerf:doctor
 
   # DM-1980: the per-PR VISUAL gate for macOS.
   #

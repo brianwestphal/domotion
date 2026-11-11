@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-QW1NMD", "DM-HRBJ8M", "DM-2PA7G8", "DM-H6PT1X", "DM-3YTWWV"]
+tickets: ["DM-QW1NMD", "DM-HRBJ8M", "DM-2PA7G8", "DM-H6PT1X", "DM-3YTWWV", "DM-4NGAB7"]
 code:
   [
     "src/kerf-ui-theme.ts",
@@ -91,7 +91,7 @@ The local harness renders kerf-ui components on the server too, so it inlines th
 - **The three generated client bundles.** They inline `@kerfjs/ui`'s own package CSS, so the analyzer reads its private and component tokens as application overrides.
 - **The four Select sites.** They register `kui-select` through `src/kerf-ui-select.ts`, a wrapper the doctor does not follow.
 
-Every other finding stays visible. Treat the suppressions as a budget that only shrinks.
+Every other finding stays visible. Treat the suppressions as a budget that only shrinks. CI's `lint` job runs the doctor after `npm run lint`.
 
 Domotion does not adopt `kerfjs setup --ui --write`. Its proposals would replace the project-authored multi-workspace `typecheck` and `lint` scripts, NodeNext module resolution and the ESLint 10 configuration, and would enable `noUncheckedIndexedAccess`. That last flag measured about 4,600 errors in `src` alone. Domotion also publishes no components, so it declines the component catalog (`create-kerf-component`).
 
