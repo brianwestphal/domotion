@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["product-tooling"]
 platforms: []
-tickets: ["DM-QW1NMD", "DM-HRBJ8M", "DM-2PA7G8"]
+tickets: ["DM-QW1NMD", "DM-HRBJ8M", "DM-2PA7G8", "DM-H6PT1X", "DM-3YTWWV"]
 code:
   [
     "src/kerf-ui-theme.ts",
@@ -83,6 +83,17 @@ Icons come from the [`lucide`](https://lucide.dev) package, imported by name (`i
 `scripts/bundle-kerf-client.mjs` is the shared esbuild step. It anchors esbuild's per-module path comments at their `node_modules/` segment, so a checkout whose dependencies are symlinked from elsewhere regenerates byte-identical bundles. Under the `browser` export condition each kerf-ui subpath pulls in its own CSS, which esbuild emits as a second output. The script folds that CSS back into the JavaScript as a one-line prologue that prepends a `<style data-kerf-ui>` element to `<head>` before any client code runs, so each page is still one HTML shell plus one `/client.js`. Because the package CSS is prepended, each page's own stylesheet comes later in the cascade and overrides package defaults without specificity tricks. The prologue sits on the bundle's first line, so inline source maps used for browser coverage keep their line numbers.
 
 The local harness renders kerf-ui components on the server too, so it inlines the stylesheets it needs (`KERF_UI_STYLESHEETS` in `tests/review-server.tsx`) in `<head>` and discards the client bundle's copy. Keep that list in step with the harness's `@kerfjs/ui/*` imports.
+
+## Doctor and Kerf setup
+
+`npm run kerf:doctor` runs `kerf-ui-doctor --full` with `.kerf-ui-doctor.json`. The browser stage is off, and only errors fail the run. The suppressions cover two verified false positives, each recorded with its rationale:
+
+- **The three generated client bundles.** They inline `@kerfjs/ui`'s own package CSS, so the analyzer reads its private and component tokens as application overrides.
+- **The four Select sites.** They register `kui-select` through `src/kerf-ui-select.ts`, a wrapper the doctor does not follow.
+
+Every other finding stays visible. Treat the suppressions as a budget that only shrinks.
+
+Domotion does not adopt `kerfjs setup --ui --write`. Its proposals would replace the project-authored multi-workspace `typecheck` and `lint` scripts, NodeNext module resolution and the ESLint 10 configuration, and would enable `noUncheckedIndexedAccess`. That last flag measured about 4,600 errors in `src` alone. Domotion also publishes no components, so it declines the component catalog (`create-kerf-component`).
 
 ## Theme
 

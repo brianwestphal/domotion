@@ -74,3 +74,6 @@ tools/font-conformance-stacks.synthetic.json
 !/.glassbox/settings.json
 .hotsheet2/settings.local.json
 .hotsheet2/store
+
+# kerf-ui-doctor content-addressed cache
+.kerf-cache/
