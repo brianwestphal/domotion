@@ -107,18 +107,21 @@ describe("one-shot helper transport", () => {
     // Reads its request and never exits.
     const log = join(dir, "stalled.log");
     const helper = useHelper("stalled-helper.cjs", `${prologue(log)} readRequest(() => setInterval(() => {}, 1000));`);
-    __setOneShotTimeoutForTest(1000);
+    // The bound also covers the fake helper's Node startup, which a loaded host
+    // can stretch past a second; the stall assertions below need its prologue
+    // to have run in both attempts.
+    __setOneShotTimeoutForTest(3000);
     const stderr = captureStderr();
     const started = Date.now();
     expect(() => callGlyphHelper(REQUEST)).toThrow(
-      /glyph helper failed \(killed by SIGTERM after 1000 ms; one-shot, queries fallback,fallback,meta\)/,
+      /glyph helper failed \(killed by SIGTERM after 3000 ms; one-shot, queries fallback,fallback,meta\)/,
     );
     // Two bounded attempts, not the 120 s default.
     expect(Date.now() - started).toBeLessThan(10_000);
     const lines = stderr.text().trim().split("\n");
     expect(lines).toHaveLength(2);
     expect(lines[0]).toMatch(
-      /^domotion: glyph helper one-shot request stalled \(attempt 1\/2, pid \d+, \d+ ms, bound 1000 ms/,
+      /^domotion: glyph helper one-shot request stalled \(attempt 1\/2, pid \d+, \d+ ms, bound 3000 ms/,
     );
     expect(lines[0]).toContain(`helper ${helper}`);
     expect(lines[0]).toContain("queries fallback×2,meta; fonts [HiraginoSans-W3]");
