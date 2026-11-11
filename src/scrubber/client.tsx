@@ -21,6 +21,7 @@ import { EmptyState } from "@kerfjs/ui/empty-state";
 import { LucideIcon } from "@kerfjs/ui/lucide-icon";
 import { Select } from "@kerfjs/ui/select";
 import { StateBanner } from "@kerfjs/ui/state-banner";
+import { Toolbar } from "@kerfjs/ui/toolbar";
 import { ToolbarControlGroup } from "@kerfjs/ui/toolbar-control-group";
 import {
   CircleAlert,
@@ -78,6 +79,7 @@ body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-ser
 .bar{background:#15171c;border-top:1px solid #23262f;padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .row2{justify-content:space-between}
+.playback{--kui-toolbar-inset:0px}
 .grp{display:flex;align-items:center;gap:8px}
 .tool-panel{margin:0}.tool-panel summary{display:none;cursor:pointer;color:#c7d2fe;font-weight:600}.tool-panel>.grp{margin-top:0}
 button:where(:not(.kui-select__trigger)){background:#262a35;color:#e7e9ee;border:1px solid #333845;border-radius:7px;padding:6px 11px;cursor:pointer;font:inherit}
@@ -140,7 +142,7 @@ a.dl{display:none}
 [data-scrubber-embedded] .bar{padding:8px 10px}
 @media (pointer:coarse){button,input[type=number],label{min-height:44px}.iconbtn{min-width:44px}.range-tick{width:44px;height:44px}.transport{height:auto}}
 @media (max-width:640px){
-  .bar{padding:10px}.row:first-child{display:grid;grid-template-columns:auto auto 1fr}.row:first-child .scrub-wrap{grid-column:1/-1;grid-row:2}.row:first-child .time{grid-column:1/-1;min-width:0;text-align:left}
+  .bar{padding:10px}.playback .time{min-width:0;text-align:left}
   .row2{align-items:stretch}.tool-panel{width:100%;border-top:1px solid #2a2e38;padding-top:6px}.tool-panel summary{display:block;min-height:44px;line-height:44px}.tool-panel>.grp{flex-wrap:wrap;padding-bottom:6px}
   .row2>.grp{min-height:44px}.export-wrap{margin-left:auto}.review-panel>.review{border:0;padding:6px 0 0}
 }
@@ -314,81 +316,103 @@ function render() {
         )}
       </div>
       <div class="bar">
-        <div class="row">
-          <ToolbarControlGroup label="Playback" className="transport">
-            <button
-              type="button"
-              class="iconbtn"
-              data-action="step-back"
-              aria-label="Previous frame"
-              title="previous frame"
-              disabled={!svgLoaded.value}
-            >
-              {ICON_STEP_BACK}
-            </button>
-            <button
-              type="button"
-              class="play primary"
-              data-action="play"
-              aria-label={playing.value ? "Pause" : "Play"}
-              disabled={!svgLoaded.value}
-            >
-              {playing.value ? ICON_PAUSE : ICON_PLAY}
-            </button>
-            <button
-              type="button"
-              class="iconbtn"
-              data-action="step-forward"
-              aria-label="Next frame"
-              title="next frame"
-              disabled={!svgLoaded.value}
-            >
-              {ICON_STEP_FORWARD}
-            </button>
-          </ToolbarControlGroup>
-          <Select
-            name="speed"
-            ariaLabel="Playback speed"
-            size="compact"
-            triggerWidth="fit-content"
-            value={SPEEDS.find((v) => parseFloat(v) === speed.value) ?? "1"}
-            choices={SPEED_CHOICES}
-            disabled={!svgLoaded.value}
-          />
-          <div class="scrub-wrap">
-            {svgLoaded.value && dur > 0 && trackW.value > 0 && (
-              <>
-                <div
-                  class="range-band"
-                  style={`left:${markerLeft(rangeStart.value)};width:${Math.max(0, parseFloat(markerLeft(hi)) - parseFloat(markerLeft(rangeStart.value)))}px`}
-                ></div>
-                <div
-                  class="range-tick"
-                  data-tick="in"
-                  title="drag to set range start"
-                  style={`left:${markerLeft(rangeStart.value)}`}
+        {/* The playback band is a kerf Toolbar so the transport group has its
+            cataloged parent; `stack` reproduces the phone layout (controls,
+            then the track, then the time). */}
+        <Toolbar
+          label="Playback"
+          position="footer"
+          className="playback"
+          centerAlign="stretch"
+          responsive="stack"
+          responsiveAt="compact"
+          leading={
+            <>
+              <ToolbarControlGroup label="Playback" className="transport">
+                <button
+                  type="button"
+                  class="iconbtn"
+                  data-action="step-back"
+                  aria-label="Previous frame"
+                  title="previous frame"
+                  disabled={!svgLoaded.value}
                 >
-                  <span>in</span>
-                </div>
-                <div class="range-tick" data-tick="out" title="drag to set range end" style={`left:${markerLeft(hi)}`}>
-                  <span>out</span>
-                </div>
-              </>
-            )}
-            <input
-              type="range"
-              class="scrub"
-              data-action="scrub"
-              min="0"
-              max="1000"
-              step="0.1"
-              disabled={!svgLoaded.value}
-            />
-          </div>
-          <div class="time">
-            {frameLabel} / {fmt(dur)}
-          </div>
-        </div>
+                  {ICON_STEP_BACK}
+                </button>
+                <button
+                  type="button"
+                  class="play primary"
+                  data-action="play"
+                  aria-label={playing.value ? "Pause" : "Play"}
+                  disabled={!svgLoaded.value}
+                >
+                  {playing.value ? ICON_PAUSE : ICON_PLAY}
+                </button>
+                <button
+                  type="button"
+                  class="iconbtn"
+                  data-action="step-forward"
+                  aria-label="Next frame"
+                  title="next frame"
+                  disabled={!svgLoaded.value}
+                >
+                  {ICON_STEP_FORWARD}
+                </button>
+              </ToolbarControlGroup>
+              <Select
+                name="speed"
+                ariaLabel="Playback speed"
+                size="compact"
+                triggerWidth="fit-content"
+                value={SPEEDS.find((v) => parseFloat(v) === speed.value) ?? "1"}
+                choices={SPEED_CHOICES}
+                disabled={!svgLoaded.value}
+              />
+            </>
+          }
+          center={
+            <div class="scrub-wrap">
+              {svgLoaded.value && dur > 0 && trackW.value > 0 && (
+                <>
+                  <div
+                    class="range-band"
+                    style={`left:${markerLeft(rangeStart.value)};width:${Math.max(0, parseFloat(markerLeft(hi)) - parseFloat(markerLeft(rangeStart.value)))}px`}
+                  ></div>
+                  <div
+                    class="range-tick"
+                    data-tick="in"
+                    title="drag to set range start"
+                    style={`left:${markerLeft(rangeStart.value)}`}
+                  >
+                    <span>in</span>
+                  </div>
+                  <div
+                    class="range-tick"
+                    data-tick="out"
+                    title="drag to set range end"
+                    style={`left:${markerLeft(hi)}`}
+                  >
+                    <span>out</span>
+                  </div>
+                </>
+              )}
+              <input
+                type="range"
+                class="scrub"
+                data-action="scrub"
+                min="0"
+                max="1000"
+                step="0.1"
+                disabled={!svgLoaded.value}
+              />
+            </div>
+          }
+          trailing={
+            <div class="time">
+              {frameLabel} / {fmt(dur)}
+            </div>
+          }
+        />
         <div class="row row2">
           <details class="tool-panel" open={innerWidth > COLLAPSED_PANEL_MAX_WIDTH}>
             <summary>Range</summary>

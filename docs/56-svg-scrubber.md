@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: []
-tickets: ["DM-1041", "DM-1042", "DM-1045", "DM-77YEZV", "DM-KJNT2X"]
+tickets: ["DM-1041", "DM-1042", "DM-1045", "DM-77YEZV", "DM-KJNT2X", "DM-20BB0A"]
 code:
   [
     "scripts/build-scrubber-client.mjs",
@@ -78,10 +78,14 @@ set on the element directly). No emoji are used — labels are plain text and
 icon-only buttons carry an `aria-label`.
 
 The chrome comes from `@kerfjs/ui` ([doc 273](273-ui-conventions.md)). The
-transport is a `ToolbarControlGroup`, icons are lucide icons rendered through
-`LucideIcon`, the drop target is an `EmptyState`, and operation errors and
-review save results are `StateBanner`s. The speed, zoom, crop-aspect and
-category pickers stay native `<select>` elements. The kerf-ui CSS is folded into
+playback band is a footer `Toolbar` labeled "Playback": its leading zone holds
+the transport `ToolbarControlGroup` and the speed picker, the stretched center
+zone the scrub track, and the trailing zone the time readout. Below the
+toolbar's compact container width it stacks those three zones (controls, track,
+time). Icons are lucide icons rendered through `LucideIcon`, the drop target is
+an `EmptyState`, and operation errors and review save results are
+`StateBanner`s. The speed, zoom, crop-aspect and category pickers are kerf-ui
+`Select`s. The kerf-ui CSS is folded into
 `/client.js` at build time, so the page needs no network access.
 
 ## How playback works
