@@ -23,6 +23,7 @@ tickets:
     "DM-S9S3WG",
     "DM-34WC46",
     "DM-J5HGKV",
+    "DM-3NDNF2",
     "DM-MBRZBH",
     "DM-4GF2A0",
     "DM-6TJDZ5",
@@ -264,6 +265,25 @@ incomplete stream or failed artifact write fails the opted-in close rather
 than presenting incomplete evidence as complete. Forced host termination can
 prevent finalization entirely. The default launch arguments, source bytes,
 backend, worker ownership, startup deadlines and retry rules are unchanged.
+
+The harness first launches Playwright's public `launchServer` scout only to
+learn the executable and normal arguments, then closes it under a 6000 ms
+bound before the owned browser exists. A scout close timeout therefore fails
+in `beforeEach`, before any worker body runs, and the owned-browser journal
+cannot describe it. DM-3NDNF2 adds failure-only `scout-*.log` evidence under
+the same opt-in: observers attach to `BrowserServer.process()` stdout/stderr,
+`exit` and `close` immediately before the unchanged close request. A scout
+that closes in time disposes them and writes nothing. On a timeout the harness
+still kills the scout and throws the original error (or the kill error); the
+evidence then waits at most two more seconds for process close and writes up
+to 64 KiB of output through the same pre-retention filter, with the DevTools
+credential line counted but omitted. Its metadata records the case label,
+PIDs, validated source commit, millisecond offsets (from observer attachment)
+for the close request, deadline, exit, process close and each stream end,
+status/signal and whether the kill resolved. A failed evidence write never
+replaces the original error. Output emitted before attachment is not observed,
+and a missing exit or close offset means "not observed within the bound", not
+proof that the process never exited.
 Worker startup failure JSON under `worker-bootstrap/` records the corresponding
 owned PID, fixture request hashes/completion, bounded console errors, and generic
 `Event` versus `ErrorEvent` failures. Join by PID and run, rather than attributing

@@ -7,7 +7,7 @@ import { chromium, type Browser, type LaunchOptions } from "@playwright/test";
 import { recordBrowserFontEnvironment } from "../src/capture/image-font-hinting.js";
 import { chromiumAutoInstallDefault } from "../src/capture/chromium-auto-install.js";
 import { installPlaywrightChromium } from "../src/capture/index.js";
-import { captureOwnedBrowserDiagnostics } from "./real-world-browser-diagnostics.js";
+import { captureOwnedBrowserDiagnostics, observeScoutClose } from "./real-world-browser-diagnostics.js";
 import { FlatCdp, cdpBounded, createCdpBroker } from "./real-world-cdp.js";
 import { SharedWorkerBootstrap, registerSharedWorkerBootstrap } from "./real-world-shared-worker-bootstrap.js";
 
@@ -23,7 +23,10 @@ export type RealWorldBrowserOptions = Pick<
   | "handleSIGINT"
   | "handleSIGTERM"
   | "handleSIGHUP"
->;
+> & {
+  /** Test/case label retained only in failure-only scout close evidence. */
+  diagnosticCase?: string;
+};
 
 /** Public launchServer process provenance avoids private registry/path tables.
  * Preserve every normal argument except the owned profile; add loopback CDP.
@@ -93,7 +96,9 @@ export async function openRealWorldBrowser(
       .filter(([, value]) => value != null)
       .map(([key, value]) => [key, String(value)]),
   );
-  const launchOptions = { headless: true, ...options, env: environment };
+  const { diagnosticCase, ...publicOptions } = options;
+  const launchOptions = { headless: true, ...publicOptions, env: environment };
+  const diagnosticDirectory = process.env["DOMOTION_E2E_NATIVE_LOG_DIR"];
   const scout = await chromium.launchServer(launchOptions).catch(async (error) => {
     if (
       !chromiumAutoInstallDefault() ||
@@ -105,10 +110,28 @@ export async function openRealWorldBrowser(
   });
   const executable = scout.process().spawnfile;
   const normalArgs = scout.process().spawnargs.slice(1);
+  const scoutEvidence = observeScoutClose(
+    scout.process(),
+    diagnosticDirectory,
+    process.env["GITHUB_SHA"],
+    diagnosticCase,
+  );
   try {
+    scoutEvidence.requested();
     await cdpBounded(scout.close(), 6_000, "Chromium scout close");
+    scoutEvidence.dispose();
   } catch (error) {
-    await scout.kill();
+    let killError: unknown;
+    const killed = await scout.kill().then(
+      () => "resolved" as const,
+      (failure: unknown) => {
+        killError = failure;
+        return "rejected" as const;
+      },
+    );
+    // Evidence storage must never replace the original close or kill error.
+    await scoutEvidence.fail(killed).catch(() => undefined);
+    if (killed === "rejected") throw killError;
     throw error;
   }
   const profile = await mkdtemp(join(tmpdir(), "domotion-real-world-browser-"));
@@ -120,7 +143,6 @@ export async function openRealWorldBrowser(
   let unregister: (() => void) | undefined;
   let closing: Promise<void> | undefined;
   let diagnostics: ReturnType<typeof captureOwnedBrowserDiagnostics> | undefined;
-  const diagnosticDirectory = process.env["DOMOTION_E2E_NATIVE_LOG_DIR"];
   const signals: Array<[NodeJS.Signals, () => void]> = [];
   const onExit = (): void => {
     if (child?.exitCode == null && child?.signalCode == null) child?.kill("SIGKILL");

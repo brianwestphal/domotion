@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { captureOwnedBrowserDiagnostics } from "./real-world-browser-diagnostics.js";
+import { captureOwnedBrowserDiagnostics, observeScoutClose } from "./real-world-browser-diagnostics.js";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -132,4 +132,126 @@ it("retains an explicitly incomplete artifact when a child keeps its stream open
     child.kill("SIGKILL");
     await new Promise<void>((resolve) => child.once("close", () => resolve()));
   }
+});
+
+// DM-3NDNF2: failure-only Playwright launch-scout close evidence.
+const scoutChild = (script: string) => spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "pipe"] });
+const exited = (child: ReturnType<typeof scoutChild>) =>
+  new Promise<void>((done) =>
+    child.exitCode != null || child.signalCode != null ? done() : child.once("close", () => done()),
+  );
+const scoutMetadata = (directory: string) => {
+  const files = readdirSync(directory).sort();
+  expect(files).toHaveLength(2);
+  return {
+    log: readFileSync(join(directory, files[0]!), "utf8"),
+    metadata: JSON.parse(readFileSync(join(directory, files[1]!), "utf8")),
+  };
+};
+const STALLED =
+  "process.stdout.write('scout ready\\n');process.stderr.write('Authorization: HEADER_SECRET\\nSECRET_TOKEN=ENV_SECRET\\nDevTools listening on ws://127.0.0.1:1/devtools/browser/ENDPOINT_SECRET\\nstill closing\\n');setInterval(()=>{},1000)";
+
+it("writes nothing and keeps the child untouched when the scout closes in time", async () => {
+  const directory = temporary();
+  const child = scoutChild("process.stderr.write('bye\\n')");
+  const evidence = observeScoutClose(child, directory, source, "case");
+  evidence.requested();
+  await exited(child);
+  evidence.dispose();
+  await evidence.fail("resolved"); // Disposed observers stay inert even if a caller later fails.
+  expect(child.listenerCount("close")).toBe(0);
+  expect(readdirSync(directory)).toEqual([]);
+});
+
+it("is a no-op without an opt-in directory", async () => {
+  const child = scoutChild("");
+  const before = child.listenerCount("close");
+  const evidence = observeScoutClose(child, undefined, source);
+  expect(child.listenerCount("close")).toBe(before);
+  evidence.requested();
+  await evidence.fail("resolved");
+  await exited(child);
+});
+
+it("retains filtered output, close request, deadline, exit and post-kill outcome after a stalled close", async () => {
+  const directory = temporary();
+  const child = scoutChild(STALLED);
+  const evidence = observeScoutClose(child, directory, source, "suite > stalled case");
+  evidence.requested();
+  await new Promise((done) => setTimeout(done, 300));
+  child.kill("SIGKILL");
+  await exited(child);
+  await evidence.fail("resolved");
+  await evidence.fail("rejected"); // Idempotent: the first outcome is immutable.
+  const { log, metadata } = scoutMetadata(directory);
+  expect(log).toBe("scout ready\nstill closing\n");
+  expect(metadata).toMatchObject({
+    schema: "domotion-scout-close-v1",
+    sourceCommit: source,
+    diagnosticCase: "suite > stalled case",
+    processId: child.pid,
+    hostProcessId: process.pid,
+    status: null,
+    signal: "SIGKILL",
+    postKill: "resolved",
+    exitObserved: true,
+    stdoutPiped: true,
+    stderrPiped: true,
+    sensitiveLines: 2,
+    endpointLines: 1,
+    outputBeforeAttachmentObserved: false,
+    truncated: false,
+    filteredStreamSha256: createHash("sha256").update(log).digest("hex"),
+  });
+  expect(metadata.closeRequestedAtMs).toBeLessThanOrEqual(metadata.deadlineAtMs);
+  expect(metadata.closeAtMs).not.toBeNull();
+  expect(JSON.stringify(metadata) + log).not.toMatch(/SECRET|127\.0\.0\.1/);
+});
+
+it("records a close that lands after the deadline was reported", async () => {
+  const directory = temporary();
+  const child = scoutChild(STALLED);
+  const evidence = observeScoutClose(child, directory, source);
+  evidence.requested();
+  const failed = evidence.fail("rejected");
+  setTimeout(() => child.kill("SIGKILL"), 200);
+  await failed;
+  const { metadata } = scoutMetadata(directory);
+  expect(metadata.postKill).toBe("rejected");
+  expect(metadata.closeAtMs).toBeGreaterThan(metadata.deadlineAtMs);
+  expect(metadata.diagnosticCase).toBeNull();
+});
+
+it("bounds the post-kill wait and records absent exit and close as unknown", async () => {
+  const directory = temporary();
+  const child = scoutChild(STALLED);
+  try {
+    const evidence = observeScoutClose(child, directory, "not-a-sha");
+    const started = Date.now();
+    await evidence.fail("resolved");
+    expect(Date.now() - started).toBeLessThan(4_000);
+    const { metadata } = scoutMetadata(directory);
+    expect(metadata).toMatchObject({
+      sourceCommit: null,
+      closeRequestedAtMs: null,
+      exitAtMs: null,
+      closeAtMs: null,
+      exitObserved: false,
+    });
+    expect(child.listenerCount("close")).toBe(0);
+  } finally {
+    child.kill("SIGKILL");
+    await exited(child);
+  }
+});
+
+it("reports evidence storage failure to the caller without retaining listeners", async () => {
+  const parent = temporary();
+  const blocked = join(parent, "file");
+  writeFileSync(blocked, "");
+  const child = scoutChild("");
+  const evidence = observeScoutClose(child, join(blocked, "logs"), source);
+  await exited(child);
+  await expect(evidence.fail("resolved")).rejects.toThrow();
+  expect(child.listenerCount("close")).toBe(0);
 });

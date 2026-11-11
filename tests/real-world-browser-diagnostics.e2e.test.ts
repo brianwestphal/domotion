@@ -17,6 +17,9 @@ it("retains diagnostics from the owned default headless browser, independently o
     expect(version.userAgent).toContain("HeadlessChrome/");
     await owner.close();
     const files = await readdir(directory);
+    // DM-3NDNF2: the real default scout closed in time, so its failure-only
+    // observer must have disposed without any disk output.
+    expect(files.filter((file) => file.startsWith("scout-"))).toEqual([]);
     expect(files.filter((file) => file.endsWith(".log"))).toHaveLength(1);
     const metadataPath = files.find((file) => file.endsWith(".log.json"))!;
     const metadata = JSON.parse(await readFile(join(directory, metadataPath), "utf8"));

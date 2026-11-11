@@ -105,7 +105,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   mode = "healthy";
   activePages = [];
-  owner = await openRealWorldBrowser(() => undefined);
+  owner = await openRealWorldBrowser(() => undefined, {
+    diagnosticCase: `real-world-worker-startup-diagnostics.e2e.test.ts > ${expect.getState().currentTestName ?? ""}`,
+  });
 });
 afterEach(async (test) => {
   vi.restoreAllMocks();

@@ -133,3 +133,141 @@ export function captureOwnedBrowserDiagnostics(
       })()),
   };
 }
+
+export const SCOUT_CLOSE_LOG_MAX_BYTES = 64 * 1024;
+
+/** Failure-only evidence for Playwright's short-lived launch scout. Observers
+ * attach to the public BrowserServer.process() before the unchanged close
+ * request; a healthy close disposes them without touching disk. Retained
+ * output passes the same pre-retention filter as owned-browser logs, and
+ * arguments, environment, profile and discovery tokens are never recorded.
+ * Output emitted before attachment is not observed, so absence is not proof. */
+export function observeScoutClose(
+  child: ChildProcess,
+  directory: string | undefined,
+  sourceCommit: string | undefined,
+  diagnosticCase?: string,
+  maxBytes = SCOUT_CLOSE_LOG_MAX_BYTES,
+): { requested(): void; dispose(): void; fail(killOutcome: "resolved" | "rejected"): Promise<void> } {
+  const observedAt = Date.now();
+  const at = (): number => Date.now() - observedAt;
+  const capture = createBoundedCapture(maxBytes);
+  let endpointLines = 0;
+  const filter = createNativeLogFilter((chunk) => {
+    if (/DevTools listening on wss?:\/\//.test(chunk.toString("utf8"))) endpointLines++;
+    else capture.append(chunk);
+  });
+  const streams = [
+    ["stdout", child.stdout],
+    ["stderr", child.stderr],
+  ] as const;
+  const ended: Record<string, number | null> = { stdout: null, stderr: null };
+  let closeRequestedAtMs: number | null = null;
+  let exitAtMs: number | null = null;
+  let closeAtMs: number | null = null;
+  let disposed = false;
+  let failure: Promise<void> | undefined;
+  let notifyClose: (() => void) | undefined;
+  const data = (chunk: Buffer): void => filter.append(chunk);
+  const endHandlers = streams.map(([name]) => () => {
+    ended[name] = at();
+  });
+  const exit = (): void => {
+    exitAtMs = at();
+  };
+  const close = (): void => {
+    closeAtMs = at();
+    notifyClose?.();
+  };
+  const dispose = (): void => {
+    if (disposed) return;
+    disposed = true;
+    streams.forEach(([, stream], index) => {
+      stream?.off("data", data);
+      stream?.off("end", endHandlers[index]!);
+    });
+    child.off("exit", exit);
+    child.off("close", close);
+  };
+  if (directory == null) return { requested() {}, dispose() {}, fail: () => Promise.resolve() };
+  streams.forEach(([, stream], index) => {
+    stream?.on("data", data);
+    stream?.once("end", endHandlers[index]!);
+  });
+  child.once("exit", exit);
+  child.once("close", close);
+  return {
+    requested() {
+      closeRequestedAtMs ??= at();
+    },
+    dispose,
+    // A healthy close disposes first; only an undisposed observer may write.
+    fail: (killOutcome) =>
+      disposed && failure == null
+        ? Promise.resolve()
+        : (failure ??= (async () => {
+            const deadlineAtMs = at();
+            if (closeAtMs == null) {
+              let timer: ReturnType<typeof setTimeout> | undefined;
+              try {
+                await new Promise<void>((resolve) => {
+                  notifyClose = resolve;
+                  timer = setTimeout(resolve, 2_000);
+                });
+              } finally {
+                clearTimeout(timer);
+              }
+            }
+            dispose();
+            const filtered = filter.finish();
+            const retained = capture.finish();
+            mkdirSync(directory, { recursive: true, mode: 0o700 });
+            const logPath = join(
+              resolve(directory),
+              `scout-${process.pid}-${child.pid ?? "unspawned"}-${randomUUID()}.log`,
+            );
+            writeFileSync(logPath, retained.data, { flag: "wx", mode: 0o600 });
+            writeFileSync(
+              `${logPath}.json`,
+              JSON.stringify(
+                {
+                  schema: "domotion-scout-close-v1",
+                  writtenAt: new Date().toISOString(),
+                  sourceCommit: /^[0-9a-f]{40}$/i.test(sourceCommit ?? "") ? sourceCommit : null,
+                  diagnosticCase: diagnosticCase?.slice(0, 512) ?? null,
+                  platform: process.platform,
+                  arch: process.arch,
+                  hostProcessId: process.pid,
+                  processId: child.pid ?? null,
+                  timeBasis: "ms after observer attachment",
+                  closeRequestedAtMs,
+                  deadlineAtMs,
+                  exitAtMs,
+                  closeAtMs,
+                  stdoutEndAtMs: ended.stdout,
+                  stderrEndAtMs: ended.stderr,
+                  stdoutPiped: child.stdout != null,
+                  stderrPiped: child.stderr != null,
+                  status: child.exitCode,
+                  signal: child.signalCode,
+                  postKill: killOutcome,
+                  exitObserved: exitAtMs != null,
+                  outputBeforeAttachmentObserved: false,
+                  ...filtered,
+                  endpointLines,
+                  byteBasis: "filtered-scout-stdout-stderr-after-attachment",
+                  maxBytes,
+                  totalBytes: retained.totalBytes,
+                  retainedBytes: retained.retainedBytes,
+                  omittedBytes: retained.omittedBytes,
+                  truncated: retained.truncated,
+                  filteredStreamSha256: retained.sha256,
+                },
+                null,
+                2,
+              ),
+              { flag: "wx", mode: 0o600 },
+            );
+          })()),
+  };
+}

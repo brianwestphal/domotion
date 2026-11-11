@@ -93,7 +93,10 @@ beforeEach(async () => {
       recorded = true;
       expect(env["DOMOTION_BROKER_PROBE"]).toBe("yes");
     },
-    { env: { ...process.env, DOMOTION_BROKER_PROBE: "yes" } },
+    {
+      env: { ...process.env, DOMOTION_BROKER_PROBE: "yes" },
+      diagnosticCase: `real-world-shared-worker-bootstrap.e2e.test.ts > ${expect.getState().currentTestName ?? ""}`,
+    },
   );
   expect(recorded).toBe(true);
 });
