@@ -925,6 +925,26 @@ test("CLI never accepts bypass/force/ambiguous options", () => {
   assert.throws(() => parseOptions(["--gate", "--project", "/project", "--shipping", "a".repeat(40)]));
 });
 
+// DM-PA6GV1: the installed Hot Sheet skill's cleanup line omits --review-note
+// and expects automatic removal. That exact form must refuse before any I/O
+// rather than inspect or delete a retained checkout.
+test("CLI refuses the review-less managed-skill invocation", () => {
+  const legacy = [
+    "--project",
+    "/project",
+    "--store",
+    "/store",
+    "--ticket",
+    TICKET,
+    "--worktree",
+    "/worktree",
+    "--shipping",
+    "a".repeat(40),
+  ];
+  assert.throws(() => parseOptions(legacy));
+  assert.throws(() => parseOptions([...legacy, "--execute"]));
+});
+
 test("native runner scrubs inherited Git routing variables", () => {
   const old = process.env.GIT_DIR;
   process.env.GIT_DIR = "/nonexistent-wrong-repository";

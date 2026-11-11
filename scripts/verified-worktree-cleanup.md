@@ -77,8 +77,9 @@ Newer schema contracts require explicit adapter support before cleanup.
 ## Produce exact gate evidence
 
 Use an existing clean, registered **isolated** validation checkout at the full shipping SHA
-with the normal dependencies, pinned source authorities, browser and native
-helper prerequisites. It shares the main checkout's Git common directory. Do
+with its own `npm ci` install (a `node_modules` linked into another checkout is
+refused by the build), pinned source authorities, browser and native helper
+prerequisites. It shares the main checkout's Git common directory. Do
 not stash, reset, or normalize the user's dirty main checkout for this purpose.
 The gate command runs fixed `npm run build`, `typecheck`, `lint`, and `test`
 commands, in that order. Each must exit successfully while HEAD, all other

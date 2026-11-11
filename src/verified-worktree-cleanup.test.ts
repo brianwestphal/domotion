@@ -11,7 +11,7 @@ test("verified cleanup passes platform-supported and portable refusal contracts"
     process.platform === "win32"
       ? [
           "--test-name-pattern",
-          "GitHub CI authority|CLI never accepts|generated exception refuses|Windows cleanup refuses",
+          "GitHub CI authority|CLI never accepts|CLI refuses the review-less|generated exception refuses|Windows cleanup refuses",
         ]
       : [];
   const startedAt = new Date().toISOString();
