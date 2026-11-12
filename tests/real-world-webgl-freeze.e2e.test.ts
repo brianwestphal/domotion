@@ -159,10 +159,13 @@ describe("real-world WebGL freeze", () => {
     });
     await page.evaluate(() => (window as unknown as { worker_: Worker }).worker_.postMessage({ color: [0, 1, 0] }));
     const ticksBefore = await page.evaluate(() => (window as unknown as { workerTicks_: number }).workerTicks_);
-    await page.waitForTimeout(100);
-    expect(await page.evaluate(() => (window as unknown as { workerTicks_: number }).workerTicks_)).toBeGreaterThan(
-      ticksBefore,
-    );
+    // Wait for the worker to prove it kept running after the freeze; a fixed
+    // 100ms sleep could elapse before its next tick under CI load.
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { workerTicks_: number }).workerTicks_), {
+        timeout: 5_000,
+      })
+      .toBeGreaterThan(ticksBefore);
     expect(await centerPixel(page)).toEqual([0, 0, 255]);
     await page.close();
     // The freeze belongs to this capture page; a later page starts with native methods.
