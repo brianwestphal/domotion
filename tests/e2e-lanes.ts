@@ -45,6 +45,16 @@ export const E2E_HOST_TRANSIENT_RETRY = {
     /different generic-family preference sessions|generic font families changed between capture round|Page\.captureScreenshot\): Unable to capture screenshot|oracle font settings changed during sweep/,
 } as const;
 
+/**
+ * Vitest matches a RegExp retry condition against the failing error's
+ * `message` only. When a test expects one error and a host transient throws
+ * another, `rejects.toThrow(...)` replaces it with an AssertionError that
+ * quotes the received message cut at chai's default 40 characters, which hides
+ * every trigger phrase above (DM-TTQ039). Quoting it whole keeps the retry
+ * reachable from inside those assertions.
+ */
+export const E2E_CHAI_CONFIG = { truncateThreshold: 0 } as const;
+
 export const E2E_BASE_EXCLUDES = ["**/node_modules/**", "**/dist/**", "**/tests/output/**"] as const;
 
 export function resolveE2ELane(raw: string | undefined): E2ELane {

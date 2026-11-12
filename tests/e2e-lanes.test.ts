@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { chai, describe, expect, it } from "vitest";
 import { capturedTreeSessionGenericFamilies } from "../src/capture/tree-envelope.js";
 import type { CapturedElement, CapturedSessionGenericFamilies } from "../src/capture/types.js";
 import {
   E2E_ALL_FILES,
   E2E_BASE_EXCLUDES,
+  E2E_CHAI_CONFIG,
   E2E_HEAVY_FILES,
   E2E_HOST_TRANSIENT_RETRY,
   e2eLaneConfig,
@@ -73,6 +74,32 @@ describe("DM-T5SXSV: host generic-family reset retry", () => {
     expect("the browser's generic font families changed between capture round 0 and round 1").toMatch(
       E2E_HOST_TRANSIENT_RETRY.condition,
     );
+  });
+
+  it("DM-TTQ039: retries a transient that surfaces inside a rejects.toThrow mismatch", async () => {
+    const config = readFileSync(new URL("../vitest.e2e.config.ts", import.meta.url), "utf8");
+    expect(config).toContain("chaiConfig: E2E_CHAI_CONFIG");
+    const transient = new Error(
+      "animate: frames[0] declares per-region timing (`advances`), but the browser's generic font families " +
+        "changed between capture round 0 and round 2",
+    );
+    const assertionMessage = async (): Promise<string> => {
+      try {
+        await expect(Promise.reject(transient)).rejects.toThrow(/changed OUTSIDE the declared regions/);
+      } catch (error) {
+        return (error as Error).message;
+      }
+      return "";
+    };
+    const previous = chai.config.truncateThreshold;
+    try {
+      chai.config.truncateThreshold = 40;
+      expect(await assertionMessage()).not.toMatch(E2E_HOST_TRANSIENT_RETRY.condition);
+      chai.config.truncateThreshold = E2E_CHAI_CONFIG.truncateThreshold;
+      expect(await assertionMessage()).toMatch(E2E_HOST_TRANSIENT_RETRY.condition);
+    } finally {
+      chai.config.truncateThreshold = previous;
+    }
   });
 
   it("DM-W48NT5: matches Playwright's empty-surface screenshot failure only", () => {

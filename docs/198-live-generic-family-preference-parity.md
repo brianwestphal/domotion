@@ -319,7 +319,12 @@ pixels, a font-name snapshot, or a tolerance.
   `42325960562` saw all six macOS generic families reset during one measured
   batch, while its second attempt passed. The oracle still aborts that batch;
   retrying the whole test starts a new browser and report, so no comparison
-  mixes preference states.
+  mixes preference states. Vitest matches the retry condition against the
+  failing error's message only, and a test that expects a different refusal
+  fails with an assertion that quotes the received message. The lane sets
+  `chaiConfig.truncateThreshold: 0` (`E2E_CHAI_CONFIG`) so that quote is
+  whole; at chai's default 40 characters it hid the reset from the retry and
+  failed the per-region timing test on hosted run `43166556927`.
 - Same-Page A/B fixtures must compare captures from one preference cohort.
   DM-G0DM6T found that the viewport pseudo-style test could reach ordinary
   deep equality with different `sessionGenericFamilies` records, bypassing

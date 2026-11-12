@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { E2E_HOST_TRANSIENT_RETRY, e2eLaneConfig, resolveE2ELane } from "./tests/e2e-lanes.js";
+import { E2E_CHAI_CONFIG, E2E_HOST_TRANSIENT_RETRY, e2eLaneConfig, resolveE2ELane } from "./tests/e2e-lanes.js";
 import { coverageConfig } from "./vitest.coverage.js";
 import { assertLocalTextEngine } from "./scripts/local-text-engine.mjs";
 
@@ -52,6 +52,9 @@ export default defineConfig({
     // Only named hosted-runner transients are retried; see
     // `E2E_HOST_TRANSIENT_RETRY`.
     retry: E2E_HOST_TRANSIENT_RETRY,
+    // Untruncated assertion messages let that retry see a transient that
+    // surfaces inside `rejects.toThrow(...)`; see `E2E_CHAI_CONFIG`.
+    chaiConfig: E2E_CHAI_CONFIG,
     include: laneConfig.include,
     exclude: laneConfig.exclude,
     // The merged all-suite report asks this lane for JSON only. Sharing the
