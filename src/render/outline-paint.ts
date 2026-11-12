@@ -2,7 +2,7 @@ import type { CapturedElement } from "../capture/types.js";
 import { colorStr, parseColor } from "./colors.js";
 import { r } from "./format.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
-import { blinkCurvedDashPathLength, roundedRectPath, type CornerRadii } from "./borders.js";
+import { blinkCurvedDashPathLength, parseCornerRadii, roundedRectPath, type CornerRadii } from "./borders.js";
 
 export interface ThinDottedEndpointPlan {
   startDotGrowth: number | null;
@@ -254,6 +254,8 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         }
       } else if ((ostyle === "dashed" || ostyle === "dotted") && borderRadius > 0) {
         out.push(...paintCurvedDashedDottedOutline(el, borderRadius, offset, ow, ostyle, colorStr(ocolor), indent));
+      } else if (ostyle === "solid" && !uniformCircularRadii(el)) {
+        out.push(paintSolidContouredOutline(el, offset, ow, colorStr(ocolor), indent));
       } else {
         const perimeter = 2 * (owd + oh - 4 * oRadius) + 2 * Math.PI * oRadius;
         const dash = closedDashArray(ostyle, ow, perimeter);
@@ -265,6 +267,63 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
     }
   }
   return out;
+}
+
+/** True when all four corners share one circular radius (including all
+ * square), which the scalar-`rx` stroke and the square path represent. The
+ * caller's scalar radius is the top-left corner only, so this reads all four. */
+function uniformCircularRadii(el: CapturedElement): boolean {
+  const c = parseCornerRadii(el.styles, el.width, el.height);
+  return [c.tl, c.tr, c.br, c.bl].every((corner) => corner.h === c.tl.h && corner.v === c.tl.h);
+}
+
+/** DM-9X9M8A: a solid rounded single-rect outline with per-corner or elliptical
+ * radii. BoxBorderPainter's outline constructor fills between two contours of
+ * the pixel-snapped border box (chromium 6b5a1b80,
+ * ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets): the outer
+ * one outset by offset + width, the inner one by offset. Both take the border
+ * radii resolved against the unsnapped box and constrained, then grow each
+ * nonzero radius component by its side's outset
+ * (FloatRoundedRect::Radii::Outset, float_rounded_rect.cc:115); a zero
+ * component stays square. */
+function paintSolidContouredOutline(
+  el: CapturedElement,
+  offset: number,
+  ow: number,
+  color: string,
+  indent: string,
+): string {
+  const width = Math.round(ow);
+  const left = Math.round(el.x),
+    top = Math.round(el.y);
+  const right = Math.round(el.x + el.width),
+    bottom = Math.round(el.y + el.height);
+  const clamp = adjustedOutlineOffset(right - left, bottom - top, Math.round(offset));
+  const radii = parseCornerRadii(el.styles, el.width, el.height);
+  const contour = (outsetX: number, outsetY: number): string => {
+    const grow = (corner: { h: number; v: number }) => ({
+      h: corner.h > 0 ? Math.max(0, corner.h + outsetX) : 0,
+      v: corner.v > 0 ? Math.max(0, corner.v + outsetY) : 0,
+    });
+    const grown: CornerRadii = {
+      tl: grow(radii.tl),
+      tr: grow(radii.tr),
+      br: grow(radii.br),
+      bl: grow(radii.bl),
+      uniform: false,
+      curvature: radii.curvature,
+    };
+    return roundedRectPath(
+      left - outsetX,
+      top - outsetY,
+      right - left + outsetX * 2,
+      bottom - top + outsetY * 2,
+      grown,
+    );
+  };
+  const outer = contour(clamp.horizontal + width, clamp.vertical + width);
+  const inner = contour(clamp.horizontal, clamp.vertical);
+  return `${indent}<path d="${outer} ${inner}" fill="${color}" fill-rule="evenodd" />`;
 }
 
 /** A rounded dashed/dotted single-rect outline goes through the same

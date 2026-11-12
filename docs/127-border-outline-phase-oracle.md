@@ -11,6 +11,7 @@ tickets:
     "DM-GQJ8C4",
     "DM-HGGQMW",
     "DM-RGE1V9",
+    "DM-9X9M8A",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -122,6 +123,18 @@ is a focus ring, so a `0 × 20` box with `outline: 2px solid` paints 96 pixels.
 The capture gate that drops empty childless boxes therefore keeps one whose
 non-`auto` outline has width and a nonzero alpha (DM-RGE1V9, same test file,
 with focus-ring and no-outline controls).
+
+A solid rounded single-rect outline fills between two contours of the
+pixel-snapped border box (`ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets`,
+chromium `6b5a1b80`): the outer one outset by offset plus width, the inner one
+by offset. Both start from the border radii resolved against the unsnapped box
+and constrained, then grow each nonzero radius component by its side's outset
+(`FloatRoundedRect::Radii::Outset`, `float_rounded_rect.cc:115`); a zero
+component stays square. `paintOutline` emits that even-odd contour pair
+whenever the four corners are not one uniform circular radius, so per-corner
+and elliptical radii no longer collapse to the top-left corner's scalar radius
+(DM-9X9M8A). Curved edges keep a few levels of anti-aliasing difference from
+Skia. Double, dashed and dotted rounded outlines still use the scalar radius.
 
 A square dashed or dotted single-rect outline paints through
 `BoxBorderPainter`'s outline constructor, which uses the pixel-snapped outer
