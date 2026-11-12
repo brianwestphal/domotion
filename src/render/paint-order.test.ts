@@ -174,7 +174,12 @@ describe("hitTestTopmost: pointer-events / clipping (DM-1742)", () => {
       y: 0,
       w: 300,
       h: 100,
-      styles: { overflowX: "hidden", overflowY: "hidden", transformCreatesSc: true, transform: "matrix(1, 0, 0, 1, 0, 0)" },
+      styles: {
+        overflowX: "hidden",
+        overflowY: "hidden",
+        transformCreatesSc: true,
+        transform: "matrix(1, 0, 0, 1, 0, 0)",
+      },
       children: [pin()],
     });
     expect(cursorAtPoint([el({ x: 0, y: 0, w: 1000, h: 500, cursor: "text", children: [context] })], 920, 420)).toBe(

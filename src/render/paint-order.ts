@@ -179,11 +179,7 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
       // that scroller's clip (unless fixed, which escapes overflow clips).
       const escaped = clipForHoisted.get(c);
       const cClips =
-        c.styles.position === "fixed"
-          ? fixedClips(c)
-          : escaped != null
-            ? [...childClips, rectOf(escaped)]
-            : childClips;
+        c.styles.position === "fixed" ? fixedClips(c) : escaped != null ? [...childClips, rectOf(escaped)] : childClips;
       visit(c, display, cClips);
     }
   };

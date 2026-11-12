@@ -117,7 +117,9 @@ function findOrientation(bytes: Uint8Array): OrientationSite | null {
 export function encodedImageOrientation(bytes: Uint8Array): number {
   const site = findOrientation(bytes);
   if (site == null) return 1;
-  const value = site.littleEndian ? bytes[site.at] | (bytes[site.at + 1] << 8) : (bytes[site.at] << 8) | bytes[site.at + 1];
+  const value = site.littleEndian
+    ? bytes[site.at] | (bytes[site.at + 1] << 8)
+    : (bytes[site.at] << 8) | bytes[site.at + 1];
   return value >= 1 && value <= 8 ? value : 1;
 }
 

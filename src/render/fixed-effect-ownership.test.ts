@@ -13,9 +13,9 @@ describe("viewport-fixed hoisting boundaries (DM-RN0T12)", () => {
     expect(trapsFixedDescendants(element({ mixBlendMode: "multiply" }), "block")).toBe(true);
     expect(trapsFixedDescendants(element({ isolation: "isolate" }), "block")).toBe(true);
     expect(trapsFixedDescendants(element({ position: "relative", zIndex: "1" }), "block")).toBe(true);
-    expect(trapsFixedDescendants(element({ transformCreatesSc: true, transform: "matrix(1, 0, 0, 1, 0, 0)" }), "block")).toBe(
-      true,
-    );
+    expect(
+      trapsFixedDescendants(element({ transformCreatesSc: true, transform: "matrix(1, 0, 0, 1, 0, 0)" }), "block"),
+    ).toBe(true);
   });
 
   it("passes through ordinary boxes and overflow-only scrollers", () => {
@@ -23,6 +23,8 @@ describe("viewport-fixed hoisting boundaries (DM-RN0T12)", () => {
     expect(trapsFixedDescendants(element({ position: "relative" }), "block")).toBe(false);
     expect(trapsFixedDescendants(element({ overflowX: "hidden", overflowY: "hidden" }), "block")).toBe(false);
     // Opacity on an overflow scroller makes it a genuine context again.
-    expect(trapsFixedDescendants(element({ overflowX: "auto", overflowY: "auto", opacity: "0.5" }), "block")).toBe(true);
+    expect(trapsFixedDescendants(element({ overflowX: "auto", overflowY: "auto", opacity: "0.5" }), "block")).toBe(
+      true,
+    );
   });
 });

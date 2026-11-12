@@ -91,7 +91,10 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
     const generated = await browser.newPage({ viewport: { width: 100, height: 100 } });
     try {
       for (const format of ["jpeg", "png"] as const) {
-        const bytes = await sharp(stored).toFormat(format, { quality: 100 }).withMetadata({ orientation: 6 }).toBuffer();
+        const bytes = await sharp(stored)
+          .toFormat(format, { quality: 100 })
+          .withMetadata({ orientation: 6 })
+          .toBuffer();
         for (const orientation of ["none", "from-image"]) {
           for (const style of ["", "width:80px;height:80px;object-fit:contain", "width:80px;height:40px"]) {
             await page.setContent(
@@ -132,7 +135,10 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
       await page.goto("http://page.test/");
       await page.evaluate(() => Promise.all(Array.from(document.images, (image) => image.decode())));
       const sizes = await page.evaluate(() =>
-        Array.from(document.images, (image) => [image.getBoundingClientRect().width, image.getBoundingClientRect().height]),
+        Array.from(document.images, (image) => [
+          image.getBoundingClientRect().width,
+          image.getBoundingClientRect().height,
+        ]),
       );
       expect(sizes).toEqual([
         [20, 40],

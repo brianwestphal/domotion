@@ -28,7 +28,9 @@ describe("rounded dashed/dotted outline clipping (DM-C77Q41)", () => {
   it("clips to the outer rounded rect and cuts out the inner one", () => {
     for (const style of ["dashed", "dotted"]) {
       const markup = outline(style, 5);
-      expect(markup).toMatch(/<clipPath id="([^"]+)-outer"><rect x="18" y="18" width="24" height="24" rx="7" ry="7"\/><\/clipPath>/);
+      expect(markup).toMatch(
+        /<clipPath id="([^"]+)-outer"><rect x="18" y="18" width="24" height="24" rx="7" ry="7"\/><\/clipPath>/,
+      );
       expect(markup).toContain('<rect x="20" y="20" width="20" height="20" rx="5" ry="5" fill="black"/>');
       expect(markup).not.toContain('fill-rule="evenodd"');
       expect(markup).toMatch(/<g clip-path="url\(#[^"]+-outer\)"><path [^>]*mask="url\(#[^"]+\)" \/><\/g>/);

@@ -1853,7 +1853,11 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
                 if (url == null) return null;
                 return { kind: imageOnly ? "url" : "url-with-items", ...(await loadState(url)) };
               }
-              if (/^(?:-webkit-)?(?:image-set|cross-fade|(?:repeating-)?(?:linear|radial|conic)-gradient|paint)\(/i.test(first)) {
+              if (
+                /^(?:-webkit-)?(?:image-set|cross-fade|(?:repeating-)?(?:linear|radial|conic)-gradient|paint)\(/i.test(
+                  first,
+                )
+              ) {
                 return { kind: "other-image", url: "", state: "pending", width: 0, height: 0 };
               }
               return null;

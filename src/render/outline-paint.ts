@@ -436,5 +436,8 @@ function paintCurvedDashedDottedOutline(
     ];
   }
   const ring = `${roundedRectPath(outer.x, outer.y, outer.w, outer.h, radiiAt(outset))} ${roundedRectPath(inner.x, inner.y, inner.w, inner.h, radiiAt(outset - width))}`;
-  return [`${indent}<mask id="${maskId}"><path d="${ring}" fill="white" fill-rule="evenodd"/></mask>`, `${indent}${stroke}`];
+  return [
+    `${indent}<mask id="${maskId}"><path d="${ring}" fill="white" fill-rule="evenodd"/></mask>`,
+    `${indent}${stroke}`,
+  ];
 }

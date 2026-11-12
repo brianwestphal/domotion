@@ -23,8 +23,16 @@ afterAll(async () => {
 });
 
 const cases = [
-  { name: "::before block box", css: '#only::before{content:"";display:block;width:20px;height:20px;background:red}', roots: 1 },
-  { name: "::after block box", css: '#only::after{content:"";display:block;width:20px;height:20px;background:red}', roots: 1 },
+  {
+    name: "::before block box",
+    css: '#only::before{content:"";display:block;width:20px;height:20px;background:red}',
+    roots: 1,
+  },
+  {
+    name: "::after block box",
+    css: '#only::after{content:"";display:block;width:20px;height:20px;background:red}',
+    roots: 1,
+  },
   { name: "::before text", css: '#only::before{content:"X";color:red;font:20px/20px Arial}', roots: 1 },
   {
     name: "hidden ::before",

@@ -37,7 +37,7 @@ function pngChunkCrcValid(bytes: Uint8Array, type: string): boolean {
         c ^= byte;
         for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
       }
-      return ((c ^ 0xffffffff) >>> 0) === view.readUInt32BE(at + 8 + length);
+      return (c ^ 0xffffffff) >>> 0 === view.readUInt32BE(at + 8 + length);
     }
     at += 12 + length;
   }

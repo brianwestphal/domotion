@@ -5,7 +5,20 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV", "DM-7P69DC", "DM-HZPAYY", "DM-1C56DE"]
+tickets:
+  [
+    "DM-2596",
+    "DM-2615",
+    "DM-2628",
+    "DM-2634",
+    "DM-TPJX3H",
+    "DM-J2WVF3",
+    "DM-H5DDDE",
+    "DM-09GQAV",
+    "DM-7P69DC",
+    "DM-HZPAYY",
+    "DM-1C56DE",
+  ]
 code:
   [
     "src/render/element-tree-to-svg.ts",
@@ -87,16 +100,14 @@ record, a hostile movement control, and platform integration evidence.
 
 ## Legacy CSS clip (DM-1C56DE)
 
-Chromium `6b5a1b80` builds a CssClip node only for an out-of-flow box with a
-non-`auto` `clip: rect()` (`LayoutObject::HasClip`). Its rect is the border box
-with each non-`auto` side moved (`LayoutBox::ClipRect`), pixel-snapped for paint
-(`UpdateCssClip`). It clips the box's own paint and every descendant, including
-fixed ones it does not contain (`UpdateOutOfFlowContext`). Capture records it as
-`legacyClipRect` (`src/capture/script/walker/legacy-clip.ts`). The renderer
-clips the owner and re-applies it to hoisted descendants in
-`paintWithAncestorWrappers`. Owners under a non-translation transform or zoom
-warn (`clip`) and stay unclipped. Controls: `tests/legacy-css-clip.e2e.test.ts`
-and the `legacy-css-clip-rect` feature fixture.
+Chromium `6b5a1b80` clips an out-of-flow box with a non-`auto` `clip: rect()`
+(`LayoutObject::HasClip`) to its border box with each non-`auto` side moved,
+pixel-snapped (`LayoutBox::ClipRect`, `UpdateCssClip`), including fixed
+descendants it does not contain (`UpdateOutOfFlowContext`). Capture records
+`legacyClipRect` (`src/capture/script/walker/legacy-clip.ts`); the renderer clips
+the owner and re-applies it to hoisted descendants. Owners under a
+non-translation transform or zoom warn (`clip`) and stay unclipped
+(`tests/legacy-css-clip.e2e.test.ts`, `legacy-css-clip-rect` fixture).
 
 ## Selected shadow-only roots (DM-TPJX3H)
 
@@ -212,17 +223,11 @@ implied by the platform-neutral Blink rule.
 
 ### Selected generated-pseudo-only roots (DM-HZPAYY)
 
-A selected ordinary root whose only paint is a `::before`/`::after` box or
-text, such as an empty 20×20 div with a red block `::before`, previously
-returned no roots and lost all 400 native pixels. Selecting its container
-reached the same pseudo and matched exactly. Root admission now also retains a
-root whose source-owned native pseudo record (`blink-pseudo-fragment-v1`)
-reports a fragment that is not `unpainted` and whose computed visibility is
-`visible`. Computed `content` and stacking heuristics are not consulted, so
-hidden and `content: none` pseudos still admit nothing. The admitted root then
-takes the ordinary `capture(root)` path, which paints the record exactly as
-when an ancestor is selected (`tests/capture-selected-pseudo-root.e2e.test.ts`).
-
+A selected ordinary root whose only paint is a `::before`/`::after` is admitted
+when its source-owned native pseudo record (`blink-pseudo-fragment-v1`) reports
+a fragment that is not `unpainted` with `visible` visibility; computed `content`
+is never consulted, so hidden and `content: none` pseudos admit nothing
+(`tests/capture-selected-pseudo-root.e2e.test.ts`).
 
 ## Structural form-control failure boundaries
 

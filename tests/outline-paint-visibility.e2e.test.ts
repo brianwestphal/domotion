@@ -275,7 +275,10 @@ describeBrowser("rounded dashed and dotted outline clipping (DM-C77Q41)", () => 
       const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:20px;height:20px;${css}}</style><div id="probe"></div>`;
       const native = await rgbaMap(env!.browser, source);
       const svg = await renderedSvg(env!.browser, source);
-      const rendered = await rgbaMap(env!.browser, `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`);
+      const rendered = await rgbaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
       let worst = 0;
       for (let i = 0; i < native.length; i += 4) {
         const premultiplied = [0, 1, 2].map((k) =>

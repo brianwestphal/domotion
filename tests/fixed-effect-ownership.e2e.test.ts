@@ -44,7 +44,10 @@ const cases = [
     name: "containing block keeps its overflow clip",
     body: `<div style="${BOX};transform:translateX(0);overflow:hidden;opacity:.5"><div style="${FIXED}"></div></div>`,
   },
-  { name: "overflow-only scroller is escaped", body: `<div style="${BOX};overflow:hidden"><div style="${FIXED}"></div></div>` },
+  {
+    name: "overflow-only scroller is escaped",
+    body: `<div style="${BOX};overflow:hidden"><div style="${FIXED}"></div></div>`,
+  },
 ];
 
 it.each(cases)("matches native paint: $name", async ({ body }) => {
@@ -54,10 +57,16 @@ it.each(cases)("matches native paint: $name", async ({ body }) => {
     await page.setContent(
       `<style>body{margin:0;background:white}</style><div style="width:100px;height:80px;background:rgb(200,200,200)">${body}</div>`,
     );
-    const native = await sharp(await page.screenshot()).removeAlpha().raw().toBuffer();
+    const native = await sharp(await page.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
     const tree = await captureElementTree(page, "body", viewport);
     await output.setContent(`<style>body{margin:0;background:white}</style>${elementTreeToSvg(tree, 100, 80)}`);
-    const actual = await sharp(await output.screenshot()).removeAlpha().raw().toBuffer();
+    const actual = await sharp(await output.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
     let worst = 0;
     for (let i = 0; i < native.length; i++) worst = Math.max(worst, Math.abs(native[i] - actual[i]));
     // Text antialiasing is the only residual; effect ownership errors are >= 50.

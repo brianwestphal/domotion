@@ -52,7 +52,9 @@ export const captureLegacyClipRect = ({
   if (value === "auto") return undefined;
   const match = /^rect\((.*)\)$/.exec(value);
   const sides = match != null ? match[1].split(/\s*,\s*|\s+/) : [];
-  const lengths = sides.map((side) => (side === "auto" ? null : /^-?[\d.]+(?:e-?\d+)?px$/.test(side) ? parseFloat(side) : NaN));
+  const lengths = sides.map((side) =>
+    side === "auto" ? null : /^-?[\d.]+(?:e-?\d+)?px$/.test(side) ? parseFloat(side) : NaN,
+  );
   if (sides.length !== 4 || lengths.some((length) => length != null && !Number.isFinite(length))) {
     warn(sel, "clip", `legacy clip "${value}" is not a resolved pixel rect; it is not painted`);
     return undefined;

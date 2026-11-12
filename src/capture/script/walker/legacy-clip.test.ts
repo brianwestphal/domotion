@@ -5,7 +5,14 @@ import { captureLegacyClipRect } from "./legacy-clip.js";
 // paint uses the pixel-snapped rect; only out-of-flow boxes have a clip.
 describe("captureLegacyClipRect (DM-1C56DE)", () => {
   const style = (overrides: Partial<CSSStyleDeclaration>) =>
-    ({ position: "absolute", clip: "auto", transform: "none", rotate: "none", scale: "none", ...overrides }) as CSSStyleDeclaration;
+    ({
+      position: "absolute",
+      clip: "auto",
+      transform: "none",
+      rotate: "none",
+      scale: "none",
+      ...overrides,
+    }) as CSSStyleDeclaration;
   const run = (cs: CSSStyleDeclaration, zoom = 1) => {
     const warnings: string[] = [];
     const el = { parentElement: null, ownerDocument: { defaultView: {} } } as unknown as Element;
@@ -46,7 +53,9 @@ describe("captureLegacyClipRect (DM-1C56DE)", () => {
       expect(result.rect).toBeUndefined();
       expect(result.warnings).toHaveLength(1);
     }
-    expect(run(style({ clip: "rect(0px, 10px, 10px, 0px)", transform: "matrix(1, 0, 0, 1, 5, 7)" })).rect).toBeDefined();
+    expect(
+      run(style({ clip: "rect(0px, 10px, 10px, 0px)", transform: "matrix(1, 0, 0, 1, 5, 7)" })).rect,
+    ).toBeDefined();
     expect(run(style({ clip: "rect(0px, 10px, 10px, 0px)" }), 2).warnings).toHaveLength(1);
   });
 });
