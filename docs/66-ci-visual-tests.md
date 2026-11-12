@@ -138,9 +138,10 @@ So every branch-filtered push workflow listens to both branches
 (`branches: [main, integration]`). A gate that listened to `main` alone would
 never test a staged batch, and the promotion would ship it unverified.
 `tests/ci-staging-branch-triggers.test.ts` pins this. The Pages deploy is the
-one exception and stays main-only. The fast-forward re-runs CI on `main` at the
-same SHA, which is what the green-`main` gates (the verified worktree cleanup
-among them) read.
+one exception and stays main-only. Tickets complete once `main` holds a green staged SHA that contains them. The
+fast-forward also re-runs CI on `main` at the same SHA, which is what the
+green-`main` gates (the verified worktree cleanup among them) read; it is not
+a second completion gate.
 
 ## Fast integration suites on all platforms
 
