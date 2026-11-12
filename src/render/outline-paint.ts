@@ -3,6 +3,7 @@ import { colorStr, parseColor } from "./colors.js";
 import { r } from "./format.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 import { blinkCurvedDashPathLength, parseCornerRadii, roundedRectPath, type CornerRadii } from "./borders.js";
+import { BEVEL_PAINT_ORDER, bevelShades, bevelSidePolygons } from "./border-paint.js";
 
 export interface ThinDottedEndpointPlan {
   startDotGrowth: number | null;
@@ -254,6 +255,33 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         }
       } else if ((ostyle === "dashed" || ostyle === "dotted") && borderRadius > 0) {
         out.push(...paintCurvedDashedDottedOutline(el, borderRadius, offset, ow, ostyle, colorStr(ocolor), indent));
+      } else if (
+        (ostyle === "groove" || ostyle === "ridge" || ostyle === "inset" || ostyle === "outset") &&
+        Math.round(ow) >= 1 &&
+        !hasRoundedCorner(el)
+      ) {
+        // DM-W1Q7TN: a single-rect outline paints through BoxBorderPainter
+        // with the outline style on all four edges (chromium 6b5a1b80), so a
+        // 3D style takes the same per-side bevel as a border of the outline's
+        // width on its pixel-snapped outer rect.
+        const width = Math.round(ow);
+        const outer = {
+          x: ox - width / 2,
+          y: oy - width / 2,
+          width: owd + width,
+          height: oh + width,
+        } as CapturedElement;
+        const polygons = bevelSidePolygons(outer, width);
+        for (const side of BEVEL_PAINT_ORDER) {
+          const shades = bevelShades(ocolor, ostyle, side);
+          const shape = polygons[side];
+          if (ostyle === "inset" || ostyle === "outset") {
+            out.push(`${indent}<polygon points="${shape.full}" fill="${shades.outer}" />`);
+          } else {
+            out.push(`${indent}<polygon points="${shape.outer}" fill="${shades.outer}" />`);
+            out.push(`${indent}<polygon points="${shape.inner}" fill="${shades.inner}" />`);
+          }
+        }
       } else if (ostyle === "solid" && hasRoundedCorner(el)) {
         out.push(paintSolidContouredOutline(el, offset, ow, colorStr(ocolor), indent));
       } else {

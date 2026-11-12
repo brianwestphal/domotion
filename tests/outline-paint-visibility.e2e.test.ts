@@ -49,6 +49,11 @@ async function paintedPixels(browser: Browser, html: string): Promise<number> {
 
 /** Alpha channel of a transparent-background screenshot of `html`. */
 async function alphaMap(browser: Browser, html: string): Promise<number[]> {
+  return (await rgbaMap(browser, html)).filter((_, index) => index % 4 === 3);
+}
+
+/** Every RGBA channel of a transparent-background screenshot of `html`. */
+async function rgbaMap(browser: Browser, html: string): Promise<number[]> {
   const page = await browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height }, deviceScaleFactor: 1 });
   try {
     await page.setContent(html, { waitUntil: "load" });
@@ -63,7 +68,7 @@ async function alphaMap(browser: Browser, html: string): Promise<number[]> {
       const context = canvas.getContext("2d")!;
       context.drawImage(image, 0, 0);
       const { data: rgba } = context.getImageData(0, 0, image.width, image.height);
-      return Array.from(rgba.filter((_, index) => index % 4 === 3));
+      return Array.from(rgba);
     }, png);
   } finally {
     await page.close();
@@ -188,6 +193,27 @@ describeBrowser("fractional rounded outline paint space (DM-XDTVBW)", () => {
       const worst = Math.max(...native.map((alpha, index) => Math.abs(alpha - rendered[index]!)));
       expect(native.some((alpha) => alpha > 0)).toBe(true);
       expect(worst).toBeLessThanOrEqual(16);
+    });
+  }
+});
+
+// DM-W1Q7TN: a single-rect outline paints through BoxBorderPainter with the
+// outline style on every edge, so 3D styles take the border bevel (shades,
+// side order and integer split) on the outline's pixel-snapped outer rect.
+describeBrowser("3D outline styles (DM-W1Q7TN)", () => {
+  for (const outline of ["3px groove red", "3px ridge red", "4px inset red", "4px outset rgb(40,90,200)"]) {
+    it(`matches native ${outline} outline`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:20px;height:20px;outline:${outline}}</style><div id="probe"></div>`;
+      const native = await rgbaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      expect(svg).not.toContain('stroke="rgb(255,0,0)"');
+      const rendered = await rgbaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+      // One level of blend rounding at the mitered corner joins, as for borders.
+      const worst = Math.max(...native.map((value, index) => Math.abs(value - rendered[index]!)));
+      expect(worst).toBeLessThanOrEqual(1);
     });
   }
 });

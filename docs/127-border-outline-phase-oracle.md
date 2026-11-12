@@ -15,6 +15,7 @@ tickets:
     "DM-XDTVBW",
     "DM-NVVDRB",
     "DM-XWP1NV",
+    "DM-W1Q7TN",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -120,6 +121,12 @@ side at the integer midpoint `(y1 + y2 + 1) / 2`, so for odd widths the half
 nearer the band's top or left edge is `ceil(w / 2)`. `bevelSidePolygons` and
 `BEVEL_PAINT_ORDER` follow that model. Two separately anti-aliased trapezoids
 per corner used to leave a translucent seam (DM-XWP1NV).
+
+A square single-rect outline in `groove`, `ridge`, `inset` or `outset` paints
+through the same `BoxBorderPainter` path with the outline style on every edge,
+so `paintOutline` emits that bevel, with the same shades, order and split, on
+the outline's pixel-snapped outer rect at the outline width. It used to paint
+one flat stroke (DM-W1Q7TN). Rounded 3D outlines still take the flat stroke.
 
 A negative outline offset is clamped per axis before any of this geometry:
 `AdjustedOutlineOffset` (`outline_painter.cc:79-82`, chromium `6b5a1b80`)
