@@ -48,6 +48,16 @@ interface Probe {
   port: MessagePort | Worker;
   error?: string;
   errorEventType?: string;
+  createdAt: number;
+  errorAfterMs?: number;
+  firstReportAfterMs?: number;
+}
+// DM-98KN22: after the unchanged 8000ms readiness timeout, keep observing for
+// this long so a failure record can tell a late startup outcome from a lost one.
+const LATE_OBSERVATION_MS = 10_000;
+interface LateObservation {
+  windowMs: number;
+  outcome: "error" | "report" | "none";
 }
 type Scope = typeof globalThis & { dm34: Record<string, Probe> };
 const patch = `(()=>{globalThis.__dm34OriginalClear??=Object.getOwnPropertyDescriptor(WebGL2RenderingContext.prototype,'clear');Object.defineProperty(WebGL2RenderingContext.prototype,'clear',{value:function(){},writable:true,configurable:true});return true})()`;
@@ -75,7 +85,10 @@ beforeAll(async () => {
     response.once("finish", () => {
       fact.finished = true;
     });
-    response.end(body);
+    // DM-98KN22: the delayed invalid module lands after the 8000ms readiness
+    // timeout but inside the late-observation window.
+    if (request.url === "/late-missing-worker.js") setTimeout(() => response.end(body), 9000);
+    else response.end(body);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -158,6 +171,7 @@ async function saveStartupFailure(
   kind: string,
   phase: "error" | "timeout",
   scriptPath: string,
+  lateObservation?: LateObservation,
 ): Promise<void> {
   // Capture actual hook/counter state before awaiting any failure diagnostics.
   const observedAt = new Date().toISOString();
@@ -173,6 +187,8 @@ async function saveStartupFailure(
         reports: probe?.reports.length ?? 0,
         error: probe?.error ?? null,
         errorEventType: probe?.errorEventType ?? null,
+        errorAfterMs: probe?.errorAfterMs ?? null,
+        firstReportAfterMs: probe?.firstReportAfterMs ?? null,
         visibility: document.visibilityState,
         focused: document.hasFocus(),
       };
@@ -206,6 +222,7 @@ async function saveStartupFailure(
         kind,
         phase,
         state,
+        lateObservation: lateObservation ?? null,
         controlFacts,
         bootstrapCounters,
         workerDiagnostic,
@@ -224,9 +241,10 @@ async function retainStartupFailure(
   kind: string,
   phase: "error" | "timeout",
   scriptPath: string,
+  lateObservation?: LateObservation,
 ): Promise<void> {
   try {
-    await saveStartupFailure(page, name, kind, phase, scriptPath);
+    await saveStartupFailure(page, name, kind, phase, scriptPath, lateObservation);
   } catch {
     console.warn("Worker startup failed; diagnostic evidence could not be written.");
   }
@@ -246,9 +264,10 @@ async function start(
           ? new SharedWorker(script ?? "/worker.js", { type: "module", name })
           : new Worker(script ?? "/dedicated.js", { type: "module" });
       const port = worker instanceof SharedWorker ? worker.port : worker;
-      const probe: Probe = { worker, port, reports: [] };
+      const probe: Probe = { worker, port, reports: [], createdAt: performance.now() };
       scope.dm34[name] = probe;
       worker.onerror = (event) => {
+        probe.errorAfterMs ??= Math.round(performance.now() - probe.createdAt);
         // Chrome147 shared_worker_client.cc:48–89 dispatches plain Event for
         // fetch/parse failures; only runtime failures carry ErrorEvent.message.
         probe.errorEventType = event instanceof ErrorEvent ? "ErrorEvent" : "Event";
@@ -257,27 +276,42 @@ async function start(
       port.onmessageerror = () => {
         probe.error = "messageerror";
       };
-      port.onmessage = ({ data }: MessageEvent<Report>) => probe.reports.push(data);
+      port.onmessage = ({ data }: MessageEvent<Report>) => {
+        probe.firstReportAfterMs ??= Math.round(performance.now() - probe.createdAt);
+        probe.reports.push(data);
+      };
       if (port instanceof MessagePort) port.start();
     },
     { name, kind, script },
   );
-  try {
-    await page.waitForFunction(
+  const settled = (timeout: number) =>
+    page.waitForFunction(
       (name) => {
         const probe = (globalThis as Scope).dm34[name]!;
         return probe.reports.length > 0 || probe.error != null;
       },
       name,
-      { timeout: 8000 },
+      { timeout },
     );
+  try {
+    await settled(8000);
   } catch (error) {
+    // Diagnostic only: the assertion still fails on the original timeout.
+    const lateOutcome: LateObservation["outcome"] = await settled(LATE_OBSERVATION_MS)
+      .then(() =>
+        page.evaluate(
+          (name): LateObservation["outcome"] => ((globalThis as Scope).dm34[name]!.error != null ? "error" : "report"),
+          name,
+        ),
+      )
+      .catch(() => "none");
     await retainStartupFailure(
       page,
       name,
       kind,
       "timeout",
       script ?? (kind === "shared" ? "/worker.js" : "/dedicated.js"),
+      { windowMs: LATE_OBSERVATION_MS, outcome: lateOutcome },
     );
     throw error;
   }
@@ -367,6 +401,21 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
       workerDiagnostic: { status: string; failureStage: string };
     };
     expect(evidence.workerDiagnostic).toMatchObject({ status: "unavailable", failureStage: "create_page_session" });
+  });
+  it("records a startup outcome that arrives after the readiness timeout", async () => {
+    const p = await page();
+    await expect(start(p, "late-module", "shared", "/late-missing-worker.js")).rejects.toThrow(
+      "page.waitForFunction: Timeout 8000ms",
+    );
+    const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
+      phase: string;
+      state: { error: string | null; errorAfterMs: number | null };
+      lateObservation: { windowMs: number; outcome: string };
+    };
+    expect(evidence.phase).toBe("timeout");
+    expect(evidence.lateObservation).toEqual({ windowMs: 10_000, outcome: "error" });
+    expect(evidence.state.error).toBe("error (Event)");
+    expect(evidence.state.errorAfterMs).toBeGreaterThanOrEqual(8000);
   });
   it("preserves the original startup error when diagnostic artifact I/O fails", async () => {
     const p = await page();

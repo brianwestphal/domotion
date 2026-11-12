@@ -434,6 +434,7 @@ jobs:
             tests/output-linux/image-vdmx-hinting.json
             tests/output-linux/webfont-descriptor-group-*.json
             tests/output-linux/webgl-projective-preflight/
+            tests/output-linux/worker-bootstrap/
             tests/output-linux/literal-family-identity/
             tests/output-linux/opaque-font-family/
             tests/output-linux/computed-font-locale/
