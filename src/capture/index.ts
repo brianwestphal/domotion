@@ -2334,7 +2334,7 @@ async function captureElementTreeWithWarningsInternal(
         await reverifyAnimationFrame();
         await captureSummaryMarkerGeometry(page, typed.tree, viewport, warnings, projectiveProbe?.key);
         await reverifyAnimationFrame();
-        await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key);
+        await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key, warnings);
       } finally {
         // Cleared only after a clean dispose: on a throw the outer `finally` retries them.
         await disposeAll(pseudoStyles, projectiveProbe);
@@ -2431,10 +2431,26 @@ export async function rasterizeProjectiveSurfaces(
   tree: CapturedElement[],
   viewport: { x: number; y: number; width: number; height: number },
   sourceNodeKey?: string,
+  warnings?: CaptureWarning[],
 ): Promise<void> {
   const targets: NonNullable<CapturedElement["transformSubtreeRaster"]>[] = [];
   forEachElement(tree, (element) => {
-    if (element.transformSubtreeRaster != null) targets.push(element.transformSubtreeRaster);
+    const raster = element.transformSubtreeRaster;
+    if (raster == null) return;
+    // The source registry indexes the top-level document only. An owner inside
+    // an allowlisted recursed frame (e.g. a text-geometry fallback surface whose
+    // live and restored quads differed) cannot be isolated by source node, so it
+    // keeps its vector subtree instead of failing the whole capture.
+    if (raster.sourceNodeIndex == null) {
+      delete element.transformSubtreeRaster;
+      warnings?.push({
+        selector: element.tag,
+        feature: "<transform>",
+        detail: "raster surface owner has no Chromium source-node correlation; retained its vector subtree",
+      });
+      return;
+    }
+    targets.push(raster);
   });
   if (targets.length === 0) return;
   if (sourceNodeKey == null) {
@@ -2467,9 +2483,7 @@ export async function rasterizeProjectiveSurfaces(
 
   for (const target of targets) {
     const sourceNodeIndex = target.sourceNodeIndex;
-    if (sourceNodeIndex == null) {
-      throw new Error("projective raster owner is missing its Chromium source-node correlation");
-    }
+    if (sourceNodeIndex == null) continue;
     const restoreRegistry = createPageRegistry<
       Array<{ element: Element; property: string; value: string; priority: string }>
     >(page, "ProjectiveVisibilityRestore");

@@ -135,6 +135,16 @@ const complexOuterSrv = await startRouteServer({
 });
 const complexOuterUrl = `http://127.0.0.1:${complexOuterSrv.port}/`;
 
+// DM-AZ0HVJ: a singular SVG transform makes the inline <svg> request a Chromium
+// raster owner. The source-node registry indexes only the top-level document,
+// so an owner inside a recursed frame has no correlation.
+const singularSvgInnerSrv = await startServer(
+  `<!doctype html><html><body style="margin:0"><div id="singular-text">SINGULAR_FRAME_TEXT</div><svg width="40" height="40"><rect width="20" height="20" fill="#16a34a" transform="scale(0)"/><rect x="20" width="20" height="20" fill="#16a34a"/></svg></body></html>`,
+);
+const singularSvgOuterSrv = await startServer(
+  `<!doctype html><html><body style="margin:0"><iframe src="http://localhost:${singularSvgInnerSrv.port}/" width="200" height="90" style="display:block;border:0"></iframe></body></html>`,
+);
+
 const env = await (async () => {
   try {
     return { browserSecOff: await launchChromium({ args: crossOriginFramesLaunchArgs("*") }) };
@@ -150,6 +160,8 @@ afterAll(async () => {
   await closeServer(complexOuterSrv.server);
   await closeServer(allowedDeepSrv.server);
   await closeServer(deniedDeepSrv.server);
+  await closeServer(singularSvgOuterSrv.server);
+  await closeServer(singularSvgInnerSrv.server);
 }, 20_000);
 
 const describeBrowser = env ? describe : describe.skip;
@@ -436,6 +448,29 @@ describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
     const iframe = await captureIframe(`localhost:${innerSrv.port}`);
     expect(iframe.replacedSnapshot, "matched frame should NOT be rastered").toBeUndefined();
     expect(subtreeHasText(iframe, INNER_TEXT), "inner text should be captured natively").toBe(true);
+  });
+
+  it("keeps an unindexed raster owner inside a recursed frame as vector instead of failing the capture", async () => {
+    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 220, height: 100 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(`http://127.0.0.1:${singularSvgOuterSrv.port}/`, { waitUntil: "networkidle" });
+      const { tree, warnings } = await captureElementTreeWithWarnings(
+        page,
+        "body",
+        { x: 0, y: 0, width: 220, height: 100 },
+        { crossOriginFrames: `localhost:${singularSvgInnerSrv.port}` },
+      );
+      const iframe = findByTag(tree, "iframe");
+      expect(iframe?.replacedSnapshot).toBeUndefined();
+      expect(iframe && subtreeHasText(iframe, "SINGULAR_FRAME_TEXT")).toBe(true);
+      const svg = iframe && findByTag(iframe.children ?? [], "svg");
+      expect(svg, "the recursed frame's inline <svg> is captured").not.toBeNull();
+      expect(svg!.transformSubtreeRaster).toBeUndefined();
+      expect(warnings.some((w) => w.detail.includes("no Chromium source-node correlation"))).toBe(true);
+    } finally {
+      await ctx.close();
+    }
   });
 
   it("recurses all cross-origin frames under the wildcard", async () => {

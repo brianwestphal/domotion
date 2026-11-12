@@ -126,6 +126,14 @@ content paint position, before `paintInlineSvg`, and suppresses the clone plus
 all nested reconstructed/raster descendants. A projective inline-SVG root, an
 HTML ancestor, and HTML 3D under `<foreignObject>` therefore each have one
 effective outer owner. See [doc 162](../162-inline-svg-3d-transform-audit.md).
+
+The same pass also materializes the other requested Chromium surfaces: a text
+element whose authoritative text-fragment geometry was unavailable, and an
+inline `<svg>` whose affine freeze or external `<use>` inlining failed. The
+pass isolates an owner through the source-node registry, which indexes only the
+top-level document. An owner inside an allowlisted recursed cross-origin frame
+therefore has no correlation. It keeps its vector subtree and records a
+`<transform>` capture warning instead of failing the whole capture.
 The affine/non-affine boundary is also covered by
 `npm run transform:geometry-oracle`, `npm run raster:boundary-oracle`, and the
 focused inline-SVG route/pixel oracle.
