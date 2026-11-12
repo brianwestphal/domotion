@@ -1,4 +1,5 @@
 import { imageHtmlNameUnchanged } from "./svg-image-html-identity.js";
+import { imageDoctypeIsInert } from "./svg-image-xml.js";
 import { xmlStyleText } from "./svg-image-css-import.js";
 import { cssUnescape, parseImageElementTree, type ImageElement } from "./svg-image-selector-engine.js";
 import {
@@ -79,7 +80,7 @@ export function preserveImageStyleAttributeIdentity(svg: string): ImageAttribute
 }
 
 function preserveImageAttributes(svg: string, prefix: string, identityOnly: boolean): ImageAttributeIdentity | null {
-  if ((!identityOnly && prefix === "") || /<!DOCTYPE\b|<\?xml-stylesheet\b/i.test(svg)) return null;
+  if ((!identityOnly && prefix === "") || !imageDoctypeIsInert(svg) || /<\?xml-stylesheet\b/i.test(svg)) return null;
   const mutableNames = identityOnly
     ? ["style", "font-family", "animation-name", "list-style-type"]
     : MUTATED_ATTRIBUTES;

@@ -54,3 +54,32 @@ export function imageXmlTokens(xml: string): ImageXmlToken[] | null {
   }
   return tokens;
 }
+
+/** Whether an SVG image document's DOCTYPE (if any) leaves its DOM unchanged.
+ * Blink parses image documents without XML_PARSE_DTDLOAD/DTDATTR and its
+ * externalSubset handler loads nothing; it only switches on the XHTML named
+ * entity table for XHTML/MathML public IDs (XMLParserContext options and
+ * ExternalSubsetHandler, core/xml/parser/xml_document_parser.cc:767-810 and
+ * 1659-1669; MatchesXHTMLSubsetDTD, xhtml_subset.cc; Chromium 6b5a1b80). So
+ * one prolog DOCTYPE with no internal subset and no such public ID is inert.
+ * An internal subset can declare entities and attribute defaults, so any
+ * other declaration shape stays unproved. */
+export function imageDoctypeIsInert(xml: string): boolean {
+  if (!/<!(?!--|\[CDATA\[)/.test(xml)) return true;
+  const tokens = imageXmlTokens(xml);
+  if (tokens == null) return false;
+  let doctypes = 0;
+  let rootSeen = false;
+  for (const token of tokens) {
+    if (token.kind === "open") rootSeen = true;
+    if (token.kind !== "declaration") continue;
+    // XML is case-sensitive: only a prolog `<!DOCTYPE` is a declaration here.
+    const match =
+      /^<!DOCTYPE[\t\n\r ]+[^\s>[]+(?:[\t\n\r ]+(?:SYSTEM[\t\n\r ]+(?:"[^"]*"|'[^']*')|PUBLIC[\t\n\r ]+("[^"]*"|'[^']*')[\t\n\r ]+(?:"[^"]*"|'[^']*')))?[\t\n\r ]*>$/.exec(
+        xml.slice(token.start, token.end),
+      );
+    if (rootSeen || match == null || ++doctypes > 1) return false;
+    if (match[1] != null && /XHTML|MathML/i.test(match[1])) return false;
+  }
+  return true;
+}

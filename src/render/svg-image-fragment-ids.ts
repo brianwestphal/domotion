@@ -1,4 +1,5 @@
 import { parseImageElementTree, type ImageElement } from "./svg-image-selector-engine.js";
+import { imageDoctypeIsInert } from "./svg-image-xml.js";
 
 export interface ImageFragmentInventory {
   root: ImageElement;
@@ -12,7 +13,7 @@ export interface ImageFragmentInventory {
 export function imageFragmentInventory(svg: string): ImageFragmentInventory | null {
   // This lexical parser cannot authenticate DTD-supplied default attributes
   // or stylesheet processing instructions omitted by ordinary inlining.
-  if (/<!DOCTYPE\b|<\?xml-stylesheet\b/i.test(svg)) return null;
+  if (!imageDoctypeIsInert(svg) || /<\?xml-stylesheet\b/i.test(svg)) return null;
   const root = parseImageElementTree(svg, true);
   if (root == null) return null;
   const ids = new Set<string>();

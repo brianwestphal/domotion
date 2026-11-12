@@ -87,11 +87,19 @@ describe("image fragment namespace authentication", () => {
     );
   });
   it.each([
-    '<!DOCTYPE svg><svg><g id="p"/></svg>',
+    '<!DOCTYPE svg [<!ATTLIST g id ID "p">]><svg><g/></svg>',
+    '<!DOCTYPE svg PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "x.dtd"><svg><g id="p"/></svg>',
     '<?xml-stylesheet href="data:text/css,rect{fill:red}"?><svg><g id="p"/></svg>',
     '<svg><g id="p" data-label="&unknown;"/></svg>',
     '<svg><g id="p" data-label="<broken"/></svg>',
   ])("does not infer DOM identity from unproved XML parser state: %s", (svg) => {
     expect(imageFragmentInventory(svg)).toBeNull();
+  });
+  it.each([
+    '<!DOCTYPE svg><svg><g id="p"/></svg>',
+    '<?xml version="1.0"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n<svg><g id="p"/></svg>',
+    "<!DOCTYPE svg SYSTEM 'svg.dtd'><svg><g id=\"p\"/></svg>",
+  ])("admits a DOCTYPE Blink's image parser leaves inert (DM-1YAE1F): %s", (svg) => {
+    expect([...(imageFragmentInventory(svg)?.ids ?? [])]).toEqual(["p"]);
   });
 });

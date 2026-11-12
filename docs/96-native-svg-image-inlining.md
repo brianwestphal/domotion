@@ -423,8 +423,18 @@ references, unsupported URI consumers, namespace/base-URL ambiguity, dynamic
 animation of identity/reference attributes and unproved selector syntax retain
 the source image fallback. A missing target therefore preserves its original
 fallback paint instead of binding to a same-named host target. URL-bearing
-custom properties remain conservative. DTD-bearing images are also retained;
-DM-1YAE1F tracks source-proving harmless self-contained doctypes. Stylesheet
+custom properties remain conservative. A DOCTYPE is admitted only when Blink's
+image parser leaves it inert (DM-1YAE1F, `imageDoctypeIsInert` in
+`src/render/svg-image-xml.ts`). Blink parses without `XML_PARSE_DTDLOAD` or
+`XML_PARSE_DTDATTR`, and its `externalSubset` handler loads nothing. That handler
+only enables the XHTML named-entity table for the XHTML/MathML public IDs in
+`MatchesXHTMLSubsetDTD` (`core/xml/parser/xml_document_parser.cc:767-810,
+1659-1669`; `xhtml_subset.cc`; Chromium `6b5a1b80`). So one prolog DOCTYPE with
+no internal subset and no such public ID, such as a design tool's SVG 1.1
+public doctype, lowers like the same document without it. An internal subset
+(entities, `ATTLIST` defaults), an XHTML/MathML public ID, a second or
+misplaced declaration, or any shape outside the strict grammar keeps the
+source image fallback. Stylesheet
 processing instructions remain outside lexical authentication. This pass does
 not relax data-import MIME/charset/depth/size or fragment admission gates.
 

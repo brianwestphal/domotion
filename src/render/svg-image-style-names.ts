@@ -7,6 +7,7 @@
  * references together, including presentation and inline-style attributes.
  */
 import postcss, { type AtRule, type Declaration, type Root } from "postcss";
+import { imageDoctypeIsInert } from "./svg-image-xml.js";
 import { imageStyleSheets, replaceImageStyleSheets } from "./svg-image-stylesheets.js";
 import { serializeJoinedCdata } from "./svg-image-cdata.js";
 import { renderWarn } from "./render-warn.js";
@@ -464,7 +465,7 @@ export function namespaceImageStyleNames(
   // attributes without preserving attribute comparisons or attr() reads.
   // Do not admit N80's new data spellings through that unproved boundary.
   if ([...names.fonts].some((name) => name === "" || name !== name.trim() || /["'\\]/.test(name))) {
-    if (/<!DOCTYPE\b/i.test(markup)) return null;
+    if (!imageDoctypeIsInert(markup)) return null;
     const root = parseImageElementTree(markup);
     if (root == null) return null;
     const pending = [root];
