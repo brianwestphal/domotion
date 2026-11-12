@@ -277,7 +277,11 @@ GpuControl.CreateCommandBuffer`). The fixture worker's
 `getContext('webgl2')` then returned null and it threw before reporting, so
 macOS runs hit the 8 s readiness timeout. Both paths end on the same
 SwiftShader renderer, so the explicit selection removes only the race.
-Production launches keep the automatic backend.
+Production launches keep the automatic backend. The hosted SharedWorker
+startup failures retained by the owned-process diagnostics below match this
+race: the worker reached its connect handler, read a null WebGL context at its
+first `clearColor` call, and the owned browser's stderr held one or two
+command-buffer send failures and nothing else.
 
 ### Focused native worker diagnostics
 
