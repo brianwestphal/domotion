@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
 import {
   bevelShades,
+  BEVEL_PAINT_ORDER,
   bevelSidePolygons,
   paintBorder,
   paintCollapsedBorderRects,
@@ -78,6 +79,12 @@ describe("SVG border paint owner", () => {
     expect(Object.keys(polygons)).toEqual(["top", "right", "bottom", "left"]);
     expect(polygons.top.full).toContain("10,20 110,20");
     expect(polygons.top.outer).not.toBe(polygons.top.inner);
+    // DM-XWP1NV: top and bottom are full-width bands painted first; right and
+    // left are mitered over them. Odd widths split at Blink's integer midpoint.
+    expect(BEVEL_PAINT_ORDER).toEqual(["top", "bottom", "right", "left"]);
+    const odd = bevelSidePolygons(element({}), 3);
+    expect(odd.top.outer).toBe("10,20 110,20 110,22 10,22");
+    expect(odd.bottom.outer).toBe("10,59 110,59 110,60 10,60");
   });
 
   it("keeps deterministic open-side and closed-contour dash plans", () => {

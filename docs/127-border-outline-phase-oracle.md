@@ -14,6 +14,7 @@ tickets:
     "DM-9X9M8A",
     "DM-XDTVBW",
     "DM-NVVDRB",
+    "DM-XWP1NV",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -108,6 +109,17 @@ itself unless its contrast ratio with that dark shade is below 1.75, in which
 case it is `Color::Light()` (black becomes 84,84,84). `bevelShades` in
 `src/render/border-paint.ts` transcribes this; it previously used two thirds
 per channel (DM-NVVDRB; `tests/border-bevel-shades.e2e.test.ts`).
+
+The sides of a square 3D border paint in `BoxBorderPainter`'s order for one
+opacity group: `kSidePriority` sorts top, bottom, right, left. Top and bottom
+come first and take no miter, because their adjacent sides will still overdraw
+the corners (`WillOverdraw`), so they fill full-width bands. Right and left
+then paint with anti-aliased miters over those bands, which leaves each corner
+join opaque with the two colors mixed. `DrawRidgeOrGrooveBoxSide` splits each
+side at the integer midpoint `(y1 + y2 + 1) / 2`, so for odd widths the half
+nearer the band's top or left edge is `ceil(w / 2)`. `bevelSidePolygons` and
+`BEVEL_PAINT_ORDER` follow that model. Two separately anti-aliased trapezoids
+per corner used to leave a translucent seam (DM-XWP1NV).
 
 A negative outline offset is clamped per axis before any of this geometry:
 `AdjustedOutlineOffset` (`outline_painter.cc:79-82`, chromium `6b5a1b80`)

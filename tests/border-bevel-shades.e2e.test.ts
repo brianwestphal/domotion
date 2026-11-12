@@ -58,6 +58,27 @@ async function sampleColors(browser: Browser, html: string): Promise<string[]> {
   }
 }
 
+async function allChannels(browser: Browser, html: string): Promise<number[]> {
+  const page = await browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height }, deviceScaleFactor: 1 });
+  try {
+    await page.setContent(html, { waitUntil: "load" });
+    const png = (await page.screenshot({ omitBackground: true })).toString("base64");
+    return await page.evaluate(async (data) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d")!;
+      context.drawImage(image, 0, 0);
+      return Array.from(context.getImageData(0, 0, image.width, image.height).data);
+    }, png);
+  } finally {
+    await page.close();
+  }
+}
+
 describeBrowser("3D border shades (DM-NVVDRB)", () => {
   for (const color of ["red", "rgb(40,90,200)", "#102040"]) {
     for (const style of ["groove", "ridge", "inset", "outset"]) {
@@ -77,6 +98,35 @@ describeBrowser("3D border shades (DM-NVVDRB)", () => {
           `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
         );
         expect(rendered).toEqual(native);
+      });
+    }
+  }
+});
+
+// DM-XWP1NV: Blink paints top and bottom as unmitered bands, then right and
+// left with anti-aliased miters over them, and splits groove/ridge halves at
+// an integer midpoint. Whole-image parity holds to one level of blend
+// rounding at the corner joins.
+describeBrowser("3D border corner joins (DM-XWP1NV)", () => {
+  for (const width of [3, 4]) {
+    for (const style of ["groove", "inset"]) {
+      it(`matches native ${width}px ${style} corners`, async () => {
+        const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:40px;height:40px;box-sizing:border-box;border:${width}px ${style} rgb(40,90,200)}</style><div id="probe"></div>`;
+        const page = await env!.browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height } });
+        let svg: string;
+        try {
+          await page.setContent(source, { waitUntil: "load" });
+          svg = elementTreeToSvg(await captureElementTree(page, "body", VIEW), VIEW.width, VIEW.height);
+        } finally {
+          await page.close();
+        }
+        const native = await allChannels(env!.browser, source);
+        const rendered = await allChannels(
+          env!.browser,
+          `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+        );
+        const worst = Math.max(...native.map((value, index) => Math.abs(value - rendered[index]!)));
+        expect(worst).toBeLessThanOrEqual(1);
       });
     }
   }

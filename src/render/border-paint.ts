@@ -72,7 +72,19 @@ export function bevelShades(color: BevelColor, style: string, side: BevelSide): 
   return { outer: outerLight ? light : dark, inner: outerLight ? dark : light };
 }
 
-/** Full and split trapezoids share one border-box geometry for every bevel side. */
+/** BoxBorderPainter's paint order for one opacity group of equal-priority
+ * 3D sides: kSidePriority sorts top, bottom, right, left (chromium 6b5a1b80). */
+export const BEVEL_PAINT_ORDER = ["top", "bottom", "right", "left"] as const;
+
+/** Bevel side geometry in Blink's paint model (box_border_painter.cc at
+ * 6b5a1b80). Top and bottom paint first; their adjacent sides will still
+ * overdraw the corners (WillOverdraw), so they take no miter and fill
+ * full-width bands. Right and left paint last with anti-aliased miters over
+ * those bands, so each corner join is opaque with the two colors mixed
+ * instead of leaving a seam between two anti-aliased polygons.
+ * DrawRidgeOrGrooveBoxSide splits each side at (y1 + y2 + 1) / 2, so the half
+ * nearer the top/left edge of the side's own band is ceil(w / 2): the outer
+ * half of top/left and the inner half of bottom/right. */
 export function bevelSidePolygons(
   el: CapturedElement,
   w: number,
@@ -81,27 +93,30 @@ export function bevelSidePolygons(
     y0 = el.y,
     x1 = el.x + el.width,
     y1 = el.y + el.height;
-  const h = w / 2;
+  const big = Math.ceil(w / 2);
+  const small = w - big;
+  const band = (top: number, bottom: number) =>
+    `${r(x0)},${r(top)} ${r(x1)},${r(top)} ${r(x1)},${r(bottom)} ${r(x0)},${r(bottom)}`;
   return {
     top: {
-      full: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
-      outer: `${r(x0)},${r(y0)} ${r(x1)},${r(y0)} ${r(x1 - h)},${r(y0 + h)} ${r(x0 + h)},${r(y0 + h)}`,
-      inner: `${r(x0 + h)},${r(y0 + h)} ${r(x1 - h)},${r(y0 + h)} ${r(x1 - w)},${r(y0 + w)} ${r(x0 + w)},${r(y0 + w)}`,
+      full: band(y0, y0 + w),
+      outer: band(y0, y0 + big),
+      inner: band(y0 + big, y0 + w),
     },
     right: {
       full: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
-      outer: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - h)},${r(y1 - h)} ${r(x1 - h)},${r(y0 + h)}`,
-      inner: `${r(x1 - h)},${r(y0 + h)} ${r(x1 - h)},${r(y1 - h)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
+      outer: `${r(x1)},${r(y0)} ${r(x1)},${r(y1)} ${r(x1 - small)},${r(y1 - small)} ${r(x1 - small)},${r(y0 + small)}`,
+      inner: `${r(x1 - small)},${r(y0 + small)} ${r(x1 - small)},${r(y1 - small)} ${r(x1 - w)},${r(y1 - w)} ${r(x1 - w)},${r(y0 + w)}`,
     },
     bottom: {
-      full: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
-      outer: `${r(x0)},${r(y1)} ${r(x1)},${r(y1)} ${r(x1 - h)},${r(y1 - h)} ${r(x0 + h)},${r(y1 - h)}`,
-      inner: `${r(x0 + h)},${r(y1 - h)} ${r(x1 - h)},${r(y1 - h)} ${r(x1 - w)},${r(y1 - w)} ${r(x0 + w)},${r(y1 - w)}`,
+      full: band(y1 - w, y1),
+      outer: band(y1 - small, y1),
+      inner: band(y1 - w, y1 - small),
     },
     left: {
       full: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
-      outer: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + h)},${r(y1 - h)} ${r(x0 + h)},${r(y0 + h)}`,
-      inner: `${r(x0 + h)},${r(y0 + h)} ${r(x0 + h)},${r(y1 - h)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
+      outer: `${r(x0)},${r(y0)} ${r(x0)},${r(y1)} ${r(x0 + big)},${r(y1 - big)} ${r(x0 + big)},${r(y0 + big)}`,
+      inner: `${r(x0 + big)},${r(y0 + big)} ${r(x0 + big)},${r(y1 - big)} ${r(x0 + w)},${r(y1 - w)} ${r(x0 + w)},${r(y0 + w)}`,
     },
   };
 }
@@ -142,7 +157,7 @@ function paintMixedBevelBorder(
   styles: { top: string; right: string; bottom: string; left: string },
 ): void {
   const polygons = bevelSidePolygons(el, w);
-  for (const side of ["top", "right", "bottom", "left"] as const) {
+  for (const side of BEVEL_PAINT_ORDER) {
     const style = styles[side];
     const shades = bevelShades(color, style, side);
     const shape = polygons[side];
