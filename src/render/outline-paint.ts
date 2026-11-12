@@ -254,7 +254,7 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         }
       } else if ((ostyle === "dashed" || ostyle === "dotted") && borderRadius > 0) {
         out.push(...paintCurvedDashedDottedOutline(el, borderRadius, offset, ow, ostyle, colorStr(ocolor), indent));
-      } else if (ostyle === "solid" && !uniformCircularRadii(el)) {
+      } else if (ostyle === "solid" && hasRoundedCorner(el)) {
         out.push(paintSolidContouredOutline(el, offset, ow, colorStr(ocolor), indent));
       } else {
         const perimeter = 2 * (owd + oh - 4 * oRadius) + 2 * Math.PI * oRadius;
@@ -269,12 +269,11 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
   return out;
 }
 
-/** True when all four corners share one circular radius (including all
- * square), which the scalar-`rx` stroke and the square path represent. The
- * caller's scalar radius is the top-left corner only, so this reads all four. */
-function uniformCircularRadii(el: CapturedElement): boolean {
+/** True when any corner is rounded. The caller's scalar radius is the
+ * top-left corner only, so this reads all four. */
+function hasRoundedCorner(el: CapturedElement): boolean {
   const c = parseCornerRadii(el.styles, el.width, el.height);
-  return [c.tl, c.tr, c.br, c.bl].every((corner) => corner.h === c.tl.h && corner.v === c.tl.h);
+  return [c.tl, c.tr, c.br, c.bl].some((corner) => corner.h > 0 || corner.v > 0);
 }
 
 /** DM-9X9M8A: a solid rounded single-rect outline with per-corner or elliptical

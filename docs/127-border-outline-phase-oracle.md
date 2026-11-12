@@ -12,6 +12,7 @@ tickets:
     "DM-HGGQMW",
     "DM-RGE1V9",
     "DM-9X9M8A",
+    "DM-XDTVBW",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -130,11 +131,12 @@ chromium `6b5a1b80`): the outer one outset by offset plus width, the inner one
 by offset. Both start from the border radii resolved against the unsnapped box
 and constrained, then grow each nonzero radius component by its side's outset
 (`FloatRoundedRect::Radii::Outset`, `float_rounded_rect.cc:115`); a zero
-component stays square. `paintOutline` emits that even-odd contour pair
-whenever the four corners are not one uniform circular radius, so per-corner
-and elliptical radii no longer collapse to the top-left corner's scalar radius
-(DM-9X9M8A). Curved edges keep a few levels of anti-aliasing difference from
-Skia. Double, dashed and dotted rounded outlines still use the scalar radius.
+component stays square. `paintOutline` emits that even-odd contour pair for every rounded solid
+outline. Per-corner and elliptical radii therefore no longer collapse to the
+top-left corner's scalar radius (DM-9X9M8A), and a circular radius at a
+fractional origin or size paints at the snapped position instead of the
+fractional DOM rect (DM-XDTVBW). Curved edges keep a few levels of
+anti-aliasing difference from Skia. Double, dashed and dotted rounded outlines still use the scalar radius.
 
 A square dashed or dotted single-rect outline paints through
 `BoxBorderPainter`'s outline constructor, which uses the pixel-snapped outer

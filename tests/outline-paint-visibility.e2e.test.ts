@@ -167,3 +167,27 @@ describeBrowser("per-corner outline radii (DM-9X9M8A)", () => {
     }
   }
 });
+
+// DM-XDTVBW: Blink builds every rounded outline contour from the pixel-snapped
+// border box, so a circular radius at a fractional origin or size paints at the
+// snapped position. The old stroke used the unsnapped DOM rect.
+describeBrowser("fractional rounded outline paint space (DM-XDTVBW)", () => {
+  for (const box of [
+    "left:20.5px;top:20.5px;width:20px;height:20px",
+    "left:20px;top:20px;width:20.5px;height:20.5px",
+    "left:20.25px;top:20.75px;width:20.6px;height:20px",
+  ]) {
+    it(`matches native outline coverage for ${box}`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;${box};border-radius:5px;outline:2px solid red}</style><div id="probe"></div>`;
+      const native = await alphaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      const rendered = await alphaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+      const worst = Math.max(...native.map((alpha, index) => Math.abs(alpha - rendered[index]!)));
+      expect(native.some((alpha) => alpha > 0)).toBe(true);
+      expect(worst).toBeLessThanOrEqual(16);
+    });
+  }
+});
