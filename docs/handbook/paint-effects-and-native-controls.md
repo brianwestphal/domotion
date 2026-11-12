@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV", "DM-7P69DC"]
+tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV", "DM-7P69DC", "DM-HZPAYY"]
 code:
   [
     "src/render/element-tree-to-svg.ts",
@@ -196,6 +196,20 @@ producer; the related normal-shadow paint rectangle has its own measured record
 under DM-WYY3ZZ. These are distinct from this selected-root eligibility guard.
 Native verification here is macOS evidence; Linux/Windows execution is not
 implied by the platform-neutral Blink rule.
+
+### Selected generated-pseudo-only roots (DM-HZPAYY)
+
+A selected ordinary root whose only paint is a `::before`/`::after` box or
+text, such as an empty 20×20 div with a red block `::before`, previously
+returned no roots and lost all 400 native pixels. Selecting its container
+reached the same pseudo and matched exactly. Root admission now also retains a
+root whose source-owned native pseudo record (`blink-pseudo-fragment-v1`)
+reports a fragment that is not `unpainted` and whose computed visibility is
+`visible`. Computed `content` and stacking heuristics are not consulted, so
+hidden and `content: none` pseudos still admit nothing. The admitted root then
+takes the ordinary `capture(root)` path, which paints the record exactly as
+when an ancestor is selected (`tests/capture-selected-pseudo-root.e2e.test.ts`).
+
 
 ## Structural form-control failure boundaries
 

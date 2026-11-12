@@ -370,7 +370,13 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
   // walker/counter-prewalk.ts — DM-1086.)
   _runCounterStylePrewalk();
 
-  const result = captureRootElements(root, capture, nonAffineProjectiveRoots, args.insetRootShadowContextKey);
+  const result = captureRootElements(
+    root,
+    capture,
+    nonAffineProjectiveRoots,
+    args.insetRootShadowContextKey,
+    pseudoFragmentFactsFor,
+  );
   attachRootPayloads(result, args, {
     maskDefs: _maskDefs,
     clipPathDefs: _clipPathDefs,

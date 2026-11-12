@@ -573,6 +573,7 @@ export const captureRootElements = (
   capture: (el: Element) => CapturedElement | null,
   nonAffineProjectiveRoots: Set<Element>,
   insetRootShadowContextKey?: string,
+  pseudoFragmentFactsFor?: (el: Element) => CapturedElement["pseudoFragments"] | undefined,
 ) => {
   const result: CapturedElement[] = [];
   const rootCs = window.getComputedStyle(root);
@@ -685,8 +686,17 @@ export const captureRootElements = (
       break;
     }
   }
+  // A selected root whose only paint is a generated pseudo box or text still
+  // owns that paint. Admit it from the source-owned native pseudo record
+  // (blink-pseudo-fragment-v1) rather than computed content, so unpainted,
+  // hidden and content:none pseudos stay excluded (DM-HZPAYY).
+  const rootPseudoFragments = pseudoFragmentFactsFor != null ? pseudoFragmentFactsFor(root) : undefined;
+  const rootHasGeneratedPaint =
+    rootPseudoFragments != null &&
+    rootPseudoFragments.some((fragment) => fragment.status !== "unpainted" && fragment.paint.visibility === "visible");
   if (
     rootHasContentPaint ||
+    rootHasGeneratedPaint ||
     rootHasBorder ||
     rootHasBg ||
     rootHasShadow ||
