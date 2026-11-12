@@ -182,8 +182,10 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         // visually-merged stroke. (DM-443.)
         const sw = Math.round(ow / 3);
         const half = (ow - sw) / 2;
-        const outerR = Math.max(0, oRadius + half);
-        const innerR = Math.max(0, oRadius - half);
+        // A zero radius stays square: Blink grows only nonzero radius
+        // components (FloatRoundedRect::Radii::Outset, chromium 6b5a1b80).
+        const outerR = oRadius > 0 ? Math.max(0, oRadius + half) : 0;
+        const innerR = oRadius > 0 ? Math.max(0, oRadius - half) : 0;
         out.push(
           `${indent}<rect x="${r(ox - half)}" y="${r(oy - half)}" width="${r(owd + 2 * half)}" height="${r(oh + 2 * half)}" rx="${r(outerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
         );

@@ -240,3 +240,21 @@ describeBrowser("translucent dashed and dotted outlines (DM-3W427J)", () => {
     });
   }
 });
+
+// DM-XYZ4SD: a square double outline keeps square stripe corners; Blink grows
+// only nonzero radius components (FloatRoundedRect::Radii::Outset). The outer
+// stripe used to get a 1px radius from the stripe half-offset.
+describeBrowser("square double outlines (DM-XYZ4SD)", () => {
+  for (const outline of ["3px double red", "6px double blue", "5px double red;outline-offset:2px"]) {
+    it(`matches native ${outline} outline`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:20px;height:20px;outline:${outline}}</style><div id="probe"></div>`;
+      const native = await rgbaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      const rendered = await rgbaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+      expect(rendered).toEqual(native);
+    });
+  }
+});

@@ -18,6 +18,7 @@ tickets:
     "DM-W1Q7TN",
     "DM-3W427J",
     "DM-XMSZVV",
+    "DM-XYZ4SD",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -136,6 +137,11 @@ opaque inside `BeginLayer(alpha)`. `paintOutline` wraps those side strokes in a
 `<g opacity>` with the opaque color; separately translucent strokes used to
 double-blend where they overlap at the corners (DM-3W427J). A translucent
 uniform dashed or dotted border takes the same layer (DM-XMSZVV).
+
+A square double outline keeps square stripe corners. The stripes' radii start
+from the border radius and are offset by half the stripe spacing, but Blink
+grows only nonzero radius components, so a zero radius stays zero. The outer
+stripe used to pick up a 1 px radius from that offset (DM-XYZ4SD).
 
 A negative outline offset is clamped per axis before any of this geometry:
 `AdjustedOutlineOffset` (`outline_painter.cc:79-82`, chromium `6b5a1b80`)
