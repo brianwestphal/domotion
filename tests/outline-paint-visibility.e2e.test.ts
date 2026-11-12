@@ -258,3 +258,32 @@ describeBrowser("square double outlines (DM-XYZ4SD)", () => {
     });
   }
 });
+
+// DM-C77Q41: rounded dashed/dotted outlines clip Blink's doubled curved stroke
+// with anti-aliased rounded-rect clips. Dash phase and length already matched
+// (no on/off disagreement at DPR 4); the residual was edge coverage of an
+// even-odd arc-path ring mask (premultiplied max 26-51). A rounded-rect clip
+// plus inner rounded-rect cut-out leaves 8-15.
+describeBrowser("rounded dashed and dotted outline clipping (DM-C77Q41)", () => {
+  for (const css of [
+    "border-radius:5px;outline:2px dashed red",
+    "border-radius:5px;outline:2px dotted red",
+    "border-radius:5px;outline:4px dashed red",
+    "border-radius:8px;outline:3px dotted blue",
+  ]) {
+    it(`keeps curved-edge coverage close to native for ${css}`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:20px;height:20px;${css}}</style><div id="probe"></div>`;
+      const native = await rgbaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      const rendered = await rgbaMap(env!.browser, `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`);
+      let worst = 0;
+      for (let i = 0; i < native.length; i += 4) {
+        const premultiplied = [0, 1, 2].map((k) =>
+          Math.abs((native[i + k]! * native[i + 3]!) / 255 - (rendered[i + k]! * rendered[i + 3]!) / 255),
+        );
+        worst = Math.max(worst, ...premultiplied, Math.abs(native[i + 3]! - rendered[i + 3]!));
+      }
+      expect(worst).toBeLessThanOrEqual(16);
+    });
+  }
+});

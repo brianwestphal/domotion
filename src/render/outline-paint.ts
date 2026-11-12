@@ -411,9 +411,30 @@ function paintCurvedDashedDottedOutline(
     /\./g,
     "_",
   );
+  const stroke = `<path d="${roundedRectPath(center.x, center.y, center.w, center.h, centerRadii)}" fill="none" stroke="${color}" stroke-width="${r(strokeWidth)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${roundDots ? ` stroke-linecap="round"` : ""} mask="url(#${maskId})" />`;
+  // Blink clips the doubled stroke to the outer contour and clips out the
+  // inner one (ClipContouredRect / ClipOutContouredRect around
+  // DrawCurvedDashedDottedBoxSide, box_border_painter.cc, Chromium 6b5a1b80),
+  // i.e. Skia's anti-aliased rounded-rect clips. An even-odd arc-path ring mask
+  // covers the curved edges differently; a rounded-rect clipPath plus an inner
+  // rounded-rect cut-out matches them (DM-C77Q41). Radii that exceed half a
+  // side keep the path ring, whose per-corner clamp a <rect> cannot express.
+  const outerRadius = radiiAt(outset).tl.h,
+    innerRadius = radiiAt(outset - width).tl.h;
+  if (
+    outerRadius <= Math.min(outer.w, outer.h) / 2 &&
+    innerRadius <= Math.min(inner.w, inner.h) / 2 &&
+    inner.w > 0 &&
+    inner.h > 0
+  ) {
+    const rect = (b: typeof outer, radius: number, fill?: string) =>
+      `<rect x="${r(b.x)}" y="${r(b.y)}" width="${r(b.w)}" height="${r(b.h)}" rx="${r(radius)}" ry="${r(radius)}"${fill != null ? ` fill="${fill}"` : ""}/>`;
+    return [
+      `${indent}<clipPath id="${maskId}-outer">${rect(outer, outerRadius)}</clipPath>`,
+      `${indent}<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}"><rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="white"/>${rect(inner, innerRadius, "black")}</mask>`,
+      `${indent}<g clip-path="url(#${maskId}-outer)">${stroke}</g>`,
+    ];
+  }
   const ring = `${roundedRectPath(outer.x, outer.y, outer.w, outer.h, radiiAt(outset))} ${roundedRectPath(inner.x, inner.y, inner.w, inner.h, radiiAt(outset - width))}`;
-  return [
-    `${indent}<mask id="${maskId}"><path d="${ring}" fill="white" fill-rule="evenodd"/></mask>`,
-    `${indent}<path d="${roundedRectPath(center.x, center.y, center.w, center.h, centerRadii)}" fill="none" stroke="${color}" stroke-width="${r(strokeWidth)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${roundDots ? ` stroke-linecap="round"` : ""} mask="url(#${maskId})" />`,
-  ];
+  return [`${indent}<mask id="${maskId}"><path d="${ring}" fill="white" fill-rule="evenodd"/></mask>`, `${indent}${stroke}`];
 }

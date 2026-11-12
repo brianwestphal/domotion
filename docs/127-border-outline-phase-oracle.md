@@ -20,6 +20,7 @@ tickets:
     "DM-XMSZVV",
     "DM-XYZ4SD",
     "DM-2323",
+    "DM-C77Q41",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -236,6 +237,17 @@ Blink's curved border raster clip widens its temporary stroke to 2.2 times the
 largest adjacent width; the SVG path retains the logical side width because
 its vector clip and mask already antialias the ring. This deviation is named
 `BLINK_CURVED_BORDER_CLIP_OVERDRAW` in the renderer.
+
+A rounded dashed/dotted single-rect outline (DM-C77Q41) clips its doubled
+centerline stroke the way Blink does: an outer rounded-rect clip and an inner
+rounded-rect clip-out (`ClipContouredRect` / `ClipOutContouredRect` around
+`DrawCurvedDashedDottedBoxSide`, Chromium `6b5a1b80`). The renderer emits a
+`<clipPath>` holding one `<rect rx ry>` and a mask that cuts out the inner
+rounded rect, rather than an even-odd arc-path ring mask. At DPR 4 the old ring
+showed no dash on/off disagreement, only edge coverage on the corner arcs
+(premultiplied max 26–51 at DPR 1). The rounded-rect clips leave 8–15. A radius
+larger than half a side keeps the path ring. Curved dashed/dotted borders still
+use the path ring (DM-KA85VS).
 
 The element-tree renderer remains the paint-order
 orchestrator and calls this state-independent owner at the existing outline
