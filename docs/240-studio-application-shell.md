@@ -205,9 +205,9 @@ The chrome comes from `@kerfjs/ui` ([doc 273](273-ui-conventions.md)):
 - status, success and error messages render as a `StateBanner` (errors use an
   alert live region; validation issues are listed under the banner);
 - an unselected Scrubber preview shows an `EmptyState`;
-- the preview selector ("Whole story", "Scene N") is a controlled
+- the preview selector ("Whole Story", "Scene N") is a controlled
   `SegmentedControl`: one exclusive group labeled "Preview", each segment
-  keeping its "Whole story" / "Scene N" accessible name and reporting
+  keeping its "Whole Story" / "Scene N" accessible name and reporting
   `aria-pressed`. Before the first choice no segment is pressed. All segments
   share one `preview-select` action whose `data-segment-value` is `story` or
   `scene:<scene id>`. A segment is disabled while a preview loads or when its
@@ -217,7 +217,7 @@ The chrome comes from `@kerfjs/ui` ([doc 273](273-ui-conventions.md)):
   their text labels unchanged.
 
 Two pieces stay bespoke. The timeline toolbar (Earlier, Later, Shorter,
-Longer, Undo timeline, Redo timeline, next to the zoom and snap fields) stays
+Longer, Undo Timeline, Redo Timeline, next to the zoom and snap fields) stays
 plain text buttons: `ToolbarControlGroup` styles its child buttons as 2rem
 icon pills with no padding, so adopting it would mean icon-only verbs, and
 there is no standard icon that reads as "Shorter" or "Longer". The "Create or

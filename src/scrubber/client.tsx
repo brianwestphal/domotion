@@ -304,11 +304,11 @@ function render() {
           <div class={dragging.value ? "drop over" : "drop"} data-drop>
             <EmptyState
               icon={<LucideIcon icon={FileUp} name="file-up" />}
-              title="Drop an animated SVG here"
+              title="Drop an Animated SVG Here"
               detail="or choose a file from your computer"
               action={
                 <button type="button" class="primary" data-drop>
-                  Choose SVG file
+                  Choose SVG File
                 </button>
               }
             />
@@ -361,7 +361,7 @@ function render() {
               </ToolbarControlGroup>
               <Select
                 name="speed"
-                ariaLabel="Playback speed"
+                ariaLabel="Playback Speed"
                 size="compact"
                 triggerWidth="fit-content"
                 value={SPEEDS.find((v) => parseFloat(v) === speed.value) ?? "1"}
@@ -459,7 +459,7 @@ function render() {
                 class="iconbtn"
                 data-action="zoomout"
                 title="zoom out"
-                aria-label="Zoom out"
+                aria-label="Zoom Out"
                 disabled={!svgLoaded.value}
               >
                 {ICON_ZOOM_OUT}
@@ -483,7 +483,7 @@ function render() {
                 class="iconbtn"
                 data-action="zoomin"
                 title="zoom in"
-                aria-label="Zoom in"
+                aria-label="Zoom In"
                 disabled={!svgLoaded.value}
               >
                 {ICON_ZOOM_IN}
@@ -493,7 +493,7 @@ function render() {
                 class="iconbtn"
                 data-action="center"
                 title="reset pan to center"
-                aria-label="center"
+                aria-label="Center"
                 disabled={!svgLoaded.value}
               >
                 {ICON_CENTER}
@@ -505,7 +505,7 @@ function render() {
               class={cropMode.value ? "iconbtn active" : "iconbtn"}
               data-action="croptoggle"
               title="crop"
-              aria-label="crop"
+              aria-label="Crop"
               aria-pressed={cropMode.value ? "true" : "false"}
               disabled={!svgLoaded.value}
             >
@@ -515,7 +515,7 @@ function render() {
                 crop mode is on — disabled otherwise. */}
             <Select
               name="cropaspect"
-              ariaLabel="Crop aspect ratio"
+              ariaLabel="Crop Aspect Ratio"
               size="compact"
               triggerWidth="fit-content"
               value={cropAspect.value}
@@ -556,7 +556,7 @@ function render() {
                 />
                 <Select
                   name="rv-category"
-                  ariaLabel="Ticket category"
+                  ariaLabel="Ticket Category"
                   size="compact"
                   triggerWidth="fit-content"
                   value={ticketCategory.value}
@@ -580,7 +580,7 @@ function render() {
                   title="add a centered region without using a pointer"
                   disabled={!svgLoaded.value}
                 >
-                  Add centered region
+                  Add Centered Region
                 </button>
                 <button data-action="rv-clear-region" disabled={!svgLoaded.value || regions.value.length === 0}>
                   Clear

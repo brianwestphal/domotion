@@ -1015,15 +1015,15 @@ const FILTER_CHOICES = [
   { value: "pass", label: "Passing" },
 ];
 const SUITE_CHOICES = [
-  { value: "all", label: "All suites" },
+  { value: "all", label: "All Suites" },
   ...["features", "showcase", "html-test", "html-test-unicode", "real-world"].map((v) => ({ value: v, label: v })),
 ];
 const SORT_CHOICES = [
-  { value: "verdict-desc", label: "Verdict (worst first)" },
-  { value: "coverage-desc", label: "Coverage % (largest first)" },
-  { value: "regions-desc", label: "Regions (most first)" },
-  { value: "diff-desc", label: "Avg diff % (worst first)" },
-  { value: "diff-asc", label: "Avg diff % (best first)" },
+  { value: "verdict-desc", label: "Verdict (Worst First)" },
+  { value: "coverage-desc", label: "Coverage % (Largest First)" },
+  { value: "regions-desc", label: "Regions (Most First)" },
+  { value: "diff-desc", label: "Avg Diff % (Worst First)" },
+  { value: "diff-asc", label: "Avg Diff % (Best First)" },
   { value: "name", label: "Name (A→Z)" },
 ];
 
@@ -1052,7 +1052,7 @@ function Layout({
       <body>
         <header>
           <Toolbar
-            label="Review summary"
+            label="Review Summary"
             className="review-toolbar"
             leading={<h1>SVG Demo Test Review</h1>}
             trailing={<span className="stats" id="stats"></span>}
@@ -1082,7 +1082,7 @@ function Layout({
               id="refresh-source"
               className="refresh-btn"
               title="Re-fetch the latest CI run for this source"
-              aria-label="Refresh source"
+              aria-label="Refresh Source"
             >
               <LucideIcon icon={RefreshCw} name="refresh-cw" />
             </button>
@@ -1448,7 +1448,7 @@ async function main(): Promise<void> {
         const detailsParts = [
           `Suite: \`${match.suite}\``,
           `Test: \`${name}\``,
-          `Logical-stage classification: ${formatLogicalClassification(classification)}`,
+          `Logical-Stage Classification: ${formatLogicalClassification(classification)}`,
           ...(regionLine != null ? [regionLine] : []),
           `Diff (legacy): ${match.diffPct.toFixed(2)}% avg${match.sigPixelPct != null ? ` · sig ${match.sigPixelPct.toFixed(1)}%` : ""}${match.worstTilePct != null ? ` · tile avg ${match.worstTilePct.toFixed(1)}%` : ""}${match.worstTileSignificantPct != null ? ` · tile sig ${match.worstTileSignificantPct.toFixed(1)}%` : ""}`,
           `Status: ${match.skipped ? `SKIP (${match.skipReason ?? "no reason"})` : match.error != null ? `ERROR (${match.error})` : match.pass ? "PASS" : "FAIL"}`,

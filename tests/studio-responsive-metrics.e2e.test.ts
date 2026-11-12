@@ -85,8 +85,8 @@ it("keeps Studio counters and labels within their panel across responsive round 
     }
     expect(measurements[0]!.cards).toEqual(measurements[3]!.cards);
     expect(new Set(measurements[0]!.cards.map(({ top }) => top)).size).toBe(1);
-    await browserExpect(panel.getByRole("button", { name: "Generate whole story", exact: true })).toBeDisabled();
-    await page.getByRole("button", { name: "Add scene", exact: true }).click();
+    await browserExpect(panel.getByRole("button", { name: "Generate Whole Story", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Add Scene", exact: true }).click();
     await browserExpect(panel.locator(".metric strong").first()).toHaveText("9");
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await browserExpect(panel.locator(".metric strong").first()).toHaveText("8");

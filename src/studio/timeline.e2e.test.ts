@@ -78,7 +78,7 @@ describe("Studio detailed multitrack timeline browser workflow (DM-2692)", () =>
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(server.url, { waitUntil: "load" });
     await page.getByRole("heading", { name: "Timeline E2E" }).waitFor();
-    await page.getByRole("region", { name: "Multitrack timeline" }).waitFor();
+    await page.getByRole("region", { name: "Multitrack Timeline" }).waitFor();
 
     const first = page.locator('[data-timeline-id="semantic:scene-opening:track-demo:event-start"]');
     await first.click();
@@ -94,7 +94,7 @@ describe("Studio detailed multitrack timeline browser workflow (DM-2692)", () =>
     await expect
       .poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].atMs)
       .toBe(150);
-    await expect.poll(() => page!.getByRole("button", { name: "Undo timeline" }).isEnabled()).toBe(true);
+    await expect.poll(() => page!.getByRole("button", { name: "Undo Timeline" }).isEnabled()).toBe(true);
 
     const moved = page.locator('[data-timeline-id="semantic:scene-opening:track-demo:event-start"]');
     await moved.hover({ position: { x: 3, y: 15 } });
@@ -111,7 +111,7 @@ describe("Studio detailed multitrack timeline browser workflow (DM-2692)", () =>
     await expect
       .poll(() => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].atMs)
       .toBe(250);
-    await expect.poll(() => page!.getByRole("button", { name: "Undo timeline" }).isEnabled()).toBe(true);
+    await expect.poll(() => page!.getByRole("button", { name: "Undo Timeline" }).isEnabled()).toBe(true);
 
     const resized = page.locator('[data-timeline-id="semantic:scene-opening:track-demo:event-start"]');
     await resized.press("Alt+ArrowRight");
@@ -121,13 +121,13 @@ describe("Studio detailed multitrack timeline browser workflow (DM-2692)", () =>
       )
       .toBe(150);
 
-    await page.getByRole("button", { name: "Undo timeline" }).click();
+    await page.getByRole("button", { name: "Undo Timeline" }).click();
     await expect
       .poll(
         () => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs,
       )
       .toBe(100);
-    await page.getByRole("button", { name: "Redo timeline" }).click();
+    await page.getByRole("button", { name: "Redo Timeline" }).click();
     await expect
       .poll(
         () => openStudioProjectFile(root, "timeline.studio.json").project.scenes[0].tracks?.[0].events[0].durationMs,

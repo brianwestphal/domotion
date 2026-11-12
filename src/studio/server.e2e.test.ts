@@ -109,8 +109,8 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     const barePage = await browser.newPage();
     try {
       await barePage.goto(bareServer.url, { waitUntil: "load" });
-      expect(await barePage.getByRole("button", { name: "Generate whole story" }).isDisabled()).toBe(true);
-      expect(await barePage.getByRole("button", { name: "Import as editable scene" }).isDisabled()).toBe(true);
+      expect(await barePage.getByRole("button", { name: "Generate Whole Story" }).isDisabled()).toBe(true);
+      expect(await barePage.getByRole("button", { name: "Import as Editable Scene" }).isDisabled()).toBe(true);
 
       const base = { path: file.relativePath, expectedHeadRevisionId: file.project.review.headRevisionId };
       const generation = await barePage.request.post(new URL("/api/generate", bareServer.url).toString(), {
@@ -151,7 +151,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByText("Template · title-card").waitFor();
     await testPage.getByText("Needs generation").waitFor();
     await testPage.locator('[data-field="narrative-title"]').fill("Glassbox Reveal");
-    await testPage.getByLabel("Scene 1 title").fill("Show the review loop");
+    await testPage.getByLabel("Scene 1 Title").fill("Show the review loop");
     await testPage.getByText("Unsaved changes").waitFor();
 
     const save = testPage.getByRole("button", { name: "Save" });
@@ -179,46 +179,46 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByRole("button", { name: "Reopen" }).click();
     await testPage.getByRole("heading", { name: "Glassbox Reveal" }).waitFor();
     expect(await testPage.locator('[data-field="narrative-title"]').inputValue()).toBe("Glassbox Reveal");
-    expect(await testPage.getByLabel("Scene 1 title").inputValue()).toBe("Show the review loop");
+    expect(await testPage.getByLabel("Scene 1 Title").inputValue()).toBe("Show the review loop");
 
-    await testPage.getByRole("button", { name: "Add beat" }).click();
+    await testPage.getByRole("button", { name: "Add Beat" }).click();
     const secondBeat = testPage.locator("[data-beat-id]").nth(1);
     await secondBeat.getByLabel(/Beat .* title/).fill("Payoff");
     await secondBeat.getByLabel(/Beat .* summary/).fill("Close on the generated result.");
-    await testPage.getByRole("button", { name: "Add scene" }).click();
+    await testPage.getByRole("button", { name: "Add Scene" }).click();
     const secondScene = testPage.locator("[data-scene-id]").nth(1);
-    await secondScene.getByLabel("Scene 2 title").fill("Generated payoff");
-    await secondScene.getByLabel("Scene 2 description").fill("Show the reviewed output.");
+    await secondScene.getByLabel("Scene 2 Title").fill("Generated payoff");
+    await secondScene.getByLabel("Scene 2 Description").fill("Show the reviewed output.");
     await secondScene
-      .getByLabel("Scene 2 generation instructions")
+      .getByLabel("Scene 2 Generation Instructions")
       .fill("Inspect the live DOM and computed CSS before capture, then keep the cursor deliberate.");
-    await chooseKerfSelectOption(secondScene.getByRole("combobox", { name: "Scene 2 narrative beat", exact: true }), {
+    await chooseKerfSelectOption(secondScene.getByRole("combobox", { name: "Scene 2 Narrative Beat", exact: true }), {
       label: "Payoff",
     });
     await chooseKerfSelectOption(
-      secondScene.getByRole("combobox", { name: "Scene 2 source type", exact: true }),
+      secondScene.getByRole("combobox", { name: "Scene 2 Source Type", exact: true }),
       "svg",
     );
     await testPage
       .locator("[data-scene-id]")
       .nth(1)
-      .getByLabel("Scene 2 source", { exact: true })
+      .getByLabel("Scene 2 Source", { exact: true })
       .fill("source/payoff.svg");
-    await testPage.locator("[data-scene-id]").nth(1).getByLabel("Scene 2 source", { exact: true }).press("Tab");
-    await secondScene.getByLabel("Scene 2 trim start").fill("200");
-    await secondScene.getByLabel("Scene 2 trim start").press("Tab");
-    await secondScene.getByLabel("Scene 2 trim end").fill("1200");
-    await secondScene.getByLabel("Scene 2 trim end").press("Tab");
-    await chooseKerfSelectOption(secondScene.getByRole("combobox", { name: "Scene 2 fit", exact: true }), "cover");
+    await testPage.locator("[data-scene-id]").nth(1).getByLabel("Scene 2 Source", { exact: true }).press("Tab");
+    await secondScene.getByLabel("Scene 2 Trim Start").fill("200");
+    await secondScene.getByLabel("Scene 2 Trim Start").press("Tab");
+    await secondScene.getByLabel("Scene 2 Trim End").fill("1200");
+    await secondScene.getByLabel("Scene 2 Trim End").press("Tab");
+    await chooseKerfSelectOption(secondScene.getByRole("combobox", { name: "Scene 2 Fit", exact: true }), "cover");
     await chooseKerfSelectOption(
-      secondScene.getByRole("combobox", { name: "Scene 2 transition", exact: true }),
+      secondScene.getByRole("combobox", { name: "Scene 2 Transition", exact: true }),
       "push-left",
     );
     await chooseKerfSelectOption(
-      secondScene.getByRole("combobox", { name: "Scene 2 cinematic preset", exact: true }),
+      secondScene.getByRole("combobox", { name: "Scene 2 Cinematic Preset", exact: true }),
       "browser-chrome",
     );
-    await secondScene.getByRole("button", { name: "Regenerate scene" }).click();
+    await secondScene.getByRole("button", { name: "Regenerate Scene" }).click();
     await expect
       .poll(() => testPage.locator(".notice").getByRole("status").textContent())
       .toContain("Generated glassbox.studio.json");
@@ -231,17 +231,17 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       },
     });
     await testPage.getByRole("button", { name: "Reopen", exact: true }).click();
-    await testPage.getByLabel("Scene 2 title").waitFor();
-    expect(await testPage.getByLabel("Scene 2 source", { exact: true }).inputValue()).toBe("source/payoff.svg");
-    expect(await testPage.getByLabel("Scene 2 duration").inputValue()).toBe("1000");
-    expect(await kerfSelectValue(testPage.getByRole("combobox", { name: "Scene 2 fit", exact: true }))).toBe("cover");
+    await testPage.getByLabel("Scene 2 Title").waitFor();
+    expect(await testPage.getByLabel("Scene 2 Source", { exact: true }).inputValue()).toBe("source/payoff.svg");
+    expect(await testPage.getByLabel("Scene 2 Duration").inputValue()).toBe("1000");
+    expect(await kerfSelectValue(testPage.getByRole("combobox", { name: "Scene 2 Fit", exact: true }))).toBe("cover");
     expect(
-      await kerfSelectValue(testPage.getByRole("combobox", { name: "Scene 2 cinematic preset", exact: true })),
+      await kerfSelectValue(testPage.getByRole("combobox", { name: "Scene 2 Cinematic Preset", exact: true })),
     ).toBe("browser-chrome");
 
     await testPage.getByLabel("New review note").fill("Pause on the highlighted control.");
     await chooseKerfSelectOption(
-      testPage.getByRole("combobox", { name: "Annotation scope", exact: true }),
+      testPage.getByRole("combobox", { name: "Annotation Scope", exact: true }),
       "scene-opening",
     );
     await testPage.getByLabel("Annotation start time").fill("420");
@@ -250,21 +250,21 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByLabel("Annotation region y").fill("36");
     await testPage.getByLabel("Annotation region width").fill("180");
     await testPage.getByLabel("Annotation region height").fill("72");
-    await testPage.getByRole("button", { name: "Add annotation" }).click();
+    await testPage.getByRole("button", { name: "Add Annotation" }).click();
     await expect
       .poll(() => testPage.locator(".notice").getByRole("status").textContent())
       .toContain("Added annotation");
     const annotation = testPage.locator("[data-annotation-id]").first();
     await annotation.getByText("Scene scene-opening · point 420ms · 420–780ms · 1 region").waitFor();
     await annotation.locator("textarea").fill("Pause longer on the highlighted control.");
-    await annotation.getByRole("button", { name: "Save note" }).click();
+    await annotation.getByRole("button", { name: "Save Note" }).click();
     await expect
       .poll(() => testPage.locator(".notice").getByRole("status").textContent())
       .toContain("Updated annotation");
     await annotation.locator("textarea").fill("Resolve this edited draft without losing it.");
     await annotation.getByRole("button", { name: "Resolve", exact: true }).click();
-    await annotation.getByRole("button", { name: "Reopen note", exact: true }).waitFor();
-    await annotation.getByRole("button", { name: "Reopen note", exact: true }).click();
+    await annotation.getByRole("button", { name: "Reopen Note", exact: true }).waitFor();
+    await annotation.getByRole("button", { name: "Reopen Note", exact: true }).click();
     await annotation.getByRole("button", { name: "Resolve", exact: true }).waitFor();
     await annotation.getByRole("button", { name: "Resolve", exact: true }).click();
     await annotation.getByText("resolved", { exact: true }).waitFor();
@@ -475,11 +475,11 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:01.00 / 0:01.20");
     expect(await scrubber.locator("[data-action=outn]").inputValue()).toBe("1.20");
 
-    await testPage.getByRole("button", { name: "Whole story", exact: true }).click();
+    await testPage.getByRole("button", { name: "Whole Story", exact: true }).click();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:03.20");
     expect(
       await previewGroup.locator('[aria-pressed="true"]').evaluateAll((els) => els.map((el) => el.textContent)),
-    ).toEqual(["Whole story"]);
+    ).toEqual(["Whole Story"]);
     const beforePlay = await scrubber.locator(".time").textContent();
     await scrubber.getByRole("button", { name: "Play" }).click();
     await testPage.waitForTimeout(180);
@@ -489,7 +489,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByRole("button", { name: "Scene 1", exact: true }).click();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:01.20");
     await chooseKerfSelectOption(scrubber.locator("kui-select[name=zoompreset]"), "1");
-    await scrubber.getByRole("button", { name: "center" }).click();
+    await scrubber.getByRole("button", { name: "Center" }).click();
     await scrubber.locator("[data-action=scrub]").evaluate((element) => {
       const input = element as HTMLInputElement;
       input.value = "500";
@@ -566,10 +566,10 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     await testPage.getByLabel("New project title").fill("Keyed Lists");
     await testPage.getByRole("button", { name: "Create" }).click();
     await testPage.getByRole("heading", { name: "Keyed Lists" }).waitFor();
-    await testPage.getByRole("button", { name: "Add scene" }).click();
+    await testPage.getByRole("button", { name: "Add Scene" }).click();
     await testPage.locator("[data-scene-id]").nth(1).waitFor();
-    await testPage.getByLabel("Scene 1 title").fill("First");
-    await testPage.getByLabel("Scene 2 title").fill("Second");
+    await testPage.getByLabel("Scene 1 Title").fill("First");
+    await testPage.getByLabel("Scene 2 Title").fill("Second");
 
     const sceneIds = await testPage
       .locator("[data-scene-id]")
@@ -587,7 +587,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
         .evaluate((el) => (el as HTMLElement).click());
 
     // Reorder: move the FIRST scene down while its title input has focus.
-    await testPage.getByLabel("Scene 1 title").focus();
+    await testPage.getByLabel("Scene 1 Title").focus();
     await testPage.keyboard.press("End");
     await click(firstId, "scene-down");
     await expect.poll(() => testPage.locator("[data-scene-id]").first().getAttribute("data-scene-id")).toBe(secondId);

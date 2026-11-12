@@ -92,7 +92,7 @@ const manifestEl = document.getElementById("manifest-data");
 if (manifestEl == null) throw new Error("manifest-data <script> missing");
 const MANIFEST = JSON.parse(manifestEl.textContent ?? "{}") as ReviewManifest;
 const CLASSIFICATION_CHOICES = [
-  { value: "", label: "Classify this residual…" },
+  { value: "", label: "Classify This Residual…" },
   ...Object.entries(LOGICAL_CLASSIFICATIONS).map(([value, item]) => ({ value, label: item.label })),
 ];
 
@@ -536,7 +536,7 @@ function Card({ r }: { r: ReviewTest }) {
       )}
       <Select
         name="logical-classification"
-        label="Logical-stage classification"
+        label="Logical-Stage Classification"
         className="logical-classification"
         value={persistedClassification}
         choices={CLASSIFICATION_CHOICES}
@@ -546,7 +546,7 @@ function Card({ r }: { r: ReviewTest }) {
         placeholder="What evidence supports this classification? The ticket will include it, the images, metrics, and selected regions."
       ></textarea>
       <div className="actions">
-        <button className="file-btn">File ticket</button>
+        <button className="file-btn">File Ticket</button>
         <span className="status-msg"></span>
       </div>
     </section>
@@ -874,7 +874,7 @@ async function fileTicket(btn: HTMLButtonElement): Promise<void> {
     msg.textContent = "Failed: " + (err instanceof Error ? err.message : String(err));
   } finally {
     btn.disabled = false;
-    btn.textContent = "File ticket";
+    btn.textContent = "File Ticket";
   }
 }
 

@@ -526,7 +526,7 @@ function render() {
                 const scale = timelineScale();
                 const width = timelineWidth(timeline.durationMs);
                 return (
-                  <section class="panel timeline-panel" aria-label="Multitrack timeline">
+                  <section class="panel timeline-panel" aria-label="Multitrack Timeline">
                     <div class="section-head">
                       <h3>Detailed timeline</h3>
                       <span class="badge">{timeline.rows.length} tracks</span>
@@ -548,7 +548,7 @@ function render() {
                         <span>Snap</span>
                         <Select
                           name="timeline-snap"
-                          ariaLabel="Timeline snap"
+                          ariaLabel="Timeline Snap"
                           triggerWidth="fill"
                           value={String(timelineSnapMs.value)}
                           choices={TIMELINE_SNAP_CHOICES}
@@ -579,10 +579,10 @@ function render() {
                         Longer
                       </button>
                       <button data-action="timeline-undo" disabled={busy.value || timelineUndo.value.length === 0}>
-                        Undo timeline
+                        Undo Timeline
                       </button>
                       <button data-action="timeline-redo" disabled={busy.value || timelineRedo.value.length === 0}>
-                        Redo timeline
+                        Redo Timeline
                       </button>
                     </div>
                     <div class="timeline-scroll">
@@ -640,7 +640,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
       <div class="scene-head">
         <label class="field">
           <span>Scene title</span>
-          <input data-field="scene-title" value={scene.title ?? ""} aria-label={`Scene ${index + 1} title`} />
+          <input data-field="scene-title" value={scene.title ?? ""} aria-label={`Scene ${index + 1} Title`} />
         </label>
         <span class={`badge scene-state ${isGenerated(scene.id) ? "good" : "warn"}`}>
           {isGenerated(scene.id) ? "Generated" : "Needs generation"}
@@ -649,13 +649,13 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
       <div class="scene-controls">
         <label class="field span2">
           <span>Description</span>
-          <textarea data-field="scene-description" aria-label={`Scene ${index + 1} description`}>
+          <textarea data-field="scene-description" aria-label={`Scene ${index + 1} Description`}>
             {scene.description ?? ""}
           </textarea>
         </label>
         <label class="field span2">
           <span>Generation instructions</span>
-          <textarea data-field="scene-generation" aria-label={`Scene ${index + 1} generation instructions`}>
+          <textarea data-field="scene-generation" aria-label={`Scene ${index + 1} Generation Instructions`}>
             {scene.generationInstructions ?? ""}
           </textarea>
         </label>
@@ -663,7 +663,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           <span>Narrative beat</span>
           <Select
             name="scene-beat"
-            ariaLabel={`Scene ${index + 1} narrative beat`}
+            ariaLabel={`Scene ${index + 1} Narrative Beat`}
             triggerWidth="fill"
             value={scene.narrativeBeatIds?.[0] ?? ""}
             choices={[
@@ -676,7 +676,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           <span>Source type</span>
           <Select
             name="scene-source-kind"
-            ariaLabel={`Scene ${index + 1} source type`}
+            ariaLabel={`Scene ${index + 1} Source Type`}
             triggerWidth="fill"
             value={scene.render.kind === "composition" ? "composition" : sourceKind(scene)}
             choices={scene.render.kind === "composition" ? COMPOSITION_SOURCE_CHOICES : SOURCE_KIND_CHOICES}
@@ -692,7 +692,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
                 ? `${scene.render.composition.layers.length} authored layers`
                 : sourceValue(scene)
             }
-            aria-label={`Scene ${index + 1} source`}
+            aria-label={`Scene ${index + 1} Source`}
             disabled={scene.render.kind === "composition"}
           />
         </label>
@@ -702,7 +702,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
             <input
               data-field="scene-selector"
               value={storyboardRecipe(scene).capture?.selector ?? "body"}
-              aria-label={`Scene ${index + 1} capture selector`}
+              aria-label={`Scene ${index + 1} Capture Selector`}
             />
           </label>
         )}
@@ -713,7 +713,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
             min="1"
             data-field="scene-duration"
             value={String(scenePresentation(scene).duration ?? "")}
-            aria-label={`Scene ${index + 1} duration`}
+            aria-label={`Scene ${index + 1} Duration`}
           />
         </label>
         <label class="field">
@@ -723,7 +723,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
             min="0"
             data-field="scene-trim-start"
             value={String(scenePresentation(scene).trimStart ?? "")}
-            aria-label={`Scene ${index + 1} trim start`}
+            aria-label={`Scene ${index + 1} Trim Start`}
           />
         </label>
         <label class="field">
@@ -733,14 +733,14 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
             min="1"
             data-field="scene-trim-end"
             value={String(scenePresentation(scene).trimEnd ?? "")}
-            aria-label={`Scene ${index + 1} trim end`}
+            aria-label={`Scene ${index + 1} Trim End`}
           />
         </label>
         <label class="field">
           <span>Fit</span>
           <Select
             name="scene-fit"
-            ariaLabel={`Scene ${index + 1} fit`}
+            ariaLabel={`Scene ${index + 1} Fit`}
             triggerWidth="fill"
             value={scenePresentation(scene).fit ?? "center"}
             choices={FIT_CHOICES}
@@ -750,7 +750,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           <span>Transition</span>
           <Select
             name="scene-transition"
-            ariaLabel={`Scene ${index + 1} transition`}
+            ariaLabel={`Scene ${index + 1} Transition`}
             triggerWidth="fill"
             value={scenePresentation(scene).transition?.type ?? "crossfade"}
             choices={TRANSITION_CHOICES}
@@ -763,14 +763,14 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
             min="0"
             data-field="scene-transition-duration"
             value={String(scenePresentation(scene).transition?.duration ?? STUDIO_DEFAULT_TRANSITION_DURATION_MS)}
-            aria-label={`Scene ${index + 1} transition duration`}
+            aria-label={`Scene ${index + 1} Transition Duration`}
           />
         </label>
         <label class="field">
           <span>Cinematic preset</span>
           <Select
             name="scene-preset"
-            ariaLabel={`Scene ${index + 1} cinematic preset`}
+            ariaLabel={`Scene ${index + 1} Cinematic Preset`}
             triggerWidth="fill"
             value={cinematicPreset(scene)}
             choices={
@@ -814,17 +814,17 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
       <div class="scene-id">{scene.id}</div>
       <div class="scene-actions">
         <button data-action="scene-up" disabled={index === 0}>
-          Move up
+          Move Up
         </button>
         <button data-action="scene-down" disabled={index === current.scenes.length - 1}>
-          Move down
+          Move Down
         </button>
         <button data-action="scene-duplicate">Duplicate</button>
         <button class="danger" data-action="scene-remove" disabled={current.scenes.length === 1}>
           Remove
         </button>
         <button class="primary" data-action="generate-scene" disabled={busy.value || !bootstrap.generationAvailable}>
-          Regenerate scene
+          Regenerate Scene
         </button>
       </div>
     </div>
@@ -934,7 +934,7 @@ function NarrativePanel({ current }: { current: StudioProject }) {
         </div>
         <div class="actions" style="margin-top:12px">
           <button class="primary" data-action="generate-story" disabled={busy.value || !bootstrap.generationAvailable}>
-            Generate whole story
+            Generate Whole Story
           </button>
         </div>
         <p class="help">
@@ -952,7 +952,7 @@ function BeatsPanel({ current }: { current: StudioProject }) {
     <section class="panel">
       <div class="section-head">
         <h3>Narrative beats</h3>
-        <button data-action="beat-add">Add beat</button>
+        <button data-action="beat-add">Add Beat</button>
       </div>
       <div class="beat-list">
         {current.narrative.beats.map((beat) => (
@@ -980,7 +980,7 @@ function ScenesPanel({ current }: { current: StudioProject }) {
     <section class="panel scenes-panel">
       <div class="section-head">
         <h3>Story scenes</h3>
-        <button data-action="scene-add">Add scene</button>
+        <button data-action="scene-add">Add Scene</button>
       </div>
       <div class="scene-list">
         {current.scenes.map((scene, index) => (
@@ -1019,7 +1019,7 @@ function PreviewPanel({ current }: { current: StudioProject }) {
           className="preview-choices"
           value={previewChoiceValue(previewSelection.value)}
           choices={[
-            { value: "story", label: "Whole story", disabled: previewBusy.value || !hasStoryPreview() },
+            { value: "story", label: "Whole Story", disabled: previewBusy.value || !hasStoryPreview() },
             ...current.scenes.map((scene, index) => ({
               value: `${PREVIEW_SCENE_PREFIX}${scene.id}`,
               label: `Scene ${index + 1}`,
@@ -1041,7 +1041,7 @@ function PreviewPanel({ current }: { current: StudioProject }) {
         <div class="preview-empty">
           <EmptyState
             icon={<LucideIcon icon={MonitorPlay} name="monitor-play" />}
-            title="No preview selected"
+            title="No Preview Selected"
             detail="Choose a generated scene or whole-story artifact. Playback, seeking, frame steps, range inspection, zoom, and pan use the embedded SVG Scrubber."
           />
         </div>
@@ -1086,7 +1086,7 @@ function RecordingPanel() {
           data-action="import-recording"
           disabled={busy.value || !bootstrap.recordingImportAvailable}
         >
-          Import as editable scene
+          Import as Editable Scene
         </button>
       </div>
       <p class="help">
@@ -1114,11 +1114,11 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
             <span>Scope</span>
             <Select
               name="annotation-scene"
-              ariaLabel="Annotation scope"
+              ariaLabel="Annotation Scope"
               triggerWidth="fill"
               value={annotationScene.value}
               choices={[
-                { value: "", label: "Whole project" },
+                { value: "", label: "Whole Project" },
                 ...current.scenes.map((scene) => ({ value: scene.id, label: scene.title ?? scene.id })),
               ]}
             />
@@ -1184,7 +1184,7 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
         </div>
         <div class="annotation-actions">
           <button data-action="annotation-create" disabled={busy.value || dirty.value}>
-            Add annotation
+            Add Annotation
           </button>
         </div>
         <p class="review-help">
@@ -1215,7 +1215,7 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
                 data-action="annotation-save"
                 disabled={busy.value || dirty.value || annotation.status !== "open"}
               >
-                Save note
+                Save Note
               </button>
               {annotation.status === "open" && (
                 <button data-action="annotation-resolve" disabled={busy.value || dirty.value}>
@@ -1224,7 +1224,7 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
               )}
               {annotation.status === "resolved" && (
                 <button data-action="annotation-reopen" disabled={busy.value || dirty.value}>
-                  Reopen note
+                  Reopen Note
                 </button>
               )}
             </div>

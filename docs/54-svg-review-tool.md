@@ -79,9 +79,9 @@ A single review card, similar in layout to one card in `tests/review-server
 ()` API: drag empty to draw, drag a handle to resize, click the interior
   to delete. Rects sync across the three figures because they share the
   same source-PNG dimensions.
-- **Add a region without a pointer**: the side panel's "Add centered region"
+- **Add a region without a pointer**: the side panel's "Add Centered Region"
   button adds a region covering the middle half of the image. Until a region
-  exists, the list shows a "No regions yet" empty state.
+  exists, the list shows a "No Regions Yet" empty state.
 - **Caption each region**: the side panel ("Annotated regions") lists one row
   per region with a single-line `<input>` for a freeform description (e.g.
   "border-radius too tight on this corner", "emoji missing tofu fallback").

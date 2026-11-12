@@ -92,7 +92,7 @@ function rebuildRegionList(): void {
       <EmptyState
         className="region-empty"
         icon={<LucideIcon icon={SquareDashedMousePointer} name="square-dashed-mouse-pointer" />}
-        title="No regions yet"
+        title="No Regions Yet"
         detail="Drag on any image above, or add a centered region."
       />
     ).toString();
@@ -193,7 +193,7 @@ function rebuildIssueText(): void {
 // so each control's accessible name is unchanged.
 const COPY_LABEL = iconLabel(ClipboardCopy, "clipboard-copy", copyBtnLabel ?? "Copy issue text");
 copyBtn.innerHTML = COPY_LABEL;
-addRegionBtn.innerHTML = iconLabel(SquareDashedPlus, "square-dashed-plus", "Add centered region");
+addRegionBtn.innerHTML = iconLabel(SquareDashedPlus, "square-dashed-plus", "Add Centered Region");
 
 /**
  * `#copy-status` stays the pre-existing polite live region (a region created

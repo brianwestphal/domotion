@@ -122,7 +122,7 @@ function renderShell(label: string): string {
 <div id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-title"><h2 id="lightbox-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Rendering preview</h2><button id="lightbox-close" type="button">Close</button><div id="lightbox-inner"><div class="region-stage"><img id="lb-img" alt="Enlarged rendering preview"><svg id="lb-overlay" class="region-overlay" preserveAspectRatio="none"></svg></div></div></div>
 <div id="issue-panel">
   <h2 style="font-size: 14px; margin: 16px 0 6px;">Annotated regions</h2>
-  <button id="add-region-btn" type="button">Add centered region</button>
+  <button id="add-region-btn" type="button">Add Centered Region</button>
   <div class="region-list" id="region-list"></div>
   <h2 id="issue-text-heading" style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text</h2><div class="issue-actions"><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
   <textarea id="issue-text" aria-labelledby="issue-text-heading" readonly></textarea>

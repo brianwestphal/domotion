@@ -380,9 +380,9 @@ describe("svg-scrubber server (DM-1040)", () => {
       await page.goto(s2.url, { waitUntil: "load" });
       await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
 
-      const center = page.getByRole("button", { name: "Add centered region" });
+      const center = page.getByRole("button", { name: "Add Centered Region" });
       await expect.poll(() => center.isEnabled()).toBe(true);
-      const drop = page.getByRole("button", { name: /Drop an animated SVG here/ });
+      const drop = page.getByRole("button", { name: /Drop an Animated SVG Here/ });
       expect(await drop.count()).toBe(0); // hidden once the bootstrap transaction commits
       await center.focus();
       expect(await center.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
@@ -394,7 +394,7 @@ describe("svg-scrubber server (DM-1040)", () => {
       // with no regions and drawing disarmed.
       await page.reload({ waitUntil: "load" });
       await page.waitForSelector(".svg-host svg", { timeout: 10_000 });
-      await expect.poll(() => page.getByRole("button", { name: "Add centered region" }).isEnabled()).toBe(true);
+      await expect.poll(() => page.getByRole("button", { name: "Add Centered Region" }).isEnabled()).toBe(true);
       await expect.poll(() => page.locator(".region-box").count()).toBe(0);
 
       const arm = page.locator('button[data-action="rv-region"]');

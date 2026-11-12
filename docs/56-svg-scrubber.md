@@ -44,7 +44,7 @@ svg-scrubber [file.svg] [--port <n>] [--no-open]
 
 - `file.svg` (optional) preloads an SVG into the UI; otherwise drag-drop or use
   the file picker in the browser. With nothing loaded, the stage shows a
-  drop-target empty state whose **Choose SVG file** button (or a click anywhere
+  drop-target empty state whose **Choose SVG File** button (or a click anywhere
   on the drop area) opens the picker.
 - `--port <n>` binds the local server to a fixed port (default: an OS-assigned
   free port on `127.0.0.1`).
