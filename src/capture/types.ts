@@ -2270,6 +2270,14 @@ export interface CapturedElement {
    */
   imageEmbeddingColorScheme?: "light" | "dark";
   /**
+   * The `<img>`'s used image orientation is `none`: computed
+   * `image-orientation: none` on an access-allowed bitmap
+   * (`LayoutImageResource::ImageOrientation`). Natural size and paint use the
+   * stored pixel grid, so the renderer neutralizes the embedded EXIF
+   * orientation (`src/render/image-orientation.ts`). Absent otherwise.
+   */
+  imageOrientationNone?: true;
+  /**
    * The `prefersReducedMotion` / `inForcedColors` Settings an `<img>`'s SVG
    * image document copies from the renderer's first ordinary page
    * (`SVGImage::DataChanged`, `core/svg/graphics/svg_image.cc:901-904`;

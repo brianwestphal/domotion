@@ -47,6 +47,7 @@ export const captureImageElement = ({
   let imageAlt;
   let brokenImageFallback;
   let imageEmbeddingColorScheme: "light" | "dark" | undefined;
+  let imageOrientationNone: true | undefined;
   // The img's own computed `content`, classified and loaded by the async
   // prime pass (primePseudoImageIntrinsics). A single unerrored generated
   // image owns the box in place of src and the UA fallback. An image followed
@@ -110,6 +111,26 @@ export const captureImageElement = ({
         el.ownerDocument.defaultView?.getComputedStyle(el).imageOrientation === decoded.orientation
       ) {
         imageDecodedIntrinsic = { w: decoded.width, h: decoded.height };
+      }
+    }
+    // Blink applies `image-orientation: none` only to an access-allowed
+    // bitmap; a CORS-tainted one keeps its EXIF orientation
+    // (ImageResourceContent::ForceOrientationIfNecessary,
+    // image_resource_content.cc:338-343, Chromium 6b5a1b80). A canvas read of
+    // the same element is the page-visible form of that access check.
+    if (img.naturalWidth > 0 && el.ownerDocument.defaultView?.getComputedStyle(el).imageOrientation === "none") {
+      try {
+        const probe = el.ownerDocument.createElement("canvas");
+        probe.width = 1;
+        probe.height = 1;
+        const probeContext = probe.getContext("2d");
+        if (probeContext != null) {
+          probeContext.drawImage(img, 0, 0, 1, 1);
+          probeContext.getImageData(0, 0, 1, 1);
+          imageOrientationNone = true;
+        }
+      } catch {
+        // Tainted: Chromium respects the image's own orientation.
       }
     }
     // Broken-image fallback (DM-372): img.complete && naturalWidth===0 means
@@ -212,5 +233,6 @@ export const captureImageElement = ({
     imageAlt,
     brokenImageFallback,
     imageEmbeddingColorScheme,
+    imageOrientationNone,
   };
 };

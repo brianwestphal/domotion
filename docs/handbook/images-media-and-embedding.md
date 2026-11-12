@@ -5,13 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2617", "DM-2618"]
+tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD"]
 code:
   [
     "src/capture/replaced-media-frame.ts",
     "src/capture/background-image-sizing.ts",
     "src/capture/pseudo-fragment-cdp.ts",
     "src/render/element-tree-to-svg.ts",
+    "src/render/image-orientation.ts",
     "src/render/image-pattern.ts",
     "src/post-processing/",
     "tests/feature-coverage.ts",
@@ -79,10 +80,22 @@ closes every bitmap (including late resolutions), and bounds readiness/cleanup
 with Node timers. It makes no new asset request and retains source DOM/API
 integers. Child frames and open shadow roots share that contract. Unsupported
 orientation, decode failure or a deadline reports an explicit diagnostic and
-keeps legacy sizing; foreign ownership fails closed. DM-JPDMRD tracks the
-proved same-origin EXIF/CSS orientation-none gap: native layout40×20 can coexist
-with oriented DOMnatural20×40. SVG natural sizing takes
-precedence. DM-FRF6A8 owns complete fractional natural-size authority for none
+keeps legacy sizing; foreign ownership fails closed. SVG natural sizing takes
+precedence.
+
+A used `image-orientation: none` (DM-JPDMRD) sizes and paints a bitmap from its
+stored pixel grid. `LayoutImageResource::ImageOrientation` takes the style
+value through `ImageResourceContent::ForceOrientationIfNecessary`, which keeps
+the EXIF orientation for a CORS-tainted bitmap (`layout_image_resource.cc:121-153`,
+`image_resource_content.cc:338-343`). Capture records `imageOrientationNone` when
+the computed value is `none` and a canvas read of the img succeeds; DOM
+`naturalWidth`/`naturalHeight` stay oriented either way. The renderer
+(`src/render/image-orientation.ts`) rewrites the embedded orientation tag to 1
+in place and swaps the natural axes for orientations 5-8, so consumers that
+honor EXIF paint the stored grid as Chromium does. Only the containers Chromium
+orients from EXIF are patched: JPEG APP1 (`ImageDecoder::ApplyExifMetadata`)
+and PNG `eXIf` (`SkPngRustCodec`, Skia `fd139e79`). Blink's WebP decoder ignores
+EXIF. AVIF orients through `irot`/`imir`, which is not patched yet (DM-4G5NX9). DM-FRF6A8 owns complete fractional natural-size authority for none
 and scale-down: physical decoded dimensions alone cannot recover density. A
 native396w/sizes390px auto-size control lays out389.984375×572.1875 while API
 getters report389×572. Do not infer density from those separately truncated

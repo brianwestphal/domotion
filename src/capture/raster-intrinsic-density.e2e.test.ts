@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "./index.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
-import { elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
+import { elementTreeToSvg, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import type { CapturedElement } from "./types.js";
 
 let browser: Browser;
@@ -66,6 +66,90 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
       await page.close();
     }
   }, 60_000);
+  it("paints image-orientation:none from the stored pixel grid only for access-allowed images (DM-JPDMRD)", async () => {
+    // Stored 40x20 grid, left red and right blue, tagged EXIF orientation 6.
+    const half = await sharp({ create: { width: 20, height: 20, channels: 3, background: "blue" } })
+      .png()
+      .toBuffer();
+    const stored = await sharp({ create: { width: 40, height: 20, channels: 3, background: "red" } })
+      .composite([{ input: half, left: 20, top: 0 }])
+      .png()
+      .toBuffer();
+    const points = [
+      [5, 5],
+      [35, 5],
+      [5, 35],
+      [35, 35],
+      [60, 10],
+      [10, 60],
+    ];
+    const sample = async (bytes: Buffer) => {
+      const data = await sharp(bytes).removeAlpha().raw().toBuffer();
+      return points.map(([x, y]) => [...data.subarray((y * 100 + x) * 3, (y * 100 + x) * 3 + 3)].map((v) => v > 128));
+    };
+    const page = await browser.newPage({ viewport: { width: 100, height: 100 } });
+    const generated = await browser.newPage({ viewport: { width: 100, height: 100 } });
+    try {
+      for (const format of ["jpeg", "png"] as const) {
+        const bytes = await sharp(stored).toFormat(format, { quality: 100 }).withMetadata({ orientation: 6 }).toBuffer();
+        for (const orientation of ["none", "from-image"]) {
+          for (const style of ["", "width:80px;height:80px;object-fit:contain", "width:80px;height:40px"]) {
+            await page.setContent(
+              `<style>body{margin:0;background:white}</style><div id=r style="width:100px;height:100px"><img src="data:image/${format};base64,${bytes.toString("base64")}" style="image-orientation:${orientation};${style}"></div>`,
+            );
+            await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+            const tree = await captureElementTree(page, "#r", { x: 0, y: 0, width: 100, height: 100 });
+            let image: CapturedElement | undefined;
+            forEachElement(tree, (element) => {
+              if (element.tag === "img") image = element;
+            });
+            expect(image?.imageOrientationNone).toBe(orientation === "none" ? true : undefined);
+            await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(tree, 100, 100)}`);
+            await generated.waitForTimeout(50);
+            expect(await sample(await generated.screenshot()), `${format} ${orientation} ${style}`).toEqual(
+              await sample(await page.screenshot()),
+            );
+          }
+        }
+      }
+
+      // A CORS-tainted bitmap keeps its EXIF orientation in Chromium
+      // (ImageResourceContent::ForceOrientationIfNecessary).
+      const jpeg = await sharp(stored).jpeg().withMetadata({ orientation: 6 }).toBuffer();
+      await page.route("http://image.test/**", (route) =>
+        route.fulfill({
+          contentType: "image/jpeg",
+          body: jpeg,
+          headers: route.request().url().includes("cors") ? { "access-control-allow-origin": "*" } : {},
+        }),
+      );
+      await page.route("http://page.test/", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: `<style>body{margin:0}</style><div id=r><img id=tainted src="http://image.test/a.jpg" style="image-orientation:none"><img id=cors crossorigin=anonymous src="http://image.test/cors.jpg" style="image-orientation:none"></div>`,
+        }),
+      );
+      await page.goto("http://page.test/");
+      await page.evaluate(() => Promise.all(Array.from(document.images, (image) => image.decode())));
+      const sizes = await page.evaluate(() =>
+        Array.from(document.images, (image) => [image.getBoundingClientRect().width, image.getBoundingClientRect().height]),
+      );
+      expect(sizes).toEqual([
+        [20, 40],
+        [40, 20],
+      ]);
+      const tree = await captureElementTree(page, "#r", { x: 0, y: 0, width: 100, height: 100 });
+      const flags: Array<true | undefined> = [];
+      forEachElement(tree, (element) => {
+        if (element.tag === "img") flags.push(element.imageOrientationNone);
+      });
+      expect(flags).toEqual([undefined, true]);
+    } finally {
+      await generated.close();
+      await page.close();
+    }
+  }, 60_000);
+
   it("records the native decoded orientation rather than encoded axis order", async () => {
     const jpeg = await sharp({ create: { width: 40, height: 20, channels: 3, background: "red" } })
       .jpeg()

@@ -1,4 +1,5 @@
 import { paintBoxShadow, paintInsetBoxShadow } from "./box-shadow-paint.js";
+import { unorientedImageSource } from "./image-orientation.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 const UNBOUNDED_CLIP_EXTENT = 100000;
 
@@ -435,19 +436,36 @@ interface ChildPaintPlan {
   flat3d: CapturedElement[] | null;
 }
 
+// A used `image-orientation: none` paints the stored pixel grid: neutralize the
+// embedded EXIF orientation and swap the natural axes it transposed.
+function withUsedImageOrientationNone(el: CapturedElement): CapturedElement {
+  const { src, transposed } = unorientedImageSource(el.imageSrc ?? "");
+  if (src === el.imageSrc) return el;
+  const swap = (size: { w: number; h: number } | undefined) =>
+    size != null && transposed ? { w: size.h, h: size.w } : size;
+  return {
+    ...el,
+    imageSrc: src,
+    imageIntrinsic: swap(el.imageIntrinsic),
+    imageDecodedIntrinsic: swap(el.imageDecodedIntrinsic),
+  };
+}
+
 // Image (<img> / <input type=image>) paint, extracted from renderElement (DM-1306,
 // DM-1312). object-fit placement inside the content box, scale-down resolution,
 // and the rounded-content-box clip for border-radius'd images. clipIdx is threaded
 // in and returned so the positional clipPath ids stay byte-identical.
 function paintImage(
   ctx: PaintCtx,
-  el: CapturedElement,
+  captured: CapturedElement,
   borderRadius: number,
   corners: ReturnType<typeof parseCornerRadii>,
   indent: string,
 ): void {
   // Caller guards `el.imageSrc != null`; restate it here to narrow the type
   // (the original block was nested inside that guard in renderElement).
+  if (captured.imageSrc == null) return;
+  const el = captured.imageOrientationNone === true ? withUsedImageOrientationNone(captured) : captured;
   if (el.imageSrc == null) return;
   const fit = el.styles.objectFit ?? "fill";
   // CSS object-fit operates on the CONTENT BOX (inside borders + padding),
