@@ -9,11 +9,12 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { resolveVisualOutputRoot } from "./output-directory.mjs";
 import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
+import { WEBGL_FIXTURE_LAUNCH_ARGS } from "../src/test-support/webgl-fixture-launch.js";
 
 let browser: Browser;
 let browserIdentity: { product: string; revision: string };
 beforeAll(async () => {
-  browser = await chromium.launch();
+  browser = await chromium.launch({ args: [...WEBGL_FIXTURE_LAUNCH_ARGS] });
   const session = await browser.newBrowserCDPSession();
   try {
     const version = await session.send("Browser.getVersion");
@@ -213,7 +214,7 @@ it.each([
 });
 
 it("composes measured OOPIF local roots without using rounded innerWidth as a scale", async () => {
-  const isolated = await chromium.launch({ args: ["--site-per-process"] });
+  const isolated = await chromium.launch({ args: ["--site-per-process", ...WEBGL_FIXTURE_LAUNCH_ARGS] });
   const page = await isolated.newPage({ viewport: { width: 200, height: 140 } });
   const observed = observeCaptures(page);
   try {

@@ -6,12 +6,13 @@ import { captureElementTree, launchChromium } from "./index.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { freezeWebGlOutputForCapture } from "./webgl-output-freeze.js";
 import type { CapturedElement } from "./types.js";
+import { WEBGL_FIXTURE_LAUNCH_ARGS } from "../test-support/webgl-fixture-launch.js";
 
 let browser: Browser;
 // Automatic ANGLE startup can lose the context before its first screenshot
 // (DM-D5JEMG). Select the backend explicitly so these tests exercise live
 // frame ownership; a separate control below covers Chromium's lost-context paint.
-const webGlBrowserOptions = { args: ["--use-angle=swiftshader"] };
+const webGlBrowserOptions = { args: [...WEBGL_FIXTURE_LAUNCH_ARGS] };
 beforeAll(async () => {
   browser = await launchChromium(webGlBrowserOptions);
 });

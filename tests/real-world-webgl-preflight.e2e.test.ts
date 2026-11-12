@@ -9,10 +9,11 @@ import { withTimeout } from "../src/utils/with-timeout.js";
 import { resolveVisualOutputRoot } from "./output-directory.mjs";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { primeOffscreenCanvases, type CanvasPreflightFailure } from "./real-world-webgl-preflight.js";
+import { WEBGL_FIXTURE_LAUNCH_ARGS } from "../src/test-support/webgl-fixture-launch.js";
 
 let browser: Browser;
 beforeAll(async () => {
-  browser = await chromium.launch();
+  browser = await chromium.launch({ args: [...WEBGL_FIXTURE_LAUNCH_ARGS] });
 });
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 

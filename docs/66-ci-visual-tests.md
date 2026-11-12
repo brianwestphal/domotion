@@ -8,6 +8,7 @@ platforms: ["macos", "linux", "windows"]
 tickets:
   [
     "DM-1216",
+    "DM-PJD0NS",
     "DM-1217",
     "DM-1660",
     "DM-1661",
@@ -243,6 +244,22 @@ SharedWorkers count as failures even if their live methods are muted. Neither
 path can revoke native references cached before freezing an already-running
 realm; existing-worker live-prototype interception remains best effort. Worker
 freeze/discovery and restoration diagnostics report these limits separately.
+
+### WebGL fixture backend
+
+E2E suites that need a live WebGL context but do not test GPU backend selection
+launch Chromium with `WEBGL_FIXTURE_LAUNCH_ARGS` (`--use-angle=swiftshader`,
+`src/test-support/webgl-fixture-launch.ts`). These suites are the
+SharedWorker bootstrap, worker-startup diagnostics, WebGL preflight, projective
+preflight, worker lifecycle, reference-frame and output-freeze suites. The
+automatic backend tries the platform GPU first and then falls back to
+SwiftShader. During that startup, a first context could fail transiently
+(`ContextResult::kTransientFailure: Failed to send
+GpuControl.CreateCommandBuffer`). The fixture worker's
+`getContext('webgl2')` then returned null and it threw before reporting, so
+macOS runs hit the 8 s readiness timeout. Both paths end on the same
+SwiftShader renderer, so the explicit selection removes only the race.
+Production launches keep the automatic backend.
 
 ### Focused native worker diagnostics
 

@@ -13,6 +13,7 @@ import { cdpBounded, FlatCdp } from "./real-world-cdp.js";
 import { sharedWorkerBootstrapFor } from "./real-world-shared-worker-bootstrap.js";
 import { collectWorkerStartupDiagnostic } from "./real-world-worker-startup-diagnostics.js";
 import type { WorkerFreezeCounters } from "./real-world-webgl-worker-lifecycle.js";
+import { WEBGL_FIXTURE_LAUNCH_ARGS } from "../src/test-support/webgl-fixture-launch.js";
 
 let server: Server;
 let origin: string;
@@ -95,6 +96,7 @@ beforeEach(async () => {
     },
     {
       env: { ...process.env, DOMOTION_BROKER_PROBE: "yes" },
+      args: [...WEBGL_FIXTURE_LAUNCH_ARGS],
       diagnosticCase: `real-world-shared-worker-bootstrap.e2e.test.ts > ${expect.getState().currentTestName ?? ""}`,
     },
   );

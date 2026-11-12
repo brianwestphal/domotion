@@ -8,10 +8,11 @@ import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { captureRealWorldReferenceFrame } from "./real-world-reference-frame.js";
+import { WEBGL_FIXTURE_LAUNCH_ARGS } from "../src/test-support/webgl-fixture-launch.js";
 
 let browser: Browser;
 beforeAll(async () => {
-  browser = await launchChromium({ args: ["--use-angle=swiftshader"] });
+  browser = await launchChromium({ args: [...WEBGL_FIXTURE_LAUNCH_ARGS] });
 });
 afterAll(async () => {
   await closeBrowserSafely(browser);

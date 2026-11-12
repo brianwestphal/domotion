@@ -21,6 +21,7 @@ import {
   type FixtureMode,
   type FixtureContext,
 } from "./real-world-worker-fixture-evidence.js";
+import { WEBGL_FIXTURE_LAUNCH_ARGS } from "../src/test-support/webgl-fixture-launch.js";
 
 let server: Server;
 let origin: string;
@@ -106,6 +107,7 @@ beforeEach(async () => {
   mode = "healthy";
   activePages = [];
   owner = await openRealWorldBrowser(() => undefined, {
+    args: [...WEBGL_FIXTURE_LAUNCH_ARGS],
     diagnosticCase: `real-world-worker-startup-diagnostics.e2e.test.ts > ${expect.getState().currentTestName ?? ""}`,
   });
 });

@@ -3,6 +3,7 @@ import { chromium, type Browser, type BrowserContext, type CDPSession, type Page
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { freezeWebGlOutput as startFreeze } from "./real-world-webgl-freeze.js";
+import { WEBGL_FIXTURE_LAUNCH_ARGS } from "../src/test-support/webgl-fixture-launch.js";
 
 let browser: Browser;
 let server: Server;
@@ -29,7 +30,7 @@ beforeAll(async () => {
   const address = server.address();
   if (address == null || typeof address === "string") throw new Error("HTTP worker fixture did not bind");
   origin = `http://127.0.0.1:${address.port}`;
-  browser = await chromium.launch();
+  browser = await chromium.launch({ args: [...WEBGL_FIXTURE_LAUNCH_ARGS] });
 });
 afterAll(async () => {
   await closeBrowserSafely(browser);
