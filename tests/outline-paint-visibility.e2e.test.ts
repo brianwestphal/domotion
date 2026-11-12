@@ -217,3 +217,26 @@ describeBrowser("3D outline styles (DM-W1Q7TN)", () => {
     });
   }
 });
+
+// DM-3W427J: a translucent outline is one opacity group with adjacent sides,
+// so BoxBorderPainter::PaintOpacityGroup paints its sides opaque inside
+// BeginLayer(alpha). Separately translucent side strokes double-blended at the
+// corners.
+describeBrowser("translucent dashed and dotted outlines (DM-3W427J)", () => {
+  for (const outline of [
+    "2px dashed rgba(255,0,0,.5)",
+    "2px dotted rgba(255,0,0,.5)",
+    "3px dashed rgba(0,128,0,.7);outline-offset:2px",
+  ]) {
+    it(`matches native ${outline} outline`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:20px;height:20px;outline:${outline}}</style><div id="probe"></div>`;
+      const native = await rgbaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      const rendered = await rgbaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+      expect(rendered).toEqual(native);
+    });
+  }
+});

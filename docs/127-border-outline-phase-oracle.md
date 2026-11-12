@@ -16,6 +16,7 @@ tickets:
     "DM-NVVDRB",
     "DM-XWP1NV",
     "DM-W1Q7TN",
+    "DM-3W427J",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -127,6 +128,13 @@ through the same `BoxBorderPainter` path with the outline style on every edge,
 so `paintOutline` emits that bevel, with the same shades, order and split, on
 the outline's pixel-snapped outer rect at the outline width. It used to paint
 one flat stroke (DM-W1Q7TN). Rounded 3D outlines still take the flat stroke.
+
+A translucent square dashed or dotted outline is one opacity group whose sides
+meet at the corners, so `BoxBorderPainter::PaintOpacityGroup` paints the sides
+opaque inside `BeginLayer(alpha)`. `paintOutline` wraps those side strokes in a
+`<g opacity>` with the opaque color; separately translucent strokes used to
+double-blend where they overlap at the corners (DM-3W427J). Translucent
+dashed and dotted borders still stroke each side separately.
 
 A negative outline offset is clamped per axis before any of this geometry:
 `AdjustedOutlineOffset` (`outline_painter.cc:79-82`, chromium `6b5a1b80`)

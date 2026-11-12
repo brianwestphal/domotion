@@ -234,25 +234,34 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         const capInset = ostyle === "dotted" && !thinDotted ? halfWidth : 0;
         const hAttrs = hDash !== "" ? ` stroke-dasharray="${hDash}"` : "";
         const vAttrs = vDash !== "" ? ` stroke-dasharray="${vDash}"` : "";
-        const strokeAttrs = `stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"`;
+        // DM-3W427J: a translucent outline is one opacity group whose sides meet
+        // at the corners, so BoxBorderPainter::PaintOpacityGroup paints the
+        // sides opaque inside BeginLayer(alpha) (chromium 6b5a1b80). Separately
+        // translucent side strokes would double-blend where they overlap.
+        const layered = ocolor.a < 1;
+        const sideColor = colorStr(layered ? { ...ocolor, a: 1 } : ocolor);
+        const sideIndent = layered ? `${indent}  ` : indent;
+        if (layered) out.push(`${indent}<g opacity="${r(ocolor.a)}">`);
+        const strokeAttrs = `stroke="${sideColor}" stroke-width="${r(ow)}"`;
         // Four sides, each starting at its top-left corner so the
         // dash pattern phases identically per side.
         if (thinDotted) {
-          const color = colorStr(ocolor);
+          const color = sideColor;
           out.push(
-            ...paintThinDottedLine(sideLeft, oy, sideRight, oy, ow, color, indent),
-            ...paintThinDottedLine(oxR, sideTop, oxR, sideBottom, ow, color, indent),
-            ...paintThinDottedLine(sideLeft, oyB, sideRight, oyB, ow, color, indent),
-            ...paintThinDottedLine(ox, sideTop, ox, sideBottom, ow, color, indent),
+            ...paintThinDottedLine(sideLeft, oy, sideRight, oy, ow, color, sideIndent),
+            ...paintThinDottedLine(oxR, sideTop, oxR, sideBottom, ow, color, sideIndent),
+            ...paintThinDottedLine(sideLeft, oyB, sideRight, oyB, ow, color, sideIndent),
+            ...paintThinDottedLine(ox, sideTop, ox, sideBottom, ow, color, sideIndent),
           );
         } else {
           out.push(
-            `${indent}<line x1="${r(sideLeft + capInset)}" y1="${r(oy)}" x2="${r(sideRight - capInset)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-            `${indent}<line x1="${r(oxR)}" y1="${r(sideTop + capInset)}" x2="${r(oxR)}" y2="${r(sideBottom - capInset)}" ${strokeAttrs}${vAttrs}${linecap} />`,
-            `${indent}<line x1="${r(sideLeft + capInset)}" y1="${r(oyB)}" x2="${r(sideRight - capInset)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
-            `${indent}<line x1="${r(ox)}" y1="${r(sideTop + capInset)}" x2="${r(ox)}" y2="${r(sideBottom - capInset)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+            `${sideIndent}<line x1="${r(sideLeft + capInset)}" y1="${r(oy)}" x2="${r(sideRight - capInset)}" y2="${r(oy)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${sideIndent}<line x1="${r(oxR)}" y1="${r(sideTop + capInset)}" x2="${r(oxR)}" y2="${r(sideBottom - capInset)}" ${strokeAttrs}${vAttrs}${linecap} />`,
+            `${sideIndent}<line x1="${r(sideLeft + capInset)}" y1="${r(oyB)}" x2="${r(sideRight - capInset)}" y2="${r(oyB)}" ${strokeAttrs}${hAttrs}${linecap} />`,
+            `${sideIndent}<line x1="${r(ox)}" y1="${r(sideTop + capInset)}" x2="${r(ox)}" y2="${r(sideBottom - capInset)}" ${strokeAttrs}${vAttrs}${linecap} />`,
           );
         }
+        if (layered) out.push(`${indent}</g>`);
       } else if ((ostyle === "dashed" || ostyle === "dotted") && borderRadius > 0) {
         out.push(...paintCurvedDashedDottedOutline(el, borderRadius, offset, ow, ostyle, colorStr(ocolor), indent));
       } else if (
