@@ -29,7 +29,7 @@ describe("DM-2351 generic preference workflow", () => {
   it("persists fingerprinted logical evidence even when a native leg fails", () => {
     expect(workflow).toMatch(/\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:/);
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("branches: [main, integration]");
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("submodules: recursive");
     expect(workflow).toContain("if: always()");

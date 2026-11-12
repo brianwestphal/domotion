@@ -21,7 +21,7 @@ on:
       - "package.json"
       - ".github/workflows/broken-image-fallback-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/broken-image-fallback.ts"
       - "src/capture/broken-image-icon-raster.ts"

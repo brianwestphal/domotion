@@ -14,7 +14,7 @@ on:
       - "package.json"
       - ".github/workflows/mixed-bidi-logical-conformance.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "packages/text-engine/src/render/script-segmentation.ts"
       - "packages/text-engine/src/render/mixed-bidi-logical.test.ts"

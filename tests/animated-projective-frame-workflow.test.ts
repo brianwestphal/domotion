@@ -27,6 +27,6 @@ describe("animated projective frame parity workflow", () => {
 
   it("gates pull requests and main", () => {
     expect(workflow).toMatch(/on:\s*\n\s*pull_request:/);
-    expect(workflow).toMatch(/\n\s*push:\s*\n\s*branches: \[main\]/);
+    expect(workflow).toMatch(/\n\s*push:\s*\n\s*branches: \[main, integration\]/);
   });
 });

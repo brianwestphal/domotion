@@ -19,7 +19,7 @@ on:
       - "package.json"
       - ".github/workflows/native-control-fallback-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/effective-appearance.ts"
       - "src/capture/native-control-raster.ts"

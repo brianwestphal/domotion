@@ -19,7 +19,7 @@ on:
       - "package.json"
       - ".github/workflows/summary-disclosure-marker-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/summary-marker-cdp.ts"
       - "src/capture/types.ts"

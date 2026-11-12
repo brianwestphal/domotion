@@ -21,7 +21,7 @@ on:
       - "package.json"
       - ".github/workflows/animated-projective-frame-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/animation-frame.ts"
       - "src/capture/index.ts"

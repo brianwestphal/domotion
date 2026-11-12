@@ -20,7 +20,7 @@ on:
       - "package.json"
       - ".github/workflows/generic-family-preference-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/generic-font-probe.ts"
       - "src/capture/index.ts"

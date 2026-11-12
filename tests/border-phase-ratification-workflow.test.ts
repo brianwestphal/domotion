@@ -12,7 +12,7 @@ describe("border phase ratification workflow", () => {
     expect(workflow).toContain("fail-fast: false");
     expect(workflow).toMatch(/\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:/);
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("branches: [main, integration]");
     expect(workflow).not.toContain("continue-on-error");
   });
 

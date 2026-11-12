@@ -9,7 +9,7 @@ on:
       - "docs/209-transformed-flex-descendant-investigation.md"
       - ".github/workflows/transformed-flex-geometry-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
   workflow_dispatch:
 
 permissions:

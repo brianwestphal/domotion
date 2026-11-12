@@ -27,7 +27,7 @@ describe("DM-2504 system-ui preference route workflow", () => {
   it("retains source and inventory evidence from every native leg", () => {
     expect(workflow).toMatch(/\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:/);
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("branches: [main, integration]");
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("submodules: recursive");
     expect(workflow).toContain("if: always()");

@@ -28,7 +28,7 @@ on:
       - "package.json"
       - ".github/workflows/blend-filter-pixel-stage.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/render/colors.ts"
       - "packages/text-engine/src/render/format.ts"

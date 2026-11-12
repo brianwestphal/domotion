@@ -25,7 +25,7 @@ on:
       - "package.json"
       - ".github/workflows/pseudo-fragment-render-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/pseudo-fragment-cdp.ts"
       - "src/capture/pseudo-fragment-protocol.ts"

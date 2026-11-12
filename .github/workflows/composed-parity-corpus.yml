@@ -19,7 +19,7 @@ on:
       - "package.json"
       - ".github/workflows/composed-parity-corpus.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/**"
       - "src/render/**"

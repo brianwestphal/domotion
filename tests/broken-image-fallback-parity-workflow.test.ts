@@ -22,7 +22,7 @@ describe("DM-2465 broken-image fallback workflow", () => {
   it("is a hard PR/main gate and uploads fingerprinted evidence even on failure", () => {
     expect(workflow).toMatch(/\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:/);
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("branches: [main, integration]");
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain("broken-image-fallback-${{ runner.os }}");
     expect(workflow).toContain("if-no-files-found: error");

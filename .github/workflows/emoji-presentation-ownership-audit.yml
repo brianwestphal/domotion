@@ -18,7 +18,7 @@ on:
       - "package.json"
       - ".github/workflows/emoji-presentation-ownership-audit.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "packages/text-engine/src/render/cluster-fallback.ts"
       - "packages/text-engine/src/render/script-segmentation.ts"

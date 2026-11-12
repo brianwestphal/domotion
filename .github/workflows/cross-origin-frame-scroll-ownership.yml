@@ -20,7 +20,7 @@ on:
       - "tools/semantic-coverage.json"
       - ".github/workflows/cross-origin-frame-scroll-ownership.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/frame-scroll-state.ts"
       - "src/capture/scrollbar-capture.ts"

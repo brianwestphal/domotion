@@ -27,7 +27,7 @@ on:
       - "package.json"
       - ".github/workflows/replaced-ownership-transitions.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/script/index.ts"
       - "src/capture/types.ts"

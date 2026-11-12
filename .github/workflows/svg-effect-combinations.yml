@@ -20,7 +20,7 @@ on:
       - "package.json"
       - ".github/workflows/svg-effect-combinations.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/script/walker/inline-svg.ts"
       - "src/capture/script.generated.ts"

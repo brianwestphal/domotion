@@ -17,7 +17,7 @@ on:
       - "package.json"
       - ".github/workflows/browser-harfbuzz-substitution-streams.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "packages/text-engine/src/render/font-resolution.ts"
       - "packages/text-engine/src/render/harfbuzz-shaper.ts"

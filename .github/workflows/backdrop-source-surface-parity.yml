@@ -18,7 +18,7 @@ on:
       - "package.json"
       - ".github/workflows/backdrop-source-surface-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/backdrop-composite-raster.ts"
       - "src/capture/backdrop-effect-neutralization.ts"

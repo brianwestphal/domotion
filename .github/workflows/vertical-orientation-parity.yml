@@ -21,7 +21,7 @@ on:
       - "package.json"
       - ".github/workflows/vertical-orientation-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/vertical-orientation.ts"
       - "src/vertical-orientation.test.ts"

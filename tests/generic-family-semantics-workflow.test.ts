@@ -34,7 +34,7 @@ describe("generic-family semantic ownership workflow", () => {
   it("retains fingerprinted evidence and contains no visual-fitting escape hatch", () => {
     expect(workflow).toMatch(/\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:/);
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("branches: [main, integration]");
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("submodules: recursive");
     expect(workflow).toContain("if: always()");

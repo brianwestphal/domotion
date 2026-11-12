@@ -24,6 +24,6 @@ describe("ordinary backdrop source-surface workflow", () => {
     expect(workflow).toContain("if-no-files-found: error");
     expect(workflow).toMatch(/\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:/);
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("branches: [main, integration]");
   });
 });

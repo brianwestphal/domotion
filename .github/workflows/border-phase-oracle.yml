@@ -15,7 +15,7 @@ on:
       - "tests/border-phase-*.test.ts"
       - "tools/border-phase-*.ts"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - ".github/workflows/border-phase-oracle.yml"
       - "src/capture/script/walker/borders-backgrounds.ts"

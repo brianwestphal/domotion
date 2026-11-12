@@ -3,7 +3,7 @@ name: Wrapped decoration fragment ownership
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/render/decoration-fragment-ownership.ts"
       - "src/tree-ops/decoration-propagation.ts"

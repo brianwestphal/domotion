@@ -20,7 +20,7 @@ on:
       - "package.json"
       - ".github/workflows/generic-family-semantics-audit.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "packages/text-engine/src/font-family-stack.ts"
       - "packages/text-engine/src/render/cluster-fallback.ts"

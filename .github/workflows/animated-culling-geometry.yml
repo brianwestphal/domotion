@@ -16,7 +16,7 @@ on:
       - "package.json"
       - ".github/workflows/animated-culling-geometry.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/animation/**"
       - "src/render/culling-geometry.ts"

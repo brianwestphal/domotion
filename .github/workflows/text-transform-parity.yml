@@ -37,7 +37,7 @@ on:
       - "package.json"
       - ".github/workflows/text-transform-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/text-paint-geometry-cdp.ts"
       - "src/capture/text-fragment-geometry.ts"

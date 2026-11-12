@@ -15,7 +15,7 @@ on:
       - "package.json"
       - ".github/workflows/pseudo-backdrop-source-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/pseudo-fragment-cdp.ts"
       - "src/capture/pseudo-backdrop-isolation.ts"

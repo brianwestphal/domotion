@@ -11,7 +11,7 @@ on:
       - "tests/features.ts"
       - ".github/workflows/repeating-linear-px-stop-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
   workflow_dispatch:
 
 permissions:

@@ -27,6 +27,6 @@ describe("inline SVG 3D parity workflow", () => {
 
   it("is an enforced pull-request and main-branch gate", () => {
     expect(workflow).toMatch(/on:\s*\n\s*pull_request:/);
-    expect(workflow).toMatch(/\n\s*push:\s*\n\s*branches: \[main\]/);
+    expect(workflow).toMatch(/\n\s*push:\s*\n\s*branches: \[main, integration\]/);
   });
 });

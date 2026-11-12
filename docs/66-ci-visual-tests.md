@@ -9,6 +9,7 @@ tickets:
   [
     "DM-1216",
     "DM-PJD0NS",
+    "DM-WN6RXW",
     "DM-1217",
     "DM-1660",
     "DM-1661",
@@ -123,6 +124,23 @@ still fails the gate when a listed fixture is missing.
 
 - **Only when a run needs more than ~50 fixtures.** For a handful of fixtures, run locally (`npm run demos:test:html -- --only <name>`, or with the throttle off: `DOMOTION_NO_NICE=1 DOMOTION_TEST_WORKERS=<cores> npm run demos:test:unicode`).
 - **Default to macOS** — it is always the primary testing and calibration target. Linux and Windows are equally supported; select either for platform-specific validation, or `--os all` when a cross-platform change warrants it.
+
+## Staged integration branch
+
+Verified ticket commits are not pushed straight to `main`. The project's
+development strategy is Hot Sheet's `risk-guided` preset, whose integration
+strategy is `ci-staged`: commits go to the `integration` branch first, and
+`main` is fast-forwarded only to a SHA whose CI run on `integration` was green.
+A red run leaves `main` untouched; the responsible commit is fixed or dropped
+and the branch is rebuilt from `main`.
+
+So every branch-filtered push workflow listens to both branches
+(`branches: [main, integration]`). A gate that listened to `main` alone would
+never test a staged batch, and the promotion would ship it unverified.
+`tests/ci-staging-branch-triggers.test.ts` pins this. The Pages deploy is the
+one exception and stays main-only. The fast-forward re-runs CI on `main` at the
+same SHA, which is what the green-`main` gates (the verified worktree cleanup
+among them) read.
 
 ## Fast integration suites on all platforms
 

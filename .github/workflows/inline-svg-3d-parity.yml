@@ -21,7 +21,7 @@ on:
       - "package.json"
       - ".github/workflows/inline-svg-3d-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/index.ts"
       - "src/capture/projective-owner.ts"

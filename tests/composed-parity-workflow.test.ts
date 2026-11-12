@@ -31,7 +31,7 @@ describe("composed parity all-platform workflow", () => {
   it("is a hard PR/main gate with fingerprinted evidence retained on failure", () => {
     expect(workflow).toMatch(/\n\s*pull_request:/);
     expect(workflow).toMatch(/\n\s*push:/);
-    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("branches: [main, integration]");
     expect(workflow).toContain("scripts/run-env.mjs");
     expect(workflow).toContain(
       "composed-metamorphic-v1:04a61271004db715e7710cff049a57bbda14970680bc24b098e8953106086191",

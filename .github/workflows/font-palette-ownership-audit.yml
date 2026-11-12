@@ -23,7 +23,7 @@ on:
       - "package.json"
       - ".github/workflows/font-palette-ownership-audit.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/emoji.ts"
       - "src/capture/types.ts"

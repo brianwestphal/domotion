@@ -22,7 +22,7 @@ on:
       - "package.json"
       - ".github/workflows/url-background-geometry-parity.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "src/capture/background-image-sizing.ts"
       - "src/capture/script/walker/background-attachment.ts"

@@ -16,7 +16,7 @@ on:
       - "package.json"
       - ".github/workflows/system-ui-preference-route.yml"
   push:
-    branches: [main]
+    branches: [main, integration]
     paths:
       - "packages/text-engine/src/render/glyph-helper.ts"
       - "packages/text-engine/src/render/font-resolution.ts"

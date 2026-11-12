@@ -43,6 +43,20 @@
       "type": "category"
     }
   ],
+  "development_strategy": {
+    "default": "risk-guided",
+    "green_main_goal_minutes": 360,
+    "version": 1
+  },
+  "integration_strategies": {
+    "allowed": [
+      {
+        "reason": "risk-guided development preset requires ci-staged; main has been chronically red under direct per-ticket pushes, so stage batches on the integration branch and fast-forward main only to green SHAs (DM-WN6RXW)",
+        "strategy": "ci-staged"
+      }
+    ],
+    "default": "serial"
+  },
   "push_policy": "push-per-ticket",
   "terminals": [
     {
