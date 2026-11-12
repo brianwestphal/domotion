@@ -131,3 +131,29 @@ describeBrowser("3D border corner joins (DM-XWP1NV)", () => {
     }
   }
 });
+
+// DM-XMSZVV: a translucent uniform dashed/dotted border is one opacity group
+// with adjacent sides, so BoxBorderPainter paints its sides opaque inside
+// BeginLayer(alpha); separately translucent side strokes double-blended at the
+// corners.
+describeBrowser("translucent dashed and dotted borders (DM-XMSZVV)", () => {
+  for (const border of ["2px dashed rgba(255,0,0,.5)", "2px dotted rgba(255,0,0,.5)", "3px dotted rgba(0,0,255,.6)"]) {
+    it(`matches native ${border} border`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:30px;height:24px;border:${border}}</style><div id="probe"></div>`;
+      const page = await env!.browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height } });
+      let svg: string;
+      try {
+        await page.setContent(source, { waitUntil: "load" });
+        svg = elementTreeToSvg(await captureElementTree(page, "body", VIEW), VIEW.width, VIEW.height);
+      } finally {
+        await page.close();
+      }
+      const native = await allChannels(env!.browser, source);
+      const rendered = await allChannels(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+      expect(rendered).toEqual(native);
+    });
+  }
+});

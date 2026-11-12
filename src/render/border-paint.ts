@@ -278,9 +278,17 @@ function paintUniformDashedDottedBorder(
     [bL + cornerTrim, bB - inset, bR - cornerTrim, bB - inset, bR - bL],
     [bL + inset, bT + cornerTrim, bL + inset, bB - cornerTrim, bB - bT],
   ];
+  // DM-XMSZVV: a translucent uniform border is one opacity group with
+  // adjacent sides, so BoxBorderPainter::PaintOpacityGroup paints the sides
+  // opaque inside BeginLayer(alpha) (chromium 6b5a1b80); separately
+  // translucent side strokes would double-blend where they meet.
+  const layered = bt.color.a < 1;
+  const sideColor = colorStr(layered ? { ...bt.color, a: 1 } : bt.color);
+  const sideIndent = layered ? `${indent}  ` : indent;
+  if (layered) ctx.svgParts.push(`${indent}<g opacity="${r(bt.color.a)}">`);
   for (const [x1, y1, x2, y2, len] of sides) {
     if (thinDotted) {
-      ctx.svgParts.push(...paintThinDottedLine(x1, y1, x2, y2, bt.w, colorStr(bt.color), indent));
+      ctx.svgParts.push(...paintThinDottedLine(x1, y1, x2, y2, bt.w, sideColor, sideIndent));
       continue;
     }
     const dash = openDashArray(style, bt.w, len);
@@ -304,9 +312,10 @@ function paintUniformDashedDottedBorder(
         ? ` stroke-dasharray="${dash}"${phaseOffset !== 0 ? ` stroke-dashoffset="${r(phaseOffset)}"` : ""}`
         : "";
     ctx.svgParts.push(
-      `${indent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${colorStr(bt.color)}" stroke-width="${r(bt.w)}"${dashAttrs}${linecap} />`,
+      `${sideIndent}<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" stroke="${sideColor}" stroke-width="${r(bt.w)}"${dashAttrs}${linecap} />`,
     );
   }
+  if (layered) ctx.svgParts.push(`${indent}</g>`);
 }
 
 function createContouredRingMask(

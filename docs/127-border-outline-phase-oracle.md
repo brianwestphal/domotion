@@ -17,6 +17,7 @@ tickets:
     "DM-XWP1NV",
     "DM-W1Q7TN",
     "DM-3W427J",
+    "DM-XMSZVV",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -133,8 +134,8 @@ A translucent square dashed or dotted outline is one opacity group whose sides
 meet at the corners, so `BoxBorderPainter::PaintOpacityGroup` paints the sides
 opaque inside `BeginLayer(alpha)`. `paintOutline` wraps those side strokes in a
 `<g opacity>` with the opaque color; separately translucent strokes used to
-double-blend where they overlap at the corners (DM-3W427J). Translucent
-dashed and dotted borders still stroke each side separately.
+double-blend where they overlap at the corners (DM-3W427J). A translucent
+uniform dashed or dotted border takes the same layer (DM-XMSZVV).
 
 A negative outline offset is clamped per axis before any of this geometry:
 `AdjustedOutlineOffset` (`outline_painter.cc:79-82`, chromium `6b5a1b80`)
