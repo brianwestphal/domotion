@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects", "text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV", "DM-7P69DC", "DM-HZPAYY"]
+tickets: ["DM-2596", "DM-2615", "DM-2628", "DM-2634", "DM-TPJX3H", "DM-J2WVF3", "DM-H5DDDE", "DM-09GQAV", "DM-7P69DC", "DM-HZPAYY", "DM-1C56DE"]
 code:
   [
     "src/render/element-tree-to-svg.ts",
@@ -84,6 +84,19 @@ aliases: ["docs/handbook/paint-effects-and-native-controls.md"]
 
 Every new specialized paint route needs a source decision, an activation
 record, a hostile movement control, and platform integration evidence.
+
+## Legacy CSS clip (DM-1C56DE)
+
+Chromium `6b5a1b80` builds a CssClip node only for an out-of-flow box with a
+non-`auto` `clip: rect()` (`LayoutObject::HasClip`). Its rect is the border box
+with each non-`auto` side moved (`LayoutBox::ClipRect`), pixel-snapped for paint
+(`UpdateCssClip`). It clips the box's own paint and every descendant, including
+fixed ones it does not contain (`UpdateOutOfFlowContext`). Capture records it as
+`legacyClipRect` (`src/capture/script/walker/legacy-clip.ts`). The renderer
+clips the owner and re-applies it to hoisted descendants in
+`paintWithAncestorWrappers`. Owners under a non-translation transform or zoom
+warn (`clip`) and stay unclipped. Controls: `tests/legacy-css-clip.e2e.test.ts`
+and the `legacy-css-clip-rect` feature fixture.
 
 ## Selected shadow-only roots (DM-TPJX3H)
 

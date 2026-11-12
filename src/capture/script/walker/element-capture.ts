@@ -10,6 +10,7 @@
 // by esbuild, so nothing here may reach Node modules at runtime.
 
 import { computeFieldsetLegendBox } from "./fieldset-legend.js";
+import { captureLegacyClipRect } from "./legacy-clip.js";
 import { detectInlineFragments } from "./fragmentation.js";
 import { captureInlineSvg } from "./inline-svg.js";
 import { captureImageElement } from "./image-elements.js";
@@ -531,6 +532,16 @@ export const createElementCapture = () => {
       ...buildCapturedContent(d, facts),
       ...buildCapturedRasters(d, facts, nextBackdropToken),
     } as CapturedElement;
+    const legacyClipRect = captureLegacyClipRect({
+      el,
+      cs,
+      rect,
+      vp,
+      zoom: d.effectiveZoomFor(el),
+      sel,
+      warn: d.warn,
+    });
+    if (legacyClipRect != null) captured.legacyClipRect = legacyClipRect;
     return assembleCaptureResultPhase({
       captured,
       el,

@@ -2278,6 +2278,13 @@ export interface CapturedElement {
    */
   imageOrientationNone?: true;
   /**
+   * Legacy CSS `clip: rect(...)` of an out-of-flow positioned box, in viewport
+   * coordinates and pixel-snapped (`LayoutBox::ClipRect`, Blink CssClip node).
+   * It clips the box's own paint and every descendant, fixed ones included.
+   * Absent for `auto`, and for transformed or zoomed owners (warned).
+   */
+  legacyClipRect?: { x: number; y: number; width: number; height: number };
+  /**
    * The `prefersReducedMotion` / `inForcedColors` Settings an `<img>`'s SVG
    * image document copies from the renderer's first ordinary page
    * (`SVGImage::DataChanged`, `core/svg/graphics/svg_image.cc:901-904`;

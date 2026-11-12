@@ -884,6 +884,25 @@ export const tests: FeatureTest[] = [
     height: 90,
   },
 
+  // DM-1C56DE: legacy `clip: rect()` on out-of-flow boxes was ignored; it now
+  // clips the owner's own paint and every descendant, fixed ones included.
+  {
+    name: "legacy-css-clip-rect",
+    html: `<div style="position: relative; width: 300px; height: 100px;">
+      <div style="position: absolute; left: 10px; top: 10px; width: 80px; height: 70px; clip: rect(5px, 60px, 50px, 10px); background: #fde68a;">
+        <div style="width: 80px; height: 70px; background: linear-gradient(90deg, #dc2626, #2563eb);"></div>
+      </div>
+      <div style="position: absolute; left: 110px; top: 10px; width: 80px; height: 70px; clip: rect(auto, 50px, auto, 20px); background: #bbf7d0;">
+        <div style="position: absolute; left: 0; top: 20px; width: 120px; height: 30px; background: #16a34a;"></div>
+      </div>
+      <div style="position: absolute; left: 210px; top: 10px; width: 80px; height: 70px; clip: rect(10px, 70px, 60px, 10px); background: #e9d5ff;">
+        <div style="position: fixed; left: 200px; top: 0; width: 100px; height: 100px; background: #7c3aed;"></div>
+      </div>
+    </div>`,
+    width: 300,
+    height: 100,
+  },
+
   {
     // DM-2309: mask generated images use Blink's FillLayer round/space tile
     // adjustment, and 3+ mask layers compose bottom-up with each upper

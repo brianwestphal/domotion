@@ -355,6 +355,8 @@ export interface RenderState {
   overflowClipPathIds: Map<CapturedElement, string>;
   /** Child overflow-clip groups currently open, innermost last (DM-RN0T12). */
   openChildClips: Array<{ owner: CapturedElement; id: string; indent: string }>;
+  /** Memoized legacy CSS `clip: rect()` clipPath ids (DM-1C56DE). */
+  legacyClipIds: Map<CapturedElement, string>;
   offGridCollapsedCells: Set<CapturedElement>;
   elementMaskRasters: Map<string, MaskRasterRef>;
   fragmentMaskDefs: Map<string, MaskFragmentDef>;
@@ -1850,6 +1852,7 @@ function buildRenderState(
     overflowClipForHoisted,
     overflowClipPathIds,
     openChildClips: [],
+    legacyClipIds: new Map(),
     offGridCollapsedCells,
     elementMaskRasters,
     fragmentMaskDefs,
@@ -2951,6 +2954,13 @@ function paintWithAncestorWrappers(
       svgParts.push(`${indent}<g class="anim-${esc(ancestor.animId)}">`);
       wrappers++;
     }
+    // A legacy CSS clip applies to every descendant, fixed ones included
+    // (Blink UpdateOutOfFlowContext's CssClipFixedPosition, DM-1C56DE).
+    const legacyClip = ensureLegacyClipId(state, ancestor);
+    if (legacyClip != null) {
+      svgParts.push(`${indent}<g clip-path="url(#${legacyClip})">`);
+      wrappers++;
+    }
     // Absolute/fixed descendants escape an overflow owner when their actual
     // containing block is outside that owner (CSS2.1 11.1.1).
     if (index <= containingIndex) {
@@ -3583,6 +3593,24 @@ function openChildOverflowClip(
     state.svgParts.push(`${indent}<g clip-path="url(#${id})">`);
     state.openChildClips.push({ owner: el, id, indent });
   }
+  return id;
+}
+
+/**
+ * Legacy CSS `clip: rect()` (DM-1C56DE). Blink's CssClip node clips the
+ * owner's own paint and every descendant, including fixed descendants whose
+ * containing block the owner is not; capture records the snapped rect.
+ */
+function ensureLegacyClipId(state: RenderState, el: CapturedElement): string | null {
+  const rect = el.legacyClipRect;
+  if (rect == null) return null;
+  const memoized = state.legacyClipIds.get(el);
+  if (memoized != null) return memoized;
+  const id = state.paintCtx.nextClipId("lc");
+  state.defsParts.push(
+    `<clipPath id="${id}"><rect x="${r(rect.x)}" y="${r(rect.y)}" width="${r(rect.width)}" height="${r(rect.height)}"/></clipPath>`,
+  );
+  state.legacyClipIds.set(el, id);
   return id;
 }
 
@@ -4629,6 +4657,8 @@ function renderElement(
   // the merger's class (added on the outer group) and our anim class can
   // each carry their own `animation` shorthand without clobbering.
   if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
+  const legacyClipId = ensureLegacyClipId(state, el);
+  if (legacyClipId != null) svgParts.push(`${indent}<g clip-path="url(#${legacyClipId})">`);
   if (innerOverflowClipId != null) {
     svgParts.push(`${indent}<g clip-path="url(#${innerOverflowClipId})">`);
     state.openChildClips.push({ owner: el, id: innerOverflowClipId, indent });
@@ -4679,6 +4709,7 @@ function renderElement(
       return;
     }
     if (innerOverflowClipId != null) svgParts.push(`${indent}</g>`);
+    if (legacyClipId != null) svgParts.push(`${indent}</g>`);
     if (animClass !== "") svgParts.push(`${indent}</g>`);
     if (opened) svgParts.push(`${indent}</g>`);
     if (localizeReferenceFilter) svgParts.push(`${indent}</g>`);
