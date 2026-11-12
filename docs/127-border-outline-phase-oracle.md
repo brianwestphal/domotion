@@ -10,6 +10,7 @@ tickets:
     "DM-2184",
     "DM-GQJ8C4",
     "DM-HGGQMW",
+    "DM-RGE1V9",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -111,9 +112,16 @@ An outline paints whenever its color is not fully transparent:
 `6b5a1b80`) tests only `!IsFullyTransparent()`. Even `rgba(255,0,0,.004)`
 quantizes to 8-bit alpha 1 in Chromium's paint. `paintOutline` and the cull
 mirror therefore gate on alpha above zero, not on the renderer's 0.01
-visibility floor (DM-HGGQMW; `tests/outline-low-alpha.e2e.test.ts` compares
-native and SVG coverage on a transparent background, with a zero-alpha
+visibility floor (DM-HGGQMW; `tests/outline-paint-visibility.e2e.test.ts`
+compares native and SVG coverage on a transparent background, with a zero-alpha
 control).
+
+A normal outline also paints around a zero-area box. `PaintOutlineRects`
+(`outline_painter.cc:924`) keeps an empty pixel-snapped rect unless the outline
+is a focus ring, so a `0 × 20` box with `outline: 2px solid` paints 96 pixels.
+The capture gate that drops empty childless boxes therefore keeps one whose
+non-`auto` outline has width and a nonzero alpha (DM-RGE1V9, same test file,
+with focus-ring and no-outline controls).
 
 A square dashed or dotted single-rect outline paints through
 `BoxBorderPainter`'s outline constructor, which uses the pixel-snapped outer

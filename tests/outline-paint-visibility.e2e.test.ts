@@ -74,3 +74,37 @@ describeBrowser("low-alpha outline paint (DM-HGGQMW)", () => {
     });
   }
 });
+
+// DM-RGE1V9: Blink keeps an empty pixel-snapped rect for a normal outline, but
+// not for a focus ring (OutlinePainter::PaintOutlineRects, outline_painter.cc:924
+// at 6b5a1b80), so a zero-area box still paints its outline.
+describeBrowser("zero-area box outline paint (DM-RGE1V9)", () => {
+  for (const sample of [
+    { name: "zero width", size: "width:0;height:20px", outline: "2px solid red", painted: true },
+    { name: "zero height", size: "width:20px;height:0", outline: "2px solid red", painted: true },
+    { name: "zero both", size: "width:0;height:0", outline: "2px solid red", painted: true },
+    { name: "focus ring", size: "width:0;height:0", outline: "2px auto red", painted: false },
+    { name: "no outline", size: "width:0;height:20px", outline: "none", painted: false },
+  ]) {
+    it(`matches native coverage for a ${sample.name} box`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;${sample.size};outline:${sample.outline}}</style><div id="probe"></div>`;
+      const native = await paintedPixels(env!.browser, source);
+
+      const page = await env!.browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height } });
+      let svg: string;
+      try {
+        await page.setContent(source, { waitUntil: "load" });
+        svg = elementTreeToSvg(await captureElementTree(page, "body", VIEW), VIEW.width, VIEW.height);
+      } finally {
+        await page.close();
+      }
+      const rendered = await paintedPixels(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+
+      expect(native > 0).toBe(sample.painted);
+      expect(rendered).toBe(native);
+    });
+  }
+});

@@ -107,7 +107,25 @@ export function captureGeometryStylePhase({
   const inkTextZeroWidth =
     rect.width === 0 && rect.height > 0 && el.textContent != null && el.textContent.trim().length > 0;
   const keepImageFallbackState = tag === "img";
-  if (zeroSized && el.children.length === 0 && !hasAnimation && !inkTextZeroWidth && !keepImageFallbackState)
+  // Blink keeps an empty pixel-snapped rect for a normal outline but not for a
+  // focus ring (OutlinePainter::PaintOutlineRects, outline_painter.cc:924 at
+  // 6b5a1b80), so a zero-area box still paints its outline. DM-RGE1V9.
+  const outlineStyle = cs.outlineStyle;
+  const outlineAlpha = /^rgba\([^)]*,\s*([0-9.]+)\s*\)$/.exec(cs.outlineColor ?? "");
+  const paintsEmptyOutline =
+    outlineStyle !== "none" &&
+    outlineStyle !== "hidden" &&
+    outlineStyle !== "auto" &&
+    parseFloat(cs.outlineWidth) > 0 &&
+    (outlineAlpha == null || parseFloat(outlineAlpha[1]) > 0);
+  if (
+    zeroSized &&
+    el.children.length === 0 &&
+    !hasAnimation &&
+    !inkTextZeroWidth &&
+    !keepImageFallbackState &&
+    !paintsEmptyOutline
+  )
     return null;
 
   return {
