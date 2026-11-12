@@ -565,7 +565,7 @@ function ownGeometry(el: CapturedElement): {
     outlineWidth > 0 &&
     outlineStyle !== "none" &&
     outlineStyle !== "hidden" &&
-    (outlineColor == null || outlineColor.a > 0.01)
+    (outlineColor == null || outlineColor.a > 0)
   ) {
     const corners = parseCornerRadii(el.styles, el.width, el.height);
     const rounded = [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h !== 0 || corner.v !== 0);

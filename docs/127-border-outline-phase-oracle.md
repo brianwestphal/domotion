@@ -9,6 +9,7 @@ tickets:
   [
     "DM-2184",
     "DM-GQJ8C4",
+    "DM-HGGQMW",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -104,6 +105,15 @@ to a small rectangle instead of inverting it. `adjustedOutlineOffset` in
 `src/render/outline-paint.ts` transcribes it for the square and rounded paths,
 and the cull mirror in `src/render/culling-geometry.ts` uses the same values
 (DM-GQJ8C4; feature fixture `outline-negative-offset-clamp`).
+
+An outline paints whenever its color is not fully transparent:
+`BorderEdge::HasVisibleColorAndStyle` (`core/style/border_edge.cc:33`, chromium
+`6b5a1b80`) tests only `!IsFullyTransparent()`. Even `rgba(255,0,0,.004)`
+quantizes to 8-bit alpha 1 in Chromium's paint. `paintOutline` and the cull
+mirror therefore gate on alpha above zero, not on the renderer's 0.01
+visibility floor (DM-HGGQMW; `tests/outline-low-alpha.e2e.test.ts` compares
+native and SVG coverage on a transparent background, with a zero-alpha
+control).
 
 A square dashed or dotted single-rect outline paints through
 `BoxBorderPainter`'s outline constructor, which uses the pixel-snapped outer

@@ -119,7 +119,10 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
   const ostyle = el.styles.outlineStyle ?? "none";
   if (ow > 0 && ostyle !== "none" && ostyle !== "hidden") {
     const ocolor = parseColor(el.styles.outlineColor ?? el.styles.color);
-    if (ocolor != null && ocolor.a > 0.01) {
+    // Blink paints an outline edge whenever its color is not fully transparent
+    // (BorderEdge::HasVisibleColorAndStyle, core/style/border_edge.cc at
+    // 6b5a1b80); a near-zero alpha still quantizes to visible pixels.
+    if (ocolor != null && ocolor.a > 0) {
       const offset = parseFloat(el.styles.outlineOffset ?? "0") || 0;
       const snappedLeft = Math.round(el.x);
       const snappedTop = Math.round(el.y);
