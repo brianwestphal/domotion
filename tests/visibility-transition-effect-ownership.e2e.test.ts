@@ -140,6 +140,56 @@ async function rgba(png: Buffer): Promise<Buffer> {
   return sharp(png).ensureAlpha().raw().toBuffer();
 }
 
+/** DM-DQGEDM: when an isolated `omitBackground` screenshot comes back with an
+ * opaque corner (Chromium's default white), keep the PNGs, the root paint
+ * state and a second transparent screenshot one frame later, so a recurrence
+ * tells a background-override frame race from an override that never applied.
+ * Diagnostic only: the original assertion still fails. */
+async function retainIsolationFailure(
+  page: Page,
+  name: string,
+  images: { source: Buffer; isolated: Buffer },
+): Promise<void> {
+  try {
+    const state = await page.evaluate(() => ({
+      visibilityState: document.visibilityState,
+      htmlBackground: getComputedStyle(document.documentElement).backgroundColor,
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
+      htmlVisibility: getComputedStyle(document.documentElement).visibility,
+      bodyVisibility: getComputedStyle(document.body).visibility,
+      styleSheets: document.styleSheets.length,
+    }));
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
+    const retake = await page.screenshot({ omitBackground: true, timeout: 5_000 });
+    const retakePixels = await rgba(retake);
+    const directory = join(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output", "visibility-isolation");
+    mkdirSync(directory, { recursive: true });
+    const stem = `${name}-${process.pid}-${Date.now()}`;
+    writeFileSync(join(directory, `${stem}-source.png`), images.source);
+    writeFileSync(join(directory, `${stem}-isolated.png`), images.isolated);
+    writeFileSync(join(directory, `${stem}-retake.png`), retake);
+    writeFileSync(
+      join(directory, `${stem}.json`),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          sourceCommit: process.env["GITHUB_SHA"] ?? null,
+          case: name,
+          isolatedCorner: [...(await rgba(images.isolated)).subarray(0, 4)],
+          retakeCorner: [...retakePixels.subarray(0, 4)],
+          state,
+        },
+        null,
+        2,
+      ),
+    );
+  } catch {
+    console.warn("Isolated screenshot failed; diagnostic evidence could not be written.");
+  }
+}
+
 describe("visibility-transition paint ownership browser contract (DM-FTRBES)", () => {
   for (const role of ["overlay", "target"] as const)
     for (const direction of ["to-hidden", "to-visible"] as const)
@@ -168,6 +218,12 @@ describe("visibility-transition paint ownership browser contract (DM-FTRBES)", (
               else expect(during.startTime).toBe(before.startTime);
               isolated = await page.screenshot({ omitBackground: true, timeout: 5_000 });
               const pixels = await rgba(isolated);
+              if (pixels[3] !== 0) {
+                await retainIsolationFailure(page, `${role}-${direction}-${paused ? "paused" : "running"}`, {
+                  source,
+                  isolated,
+                });
+              }
               expect([...pixels.subarray(0, 4)]).toEqual([0, 0, 0, 0]);
               expect([...pixels.subarray((50 * 100 + 50) * 4, (50 * 100 + 50) * 4 + 4)]).toEqual([0, 80, 240, 255]);
             } finally {
