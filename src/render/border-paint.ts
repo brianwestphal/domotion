@@ -24,15 +24,49 @@ import type { PaintCtx } from "./element-tree-to-svg.js";
 type BevelSide = "top" | "right" | "bottom" | "left";
 type BevelColor = { r: number; g: number; b: number; a: number };
 
-/** Chromium BoxBorderPainter darkens the base color to two thirds per channel. */
+// Color::QuantizeTo8Bit (platform/graphics/color.cc:156, chromium 6b5a1b80):
+// truncates against nextafter(256, 0) rather than rounding.
+const quantizeTo8Bit = (unit: number): number => Math.floor(unit * 255.99998);
+
+/** Color::Dark (color.cc:1165): scale every channel by (v - 0.33) / v, where v
+ * is the largest sRGB channel; white is hardcoded to 171. */
+function blinkDark(color: BevelColor): BevelColor {
+  if (color.r === 255 && color.g === 255 && color.b === 255 && color.a === 1) return { r: 171, g: 171, b: 171, a: 1 };
+  const v = Math.max(color.r, color.g, color.b) / 255;
+  const multiplier = v === 0 ? 0 : Math.max(0, (v - 0.33) / v);
+  const scale = (channel: number) => quantizeTo8Bit((channel / 255) * multiplier);
+  return { r: scale(color.r), g: scale(color.g), b: scale(color.b), a: color.a };
+}
+
+/** Color::Light (color.cc:1138): scale by min(1, v + 0.33) / v; black becomes 84,84,84. */
+function blinkLight(color: BevelColor): BevelColor {
+  const v = Math.max(color.r, color.g, color.b) / 255;
+  if (v === 0) return { r: 84, g: 84, b: 84, a: color.a };
+  const multiplier = Math.min(1, v + 0.33) / v;
+  const scale = (channel: number) => quantizeTo8Bit((channel / 255) * multiplier);
+  return { r: scale(color.r), g: scale(color.g), b: scale(color.b), a: color.a };
+}
+
+// ui/gfx/color_utils.cc Linearize / GetRelativeLuminance4f / GetContrastRatio.
+const linearize = (unit: number): number => (unit <= 0.04045 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4);
+const relativeLuminance = (color: BevelColor): number =>
+  0.2126 * linearize(color.r / 255) + 0.7152 * linearize(color.g / 255) + 0.0722 * linearize(color.b / 255);
+function contrastRatio(a: BevelColor, b: BevelColor): number {
+  const la = relativeLuminance(a) + 0.05;
+  const lb = relativeLuminance(b) + 0.05;
+  return la > lb ? la / lb : lb / la;
+}
+
+/** CalculateInsetOutsetColor (core/paint/box_border_painter.cc:616, chromium
+ * 6b5a1b80): the dark edge is Color::Dark(); the light edge is the color
+ * itself unless it contrasts with that dark edge by less than 1.75, in which
+ * case it is Color::Light(). */
 export function bevelShades(color: BevelColor, style: string, side: BevelSide): { outer: string; inner: string } {
-  const dark = colorStr({
-    r: Math.round((color.r * 2) / 3),
-    g: Math.round((color.g * 2) / 3),
-    b: Math.round((color.b * 2) / 3),
-    a: color.a,
-  });
-  const light = colorStr(color);
+  const darkColor = blinkDark(color);
+  const lightColor =
+    color.r >= 150 || color.g >= 92 || contrastRatio(color, darkColor) >= 1.75 ? color : blinkLight(color);
+  const dark = colorStr(darkColor);
+  const light = colorStr(lightColor);
   const topLeft = side === "top" || side === "left";
   const outerLight = (style === "ridge" || style === "outset") === topLeft;
   return { outer: outerLight ? light : dark, inner: outerLight ? dark : light };

@@ -13,6 +13,7 @@ tickets:
     "DM-RGE1V9",
     "DM-9X9M8A",
     "DM-XDTVBW",
+    "DM-NVVDRB",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -97,6 +98,16 @@ review found the remaining DSF=1 dotted-outline coverage profile byte-stable
 across runners. The later uniform-double snap correction left those maxima and
 their ceilings unchanged; doc 191 records the exact geometry, ceilings, and
 evidence fingerprints.
+
+The two shades of a `groove`, `ridge`, `inset` or `outset` border come from
+`CalculateInsetOutsetColor` (`box_border_painter.cc:616`, chromium `6b5a1b80`).
+The dark edge is `Color::Dark()` (`color.cc:1165`): every channel is scaled by
+`(v - 0.33) / v`, where `v` is the largest sRGB channel, and truncated by
+`QuantizeTo8Bit`; white is hardcoded to 171. The light edge is the color
+itself unless its contrast ratio with that dark shade is below 1.75, in which
+case it is `Color::Light()` (black becomes 84,84,84). `bevelShades` in
+`src/render/border-paint.ts` transcribes this; it previously used two thirds
+per channel (DM-NVVDRB; `tests/border-bevel-shades.e2e.test.ts`).
 
 A negative outline offset is clamped per axis before any of this geometry:
 `AdjustedOutlineOffset` (`outline_painter.cc:79-82`, chromium `6b5a1b80`)

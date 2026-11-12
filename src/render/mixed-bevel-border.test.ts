@@ -128,7 +128,7 @@ function boxWith(styleOverrides: Partial<Record<string, string>>): CapturedEleme
 }
 
 const LIGHTER = 'fill="rgb(180,83,9)"'; // base color
-const DARKER = 'fill="rgb(120,55,6)"'; // base × 2/3 (Chrome's 3D shade)
+const DARKER = 'fill="rgb(96,44,4)"'; // Blink Color::Dark(): channels × (v - 0.33) / v, truncated
 const polyCount = (svg: string, fill: string) => svg.split(`<polygon`).filter((p) => p.includes(fill)).length;
 
 describe("mixed per-side 3D bevel border (DM-1275)", () => {

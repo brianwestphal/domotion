@@ -61,9 +61,19 @@ function element(styles: Record<string, unknown>): CapturedElement {
 describe("SVG border paint owner", () => {
   it("uses one bevel shade and polygon plan for every side", () => {
     const red = { r: 255, g: 0, b: 0, a: 1 };
-    expect(bevelShades(red, "outset", "top")).toEqual({ outer: "rgb(255,0,0)", inner: "rgb(170,0,0)" });
-    expect(bevelShades(red, "outset", "right")).toEqual({ outer: "rgb(170,0,0)", inner: "rgb(255,0,0)" });
-    expect(bevelShades(red, "groove", "left").outer).toBe("rgb(170,0,0)");
+    expect(bevelShades(red, "outset", "top")).toEqual({ outer: "rgb(255,0,0)", inner: "rgb(171,0,0)" });
+    expect(bevelShades(red, "outset", "right")).toEqual({ outer: "rgb(171,0,0)", inner: "rgb(255,0,0)" });
+    expect(bevelShades(red, "groove", "left").outer).toBe("rgb(171,0,0)");
+    // DM-NVVDRB: CalculateInsetOutsetColor lightens a low-contrast light edge
+    // (Color::Light) and Color::Dark scales by the max channel, both measured
+    // against native Chromium paint.
+    expect(bevelShades({ r: 16, g: 32, b: 64, a: 1 }, "groove", "top")).toEqual({
+      outer: "rgb(0,0,0)",
+      inner: "rgb(37,74,148)",
+    });
+    expect(bevelShades({ r: 0, g: 0, b: 0, a: 1 }, "inset", "bottom").outer).toBe("rgb(84,84,84)");
+    expect(bevelShades({ r: 255, g: 255, b: 255, a: 1 }, "inset", "top").outer).toBe("rgb(171,171,171)");
+    expect(bevelShades({ r: 40, g: 90, b: 200, a: 1 }, "groove", "top").outer).toBe("rgb(23,52,116)");
     const polygons = bevelSidePolygons(element({}), 4);
     expect(Object.keys(polygons)).toEqual(["top", "right", "bottom", "left"]);
     expect(polygons.top.full).toContain("10,20 110,20");
