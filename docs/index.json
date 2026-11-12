@@ -4152,7 +4152,7 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2481", "DM-2482", "DM-2483", "DM-2484", "DM-2537"],
+        "tickets": ["DM-2481", "DM-2482", "DM-2483", "DM-2484", "DM-2537", "DM-W4VADZ"],
         "code": [
           "src/capture/pseudo-style-cdp.ts",
           "src/capture/scrollbar-capture.ts",

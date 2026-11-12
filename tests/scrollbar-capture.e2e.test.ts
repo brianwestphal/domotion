@@ -659,6 +659,31 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
     }
   });
 
+  it("leaves absent or literal root style attributes exactly as authored (DM-W4VADZ)", async () => {
+    // Six contained spans overflow the 200x100 viewport, so the root scroller
+    // takes the standard-color marker route, which writes inline scrollbar and
+    // overflow properties on the root while it measures.
+    const markup = (htmlStyle: string | null, bodyStyle: string | null) => {
+      const attr = (value: string | null) => (value == null ? "" : ` style="${value}"`);
+      return `<!doctype html><html${attr(htmlStyle)}><head><style>span{display:block;contain:layout;width:40px;height:20px}</style></head><body${attr(bodyStyle)}>${"<span></span>".repeat(6)}</body></html>`;
+    };
+    for (const [htmlStyle, bodyStyle] of [
+      [null, null],
+      ["--keep: a", "margin: 0px"],
+    ] as const) {
+      const page = await env!.browser.newPage({ viewport: { width: 200, height: 100 } });
+      try {
+        await page.setContent(markup(htmlStyle, bodyStyle));
+        const attributes = () =>
+          page.evaluate(() => [document.documentElement.getAttribute("style"), document.body.getAttribute("style")]);
+        expect(await attributes()).toEqual([htmlStyle, bodyStyle]);
+        await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 200, height: 100 });
+        expect(await attributes()).toEqual([htmlStyle, bodyStyle]);
+      } finally {
+        await page.close();
+      }
+    }
+  });
   it("records Playwright's hidden-scrollbar launch as an explicit unavailable negative", async () => {
     const hiddenBrowser = await launchChromium({ headless: true });
     const page = await hiddenBrowser.newPage({ viewport: { width: 360, height: 240 } });

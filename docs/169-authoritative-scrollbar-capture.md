@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2481", "DM-2482", "DM-2483", "DM-2484", "DM-2537"]
+tickets: ["DM-2481", "DM-2482", "DM-2483", "DM-2484", "DM-2537", "DM-W4VADZ"]
 code:
   [
     "src/capture/pseudo-style-cdp.ts",
@@ -61,6 +61,14 @@ inserted. For that root-only case, capture synchronously flips each visible
 overflow longhand to the equivalent used `auto`, forces invalidation, and
 restores the original inline declaration before the measured animation frame.
 No measurement is taken while the temporary declaration is present.
+
+Restoring individual declarations cannot return an absent `style` attribute to
+absent: removing the last inline property leaves `style=""`. The standard-color
+marker pass and the `scrollbar-width: none` underlay pass therefore record the
+owner's `style` attribute literal (or its absence) before writing, and restore
+exactly that once their declarations are restored. They touch the attribute
+only when it differs, so an unchanged source sees no extra mutation
+(DM-W4VADZ).
 
 For an author WebKit scrollbar, reserved colors repaint the already-created
 background, track, track pieces, buttons, thumb, and corner. The topmost parts

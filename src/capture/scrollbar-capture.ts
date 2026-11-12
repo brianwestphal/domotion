@@ -784,6 +784,7 @@ async function restoreMarkerPaint(
             attributeValue: string | null;
             scrollbarColor: string;
             scrollbarColorPriority: string;
+            styleAttribute: string | null;
             style: HTMLStyleElement | null;
           }
         | undefined;
@@ -796,6 +797,12 @@ async function restoreMarkerPaint(
           html.style.setProperty("scrollbar-color", state.scrollbarColor, state.scrollbarColorPriority);
         } else {
           html.style.removeProperty("scrollbar-color");
+        }
+        // Return the attribute to its exact authored state; touch it only when
+        // it differs, so an unchanged source sees no extra attribute mutation.
+        if (state != null && element.getAttribute("style") !== state.styleAttribute) {
+          if (state.styleAttribute == null) element.removeAttribute("style");
+          else element.setAttribute("style", state.styleAttribute);
         }
       }
       if (marker != null) marker.state = undefined;
@@ -868,7 +875,7 @@ async function captureNativeOverlayFrames(
   if (frameIndexes.every(({ indexes }) => indexes.length === 0) || source == null) {
     return { source, underlay: null, restored: null };
   }
-  type RestoreEntry = { element: HTMLElement; value: string; priority: string };
+  type RestoreEntry = { element: HTMLElement; value: string; priority: string; styleAttribute: string | null };
   const restoreRegistry = createPageRegistry<RestoreEntry[]>(page, "ScrollbarWidthRestore");
   const restoreKey = restoreRegistry.key;
   let underlay: NativeScrollbarFrame | null = null;
@@ -888,6 +895,7 @@ async function captureNativeOverlayFrames(
                 element,
                 value: element.style.getPropertyValue("scrollbar-width"),
                 priority: element.style.getPropertyPriority("scrollbar-width"),
+                styleAttribute: element.getAttribute("style"),
               });
               element.style.setProperty("scrollbar-width", "none", "important");
             }
@@ -912,12 +920,18 @@ async function captureNativeOverlayFrames(
                   element: HTMLElement;
                   value: string;
                   priority: string;
+                  styleAttribute: string | null;
                 }>
               | undefined;
             for (let index = (restore?.length ?? 0) - 1; index >= 0; index--) {
               const entry = restore![index];
               if (entry.value === "") entry.element.style.removeProperty("scrollbar-width");
               else entry.element.style.setProperty("scrollbar-width", entry.value, entry.priority);
+              // DM-W4VADZ: an absent `style` attribute stays absent.
+              if (entry.element.getAttribute("style") !== entry.styleAttribute) {
+                if (entry.styleAttribute == null) entry.element.removeAttribute("style");
+                else entry.element.setAttribute("style", entry.styleAttribute);
+              }
             }
             void document.documentElement.getBoundingClientRect();
           }, restoreKey)
@@ -1568,6 +1582,9 @@ const installMarkerPaintInFrame = ({
     attributeValue: element.getAttribute(markerAttribute),
     scrollbarColor: (element as HTMLElement).style.getPropertyValue("scrollbar-color"),
     scrollbarColorPriority: (element as HTMLElement).style.getPropertyPriority("scrollbar-color"),
+    // DM-W4VADZ: property-level restoration cannot return an absent `style`
+    // attribute to absent (it ends as ""), so keep the authored literal too.
+    styleAttribute: element.getAttribute("style"),
     style: null as HTMLStyleElement | null,
   };
   const marker = (globalThis as typeof globalThis & Record<string, unknown>)[markerKey] as {
