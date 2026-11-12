@@ -539,6 +539,18 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
  * explicit computed-style arm is load-bearing when an overflow/grouping
  * property flattens preserve-3d's used value.
  */
+/**
+ * Whether a viewport-fixed descendant stays inside `el`'s subtree rather than
+ * hoisting to the document root: `el` is its containing block, or a genuine
+ * (not overflow-only) stacking context. Blink paints a fixed box in its
+ * nearest ancestor stacking context, so that context's opacity, blend,
+ * clip-path and mask apply, while overflow clips of non-containing-block
+ * ancestors do not (DM-RN0T12).
+ */
+export function trapsFixedDescendants(el: CapturedElement, parentDisplay: string | undefined): boolean {
+  return isFixedContainingBlock(el) || (establishesStackingContext(el, parentDisplay) && !isOverflowOnlySC(el));
+}
+
 export function isFixedContainingBlock(el: CapturedElement): boolean {
   const s = el.styles;
   const transformRelated = transformRelatedCanOwnFixed(el);

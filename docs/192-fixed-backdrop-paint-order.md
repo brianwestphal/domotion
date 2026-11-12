@@ -5,8 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2487", "DM-2488", "DM-2489", "DM-2490"]
-code: ["tools/backdrop-source-surface-audit.ts"]
+tickets: ["DM-2487", "DM-2488", "DM-2489", "DM-2490", "DM-RN0T12"]
+code: ["tools/backdrop-source-surface-audit.ts", "src/render/stacking.ts", "src/render/paint-order.ts"]
 aliases: ["docs/192-fixed-backdrop-paint-order.md", "doc-192"]
 ---
 
@@ -32,6 +32,31 @@ positioned sibling. The fix makes animation atomicity conditional on actual
 overflow-only pass-through contexts. Explicit z-index, transforms, filters,
 containment, opacity and real animation tracks remain atomic; transformed
 fixed-containing-block behavior is unchanged.
+
+## Fixed boxes inside genuine stacking contexts (DM-RN0T12)
+
+A viewport-fixed box escapes overflow clips whose owner is not its containing
+block, but it still paints in its nearest ancestor stacking context. That
+context's opacity, `mix-blend-mode`, `clip-path` and mask apply to it, and its
+`z-index` bounds the box's order against the context's siblings. The
+viewport-fixed pass used to stop only at fixed containing blocks, so it hoisted
+the box to the document root past every such context. Native probes showed it
+losing a single or nested `opacity: .5`, a `multiply` blend and an
+`inset(0)` clip-path, and painting a `z-index: 1000` box above a `z-index: 2`
+sibling of its `z-index: 1` wrapper.
+
+The pass now also stops at a genuine (not overflow-only) stacking context
+(`trapsFixedDescendants` in `src/render/stacking.ts`). That context's own
+gather hoists the box and already skips overflow-only clips for fixed boxes.
+The context's own overflow clip is escaped by closing and reopening the
+innermost open clip groups around the box. When a fixed box in the context's
+plan escapes it, the context's border-box overflow clip moves to its own
+innermost group so it can be closed the same way, while the context's own text
+stays clipped. The cursor hit-test (`src/render/paint-order.ts`) mirrors this:
+a fixed box keeps only its containing block's clips. One limitation remains
+(DM-X4W03B): a clip cannot be escaped when a nested stacking context's effect
+group is open inside it. `tests/fixed-effect-ownership.e2e.test.ts` holds the
+native pixel controls.
 
 ## Evidence
 

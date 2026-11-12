@@ -4623,8 +4623,8 @@
         "status": "current",
         "owners": ["paint-effects"],
         "platforms": [],
-        "tickets": ["DM-2487", "DM-2488", "DM-2489", "DM-2490"],
-        "code": ["tools/backdrop-source-surface-audit.ts"],
+        "tickets": ["DM-2487", "DM-2488", "DM-2489", "DM-2490", "DM-RN0T12"],
+        "code": ["tools/backdrop-source-surface-audit.ts", "src/render/stacking.ts", "src/render/paint-order.ts"],
         "aliases": ["docs/192-fixed-backdrop-paint-order.md", "doc-192"]
       }
     },

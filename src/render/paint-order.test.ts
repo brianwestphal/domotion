@@ -158,6 +158,32 @@ describe("hitTestTopmost: pointer-events / clipping (DM-1742)", () => {
     const body = el({ x: 0, y: 0, w: 1000, h: 500, cursor: "text", children: [scroller] });
     expect(cursorAtPoint([body], 920, 420)).toBe("pointer"); // outside the scroller box, still hit
   });
+
+  it("DM-RN0T12: fixed escapes an overflow-clipping stacking context but not its containing block", () => {
+    const pin = () => el({ x: 900, y: 400, w: 60, h: 60, cursor: "pointer", styles: { position: "fixed" } });
+    const context = el({
+      x: 0,
+      y: 0,
+      w: 300,
+      h: 100,
+      styles: { overflowX: "hidden", overflowY: "hidden", opacity: "0.5" },
+      children: [pin()],
+    });
+    const contained = el({
+      x: 0,
+      y: 0,
+      w: 300,
+      h: 100,
+      styles: { overflowX: "hidden", overflowY: "hidden", transformCreatesSc: true, transform: "matrix(1, 0, 0, 1, 0, 0)" },
+      children: [pin()],
+    });
+    expect(cursorAtPoint([el({ x: 0, y: 0, w: 1000, h: 500, cursor: "text", children: [context] })], 920, 420)).toBe(
+      "pointer",
+    );
+    expect(cursorAtPoint([el({ x: 0, y: 0, w: 1000, h: 500, cursor: "text", children: [contained] })], 920, 420)).toBe(
+      "text",
+    );
+  });
 });
 
 describe("hitTestTopmost: basics", () => {

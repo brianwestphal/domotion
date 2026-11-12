@@ -48,6 +48,7 @@ import {
   establishesStackingContext,
   gatherStackingContextChildren,
   isFixedContainingBlock,
+  trapsFixedDescendants,
   sortChildrenByPaintOrder,
 } from "./stacking.js";
 
@@ -99,7 +100,8 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
   const topFlat = gatherStackingContextChildren(elements, hoisted, undefined, topInline, clipForHoisted, topZSorted);
   // Viewport-fixed pull — mirror of the renderer's collectViewportFixed
   // (position:fixed paints in the viewport SC and escapes ancestor clips,
-  // unless trapped by a fixed-containing-block ancestor).
+  // unless trapped by a fixed-containing-block ancestor or a genuine stacking
+  // context, which paints it under its own effects — DM-RN0T12).
   const collectViewportFixed = (parent: CapturedElement): void => {
     for (const c of parent.children ?? []) {
       if (c.styles.position === "fixed") {
@@ -107,22 +109,41 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
           topFlat.push(c);
           hoisted.add(c);
         }
-      } else if (!isFixedContainingBlock(c)) {
+      } else if (!trapsFixedDescendants(c, parent.styles.display)) {
         collectViewportFixed(c);
       }
     }
   };
   for (const e of elements) {
-    if (e.styles.position !== "fixed" && !isFixedContainingBlock(e)) {
+    if (e.styles.position !== "fixed" && !trapsFixedDescendants(e, undefined)) {
       collectViewportFixed(e);
     }
   }
   const sortedTop = sortChildrenByPaintOrder(topFlat, undefined, undefined, topInline, topZSorted);
 
+  // DM-RN0T12: a fixed box now hit-tests inside its nearest stacking context
+  // but keeps only the clips that apply to its containing block (none for the
+  // viewport), exactly as the renderer escapes the intervening overflow clips.
+  const childClipsOf = new Map<CapturedElement, ClipRect[]>();
+  const parentOf = new Map<CapturedElement, CapturedElement>();
+  const indexParents = (parent: CapturedElement): void => {
+    for (const child of parent.children ?? []) {
+      parentOf.set(child, parent);
+      indexParents(child);
+    }
+  };
+  for (const root of elements) indexParents(root);
+  const fixedClips = (el: CapturedElement): ClipRect[] => {
+    for (let ancestor = parentOf.get(el); ancestor != null; ancestor = parentOf.get(ancestor)) {
+      if (isFixedContainingBlock(ancestor)) return childClipsOf.get(ancestor) ?? [];
+    }
+    return [];
+  };
   const visit = (el: CapturedElement, parentDisplay: string | undefined, clips: ClipRect[]): void => {
     out.push({ el, clips });
     if (el.children == null || el.children.length === 0) return;
     const childClips = overflowClips(el) ? [...clips, rectOf(el)] : clips;
+    childClipsOf.set(el, childClips);
     const display = el.styles.display;
     const inlineForEl = new Set<CapturedElement>();
     const zSortedForEl = new Set<CapturedElement>();
@@ -157,7 +178,12 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
       // A hoisted descendant that escaped an overflow-only scroller keeps
       // that scroller's clip (unless fixed, which escapes overflow clips).
       const escaped = clipForHoisted.get(c);
-      const cClips = escaped != null && c.styles.position !== "fixed" ? [...childClips, rectOf(escaped)] : childClips;
+      const cClips =
+        c.styles.position === "fixed"
+          ? fixedClips(c)
+          : escaped != null
+            ? [...childClips, rectOf(escaped)]
+            : childClips;
       visit(c, display, cClips);
     }
   };

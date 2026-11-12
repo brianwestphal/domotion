@@ -3289,7 +3289,7 @@
       "status": "current",
       "owners": ["paint-effects"],
       "platforms": [],
-      "code": ["tools/backdrop-source-surface-audit.ts"],
+      "code": ["tools/backdrop-source-surface-audit.ts", "src/render/stacking.ts", "src/render/paint-order.ts"],
       "file": "192-fixed-backdrop-paint-order.md"
     },
     {

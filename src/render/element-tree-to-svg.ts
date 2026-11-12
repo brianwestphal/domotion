@@ -50,6 +50,7 @@ import {
   isFixedContainingBlock,
   paintOrderBuckets,
   paintsAtomicallyAsInlineBox,
+  trapsFixedDescendants,
   type PaintOrderBuckets,
 } from "./stacking.js";
 export { parseGradientStops, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js"; // re-export for existing test importers
@@ -352,6 +353,8 @@ export interface RenderState {
   pseudoStacking: PseudoStackingContexts;
   overflowClipForHoisted: Map<CapturedElement, CapturedElement>;
   overflowClipPathIds: Map<CapturedElement, string>;
+  /** Child overflow-clip groups currently open, innermost last (DM-RN0T12). */
+  openChildClips: Array<{ owner: CapturedElement; id: string; indent: string }>;
   offGridCollapsedCells: Set<CapturedElement>;
   elementMaskRasters: Map<string, MaskRasterRef>;
   fragmentMaskDefs: Map<string, MaskFragmentDef>;
@@ -1846,6 +1849,7 @@ function buildRenderState(
     pseudoStacking,
     overflowClipForHoisted,
     overflowClipPathIds,
+    openChildClips: [],
     offGridCollapsedCells,
     elementMaskRasters,
     fragmentMaskDefs,
@@ -1943,6 +1947,11 @@ function elementTreeToSvgInnerImpl(
   // the reference section's pin should hit the viewport; the pins under
   // .frame-transform / .frame-filter / .frame-will / .frame-contain stay
   // trapped to .frame.
+  // DM-RN0T12: also stop at a genuine (not overflow-only) stacking context.
+  // A fixed box escapes overflow clips whose owner is not its containing block,
+  // but it still paints in its nearest ancestor stacking context, under that
+  // context's opacity, blend, clip-path and mask. That context's own gather
+  // hoists it there and already skips overflow-only clips for fixed boxes.
   const collectViewportFixed = (parent: CapturedElement): void => {
     for (const c of parent.children) {
       if (c.styles.position === "fixed") {
@@ -1951,14 +1960,14 @@ function elementTreeToSvgInnerImpl(
           hoistedFromAncestor.add(c);
         }
         // c is its own SC root; descendants render via c's renderElement.
-      } else if (!isFixedContainingBlock(c)) {
+      } else if (!trapsFixedDescendants(c, parent.styles.display)) {
         collectViewportFixed(c);
       }
-      // else: c is a fixed-CB; fixed descendants stay within c's subtree.
+      // else: c is a fixed-CB or a genuine SC; fixed descendants stay within it.
     }
   };
   for (const e of elements) {
-    if (e.styles.position !== "fixed" && !isFixedContainingBlock(e)) {
+    if (e.styles.position !== "fixed" && !trapsFixedDescendants(e, undefined)) {
       collectViewportFixed(e);
     }
   }
@@ -2383,6 +2392,22 @@ function renderElementWithOverflowClip(
   parentDisplayForEl?: string,
   phase: PaintPhase = "all",
 ): void {
+  const escaped = escapedChildClips(state, el);
+  if (escaped.length > 0) {
+    for (const clip of escaped) {
+      state.openChildClips.pop();
+      state.svgParts.push(`${clip.indent}</g>`);
+    }
+    try {
+      renderElementWithOverflowClip(state, el, depth, parentDisplayForEl, phase);
+    } finally {
+      for (const clip of [...escaped].reverse()) {
+        state.svgParts.push(`${clip.indent}<g clip-path="url(#${clip.id})">`);
+        state.openChildClips.push(clip);
+      }
+    }
+    return;
+  }
   if (state.hoistedFromAncestor.has(el)) {
     const ancestors: CapturedElement[] = [];
     let parent = state.parentElements.get(el);
@@ -3554,8 +3579,58 @@ function openChildOverflowClip(
   corners: ReturnType<typeof parseCornerRadii>,
 ): string | null {
   const id = ensureChildOverflowClipId(state, el, corners);
-  if (id != null) state.svgParts.push(`${indent}<g clip-path="url(#${id})">`);
+  if (id != null) {
+    state.svgParts.push(`${indent}<g clip-path="url(#${id})">`);
+    state.openChildClips.push({ owner: el, id, indent });
+  }
   return id;
+}
+
+function closeChildOverflowClip(state: RenderState, id: string | null, indent: string): void {
+  if (id == null) return;
+  state.openChildClips.pop();
+  state.svgParts.push(`${indent}</g>`);
+}
+
+/**
+ * A fixed box escapes the overflow clip of an ancestor that is not its
+ * containing block, even while it paints inside that ancestor's stacking
+ * context (DM-RN0T12). Return the innermost run of open overflow clips owned
+ * by such ancestors; the caller closes them around the fixed box and reopens
+ * them afterward, so paint order and the context's own effects are unchanged.
+ * Only innermost clips can be escaped this way: a clip outside another open
+ * group (a nested context's effects) stays applied.
+ */
+function escapedChildClips(
+  state: RenderState,
+  el: CapturedElement,
+): Array<{ owner: CapturedElement; id: string; indent: string }> {
+  if (el.styles.position !== "fixed") return [];
+  const escapable = new Set<CapturedElement>();
+  let ancestor = state.parentElements.get(el);
+  while (ancestor != null && !isFixedContainingBlock(ancestor)) {
+    escapable.add(ancestor);
+    ancestor = state.parentElements.get(ancestor);
+  }
+  const run: Array<{ owner: CapturedElement; id: string; indent: string }> = [];
+  for (let i = state.openChildClips.length - 1; i >= 0 && escapable.has(state.openChildClips[i].owner); i--) {
+    run.push(state.openChildClips[i]);
+  }
+  return run;
+}
+
+/** Whether `el`'s own stacking-context plan paints a fixed box that escapes its overflow clip. */
+function paintsEscapingFixedDescendant(el: CapturedElement): boolean {
+  if (isFixedContainingBlock(el)) return false;
+  const visit = (parent: CapturedElement): boolean =>
+    parent.children.some(
+      (child) =>
+        child.styles.position === "fixed" ||
+        (!isFixedContainingBlock(child) &&
+          !(establishesStackingContext(child, parent.styles.display) && !isOverflowOnlySC(child)) &&
+          visit(child)),
+    );
+  return visit(el);
 }
 
 export interface ChildOverflowClipGeometry {
@@ -4115,7 +4190,7 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
     for (const child of childPlan.flat3d) {
       renderElementWithOverflowClip(state, child, depth + 1, childPlan.childDisplay);
     }
-    if (childClipId != null) svgParts.push(`${indent}</g>`);
+    closeChildOverflowClip(state, childClipId, indent);
   } else if (!childInlinePhaseIsEmpty(childPlan) || hasSourcePseudoOverlay) {
     const childClipId = openChildOverflowClip(state, el, indent, corners);
     if (!hasSourcePseudoOverlay) renderChildInlinePhase(state, childPlan, depth);
@@ -4153,7 +4228,7 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
           );
         },
       });
-    if (childClipId != null) svgParts.push(`${indent}</g>`);
+    closeChildOverflowClip(state, childClipId, indent);
   }
 
   // A non-positioned ::after is the host's final generated child. Positioned
@@ -4500,7 +4575,20 @@ function renderElement(
   // viewport coordinate system the SVG draws in. Chrome resolves every
   // CSS transform function to a matrix in computed style, so we only
   // need to translate matrix() / matrix3d() into SVG syntax.
-  const wrappers = computeGroupWrapperAttrs(el, clipPathUrlId, maskUrlId, opacity, filterCss, blendCss);
+  // DM-RN0T12: an overflow clip (not CSS clip-path) moves to its own innermost
+  // group when a fixed box in this context's plan escapes it, so that box can
+  // close it while staying inside the context's other effects.
+  const cssClipPath = el.styles.clipPath != null && el.styles.clipPath !== "none" && el.styles.clipPath !== "";
+  const innerOverflowClipId =
+    clipPathUrlId != null && !cssClipPath && paintsEscapingFixedDescendant(el) ? clipPathUrlId : null;
+  const wrappers = computeGroupWrapperAttrs(
+    el,
+    innerOverflowClipId != null ? null : clipPathUrlId,
+    maskUrlId,
+    opacity,
+    filterCss,
+    blendCss,
+  );
   const { needsGroup, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform } = wrappers;
   const opened = needsGroup;
   // Blink's general Effect/blend node is outside its Filter node. Keep a
@@ -4541,6 +4629,10 @@ function renderElement(
   // the merger's class (added on the outer group) and our anim class can
   // each carry their own `animation` shorthand without clobbering.
   if (animClass !== "") svgParts.push(`${indent}<g class="${animClass}">`);
+  if (innerOverflowClipId != null) {
+    svgParts.push(`${indent}<g clip-path="url(#${innerOverflowClipId})">`);
+    state.openChildClips.push({ owner: el, id: innerOverflowClipId, indent });
+  }
   const wrapperContentStart = svgParts.length;
 
   const pseudoNegativePaintsAboveHostBox = establishesStackingContext(el, parentDisplayForEl);
@@ -4581,10 +4673,12 @@ function renderElement(
    */
   const closeWrappers = (): void => {
     releaseBaselineSnapSuppression?.();
+    if (innerOverflowClipId != null) state.openChildClips.pop();
     if (phase !== "all" && svgParts.length === wrapperContentStart) {
       svgParts.length = wrapperStart;
       return;
     }
+    if (innerOverflowClipId != null) svgParts.push(`${indent}</g>`);
     if (animClass !== "") svgParts.push(`${indent}</g>`);
     if (opened) svgParts.push(`${indent}</g>`);
     if (localizeReferenceFilter) svgParts.push(`${indent}</g>`);
@@ -4628,7 +4722,7 @@ function renderElement(
   if (paintBoxPhase && !childBoxPhaseIsEmpty(childPlan) && el.svgContent == null && childPlan.flat3d == null) {
     const childClipId = openChildOverflowClip(state, el, indent, corners);
     renderChildBoxPhase(state, childPlan, depth);
-    if (childClipId != null) svgParts.push(`${indent}</g>`);
+    closeChildOverflowClip(state, childClipId, indent);
   }
   if (!paintInlinePhase) {
     finish();
