@@ -137,7 +137,13 @@ describeBrowser("3D border corner joins (DM-XWP1NV)", () => {
 // BeginLayer(alpha); separately translucent side strokes double-blended at the
 // corners.
 describeBrowser("translucent dashed and dotted borders (DM-XMSZVV)", () => {
-  for (const border of ["2px dashed rgba(255,0,0,.5)", "2px dotted rgba(255,0,0,.5)", "3px dotted rgba(0,0,255,.6)"]) {
+  // DM-RQAZJS: the opaque case on this box needs six-decimal dash intervals.
+  for (const border of [
+    "2px dashed rgba(255,0,0,.5)",
+    "2px dotted rgba(255,0,0,.5)",
+    "3px dotted rgba(0,0,255,.6)",
+    "2px dashed red",
+  ]) {
     it(`matches native ${border} border`, async () => {
       const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:30px;height:24px;border:${border}}</style><div id="probe"></div>`;
       const page = await env!.browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height } });

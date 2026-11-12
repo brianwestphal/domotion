@@ -2,8 +2,11 @@ import { selectBestDashGap } from "./borders.js";
 import { formatNumberLoose } from "./format.js";
 /** Dash intervals repeat along the whole line, so the renderer's usual 0.1px
  * rounding would accumulate (and would erase Blink's 0.01 dotted epsilon). */
+// DM-RQAZJS: six decimals. Three let a repeating gap such as 10/3 lose
+// 0.001px per cycle, so a later dash started early enough to leave a 1/255
+// coverage sliver in the pixel before it.
 function interval(n: number): string {
-  return formatNumberLoose(n, 3);
+  return formatNumberLoose(n, 6);
 }
 
 /** Blink `DashLengthRatio`, `DashGapRatio`, and `DashEffectFromStrokeStyle` in

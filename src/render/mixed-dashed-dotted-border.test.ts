@@ -232,7 +232,7 @@ describe("square dashed outline side geometry (DM-2660)", () => {
     expect(lines[0]).toContain('x1="8" y1="19" x2="112" y2="19"');
     expect(lines[0]).toContain('stroke-dasharray="6 3.8"');
     expect(lines[1]).toContain('x1="111" y1="18" x2="111" y2="82"');
-    expect(lines[1]).toContain('stroke-dasharray="6 3.667"');
+    expect(lines[1]).toContain('stroke-dasharray="6 3.666667"');
     expect(lines[2]).toContain('x1="8" y1="81" x2="112" y2="81"');
     expect(lines[3]).toContain('x1="9" y1="18" x2="9" y2="82"');
   });
