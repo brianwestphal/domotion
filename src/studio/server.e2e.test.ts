@@ -142,9 +142,9 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     testPage.on("pageerror", (error) => clientErrors.push(error.message));
     await testPage.goto(server.url, { waitUntil: "load" });
 
-    await testPage.getByRole("heading", { name: "Create or open a Studio project" }).waitFor();
-    await testPage.getByLabel("Project file").fill("glassbox.studio.json");
-    await testPage.getByLabel("New project title").fill("Glassbox Story");
+    await testPage.getByRole("heading", { name: "Create or Open a Studio Project" }).waitFor();
+    await testPage.getByLabel("Project File").fill("glassbox.studio.json");
+    await testPage.getByLabel("New Project Title").fill("Glassbox Story");
     await testPage.getByRole("button", { name: "Create" }).click();
 
     await testPage.getByRole("heading", { name: "Glassbox Story" }).waitFor();
@@ -183,8 +183,8 @@ describe("Domotion Studio application shell (DM-2687)", () => {
 
     await testPage.getByRole("button", { name: "Add Beat" }).click();
     const secondBeat = testPage.locator("[data-beat-id]").nth(1);
-    await secondBeat.getByLabel(/Beat .* title/).fill("Payoff");
-    await secondBeat.getByLabel(/Beat .* summary/).fill("Close on the generated result.");
+    await secondBeat.getByLabel(/Beat .* Title/).fill("Payoff");
+    await secondBeat.getByLabel(/Beat .* Summary/).fill("Close on the generated result.");
     await testPage.getByRole("button", { name: "Add Scene" }).click();
     const secondScene = testPage.locator("[data-scene-id]").nth(1);
     await secondScene.getByLabel("Scene 2 Title").fill("Generated payoff");
@@ -239,17 +239,17 @@ describe("Domotion Studio application shell (DM-2687)", () => {
       await kerfSelectValue(testPage.getByRole("combobox", { name: "Scene 2 Cinematic Preset", exact: true })),
     ).toBe("browser-chrome");
 
-    await testPage.getByLabel("New review note").fill("Pause on the highlighted control.");
+    await testPage.getByLabel("New Review Note").fill("Pause on the highlighted control.");
     await chooseKerfSelectOption(
       testPage.getByRole("combobox", { name: "Annotation Scope", exact: true }),
       "scene-opening",
     );
-    await testPage.getByLabel("Annotation start time").fill("420");
-    await testPage.getByLabel("Annotation end time").fill("780");
-    await testPage.getByLabel("Annotation region x").fill("24");
-    await testPage.getByLabel("Annotation region y").fill("36");
-    await testPage.getByLabel("Annotation region width").fill("180");
-    await testPage.getByLabel("Annotation region height").fill("72");
+    await testPage.getByLabel("Annotation Start Time").fill("420");
+    await testPage.getByLabel("Annotation End Time").fill("780");
+    await testPage.getByLabel("Annotation Region X").fill("24");
+    await testPage.getByLabel("Annotation Region Y").fill("36");
+    await testPage.getByLabel("Annotation Region Width").fill("180");
+    await testPage.getByLabel("Annotation Region Height").fill("72");
     await testPage.getByRole("button", { name: "Add Annotation" }).click();
     await expect
       .poll(() => testPage.locator(".notice").getByRole("status").textContent())
@@ -417,7 +417,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
 
     const testPage = page;
     await testPage.goto(server.url, { waitUntil: "load" });
-    await testPage.getByLabel("Project file").fill("previews.studio.json");
+    await testPage.getByLabel("Project File").fill("previews.studio.json");
     await testPage.getByRole("button", { name: "Open", exact: true }).click();
     await testPage.getByRole("heading", { name: "Preview story" }).waitFor();
     // The preview selector is one exclusive group (kerf-ui SegmentedControl): nothing is pressed
@@ -453,7 +453,7 @@ describe("Domotion Studio application shell (DM-2687)", () => {
 
     await testPage.getByRole("button", { name: "Scene 2", exact: true }).click();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("/ 0:01.20");
-    await scrubber.getByRole("button", { name: "Next frame" }).click();
+    await scrubber.getByRole("button", { name: "Next Frame" }).click();
     await expect.poll(() => scrubber.locator(".time").textContent()).toContain("0:00.03");
     await testPage.waitForTimeout(150);
 
@@ -562,8 +562,8 @@ describe("Domotion Studio application shell (DM-2687)", () => {
     if (!available || page == null || server == null) return;
     const testPage = page;
     await testPage.goto(server.url, { waitUntil: "load" });
-    await testPage.getByLabel("Project file").fill("keyed-lists.studio.json");
-    await testPage.getByLabel("New project title").fill("Keyed Lists");
+    await testPage.getByLabel("Project File").fill("keyed-lists.studio.json");
+    await testPage.getByLabel("New Project Title").fill("Keyed Lists");
     await testPage.getByRole("button", { name: "Create" }).click();
     await testPage.getByRole("heading", { name: "Keyed Lists" }).waitFor();
     await testPage.getByRole("button", { name: "Add Scene" }).click();

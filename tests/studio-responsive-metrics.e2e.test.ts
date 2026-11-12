@@ -19,7 +19,7 @@ it("keeps Studio counters and labels within their panel across responsive round 
     browser = await launchChromium();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
     await page.goto(server.url, { waitUntil: "networkidle" });
-    const panel = page.getByRole("heading", { name: "Generation & review", exact: true }).locator("..");
+    const panel = page.getByRole("heading", { name: "Generation & Review", exact: true }).locator("..");
     await browserExpect(panel.locator(".metric")).toHaveCount(3);
     const measurements = [];
     for (const [state, width] of [

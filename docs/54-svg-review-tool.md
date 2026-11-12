@@ -82,7 +82,7 @@ A single review card, similar in layout to one card in `tests/review-server
 - **Add a region without a pointer**: the side panel's "Add Centered Region"
   button adds a region covering the middle half of the image. Until a region
   exists, the list shows a "No Regions Yet" empty state.
-- **Caption each region**: the side panel ("Annotated regions") lists one row
+- **Caption each region**: the side panel ("Annotated Regions") lists one row
   per region with a single-line `<input>` for a freeform description (e.g.
   "border-radius too tight on this corner", "emoji missing tofu fallback").
   Clicking a region on the image does not open an editor; an interior click
@@ -91,7 +91,7 @@ A single review card, similar in layout to one card in `tests/review-server
   panel's read-only `<textarea>` is rebuilt on every caption keystroke and
   every region add / move / resize / delete. Pressing `Enter` in a caption
   input commits it and moves focus to the textarea with its text selected.
-  The visible "GitHub issue text" heading names the read-only field for
+  The visible "GitHub Issue Text" heading names the read-only field for
   assistive technology; its generated content remains selectable and copyable
   (DM-964DQM).
   The panel also has a "Copy issue text" button and an "Open a new GitHub

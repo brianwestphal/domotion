@@ -290,7 +290,7 @@ function render() {
   const zoomPct = Math.round(zoom.value * 100);
   return (
     <div class="wrap">
-      <input type="file" accept=".svg,image/svg+xml" class="file-input" aria-label="Choose an animated SVG file" />
+      <input type="file" accept=".svg,image/svg+xml" class="file-input" aria-label="Choose an Animated SVG File" />
       <div class="stage" data-stage>
         <div class="svg-host" data-svg-host data-morph-skip></div>
         {/* DM-1104: crop overlay host — data-morph-skip so the box/handles we
@@ -333,7 +333,7 @@ function render() {
                   type="button"
                   class="iconbtn"
                   data-action="step-back"
-                  aria-label="Previous frame"
+                  aria-label="Previous Frame"
                   title="previous frame"
                   disabled={!svgLoaded.value}
                 >
@@ -352,7 +352,7 @@ function render() {
                   type="button"
                   class="iconbtn"
                   data-action="step-forward"
-                  aria-label="Next frame"
+                  aria-label="Next Frame"
                   title="next frame"
                   disabled={!svgLoaded.value}
                 >
@@ -544,7 +544,7 @@ function render() {
         </div>
         {reviewMode && (
           <details class="tool-panel review-panel" open={innerWidth > COLLAPSED_PANEL_MAX_WIDTH}>
-            <summary>Review issue</summary>
+            <summary>Review Issue</summary>
             <div class="row review">
               <div class="grp" style="flex-wrap:wrap;width:100%">
                 <input

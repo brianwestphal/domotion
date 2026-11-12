@@ -114,17 +114,17 @@ function renderShell(label: string): string {
 <p class="hint">Compare the three previews. Mark a problem region by dragging, or add a centered region without a pointer. Describe it, then copy or file the generated issue.</p>
 <div class="card">
   <div class="imgs">
-    <figure data-src="/expected.png" data-role="expected" role="button" tabindex="0" aria-label="Open expected Chromium rendering"><img data-src="/expected.png" src="/expected.png" alt="Expected Chromium rendering"><figcaption>expected.png</figcaption></figure>
-    <figure data-src="/actual.png" data-role="actual" role="button" tabindex="0" aria-label="Open actual Domotion rendering"><img data-src="/actual.png" src="/actual.png" alt="Actual Domotion rendering"><figcaption>actual.svg (rasterized)</figcaption></figure>
-    <figure data-src="/diff.png" data-role="diff" role="button" tabindex="0" aria-label="Open rendering difference image"><img data-src="/diff.png" src="/diff.png" alt="Difference between expected and actual renderings"><figcaption>diff.png</figcaption></figure>
+    <figure data-src="/expected.png" data-role="expected" role="button" tabindex="0" aria-label="Open Expected Chromium Rendering"><img data-src="/expected.png" src="/expected.png" alt="Expected Chromium rendering"><figcaption>expected.png</figcaption></figure>
+    <figure data-src="/actual.png" data-role="actual" role="button" tabindex="0" aria-label="Open Actual Domotion Rendering"><img data-src="/actual.png" src="/actual.png" alt="Actual Domotion rendering"><figcaption>actual.svg (rasterized)</figcaption></figure>
+    <figure data-src="/diff.png" data-role="diff" role="button" tabindex="0" aria-label="Open Rendering Difference Image"><img data-src="/diff.png" src="/diff.png" alt="Difference between expected and actual renderings"><figcaption>diff.png</figcaption></figure>
   </div>
 </div>
-<div id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-title"><h2 id="lightbox-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Rendering preview</h2><button id="lightbox-close" type="button">Close</button><div id="lightbox-inner"><div class="region-stage"><img id="lb-img" alt="Enlarged rendering preview"><svg id="lb-overlay" class="region-overlay" preserveAspectRatio="none"></svg></div></div></div>
+<div id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-title"><h2 id="lightbox-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Rendering Preview</h2><button id="lightbox-close" type="button">Close</button><div id="lightbox-inner"><div class="region-stage"><img id="lb-img" alt="Enlarged rendering preview"><svg id="lb-overlay" class="region-overlay" preserveAspectRatio="none"></svg></div></div></div>
 <div id="issue-panel">
-  <h2 style="font-size: 14px; margin: 16px 0 6px;">Annotated regions</h2>
+  <h2 style="font-size: 14px; margin: 16px 0 6px;">Annotated Regions</h2>
   <button id="add-region-btn" type="button">Add Centered Region</button>
   <div class="region-list" id="region-list"></div>
-  <h2 id="issue-text-heading" style="font-size: 14px; margin: 16px 0 6px;">GitHub issue text</h2><div class="issue-actions"><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
+  <h2 id="issue-text-heading" style="font-size: 14px; margin: 16px 0 6px;">GitHub Issue Text</h2><div class="issue-actions"><button id="copy-btn">Copy issue text</button> <a id="file-link" href="https://github.com/brianwestphal/domotion/issues/new" target="_blank" rel="noopener">Open a new GitHub issue →</a> <span id="copy-status" role="status" aria-live="polite"></span></div>
   <textarea id="issue-text" aria-labelledby="issue-text-heading" readonly></textarea>
   <p class="hint">After clicking <em>Open a new GitHub issue</em>, paste the text above into the issue body and attach <code>expected.png</code> and <code>actual.svg</code>.</p>
 </div>

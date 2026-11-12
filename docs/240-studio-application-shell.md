@@ -184,7 +184,7 @@ timing are specified in `docs/252-studio-real-interaction-import.md`.
 The zoomable, keyboard-accessible multitrack timing editor is specified in
 `docs/253-studio-detailed-multitrack-timeline.md`.
 
-The Generation & review counters wrap within their own panel when their full
+The Generation & Review counters wrap within their own panel when their full
 labels and padding cannot share a row. The cards grow equally within each row;
 counts, labels and source order remain visible. This adapts to the panel's
 available width, including the intermediate viewport range where the outer
@@ -204,7 +204,7 @@ The chrome comes from `@kerfjs/ui` ([doc 273](273-ui-conventions.md)):
 
 - status, success and error messages render as a `StateBanner` (errors use an
   alert live region; validation issues are listed under the banner);
-- an unselected Scrubber preview shows an `EmptyState`;
+- an unselected Scrubber Preview shows an `EmptyState`;
 - the preview selector ("Whole Story", "Scene N") is a controlled
   `SegmentedControl`: one exclusive group labeled "Preview", each segment
   keeping its "Whole Story" / "Scene N" accessible name and reporting

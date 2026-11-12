@@ -291,8 +291,8 @@ describeBrowser("kerf-driven client UIs (DM-1798)", () => {
       await expect.poll(() => page.locator("#issue-text").inputValue()).toContain("coverage-fixture");
       // DM-964DQM: the visible heading must name the actual readonly editor.
       const editor = page.locator("#issue-text");
-      await browserExpect(editor).toHaveAccessibleName("GitHub issue text");
-      expect(await page.getByRole("textbox", { name: "GitHub issue text", exact: true }).count()).toBe(1);
+      await browserExpect(editor).toHaveAccessibleName("GitHub Issue Text");
+      expect(await page.getByRole("textbox", { name: "GitHub Issue Text", exact: true }).count()).toBe(1);
       const markdown = await editor.inputValue();
       expect(await editor.isEditable()).toBe(false);
       await editor.focus();

@@ -419,7 +419,7 @@ describe("svg-scrubber server (DM-1040)", () => {
 
       const fileInput = page.locator('input[type="file"]');
       expect(await fileInput.getAttribute("class")).toBe("file-input");
-      expect(await fileInput.getAttribute("aria-label")).toBe("Choose an animated SVG file");
+      expect(await fileInput.getAttribute("aria-label")).toBe("Choose an Animated SVG File");
       expect(await fileInput.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
     } finally {
       await ctx.close().catch(() => {});

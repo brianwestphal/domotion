@@ -207,7 +207,7 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       // Click an empty corner of the figure: a click inside the drawn rectangle would delete it.
       const figureBox = (await page.locator('figure[data-role="actual"]').boundingBox())!;
       await page.mouse.click(figureBox.x + figureBox.width - 8, figureBox.y + figureBox.height - 8);
-      await page.getByRole("dialog", { name: "Rendering preview" }).waitFor({ state: "visible", timeout: 3_000 });
+      await page.getByRole("dialog", { name: "Rendering Preview" }).waitFor({ state: "visible", timeout: 3_000 });
       await expect
         .poll(() => page.locator("#lb-overlay text.region-caption-text").textContent())
         .toBe("shown in the lightbox");
@@ -230,10 +230,10 @@ describeE2E("svg-review CLI end-to-end (DM-948)", () => {
       await page.goto(url, { waitUntil: "networkidle" });
       // The full preview workflow is keyboard-operable: focus a semantic
       // preview, open it, cycle images, close, and return focus.
-      const expectedFigure = page.getByRole("button", { name: "Open expected Chromium rendering" });
+      const expectedFigure = page.getByRole("button", { name: "Open Expected Chromium Rendering" });
       await expectedFigure.focus();
       await page.keyboard.press("Enter");
-      const lb = page.getByRole("dialog", { name: "Rendering preview" });
+      const lb = page.getByRole("dialog", { name: "Rendering Preview" });
       await lb.waitFor({ state: "visible", timeout: 3_000 });
       expect(await page.getByRole("button", { name: "Close" }).evaluate((el) => el === document.activeElement)).toBe(
         true,

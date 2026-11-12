@@ -499,7 +499,7 @@ function render() {
           {current == null ? (
             <section class="panel empty">
               <div class="eyebrow">A separate authoring workspace</div>
-              <h2>Create or open a Studio project</h2>
+              <h2>Create or Open a Studio Project</h2>
               <p>Shape the narrative and scenes here while SVG Scrubber remains a focused playback and review tool.</p>
             </section>
           ) : (
@@ -528,7 +528,7 @@ function render() {
                 return (
                   <section class="panel timeline-panel" aria-label="Multitrack Timeline">
                     <div class="section-head">
-                      <h3>Detailed timeline</h3>
+                      <h3>Detailed Timeline</h3>
                       <span class="badge">{timeline.rows.length} tracks</span>
                     </div>
                     <div class="timeline-toolbar">
@@ -541,7 +541,7 @@ function render() {
                           max="4"
                           step="0.25"
                           value={String(timelineZoom.value)}
-                          aria-label="Timeline zoom"
+                          aria-label="Timeline Zoom"
                         />
                       </label>
                       <label class="field">
@@ -639,7 +639,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
     <div class="scene-editor">
       <div class="scene-head">
         <label class="field">
-          <span>Scene title</span>
+          <span>Scene Title</span>
           <input data-field="scene-title" value={scene.title ?? ""} aria-label={`Scene ${index + 1} Title`} />
         </label>
         <span class={`badge scene-state ${isGenerated(scene.id) ? "good" : "warn"}`}>
@@ -654,13 +654,13 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           </textarea>
         </label>
         <label class="field span2">
-          <span>Generation instructions</span>
+          <span>Generation Instructions</span>
           <textarea data-field="scene-generation" aria-label={`Scene ${index + 1} Generation Instructions`}>
             {scene.generationInstructions ?? ""}
           </textarea>
         </label>
         <label class="field">
-          <span>Narrative beat</span>
+          <span>Narrative Beat</span>
           <Select
             name="scene-beat"
             ariaLabel={`Scene ${index + 1} Narrative Beat`}
@@ -673,7 +673,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           />
         </label>
         <label class="field">
-          <span>Source type</span>
+          <span>Source Type</span>
           <Select
             name="scene-source-kind"
             ariaLabel={`Scene ${index + 1} Source Type`}
@@ -698,7 +698,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
         </label>
         {scene.render.kind === "storyboard" && (sourceKind(scene) === "url" || sourceKind(scene) === "file") && (
           <label class="field">
-            <span>Capture selector</span>
+            <span>Capture Selector</span>
             <input
               data-field="scene-selector"
               value={storyboardRecipe(scene).capture?.selector ?? "body"}
@@ -717,7 +717,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           />
         </label>
         <label class="field">
-          <span>Trim start (ms)</span>
+          <span>Trim Start (ms)</span>
           <input
             type="number"
             min="0"
@@ -727,7 +727,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           />
         </label>
         <label class="field">
-          <span>Trim end (ms)</span>
+          <span>Trim End (ms)</span>
           <input
             type="number"
             min="1"
@@ -757,7 +757,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           />
         </label>
         <label class="field">
-          <span>Transition duration (ms)</span>
+          <span>Transition Duration (ms)</span>
           <input
             type="number"
             min="0"
@@ -767,7 +767,7 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
           />
         </label>
         <label class="field">
-          <span>Cinematic preset</span>
+          <span>Cinematic Preset</span>
           <Select
             name="scene-preset"
             ariaLabel={`Scene ${index + 1} Cinematic Preset`}
@@ -797,13 +797,13 @@ function SceneEditor({ current, scene, index }: { current: StudioProject; scene:
                   {event.kind} · {semanticTargetLabel(event)}
                 </code>
                 <label class="field">
-                  <span>Action timing (ms)</span>
+                  <span>Action Timing (ms)</span>
                   <input
                     type="number"
                     min="0"
                     data-field="scene-action-at"
                     value={String(event.atMs)}
-                    aria-label={`Action ${event.id} timing`}
+                    aria-label={`Action ${event.id} Timing`}
                   />
                 </label>
               </div>
@@ -842,17 +842,17 @@ function Rail({ current }: { current: StudioProject | null }) {
         </div>
       </div>
       <div class="field">
-        <span>Studio workspace</span>
+        <span>Studio Workspace</span>
         <div class="workspace">{bootstrap.workspaceRoot}</div>
       </div>
       <label class="field">
-        <span>Project file</span>
-        <input data-field="project-path" value={projectPath.value} spellcheck="false" aria-label="Project file" />
+        <span>Project File</span>
+        <input data-field="project-path" value={projectPath.value} spellcheck="false" aria-label="Project File" />
       </label>
       {current == null && (
         <label class="field">
-          <span>New project title</span>
-          <input data-field="new-title" value={newTitle.value} aria-label="New project title" />
+          <span>New Project Title</span>
+          <input data-field="new-title" value={newTitle.value} aria-label="New Project Title" />
         </label>
       )}
       <div class="actions">
@@ -917,7 +917,7 @@ function NarrativePanel({ current }: { current: StudioProject }) {
         </div>
       </section>
       <section class="panel">
-        <h3>Generation & review</h3>
+        <h3>Generation & Review</h3>
         <div class="metrics">
           <div class="metric">
             <strong>{current.scenes.length}</strong>
@@ -951,19 +951,19 @@ function BeatsPanel({ current }: { current: StudioProject }) {
   return (
     <section class="panel">
       <div class="section-head">
-        <h3>Narrative beats</h3>
+        <h3>Narrative Beats</h3>
         <button data-action="beat-add">Add Beat</button>
       </div>
       <div class="beat-list">
         {current.narrative.beats.map((beat) => (
           <article class="beat" data-beat-id={beat.id} data-key={beat.id}>
             <label class="field">
-              <span>Beat title</span>
-              <input data-field="beat-title" value={beat.title} aria-label={`Beat ${beat.id} title`} />
+              <span>Beat Title</span>
+              <input data-field="beat-title" value={beat.title} aria-label={`Beat ${beat.id} Title`} />
             </label>
             <label class="field">
-              <span>Beat summary</span>
-              <input data-field="beat-summary" value={beat.summary ?? ""} aria-label={`Beat ${beat.id} summary`} />
+              <span>Beat Summary</span>
+              <input data-field="beat-summary" value={beat.summary ?? ""} aria-label={`Beat ${beat.id} Summary`} />
             </label>
             <button class="danger" data-action="beat-remove" disabled={current.narrative.beats.length === 1}>
               Remove
@@ -979,7 +979,7 @@ function ScenesPanel({ current }: { current: StudioProject }) {
   return (
     <section class="panel scenes-panel">
       <div class="section-head">
-        <h3>Story scenes</h3>
+        <h3>Story Scenes</h3>
         <button data-action="scene-add">Add Scene</button>
       </div>
       <div class="scene-list">
@@ -1006,7 +1006,7 @@ function previewChoiceValue(selection: typeof previewSelection.value): string {
 function PreviewPanel({ current }: { current: StudioProject }) {
   return (
     <section class="panel preview-panel">
-      <h3>Scrubber preview</h3>
+      <h3>Scrubber Preview</h3>
       <div class="preview-toolbar">
         {/* One exclusive choice (DM-BSEJ7G): kerf-ui's controlled SegmentedControl, one
             `preview-select` action carrying the choice in `data-segment-value`. An empty
@@ -1052,7 +1052,7 @@ function PreviewPanel({ current }: { current: StudioProject }) {
             data-scrubber-frame
             data-morph-skip
             src="/scrubber"
-            title="SVG Scrubber scene preview"
+            title="SVG Scrubber Scene Preview"
           ></iframe>
           {previewInfo.value != null && (
             <p class="preview-meta">
@@ -1069,12 +1069,12 @@ function PreviewPanel({ current }: { current: StudioProject }) {
 function RecordingPanel() {
   return (
     <section class="panel recording-panel">
-      <h3>Import a real interaction recording</h3>
+      <h3>Import a Real Interaction Recording</h3>
       <label class="field">
-        <span>Redacted recording JSON</span>
+        <span>Redacted Recording JSON</span>
         <textarea
           data-field="recording-json"
-          aria-label="Recorded interaction JSON"
+          aria-label="Recorded Interaction JSON"
           placeholder="Paste a domotion-studio-interaction-recording document"
         >
           {recordingJson.value}
@@ -1101,12 +1101,12 @@ function RecordingPanel() {
 function AnnotationsPanel({ current }: { current: StudioProject }) {
   return (
     <section class="panel review-panel">
-      <h3>Review annotations</h3>
+      <h3>Review Annotations</h3>
       <div class="review-compose">
         <div class="review-fields">
           <label class="field body">
-            <span>New review note</span>
-            <textarea data-field="annotation-new-body" aria-label="New review note">
+            <span>New Review Note</span>
+            <textarea data-field="annotation-new-body" aria-label="New Review Note">
               {annotationBody.value}
             </textarea>
           </label>
@@ -1125,15 +1125,15 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
           </label>
           <label class="field">
             <span>Reviewer</span>
-            <input data-field="annotation-author" value={annotationAuthor.value} aria-label="Annotation reviewer" />
+            <input data-field="annotation-author" value={annotationAuthor.value} aria-label="Annotation Reviewer" />
           </label>
           <label class="field">
-            <span>Start / point (ms)</span>
+            <span>Start / Point (ms)</span>
             <input
               data-field="annotation-start"
               value={annotationStartMs.value}
               inputMode="decimal"
-              aria-label="Annotation start time"
+              aria-label="Annotation Start Time"
             />
           </label>
           <label class="field">
@@ -1142,43 +1142,43 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
               data-field="annotation-end"
               value={annotationEndMs.value}
               inputMode="decimal"
-              aria-label="Annotation end time"
+              aria-label="Annotation End Time"
             />
           </label>
           <label class="field">
-            <span>Region x</span>
+            <span>Region X</span>
             <input
               data-field="annotation-region-x"
               value={annotationRegionX.value}
               inputMode="decimal"
-              aria-label="Annotation region x"
+              aria-label="Annotation Region X"
             />
           </label>
           <label class="field">
-            <span>Region y</span>
+            <span>Region Y</span>
             <input
               data-field="annotation-region-y"
               value={annotationRegionY.value}
               inputMode="decimal"
-              aria-label="Annotation region y"
+              aria-label="Annotation Region Y"
             />
           </label>
           <label class="field">
-            <span>Region width</span>
+            <span>Region Width</span>
             <input
               data-field="annotation-region-width"
               value={annotationRegionWidth.value}
               inputMode="decimal"
-              aria-label="Annotation region width"
+              aria-label="Annotation Region Width"
             />
           </label>
           <label class="field">
-            <span>Region height</span>
+            <span>Region Height</span>
             <input
               data-field="annotation-region-height"
               value={annotationRegionHeight.value}
               inputMode="decimal"
-              aria-label="Annotation region height"
+              aria-label="Annotation Region Height"
             />
           </label>
         </div>
@@ -1205,7 +1205,7 @@ function AnnotationsPanel({ current }: { current: StudioProject }) {
             </div>
             <label class="field">
               <span>Comment</span>
-              <textarea data-field="annotation-existing-body" aria-label={`Annotation ${annotation.id} comment`}>
+              <textarea data-field="annotation-existing-body" aria-label={`Annotation ${annotation.id} Comment`}>
                 {annotation.body}
               </textarea>
             </label>
